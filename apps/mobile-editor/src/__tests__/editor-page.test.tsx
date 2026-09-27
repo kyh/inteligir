@@ -85,6 +85,19 @@ describe("the phone editor page", () => {
     });
   });
 
+  it("takes a deleted thread's markers out of a tab panel, which the touch kit keeps read-only", async () => {
+    const tabbed = ":::tabs\n=== One\n%%i:c1:start%%inside%%i:c1:end%% the tab\n:::\n";
+    const { phone } = await mount({}, { "Note.md": tabbed });
+
+    act(() => {
+      phone.deliver({ ids: ["c1"], nonce: PHONE_NONCE, type: "commentsRemoved" });
+    });
+
+    await waitFor(() => {
+      expect(phone.files.get("Note.md")).toBe(":::tabs\n=== One\ninside the tab\n:::\n");
+    });
+  });
+
   it("draws the touch hand: the keyboard toolbar, and the body focused when init asks", async () => {
     await mount({ focus: "body" });
     expect(screen.getByRole("toolbar", { name: "Formatting" })).toBeTruthy();

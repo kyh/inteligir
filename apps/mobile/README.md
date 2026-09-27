@@ -135,7 +135,8 @@ src/
                 tests'), phone-db.ts (every table's migrations) and
                 backup-exclusion.ts (over modules/backup-exclusion, the one
                 native module this app carries); the external store the
-                runtimes publish through, theme, cloud URL
+                runtimes publish through, theme, cloud URL, and routes.ts
+                (every push to a note or a thread and the params it carries)
   app/          expo-router screens: sign-in, thread list + quick-capture, a
                 thread view with its composer, pending requests and approval
                 cards, the notes list (New note; Rename and Delete on a long

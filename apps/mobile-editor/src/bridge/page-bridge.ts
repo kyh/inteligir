@@ -1,4 +1,4 @@
-import { nativeFrameSchema, PAGE_RECEIVER, pageFrameSchema, REQUESTS } from "./protocol";
+import { PAGE_RECEIVER, pageFrameSchema, parseNativeFrame, REQUESTS } from "./protocol";
 import type {
   NativeFrame,
   PageFrame,
@@ -6,6 +6,7 @@ import type {
   RequestKind,
   RequestPayload,
   RequestResult,
+  Unstamped,
 } from "./protocol";
 
 declare global {
@@ -16,15 +17,13 @@ declare global {
   }
 }
 
-type WithoutNonce<F> = F extends { readonly nonce: string } ? Omit<F, "nonce"> : never;
-
 // what the page tells the native end on its own; the bridge stamps the nonce
-type PageEvent = WithoutNonce<Exclude<PageFrame, { type: "request" | "ready" }>>;
+type PageEvent = Unstamped<Exclude<PageFrame, { type: "request" | "ready" }>>;
 
 // what the native end tells a connected page on its own
 export type NativeEvent = Extract<
   NativeFrame,
-  { type: "vaultChanged" | "flush" | "theme" | "commentMeta" | "commentsRemoved" }
+  { type: "vaultChanged" | "flush" | "commentMeta" | "commentsRemoved" }
 >;
 
 // both ways, a frame is the JSON text of one, parsed by the end that receives it
@@ -50,18 +49,16 @@ export interface ConnectedPage {
 
 export const REQUEST_TIMEOUT_MS = 10_000;
 
-// the picker is the user's time, not the phone's: it waits for as long as they browse
-const WAITS_ON_THE_USER: ReadonlySet<RequestKind> = new Set(["pickImage"]);
-
-// null for anything that is not a well-formed frame, a caller that passed no text included
-const parseNativeFrame = (text: string): NativeFrame | null => {
-  try {
-    const parsed = nativeFrameSchema.safeParse(JSON.parse(text));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-};
+// The native end answers every request, and a mutation timed out here still lands there, so these
+// wait rather than report a failure that did not happen. A write keeps its deadline: it is guarded,
+// so its retry finds what landed. The picker waits on the user, for as long as they browse.
+const NO_DEADLINE: ReadonlySet<RequestKind> = new Set([
+  "addComment",
+  "pickImage",
+  "remove",
+  "rename",
+  "writeAsset",
+]);
 
 interface Pending {
   readonly answer: PromiseWithResolvers<unknown>;
@@ -70,10 +67,7 @@ interface Pending {
 
 // Resolves on the first well-formed `init`; a second is another load's and is dropped. Before it,
 // nothing but `ready` is sent, so no frame leaves the page without the nonce.
-export const connectPageBridge = async (
-  transport: BridgeTransport,
-  timeoutMs: number = REQUEST_TIMEOUT_MS,
-): Promise<ConnectedPage> => {
+export const connectPageBridge = async (transport: BridgeTransport): Promise<ConnectedPage> => {
   const connected = Promise.withResolvers<ConnectedPage>();
   const pending = new Map<number, Pending>();
   const listeners = new Set<(event: NativeEvent) => void>();
@@ -100,14 +94,14 @@ export const connectPageBridge = async (
       // parsed on the way out too, so a malformed ask is refused here rather than by the phone
       const frame = pageFrameSchema.parse({ id, kind, nonce: stamp, payload, type: "request" });
       const answer = Promise.withResolvers<unknown>();
-      const timer = WAITS_ON_THE_USER.has(kind)
+      const timer = NO_DEADLINE.has(kind)
         ? null
         : setTimeout(() => {
             pending.delete(id);
             answer.reject(
-              new Error(`the phone did not answer ${kind} within ${String(timeoutMs)}ms`),
+              new Error(`the phone did not answer ${kind} within ${String(REQUEST_TIMEOUT_MS)}ms`),
             );
-          }, timeoutMs);
+          }, REQUEST_TIMEOUT_MS);
       pending.set(id, { answer, timer });
       send(frame);
       return REQUESTS[kind].result.parse(await answer.promise);

@@ -6,6 +6,10 @@ import type { Operation, Path, Value } from "platejs";
 import { createPlateEditor, pipeHandler } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
 
+import { anchorNewComment, selectionTakesComment } from "@repo/editor/comments/comment-kit";
+import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
+import { isCommentMarker } from "@repo/editor/comments/comment-ranges";
+import { withRichBlockLockLifted } from "@repo/editor/kits/rich-block-lock-kit";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
@@ -192,6 +196,73 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
 
     expect(serializeNote(editor)).toBe(serializeNote(touchEditor(next)));
     expect(serializeNote(editor)).toContain("moved left");
+  });
+});
+
+const markersIn = (editor: PlateEditor): number =>
+  [...editor.api.nodes({ at: [], match: isCommentMarker })].length;
+
+// a thread in a tab panel and one in a column, as a note another device commented on holds them
+const MARKED = [
+  "before",
+  "",
+  ":::tabs",
+  "=== One",
+  "%%i:c1:start%%inside%%i:c1:end%% the first tab",
+  ":::",
+  "",
+  "<column_group>",
+  "  <column>",
+  "    %%i:c2:start%%left%%i:c2:end%% column",
+  "  </column>",
+  "",
+  "  <column>",
+  "    right column",
+  "  </column>",
+  "</column_group>",
+  "",
+].join("\n");
+
+describe("comment markers and the lock", () => {
+  beforeEach(() => {
+    installFakeEditorHost();
+  });
+
+  it("a selection ending inside a locked tab panel anchors no comment and leaves no marker", () => {
+    const editor = touchEditor();
+    const before = serializeNote(editor);
+    editor.tf.select({
+      anchor: { offset: 0, path: textPath(editor, "before") },
+      focus: { offset: "inside".length, path: textPath(editor, "inside the first tab") },
+    });
+
+    expect(selectionTakesComment(editor)).toBe(false);
+    expect(anchorNewComment(editor)).toBeNull();
+    expect(markersIn(editor)).toBe(0);
+    expect(serializeNote(editor)).toBe(before);
+  });
+
+  it("a thread deleted elsewhere takes its markers out of a tab panel and a column under the lift", () => {
+    const refused = touchEditor(MARKED);
+    expect(markersIn(refused)).toBe(4);
+    removeCommentMarkers(refused, ["c1", "c2"]);
+    expect(markersIn(refused), "without the lift the lock still holds").toBe(4);
+
+    const editor = touchEditor(MARKED);
+    withRichBlockLockLifted(editor, () => {
+      removeCommentMarkers(editor, ["c1", "c2"]);
+    });
+
+    expect(markersIn(editor)).toBe(0);
+    const bytes = serializeNote(editor);
+    expect(bytes).not.toContain("%%i");
+    expect(bytes).toContain("inside the first tab");
+    expect(bytes).toContain("left column");
+
+    editor.tf.insertText("typed", {
+      at: { offset: 0, path: textPath(editor, "inside the first tab") },
+    });
+    expect(serializeNote(editor), "the lift ends with the removal").toBe(bytes);
   });
 });
 

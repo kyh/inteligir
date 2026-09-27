@@ -4,6 +4,8 @@ import { useAgentRequestActions } from "@repo/editor/agent-request";
 import { useCommentSurface } from "@repo/editor/comments/comment-store";
 import type { VaultChangedEvent } from "@repo/editor/host-io";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
+import { mergeConflictLine } from "@repo/editor/note/vanished-prompt";
+import { toast } from "@repo/ui/components/sonner";
 
 import { connectPageBridge } from "../bridge/page-bridge";
 import { createPageHost } from "../host/page-host";
@@ -18,6 +20,7 @@ let started: PageHost | null = null;
 afterEach(() => {
   started?.stop();
   started = null;
+  vi.restoreAllMocks();
 });
 
 const VAULT = { "Note.md": NOTE, "Other.md": "Other.\n" };
@@ -64,6 +67,23 @@ describe("the page's boot", () => {
     await vi.waitFor(() => {
       expect(host.io.linkResolver.getState().resolveWikiTarget("Other")).toBe("Other.md");
     });
+  });
+
+  it("says why when the phone will not read the note, which leaves the page with none", async () => {
+    const phone = createFakePhone({ "Other.md": "Other.\n" });
+    const connecting = connectPageBridge(phone.transport);
+    phone.init();
+    const { bridge, init } = await connecting;
+    const store = createOpenNoteStore();
+    started = createPageHost({ bridge, path: init.path, store });
+    started.start();
+
+    await vi.waitFor(() => {
+      expect(phone.events("openFailed")).toEqual([
+        { message: "no Note.md", nonce: PHONE_NONCE, path: "Note.md", type: "openFailed" },
+      ]);
+    });
+    expect(store.state().openPath).toBeNull();
   });
 });
 
@@ -175,6 +195,7 @@ describe("the open note", () => {
 
   it("merges a save the phone finds changed, lands the merge and says where both wrote", async () => {
     const { host, phone, store } = await openHost({ "Note.md": "one\ntwo\nthree\n" });
+    const warned = vi.spyOn(toast, "warning");
     phone.files.set("Note.md", "one\ntwo (theirs)\nthree\nfour\n");
     host.io.actions.editNote("Note.md", "one\ntwo (mine)\nthree\n");
     await host.io.actions.flush();
@@ -186,9 +207,7 @@ describe("the open note", () => {
       kind: "expected",
     });
     expect(buffer(store)).toBe("one\ntwo (mine)\nthree\nfour\n");
-    expect(phone.events("mergeConflict")).toEqual([
-      { nonce: PHONE_NONCE, path: "Note.md", type: "mergeConflict" },
-    ]);
+    expect(warned).toHaveBeenCalledWith(mergeConflictLine("Note.md"));
   });
 
   it("reloads when the phone says the note changed, and tells the editor's listeners", async () => {
@@ -209,6 +228,14 @@ describe("the open note", () => {
       expect(buffer(store)).toBe("# Note\n\nChanged on the Mac.\n");
     });
     expect(heard).toEqual([{ kind: "content", path: "Note.md" }]);
+    // an id or alias the new bytes carry reaches the page as a listing change, never as this one
+    expect(phone.requests("wikiTargets").length).toBe(targetsBefore);
+
+    phone.deliver({
+      event: { kind: "files", paths: ["Note.md"] },
+      nonce: PHONE_NONCE,
+      type: "vaultChanged",
+    });
     expect(phone.requests("wikiTargets").length).toBe(targetsBefore + 1);
   });
 
@@ -252,17 +279,20 @@ describe("leaving the note", () => {
 });
 
 describe("what the editor asks the shell for", () => {
-  it("reaches the native end: Ask agent, a tag and a comment", async () => {
+  // a tag has no screen on the phone, so it says nothing
+  it("reaches the native end: Ask agent and a comment, never a tag", async () => {
     const { phone } = await openHost();
+    const before = phone.sent.length;
     useAgentRequestActions.getState().actions?.askAboutSelection("Hello there.");
     useAgentRequestActions.getState().actions?.showTag("errands");
     useCommentSurface.getState().actions?.open(["c1", "c2"]);
 
+    expect(phone.sent.slice(before).map((frame) => frame.type)).toEqual([
+      "askAgent",
+      "showComments",
+    ]);
     expect(phone.events("askAgent")).toEqual([
       { nonce: PHONE_NONCE, path: "Note.md", selection: "Hello there.", type: "askAgent" },
-    ]);
-    expect(phone.events("showTag")).toEqual([
-      { nonce: PHONE_NONCE, tag: "errands", type: "showTag" },
     ]);
     expect(phone.events("showComments")).toEqual([
       { ids: ["c1", "c2"], nonce: PHONE_NONCE, type: "showComments" },
@@ -366,6 +396,25 @@ describe("a new comment", () => {
     expect(await create("c3", "Why here?")).toBe(false);
     expect(phone.requests("addComment")).toEqual([]);
     expect(phone.requests("write")).toEqual([]);
+  });
+
+  it("says why when the phone finds the note changed under its entry, or gone", async () => {
+    const { host, phone } = await openHost();
+    host.io.actions.editNote("Note.md", ANCHORED);
+    await host.io.actions.flush();
+    const refused = vi.spyOn(toast, "error");
+
+    phone.answer = (request) =>
+      request.kind === "addComment"
+        ? { ok: true, result: { current: `${ANCHORED}More.\n`, kind: "changed" } }
+        : null;
+    expect(await create("c3", "Why here?")).toBe(false);
+    expect(refused).toHaveBeenLastCalledWith("This note changed on your phone. Try again.");
+
+    phone.answer = (request) =>
+      request.kind === "addComment" ? { ok: true, result: { kind: "missing" } } : null;
+    expect(await create("c3", "Why here?")).toBe(false);
+    expect(refused).toHaveBeenLastCalledWith("This note is no longer on your phone.");
   });
 
   it("fails when the phone refuses its entry", async () => {

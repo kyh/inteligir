@@ -1,4 +1,4 @@
-import { Stack, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import { useCallback, useState } from "react";
 import {
   ActionSheetIOS,
@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { docStem, isDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { createNote, deleteNote, refreshNotes, renameNote, useNotesTree } from "@/lib/app-runtime";
+import { openNote } from "@/lib/routes";
 import { confirmDeleteNote } from "@/notes/confirm-delete-note";
 import { linksKeptLine } from "@/notes/file-ops";
 import type { NotesTreeState } from "@/notes/notes-store";
@@ -109,22 +110,33 @@ const rename = (path: string): void => {
 
 const confirmDelete = (path: string): void => {
   confirmDeleteNote(path, () => {
-    void deleteNote(path);
+    void (async () => {
+      try {
+        await deleteNote(path);
+      } catch (error) {
+        Alert.alert("Couldn't delete", error instanceof Error ? error.message : String(error));
+      }
+    })();
   });
 };
 
-// the first row is the sheet's cancel
-const NOTE_ACTIONS: readonly { label: string; run: ((path: string) => void) | null }[] = [
-  { label: "Cancel", run: null },
+interface NoteAction {
+  readonly label: string;
+  readonly role?: "cancel" | "destructive";
+  readonly run: ((path: string) => void) | null;
+}
+
+const NOTE_ACTIONS: readonly NoteAction[] = [
+  { label: "Cancel", role: "cancel", run: null },
   { label: "Rename", run: rename },
-  { label: "Delete", run: confirmDelete },
+  { label: "Delete", role: "destructive", run: confirmDelete },
 ];
 
 const showNoteActions = (path: string): void => {
   ActionSheetIOS.showActionSheetWithOptions(
     {
-      cancelButtonIndex: 0,
-      destructiveButtonIndex: 2,
+      cancelButtonIndex: NOTE_ACTIONS.findIndex((action) => action.role === "cancel"),
+      destructiveButtonIndex: NOTE_ACTIONS.findIndex((action) => action.role === "destructive"),
       options: NOTE_ACTIONS.map((action) => action.label),
       title: docStem(path),
     },
@@ -138,7 +150,6 @@ const showNoteActions = (path: string): void => {
 // open.
 const NotesScreen = () => {
   const theme = useTheme();
-  const router = useRouter();
   const tree = useNotesTree();
   const [refreshing, setRefreshing] = useState(false);
 
@@ -148,24 +159,14 @@ const NotesScreen = () => {
     setRefreshing(false);
   }, []);
 
-  const openNote = useCallback(
-    (path: string) => {
-      router.push({ params: { path: path.split("/") }, pathname: "/notes/[...path]" });
-    },
-    [router],
-  );
-
   const newNote = useCallback(async () => {
     const created = await createNote("");
     if (created.kind === "refused") {
       Alert.alert("Couldn't create a note", created.message);
       return;
     }
-    router.push({
-      params: { focus: "title", path: created.path.split("/") },
-      pathname: "/notes/[...path]",
-    });
-  }, [router]);
+    openNote(created.path, "title");
+  }, []);
 
   const docs =
     tree.state === "ready"

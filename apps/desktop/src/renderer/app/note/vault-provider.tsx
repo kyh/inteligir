@@ -15,6 +15,7 @@ import { readVaultTree, readWikiTargets, renameVaultEntry, useWikiTargets } from
 import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
+import { confirmVanished, mergeConflictLine } from "@repo/editor/note/vanished-prompt";
 import { createVaultSession } from "@repo/editor/note/vault-session";
 import type { VaultSession, WorkspaceBoot } from "@repo/editor/note/vault-session";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
@@ -24,7 +25,6 @@ import { HTML_FRAME_PATH, vaultAssetUrl } from "@repo/api/local/routes";
 import { attachmentDir } from "@repo/api/local/vault/attachment-location";
 import { VAULT_ASSET_MAX_BYTES } from "@repo/api/local/vault/vault-schema";
 import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
-import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode, RefObject } from "react";
@@ -99,17 +99,7 @@ const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): Vau
     readFile,
   });
   const session = createVaultSession({
-    // discarding is the confirm, so an Escape or a dismissal re-creates and the edits survive it.
-    askVanished: async (path) =>
-      (await confirm({
-        body: "It was deleted while it had unsaved edits. Re-create it with them, or discard them.",
-        cancelLabel: "Re-create",
-        confirmLabel: "Discard edits",
-        destructive: true,
-        title: `${basenamePath(path)} was deleted`,
-      }))
-        ? "discard"
-        : "recreate",
+    askVanished: confirmVanished,
     boot: async (): Promise<WorkspaceBoot> => {
       const flat = listingEntries(await readVaultTree(queryClient));
       const known = (path: string | null): path is string =>
@@ -134,17 +124,14 @@ const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): Vau
       toast.error(message);
     },
     notifyMergeConflict: (path) => {
-      toast.warning(
-        `${path} also changed elsewhere. Where both changed the same lines, yours were kept.`,
-        {
-          action: {
-            label: "Open History",
-            onClick: () => {
-              showHistory(path);
-            },
+      toast.warning(mergeConflictLine(path), {
+        action: {
+          label: "Open History",
+          onClick: () => {
+            showHistory(path);
           },
         },
-      );
+      });
     },
     publishEditor: store.publishEditor,
     publishListing: linkResolver.setListing,

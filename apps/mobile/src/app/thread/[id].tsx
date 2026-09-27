@@ -31,9 +31,11 @@ import {
   useLiveItems,
   useThread,
 } from "@/lib/app-runtime";
+import { firstParam } from "@/lib/routes";
 import { MONO_FONT, RADIUS, SPACE, useTheme } from "@/lib/theme";
 import type { ThreadDisplayItem } from "@/sync/thread-projection";
 import { DISPATCH_MAX_CHARS } from "@repo/api/cloud/dispatch/dispatch-schema";
+import { quoteSelection } from "@repo/domain/quote-selection";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 
 const styles = StyleSheet.create({
@@ -404,17 +406,8 @@ const Composer = ({
 // take a gap each.
 const Separator = () => <View style={styles.separator} />;
 
-const firstParam = (value: string | string[] | undefined): string | null =>
-  (Array.isArray(value) ? value[0] : value) ?? null;
-
-// a selection the note's Ask agent was pressed over, quoted as the Mac's composer quotes one
 const quotedSeed = (selection: string | null): string =>
-  selection === null
-    ? ""
-    : `${selection
-        .split("\n")
-        .map((line) => `> ${line}`)
-        .join("\n")}\n\n`.slice(0, DISPATCH_MAX_CHARS);
+  selection === null ? "" : quoteSelection(selection).slice(0, DISPATCH_MAX_CHARS);
 
 // A synced thread — the Mac agent's work, mirrored — with what this phone has asked of it and not
 // yet seen in the log. A `note` param makes an empty thread one about that note: its first message

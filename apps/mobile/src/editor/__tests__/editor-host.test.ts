@@ -165,7 +165,7 @@ const hostOver = (
   let minted = 0;
   const host = createEditorHost({
     flushTimeoutMs: options.flushTimeoutMs ?? 1000,
-    init: { focus: options.focus ?? null, path: "a.md", theme: "system" },
+    init: { focus: options.focus ?? null, path: "a.md" },
     mintNonce: () => {
       minted += 1;
       return `nonce-${String(minted).padStart(16, "0")}`;
@@ -207,7 +207,7 @@ describe("the native end of the editor page's bridge", () => {
     const second = load();
     expect(first).not.toBe(second);
     expect(injected).toMatchObject([
-      { focus: "title", nonce: first, path: "a.md", theme: "system", type: "init" },
+      { focus: "title", nonce: first, path: "a.md", type: "init" },
       { focus: null, nonce: second, path: "a.md", type: "init" },
     ]);
   });
@@ -315,7 +315,11 @@ describe("the native end of the editor page's bridge", () => {
     const { events, fromPage, host, injected, load } = hostOver();
     const nonce = load();
     fromPage({ nonce, path: "b.md", selection: "why", type: "askAgent" });
-    expect(events).toStrictEqual([{ nonce, path: "b.md", selection: "why", type: "askAgent" }]);
+    fromPage({ message: "no a.md", nonce, path: "a.md", type: "openFailed" });
+    expect(events).toStrictEqual([
+      { nonce, path: "b.md", selection: "why", type: "askAgent" },
+      { message: "no a.md", nonce, path: "a.md", type: "openFailed" },
+    ]);
 
     let answered: boolean | null = null;
     const flushing = host.flush().then((ok) => {

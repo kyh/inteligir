@@ -20,7 +20,8 @@ const RICH_BLOCK_LOCK_KEY = "richBlockLock";
 
 const RICH_BLOCK_INPUT_KEY = "richBlockInputLock";
 
-const lockedTypes = (editor: SlateEditor): ReadonlySet<string> =>
+// the slash menu's `richBlock` rows are the ones that insert one of these
+export const lockedBlockTypes = (editor: SlateEditor): ReadonlySet<string> =>
   new Set([
     CHART_BLOCK_KEY,
     CANVAS_BLOCK_KEY,
@@ -100,24 +101,50 @@ const aimedRange = (editor: SlateEditor): TRange | null => {
   return mapped ?? editor.selection;
 };
 
-const aimsInsideLocked = (editor: SlateEditor): boolean => {
-  const range = aimedRange(editor);
-  if (range === null) {
-    return false;
-  }
-  const locked = lockedTypes(editor);
+const edgeInsideLocked = (editor: SlateEditor, range: TRange): boolean => {
+  const locked = lockedBlockTypes(editor);
   return (
     heldAbove(editor, locked, range.anchor.path) || heldAbove(editor, locked, range.focus.path)
   );
 };
 
+const aimsInsideLocked = (editor: SlateEditor): boolean => {
+  const range = aimedRange(editor);
+  return range !== null && edgeInsideLocked(editor, range);
+};
+
+const lockInstalled = (editor: SlateEditor): boolean =>
+  Object.hasOwn(editor.plugins, RICH_BLOCK_LOCK_KEY);
+
+// an edge of the selection sits inside a block the lock holds, where nothing inserted lands
+export const selectionEdgeLocked = (editor: SlateEditor): boolean =>
+  editor.selection !== null && lockInstalled(editor) && edgeInsideLocked(editor, editor.selection);
+
+const lifted = new WeakSet<SlateEditor>();
+
+// A comment's markers are its anchor, not the content of the block they sit in, so a thread
+// deleted elsewhere takes its markers out of a locked block too. Every op `fn` applies passes, the
+// normalization a `withoutNormalizing` inside it runs on the way out included.
+export const withRichBlockLockLifted = (editor: SlateEditor, fn: () => void): void => {
+  if (lifted.has(editor)) {
+    fn();
+    return;
+  }
+  lifted.add(editor);
+  try {
+    fn();
+  } finally {
+    lifted.delete(editor);
+  }
+};
+
 export const RichBlockLockKit = [
   createSlatePlugin({ key: RICH_BLOCK_LOCK_KEY }).overrideEditor(({ editor, tf: { apply } }) => {
-    const locked = lockedTypes(editor);
+    const locked = lockedBlockTypes(editor);
     return {
       transforms: {
         apply(op) {
-          if (refuses(editor, locked, op)) {
+          if (!lifted.has(editor) && refuses(editor, locked, op)) {
             return;
           }
           apply(op);
@@ -146,5 +173,5 @@ export const RichBlockLockKit = [
 // the node renderers' switch: an editor built with the lock hides the controls it would refuse
 export const useRichBlocksLocked = (): boolean => {
   const editor = useEditorRef();
-  return Object.hasOwn(editor.plugins, RICH_BLOCK_LOCK_KEY);
+  return lockInstalled(editor);
 };

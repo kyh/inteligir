@@ -4,7 +4,7 @@
 // document (a child frame's message names its own address) and, after `init`, carries the nonce
 // this load was given; a fresh load of the page gets a fresh nonce.
 
-import { nativeFrameScript, pageFrameSchema } from "@repo/mobile-editor/bridge-protocol";
+import { nativeFrameScript, parsePageFrame } from "@repo/mobile-editor/bridge-protocol";
 import type {
   NativeFrame,
   PageFrame,
@@ -12,6 +12,7 @@ import type {
   RequestKind,
   RequestPayload,
   RequestResult,
+  Unstamped,
 } from "@repo/mobile-editor/bridge-protocol";
 
 // every question the page asks, answered by the phone
@@ -22,11 +23,9 @@ export type EditorRequestPorts = {
 // what the page says on its own; a `flushed` is the host's to settle
 export type EditorPageEvent = Exclude<PageFrame, { type: "request" | "ready" | "flushed" }>;
 
-type Unstamped<F> = F extends { readonly nonce: string } ? Omit<F, "nonce"> : never;
-
 // what the phone tells a loaded page on its own
 export type EditorNativeEvent = Unstamped<
-  Extract<NativeFrame, { type: "vaultChanged" | "theme" | "commentMeta" | "commentsRemoved" }>
+  Extract<NativeFrame, { type: "vaultChanged" | "commentMeta" | "commentsRemoved" }>
 >;
 
 // the part of the WebView the host drives
@@ -108,16 +107,6 @@ export const loadVerdict = (
 // window.open and a target=_blank link: never a second WebView, only Safari, only for the web
 export const openWindowVerdict = (url: string): LoadVerdict =>
   isHttpUrl(url) ? { kind: "open-outside", url } : { kind: "refuse" };
-
-// null for anything that is not a well-formed frame
-const parsePageFrame = (text: string): PageFrame | null => {
-  try {
-    const parsed = pageFrameSchema.safeParse(JSON.parse(text));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-};
 
 const messageOf = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);

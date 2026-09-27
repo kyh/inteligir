@@ -260,7 +260,6 @@ export const phoneEditorPage: Scenario = {
       focus: null,
       nonce: NONCE,
       path: NOTE_PATH,
-      theme: "light",
       type: "init",
     });
     await browser(["wait", EDITOR], 30_000);

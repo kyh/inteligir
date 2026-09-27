@@ -117,6 +117,7 @@
     "./note/open-note-context": "./src/note/open-note-context.tsx",
     "./note/open-note-flush": "./src/note/open-note-flush.ts",
     "./note/open-note-store": "./src/note/open-note-store.ts",
+    "./note/vanished-prompt": "./src/note/vanished-prompt.ts",
     "./note/vault-session": "./src/note/vault-session.ts",
     "./properties/properties-node": "./src/properties/properties-node.ts",
     "./properties/properties-panel": "./src/properties/properties-panel.tsx",

@@ -28,8 +28,6 @@ const nonceSchema = z.string().min(16);
 
 const idSchema = z.number().int().nonnegative();
 
-const themeSchema = z.enum(["system", "light", "dark"]);
-
 const guardSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("absent") }).strict(),
   z.object({ base: z.string(), kind: z.literal("expected") }).strict(),
@@ -181,6 +179,16 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
   z
     .object({ nonce: nonceSchema, path: vaultPathSchema.nullable(), type: z.literal("opened") })
     .strict(),
+  // the note this page was opened on could not be read, so the page shows none until a fresh load
+  // of it reads the note again
+  z
+    .object({
+      message: z.string(),
+      nonce: nonceSchema,
+      path: vaultPathSchema,
+      type: z.literal("openFailed"),
+    })
+    .strict(),
   z
     .object({
       dirty: z.boolean(),
@@ -188,10 +196,6 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
       saveError: saveErrorSchema.nullable(),
       type: z.literal("editorState"),
     })
-    .strict(),
-  // a save merged a change made elsewhere and kept this page's lines where both changed the same ones
-  z
-    .object({ nonce: nonceSchema, path: vaultPathSchema, type: z.literal("mergeConflict") })
     .strict(),
   z
     .object({
@@ -210,7 +214,6 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
       type: z.literal("askAgent"),
     })
     .strict(),
-  z.object({ nonce: nonceSchema, tag: z.string().min(1), type: z.literal("showTag") }).strict(),
   // the answer to a `flush`: whether the open note's edits are all written
   z
     .object({ id: idSchema, nonce: nonceSchema, ok: z.boolean(), type: z.literal("flushed") })
@@ -231,7 +234,6 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
       focus: z.enum(["title", "body"]).nullable(),
       nonce: nonceSchema,
       path: vaultPathSchema,
-      theme: themeSchema,
       type: z.literal("init"),
     })
     .strict(),
@@ -285,12 +287,29 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
       type: z.literal("commentsRemoved"),
     })
     .strict(),
-  z.object({ nonce: nonceSchema, theme: themeSchema, type: z.literal("theme") }).strict(),
 ]);
 
 export type NativeFrame = z.infer<typeof nativeFrameSchema>;
 
 export type PageInit = Extract<NativeFrame, { type: "init" }>;
+
+// a frame as its sender builds it, before the bridge stamps the load's nonce on it
+export type Unstamped<F> = F extends { readonly nonce: string } ? Omit<F, "nonce"> : never;
+
+// null for anything that is not a well-formed frame, a caller that passed no text included
+const parseFrame = <T>(schema: z.ZodType<T>, text: string): T | null => {
+  try {
+    const parsed = schema.safeParse(JSON.parse(text));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+};
+
+export const parsePageFrame = (text: string): PageFrame | null => parseFrame(pageFrameSchema, text);
+
+export const parseNativeFrame = (text: string): NativeFrame | null =>
+  parseFrame(nativeFrameSchema, text);
 
 // What the native end hands `injectJavaScript`. The frame rides as a string literal of its JSON, as
 // every frame does, so the page parses the one text it was handed; the trailing `true` is the

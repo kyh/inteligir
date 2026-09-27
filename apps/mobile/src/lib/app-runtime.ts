@@ -144,7 +144,10 @@ const noteRevision = async (content: string): Promise<string> =>
 // the editor page's ports over the store and the file verbs, bound to their native halves: the
 // photo picker, a held file's bytes, the revision hash and a new thread's id
 export const createNoteEditorPorts = (
-  screen: Pick<EditorPortsArgs, "go" | "notify" | "opened" | "showComments">,
+  screen: Pick<
+    EditorPortsArgs,
+    "editorState" | "go" | "notify" | "openFailed" | "opened" | "showComments"
+  >,
 ): EditorPorts => {
   const rt = getRuntime();
   return createEditorPorts({

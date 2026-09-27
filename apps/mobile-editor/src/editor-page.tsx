@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 
 import { EditorColumn } from "@repo/editor/editor-column";
@@ -16,7 +16,6 @@ import { MotionPolicy } from "@repo/ui/lib/motion-policy";
 import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
 import { ThemeProvider } from "@repo/ui/lib/theme";
-import type { Theme } from "@repo/ui/lib/theme";
 
 import type { PageBridge } from "./bridge/page-bridge";
 import type { PageInit } from "./bridge/protocol";
@@ -55,52 +54,37 @@ const PhoneColumn = () => {
   return open ? <EditorColumn /> : null;
 };
 
-export const EditorPage = ({
-  bridge,
-  init,
-  store,
-}: {
-  bridge: PageBridge;
-  init: PageInit;
-  store: OpenNoteStore;
-}) => {
-  const [theme, setTheme] = useState<Theme>(init.theme);
-  useEffect(
-    () =>
-      bridge.onNative((event) => {
-        if (event.type === "theme") {
-          setTheme(event.theme);
-        }
-      }),
-    [bridge],
-  );
-
-  return (
-    <ThemeProvider theme={theme} setTheme={setTheme}>
-      <RadiusProvider radius="rounded">
-        <SizeProvider size="compact">
-          <MotionPolicy>
-            <TooltipProvider>
-              <OpenNoteStoreProvider store={store}>
-                <EditorProfileProvider profile="touch">
-                  <main
-                    data-editor-scroller=""
-                    className="h-dvh overflow-y-auto pt-[env(safe-area-inset-top)]"
-                  >
-                    <PhoneColumn />
-                  </main>
-                  <FocusOnOpen focus={init.focus} path={init.path} />
-                </EditorProfileProvider>
-              </OpenNoteStoreProvider>
-              <ConfirmDialogHost />
-              <Toaster position="top-center" />
-            </TooltipProvider>
-          </MotionPolicy>
-        </SizeProvider>
-      </RadiusProvider>
-    </ThemeProvider>
-  );
+// the page follows the phone's appearance, which WKWebView hands it as prefers-color-scheme, so
+// there is no choice to keep
+const keepSystemTheme = (): void => {
+  /* empty */
 };
+
+export const EditorPage = ({ init, store }: { init: PageInit; store: OpenNoteStore }) => (
+  <ThemeProvider theme="system" setTheme={keepSystemTheme}>
+    <RadiusProvider radius="rounded">
+      <SizeProvider size="compact">
+        <MotionPolicy>
+          <TooltipProvider>
+            <OpenNoteStoreProvider store={store}>
+              <EditorProfileProvider profile="touch">
+                <main
+                  data-editor-scroller=""
+                  className="h-dvh overflow-y-auto pt-[env(safe-area-inset-top)]"
+                >
+                  <PhoneColumn />
+                </main>
+                <FocusOnOpen focus={init.focus} path={init.path} />
+              </EditorProfileProvider>
+            </OpenNoteStoreProvider>
+            <ConfirmDialogHost />
+            <Toaster position="top-center" />
+          </TooltipProvider>
+        </MotionPolicy>
+      </SizeProvider>
+    </RadiusProvider>
+  </ThemeProvider>
+);
 
 export interface MountedPage {
   readonly unmount: () => void;
@@ -123,7 +107,7 @@ export const mountEditorPage = ({
   const root = createRoot(container);
   root.render(
     <StrictMode>
-      <EditorPage bridge={bridge} init={init} store={store} />
+      <EditorPage init={init} store={store} />
     </StrictMode>,
   );
   return {

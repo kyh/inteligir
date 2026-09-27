@@ -7,19 +7,22 @@ import type { Descendant, Value } from "platejs";
 import { createPlateEditor } from "platejs/react";
 
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
+import { lockedBlockTypes } from "@repo/editor/kits/rich-block-lock-kit";
 import { parseMarkdown, roundTrip, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { GROUPS } from "@repo/editor/slash-menu";
 import type { SlashItem } from "@repo/editor/slash-menu";
 
 const OPAQUE_TYPES = new Set(["opaqueBlock", "opaqueInline"]);
 
-const opaqueTypesIn = (nodes: readonly Descendant[]): string[] =>
+const typesIn = (nodes: readonly Descendant[], wanted: ReadonlySet<string>): string[] =>
   nodes.flatMap((node) => {
     if (!ElementApi.isElement(node)) {
       return [];
     }
-    return OPAQUE_TYPES.has(node.type) ? [node.type] : opaqueTypesIn(node.children);
+    return wanted.has(node.type) ? [node.type] : typesIn(node.children, wanted);
   });
+
+const opaqueTypesIn = (nodes: readonly Descendant[]): string[] => typesIn(nodes, OPAQUE_TYPES);
 
 // the menu opens after text and on an empty line, and a row's bytes may differ between the two.
 const START_LINES = new Map<string, string>([
@@ -53,6 +56,21 @@ describe("every slash row inserts a modeled construct", () => {
           expect(roundTrip(md), md).toBe(md);
         });
       }
+    }
+  }
+});
+
+// the flag hides a row from a locked editor, which would insert a block it then refuses every edit
+// inside; a row that inserts one without the flag, or carries it without inserting one, is wrong
+describe("a row is a rich block exactly when it inserts a block the lock holds", () => {
+  for (const { group, items } of GROUPS) {
+    for (const item of items) {
+      it(`${group} › ${item.label}`, () => {
+        const editor = editorAt("");
+        item.onSelect(editor);
+        const locked = typesIn(editor.children, lockedBlockTypes(editor));
+        expect(item.richBlock === true, item.label).toBe(locked.length > 0);
+      });
     }
   }
 });
