@@ -71,6 +71,7 @@ const scratchLaunch = () => {
       exists: existsSync,
       handedOut,
       resolve: (vaultDir) => resolve(vaultDir),
+      rootDataDir: launch.rootDataDir,
     });
   return { handedOut, homeDir, launch, plan };
 };
@@ -82,6 +83,15 @@ describe("the first-run choice", () => {
       kind: "open",
       selector: null,
       vaultDir: path.join(homeDir, "Inteligir"),
+    });
+  });
+
+  it("opens the proposal named in another case as the proposal, without a selector", () => {
+    const { homeDir, launch, plan } = scratchLaunch();
+    expect(plan({ kind: "create", name: "inteligir", parent: homeDir })).toEqual({
+      kind: "open",
+      selector: null,
+      vaultDir: launch.vaultDir,
     });
   });
 
@@ -139,7 +149,20 @@ describe("the first-run choice", () => {
     const dataDir = path.join(homeDir, PROD_DATA_DIR_NAME);
     mkdirSync(dataDir);
     handedOut.parents.add(dataDir);
-    expect(plan({ kind: "create", name: "Notes", parent: dataDir }).kind).toBe("refused");
+    expect(plan({ kind: "create", name: "Notes", parent: dataDir })).toEqual({
+      kind: "refused",
+      reason: "That folder is inside Inteligir's own settings. Choose one elsewhere.",
+    });
+  });
+
+  it("refuses a folder holding the data dir in the page's words, not a pinned launch's", () => {
+    const { handedOut, homeDir, plan } = scratchLaunch();
+    handedOut.folders.add(homeDir);
+    expect(plan({ kind: "open", path: homeDir })).toEqual({
+      kind: "refused",
+      reason:
+        "That folder holds Inteligir's own settings. Choose a folder inside it, or one elsewhere.",
+    });
   });
 });
 

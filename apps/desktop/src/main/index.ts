@@ -124,7 +124,7 @@ let mainWindow: BrowserWindow | null = null;
 // the window before any vault exists; closed once the first boot opens the app window
 let firstRunWindow: BrowserWindow | null = null;
 // set for a launch that began with no vault, until the first boot succeeds
-let firstRunLaunch: ServerTarget | null = null;
+let firstRunPending = false;
 let tray: Tray | null = null;
 // null when the shell adopted a server it did not start; quitting must leave that one running.
 let serverProcess: ServerProcess | null = null;
@@ -176,6 +176,10 @@ const warnFromMain = (message: string): void => {
   console.warn(`[desktop] ${message}`);
 };
 
+const errorFromMain = (message: string, cause: unknown): void => {
+  console.error(`[desktop] ${message}`, cause);
+};
+
 const judgeServer = async (
   target: ServerTarget,
   expectedVersion: string,
@@ -193,9 +197,7 @@ const forkServer = (modulePath: string, args: string[], options: ForkOptions): U
     createChannel: () => new MessageChannelMain(),
     fork: (childPath, childArgs, childOptions) =>
       utilityProcess.fork(childPath, childArgs, childOptions),
-    log: (message) => {
-      console.warn(`[desktop] ${message}`);
-    },
+    log: warnFromMain,
     reply: (message, transfer) => {
       server.postMessage(message, transfer);
     },
@@ -396,6 +398,23 @@ const pinWindow = (window: BrowserWindow): void => {
   });
 };
 
+// the packaged smoke reads these lines: the fuses change what a page may load
+const reportPageLoad = (window: BrowserWindow, page: string): void => {
+  window.webContents.once("did-finish-load", () => {
+    console.log(`[desktop] ${page} loaded`);
+  });
+  window.webContents.on(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
+      if (isMainFrame) {
+        console.error(
+          `[desktop] ${page} failed to load ${validatedUrl}: ${String(errorCode)} ${errorDescription}`,
+        );
+      }
+    },
+  );
+};
+
 const createWindow = (target: ServerTarget, pagePath = "/"): BrowserWindow => {
   const partition = sessionPartition(target.dataDir);
   const window = new BrowserWindow({
@@ -417,22 +436,7 @@ const createWindow = (target: ServerTarget, pagePath = "/"): BrowserWindow => {
       mainWindow = null;
     }
   });
-
-  // the packaged smoke reads these lines: the fuses change what a page may load
-  window.webContents.once("did-finish-load", () => {
-    console.log("[desktop] window loaded");
-  });
-  window.webContents.on(
-    "did-fail-load",
-    (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
-      if (isMainFrame) {
-        console.error(
-          `[desktop] window failed to load ${validatedUrl}: ${String(errorCode)} ${errorDescription}`,
-        );
-      }
-    },
-  );
-
+  reportPageLoad(window, "window");
   void loadWindow(window, `${APP_ORIGIN}${pagePath}`);
   return window;
 };
@@ -464,6 +468,7 @@ const createFirstRunWindow = (): BrowserWindow => {
       firstRunWindow = null;
     }
   });
+  reportPageLoad(window, "first run");
   void loadWindow(window, `${APP_ORIGIN}${FIRST_RUN_PAGE}`);
   return window;
 };
@@ -492,7 +497,7 @@ const showCurrentWindow = (): void => {
     showMainWindow();
     return;
   }
-  if (firstRunLaunch === null || currentTarget !== null) {
+  if (!firstRunPending || currentTarget !== null) {
     return;
   }
   if (firstRunWindow === null) {
@@ -823,8 +828,9 @@ const inspectFolder = async (dir: string) =>
   );
 
 // the folder's own service keeps syncing it and the app will not, which the first run says on its
-// page and a picked switch asks here, in the same words; the switch needs that alone, so it neither
-// counts the notes nor asks git, and whatever else is wrong with the folder its boot says
+// page, of a folder it opens and of the place a new vault goes, and a picked switch asks here, in the
+// same words; the switch needs that alone, so it neither counts the notes nor asks git, and whatever
+// else is wrong with the folder its boot says
 const confirmOutsideSync = async (vaultDir: string): Promise<boolean> => {
   const externalSync = folderExternalSync(vaultDir, homedir());
   if (externalSync === null) {
@@ -882,9 +888,7 @@ const switchVault = async (
         closeRequestingWindow: () => {
           previousWindow?.close();
         },
-        log: (message, cause) => {
-          console.error(`[desktop] ${message}`, cause);
-        },
+        log: errorFromMain,
         reportFailure: (reason) => {
           dialog.showErrorBox("Could not open the vault", reason);
         },
@@ -902,23 +906,25 @@ const switchVault = async (
   }
 };
 
+const pickFolder = async (
+  parent: BrowserWindow | null,
+  options: Electron.OpenDialogOptions,
+): Promise<string | null> => {
+  const picked =
+    parent === null
+      ? await dialog.showOpenDialog(options)
+      : await dialog.showOpenDialog(parent, options);
+  return picked.canceled ? null : (picked.filePaths[0] ?? null);
+};
+
 // the folder is the user's pick, made in main: the page never names a path it was not handed
-const pickVaultDir = async (): Promise<string | null> => {
-  const options: Electron.OpenDialogOptions = {
+const pickVaultDir = async (): Promise<string | null> =>
+  await pickFolder(mainWindow, {
     buttonLabel: "Open vault",
     defaultPath: path.dirname(requireTarget().vaultDir),
     properties: ["openDirectory", "createDirectory"],
     title: "Open vault",
-  };
-  const picked =
-    mainWindow === null
-      ? await dialog.showOpenDialog(options)
-      : await dialog.showOpenDialog(mainWindow, options);
-  if (picked.canceled) {
-    return null;
-  }
-  return picked.filePaths[0] ?? null;
-};
+  });
 
 const switchVaultFromMenu = async (
   vaultDir: string,
@@ -978,16 +984,6 @@ const configureVaultsIpc = (): void => {
   });
 };
 
-const pickFolderForFirstRun = async (
-  options: Electron.OpenDialogOptions,
-): Promise<string | null> => {
-  const picked =
-    firstRunWindow === null
-      ? await dialog.showOpenDialog(options)
-      : await dialog.showOpenDialog(firstRunWindow, options);
-  return picked.canceled ? null : (picked.filePaths[0] ?? null);
-};
-
 const finishFirstRun = async (
   launch: ServerTarget,
   choice: FirstRunChoice,
@@ -999,6 +995,7 @@ const finishFirstRun = async (
     handedOut,
     resolve: (vaultDir) =>
       resolveServerTarget({ env: process.env, isPackaged: app.isPackaged, vaultDir }),
+    rootDataDir: launch.rootDataDir,
   });
   if (plan.kind === "refused") {
     return { ok: false, reason: plan.reason };
@@ -1013,9 +1010,7 @@ const finishFirstRun = async (
         boot: async (target) => {
           await bootVault(target, WELCOME_PATH);
         },
-        log: (message, cause) => {
-          console.error(`[desktop] ${message}`, cause);
-        },
+        log: errorFromMain,
         resolveTarget: resolveLaunchTarget,
         stopServer: stopOwnedServer,
         writeSelector: (selected) => {
@@ -1029,7 +1024,7 @@ const finishFirstRun = async (
       currentTarget = null;
       return outcome;
     }
-    firstRunLaunch = null;
+    firstRunPending = false;
     firstRunWindow?.close();
     return outcome;
   } finally {
@@ -1044,7 +1039,7 @@ const configureFirstRunIpc = (launch: ServerTarget): void => {
   const handedOut = { folders: new Set<string>(), parents: new Set([proposal.parent]) };
   handleFirstRun(FIRST_RUN_ROUTES.getState, () => ({ newVault: proposal }));
   handleFirstRun(FIRST_RUN_ROUTES.pickParent, async (): Promise<PickParentAnswer> => {
-    const picked = await pickFolderForFirstRun({
+    const picked = await pickFolder(firstRunWindow, {
       buttonLabel: "Choose",
       defaultPath: proposal.parent,
       properties: ["openDirectory", "createDirectory"],
@@ -1054,10 +1049,15 @@ const configureFirstRunIpc = (launch: ServerTarget): void => {
       return { kind: "cancelled" };
     }
     handedOut.parents.add(picked);
-    return { kind: "picked", path: picked };
+    // judged at the parent: the vault is not made yet, and whatever syncs the parent syncs it
+    return {
+      externalSync: folderExternalSync(picked, homedir()),
+      kind: "picked",
+      path: picked,
+    };
   });
   handleFirstRun(FIRST_RUN_ROUTES.pickFolder, async (): Promise<PickFolderAnswer> => {
-    const picked = await pickFolderForFirstRun({
+    const picked = await pickFolder(firstRunWindow, {
       buttonLabel: "Open",
       properties: ["openDirectory"],
       title: "Open a folder of notes",
@@ -1203,7 +1203,7 @@ const createTray = (): Tray | null => {
 
 // nothing is booted: the vault is chosen first, since a server is bound to one vault and data dir
 const startFirstRun = (launch: ServerTarget): void => {
-  firstRunLaunch = launch;
+  firstRunPending = true;
   configureFirstRunIpc(launch);
   prepareFirstRunSession();
   showCurrentWindow();

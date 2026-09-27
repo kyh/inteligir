@@ -2,10 +2,11 @@
 // what the shell remembers, over files a test can point at a temp dir. The plan itself is
 // `inteligir/server/vault-switch`, shared with `inteligir vault open`.
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
-import { CONFIG_FILE_NAME } from "inteligir/server/config";
+import { CONFIG_FILE_NAME, physicalVaultDir } from "inteligir/server/config";
+import { pathContains } from "inteligir/server/path-containment";
 import { stagedWriteFileSync } from "inteligir/server/staged-write";
 import {
   planVaultSelection,
@@ -17,7 +18,30 @@ import { toErrorMessage } from "../types";
 import type { VaultRef } from "../vaults-state";
 import type { ServerTarget } from "./server-instance";
 
-export type VaultSwitchRefusal = "adopted-server" | VaultSelectionRefusal;
+// a vault that holds the app's data would commit and push it; one inside it would sit among it
+type AppDataNesting = "holds-app-data" | "inside-app-data";
+
+export type VaultSwitchRefusal = "adopted-server" | AppDataNesting | VaultSelectionRefusal;
+
+// a folder not made yet is judged where it will land, through its nearest existing ancestor
+const landingSpelling = (dir: string): string => {
+  const resolved = path.resolve(dir);
+  const parent = path.dirname(resolved);
+  return existsSync(resolved) || parent === resolved
+    ? physicalVaultDir(resolved)
+    : path.join(landingSpelling(parent), path.basename(resolved));
+};
+
+// a boot refuses this too, but in words for whoever pinned the launch, so the app asks first. the
+// data folder itself counts as inside, since a folder within it is no better
+export const appDataNesting = (vaultDir: string, rootDataDir: string): AppDataNesting | null => {
+  const vault = landingSpelling(vaultDir);
+  const appData = landingSpelling(rootDataDir);
+  if (pathContains(appData, vault)) {
+    return "inside-app-data";
+  }
+  return pathContains(vault, appData) ? "holds-app-data" : null;
+};
 
 export interface SwitchContext {
   // false when the shell adopted a server it did not start: that one is nobody's to restart
@@ -39,14 +63,29 @@ export const planVaultSwitch = (context: SwitchContext, vaultDir: string): Vault
   if (!context.ownsServer) {
     return { kind: "refused", reason: "adopted-server" };
   }
-  return planVaultSelection(context.current, vaultDir);
+  const selection = planVaultSelection(context.current, vaultDir);
+  if (selection.kind === "refused") {
+    return selection;
+  }
+  const nesting = appDataNesting(vaultDir, context.current.rootDataDir);
+  return nesting === null ? selection : { kind: "refused", reason: nesting };
 };
 
 export const switchRefusalMessage = (reason: VaultSwitchRefusal): string => {
-  if (reason === "adopted-server") {
-    return "This server was started outside the app, so the app cannot restart it on another vault. Stop it and reopen Inteligir to switch.";
+  switch (reason) {
+    case "adopted-server": {
+      return "This server was started outside the app, so the app cannot restart it on another vault. Stop it and reopen Inteligir to switch.";
+    }
+    case "holds-app-data": {
+      return "That folder holds Inteligir's own settings. Choose a folder inside it, or one elsewhere.";
+    }
+    case "inside-app-data": {
+      return "That folder is inside Inteligir's own settings. Choose one elsewhere.";
+    }
+    default: {
+      return selectionRefusalMessage(reason);
+    }
   }
-  return selectionRefusalMessage(reason);
 };
 
 // a refusal is decided before anything moves and answered as a value; a throw is a fault.

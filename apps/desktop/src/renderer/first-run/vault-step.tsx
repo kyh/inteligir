@@ -6,9 +6,10 @@ import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
+import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
 import { useId, useState } from "react";
-import { outsideSyncWarning, ownSyncLine, vaultNameProblem } from "../../first-run-state";
-import type { FirstRunChoice, FirstRunState, FolderFacts } from "../../first-run-state";
+import { outsideSyncWarning, vaultNameProblem } from "../../first-run-state";
+import type { FirstRunChoice, FirstRunState, FolderFacts, OwnSync } from "../../first-run-state";
 import type { FirstRunBridge } from "../../types";
 
 type VaultMode = "create" | "open";
@@ -36,23 +37,33 @@ const noteCountLine = ({ capped, count }: FolderFacts["noteCount"]): string => {
   return count === 1 ? "1 note" : `${count.toLocaleString()} notes`;
 };
 
-const FolderFactsView = ({ facts }: { facts: FolderFacts }) => {
-  const warning = facts.externalSync === null ? null : outsideSyncWarning(facts.externalSync);
+const ownSyncLine = (sync: OwnSync): string =>
+  sync.kind === "host"
+    ? `This folder already syncs with ${sync.host}, and keeps doing so.`
+    : "This folder already syncs with another folder on this Mac, and keeps doing so.";
+
+const OutsideSyncNote = ({ sync }: { sync: ExternalSync | null }) => {
+  if (sync === null) {
+    return null;
+  }
+  const warning = outsideSyncWarning(sync);
   return (
-    <div className="space-y-2">
-      <p className="text-body text-muted-foreground">{noteCountLine(facts.noteCount)}</p>
-      {warning === null ? null : (
-        <div role="note" className="rounded-md border border-border bg-muted/50 px-3 py-2">
-          <p className="text-body font-medium">{warning.headline}</p>
-          <p className="text-body text-muted-foreground">{warning.detail}</p>
-        </div>
-      )}
-      {facts.ownSync === null ? null : (
-        <p className="text-body text-muted-foreground">{ownSyncLine(facts.ownSync)}</p>
-      )}
+    <div role="note" className="rounded-md border border-border bg-muted/50 px-3 py-2">
+      <p className="text-body font-medium">{warning.headline}</p>
+      <p className="text-body text-muted-foreground">{warning.detail}</p>
     </div>
   );
 };
+
+const FolderFactsView = ({ facts }: { facts: FolderFacts }) => (
+  <div className="space-y-2">
+    <p className="text-body text-muted-foreground">{noteCountLine(facts.noteCount)}</p>
+    <OutsideSyncNote sync={facts.externalSync} />
+    {facts.ownSync === null ? null : (
+      <p className="text-body text-muted-foreground">{ownSyncLine(facts.ownSync)}</p>
+    )}
+  </div>
+);
 
 export interface VaultStepProps {
   bridge: FirstRunBridge;
@@ -64,6 +75,8 @@ export const VaultStep = ({ bridge, proposal }: VaultStepProps) => {
   const [mode, setMode] = useState<VaultMode>("create");
   const [name, setName] = useState(proposal.name);
   const [parent, setParent] = useState(proposal.parent);
+  // the proposal's parent is the home folder, which no service syncs whole
+  const [parentSync, setParentSync] = useState<ExternalSync | null>(null);
   const [picked, setPicked] = useState<PickedFolder | null>(null);
   const [busy, setBusy] = useState<"picking" | "opening" | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -155,6 +168,7 @@ export const VaultStep = ({ bridge, proposal }: VaultStepProps) => {
                   const answer = await bridge.pickParent();
                   if (answer.kind === "picked") {
                     setParent(answer.path);
+                    setParentSync(answer.externalSync);
                   }
                 });
               }}
@@ -162,6 +176,7 @@ export const VaultStep = ({ bridge, proposal }: VaultStepProps) => {
               Change…
             </Button>
           </div>
+          <OutsideSyncNote sync={parentSync} />
           {nameProblem === null ? null : (
             <p className="text-body text-destructive">{nameProblem}</p>
           )}
