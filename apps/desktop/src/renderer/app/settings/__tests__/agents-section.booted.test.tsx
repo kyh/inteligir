@@ -35,13 +35,12 @@ type VendorConfigs = NonNullable<BootTestAppOptions["connectors"]>;
 type VendorConfig = VendorConfigs[keyof VendorConfigs];
 
 // no vendor lists a connector, so no suite spawns one to read an empty list
-const emptyVendor = (configPath: string): VendorConfig => ({
+const emptyVendor: VendorConfig = {
   add: async () => await Promise.reject(new Error("not added in this suite")),
-  configPath,
   list: async () => await Promise.resolve([]),
   remove: async () => await Promise.reject(new Error("not removed in this suite")),
   signIn: async () => await Promise.reject(new Error("not signed in in this suite")),
-});
+};
 
 const boot = async (options: BootTestAppOptions) => {
   const booted = await bootTestApp(options);
@@ -126,8 +125,8 @@ describe("Settings › Agent", () => {
         { authUrl: AUTH_URL },
       ),
       connectors: {
-        claude: emptyVendor(path.join(makeTempDir("agents-section-claude-"), ".claude.json")),
-        codex: emptyVendor(path.join(makeTempDir("agents-section-codex-"), "config.toml")),
+        claude: emptyVendor,
+        codex: emptyVendor,
       },
     });
     await booted.client.agents.setDefault({ id: "codex" });
