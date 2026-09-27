@@ -52,7 +52,8 @@ export const useAgentWorking = (): boolean =>
 export const useThreadDetail = (threadId: string): UseQueryResult<GetThreadResponse> =>
   useQuery(orpc.threads.get.queryOptions({ input: { threadId } }));
 
-// kept fresh by the thread's changes-committed frame, which the workspace's batch sweeps whether or
+// kept fresh by the thread's changes-committed frame for a local commit, and by files-changed for
+// a pull, which moves the log with no thread frame; the workspace's batch sweeps both whether or
 // not a transcript is open: a cached answer outlives the panel that read it.
 export const useTurnChanges = (threadId: string): UseQueryResult<TurnChangesResponse> =>
   useQuery(orpc.threads.turnChanges.queryOptions({ input: { threadId } }));

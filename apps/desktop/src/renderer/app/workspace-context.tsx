@@ -3,7 +3,7 @@ import type { QueryKey } from "@tanstack/react-query";
 import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import type { ThreadChangeKind, VaultChangeKind } from "@repo/domain/change-kinds";
 import type { VaultChangedEvent } from "@repo/editor/host-io";
-import { COMMENTS_STORE_DIR } from "@repo/notes/comments/sidecar-schema";
+import { isCommentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
@@ -48,8 +48,6 @@ export const useWorkspace = (): WorkspaceRuntime => {
 const isUnlinkedMentionsQuery = (queryKey: readonly unknown[]): boolean =>
   partialMatchKey(queryKey, orpc.knowledge.unlinkedMentions.key());
 
-const isCommentsStorePath = (path: string): boolean => path.startsWith(`${COMMENTS_STORE_DIR}/`);
-
 // Total over the kinds, like thread-hooks' MOVES_THE_TIMELINE. A streamed turn is hundreds of
 // events-appended frames that move no list row and no detail field: the timeline's delta fetch is
 // their only reader, and a refetch of every thread per frame is what these tables refuse.
@@ -77,8 +75,9 @@ const MOVES_THE_DETAIL = {
   "title-changed": true,
 } satisfies Record<ThreadChangeKind, boolean>;
 
-// what each turn changed is read from the vault's log, which only a commit moves: a turn's, or an
-// undo's.
+// what each turn changed is read from the vault's log. A local commit, a turn's or an undo's, names
+// its thread; a pull moves the log too, a turn another Mac committed included, and says only
+// files-changed, which apply() weighs beside this table.
 const MOVES_THE_CHANGES = {
   "archived-changed": false,
   "changes-committed": true,
@@ -220,13 +219,14 @@ export class ChangeBatch {
     }
 
     // a thread finds its note by the note's id, so a moved note re-points every thread with no
-    // thread frame of its own.
+    // thread frame of its own; and a pull's commits reach the log with no thread frame either.
     const filesMoved = this.vaultKinds.has("files-changed");
     if (filesMoved || [...this.threads.values()].some((kinds) => movesAny(MOVES_THE_LIST, kinds))) {
       void queryClient.invalidateQueries({ queryKey: orpc.threads.list.key() });
     }
     if (filesMoved) {
       void queryClient.invalidateQueries({ queryKey: orpc.threads.get.key() });
+      void queryClient.invalidateQueries({ queryKey: orpc.threads.turnChanges.key() });
     }
     for (const [threadId, kinds] of this.threads) {
       if (!filesMoved && movesAny(MOVES_THE_DETAIL, kinds)) {
@@ -237,7 +237,7 @@ export class ChangeBatch {
               : orpc.threads.get.key({ input: { threadId } }),
         });
       }
-      if (movesAny(MOVES_THE_CHANGES, kinds)) {
+      if (!filesMoved && movesAny(MOVES_THE_CHANGES, kinds)) {
         void queryClient.invalidateQueries({
           queryKey:
             threadId === undefined
