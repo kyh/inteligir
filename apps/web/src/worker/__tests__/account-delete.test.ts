@@ -2,7 +2,6 @@ import {
   ACCOUNT_API_PATHS,
   deleteAccountResponseSchema,
 } from "@repo/api/cloud/account/account-schema";
-import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { eq, sql } from "drizzle-orm";
@@ -19,6 +18,7 @@ import {
   ORIGIN,
   PASSWORD,
   postSignOut,
+  refusalCodeOf,
   sessionHeaders,
   signUpUser,
   userIdOf,
@@ -37,9 +37,6 @@ const postDelete = async (
     headers: { ...authorization, "content-type": "application/json" },
     method: "POST",
   });
-
-const refusalCode = async (response: Response): Promise<string> =>
-  emitted(cloudErrorSchema, await response.text()).error.code;
 
 const userExists = async (userId: string): Promise<boolean> =>
   (await createDb(env.DB).select().from(user).where(eq(user.id, userId)).get()) !== undefined;
@@ -130,7 +127,7 @@ describe("deleting the account from a device", () => {
 
     const refused = await postDelete(deviceHeaders(credential), "not-the-password");
     expect(refused.status).toBe(401);
-    expect(await refusalCode(refused)).toBe("invalid-credentials");
+    expect(await refusalCodeOf(refused)).toBe("invalid-credentials");
 
     expect(await userExists(userId)).toBe(true);
     const account = await SELF.fetch(ACCOUNT, { headers: deviceHeaders(credential) });
@@ -160,7 +157,7 @@ describe("deleting the account from a device", () => {
     for (const { caller, headers } of callers) {
       const refused = await postDelete(headers, PASSWORD);
       expect(refused.status, caller).toBe(401);
-      expect(await refusalCode(refused), caller).toBe("unauthorized");
+      expect(await refusalCodeOf(refused), caller).toBe("unauthorized");
     }
 
     expect(await userExists(userId)).toBe(true);
@@ -192,7 +189,7 @@ describe("the deletion's per-device budget", () => {
 
     const refused = await postDelete(deviceHeaders(credential), PASSWORD);
     expect(refused.status).toBe(429);
-    expect(await refusalCode(refused)).toBe("rate-limited");
+    expect(await refusalCodeOf(refused)).toBe("rate-limited");
     expect(await userExists(userId)).toBe(true);
   });
 });

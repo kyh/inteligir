@@ -1,6 +1,7 @@
 import { AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
 import { DEVICE_API_PATHS, deviceLoginResponseSchema } from "@repo/api/cloud/device/device-schema";
 import type { DeviceLoginRequest } from "@repo/api/cloud/device/device-schema";
+import { cloudErrorSchema } from "@repo/api/cloud/errors";
 import { syncPingSchema } from "@repo/api/cloud/sync/sync-ws";
 import type { SyncPing } from "@repo/api/cloud/sync/sync-ws";
 import { SELF } from "cloudflare:test";
@@ -40,6 +41,9 @@ export const emitted = <TSchema extends z.ZodType>(
   expect(parsed).toStrictEqual(body);
   return parsed;
 };
+
+export const refusalCodeOf = async (response: Response): Promise<string> =>
+  emitted(cloudErrorSchema, await response.text()).error.code;
 
 export const sessionHeaders = (bearer: string) => ({
   authorization: `Bearer ${bearer}`,

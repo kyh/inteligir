@@ -456,9 +456,9 @@ describe("account deletion", () => {
     // replays calls whose credential check passed before the purge, as the Worker would have made them
     const stub = threadSyncStub(env, userId);
     const late = [
-      await stub.push(deviceId, {
-        events: [{ createdAt: 2, deviceSeq: 2, event: '"after the purge"', threadId: "th_1" }],
-      }),
+      await stub.push(deviceId, [
+        { createdAt: 2, deviceSeq: 2, event: '"after the purge"', threadId: "th_1" },
+      ]),
       await stub.pull({ afterSeq: 0, limit: 10 }),
       await stub.capture({ idempotencyKey: "key-after-purge", text: "after the purge" }),
       await stub.claimCaptures({ limit: 10 }),

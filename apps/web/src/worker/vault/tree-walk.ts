@@ -1,4 +1,4 @@
-import { isIgnoredEntryName, vaultFileQuerySchema } from "@repo/api/cloud/vault/vault-schema";
+import { isIgnoredEntryName, vaultPathSchema } from "@repo/api/cloud/vault/vault-schema";
 import type { VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
 import type { TreeResult } from "durable-git";
 
@@ -22,8 +22,7 @@ interface WalkTreeArgs {
 // what the file route answers, and so all a listing shows or a Worker commit writes: git allows any
 // byte but NUL and `/` in a name, and one pushed `a\b.md` would otherwise fail the phone's parse of
 // the whole listing.
-export const isServablePath = (path: string): boolean =>
-  vaultFileQuerySchema.safeParse({ path }).success;
+export const isServablePath = (path: string): boolean => vaultPathSchema.safeParse(path).success;
 
 // durable-git url-decodes every path it receives, so a legal filename holding % must be encoded per
 // segment.

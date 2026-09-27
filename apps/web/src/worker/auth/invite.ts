@@ -5,6 +5,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import type { z } from "zod";
 import { createSignUpAuth } from "./auth";
 import { createDb } from "../db/client";
+import type { Db } from "../db/client";
 import { inviteCode } from "../db/schema";
 
 import { spendCallerBudget } from "../rate-limit";
@@ -13,8 +14,6 @@ import { spendCallerBudget } from "../rate-limit";
 // invite is claimed before the account exists: one UPDATE … WHERE redeemed_at IS NULL is the only
 // atomic step, so it settles two simultaneous sign-ups on one code. A failed sign-up releases the
 // claim; an isolate dying between the two burns a code, and the owner mints another.
-
-type Db = ReturnType<typeof createDb>;
 
 const CODE_PATTERN = /^[A-Za-z0-9-]{6,64}$/u;
 

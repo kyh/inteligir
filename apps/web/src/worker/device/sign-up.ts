@@ -4,14 +4,13 @@ import { APIError } from "better-auth/api";
 import { z } from "zod";
 import type { createSignUpAuth } from "../auth/auth";
 import { claimInvite, INVITE_REFUSED, releaseInvite } from "../auth/invite";
-import type { createDb } from "../db/client";
+import type { Db } from "../db/client";
 import { mintDeviceCredential } from "./login";
 
 // The app's door to the invite gate: the site's claim, the account through the one Better Auth
 // instance allowed to create one, then this device's credential, so the person who just made the
 // account never types the password a second time.
 
-type Db = ReturnType<typeof createDb>;
 type SignUpAuth = ReturnType<typeof createSignUpAuth>;
 
 type SignUpFailure = "invite-refused" | "account-exists" | "bad-request";

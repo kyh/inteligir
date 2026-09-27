@@ -15,7 +15,14 @@ import { eq } from "drizzle-orm";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { deviceHeaders, emitted, ORIGIN, PASSWORD, signUpUser } from "./cloud-helpers";
+import {
+  deviceHeaders,
+  emitted,
+  ORIGIN,
+  PASSWORD,
+  refusalCodeOf,
+  signUpUser,
+} from "./cloud-helpers";
 import { createDb } from "../db/client";
 import { device, inviteCode, session, user } from "../db/schema";
 import { CALLER_IP_HEADER } from "../rate-limit";
@@ -62,9 +69,6 @@ const request = (email: string, code: string): DeviceSignUpRequest => ({
   password: PASSWORD,
 });
 
-const refusalCode = async (response: Response): Promise<string> =>
-  emitted(cloudErrorSchema, await response.text()).error.code;
-
 describe("device sign-up", () => {
   it("creates the account and answers a credential that names it, with no session left behind", async () => {
     await mintCode("APP-INVITE-OK");
@@ -96,7 +100,7 @@ describe("device sign-up", () => {
   it("refuses an unknown code as invite-refused and creates no account", async () => {
     const response = await postSignUp(request("app-unknown@example.test", "NO-SUCH-CODE"));
     expect(response.status).toBe(403);
-    expect(await refusalCode(response)).toBe("invite-refused");
+    expect(await refusalCodeOf(response)).toBe("invite-refused");
     expect(await userByEmail("app-unknown@example.test")).toBeUndefined();
   });
 
@@ -106,7 +110,7 @@ describe("device sign-up", () => {
     expect(first.status).toBe(200);
     const again = await postSignUp(request("app-again@example.test", "APP-INVITE-ONCE"));
     expect(again.status).toBe(403);
-    expect(await refusalCode(again)).toBe("invite-refused");
+    expect(await refusalCodeOf(again)).toBe("invite-refused");
     expect(await userByEmail("app-again@example.test")).toBeUndefined();
     const site = await postSiteSignUp("site-after-app@example.test", "APP-INVITE-ONCE");
     expect(site.status).toBe(403);
@@ -116,7 +120,7 @@ describe("device sign-up", () => {
     expect(onSite.status).toBe(200);
     const inApp = await postSignUp(request("app-after-site@example.test", "SITE-INVITE-ONCE"));
     expect(inApp.status).toBe(403);
-    expect(await refusalCode(inApp)).toBe("invite-refused");
+    expect(await refusalCodeOf(inApp)).toBe("invite-refused");
     expect(await userByEmail("app-after-site@example.test")).toBeUndefined();
   });
 
@@ -125,7 +129,7 @@ describe("device sign-up", () => {
     await mintCode("APP-INVITE-TAKEN");
     const response = await postSignUp(request("App-Taken@example.test", "APP-INVITE-TAKEN"));
     expect(response.status).toBe(409);
-    expect(await refusalCode(response)).toBe("account-exists");
+    expect(await refusalCodeOf(response)).toBe("account-exists");
 
     const released = await readCode("APP-INVITE-TAKEN");
     expect(released?.redeemedAt).toBeNull();
@@ -165,7 +169,7 @@ describe("device sign-up", () => {
       password: PASSWORD,
     });
     expect(response.status).toBe(400);
-    expect(await refusalCode(response)).toBe("bad-request");
+    expect(await refusalCodeOf(response)).toBe("bad-request");
     const untouched = await readCode("APP-INVITE-SHAPE");
     expect(untouched?.redeemedAt).toBeNull();
   });
@@ -193,7 +197,7 @@ describe("the invite gate's window", () => {
     await mintCode("APP-INVITE-WINDOW");
     const shut = await postSignUp(request("window@example.test", "APP-INVITE-WINDOW"), caller);
     expect(shut.status).toBe(429);
-    expect(await refusalCode(shut)).toBe("rate-limited");
+    expect(await refusalCodeOf(shut)).toBe("rate-limited");
     const untouched = await readCode("APP-INVITE-WINDOW");
     expect(untouched?.redeemedAt).toBeNull();
   });

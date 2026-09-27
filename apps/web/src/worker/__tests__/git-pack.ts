@@ -1,5 +1,6 @@
 import { hexFromBytes } from "@repo/api/cloud/bytes";
 import { SELF } from "cloudflare:test";
+import { env } from "cloudflare:workers";
 import {
   blobObject,
   commitObject,
@@ -11,6 +12,7 @@ import {
 } from "../vault/git-objects";
 import type { GitObject, GitTreeEntry } from "../vault/git-objects";
 import { FLUSH_PKT, pktLine, receivePackBody } from "../vault/receive-pack";
+import { encodeGitPath } from "../vault/tree-walk";
 import { deviceHeaders, ORIGIN } from "./cloud-helpers";
 
 // stock git's side of the wire, pushed and fetched at the in-process Worker
@@ -22,6 +24,7 @@ export const ZERO_OID = "0".repeat(40);
 const MAIN = "refs/heads/main";
 
 const encoder = new TextEncoder();
+const decoder = new TextDecoder();
 
 interface PushedBytes {
   content: string | Uint8Array;
@@ -169,3 +172,19 @@ export const cloneVault = async (credential: string, head: string): Promise<Resp
     },
     method: "POST",
   });
+
+export const oidOf = async (text: string): Promise<string> => {
+  const blob = await blobObject(encoder.encode(text));
+  return blob.oid;
+};
+
+interface HostedVault {
+  readonly repo: string;
+}
+
+export const cellOf = (vault: HostedVault) => env.REPO.getByName(vault.repo);
+
+export const textAt = async (vault: HostedVault, path: string): Promise<string | null> => {
+  const blob = await cellOf(vault).readBlob(undefined, encodeGitPath(path));
+  return blob === null ? null : decoder.decode(blob.data);
+};

@@ -1,7 +1,7 @@
 import { sha256Hex } from "@repo/api/cloud/bytes";
 import { DEVICE_CREDENTIAL_PREFIX } from "@repo/api/cloud/device/device-schema";
 import { and, eq, isNull } from "drizzle-orm";
-import type { createDb } from "../db/client";
+import type { Db } from "../db/client";
 import { device } from "../db/schema";
 
 // A hash compare against D1 on every request, never cached: a cache with any TTL is the
@@ -57,7 +57,7 @@ export const deviceCredentialFromHeader = (authorization: string | null): string
 };
 
 export const verifyDeviceCredentialValue = async (
-  db: ReturnType<typeof createDb>,
+  db: Db,
   credential: string,
 ): Promise<VerifiedDevice | null> => {
   if (!credential.startsWith(DEVICE_CREDENTIAL_PREFIX)) {
@@ -99,7 +99,7 @@ export const verifyDeviceCredentialValue = async (
 
 // the igd_ prefix routes the bearer: a session token never reaches this table and a device credential never reaches Better Auth
 export const verifyDeviceCredential = async (
-  db: ReturnType<typeof createDb>,
+  db: Db,
   authorization: string | null,
 ): Promise<VerifiedDevice | null> => {
   const credential = bearerCredential(authorization);
