@@ -1,43 +1,35 @@
-import { commentKeyOf } from "@repo/notes/comments/comment-key";
+import { commentKeyOf, commentStoreKey } from "@repo/notes/comments/comment-key";
 import { foldThreads } from "@repo/notes/comments/comment-threads";
 import type { AddResult, CommentThread } from "@repo/notes/comments/comment-threads";
 import { markerRootIds } from "@repo/notes/comments/marker-ids";
 import {
   commentsStorePath,
-  isNoteIdKey,
   parseSidecar,
   serializeSidecar,
 } from "@repo/notes/comments/sidecar-schema";
 import type { CommentSidecar } from "@repo/notes/comments/sidecar-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { extnamePath } from "@repo/notes/knowledge/vault-path";
-import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { diff3 } from "@repo/notes/text/diff3";
 import { describeCloudFailure } from "@repo/api/cloud/client";
 import type { CloudClient, CloudFailure } from "@repo/api/cloud/client";
+import { createSingleFlight } from "@repo/api/cloud/sync/sync-session";
 import { vaultCollisionKey } from "@repo/api/cloud/vault/vault-commit-schema";
+import { messageOf } from "../lib/error-message";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
+import type { Fence } from "../lib/phone-db";
 import { createSerialLock } from "../lib/sql-driver";
 import type { SqlDriver } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import type { AttachmentFiles } from "./attachment-files";
-import {
-  blobOid,
-  commentLeaves,
-  isTextOp,
-  leavesAt,
-  opPaths,
-  rebaseEdit,
-  renameLeaves,
-  textBlobOid,
-} from "./outbox-ops";
-import type { CommentOp, GuardedText, OutboxRow, Sha1 } from "./outbox-ops";
+import { blobOid, isTextOp, leavesAt, opPaths, rebaseEdit, textBlobOid } from "./outbox-ops";
+import type { CommentOp, GuardedText, OutboxRow, RenameOp, Sha1 } from "./outbox-ops";
 import type { OutboxFiles } from "./outbox-files";
-import { createVaultOutbox } from "./vault-outbox";
+import { createVaultOutbox, STAGED_FILE_GONE } from "./vault-outbox";
 import type { OutboxStatus } from "./vault-outbox";
 import { landOnRows, createVaultMirror } from "./vault-mirror";
-import type { Fence, MirrorLanding, MirrorProgress, MirrorRow, MirrorText } from "./vault-mirror";
+import type { MirrorLanding, MirrorProgress, MirrorRow, MirrorText } from "./vault-mirror";
 import { overlayEntries } from "./vault-overlay";
 import type { OverlayEntry } from "./vault-overlay";
 
@@ -49,16 +41,16 @@ const UNREADABLE_NOTE = "This note has not downloaded to your phone yet.";
 
 const UNREADABLE_COMMENTS = "This note's comments could not be read.";
 
+// an account whose hosted vault no Mac has pushed yet answers 404 until one does
+const NO_HOSTED_VAULT = "Your notes aren't here yet — open inteligir on your Mac while signed in.";
+
 // a write races a landing that rebases the row it meant to join; past this the note keeps changing
 const MAX_WRITE_ATTEMPTS = 3;
 
 const DEFAULT_RETRY_BASE_MS = 2000;
 
-// `oid` is the vault's blob, null for bytes only this phone holds so far
 interface NoteEntry {
   path: string;
-  oid: string | null;
-  size: number;
 }
 
 // a refresh that fails keeps the listing it has and says why in `refreshError`; `error` and
@@ -153,7 +145,8 @@ export interface NotesStore {
   // the rows, the unsent writes and the attachments like a new sign-in does: only a restore keeps
   // them, and serves them before any request.
   reset: (next: SignInSource | null) => void;
-  // a call while this sign-in's refresh runs joins it, so an awaiting caller sees it land
+  // a call while a refresh runs waits for it and one more walk after it, which reads whatever the
+  // vault took while the first one listed it
   refresh: () => Promise<void>;
   // sends the unsent writes, oldest first; a call while a send runs joins it
   drain: () => Promise<void>;
@@ -222,18 +215,12 @@ export interface CreateNotesStoreArgs {
   retryBaseMs?: number | null;
 }
 
-const storageMessage = (detail: string): string =>
-  `This phone could not keep your notes: ${detail}`;
+const storageMessage = (cause: unknown): string =>
+  `This phone could not keep your notes: ${messageOf(cause)}`;
 
 const listingOf = (entries: readonly OverlayEntry[]): Listing => ({
   files: new Map(entries.map((entry) => [entry.path, entry])),
   taken: new Set(entries.map((entry) => vaultCollisionKey(entry.path))),
-});
-
-const noteEntryOf = (entry: OverlayEntry): NoteEntry => ({
-  oid: entry.source.kind === "vault" ? entry.source.row.oid : null,
-  path: entry.path,
-  size: entry.size,
 });
 
 // what a watcher compares: a change of blob, of unsent text or of staged file is a change of bytes
@@ -272,8 +259,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   // the last reset's own work, which a refresh waits out: a wipe must land before the walk reads
   // the mirrored commit, and a restore's rows before the walk's replace them
   let resetWork: Promise<void> = Promise.resolve();
-  // keyed by session id, so a new sign-in's refresh never joins the previous sign-in's stalled one
-  let refreshing: { sessionId: number; done: Promise<void> } | null = null;
+  const refreshing = createSingleFlight();
   const tree = createExternalStore<NotesTreeState>({ state: "idle" });
   const guards = new Map<string, Guard>();
   const watchers = new Map<string, { version: string; listeners: Set<() => void> }>();
@@ -314,7 +300,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       progress: view.state === "ready" ? view.progress : null,
       refreshError: view.state === "ready" ? view.refreshError : null,
     };
-    tree.set({ entries: entries.map(noteEntryOf), ...kept, state: "ready" });
+    tree.set({ entries: entries.map((entry) => ({ path: entry.path })), ...kept, state: "ready" });
     notifyWatchers();
   };
 
@@ -341,6 +327,10 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     fenceFor,
     files: args.outboxFiles,
     isTaken: (path) => listing?.taken.has(vaultCollisionKey(path)) === true,
+    // the staged name is the blob's, as the attachment cache names it
+    keepLanded: async (file, bytes) => {
+      await attachments.save(file, bytes);
+    },
     resetWork: async () => {
       await resetWork;
     },
@@ -405,11 +395,10 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   const fillTexts = async (
     current: LiveSession,
     fence: Fence,
-    commit: string,
-    firstMirror: boolean,
+    walked: { commit: string; settled: boolean; firstMirror: boolean },
   ): Promise<void> => {
-    const filled = await mirror.fillTexts(current.client, commit, fence, (progress) => {
-      if (firstMirror) {
+    const filled = await mirror.fillTexts(current.client, walked, fence, (progress) => {
+      if (walked.firstMirror) {
         publishProgress(fence, progress);
       }
     });
@@ -444,12 +433,9 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       // an account with no hosted vault answers 404 forever; that is a state, not a fault to hunt
       case "no-vault": {
         if (tree.get().state === "ready") {
-          refreshFailed("No hosted vault yet — sync a desktop to your account first.");
+          refreshFailed(NO_HOSTED_VAULT);
         } else {
-          tree.set({
-            message: "No hosted vault yet — sync a desktop to your account first.",
-            state: "empty",
-          });
+          tree.set({ message: NO_HOSTED_VAULT, state: "empty" });
         }
         return;
       }
@@ -468,7 +454,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       }
       case "applied": {
         await publishListing(fence, null);
-        await fillTexts(current, fence, walked.commit, walked.firstMirror);
+        await fillTexts(current, fence, walked);
         break;
       }
       // no default
@@ -482,7 +468,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       await walkAndFill(current);
     } catch (error) {
       if (fence()) {
-        refreshFailed(storageMessage(error instanceof Error ? error.message : String(error)));
+        refreshFailed(storageMessage(error));
       }
     }
   };
@@ -494,10 +480,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       await publishListing(fence, null);
     } catch (error) {
       if (fence()) {
-        tree.set({
-          message: storageMessage(error instanceof Error ? error.message : String(error)),
-          state: "error",
-        });
+        tree.set({ message: storageMessage(error), state: "error" });
       }
     }
   };
@@ -546,11 +529,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     try {
       held = await mirror.readText(mirrorPath);
     } catch (error) {
-      return {
-        message: storageMessage(error instanceof Error ? error.message : String(error)),
-        notFound: false,
-        ok: false,
-      };
+      return { message: storageMessage(error), notFound: false, ok: false };
     }
     if (!fence()) {
       return { message: NOT_SIGNED_IN, notFound: false, ok: false };
@@ -600,6 +579,17 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     return await readFromMirror(path, entry?.source.row ?? null);
   };
 
+  // the text and blob an unsent rename or comment edit leaves at a path; null where it leaves none
+  const textLeftBy = async (
+    op: RenameOp | CommentOp,
+    path: string,
+  ): Promise<{ oid: string; content: string } | null> => {
+    const leaves = await leavesAt(args.sha1, op, path);
+    return leaves === null || leaves.content === null
+      ? null
+      : { content: leaves.content, oid: leaves.oid };
+  };
+
   // the vault's blob the caller's view of a path derives from: an unsent write's own base, none
   // for an unsent create, what an unsent rename or comment edit leaves there, else what was read
   const recordGuard = async (
@@ -613,10 +603,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     } else if (last?.op.op === "create") {
       base = null;
     } else if (last?.op.op === "rename" || last?.op.op === "comment") {
-      const leaves = await leavesAt(args.sha1, last.op, path);
-      if (leaves !== null && leaves.content !== null) {
-        base = { content: leaves.content, oid: leaves.oid };
-      }
+      base = (await textLeftBy(last.op, path)) ?? base;
     }
     guards.set(path, { base, seen: read.content });
   };
@@ -624,7 +611,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   const outboxBytes = async (file: string): Promise<Uint8Array> => {
     const found = await outbox.stagedUri(file);
     if (found === null) {
-      throw new Error("This attachment is no longer on your phone.");
+      throw new Error(STAGED_FILE_GONE);
     }
     return await args.outboxFiles.read(file);
   };
@@ -652,11 +639,9 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       case "create": {
         return { content: op.content, oid: await textBlobOid(args.sha1, op.content) };
       }
-      case "rename": {
-        return await renameLeaves(args.sha1, op, path);
-      }
+      case "rename":
       case "comment": {
-        return await commentLeaves(args.sha1, op, path);
+        return await leavesAt(args.sha1, op, path);
       }
       case "putAsset": {
         return { content: null, oid: await blobOid(args.sha1, await outboxBytes(op.stagedFile)) };
@@ -687,10 +672,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     guard: Guard,
   ): Promise<{ oid: string; content: string } | null> => {
     if (last?.op.op === "rename" || last?.op.op === "comment") {
-      const leaves = await leavesAt(args.sha1, last.op, path);
-      return leaves === null || leaves.content === null
-        ? null
-        : { content: leaves.content, oid: leaves.oid };
+      return await textLeftBy(last.op, path);
     }
     return guard.base;
   };
@@ -994,9 +976,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       try {
         if (entry.source.kind === "staged") {
           const uri = await outbox.stagedUri(entry.source.file);
-          return uri === null
-            ? { message: "This attachment is no longer on your phone.", ok: false }
-            : { ok: true, uri };
+          return uri === null ? { message: STAGED_FILE_GONE, ok: false } : { ok: true, uri };
         }
         const { row } = entry.source;
         const name = `${row.oid}${extnamePath(row.path)}`;
@@ -1017,10 +997,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         }
         return { ok: true, uri: await attachments.save(name, result.value.bytes) };
       } catch (error) {
-        return {
-          message: storageMessage(error instanceof Error ? error.message : String(error)),
-          ok: false,
-        };
+        return { message: storageMessage(error), ok: false };
       }
     },
 
@@ -1078,8 +1055,8 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     putAsset,
 
     async readComments(note) {
-      const id = frontmatterId(note.content);
-      if (id === null || !isNoteIdKey(id)) {
+      const id = commentStoreKey(note.content);
+      if (id === null) {
         return { ok: true, threads: [] };
       }
       const storePath = commentsStorePath(id);
@@ -1111,23 +1088,23 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     },
 
     async refresh() {
-      const current = session.current();
-      if (current.kind !== "live") {
+      if (session.current().kind !== "live") {
         return;
       }
-      if (refreshing?.sessionId === current.id) {
-        await refreshing.done;
-        return;
-      }
-      const slot = { done: guarded(current), sessionId: current.id };
-      refreshing = slot;
-      try {
-        await slot.done;
-      } finally {
-        if (refreshing === slot) {
-          refreshing = null;
-        }
-      }
+      await refreshing.run({
+        onError: () => {
+          // guarded reports every failure under its own fence
+        },
+        pass: async () => {
+          const current = session.current();
+          if (current.kind !== "live") {
+            return "fenced";
+          }
+          await guarded(current);
+          return session.fenced(current.id) ? "caught-up" : "fenced";
+        },
+        repeat: () => session.current().kind === "live",
+      });
     },
 
     remove,
@@ -1150,9 +1127,10 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
     tree,
 
+    // counted on disk, so rows a load could not read still ask before a sign-out discards them
     async unsentCount() {
       await resetWork;
-      return outbox.rows().length;
+      return await outbox.unsent();
     },
 
     watchPath(path, onChange) {

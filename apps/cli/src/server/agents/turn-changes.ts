@@ -14,13 +14,13 @@ import { getThread } from "@repo/db/threads";
 import type { ThreadRow } from "@repo/db/threads";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { isThreadRunning } from "@repo/domain/thread-status";
+import { commentStoreKey } from "@repo/notes/comments/comment-key";
 import { markerRootIds } from "@repo/notes/comments/marker-ids";
 import { revertCommentEntries } from "@repo/notes/comments/revert-entries";
 import {
   commentsStoreNoteId,
   commentsStorePath,
   isLegacyCommentsSidecarPath,
-  isNoteIdKey,
   legacySidecarNotePath,
   parseSidecar,
   serializeSidecar,
@@ -264,8 +264,7 @@ const idMintedBy = (before: string | null, after: string | null): string | null 
   if (before === null || after === null || frontmatterId(before) !== null) {
     return null;
   }
-  const id = frontmatterId(after);
-  return id !== null && isNoteIdKey(id) ? id : null;
+  return commentStoreKey(after);
 };
 
 type Landed =

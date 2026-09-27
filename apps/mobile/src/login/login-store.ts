@@ -2,6 +2,7 @@ import { describeCloudFailure } from "@repo/api/cloud/client";
 import type { CloudEndpoint } from "@repo/api/cloud/client";
 import { loginDevice } from "@repo/api/cloud/device/login-flow";
 import type { DeviceCredentialStore } from "@repo/api/cloud/device/login-flow";
+import { messageOf } from "../lib/error-message";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
 
@@ -46,10 +47,7 @@ export const createLoginStore = (args: LoginStoreArgs): LoginStore => {
           : { kind: "failed", message: describeCloudFailure(outcome.failure) },
       );
     } catch (error) {
-      state.set({
-        kind: "failed",
-        message: error instanceof Error ? error.message : String(error),
-      });
+      state.set({ kind: "failed", message: messageOf(error) });
     }
   };
 

@@ -195,6 +195,28 @@ describe("the phone's requests to a Mac", () => {
     });
   });
 
+  it("lets a delivered request go once the cloud no longer holds it and the log never did", async () => {
+    const inbox = createFakeInbox();
+    const db = openTempDb();
+    const { dispatch } = phoneOver(inbox, db);
+    const id = idOf(await dispatch.askAgent({ text: "what changed?", threadId: "thr_a" }));
+    await dispatch.sendNow();
+    inbox.deliver(id);
+    await dispatch.sendNow();
+    expect(only(dispatch.get().dispatches).phase).toStrictEqual({ kind: "delivered" });
+
+    inbox.rows.delete(id);
+    await dispatch.sendNow();
+    expect(only(dispatch.get().dispatches).phase).toStrictEqual({
+      kind: "refused",
+      message: "This request is no longer waiting for your Mac.",
+    });
+
+    await dispatch.dismiss(id);
+    expect(dispatch.get().dispatches).toStrictEqual([]);
+    expect(await rowsIn(db)).toBe(0);
+  });
+
   it("says where each request stands, in the words the phone shows", async () => {
     const inbox = createFakeInbox();
     inbox.desktopsOnline = 0;

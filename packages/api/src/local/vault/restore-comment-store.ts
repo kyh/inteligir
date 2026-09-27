@@ -1,7 +1,7 @@
 import { isDefinedError, safe } from "@orpc/client";
 import type { ContractRouterClient } from "@orpc/contract";
-import { commentsStorePath, isNoteIdKey } from "@repo/notes/comments/sidecar-schema";
-import { frontmatterId } from "@repo/notes/markdown/frontmatter";
+import { commentStoreKey } from "@repo/notes/comments/comment-key";
+import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
 
 import type { LocalContract } from "../local-contract";
 
@@ -25,8 +25,8 @@ export const restoreCommentStore = async (
   noteContent: string,
   sha: string,
 ): Promise<CommentStoreRestore> => {
-  const id = frontmatterId(noteContent);
-  if (id === null || !isNoteIdKey(id)) {
+  const id = commentStoreKey(noteContent);
+  if (id === null) {
     return { kind: "none" };
   }
   const path = commentsStorePath(id);

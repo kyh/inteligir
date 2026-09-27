@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { commentKeyOf, newCommentRefusal } from "../comment-key";
+import { commentKeyOf, commentStoreKey, newCommentRefusal } from "../comment-key";
 
 const ID = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
 const MINTED = "0d9c2a77-5f31-4c3b-9d5e-2b7f1a3c4e60";
@@ -38,6 +38,12 @@ describe("the id a note's comments are keyed by", () => {
     expect(commentKeyOf("---\nid: ../escape\n---\n# Plan\n", mint)).toMatchObject({
       kind: "refused",
     });
+  });
+
+  it("names the store a note's comments are read from, and none for a note no store can key", () => {
+    expect(commentStoreKey(`---\nid: ${ID}\n---\n# Plan\n`)).toBe(ID);
+    expect(commentStoreKey("# Plan\n")).toBeNull();
+    expect(commentStoreKey("---\nid: ../escape\n---\n# Plan\n")).toBeNull();
   });
 
   it("answers whether a note takes a new comment without minting anything", () => {

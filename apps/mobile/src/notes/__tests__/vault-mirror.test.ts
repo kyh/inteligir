@@ -221,8 +221,8 @@ describe("the vault mirror", () => {
     });
 
     const walked = await mirror.walkHead(client, fence);
-    expect(walked).toMatchObject({ commit: vault.head(), kind: "applied" });
-    const filling = mirror.fillTexts(client, vault.head(), fence, () => {
+    expect(walked).toMatchObject({ commit: vault.head(), kind: "applied", settled: true });
+    const filling = mirror.fillTexts(client, { commit: vault.head(), settled: true }, fence, () => {
       // progress is the store's to show
     });
     await until(() => releases.length > 0);

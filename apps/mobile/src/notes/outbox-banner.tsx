@@ -28,9 +28,11 @@ const styles = StyleSheet.create({
   title: { fontSize: 14, fontWeight: "600" },
 });
 
-// discarding is the one action that loses the user's words, so it asks
-const confirmDiscard = (seq: number): void => {
-  Alert.alert("Discard this change?", "It has not reached your vault, and discarding deletes it.", [
+type ParkedNotice = Extract<OutboxNotice, { kind: "parked" }>;
+
+// discarding is the one action that can lose the user's words, so it asks
+const confirmDiscard = ({ discard, seq }: ParkedNotice): void => {
+  Alert.alert("Discard this change?", discard, [
     { style: "cancel", text: "Cancel" },
     {
       onPress: () => {
@@ -44,9 +46,10 @@ const confirmDiscard = (seq: number): void => {
 
 const runParked = async (
   action: ParkedAction,
-  seq: number,
+  notice: ParkedNotice,
   onOpen: (path: string) => void,
 ): Promise<void> => {
+  const { seq } = notice;
   switch (action) {
     case "retry": {
       await retryUnsent(seq);
@@ -60,7 +63,7 @@ const runParked = async (
       return;
     }
     case "discard": {
-      confirmDiscard(seq);
+      confirmDiscard(notice);
     }
     // no default
   }
@@ -94,7 +97,7 @@ const Notice = ({ notice, onOpen }: { notice: OutboxNotice; onOpen: (path: strin
               key={action}
               label={PARKED_ACTION_LABELS[action]}
               onPress={() => {
-                void runParked(action, notice.seq, onOpen);
+                void runParked(action, notice, onOpen);
               }}
             />
           ))}

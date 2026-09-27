@@ -11,10 +11,11 @@ export interface SqlExecutor {
   all: (sql: string, params?: readonly SqlValue[]) => Promise<readonly unknown[]>;
 }
 
-export interface SqlDriver extends SqlExecutor {
+// a read outside a transaction, and every write inside one
+export interface SqlDriver {
+  all: SqlExecutor["all"];
   // one write transaction at a time, in call order: it commits when `work` resolves and rolls back
-  // when it throws. every statement inside runs on `tx`: a write on the driver waits for the
-  // transaction to end, so issued from inside it would wait forever.
+  // when it throws. every statement inside runs on `tx`.
   exclusive: (work: (tx: SqlExecutor) => Promise<void>) => Promise<void>;
 }
 

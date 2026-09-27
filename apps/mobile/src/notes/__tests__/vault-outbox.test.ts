@@ -261,6 +261,60 @@ describe("the phone's outbox", () => {
     expect(store.outbox.status.get().conflicts).toHaveLength(2);
   });
 
+  it("lands an edit made after a set whose answer was lost rebased onto that set, never merged against it", async () => {
+    const vault = createFakeVault({ "a.md": "# a\n" });
+    const net: Network = { loseApplied: false, online: true };
+    // the answer to the set the vault applied is lost, and the phone drops offline with it
+    const fetch: CloudFetch = async (input, init) => {
+      try {
+        return await networkOver(vault, net)(input, init);
+      } catch (error) {
+        if (net.loseApplied) {
+          net.loseApplied = false;
+          net.online = false;
+        }
+        throw error;
+      }
+    };
+    const store = launchPhone(fetch, openTempDb());
+    await store.refresh();
+    await readText(store, "a.md");
+    const sent = "# a\none\ntwo\n";
+    net.loseApplied = true;
+    await store.write("a.md", sent);
+    await store.drain();
+    expect(vault.files()["a.md"]).toBe(sent);
+    expect(net.online).toBe(false);
+
+    await store.write("a.md", "# a\none\n");
+    net.online = true;
+    await store.drain();
+
+    expect(vault.files()).toStrictEqual({ "a.md": "# a\none\n" });
+    expect(store.outbox.status.get()).toMatchObject({ conflicts: [], parked: [], unsent: 0 });
+    expect(
+      requestsOf(vault, "commit").filter((line) => line === `commit put a.md@${blobOid(sent)}`),
+    ).toHaveLength(1);
+  });
+
+  it("drops the old name of a rename whose note another device deleted first", async () => {
+    const vault = createFakeVault({ "a.md": "# a\n", "b.md": "# b\n" });
+    const { net, store } = await phone(vault);
+    net.online = false;
+    expect(await store.rename("b.md", "e.md")).toStrictEqual({ kind: "renamed", skipped: [] });
+    vault.change({ "b.md": null });
+
+    net.online = true;
+    await store.drain();
+
+    expect(vault.files()).toStrictEqual({ "a.md": "# a\n", "e.md": "# b\n" });
+    const tree = store.tree.get();
+    expect(tree.state === "ready" ? tree.entries.map((entry) => entry.path) : []).toStrictEqual([
+      "a.md",
+      "e.md",
+    ]);
+  });
+
   it("parks a note the vault refuses for its size, keeping its text, while another note goes on", async () => {
     const vault = createFakeVault({ "a.md": "# a\n", "b.md": "# b\n" });
     const { net, store } = await phone(vault);
@@ -329,6 +383,39 @@ describe("the phone's outbox", () => {
     expect(await mirroredOid(db, "a.md")).toBe(blobOid("# a\nfrom the phone\n"));
     expect(await readText(store, "a.md")).toBe("# a\nfrom the phone\n");
     expect(await readText(store, "b.md")).toBe("# b\nfrom the mac\n");
+  });
+
+  it("takes a listing newer than a landing it disagrees with once a later walk lists it too", async () => {
+    const vault = createFakeVault({ "a.md": "# a\n", "b.md": "# b\n" });
+    const held = { tree: false };
+    const asked = gate();
+    const released = gate();
+    // the first page is taken at the head the vault holds once it is released
+    const fetch: CloudFetch = async (input, init) => {
+      if (held.tree && new URL(input).pathname === VAULT_API_PATHS.tree) {
+        held.tree = false;
+        asked.open();
+        await released.wait;
+      }
+      return await vault.fetch(input, init);
+    };
+    const store = launchPhone(fetch, openTempDb());
+    await store.refresh();
+    await readText(store, "a.md");
+
+    held.tree = true;
+    const refreshing = store.refresh();
+    await asked.wait;
+    await store.write("a.md", "# a\nfrom the phone\n");
+    await store.drain();
+    vault.change({ "a.md": "# a\nfrom the mac\n" });
+    released.open();
+    await refreshing;
+    expect(await readText(store, "a.md")).toBe("# a\nfrom the phone\n");
+
+    await store.refresh();
+
+    expect(await readText(store, "a.md")).toBe("# a\nfrom the mac\n");
   });
 
   it("lists a create, a rename and a delete before the vault holds them", async () => {

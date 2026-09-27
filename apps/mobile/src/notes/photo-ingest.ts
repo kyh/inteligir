@@ -12,6 +12,7 @@ import {
 } from "expo-image-picker";
 import type { ImagePickerOptions } from "expo-image-picker";
 import { ActionSheetIOS } from "react-native";
+import { messageOf } from "../lib/error-message";
 import type { FileOps } from "./file-ops";
 import { photoBaseName, photoResize } from "./photo-plan";
 
@@ -105,7 +106,7 @@ export const ingestPhoto = async (fileOps: FileOps): Promise<PhotoIngest> => {
   } catch (error) {
     return {
       kind: "refused",
-      message: `The photo could not be added: ${error instanceof Error ? error.message : String(error)}`,
+      message: `The photo could not be added: ${messageOf(error)}`,
     };
   }
 };

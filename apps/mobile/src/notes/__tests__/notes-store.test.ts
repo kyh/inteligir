@@ -5,6 +5,7 @@ import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
 import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
+import { phoneDbReady } from "../../lib/phone-db";
 import type { SqlDriver } from "../../lib/sql-driver";
 import { createSyncRuntime } from "../../sync/sync-runtime";
 import { createNotesStore } from "../notes-store";
@@ -32,6 +33,26 @@ const nextTask = async (): Promise<void> => {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, 0);
   });
+};
+
+// a promise the test opens by hand
+interface Gate {
+  wait: Promise<void>;
+  open: () => void;
+}
+
+const openableGate = (): Gate => {
+  const opener = { open: (): void => undefined };
+  // oxlint-disable-next-line promise/avoid-new -- the resolver is handed to the test, which only a promise can do
+  const wait = new Promise<void>((resolve) => {
+    opener.open = resolve;
+  });
+  return {
+    open: () => {
+      opener.open();
+    },
+    wait,
+  };
 };
 
 const refusedAs = (code: string, message: string): Response =>
@@ -90,7 +111,7 @@ describe("the notes store", () => {
     signIn(CREDENTIAL, "restored");
     await store.refresh();
     expect(store.tree.get()).toEqual({
-      entries: Object.entries(VAULT).map(([path, content]) => entry(path, content)),
+      entries: Object.keys(VAULT).map((path) => ({ path })),
       progress: null,
       refreshError: null,
       state: "ready",
@@ -232,8 +253,67 @@ describe("the notes store", () => {
     }
     await Promise.all([first, joined]);
 
-    expect(requestsOf(vault, "tree")).toHaveLength(2);
+    // the walk both callers waited on, then one more page that finds the head where it was
+    expect(requestsOf(vault, "tree")).toHaveLength(3);
     expect(requestsOf(vault, "files")).toHaveLength(1);
+  });
+
+  it("walks again for a refresh asked mid-walk, so a head that moved meanwhile is read", async () => {
+    const vault = fakeVault();
+    const held = { first: false };
+    const asked = openableGate();
+    const released = openableGate();
+    const { signIn, store } = notesOver(async (input, init) => {
+      const response = await vault.fetch(input, init);
+      if (held.first && new URL(input).pathname === VAULT_API_PATHS.tree) {
+        held.first = false;
+        asked.open();
+        await released.wait;
+      }
+      return response;
+    });
+    signIn(CREDENTIAL, "restored");
+    await store.refresh();
+
+    held.first = true;
+    const walking = store.refresh();
+    await asked.wait;
+    vault.change({ "a.md": "# a, from the mac\n" });
+    const pinged = store.refresh();
+    released.open();
+    await Promise.all([walking, pinged]);
+
+    expect(await store.readNote("a.md")).toMatchObject({ content: "# a, from the mac\n" });
+  });
+
+  it("counts an unsent row this build cannot read, so a sign-out still asks before wiping it", async () => {
+    const db = openTempDb();
+    await phoneDbReady(db);
+    await db.exclusive(async (tx) => {
+      await tx.run("INSERT INTO outbox (op, state, created_at) VALUES (?, 'pending', 0)", [
+        JSON.stringify({ op: "a verb from a later build", path: "a.md" }),
+      ]);
+    });
+    const { signIn, store } = notesOver(fakeVault().fetch, db);
+    signIn(CREDENTIAL, "restored");
+
+    expect(await store.unsentCount()).toBe(1);
+  });
+
+  it("keeps a photo the vault took, so showing it downloads nothing", async () => {
+    const vault = fakeVault();
+    const { signIn, store } = notesOver(vault.fetch);
+    signIn(CREDENTIAL, "restored");
+    await store.refresh();
+
+    expect(await store.putAsset("media/new.png", new TextEncoder().encode("new png"))).toEqual({
+      kind: "created",
+    });
+    await store.drain();
+    expect(vault.files()["media/new.png"]).toBe("new png");
+
+    expect(await store.attachmentFile("media/new.png")).toMatchObject({ ok: true });
+    expect(requestsOf(vault, "asset")).toEqual([]);
   });
 
   it("a response from the previous sign-in never lands — the session fence", async () => {
@@ -406,7 +486,7 @@ describe("a worker newer than this build", () => {
     await sync.syncNow();
 
     expect(store.tree.get()).toEqual({
-      entries: [{ oid: GROWN_OID, path: "a.md", size: 4 }],
+      entries: [{ path: "a.md" }],
       progress: null,
       refreshError: null,
       state: "ready",

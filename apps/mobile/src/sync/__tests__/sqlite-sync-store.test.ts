@@ -113,7 +113,9 @@ describe("the synced threads on disk", () => {
     await first.reset("signed-in");
     await launch(first, [page()]).runtime.syncNow();
     const db = openTempDb(file);
-    await db.run("UPDATE thread_sync SET grammar = ?", ["an older build's grammar"]);
+    await db.exclusive(async (tx) => {
+      await tx.run("UPDATE thread_sync SET grammar = ?", ["an older build's grammar"]);
+    });
 
     const relaunched = openSyncStore(db);
     await relaunched.reset("restored");
@@ -134,7 +136,9 @@ describe("the synced threads on disk", () => {
     await first.reset("signed-in");
     await launch(first, [page()]).runtime.syncNow();
     const db = openTempDb(file);
-    await db.run("UPDATE thread_events SET event = ? WHERE seq = 1", ['{"type":"nope"}']);
+    await db.exclusive(async (tx) => {
+      await tx.run("UPDATE thread_events SET event = ? WHERE seq = 1", ['{"type":"nope"}']);
+    });
 
     const relaunched = openSyncStore(db);
     await relaunched.reset("restored");

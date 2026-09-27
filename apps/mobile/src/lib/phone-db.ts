@@ -2,7 +2,7 @@
 // appended here, never edited once shipped, and each opens in the transaction that records it.
 
 import { z } from "zod";
-import type { SqlDriver } from "./sql-driver";
+import type { SqlDriver, SqlExecutor } from "./sql-driver";
 
 // mirror_meta's tree_commit is the tree the rows hold, mirrored_commit the last one they held
 // every wanted text of. mirror_entries puts content last: a listing read stops at the columns
@@ -73,7 +73,7 @@ const MIGRATIONS: readonly string[] = [
 
 const userVersionSchema = z.object({ user_version: z.number().int().min(0) });
 
-export const migratePhoneDb = async (db: SqlDriver): Promise<void> => {
+const migratePhoneDb = async (db: SqlDriver): Promise<void> => {
   await db.exclusive(async (tx) => {
     const [row] = await tx.all("PRAGMA user_version");
     const version = userVersionSchema.parse(row).user_version;
@@ -87,4 +87,47 @@ export const migratePhoneDb = async (db: SqlDriver): Promise<void> => {
       await tx.exec(`PRAGMA user_version = ${String(MIGRATIONS.length)}`);
     }
   });
+};
+
+// true while the sign-in the work started under is still the one it may write for
+export type Fence = () => boolean;
+
+// every module over the one file shares its migration
+const migrations = new WeakMap<SqlDriver, Promise<void>>();
+
+// run on the first call, so a failed migration fails the call that asked rather than nobody, and
+// forgotten when it fails, so the next call tries again
+export const phoneDbReady = async (db: SqlDriver): Promise<void> => {
+  let migrated = migrations.get(db);
+  if (migrated === undefined) {
+    migrated = migratePhoneDb(db);
+    migrations.set(db, migrated);
+  }
+  try {
+    await migrated;
+  } catch (error) {
+    if (migrations.get(db) === migrated) {
+      migrations.delete(db);
+    }
+    throw error;
+  }
+};
+
+// the fence is checked again inside the transaction: a wipe queued ahead of it must win. true when
+// `work` ran and committed
+export const fencedExclusive = async (
+  db: SqlDriver,
+  fence: Fence,
+  work: (tx: SqlExecutor) => Promise<void>,
+): Promise<boolean> => {
+  await phoneDbReady(db);
+  const outcome = { ran: false };
+  await db.exclusive(async (tx) => {
+    if (!fence()) {
+      return;
+    }
+    await work(tx);
+    outcome.ran = true;
+  });
+  return outcome.ran;
 };

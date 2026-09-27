@@ -11,9 +11,9 @@ import type {
   CreateDispatchRequest,
   DispatchStatus,
 } from "@repo/api/cloud/dispatch/dispatch-schema";
-import { migratePhoneDb } from "../lib/phone-db";
-import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
-import type { Fence } from "../notes/vault-mirror";
+import { fencedExclusive, phoneDbReady } from "../lib/phone-db";
+import type { Fence } from "../lib/phone-db";
+import type { SqlDriver } from "../lib/sql-driver";
 
 export interface DispatchRow {
   request: CreateDispatchRequest;
@@ -47,73 +47,48 @@ const rowOf = (columns: z.infer<typeof columnsSchema>): DispatchRow => ({
   threadId: columns.thread_id,
 });
 
-export const createDispatchOutbox = (db: SqlDriver): DispatchOutbox => {
-  let migrated: Promise<void> | null = null;
-  const ready = async (): Promise<void> => {
-    migrated ??= migratePhoneDb(db);
-    await migrated;
-  };
-
-  // the transaction re-checks the fence: a wipe queued ahead of it must win
-  const write = async (
-    fence: Fence,
-    work: (tx: SqlExecutor) => Promise<void>,
-  ): Promise<boolean> => {
-    await ready();
-    const outcome = { landed: false };
-    await db.exclusive(async (tx) => {
-      if (!fence()) {
-        return;
-      }
-      await work(tx);
-      outcome.landed = true;
-    });
-    return outcome.landed;
-  };
-
-  return {
-    add: async (row, fence) =>
-      await write(fence, async (tx) => {
-        await tx.run(
-          "INSERT INTO dispatch_outbox (id, thread_id, request, status, created_at) VALUES (?, ?, ?, ?, ?)",
-          [
-            row.request.id,
-            row.threadId,
-            JSON.stringify(row.request),
-            row.status === null ? null : JSON.stringify(row.status),
-            row.createdAt,
-          ],
-        );
-      }),
-
-    load: async () => {
-      await ready();
-      const raw = await db.all(
-        "SELECT thread_id, request, status, created_at FROM dispatch_outbox ORDER BY seq",
+export const createDispatchOutbox = (db: SqlDriver): DispatchOutbox => ({
+  add: async (row, fence) =>
+    await fencedExclusive(db, fence, async (tx) => {
+      await tx.run(
+        "INSERT INTO dispatch_outbox (id, thread_id, request, status, created_at) VALUES (?, ?, ?, ?, ?)",
+        [
+          row.request.id,
+          row.threadId,
+          JSON.stringify(row.request),
+          row.status === null ? null : JSON.stringify(row.status),
+          row.createdAt,
+        ],
       );
-      return raw.map((row) => rowOf(columnsSchema.parse(row)));
-    },
+    }),
 
-    remove: async (ids, fence) =>
-      await write(fence, async (tx) => {
-        for (const id of ids) {
-          await tx.run("DELETE FROM dispatch_outbox WHERE id = ?", [id]);
-        }
-      }),
+  load: async () => {
+    await phoneDbReady(db);
+    const raw = await db.all(
+      "SELECT thread_id, request, status, created_at FROM dispatch_outbox ORDER BY seq",
+    );
+    return raw.map((row) => rowOf(columnsSchema.parse(row)));
+  },
 
-    setStatus: async (id, status, fence) =>
-      await write(fence, async (tx) => {
-        await tx.run("UPDATE dispatch_outbox SET status = ? WHERE id = ?", [
-          JSON.stringify(status),
-          id,
-        ]);
-      }),
+  remove: async (ids, fence) =>
+    await fencedExclusive(db, fence, async (tx) => {
+      for (const id of ids) {
+        await tx.run("DELETE FROM dispatch_outbox WHERE id = ?", [id]);
+      }
+    }),
 
-    wipe: async () => {
-      await ready();
-      await db.exclusive(async (tx) => {
-        await tx.run("DELETE FROM dispatch_outbox");
-      });
-    },
-  };
-};
+  setStatus: async (id, status, fence) =>
+    await fencedExclusive(db, fence, async (tx) => {
+      await tx.run("UPDATE dispatch_outbox SET status = ? WHERE id = ?", [
+        JSON.stringify(status),
+        id,
+      ]);
+    }),
+
+  wipe: async () => {
+    await phoneDbReady(db);
+    await db.exclusive(async (tx) => {
+      await tx.run("DELETE FROM dispatch_outbox");
+    });
+  },
+});
