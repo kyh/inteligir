@@ -8,6 +8,7 @@ import type {
   FirstRunChoice,
   FolderFacts,
   PickFolderAnswer,
+  PickParentAnswer,
 } from "../../../first-run-state";
 import type { FirstRunBridge } from "../../../types";
 import { VaultStep } from "../vault-step";
@@ -24,7 +25,9 @@ const facts = (overrides: Partial<FolderFacts> = {}): FolderFacts => ({
   ...overrides,
 });
 
-const fakeBridge = (picked: FolderFacts = facts()) => {
+const PARENT_CANCELLED: PickParentAnswer = { kind: "cancelled" };
+
+const fakeBridge = (picked: FolderFacts = facts(), parent: PickParentAnswer = PARENT_CANCELLED) => {
   const finish = vi.fn<(choice: FirstRunChoice) => Promise<FirstRunAnswer>>(
     async () => await Promise.resolve({ ok: false, reason: "main said no" }),
   );
@@ -33,13 +36,13 @@ const fakeBridge = (picked: FolderFacts = facts()) => {
     getState: async () => await Promise.resolve({ newVault: { name: "Inteligir", parent: HOME } }),
     pickFolder: async (): Promise<PickFolderAnswer> =>
       await Promise.resolve({ facts: picked, kind: "picked", path: FOLDER }),
-    pickParent: async () => await Promise.resolve({ kind: "cancelled" }),
+    pickParent: async () => await Promise.resolve(parent),
   };
   return { bridge, finish };
 };
 
-const renderStep = (picked?: FolderFacts) => {
-  const { bridge, finish } = fakeBridge(picked);
+const renderStep = (picked?: FolderFacts, parent?: PickParentAnswer) => {
+  const { bridge, finish } = fakeBridge(picked, parent);
   render(<VaultStep bridge={bridge} proposal={{ name: "Inteligir", parent: HOME }} />);
   return { finish };
 };
@@ -61,6 +64,32 @@ describe("creating a new vault", () => {
     fireEvent.click(button("Create vault"));
     expect(await screen.findByText("main said no")).toBeDefined();
     expect(finish).toHaveBeenCalledWith({ kind: "create", name: "Inteligir", parent: HOME });
+  });
+
+  it("warns when the place picked for it is one another service syncs", async () => {
+    const DROPBOX = "/Users/me/Library/CloudStorage/Dropbox";
+    const { finish } = renderStep(undefined, {
+      externalSync: { kind: "dropbox" },
+      kind: "picked",
+      path: DROPBOX,
+    });
+    expect(screen.queryByRole("note")).toBeNull();
+    fireEvent.click(button("Change…"));
+    await screen.findByText(DROPBOX);
+    const warning = screen.getByRole("note");
+    expect(warning.textContent).toContain("Dropbox keeps syncing this folder.");
+    expect(warning.textContent).toContain("your phone won't see them");
+    fireEvent.click(button("Create vault"));
+    expect(await screen.findByText("main said no")).toBeDefined();
+    expect(finish).toHaveBeenCalledWith({ kind: "create", name: "Inteligir", parent: DROPBOX });
+  });
+
+  it("says nothing of a place no service syncs", async () => {
+    const DOCUMENTS = "/Users/me/Documents";
+    renderStep(undefined, { externalSync: null, kind: "picked", path: DOCUMENTS });
+    fireEvent.click(button("Change…"));
+    await screen.findByText(DOCUMENTS);
+    expect(screen.queryByRole("note")).toBeNull();
   });
 
   it.each([

@@ -38,9 +38,12 @@ const CONFIG_FILE_NAME = "config.json";
 const CODEX_SIGNED_OUT = "ChatGPT is signed out on this Mac";
 // main's line once the child it started has stopped (src/main/server-process.ts)
 const SERVER_STOPPED_CLEANLY = "server exited (code 0)";
-// main's lines once the window's page has loaded, or has not (src/main/index.ts)
+// main's lines once a window's page has loaded, or has not (src/main/index.ts); `loadWindow` words
+// a failure of either window as the app window's
 const WINDOW_LOADED = "[desktop] window loaded";
 const WINDOW_FAILED = "[desktop] window failed to load";
+const FIRST_RUN_LOADED = "[desktop] first run loaded";
+const FIRST_RUN_FAILED = "[desktop] first run failed to load";
 // each would steer the agent off the bundled vendors and their empty stores: the host's own vendor
 // binaries, its credentials, or an agent mode that is not ACP
 const HOST_AGENT_ENV = new Set([
@@ -229,22 +232,30 @@ const waitHealthy = async (url) => {
 };
 
 // a healthy server is not a loaded window: the fuses change what the page itself may load
-const waitWindowLoaded = async (launched) => {
+const waitPageLoaded = async (launched, { failed, loaded, page }) => {
   const deadline = Date.now() + BOOT_TIMEOUT_MS;
   for (;;) {
     const output = launched.output();
-    if (output.includes(WINDOW_FAILED)) {
-      fail("the window did not load its page — see the output above");
+    if (failed.some((line) => output.includes(line))) {
+      fail(`the ${page} did not load its page — see the output above`);
     }
-    if (output.includes(WINDOW_LOADED)) {
-      log("window loaded");
+    if (output.includes(loaded)) {
+      log(`${page} loaded`);
       return;
     }
     if (Date.now() > deadline) {
-      fail(`the window had not loaded within ${BOOT_TIMEOUT_MS}ms`);
+      fail(`the ${page} had not loaded within ${BOOT_TIMEOUT_MS}ms`);
     }
     await delay(250);
   }
+};
+
+const waitWindowLoaded = async (launched) => {
+  await waitPageLoaded(launched, {
+    failed: [WINDOW_FAILED],
+    loaded: WINDOW_LOADED,
+    page: "window",
+  });
 };
 
 // hand-rolled: the typed client needs a bundler this script does not have
@@ -269,8 +280,8 @@ const exitOf = async (child) => {
   return { code, signal };
 };
 
-// main alone: its quit stops the server first, which is the ordered shutdown under test
-const stopApp = async (launched) => {
+// main alone, which quits on SIGTERM as on a click
+const quitApp = async (launched) => {
   const { pid } = launched.app;
   if (pid === undefined) {
     fail("the packaged app has no pid — it never spawned");
@@ -281,6 +292,12 @@ const stopApp = async (launched) => {
   if (exit === null) {
     fail(`the packaged app did not exit within ${EXIT_TIMEOUT_MS}ms of SIGTERM`);
   }
+  return exit;
+};
+
+// the quit stops the server first, which is the ordered shutdown under test
+const stopApp = async (launched) => {
+  const exit = await quitApp(launched);
   if (!launched.output().includes(SERVER_STOPPED_CLEANLY)) {
     fail("the app quit without its server stopping cleanly — a graceful stop must exit 0");
   }
@@ -288,6 +305,17 @@ const stopApp = async (launched) => {
     fail(`the packaged app exited ${exit.code ?? exit.signal} — a quit must exit 0`);
   }
   log("the server stopped cleanly and the app exited 0");
+};
+
+// a first run has no server to stop, so its quit is main's alone
+const quitFirstRun = async (launched) => {
+  const exit = await quitApp(launched);
+  if (exit.code !== 0) {
+    fail(
+      `the packaged app exited ${exit.code ?? exit.signal} from its first run — a quit must exit 0`,
+    );
+  }
+  log("the first run quit and the app exited 0");
 };
 
 const killGroup = (launched) => {
@@ -414,6 +442,28 @@ try {
   launched = null;
   proveHostGitUntouched();
 
+  // a home with no vault and nothing pinning one opens the first run, whose window loads its own
+  // page on its own preload and boots nothing until a vault is chosen
+  const firstRunHome = path.join(scratch, "first-run-home");
+  await mkdir(firstRunHome, { recursive: true });
+  log("launching under a fresh home: the first run");
+  launched = launchApp({
+    HOME: firstRunHome,
+    INTELIGIR_DATA_DIR: undefined,
+    INTELIGIR_VAULT_DIR: undefined,
+  });
+  await waitPageLoaded(launched, {
+    failed: [FIRST_RUN_FAILED, WINDOW_FAILED],
+    loaded: FIRST_RUN_LOADED,
+    page: "first run",
+  });
+  const firstRunServerFile = path.join(firstRunHome, PROD_DATA_DIR_NAME, "server.json");
+  if (existsSync(firstRunServerFile)) {
+    fail(`the first run started a server before any vault was chosen (${firstRunServerFile})`);
+  }
+  await quitFirstRun(launched);
+  launched = null;
+
   // the shell's vault switch is a rewrite of the root config.json's vaultDir and a restart of
   // its child; the switch itself is a click in the window, so this proves what the app boots
   // under a scratch home: the default vault keeps the root data dir, the selector boots the
@@ -480,7 +530,7 @@ try {
   await stopApp(launched);
   launched = null;
 
-  log("PASS (the window loaded its page; its rendering is not checked)");
+  log("PASS (each window loaded its page; their rendering is not checked)");
 } finally {
   killGroup(launched);
   await rm(scratch, { force: true, recursive: true });

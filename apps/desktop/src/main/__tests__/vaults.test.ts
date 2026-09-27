@@ -33,6 +33,12 @@ const openVault = (): string => {
   return vaultDir;
 };
 
+// the app's data under a home of its own, not made yet, as on a first launch
+const scratchHome = () => {
+  const home = makeTempDir("inteligir-home-");
+  return { current: target({ rootDataDir: path.join(home, ".inteligir") }), home };
+};
+
 describe("what may be switched", () => {
   it("switches an owned child to another folder that exists", () => {
     const folder = makeTempDir("inteligir-vault-");
@@ -87,9 +93,34 @@ describe("what may be switched", () => {
     });
   });
 
+  describe("refuses a folder that nests with the app's own data before anything is stopped", () => {
+    it("one holding it", () => {
+      const { current, home } = scratchHome();
+      expect(planVaultSwitch({ current, ownsServer: true }, home)).toEqual({
+        kind: "refused",
+        reason: "holds-app-data",
+      });
+    });
+
+    it.each([
+      ["one inside it", "Notes"],
+      ["the data folder itself", ""],
+    ])("%s", (_label, below) => {
+      const { current } = scratchHome();
+      const inside = path.join(current.rootDataDir, below);
+      mkdirSync(inside, { recursive: true });
+      expect(planVaultSwitch({ current, ownsServer: true }, inside)).toEqual({
+        kind: "refused",
+        reason: "inside-app-data",
+      });
+    });
+  });
+
   it("has a sentence for every refusal", () => {
     const reasons: VaultSwitchRefusal[] = [
       "adopted-server",
+      "holds-app-data",
+      "inside-app-data",
       "vault-pinned-by-env",
       "data-dir-pinned-by-env",
       "already-open",

@@ -7,9 +7,16 @@ import path from "node:path";
 import { physicalVaultDir } from "inteligir/server/config";
 import type { VaultFolderFacts } from "inteligir/server/vault/folder-facts";
 import { vaultNameProblem } from "../first-run-state";
-import type { FirstRunChoice, FirstRunState, FolderFacts, OwnSync } from "../first-run-state";
+import type {
+  FirstRunAnswer,
+  FirstRunChoice,
+  FirstRunState,
+  FolderFacts,
+  OwnSync,
+} from "../first-run-state";
 import { toErrorMessage } from "../types";
 import type { ServerTarget, ServerTargetResult } from "./server-instance";
+import { appDataNesting, switchRefusalMessage } from "./vaults";
 
 export type LaunchPlan =
   | { kind: "boot"; target: ServerTarget }
@@ -50,6 +57,8 @@ export interface FirstRunChoiceContext {
   resolve: (vaultDir: string) => ServerTargetResult;
   // what a launch with no selector opens: choosing it writes no selector
   defaultVaultDir: string;
+  // where config.json and every vault's data dir live
+  rootDataDir: string;
 }
 
 export type FirstRunPlan =
@@ -60,6 +69,11 @@ export type FirstRunPlan =
 export type OpenPlan = Extract<FirstRunPlan, { kind: "open" }>;
 
 const openPlan = (context: FirstRunChoiceContext, vaultDir: string): FirstRunPlan => {
+  // said here in the page's words: the resolver's own refusal is worded for whoever pinned a launch
+  const nesting = appDataNesting(vaultDir, context.rootDataDir);
+  if (nesting !== null) {
+    return { kind: "refused", reason: switchRefusalMessage(nesting) };
+  }
   const candidate = context.resolve(vaultDir);
   if (candidate.kind === "refused") {
     return { kind: "refused", reason: candidate.error };
@@ -68,6 +82,14 @@ const openPlan = (context: FirstRunChoiceContext, vaultDir: string): FirstRunPla
   const isDefault = physicalVaultDir(chosen) === physicalVaultDir(context.defaultVaultDir);
   return { kind: "open", selector: isDefault ? null : chosen, vaultDir: chosen };
 };
+
+// the default's name in another case is the default on a volume that folds case, as a Mac's does,
+// before the folder exists for a realpath to say so; kept apart, it would boot on a data dir of its
+// own that the default's next boot never reads
+const namesDefault = (context: FirstRunChoiceContext, vaultDir: string): boolean =>
+  physicalVaultDir(path.dirname(vaultDir)) ===
+    physicalVaultDir(path.dirname(context.defaultVaultDir)) &&
+  path.basename(vaultDir).toLowerCase() === path.basename(context.defaultVaultDir).toLowerCase();
 
 export const planFirstRunChoice = (
   choice: FirstRunChoice,
@@ -97,6 +119,9 @@ export const planFirstRunChoice = (
       reason: `There is already a folder named ${name} there. Pick another name, or open that folder instead.`,
     };
   }
+  if (namesDefault(context, vaultDir)) {
+    return { kind: "open", selector: null, vaultDir: context.defaultVaultDir };
+  }
   return openPlan(context, vaultDir);
 };
 
@@ -113,9 +138,6 @@ export interface FirstRunPort {
   log: (message: string, cause: unknown) => void;
 }
 
-// the page stays on a failure, so the reason is answered to it as a value
-export type FirstRunOutcome = { ok: true } | { ok: false; reason: string };
-
 // a selector left naming a vault that failed would open it on the next launch, with no first run
 // to choose again, so a failed boot takes it back out
 const undoSelector = (port: FirstRunPort, written: boolean): string => {
@@ -131,7 +153,7 @@ const undoSelector = (port: FirstRunPort, written: boolean): string => {
   }
 };
 
-export const runFirstRun = async (port: FirstRunPort, plan: OpenPlan): Promise<FirstRunOutcome> => {
+export const runFirstRun = async (port: FirstRunPort, plan: OpenPlan): Promise<FirstRunAnswer> => {
   let written = false;
   try {
     if (plan.selector !== null) {

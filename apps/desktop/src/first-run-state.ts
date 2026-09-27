@@ -41,7 +41,14 @@ const cancelledSchema = z.object({ kind: z.literal("cancelled") }).strict();
 
 export const pickParentAnswerSchema = z.discriminatedUnion("kind", [
   cancelledSchema,
-  z.object({ kind: z.literal("picked"), path: folderPathSchema }).strict(),
+  z
+    .object({
+      // where the vault would land, so a service syncing it is said before the vault is made
+      externalSync: externalSyncSchema.nullable(),
+      kind: z.literal("picked"),
+      path: folderPathSchema,
+    })
+    .strict(),
 ]);
 export type PickParentAnswer = z.infer<typeof pickParentAnswerSchema>;
 
@@ -94,8 +101,3 @@ export const outsideSyncWarning = (sync: ExternalSync): OutsideSyncWarning => ({
   detail: "Inteligir won't sync these notes, and your phone won't see them.",
   headline: `${externalSyncName(sync)} keeps syncing this folder.`,
 });
-
-export const ownSyncLine = (sync: OwnSync): string =>
-  sync.kind === "host"
-    ? `This folder already syncs with ${sync.host}, and keeps doing so.`
-    : "This folder already syncs with another folder on this Mac, and keeps doing so.";
