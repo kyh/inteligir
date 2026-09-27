@@ -42,7 +42,8 @@ export const cloudContract = {
     .output(cloudStatusResponseSchema)
     .errors({ CONFLICT: {}, PROVIDER_UNAVAILABLE, TOO_MANY_REQUESTS: {}, UNAUTHORIZED: {} }),
 
-  // only forgets the credential; the device row on the account survives until revoked there
+  // forgets the credential here and asks the cloud to revoke it, never waiting on the answer; a
+  // revoke the cloud did not take is the signed-out status's revokeError
   logout: oc.output(cloudStatusResponseSchema),
 
   // this Mac's own choices, kept whether or not it is signed in

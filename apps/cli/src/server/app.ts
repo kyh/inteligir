@@ -22,7 +22,6 @@ import { isSameOriginBrowserRequest } from "./browser-request";
 import { documentSecurityHeaders } from "./csp";
 import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
 import { HTML_FRAME_DOCUMENT, HTML_FRAME_HEADERS } from "./html-block-frame";
-import { INERT_PAGE_HEADERS } from "./inert-page";
 import { JsonFileStoreError } from "./json-file-store";
 import type { UpgradedSocket } from "./listen";
 import { loopbackRequestOrigin } from "./loopback-origin";
@@ -30,7 +29,7 @@ import type { AppServices } from "./orpc";
 import { localRouter } from "./root-router";
 import { presentedCredential, tokenAccepted } from "./server-file";
 import type { PresentedCredential } from "./server-file";
-import { SIGNED_OUT_PAGE } from "./signed-out-page";
+import { SIGNED_OUT_PAGE, SIGNED_OUT_PAGE_HEADERS } from "./signed-out-page";
 import { handleVaultAsset } from "./vault/asset-route";
 import type { WsBus } from "./ws-bus";
 
@@ -73,7 +72,7 @@ export const createApp = (args: CreateAppArgs) => {
   const nodeWebSocket = createNodeWebSocket({ app });
   const upgradeWebSocket = nodeWebSocket.upgradeWebSocket.bind(nodeWebSocket);
   const injectWebSocket = nodeWebSocket.injectWebSocket.bind(nodeWebSocket);
-  // ws tracks every socket it upgraded, whichever route took it; the http server lost them at the upgrade.
+  // ws tracks every socket it upgraded; the http server lost them at the upgrade.
   const upgradedSockets: ReadonlySet<UpgradedSocket> = nodeWebSocket.wss.clients;
 
   // first, ahead of every route, /health included: the server binds 127.0.0.1
@@ -106,7 +105,7 @@ export const createApp = (args: CreateAppArgs) => {
     return accepted ? credential : null;
   };
 
-  // one gate at the http boundary: three of the four surfaces it protects are not procedures.
+  // one gate at the http boundary: two of the three surfaces it protects are not procedures.
   // /health stays outside (a supervisor's spawn probe holds no credential yet). a cookie is ambient
   // and loopback "site" ignores the port, so a co-resident page on another 127.0.0.1 port carries
   // it: a cookie-authed request must also prove same-origin.
@@ -232,7 +231,7 @@ export const createApp = (args: CreateAppArgs) => {
       next,
     ): Promise<Response | undefined> => {
       if (acceptedCredential(c) === null) {
-        return c.body(SIGNED_OUT_PAGE, 401, INERT_PAGE_HEADERS);
+        return c.body(SIGNED_OUT_PAGE, 401, SIGNED_OUT_PAGE_HEADERS);
       }
       // oxlint-disable-next-line node/callback-return -- hono's `next` continues the chain and answers nothing; a middleware returns a Response only to short-circuit
       await next();

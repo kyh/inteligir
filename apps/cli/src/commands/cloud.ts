@@ -9,7 +9,7 @@ import { invalidUsage } from "../cli-error";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, outputJson, writeLines } from "../output";
-import { promptPassword, readSecretFromStdin } from "./password-prompt";
+import { promptPassword, readPasswordFromStdin } from "./password-prompt";
 
 const describe = (status: CloudStatusResponse): string[] => {
   switch (status.state) {
@@ -78,7 +78,7 @@ const readPassword = async (source: PasswordSource): Promise<string> => {
       return source.password;
     }
     case "stdin": {
-      return await readSecretFromStdin("password");
+      return await readPasswordFromStdin();
     }
     case "prompt": {
       return await promptPassword("Password");

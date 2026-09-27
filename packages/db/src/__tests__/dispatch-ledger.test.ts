@@ -4,7 +4,12 @@ import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
 import { writeTransaction } from "../connection";
 import type { DbConnection } from "../connection";
-import { appendEventsInTransaction, threadHoldsDispatch, turnDispatchId } from "../events";
+import {
+  appendEventsInTransaction,
+  appendSyncedEventsInTransaction,
+  threadHoldsDispatch,
+  turnDispatchId,
+} from "../events";
 import {
   createPendingInteraction,
   interruptOpenPendingInteractions,
@@ -75,6 +80,23 @@ describe("the dispatch ledger", () => {
     expect(turnDispatchId(db, { threadId: thread.id, turnId: "turn_typed" })).toBeNull();
     expect(turnDispatchId(db, { threadId: thread.id, turnId: "turn_asked" })).toBe(DISPATCH);
     expect(turnDispatchId(db, { threadId: thread.id, turnId: "turn_unknown" })).toBeNull();
+  });
+
+  it("skips a request pulled from another device between this device's request and its turn", () => {
+    const db = openTempDb();
+    const thread = createThread(db, noopNotifier, {});
+    append(db, [request(thread.id, DISPATCH)]);
+    writeTransaction(db, (tx) =>
+      appendSyncedEventsInTransaction(tx, [
+        {
+          event: request(thread.id, "b".repeat(32)),
+          origin: { deviceId: "dev_other", deviceSeq: 0 },
+        },
+      ]),
+    );
+    append(db, [started(thread.id, "turn_asked")]);
+
+    expect(turnDispatchId(db, { threadId: thread.id, turnId: "turn_asked" })).toBe(DISPATCH);
   });
 });
 

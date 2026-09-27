@@ -280,23 +280,25 @@ export const listStoredThreadEvents = (
   return stored;
 };
 
+// a thread-scoped row names no turn and no item, so spelling out both nulls seeks the
+// (thread, turn, type, item) index, where (thread, type) alone walks the whole thread inside every
+// turn start's write lock.
+const threadScopedRows = (threadId: string, type: ThreadEvent["type"]): SQL | undefined =>
+  and(
+    eq(events.threadId, threadId),
+    isNull(events.turnId),
+    eq(events.type, type),
+    isNull(events.itemId),
+  );
+
 type ThreadMetaEvent = Extract<ThreadEvent, { type: "thread/meta" }>;
 
-// the facts a thread's log has stated about it, oldest first. a thread/meta row is thread-scoped
-// and names no item, so spelling out the null turn and item seeks the (thread, turn, type, item)
-// index, where (thread, type) alone walks the whole thread inside every turn start's write lock.
+// the facts a thread's log has stated about it, oldest first.
 export const listThreadMetaEvents = (db: DbExecutor, threadId: string): ThreadMetaEvent[] =>
   db
     .select({ data: events.data })
     .from(events)
-    .where(
-      and(
-        eq(events.threadId, threadId),
-        isNull(events.turnId),
-        eq(events.type, "thread/meta"),
-        isNull(events.itemId),
-      ),
-    )
+    .where(threadScopedRows(threadId, "thread/meta"))
     .orderBy(events.sequence)
     .all()
     .flatMap((row) => {
@@ -330,15 +332,6 @@ export const storedTurnCompletion = (
 
 const requestDispatchId = sql`json_extract(${events.data}, '$.dispatchId')`;
 
-// the thread's own requests, spelled as listThreadMetaEvents spells its rows so the index seeks them
-const threadRequests = (threadId: string): SQL | undefined =>
-  and(
-    eq(events.threadId, threadId),
-    isNull(events.turnId),
-    eq(events.type, "client/turn/requested"),
-    isNull(events.itemId),
-  );
-
 // a phone's dispatch runs once on this device, and its ledger is what the send already writes: the
 // request that carries it, pulled from another device's log or appended here, or the queued message
 // that will become one. so a claim that lapsed before its ack, handed over again, finds itself here.
@@ -349,7 +342,12 @@ export const threadHoldsDispatch = (
   db
     .select({ id: events.id })
     .from(events)
-    .where(and(threadRequests(args.threadId), eq(requestDispatchId, args.dispatchId)))
+    .where(
+      and(
+        threadScopedRows(args.threadId, "client/turn/requested"),
+        eq(requestDispatchId, args.dispatchId),
+      ),
+    )
     .limit(1)
     .get() !== undefined ||
   db
@@ -365,7 +363,9 @@ export const threadHoldsDispatch = (
     .get() !== undefined;
 
 // the dispatch a turn carries out: the one its request named, which is the last request the thread
-// held when the turn started, since a request is recorded before any turn id exists.
+// held when the turn started, since a request is recorded before any turn id exists. both rows are
+// this device's own: a request pulled from another device's log lands between them by arrival, and
+// was never this turn's.
 export const turnDispatchId = (
   db: DbExecutor,
   args: { threadId: string; turnId: string },
@@ -378,6 +378,7 @@ export const turnDispatchId = (
         eq(events.threadId, args.threadId),
         eq(events.turnId, args.turnId),
         eq(events.type, "turn/started"),
+        isNull(events.originDeviceId),
       ),
     )
     .limit(1)
@@ -388,7 +389,13 @@ export const turnDispatchId = (
   const request = db
     .select({ data: events.data })
     .from(events)
-    .where(and(threadRequests(args.threadId), lt(events.sequence, started.sequence)))
+    .where(
+      and(
+        threadScopedRows(args.threadId, "client/turn/requested"),
+        isNull(events.originDeviceId),
+        lt(events.sequence, started.sequence),
+      ),
+    )
     .orderBy(desc(events.sequence))
     .limit(1)
     .get();

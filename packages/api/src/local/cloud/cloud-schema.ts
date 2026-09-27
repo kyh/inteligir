@@ -2,14 +2,9 @@
 // no separate "sync enabled" flag beside the credential: two values that must agree can disagree.
 
 import { deviceSignUpRequestSchema } from "@repo/api/cloud/account/account-schema";
-import {
-  DEVICE_NAME_MAX_LENGTH,
-  deviceLoginRequestSchema,
-} from "@repo/api/cloud/device/device-schema";
+import { deviceLoginRequestSchema } from "@repo/api/cloud/device/device-schema";
 import { z } from "zod";
 
-// imported, not restated: a name accepted here and refused at login is a shape error long after the click
-export const CLOUD_DEVICE_NAME_MAX_LENGTH = DEVICE_NAME_MAX_LENGTH;
 export { deleteAccountRequestSchema as cloudDeleteAccountRequestSchema } from "@repo/api/cloud/account/account-schema";
 export {
   PASSWORD_MAX_LENGTH as CLOUD_PASSWORD_MAX_LENGTH,
@@ -94,8 +89,9 @@ export const cloudForgotPasswordPageUrl = (cloudUrl: string): string =>
 export const cloudPrefsSchema = z.object({ phoneRequests: z.boolean() }).strict();
 export type CloudPrefs = z.infer<typeof cloudPrefsSchema>;
 
-// absent means the server's own hostname
-const localDeviceNameSchema = z.string().trim().min(1).max(CLOUD_DEVICE_NAME_MAX_LENGTH).optional();
+// absent means the server's own hostname. imported, not restated: a name accepted here and refused at
+// login is a shape error long after the click
+const localDeviceNameSchema = deviceLoginRequestSchema.shape.deviceName.optional();
 
 // the cloud's own email and password fields, so a value refused there is refused here first
 export const cloudLoginRequestSchema = deviceLoginRequestSchema

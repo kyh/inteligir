@@ -4,11 +4,7 @@ import { RPCHandler } from "@orpc/server/node";
 import { localContract } from "@repo/api/local";
 import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
 import type { CommentThreadWire } from "@repo/api/local/comments/comments-schema";
-import type {
-  ConnectorsResponse,
-  ConnectorTargetInput,
-  ConnectorView,
-} from "@repo/api/local/connectors/connectors-schema";
+import type { ConnectorsResponse } from "@repo/api/local/connectors/connectors-schema";
 import type { ConnectedFoldersResponse } from "@repo/api/local/folders/folders-schema";
 import {
   KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
@@ -88,7 +84,6 @@ export interface FixtureState {
   tags: TagCountWire[];
   backlinks: BacklinkEntryWire[];
   related: RelatedNoteWire[];
-  connectors: ConnectorsResponse;
   folders: ConnectedFoldersResponse;
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
@@ -148,7 +143,6 @@ export const makeFixtureState = (): FixtureState => ({
   cloud: { cloudUrl: FIXTURE_CLOUD_URL, revokeError: null, state: "signed-out" },
   comments: new Map(),
   concurrentWrite: null,
-  connectors: { agent: { displayName: "Claude", id: "claude" }, servers: [] },
   dataDir: "/fixture/data",
   failWith: null,
   folders: { folders: [] },
@@ -297,43 +291,17 @@ const commentsRouter = {
   }),
 };
 
-const connectorView = (name: string, target: ConnectorTargetInput): ConnectorView => ({
-  auth: target.kind === "http" ? "unknown" : "not-needed",
-  name,
-  signIn: { state: "idle" },
-  target,
-});
+const FIXTURE_CONNECTORS: ConnectorsResponse = {
+  agent: { displayName: "Claude", id: "claude" },
+  servers: [],
+};
 
+// no verb reaches these; the contract asks every server to answer them
 const connectorsRouter = {
-  add: base.connectors.add.handler(({ context, input, errors }) => {
-    if (context.connectors.servers.some((row) => row.name === input.name)) {
-      throw errors.ALREADY_EXISTS({ message: `"${input.name}" exists` });
-    }
-    context.connectors.servers.push(connectorView(input.name, input.target));
-    return context.connectors;
-  }),
-  list: base.connectors.list.handler(({ context }) => context.connectors),
-  remove: base.connectors.remove.handler(({ context, input, errors }) => {
-    const before = context.connectors.servers.length;
-    context.connectors.servers = context.connectors.servers.filter(
-      (row) => row.name !== input.name,
-    );
-    if (context.connectors.servers.length === before) {
-      throw errors.NOT_FOUND({ message: `no connector ${input.name}` });
-    }
-    return context.connectors;
-  }),
-  signIn: base.connectors.signIn.handler(({ context, input, errors }) => {
-    const row = context.connectors.servers.find((candidate) => candidate.name === input.name);
-    if (row === undefined) {
-      throw errors.NOT_FOUND({ message: `no connector ${input.name}` });
-    }
-    if (row.target.kind !== "http") {
-      throw errors.BAD_REQUEST({ message: `${input.name} is not a URL` });
-    }
-    row.signIn = { state: "pending", url: `${FIXTURE_CLOUD_URL}/oauth/${input.name}/authorize` };
-    return context.connectors;
-  }),
+  add: base.connectors.add.handler(() => FIXTURE_CONNECTORS),
+  list: base.connectors.list.handler(() => FIXTURE_CONNECTORS),
+  remove: base.connectors.remove.handler(() => FIXTURE_CONNECTORS),
+  signIn: base.connectors.signIn.handler(() => FIXTURE_CONNECTORS),
 };
 
 const foldersRouter = {
@@ -564,8 +532,12 @@ const threadsRouter = {
     if (turn.state === "undone") {
       throw errors.CONFLICT({ message: `Turn ${turn.turnId} was already undone` });
     }
-    turn.state = "undone";
-    return entry.turnUndo ?? { kept: [], reverted: turn.paths };
+    const answer = entry.turnUndo ?? { kept: [], reverted: turn.paths };
+    // the real route commits only what it wrote, so an undo that kept every note leaves the turn applied.
+    if (answer.reverted.length > 0) {
+      turn.state = "undone";
+    }
+    return answer;
   }),
 };
 
