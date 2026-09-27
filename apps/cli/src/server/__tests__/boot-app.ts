@@ -41,6 +41,7 @@ import { makeTempDir } from "./temp-dir";
 
 export { makeTempDir, TEMP_DIR_FOLDS_CASE } from "./temp-dir";
 export { AGENT_COMMIT_AUTHOR, agentCommitMessage } from "../vault/turn-trailers";
+export { FAKE_ACCOUNT, FakeCloud } from "../cloud/__tests__/fake-cloud";
 
 export const TEST_SERVER_TOKEN = "test-server-token";
 

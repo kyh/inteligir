@@ -1,7 +1,7 @@
 // What an account does for these notes depends on where they already sync, so every surface that
 // offers one says it from the vault's status: the first run's step, Settings › Account and the
-// rail's dialog. The account form's own sentence promises the notes start syncing, which a vault
-// another service syncs, or one with a server of its own, never does.
+// rail's dialog. A vault another service syncs, or one with a server of its own, never starts
+// syncing through the account.
 
 import { externalSyncName } from "@repo/api/local/vault/vault-schema";
 import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
@@ -18,7 +18,7 @@ export const accountOffer = (vault: VaultStatusResponse): AccountOffer => {
       title: "Create your account",
     };
   }
-  if (vault.state !== "no-remote" && vault.remoteSource === "explicit") {
+  if (vault.state !== "no-remote" && vault.remoteSource !== "account") {
     return {
       lead: "These notes keep syncing where they already do. An account carries your conversations with the agent to your other devices.",
       title: "Create your account",

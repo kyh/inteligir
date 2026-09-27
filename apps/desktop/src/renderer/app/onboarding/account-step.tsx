@@ -22,27 +22,25 @@ export const AccountStep = ({ onNext }: { onNext: () => void }) => {
     }
   }, [settled]);
 
+  const skip = (
+    <Button variant="ghost" size="compact" className="-ml-2 self-start" onClick={onNext}>
+      Skip for now
+    </Button>
+  );
+  // skipping needs nothing from either status, so a slow one never holds the step
   if (cloud?.state !== "signed-out" || vault === undefined) {
-    return <Spinner className="text-muted-foreground" />;
+    return (
+      <>
+        <Spinner className="text-muted-foreground" />
+        {skip}
+      </>
+    );
   }
-  const offer = accountOffer(vault);
-  const handleCreate = session.signUp;
-  const handleSignIn = session.signIn;
   return (
     <>
-      <h1 className="text-title font-medium">{offer.title}</h1>
-      <AccountForm
-        cloudUrl={cloud.cloudUrl}
-        initialMode="create"
-        lead={offer.lead}
-        onCreate={handleCreate}
-        onSignIn={handleSignIn}
-        pending={session.pending}
-        refusal={session.refusal}
-      />
-      <Button variant="ghost" size="compact" className="-ml-2 self-start" onClick={onNext}>
-        Skip for now
-      </Button>
+      <h1 className="text-title font-medium">{accountOffer(vault).title}</h1>
+      <AccountForm cloudUrl={cloud.cloudUrl} initialMode="create" session={session} vault={vault} />
+      {skip}
     </>
   );
 };

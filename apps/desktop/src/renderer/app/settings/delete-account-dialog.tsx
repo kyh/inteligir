@@ -11,9 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@repo/ui/components/dialog";
-import { Input } from "@repo/ui/components/input";
-import { Label } from "@repo/ui/components/label";
 import { useId, useState } from "react";
+import { LabelledField } from "../labelled-field";
 
 const DELETED = [
   "The online copy of your notes",
@@ -73,22 +72,18 @@ export const DeleteAccountDialog = ({
             </ul>
           </div>
           <p className="text-body">Your notes on this Mac and their history stay here.</p>
-          <div className="flex items-center gap-2">
-            <Label htmlFor={passwordId} className="w-24 shrink-0 text-body">
-              Password
-            </Label>
-            <Input
-              id={passwordId}
-              type="password"
-              autoComplete="current-password"
-              autoFocus
-              maxLength={CLOUD_PASSWORD_MAX_LENGTH}
-              value={password}
-              onChange={(event) => {
-                setPassword(event.target.value);
-              }}
-            />
-          </div>
+          <LabelledField
+            id={passwordId}
+            label="Password"
+            type="password"
+            autoComplete="current-password"
+            autoFocus
+            maxLength={CLOUD_PASSWORD_MAX_LENGTH}
+            value={password}
+            onChange={(event) => {
+              setPassword(event.target.value);
+            }}
+          />
           {refusal === null ? null : <p className="text-body text-destructive">{refusal}</p>}
           <div className="flex justify-end gap-2">
             <Button

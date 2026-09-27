@@ -11,7 +11,6 @@ import { toast } from "@repo/ui/components/sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AccountForm } from "../account-form";
-import { accountOffer } from "../account-offer";
 import { failed, orpc, refusalMessage } from "../api";
 import { useCloudSession } from "../cloud-session";
 import { relativeTimeLabel, useNow } from "../relative-time";
@@ -164,7 +163,8 @@ export const AccountDevices = ({ thisMacName, lastSyncedAt, ...others }: Account
 );
 
 export const AccountSection = () => {
-  const { status, pending, refusal, signIn, signOut, signUp } = useCloudSession();
+  const session = useCloudSession();
+  const { status, pending, signOut } = session;
   const scope = useDataDirScope();
   const vaultStatus = useVaultStatus().data;
   const nowMs = useNow();
@@ -210,14 +210,7 @@ export const AccountSection = () => {
   };
 
   const accountForm = (cloudUrl: string) => (
-    <AccountForm
-      cloudUrl={cloudUrl}
-      lead={vaultStatus === undefined ? undefined : accountOffer(vaultStatus).lead}
-      onCreate={signUp}
-      onSignIn={signIn}
-      pending={pending}
-      refusal={refusal}
-    />
+    <AccountForm cloudUrl={cloudUrl} session={session} vault={vaultStatus} />
   );
 
   const body = () => {

@@ -28,7 +28,7 @@ import { Spinner } from "@repo/ui/components/spinner";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { useTheme } from "@repo/ui/lib/theme";
 import { cn } from "@repo/ui/lib/cn";
-import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+import type { VaultEntry, VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
 import {
   ChevronDownIcon,
   ChevronsUpDownIcon,
@@ -59,7 +59,6 @@ import {
 import { PREFS, RAIL_VIEWS, usePref } from "../prefs";
 import type { RailView } from "../prefs";
 import { AccountForm } from "../account-form";
-import { accountOffer } from "../account-offer";
 import type { SettingsSection } from "../settings/settings-page";
 import { hasInsetTitleBar } from "../title-bar";
 import {
@@ -199,38 +198,26 @@ const RAIL_VIEW_LABELS: Record<RailView, string> = {
 const AccountDialog = ({
   cloudUrl,
   session,
+  vault,
   open,
   onOpenChange,
 }: {
   cloudUrl: string;
   session: CloudSession;
+  vault: VaultStatusResponse | undefined;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}) => {
-  const handleSignIn = session.signIn;
-  const handleSignUp = session.signUp;
-  const vault = useVaultStatus().data;
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Sign in or create an account</DialogTitle>
-          <DialogDescription>
-            Signed out, this app makes no cloud requests at all.
-          </DialogDescription>
-        </DialogHeader>
-        <AccountForm
-          cloudUrl={cloudUrl}
-          lead={vault === undefined ? undefined : accountOffer(vault).lead}
-          onCreate={handleSignUp}
-          onSignIn={handleSignIn}
-          pending={session.pending}
-          refusal={session.refusal}
-        />
-      </DialogContent>
-    </Dialog>
-  );
-};
+}) => (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="max-w-sm">
+      <DialogHeader>
+        <DialogTitle>Sign in or create an account</DialogTitle>
+        <DialogDescription>Signed out, this app makes no cloud requests at all.</DialogDescription>
+      </DialogHeader>
+      <AccountForm cloudUrl={cloudUrl} session={session} vault={vault} />
+    </DialogContent>
+  </Dialog>
+);
 
 // The rail's ambient row: the vault's sync state as the row, and behind it the verbs that change
 // it — a sync now, and the account this device does or does not have. Actions sync on their own,
@@ -328,6 +315,7 @@ export const SyncRow = ({
         <AccountDialog
           cloudUrl={cloud.cloudUrl}
           session={session}
+          vault={status}
           open={signInOpen}
           onOpenChange={setSignInOpen}
         />
