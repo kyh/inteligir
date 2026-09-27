@@ -1,5 +1,14 @@
-import { vaultCollisionKey } from "@repo/api/cloud/vault/vault-commit-schema";
-import type { VaultConflictReason } from "@repo/api/cloud/vault/vault-commit-schema";
+import { vaultChangePaths, vaultCollisionKey } from "@repo/api/cloud/vault/vault-commit-schema";
+import type {
+  VaultCommitConflict,
+  VaultCommitResponse,
+  VaultConflictReason,
+} from "@repo/api/cloud/vault/vault-commit-schema";
+import {
+  deviceCommitEmail,
+  vaultCommitSubject,
+  WORKER_COMMITTER_EMAIL,
+} from "@repo/api/cloud/vault/vault-git";
 import { VAULT_FILE_MAX_BYTES } from "@repo/api/cloud/vault/vault-schema";
 import type { RepoCell, TreeEntryJson, TreeResult } from "durable-git";
 import {
@@ -17,10 +26,8 @@ import type { GitObject, GitTreeEntry } from "./git-objects";
 import type { VaultPackPush, VaultPushOutcome } from "./receive-pack";
 import { encodeGitPath, isServablePath } from "./tree-walk";
 
-// A change set lands as one commit on the head it was checked against, or not at all. Each change
-// carries the blob it was computed from (null: the path was absent), so the cell's head is a CAS
-// per path; a change whose target the head already holds is satisfied, which is what makes a
-// resent set harmless without an idempotency key.
+// The set lands on the head it was checked against or not at all, and satisfying what that head
+// already holds is what makes a resend harmless without an idempotency key.
 
 export type VaultChange =
   | {
@@ -32,32 +39,20 @@ export type VaultChange =
   | { readonly op: "delete"; readonly path: string; readonly base: string }
   | { readonly op: "move"; readonly from: string; readonly to: string; readonly base: string };
 
-export interface VaultConflict {
-  readonly path: string;
-  readonly reason: VaultConflictReason;
-  // what the path holds at the head the set was checked against; its text rides along only for a
-  // note that fits
-  readonly current: { readonly oid: string; readonly content?: string } | null;
-  // the committer of the newest commit touching the path: the device this one collided with
-  readonly device: string | null;
-}
+export type VaultConflict = VaultCommitConflict["conflicts"][number];
 
-// where each change leaves its path: the blob it holds, or null once it is gone
-interface VaultChangeResult {
-  readonly path: string;
-  readonly oid: string | null;
-}
+type VaultChangeResult = VaultCommitResponse["results"][number];
 
 export type CommitChangesResult =
   | {
       readonly kind: "committed";
       readonly commit: string;
-      readonly results: readonly VaultChangeResult[];
+      readonly results: VaultChangeResult[];
     }
   | {
       readonly kind: "conflict";
       readonly head: string;
-      readonly conflicts: readonly VaultConflict[];
+      readonly conflicts: VaultConflict[];
     }
   | { readonly kind: "no-head" }
   | { readonly kind: "full" }
@@ -82,12 +77,6 @@ const MAX_ATTEMPTS = 3;
 // the conflict's head
 const CONFLICT_INLINE_BYTES = 8 * 1024 * 1024;
 
-// the committer's email marks a commit the Worker made, while both names stay the device's,
-// because a conflict copy names the other device from the committer
-const WORKER_COMMITTER_EMAIL = "cloud@inteligir.local";
-
-const deviceEmail = (deviceId: string): string => `device-${deviceId}@inteligir.local`;
-
 const SYMLINK_MODE = "120000";
 
 const encoder = new TextEncoder();
@@ -105,9 +94,6 @@ const prepare = async (change: VaultChange): Promise<PreparedChange> =>
   change.op === "put"
     ? { base: change.base, blob: await blobObject(change.bytes), op: "put", path: change.path }
     : change;
-
-const pathsOf = (change: VaultChange | PreparedChange): readonly string[] =>
-  change.op === "move" ? [change.from, change.to] : [change.path];
 
 const resultOf = (change: PreparedChange): VaultChangeResult => {
   switch (change.op) {
@@ -168,7 +154,9 @@ const listFolders = async (
   commit: string,
   changes: readonly PreparedChange[],
 ): Promise<Listings> => {
-  const folders = new Set(changes.flatMap(pathsOf).filter(isServablePath).flatMap(foldersAbove));
+  const folders = new Set(
+    changes.flatMap(vaultChangePaths).filter(isServablePath).flatMap(foldersAbove),
+  );
   return new Map(
     await Promise.all(
       [...folders].map(async (folder): Promise<readonly [string, TreeResult | null]> => [
@@ -317,7 +305,7 @@ const classifyMove = (listings: Listings, from: string, to: string, base: string
 };
 
 const classify = (listings: Listings, change: PreparedChange): Verdict => {
-  const unservable = pathsOf(change).find((path) => !isServablePath(path));
+  const unservable = vaultChangePaths(change).find((path) => !isServablePath(path));
   if (unservable !== undefined) {
     return conflictOn(unservable, "unwritable");
   }
@@ -546,7 +534,7 @@ const planAgainst = async (
     kind: "commit",
     objects: [...blobs, ...trees],
     root,
-    touched: applied.flatMap(({ change }) => pathsOf(change)),
+    touched: applied.flatMap(({ change }) => vaultChangePaths(change)),
   };
 };
 
@@ -591,15 +579,6 @@ const describeConflicts = async (
   );
 };
 
-// spelled like the desktop engine's own commits, so the history reads one way whichever device
-// wrote it
-const commitSubject = (paths: readonly string[]): string => {
-  const [only] = paths;
-  return paths.length === 1 && only !== undefined
-    ? `vault: update ${only}`
-    : `vault: update ${String(paths.length)} files`;
-};
-
 export const commitChanges = async ({
   author,
   authoredAt,
@@ -608,7 +587,7 @@ export const commitChanges = async ({
   send,
   stub,
 }: CommitChangesArgs): Promise<CommitChangesResult> => {
-  const named = changes.flatMap(pathsOf);
+  const named = changes.flatMap(vaultChangePaths);
   if (new Set(named).size !== named.length) {
     throw new Error("a change set names a path twice");
   }
@@ -633,11 +612,11 @@ export const commitChanges = async ({
     }
     const commit = await commitObject({
       author: gitIdent(
-        { email: deviceEmail(author.deviceId), name: author.deviceName },
+        { email: deviceCommitEmail(author.deviceId), name: author.deviceName },
         authoredAt,
       ),
       committer: gitIdent({ email: WORKER_COMMITTER_EMAIL, name: author.deviceName }, now),
-      message: commitSubject(plan.touched),
+      message: vaultCommitSubject(plan.touched),
       parents: [head.commit],
       tree: plan.root,
     });

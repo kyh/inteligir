@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/api/cloud/vault/vault-git";
+import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
 import type { VaultStatusResponse, VaultSyncConflict } from "@repo/api/local/vault/vault-schema";
 import {
   commentsStorePath,
@@ -16,6 +17,7 @@ import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { removeFrontmatterId } from "@repo/notes/markdown/frontmatter";
 import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { CAPTURE_INBOX_PATH, reconcileFile } from "@repo/notes/sync/reconcile-file";
+import type { ReconcileInput } from "@repo/notes/sync/reconcile-file";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { beginAgentTurnWrites } from "../../agents/agent-commits";
 import { writeDeviceCredential } from "../../cloud/credential-store";
@@ -26,6 +28,7 @@ import { ensureVaultRepo, SEED_COMMIT_KEY } from "../git-bootstrap";
 import type { EnsureVaultRepoArgs } from "../git-bootstrap";
 import { createGitEngine } from "../git-engine";
 import type { GitEngine, GitEngineArgs } from "../git-engine";
+import { mergeFetched } from "../git-merge";
 import type { Reconcile } from "../git-merge";
 import { classifyNetworkFailure, GitError, gitPath, identityEnv, runGit } from "../git-run";
 import type { RunGitCommand } from "../git-run";
@@ -444,10 +447,11 @@ const failFlush = async (made: Awaited<ReturnType<typeof makeEngine>>): Promise<
   const lock = path.join(made.root, ".git", "index.lock");
   await writeFile(lock, "", "utf-8");
   await writeFile(path.join(made.root, "stuck.md"), "a\n", "utf-8");
+  const changesBefore = made.statusChanges();
   made.engine.scheduleCommit(["stuck.md"]);
   await vi.waitFor(
     () => {
-      expect(made.statusChanges()).toBeGreaterThanOrEqual(1);
+      expect(made.statusChanges()).toBeGreaterThan(changesBefore);
     },
     { timeout: 5000 },
   );
@@ -857,6 +861,30 @@ describe("sync", { timeout: 30_000 }, () => {
     expect(await reportedState(engine)).toBe("rejected");
   });
 
+  it("says stalled, never dirty, when a pass fails on a step of its own", async () => {
+    const { root, engine } = await makeEngine({ remoteUrl: await makeBareRemote() });
+    expect(await syncState(engine)).toBe("clean");
+    const lock = path.join(root, ".git", "index.lock");
+    await writeFile(lock, "", "utf-8");
+    await writeFile(path.join(root, "stuck.md"), "a\n", "utf-8");
+
+    const failed = await engine.syncNow();
+    expect(failed.state).toBe("stalled");
+    expect(failed.lastError).toMatch(/index\.lock/u);
+    expect(await reportedState(engine)).toBe("stalled");
+
+    await rm(lock);
+    expect(await syncState(engine)).toBe("clean");
+  });
+
+  it("says stalled, never dirty, while a failed auto-commit strands the tree", async () => {
+    const made = await makeEngine({ remoteUrl: await makeBareRemote(), timing: FAST_COMMIT });
+    expect(await syncState(made.engine)).toBe("clean");
+    await failFlush(made);
+    expect(await reportedState(made.engine)).toBe("stalled");
+    expect(await syncState(made.engine)).toBe("clean");
+  });
+
   it("keeps both devices' capture appends to the inbox instead of wedging on a conflict", async () => {
     const remote = await makeBareRemote();
     const a = await makeEngine({ remoteUrl: remote });
@@ -1005,6 +1033,64 @@ describe("a pass that meets another device's edit", { timeout: 30_000 }, () => {
     await expectCleanRepo(b.root);
   });
 
+  it("reports none of the copies a remote already held when an unrelated history joins it", async () => {
+    const remote = await makeBareRemote();
+    const a = await makeEngine({ device: DEVICE_A, remoteUrl: remote });
+    await commitFile(a, "Foo.md", "the version that stayed\n");
+    await commitFile(a, "Foo (conflict, Device A).md", "set aside long ago\n");
+    expect(await syncState(a.engine)).toBe("clean");
+
+    const b = await makeEngine({ device: DEVICE_B, remoteUrl: remote });
+    await commitFile(b, "only-b.md", "B alone\n");
+    expect(await rootCommitOf(b.root)).not.toBe(await rootCommitOf(a.root));
+
+    const joined = await b.engine.syncNow();
+    expect(joined.state).toBe("clean");
+    expect(await trackedFiles(b.root)).toContain("Foo (conflict, Device A).md");
+    expect(joined.conflicts).toEqual([]);
+  });
+
+  it("settles a version past the read cap by its blob, never reading it", async () => {
+    const { b } = await divergedPair();
+    await runGit(b.root, ["fetch", "-q", "origin", "main"], { env });
+    const asked: ReconcileInput[] = [];
+    const reports = await mergeFetched(
+      {
+        readBlob: async () => await Promise.reject(new Error("read a blob past the cap")),
+        run: async (gitArgs, options) =>
+          gitArgs[0] === "cat-file" && gitArgs[1] === "-s"
+            ? { stdout: `${String(VAULT_MAX_CONTENT_LENGTH + 1)}\n` }
+            : await runGit(b.root, gitArgs, { ...options, env: { ...env, ...options?.env } }),
+      },
+      {
+        device: DEVICE_B,
+        reconcile: (input) => {
+          asked.push(input);
+          return reconcileFile(input);
+        },
+        remoteRef: "refs/remotes/origin/main",
+      },
+    );
+
+    expect(asked.flatMap(({ base, mine, theirs }) => [base.kind, mine.kind, theirs.kind])).toEqual([
+      "opaque",
+      "opaque",
+      "opaque",
+    ]);
+    expect(reports).toEqual([
+      {
+        copyDevice: DEVICE_A,
+        copyPath: COPY_OF_A,
+        keptDevice: DEVICE_B,
+        kind: "copied",
+        path: "shared.md",
+      },
+    ]);
+    expect(await readVault(b, "shared.md")).toBe(SHARED_B);
+    expect(await readVault(b, COPY_OF_A)).toBe(SHARED_A);
+    await expectCleanRepo(b.root);
+  });
+
   it("unions two devices' comments on one note, and copies nothing", async () => {
     const store = commentsStorePath("3f0c9a52-shared");
     const at = 1_707_900_000;
@@ -1097,8 +1183,9 @@ describe("a pass that meets another device's edit", { timeout: 30_000 }, () => {
     await commitFile(b, "first.md", "edited on B\n");
     await commitFile(b, "shared.md", SHARED_B);
 
+    // not dirty: that reads as edits on their way, and says nothing of the failure
     const failed = await b.engine.syncNow();
-    expect(failed.state).toBe("dirty");
+    expect(failed.state).toBe("stalled");
     expect(failed.lastError).toMatch(/could not be combined/u);
     expect(failed.lastError).not.toMatch(/git|merge|commit|injected/iu);
     expect(failed.conflicts).toEqual([]);
@@ -1109,7 +1196,7 @@ describe("a pass that meets another device's edit", { timeout: 30_000 }, () => {
     expect(await readVault(b, "first.md")).toBe("edited on B\n");
     expect(await readVault(b, "shared.md")).toBe(SHARED_B);
 
-    expect(await syncState(b.engine)).toBe("dirty");
+    expect(await syncState(b.engine)).toBe("stalled");
     expect(asked).toHaveLength(2);
 
     failing = false;
@@ -1154,10 +1241,12 @@ describe("a pass that meets another device's edit", { timeout: 30_000 }, () => {
   it("lands its verdict where the vault's own rerere recorded another resolution", async () => {
     const { b } = await divergedPair();
     await runGit(b.root, ["config", "rerere.enabled", "true"], { env });
-    await leaveStopped(b.root, ["merge", "refs/remotes/origin/main"]);
+    // the person's own git records it; runGit turns rerere off for every call that names it not
+    const rerere = ["-c", "rerere.enabled=true"];
+    await leaveStopped(b.root, [...rerere, "merge", "refs/remotes/origin/main"]);
     await writeFile(path.join(b.root, "shared.md"), "what rerere recorded\n", "utf-8");
     await runGit(b.root, ["add", "shared.md"], asDevice(DEVICE_B));
-    await runGit(b.root, ["commit", "-q", "--no-edit"], asDevice(DEVICE_B));
+    await runGit(b.root, [...rerere, "commit", "-q", "--no-edit"], asDevice(DEVICE_B));
     await runGit(b.root, ["reset", "-q", "--hard", "HEAD~1"], asDevice(DEVICE_B));
     expect(existsSync(await gitPath(gitIn(b.root), b.root, "rr-cache"))).toBe(true);
 
@@ -1660,6 +1749,17 @@ describe("runGit", () => {
     await runGit(root, ["add", "-A", "--", "[a].md"], { env });
     const { stdout } = await runGit(root, ["diff", "--cached", "--name-only"], { env });
     expect(stdout.trim()).toBe("[a].md");
+  });
+
+  it("signs nothing whatever the vault's own policy — the builder carries it, not each caller", async () => {
+    const root = scratchDir("inteligir-git-signing-");
+    await ensureVaultRepo({ env, root });
+    await runGit(root, ["config", "commit.gpgsign", "true"], { env });
+    await runGit(root, ["config", "gpg.program", "false"], { env });
+    await runGit(root, ["commit", "--allow-empty", "-q", "-m", "unsigned"], {
+      env: { ...env, ...identityEnv(TEST_DEVICE) },
+    });
+    expect(await lastMessage(root)).toBe("unsigned");
   });
 
   it("leaves a caller's own GIT_SSH_COMMAND alone", async () => {
@@ -2217,7 +2317,7 @@ describe("the bootstrap port", () => {
       "rev-parse --git-path",
       "rev-parse --verify",
       "add -A",
-      "-c commit.gpgsign=false",
+      "commit --allow-empty",
       "rev-parse --verify",
       `config ${SEED_COMMIT_KEY}`,
     ]);
@@ -2429,6 +2529,7 @@ describe("the vault's own origin", { timeout: 30_000 }, () => {
     await writeFile(path.join(root, "note.md"), "# mine\n", "utf-8");
     await engine.commitNow();
     const status = await engine.syncNow();
+    expect(status.state).toBe("stalled");
     expect(status.lastError).toMatch(/origin/u);
     expect(await originOf(root)).toBe(`file://${own}`);
     for (const remote of [own, hosted]) {

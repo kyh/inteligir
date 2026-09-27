@@ -1,6 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
+import { ENGINE_COMMIT_EMAIL } from "@repo/api/cloud/vault/vault-git";
 import { z } from "zod";
 import { messageOf } from "../error-message";
 
@@ -15,7 +16,7 @@ export interface CommitAuthor {
   email: string;
 }
 
-export const ENGINE_IDENTITY: CommitAuthor = { email: "vault@inteligir.local", name: "inteligir" };
+export const ENGINE_IDENTITY: CommitAuthor = { email: ENGINE_COMMIT_EMAIL, name: "inteligir" };
 
 // the author says who made the change (the engine, the agent, an undo); the committer names the
 // device that committed it, which is how another device's merge says whose version it copied aside.
@@ -68,10 +69,10 @@ const unattendedGitEnv = (env: NodeJS.ProcessEnv) => {
 };
 
 // execFile's rejection carries the child's stderr and its terminating signal as untyped
-// properties; a run that reads bytes carries its stderr as bytes too.
+// properties; every run reads bytes, so its stderr is bytes too.
 const execFileFailure = z.object({
   signal: z.string().nullish(),
-  stderr: z.union([z.string(), z.instanceof(Buffer).transform((bytes) => bytes.toString("utf-8"))]),
+  stderr: z.instanceof(Buffer).transform((bytes) => bytes.toString("utf-8")),
 });
 
 const gitFailure = (
@@ -88,10 +89,17 @@ const gitFailure = (
 // ahead of every subcommand. --literal-pathspecs: a pathspec is a glob, so a commit scoped to
 // `[a].md` would also stage `a.md`, and a log for it would report `a.md`'s history. the vault's
 // own hooks never run: one can refuse, stall or rewrite an engine commit, rebase or push, and
-// --no-verify reaches only pre-commit and commit-msg.
+// --no-verify reaches only pre-commit and commit-msg. nor do its other habits: a signing policy
+// stalls or refuses an engine commit, and a recorded rerere resolution replays over the verdict.
 const engineArgv = (gitArgs: readonly string[]): string[] => [
   "-c",
   "core.hooksPath=/dev/null",
+  "-c",
+  "commit.gpgsign=false",
+  "-c",
+  "rerere.enabled=false",
+  "-c",
+  "merge.verifySignatures=false",
   "--literal-pathspecs",
   ...gitArgs,
 ];
@@ -102,14 +110,14 @@ const engineEnv = (options: RunGitOptions): NodeJS.ProcessEnv => ({
   ...options.env,
 });
 
-export const runGit = async (
+const runGitBytes = async (
   cwd: string,
   gitArgs: readonly string[],
-  options: RunGitOptions = {},
-): Promise<{ stdout: string }> => {
+  options: RunGitOptions,
+): Promise<Buffer> => {
   const pending = execFileAsync("git", engineArgv(gitArgs), {
     cwd,
-    encoding: "utf-8",
+    encoding: "buffer",
     env: engineEnv(options),
     maxBuffer: GIT_MAX_BUFFER_BYTES,
     timeout: options.timeoutMs ?? LOCAL_GIT_TIMEOUT_MS,
@@ -123,11 +131,20 @@ export const runGit = async (
   pending.child.stdin?.end(options.input);
   try {
     const { stdout } = await pending;
-    return { stdout };
+    return stdout;
   } catch (error) {
     const failure = execFileFailure.safeParse(error);
     throw gitFailure(gitArgs, messageOf(error), failure.success ? failure.data : null);
   }
+};
+
+export const runGit = async (
+  cwd: string,
+  gitArgs: readonly string[],
+  options: RunGitOptions = {},
+): Promise<{ stdout: string }> => {
+  const stdout = await runGitBytes(cwd, gitArgs, options);
+  return { stdout: stdout.toString("utf-8") };
 };
 
 // a blob's exact bytes: runGit decodes stdout as utf-8, which would turn every byte of a file
@@ -136,24 +153,7 @@ export const readGitBlob = async (
   cwd: string,
   oid: string,
   options: RunGitOptions = {},
-): Promise<Uint8Array> => {
-  const gitArgs = ["cat-file", "blob", oid];
-  const pending = execFileAsync("git", engineArgv(gitArgs), {
-    cwd,
-    encoding: "buffer",
-    env: engineEnv(options),
-    maxBuffer: GIT_MAX_BUFFER_BYTES,
-    timeout: options.timeoutMs ?? LOCAL_GIT_TIMEOUT_MS,
-  });
-  pending.child.stdin?.end();
-  try {
-    const { stdout } = await pending;
-    return stdout;
-  } catch (error) {
-    const failure = execFileFailure.safeParse(error);
-    throw gitFailure(gitArgs, messageOf(error), failure.success ? failure.data : null);
-  }
-};
+): Promise<Uint8Array> => await runGitBytes(cwd, ["cat-file", "blob", oid], options);
 
 // whether the thin pack a push of `revisions` would send runs past `capBytes`. spawned rather than
 // run through runGit, which buffers stdout: the pack is counted as it streams and git is killed

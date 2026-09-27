@@ -3,6 +3,11 @@
 import { existsSync } from "node:fs";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import nodePath from "node:path";
+import {
+  deviceCommitEmail,
+  vaultCommitSubject,
+  WORKER_COMMITTER_EMAIL,
+} from "@repo/api/cloud/vault/vault-git";
 import { describe, expect, it } from "vitest";
 import { ensureVaultRepo } from "../git-bootstrap";
 import { ENGINE_IDENTITY, identityEnv, runGit } from "../git-run";
@@ -47,7 +52,7 @@ const makeVault = async (): Promise<{
   return {
     commit: async (subject, extraEnv) => {
       await run(["add", "-A"]);
-      await run(["-c", "commit.gpgsign=false", "commit", "-m", subject], {
+      await run(["commit", "-m", subject], {
         env: { ...IDENTITY, ...extraEnv },
       });
     },
@@ -184,18 +189,36 @@ describe("readNoteHistory", () => {
     };
     await edit("engine", identityEnv("Test Mac"));
     await edit("agent", identityEnv("Test Mac", AGENT_COMMIT_AUTHOR));
-    // a phone's commit names its device
-    await edit("phone", {
-      GIT_AUTHOR_EMAIL: "dev_1@devices.test",
-      GIT_AUTHOR_NAME: "Kai's iPhone",
-    });
+    await edit("elsewhere", { GIT_AUTHOR_EMAIL: "kai@example.com", GIT_AUTHOR_NAME: "Kai" });
 
     const revisions = await readNoteHistory(run, "Note.md", { limit: 50, skip: 0 });
     expect(revisions.map(({ authorKind, authorName }) => [authorKind, authorName])).toEqual([
-      ["external", "Kai's iPhone"],
+      ["external", "Kai"],
       ["agent", AGENT_COMMIT_AUTHOR.name],
       ["app", ENGINE_IDENTITY.name],
     ]);
+  });
+
+  it("counts a phone's edit, which the Worker committed for it, as the user's own", async () => {
+    const { root, run } = await makeVault();
+    await writeFile(nodePath.join(root, "Note.md"), "from the phone\n", "utf-8");
+    await run(["add", "-A"]);
+    await runGit(root, ["commit", "-m", vaultCommitSubject(["Note.md"])], {
+      env: {
+        ...env,
+        GIT_AUTHOR_EMAIL: deviceCommitEmail("dev_1"),
+        GIT_AUTHOR_NAME: "Kai's iPhone",
+        GIT_COMMITTER_EMAIL: WORKER_COMMITTER_EMAIL,
+        GIT_COMMITTER_NAME: "Kai's iPhone",
+      },
+    });
+
+    const [phone] = await readNoteHistory(run, "Note.md", { limit: 1, skip: 0 });
+    expect(phone).toMatchObject({
+      authorKind: "app",
+      authorName: "Kai's iPhone",
+      subject: "vault: update Note.md",
+    });
   });
 
   it("answers an empty page for a path git has never seen", async () => {
@@ -459,7 +482,7 @@ describe("readTurnCommits", () => {
     await commit("vault: update other.md");
     const { stdout: otherTip } = await run(["rev-parse", "HEAD"]);
     await run(["switch", "-q", "main"]);
-    await runAs(["-c", "commit.gpgsign=false", "rebase", "-q", "other-device"]);
+    await runAs(["rebase", "-q", "other-device"]);
 
     const after = await readTurnCommits(run, { since: aMinuteAgo(), threadId: "thr_1" });
     expect(after).toHaveLength(1);

@@ -1,5 +1,5 @@
 import { isLegacyCommentsSidecarPath } from "../comments/sidecar-schema";
-import { basenamePath, extnamePath, joinPath } from "./vault-path";
+import { basenamePath, extnamePath, joinPath, vaultCollisionKey } from "./vault-path";
 
 const DOC_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt"]);
 
@@ -41,11 +41,11 @@ export const wikiLinkName = (path: string): string => wikiLinkPath(basenamePath(
 export const isVaultMetadataPath = (path: string): boolean =>
   isLegacyCommentsSidecarPath(path) || path.split("/").some((segment) => segment.startsWith("."));
 
-// Lowercased on both sides because the disk may be case-insensitive; the server's `absent` guard
-// stays the real one.
+// Keyed on both sides because the disk may fold case and normalization; the server's `absent`
+// guard stays the real one.
 export const takenIgnoringCase = (takenPaths: Iterable<string>): ((path: string) => boolean) => {
-  const taken = new Set(Array.from(takenPaths, (path) => path.toLowerCase()));
-  return (path) => taken.has(path.toLowerCase());
+  const taken = new Set(Array.from(takenPaths, vaultCollisionKey));
+  return (path) => taken.has(vaultCollisionKey(path));
 };
 
 // The first of `stem`, `stem 2`, `stem 3`… under `dir`, extension kept, that `isTaken` refuses.
