@@ -56,6 +56,9 @@ const CLOSING_BLOCK = "The end.";
 // pass is 64x, so 16 still catches it.
 const KEYSTROKE_GROWTH_CEILING = 16;
 const SETTLE_TO_PARSE_CEILING = 1;
+// a hang backstop, never a budget: the costs are ratios, so a runner half as fast takes twice as long
+// and still passes, and CI's job limit is the outer bound
+const COLLECT_TIMEOUT_MS = 1_500_000;
 
 interface Pass {
   readonly name: string;
@@ -415,7 +418,7 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
     observed = await observe(note);
     note.unmount();
     parseMs = fastestParseMs(noteOf(LONG_LINES));
-  }, 600_000);
+  }, COLLECT_TIMEOUT_MS);
 
   afterAll(() => {
     vi.useRealTimers();

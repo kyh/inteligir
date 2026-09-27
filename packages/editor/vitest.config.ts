@@ -54,6 +54,8 @@ export default defineConfig({
           name: "editor-budget",
           server: { deps: { inline: inlineDeps } },
           setupFiles: ["src/__tests__/dom-cleanup.ts"],
+          // unmounting a 10k-line tree outlasts the 10s default on a slow runner
+          hookTimeout: 120_000,
           testTimeout: 120_000,
         },
       },
