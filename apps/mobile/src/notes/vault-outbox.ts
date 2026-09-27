@@ -22,7 +22,8 @@ import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import { diff3 } from "@repo/notes/text/diff3";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
-import { migratePhoneDb } from "../lib/phone-db";
+import { fencedExclusive, phoneDbReady } from "../lib/phone-db";
+import type { Fence } from "../lib/phone-db";
 import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import {
@@ -34,12 +35,12 @@ import {
   settleSchema,
   vaultOpSchema,
 } from "./outbox-ops";
-import type { OutboxRow, RowState, VaultOp } from "./outbox-ops";
+import type { OutboxRow, RowState, Settle, TextOp, VaultOp } from "./outbox-ops";
 import type { OutboxFiles } from "./outbox-files";
 import { keptLanding, resolveConflict } from "./outbox-reconcile";
 import type { ReconcileContext } from "./outbox-reconcile";
 import { landInMirror } from "./vault-mirror";
-import type { Fence, MirrorLanding } from "./vault-mirror";
+import type { MirrorLanding } from "./vault-mirror";
 
 // a row whose every resend meets a head that moved again is left for the next pass
 const MAX_ROUNDS_PER_ROW = 3;
@@ -55,16 +56,21 @@ const PARKING_CODES: ReadonlyMap<CloudErrorCode, string> = new Map([
   ["bad-request", "Your vault could not take this change."],
 ]);
 
-const STAGED_FILE_GONE = "This attachment is no longer on your phone.";
+export const STAGED_FILE_GONE = "This attachment is no longer on your phone.";
 
-interface ParkedChange {
+// what the parked row would have changed, which its notice words: a rename names both ends
+type ParkedKind =
+  | { kind: Exclude<VaultOp["op"], "rename"> }
+  | { kind: "rename"; from: string; to: string };
+
+type ParkedChange = ParkedKind & {
   seq: number;
   paths: readonly string[];
   reason: string;
   // a note's text or an attachment can be kept under a free name; a rename, a delete or a comment
   // cannot
   canSaveAsNew: boolean;
-}
+};
 
 interface ConflictNotice {
   id: number;
@@ -101,11 +107,15 @@ export interface CreateVaultOutboxArgs {
   onChange: (rows: readonly OutboxRow[], landed: readonly MirrorLanding[]) => void;
   // the first wait after a failed attempt, doubling to five minutes; null never retries on a timer
   retryBaseMs: number | null;
+  // given the bytes of an attachment once the vault holds them, under its staged name
+  keepLanded?: (file: string, bytes: Uint8Array) => Promise<void>;
 }
 
 export interface VaultOutbox {
   status: ReadableStore<OutboxStatus>;
   rows: () => readonly OutboxRow[];
+  // what the database holds unsent, parked rows included, whether or not this build can read it
+  unsent: () => Promise<number>;
   // the rows the last launch left
   load: (fence: Fence) => Promise<void>;
   // every row and staged file, with the mirror on a sign-out or a revocation
@@ -146,6 +156,8 @@ const rowColumnsSchema = z
 
 const SELECT_ROWS = "SELECT seq, op, state, reason, settle, created_at FROM outbox";
 
+const countSchema = z.object({ count: z.number() });
+
 type RowColumns = z.infer<typeof rowColumnsSchema>;
 
 // a row this build cannot read throws: dropping it would drop the user's text
@@ -158,7 +170,7 @@ const rowOf = (columns: RowColumns): OutboxRow => ({
     columns.state === "parked" ? { kind: "parked", reason: columns.reason } : { kind: "pending" },
 });
 
-const readRows = async (db: SqlExecutor): Promise<OutboxRow[]> => {
+const readRows = async (db: Pick<SqlDriver, "all">): Promise<OutboxRow[]> => {
   const raw = await db.all(`${SELECT_ROWS} ORDER BY seq`);
   return raw.map((row) => rowOf(rowColumnsSchema.parse(row)));
 };
@@ -191,6 +203,63 @@ const PENDING: RowState = { kind: "pending" };
 
 const isParked = (row: OutboxRow): boolean => row.state.kind === "parked";
 
+const parkedOf = (row: OutboxRow, reason: string): ParkedChange => {
+  const { op } = row;
+  const change = {
+    canSaveAsNew: isTextOp(op) || op.op === "putAsset",
+    paths: opPaths(op),
+    reason,
+    seq: row.seq,
+  };
+  return op.op === "rename"
+    ? { ...change, from: op.from, kind: "rename", to: op.to }
+    : { ...change, kind: op.op };
+};
+
+const textPut = (op: TextOp): VaultChangeRequest =>
+  putText(op.path, op.op === "write" ? op.baseOid : null, op.content);
+
+// the one put of a text row's own text, kept as a settle is while the vault may hold it
+const firstSetOf = (op: TextOp): Settle => ({
+  against: null,
+  changes: [textPut(op)],
+  mine: op.content,
+  reports: [],
+});
+
+// the put a text row's settle holds when that settle is the row's first set: a settle a conflict
+// made carries its path's version, a copy or a report, or for a write a base other than the row's
+const pinnedPut = (row: OutboxRow): Extract<VaultChangeRequest, { op: "put" }> | null => {
+  const { op, settle } = row;
+  if (!isTextOp(op) || settle === null || settle.against !== null || settle.reports.length > 0) {
+    return null;
+  }
+  const [put, ...rest] = settle.changes;
+  const base = op.op === "write" ? op.baseOid : null;
+  return put?.op === "put" && rest.length === 0 && put.path === op.path && put.base === base
+    ? put
+    : null;
+};
+
+// the paths a row changes where the vault may already hold nothing, which its set then leaves out
+const removedBy = (op: VaultOp): readonly string[] => {
+  switch (op.op) {
+    case "rename": {
+      return [op.from];
+    }
+    case "remove": {
+      return [op.path, ...op.stores.map((store) => store.path)];
+    }
+    case "write":
+    case "create":
+    case "comment":
+    case "putAsset": {
+      return [];
+    }
+    // no default
+  }
+};
+
 // oldest first; a row sharing a path with a parked row, or with a row held behind one, waits
 const nextToSend = (rows: readonly OutboxRow[]): OutboxRow | null => {
   const held = new Set<string>();
@@ -213,8 +282,9 @@ const parkReasonFor = (failure: CloudFailure): string | null =>
 const landedText = (change: Extract<VaultChangeRequest, { op: "put" }>): string | null =>
   change.content.encoding === "utf-8" ? change.content.text : null;
 
-// what a committed set leaves on the phone: each change's result, and the vault's own version at a
-// path the settle left as it was
+// what a committed set leaves on the phone: each change's result, the vault's own version at a
+// path the settle left as it was, and nothing at a path the row removes that the set left out
+// because another device removed it first
 const landingsOf = (
   row: OutboxRow,
   sent: readonly VaultChangeRequest[],
@@ -242,11 +312,17 @@ const landingsOf = (
       landings.push({ commit, from: change.from, kind: "move", oid, text, to: change.to });
     }
   }
+  const sentPaths = new Set(sent.flatMap(vaultChangePaths));
   const against = row.settle?.against ?? null;
-  if (against !== null && !sent.some((change) => vaultChangePaths(change).includes(against.path))) {
+  if (against !== null && !sentPaths.has(against.path)) {
     const kept = keptLanding(against.path, against);
     if (kept !== null) {
       landings.push(kept);
+    }
+  }
+  for (const path of removedBy(row.op)) {
+    if (!sentPaths.has(path) && path !== against?.path) {
+      landings.push({ kind: "remove", path });
     }
   }
   return landings;
@@ -318,27 +394,12 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
   const flight = createSingleFlight();
   const status = createExternalStore<OutboxStatus>(EMPTY_STATUS);
 
-  let migrated: Promise<void> | null = null;
-  const ready = async (): Promise<void> => {
-    migrated ??= migratePhoneDb(db);
-    await migrated;
-  };
-
   const publish = (): void => {
     status.set({
       conflicts,
       lastError,
-      parked: rows.flatMap((row): ParkedChange[] =>
-        row.state.kind === "parked"
-          ? [
-              {
-                canSaveAsNew: isTextOp(row.op) || row.op.op === "putAsset",
-                paths: opPaths(row.op),
-                reason: row.state.reason,
-                seq: row.seq,
-              },
-            ]
-          : [],
+      parked: rows.flatMap((row) =>
+        row.state.kind === "parked" ? [parkedOf(row, row.state.reason)] : [],
       ),
       unsent: rows.filter((row) => !isParked(row)).length,
     });
@@ -356,27 +417,18 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     }
   };
 
-  // one transaction, re-checking the fence inside it: a wipe queued ahead of it wins. the cache
-  // is read back whole when the transaction fails, since its work may have moved it
+  // the cache is read back whole when the transaction fails, since its work may have moved it
   const mutate = async (
     fence: Fence,
     work: (tx: SqlExecutor) => Promise<void>,
   ): Promise<boolean> => {
-    await ready();
-    const outcome = { landed: false };
+    await phoneDbReady(db);
     try {
-      await db.exclusive(async (tx) => {
-        if (!fence()) {
-          return;
-        }
-        await work(tx);
-        outcome.landed = true;
-      });
+      return await fencedExclusive(db, fence, work);
     } catch (error) {
       rows = await readRows(db);
       throw error;
     }
-    return outcome.landed;
   };
 
   const replaceRow = (next: OutboxRow): void => {
@@ -399,6 +451,22 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       await files.remove(op.stagedFile);
     } catch {
       // an orphan costs space until the next wipe clears the folder
+    }
+  };
+
+  // the bytes the vault now holds go to the attachment cache under the name a read looks for, so
+  // they are not downloaded again; a failure costs only that
+  const keepLanded = async (fence: Fence, op: VaultOp): Promise<void> => {
+    if (op.op !== "putAsset" || args.keepLanded === undefined) {
+      return;
+    }
+    try {
+      const bytes = await files.read(op.stagedFile);
+      if (fence()) {
+        await args.keepLanded(op.stagedFile, bytes);
+      }
+    } catch {
+      // the next read of it downloads it
     }
   };
 
@@ -450,6 +518,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     if (!landed) {
       return false;
     }
+    await keepLanded(fence, row.op);
     await releaseStaged(row.op);
     failures = 0;
     lastError = null;
@@ -481,11 +550,9 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     }
     const { op } = row;
     switch (op.op) {
-      case "write": {
-        return { changes: [putText(op.path, op.baseOid, op.content)], kind: "set" };
-      }
+      case "write":
       case "create": {
-        return { changes: [putText(op.path, null, op.content)], kind: "set" };
+        return { changes: [textPut(op)], kind: "set" };
       }
       case "remove": {
         return {
@@ -596,11 +663,78 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     }
   };
 
-  const sendRow = async (
+  // the row's text as it is now becomes its set, unless `keep` says the row's own set stands
+  const pinText = async (
+    fence: Fence,
+    row: OutboxRow,
+    keep: (now: OutboxRow) => boolean,
+  ): Promise<OutboxRow | null> => {
+    const pinned = { row };
+    const saved = await mutate(fence, async (tx) => {
+      const now = await readRow(tx, row.seq);
+      if (now === null || !isTextOp(now.op) || keep(now)) {
+        return;
+      }
+      const next: OutboxRow = { ...now, settle: firstSetOf(now.op) };
+      await saveRow(tx, next);
+      replaceRow(next);
+      pinned.row = next;
+    });
+    return saved ? pinned.row : null;
+  };
+
+  // a pinned first set the user has written past since: the head says whether it ever reached the
+  // vault, and one that never did is pinned again from the text as it is now, so saves made
+  // offline still go as one write. One that did, or a head another device moved, is resent as it
+  // was, and the text written since lands after it.
+  const repinUnlanded = async (
     client: CloudClient,
     fence: Fence,
     row: OutboxRow,
+  ): Promise<OutboxRow | "stop" | "fenced"> => {
+    const put = pinnedPut(row);
+    if (put === null || !isTextOp(row.op) || row.op.content === row.settle?.mine) {
+      return row;
+    }
+    const head = await client.vaultFile({ path: put.path });
+    if (!fence()) {
+      return "fenced";
+    }
+    if (!head.ok && session.recordFailure(head.failure) === "ended") {
+      return "fenced";
+    }
+    if (!head.ok && head.failure.kind !== "refused") {
+      lastError = describeCloudFailure(head.failure);
+      return "stop";
+    }
+    const absent = !head.ok && head.failure.kind === "refused" && head.failure.code === "not-found";
+    const unlanded = head.ok ? head.value.oid === put.base : absent && put.base === null;
+    if (!unlanded) {
+      return row;
+    }
+    return (await pinText(fence, row, () => false)) ?? "fenced";
+  };
+
+  const sendRow = async (
+    client: CloudClient,
+    fence: Fence,
+    queued: OutboxRow,
   ): Promise<SendOutcome> => {
+    // a text row's first set is kept on the row as a settle is, before it is sent: a resend after
+    // a lost answer is then that same set, which the vault answers as already held, and a text
+    // coalesced meanwhile lands rebased onto it rather than reconciled against the phone's own
+    // write
+    const pinned =
+      queued.settle === null && isTextOp(queued.op)
+        ? await pinText(fence, queued, (now) => now.settle !== null)
+        : queued;
+    if (pinned === null) {
+      return "fenced";
+    }
+    const row = await repinUnlanded(client, fence, pinned);
+    if (row === "stop" || row === "fenced") {
+      return row;
+    }
     const set = await changesToSend(row);
     if (set.kind === "gone") {
       return (await park(fence, row, STAGED_FILE_GONE)) ? "parked" : "fenced";
@@ -644,7 +778,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
   const pass = async (): Promise<SyncOutcome> => {
     stopped = false;
     await args.resetWork();
-    await ready();
+    await phoneDbReady(db);
     const current = session.current();
     if (current.kind !== "live") {
       return "fenced";
@@ -777,7 +911,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     },
 
     load: async (fence) => {
-      await ready();
+      await phoneDbReady(db);
       const loaded = await readRows(db);
       if (fence()) {
         rows = loaded;
@@ -840,6 +974,12 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
 
     status,
 
+    unsent: async () => {
+      await phoneDbReady(db);
+      const [row] = await db.all("SELECT count(*) AS count FROM outbox");
+      return countSchema.parse(row).count;
+    },
+
     wipe: async () => {
       clearRetry();
       failures = 0;
@@ -848,7 +988,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       lastError = null;
       publish();
       try {
-        await ready();
+        await phoneDbReady(db);
         // cleared again inside: a write whose transaction was queued ahead of this one landed in
         // the cache after the line above
         await db.exclusive(async (tx) => {

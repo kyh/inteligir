@@ -199,7 +199,7 @@ export const textBlobOid = async (sha1: Sha1, text: string): Promise<string> =>
 
 // the blob and text an unsent rename leaves at a path: the note at its new name, or a note whose
 // links it rewrote; null where it leaves nothing
-export const renameLeaves = async (
+const renameLeaves = async (
   sha1: Sha1,
   op: RenameOp,
   path: string,
@@ -223,7 +223,7 @@ const commentTextAt = (op: CommentOp, path: string): string | null => {
 };
 
 // the blob and text an unsent comment edit leaves at a path: its store, or the note it anchored in
-export const commentLeaves = async (
+const commentLeaves = async (
   sha1: Sha1,
   op: CommentOp,
   path: string,

@@ -34,6 +34,7 @@ import { computeMoveEdits } from "@repo/notes/knowledge/rename-links";
 import { dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
 import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/placeholders";
+import { NOTE_GONE } from "./comment-ops";
 import type { HeldFile, NotesStore, RenameEdits } from "./notes-store";
 
 export type FileOpsStore = Pick<
@@ -223,7 +224,7 @@ export const createFileOps = (store: FileOpsStore): FileOps => ({
         return { kind: "refused", message: `A note named ${docStem(to)} is already here.` };
       }
       case "vanished": {
-        return { kind: "refused", message: "This note is no longer on your phone." };
+        return { kind: "refused", message: NOTE_GONE };
       }
       // no default
     }

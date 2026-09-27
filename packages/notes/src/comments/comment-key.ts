@@ -12,6 +12,13 @@ export type CommentKey =
 
 const refused = (message: string): CommentKey => ({ kind: "refused", message });
 
+// the id of the store a note's comments live in; null for a note without an id, or with one no
+// file can be named by
+export const commentStoreKey = (content: string): string | null => {
+  const id = frontmatterId(content);
+  return id !== null && isNoteIdKey(id) ? id : null;
+};
+
 const keyed = (id: string, content: string): CommentKey =>
   isNoteIdKey(id)
     ? { content, id, kind: "key" }

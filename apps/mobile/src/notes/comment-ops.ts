@@ -41,7 +41,7 @@ export interface CommentOpsArgs {
   randomBytes: (length: number) => Uint8Array;
 }
 
-const GONE = "This note is no longer on your phone.";
+export const NOTE_GONE = "This note is no longer on your phone.";
 
 // a reply or a resolve anchors nothing, so no text of the note is expected and none can have moved
 const outcomeOf = (edited: CommentEditOutcome): CommentOutcome => {
@@ -53,7 +53,7 @@ const outcomeOf = (edited: CommentEditOutcome): CommentOutcome => {
       return { kind: "refused", message: "This note changed on your phone. Try again." };
     }
     case "vanished": {
-      return { kind: "refused", message: GONE };
+      return { kind: "refused", message: NOTE_GONE };
     }
     case "refused": {
       return edited;

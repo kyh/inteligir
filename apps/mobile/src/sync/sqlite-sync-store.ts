@@ -9,7 +9,7 @@ import { hexFromBytes } from "@repo/api/cloud/bytes";
 import type { LogPlanStep } from "@repo/api/cloud/sync/plan-page";
 import { isThreadEventDelta, threadEventSchema } from "@repo/domain/provider-event";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import { migratePhoneDb } from "../lib/phone-db";
+import { fencedExclusive, phoneDbReady } from "../lib/phone-db";
 import { createSerialLock } from "../lib/sql-driver";
 import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { Sha1 } from "../notes/outbox-ops";
@@ -146,12 +146,6 @@ const readHeld = async (db: SqlDriver, grammar: string): Promise<Held | null> =>
 
 export const createSqliteSyncStore = (args: CreateSqliteSyncStoreArgs): SyncStore => {
   const { db } = args;
-  // on the first call, so a failed migration fails the call that asked rather than nobody
-  let migrated: Promise<void> | null = null;
-  const ready = async (): Promise<void> => {
-    migrated ??= migratePhoneDb(db);
-    await migrated;
-  };
   let digest: Promise<string> | null = null;
   const grammar = async (): Promise<string> => {
     digest ??= grammarDigest(args.sha1);
@@ -175,7 +169,7 @@ export const createSqliteSyncStore = (args: CreateSqliteSyncStoreArgs): SyncStor
   };
 
   const wipe = async (): Promise<void> => {
-    await ready();
+    await phoneDbReady(db);
     await db.exclusive(async (tx) => {
       await tx.exec(
         "DELETE FROM thread_events; DELETE FROM synced_threads; DELETE FROM thread_sync;",
@@ -186,7 +180,7 @@ export const createSqliteSyncStore = (args: CreateSqliteSyncStoreArgs): SyncStor
   // false when what the disk holds must go: another grammar parsed it, or it cannot be read
   const restore = async (started: number): Promise<boolean> => {
     try {
-      await ready();
+      await phoneDbReady(db);
       const read = await readHeld(db, await grammar());
       if (read !== null && generation === started) {
         adopt(read);
@@ -204,21 +198,19 @@ export const createSqliteSyncStore = (args: CreateSqliteSyncStoreArgs): SyncStor
       }
       const started = generation;
       await serial(async () => {
-        await ready();
         const written = await grammar();
         if (generation !== started) {
           return;
         }
         const write = planWrite(held, steps);
-        const outcome = { landed: false };
-        await db.exclusive(async (tx) => {
-          if (generation !== started) {
-            return;
-          }
-          await writePage(tx, write, written);
-          outcome.landed = true;
-        });
-        if (!outcome.landed || generation !== started) {
+        const landed = await fencedExclusive(
+          db,
+          () => generation === started,
+          async (tx) => {
+            await writePage(tx, write, written);
+          },
+        );
+        if (!landed || generation !== started) {
           return;
         }
         if (write.threads.size === 0) {

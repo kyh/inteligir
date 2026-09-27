@@ -37,9 +37,9 @@ export const createExpoSqlDriver = (name: string): SqlDriver => {
   };
   const serial = createSerialLock();
 
-  // withExclusiveTransactionAsync runs `work` on a connection of its own, so a write on the shared
-  // one mid-transaction would fail as locked rather than wait: every write takes the lock. a read
-  // does not, and sees what the last commit left.
+  // withExclusiveTransactionAsync runs `work` on a connection of its own, so a second transaction
+  // would meet the first as locked rather than wait: every transaction takes the lock. a read does
+  // not, and sees what the last commit left.
   return {
     all: async (sql, params) => await executorOver(await database()).all(sql, params),
     exclusive: async (work) =>
@@ -49,17 +49,5 @@ export const createExpoSqlDriver = (name: string): SqlDriver => {
           await work(executorOver(txn));
         });
       }),
-    exec: async (sql) => {
-      await serial(async () => {
-        const db = await database();
-        await executorOver(db).exec(sql);
-      });
-    },
-    run: async (sql, params) => {
-      await serial(async () => {
-        const db = await database();
-        await executorOver(db).run(sql, params);
-      });
-    },
   };
 };

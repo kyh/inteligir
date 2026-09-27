@@ -40,15 +40,5 @@ export const openNodeSqlDriver = (path: string): SqlDriver & { close: () => void
         }
         db.exec("COMMIT");
       }),
-    exec: async (sql) => {
-      await serial(async () => {
-        await direct.exec(sql);
-      });
-    },
-    run: async (sql, params) => {
-      await serial(async () => {
-        await direct.run(sql, params);
-      });
-    },
   };
 };

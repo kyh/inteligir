@@ -20,12 +20,13 @@ import { createSingleFlight } from "@repo/api/cloud/sync/sync-session";
 import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";
 import { answerableDecisions } from "@repo/domain/pending-interactions";
 import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
+import { messageOf } from "../lib/error-message";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
+import type { Fence } from "../lib/phone-db";
 import { createSerialLock } from "../lib/sql-driver";
 import type { SqlDriver } from "../lib/sql-driver";
 import type { SignInSource } from "../notes/notes-store";
-import type { Fence } from "../notes/vault-mirror";
 import type { SessionPort } from "../sync/sync-runtime";
 import type { SyncStore } from "../sync/sync-store";
 import { projectThread } from "../sync/thread-projection";
@@ -175,8 +176,12 @@ const viewOf = (row: DispatchRow, error: string | null): DispatchView => {
 // a refused request stays until the user dismisses it; every other one is still moving
 const settled = (row: DispatchRow): boolean => phaseOf(row.status, null).kind === "refused";
 
+// a delivered request is asked about until the log holds it: one that never reaches the log is
+// answered `unknown` once the cloud lets it go, which leaves it for the user to dismiss
 const polled = (row: DispatchRow): boolean =>
-  row.status?.state === "waiting" || row.status?.state === "claimed";
+  row.status?.state === "waiting" ||
+  row.status?.state === "claimed" ||
+  (row.request.kind === "turn" && row.status?.state === "delivered");
 
 const sameStatus = (a: DispatchStatus, b: DispatchStatus): boolean =>
   a.state === b.state &&
@@ -189,8 +194,8 @@ const finalRefusal = (failure: CloudFailure): string | null =>
     ? failure.message
     : null;
 
-const storageMessage = (detail: string): string =>
-  `This phone could not keep your request: ${detail}`;
+const storageMessage = (cause: unknown): string =>
+  `This phone could not keep your request: ${messageOf(cause)}`;
 
 type StepOutcome = "done" | "stop" | "fenced";
 
@@ -486,10 +491,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
         return { message: NOT_SIGNED_IN, ok: false };
       }
     } catch (error) {
-      return {
-        message: storageMessage(error instanceof Error ? error.message : String(error)),
-        ok: false,
-      };
+      return { message: storageMessage(error), ok: false };
     }
     rows = [...rows, row];
     publish();
@@ -551,9 +553,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
         rearm();
       }
     } catch (error) {
-      debug(
-        `the requests the last launch left could not be read: ${storageMessage(error instanceof Error ? error.message : String(error))}`,
-      );
+      debug(`the requests the last launch left could not be read: ${messageOf(error)}`);
     }
   };
 
@@ -573,9 +573,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
         try {
           await dropLanded(fence);
         } catch (error) {
-          debug(
-            `a request the log holds could not be dropped: ${storageMessage(error instanceof Error ? error.message : String(error))}`,
-          );
+          debug(`a request the log holds could not be dropped: ${messageOf(error)}`);
         }
       })();
     }
@@ -634,10 +632,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
       try {
         return await serial(async () => await cancelOne(id));
       } catch (error) {
-        return {
-          message: storageMessage(error instanceof Error ? error.message : String(error)),
-          ok: false,
-        };
+        return { message: storageMessage(error), ok: false };
       } finally {
         rearm();
       }
@@ -656,9 +651,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
           publish();
         }
       } catch (error) {
-        debug(
-          `a refused request could not be dismissed: ${storageMessage(error instanceof Error ? error.message : String(error))}`,
-        );
+        debug(`a refused request could not be dismissed: ${messageOf(error)}`);
       }
     },
 

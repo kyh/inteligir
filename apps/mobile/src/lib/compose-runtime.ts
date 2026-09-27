@@ -25,6 +25,7 @@ import { createSqliteSyncStore } from "../sync/sqlite-sync-store";
 import { createSyncRuntime } from "../sync/sync-runtime";
 import type { SyncRuntime, SyncRuntimeArgs } from "../sync/sync-runtime";
 import type { SyncStore } from "../sync/sync-store";
+import { messageOf } from "./error-message";
 import type { SqlDriver } from "./sql-driver";
 
 export interface CredentialStore extends DeviceCredentialStore {
@@ -195,7 +196,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
         await args.credentials.clear();
       } catch (error) {
         login.fail(
-          `Signed out, but the saved sign-in could not be removed and may return on the next launch: ${error instanceof Error ? error.message : String(error)}`,
+          `Signed out, but the saved sign-in could not be removed and may return on the next launch: ${messageOf(error)}`,
         );
       }
       sync.setCredential(null);
@@ -223,9 +224,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       try {
         stored = await args.credentials.read();
       } catch (error) {
-        login.fail(
-          `The saved sign-in could not be read: ${error instanceof Error ? error.message : String(error)}`,
-        );
+        login.fail(`The saved sign-in could not be read: ${messageOf(error)}`);
       }
       if (stored === null) {
         sync.setCredential(null);

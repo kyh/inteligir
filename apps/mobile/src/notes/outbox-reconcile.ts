@@ -11,8 +11,6 @@ import type {
   VaultCommitConflict,
   VaultConflictReason,
 } from "@repo/api/cloud/vault/vault-commit-schema";
-import { isCommentsStorePath } from "@repo/notes/comments/sidecar-schema";
-import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";
 import type { FileSide, Reconciled } from "@repo/notes/sync/reconcile-file";
@@ -26,6 +24,7 @@ import type {
   VaultOp,
   VaultSide,
 } from "./outbox-ops";
+import { holdsText } from "./vault-mirror";
 import type { MirrorLanding } from "./vault-mirror";
 
 type VaultConflict = VaultCommitConflict["conflicts"][number];
@@ -82,8 +81,6 @@ const refusedFor = (conflicts: readonly VaultConflict[]): string | null => {
   return null;
 };
 
-const holdsText = (path: string): boolean => isDocPath(path) || isCommentsStorePath(path);
-
 // `device` wrote what the path holds, its deletion included
 type Theirs =
   | { kind: "absent"; device: string | null }
@@ -93,8 +90,11 @@ type Theirs =
 const fileOf = (side: VaultSide): FileSide =>
   side.text === null ? { kind: "opaque", ref: side.oid } : { kind: "text", text: side.text };
 
-const deviceOf = (theirs: Exclude<Theirs, { kind: "failed" }>): string =>
-  (theirs.kind === "present" ? theirs.side.device : theirs.device) ?? "";
+// what reconcileFile reads of their side
+const theirsArgs = (theirs: Exclude<Theirs, { kind: "failed" }>) => ({
+  theirDevice: (theirs.kind === "present" ? theirs.side.device : theirs.device) ?? "",
+  theirs: theirs.kind === "present" ? theirs.file : ABSENT,
+});
 
 // what the path held when the set was reconciled, for a round the path itself did not conflict in
 const heldSide = (held: VaultSide | null): Theirs =>
@@ -218,8 +218,7 @@ const textVerdict = (
     isTaken: takenBeside(ctx, conflict),
     mine: { kind: "text", text: sides.mine },
     path,
-    theirDevice: deviceOf(theirs),
-    theirs: theirs.kind === "present" ? theirs.file : ABSENT,
+    ...theirsArgs(theirs),
     thisDevice: ctx.thisDevice,
   });
   const changes = changesFor(path, verdict, against, sides.mine);
@@ -280,8 +279,7 @@ const storePut = async (
     isTaken: takenBeside(ctx, conflict),
     mine: { kind: "text", text: store.content },
     path: store.path,
-    theirDevice: deviceOf(theirs),
-    theirs: theirs.kind === "present" ? theirs.file : ABSENT,
+    ...theirsArgs(theirs),
     thisDevice: ctx.thisDevice,
   });
   const theirText =
@@ -392,8 +390,7 @@ const reconcileRemove = async (
     isTaken: takenBeside(ctx, conflict),
     mine: ABSENT,
     path: op.path,
-    theirDevice: deviceOf(theirs),
-    theirs: theirs.kind === "present" ? theirs.file : ABSENT,
+    ...theirsArgs(theirs),
     thisDevice: ctx.thisDevice,
   });
   const changes: VaultChangeRequest[] = [];
@@ -487,26 +484,16 @@ const reconcileRename = async (
   if (theirs.kind === "failed") {
     return theirs;
   }
-  const against = theirs.kind === "present" ? theirs.side : null;
-  const verdict = reconcileFile({
-    base: ABSENT,
-    isTaken: takenBeside(ctx, conflict),
-    mine: { kind: "text", text: noteText },
-    path: op.to,
-    theirDevice: deviceOf(theirs),
-    theirs: theirs.kind === "present" ? theirs.file : ABSENT,
-    thisDevice: ctx.thisDevice,
-  });
-  const changes = changesFor(op.to, verdict, against, noteText);
-  if (changes === null) {
+  const text = textVerdict(op.to, { base: null, mine: noteText, theirs }, conflict, ctx);
+  if (text === null) {
     return parked(NOT_KEPT_HERE);
   }
   // a source already gone was deleted or moved elsewhere; the note stays at its new name
   const sourceGone = source?.reason === "missing";
   const moved: VaultChangeRequest[] = sourceGone
-    ? [...changes, ...rewritePuts(op)]
-    : [{ base: op.baseOid, op: "delete", path: op.from }, ...changes, ...rewritePuts(op)];
-  const resolution = settled(op.to, verdict, against, moved, null);
+    ? [...text.changes, ...rewritePuts(op)]
+    : [{ base: op.baseOid, op: "delete", path: op.from }, ...text.changes, ...rewritePuts(op)];
+  const resolution = settled(op.to, text.verdict, text.against, moved, null);
   if (resolution.kind === "local" && sourceGone) {
     return { ...resolution, landings: [...resolution.landings, { kind: "remove", path: op.from }] };
   }
