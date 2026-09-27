@@ -68,7 +68,10 @@ const Page = () => {
               Download for Mac
             </a>
           )}
-          <span className="text-xs text-foreground/60">Requires an OpenAI or Claude account</span>
+          <span className="text-center text-xs text-foreground/60">
+            For Macs with Apple silicon. The agent works with a paid Claude plan or any ChatGPT
+            plan.
+          </span>
         </div>
         <footer className="flex justify-center gap-4 pb-6">
           {FOOTER_LINKS.map((link) => (

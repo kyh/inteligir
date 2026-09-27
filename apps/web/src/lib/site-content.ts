@@ -16,8 +16,8 @@ undone.
 
 - **Your notes stay yours.** They are plain markdown files in a folder on your Mac. The app, its
   search and the agent all run on that Mac.
-- **The agent runs on the plan you already have.** Sign in with your own Claude or ChatGPT account;
-  ${name} never bills you for model usage and never asks for an API key.
+- **The agent runs on the plan you already have.** Sign in with a paid Claude plan or any ChatGPT
+  plan; ${name} never bills you for model usage and never asks for an API key.
 - **An account is optional.** Without one ${name} is a local notes app that makes no cloud request.
   With one, your notes and conversations sync between your devices, and a hosted copy of your
   notes is kept for your phone and your other Macs.

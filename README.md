@@ -2,15 +2,38 @@
 
 > The workspace for knowledge work.
 
-An AI-native notes app — Obsidian with an agent, local-first. Your notes are
-plain markdown files in a folder you own, versioned with git.
-The app runs on your machine: one local Node process owns the vault, indexes
-it, serves the API, and drives a coding agent that edits those same files.
-Nothing reaches this project's cloud unless you sign in; the desktop app checks
-GitHub for updates and the agent you run talks to its own provider
-([docs/privacy.md](./docs/privacy.md)).
+Notes with an agent that edits them beside you. Your notes are plain markdown
+files in a folder on your Mac. Ask Claude or ChatGPT to draft, tidy, link or
+summarize, and it edits those notes directly; every reply that changed a note
+can be undone, and every earlier version of a note is in its History.
 
-## Install & run
+## Get it
+
+**[Download for Mac (Apple silicon)](https://inteligir.com)**
+
+What you need:
+
+- A Mac with Apple silicon.
+- To use the agent, a paid Claude plan or any ChatGPT plan. The app signs in to
+  it for you and brings everything the agent needs; without a plan it is a notes
+  app.
+- Nothing else to install or set up.
+
+An account is optional and needs an invite: it keeps your notes in step across
+your Macs and your iPhone, and lets your phone ask your Mac's agent. The iPhone
+app comes by TestFlight invite.
+
+What leaves your Mac, and when: [docs/privacy.md](./docs/privacy.md).
+
+## For developers
+
+The app runs on your machine: one local Node process owns the vault (a git
+repo), indexes it, serves the API, and drives the agent — Claude or Codex over
+ACP — that edits those same files. Nothing reaches this project's cloud unless
+you sign in; the desktop app checks GitHub for updates and the agent talks to
+its own provider.
+
+### Install & run
 
 The desktop app is the product: one window on that local server, which it
 starts and stops with itself — [`apps/desktop`](./apps/desktop/README.md). The
@@ -19,7 +42,7 @@ Download button reads it), and an installed app offers each new release from
 Settings › About. Its first launch asks where your notes live, a new vault or
 a folder you already have, before it starts anything.
 
-Without installing anything:
+Without installing the app:
 
 ```bash
 npx inteligir serve --open
@@ -44,7 +67,7 @@ pnpm install
 pnpm dev              # the desktop shell over a server on a per-checkout port
 ```
 
-## Layout
+### Layout
 
 One line per workspace; [`CLAUDE.md`](./CLAUDE.md) § Workspace Structure is
 the owned description of each.
@@ -53,7 +76,7 @@ the owned description of each.
 apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the window and the SPA in it
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
 apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, dispatch, hosted vault
-apps/mobile             @repo/mobile — the Expo client: threads, captures, notes in the editor page
+apps/mobile             @repo/mobile — the iPhone app: the editor offline over the hosted vault, captures, asks a Mac
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
 packages/domain         @repo/domain — zod-only leaf vocabulary
 packages/api            @repo/api — ONE contract, TWO entries: /local and /cloud
@@ -77,7 +100,7 @@ neither node nor react).
 the runnable recipes. `CLAUDE.md` (root) holds the architecture summary,
 conventions, and the durable decisions; `CONTEXT.md` is the domain glossary.
 
-## Develop
+### Develop
 
 [`docs/development.md`](./docs/development.md) owns the commands, the ports,
 where state lives and the gate. The one line every change runs before it is
