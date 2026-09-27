@@ -2524,8 +2524,9 @@ to the END of its group.
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The `note` issues are
-the declines register: #877 (0.6's settled non-work), #788 (the 2026-09-22
-architecture review's refuted findings), #645 (the 2026-09-01 review), #674
+the declines register: #877 (0.6's settled non-work), #881 (the 0.6 landed
+review's refuted findings), #788 (the 2026-09-22 architecture review's refuted
+findings), #645 (the 2026-09-01 review), #674
 (the 2026-09-05 simplify pass), #603 (Moss parity) and #705 (the CodeMirror
 trade); the older ones (#446, #453, #472, #474) catalogue findings declined
 against the hosted Durable-Object architecture this rewrite replaced.

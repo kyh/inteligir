@@ -20,7 +20,7 @@ cross-device sync, the capture and dispatch inboxes and the hosted vault. `apps/
 the same editor over the hosted vault, offline, asking a Mac to run the agent.
 This is the tool-agnostic guide for coding agents; `CLAUDE.md` holds the
 architecture and the durable decisions, GitHub issues #542 and #611 the
-decision record, the `note` issues the declines register (#877, #788, #645,
+decision record, the `note` issues the declines register (#877, #881, #788, #645,
 #674, #603, #705; read them before raising a finding), `CONTEXT.md` the domain
 glossary, `apps/web/README.md` the Worker's own routes and deploy.
 
