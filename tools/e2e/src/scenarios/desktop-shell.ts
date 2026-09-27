@@ -76,8 +76,15 @@ export const desktopShell: Scenario = {
     const browser = await ctx.browser("desktop-shell");
     await browser(["connect", String(shell.cdpPort)], 60_000);
 
-    const url = await browser(["get", "url"]);
-    expect(url.startsWith(SHELL_APP_URL), `the window is not on ${SHELL_APP_URL}: ${url}`);
+    // the page is listed before its navigation commits, so a connect can first see about:blank
+    await pollUntil(
+      async () => await browser(["get", "url"]),
+      (url) => url.startsWith(SHELL_APP_URL),
+      {
+        deadlineMs: RAIL_DEADLINE_MS,
+        describe: (url) => `the window is not on ${SHELL_APP_URL}: ${url}`,
+      },
+    );
     const socketOrigin = parseEval(
       await browser(["eval", "window.desktopBridge.socketOrigin"]),
       z.string(),

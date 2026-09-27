@@ -51,6 +51,8 @@ export const desktopOnboarding: Scenario = {
 
     const browser = await ctx.browser("desktop-onboarding");
     await browser(["connect", String(shell.cdpPort)], 60_000);
+    // the shell counts as up once its page is listed, which can be before React has drawn it
+    await browser(["wait", "--text", "Get started"], 60_000);
     await browser(["find", "role", "button", "click", "--name", "Get started", "--exact"]);
     await browser(["find", "role", "button", "click", "--name", "Create vault", "--exact"]);
 
