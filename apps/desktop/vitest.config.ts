@@ -34,7 +34,8 @@ export default defineConfig({
           include: [BOOTED_DOM_SUITES],
           name: "desktop-booted-dom",
           setupFiles: SETUP_FILES,
-          testTimeout: 20_000,
+          // several waits on a real server each, on a runner whose speed swings threefold
+          testTimeout: 60_000,
         },
       },
     ],

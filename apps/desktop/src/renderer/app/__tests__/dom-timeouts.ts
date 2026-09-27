@@ -4,8 +4,10 @@ import { configure } from "@testing-library/react";
 import { afterAll } from "vitest";
 
 // a three-core CI runner running four suites at once misses testing-library's one-second default
-// on work a laptop finishes in a tenth of it; the booted suites also cross a real server per wait.
-configure({ asyncUtilTimeout: 5000 });
+// on work a laptop finishes in a tenth of it, and the macOS fleet's speed swings threefold between
+// runs; the booted suites also cross a real server per wait. A wait that holds returns at once, so
+// only a failing one pays for the margin.
+configure({ asyncUtilTimeout: 10_000 });
 
 // sonner unmounts a dismissed toast on a timer of its own (TIME_BEFORE_UNMOUNT, 200ms); one set by
 // a file's last test fires after jsdom is gone, so a file that showed a toast waits it out.
