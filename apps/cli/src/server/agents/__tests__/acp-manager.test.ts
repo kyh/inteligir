@@ -1,13 +1,17 @@
 import { execFileSync, spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { setImmediate } from "node:timers/promises";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
-import type { AgentRuntimeShellEnvironment } from "@repo/agent-runtime/types";
+import type { AgentRuntime, AgentRuntimeShellEnvironment } from "@repo/agent-runtime/types";
+import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
 import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
 import { parseApprovalResolution } from "@repo/domain/pending-interactions";
 import type { PendingInteractionPayload } from "@repo/domain/pending-interactions";
+import type { ThreadEventItemStatus } from "@repo/domain/provider-event";
+import { turnScope } from "@repo/domain/thread-event-scope";
 import { listStoredThreadEvents } from "@repo/db/events";
 import { getThread } from "@repo/db/threads";
 import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
@@ -725,5 +729,133 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     await setImmediate();
 
     expect(children).toEqual([]);
+  });
+});
+
+interface ScriptedRuntimeHarness extends BootedTestApp {
+  // resolves once the manager has put the turn's prompt on the wire, so a turn/started lands on a
+  // dispatched turn.
+  prompted: Promise<void>;
+  // what the provider reports, as the runtime would hand it to the manager.
+  emit: (event: ProviderEvent) => void;
+}
+
+const idleRuntime = (prompted: () => void): AgentRuntime => ({
+  cancelTurn: async () => {
+    await Promise.resolve();
+  },
+  closeThread: async () => {
+    await Promise.resolve();
+  },
+  hasThread: () => false,
+  reapIdleProviderSessions: async () => await Promise.resolve({ reapedSessions: [] }),
+  resumeThread: async () => await Promise.resolve({ loaded: false, providerThreadId: "pt_1" }),
+  runTurn: async () => {
+    prompted();
+    await Promise.resolve();
+  },
+  shutdown: async () => {
+    await Promise.resolve();
+  },
+  startThread: async () => await Promise.resolve({ providerThreadId: "pt_1" }),
+});
+
+// the manager over the composed server's own engine, with the provider's reports the test's.
+const bootWithScriptedRuntime = async (): Promise<ScriptedRuntimeHarness> => {
+  let options: AcpAgentRuntimeOptions | null = null;
+  const prompted: PromiseWithResolvers<void> = Promise.withResolvers();
+  const booted = await bootTestApp({
+    agent: { detail: null, mode: "auto", runtime: "acp" },
+    makeDriver: ({ db, bus, vault, vaultDir }) => {
+      const manager = createAcpRuntimeManager({
+        createRuntime: (captured) => {
+          options = captured;
+          return idleRuntime(prompted.resolve);
+        },
+        db,
+        defaultProviderId: () => "codex",
+        git: vault.git,
+        hostEnv: {},
+        models: { claude: null, codex: null },
+        notifier: bus,
+        reapIntervalMs: null,
+        sessionFacts: () => fakeSessionFacts(),
+        vaultDir,
+      });
+      return {
+        createTurnDriver: manager.createTurnDriver,
+        dispose: async () => {
+          await manager.dispose();
+        },
+        recordAgentWrites: manager.recordAgentWrites,
+      };
+    },
+  });
+  return {
+    ...booted,
+    emit: (event) => {
+      if (options === null) {
+        throw new Error("no turn was dispatched, so no runtime was built");
+      }
+      options.onEvent(event);
+    },
+    prompted: prompted.promise,
+  };
+};
+
+describe("a write the provider reports", { timeout: 20_000 }, () => {
+  it("stays out of its turn's commit when it failed, so an undo never takes what the user typed there", async () => {
+    const harness = await bootWithScriptedRuntime();
+    const threadId = await createThread(harness.client);
+    const turnId = await sendMessage(harness.client, threadId, "tidy my notes");
+    await harness.prompted;
+
+    const reported = { providerThreadId: "pt_1", scope: turnScope("pturn_1"), threadId };
+    const fileChange = (id: string, file: string, status: ThreadEventItemStatus) => ({
+      approvalStatus: null,
+      changes: [{ kind: "update" as const, path: path.join(harness.vaultDir, file) }],
+      id,
+      status,
+      type: "fileChange" as const,
+    });
+    harness.emit({ ...reported, type: "turn/started" });
+    harness.emit({
+      ...reported,
+      item: fileChange("declined", "typed.md", "pending"),
+      type: "item/started",
+    });
+    await harness.client.vault.write({
+      content: "typed while the agent asked\n",
+      guard: { kind: "overwrite" },
+      path: "typed.md",
+    });
+    harness.emit({
+      ...reported,
+      item: fileChange("declined", "typed.md", "failed"),
+      type: "item/completed",
+    });
+    writeFileSync(path.join(harness.vaultDir, "agent.md"), "written by the agent\n");
+    harness.emit({
+      ...reported,
+      item: fileChange("wrote", "agent.md", "pending"),
+      type: "item/started",
+    });
+    harness.emit({
+      ...reported,
+      item: fileChange("wrote", "agent.md", "completed"),
+      type: "item/completed",
+    });
+    harness.emit({ ...reported, status: "completed", type: "turn/completed" });
+    await awaitThreadStatus(harness.client, threadId, "idle");
+
+    const head = await vi.waitFor(() => {
+      const commit = headCommit(harness.vaultDir);
+      expect(commit.author).toBe("inteligir-agent");
+      return commit;
+    }, PROVIDER_WAIT);
+    expect(head.files).toEqual(["agent.md"]);
+    expect(await harness.client.threads.turnChanges({ threadId })).toEqual({
+      turns: [{ paths: ["agent.md"], state: "applied", turnId }],
+    });
   });
 });

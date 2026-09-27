@@ -523,12 +523,15 @@ class AcpTurnDriver implements TurnDriver {
       hostTurnId = state.ourTurnId;
     }
 
+    if (state !== undefined && event.type === "item/started" && event.item.type === "fileChange") {
+      state.writes.claim(this.vaultPathsOf(event.item.changes));
+    }
     if (
       state !== undefined &&
-      (event.type === "item/started" || event.type === "item/completed") &&
+      event.type === "item/completed" &&
       event.item.type === "fileChange"
     ) {
-      state.writes.recordPaths(this.vaultPathsOf(event.item.changes));
+      state.writes.settle(this.vaultPathsOf(event.item.changes), event.item.status);
     }
 
     const mapped = mapProviderEvent(event, hostTurnId);
