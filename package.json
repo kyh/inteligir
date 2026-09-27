@@ -23,7 +23,7 @@
     "prepare": "git config core.hooksPath .githooks || true",
     "smoke:cli": "turbo run build --filter=inteligir && pnpm --filter inteligir smoke",
     "smoke:desktop": "pnpm package:desktop && pnpm --filter @repo/desktop smoke",
-    "test": "turbo run test --concurrency=4",
+    "test": "turbo run test --concurrency=${TEST_CONCURRENCY:-4}",
     "testflight:mobile": "pnpm --filter @repo/mobile testflight",
     "typecheck": "turbo run typecheck",
     "verify": "pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm build"
