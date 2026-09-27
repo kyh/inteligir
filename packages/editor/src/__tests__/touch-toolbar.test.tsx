@@ -1,7 +1,7 @@
 import { createRef } from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Point, TRange } from "platejs";
+import type { Point, TRange, Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
 import { setAgentRequestActions } from "@repo/editor/agent-request";
@@ -40,15 +40,24 @@ const TABLE_LABELS = new Set([
 const NOTE_PATH = "notes/touch.md";
 const unregisters: (() => void)[] = [];
 
-const mount = (markdown: string, host: FakeEditorHostOptions = {}): PlateEditor => {
-  installFakeEditorHost(host);
+const parsedValue = (markdown: string): Value => {
   const parsed = parseMarkdown(markdown);
   if (!parsed.ok) {
     throw new Error(`the note must parse: ${parsed.reason.kind}`);
   }
+  return parsed.value;
+};
+
+const mount = (markdown: string, host: FakeEditorHostOptions = {}): PlateEditor => {
+  installFakeEditorHost(host);
   const ref = createRef<PlateEditor>();
   render(
-    <EditorHarness ref={ref} profile="touch" store={createOpenNoteStore()} value={parsed.value} />,
+    <EditorHarness
+      ref={ref}
+      profile="touch"
+      store={createOpenNoteStore()}
+      value={parsedValue(markdown)}
+    />,
   );
   const editor = ref.current;
   if (editor === null) {
@@ -270,6 +279,26 @@ describe("a comment from the touch toolbar", () => {
 
     expect(create).toHaveBeenCalledTimes(1);
     expect(serializeNote(editor)).toBe("one two\n");
+  });
+
+  it("lands nothing when the note is re-seeded under the open field, and keeps the words for the next one", async () => {
+    const create = hostAnswering(true);
+    const editor = mount("one two\n");
+    await selectOne(editor);
+    press(ADD_COMMENT_SHORTCUT.label);
+    act(() => {
+      editor.tf.setValue(parsedValue("three four\n"));
+    });
+
+    await writeComment("why this?", "Save");
+
+    expect(create).not.toHaveBeenCalled();
+    expect(serializeNote(editor)).toBe("three four\n");
+    expect(toast.warning).toHaveBeenCalledWith("The note changed — select the text again.");
+
+    await selectOne(editor);
+    press(ADD_COMMENT_SHORTCUT.label);
+    expect(screen.getByRole("textbox", { name: "Comment" })).toHaveProperty("value", "why this?");
   });
 
   it("writes nothing when cancelled or left empty", async () => {

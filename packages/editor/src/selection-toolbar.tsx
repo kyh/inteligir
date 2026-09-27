@@ -34,8 +34,8 @@ import { cn } from "@repo/ui/lib/cn";
 import { platformShortcutModifier, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 
-import { useAgentRequestActions } from "@repo/editor/agent-request";
-import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
+import { askAgentAboutSelection, useAgentRequestActions } from "@repo/editor/agent-request";
+import { CODE_MARK_SHORTCUT } from "@repo/editor/editor-shortcuts";
 import { markShortcut } from "@repo/editor/mark-shortcuts";
 import { Button } from "@repo/ui/components/button";
 import {
@@ -46,6 +46,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
+import { Separator } from "@repo/ui/components/separator";
 
 import {
   TURN_INTO,
@@ -60,7 +61,7 @@ const BAR_CLASS = cn(
   surfaceClasses(3),
 );
 
-const Sep = () => <div className="mx-0.5 h-5 w-px shrink-0 bg-border" />;
+const Sep = () => <Separator orientation="vertical" className="mx-0.5 h-5" />;
 
 // a press that moved focus would collapse the editor selection the button acts on
 const keepSelection = (event: ReactMouseEvent<HTMLElement>): void => {
@@ -81,11 +82,7 @@ const AskAgentButton = ({ editor }: { editor: PlateEditor }) => {
         size="compact"
         leadingIcon={SparklesIcon}
         onClick={() => {
-          const { selection } = editor;
-          const text = selection ? editor.api.string(selection) : "";
-          if (text.trim() !== "") {
-            actions.askAboutSelection(text);
-          }
+          askAgentAboutSelection(editor, actions);
         }}
         className={PRIMARY_TEXT_BUTTON}
       >
@@ -135,10 +132,7 @@ const TurnIntoTrigger = ({ children }: { children: ReactNode }) => (
 // the tooltip is the table's label and chord, so it cannot disagree with the palette's page;
 // a mark with no chord still needs a name on the button
 const markTitle = (nodeType: string): string => {
-  const row =
-    nodeType === KEYS.code
-      ? (EDITOR_SHORTCUTS.find((candidate) => candidate.action === "toggle-code-mark") ?? null)
-      : markShortcut(nodeType);
+  const row = nodeType === KEYS.code ? CODE_MARK_SHORTCUT : markShortcut(nodeType);
   if (row !== null) {
     return `${row.label} ${spellHotkey(row.hotkey, platformShortcutModifier())}`;
   }
