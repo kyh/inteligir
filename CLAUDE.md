@@ -237,7 +237,7 @@ packages/
                  imports — lint-enforced. `markdown/mdast-nodes.ts` is the
                  mdast NARROWING boundary: a walk asks it what a node is
                  rather than discriminating structurally at each visit.
-  editor/        @repo/editor — the Plate.js WYSIWYG (resurrected, #580):
+  editor/        @repo/editor — the Plate.js WYSIWYG (epic #579):
                  kits/nodes for every dialect construct, the md-rules table,
                  the fixpoint serializer + fixture matrix, the open-note
                  runtime (vault-session/note-runtime/open-note-store) the app
@@ -715,24 +715,29 @@ to the END of its group.
   draws no row; Copy path needs no main.
 
 - **THE ENGINE'S GIT IGNORES THE VAULT'S OWN GIT HABITS, AND A PASS REPORTS ONE
-  OUTCOME.** `runGit` prepends `--literal-pathspecs` and
-  `core.hooksPath=/dev/null` to every invocation
+  OUTCOME.** `runGit` prepends `--literal-pathspecs`,
+  `core.hooksPath=/dev/null`, `commit.gpgsign=false`, `rerere.enabled=false`
+  and `merge.verifySignatures=false` to every invocation
   (`apps/cli/src/server/vault/git-run.ts`, the one argv builder): a pathspec is
   a glob, so `[a].md` names `a.md` too and a commit scoped to one note would
-  stage its neighbour; and a user's hook can refuse, stall or rewrite an engine
+  stage its neighbour; a user's hook can refuse, stall or rewrite an engine
   commit, rebase or push, where `--no-verify` reaches only pre-commit and
-  commit-msg. The rebase and the merge run with rerere off, and every status
-  read passes `--untracked-files=normal`, because a recorded resolution or
-  `status.showUntrackedFiles=no` would rewrite or hide an engine commit and
-  hold every sync behind it. Residual: a git-lfs vault's upload is a pre-push
-  hook too, so it does not run. Before the listen the bootstrap stages only the
-  starter notes it seeded into a folder it created, and an opened folder's
-  first commit is empty (`apps/cli/src/server/vault/git-bootstrap.ts`), since
-  staging a large folder there outran the shell's readiness wait. A pass
-  concludes one `SyncOutcome`, and a path two devices changed is never one of
-  them: a detached HEAD says `detached`, never `clean`; a refused push says
-  `rejected` (a 413 `too-large`, a 507 `full`), never `offline`
-  (`classifyNetworkFailure`).
+  commit-msg; a signing policy stalls or refuses an engine commit; and a
+  recorded resolution replays over a verdict. Every status read passes
+  `--untracked-files=normal`, because `status.showUntrackedFiles=no` would hide
+  an engine commit's paths and hold every sync behind it. Residual: a git-lfs
+  vault's upload is a pre-push hook too, so it does not run. Before the listen
+  the bootstrap stages only the starter notes it seeded into a folder it
+  created, and an opened folder's first commit is empty
+  (`apps/cli/src/server/vault/git-bootstrap.ts`), since staging a large folder
+  there outran the shell's readiness wait. A pass concludes one `SyncOutcome`,
+  and a path two devices changed is never one of them: a detached HEAD says
+  `detached`, never `clean`; a refused push says `rejected` (a 413
+  `too-large`, a 507 `full`), never `offline` (`classifyNetworkFailure`); and
+  a pass that fails with no verdict (a merge that fails outright, a save the
+  engine could not record, an unclassified failure) says it stalled, which the
+  rail shows as "Sync paused" and hands to Settings › Advanced, never `clean`
+  or `dirty`.
 
 - **A MOVE IS A RENAME THAT KEEPS THE NAME, and `planMove` is its one verdict.**
   The tree's drop and the palette's "Move note to folder…" both ask `planMove`
@@ -925,7 +930,10 @@ to the END of its group.
   History names a version by when and who, never by its subject or sha: the
   server reads `authorKind` off the author (the user's own edits, the agent,
   or `external`, which keeps its name and subject), so no client matches an
-  email (`apps/cli/src/server/vault/git-history.ts`). Quoting the engine's
+  email (`apps/cli/src/server/vault/git-history.ts`); a phone's edit, which the
+  Worker commits under the device's own address, reads as the user's own,
+  never `external`, and the commit vocabulary both ends read is spelled once in
+  `@repo/api/cloud/vault/vault-git`. Quoting the engine's
   error inside a friendlier sentence is rejected: no sentence around git's
   stderr makes it the user's.
   `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts` holds the copy
@@ -1267,14 +1275,12 @@ to the END of its group.
   one-click presets (`apps/desktop/src/renderer/app/settings/connector-presets.ts`).
   A session is handed no servers of the app's (`mcpServers: []`,
   `packages/agent-runtime/src/acp/acp-runtime.ts`), so the config Settings
-  edits is the one a session loads. Each vendor's CLI is read and written the
-  way its own quirks allow (`claude-mcp-config.ts`, `codex-mcp-config.ts`): a
-  refusal the vendor would not make (a duplicate add, a missing remove) is the
-  list's, every call on one vendor waits for the one before it, a name rides
-  after `--`, and a login that refuses a stdin that is no terminal runs under
-  macOS's `script(1)` (the pty option of `vendor-process.ts`). A sign-in is one
-  per agent and name, polled by Settings, and ended by its five-minute window,
-  its row's removal or shutdown (`mcp-sign-ins.ts`). A plain list answers from
+  edits is the one a session loads. Each vendor's CLI quirks are its adapter's
+  to state (`claude-mcp-config.ts`, `codex-mcp-config.ts`), run through the one
+  spawn policy (`vendor-process.ts`, whose pty option is claude's connector
+  login under `script(1)`). A sign-in is one per agent and name, polled by
+  Settings, and ended by its five-minute window, its row's removal or shutdown
+  (`mcp-sign-ins.ts`). A plain list answers from
   the last read for ten seconds, because reading codex's spawns it and runs
   OAuth discovery against every URL row, which that poll would do every 1.5s;
   every edit and every sign-in's end reads again (`connectors-service.ts`).
@@ -2370,8 +2376,10 @@ to the END of its group.
   flags, the editor's buffer invariant. If coverage is ever added,
   `coverage.include` is mandatory in Vitest 4, and gate only `@repo/notes`. A
   guard states its own rule in the failure, names the file, and derives every
-  value it compares; the one hand-written list is `dep-dag.test.ts`'s
-  `DECLARED_EDGES`, which is the pin itself.
+  value it can; what it cannot is a row carrying its reason
+  (`AWAITING_CONSUMER`, `CLOUD_ONLY_CLIENTS`, `DECLARED_CI_EXTRAS`,
+  `EXCLUDED_COMMANDS`, `PROSE_SIZES`), and `dep-dag.test.ts`'s
+  `DECLARED_EDGES` is the pin itself.
 
 - **VENDORED CODE IS THIS REPO'S CODE, except for the attribution.** Rename,
   restructure and delete freely; "the next re-pull becomes a conflict" is not a

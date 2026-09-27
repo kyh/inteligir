@@ -132,8 +132,7 @@ message waiting to become one) carries the `dispatchId`, and the log is the
 record from then on — the phone's pending copy of the message, kept in its
 own `dispatch_outbox`, gives way to that row. Locally the word also names a
 runtime handing a turn to its provider
-(`apps/cli/src/server/agents/runtime-manager.ts`); the two never meet. A 0.4.0 install still sends a thread **lane** beside its pushes; the
-Worker drops it, and nothing else speaks of lanes.
+(`apps/cli/src/server/agents/runtime-manager.ts`); the two never meet.
 
 ## "event" means four things
 

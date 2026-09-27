@@ -7,11 +7,12 @@ of markdown), builds and maintains the knowledge index, drives the agent, and
 answers one oRPC API plus the invalidation socket. Nothing else in the repo
 runs a server.
 
-**Every other verb is a CLIENT** of a running one, over that same contract
-(`@repo/api/local`). Agent-facing by design: every leaf takes `--json`, the
-server serves the manual (`inteligir guide`), and the agent runtime prepends
-this bin directory to the PATH of the shells it spawns — so a model drives the
-product by typing `inteligir …` in bash.
+**Every other verb but `vault open` is a CLIENT** of a running one (`vault open`
+rewrites the vault selector without a server, so the next `serve` boots on it),
+over that same contract (`@repo/api/local`). Agent-facing by design: every leaf
+takes `--json`, the server serves the manual (`inteligir guide`), and the agent
+runtime prepends this bin directory to the PATH of the shells it spawns — so a
+model drives the product by typing `inteligir …` in bash.
 
 ## Running it
 
@@ -142,8 +143,8 @@ admitted the call, and a thread with no turn running records nothing.
 The served manual (`src/server/guide/cli-skill.ts`) must name every leaf
 command AND every flag those leaves accept —
 `src/__tests__/guide-covers-commands.test.ts` walks the real citty tree against
-the guide's rendered bytes (not its source: a comment used to satisfy it), and
-against § Command surface above, which must list every leaf and no other.
+the guide's rendered bytes, never its source, and against § Command surface
+above, which must list every leaf and no other.
 `json-flag-enforcement.test.ts` (bb's pattern, MIT) walks the same tree and
 EXECUTES every leaf: JSON on stdout under `--json`, and non-zero exits with
 empty stdout when the server refuses.
@@ -154,11 +155,12 @@ does the gate that refuses what citty would drop — a flag the command never
 declared, long or short, and a word past its last positional. citty parses with
 node's `parseArgs` in NON-strict mode and binds positionals in order, so
 without that gate `vault write notes/a.md --contentt x` would silently read
-stdin and exit 0, and `search two words` would search for `two`. Only the words
-before `--` are counted: `--` ends the options, so what follows reaches the leaf
-as an operand however it is spelled (`vault read -- -draft.md`). The walk is
-exact only while no command with subcommands declares args, and the
-enforcement test holds every group to that.
+stdin and exit 0, and `search two words` would search for `two`. `--` ends the
+options, and the words after it still count as operands, so a word past the
+last positional is refused on either side of it (`vault read a.md -- b.md`),
+while `vault read -- -draft.md` reads the draft. The walk is exact only while
+no command with subcommands declares args, and the enforcement test holds every
+group to that.
 
 ## What ships
 

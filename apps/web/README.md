@@ -1,6 +1,6 @@
 # `@repo/web` — inteligir.com
 
-One Cloudflare Worker serving the marketing site and the whole v3 cloud from
+One Cloudflare Worker serving the marketing site and the whole cloud from
 one origin: the TanStack Start pages, Better Auth on D1, device login, the
 per-user thread-sync Durable Object, the capture and dispatch inboxes and the
 hosted vault git remote. The wire contract is `@repo/api/cloud` — the Worker

@@ -11,12 +11,12 @@ There are TWO programs. `apps/desktop` is THE SHIPPED PRODUCT, installed as the
 signed dmg: one window on the local server, forking it as a child, with the SPA
 as its renderer. `apps/cli` is the `inteligir` binary: `serve` runs the whole
 local server (the markdown vault, its index, the agent runtime and one oRPC API
-over SQLite), and every other verb is a client of a running one. The CLI is the
-agent's door and the developer's, which is how an agent drives the product from
-bash; nothing the user does needs a terminal. `apps/web` is the one hosted
-piece — a Cloudflare Worker carrying the marketing site, Better Auth on D1,
-device sign-in, sign-up and account deletion, cross-device sync, the capture
-and dispatch inboxes and the hosted vault. `apps/mobile` is the iPhone app:
+over SQLite), and every other verb but `vault open` is a client of a running
+one. The CLI is the agent's door and the developer's, which is how an agent
+drives the product from bash; nothing the user does needs a terminal.
+`apps/web` is the one hosted piece — a Cloudflare Worker carrying the marketing
+site, Better Auth on D1, device sign-in, sign-up and account deletion,
+cross-device sync, the capture and dispatch inboxes and the hosted vault. `apps/mobile` is the iPhone app:
 the same editor over the hosted vault, offline, asking a Mac to run the agent.
 This is the tool-agnostic guide for coding agents; `CLAUDE.md` holds the
 architecture and the durable decisions, GitHub issues #542 and #611 the

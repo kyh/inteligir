@@ -6,9 +6,9 @@ An AI-native notes app — Obsidian with an agent, local-first. Your notes are
 plain markdown files in a folder you own, versioned with git.
 The app runs on your machine: one local Node process owns the vault, indexes
 it, serves the API, and drives a coding agent that edits those same files.
-Nothing reaches this project's cloud unless you configure a git remote or sign
-in; the desktop app checks GitHub for updates and the agent you run talks to
-its own provider ([docs/privacy.md](./docs/privacy.md)).
+Nothing reaches this project's cloud unless you sign in; the desktop app checks
+GitHub for updates and the agent you run talks to its own provider
+([docs/privacy.md](./docs/privacy.md)).
 
 ## Install & run
 
@@ -32,9 +32,9 @@ it cleanly (the pending vault commit is flushed and the database closed before
 it exits). Every other verb of that same binary is a client against a running
 server — see [`apps/cli`](./apps/cli/README.md).
 
-The agent speaks ACP: install the [Claude Code](https://claude.com/claude-code)
-or [Codex](https://developers.openai.com/codex/cli) CLI and sign in, and
-actions work. Without one the app is a notes editor and says so in Settings.
+The agents ship inside the app: sign in with Claude or ChatGPT in
+Settings › Agent; a Mac already signed in to Claude Code or Codex stays signed
+in. Signed in to neither, the app is a notes editor and says so.
 
 From a checkout instead:
 
@@ -51,7 +51,7 @@ the owned description of each.
 ```
 apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the window and the SPA in it
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
-apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, hosted vault
+apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, dispatch, hosted vault
 apps/mobile             @repo/mobile — the Expo client: threads, captures, notes in the editor page
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
 packages/domain         @repo/domain — zod-only leaf vocabulary

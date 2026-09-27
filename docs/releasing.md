@@ -149,7 +149,7 @@ app=apps/desktop/.output/bin/mac-arm64/Inteligir.app
 
 - **Sign in with Claude, for real.** On a Mac user signed out of both agents (a
   spare macOS user keeps your own sign-ins), open the app from Finder and
-  choose Sign in with Claude, in `/welcome`'s agent step or Settings › Agents.
+  choose Sign in with Claude, in `/welcome`'s agent step or Settings › Agent.
   Passing: the browser opens Claude's sign-in, and once you approve, the app
   finishes on its own (Paste the code is only the fallback); the card turns
   signed in without a reload; and the bundled binary agrees:
@@ -164,7 +164,7 @@ app=apps/desktop/.output/bin/mac-arm64/Inteligir.app
   Connectors › Linear while Claude is the default agent. Passing: the browser
   asks Linear to approve, the row turns connected, and a new action asked to
   list your Linear issues calls a Linear tool and lists them. Make ChatGPT the
-  default in Settings › Agents and repeat: the same.
+  default in Settings › Agent and repeat: the same.
 - **A connector added outside the app.** With the bundled binary,
   `"$(find "$app" -type f -perm +111 -name claude | head -1)" mcp add --scope user <name> -- <command>`
   for any stdio server. Passing: Settings › Connectors lists it, and a new

@@ -114,20 +114,20 @@ miniflare's Durable Objects. Sign-up is invite-only and there is no seeded accou
 
 ## Where state lives
 
-| What                                 | Where                                             |
-| ------------------------------------ | ------------------------------------------------- |
-| The product (`pnpm dev`)             | derived port 21000–28999 (hash of checkout root)  |
-| The renderer's vite dev server       | 31000, searching upward                           |
-| The product's SQLite + config.json   | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
-| A vault other than the default       | `<that dir>/vaults/<hash of the vault path>/`     |
-| Folders, agent, vault prefs          | JSON files beside them (the app writes these)     |
-| Connectors                           | the agent's own: `~/.claude.json`, `~/.codex`     |
-| The desktop's server log             | `<data dir>/logs/server.log` (+ one `.1`)         |
-| The desktop's debug-logging choice   | `diagnostics.json` in Electron's userData         |
-| Site + cloud Worker (`pnpm dev:web`) | 5174 (pinned — `strictPort`)                      |
-| UI gallery (`pnpm dev:gallery`)      | 5175 (pinned — `strictPort`), at `/gallery`       |
-| Accounts, sessions, devices, invites | D1 (local file under `apps/web/.wrangler`)        |
-| Thread log, captures, hosted vault   | Durable Objects (same `.wrangler` dir)            |
+| What                                          | Where                                             |
+| --------------------------------------------- | ------------------------------------------------- |
+| The product (`pnpm dev`)                      | derived port 21000–28999 (hash of checkout root)  |
+| The renderer's vite dev server                | 31000, searching upward                           |
+| The product's SQLite + config.json            | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
+| A vault other than the default                | `<that dir>/vaults/<hash of the vault path>/`     |
+| Folders, agent, vault and phone-request prefs | JSON files beside them (the app writes these)     |
+| Connectors                                    | the agent's own: `~/.claude.json`, `~/.codex`     |
+| The desktop's server log                      | `<data dir>/logs/server.log` (+ one `.1`)         |
+| The desktop's debug-logging choice            | `diagnostics.json` in Electron's userData         |
+| Site + cloud Worker (`pnpm dev:web`)          | 5174 (pinned — `strictPort`)                      |
+| UI gallery (`pnpm dev:gallery`)               | 5175 (pinned — `strictPort`), at `/gallery`       |
+| Accounts, sessions, devices, invites          | D1 (local file under `apps/web/.wrangler`)        |
+| Thread log, captures, hosted vault            | Durable Objects (same `.wrangler` dir)            |
 
 ## Quality gates
 

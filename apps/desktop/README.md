@@ -116,7 +116,7 @@ string `"null"` for any non-special scheme, so `inteligir://app` and
 `inteligir://evil` would compare EQUAL and the pin would collapse to nothing.
 Chromium's own parser knows better, but this module runs in Node.
 
-Two more, on the window's session:
+Three more, on the window's session:
 
 - **Its own storage partition**, keyed to the DATA DIR rather than the port
   (`sessionPartition`). The shell's scheme is ONE origin whatever vault is
