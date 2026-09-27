@@ -16,18 +16,20 @@ import type { HeldFile, NotesStore } from "../notes/notes-store";
 import type { PhotoIngest } from "../notes/photo-ingest";
 import type { EditorNativeEvent, EditorPageEvent, EditorRequestPorts } from "./editor-host";
 
-// what the ports tell the page on their own: what moved under it, the open note's comments, and
-// the threads deleted here
-type PortsEvent = Extract<
-  EditorNativeEvent,
-  { type: "vaultChanged" | "commentMeta" | "commentsRemoved" }
->;
+type VaultChangedEvent = Extract<EditorNativeEvent, { type: "vaultChanged" }>["event"];
 
-type VaultChangedEvent = Extract<PortsEvent, { type: "vaultChanged" }>["event"];
-
-type CommentMetaEvent = Extract<PortsEvent, { type: "commentMeta" }>;
+type CommentMetaEvent = Extract<EditorNativeEvent, { type: "commentMeta" }>;
 
 type WikiTargetRow = RequestResult<"wikiTargets">["targets"][number];
+
+// the stale answers a guarded change hands back for the page's own merge
+type StaleBase = Extract<RequestResult<"write">, { kind: "changed" | "missing" }>;
+
+// whether the page holds edits it has not written, and why its last save failed
+export type PageEditorState = Pick<
+  Extract<EditorPageEvent, { type: "editorState" }>,
+  "dirty" | "saveError"
+>;
 
 // where a page event takes the phone's stack: a note the page opened, or a new thread about the
 // note asked from, with the selection it was asked over and the sha-256 of the bytes it held
@@ -58,6 +60,9 @@ export interface EditorPortsArgs {
   showComments: (ids: readonly string[]) => void;
   // the note the page shows; null once it was deleted and the page shows none
   opened: (path: string | null) => void;
+  // the note the page was opened on could not be read, in the phone's words
+  openFailed: (message: string) => void;
+  editorState: (state: PageEditorState) => void;
   // a note-level fact the page has no words for: a rename's links that kept the old name
   notify: (title: string, message: string) => void;
 }
@@ -72,7 +77,7 @@ export interface EditorPorts {
   readonly comments: Pick<CommentOps, "reply" | "resolve" | "remove">;
   // tells `listener` what moved under the page: the listing, the bytes of every note it read, and
   // the open note's comments. the returned stop ends every watch this began
-  readonly watch: (listener: (event: PortsEvent) => void) => () => void;
+  readonly watch: (listener: (event: EditorNativeEvent) => void) => () => void;
 }
 
 const NO_FOLDER_MOVES = "A note moves to another folder from your Mac.";
@@ -109,7 +114,7 @@ const movedPaths = (
 
 export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
   const { fileOps, store } = args;
-  let listener: ((event: PortsEvent) => void) | null = null;
+  let listener: ((event: EditorNativeEvent) => void) | null = null;
   const readWatches = new Map<string, () => void>();
 
   const emit = (event: VaultChangedEvent): void => {
@@ -218,19 +223,26 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
     return read.content;
   };
 
+  // The page's CAS: its base is compared with the text the phone holds now, so a change a sync
+  // landed since the page read is handed back for the page's own merge. null when the base holds.
+  const staleBase = async (path: string, base: string): Promise<StaleBase | null> => {
+    const read = await store.readNote(path);
+    if (!read.ok) {
+      if (read.notFound) {
+        return { kind: "missing" };
+      }
+      throw new Error(read.message);
+    }
+    return read.content === base ? null : { current: read.content, kind: "changed" };
+  };
+
   const requests: EditorRequestPorts = {
     // the page's write under the `expected` guard, with the new comment its markers anchor; a
     // first comment mints the note an id, which the page is told of as a change to the note
     addComment: async ({ base, content, id, path, text }) => {
-      const read = await store.readNote(path);
-      if (!read.ok) {
-        if (read.notFound) {
-          return { kind: "missing" };
-        }
-        throw new Error(read.message);
-      }
-      if (read.content !== base) {
-        return { current: read.content, kind: "changed" };
+      const stale = await staleBase(path, base);
+      if (stale !== null) {
+        return stale;
       }
       const added = await args.comments.add({
         anchor: { content, expected: base },
@@ -263,10 +275,13 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
 
     pickImage: async () => await args.pickImage(),
 
+    // watched even when the read fails, so a landing of the note later reaches the page
     read: async ({ path }) => {
-      const content = await readText(path);
-      watchRead(path);
-      return { content };
+      try {
+        return { content: await readText(path) };
+      } finally {
+        watchRead(path);
+      }
     },
 
     readAsset: async ({ path }) => {
@@ -307,22 +322,14 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
           .map(targetOf),
       }),
 
-    // the page's CAS: its base is compared with the text the phone holds now, so a change a sync
-    // landed since the page read is handed back for the page's own merge
     write: async ({ content, guard, path }) => {
       if (guard.kind === "absent") {
         const created = await store.create(path, content);
         return created.kind === "created" ? { kind: "written" } : { kind: "exists" };
       }
-      const read = await store.readNote(path);
-      if (!read.ok) {
-        if (read.notFound) {
-          return { kind: "missing" };
-        }
-        throw new Error(read.message);
-      }
-      if (read.content !== guard.base) {
-        return { current: read.content, kind: "changed" };
+      const stale = await staleBase(path, guard.base);
+      if (stale !== null) {
+        return stale;
       }
       const written = await store.write(path, content);
       if (written.kind === "vanished") {
@@ -384,11 +391,12 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
 
   const handle = (event: EditorPageEvent): void => {
     switch (event.type) {
-      // the page says each of these itself: a failed save, a merge that kept its lines, and a
-      // tag, which has no screen on the phone
-      case "editorState":
-      case "mergeConflict":
-      case "showTag": {
+      case "editorState": {
+        args.editorState({ dirty: event.dirty, saveError: event.saveError });
+        return;
+      }
+      case "openFailed": {
+        args.openFailed(event.message);
         return;
       }
       case "navigate": {

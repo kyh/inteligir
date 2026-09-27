@@ -6,6 +6,7 @@ import type { PlateLeafProps } from "platejs/react";
 
 import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
 import type { EditorShortcut } from "@repo/editor/editor-shortcuts";
+import { selectionEdgeLocked } from "@repo/editor/kits/rich-block-lock-kit";
 import { liveEditorPath } from "@repo/editor/live-editor";
 import { stringProp } from "@repo/editor/node-props";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
@@ -17,7 +18,7 @@ import { Textarea } from "@repo/ui/components/textarea";
 import { mintCommentId } from "@repo/notes/comments/sidecar-schema";
 import { splitMarkerIds } from "@repo/notes/markdown/remark-inline-constructs";
 
-import { commentSpans } from "./comment-ranges";
+import { commentMarkerIds, commentSpans, isCommentMarker } from "./comment-ranges";
 import { findCommentMarker, insertCommentMarkers, removeCommentMarkers } from "./comment-markers";
 import {
   clearPendingCreate,
@@ -86,16 +87,35 @@ const CommentRangeLeaf = (props: PlateLeafProps) => {
   );
 };
 
-// a marker inside a code block is literal text there, so no comment anchors in one
+// a marker inside a code block is literal text there, and one inside a locked block never lands,
+// so no comment anchors in either
 export const selectionTakesComment = (editor: SlateEditor): boolean =>
   editor.selection !== null &&
   !RangeApi.isCollapsed(editor.selection) &&
-  !editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } });
+  !editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } }) &&
+  !selectionEdgeLocked(editor);
 
-// the new comment's id, its markers around the selection; null when there is nothing to anchor
+const markersOf = (editor: SlateEditor, id: string): number =>
+  [
+    ...editor.api.nodes({
+      at: [],
+      match: (node) => isCommentMarker(node) && commentMarkerIds(node).includes(id),
+    }),
+  ].length;
+
+// The new comment's id, its markers around the selection; null when there is nothing to anchor.
+// The touch kit's lock refuses a marker inside a locked block, so a pair missing one is taken back
+// rather than left as an orphan; the one that landed sits outside any locked block.
 export const anchorNewComment = (editor: SlateEditor): string | null => {
   const id = mintCommentId((length) => crypto.getRandomValues(new Uint8Array(length)));
-  return insertCommentMarkers(editor, id) ? id : null;
+  if (!insertCommentMarkers(editor, id)) {
+    return null;
+  }
+  if (markersOf(editor, id) < 2) {
+    removeCommentMarkers(editor, [id]);
+    return null;
+  }
+  return id;
 };
 
 const beginCreate = (editor: SlateEditor): boolean => {

@@ -157,7 +157,6 @@ export const createFakePhone = (initial: Readonly<Record<string, string>> = {}):
         focus: null,
         nonce: PHONE_NONCE,
         path: "Note.md",
-        theme: "light",
         type: "init",
         ...overrides,
       });

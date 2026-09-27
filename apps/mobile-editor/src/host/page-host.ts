@@ -20,17 +20,18 @@ import type {
   VaultChangedEvent,
   VaultEntry,
 } from "@repo/editor/host-io";
+import { withRichBlockLockLifted } from "@repo/editor/kits/rich-block-lock-kit";
 import { createLinkResolverStore } from "@repo/editor/link-resolver-store";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { createNoteFormulas } from "@repo/editor/note-formulas";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
+import { confirmVanished, mergeConflictLine } from "@repo/editor/note/vanished-prompt";
 import { createVaultSession } from "@repo/editor/note/vault-session";
 import type { SaveError, VaultEditorState } from "@repo/editor/vault-editor";
 import { newCommentRefusal } from "@repo/notes/comments/comment-key";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
-import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
 
 import type { NativeEvent, PageBridge } from "../bridge/page-bridge";
@@ -176,20 +177,20 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
 
   let lastEditorState = editorStateKey({ dirty: false, saveError: null });
 
+  // the page shows nothing without its note, so the native screen says why and offers a fresh load
+  const readOpened = async (): Promise<string | null> => {
+    try {
+      return await io.read(path);
+    } catch (error) {
+      bridge.emit({ message: messageOf(error), path, type: "openFailed" });
+      return null;
+    }
+  };
+
   const session = createVaultSession({
-    // discarding is the confirm, so a dismissal re-creates and the edits survive it
-    askVanished: async (vanished) =>
-      (await confirm({
-        body: "It was deleted while it had unsaved edits. Re-create it with them, or discard them.",
-        cancelLabel: "Re-create",
-        confirmLabel: "Discard edits",
-        destructive: true,
-        title: `${basenamePath(vanished)} was deleted`,
-      }))
-        ? "discard"
-        : "recreate",
+    askVanished: confirmVanished,
     boot: async () => {
-      const [entries, content] = await Promise.all([list(), io.read(path).catch(() => null)]);
+      const [entries, content] = await Promise.all([list(), readOpened()]);
       return { entries, openNote: content === null ? null : { content, path } };
     },
     list,
@@ -198,10 +199,7 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       toast.error(message);
     },
     notifyMergeConflict: (conflicted) => {
-      toast.warning(
-        `${conflicted} also changed elsewhere. Where both changed the same lines, yours were kept.`,
-      );
-      bridge.emit({ path: conflicted, type: "mergeConflict" });
+      toast.warning(mergeConflictLine(conflicted));
     },
     publishEditor: (state) => {
       store.publishEditor(state);
@@ -310,7 +308,15 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
         path: openPath,
         text,
       });
-      return result.kind === "written";
+      if (result.kind !== "written") {
+        toast.error(
+          result.kind === "missing"
+            ? "This note is no longer on your phone."
+            : "This note changed on your phone. Try again.",
+        );
+        return false;
+      }
+      return true;
     } catch (error) {
       toast.error(`Couldn't add the comment — ${messageOf(error)}`);
       return false;
@@ -337,7 +343,10 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
     if (editor === null) {
       return;
     }
-    removeCommentMarkers(editor, ids);
+    // a marker is the comment's anchor, not the content of a locked block it sits in
+    withRichBlockLockLifted(editor, () => {
+      removeCommentMarkers(editor, ids);
+    });
     if (!(await session.actions.flush().catch(() => false))) {
       toast.error("Couldn't save this note after deleting the comment.");
     }
@@ -347,8 +356,11 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
     if (event.type === "vaultChanged") {
       formulas.forget(event.event);
       session.handleVaultChanged(event.event);
-      // a note's aliases and id live in its bytes, so a content change can move a target too
-      refreshTargets();
+      // a note's id and aliases live in its bytes, but the phone diffs them per listing row and
+      // sends a change to either as `files`, so only that moves a target
+      if (event.event.kind === "files") {
+        refreshTargets();
+      }
       for (const listener of changeListeners) {
         listener(event.event);
       }
@@ -378,8 +390,9 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
             bridge.emit({ path: openPath, selection, type: "askAgent" });
           }
         },
-        showTag: (tag) => {
-          bridge.emit({ tag, type: "showTag" });
+        // a tag has no screen on the phone
+        showTag: () => {
+          /* empty */
         },
       });
       setCommentActions({

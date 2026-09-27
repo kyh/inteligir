@@ -42,14 +42,18 @@ end that receives it.
   store), `addComment` (the open note's write that carries a new comment, so
   the phone lands the note and the comment's entry as one change set),
   `remove`, `rename`, `readAsset`, `writeAsset` (bytes as base64),
-  `wikiTargets`, `pickImage` — and events: `opened`, `editorState` (dirty and
-  why a save failed, sent only when either changes), `mergeConflict`,
-  `showComments`, `navigate`, `askAgent`, `showTag`, `flushed`.
-- Native to page: `init { nonce, path, focus, theme }`, `response { id, ok }`,
-  `vaultChanged`, `flush` (answered by `flushed` with its id), `theme`,
-  `commentMeta` (the note's threads and which are resolved, which its ranges
-  are drawn by) and `commentsRemoved` (threads deleted on the phone, whose
-  markers the page takes out and writes).
+  `wikiTargets`, `pickImage` — and events: `opened`, `openFailed` (the note
+  could not be read, so the screen says why and offers a fresh load),
+  `editorState` (dirty and why a save failed, sent only when either changes,
+  which the screen asks about before letting the note go), `showComments`,
+  `navigate`, `askAgent`, `flushed`.
+- Native to page: `init { nonce, path, focus }`, `response { id, ok }`,
+  `vaultChanged`, `flush` (answered by `flushed` with its id), `commentMeta`
+  (the note's threads and which are resolved, which its ranges are drawn by)
+  and `commentsRemoved` (threads deleted on the phone, whose markers the page
+  takes out and writes, from inside a locked block too). The page follows the
+  phone's appearance through `prefers-color-scheme`, so no frame carries a
+  theme.
 
 The native end is `apps/mobile/src/editor/editor-host.ts`, answering over the
 phone's store through `editor-ports.ts`. Native reaches the page ONLY by
@@ -58,15 +62,19 @@ which calls the door `connectPageBridge` installs on `window`, non-writable and
 non-configurable (`src/bridge/page-bridge.ts`): a message event is one a child
 frame's `parent.postMessage` could forge. The first well-formed `init` sets the
 nonce; a frame without it, or with another load's, is dropped, as is anything
-malformed. A request times out after `REQUEST_TIMEOUT_MS`, except the photo
-picker, which waits on the user; an answer is parsed by the kind it answers.
+malformed. A rename, a remove, a new comment and a pasted file wait as long as
+the phone takes, since the phone still lands one it answers late, and the
+photo picker waits on the user; every other request times out after
+`REQUEST_TIMEOUT_MS` (a write is guarded, so its retry finds what landed). An
+answer is parsed by the kind it answers.
 
 `src/host/page-host.ts` builds the editor's host over the bridge: the
 `VaultSessionPorts`, the editor's own `createGuardedVaultIo` over a
 `GuardedVaultPort` of frames, its link-resolver store and note formulas, and
 the `EditorHostIo`. Opening a note (a wiki link, a created note) writes this one
 and sends `navigate`, so the native stack pushes the next page and keeps the
-back gesture. A vanished note asks through the page's own confirm dialog. A
+back gesture. A vanished note asks through the page's own confirm dialog, in
+the desktop's words (`@repo/editor/note/vanished-prompt`). A
 new comment is the touch toolbar's: its markers go in at Save, and the flush
 that writes them goes as `addComment` rather than `write`, so no save ever
 lands markers without their comment; a hardware chord's create, whose markers
@@ -81,7 +89,7 @@ vite/classic-page.ts    the entry rewrite and the build's refusal
 src/
   main.tsx              connects the bridge, waits for init, mounts
   editor-page.tsx       the providers, the column under the touch profile,
-                        the focus init asks for, the theme native sends
+                        the focus init asks for
   bridge/protocol.ts    the wire (zod), exported as ./bridge-protocol
   bridge/page-bridge.ts correlation, timeouts, the nonce, the window door
   host/page-host.ts     the editor's host over the bridge

@@ -15,7 +15,7 @@ import {
   phonePorts,
 } from "../../notes/__tests__/phone-storage";
 import { createEditorPorts } from "../editor-ports";
-import type { EditorRoute } from "../editor-ports";
+import type { EditorRoute, PageEditorState } from "../editor-ports";
 
 type VaultChangedEvent = Extract<NativeFrame, { type: "vaultChanged" }>["event"];
 
@@ -41,6 +41,8 @@ const phoneFor = async (vault: FakeVault, options: { picked?: PhotoIngest } = {}
   const routes: EditorRoute[] = [];
   const notices: string[] = [];
   const opened: (string | null)[] = [];
+  const openFailures: string[] = [];
+  const editorStates: PageEditorState[] = [];
   const comments: (readonly string[])[] = [];
   const commentOps = createCommentOps({
     now: () => AT,
@@ -49,6 +51,9 @@ const phoneFor = async (vault: FakeVault, options: { picked?: PhotoIngest } = {}
   });
   const editor = createEditorPorts({
     comments: commentOps,
+    editorState: (state) => {
+      editorStates.push(state);
+    },
     fileOps,
     go: (route) => {
       routes.push(route);
@@ -56,6 +61,9 @@ const phoneFor = async (vault: FakeVault, options: { picked?: PhotoIngest } = {}
     newThreadId: () => "thr_1",
     notify: (title, message) => {
       notices.push(`${title}: ${message}`);
+    },
+    openFailed: (message) => {
+      openFailures.push(message);
     },
     opened: (path) => {
       opened.push(path);
@@ -97,10 +105,12 @@ const phoneFor = async (vault: FakeVault, options: { picked?: PhotoIngest } = {}
     commentOps,
     comments,
     editor,
+    editorStates,
     fileOps,
     metas,
     net,
     notices,
+    openFailures,
     opened,
     removals,
     routes,
@@ -359,6 +369,16 @@ describe("what the phone tells the page", () => {
     expect(metas[2]).toStrictEqual(metas[1]);
   });
 
+  it("tells the page of a note it could not read once the note lands", async () => {
+    const vault = createFakeVault({ "a.md": "# a\n" });
+    const { changes, editor, store } = await phoneFor(vault);
+    await expect(editor.requests.read({ path: "later.md" })).rejects.toThrow();
+
+    vault.change({ "later.md": "# later\n" });
+    await store.refresh();
+    expect(changes).toContainEqual({ kind: "content", path: "later.md" });
+  });
+
   it("re-lists the page when a note's id or aliases change, and stops when the page goes", async () => {
     const vault = createFakeVault({ "a.md": "# a\n" });
     const { changes, stop, store } = await phoneFor(vault);
@@ -387,6 +407,23 @@ describe("where the page's events lead", () => {
         threadId: "thr_1",
       },
     ]);
+  });
+
+  it("hands the screen why a save failed, and why the note could not open", async () => {
+    const { editor, editorStates, openFailures } = await phoneFor(
+      createFakeVault({ "a.md": "# a\n" }),
+    );
+    editor.handle({
+      dirty: true,
+      nonce: NONCE,
+      saveError: { kind: "refused", message: "The phone is full." },
+      type: "editorState",
+    });
+    editor.handle({ message: "no a.md", nonce: NONCE, path: "a.md", type: "openFailed" });
+    expect(editorStates).toStrictEqual([
+      { dirty: true, saveError: { kind: "refused", message: "The phone is full." } },
+    ]);
+    expect(openFailures).toStrictEqual(["no a.md"]);
   });
 
   it("pushes a note the page opened, and never an attachment", async () => {

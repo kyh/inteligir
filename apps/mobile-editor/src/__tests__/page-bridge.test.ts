@@ -105,6 +105,31 @@ describe("a request", () => {
     }).not.toThrow();
   });
 
+  // a rename the phone is still landing reported failed would have the editor put the old name back
+  it("waits on a slow rename past the deadline, since the phone lands it however long it takes", async () => {
+    vi.useFakeTimers();
+    const { bridge, phone } = await connected();
+    phone.answer = () => null;
+
+    const renaming = bridge.request("rename", { from: "Note.md", to: "Later.md" });
+    let settled = false;
+    void renaming.finally(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS * 2);
+    expect(settled).toBe(false);
+
+    const [frame] = phone.requests("rename");
+    phone.deliver({
+      id: frame?.id ?? -1,
+      nonce: PHONE_NONCE,
+      ok: true,
+      result: { ok: true },
+      type: "response",
+    });
+    await expect(renaming).resolves.toEqual({ ok: true });
+  });
+
   it("waits on the photo picker for as long as the user browses", async () => {
     vi.useFakeTimers();
     const { bridge, phone } = await connected();
@@ -165,7 +190,7 @@ describe("what the page drops", () => {
       "42",
       '"vaultChanged"',
       JSON.stringify({ type: "vaultChanged" }),
-      JSON.stringify({ nonce: PHONE_NONCE, theme: "sepia", type: "theme" }),
+      JSON.stringify({ nonce: PHONE_NONCE, type: "format" }),
       JSON.stringify({ ...changed, extra: true }),
     ]) {
       phone.deliverText(garbage);
@@ -196,7 +221,6 @@ describe("the window transport", () => {
       focus: "body",
       nonce: PHONE_NONCE,
       path: "Note.md",
-      theme: "dark",
       type: "init",
     });
     const call = /^window\.(?<door>\w+)\((?<literal>".*")\);true;$/su.exec(script);

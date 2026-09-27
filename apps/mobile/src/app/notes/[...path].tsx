@@ -7,17 +7,30 @@ import {
   useRoute,
 } from "expo-router";
 import type { NativeStackNavigationProp } from "expo-router";
-import { useHeaderHeight, useNavigationState } from "expo-router/react-navigation";
+import {
+  useHeaderHeight,
+  useNavigationState,
+  usePreventRemove,
+} from "expo-router/react-navigation";
 import type { ParamListBase } from "expo-router/react-navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Alert, AppState, KeyboardAvoidingView, Linking, StyleSheet, Text } from "react-native";
+import {
+  Alert,
+  AppState,
+  KeyboardAvoidingView,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import type { PageInit } from "@repo/mobile-editor/bridge-protocol";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { createEditorHost, loadVerdict, openWindowVerdict } from "@/editor/editor-host";
 import type { LoadVerdict } from "@/editor/editor-host";
-import type { EditorRoute } from "@/editor/editor-ports";
+import type { EditorRoute, PageEditorState } from "@/editor/editor-ports";
 import { editorPageSource } from "@/editor/page-source";
 import {
   createNoteEditorPorts,
@@ -26,6 +39,8 @@ import {
   readNote,
   readNoteComments,
 } from "@/lib/app-runtime";
+import { firstParam, openNote, openThread } from "@/lib/routes";
+import type { ThreadParams } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
 import type { CommentOutcome } from "@/notes/comment-ops";
 import { CommentsSheet } from "@/notes/comments-view";
@@ -35,7 +50,16 @@ import type { CommentsRead } from "@/notes/notes-store";
 import { OutboxBanner } from "@/notes/outbox-banner";
 
 const styles = StyleSheet.create({
+  action: { fontSize: 16, fontWeight: "600" },
   banner: { paddingHorizontal: SPACE.lg, paddingTop: SPACE.sm },
+  failed: {
+    alignItems: "center",
+    gap: SPACE.lg,
+    paddingHorizontal: SPACE.xxl,
+    paddingVertical: 96,
+  },
+  failedText: { fontSize: 16, textAlign: "center" },
+  pressed: { opacity: 0.7 },
   screen: { flex: 1 },
   status: { fontSize: 16, paddingHorizontal: SPACE.xxl, paddingVertical: 96, textAlign: "center" },
 });
@@ -47,9 +71,6 @@ const EVERY_ORIGIN = ["*"];
 // one screen down is what the back gesture reveals, so it keeps its page; further down a page holds
 // a WebView's memory for nothing on screen, and loads again when the user comes back
 const RELEASE_DEPTH = 2;
-
-const firstParam = (value: string | string[] | undefined): string | null =>
-  (Array.isArray(value) ? value[0] : value) ?? null;
 
 const focusOf = (value: string | null): PageInit["focus"] =>
   value === "title" || value === "body" ? value : null;
@@ -75,18 +96,9 @@ const followVerdict = (verdict: LoadVerdict): boolean => {
   return verdict.kind === "allow";
 };
 
-// the router takes params as an open record, so these say they are one
-interface ThreadParams {
-  [param: string]: string | undefined;
-  id: string;
-  note: string;
-  quote?: string;
-  revision?: string;
-}
-
 const pushRoute = (route: EditorRoute): void => {
   if (route.kind === "note") {
-    router.push({ params: { path: route.path.split("/") }, pathname: "/notes/[...path]" });
+    openNote(route.path);
     return;
   }
   const params: ThreadParams = { id: route.threadId, note: route.note };
@@ -96,12 +108,15 @@ const pushRoute = (route: EditorRoute): void => {
   if (route.revision !== null) {
     params.revision = route.revision;
   }
-  router.push({ params, pathname: "/thread/[id]" });
+  openThread(params);
 };
 
-const openNote = (path: string): void => {
-  pushRoute({ kind: "note", path });
-};
+type SaveError = NonNullable<PageEditorState["saveError"]>;
+
+const unsavedLine = (error: SaveError): string =>
+  error.kind === "vanished"
+    ? "This note was deleted while it had edits that are not saved."
+    : `Your last edits couldn't be saved: ${error.message}`;
 
 // the note's comments, folded against the markers its text holds now
 const loadComments = async (path: string): Promise<CommentsRead> => {
@@ -126,14 +141,20 @@ const NoteScreen = () => {
   const [sheet, setSheet] = useState<{ ids: readonly string[] | null } | null>(null);
   const [comments, setComments] = useState<CommentsRead | null>(null);
   const [released, setReleased] = useState(false);
+  const [saveError, setSaveError] = useState<SaveError | null>(null);
+  const [openFailed, setOpenFailed] = useState<string | null>(null);
 
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [ports] = useState(() =>
     createNoteEditorPorts({
+      editorState: (state) => {
+        setSaveError(state.saveError);
+      },
       go: pushRoute,
       notify: (title, message) => {
         Alert.alert(title, message);
       },
+      openFailed: setOpenFailed,
       opened: setOpened,
       showComments: (ids) => {
         setSheet({ ids });
@@ -143,13 +164,16 @@ const NoteScreen = () => {
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [host] = useState(() =>
     createEditorHost({
-      init: { focus: focusOf(firstParam(params.focus)), path, theme: "system" },
+      init: { focus: focusOf(firstParam(params.focus)), path },
       mintNonce: mintBridgeNonce,
       onEvent: ports.handle,
       pageUrl: source?.uri ?? "",
       ports: ports.requests,
     }),
   );
+  // the WebView's ref, one function for the screen's life: a fresh one each render would detach
+  // the view and attach it again, and a detach forgets the loaded page
+  const { attach: attachView } = host;
 
   useEffect(() => ports.watch(host.send), [ports, host]);
 
@@ -161,6 +185,24 @@ const NoteScreen = () => {
       [host],
     ),
   );
+
+  // A save the page could not make is held only by the page, so leaving then asks first. An
+  // ordinary edit inside the autosave's pause needs no ask: the flush on the way out writes it.
+  usePreventRemove(saveError !== null, ({ data }) => {
+    const leave = (): void => {
+      navigation.dispatch(data.action);
+    };
+    void (async () => {
+      if (saveError === null || (await host.flush())) {
+        leave();
+        return;
+      }
+      Alert.alert("Leave without saving?", unsavedLine(saveError), [
+        { style: "cancel", text: "Stay" },
+        { onPress: leave, style: "destructive", text: "Discard edits" },
+      ]);
+    })();
+  });
 
   // the back gesture starts here, while the page still runs
   useEffect(
@@ -192,9 +234,12 @@ const NoteScreen = () => {
     }
     let live = true;
     void (async () => {
-      await host.flush();
-      if (live) {
+      // a page whose edits could not be written holds the only copy, so it stays loaded
+      const flushed = await host.flush();
+      if (live && flushed) {
         setReleased(true);
+        // the page loads afresh on the way back, and says again if it cannot open the note
+        setOpenFailed(null);
       }
     })();
     return () => {
@@ -255,10 +300,22 @@ const NoteScreen = () => {
     confirmDeleteNote(opened, () => {
       void (async () => {
         await host.flush();
-        await deleteNote(opened);
+        try {
+          await deleteNote(opened);
+        } catch (error) {
+          Alert.alert("Couldn't delete", error instanceof Error ? error.message : String(error));
+          return;
+        }
         router.back();
       })();
     });
+  };
+
+  // a fresh load reads the note again and holds no edits yet; it says again if it still cannot
+  const loadPageAgain = (): void => {
+    setOpenFailed(null);
+    setSaveError(null);
+    host.reload();
   };
 
   let body = null;
@@ -271,9 +328,7 @@ const NoteScreen = () => {
   } else if (!released) {
     body = (
       <WebView
-        ref={(view) => {
-          host.attach(view);
-        }}
+        ref={attachView}
         style={[styles.screen, { backgroundColor: theme.background }]}
         source={{ uri: source.uri }}
         allowingReadAccessToURL={source.readAccess}
@@ -285,9 +340,7 @@ const NoteScreen = () => {
         onMessage={(event) => {
           host.receive({ data: event.nativeEvent.data, url: event.nativeEvent.url });
         }}
-        onContentProcessDidTerminate={() => {
-          host.reload();
-        }}
+        onContentProcessDidTerminate={loadPageAgain}
         hideKeyboardAccessoryView
         keyboardDisplayRequiresUserAction={false}
         allowsLinkPreview={false}
@@ -339,6 +392,23 @@ const NoteScreen = () => {
         keyboardVerticalOffset={headerHeight}
       >
         {body}
+        {openFailed === null ? null : (
+          <View
+            style={[StyleSheet.absoluteFill, styles.failed, { backgroundColor: theme.background }]}
+          >
+            <Text style={[styles.failedText, { color: theme.mutedForeground }]}>
+              {`Couldn't open this note: ${openFailed}`}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={SPACE.sm}
+              style={({ pressed }) => pressed && styles.pressed}
+              onPress={loadPageAgain}
+            >
+              <Text style={[styles.action, { color: theme.foreground }]}>Retry</Text>
+            </Pressable>
+          </View>
+        )}
       </KeyboardAvoidingView>
       <CommentsSheet
         comments={comments}

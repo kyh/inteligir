@@ -59,7 +59,8 @@ src/
                        # the model guard that makes a chart, a canvas, an html
                        # block, tabs and columns read-only: no op inside one
                        # applies, a whole-block insert, remove or move does;
-                       # a keystroke aimed inside one is refused at beforeinput
+                       # a keystroke aimed inside one is refused at beforeinput;
+                       # a host lifts it to take a deleted thread's markers out
     base-kit.ts        # the headless mirror, for the serializer
     markdown-kit.ts    # the markdown plugin wiring
   nodes/               # every node type as a Base (headless) + React pair
@@ -72,6 +73,8 @@ src/
     open-doc.ts, markdown-gate.ts, open-note-flush.ts
                        # the open-document union, the raw/rich gate, the flush
                        # that visits every registered store
+    vanished-prompt.ts # what every host asks of a deleted note with unsaved
+                       # edits, and says of a save that kept its lines
   comments/            # anchored-comment markers, ranges, gutter, store
   formulas/            # `{{…}}` pill entry, editing and recompute
   properties/          # the typed frontmatter panel

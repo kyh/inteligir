@@ -1,5 +1,6 @@
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
+import { quoteSelection } from "@repo/domain/quote-selection";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { ViewContextSource } from "./thread-activity";
 import type { VaultMatchWire } from "@repo/api/local/knowledge/knowledge-schema";
@@ -459,11 +460,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   useEffect(() => {
     setAgentRequestActions({
       askAboutSelection: (selectionText) => {
-        const quoted = selectionText
-          .split("\n")
-          .map((line) => `> ${line}`)
-          .join("\n");
-        setComposerSeed(`${quoted}\n\n`);
+        setComposerSeed(quoteSelection(selectionText));
         setComposerOpen(true);
       },
       showTag: (tag) => {
