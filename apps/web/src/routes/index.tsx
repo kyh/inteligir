@@ -1,8 +1,11 @@
 import { Suspense, lazy } from "react";
 import { ClientOnly, createFileRoute, Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import Markdown from "react-markdown";
 
 import { createDownloadUrlReader, downloadHref } from "@/lib/download-url";
+import { markdownHandler, varyHeaders } from "@/lib/markdown-route";
+import { homeMarkdown } from "@/lib/site-content";
 import { SiteHeader } from "@/components/site-header";
 
 // three.js is most of this page's weight; imported statically it would hold hydration, and the CTA with it
@@ -21,6 +24,12 @@ const MacLogoIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const FOOTER_LINKS = [
+  { label: "About", to: "/about" },
+  { label: "Contact", to: "/contact" },
+  { label: "Privacy", to: "/privacy" },
+] as const;
+
 const readDownloadUrl = createDownloadUrlReader();
 
 const getDownloadUrl = createServerFn().handler(async () => await readDownloadUrl());
@@ -32,6 +41,9 @@ const Page = () => {
     <>
       <SiteHeader />
       <main className="flex min-h-dvh w-full flex-col">
+        <section className="sr-only">
+          <Markdown>{homeMarkdown}</Markdown>
+        </section>
         <div className="flex flex-1 flex-col items-center justify-center">
           <div className="h-48 w-48">
             <ClientOnly fallback={null}>
@@ -58,13 +70,16 @@ const Page = () => {
           )}
           <span className="text-xs text-foreground/60">Requires an OpenAI or Claude account</span>
         </div>
-        <footer className="flex justify-center pb-6">
-          <Link
-            to="/privacy"
-            className="text-xs text-foreground/60 transition-colors hover:text-foreground"
-          >
-            Privacy
-          </Link>
+        <footer className="flex justify-center gap-4 pb-6">
+          {FOOTER_LINKS.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className="text-xs text-foreground/60 transition-colors hover:text-foreground"
+            >
+              {link.label}
+            </Link>
+          ))}
         </footer>
       </main>
     </>
@@ -73,5 +88,7 @@ const Page = () => {
 
 export const Route = createFileRoute("/")({
   loader: async () => await getDownloadUrl(),
+  headers: varyHeaders,
   component: Page,
+  server: { handlers: { GET: markdownHandler(homeMarkdown) } },
 });
