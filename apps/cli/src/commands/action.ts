@@ -94,6 +94,11 @@ const newestAppliedTurn = async (api: Api, threadId: string): Promise<string> =>
   return newest.turnId;
 };
 
+const turnStillApplied = async (api: Api, threadId: string, turnId: string): Promise<boolean> => {
+  const { turns } = await api.threads.turnChanges({ threadId });
+  return turns.some((turn) => turn.turnId === turnId && turn.state === "applied");
+};
+
 const awaitingAnswer = (interactions: readonly PendingInteraction[]): string[] =>
   interactions.filter((row) => row.status === "pending").map((row) => row.id);
 
@@ -352,6 +357,20 @@ export const actionCommand = (deps: CliDeps) =>
             return;
           }
           writeLines(undoLines(body));
+          // an undo that writes nothing commits nothing, so the turn stays the one a bare undo names.
+          const stillNewest =
+            args.turn === undefined
+              ? "; it stays the newest turn to undo, so pass --turn to undo an earlier one"
+              : "";
+          // asked, not inferred: a comment store taken back in part is named kept, yet it was written.
+          if (
+            body.reverted.length === 0 &&
+            body.kept.length > 0 &&
+            (await turnStillApplied(api, args.id, turnId))
+          ) {
+            out.warn(`Nothing of turn ${turnId} could be undone${stillNewest}.`);
+            return;
+          }
           if (body.kept.length > 0) {
             out.warn(
               `Undid what it could of turn ${turnId}; a kept note is left as it is, and its history holds the version from before the turn (\`inteligir vault history <path>\`).`,
@@ -359,7 +378,9 @@ export const actionCommand = (deps: CliDeps) =>
             return;
           }
           if (body.reverted.length === 0) {
-            out.info(`Turn ${turnId} left nothing to undo: every note it changed is back already.`);
+            out.info(
+              `Turn ${turnId} left nothing to undo: every note it changed is back already${stillNewest}.`,
+            );
             return;
           }
           out.success(`Undid turn ${turnId}.`);

@@ -56,8 +56,8 @@ const SOCKET_DRAIN_MS = 1500;
 
 // node hands an upgrade's socket over with no error listener, and the websocket library awaits the
 // route before it takes the socket, so a peer that resets in that window (a window reconnecting to a
-// child that just replaced another) raised an uncaught ECONNRESET that took the server down. A reset
-// upgrade is the peer's loss alone.
+// child that just replaced another) raises an uncaught ECONNRESET, which takes the server down. A
+// reset upgrade is the peer's loss alone.
 export const guardUpgradeSockets = (server: ServerType): void => {
   server.on("upgrade", (_request: IncomingMessage, socket: Duplex) => {
     socket.on("error", () => {

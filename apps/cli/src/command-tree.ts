@@ -154,19 +154,26 @@ interface ArgvTokens {
   positionals: string[];
 }
 
-// the split citty's parse makes before `--`: node's parseArgs hands a string or enum flag written without
-// `=` the next token whatever it looks like, and reads every other dash-led token but a lone `-` as a flag.
+// the split citty's parse makes: node's parseArgs hands a string or enum flag written without `=` the next
+// token whatever it looks like, reads every other dash-led token but a lone `-` as a flag, and reads every
+// word after `--` as an operand.
 const splitArgv = (rawArgs: readonly string[], argsDef: ArgsDef): ArgvTokens => {
   const valued = valueFlags(argsDef);
   const tokens: ArgvTokens = { flags: [], positionals: [] };
   let valuePending = false;
+  let operandsOnly = false;
   for (const raw of rawArgs) {
+    if (operandsOnly) {
+      tokens.positionals.push(raw);
+      continue;
+    }
     if (valuePending) {
       valuePending = false;
       continue;
     }
     if (raw === "--") {
-      break;
+      operandsOnly = true;
+      continue;
     }
     if (raw === "-" || !raw.startsWith("-")) {
       tokens.positionals.push(raw);
@@ -203,8 +210,7 @@ export const assertKnownFlags = (rawArgs: readonly string[], argsDef: ArgsDef): 
   }
 };
 
-// citty binds positionals in order and drops the rest, so `search a b` would search for `a` alone. only the
-// words before `--` count: what follows it is a leaf's own channel, read from its raw argv.
+// citty binds positionals in order and drops the rest, so `search a b` would search for `a` alone.
 export const assertPositionalArity = (rest: readonly string[], argsDef: ArgsDef): void => {
   const declared = Object.values(argsDef).filter((def) => def.type === "positional").length;
   const extra = splitArgv(rest, argsDef).positionals.slice(declared);

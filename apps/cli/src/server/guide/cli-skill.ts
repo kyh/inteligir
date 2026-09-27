@@ -360,7 +360,7 @@ ${Object.entries(DEBUG_TRACES)
 
 A line names paths and ids, never a note's content or a credential, so it can
 be pasted into a report. A name not listed here is refused at boot. In the
-desktop app, Settings → Advanced → Debug logging traces every name above from
+desktop app, Settings › Advanced › Debug logging traces every name above from
 the next restart, and whatever the app's server prints, traced or not, is kept
 in \`logs/server.log\` under the data dir (\`inteligir status\` names it). The
 app started from a terminal with the variable set still passes it to its

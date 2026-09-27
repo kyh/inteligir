@@ -41,8 +41,10 @@ into a note that has none, and refuses a note whose `id` is not text, such as
 `<note>.md.comments.json` beside a note is the older spelling: the server folds
 it into the store the first time the note's comments are read, so never write
 one. Copying a note copies its `id`, and two notes with one `id` share one
-store: drop the `id:` line from a copy (`inteligir problems` lists every `id`
-more than one note carries).
+store: run `inteligir vault new-id <copy>` on the copy, which gives it its own
+id and a copy of the store. Never delete its `id:` line, because its anchors'
+bodies live only under that id (`inteligir problems` lists every `id` more than
+one note carries).
 
 | Field        | Required    | Contract                                            |
 | ------------ | ----------- | --------------------------------------------------- |

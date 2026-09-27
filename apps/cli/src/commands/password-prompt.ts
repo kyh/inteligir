@@ -56,11 +56,11 @@ export const promptPassword = async (label: string): Promise<string> => {
 };
 
 // one line, its own newline stripped: `printf 'pw\\n' | inteligir cloud login --password -`
-export const readSecretFromStdin = async (label: string): Promise<string> => {
+export const readPasswordFromStdin = async (): Promise<string> => {
   const text = new TextDecoder("utf-8", { fatal: true }).decode(await buffer(process.stdin));
-  const secret = text.replace(/\r?\n$/u, "");
-  if (secret.length === 0) {
-    throw invalidUsage(`stdin carried no ${label}`);
+  const password = text.replace(/\r?\n$/u, "");
+  if (password.length === 0) {
+    throw invalidUsage("stdin carried no password");
   }
-  return secret;
+  return password;
 };

@@ -403,7 +403,22 @@ describe("vault commands", () => {
       argv: ["vault", "remote", "account"],
       baseUrl: server.baseUrl,
     });
-    expect(account.stdout).toBe(`✔ The vault syncs through the account.\n  ${signedOut}\n`);
+    expect(account.stdout).toBe(`  ${signedOut}\n`);
+    expect(account.stderr).toContain(
+      "Saved: the account's hosted vault is the choice; nothing syncs yet.",
+    );
+
+    state.vaultStatus = { ...state.vaultStatus, externalSync: { kind: "icloud-drive" } };
+    const synced = await runCliForTest({
+      argv: ["vault", "remote", "account"],
+      baseUrl: server.baseUrl,
+    });
+    expect(synced.stdout).toBe(
+      "  no remote: iCloud Drive syncs this folder, so the hosted vault stays off\n",
+    );
+    expect(synced.stderr).toContain(
+      "Saved: the account's hosted vault is the choice; nothing syncs yet.",
+    );
 
     state.vaultStatus = {
       conflicts: [],
@@ -926,6 +941,38 @@ describe("action commands", () => {
     expect(nothingLeft.code).toBe(1);
     expect(nothingLeft.stderr).toContain("No turn of thr_2 has changes left to undo.");
   });
+
+  it("says a turn whose every note was kept is still the one to undo, and how to reach past it", async () => {
+    const state = seededState();
+    state.threads.push({
+      pendingInteractions: [],
+      thread: makeThread({ id: "thr_1" }),
+      timeline: EMPTY_TIMELINE,
+      turnChanges: [
+        { paths: ["notes/a.md"], state: "applied", turnId: "turn_1" },
+        { paths: ["notes/b.md"], state: "applied", turnId: "turn_2" },
+      ],
+      turnUndo: { kept: [{ path: "notes/b.md", reason: "edited-since" }], reverted: [] },
+    });
+    const server = await boot(state);
+
+    const result = await runCliForTest({
+      argv: ["action", "undo", "thr_1"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(0);
+    expect(result.stdout).toBe(
+      "kept      notes/b.md  (edited since the turn, where the turn changed it)\n",
+    );
+    expect(result.stderr).toContain(
+      "Nothing of turn turn_2 could be undone; it stays the newest turn to undo, so pass --turn to undo an earlier one.",
+    );
+    expect(result.stderr).not.toContain("Undid what it could");
+    expect(state.threads[0]?.turnChanges?.map((turn) => turn.state)).toEqual([
+      "applied",
+      "applied",
+    ]);
+  });
 });
 
 describe("interactions commands", () => {
@@ -1296,6 +1343,28 @@ describe("argv the CLI refuses", () => {
     expect(result.stderr).toBe("");
     expect(result.code).toBe(0);
     expect(result.stdout).toBe("# Draft\n");
+  });
+
+  it("counts every word after `--` as an operand, so one past the leaf's arity is refused", async () => {
+    const state = seededState();
+    state.vault.set("a.md", "# A\n");
+    state.vault.set("b.md", "# B\n");
+    const server = await boot(state);
+    for (const operands of [
+      ["a.md", "--", "b.md"],
+      ["--", "a.md", "b.md"],
+    ]) {
+      const result = await runCliForTest({
+        argv: ["vault", "read", "--json", ...operands],
+        baseUrl: server.baseUrl,
+      });
+      expect(result.code, operands.join(" ")).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(JSON.parse(result.stderr)).toEqual({
+        error: "INVALID_USAGE",
+        message: "unexpected argument: b.md — quote a value that contains spaces",
+      });
+    }
   });
 
   it("refuses a connectors verb as an unknown command: Settings owns connectors", async () => {

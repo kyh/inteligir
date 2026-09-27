@@ -534,6 +534,11 @@ export const vaultCommand = (deps: CliDeps) =>
           if (outputJson(args, body)) {
             return;
           }
+          if (body.state === "no-remote") {
+            out.warn("Saved: the account's hosted vault is the choice; nothing syncs yet.");
+            writeLines([`  ${describeVaultRemote(body)}`]);
+            return;
+          }
           out.success(
             choice.kind === "account"
               ? "The vault syncs through the account."
