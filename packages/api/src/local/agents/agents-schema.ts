@@ -33,7 +33,8 @@ export type HarnessStatus = z.infer<typeof harnessStatusSchema>;
 
 export type HarnessReadiness = "ready" | "signed-out" | "unavailable" | "unknown";
 
-// the one verdict the CLI and Settings both draw from a harness's status.
+// a harness's status as one verdict, so the window's sign-in surfaces (the ⌘K need, the sign-in
+// offer, the Settings cards) never re-derive it.
 export const harnessReadiness = (status: HarnessStatus): HarnessReadiness => {
   if (status.runtime === "missing") {
     return "unavailable";

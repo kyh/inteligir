@@ -98,6 +98,8 @@ export const useCloudSession = (): CloudSession => {
     signOut,
     signUp: signUp.mutate,
     status: statusQuery.data,
-    syncThreads: sync.mutate,
+    syncThreads: () => {
+      sync.mutate();
+    },
   };
 };

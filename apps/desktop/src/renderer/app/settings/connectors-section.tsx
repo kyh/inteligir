@@ -14,7 +14,6 @@ import type {
 } from "@repo/api/local/connectors/connectors-schema";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
-import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 import { toast } from "@repo/ui/components/sonner";
 import { Spinner } from "@repo/ui/components/spinner";
@@ -23,6 +22,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import type { z } from "zod";
 import { failed, orpc, refusalMessage } from "../api";
+import { LabelledField } from "../labelled-field";
 import { CONNECTOR_PRESETS } from "./connector-presets";
 import type { ConnectorPreset } from "./connector-presets";
 import { ChoiceRow, SectionHeading } from "./settings-chrome";
@@ -353,36 +353,28 @@ export const ConnectorsSection = () => {
   const targetFields = () => {
     if (draft.kind === "http") {
       return (
-        <div className="flex items-center gap-2">
-          <Label htmlFor={`${formId}-url`} className="w-24 shrink-0 text-body">
-            URL
-          </Label>
-          <Input
-            id={`${formId}-url`}
-            value={draft.url}
-            placeholder="https://example.com"
-            onChange={(event) => {
-              setDraft({ ...draft, url: event.target.value });
-            }}
-          />
-        </div>
+        <LabelledField
+          id={`${formId}-url`}
+          label="URL"
+          value={draft.url}
+          placeholder="https://example.com"
+          onChange={(event) => {
+            setDraft({ ...draft, url: event.target.value });
+          }}
+        />
       );
     }
     return (
       <>
-        <div className="flex items-center gap-2">
-          <Label htmlFor={`${formId}-command`} className="w-24 shrink-0 text-body">
-            Command
-          </Label>
-          <Input
-            id={`${formId}-command`}
-            value={draft.command}
-            placeholder="npx"
-            onChange={(event) => {
-              setDraft({ ...draft, command: event.target.value });
-            }}
-          />
-        </div>
+        <LabelledField
+          id={`${formId}-command`}
+          label="Command"
+          value={draft.command}
+          placeholder="npx"
+          onChange={(event) => {
+            setDraft({ ...draft, command: event.target.value });
+          }}
+        />
         <div className="flex items-start gap-2">
           <Label htmlFor={`${formId}-args`} className="w-24 shrink-0 pt-2 text-body">
             Arguments
@@ -444,19 +436,15 @@ export const ConnectorsSection = () => {
           submit();
         }}
       >
-        <div className="flex items-center gap-2">
-          <Label htmlFor={`${formId}-name`} className="w-24 shrink-0 text-body">
-            Name
-          </Label>
-          <Input
-            id={`${formId}-name`}
-            value={draft.name}
-            placeholder="my-connector"
-            onChange={(event) => {
-              setDraft({ ...draft, name: event.target.value });
-            }}
-          />
-        </div>
+        <LabelledField
+          id={`${formId}-name`}
+          label="Name"
+          value={draft.name}
+          placeholder="my-connector"
+          onChange={(event) => {
+            setDraft({ ...draft, name: event.target.value });
+          }}
+        />
         <ChoiceRow
           label="Connect by"
           value={draft.kind}

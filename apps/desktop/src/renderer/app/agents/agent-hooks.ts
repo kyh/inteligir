@@ -8,6 +8,7 @@ import type {
   HarnessStatus,
 } from "@repo/api/local/agents/agents-schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { failed, orpc, refusalMessage } from "../api";
 import { useSystemStatus } from "../vault-hooks";
 
@@ -86,12 +87,14 @@ export interface AgentSignInFlow {
   code: { pending: boolean; answer: SignInCodeAnswer | null; refusal: string | null };
 }
 
-export const useAgentSignIn = (): AgentSignInFlow => {
-  const queryClient = useQueryClient();
-  const statusKey = orpc.agents.status.queryKey();
+// A new status from an answer, or null to ask again. A poll still in flight when a sign-in, a
+// sign-out or a choice of agent lands would put back the status from before it.
+type ReplaceAgentsStatus = (next: AgentsStatusResponse | null) => Promise<void>;
 
-  // a poll still in flight when the sign-in ends would put back the status from before it.
-  const replaceStatus = async (next: AgentsStatusResponse | null): Promise<void> => {
+export const useReplaceAgentsStatus = (): ReplaceAgentsStatus => {
+  const queryClient = useQueryClient();
+  return async (next) => {
+    const statusKey = orpc.agents.status.queryKey();
     await queryClient.cancelQueries({ queryKey: statusKey });
     if (next === null) {
       await queryClient.invalidateQueries({ queryKey: statusKey });
@@ -99,14 +102,29 @@ export const useAgentSignIn = (): AgentSignInFlow => {
       queryClient.setQueryData(statusKey, next);
     }
   };
+};
+
+// What a move of the default agent changes beyond the agents' status: Connectors lists the default
+// agent's own, and the system status names the default's runtime.
+export const refreshDefaultAgentViews = async (queryClient: QueryClient): Promise<void> => {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: orpc.connectors.list.key() }),
+    queryClient.invalidateQueries({ queryKey: orpc.system.status.key() }),
+  ]);
+};
+
+export const useAgentSignIn = (): AgentSignInFlow => {
+  const queryClient = useQueryClient();
+  const replaceStatus = useReplaceAgentsStatus();
 
   const signIn = useMutation(
     orpc.agents.signIn.mutationOptions({
       onError: async () => {
         await replaceStatus(null);
       },
-      onSettled: async () => {
-        await queryClient.invalidateQueries({ queryKey: orpc.system.status.key() });
+      // a sign-in may move the default, off an agent a new action could not run on
+      onSettled: () => {
+        void refreshDefaultAgentViews(queryClient);
       },
       onSuccess: async (answer) => {
         await replaceStatus(answer.status);

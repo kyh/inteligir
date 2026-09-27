@@ -1,7 +1,7 @@
 // The one sign-in surface: ⌘K over a signed-out agent, the panel's banner, each Settings card and
 // onboarding all draw it, so the order, the wording and the waiting state are spelled once.
 
-import { SIGN_IN_CODE_MAX_LENGTH } from "@repo/api/local/agents/agents-schema";
+import { harnessReadiness, SIGN_IN_CODE_MAX_LENGTH } from "@repo/api/local/agents/agents-schema";
 import type { HarnessStatus } from "@repo/api/local/agents/agents-schema";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
@@ -14,8 +14,23 @@ import { useAgentSignIn } from "./agent-hooks";
 import type { AgentSignInFlow, SignInWaiting } from "./agent-hooks";
 
 // a harness this copy did not ship cannot sign in, and one signed in needs nothing.
-const canSignIn = (harness: HarnessStatus): boolean =>
-  harness.runtime === "bundled" && harness.account.state !== "signed-in";
+const canSignIn = (harness: HarnessStatus): boolean => {
+  const readiness = harnessReadiness(harness);
+  switch (readiness) {
+    case "signed-out":
+    case "unknown": {
+      return true;
+    }
+    case "ready":
+    case "unavailable": {
+      return false;
+    }
+    default: {
+      const exhaustive: never = readiness;
+      return exhaustive;
+    }
+  }
+};
 
 const codeProblem = (flow: AgentSignInFlow): string | null => {
   if (flow.code.refusal !== null) {

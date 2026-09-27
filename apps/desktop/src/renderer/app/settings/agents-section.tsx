@@ -1,3 +1,4 @@
+import { harnessReadiness } from "@repo/api/local/agents/agents-schema";
 import type { HarnessStatus } from "@repo/api/local/agents/agents-schema";
 import type { AgentStatus } from "@repo/api/local/system/system-schema";
 import { Button } from "@repo/ui/components/button";
@@ -5,7 +6,11 @@ import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { failed, orpc } from "../api";
-import { useAgentsStatus } from "../agents/agent-hooks";
+import {
+  refreshDefaultAgentViews,
+  useAgentsStatus,
+  useReplaceAgentsStatus,
+} from "../agents/agent-hooks";
 import { AgentSignIn } from "../agents/agent-sign-in";
 import { useDataDirScope, useSystemStatus } from "../vault-hooks";
 import { SecondVaultNote, SectionHeading } from "./settings-chrome";
@@ -45,9 +50,11 @@ const RuntimeNote = ({ agent }: { agent: AgentStatus | undefined }) => {
   if (agent === undefined || sentence === null) {
     return null;
   }
+  // only an unavailable runtime's detail is written for the person; the others name configuration
+  const detail = agent.runtime === "unavailable" ? agent.detail : null;
   return (
     <p className="text-body text-muted-foreground">
-      {agent.detail === null ? sentence : `${sentence} ${agent.detail}`}
+      {detail === null ? sentence : `${sentence} ${detail}`}
     </p>
   );
 };
@@ -65,7 +72,7 @@ const HarnessCard = ({
   onSignOut: () => void;
   busy: boolean;
 }) => {
-  const signedIn = harness.runtime === "bundled" && harness.account.state === "signed-in";
+  const signedIn = harnessReadiness(harness) === "ready";
   return (
     <div className="space-y-1.5 py-2">
       <div className="flex items-baseline justify-between gap-3">
@@ -98,17 +105,16 @@ export const AgentsSection = () => {
   const status = useAgentsStatus().data;
   const agent = useSystemStatus().data?.agent;
   const scope = useDataDirScope();
-  const statusKey = orpc.agents.status.queryKey();
+  const replaceStatus = useReplaceAgentsStatus();
 
   const setDefault = useMutation(
     orpc.agents.setDefault.mutationOptions({
       onError: (cause) => {
         failed(cause, "Could not change the agent for new actions.");
       },
-      onSuccess: (next) => {
-        queryClient.setQueryData(statusKey, next);
-        // connectors are the default agent's own, so the section now lists the other agent's.
-        void queryClient.invalidateQueries({ queryKey: orpc.connectors.list.key() });
+      onSuccess: async (next) => {
+        await replaceStatus(next);
+        void refreshDefaultAgentViews(queryClient);
       },
     }),
   );
@@ -117,8 +123,8 @@ export const AgentsSection = () => {
       onError: (cause) => {
         failed(cause, "Could not sign out.");
       },
-      onSuccess: (answer) => {
-        queryClient.setQueryData(statusKey, answer.status);
+      onSuccess: async (answer) => {
+        await replaceStatus(answer.status);
         if (answer.outcome === "failed") {
           toast.error(answer.detail);
         }

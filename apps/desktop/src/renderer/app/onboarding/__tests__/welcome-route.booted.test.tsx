@@ -2,7 +2,7 @@ import path from "node:path";
 import { RouterProvider, createMemoryHistory, createRouter } from "@tanstack/react-router";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { bootTestApp, fakeAgentAccounts } from "inteligir/server/testing";
-import type { BootTestAppOptions } from "inteligir/server/testing";
+import type { BootedTestApp, BootTestAppOptions } from "inteligir/server/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { routeTree } from "../../../routeTree.gen";
@@ -14,10 +14,29 @@ const WELCOME = "Welcome.md";
 const stepOnScreen = (): string | null =>
   document.querySelector<HTMLElement>("[data-welcome-step]")?.dataset.welcomeStep ?? null;
 
-const bootAt = async (entry: string, options: BootTestAppOptions = {}) => {
+// procedures held unanswered, so a test sees the window before their answer lands
+const stall = (booted: BootedTestApp, stalled: readonly string[]): void => {
+  vi.stubGlobal("fetch", async (input: string | URL, init?: RequestInit) => {
+    const url = String(input);
+    const { pathname } = new URL(url, "http://localhost");
+    if (stalled.some((procedure) => pathname.endsWith(`/${procedure}`))) {
+      return await Promise.withResolvers<Response>().promise;
+    }
+    return await booted.request(url, { ...init, signal: null });
+  });
+};
+
+const bootAt = async (
+  entry: string,
+  options: BootTestAppOptions = {},
+  stalled: readonly string[] = [],
+) => {
   const booted = await bootTestApp(options);
   vi.stubGlobal("WebSocket", InertSocket);
   routeRendererFetch(booted);
+  if (stalled.length > 0) {
+    stall(booted, stalled);
+  }
   // listed first, so only the boot's preference opens Welcome.md over it
   await booted.client.vault.write({
     content: "# Agenda\n",
@@ -98,6 +117,17 @@ describe("the steps after a first run", () => {
     expect(stepOnScreen()).toBe("account");
   });
 
+  it("offers the skip while the account has not answered", async () => {
+    const router = await bootAt("/welcome?step=account", {}, ["cloud/status"]);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Skip for now" }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/");
+    });
+    expect(stepOnScreen()).toBeNull();
+  });
+
   it("says what an account still carries for notes another service syncs", async () => {
     const router = await bootAt("/welcome?step=account", {
       vaultPath: path.join("Library", "Mobile Documents", "com~apple~CloudDocs", "Notes"),
@@ -109,7 +139,6 @@ describe("the steps after a first run", () => {
         "iCloud Drive already syncs these notes, and your phone won't show them. An account still carries your conversations with the agent to your other Macs.",
       ),
     ).toBeDefined();
-    expect(screen.queryByText(/your notes start syncing/u)).toBeNull();
 
     // the workspace underneath mirrors the note it booted on into the url, beside the step
     await waitFor(() => {

@@ -11,6 +11,7 @@ import { InertSocket } from "../../__tests__/inert-socket";
 import { routeRendererFetch } from "../../actions/__tests__/booted-fetch";
 import { WorkspaceProvider } from "../../workspace-context";
 import { AgentsSection } from "../agents-section";
+import { ConnectorsSection } from "../connectors-section";
 
 afterEach(() => {
   cleanup();
@@ -18,14 +19,29 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-// the words a knowledge worker never meets in this section, whatever state it is in
-const DEVELOPER_WORDS = /CLI|PATH|terminal|harness|adapter|command|run:/u;
+// the words a knowledge worker never meets in this section, whatever state it is in, an
+// environment variable's assignment included
+const DEVELOPER_WORDS = /CLI|PATH|terminal|harness|adapter|command|run:|\b[A-Z][A-Z0-9_]{3,}=/u;
 
 const CLAUDE_MAX: VendorAccount = {
   email: "ada@example.com",
   label: "Claude Max",
   state: "signed-in",
 };
+
+const AUTH_URL = "https://claude.test/oauth/authorize?code=true";
+
+type VendorConfigs = NonNullable<BootTestAppOptions["connectors"]>;
+type VendorConfig = VendorConfigs[keyof VendorConfigs];
+
+// no vendor lists a connector, so no suite spawns one to read an empty list
+const emptyVendor = (configPath: string): VendorConfig => ({
+  add: async () => await Promise.reject(new Error("not added in this suite")),
+  configPath,
+  list: async () => await Promise.resolve([]),
+  remove: async () => await Promise.reject(new Error("not removed in this suite")),
+  signIn: async () => await Promise.reject(new Error("not signed in in this suite")),
+});
 
 const boot = async (options: BootTestAppOptions) => {
   const booted = await bootTestApp(options);
@@ -101,6 +117,40 @@ describe("Settings › Agent", () => {
     const status = await booted.client.agents.status();
     const claude = status.harnesses.find((harness) => harness.id === "claude");
     expect(claude?.runtime === "bundled" && claude.account.state).toBe("signed-out");
+  });
+
+  it("moves Connectors to the agent a sign-in made the default", async () => {
+    const booted = await bootTestApp({
+      accounts: fakeAgentAccounts(
+        { claude: { state: "signed-out" }, codex: { state: "signed-out" } },
+        { authUrl: AUTH_URL },
+      ),
+      connectors: {
+        claude: emptyVendor(path.join(makeTempDir("agents-section-claude-"), ".claude.json")),
+        codex: emptyVendor(path.join(makeTempDir("agents-section-codex-"), "config.toml")),
+      },
+    });
+    await booted.client.agents.setDefault({ id: "codex" });
+    vi.stubGlobal("WebSocket", InertSocket);
+    routeRendererFetch(booted);
+    render(
+      <WorkspaceProvider>
+        <AgentsSection />
+        <ConnectorsSection />
+      </WorkspaceProvider>,
+    );
+    expect(await screen.findByText(/Apps and services ChatGPT can use/u)).toBeDefined();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in with Claude" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Paste the code" }));
+    fireEvent.change(screen.getByLabelText("Code from the sign-in page"), {
+      target: { value: "page-code#page-state" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(await screen.findByText(/Apps and services Claude can use/u)).toBeDefined();
+    const status = await booted.client.agents.status();
+    expect(status.defaultId).toBe("claude");
   });
 
   it.each<[string, AgentStatus]>([

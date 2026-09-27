@@ -5,6 +5,7 @@
 
 import { createFileRoute, Outlet, useMatch, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
+import { useAgentsStatus } from "../app/agents/agent-hooks";
 import { Workspace } from "../app/workspace";
 
 const workspaceSearchSchema = z.object({
@@ -17,6 +18,9 @@ const WorkspaceLayout = () => {
   const navigate = useNavigate();
   // any child but the index draws over the workspace
   const covered = useMatch({ from: "/_workspace/", shouldThrow: false }) === undefined;
+  // ⌘K draws nothing until the vendors have answered, and a cold probe takes seconds: observed
+  // here, their answer stays cached past gcTime, so the composer draws its field at once.
+  useAgentsStatus();
   return (
     <>
       <Workspace

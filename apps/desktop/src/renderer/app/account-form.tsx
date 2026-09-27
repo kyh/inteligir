@@ -7,46 +7,30 @@ import {
   CLOUD_PASSWORD_MIN_LENGTH,
   cloudForgotPasswordPageUrl,
 } from "@repo/api/local/cloud/cloud-schema";
-import type { CloudLoginRequest, CloudSignUpRequest } from "@repo/api/local/cloud/cloud-schema";
+import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
 import { Button } from "@repo/ui/components/button";
-import { Input } from "@repo/ui/components/input";
-import { Label } from "@repo/ui/components/label";
-import type { ComponentProps } from "react";
 import { useId, useState } from "react";
+import { accountOffer } from "./account-offer";
+import type { CloudSession } from "./cloud-session";
+import { LabelledField } from "./labelled-field";
 
 type AccountFormMode = "sign-in" | "create";
 
 export interface AccountFormProps {
   cloudUrl: string;
-  onSignIn: (request: CloudLoginRequest) => void;
-  onCreate: (request: CloudSignUpRequest) => void;
-  pending: boolean;
-  // the cloud's own words for why it said no, shown beside the fields it applies to
-  refusal: string | null;
+  session: Pick<CloudSession, "pending" | "refusal" | "signIn" | "signUp">;
+  // what an account does for these notes depends on where they already sync, so the form says
+  // nothing of it until the vault's status is known
+  vault: VaultStatusResponse | undefined;
   // absent, sign-in: only a first run meets someone who most likely has an invite and no account
   initialMode?: AccountFormMode;
-  // what an account does for these notes (`accountOffer`), which depends on where they already
-  // sync; absent until the vault's status is known, the form's own sentence
-  lead?: string | undefined;
 }
-
-const Field = ({ id, label, ...input }: { label: string } & ComponentProps<typeof Input>) => (
-  <div className="flex items-center gap-2">
-    <Label htmlFor={id} className="w-24 shrink-0 text-body">
-      {label}
-    </Label>
-    <Input id={id} {...input} />
-  </div>
-);
 
 export const AccountForm = ({
   cloudUrl,
-  onCreate,
-  onSignIn,
-  pending,
-  refusal,
+  session,
+  vault,
   initialMode = "sign-in",
-  lead,
 }: AccountFormProps) => {
   const formId = useId();
   const [mode, setMode] = useState<AccountFormMode>(initialMode);
@@ -56,8 +40,8 @@ export const AccountForm = ({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const { pending, refusal } = session;
   const creating = mode === "create";
-  const { host } = new URL(cloudUrl);
   const ready =
     email.trim() !== "" &&
     password !== "" &&
@@ -73,20 +57,17 @@ export const AccountForm = ({
         }
         setAskedIn(mode);
         if (creating) {
-          onCreate({ email, inviteCode, name, password });
+          session.signUp({ email, inviteCode, name, password });
         } else {
-          onSignIn({ email, password });
+          session.signIn({ email, password });
         }
       }}
     >
-      <p className="text-body text-muted-foreground">
-        {lead ??
-          (creating
-            ? `Create a ${host} account with your invite code. This device signs in to it right away, and your notes start syncing.`
-            : `Sign in with your ${host} account to sync your notes between your devices.`)}
-      </p>
+      {vault === undefined ? null : (
+        <p className="text-body text-muted-foreground">{accountOffer(vault).lead}</p>
+      )}
       {creating ? (
-        <Field
+        <LabelledField
           id={`${formId}-name`}
           label="Name"
           autoComplete="name"
@@ -96,7 +77,7 @@ export const AccountForm = ({
           }}
         />
       ) : null}
-      <Field
+      <LabelledField
         id={`${formId}-email`}
         label="Email"
         type="email"
@@ -106,7 +87,7 @@ export const AccountForm = ({
           setEmail(event.target.value);
         }}
       />
-      <Field
+      <LabelledField
         id={`${formId}-password`}
         label="Password"
         type="password"
@@ -120,7 +101,7 @@ export const AccountForm = ({
         }}
       />
       {creating ? (
-        <Field
+        <LabelledField
           id={`${formId}-invite`}
           label="Invite code"
           autoComplete="off"
