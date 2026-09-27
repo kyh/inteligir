@@ -11,17 +11,17 @@ import path from "node:path";
 import { z } from "zod";
 import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import type { ConnectorAuth, ConnectorTarget } from "@repo/api/local/connectors/connectors-schema";
+import { failureOf, succeeded } from "../agents/vendor-process";
 import type { VendorProcessContext, VendorRun } from "../agents/vendor-process";
 import type { McpSignInRun } from "./mcp-sign-ins";
 import {
   failedSignIn,
-  failureOf,
+  nonEmpty,
   refuseTaken,
   requireRow,
   requireUrlRow,
   runVendorConfig,
   signInRunOf,
-  succeeded,
   VENDOR_MCP_TIMEOUT_MS,
   VendorMcpError,
   watchVendorRun,
@@ -29,9 +29,6 @@ import {
 import type { VendorMcpConfig, VendorMcpServer } from "./vendor-mcp-config";
 
 const CODEX = HARNESSES.codex;
-
-const nonEmpty = (value: string | undefined): string | null =>
-  value === undefined || value === "" ? null : value;
 
 export const codexConfigPath = (env: NodeJS.ProcessEnv): string =>
   path.join(
@@ -130,9 +127,12 @@ export const createCodexMcpConfig = (context: VendorProcessContext): VendorMcpCo
     }
     const servers = await list();
     if (!servers.some((server) => server.name === name)) {
-      throw new VendorMcpError("unavailable", failureOf(CODEX, `adding ${name}`, run));
+      throw new VendorMcpError(
+        "unavailable",
+        failureOf(CODEX, `adding ${name}`, run, VENDOR_MCP_TIMEOUT_MS),
+      );
     }
-    return failedSignIn(failureOf(CODEX, "signing in", run));
+    return failedSignIn(failureOf(CODEX, "signing in", run, VENDOR_MCP_TIMEOUT_MS));
   };
 
   return {
@@ -149,7 +149,6 @@ export const createCodexMcpConfig = (context: VendorProcessContext): VendorMcpCo
       );
       return null;
     },
-    configPath: codexConfigPath(context.env),
     list,
     remove: async (name) => {
       requireRow(CODEX, await list(), name);

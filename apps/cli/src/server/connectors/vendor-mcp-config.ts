@@ -4,18 +4,13 @@
 // never in the vault: a vendor reads project config from its cwd.
 
 import { PassThrough } from "node:stream";
-import { stripVTControlCharacters } from "node:util";
-import type {
-  HarnessDefinition,
-  HarnessId,
-  VendorExit,
-} from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessDefinition, HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type {
   ConnectorAuth,
   ConnectorTarget,
   ConnectorTargetInput,
 } from "@repo/api/local/connectors/connectors-schema";
-import { runVendor } from "../agents/vendor-process";
+import { failureOf, printedUrlWatcher, runVendor, succeeded } from "../agents/vendor-process";
 import type { VendorProcessContext, VendorRun } from "../agents/vendor-process";
 import type { McpSignInEnd, McpSignInRun } from "./mcp-sign-ins";
 
@@ -40,8 +35,6 @@ export class VendorMcpError extends Error {
 }
 
 export interface VendorMcpConfig {
-  // the file the vendor keeps its user-level servers in.
-  configPath: string;
   list: () => Promise<VendorMcpServer[]>;
   // a sign-in the vendor started on its own comes back as that sign-in, running or already lost.
   add: (name: string, target: ConnectorTargetInput) => Promise<McpSignInRun | null>;
@@ -54,54 +47,10 @@ export type VendorMcpConfigs = Readonly<Record<HarnessId, VendorMcpConfig>>;
 // what an add, a remove or a read may take; a sign-in has its own window.
 export const VENDOR_MCP_TIMEOUT_MS = 30_000;
 
-const STDERR_TAIL_LINES = 5;
-
-// the address a vendor prints for a browser that did not open, taken only once a space or line
-// end closes it, so a chunk boundary never exposes half of one.
 const PRINTED_URL = /https?:\/\/\S+(?=\s)/u;
 
-// a pty hands back the vendor's colours and carriage returns with its words.
-const plainText = (output: string): string => stripVTControlCharacters(output).replaceAll("\r", "");
-
-const lines = (text: string): string[] =>
-  plainText(text)
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line !== "");
-
-const missingRuntime = (harness: HarnessDefinition): string =>
-  `This copy of inteligir is missing its ${harness.displayName} runtime`;
-
-// the vendor's own words: its stderr's last lines, else the last line it printed, which is where a
-// pty puts both.
-const exitDetail = (harness: HarnessDefinition, doing: string, exit: VendorExit): string => {
-  const stderr = lines(exit.stderr).slice(-STDERR_TAIL_LINES);
-  const said = stderr.length > 0 ? stderr : lines(exit.stdout).slice(-1);
-  return said.length === 0
-    ? `${harness.displayName} stopped ${doing} (exit ${String(exit.code)})`
-    : `${harness.displayName} could not finish ${doing}: ${said.join("\n")}`;
-};
-
-// what a run that did not do its work says of it; exit 0 is its caller's to read first.
-export const failureOf = (harness: HarnessDefinition, doing: string, run: VendorRun): string => {
-  switch (run.kind) {
-    case "exited": {
-      return exitDetail(harness, doing, run);
-    }
-    case "stopped": {
-      return `${harness.displayName} did not finish ${doing} within ${String(VENDOR_MCP_TIMEOUT_MS / 1000)}s`;
-    }
-    case "missing": {
-      return missingRuntime(harness);
-    }
-    case "failed": {
-      return run.detail;
-    }
-    // no default
-  }
-};
-
-export const succeeded = (run: VendorRun): boolean => run.kind === "exited" && run.code === 0;
+export const nonEmpty = (value: string | undefined): string | null =>
+  value === undefined || value === "" ? null : value;
 
 // a run whose answer is the work: anything but exit 0 is a refusal in the vendor's words. answers
 // what it printed.
@@ -114,10 +63,10 @@ export const runVendorConfig = async (
   const run = await runVendor(harness, args, context, {
     signal: AbortSignal.timeout(VENDOR_MCP_TIMEOUT_MS),
   });
-  if (run.kind === "exited" && run.code === 0) {
+  if (succeeded(run)) {
     return run.stdout;
   }
-  throw new VendorMcpError("unavailable", failureOf(harness, doing, run));
+  throw new VendorMcpError("unavailable", failureOf(harness, doing, run, VENDOR_MCP_TIMEOUT_MS));
 };
 
 export interface WatchedVendorRun {
@@ -136,14 +85,12 @@ export const watchVendorRun = (
   options: { pty: boolean },
 ): WatchedVendorRun => {
   const stop = new AbortController();
-  let printed = "";
-  let authUrl: string | null = null;
+  const printed = printedUrlWatcher(PRINTED_URL);
   const urlPrinted = Promise.withResolvers<string>();
   const onStdout = (chunk: string): void => {
-    printed += chunk;
-    const url = authUrl === null ? PRINTED_URL.exec(plainText(printed))?.[0] : undefined;
-    if (url !== undefined && URL.canParse(url)) {
-      authUrl = url;
+    printed.onStdout(chunk);
+    const url = printed.authUrl();
+    if (url !== null) {
       urlPrinted.resolve(url);
     }
   };
@@ -161,7 +108,7 @@ export const watchVendorRun = (
     }
   })();
   return {
-    authUrl: () => authUrl,
+    authUrl: printed.authUrl,
     ended,
     stop: () => {
       stop.abort();
@@ -176,7 +123,7 @@ const signInEnd = (harness: HarnessDefinition, run: VendorRun): McpSignInEnd => 
   }
   return run.kind === "stopped"
     ? { kind: "stopped" }
-    : { detail: failureOf(harness, "signing in", run), kind: "failed" };
+    : { detail: failureOf(harness, "signing in", run, VENDOR_MCP_TIMEOUT_MS), kind: "failed" };
 };
 
 // a sign-in over before anything could wait on it.

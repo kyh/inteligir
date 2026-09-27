@@ -96,6 +96,12 @@ export const createMcpSignIns = (args: CreateMcpSignInsArgs = {}): McpSignIns =>
         return;
       }
       const key = keyOf(harness, name);
+      // a run displaced here would wait on its browser, holding the callback, until its window.
+      const prior = entries.get(key);
+      if (prior?.kind === "pending") {
+        clearTimeout(prior.timer);
+        prior.run.stop();
+      }
       const pending: Pending = {
         expired: false,
         kind: "pending",

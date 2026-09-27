@@ -5,7 +5,7 @@ import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 import { resolveAgentDriver } from "../agent-driver";
 import { scriptedNotePath } from "../scripted-driver";
-import { bootTestApp, fakeAgentAccounts, TEST_MACHINE_NAME } from "../../__tests__/boot-app";
+import { bootTestApp, TEST_MACHINE_NAME } from "../../__tests__/boot-app";
 import type { BootedTestApp } from "../../__tests__/boot-app";
 import {
   awaitThreadStatus,
@@ -40,7 +40,6 @@ const bootScripted = async (): Promise<BootedTestApp> =>
     agent: { detail: null, mode: "scripted", runtime: "scripted" },
     makeDriver: ({ db, bus, vault, vaultDir }) => {
       const resolved = resolveAgentDriver({
-        accounts: fakeAgentAccounts(),
         config: {
           agent: "scripted",
           agentModels: { claude: null, codex: null },

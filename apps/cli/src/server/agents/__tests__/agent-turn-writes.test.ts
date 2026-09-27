@@ -171,6 +171,56 @@ describe("agent turn writes", () => {
     await turn.finish();
   });
 
+  it("claims a reported write at its start, and commits it once it settles", async () => {
+    const engine = recordingEngine();
+    const turn = beginAgentTurnWrites(turnArgs(engine.git));
+    await turn.ready;
+    turn.claim(["a.md"]);
+    expect(engine.git.claimedPaths()).toEqual(["a.md"]);
+    turn.settle(["a.md", "moved.md"], "completed");
+    await turn.finish();
+    expect(engine.scopedCommits[0]?.paths).toEqual(["a.md", "moved.md"]);
+  });
+
+  it("leaves out a path whose every reported write failed, still claimed until the turn ends", async () => {
+    const engine = recordingEngine();
+    const turn = beginAgentTurnWrites(turnArgs(engine.git));
+    await turn.ready;
+    turn.claim(["declined.md"]);
+    turn.settle(["declined.md"], "failed");
+    expect(engine.git.claimedPaths()).toContain("declined.md");
+    await turn.finish();
+    expect(engine.scopedCommits).toEqual([]);
+    expect(engine.releases).toBe(1);
+  });
+
+  it("commits a path any reported write to it completed, whatever the others ended as", async () => {
+    const engine = recordingEngine();
+    const turn = beginAgentTurnWrites(turnArgs(engine.git));
+    await turn.ready;
+    turn.claim(["retried.md"]);
+    turn.settle(["retried.md"], "failed");
+    turn.claim(["retried.md"]);
+    turn.settle(["retried.md"], "completed");
+    turn.claim(["done.md"]);
+    turn.claim(["done.md"]);
+    turn.settle(["done.md"], "completed");
+    turn.settle(["done.md"], "failed");
+    await turn.finish();
+    expect(engine.scopedCommits[0]?.paths).toEqual(["retried.md", "done.md"]);
+  });
+
+  it("commits a reported write that never settled, which may have landed", async () => {
+    const engine = recordingEngine();
+    const turn = beginAgentTurnWrites(turnArgs(engine.git));
+    await turn.ready;
+    turn.claim(["a.md"]);
+    turn.claim(["a.md"]);
+    turn.settle(["a.md"], "failed");
+    await turn.finish();
+    expect(engine.scopedCommits[0]?.paths).toEqual(["a.md"]);
+  });
+
   it("resolves ready when the checkpoint fails, and says why", async () => {
     const engine = recordingEngine({ checkpointFails: true });
     const errors: string[] = [];

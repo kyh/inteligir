@@ -19,6 +19,7 @@ import type { VendorProcessContext } from "../agents/vendor-process";
 import { errnoCode } from "../errno";
 import { messageOf } from "../error-message";
 import {
+  nonEmpty,
   refuseTaken,
   requireRow,
   requireUrlRow,
@@ -31,9 +32,6 @@ import type { VendorMcpConfig, VendorMcpServer } from "./vendor-mcp-config";
 
 const CLAUDE = HARNESSES.claude;
 const CLAUDE_CONFIG_FILE = ".claude.json";
-
-const nonEmpty = (value: string | undefined): string | null =>
-  value === undefined || value === "" ? null : value;
 
 export const claudeConfigPath = (env: NodeJS.ProcessEnv): string =>
   path.join(nonEmpty(env.CLAUDE_CONFIG_DIR) ?? nonEmpty(env.HOME) ?? homedir(), CLAUDE_CONFIG_FILE);
@@ -122,7 +120,6 @@ export const createClaudeMcpConfig = (context: VendorProcessContext): VendorMcpC
       );
       return null;
     },
-    configPath,
     list,
     remove: async (name) => {
       requireRow(CLAUDE, await list(), name);

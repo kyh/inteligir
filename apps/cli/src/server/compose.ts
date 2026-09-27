@@ -1,7 +1,7 @@
 // reachable from the renderer's suites through `inteligir/server/testing`, so everything imported
 // here compiles under the browser tsconfig: the cloud socket opener, the acp agent runtime and the
-// vendor account probe are injected (`cloudTransport`, `driver`, which carries `accounts`) rather
-// than imported, and serve.ts supplies the real ones.
+// vendor account probe are injected (`cloudTransport`, `driver`, `accounts`) rather than imported,
+// and serve.ts supplies the real ones.
 
 import { closeConnection, createConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
@@ -12,6 +12,7 @@ import { resolveMigrationsFolder } from "../paths";
 import { defaultHarnessId } from "./agents/agent-driver";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
+import type { AgentAccounts } from "./agents/agent-sign-in";
 import { createAgentsService } from "./agents/agents-service";
 import { listTurnChanges, undoTurnChanges } from "./agents/turn-changes";
 import { createBrowserSession } from "./browser-session";
@@ -40,7 +41,7 @@ import { teardownStep } from "./shutdown";
 import type { ShutdownStep, TeardownStepName } from "./shutdown";
 import { ThreadService } from "./threads/service";
 import { createThreadOrigins } from "./threads/thread-origins";
-import { detectExternalSync, nodeExternalSyncDeps } from "./vault/external-sync";
+import { folderExternalSync } from "./vault/folder-facts";
 import { slowReadStall } from "./vault/slow-reads";
 import { createVaultRuntime } from "./vault/vault-runtime";
 import type { VaultRuntime, VaultRuntimeArgs } from "./vault/vault-runtime";
@@ -83,6 +84,7 @@ export interface ComposeRuntimeArgs {
   servesUi: boolean;
   // required, not defaulted: a silent default is an agent that is off.
   driver: (deps: ComposeDriverDeps) => ResolvedAgentDriver;
+  accounts: AgentAccounts;
   cloudTransport?: CloudTransport;
   // passed in live so the caller can install its shutdown handlers before composing:
   // a ^C during a slow first boot then tears down what already exists.
@@ -120,7 +122,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   // are covered by the boot reconcile.
   let knowledgeRef: KnowledgeRuntime | null = null;
   // once: a folder does not move under a running server.
-  const externalSync = detectExternalSync(config.vaultDir, nodeExternalSyncDeps(config.homeDir));
+  const externalSync = folderExternalSync(config.vaultDir, config.homeDir);
   const vaultRemote =
     ports.vault?.remote ??
     createVaultRemoteProvider({
@@ -203,11 +205,11 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     vault,
   });
   register("agent", async () => {
-    await agentDriver.accounts.dispose();
+    await args.accounts.dispose();
     await agentDriver.dispose();
   });
   const agents = createAgentsService({
-    accounts: agentDriver.accounts,
+    accounts: args.accounts,
     env: process.env,
     store: agentPrefs,
   });

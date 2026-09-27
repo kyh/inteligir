@@ -6,6 +6,7 @@
 import { realpathSync } from "node:fs";
 import nodePath from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
+import type { ThreadEventItemStatus } from "@repo/domain/provider-event";
 import { messageOf } from "../error-message";
 import { relativeUnder } from "../path-containment";
 import type { GitEngine } from "../vault/git-engine";
@@ -41,7 +42,14 @@ export const createVaultPathResolver = (vaultDir: string): VaultPathResolver => 
 
 export interface AgentTurnWrites {
   ready: Promise<void>;
+  // a write that landed, which the agent made through the server: claimed and committed.
   recordPaths: (paths: readonly string[]) => void;
+  // a write the provider reported starting: claimed at once, so no other turn's checkpoint takes
+  // it, and committed unless every write reported for the path ended failed. A failed or declined
+  // edit's path may hold only what the user typed meanwhile, which the turn's Undo would revert; a
+  // partial write one did leave lands in the engine's next commit instead.
+  claim: (paths: readonly string[]) => void;
+  settle: (paths: readonly string[], status: ThreadEventItemStatus) => void;
   finish: () => Promise<void>;
 }
 
@@ -56,6 +64,9 @@ export interface AgentTurnWritesArgs {
 export const beginAgentTurnWrites = (args: AgentTurnWritesArgs): AgentTurnWrites => {
   const hold = args.git.holdCommits();
   const writeSet = new Set<string>();
+  // the reported writes to each path not yet settled; one that never settles (a session the host
+  // closed) may still have landed, so its path commits.
+  const unsettled = new Map<string, number>();
   let finished = false;
 
   // behind the repo lock, so it also waits out a locked step of an in-flight pass, its rebase
@@ -76,6 +87,9 @@ export const beginAgentTurnWrites = (args: AgentTurnWritesArgs): AgentTurnWrites
         return;
       }
       finished = true;
+      for (const path of unsettled.keys()) {
+        writeSet.add(path);
+      }
       try {
         if (writeSet.size > 0) {
           const committed = await args.git.commitPaths(
@@ -93,11 +107,31 @@ export const beginAgentTurnWrites = (args: AgentTurnWritesArgs): AgentTurnWrites
         hold.release();
       }
     },
+    claim(paths) {
+      hold.claim(paths);
+      for (const path of paths) {
+        unsettled.set(path, (unsettled.get(path) ?? 0) + 1);
+      }
+    },
     ready,
     recordPaths(paths) {
       hold.claim(paths);
       for (const path of paths) {
         writeSet.add(path);
+      }
+    },
+    settle(paths, status) {
+      hold.claim(paths);
+      for (const path of paths) {
+        const open = unsettled.get(path) ?? 0;
+        if (open > 1) {
+          unsettled.set(path, open - 1);
+        } else {
+          unsettled.delete(path);
+        }
+        if (status !== "failed") {
+          writeSet.add(path);
+        }
       }
     },
   };
