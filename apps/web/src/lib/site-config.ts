@@ -1,5 +1,5 @@
 export const siteConfig = {
-  contact: { email: "im.kaiyu@gmail.com" },
+  contact: { email: "kai@kyh.io" },
   description: "The workspace for knowledge work.",
   github: "https://github.com/kyh/inteligir",
   name: "Inteligir",
