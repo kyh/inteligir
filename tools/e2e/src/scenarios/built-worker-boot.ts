@@ -10,6 +10,11 @@ const BUILD_TIMEOUT_MS = 300_000;
 
 const PRIVACY_DOC = path.join("docs", "privacy.md");
 
+// what someone deciding whether to download reads. The CTA says Download unless GitHub answers
+// that no release exists, and an unanswered lookup gives up after 2s rather than hold the page.
+const LANDING_CTA = "Download for Mac";
+const LANDING_REQUIREMENTS = ["Apple silicon", "a paid Claude plan or any ChatGPT plan"];
+
 interface PrivacyLandmarks {
   heading: string;
   sentence: string;
@@ -104,6 +109,16 @@ export const builtWorkerBoot: Scenario = {
       `/privacy does not carry ${PRIVACY_DOC}'s first sentence ("${sentence}")\n` +
         `  rule: the page renders the doc itself, and turbo rebuilds it only for an input apps/web/turbo.json names`,
     );
+
+    const landing = await fetch(`${worker.origin}/`);
+    expectEq(landing.status, 200, "/ against the built bundle");
+    const landingWords = ` ${pageWords(await landing.text())} `;
+    for (const phrase of [LANDING_CTA, ...LANDING_REQUIREMENTS]) {
+      expect(
+        landingWords.includes(` ${wordsOf(phrase)} `),
+        `/ does not say "${phrase}"\n  rule: the landing page names what the app needs before anyone downloads it`,
+      );
+    }
 
     const unknown = await fetch(`${worker.origin}/no-route-answers-this`);
     expectEq(unknown.status, 404, "an unknown path against the built bundle");
