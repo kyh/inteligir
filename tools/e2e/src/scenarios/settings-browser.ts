@@ -3,11 +3,19 @@ import path from "node:path";
 import { DEVICE_CREDENTIAL_PREFIX } from "@repo/api/cloud/device/device-schema";
 import { writeDeviceCredential } from "inteligir/server/cloud/credential-store";
 import { z } from "zod";
-import { parseEval } from "../harness/agent-browser";
+import { clickButtonIn, parseEval, untilBodyHolds } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { TOAST } from "../harness/selectors";
+import {
+  ALERT_DIALOG,
+  CONNECTOR_FORM,
+  DIALOG_PRESENCE,
+  NAME_INPUT,
+  TOAST,
+  URL_INPUT,
+} from "../harness/selectors";
+import { NO_AUTO_SYNC } from "../harness/vault-sync";
 
 // nothing listens on port 1, so every cloud request is refused at once; the credential file alone
 // puts Sign out on screen.
@@ -15,10 +23,6 @@ const DEAD_CLOUD_URL = "http://127.0.0.1:1";
 const CONNECTOR_NAME = "dupe";
 const CONNECTOR_URL = "https://mcp.example.com/mcp";
 const STATUS_DEADLINE_MS = 30_000;
-// the open one: an answered confirm stays in the DOM through its exit animation, and its Sign out
-// answers nothing.
-const ALERT_DIALOG = '[role="alertdialog"][data-open]';
-const DIALOG_PRESENCE = `document.querySelector('[role="alertdialog"]') === null ? "gone" : "present"`;
 // the section's own heading, not a row or the nav link that share its word
 const ACCOUNT_HEADING = `[...document.querySelectorAll("h3")].some((el) => el.textContent.trim() === "Account") ? "drawn" : "missing"`;
 const DEVICES_UNREACHABLE = "Couldn't reach your account to list its devices.";
@@ -42,27 +46,6 @@ const CLICK_DELETE = `(() => {
   return "clicked";
 })()`;
 const DELETE_DIALOG_TEXT = `(() => { const dialog = ${DELETE_DIALOG}; return dialog ? dialog.textContent : ""; })()`;
-// the hand-written connector's form: the presets above it carry Add buttons of their own. by
-// placeholder inside it, since the ids are React-minted per mount.
-const CONNECTOR_FORM = 'form[aria-label="Another connector"]';
-const NAME_INPUT = `${CONNECTOR_FORM} input[placeholder="my-connector"]`;
-const URL_INPUT = `${CONNECTOR_FORM} input[placeholder="https://example.com"]`;
-const CLICK_ADD = `(() => {
-  const button = document.querySelector('${CONNECTOR_FORM} button[type="submit"]');
-  if (!button) return "missing";
-  if (button.disabled) return "disabled";
-  button.click();
-  return "clicked";
-})()`;
-
-// the confirm's own button: the section's Sign out behind the dialog carries the same name.
-const CONFIRM_SIGN_OUT = `(() => {
-  const dialog = document.querySelector('${ALERT_DIALOG}');
-  const button = dialog ? [...dialog.querySelectorAll("button")].find((el) => el.textContent.trim() === "Sign out") : null;
-  if (!button) return "missing";
-  button.click();
-  return "clicked";
-})()`;
 const NEW_ACCOUNT = {
   email: "new@inteligir.local",
   inviteCode: "E2E-NO-CLOUD",
@@ -97,7 +80,7 @@ export const settingsBrowser: Scenario = {
   name: "settings-browser",
   async run(ctx) {
     const app = await ctx.boot({
-      extraEnv: { INTELIGIR_CLOUD_URL: DEAD_CLOUD_URL, INTELIGIR_SYNC_INTERVAL_MS: "0" },
+      extraEnv: { INTELIGIR_CLOUD_URL: DEAD_CLOUD_URL, ...NO_AUTO_SYNC },
       name: "solo",
       seedData: (dataDir) => {
         writeDeviceCredential(dataDir, {
@@ -119,28 +102,12 @@ export const settingsBrowser: Scenario = {
     await agentBrowser(["wait", NAME_INPUT], 90_000);
 
     ctx.log("waiting for the signed-in status to reach the page");
-    await pollUntil(
-      async () => await agentBrowser(["get", "text", "body"]),
-      (body) => body.includes("Sign out"),
-      {
-        deadlineMs: STATUS_DEADLINE_MS,
-        describe: (body) => `the Account section never showed Sign out:\n${body}`,
-        intervalMs: 500,
-      },
-    );
+    await untilBodyHolds(agentBrowser, ["Sign out"], STATUS_DEADLINE_MS);
 
     ctx.log("the Account section draws, and says the dead cloud's device list couldn't load");
     const heading = parseEval(await agentBrowser(["eval", ACCOUNT_HEADING]), z.string());
     expect(heading === "drawn", "Settings drew no Account heading");
-    await pollUntil(
-      async () => await agentBrowser(["get", "text", "body"]),
-      (body) => body.includes(DEVICES_UNREACHABLE),
-      {
-        deadlineMs: STATUS_DEADLINE_MS,
-        describe: (body) => `the Account section never said its devices couldn't load:\n${body}`,
-        intervalMs: 500,
-      },
-    );
+    await untilBodyHolds(agentBrowser, [DEVICES_UNREACHABLE], STATUS_DEADLINE_MS);
 
     ctx.log("Delete account… asks for the password, and holds its button until one is typed");
     let dialogOpened = false;
@@ -236,8 +203,7 @@ export const settingsBrowser: Scenario = {
     ctx.log("a refused add toasts on this route");
     await agentBrowser(["fill", NAME_INPUT, CONNECTOR_NAME]);
     await agentBrowser(["fill", URL_INPUT, CONNECTOR_URL]);
-    const clicked = parseEval(await agentBrowser(["eval", CLICK_ADD]), z.string());
-    expect(clicked === "clicked", `the Add button was ${clicked}`);
+    await clickButtonIn(agentBrowser, CONNECTOR_FORM, "Add", 10_000);
     await agentBrowser(["wait", TOAST], 30_000);
     const toastText = await agentBrowser(["get", "text", TOAST]);
     expect(
@@ -247,28 +213,12 @@ export const settingsBrowser: Scenario = {
 
     ctx.log("signed out, the Account section offers to create an account");
     await openSignOutConfirm();
-    const confirmed = parseEval(await agentBrowser(["eval", CONFIRM_SIGN_OUT]), z.string());
-    expect(confirmed === "clicked", `the confirm's Sign out was ${confirmed}`);
+    // the confirm's own button: the section's Sign out behind the dialog carries the same name.
+    await clickButtonIn(agentBrowser, ALERT_DIALOG, "Sign out");
     await confirmLeft();
-    await pollUntil(
-      async () => await agentBrowser(["get", "text", "body"]),
-      (body) => body.includes("Create an account"),
-      {
-        deadlineMs: STATUS_DEADLINE_MS,
-        describe: (body) => `the signed-out form never offered Create an account:\n${body}`,
-        intervalMs: 500,
-      },
-    );
+    await untilBodyHolds(agentBrowser, ["Create an account"], STATUS_DEADLINE_MS);
     await agentBrowser(["find", "role", "button", "click", "--name", "Create an account"]);
-    await pollUntil(
-      async () => await agentBrowser(["get", "text", "body"]),
-      (body) => body.includes("Invite code"),
-      {
-        deadlineMs: STATUS_DEADLINE_MS,
-        describe: (body) => `Create an account never showed an Invite code field:\n${body}`,
-        intervalMs: 500,
-      },
-    );
+    await untilBodyHolds(agentBrowser, ["Invite code"], STATUS_DEADLINE_MS);
     const fields = parseEval(await agentBrowser(["eval", ACCOUNT_FIELDS]), accountFieldsSchema);
     await agentBrowser(["fill", fields.name.selector, NEW_ACCOUNT.name]);
     await agentBrowser(["fill", fields.email.selector, NEW_ACCOUNT.email]);
@@ -277,15 +227,7 @@ export const settingsBrowser: Scenario = {
 
     ctx.log("a sign-up the dead cloud cannot answer says so, and keeps what was typed");
     await agentBrowser(["find", "role", "button", "click", "--name", "Create account", "--exact"]);
-    await pollUntil(
-      async () => await agentBrowser(["get", "text", "body"]),
-      (body) => body.includes("Could not reach the cloud"),
-      {
-        deadlineMs: STATUS_DEADLINE_MS,
-        describe: (body) => `the refused sign-up never said why:\n${body}`,
-        intervalMs: 500,
-      },
-    );
+    await untilBodyHolds(agentBrowser, ["Could not reach the cloud"], STATUS_DEADLINE_MS);
     const kept = parseEval(await agentBrowser(["eval", ACCOUNT_FIELDS]), accountFieldsSchema);
     expect(
       kept.name.value === NEW_ACCOUNT.name &&

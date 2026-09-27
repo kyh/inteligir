@@ -19,9 +19,9 @@ const SAVE_DEADLINE_MS = 30_000;
 
 const occurrences = (text: string, needle: string): number => text.split(needle).length - 1;
 
-// macOS dictation lands as one IME-style commit, which CDP's Input.insertText is; Chromium once
-// left the caret before such a commit when it was the field's first edit after a programmatic
-// focus, so the words typed next went in front of it.
+// macOS dictation lands as one IME-style commit, which CDP's Input.insertText is. As a field's first
+// edit after a programmatic focus it must leave the caret after itself, or the words typed next land
+// in front of it.
 const dictateThenType = async (agentBrowser: AgentBrowser): Promise<void> => {
   await agentBrowser(["keyboard", "inserttext", DICTATED]);
   await agentBrowser(["keyboard", "type", TYPED]);
@@ -35,7 +35,7 @@ export const osDictationBrowser: Scenario = {
     const app = await ctx.boot({
       extraEnv: { INTELIGIR_AGENT: "scripted" },
       name: "solo",
-      // sorts before the seeded welcome note, so the virgin boot opens it.
+      // the only note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
         await writeFile(path.join(vaultDir, DOC_PATH), DOC, "utf-8");
       },

@@ -24,7 +24,7 @@ export const slashMenuBrowser: Scenario = {
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
-      // sorts before the seeded welcome note, so the virgin boot opens it.
+      // the only note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
         await writeFile(path.join(vaultDir, DOC_PATH), DOC, "utf-8");
       },

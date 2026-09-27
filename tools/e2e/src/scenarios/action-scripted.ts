@@ -4,7 +4,7 @@ import { isDefinedError, safe } from "@orpc/client";
 import { contentHashHex } from "@repo/api/local/vault/vault-schema";
 import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
-import { untilThreadIdle } from "../harness/threads";
+import { agentNote, runTurn } from "../harness/threads";
 
 const BASE = "# Plans\n\nfirst draft\n";
 // the id an action binds by, minted into a note that has none
@@ -35,14 +35,12 @@ export const actionScripted: Scenario = {
     const edited = minted.replace("first draft", "second draft");
 
     ctx.log("a scripted turn on the action writes the vault through the agent path");
-    const outcome = await api.threads.send({
-      text: "do the thing",
-      threadId: thread.id,
-    });
-    expect(outcome.kind === "started", `send outcome was "${outcome.kind}"`);
-    await untilThreadIdle(api, thread.id);
-    const agentNote = await readFile(path.join(vaultDir, "Agent", `${thread.id}.md`), "utf-8");
-    expect(agentNote.length > 0, "the scripted turn's note is on disk");
+    await runTurn(api, thread.id, "do the thing");
+    expectEq(
+      await readFile(path.join(vaultDir, "Agent", `${thread.id}.md`), "utf-8"),
+      agentNote("do the thing"),
+      "the scripted turn's note on disk",
+    );
 
     ctx.log("a CAS write from the base lands");
     await api.vault.write({

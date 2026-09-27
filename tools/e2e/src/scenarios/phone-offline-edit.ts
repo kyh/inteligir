@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, OWNER, signUp } from "../harness/cloud-account";
+import { signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { exec, hermeticProcessEnv } from "../harness/exec";
-import { hostedVaultEnv, syncUntil, untilIdentityKnown } from "../harness/hosted-vault";
-import { PHONE_NAME, phoneRuntime, readPhoneNote, untilMirrored } from "../harness/phone-runtime";
+import { gitIn } from "../harness/exec";
+import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
+import { phoneRuntime, readPhoneNote, untilMirrored } from "../harness/phone-runtime";
 import type { Scenario } from "../harness/scenario";
 
 const NOTE = "notes/plan.md";
@@ -27,20 +27,13 @@ export const phoneOfflineEdit: Scenario = {
     ctx.log("creating the account; A signs in and pushes the note");
     await signUp(worker.origin);
     const a = await ctx.boot({ extraEnv: hostedVaultEnv(worker.origin), name: "a" });
-    const signedIn = await a.api.cloud.login({ ...OWNER, deviceName: "E2E Device A" });
-    expect(signedIn.state === "signed-in", `A's login answered ${signedIn.state}`);
-    await untilIdentityKnown(a.api, "A");
+    await signInOwner(a, "A", "E2E Device A");
     await a.api.vault.write({ content: plan(), guard: { kind: "overwrite" }, path: NOTE });
     await syncUntil(a.api, "A after write", "clean");
 
     ctx.log("the phone signs in and mirrors the vault");
     const network = { online: true };
-    const phone = await phoneRuntime(
-      worker.origin,
-      path.join(ctx.scratchDir, "phone"),
-      await loginDevice(worker.origin, PHONE_NAME),
-      network,
-    );
+    const phone = await phoneRuntime(worker.origin, path.join(ctx.scratchDir, "phone"), network);
     await phone.start();
     await untilMirrored(phone, [NOTE]);
     expectEq(await readPhoneNote(phone, NOTE), plan(), "the phone's mirrored note");
@@ -86,6 +79,6 @@ export const phoneOfflineEdit: Scenario = {
       fromA,
       "the copy of A's version",
     );
-    await exec("git", ["-C", a.vaultDir, "fsck", "--strict"], { env: hermeticProcessEnv() });
+    await gitIn(a.vaultDir, ["fsck", "--strict"]);
   },
 };

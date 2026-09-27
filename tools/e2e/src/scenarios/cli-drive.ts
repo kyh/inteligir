@@ -1,10 +1,10 @@
 import { copyFile, readFile } from "node:fs/promises";
 import path from "node:path";
-import { resolveCliBinDir, toShellEnv } from "inteligir/server/agent-shell-env";
 import { z } from "zod";
+import { agentShellCli } from "../harness/agent-shell-cli";
+import type { AgentShellCli } from "../harness/agent-shell-cli";
 import { expect, expectEq } from "../harness/assert";
-import { exec, hermeticProcessEnv } from "../harness/exec";
-import type { ExecResult } from "../harness/exec";
+import { readOrNull } from "../harness/exec";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 
@@ -34,9 +34,7 @@ const SHARED_COPY = "notes/shared copy.md";
 const SHARED_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
 const SHARED_CONTENT = `---\ntitle: Shared\nid: ${SHARED_ID}\n---\n# Shared\n`;
 
-const duplicateIds = async (
-  cli: (...argv: string[]) => Promise<ExecResult>,
-): Promise<DuplicateIdRow[]> => {
+const duplicateIds = async (cli: AgentShellCli): Promise<DuplicateIdRow[]> => {
   const problems = await cli("problems", "--json");
   return problemsOutputSchema.parse(JSON.parse(problems.stdout)).duplicateIds.rows;
 };
@@ -53,21 +51,7 @@ export const cliDrive: Scenario = {
       name: "solo",
     });
 
-    // composed by the server's own resolver, so a broken PATH or a missing bin fails here.
-    const cliBinDir = resolveCliBinDir(path.join(ctx.repoRoot, "apps", "cli", "bin"));
-    expect(cliBinDir !== null, "the app resolves a CLI bin directory for the agent's PATH");
-    const agentShellEnv = toShellEnv(
-      { cliBinDir, connectedDirs: [], dataDir: app.dataDir, skillsDir: null },
-      hermeticProcessEnv(),
-    );
-
-    // the bare name through PATH, as an agent's bash finds it; an absolute path would leave that
-    // flow untested.
-    const cli = async (...argv: string[]): Promise<ExecResult> =>
-      await exec("inteligir", argv, {
-        env: { ...hermeticProcessEnv(), ...agentShellEnv },
-        timeoutMs: 60_000,
-      });
+    const cli = agentShellCli(ctx.repoRoot, app.dataDir);
 
     ctx.log("the bare command resolves through the agent's PATH");
     const which = await cli("--version");
@@ -143,7 +127,7 @@ export const cliDrive: Scenario = {
       "the undo reverted the note the turn made",
     );
     expectEq(
-      await readFile(path.join(app.vaultDir, "Agent", `${threadId}.md`), "utf-8").catch(() => null),
+      await readOrNull(path.join(app.vaultDir, "Agent", `${threadId}.md`)),
       null,
       "the note the untouched turn made is gone from disk",
     );

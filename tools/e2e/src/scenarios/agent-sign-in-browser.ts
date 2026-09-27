@@ -1,6 +1,6 @@
 import path from "node:path";
 import { z } from "zod";
-import { modChord, parseEval } from "../harness/agent-browser";
+import { clickButtonIn, modChord, parseEval, untilBodyHolds } from "../harness/agent-browser";
 import type { AgentBrowser } from "../harness/agent-browser";
 import { expectEq } from "../harness/assert";
 import type { InstanceApi } from "../harness/instance";
@@ -29,21 +29,6 @@ const CARD_ORDER = `(() => {
   return follows(claude, other) && follows(other, chatGpt) ? "ordered" : "out of order";
 })()`;
 
-const untilBodyHolds = async (
-  agentBrowser: AgentBrowser,
-  needles: readonly string[],
-): Promise<void> => {
-  await pollUntil(
-    async () => await agentBrowser(["get", "text", "body"]),
-    (body) => needles.every((needle) => body.includes(needle)),
-    {
-      deadlineMs: DEADLINE_MS,
-      describe: (body) => `the page never said ${needles.join(" and ")}:\n${body}`,
-      intervalMs: 500,
-    },
-  );
-};
-
 const untilComposerHolds = async (
   agentBrowser: AgentBrowser,
   needles: readonly string[],
@@ -56,27 +41,6 @@ const untilComposerHolds = async (
       describe: (text) =>
         `the composer never said ${needles.join(" and ")}: ${text === "" ? "it is not open" : text}`,
       intervalMs: 500,
-    },
-  );
-};
-
-const pressInComposer = (name: string): string => `(() => {
-  const popup = document.querySelector('${COMPOSER_POPUP}');
-  const button = popup ? [...popup.querySelectorAll("button")].find((el) => el.textContent.trim() === ${JSON.stringify(name)}) : null;
-  if (!button) return "missing";
-  if (button.disabled) return "disabled";
-  button.click();
-  return "clicked";
-})()`;
-
-// retried until it lands: a button drawn a render before its field's state enables it is refused.
-const clickInComposer = async (agentBrowser: AgentBrowser, name: string): Promise<void> => {
-  await pollUntil(
-    async () => parseEval(await agentBrowser(["eval", pressInComposer(name)]), z.string()),
-    (outcome) => outcome === "clicked",
-    {
-      deadlineMs: 10_000,
-      describe: (outcome) => `the composer's ${name} button stayed ${outcome}`,
     },
   );
 };
@@ -115,26 +79,27 @@ export const agentSignInBrowser: Scenario = {
     ctx.log("⌘K over a signed-out Claude offers its sign-in in place of the field");
     await agentBrowser(["press", modChord("k")]);
     await untilComposerHolds(agentBrowser, ["Sign in to ask the agent.", "Sign in with Claude"]);
-    await clickInComposer(agentBrowser, "Sign in with Claude");
+    await clickButtonIn(agentBrowser, COMPOSER_POPUP, "Sign in with Claude", 10_000);
 
     ctx.log("the login prints its page, and takes the code pasted from it");
     await untilComposerHolds(agentBrowser, [
       "Finish signing in in your browser.",
       "Paste the code",
     ]);
-    await clickInComposer(agentBrowser, "Paste the code");
+    await clickButtonIn(agentBrowser, COMPOSER_POPUP, "Paste the code", 10_000);
     await agentBrowser(["wait", CODE_INPUT], 30_000);
     await agentBrowser(["fill", CODE_INPUT, PAGE_CODE]);
-    await clickInComposer(agentBrowser, "Continue");
+    await clickButtonIn(agentBrowser, COMPOSER_POPUP, "Continue", 10_000);
     await agentBrowser(["wait", `${COMPOSER_POPUP} ${COMPOSER}`], DEADLINE_MS);
     expectEq(await accountState(app.api, "claude"), "signed-in", "claude after the sign-in");
 
     ctx.log("Settings shows Claude signed in, and ChatGPT signed out under Other");
     await agentBrowser(["open", await app.browserUrl("/settings")], 60_000);
-    await untilBodyHolds(agentBrowser, [
-      "Signed in · Claude Max · ada@example.com",
-      "Sign in with ChatGPT",
-    ]);
+    await untilBodyHolds(
+      agentBrowser,
+      ["Signed in · Claude Max · ada@example.com", "Sign in with ChatGPT"],
+      DEADLINE_MS,
+    );
     expectEq(
       parseEval(await agentBrowser(["eval", CARD_ORDER]), z.string()),
       "ordered",
@@ -165,10 +130,11 @@ export const agentSignInBrowser: Scenario = {
     await agentBrowser(["wait", PALETTE_INPUT], 30_000);
     await agentBrowser(["find", "role", "option", "click", "--name", "Actions", "--exact"]);
     await agentBrowser(["find", "role", "option", "click", "--name", ACTION_TITLE]);
-    await untilBodyHolds(agentBrowser, [
-      "ChatGPT is signed out on this Mac.",
-      "Sign in with ChatGPT",
-    ]);
+    await untilBodyHolds(
+      agentBrowser,
+      ["ChatGPT is signed out on this Mac.", "Sign in with ChatGPT"],
+      DEADLINE_MS,
+    );
     await agentBrowser(["wait", REPLY], 30_000);
   },
 };

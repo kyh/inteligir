@@ -52,7 +52,8 @@ scratch dir and tears everything down afterwards:
   SIGKILL → ESRCH) before its scratch is removed; Ctrl-C kills every live
   group. `extraEnv` may not touch harness-owned keys (paths, vendor stores,
   port, NODE_ENV, `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
-  before boot; the app's repo init commits them. `seedData` does the same for
+  before boot; the app's repo init commits them. A seeded vault exists before
+  boot, so the bootstrap adds no starter notes. `seedData` does the same for
   the data dir — a device credential, so the instance boots already signed in.
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
   `INTELIGIR_VAULT_REMOTE` or `vault.setRemote`.
@@ -87,11 +88,16 @@ scratch dir and tears everything down afterwards:
 
 Beside the context, `src/harness/` carries what the scenarios would otherwise
 each re-spell: `pollUntil` (`poll.ts`), which returns the value it waited for
-and fails with what the last read held; `untilThreadIdle` (`threads.ts`);
-`modChord` for the platform's modifier key (`agent-browser.ts`); the workspace
-selectors (`selectors.ts`); the account's sign-up and device routes against
-a dev Worker (`cloud-account.ts`); and a signed-in instance's explicit sync
-against the hosted vault (`hosted-vault.ts`).
+and fails with what the last read held; `untilThreadIdle`, `runTurn` and the
+scripted driver's `agentNote` (`threads.ts`); `modChord` for the platform's
+modifier key, `clickButtonIn` and `untilBodyHolds` (`agent-browser.ts`); the
+workspace and Settings selectors (`selectors.ts`); `gitIn` and `readOrNull`
+(`exec.ts`); the bare `inteligir` on an agent shell's PATH
+(`agent-shell-cli.ts`); the account's sign-up and device routes against a dev
+Worker (`cloud-account.ts`); `NO_AUTO_SYNC` and the one strict sync pass,
+`syncExpectClean` (`vault-sync.ts`); the owner's sign-in and a signed-in
+instance's explicit sync against the hosted vault (`hosted-vault.ts`); and the
+phone's own runtime, logged in as `PHONE_NAME` (`phone-runtime.ts`).
 
 ## The scenarios
 
@@ -282,7 +288,10 @@ Each feature issue lands with its scenario here.
 Instances run with every host `GIT_*` variable stripped, `GIT_CONFIG_GLOBAL`
 /`GIT_CONFIG_SYSTEM` pinned to `/dev/null` and an explicit harness git
 identity, so no commit or fixture depends on the host's git configuration —
-the same env every git the harness itself runs gets.
+the same env every git the harness itself runs gets. They also drop the host's
+vendor credentials and executable overrides (`HOST_AGENT_ENV` in
+`src/harness/exec.ts`), so the agent runs the bundled vendors over their empty
+stores; a scenario that wants a fake vendor sets it in `extraEnv`.
 
 ## CI
 

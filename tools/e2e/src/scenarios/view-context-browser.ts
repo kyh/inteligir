@@ -29,7 +29,7 @@ export const viewContextBrowser: Scenario = {
     const app = await ctx.boot({
       extraEnv: { INTELIGIR_AGENT: "scripted" },
       name: "solo",
-      // sorts before the seeded welcome note, so the virgin boot opens it.
+      // the only note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
         await writeFile(path.join(vaultDir, DOC_PATH), DOC, "utf-8");
       },

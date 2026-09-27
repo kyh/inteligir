@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect } from "../harness/assert";
+import { readOrNull } from "../harness/exec";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 
@@ -27,7 +27,7 @@ export const noteCreateBrowser: Scenario = {
 
     ctx.log(`waiting for ${NOTE_PATH} to land on disk`);
     const bytes = await pollUntil(
-      async () => await readFile(path.join(app.vaultDir, NOTE_PATH), "utf-8").catch(() => null),
+      async () => await readOrNull(path.join(app.vaultDir, NOTE_PATH)),
       (read) => read !== null,
       { deadlineMs: CREATE_DEADLINE_MS, describe: () => `${NOTE_PATH} never reached disk` },
     );

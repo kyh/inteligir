@@ -1,5 +1,5 @@
 // the phone's own runtime, the one the app composes, under node: node's sqlite, its files in
-// memory, a network the scenario can take away, and a credential the scenario holds
+// memory, a network the scenario can take away, and a credential the harness logs in and holds
 
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
@@ -12,7 +12,8 @@ import type { AppRuntime } from "@repo/mobile/lib/compose-runtime";
 import { openNodeSqlDriver } from "@repo/mobile/lib/node-sql-driver";
 import type { AttachmentFiles } from "@repo/mobile/notes/attachment-files";
 import type { OutboxFiles } from "@repo/mobile/notes/outbox-files";
-import { expect } from "./assert";
+import { expect, expectEq } from "./assert";
+import { loginDevice } from "./cloud-account";
 import { pollUntil } from "./poll";
 
 export const PHONE_NAME = "E2E Phone";
@@ -48,7 +49,7 @@ const memoryFiles = (): AttachmentFiles & OutboxFiles => {
   };
 };
 
-// the scenario holds the phone's credential; the phone never signs out here
+// the harness holds the phone's credential; the phone never signs out here
 const heldCredential = (credential: DeviceCredential) => ({
   clear: () => Promise.resolve(),
   read: () => Promise.resolve(credential),
@@ -58,9 +59,9 @@ const heldCredential = (credential: DeviceCredential) => ({
 export const phoneRuntime = async (
   origin: string,
   dir: string,
-  credential: DeviceCredential,
   network: { online: boolean },
 ): Promise<AppRuntime> => {
+  const credential = await loginDevice(origin, PHONE_NAME);
   await mkdir(dir, { recursive: true });
   const fetch: CloudFetch = async (input, init) => {
     if (!network.online) {
@@ -68,16 +69,16 @@ export const phoneRuntime = async (
     }
     return await globalThis.fetch(input, init);
   };
-  const files = memoryFiles();
+  // two maps, as the app keeps two folders, so neither store finds or clears the other's files.
   return composeRuntime({
-    attachments: files,
+    attachments: memoryFiles(),
     cloudUrl: origin,
     credentials: heldCredential(credential),
     db: openNodeSqlDriver(path.join(dir, "inteligir.db")),
     deviceName: PHONE_NAME,
     mintId: () => randomBytes(16).toString("hex"),
     mintNoteId: randomUUID,
-    outboxFiles: files,
+    outboxFiles: memoryFiles(),
     randomBytes: (length) => randomBytes(length),
     retryBaseMs: null,
     sha1: (bytes) => Promise.resolve(createHash("sha1").update(bytes).digest()),
@@ -102,6 +103,13 @@ export const untilMirrored = async (phone: AppRuntime, paths: readonly string[])
       describe: (tree) => `the phone's notes are still ${tree.state}`,
     },
   );
+};
+
+export const drained = async (phone: AppRuntime, label: string): Promise<void> => {
+  await phone.notes.drain();
+  const { parked, unsent } = phone.notes.outbox.status.get();
+  expectEq(unsent, 0, `${label}: the phone's unsent changes`);
+  expectEq(parked.length, 0, `${label}: the phone's parked changes`);
 };
 
 export const readPhoneNote = async (phone: AppRuntime, notePath: string): Promise<string> => {

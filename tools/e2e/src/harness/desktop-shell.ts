@@ -10,11 +10,12 @@ import { parseEval } from "./agent-browser";
 import type { AgentBrowser } from "./agent-browser";
 import { skip } from "./assert";
 import { appLaunchEnv, describeExecError, exec } from "./exec";
-import { createInstanceApi } from "./instance";
-import type { InstanceApi } from "./instance";
+import { createInstanceApi, makeVendorDirs, vendorEnv } from "./instance";
+import type { InstanceApi, VendorDirs } from "./instance";
 import { pollUntil } from "./poll";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
+import { NO_AUTO_SYNC } from "./vault-sync";
 
 // the window's one origin (apps/desktop/src/main/protocol-handler.ts)
 export const SHELL_APP_URL = "inteligir://app/";
@@ -132,24 +133,15 @@ const requireDisplay = (): void => {
   }
 };
 
-interface ShellDirs {
-  homeDir: string;
-  claudeConfigDir: string;
-  codexHome: string;
-}
+type ShellDirs = VendorDirs & { homeDir: string };
 
 // HOME, not INTELIGIR_DATA_DIR/INTELIGIR_VAULT_DIR: the shell refuses a switch while either is
-// pinned, so the scratch is reached through the dev instance a home derives. the vendors' stores
-// are the scratch's own and empty: a keychain entry is not under HOME, so a scratch home alone
-// would still find the signed-in account of the machine running the suite.
+// pinned, so the scratch is reached through the dev instance a home derives.
 const shellEnv = (dirs: ShellDirs, serverPort: number): NodeJS.ProcessEnv =>
-  Object.assign(appLaunchEnv(), {
-    CLAUDE_CONFIG_DIR: dirs.claudeConfigDir,
-    CODEX_HOME: dirs.codexHome,
+  Object.assign(appLaunchEnv(), vendorEnv(dirs), NO_AUTO_SYNC, {
     HOME: dirs.homeDir,
     INTELIGIR_AGENT: "scripted",
     INTELIGIR_PORT: String(serverPort),
-    INTELIGIR_SYNC_INTERVAL_MS: "0",
   });
 
 export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<DesktopShell> => {
@@ -158,15 +150,9 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
   const shellDir = path.join(args.scratchDir, "shell");
   const homeDir = path.join(shellDir, "home");
   const userDataDir = path.join(shellDir, "user-data");
-  const dirs: ShellDirs = {
-    claudeConfigDir: path.join(shellDir, "claude-config"),
-    codexHome: path.join(shellDir, "codex-home"),
-    homeDir,
-  };
   await mkdir(homeDir, { recursive: true });
   await mkdir(userDataDir, { recursive: true });
-  await mkdir(dirs.claudeConfigDir, { recursive: true });
-  await mkdir(dirs.codexHome, { recursive: true });
+  const dirs: ShellDirs = { ...(await makeVendorDirs(shellDir)), homeDir };
   const checkoutPath = resolveCheckoutRoot(desktopDir);
   // main resolves an unpackaged shell in development mode, for the checkout its cwd names; the
   // rest of the env it hands the resolution moves neither dir

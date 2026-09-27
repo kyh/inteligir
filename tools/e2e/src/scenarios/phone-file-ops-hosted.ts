@@ -2,11 +2,11 @@ import { randomBytes } from "node:crypto";
 import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, OWNER, signUp } from "../harness/cloud-account";
+import { signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { exec, hermeticProcessEnv } from "../harness/exec";
-import { hostedVaultEnv, syncUntil, untilIdentityKnown } from "../harness/hosted-vault";
-import { PHONE_NAME, phoneRuntime, untilMirrored } from "../harness/phone-runtime";
+import { gitIn } from "../harness/exec";
+import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
+import { drained, phoneRuntime, untilMirrored } from "../harness/phone-runtime";
 import type { Scenario } from "../harness/scenario";
 
 const PLAN = "notes/plan.md";
@@ -45,9 +45,7 @@ export const phoneFileOpsHosted: Scenario = {
     ctx.log("creating the account; A signs in and pushes a linked note and one with a comment");
     await signUp(worker.origin);
     const a = await ctx.boot({ extraEnv: hostedVaultEnv(worker.origin), name: "a" });
-    const signedIn = await a.api.cloud.login({ ...OWNER, deviceName: "E2E Device A" });
-    expect(signedIn.state === "signed-in", `A's login answered ${signedIn.state}`);
-    await untilIdentityKnown(a.api, "A");
+    await signInOwner(a, "A", "E2E Device A");
     for (const note of [
       { content: "# Plan\n", path: PLAN },
       { content: "See [[plan]] for the details.\n", path: HUB },
@@ -65,12 +63,9 @@ export const phoneFileOpsHosted: Scenario = {
     await syncUntil(a.api, "A after its notes", "clean");
 
     ctx.log("the phone signs in and mirrors the vault");
-    const phone = await phoneRuntime(
-      worker.origin,
-      path.join(ctx.scratchDir, "phone"),
-      await loginDevice(worker.origin, PHONE_NAME),
-      { online: true },
-    );
+    const phone = await phoneRuntime(worker.origin, path.join(ctx.scratchDir, "phone"), {
+      online: true,
+    });
     await phone.start();
     await untilMirrored(phone, [PLAN, HUB, OLD, store]);
 
@@ -94,10 +89,7 @@ export const phoneFileOpsHosted: Scenario = {
       written.kind === "written" && written.path === `assets/${PHOTO_NAME}`,
       `the phone's photo: ${JSON.stringify(written)}`,
     );
-    await phone.notes.drain();
-    const { parked, unsent } = phone.notes.outbox.status.get();
-    expectEq(unsent, 0, "the phone's unsent changes");
-    expectEq(parked.length, 0, "the phone's parked changes");
+    await drained(phone, "after the phone's file verbs");
 
     ctx.log("A syncs and holds every one of them");
     await syncUntil(a.api, "A pulling the phone's changes", "clean");
@@ -122,6 +114,6 @@ export const phoneFileOpsHosted: Scenario = {
       Buffer.from(await readFile(onA(`assets/${PHOTO_NAME}`))).equals(Buffer.from(photo)),
       "the photo's bytes on A",
     );
-    await exec("git", ["-C", a.vaultDir, "fsck", "--strict"], { env: hermeticProcessEnv() });
+    await gitIn(a.vaultDir, ["fsck", "--strict"]);
   },
 };

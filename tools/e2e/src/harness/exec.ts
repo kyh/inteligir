@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
 
 export interface ExecResult {
   stdout: string;
@@ -88,10 +89,34 @@ const withoutKeys = (env: NodeJS.ProcessEnv, drop: (key: string) => boolean): No
 export const buildProcessEnv = (): NodeJS.ProcessEnv =>
   withoutKeys(hermeticProcessEnv(), (key) => key === "NODE_ENV");
 
+// each would steer the agent off the bundled vendors and their empty stores: the host's own vendor
+// binaries, or its credentials.
+const HOST_AGENT_ENV: ReadonlySet<string> = new Set([
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+  "CLAUDE_CODE_EXECUTABLE",
+  "CLAUDE_CODE_OAUTH_TOKEN",
+  "CODEX_API_KEY",
+  "CODEX_PATH",
+  "OPENAI_API_KEY",
+]);
+
 // the launch mode states the runtime, never the outer shell: an inherited INTELIGIR_* or NODE_ENV
 // moves an instance's dirs or mode, and a leaked ELECTRON_RUN_AS_NODE turns Electron into node.
 export const appLaunchEnv = (): NodeJS.ProcessEnv =>
   withoutKeys(
     hermeticProcessEnv(),
-    (key) => key.startsWith("INTELIGIR_") || key === "NODE_ENV" || key === "ELECTRON_RUN_AS_NODE",
+    (key) =>
+      key.startsWith("INTELIGIR_") ||
+      key === "NODE_ENV" ||
+      key === "ELECTRON_RUN_AS_NODE" ||
+      HOST_AGENT_ENV.has(key),
   );
+
+export const gitIn = async (dir: string, args: readonly string[]): Promise<string> => {
+  const { stdout } = await exec("git", ["-C", dir, ...args], { env: hermeticProcessEnv() });
+  return stdout.trim();
+};
+
+export const readOrNull = async (file: string): Promise<string | null> =>
+  await readFile(file, "utf-8").catch(() => null);

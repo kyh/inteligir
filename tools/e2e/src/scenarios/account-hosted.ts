@@ -4,26 +4,12 @@ import { deviceCredentialPath } from "inteligir/server/cloud/credential-store";
 import { expect, expectEq } from "../harness/assert";
 import { OWNER } from "../harness/cloud-account";
 import { E2E_INVITE_CODE, WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import { hostedVaultEnv, untilIdentityKnown } from "../harness/hosted-vault";
 import type { AppInstance } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 
-const IDENTITY_DEADLINE_MS = 15_000;
-const POLL_INTERVAL_MS = 200;
-
-// the account's email lands a beat after the credential: the status answers it once learned.
-const untilSignedInAs = async (app: AppInstance, label: string): Promise<void> => {
-  await pollUntil(
-    async () => await app.api.cloud.status(),
-    (status) => status.state === "signed-in" && status.accountEmail === OWNER.email,
-    {
-      deadlineMs: IDENTITY_DEADLINE_MS,
-      describe: (status) =>
-        `${label} never answered signed in as ${OWNER.email}: ${JSON.stringify(status)}`,
-      intervalMs: POLL_INTERVAL_MS,
-    },
-  );
-};
+const REVOKED_DEADLINE_MS = 15_000;
 
 export const accountHosted: Scenario = {
   description:
@@ -37,7 +23,7 @@ export const accountHosted: Scenario = {
     // history as an unrelated one, a conflict beside what this scenario proves.
     const boot = async (name: string): Promise<AppInstance> =>
       await ctx.boot({
-        extraEnv: { INTELIGIR_CLOUD_URL: worker.origin, INTELIGIR_SYNC_INTERVAL_MS: "0" },
+        extraEnv: hostedVaultEnv(worker.origin),
         name,
         vaultRemote: await ctx.bareRemote(name),
       });
@@ -52,7 +38,7 @@ export const accountHosted: Scenario = {
       name: "E2E Owner",
     });
     expect(created.state === "signed-in", `A's sign-up answered ${created.state}`);
-    await untilSignedInAs(a, "A");
+    await untilIdentityKnown(a.api, "A");
 
     ctx.log("the invite is spent: B cannot create another account with it");
     const [refusal] = await safe(
@@ -74,7 +60,7 @@ export const accountHosted: Scenario = {
     ctx.log("B signs in to the account A created, with its email and password");
     const joined = await b.api.cloud.login({ ...OWNER, deviceName: "E2E Device B" });
     expect(joined.state === "signed-in", `B's login answered ${joined.state}`);
-    await untilSignedInAs(b, "B");
+    await untilIdentityKnown(b.api, "B");
 
     ctx.log("A lists the account's devices with its own credential: itself, marked, and B");
     const listed = await a.api.cloud.devices();
@@ -110,9 +96,9 @@ export const accountHosted: Scenario = {
       },
       (status) => status.state === "unauthorized",
       {
-        deadlineMs: IDENTITY_DEADLINE_MS,
+        deadlineMs: REVOKED_DEADLINE_MS,
         describe: (status) => `B never answered unauthorized: ${JSON.stringify(status)}`,
-        intervalMs: POLL_INTERVAL_MS,
+        intervalMs: 200,
       },
     );
     const stillA = await a.api.cloud.status();

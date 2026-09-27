@@ -4,14 +4,13 @@
 // a task that cannot take `^<itself>` without a cycle: it runs no script and puts every
 // dependency's files in the key.
 
-import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
-  REPO_ROOT,
   importsOf,
   manifestWorkspaceDeps,
+  readJsonFile,
   turboTaskBodies,
   workspaceFiles,
   workspaceTurboConfig,
@@ -66,14 +65,12 @@ const rootTasks = (): Map<string, TurboTask> => {
 };
 
 const scriptsOf = (workspace: Workspace): Set<string> => {
-  const relative = `${workspace.dir}/package.json`;
-  const parsed = scriptsSchema.safeParse(
-    JSON.parse(fs.readFileSync(path.join(REPO_ROOT, relative), "utf-8")),
+  const { scripts } = readJsonFile(
+    `${workspace.dir}/package.json`,
+    scriptsSchema,
+    'a "scripts" map of names to strings',
   );
-  if (!parsed.success) {
-    throw new Error(`${relative}: "scripts" must map names to strings`);
-  }
-  return new Set(Object.keys(parsed.data.scripts ?? {}));
+  return new Set(Object.keys(scripts ?? {}));
 };
 
 interface JudgedTask {

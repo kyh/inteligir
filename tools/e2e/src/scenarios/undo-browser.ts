@@ -1,10 +1,8 @@
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { modChord, parseEval } from "../harness/agent-browser";
-import type { AgentBrowser } from "../harness/agent-browser";
+import { modChord, parseEval, untilBodyHolds } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
-import type { InstanceApi } from "../harness/instance";
+import { readOrNull } from "../harness/exec";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import {
@@ -14,10 +12,8 @@ import {
   PALETTE_INPUT,
   TOAST_TEXT,
 } from "../harness/selectors";
-import { untilThreadIdle } from "../harness/threads";
+import { agentNote, runTurn } from "../harness/threads";
 
-// the scripted driver writes `# Agent note\n\n<text>\n` to Agent/<thread>.md on every turn.
-const agentNote = (text: string): string => `# Agent note\n\n${text}\n`;
 const MESSAGE = "draft the plan";
 const SECOND_TITLE = "Two drafts to take back";
 // typed at the top, so the heading and a blank line stand between it and the line each turn
@@ -35,32 +31,6 @@ const CLICK_LAST_UNDO = `(() => {
   button.click();
   return "clicked";
 })()`;
-
-const readOrNull = async (file: string): Promise<string | null> => {
-  try {
-    return await readFile(file, "utf-8");
-  } catch {
-    return null;
-  }
-};
-
-const runTurn = async (api: InstanceApi, threadId: string, text: string): Promise<void> => {
-  const outcome = await api.threads.send({ text, threadId });
-  expect(outcome.kind === "started", `send outcome was "${outcome.kind}"`);
-  await untilThreadIdle(api, threadId);
-};
-
-const untilBodyHolds = async (agentBrowser: AgentBrowser, needle: string): Promise<void> => {
-  await pollUntil(
-    async () => await agentBrowser(["get", "text", "body"]),
-    (body) => body.includes(needle),
-    {
-      deadlineMs: DEADLINE_MS,
-      describe: (body) => `the page never said "${needle}":\n${body}`,
-      intervalMs: 500,
-    },
-  );
-};
 
 export const undoBrowser: Scenario = {
   description:
@@ -109,7 +79,7 @@ export const undoBrowser: Scenario = {
         describe: (text) => `the undone note is still on disk:\n${text ?? ""}`,
       },
     );
-    await untilBodyHolds(agentBrowser, "Changes undone");
+    await untilBodyHolds(agentBrowser, ["Changes undone"]);
 
     ctx.log("a second action's two turns rewrite its note");
     const { thread: second } = await app.api.threads.create({ title: SECOND_TITLE });
@@ -170,6 +140,6 @@ export const undoBrowser: Scenario = {
         describe: (count) => `the undone reply still offers Undo changes (${count} left)`,
       },
     );
-    await untilBodyHolds(agentBrowser, "Changes undone");
+    await untilBodyHolds(agentBrowser, ["Changes undone"]);
   },
 };

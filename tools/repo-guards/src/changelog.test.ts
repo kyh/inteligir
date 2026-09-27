@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { REPO_ROOT } from "./repo";
+import { readJsonFile, REPO_ROOT } from "./repo";
 
 const CHANGELOG = "CHANGELOG.md";
 const DESKTOP_MANIFEST = "apps/desktop/package.json";
@@ -80,15 +80,9 @@ const isNewer = (a: Release, b: Release): boolean => {
 
 const readChangelog = (): string => fs.readFileSync(path.join(REPO_ROOT, CHANGELOG), "utf-8");
 
-const desktopVersion = (): string => {
-  const manifest = z
-    .looseObject({ version: z.string() })
-    .safeParse(JSON.parse(fs.readFileSync(path.join(REPO_ROOT, DESKTOP_MANIFEST), "utf-8")));
-  if (!manifest.success) {
-    throw new Error(`${DESKTOP_MANIFEST}: expected a string "version"`);
-  }
-  return manifest.data.version;
-};
+const desktopVersion = (): string =>
+  readJsonFile(DESKTOP_MANIFEST, z.looseObject({ version: z.string() }), 'a string "version"')
+    .version;
 
 interface Run {
   status: number | null;

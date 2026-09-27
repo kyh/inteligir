@@ -3,11 +3,12 @@ import path from "node:path";
 import { z } from "zod";
 import { parseEval } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
+import { readOrNull } from "../harness/exec";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR } from "../harness/selectors";
 
-// sorts before the seeded notes, so the virgin boot opens it.
+// the only note, so the virgin boot opens it.
 const NOTE = "Aardvark plan.md";
 const FIRST = "First paragraph.";
 const SECOND = "Second paragraph.";
@@ -77,7 +78,7 @@ export const extractNoteBrowser: Scenario = {
     ctx.log("the new note holds the block's bytes and the old note links to it");
     const landed = await pollUntil(
       async () => ({
-        extracted: await readFile(path.join(app.vaultDir, EXTRACTED), "utf-8").catch(() => null),
+        extracted: await readOrNull(path.join(app.vaultDir, EXTRACTED)),
         source: await readFile(path.join(app.vaultDir, NOTE), "utf-8"),
       }),
       (notes) => notes.extracted !== null && notes.source.includes("[[Second paragraph]]"),

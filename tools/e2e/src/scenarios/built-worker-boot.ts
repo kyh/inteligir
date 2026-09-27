@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, expectEq } from "../harness/assert";
 import { buildProcessEnv, exec } from "../harness/exec";
@@ -9,16 +9,6 @@ import type { Scenario } from "../harness/scenario";
 const BUILD_TIMEOUT_MS = 300_000;
 
 const PRIVACY_DOC = path.join("docs", "privacy.md");
-
-const GALLERY_HTML = path.join("apps", "web", "gallery.html");
-
-// read from the page on every run, so a retitled gallery cannot leave this check hunting a stale
-// literal
-const htmlTitle = (html: string): string => {
-  const title = /<title>(?<title>[^<]+)<\/title>/u.exec(html)?.groups?.title?.trim();
-  expect(title !== undefined && title !== "", `${GALLERY_HTML} has no <title>`);
-  return title;
-};
 
 interface PrivacyLandmarks {
   heading: string;
@@ -119,21 +109,5 @@ export const builtWorkerBoot: Scenario = {
     expectEq(unknown.status, 404, "an unknown path against the built bundle");
     const design = await fetch(`${worker.origin}/design`);
     expectEq(design.status, unknown.status, "/design against the built bundle, as an unknown path");
-    const galleryTitle = htmlTitle(
-      await readFile(path.join(context.repoRoot, GALLERY_HTML), "utf-8"),
-    );
-    const assetsDir = path.join(context.repoRoot, "apps", "web", "dist", "client", "assets");
-    const carriers: string[] = [];
-    for (const name of await readdir(assetsDir)) {
-      const asset = await readFile(path.join(assetsDir, name), "utf-8");
-      if (asset.includes(galleryTitle)) {
-        carriers.push(name);
-      }
-    }
-    expect(
-      carriers.length === 0,
-      `built assets carry the gallery's title ("${galleryTitle}"): ${carriers.join(", ")}\n` +
-        `  rule: the gallery is ${GALLERY_HTML}, served by pnpm dev:gallery alone, never a route`,
-    );
   },
 };

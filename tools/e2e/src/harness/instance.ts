@@ -48,8 +48,6 @@ export interface AppInstance extends TrackedProcess {
   port: number;
 }
 
-// the vendors' stores are the instance's own, empty: an instance never runs the agent, or asks
-// its sign-in, on whatever account the machine running the suite is signed into.
 const HARNESS_OWNED_ENV_KEYS = new Set([
   "CLAUDE_CONFIG_DIR",
   "CODEX_HOME",
@@ -60,10 +58,28 @@ const HARNESS_OWNED_ENV_KEYS = new Set([
   "NODE_ENV",
 ]);
 
-interface VendorDirs {
+export interface VendorDirs {
   claudeConfigDir: string;
   codexHome: string;
 }
+
+export const makeVendorDirs = async (root: string): Promise<VendorDirs> => {
+  const dirs: VendorDirs = {
+    claudeConfigDir: path.join(root, "claude-config"),
+    codexHome: path.join(root, "codex-home"),
+  };
+  await mkdir(dirs.claudeConfigDir, { recursive: true });
+  await mkdir(dirs.codexHome, { recursive: true });
+  return dirs;
+};
+
+// the vendors' stores are the launch's own, empty: nothing it starts runs the agent, or asks its
+// sign-in, on whatever account the machine running the suite is signed into. a scratch HOME alone
+// would not do it, since a keychain entry is not under HOME.
+export const vendorEnv = (dirs: VendorDirs) => ({
+  CLAUDE_CONFIG_DIR: dirs.claudeConfigDir,
+  CODEX_HOME: dirs.codexHome,
+});
 
 interface InstanceDirs extends VendorDirs {
   dataDir: string;
@@ -90,10 +106,8 @@ const buildChildEnv = (
     }
   }
   const env = appLaunchEnv();
-  // extraEnv merges first; the harness-owned keys below always win.
-  Object.assign(env, args.extraEnv ?? {}, command.env);
-  env.CLAUDE_CONFIG_DIR = dirs.claudeConfigDir;
-  env.CODEX_HOME = dirs.codexHome;
+  // extraEnv merges first; every harness-owned key after it wins.
+  Object.assign(env, args.extraEnv ?? {}, command.env, vendorEnv(dirs));
   env.INTELIGIR_DATA_DIR = dirs.dataDir;
   env.INTELIGIR_VAULT_DIR = dirs.vaultDir;
   env.INTELIGIR_PORT = String(port);
@@ -180,15 +194,8 @@ export const launchApp = async (args: LaunchAppArgs): Promise<AppInstance> => {
   // siblings: the app refuses a data dir inside the vault.
   const dataDir = path.join(args.instanceDir, "data");
   const vaultDir = path.join(args.instanceDir, "vault");
-  const dirs: InstanceDirs = {
-    claudeConfigDir: path.join(args.instanceDir, "claude-config"),
-    codexHome: path.join(args.instanceDir, "codex-home"),
-    dataDir,
-    vaultDir,
-  };
   await mkdir(dataDir, { recursive: true });
-  await mkdir(dirs.claudeConfigDir, { recursive: true });
-  await mkdir(dirs.codexHome, { recursive: true });
+  const dirs: InstanceDirs = { ...(await makeVendorDirs(args.instanceDir)), dataDir, vaultDir };
 
   const cliDir = path.join(args.repoRoot, "apps", "cli");
   const command = resolveCommand(cliDir, args.mode);

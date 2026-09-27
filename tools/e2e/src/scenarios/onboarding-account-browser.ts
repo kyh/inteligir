@@ -2,7 +2,7 @@ import { z } from "zod";
 import { clickButtonIn, parseEval } from "../harness/agent-browser";
 import { OWNER } from "../harness/cloud-account";
 import { E2E_INVITE_CODE, WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { hostedVaultEnv } from "../harness/hosted-vault";
+import { hostedVaultEnv, syncUntil } from "../harness/hosted-vault";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR, WELCOME_STEP, welcomeStep } from "../harness/selectors";
@@ -54,16 +54,7 @@ export const onboardingAccountBrowser: Scenario = {
         intervalMs: 200,
       },
     );
-    await pollUntil(
-      async () => await app.api.vault.status(),
-      (status) => status.state !== "no-remote" && status.remoteSource === "account",
-      {
-        deadlineMs: DEADLINE_MS,
-        describe: (status) =>
-          `the vault never synced through the account: ${JSON.stringify(status)}`,
-        intervalMs: 200,
-      },
-    );
+    await syncUntil(app.api, "the new account's first sync", "clean");
 
     ctx.log("the step moves on by itself, to the notes on Welcome.md");
     await pollUntil(
