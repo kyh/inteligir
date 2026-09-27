@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/api/cloud/vault/vault-git";
+import { VAULT_GIT_MAX_PUSH_BYTES, vaultCommitSubject } from "@repo/api/cloud/vault/vault-git";
 import { VAULT_SYNC_CONFLICTS_MAX } from "@repo/api/local/vault/vault-schema";
 import type {
   ExternalSync,
@@ -55,13 +55,6 @@ const AUTO_COMMIT_MAX_WAIT_MS = 60_000;
 const MAX_SCOPED_COMMIT_PATHS = 200;
 
 const ORIGIN_PUSH_URL_KEY = "remote.origin.pushurl";
-
-const autoCommitSubject = (paths: readonly string[]): string => {
-  const only = paths.length === 1 ? paths[0] : undefined;
-  return only === undefined
-    ? `vault: update ${String(paths.length)} files`
-    : `vault: update ${only}`;
-};
 
 export interface GitEngineArgs {
   root: string;
@@ -186,12 +179,14 @@ const refusedPushMessage = (
 // the report to the tree. "broken" is final: no pass runs after it. "account-mismatch" runs no
 // network step, since a push would upload this vault into an account that never held it.
 // "unreachable" outranks the tree because a failed fetch leaves the tracking ref stale, so
-// "unpushed" would read clean.
+// "unpushed" would read clean. "stalled" is a pass that failed short of any other verdict: left
+// to the tree, it would read clean or dirty and say nothing of the failure.
 type SyncOutcome =
   | { kind: "none" }
   | { kind: "broken" }
   | { kind: "account-mismatch" }
   | { kind: "detached" }
+  | { kind: "stalled" }
   | { kind: "unreachable"; failure: NetworkFailure };
 
 export const createGitEngine = (args: GitEngineArgs): GitEngine => {
@@ -311,7 +306,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   };
 
   const commit = async (subject: string, author?: CommitAuthor): Promise<void> => {
-    await run(["-c", "commit.gpgsign=false", "commit", "-m", subject], {
+    await run(["commit", "-m", subject], {
       env: identityEnv(args.deviceName(), author),
     });
   };
@@ -335,7 +330,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     // unscoped: the scoped form passes every path as argv, and a large vault's first commit
     // would exceed ARG_MAX.
     await run(["add", "-A"]);
-    await commit(autoCommitSubject(dirty));
+    await commit(vaultCommitSubject(dirty));
     clearFlushError();
     return { files: dirty.length };
   };
@@ -400,7 +395,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (staged.length === 0) {
       return null;
     }
-    await commit(autoCommitSubject(staged));
+    await commit(vaultCommitSubject(staged));
     return { files: staged.length };
   };
 
@@ -425,7 +420,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       await withRepoLock(async () =>
         scoped === null
           ? await commitIfDirty()
-          : await commitPathsIfDirty([...scoped], undefined, autoCommitSubject),
+          : await commitPathsIfDirty([...scoped], undefined, vaultCommitSubject),
       );
     } catch (error) {
       // whatever failed is still dirty and its paths are spent: the next flush sweeps everything.
@@ -536,17 +531,20 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
 
   // the origin is the vault's own record of where it syncs, so the app marks the origin it manages
   // and drops the mark when an explicit remote takes it over.
-  const ensureOriginRemote = async (
-    remote: VaultRemoteSpec,
-    origin: OriginConfig,
-  ): Promise<void> => {
-    await pointOrigin(origin.url, remote.url);
-    const managed = remote.source === "account";
+  const markOrigin = async (managed: boolean, origin: OriginConfig): Promise<void> => {
     if (managed && !origin.markedAccount) {
       await run(["config", REMOTE_MARKER_KEY, REMOTE_MARKER_ACCOUNT]);
     } else if (!managed && origin.markedAccount) {
       await run(["config", "--unset-all", REMOTE_MARKER_KEY]);
     }
+  };
+
+  const ensureOriginRemote = async (
+    remote: VaultRemoteSpec,
+    origin: OriginConfig,
+  ): Promise<void> => {
+    await pointOrigin(origin.url, remote.url);
+    await markOrigin(remote.source === "account", origin);
   };
 
   // the account choice drops only an origin the provider calls the user's own: the app's own stays
@@ -558,16 +556,12 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
     if (choice.kind === "remote") {
       await pointOrigin(origin.url, choice.url);
-      if (origin.markedAccount) {
-        await run(["config", "--unset-all", REMOTE_MARKER_KEY]);
-      }
+      await markOrigin(false, origin);
     } else {
       if (origin.url !== null && remote?.source === "explicit") {
         await run(["remote", "remove", "origin"]);
       }
-      if (!origin.markedAccount) {
-        await run(["config", REMOTE_MARKER_KEY, REMOTE_MARKER_ACCOUNT]);
-      }
+      await markOrigin(true, origin);
     }
     // what a pass concluded about the old remote says nothing of the new one; a repo left
     // mid-integration is broken whichever remote it syncs with.
@@ -695,6 +689,17 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const readAccountMarker = async (): Promise<string | null> =>
     await readConfig(ACCOUNT_MARKER_KEY);
 
+  // a tree left mid-rebase or mid-merge is no diff between two commits. a clean abort needs no
+  // report: it puts back the tree the pass started from.
+  const markBroken = (step: "merge" | "rebase"): void => {
+    lastOutcome = { kind: "broken" };
+    mayBeMidIntegration = true;
+    lastError =
+      `a failed ${step} could not be aborted; manual recovery needed: ` +
+      `run \`git ${step} --abort\` in ${root}, then restart inteligir`;
+    args.onFilesChanged?.({ kind: "unknown" });
+  };
+
   // the repo is left off its rebase either way. "conflicted" is a rebase that stopped on paths
   // both sides changed, which the pass merges instead; "unhandled" is the caller's cue to rethrow.
   const recoverFailedRebase = async (): Promise<"conflicted" | "broken" | "unhandled"> => {
@@ -709,14 +714,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     // a swallowed failed abort would leave every later commit landing in rebase state.
     const stillUnmerged = await unmergedPathsOr(["unknown"]);
     if ((await rebaseInProgress()) || stillUnmerged.length > 0) {
-      lastOutcome = { kind: "broken" };
-      mayBeMidIntegration = true;
-      lastError =
-        `a failed rebase could not be aborted; manual recovery needed: ` +
-        `run \`git rebase --abort\` in ${root}, then restart inteligir`;
-      // a tree left mid-rebase is no diff between two commits. a clean abort needs no report:
-      // it puts back the tree the pass started from.
-      args.onFilesChanged?.({ kind: "unknown" });
+      markBroken("rebase");
       return "broken";
     }
     return stopped.length > 0 ? "conflicted" : "unhandled";
@@ -796,20 +794,10 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (unpushedMerge.trim() === "") {
       try {
         // --empty=drop: a local commit already landed upstream would otherwise halt the merge
-        // backend as a conflict naming no files. rerere off: a recorded resolution would replay
-        // into the worktree the abort then has to undo.
-        await run(
-          [
-            "-c",
-            "commit.gpgsign=false",
-            "-c",
-            "rerere.enabled=false",
-            "rebase",
-            "--empty=drop",
-            remoteRef,
-          ],
-          { env: identityEnv(args.deviceName()) },
-        );
+        // backend as a conflict naming no files.
+        await run(["rebase", "--empty=drop", remoteRef], {
+          env: identityEnv(args.deviceName()),
+        });
         return [];
       } catch (error) {
         const recovered = await recoverFailedRebase();
@@ -828,15 +816,11 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       );
     } catch (error) {
       if (await mergeInProgress({ run })) {
-        lastOutcome = { kind: "broken" };
-        mayBeMidIntegration = true;
-        lastError =
-          `a failed merge could not be aborted; manual recovery needed: ` +
-          `run \`git merge --abort\` in ${root}, then restart inteligir`;
-        args.onFilesChanged?.({ kind: "unknown" });
+        markBroken("merge");
         return null;
       }
       failedMerge = tips;
+      lastOutcome = { kind: "stalled" };
       lastError = MERGE_FAILED_MESSAGE;
       args.onError?.(`${MERGE_FAILED_MESSAGE} (${messageOf(error)})`);
       return null;
@@ -856,6 +840,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       // here anyway, the set-url below would push the user's repo into the hosted vault.
       const own = ownOriginUrl(origin, remote.url);
       if (own !== null) {
+        lastOutcome = { kind: "stalled" };
         lastError =
           `origin is ${redactRemoteUrl(own)}, a remote of the vault's own; this pass left it ` +
           "alone and did not sync with the account's hosted vault";
@@ -884,8 +869,13 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       lastError = "vault HEAD is detached; sync needs a branch";
       return null;
     }
-    // past the fence and on a branch: neither of this step's own verdicts holds any more.
-    if (lastOutcome.kind === "account-mismatch" || lastOutcome.kind === "detached") {
+    // past the fence and on a branch: none of this step's own verdicts holds any more, and a stall
+    // an integration left is the integration's to say again.
+    if (
+      lastOutcome.kind === "account-mismatch" ||
+      lastOutcome.kind === "detached" ||
+      lastOutcome.kind === "stalled"
+    ) {
       lastOutcome = { kind: "none" };
     }
     return { branch, remote };
@@ -922,6 +912,25 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return true;
   };
 
+  // the copies this integration brought in that it did not make. two histories joined for the first
+  // time share no base, so every file the remote held arrives as added, every old copy among them:
+  // only the join's own verdicts are news. the pull already landed; a report it could not read
+  // costs only the report.
+  const copiesPulledSince = async (
+    tips: IntegrationTips,
+    head: string,
+    settled: readonly SyncConflictReport[],
+  ): Promise<SyncConflictReport[]> => {
+    const base = await run(["merge-base", tips.head, tips.remote]).catch(() => null);
+    if (base === null) {
+      return [];
+    }
+    const madeHere = new Set(
+      settled.flatMap((report) => (report.kind === "copied" ? [report.copyPath] : [])),
+    );
+    return await pulledCopies(tips.head, head, madeHere).catch(() => []);
+  };
+
   // under the lock, between the fetch and the push. false ends the pass before its push.
   const integrateFetched = async (
     remote: VaultRemoteSpec,
@@ -951,6 +960,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return true;
     }
     if (failedMerge?.head === tips.head && failedMerge.remote === tips.remote) {
+      lastOutcome = { kind: "stalled" };
       return false;
     }
     failedMerge = null;
@@ -963,12 +973,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     const head = await revParse("HEAD");
     if (head !== tips.head) {
       await reportMovedTree(tips.head, head);
-      const madeHere = new Set(
-        settled.flatMap((report) => (report.kind === "copied" ? [report.copyPath] : [])),
-      );
-      // the pull already landed; a report it could not read costs only the report.
-      const pulled = await pulledCopies(tips.head, head, madeHere).catch(() => []);
-      noteConflicts([...settled, ...pulled]);
+      noteConflicts([...settled, ...(await copiesPulledSince(tips, head, settled))]);
     }
     return true;
   };
@@ -1098,11 +1103,15 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       case "detached": {
         return { ...fields, state: "detached" };
       }
+      case "stalled": {
+        return { ...fields, state: "stalled" };
+      }
       case "unreachable": {
         return { ...fields, state: outcome.failure };
       }
       case "none": {
-        return { ...fields, state: await treeState() };
+        // a failed flush leaves the tree dirty, which alone reads as edits on their way
+        return { ...fields, state: flushError === null ? await treeState() : "stalled" };
       }
       default: {
         const exhaustive: never = outcome;
@@ -1116,6 +1125,11 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       await doSync();
     } catch (error) {
       lastError = error instanceof Error ? error.message : "sync failed";
+      // a lost race is the one failure the tree already tells right, as unpushed: the next pass
+      // rebases onto the push that won.
+      if (lastOutcome.kind === "none" && classifyNetworkFailure(error) !== "lost-race") {
+        lastOutcome = { kind: "stalled" };
+      }
       args.onError?.(lastError);
     }
   };
@@ -1168,7 +1182,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
         async () =>
           await (paths === undefined
             ? commitIfDirty()
-            : commitPathsIfDirty(paths, undefined, autoCommitSubject)),
+            : commitPathsIfDirty(paths, undefined, vaultCommitSubject)),
       );
     },
     async commitPaths(paths, author, subject) {

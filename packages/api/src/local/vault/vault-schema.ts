@@ -1,5 +1,9 @@
 import { hexFromBytes, sha256Hex } from "@repo/api/cloud/bytes";
 import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
+import {
+  syncConflictCopiedSchema,
+  syncConflictKeptEditSchema,
+} from "@repo/notes/sync/conflict-copy";
 import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/placeholders";
 import { z } from "zod";
 import { remoteUrlSchema } from "./remote-url";
@@ -266,25 +270,8 @@ export type VaultDeleteResponse = z.infer<typeof vaultDeleteResponseSchema>;
 // which version stayed at `path`, and where the other went. `at` is when this device learned of
 // it. every surface words it through `describeSyncConflict` (`@repo/notes/sync/conflict-copy`).
 export const vaultSyncConflictSchema = z.discriminatedUnion("kind", [
-  z
-    .object({
-      at: z.number().int(),
-      copyDevice: z.string(),
-      copyPath: z.string().min(1),
-      keptDevice: z.string(),
-      kind: z.literal("copied"),
-      path: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      at: z.number().int(),
-      deletedDevice: z.string(),
-      keptDevice: z.string(),
-      kind: z.literal("kept-edit"),
-      path: z.string().min(1),
-    })
-    .strict(),
+  syncConflictCopiedSchema.extend({ at: z.number().int() }).strict(),
+  syncConflictKeptEditSchema.extend({ at: z.number().int() }).strict(),
 ]);
 export type VaultSyncConflict = z.infer<typeof vaultSyncConflictSchema>;
 
@@ -390,6 +377,9 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
   remoteState("account-mismatch"),
   // the vault's HEAD names no branch, so a pass has nothing to push; not `clean`, which it is not.
   remoteState("detached"),
+  // a pass, or the auto-commit before it, failed short of every verdict above; `lastError` says
+  // why. not `clean` or `dirty`, which would say nothing of the failure; the next pass tries again.
+  remoteState("stalled"),
 ]);
 export type VaultStatusResponse = z.infer<typeof vaultStatusResponseSchema>;
 

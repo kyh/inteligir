@@ -34,7 +34,7 @@ export interface ReconcileInput {
   readonly theirs: FileSide;
   readonly thisDevice: string;
   readonly theirDevice: string;
-  // asked of each candidate copy name; it should answer ignoring case (`takenIgnoringCase`)
+  // asked of each candidate copy name; it should answer by `vaultCollisionKey` (`takenIgnoringCase`)
   readonly isTaken: (path: string) => boolean;
 }
 

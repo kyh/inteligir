@@ -73,11 +73,9 @@ const commitInitial = async (
   if (seeded) {
     await git(["add", "-A"]);
   }
-  await run(
-    args.root,
-    ["-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "vault: initialize"],
-    { env: { ...args.env, ...identityEnv(args.deviceName ?? ENGINE_IDENTITY.name) } },
-  );
+  await run(args.root, ["commit", "--allow-empty", "-m", "vault: initialize"], {
+    env: { ...args.env, ...identityEnv(args.deviceName ?? ENGINE_IDENTITY.name) },
+  });
   if (seeded) {
     const { stdout } = await git(["rev-parse", "--verify", "HEAD"]);
     await git(["config", SEED_COMMIT_KEY, stdout.trim()]);

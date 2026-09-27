@@ -40,8 +40,12 @@ const vaultChangeSchema = z.discriminatedUnion("op", [
 ]);
 export type VaultChangeRequest = z.infer<typeof vaultChangeSchema>;
 
-export const vaultChangePaths = (change: VaultChangeRequest): readonly string[] =>
-  change.op === "move" ? [change.from, change.to] : [change.path];
+// structural, so the Worker's decoded changes name their paths the same way the wire's do
+export const vaultChangePaths = (
+  change:
+    | { readonly op: "move"; readonly from: string; readonly to: string }
+    | { readonly op: "put" | "delete"; readonly path: string },
+): readonly string[] => (change.op === "move" ? [change.from, change.to] : [change.path]);
 
 export const vaultCommitRequestSchema = z
   .object({
@@ -107,6 +111,6 @@ export const vaultConflictAnswerSchema = cloudErrorSchema.extend({
 });
 export type VaultConflictAnswer = z.infer<typeof vaultConflictAnswerSchema>;
 
-// a Mac's filesystem is case- and normalization-insensitive: two paths that agree here are one file
-// there
-export const vaultCollisionKey = (path: string): string => path.normalize("NFC").toLowerCase();
+// the Worker has no @repo/notes of its own, and refuses a collision by the one key every writer
+// steps past a taken name by
+export { vaultCollisionKey } from "@repo/notes/knowledge/vault-path";

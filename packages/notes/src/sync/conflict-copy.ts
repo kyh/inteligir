@@ -2,6 +2,7 @@
 // phone's write queue and whoever pulls a copy another device made all read one spelling, so a
 // name one writes is a name the other parses back to the same note and the same device.
 
+import { z } from "zod";
 import { docStem, freePath } from "../knowledge/doc-file";
 import { basenamePath, dirnamePath, extnamePath, joinPath } from "../knowledge/vault-path";
 
@@ -31,8 +32,8 @@ export const deviceLabel = (raw: string): string => {
 const COPY_MARKER = " (conflict, ";
 
 // The extension stays, so the copy opens as what it is; ` 2`, ` 3`… step past a taken name.
-// `isTaken` is asked each candidate as spelled and should answer ignoring case
-// (`takenIgnoringCase`), since the disk may.
+// `isTaken` is asked each candidate as spelled and should answer by `vaultCollisionKey`
+// (`takenIgnoringCase`), since the disk folds case and normalization.
 export const conflictCopyPath = (
   path: string,
   device: string,
@@ -76,22 +77,33 @@ export const parseConflictCopyPath = (copyPath: string): ConflictCopyName | null
   return { device, path: joinPath(dirnamePath(copyPath), original) };
 };
 
-export type SyncConflictReport =
-  | {
-      readonly kind: "copied";
-      readonly path: string;
-      readonly copyPath: string;
-      // whose version stayed at `path`
-      readonly keptDevice: string;
-      // whose version the copy holds
-      readonly copyDevice: string;
-    }
-  | {
-      readonly kind: "kept-edit";
-      readonly path: string;
-      readonly keptDevice: string;
-      readonly deletedDevice: string;
-    };
+// The one spelling of a report, which the local wire extends with when this device learned of it.
+export const syncConflictCopiedSchema = z
+  .object({
+    // whose version the copy holds
+    copyDevice: z.string(),
+    copyPath: z.string().min(1),
+    // whose version stayed at `path`
+    keptDevice: z.string(),
+    kind: z.literal("copied"),
+    path: z.string().min(1),
+  })
+  .strict();
+
+export const syncConflictKeptEditSchema = z
+  .object({
+    deletedDevice: z.string(),
+    keptDevice: z.string(),
+    kind: z.literal("kept-edit"),
+    path: z.string().min(1),
+  })
+  .strict();
+
+export const syncConflictReportSchema = z.discriminatedUnion("kind", [
+  syncConflictCopiedSchema,
+  syncConflictKeptEditSchema,
+]);
+export type SyncConflictReport = z.infer<typeof syncConflictReportSchema>;
 
 const quoted = (path: string): string => `“${docStem(path)}”`;
 

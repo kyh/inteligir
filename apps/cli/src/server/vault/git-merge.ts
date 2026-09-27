@@ -4,6 +4,7 @@
 // checked out from there, never a write into the vault from here, so the tree the merge commits is
 // exactly the one on disk.
 
+import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
 import { takenIgnoringCase } from "@repo/notes/knowledge/doc-file";
 import { deviceLabel } from "@repo/notes/sync/conflict-copy";
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
@@ -25,19 +26,9 @@ interface MergeFetchedArgs {
   reconcile: Reconcile;
 }
 
-// the vault's own habits must not decide a merge: a recorded rerere resolution would land instead
-// of the verdict, and a signature policy would refuse every merge. renames are followed, so an
-// edit here and a move there land as one note.
-const MERGE_CONFIG = [
-  "-c",
-  "rerere.enabled=false",
-  "-c",
-  "merge.renames=true",
-  "-c",
-  "merge.verifySignatures=false",
-  "-c",
-  "commit.gpgsign=false",
-];
+// renames are followed, whatever the vault's own config says, so an edit here and a move there
+// land as one note.
+const MERGE_CONFIG = ["-c", "merge.renames=true"];
 
 // the modes git stores a regular file under; a symlink or a submodule is never a note, so it keeps
 // this device's entry and is never copied.
@@ -102,9 +93,15 @@ const readUnmerged = async (git: MergeGit): Promise<UnmergedPath[]> => {
 
 const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
+// a blob past the vault's read cap is no note a merge could read, and reading it would outrun the
+// runner's buffer and fail every merge: it settles by its oid, as bytes that are not text do.
 const readSide = async (git: MergeGit, entry: StageEntry | null): Promise<FileSide> => {
   if (entry === null) {
     return { kind: "absent" };
+  }
+  const { stdout: size } = await git.run(["cat-file", "-s", entry.oid]);
+  if (Number(size.trim()) > VAULT_MAX_CONTENT_LENGTH) {
+    return { kind: "opaque", ref: entry.oid };
   }
   const bytes = await git.readBlob(entry.oid);
   try {
@@ -265,7 +262,7 @@ const mergeAndSettle = async (
     "--",
   ]);
   const subject = `vault: merge ${plural(changed.length, "note")} from ${deviceLabel(devices.tip)}`;
-  await git.run(["-c", "commit.gpgsign=false", "commit", "-q", "-m", subject], {
+  await git.run(["commit", "-q", "-m", subject], {
     env: identityEnv(device),
   });
   return reports;

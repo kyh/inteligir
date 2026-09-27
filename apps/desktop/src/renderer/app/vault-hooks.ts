@@ -98,6 +98,7 @@ export const syncStateLabel = (status: VaultStatusResponse): string => {
     }
     case "rejected":
     case "detached":
+    case "stalled":
     case "broken": {
       return SYNC_PAUSED;
     }
@@ -134,6 +135,7 @@ export const syncStateDotClass = (status: VaultStatusResponse): string => {
     case "full":
     case "account-mismatch":
     case "detached":
+    case "stalled":
     case "broken": {
       return "bg-destructive";
     }
@@ -164,6 +166,7 @@ export const canSyncNow = (status: VaultStatusResponse | undefined): boolean => 
     case "too-large":
     case "full":
     case "detached":
+    case "stalled":
     case "broken": {
       return true;
     }
@@ -241,6 +244,9 @@ export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null
     }
     case "detached": {
       return { message: STUCK, tone: "warning" };
+    }
+    case "stalled": {
+      return { message: `Sync didn't finish. ${DETAILS_IN_ADVANCED}`, tone: "warning" };
     }
     case "rejected":
     case "broken": {

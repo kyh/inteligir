@@ -1,3 +1,4 @@
+import { isDeviceCommitEmail } from "@repo/api/cloud/vault/vault-git";
 import {
   VAULT_DELETED_MAX_ENTRIES,
   VAULT_MAX_CONTENT_LENGTH,
@@ -46,8 +47,10 @@ const readStatusTuple = (
   };
 };
 
+// a phone's edit is the user's own, as another Mac's engine commit is: the Worker names the phone
+// in the author.
 const authorKindOf = (authorEmail: string): VaultRevision["authorKind"] => {
-  if (authorEmail === ENGINE_IDENTITY.email) {
+  if (authorEmail === ENGINE_IDENTITY.email || isDeviceCommitEmail(authorEmail)) {
     return "app";
   }
   return authorEmail === AGENT_COMMIT_AUTHOR.email ? "agent" : "external";

@@ -87,7 +87,7 @@ const decodeChange = (change: VaultChangeRequest): Decoded => {
 const answer = (result: CommitChangesResult): Response => {
   switch (result.kind) {
     case "committed": {
-      const body: VaultCommitResponse = { commit: result.commit, results: [...result.results] };
+      const body: VaultCommitResponse = { commit: result.commit, results: result.results };
       return Response.json(body);
     }
     case "conflict": {
@@ -96,7 +96,7 @@ const answer = (result: CommitChangesResult): Response => {
           "vault-conflict",
           "The vault changed under this change set; none of it landed.",
         ),
-        conflict: { conflicts: [...result.conflicts], head: result.head },
+        conflict: { conflicts: result.conflicts, head: result.head },
       };
       return Response.json(body, { status: CLOUD_ERROR_STATUS["vault-conflict"] });
     }

@@ -11,6 +11,7 @@ import type {
 } from "@repo/api/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import {
+  canSyncNow,
   filePathsLowercased,
   renameVaultEntry,
   syncNeedsAttention,
@@ -119,6 +120,7 @@ const EVERY_STATUS: readonly VaultStatusResponse[] = [
   { state: "full", ...REMOTE, remoteSource: "account" },
   { state: "account-mismatch", ...REMOTE },
   { state: "detached", ...REMOTE },
+  { state: "stalled", ...REMOTE },
   { state: "broken", ...REMOTE },
 ];
 
@@ -178,6 +180,17 @@ describe("what the rail and a toast say about sync", () => {
         syncStateDotClass(status) === "bg-destructive",
       );
     }
+  });
+
+  it("says a pass that failed short of a verdict, offers its details, and lets it be tried again", () => {
+    const stalled: VaultStatusResponse = { state: "stalled", ...REMOTE, lastError: GIT_STDERR };
+    expect(syncStateLabel(stalled)).toBe("Sync paused");
+    expect(syncStateNote(stalled)).toEqual({
+      message: "Sync didn't finish. Details in Settings › Advanced.",
+      tone: "warning",
+    });
+    expect(syncNeedsAttention(stalled)).toBe(true);
+    expect(canSyncNow(stalled)).toBe(true);
   });
 
   it("leaves the engine's last error to Settings › Advanced alone", () => {

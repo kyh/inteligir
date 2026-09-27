@@ -115,3 +115,8 @@ export const normalizeVaultPath = (raw: string): string => {
 
 export const isIgnoredEntryName = (name: string): boolean =>
   name.toLowerCase() === ".git" || name.startsWith(VAULT_TMP_PREFIX);
+
+// A Mac's filesystem is case- and normalization-insensitive: two paths with one key are one file
+// there, so every writer that steps past a taken name, and the Worker that refuses a collision,
+// compares by it.
+export const vaultCollisionKey = (path: string): string => path.normalize("NFC").toLowerCase();

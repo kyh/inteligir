@@ -2,10 +2,11 @@
 // its identity, not the sha, which a rebase onto another device's push rewrites while it keeps
 // the message byte for byte.
 
+import { AGENT_COMMIT_EMAIL } from "@repo/api/cloud/vault/vault-git";
 import type { CommitAuthor } from "./git-run";
 
 export const AGENT_COMMIT_AUTHOR: CommitAuthor = {
-  email: "agent@inteligir.local",
+  email: AGENT_COMMIT_EMAIL,
   name: "inteligir-agent",
 };
 
