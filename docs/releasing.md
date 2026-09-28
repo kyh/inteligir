@@ -294,7 +294,10 @@ refuses a server of another version, so npm and the Mac app ship as one.
    packs the `apps/cli/dist` step 2 built. The code rides the flag because a
    shell without a terminal cannot prompt for it, and an `E401` means the
    stored token expired: `npm login`, then again. pnpm rewrites the manifest
-   on the way out (`publishConfig.exports`).
+   on the way out (`publishConfig.exports`). A version can reach the registry
+   many minutes after pnpm says Published (0.6.0 took fourteen): poll
+   `npm view inteligir@<version> version`, and never publish again, since a
+   second publish of that version is refused.
 3. **The phone's cohort.** `apps/mobile/README.md` § Per release, steps 4 to
    6: What to Test, Beta App Review, then the invites.
 
