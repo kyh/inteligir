@@ -54,6 +54,8 @@ export const desktopOnboarding: Scenario = {
     // the shell counts as up once its page is listed, which can be before React has drawn it
     await browser(["wait", "--text", "Get started"], 60_000);
     await browser(["find", "role", "button", "click", "--name", "Get started", "--exact"]);
+    // the vault step draws after the click, and a click before it lands on nothing
+    await browser(["wait", "--text", "Where should your notes live?"], 60_000);
     await browser(["find", "role", "button", "click", "--name", "Create vault", "--exact"]);
 
     ctx.log("Create with the defaults boots the default vault and opens the app on /welcome");
