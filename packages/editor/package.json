@@ -163,7 +163,7 @@
     "@platejs/toggle": "^53.0.0",
     "@repo/notes": "workspace:*",
     "@repo/ui": "workspace:*",
-    "katex": "^0.18.7",
+    "katex": "^0.18.9",
     "lowlight": "^3.3.0",
     "lucide-react": "catalog:",
     "mermaid": "^12.0.0",

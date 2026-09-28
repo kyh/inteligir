@@ -30,10 +30,10 @@
   },
   "devDependencies": {
     "dotenv-cli": "^11.0.0",
-    "knip": "^6.37.0",
+    "knip": "^6.38.0",
     "oxfmt": "^0.70.0",
     "oxlint": "^1.85.0",
-    "turbo": "^2.11.2",
+    "turbo": "^2.11.4",
     "typescript": "catalog:",
     "ultracite": "^7.12.0"
   },
