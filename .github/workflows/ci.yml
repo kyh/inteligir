@@ -96,6 +96,8 @@ jobs:
       # three cores and 7 GB: four suites at once, the editor's 4 GB budget among them, push
       # every timing-bound test past its limit on a slow runner
       TEST_CONCURRENCY: 2
+      # the editor's typing budget measures swap on a 7 GB runner; the check job holds it
+      SKIP_TYPING_BUDGET: 1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

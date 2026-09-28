@@ -10,6 +10,26 @@ const inlineDeps = [/@platejs\/math/u];
 
 const TYPING_BUDGET = "src/__tests__/typing-budget.test.tsx";
 
+// a 10k-line note mounted in jsdom under React's dev build peaks near 4 GB, past the heap V8 sizes
+// for a 7 GB CI runner; only this suite's worker gets the larger ceiling. Beside the other suites
+// on the macOS runner that note swaps, and a keystroke's cost there measures the swap rather than
+// the editor, so that job sets SKIP_TYPING_BUDGET and the Linux job holds the budget alone.
+const budgetProject = {
+  plugins: [react({ compiler: true, exclude: [/\/node_modules\//u, /\/__tests__\//u] })],
+  resolve: { alias },
+  test: {
+    environment: "jsdom",
+    execArgv: ["--max-old-space-size=4096"],
+    include: [TYPING_BUDGET],
+    name: "editor-budget",
+    server: { deps: { inline: inlineDeps } },
+    setupFiles: ["src/__tests__/dom-cleanup.ts"],
+    // unmounting a 10k-line tree outlasts the 10s default on a slow runner
+    hookTimeout: 120_000,
+    testTimeout: 120_000,
+  },
+};
+
 export default defineConfig({
   test: {
     maxWorkers: 2,
@@ -42,23 +62,7 @@ export default defineConfig({
           testTimeout: 20_000,
         },
       },
-      {
-        // a 10k-line note mounted in jsdom under React's dev build peaks near 4 GB, past the heap
-        // V8 sizes for a 7 GB CI runner; only this suite's worker gets the larger ceiling.
-        plugins: [react({ compiler: true, exclude: [/\/node_modules\//u, /\/__tests__\//u] })],
-        resolve: { alias },
-        test: {
-          environment: "jsdom",
-          execArgv: ["--max-old-space-size=4096"],
-          include: [TYPING_BUDGET],
-          name: "editor-budget",
-          server: { deps: { inline: inlineDeps } },
-          setupFiles: ["src/__tests__/dom-cleanup.ts"],
-          // unmounting a 10k-line tree outlasts the 10s default on a slow runner
-          hookTimeout: 120_000,
-          testTimeout: 120_000,
-        },
-      },
+      ...(process.env.SKIP_TYPING_BUDGET === "1" ? [] : [budgetProject]),
     ],
   },
 });

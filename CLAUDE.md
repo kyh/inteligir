@@ -591,7 +591,9 @@ to the END of its group.
   (`packages/editor/src/toc.tsx`, `packages/editor/src/note-stats.ts`,
   `packages/editor/src/comments/comment-ranges.ts`, the save's prune in
   `packages/editor/src/markdown/md-rules.ts`).
-  `packages/editor/src/__tests__/typing-budget.test.tsx`.
+  `packages/editor/src/__tests__/typing-budget.test.tsx`, held by the Linux CI
+  job: on the 7 GB macOS runner the note swaps, so that job sets
+  `SKIP_TYPING_BUDGET` (`packages/editor/vitest.config.ts`).
 
 - **THE PHONE RUNS THE DESKTOP'S EDITOR THROUGH A TOUCH KIT, AND ITS RICH
   BLOCKS ARE READ-ONLY IN THE MODEL** (owner decision). A host sets

@@ -46,9 +46,13 @@
     "test": {
       "dependsOn": ["^topo"],
       // Every vitest.config.ts caps its own maxWorkers because this task runs
-      // the suites in parallel (the root `test` script passes --concurrency=4):
-      // uncapped pools exhaust the machine and kill workers mid-run.
-      "cache": false
+      // the suites in parallel (the root `test` script runs four at once, or
+      // TEST_CONCURRENCY): uncapped pools exhaust the machine and kill workers
+      // mid-run.
+      "cache": false,
+      // the macOS CI job's opt-out of the editor's typing budget
+      // (packages/editor/vitest.config.ts says why)
+      "passThroughEnv": ["SKIP_TYPING_BUDGET"]
     }
   },
   // NODE_ENV is HASHED, not passed through: vite keeps an ambient NODE_ENV,
