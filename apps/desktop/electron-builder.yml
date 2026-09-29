@@ -71,6 +71,9 @@ mac:
   notarize: true
 dmg:
   sign: true
+  # no version, so the site links releases/latest/download/Inteligir-arm64.dmg and the button
+  # downloads with no lookup; the zip keeps its version for the updater's feed
+  artifactName: Inteligir-${arch}.${ext}
 # the feed electron-updater reads (app-update.yml beside the app) and the manifest it fetches
 # (latest-mac.yml) derive from this; the upload is docs/releasing.md's, never electron-builder's
 publish:

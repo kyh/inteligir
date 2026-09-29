@@ -1,10 +1,9 @@
 import { Suspense, lazy } from "react";
 import { ClientOnly, createFileRoute, Link } from "@tanstack/react-router";
-import { createServerFn } from "@tanstack/react-start";
 import Markdown from "react-markdown";
 
-import { createDownloadUrlReader, downloadHref } from "@/lib/download-url";
 import { markdownHandler, varyHeaders } from "@/lib/markdown-route";
+import { siteConfig } from "@/lib/site-config";
 import { homeMarkdown } from "@/lib/site-content";
 import { SiteHeader } from "@/components/site-header";
 
@@ -30,67 +29,50 @@ const FOOTER_LINKS = [
   { label: "Privacy", to: "/privacy" },
 ] as const;
 
-const readDownloadUrl = createDownloadUrlReader();
-
-const getDownloadUrl = createServerFn().handler(async () => await readDownloadUrl());
-
-const Page = () => {
-  const href = downloadHref(Route.useLoaderData());
-
-  return (
-    <>
-      <SiteHeader />
-      <main className="flex min-h-dvh w-full flex-col">
-        <section className="sr-only">
-          <Markdown>{homeMarkdown}</Markdown>
-        </section>
-        <div className="flex flex-1 flex-col items-center justify-center">
-          <div className="h-48 w-48">
-            <ClientOnly fallback={null}>
-              <Suspense fallback={null}>
-                <HeroOrb />
-              </Suspense>
-            </ClientOnly>
-          </div>
+const Page = () => (
+  <>
+    <SiteHeader />
+    <main className="flex min-h-dvh w-full flex-col">
+      <section className="sr-only">
+        <Markdown>{homeMarkdown}</Markdown>
+      </section>
+      <div className="flex flex-1 flex-col items-center justify-center">
+        <div className="h-48 w-48">
+          <ClientOnly fallback={null}>
+            <Suspense fallback={null}>
+              <HeroOrb />
+            </Suspense>
+          </ClientOnly>
         </div>
-        <div className="flex flex-col items-center gap-3 px-6 pb-10">
-          {href === null ? (
-            <span className={`${CTA_PILL} bg-muted text-muted-foreground`}>
-              <MacLogoIcon className="size-5 shrink-0" />
-              Coming soon for Mac
-            </span>
-          ) : (
-            <a
-              href={href}
-              className={`${CTA_PILL} bg-primary text-primary-foreground transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background`}
-            >
-              <MacLogoIcon className="size-5 shrink-0" />
-              Download for Mac
-            </a>
-          )}
-          <span className="text-center text-xs text-foreground/60">
-            For Macs with Apple silicon. The agent works with a paid Claude plan or any ChatGPT
-            plan.
-          </span>
-        </div>
-        <footer className="flex justify-center gap-4 pb-6">
-          {FOOTER_LINKS.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className="text-xs text-foreground/60 transition-colors hover:text-foreground"
-            >
-              {link.label}
-            </Link>
-          ))}
-        </footer>
-      </main>
-    </>
-  );
-};
+      </div>
+      <div className="flex flex-col items-center gap-3 px-6 pb-10">
+        <a
+          href={siteConfig.downloadUrl}
+          className={`${CTA_PILL} bg-primary text-primary-foreground transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background`}
+        >
+          <MacLogoIcon className="size-5 shrink-0" />
+          Download for Mac
+        </a>
+        <span className="text-center text-xs text-foreground/60">
+          For Macs with Apple silicon. The agent works with a paid Claude plan or any ChatGPT plan.
+        </span>
+      </div>
+      <footer className="flex justify-center gap-4 pb-6">
+        {FOOTER_LINKS.map((link) => (
+          <Link
+            key={link.to}
+            to={link.to}
+            className="text-xs text-foreground/60 transition-colors hover:text-foreground"
+          >
+            {link.label}
+          </Link>
+        ))}
+      </footer>
+    </main>
+  </>
+);
 
 export const Route = createFileRoute("/")({
-  loader: async () => await getDownloadUrl(),
   headers: varyHeaders,
   component: Page,
   server: { handlers: { GET: markdownHandler(homeMarkdown) } },

@@ -293,7 +293,7 @@ CI runs the suite under `xvfb-run`.
 ## Packaging
 
 ```bash
-pnpm package:desktop      # → .output/bin/Inteligir-<version>-arm64.dmg
+pnpm package:desktop      # → .output/bin/Inteligir-arm64.dmg
 pnpm smoke:desktop        # package, boot its server, drive it, SIGTERM
 ```
 

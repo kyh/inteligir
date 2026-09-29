@@ -269,9 +269,10 @@ account whose vault holds about 2,000 notes gives the timing check its load.
 Only once every check has passed, and the three close together: the npm CLI
 refuses a server of another version, so npm and the Mac app ship as one.
 
-1. **The Mac app.** Tag and publish. The site's Download button reads the
-   latest release's `.dmg` (`apps/web/src/lib/download-url.ts`, cached up to an
-   hour), and every installed app reads its `latest-mac.yml` and zip. The
+1. **The Mac app.** Tag and publish. The site's Download button links
+   `releases/latest/download/Inteligir-arm64.dmg`, so the release must carry
+   the dmg under that fixed name (`apps/desktop/electron-builder.yml`), and
+   every installed app reads its `latest-mac.yml` and zip. The
    notes are the changelog's top section, which
    `apps/desktop/scripts/release-notes.mjs` prints only once it is titled for
    this version, so a refusal stops the chain before the tag:
@@ -280,14 +281,15 @@ refuses a server of another version, so npm and the Mac app ship as one.
    node apps/desktop/scripts/release-notes.mjs > .release/notes.md &&
      git tag v<version> && git push origin v<version> &&
      gh release create v<version> --notes-file .release/notes.md \
-       apps/desktop/.output/bin/Inteligir-<version>-arm64.dmg \
+       apps/desktop/.output/bin/Inteligir-arm64.dmg \
        apps/desktop/.output/bin/Inteligir-<version>-arm64.zip \
        apps/desktop/.output/bin/Inteligir-<version>-arm64.zip.blockmap \
        apps/desktop/.output/bin/latest-mac.yml
    ```
 
    A release missing the zip or the manifest is one no installed app can
-   update to.
+   update to, and one missing `Inteligir-arm64.dmg` leaves the Download button
+   a 404.
 
 2. **npm.** `pnpm --filter inteligir publish --otp <code>`, from the tagged
    commit on a clean main (pnpm refuses another branch or a dirty tree); it
@@ -303,8 +305,8 @@ refuses a server of another version, so npm and the Mac app ship as one.
 
 ## 7. After
 
-- **The download.** Passing: within the hour the site's Download button serves
-  `Inteligir-<version>-arm64.dmg`, and the app from it opens from Finder with
+- **The download.** Passing: the site's Download button downloads this
+  version's `Inteligir-arm64.dmg`, and the app from it opens from Finder with
   no warning beyond macOS's downloaded-from-the-internet notice.
 - **The update.** On a Mac running the previous release, Settings › About ›
   Check for Updates. Passing: it finds `<version>`, Download and Restart each

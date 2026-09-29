@@ -19,8 +19,8 @@ src/
   components/        The site's own components (auth card, header, theme, orb)
     gallery/         The @repo/ui gallery: gallery-main.tsx mounts it under
                      gallery.html for `pnpm dev:gallery`, never a route
-  lib/               Better Auth client, session guard, site config, and the
-                     GitHub-release reader behind the Download button
+  lib/               Better Auth client, session guard, site config (the
+                     Download button's fixed dmg link among it), page markdown
   worker/            The Worker's API half — its OWN tsconfig program (no DOM)
     server.ts        The deployed entry: path-splits API vs site SSR
     index.ts         The API route table (also the test suite's entry)

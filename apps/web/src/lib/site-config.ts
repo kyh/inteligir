@@ -1,7 +1,12 @@
+const GITHUB = "https://github.com/kyh/inteligir";
+
 export const siteConfig = {
   contact: { email: "kai@kyh.io" },
   description: "The workspace for knowledge work.",
-  github: "https://github.com/kyh/inteligir",
+  // the dmg under the fixed name electron-builder gives it (apps/desktop/electron-builder.yml), so
+  // GitHub redirects to the latest release's copy with no API call
+  downloadUrl: `${GITHUB}/releases/latest/download/Inteligir-arm64.dmg`,
+  github: GITHUB,
   name: "Inteligir",
   shortName: "Inteligir",
   twitter: "@kaiyuhsu",

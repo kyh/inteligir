@@ -10,10 +10,36 @@ const BUILD_TIMEOUT_MS = 300_000;
 
 const PRIVACY_DOC = path.join("docs", "privacy.md");
 
-// what someone deciding whether to download reads. The CTA says Download unless GitHub answers
-// that no release exists, and an unanswered lookup gives up after 2s rather than hold the page.
+// what someone deciding whether to download reads
 const LANDING_CTA = "Download for Mac";
 const LANDING_REQUIREMENTS = ["Apple silicon", "a paid Claude plan or any ChatGPT plan"];
+
+const BUILDER_CONFIG = path.join("apps", "desktop", "electron-builder.yml");
+const LATEST_DOWNLOAD = "https://github.com/kyh/inteligir/releases/latest/download/";
+const DMG_MACROS = new Map([
+  ["arch", "arm64"],
+  ["ext", "dmg"],
+]);
+
+// the dmg's name as electron-builder writes it for the one arch the app ships, read from the
+// builder's config so a rename there fails here rather than as a 404 behind the button
+const dmgName = (config: string): string => {
+  const block = /^dmg:\n(?<body>(?:[ \t].*\n|\n)*)/mu.exec(config)?.groups?.body ?? "";
+  const pattern = /^\s+artifactName:\s*(?<name>\S+)\s*$/mu.exec(block)?.groups?.name;
+  expect(pattern !== undefined, `${BUILDER_CONFIG} gives the dmg no artifactName of its own`);
+  expect(
+    !/\$\{version\}/u.test(pattern),
+    `${BUILDER_CONFIG} names the dmg with its version, which releases/latest/download cannot know`,
+  );
+  return pattern.replaceAll(
+    /\$\{(?<macro>\w+)\}/gu,
+    (whole, macro: string) => DMG_MACROS.get(macro) ?? whole,
+  );
+};
+
+const ctaHref = (html: string): string | undefined =>
+  /<a\b[^>]*href="(?<href>[^"]+)"[^>]*>(?:(?!<\/a>)[\s\S])*Download for Mac/u.exec(html)?.groups
+    ?.href;
 
 interface PrivacyLandmarks {
   heading: string;
@@ -112,13 +138,20 @@ export const builtWorkerBoot: Scenario = {
 
     const landing = await fetch(`${worker.origin}/`);
     expectEq(landing.status, 200, "/ against the built bundle");
-    const landingWords = ` ${pageWords(await landing.text())} `;
+    const landingHtml = await landing.text();
+    const landingWords = ` ${pageWords(landingHtml)} `;
     for (const phrase of [LANDING_CTA, ...LANDING_REQUIREMENTS]) {
       expect(
         landingWords.includes(` ${wordsOf(phrase)} `),
         `/ does not say "${phrase}"\n  rule: the landing page names what the app needs before anyone downloads it`,
       );
     }
+    const dmg = dmgName(await readFile(path.join(context.repoRoot, BUILDER_CONFIG), "utf-8"));
+    expectEq(
+      ctaHref(landingHtml),
+      `${LATEST_DOWNLOAD}${dmg}`,
+      `the Download button's link against the dmg ${BUILDER_CONFIG} names`,
+    );
 
     const unknown = await fetch(`${worker.origin}/no-route-answers-this`);
     expectEq(unknown.status, 404, "an unknown path against the built bundle");
