@@ -1,6 +1,8 @@
 import { Suspense, lazy } from "react";
+import type { ComponentProps } from "react";
 import { ClientOnly, createFileRoute, Link } from "@tanstack/react-router";
 import Markdown from "react-markdown";
+import type { ExtraProps } from "react-markdown";
 
 import { markdownHandler, varyHeaders } from "@/lib/markdown-route";
 import { siteConfig } from "@/lib/site-config";
@@ -23,18 +25,28 @@ const MacLogoIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const FOOTER_LINKS = [
+const HIDDEN_FOOTER_LINKS = [
   { label: "About", to: "/about" },
   { label: "Contact", to: "/contact" },
-  { label: "Privacy", to: "/privacy" },
 ] as const;
+
+// links in sr-only text would otherwise be tab stops a sighted keyboard user cannot see
+const UntabbableAnchor = ({
+  node: _node,
+  children,
+  ...props
+}: ComponentProps<"a"> & ExtraProps) => (
+  <a {...props} tabIndex={-1}>
+    {children}
+  </a>
+);
 
 const Page = () => (
   <>
     <SiteHeader />
     <main className="flex min-h-dvh w-full flex-col">
       <section className="sr-only">
-        <Markdown>{homeMarkdown}</Markdown>
+        <Markdown components={{ a: UntabbableAnchor }}>{homeMarkdown}</Markdown>
       </section>
       <div className="flex flex-1 flex-col items-center justify-center">
         <div className="h-48 w-48">
@@ -57,16 +69,20 @@ const Page = () => (
           For Macs with Apple silicon. The agent works with a paid Claude plan or any ChatGPT plan.
         </span>
       </div>
-      <footer className="flex justify-center gap-4 pb-6">
-        {FOOTER_LINKS.map((link) => (
-          <Link
-            key={link.to}
-            to={link.to}
-            className="text-xs text-foreground/60 transition-colors hover:text-foreground"
-          >
-            {link.label}
-          </Link>
-        ))}
+      <footer className="flex justify-center pb-6">
+        <Link
+          to="/privacy"
+          className="text-xs text-foreground/60 transition-colors hover:text-foreground"
+        >
+          Privacy
+        </Link>
+        <nav aria-label="Site" className="sr-only">
+          {HIDDEN_FOOTER_LINKS.map((link) => (
+            <Link key={link.to} to={link.to} tabIndex={-1}>
+              {link.label}
+            </Link>
+          ))}
+        </nav>
       </footer>
     </main>
   </>
