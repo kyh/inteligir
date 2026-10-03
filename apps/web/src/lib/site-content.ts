@@ -115,7 +115,7 @@ open source (MIT), available for Apple silicon Macs, and shared with a small inv
 - [Home](${url}/): what ${name} is and how it works
 - [About](${url}/about): principles and who makes it
 - [Contact](${url}/contact): email and GitHub
-- [Privacy](${url}/privacy): exactly what leaves the user's Mac and what never does
+- [Privacy Policy](${url}/privacy): exactly what leaves the user's Mac and what never does
 
 ## Optional
 
@@ -133,4 +133,4 @@ Nothing is served at \`${path}\` on ${url}.
 - [Sitemap](${url}/sitemap.xml): every page on this site
 `;
 
-export const SITEMAP_PATHS = ["/", "/about", "/contact", "/privacy"] as const;
+export const SITEMAP_PATHS = ["/", "/about", "/contact", "/privacy", "/terms"] as const;

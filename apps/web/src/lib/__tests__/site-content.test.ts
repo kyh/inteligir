@@ -6,6 +6,7 @@ import {
   homeMarkdown,
   llmsTxt,
   notFoundMarkdown,
+  SITEMAP_PATHS,
 } from "../site-content";
 import { siteConfig } from "../site-config";
 import { serializeJsonLd, siteGraph } from "../structured-data";
@@ -32,6 +33,15 @@ describe("the site's markdown", () => {
     expect(llmsTxt).toMatch(/^# Inteligir\n\n> /u);
     expect(llmsTxt).toContain("## When to use Inteligir");
     expect(llmsTxt).toContain(`${siteConfig.url}/sitemap.xml`);
+  });
+
+  it.each(["/privacy", "/terms"])("lists the legal page %s in the sitemap", (path) => {
+    expect(SITEMAP_PATHS).toContain(path);
+  });
+
+  it("links the privacy policy from the home page and llms.txt", () => {
+    expect(homeMarkdown).toContain(`(${siteConfig.url}/privacy)`);
+    expect(llmsTxt).toContain(`(${siteConfig.url}/privacy)`);
   });
 
   it("points a 404 at recovery links", () => {
