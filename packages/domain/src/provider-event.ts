@@ -194,8 +194,13 @@ export const threadEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     detail: z.string().optional(),
-    // optional, so a log written before it parses.
-    failure: providerFailureSchema.optional(),
+    // optional, so a log written before it parses; a class a later build adds reads as none
+    // here rather than costing the whole event its parse on a stale install.
+    failure: z.preprocess(
+      (value) =>
+        value === undefined || providerFailureSchema.safeParse(value).success ? value : null,
+      providerFailureSchema.nullable().optional(),
+    ),
     message: z.string(),
     // thread scope for a provider setup or session failure, turn scope for one inside a turn.
     scope: threadEventScopeSchema,

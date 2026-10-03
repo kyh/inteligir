@@ -83,6 +83,10 @@ describe("threadEventSchema scope validation", () => {
     expect(threadEventSchema.parse({ ...base, type: "provider/error" })).not.toHaveProperty(
       "failure",
     );
+    // a class a later build adds costs the event nothing on this one
+    expect(
+      threadEventSchema.parse({ ...base, failure: "some-later-class", type: "provider/error" }),
+    ).toMatchObject({ failure: null, message: "boom" });
   });
 
   it("round-trips a streamed item event", () => {
