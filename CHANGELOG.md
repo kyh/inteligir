@@ -2,6 +2,16 @@
 
 What changed in Inteligir, the desktop app and the `inteligir` command line, newest first. Each release's notes on GitHub are its section here, word for word.
 
+## Unreleased
+
+### New
+
+- **Terms of Use.** Inteligir now has Terms of Use, at inteligir.com/terms. They say what you agree to when you use the website and the apps: your notes stay yours, the agent runs under your own Claude or ChatGPT plan's terms, and the online copy of your notes is free up to about 1 GB.
+
+### Changed
+
+- **The privacy policy is reorganized.** inteligir.com/privacy now follows the sections privacy law asks for, with an index at the top, and says how to ask us for a copy of your information, a correction or a deletion, including under U.S. state and European law. What the app sends, what never leaves your Mac and how your account is deleted are the same as before, and every address the app talks to is still listed at the end.
+
 ## 0.6.0 — 2026-09-27
 
 Inteligir 0.6 puts the agent inside the app and your notes on your iPhone. Sign in with your Claude or ChatGPT plan and the agent is ready, with nothing else to install, and Undo takes back what any one of its replies changed. The new iPhone app opens your notes in the same editor, offline, and can ask your Mac's agent. Two devices editing one note no longer stop sync, and the first launch asks where your notes live.
