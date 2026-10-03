@@ -39,10 +39,13 @@ describe("the site's markdown", () => {
     expect(SITEMAP_PATHS).toContain(path);
   });
 
-  it("links the privacy policy from the home page and llms.txt", () => {
-    expect(homeMarkdown).toContain(`(${siteConfig.url}/privacy)`);
-    expect(llmsTxt).toContain(`(${siteConfig.url}/privacy)`);
-  });
+  it.each(["/privacy", "/terms"])(
+    "links the legal page %s from the home page and llms.txt",
+    (path) => {
+      expect(homeMarkdown).toContain(`(${siteConfig.url}${path})`);
+      expect(llmsTxt).toContain(`(${siteConfig.url}${path})`);
+    },
+  );
 
   it("points a 404 at recovery links", () => {
     const body = notFoundMarkdown("/nope");
