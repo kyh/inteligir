@@ -1,6 +1,8 @@
 // ACP has no turn ids and no item lifecycle: chunks arrive bare and a tool call is born by
-// tool_call then mutated by tool_call_update, so this mapper mints one message and one reasoning
-// item id per turn.
+// tool_call then mutated by tool_call_update, so this mapper mints the item ids. A turn holds as
+// many message and reasoning items as the agent spoke: one ends where its chunks' messageId
+// changes, or where a tool call opens (claude's adapter sends no messageId), because one id per
+// turn glued a preamble to the answer and drew both above every tool call.
 
 import type { ThreadEventFileChange, ThreadEventItemStatus } from "@repo/domain/provider-event";
 import type { ThreadEventScope } from "@repo/domain/thread-event-scope";
@@ -216,12 +218,25 @@ const toolItem = (id: string, open: OpenToolCall): ProviderEventItem => {
   return item;
 };
 
+// a chunk's messageId when the adapter names one; a chunk naming none continues what is open.
+const chunkMessageId = (chunk: ContentChunk): string | null => chunk.messageId ?? null;
+
+interface OpenTextItem {
+  id: string;
+  messageId: string | null;
+  text: string;
+}
+
+// the open item a chunk continues: a messageId other than the open item's starts a new one.
+const continues = (open: OpenTextItem, messageId: string | null): boolean =>
+  messageId === null || open.messageId === null || open.messageId === messageId;
+
 export class AcpTurnMapper {
   readonly #ctx: AcpTurnContext;
-  #messageOpen = false;
-  #messageText = "";
-  #reasoningOpen = false;
-  #reasoningText = "";
+  #message: OpenTextItem | null = null;
+  #messageCount = 0;
+  #reasoning: OpenTextItem | null = null;
+  #reasoningCount = 0;
   readonly #toolCalls = new Map<string, OpenToolCall>();
 
   constructor(ctx: AcpTurnContext) {
@@ -244,14 +259,6 @@ export class AcpTurnMapper {
     };
   }
 
-  #messageItemId(): string {
-    return `${this.#ctx.turnId}:message`;
-  }
-
-  #reasoningItemId(): string {
-    return `${this.#ctx.turnId}:reasoning`;
-  }
-
   started(): ProviderEvent[] {
     return [{ type: "turn/started", ...this.#threadData() }];
   }
@@ -262,11 +269,11 @@ export class AcpTurnMapper {
       case "agent_message_chunk": {
         const warning = adapterWarning(update);
         return warning === null
-          ? this.#appendMessage(update.content)
+          ? this.#appendMessage(update.content, chunkMessageId(update))
           : [this.#notice("warning", warning)];
       }
       case "agent_thought_chunk": {
-        return this.#appendThought(update.content);
+        return this.#appendThought(update.content, chunkMessageId(update));
       }
       case "tool_call": {
         return this.#openToolCall(update);
@@ -309,50 +316,90 @@ export class AcpTurnMapper {
     return { message, severity, type: "provider/notice", ...this.#threadData() };
   }
 
-  #appendMessage(content: ContentBlock): ProviderEvent[] {
+  #appendMessage(content: ContentBlock, messageId: string | null): ProviderEvent[] {
     if (content.type !== "text") {
       return [];
     }
     const events: ProviderEvent[] = [];
-    if (!this.#messageOpen) {
-      this.#messageOpen = true;
+    let open = this.#message;
+    if (open === null || !continues(open, messageId)) {
+      events.push(...this.#closeMessage());
+      this.#messageCount += 1;
+      open = { id: `${this.#ctx.turnId}:message:${this.#messageCount}`, messageId, text: "" };
+      this.#message = open;
       events.push({
-        item: { id: this.#messageItemId(), text: "", type: "agentMessage" },
+        item: { id: open.id, text: "", type: "agentMessage" },
         type: "item/started",
         ...this.#threadData(),
       });
     }
-    this.#messageText += content.text;
+    open.messageId ??= messageId;
+    open.text += content.text;
     events.push({
       delta: content.text,
-      itemId: this.#messageItemId(),
+      itemId: open.id,
       type: "item/agentMessage/delta",
       ...this.#threadData(),
     });
     return events;
   }
 
-  #appendThought(content: ContentBlock): ProviderEvent[] {
+  #appendThought(content: ContentBlock, messageId: string | null): ProviderEvent[] {
     if (content.type !== "text") {
       return [];
     }
     const events: ProviderEvent[] = [];
-    if (!this.#reasoningOpen) {
-      this.#reasoningOpen = true;
+    let open = this.#reasoning;
+    if (open === null || !continues(open, messageId)) {
+      events.push(...this.#closeReasoning());
+      this.#reasoningCount += 1;
+      open = { id: `${this.#ctx.turnId}:reasoning:${this.#reasoningCount}`, messageId, text: "" };
+      this.#reasoning = open;
       events.push({
-        item: { content: [], id: this.#reasoningItemId(), summary: [], type: "reasoning" },
+        item: { content: [], id: open.id, summary: [], type: "reasoning" },
         type: "item/started",
         ...this.#threadData(),
       });
     }
-    this.#reasoningText += content.text;
+    open.messageId ??= messageId;
+    open.text += content.text;
     events.push({
       delta: content.text,
-      itemId: this.#reasoningItemId(),
+      itemId: open.id,
       type: "item/reasoning/textDelta",
       ...this.#threadData(),
     });
     return events;
+  }
+
+  #closeMessage(): ProviderEvent[] {
+    const open = this.#message;
+    if (open === null) {
+      return [];
+    }
+    this.#message = null;
+    return [
+      {
+        item: { id: open.id, text: open.text, type: "agentMessage" },
+        type: "item/completed",
+        ...this.#threadData(),
+      },
+    ];
+  }
+
+  #closeReasoning(): ProviderEvent[] {
+    const open = this.#reasoning;
+    if (open === null) {
+      return [];
+    }
+    this.#reasoning = null;
+    return [
+      {
+        item: { content: [open.text], id: open.id, summary: [], type: "reasoning" },
+        type: "item/completed",
+        ...this.#threadData(),
+      },
+    ];
   }
 
   #openToolCall(update: SessionUpdateOf<"tool_call">): ProviderEvent[] {
@@ -368,7 +415,11 @@ export class AcpTurnMapper {
     };
     applyToolCallUpdate(open, update);
     this.#toolCalls.set(update.toolCallId, open);
+    // a tool call ends what the agent was saying or thinking: text after it is a new item, so the
+    // timeline draws each where it happened.
     return [
+      ...this.#closeReasoning(),
+      ...this.#closeMessage(),
       {
         item: toolItem(update.toolCallId, open),
         type: "item/started",
@@ -432,27 +483,7 @@ export class AcpTurnMapper {
       });
     }
     this.#toolCalls.clear();
-    if (this.#reasoningOpen) {
-      events.push({
-        item: {
-          content: [this.#reasoningText],
-          id: this.#reasoningItemId(),
-          summary: [],
-          type: "reasoning",
-        },
-        type: "item/completed",
-        ...this.#threadData(),
-      });
-      this.#reasoningOpen = false;
-    }
-    if (this.#messageOpen) {
-      events.push({
-        item: { id: this.#messageItemId(), text: this.#messageText, type: "agentMessage" },
-        type: "item/completed",
-        ...this.#threadData(),
-      });
-      this.#messageOpen = false;
-    }
+    events.push(...this.#closeReasoning(), ...this.#closeMessage());
     return events;
   }
 }

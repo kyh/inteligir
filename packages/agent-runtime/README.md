@@ -221,8 +221,8 @@ pnpm --filter @repo/agent-runtime test
 ```
 
 `src/acp/__tests__/acp-mapping.test.ts` pins the pure halves: session
-notifications onto the provider-event grammar (one message item per turn,
-thoughts as one reasoning item, plans, edit-kind calls as `fileChange`, content
+notifications onto the provider-event grammar (a message or a reasoning item
+per spoken run, split where the messageId changes or a tool call opens, plans, edit-kind calls as `fileChange`, content
 replaced rather than appended, a failed tool, codex's shell commands as
 `commandExecution` with their raw output, notices and codex's warning chunk as
 `provider/notice`, cancellation interrupting open items, every non-`end_turn`

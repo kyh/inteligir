@@ -101,10 +101,108 @@ describe("AcpTurnMapper", () => {
       expect.objectContaining({
         item: {
           content: ["weigh options"],
-          id: "turn_1:reasoning",
+          id: "turn_1:reasoning:1",
           summary: [],
           type: "reasoning",
         },
+        type: "item/completed",
+      }),
+    );
+  });
+
+  it("splits a turn's message where the chunks' messageId changes", () => {
+    const m = mapper();
+    const say = (text: string, messageId: string) =>
+      m.update({
+        sessionId: "sess_1",
+        update: {
+          content: { text, type: "text" },
+          messageId,
+          sessionUpdate: "agent_message_chunk",
+        },
+      });
+    say("I'll look.", "msg_a");
+    const next = say("Done.", "msg_b");
+    expect(next.map((event) => event.type)).toEqual([
+      "item/completed",
+      "item/started",
+      "item/agentMessage/delta",
+    ]);
+    expect(next[0]).toMatchObject({
+      item: { id: "turn_1:message:1", text: "I'll look.", type: "agentMessage" },
+    });
+    expect(next[1]).toMatchObject({ item: { id: "turn_1:message:2", type: "agentMessage" } });
+    expect(m.completed("end_turn")).toContainEqual(
+      expect.objectContaining({
+        item: { id: "turn_1:message:2", text: "Done.", type: "agentMessage" },
+        type: "item/completed",
+      }),
+    );
+  });
+
+  it("continues one message while the messageId stays the same", () => {
+    const m = mapper();
+    const say = (text: string) =>
+      m.update({
+        sessionId: "sess_1",
+        update: {
+          content: { text, type: "text" },
+          messageId: "msg_a",
+          sessionUpdate: "agent_message_chunk",
+        },
+      });
+    say("hel");
+    expect(say("lo").map((event) => event.type)).toEqual(["item/agentMessage/delta"]);
+    const closed = m.completed("end_turn").filter((event) => event.type === "item/completed");
+    expect(closed).toHaveLength(1);
+    expect(closed[0]).toMatchObject({ item: { id: "turn_1:message:1", text: "hello" } });
+  });
+
+  it("ends the open message and thought at a tool call, so text after it is a new item", () => {
+    const m = mapper();
+    m.update({
+      sessionId: "sess_1",
+      update: { content: { text: "hmm", type: "text" }, sessionUpdate: "agent_thought_chunk" },
+    });
+    m.update({
+      sessionId: "sess_1",
+      update: { content: { text: "Reading.", type: "text" }, sessionUpdate: "agent_message_chunk" },
+    });
+    const opened = m.update({
+      sessionId: "sess_1",
+      update: {
+        kind: "read",
+        sessionUpdate: "tool_call",
+        status: "in_progress",
+        title: "Read note.md",
+        toolCallId: "call_1",
+      },
+    });
+    expect(opened.map((event) => event.type)).toEqual([
+      "item/completed",
+      "item/completed",
+      "item/started",
+    ]);
+    expect(opened[0]).toMatchObject({ item: { content: ["hmm"], id: "turn_1:reasoning:1" } });
+    expect(opened[1]).toMatchObject({ item: { id: "turn_1:message:1", text: "Reading." } });
+    m.update({
+      sessionId: "sess_1",
+      update: { sessionUpdate: "tool_call_update", status: "completed", toolCallId: "call_1" },
+    });
+    const after = m.update({
+      sessionId: "sess_1",
+      update: {
+        content: { text: "It says hi.", type: "text" },
+        sessionUpdate: "agent_message_chunk",
+      },
+    });
+    expect(after[0]).toMatchObject({
+      item: { id: "turn_1:message:2", text: "" },
+      type: "item/started",
+    });
+    expect(m.completed("end_turn")).toContainEqual(
+      expect.objectContaining({
+        item: { id: "turn_1:message:2", text: "It says hi.", type: "agentMessage" },
         type: "item/completed",
       }),
     );
