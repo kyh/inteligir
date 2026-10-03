@@ -148,10 +148,11 @@ scripts/
   because the contract has no "other".
 - **What a user reads of a refusal is `readProviderError`.** The SDK
   rejects a refused request with a `RequestError` (an Error carrying the
-  JSON-RPC `code`); the adapter's message is shown, except an auth refusal
-  (`-32000`, or an `errorKind` naming a sign-in) with a harness in hand, which
+  JSON-RPC `code`); the adapter's message is shown, except, with a harness in
+  hand, an auth refusal (`-32000`, or an `errorKind` naming a sign-in), which
   says that harness is signed out, and a usage-limit refusal, which says the
-  plan's limit is reached and the queue waits.
+  plan's limit is reached. Either class leaves the thread's queued messages
+  waiting for the next send.
 - **A session is registered only once the agent names it.** A refused or
   failed `initialize`, `session/new` or `session/load` registers nothing and
   takes its child with it, so the send after a sign-in opens a new adapter
