@@ -6,7 +6,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ### New
 
-- **Terms of Use.** Inteligir now has Terms of Use, at inteligir.com/terms, linked beside Privacy at the bottom of the site. They say what you agree to when you use the website and the apps: your notes stay yours, the agent runs under your own Claude or ChatGPT plan's terms, and the online copy of your notes is free up to about 1 GB.
+- **Terms of Use.** Inteligir now has Terms of Use, at inteligir.com/terms. They say what you agree to when you use the website and the apps: your notes stay yours, the agent runs under your own Claude or ChatGPT plan's terms, and the online copy of your notes is free up to about 1 GB.
 
 ### Changed
 

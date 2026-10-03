@@ -25,11 +25,6 @@ const MacLogoIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const LEGAL_LINKS = [
-  { label: "Privacy", to: "/privacy" },
-  { label: "Terms", to: "/terms" },
-] as const;
-
 const HIDDEN_FOOTER_LINKS = [
   { label: "About", to: "/about" },
   { label: "Contact", to: "/contact" },
@@ -74,16 +69,13 @@ const Page = () => (
           For Macs with Apple silicon. The agent works with a paid Claude plan or any ChatGPT plan.
         </span>
       </div>
-      <footer className="flex justify-center gap-4 pb-6">
-        {LEGAL_LINKS.map((link) => (
-          <Link
-            key={link.to}
-            to={link.to}
-            className="text-xs text-foreground/60 transition-colors hover:text-foreground"
-          >
-            {link.label}
-          </Link>
-        ))}
+      <footer className="flex justify-center pb-6">
+        <Link
+          to="/privacy"
+          className="text-xs text-foreground/60 transition-colors hover:text-foreground"
+        >
+          Privacy
+        </Link>
         <nav aria-label="Site" className="sr-only">
           {HIDDEN_FOOTER_LINKS.map((link) => (
             <Link key={link.to} to={link.to} tabIndex={-1}>

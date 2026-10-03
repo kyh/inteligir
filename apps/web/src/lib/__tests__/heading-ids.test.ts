@@ -71,6 +71,5 @@ describe("the legal docs", () => {
 
   it("links the terms to the privacy policy", () => {
     expect(terms).toContain("https://inteligir.com/privacy");
-    expect(privacy).toContain("https://inteligir.com/terms");
   });
 });

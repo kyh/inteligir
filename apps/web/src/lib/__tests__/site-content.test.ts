@@ -35,14 +35,14 @@ describe("the site's markdown", () => {
     expect(llmsTxt).toContain(`${siteConfig.url}/sitemap.xml`);
   });
 
-  it.each(["/privacy", "/terms"])(
-    "lists the legal page %s wherever the site lists its pages",
-    (path) => {
-      expect(SITEMAP_PATHS).toContain(path);
-      expect(homeMarkdown).toContain(`(${siteConfig.url}${path})`);
-      expect(llmsTxt).toContain(`(${siteConfig.url}${path})`);
-    },
-  );
+  it.each(["/privacy", "/terms"])("lists the legal page %s in the sitemap", (path) => {
+    expect(SITEMAP_PATHS).toContain(path);
+  });
+
+  it("links the privacy policy from the home page and llms.txt", () => {
+    expect(homeMarkdown).toContain(`(${siteConfig.url}/privacy)`);
+    expect(llmsTxt).toContain(`(${siteConfig.url}/privacy)`);
+  });
 
   it("points a 404 at recovery links", () => {
     const body = notFoundMarkdown("/nope");

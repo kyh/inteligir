@@ -312,8 +312,7 @@ to remember your selections and preferences as you navigate webpages.
   making and defending legal claims);
 - audit our internal processes for compliance with legal and contractual
   requirements or our internal policies;
-- enforce the terms and conditions that govern the Service, including our [Terms
-  of Use](https://inteligir.com/terms); and
+- enforce the terms and conditions that govern the Service; and
 - prevent, identify, investigate and deter fraudulent, harmful, unauthorized,
   unethical or illegal activity, including cyberattacks and identity theft.
 
