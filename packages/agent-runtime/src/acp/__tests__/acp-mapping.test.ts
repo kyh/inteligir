@@ -85,6 +85,13 @@ describe("AcpTurnMapper", () => {
     expect(events[1]).toMatchObject({ error: { message: "adapter died" }, status: "failed" });
   });
 
+  it("carries a refusal's class on the error, and none when it has none", () => {
+    const [error] = mapper().failed("Claude is signed out on this Mac.", "auth");
+    expect(error).toMatchObject({ failure: "auth", type: "provider/error" });
+    const [plain] = mapper().failed("adapter died");
+    expect(plain).not.toHaveProperty("failure");
+  });
+
   it("streams thoughts into one reasoning item and closes it whole", () => {
     const m = mapper();
     const thought = (text: string) =>

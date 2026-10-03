@@ -4,7 +4,11 @@
 // changes, or where a tool call opens (claude's adapter sends no messageId), because one id per
 // turn glued a preamble to the answer and drew both above every tool call.
 
-import type { ThreadEventFileChange, ThreadEventItemStatus } from "@repo/domain/provider-event";
+import type {
+  ProviderFailure,
+  ThreadEventFileChange,
+  ThreadEventItemStatus,
+} from "@repo/domain/provider-event";
 import type { ThreadEventScope } from "@repo/domain/thread-event-scope";
 import type {
   ContentBlock,
@@ -464,12 +468,18 @@ export class AcpTurnMapper {
     return events;
   }
 
-  failed(message: string): ProviderEvent[] {
+  failed(message: string, failure?: ProviderFailure): ProviderEvent[] {
     const events = this.#closeOpenItems("failed");
-    events.push(
-      { message, type: "provider/error", ...this.#threadData() },
-      { error: { message }, status: "failed", type: "turn/completed", ...this.#threadData() },
-    );
+    const error: ProviderEvent = { message, type: "provider/error", ...this.#threadData() };
+    if (failure !== undefined) {
+      error.failure = failure;
+    }
+    events.push(error, {
+      error: { message },
+      status: "failed",
+      type: "turn/completed",
+      ...this.#threadData(),
+    });
     return events;
   }
 

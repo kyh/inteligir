@@ -1,6 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import type { ThreadEvent } from "@repo/domain/provider-event";
+import type { ProviderFailure, ThreadEvent } from "@repo/domain/provider-event";
 import { getThreadEventItemRef, threadEventSchema } from "@repo/domain/provider-event";
 import { getThreadEventScopeTurnId } from "@repo/domain/thread-event-scope";
 import { and, desc, eq, gt, inArray, isNull, lt, max, sql } from "drizzle-orm";
@@ -328,6 +328,28 @@ export const storedTurnCompletion = (
     .get();
   const event = row === undefined ? null : readStoredEvent(row.data);
   return event?.type === "turn/completed" ? event : null;
+};
+
+// the class of the latest error a turn's own rows record, or null when none carries one.
+export const storedTurnFailure = (
+  db: DbExecutor,
+  args: { threadId: string; turnId: string },
+): ProviderFailure | null => {
+  const row = db
+    .select({ data: events.data })
+    .from(events)
+    .where(
+      and(
+        eq(events.threadId, args.threadId),
+        eq(events.turnId, args.turnId),
+        eq(events.type, "provider/error"),
+      ),
+    )
+    .orderBy(desc(events.sequence))
+    .limit(1)
+    .get();
+  const event = row === undefined ? null : readStoredEvent(row.data);
+  return event?.type === "provider/error" ? (event.failure ?? null) : null;
 };
 
 const requestDispatchId = sql`json_extract(${events.data}, '$.dispatchId')`;

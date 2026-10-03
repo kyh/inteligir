@@ -48,8 +48,9 @@ src/
                        # provider-event grammar, with the turn's item ids
     acp-permission-mapping.ts  # requestPermission ↔ @repo/domain's approval
                        # payload and resolution
-    provider-error.ts  # describeProviderError: a refusal's message, or for
-                       # an auth refusal the signed-out sentence
+    provider-error.ts  # readProviderError: a refusal's class and words —
+                       # the signed-out or usage-limit sentence, else the
+                       # adapter's message
   vocabulary/
     provider-event.ts  # ProviderEvent — the runtime's EMITTED grammar
   thread-shell-environment.ts  # stamps INTELIGIR_THREAD_ID onto a spawn's env
@@ -228,7 +229,8 @@ replaced rather than appended, a failed tool, codex's shell commands as
 `provider/notice`, cancellation interrupting open items, every non-`end_turn`
 stop but a cancel failing the turn, a prompt rejection failing through the
 grammar) and permission requests onto the pending-interaction contract;
-`provider-error.test.ts` pins the auth hint.
+`provider-error.test.ts` pins how a refused prompt is classed and worded (signed
+out, the plan's usage limit, overload, context, other).
 
 `src/acp/__tests__/acp-transcripts.test.ts` replays what the pinned adapters
 REALLY sent — `fixtures/<adapter>@<version>/*.ndjson`, one live turn per

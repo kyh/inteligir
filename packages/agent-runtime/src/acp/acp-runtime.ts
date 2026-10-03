@@ -41,7 +41,7 @@ import { traceFrames } from "./frame-trace.js";
 import { buildThreadShellEnvironment } from "../thread-shell-environment.js";
 import { VaultConfigRefusedError, harnessHostEnv, requireHarness } from "./harness-registry.js";
 import type { HarnessDefinition, HarnessModels } from "./harness-registry.js";
-import { describeProviderError } from "./provider-error.js";
+import { describeProviderError, readProviderError } from "./provider-error.js";
 
 const SESSION_SHUTDOWN_GRACE_MS = 1000;
 
@@ -579,7 +579,8 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       });
       settle(mapper.completed(response.stopReason));
     } catch (error) {
-      settle(mapper.failed(describeProviderError(error, session.adapter.harness)));
+      const reading = readProviderError(error, session.adapter.harness);
+      settle(mapper.failed(reading.message, reading.failure));
     }
   };
 
