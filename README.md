@@ -23,7 +23,8 @@ An account is optional and needs an invite: it keeps your notes in step across
 your Macs and your iPhone, and lets your phone ask your Mac's agent. The iPhone
 app comes by TestFlight invite.
 
-What leaves your Mac, and when: [docs/privacy.md](./docs/privacy.md).
+What leaves your Mac, and when: [docs/privacy.md](./docs/privacy.md). The terms you
+use Inteligir under: [docs/terms.md](./docs/terms.md).
 
 ## For developers
 

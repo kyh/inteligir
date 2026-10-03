@@ -13,6 +13,7 @@ src/
   routes/            TanStack Start file routes (SSR)
     index.tsx        The marketing page
     privacy.tsx      docs/privacy.md itself, rendered
+    terms.tsx        docs/terms.md itself, rendered
     about, contact   lib/site-content.ts's markdown, rendered or answered as-is
     app/             /app/sign-in, /app/sign-up, /app/forgot-password and
                      /app/devices (the device table, client-only)
@@ -52,6 +53,7 @@ its own `tsconfig.json`.
 | `/`                                     | —                 | Marketing page (SSR); markdown to `Accept: text/markdown`           |
 | `/about`, `/contact`                    | —                 | Trust pages from `lib/site-content.ts`, negotiated the same way     |
 | `/privacy`                              | —                 | Renders `docs/privacy.md` itself (SSR) — never a copy               |
+| `/terms`                                | —                 | Renders `docs/terms.md` itself (SSR) — never a copy                 |
 | `/llms.txt`, `/sitemap.xml`             | —                 | Agent and crawler files, beside `/robots.txt`                       |
 | `/*` (anything else)                    | —                 | 404; a markdown recovery body to `Accept: text/markdown`            |
 | `/app/sign-in`                          | —                 | Sign-in (SSR when signed out — see `lib/session-guard.ts`)          |
