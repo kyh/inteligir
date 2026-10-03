@@ -147,6 +147,36 @@ describe("AcpTurnMapper", () => {
     );
   });
 
+  it("ends a thought with its message once the messageId moves on, and a message with its thought", () => {
+    const m = mapper();
+    const chunk = (
+      sessionUpdate: "agent_message_chunk" | "agent_thought_chunk",
+      messageId: string,
+    ) =>
+      m.update({
+        sessionId: "sess_1",
+        update: { content: { text: messageId, type: "text" }, messageId, sessionUpdate },
+      });
+    chunk("agent_thought_chunk", "msg_a");
+    chunk("agent_message_chunk", "msg_a");
+    const nextMessage = chunk("agent_message_chunk", "msg_b");
+    expect(nextMessage.map((event) => event.type)).toEqual([
+      "item/completed",
+      "item/completed",
+      "item/started",
+      "item/agentMessage/delta",
+    ]);
+    expect(nextMessage[0]).toMatchObject({ item: { id: "turn_1:reasoning:1" } });
+    expect(nextMessage[1]).toMatchObject({ item: { id: "turn_1:message:1" } });
+    const nextThought = chunk("agent_thought_chunk", "msg_c");
+    expect(nextThought.map((event) => event.type)).toEqual([
+      "item/completed",
+      "item/started",
+      "item/reasoning/textDelta",
+    ]);
+    expect(nextThought[0]).toMatchObject({ item: { id: "turn_1:message:2" } });
+  });
+
   it("continues one message while the messageId stays the same", () => {
     const m = mapper();
     const say = (text: string) =>

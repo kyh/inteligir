@@ -146,10 +146,12 @@ scripts/
   first, then the same allow/reject family; no offered option answers
   `cancelled`. An unrecognised tool kind falls back to the command subject,
   because the contract has no "other".
-- **What a user reads of a refusal is `describeProviderError`.** The SDK
+- **What a user reads of a refusal is `readProviderError`.** The SDK
   rejects a refused request with a `RequestError` (an Error carrying the
   JSON-RPC `code`); the adapter's message is shown, except an auth refusal
-  (`-32000`) with a harness in hand, which says that harness is signed out.
+  (`-32000`, or an `errorKind` naming a sign-in) with a harness in hand, which
+  says that harness is signed out, and a usage-limit refusal, which says the
+  plan's limit is reached and the queue waits.
 - **A session is registered only once the agent names it.** A refused or
   failed `initialize`, `session/new` or `session/load` registers nothing and
   takes its child with it, so the send after a sign-in opens a new adapter

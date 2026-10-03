@@ -638,6 +638,14 @@ exports[`codex-acp@1.13.0 > replays edit onto the provider grammar 1`] = `
     },
     {
       "item": {
+        "id": "turn_replay:message:1",
+        "text": "I’ll create \`hello.md\` and replace \`draft\` with \`final\` in \`note.md\` using file tools.",
+        "type": "agentMessage",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
         "content": [],
         "id": "turn_replay:reasoning:1",
         "summary": [],
@@ -663,14 +671,6 @@ exports[`codex-acp@1.13.0 > replays edit onto the provider grammar 1`] = `
         "id": "turn_replay:reasoning:1",
         "summary": [],
         "type": "reasoning",
-      },
-      "type": "item/completed",
-    },
-    {
-      "item": {
-        "id": "turn_replay:message:1",
-        "text": "I’ll create \`hello.md\` and replace \`draft\` with \`final\` in \`note.md\` using file tools.",
-        "type": "agentMessage",
       },
       "type": "item/completed",
     },
@@ -1091,6 +1091,15 @@ exports[`codex-acp@1.13.0 > replays plan onto the provider grammar 1`] = `
     },
     {
       "item": {
+        "id": "turn_replay:message:1",
+        "text": "I’ll record both tasks, read \`note.md\`, then summarize it in one sentence.
+",
+        "type": "agentMessage",
+      },
+      "type": "item/completed",
+    },
+    {
+      "item": {
         "content": [],
         "id": "turn_replay:reasoning:1",
         "summary": [],
@@ -1138,10 +1147,14 @@ exports[`codex-acp@1.13.0 > replays plan onto the provider grammar 1`] = `
     },
     {
       "item": {
-        "id": "turn_replay:message:1",
-        "text": "I’ll record both tasks, read \`note.md\`, then summarize it in one sentence.
-",
-        "type": "agentMessage",
+        "content": [
+          "
+
+**Reading the note**",
+        ],
+        "id": "turn_replay:reasoning:2",
+        "summary": [],
+        "type": "reasoning",
       },
       "type": "item/completed",
     },
@@ -1162,19 +1175,6 @@ exports[`codex-acp@1.13.0 > replays plan onto the provider grammar 1`] = `
       "deltas": 33,
       "itemId": "turn_replay:message:2",
       "type": "item/agentMessage/delta",
-    },
-    {
-      "item": {
-        "content": [
-          "
-
-**Reading the note**",
-        ],
-        "id": "turn_replay:reasoning:2",
-        "summary": [],
-        "type": "reasoning",
-      },
-      "type": "item/completed",
     },
     {
       "item": {

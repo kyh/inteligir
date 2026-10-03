@@ -235,6 +235,10 @@ interface OpenTextItem {
 const continues = (open: OpenTextItem, messageId: string | null): boolean =>
   messageId === null || open.messageId === null || open.messageId === messageId;
 
+/** Whether `open` belongs to a message the stream has moved past: both name one, and they differ. */
+const movedPast = (open: OpenTextItem | null, messageId: string | null): boolean =>
+  open !== null && open.messageId !== null && messageId !== null && open.messageId !== messageId;
+
 export class AcpTurnMapper {
   readonly #ctx: AcpTurnContext;
   #message: OpenTextItem | null = null;
@@ -324,7 +328,10 @@ export class AcpTurnMapper {
     if (content.type !== "text") {
       return [];
     }
-    const events: ProviderEvent[] = [];
+    // a thought of the message the stream moved past ends here, before the new message starts
+    const events: ProviderEvent[] = movedPast(this.#reasoning, messageId)
+      ? this.#closeReasoning()
+      : [];
     let open = this.#message;
     if (open === null || !continues(open, messageId)) {
       events.push(...this.#closeMessage());
@@ -352,7 +359,8 @@ export class AcpTurnMapper {
     if (content.type !== "text") {
       return [];
     }
-    const events: ProviderEvent[] = [];
+    // likewise a message the stream moved past ends before the new thought starts
+    const events: ProviderEvent[] = movedPast(this.#message, messageId) ? this.#closeMessage() : [];
     let open = this.#reasoning;
     if (open === null || !continues(open, messageId)) {
       events.push(...this.#closeReasoning());
