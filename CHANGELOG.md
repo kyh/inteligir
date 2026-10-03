@@ -2,6 +2,13 @@
 
 What changed in Inteligir, the desktop app and the `inteligir` command line, newest first. Each release's notes on GitHub are its section here, word for word.
 
+## Unreleased
+
+### Fixed
+
+- **Messages you queued wait when your plan's usage limit is reached.** If Claude or ChatGPT stops an action because you've reached your plan's usage limit, or because you're signed out, the action now says so in plain words, and the messages you queued behind it stay queued instead of each failing the same way. Send again once the limit resets or you've signed in, and the oldest queued message goes first.
+- **An agent's separate replies within one action show as separate messages.** When the agent says what it is about to do, edits your notes and then says what it did, each message now shows where it happened, before and after its edits, instead of being joined into one block above all of them. The same goes for its thinking. Conversations from before this update still show the way they did.
+
 ## 0.6.0 — 2026-09-27
 
 Inteligir 0.6 puts the agent inside the app and your notes on your iPhone. Sign in with your Claude or ChatGPT plan and the agent is ready, with nothing else to install, and Undo takes back what any one of its replies changed. The new iPhone app opens your notes in the same editor, offline, and can ask your Mac's agent. Two devices editing one note no longer stop sync, and the first launch asks where your notes live.

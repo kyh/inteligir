@@ -143,6 +143,30 @@ describe("provider event mapping", () => {
     });
   });
 
+  it("carries a turn's failure class onto the persisted error", () => {
+    const result = mapProviderEvent(
+      {
+        failure: "usage-limit",
+        message: "Claude says you've reached your plan's usage limit.",
+        providerThreadId: "cthr_1",
+        scope: providerScope,
+        threadId: "thr_1",
+        type: "provider/error",
+      },
+      "turn_host",
+    );
+    expect(result).toEqual({
+      event: {
+        failure: "usage-limit",
+        message: "Claude says you've reached your plan's usage limit.",
+        scope: turnScope("turn_host"),
+        threadId: "thr_1",
+        type: "provider/error",
+      },
+      kind: "mapped",
+    });
+  });
+
   it("refuses turn-scoped events when no host turn is bound", () => {
     const result = mapProviderEvent(
       {

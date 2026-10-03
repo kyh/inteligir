@@ -4,6 +4,7 @@
 // kind or field the mapper does not produce has no place here: every consumer would handle it.
 
 import type {
+  ProviderFailure,
   ThreadEventFileChange,
   ThreadEventItem,
   ThreadEventItemApprovalStatus,
@@ -82,6 +83,7 @@ interface ProviderTurnPlanUpdatedEvent extends ProviderThreadEventData {
 interface ProviderErrorEvent extends ProviderThreadEventData {
   type: "provider/error";
   message: string;
+  failure?: ProviderFailure;
 }
 
 // the adapter speaking for itself, never the model, so it is no part of the assistant's message.

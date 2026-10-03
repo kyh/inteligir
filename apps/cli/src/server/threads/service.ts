@@ -16,6 +16,7 @@ import {
   appendSyncedEventsInTransaction,
   listThreadMetaEvents,
   storedTurnCompletion,
+  storedTurnFailure,
   threadHasEvents,
   threadHoldsDispatch,
   turnStartOriginDeviceId,
@@ -57,7 +58,7 @@ import {
   nameUntitledThreadInTransaction,
 } from "@repo/db/threads";
 import type { CreateThreadInput, ThreadOriginInput, ThreadRow } from "@repo/db/threads";
-import type { ThreadEvent } from "@repo/domain/provider-event";
+import type { ProviderFailure, ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { deriveThreadTitle } from "@repo/domain/thread-title";
 import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
@@ -404,8 +405,26 @@ const threadIdentity = (row: ThreadRow): ThreadMetaEvent | null => {
   return meta.title === undefined && meta.originDocPath === undefined ? null : meta;
 };
 
-// a queued reply follows the turn it waited on however that turn ended, a stop included: it is
-// claimed here, in the settle's transaction, and dispatched after commit.
+// a turn the vendor refused for the plan's usage limit or a sign-in would refuse the next message
+// the same way, so a settle on one leaves the queue for the user's next send rather than draining
+// into the same failure: the send starts the oldest queued message first.
+const QUEUE_HOLDING_FAILURES: ReadonlySet<ProviderFailure> = new Set(["auth", "usage-limit"]);
+
+const failureHoldsQueue = (
+  tx: DbTransaction,
+  threadId: string,
+  event: ThreadLifecycleEvent,
+): boolean => {
+  if (event.type !== "run.failed" || event.turnId === null) {
+    return false;
+  }
+  const failure = storedTurnFailure(tx, { threadId, turnId: event.turnId });
+  return failure !== null && QUEUE_HOLDING_FAILURES.has(failure);
+};
+
+// a queued reply follows the turn it waited on however that turn ended, a stop and an ordinary
+// failure included, but not a usage-limit or signed-out refusal (above): it is claimed here, in
+// the settle's transaction, and dispatched after commit.
 const projectLifecycleInTransaction = (
   tx: DbTransaction,
   args: { threadId: string; event: ThreadLifecycleEvent; drain: boolean },
@@ -421,7 +440,11 @@ const projectLifecycleInTransaction = (
     return null;
   }
   buffer.notifyThread(threadId, ["status-changed"]);
-  if (isThreadRunning(outcome.thread.status) || !args.drain) {
+  if (
+    isThreadRunning(outcome.thread.status) ||
+    !args.drain ||
+    failureHoldsQueue(tx, threadId, event)
+  ) {
     return null;
   }
   const claimed = claimNextQueuedThreadMessageInTransaction(tx, threadId);

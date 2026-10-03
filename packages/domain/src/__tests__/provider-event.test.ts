@@ -75,6 +75,20 @@ describe("threadEventSchema scope validation", () => {
     }
   });
 
+  it("keeps a provider/error's failure class, and parses one written before it", () => {
+    const base = { message: "boom", scope: turnScope("turn_1"), threadId: "thr_1" };
+    expect(
+      threadEventSchema.parse({ ...base, failure: "usage-limit", type: "provider/error" }),
+    ).toMatchObject({ failure: "usage-limit" });
+    expect(threadEventSchema.parse({ ...base, type: "provider/error" })).not.toHaveProperty(
+      "failure",
+    );
+    // a class a later build adds costs the event nothing on this one
+    expect(
+      threadEventSchema.parse({ ...base, failure: "some-later-class", type: "provider/error" }),
+    ).toMatchObject({ failure: null, message: "boom" });
+  });
+
   it("round-trips a streamed item event", () => {
     const event = threadEventSchema.parse({
       item: { id: "item_1", text: "done", type: "agentMessage" },
