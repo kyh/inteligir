@@ -39,7 +39,8 @@ const REPO_DOCS = {
   "README.md": readFileSync(`${REPO_ROOT}/README.md`, "utf-8"),
 } satisfies Record<string, string>;
 
-// oxlint-disable-next-line sort-keys -- Object.entries below declares the tests in this order, which groups the repo doc ahead of the vault fixtures
+// Object.entries below declares the tests in this order, which groups the repo doc ahead of the
+// vault fixtures
 const EXPECTED = {
   // wrapped paragraphs → soft-break churn
   "README.md": "formattable",
