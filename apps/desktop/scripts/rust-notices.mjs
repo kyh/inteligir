@@ -1,8 +1,9 @@
 // The Rust crates the shell links into its one binary, and the notices their licences ask to travel
 // with it: each crate with its version, licence and source, then every licence text the crates
 // ship, each text once beside the crates it covers. Read from cargo's own resolve for the Mac
-// target, through normal edges alone, so a crate only another platform links, or only the build
-// runs, is not listed. A crate that ships no text of its own is still listed with its licence.
+// target, through normal edges alone and never into a proc macro, which the compiler runs rather
+// than links, so a crate only another platform links, only the build runs or only a macro uses is
+// not listed. A crate that ships no text of its own is still listed with its licence.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -11,7 +12,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const TARGET = "aarch64-apple-darwin";
-const LICENCE_FILE = /^(?:licen[cs]e|copying|notice|copyright)/iu;
+const LICENCE_FILE = /^(?:(?:un)?licen[cs]e|copying|notice|copyright)/iu;
 
 const cargoMetadata = (manifestDir) => {
   const result = spawnSync(
@@ -25,6 +26,8 @@ const cargoMetadata = (manifestDir) => {
   return JSON.parse(result.stdout);
 };
 
+const isProcMacro = (entry) => entry.targets.some((target) => target.kind.includes("proc-macro"));
+
 // the root's normal dependencies, transitively: what is compiled into the binary
 const linkedPackages = (metadata) => {
   const packages = new Map(metadata.packages.map((entry) => [entry.id, entry]));
@@ -37,7 +40,10 @@ const linkedPackages = (metadata) => {
     if (!linked.has(id)) {
       linked.add(id);
       for (const dep of nodes.get(id).deps) {
-        if (dep.dep_kinds.some((kind) => kind.kind === null)) {
+        if (
+          dep.dep_kinds.some((kind) => kind.kind === null) &&
+          !isProcMacro(packages.get(dep.pkg))
+        ) {
           pending.push(dep.pkg);
         }
       }

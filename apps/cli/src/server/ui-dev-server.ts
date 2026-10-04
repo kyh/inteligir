@@ -29,10 +29,15 @@ export const uiDevOrigin = (env: NodeJS.ProcessEnv, mode: "dev" | "prod"): strin
 // fetch has already undone the encoding the length and the header describe
 const DROPPED_HEADERS = ["content-encoding", "content-length", "transfer-encoding"];
 
-// the file as Vite answers it, for the path and query the page asked this server for
+// the file as Vite answers it, for the path and query the page asked this server for. The target
+// is Vite's origin with the path set on it, never the path resolved against it: `//host/x` would
+// resolve to another host.
 export const forwardToUiDevServer = async (origin: string, request: Request): Promise<Response> => {
   const asked = new URL(request.url);
-  const upstream = await fetch(new URL(`${asked.pathname}${asked.search}`, origin), {
+  const target = new URL(origin);
+  target.pathname = asked.pathname;
+  target.search = asked.search;
+  const upstream = await fetch(target, {
     headers: { accept: request.headers.get("accept") ?? "*/*" },
     method: request.method,
   });

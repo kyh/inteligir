@@ -1,3 +1,4 @@
+import { deferred } from "@repo/editor/deferred";
 import { freeDocPath } from "@repo/notes/knowledge/doc-file";
 import { describe, expect, it } from "vitest";
 import { createPlateEditor } from "platejs/react";
@@ -171,7 +172,7 @@ describe("the extract", () => {
   });
 
   it("follows the blocks when the note moves them while the create is in flight", async () => {
-    const create = Promise.withResolvers<CreateNewFileResult>();
+    const create = deferred<CreateNewFileResult>();
     installFakeEditorHost({ createNewFileAt: async () => await create.promise });
     const editor = editorOver([h2("Plan"), p("one"), p("two")], "Source.md");
     editor.tf.select({ anchor: { offset: 0, path: [1, 0] }, focus: { offset: 3, path: [2, 0] } });
@@ -199,7 +200,7 @@ describe("the extract", () => {
       },
     ];
     for (const edit of edits) {
-      const create = Promise.withResolvers<CreateNewFileResult>();
+      const create = deferred<CreateNewFileResult>();
       installFakeEditorHost({ createNewFileAt: async () => await create.promise });
       const editor = editorOver([h2("Plan"), p("one"), p("two")], "Source.md");
       editor.tf.select({ anchor: { offset: 0, path: [1, 0] }, focus: { offset: 3, path: [2, 0] } });

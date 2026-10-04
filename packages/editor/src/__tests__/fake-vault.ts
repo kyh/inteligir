@@ -1,3 +1,5 @@
+import { deferred } from "@repo/editor/deferred";
+import type { Deferred } from "@repo/editor/deferred";
 import type { CreateOutcome, VaultIO, WriteOutcome } from "@repo/editor/vault-editor";
 
 // `hangReads` never settles a read, so a runtime can be observed before its first
@@ -12,17 +14,17 @@ export class FakeVault implements VaultIO {
   hangReads = false;
   manualRead = false;
   manualWrite = false;
-  pendingReads: PromiseWithResolvers<string>[] = [];
-  pendingWrites: PromiseWithResolvers<void>[] = [];
+  pendingReads: Deferred<string>[] = [];
+  pendingWrites: Deferred<void>[] = [];
   landAs: ((sent: string) => string) | null = null;
   landsConflicted = false;
 
   read = async (path: string): Promise<string> => {
     if (this.hangReads) {
-      return await Promise.withResolvers<string>().promise;
+      return await deferred<string>().promise;
     }
     if (this.manualRead) {
-      const pending = Promise.withResolvers<string>();
+      const pending = deferred<string>();
       this.pendingReads.push(pending);
       return await pending.promise;
     }
@@ -40,7 +42,7 @@ export class FakeVault implements VaultIO {
     const landed = this.landAs?.(content) ?? content;
     this.files.set(path, landed);
     if (this.manualWrite) {
-      const pending: PromiseWithResolvers<void> = Promise.withResolvers();
+      const pending: Deferred<void> = deferred();
       this.pendingWrites.push(pending);
       await pending.promise;
     }

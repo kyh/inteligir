@@ -9,7 +9,9 @@ import type { AskServerStatus, StatusAnswer } from "inteligir/server/server-prob
 import { makeTempDir } from "inteligir/server/testing";
 import type { SystemStatusResponse } from "@repo/contract/local/system/system-schema";
 import { describe, expect, it } from "vitest";
+import { bootTestApp, listenTestApp, TEST_SERVER_TOKEN } from "../../server/__tests__/boot-app";
 import {
+  adoptServer,
   describeServerVerdict,
   planServerStart,
   resolveServerTarget,
@@ -354,5 +356,27 @@ describe("planServerStart", () => {
     { claimed: "/elsewhere", kind: "wrong-data-dir", origin: loopbackOrigin(4664) },
   ])("spawns its own when nothing holds the data dir: %o", (verdict) => {
     expect(planServerStart(verdict, "/data")).toEqual({ kind: "spawn" });
+  });
+});
+
+const adopting = async (uiDevOrigin?: string) => {
+  const booted = await bootTestApp(uiDevOrigin === undefined ? {} : { uiDevOrigin });
+  const { port } = await listenTestApp(booted);
+  const live = { origin: loopbackOrigin(port), token: TEST_SERVER_TOKEN };
+  return { adoption: await adoptServer(live, booted.dataDir), live };
+};
+
+describe("adoptServer", () => {
+  it("hands back a sign-in for a server that serves its page", async () => {
+    const { adoption, live } = await adopting("http://127.0.0.1:9");
+    expect(adoption.kind === "adopted" && adoption.handoffUrl.startsWith(`${live.origin}/?`)).toBe(
+      true,
+    );
+  });
+
+  it("refuses one built without its page, in words, rather than throwing", async () => {
+    const { adoption, live } = await adopting();
+    expect(adoption.kind).toBe("refused");
+    expect(adoption.kind === "refused" && adoption.reason.includes(live.origin)).toBe(true);
   });
 });

@@ -2,9 +2,9 @@
 // a Mac without the developer tools runs, and the CLI's native addons and vendor binaries (better-
 // sqlite3, the watcher, claude, codex and what they ship). Tauri signs the shell, the node beside it
 // and the bundle, and its seal covers each resource's bytes, but notarization refuses any Mach-O
-// inside that is not itself signed with the hardened runtime and a timestamp. Each takes the app's
-// entitlements, as electron-builder's pass gave every binary it signed: node runs JIT, and the
-// vendors' own runtimes do too.
+// inside that is not itself signed with the hardened runtime and a timestamp. The server's tree
+// takes the app's entitlements, since the vendors' own runtimes JIT as node does; git takes none,
+// since it runs no JIT and an entitlement a binary never uses is still a permission it holds.
 
 import { spawnSync } from "node:child_process";
 import { open, readdir } from "node:fs/promises";
@@ -13,9 +13,11 @@ import path from "node:path";
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const ENTITLEMENTS = path.join(packageRoot, "resources", "entitlements.mac.plist");
 
-// the magic numbers a Mach-O file, or a fat one, opens with
+// the magic numbers a Mach-O file opens with, 32- or 64-bit, or a fat one with 32- or 64-bit
+// offsets, each in either byte order
 const MACH_O_MAGIC = new Set([
   0xfe_ed_fa_ce, 0xfe_ed_fa_cf, 0xce_fa_ed_fe, 0xcf_fa_ed_fe, 0xca_fe_ba_be, 0xbe_ba_fe_ca,
+  0xca_fe_ba_bf, 0xbf_ba_fe_ca,
 ]);
 
 const isMachO = async (file) => {
@@ -41,17 +43,23 @@ const machOsUnder = async (dir) => {
   return found;
 };
 
-// `-` signs ad-hoc: what an unsigned pack runs on, since Apple silicon runs nothing unsigned. An
-// ad-hoc pack carries no team, so it takes no hardened runtime, whose library validation would
-// refuse its own addons, and no timestamp, which only a Developer ID can get
-export const signResources = async (dirs, identity, hardened) => {
+// `jit`: trees whose binaries may run a JavaScript engine, signed with the app's entitlements;
+// `plain`: trees of native tools, signed with none. `-` signs ad-hoc: what an unsigned pack runs
+// on, since Apple silicon runs nothing unsigned. An ad-hoc pack carries no team, so it takes no
+// hardened runtime, whose library validation would refuse its own addons, and no timestamp, which
+// only a Developer ID can get
+export const signResources = async ({ jit, plain }, identity, hardened) => {
   const options = hardened ? ["--options", "runtime", "--timestamp"] : [];
+  const trees = [
+    ...jit.map((dir) => ({ dir, entitlements: ["--entitlements", ENTITLEMENTS] })),
+    ...plain.map((dir) => ({ dir, entitlements: [] })),
+  ];
   let signed = 0;
-  for (const dir of dirs) {
+  for (const { dir, entitlements } of trees) {
     for (const file of await machOsUnder(dir)) {
       const result = spawnSync(
         "codesign",
-        ["--force", "--sign", identity, ...options, "--entitlements", ENTITLEMENTS, file],
+        ["--force", "--sign", identity, ...options, ...entitlements, file],
         { encoding: "utf-8" },
       );
       if (result.status !== 0) {

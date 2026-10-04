@@ -302,10 +302,10 @@ pnpm smoke:desktop        # package, boot it, drive its server, quit
    the workspace's patches ship (codex-acp's among them, which npm itself would
    drop) and no symlink rides into the bundle.
 3. `scripts/sign-resources.mjs` signs every Mach-O those resources carry (the
-   git, the native addons, the vendors' own binaries) with the hardened runtime
-   and `resources/entitlements.mac.plist`: Tauri signs the shell, the node and
-   the bundle, but notarization refuses any binary inside that is not itself
-   signed.
+   git, the native addons, the vendors' own binaries) with the hardened runtime,
+   the server's tree with `resources/entitlements.mac.plist` and the git, which
+   runs no JIT, with none: Tauri signs the shell, the node and the bundle, but
+   notarization refuses any binary inside that is not itself signed.
 4. `scripts/rust-notices.mjs` writes `.output/notices/rust-crates.txt`: every
    crate the shell's binary links on the Mac, read from cargo's own resolve,
    with its version, licence and source, and each licence text the crates ship,

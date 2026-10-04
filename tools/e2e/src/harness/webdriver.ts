@@ -165,8 +165,21 @@ export const openSession = async (
     async close() {
       await command(origin, { method: "DELETE", path: at }, z.null()).catch(() => null);
     },
-    handles: async () =>
-      await command(origin, { method: "GET", path: `${at}/window/handles` }, z.array(z.string())),
+    // a session whose one window is gone may say so as a refusal; any other refusal is a fault
+    handles: async () => {
+      try {
+        return await command(
+          origin,
+          { method: "GET", path: `${at}/window/handles` },
+          z.array(z.string()),
+        );
+      } catch (error) {
+        if (error instanceof WebDriverError && error.code === "no such window") {
+          return [];
+        }
+        throw error;
+      }
+    },
     run,
     runAsync: async (script, schema) =>
       await command(

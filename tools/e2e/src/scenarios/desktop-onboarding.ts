@@ -67,7 +67,7 @@ export const desktopOnboarding: Scenario = {
     );
     // the session's window was the first run's, and the boot closed it
     await pollUntil(
-      async () => await page.handles().catch(() => []),
+      async () => await page.handles(),
       (handles) => handles.length === 0,
       {
         deadlineMs: STEP_DEADLINE_MS,

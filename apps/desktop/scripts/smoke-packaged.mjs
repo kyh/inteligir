@@ -11,7 +11,9 @@ import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-// the workspace link, not the packaged copy: `files` does not ship scripts
+// the workspace's links, not the packaged copies: `files` does not ship scripts, and the route
+// constants are the contract's own source, which node strips of its types
+import { HEALTH_PATH, RPC_PREFIX } from "@repo/contract/local/routes";
 import { proveWatcherAlive } from "inteligir/scripts/smoke-lib.mjs";
 
 const CLI_BIN_NAME = "inteligir";
@@ -51,7 +53,9 @@ const CONFIG_FILE_NAME = "config.json";
 // what the runtime reports when the vendor refuses for want of a sign-in
 // (packages/agent-runtime/src/acp/provider-error.ts)
 const CODEX_SIGNED_OUT = "ChatGPT is signed out on this Mac";
-// the shell's note in the server's log once the child it started has stopped (src-tauri/src/server.rs)
+// the shell's notes in the server's log as it starts a child and once that child has stopped
+// (src-tauri/src/server.rs)
+const SERVER_STARTING = "[desktop] starting the server";
 const SERVER_STOPPED_CLEANLY = "server exited (code 0)";
 const SERVER_LOG = path.join("logs", "server.log");
 // the shell's lines once a window's page has loaded (src-tauri/src/window.rs)
@@ -267,7 +271,7 @@ const launchApp = (env) => {
 };
 
 const waitHealthy = async (url) => {
-  const health = await waitForUrl(`${url}/health`, BOOT_TIMEOUT_MS);
+  const health = await waitForUrl(`${url}${HEALTH_PATH}`, BOOT_TIMEOUT_MS);
   if (health === null) {
     fail(`no health answer within ${BOOT_TIMEOUT_MS}ms — see the output above`);
   }
@@ -298,7 +302,7 @@ const waitWindowLoaded = async (launched) => {
 const rpcClient = (url, forDataDir) => {
   const row = JSON.parse(readFileSync(path.join(forDataDir, "server.json"), "utf-8"));
   return async (procedure, input) => {
-    const response = await fetch(`${url}/rpc/${procedure}`, {
+    const response = await fetch(`${url}${RPC_PREFIX}/${procedure}`, {
       body: input === undefined ? "{}" : JSON.stringify({ json: input }),
       headers: { authorization: `Bearer ${row.token}`, "content-type": "application/json" },
       method: "POST",
@@ -332,11 +336,13 @@ const quitApp = async (launched) => {
 };
 
 // the quit stops the server first, which is the ordered shutdown under test; the shell notes how
-// its child ended in the server's log
+// its child ended in the server's log. Looked for in this launch's part of the log rather than at
+// its end: the child's last buffered lines may still land after the note
 const stopApp = async (launched, forDataDir) => {
   const exit = await quitApp(launched);
   const serverLog = readFileSync(path.join(forDataDir, SERVER_LOG), "utf-8");
-  if (!serverLog.trimEnd().endsWith(SERVER_STOPPED_CLEANLY)) {
+  const thisLaunch = serverLog.slice(Math.max(serverLog.lastIndexOf(SERVER_STARTING), 0));
+  if (!thisLaunch.includes(SERVER_STOPPED_CLEANLY)) {
     fail("the app quit without its server stopping cleanly — a graceful stop must exit 0");
   }
   if (exit.code !== 0) {

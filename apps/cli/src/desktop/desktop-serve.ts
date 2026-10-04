@@ -4,7 +4,7 @@
 //
 // A server already listening for this data dir at this version is adopted: its origin and a fresh
 // handoff are announced, and this process leaves it running and exits. One that holds the data dir
-// but cannot be adopted is refused in the person's words. Otherwise the server boots here, and the
+// but cannot be adopted, or cannot sign a window in, is refused in the person's words. Otherwise the server boots here, and the
 // line says where it listens, the one-time link that signs the window in, and how long a stop may
 // take before the shell kills it, which is the server's own budget and never spelled in the shell.
 
@@ -13,12 +13,7 @@ import { DEBUG_NAMESPACES } from "../server/debug-log";
 import type { RunServeOptions } from "../server/serve";
 import { SHUTDOWN_TIMEOUT_MS } from "../server/shutdown";
 import { writeAgentLauncher } from "./agent-launcher";
-import {
-  browserSignInUrl,
-  planServerStart,
-  resolveServerTarget,
-  verifyServer,
-} from "./server-start";
+import { adoptServer, planServerStart, resolveServerTarget, verifyServer } from "./server-start";
 import type { ResolveServerTargetArgs } from "./server-start";
 
 // the shell reads this prefix (apps/desktop/src-tauri/src/server.rs), held to it by
@@ -44,22 +39,6 @@ const announce = async (announcement: Announcement): Promise<void> => {
   await written.promise;
 };
 
-// the shell holds the other end of stdin and never writes to it, so it closes only when the shell
-// is gone: a server whose app crashed or was killed must not go on holding the data dir. a stop
-// the shell asked for has already signalled, and a second signal would read as impatience.
-const watchLifeline = (): void => {
-  let stopping = false;
-  process.once("SIGTERM", () => {
-    stopping = true;
-  });
-  process.stdin.on("end", () => {
-    if (!stopping) {
-      process.kill(process.pid, "SIGTERM");
-    }
-  });
-  process.stdin.resume();
-};
-
 export const desktopServe = async (
   resolveArgs: ResolveServerTargetArgs,
   debug: boolean,
@@ -81,14 +60,19 @@ export const desktopServe = async (
     process.exit(1);
   }
   if (plan.kind === "adopt") {
+    const adoption = await adoptServer(plan.live, dataDir);
+    if (adoption.kind === "refused") {
+      await announce(adoption);
+      process.exit(1);
+    }
     await announce({
-      handoffUrl: await browserSignInUrl(plan.live),
+      handoffUrl: adoption.handoffUrl,
       kind: "adopted",
       origin: plan.live.origin,
     });
     process.exit(0);
   }
-  watchLifeline();
+  // the shell holds stdin's other end and never writes it, so it ends only when the shell is gone
   const options: RunServeOptions = resolveArgs.isPackaged
     ? {
         cliBinDir: writeAgentLauncher({
@@ -97,8 +81,9 @@ export const desktopServe = async (
           node: process.execPath,
           nodeEnv: "production",
         }),
+        lifeline: process.stdin,
       }
-    : {};
+    : { lifeline: process.stdin };
   // dynamic: the shell's other questions load no server
   const { runServe } = await import("../server/serve");
   const { serverUrl, uiUrl } = await runServe(version, {}, options);

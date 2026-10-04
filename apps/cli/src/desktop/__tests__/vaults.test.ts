@@ -101,6 +101,24 @@ describe("what may be switched", () => {
         reason: "inside-app-data",
       });
     });
+
+    // the volume answers the respelling with the folder there, whose own case the native realpath
+    // gives back, so the two compare as the one folder they are
+    it.skipIf(!TEMP_DIR_FOLDS_CASE)(
+      "the data folder in another case, where the volume folds case",
+      () => {
+        const { current } = scratchHome();
+        mkdirSync(current.rootDataDir, { recursive: true });
+        const respelled = path.join(
+          path.dirname(current.rootDataDir),
+          path.basename(current.rootDataDir).toUpperCase(),
+        );
+        expect(planVaultSwitch(current, respelled)).toEqual({
+          kind: "refused",
+          reason: "inside-app-data",
+        });
+      },
+    );
   });
 
   it("has a sentence for every refusal", () => {

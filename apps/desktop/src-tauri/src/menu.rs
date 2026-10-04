@@ -1,7 +1,8 @@
 //! The macOS menu bar and the menu-bar icon's menu, rebuilt whenever what they offer moves (a vault
 //! opens, the recent list changes). Both offer the data folder only once a vault is open, which a
-//! first run has not yet. A menu click is the main thread's, so anything that waits (the CLI, a
-//! dialog, a server's start) runs on a thread of its own.
+//! first run has not yet, and a switch only where the page offers one (`vaults_state`'s `blocked`).
+//! A menu click is the main thread's, so anything that waits (the CLI, a dialog, a server's start)
+//! runs on a thread of its own.
 
 use tauri::menu::{
     AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu, SubmenuBuilder,
@@ -67,11 +68,11 @@ fn app_menu<R: Runtime>(app: &AppHandle<R>, vault_open: bool) -> tauri::Result<S
 
 fn file_menu<R: Runtime>(
     app: &AppHandle<R>,
-    vault_open: bool,
+    switchable: bool,
     recent: &[String],
 ) -> tauri::Result<Submenu<R>> {
     let mut recent_menu =
-        SubmenuBuilder::new(app, "Open Recent Vault").enabled(vault_open && !recent.is_empty());
+        SubmenuBuilder::new(app, "Open Recent Vault").enabled(switchable && !recent.is_empty());
     for path in recent {
         let name = crate::vaults::vault_ref(path).name;
         recent_menu = recent_menu.item(&item(
@@ -87,7 +88,7 @@ fn file_menu<R: Runtime>(
             app,
             OPEN_VAULT,
             "Open Vault…",
-            vault_open,
+            switchable,
             Some("CmdOrCtrl+O"),
         )?)
         .item(&recent_menu.build()?)
@@ -113,6 +114,8 @@ fn edit_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Submenu<R>> {
 fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let shell = app.state::<Shell>();
     let vault_open = shell.target().is_some();
+    // an adopted server, or a launch an env var pins, refuses a switch: no entry offers one
+    let switchable = shell::vaults_state(app).is_some_and(|state| state.blocked.is_none());
     let recent = shell::remember_list(app);
     let view = SubmenuBuilder::new(app, "View")
         .item(&PredefinedMenuItem::fullscreen(app, None)?)
@@ -134,7 +137,7 @@ fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         app,
         &[
             &app_menu(app, vault_open)?,
-            &file_menu(app, vault_open, &recent)?,
+            &file_menu(app, switchable, &recent)?,
             &edit_menu(app)?,
             &view,
             &window,

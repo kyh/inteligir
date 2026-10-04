@@ -6,8 +6,9 @@
     "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.config.json"
   },
   "include": ["vite.config.ts", "vitest.config.ts"],
-  // `src` is the page and its own program (src/renderer/tsconfig.json): it type-checks against the
-  // DOM and React rather than @types/node, and reaches the shared states beside it (src/*.ts) by
-  // import. The shell is Rust (src-tauri), checked by clippy. `pnpm typecheck` runs all three.
+  // `src` is the page and its own programs (src/renderer/tsconfig.json with its suites, and
+  // tsconfig.page.json at the window's stdlib): they type-check against the DOM and React rather
+  // than @types/node, and reach the shared states beside them (src/*.ts) by import. The shell is
+  // Rust (src-tauri), checked by clippy. `pnpm typecheck` runs all four.
   "exclude": ["node_modules", "dist", "src", "src-tauri"]
 }

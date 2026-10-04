@@ -18,6 +18,7 @@
     "./comments/comment-ranges": "./src/comments/comment-ranges.ts",
     "./comments/comment-store": "./src/comments/comment-store.ts",
     "./cursor-overlay": "./src/cursor-overlay.tsx",
+    "./deferred": "./src/deferred.ts",
     "./dialect-node-keys": "./src/dialect-node-keys.ts",
     "./editor-chrome": "./src/editor-chrome.tsx",
     "./editor-column": "./src/editor-column.tsx",

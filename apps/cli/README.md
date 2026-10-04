@@ -191,7 +191,8 @@ and a browser's handoff, one question per process, answered as one JSON line
 (`src/desktop/desktop-door.ts`). `serve` is the one that stays: it is the
 server, run on the node the app ships, and it announces itself to the shell on
 one marked line (`src/desktop/desktop-serve.ts`), or adopts a server already
-serving its data dir at this version. Its stdin is the shell's lifeline: it
+serving its data dir at this version that can sign a window in (one built
+without its app is refused, in words). Its stdin is the shell's lifeline: it
 closes only when the shell is gone, and the server then stops itself rather
 than go on holding the data dir. Packaged, it writes the agents' `inteligir`
 as a launcher into the data dir (`src/desktop/agent-launcher.ts`), which runs

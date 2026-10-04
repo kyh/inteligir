@@ -3,6 +3,7 @@
 //! server exists. Each opens no second window and gets no device permission, and closing one hides
 //! it: the app lives on in the menu bar, and the page keeps its state for the next Show.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Instant;
 
@@ -54,6 +55,7 @@ fn pinned<'a, R: Runtime, M: Manager<R>>(
     let opens = Arc::new(ExternalOpens::new());
     let navigating = (app.clone(), Arc::clone(&opens));
     let opening = (app.clone(), opens);
+    let shown = AtomicBool::new(false);
     builder
         .title(app_title())
         .visible(false)
@@ -85,8 +87,11 @@ fn pinned<'a, R: Runtime, M: Manager<R>>(
                 let line = format!("[desktop] {page} loaded {}", payload.url().path());
                 println!("{line}");
                 noted(&line);
-                let shown = window.show().and_then(|()| window.set_focus());
-                if let Err(error) = shown {
+                // the first load alone: a later one (a reload) must not bring back a window Close
+                // hid, nor take the focus from whatever has it
+                if !shown.swap(true, Ordering::Relaxed)
+                    && let Err(error) = window.show().and_then(|()| window.set_focus())
+                {
                     eprintln!("[desktop] could not show the window: {error}");
                 }
             }

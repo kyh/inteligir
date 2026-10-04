@@ -529,6 +529,8 @@ fn run_switch<R: Runtime>(
 
 /// Writes config.json's selector (None clears it) and answers the vault the next boot resolves,
 /// re-read after the write as the CLI would.
+/// Points config.json at a vault (`None`: the default). The door takes back a selection its boot
+/// then refuses, so an `Err` here left the selector as it was and there is nothing to put back.
 fn select(door: &Door, vault_dir: Option<&str>) -> Result<Target, String> {
     match vault_dir {
         Some(vault_dir) => ask(door, &["select", vault_dir]),

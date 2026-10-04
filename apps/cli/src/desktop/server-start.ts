@@ -2,6 +2,7 @@
 // adopted. The resolution is the server's own, so the shell and `inteligir serve` can never boot
 // two answers to "which vault".
 
+import { isDefinedError, safe } from "@orpc/client";
 import { browserHandoffUrl } from "@repo/contract/local/routes";
 import { resolveAppConfig } from "../server/config";
 import type { AppConfig, ResolveAppConfigArgs, VaultDirSource } from "../server/config";
@@ -129,6 +130,34 @@ export const browserSignInUrl = async (server: LiveServer): Promise<string> => {
   });
   const { nonce } = await client.system.browserHandoff();
   return browserHandoffUrl(`${server.origin}/`, nonce);
+};
+
+export type Adoption =
+  | { kind: "adopted"; handoffUrl: string }
+  | { kind: "refused"; reason: string };
+
+// a server built without its page (an unbuilt checkout) cannot sign a window in, so it is refused
+// in words: thrown, it would end the entry with nothing the shell could show
+export const adoptServer = async (live: LiveServer, dataDir: string): Promise<Adoption> => {
+  const client = createLocalClient({
+    origin: live.origin,
+    timeoutMs: HANDOFF_TIMEOUT_MS,
+    token: live.token,
+  });
+  const handoff = await safe(client.system.browserHandoff());
+  if (handoff.error === null) {
+    return {
+      handoffUrl: browserHandoffUrl(`${live.origin}/`, handoff.data.nonce),
+      kind: "adopted",
+    };
+  }
+  if (isDefinedError(handoff.error) && handoff.error.code === "NOT_FOUND") {
+    return {
+      kind: "refused",
+      reason: `The inteligir server already serving ${dataDir} at ${live.origin} was built without its app, so it has no window to show. Stop that server, then try again.`,
+    };
+  }
+  throw handoff.error;
 };
 
 export const describeServerVerdict = (verdict: ServerVerdict, dataDir: string): string => {

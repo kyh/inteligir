@@ -39,8 +39,10 @@ fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 }
 
 fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayIcon<R>> {
-    // the app icon as a template: macOS draws its shape in the menu bar's own colour
-    let icon = Image::from_bytes(include_bytes!("../icons/32x32.png"))?;
+    // a template, which macOS draws in the menu bar's own colour from its alpha alone: the app
+    // icon's wire sphere on a transparent ground (the icon itself is opaque edge to edge, so as a
+    // template it drew a plain square)
+    let icon = Image::from_bytes(include_bytes!("../icons/tray-template.png"))?;
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
         .icon_as_template(true)

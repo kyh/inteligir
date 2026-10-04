@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { outsideSyncWarning } from "@repo/contract/local/vault/vault-folder";
 import { packageFile, readCliVersion } from "../paths";
-import { writeManagedVaultDir } from "../server/config";
+import { readManagedVaultDir, writeManagedVaultDir } from "../server/config";
 import { selectionBlockedByEnv, selectionRefusalMessage } from "../server/vault-switch";
 import { folderExternalSync, inspectVaultFolder } from "../server/vault/folder-facts";
 import {
@@ -167,14 +167,22 @@ const planSwitch = (context: DoorContext, dir: string): DoorReply => {
 
 // config.json's selector (null clears it, so the next launch is a first run again), and the vault
 // the next boot resolves, re-read after the write as a boot would
+// a selection the boot's own resolution then refuses is taken back, so a refusal always leaves the
+// selector as it found it: the shell puts back a selector only after a boot that failed
 const select = (context: DoorContext, vaultDir: string | null): DoorReply => {
   const current = resolveServerTarget(doorTargetArgs(context));
   if (current.kind === "refused") {
     return { reason: current.error };
   }
-  writeManagedVaultDir(current.target.rootDataDir, vaultDir);
+  const { rootDataDir } = current.target;
+  const previous = readManagedVaultDir(rootDataDir);
+  writeManagedVaultDir(rootDataDir, vaultDir);
   const next = resolveServerTarget(doorTargetArgs(context));
-  return next.kind === "refused" ? { reason: next.error } : { answer: describeTarget(next.target) };
+  if (next.kind === "refused") {
+    writeManagedVaultDir(rootDataDir, previous);
+    return { reason: next.error };
+  }
+  return { answer: describeTarget(next.target) };
 };
 
 // a browser holds no bearer, so "Open in Browser" signs one in through a handoff

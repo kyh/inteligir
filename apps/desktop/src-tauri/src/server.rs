@@ -28,6 +28,11 @@ pub const READY_TIMEOUT: Duration = Duration::from_secs(45);
 /// read as the server's own output (`apps/cli/src/desktop/desktop-serve.ts`).
 pub const READY_MARKER: &str = "inteligir-desktop:";
 
+/// How long an exit waits for the child's stdout to be read to its end, so a line printed just
+/// before the exit (an adoption, a refusal) reaches `start` ahead of the exit itself. Bounded,
+/// since a grandchild that inherited the pipe would hold it open.
+const DRAIN_WAIT: Duration = Duration::from_secs(2);
+
 /// Where the window goes: the server's origin, and a one-time link that signs the window in.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -95,6 +100,7 @@ struct Exit {
 #[derive(Default)]
 struct ExitState {
     exited: bool,
+    code: Option<i32>,
     ready: bool,
     stopping: bool,
 }
@@ -104,12 +110,16 @@ enum Event {
     Exited(Option<i32>),
 }
 
+/// Reads a stream to its end on a thread of its own. The receiver it returns disconnects once the
+/// stream has ended, which is what an exit waits on.
 fn pump<R: Read + Send + 'static>(
     stream: R,
     log: Arc<Mutex<ServerLog>>,
     announce: Option<mpsc::Sender<Event>>,
-) {
+) -> mpsc::Receiver<()> {
+    let (drained, ended) = mpsc::channel();
     thread::spawn(move || {
+        let _drained: mpsc::Sender<()> = drained;
         let mut announced = false;
         for line in BufReader::new(stream).lines().map_while(Result::ok) {
             if !announced
@@ -124,6 +134,56 @@ fn pump<R: Read + Send + 'static>(
             log.lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .append(&line);
+        }
+    });
+    ended
+}
+
+/// What the watcher reports a child's exit to.
+struct Watched {
+    exit: Arc<Exit>,
+    log: Arc<Mutex<ServerLog>>,
+    stdout_ended: Option<mpsc::Receiver<()>>,
+    events: mpsc::Sender<Event>,
+}
+
+/// Waits the child out on a thread of its own, then says it exited: in the log, to whatever waits
+/// in `stop`, and to `start` once the child's stdout has been read to its end, so an announcement
+/// the child printed before it exited arrives first.
+fn watch(
+    mut child: Child,
+    watched: Watched,
+    on_unexpected_exit: impl FnOnce(Option<i32>) + Send + 'static,
+) {
+    thread::spawn(move || {
+        let code = child
+            .wait()
+            .ok()
+            .and_then(|status: ExitStatus| status.code());
+        watched
+            .log
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .append(&format!("server exited (code {})", describe(code)));
+        // `start` reads `exited` under this lock as it takes the ready line, so exactly one of the
+        // two tells of a server gone as it announced itself
+        let unexpected = {
+            let mut state = watched
+                .exit
+                .status
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            state.exited = true;
+            state.code = code;
+            state.ready && !state.stopping
+        };
+        watched.exit.changed.notify_all();
+        if let Some(ended) = watched.stdout_ended {
+            let _ = ended.recv_timeout(DRAIN_WAIT);
+        }
+        let _ = watched.events.send(Event::Exited(code));
+        if unexpected {
+            on_unexpected_exit(code);
         }
     });
 }
@@ -165,39 +225,25 @@ pub fn start(
     let pid = child.id();
     let lifeline = child.stdin.take();
     let (events, received) = mpsc::channel();
-    if let Some(stdout) = child.stdout.take() {
-        pump(stdout, Arc::clone(&log), Some(events.clone()));
-    }
+    let stdout_ended = child
+        .stdout
+        .take()
+        .map(|stdout| pump(stdout, Arc::clone(&log), Some(events.clone())));
     if let Some(stderr) = child.stderr.take() {
         pump(stderr, Arc::clone(&log), None);
     }
 
     let exit = Arc::new(Exit::default());
-    let watched = Arc::clone(&exit);
-    let exit_log = Arc::clone(&log);
-    thread::spawn(move || {
-        let code = child
-            .wait()
-            .ok()
-            .and_then(|status: ExitStatus| status.code());
-        exit_log
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .append(&format!("server exited (code {})", describe(code)));
-        let unexpected = {
-            let mut state = watched
-                .status
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
-            state.exited = true;
-            state.ready && !state.stopping
-        };
-        watched.changed.notify_all();
-        let _ = events.send(Event::Exited(code));
-        if unexpected {
-            on_unexpected_exit(code);
-        }
-    });
+    watch(
+        child,
+        Watched {
+            exit: Arc::clone(&exit),
+            log: Arc::clone(&log),
+            stdout_ended,
+            events,
+        },
+        on_unexpected_exit,
+    );
 
     let mut server = OwnedServer {
         pid,
@@ -211,12 +257,22 @@ pub fn start(
             stop_grace_ms,
         })) => {
             server.stop_grace = Duration::from_millis(stop_grace_ms);
-            server
-                .exit
-                .status
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .ready = true;
+            let gone = {
+                let mut state = server
+                    .exit
+                    .status
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner);
+                state.ready = true;
+                state.exited.then_some(state.code)
+            };
+            // it exited before its ready line was read, so the watcher left the telling here
+            if let Some(code) = gone {
+                return Err(format!(
+                    "the server exited as soon as it was ready (code {}). Its log says why.",
+                    describe(code)
+                ));
+            }
             Ok(Started::Owned { live, server })
         }
         // the entry exits once it has named the server it found; nothing of it is left to stop
@@ -353,6 +409,64 @@ mod tests {
                 reason: "Stop it first.".to_owned()
             })
         );
+    }
+
+    // `/bin/sh -c <script>` in the entry's place: the races are the shell's, not node's
+    #[cfg(unix)]
+    fn spec_running(script: &str, dir: &std::path::Path) -> ServerSpec {
+        ServerSpec {
+            node: PathBuf::from("/bin/sh"),
+            entry: PathBuf::from("-c"),
+            args: vec![script.to_owned()],
+            cwd: dir.to_path_buf(),
+            env: BTreeMap::new(),
+            log: Arc::new(Mutex::new(ServerLog::new(
+                dir.join("server.log"),
+                crate::server_log::SERVER_LOG_MAX_BYTES,
+            ))),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_entry_that_announces_and_exits_at_once_is_adopted() -> std::io::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let script = r#"echo 'inteligir-desktop:{"kind":"adopted","origin":"o","handoffUrl":"u"}'"#;
+        for _ in 0..40 {
+            let started = start(spec_running(script, dir.path()), |_| {});
+            assert!(
+                matches!(started, Ok(Started::Adopted { .. })),
+                "the exit outran the announcement: {:?}",
+                started.err()
+            );
+        }
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_server_gone_as_it_announces_is_reported_exactly_once() -> std::io::Result<()> {
+        let dir = tempfile::tempdir()?;
+        let script = r#"echo 'inteligir-desktop:{"kind":"ready","origin":"o","handoffUrl":"u","stopGraceMs":1000}'"#;
+        for _ in 0..40 {
+            let (told, heard) = mpsc::channel();
+            let started = start(spec_running(script, dir.path()), move |code| {
+                let _ = told.send(code);
+            });
+            match started {
+                // `start` said so, so the watcher must not
+                Err(reason) => {
+                    assert!(reason.contains("as soon as it was ready"), "{reason}");
+                    assert!(heard.recv_timeout(Duration::from_millis(300)).is_err());
+                }
+                // the window would load a dead server unless the watcher says so
+                Ok(Started::Owned { .. }) => {
+                    assert_eq!(heard.recv_timeout(Duration::from_secs(5)), Ok(Some(0)));
+                }
+                Ok(Started::Adopted { .. }) => panic!("a ready line read as an adoption"),
+            }
+        }
+        Ok(())
     }
 
     #[test]

@@ -5,8 +5,9 @@
   something needs it: an entitlement carried "just in case" is a permission the
   shipped app really holds.
 
-  The shell, the node beside it and every binary in Contents/Resources take
-  this one file (scripts/sign-resources.mjs).
+  The shell, the node beside it and every binary of the server's tree in
+  Contents/Resources take this one file; the bundled git, which runs no JIT,
+  takes none (scripts/sign-resources.mjs).
 
   Deliberately ABSENT: automation.apple-events (the shell scripts no other
   app), cs.disable-library-validation (it lets the process load unsigned

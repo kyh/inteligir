@@ -3,6 +3,7 @@
 // one note for its whole life; opening another is the native stack's push, so the back gesture
 // stays the phone's own.
 
+import { deferred } from "@repo/editor/deferred";
 import { z } from "zod";
 
 import { setAgentRequestActions } from "@repo/editor/agent-request";
@@ -65,7 +66,7 @@ const blobOf = (base64: string, mediaType: string): Blob =>
 
 // the platform's own encoder, so no hand-rolled codec rides beside it
 const base64Of = async (blob: Blob): Promise<string> => {
-  const read = Promise.withResolvers<string>();
+  const read = deferred<string>();
   const reader = new FileReader();
   reader.addEventListener("load", () => {
     const url = z.string().safeParse(reader.result);

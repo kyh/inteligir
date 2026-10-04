@@ -42,10 +42,10 @@ describe("a vault switch's answer", () => {
     expect(await openThroughSwitch()).toEqual([]);
   });
 
-  it("words a fault itself rather than passing on the shell's", async () => {
+  it("words a fault itself rather than passing on its details", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     installOpen(async () => {
-      throw new Error("Error invoking remote method 'desktop:vaults-open': Error: refused");
+      throw new Error("Command vaults_open not allowed by ACL");
     });
     expect(await openThroughSwitch()).toEqual(["Could not open that vault."]);
   });

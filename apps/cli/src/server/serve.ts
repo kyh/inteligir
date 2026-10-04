@@ -141,6 +141,9 @@ export interface RunServeOptions {
   // the folder an agent shell finds `inteligir` in; absent, this package's own bin. the desktop
   // app names a launcher that runs the node it ships, since its Mac may have none on PATH
   cliBinDir?: string;
+  // the desktop shell's lifeline (desktop/desktop-serve.ts): a stream it holds open and never
+  // writes, so its end means the shell is gone
+  lifeline?: NodeJS.ReadableStream;
 }
 
 const boot = async (
@@ -327,6 +330,18 @@ export const runServe = async (
     shutdown,
     target: process,
   });
+
+  // watched only once the signals above are, so a shell gone mid-boot reaches the teardown: a
+  // server whose app crashed or was killed must not go on holding the data dir. a stop already
+  // under way needs no second signal, which would read as impatience and skip the flush
+  if (options.lifeline !== undefined) {
+    options.lifeline.on("end", () => {
+      if (!shutdown.started) {
+        process.kill(process.pid, "SIGTERM");
+      }
+    });
+    options.lifeline.resume();
+  }
 
   try {
     return await boot(version, env, teardown, options);

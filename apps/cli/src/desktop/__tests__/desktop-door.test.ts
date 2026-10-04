@@ -93,6 +93,20 @@ describe("the selector", () => {
     expect(config).not.toHaveProperty("vaultDir");
   });
 
+  it("takes back a selection the boot then refuses, so a refusal never moves it", async () => {
+    const context = scratch();
+    const work = path.join(context.homeDir, "Work");
+    answered(targetAnswer, await answerDoor(context, "select", [work]));
+    const before = await launched(context);
+    // inside the data dir: the boot refuses it, but only once the selector names it
+    const refused = await answerDoor(context, "select", [
+      path.join(before.target.rootDataDir, "notes"),
+    ]);
+    expect("reason" in refused).toBe(true);
+    const after = await launched(context);
+    expect(after.target.vaultDir).toBe(work);
+  });
+
   it("opens a folder that is there where it is", async () => {
     const context = scratch();
     const notes = path.join(context.homeDir, "Notes");

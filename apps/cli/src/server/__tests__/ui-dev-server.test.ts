@@ -60,6 +60,20 @@ describe("a development shell's Vite", () => {
     expect(vite.asked).toEqual(["/src/main.tsx?t=1"]);
   });
 
+  it("asks Vite alone, whatever authority a path spells", async () => {
+    const vite = await fakeVite();
+    const booted = await bootTestApp({ uiDevOrigin: vite.origin });
+    const { nonce } = await booted.client.system.browserHandoff();
+    const traded = await booted.bareRequest(`/?${BROWSER_HANDOFF_PARAM}=${nonce}`);
+    const [cookie = ""] = (traded.headers.get("set-cookie") ?? "").split(";");
+
+    const answered = await booted.bareRequest("//elsewhere.invalid/x.js?t=1", {
+      headers: { cookie, "sec-fetch-site": "same-origin" },
+    });
+    expect(answered.status).toBe(200);
+    expect(vite.asked).toEqual(["//elsewhere.invalid/x.js?t=1"]);
+  });
+
   it("forwards nothing to a request with no session", async () => {
     const vite = await fakeVite();
     const booted = await bootTestApp({ uiDevOrigin: vite.origin });

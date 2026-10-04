@@ -121,7 +121,10 @@ log(updaterKey === null ? "no updater key: the app will not update itself" : "si
 
 run("node", [path.join(packageRoot, "scripts", "stage-server.mjs")]);
 const resourceCount = await signResources(
-  [path.join(packageRoot, ".output", "server"), path.join(packageRoot, "resources", "git")],
+  {
+    jit: [path.join(packageRoot, ".output", "server")],
+    plain: [path.join(packageRoot, "resources", "git")],
+  },
   identity,
   signed,
 );

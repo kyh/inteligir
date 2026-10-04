@@ -19,6 +19,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ### Fixed
 
+- **Notes open on iPhones with iOS 16.4 to 17.3.** On those versions the editor stopped before it could show a note; it now opens on every iPhone the app installs on.
 - **The agent's own Inteligir commands work on every Mac.** The agent drives the app by typing `inteligir` commands; on a Mac without Node.js installed those failed, and now they run on what the app carries.
 
 ## 0.6.0 — 2026-09-27

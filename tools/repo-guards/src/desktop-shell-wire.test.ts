@@ -26,7 +26,8 @@ const CSP = "apps/cli/src/server/csp.ts";
 // Tauri's own transport for commands, how the first run reaches its four; it carries IPC alone
 const TAURI_IPC_ORIGINS = ["ipc:", "http://ipc.localhost"];
 
-const sorted = (names: Iterable<string>): string[] => [...new Set(names)].toSorted();
+// sorted, never deduplicated: a name two rows spell is the clash "once" refuses
+const sorted = (names: Iterable<string>): string[] => [...names].toSorted();
 
 const allMatches = (text: string, pattern: RegExp): string[] =>
   [...text.matchAll(pattern)].map((match) => match.groups?.name ?? "");

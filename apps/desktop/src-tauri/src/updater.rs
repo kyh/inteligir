@@ -155,28 +155,32 @@ pub async fn check<R: Runtime>(app: &AppHandle<R>, reason: &str) -> UpdateState 
     updates(app).state()
 }
 
-/// Runs only where the button offers a download, so the two cannot disagree.
+/// Runs only where the button offers a download, so the two cannot disagree. Reserved before the
+/// update is read, so no check can swap `found` between the read and the download: the bytes are
+/// always the update's that install pairs them with.
 pub async fn download<R: Runtime>(app: &AppHandle<R>) -> UpdateState {
-    let (version, update) = {
-        let updates = updates(app);
-        let inner = updates.lock();
-        let Some(UpdateAction::Download { version }) = inner.state.action() else {
-            return inner.state.clone();
-        };
-        let Some(update) = inner.found.clone() else {
-            return inner.state.clone();
-        };
-        (version, update)
-    };
     if !reserve(app, Step::Download) {
         return updates(app).state();
     }
-    {
+    let (version, update) = {
         let updates = updates(app);
         let mut inner = updates.lock();
+        let offered = match (inner.state.action(), &inner.found) {
+            (Some(UpdateAction::Download { version }), Some(update))
+                if update.version == version =>
+            {
+                Some((version, update.clone()))
+            }
+            _ => None,
+        };
+        let Some((version, update)) = offered else {
+            inner.step = None;
+            return inner.state.clone();
+        };
         let next = inner.state.download_started(&version);
         publish(app, &mut inner, next);
-    }
+        (version, update)
+    };
     println!("[updater] downloading {version}");
     let mut received: u64 = 0;
     let progress_app = app.clone();

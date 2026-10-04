@@ -74,7 +74,7 @@ export type LaunchDesktopShellArgs = DesktopShellOptions & {
 
 // what `pnpm turbo run build:shell --filter=@repo/desktop` leaves, which the runner builds before a
 // shell scenario: an unbundled debug build, its first-run page inside it
-const shellBinary = (repoRoot: string): string =>
+export const shellBinary = (repoRoot: string): string =>
   path.join(repoRoot, "apps", "desktop", "src-tauri", "target", "debug", "Inteligir");
 
 const onPath = (name: string): boolean =>
@@ -195,8 +195,7 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
     }
     return session;
   };
-  // one ask: the driver starts a shell per session it is asked for, so a failed one is not retried
-  let asked = false;
+  // one ask: the driver starts a shell per session it is asked for, so a failed one ends the boot
   let driverOrigin = "";
   return await bootWithPorts<DesktopShell>({
     deadlineMs: READY_DEADLINE_MS,
@@ -209,17 +208,11 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
       if (session !== null) {
         return true;
       }
-      if (asked || !(await driverListening(driverOrigin))) {
+      if (!(await driverListening(driverOrigin))) {
         return false;
       }
-      asked = true;
-      try {
-        session = await openSession(driverOrigin, binary);
-        return true;
-      } catch (error) {
-        args.onLog(`the shell's WebDriver session did not open: ${String(error)}`);
-        return false;
-      }
+      session = await openSession(driverOrigin, binary);
+      return true;
     },
     spawn: ([port = 0, nativePort = 0, serverPort = 0]) => {
       driverOrigin = loopbackOrigin(port);

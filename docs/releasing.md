@@ -303,9 +303,10 @@ refuses a server of another version, so npm and the Mac app ship as one.
    update to, and one missing `Inteligir-arm64.dmg` leaves the Download button
    a 404. The zip and `latest-mac.yml` are for the Electron builds (0.6.0 and
    older), whose updater reads them: the zip holds this app, under the same
-   bundle id and team, so they update onto it. The manifest names macOS
-   13.5, node 24's floor, as the Darwin release electron-updater compares, so
-   an Electron build on an older Mac is offered nothing it cannot open and
+   bundle id and team, so they update onto it. The manifest's
+   `minimumSystemVersion` is Darwin 22.6.0, which is macOS 13.5, node 24's
+   floor, since electron-updater compares Darwin releases: an Electron build
+   on an older Mac is offered nothing it cannot open and
    stays on 0.6.0. Keep uploading both until no tester runs an Electron build.
 
 2. **npm.** `pnpm --filter inteligir publish --otp <code>`, from the tagged

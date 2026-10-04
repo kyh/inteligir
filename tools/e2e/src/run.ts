@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { shellBinary } from "./harness/desktop-shell";
 import { buildProcessEnv, describeExecError, exec } from "./harness/exec";
 import { ScenarioSkipError } from "./harness/scenario-skip-error";
 import { killAllLiveGroups } from "./harness/tracked-child";
@@ -297,7 +298,8 @@ const buildCli = async (repoRoot: string): Promise<void> => {
 
 // the unbundled debug shell the shell scenarios drive (harness/desktop-shell.ts), built here so a
 // cold compile spends no scenario's deadline; cargo's own cache makes a warm one a check. a
-// machine that cannot build it leaves them to skip, saying why
+// machine that cannot build it leaves them to skip, saying why, and a failed build removes the
+// last one's binary, which would otherwise run code this checkout no longer holds
 const buildShell = async (repoRoot: string): Promise<void> => {
   if (process.platform !== "linux") {
     return;
@@ -312,6 +314,7 @@ const buildShell = async (repoRoot: string): Promise<void> => {
     );
   } catch (error) {
     console.error(`${timestamp()} the shell did not build:\n${describeExecError(error)}`);
+    await rm(shellBinary(repoRoot), { force: true });
     return;
   }
   console.log(`${timestamp()} built the shell (${seconds(Date.now() - startedAt)})`);

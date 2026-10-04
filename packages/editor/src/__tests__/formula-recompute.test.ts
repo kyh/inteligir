@@ -1,3 +1,4 @@
+import { deferred } from "@repo/editor/deferred";
 import { describe, expect, it } from "vitest";
 import { ElementApi, createSlateEditor } from "platejs";
 import type { TElement } from "platejs";
@@ -131,7 +132,7 @@ describe("the note a bound ref names", () => {
   });
 
   it("writes nothing when an edit lands during the read", async () => {
-    const read = Promise.withResolvers<string>();
+    const read = deferred<string>();
     installFakeEditorHost({
       readNoteFormulas: async () => ({
         formulas: collectFormulas(await read.promise),

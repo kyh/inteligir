@@ -108,10 +108,22 @@ export const desktopShell: Scenario = {
     });
 
     ctx.log("window.open is denied, the app's own origin included");
-    const opened = await page.run(
-      `return String(window.open(${JSON.stringify(shell.serverOrigin)}))`,
-      z.string(),
+    // from a click: WebKit refuses an open no gesture made before the shell is asked, so a script's
+    // own open would read as denied whatever the shell's policy says
+    await page.run(
+      `const button = document.createElement("button");
+      button.id = "e2e-window-open";
+      button.textContent = "open";
+      button.style.cssText = "position:fixed;top:0;left:0;width:48px;height:48px;z-index:2147483647";
+      button.addEventListener("click", () => {
+        window.e2eOpened = String(window.open(${JSON.stringify(shell.serverOrigin)}));
+      });
+      document.body.append(button);
+      return null;`,
+      z.null(),
     );
+    await page.clickWhenThere("#e2e-window-open", PAGE_DEADLINE_MS);
+    const opened = await page.run("return window.e2eOpened ?? null", z.string().nullable());
     expectEq(opened, "null", "window.open's answer");
     const handles = await page.handles();
     expectEq(handles.length, 1, "windows after window.open");

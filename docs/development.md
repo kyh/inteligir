@@ -12,8 +12,10 @@ routes and deploy, `AGENTS.md` the runnable quickstart for coding agents, and
 - Node 24, pnpm 12 (`corepack enable` reads the root `packageManager`)
 - Rust through rustup: `apps/desktop/rust-toolchain.toml` pins the toolchain the
   desktop shell builds on, and the first `cargo` call installs it. On Linux,
-  Tauri's prerequisites too (`libwebkit2gtk-4.1-dev`,
-  `libayatana-appindicator3-dev`, `librsvg2-dev`); a Mac ships its own WebKit
+  Tauri's prerequisites too (on Debian or Ubuntu: `build-essential`,
+  `libxdo-dev`, `libssl-dev`, `libwebkit2gtk-4.1-dev`,
+  `libayatana-appindicator3-dev`, `librsvg2-dev`; other distributions are in
+  <https://v2.tauri.app/start/prerequisites/>); a Mac ships its own WebKit
 - `pnpm install` at the repo root (workspace-wide)
 - For `dev:web` only: `cp apps/web/.dev.vars.example apps/web/.dev.vars`,
   then set `BETTER_AUTH_SECRET` to anything. Without it every `/api/auth/*`
@@ -150,7 +152,8 @@ every gate independently (each step runs even if an earlier one fails), so a
 red format cannot hide test regressions behind it.
 
 CI then runs a few more that `verify` cannot: it installs agent-browser
-and the shell's WebDriver (`webkit2gtk-driver`, `tauri-driver`), both pinned, and
+and the shell's WebDriver (`tauri-driver`, each pinned by hand, over
+`webkit2gtk-driver` from the runner's apt), and
 runs the scenario suite under `xvfb-run`, since the desktop shell's scenarios
 open a real window. ONE run, because there is one build —
 the workspace is a plain SPA served as files, so the suite drives the same

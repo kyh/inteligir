@@ -2046,8 +2046,8 @@ to the END of its group.
   closes it and the server shuts down rather than hold the data dir, and runs
   in a process group of its own, so a signal to the shell's group reaches the
   server once, through the shell, since a second one skips the flush
-  (`apps/desktop/src-tauri/src/server.rs`, `watchLifeline` in
-  `apps/cli/src/desktop/desktop-serve.ts`). Whether
+  (`apps/desktop/src-tauri/src/server.rs`, the `lifeline` `runServe` watches
+  once its signals are, in `apps/cli/src/server/serve.ts`). Whether
   `server.json`'s owner still serves has ONE reading,
   `apps/cli/src/server/server-probe.ts`, which the boot's guard and the shell's
   adoption both project; the shell refuses a server of another version,
@@ -2213,8 +2213,9 @@ to the END of its group.
   (`apps/desktop/scripts/fetch-node.mjs`), with the CLI and its production
   `node_modules` as a resource (`apps/desktop/scripts/stage-server.mjs`); the
   server forks its children with `child_process`, as under `npx`. Every Mach-O
-  in the resources is signed with the hardened runtime and the one
-  entitlements file before bundling (`apps/desktop/scripts/sign-resources.mjs`).
+  in the resources is signed with the hardened runtime before bundling, the
+  server's tree with the one entitlements file and the git, which runs no JIT,
+  with none (`apps/desktop/scripts/sign-resources.mjs`).
   The shell finds node and the CLI only where its bundle carries them, never
   through a variable, and starts every node child with `NODE_OPTIONS` and
   every other `NODE_*` but `NODE_ENV` removed (`scrubbed_env` in

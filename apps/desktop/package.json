@@ -15,7 +15,7 @@
     "smoke": "node scripts/smoke-packaged.mjs",
     "tauri": "tauri",
     "test": "vitest run && cargo test --locked --manifest-path src-tauri/Cargo.toml",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p src/renderer && cargo clippy --locked --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p src/renderer && tsc --noEmit -p src/renderer/tsconfig.page.json && cargo clippy --locked --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings"
   },
   "devDependencies": {
     "@orpc/client": "catalog:",

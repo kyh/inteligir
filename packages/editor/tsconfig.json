@@ -1,11 +1,13 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // ES2024, the desktop renderer's lib: that program is the one bundle this
-    // package ships in (the desktop shell's WebKit, and the page `serve --open`
-    // hands a browser). Unlike @repo/ui, no apps/web or apps/mobile bundle
-    // reaches it; one that did would lower this to @repo/ui's ES2023.
-    "lib": ["ES2024", "dom", "dom.iterable"],
+    // ES2023, a ceiling as in @repo/ui: both pages this package ships in run
+    // the system WebKit, the desktop window's at the macOS 13.5 floor (Safari
+    // 16.6) and the phone's from iOS 16.4, and Vite lowers syntax, never
+    // stdlib, so an ES2024 builtin (Promise.withResolvers, Object.groupBy)
+    // would typecheck and then throw there. `deferred.ts` stands in for the
+    // one this package used.
+    "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "react-jsx",
     // node: the roundtrip fixture matrix is read off disk by the markdown tests.
     "types": ["node"]
