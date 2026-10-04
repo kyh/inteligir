@@ -1,4 +1,4 @@
-import { PUSH_MAX_EVENTS, pushRequestSchema } from "@repo/api/cloud/sync/sync-schema";
+import { PUSH_MAX_EVENTS, pushRequestSchema } from "@repo/contract/cloud/sync/sync-schema";
 import { closeConnection, createConnection, writeTransaction } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";

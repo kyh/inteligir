@@ -1,4 +1,4 @@
-import type { CloudFetch } from "@repo/api/cloud/client";
+import type { CloudFetch } from "@repo/contract/cloud/client";
 import { bootTestApp } from "../../__tests__/boot-app";
 import type { BootedTestApp } from "../../__tests__/boot-app";
 import { FAKE_ACCOUNT } from "./fake-cloud";

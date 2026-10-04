@@ -1,5 +1,5 @@
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
-import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
+import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import {
   DropdownMenu,
   DropdownMenuContent,

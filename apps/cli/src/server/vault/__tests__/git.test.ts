@@ -4,9 +4,12 @@ import { appendFile, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promi
 import { createServer } from "node:http";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/api/cloud/vault/vault-git";
-import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
-import type { VaultStatusResponse, VaultSyncConflict } from "@repo/api/local/vault/vault-schema";
+import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/contract/cloud/vault/vault-git";
+import { VAULT_MAX_CONTENT_LENGTH } from "@repo/contract/local/vault/vault-schema";
+import type {
+  VaultStatusResponse,
+  VaultSyncConflict,
+} from "@repo/contract/local/vault/vault-schema";
 import {
   commentsStorePath,
   parseSidecar,

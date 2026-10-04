@@ -2,11 +2,11 @@ import {
   ackCapturesResponseSchema,
   captureResponseSchema,
   claimCapturesResponseSchema,
-} from "@repo/api/cloud/captures/captures-schema";
-import { cloudErrorSchema } from "@repo/api/cloud/errors";
-import { pullResponseSchema, pushResponseSchema } from "@repo/api/cloud/sync/sync-schema";
-import type { PushRequest } from "@repo/api/cloud/sync/sync-schema";
-import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
+} from "@repo/contract/cloud/captures/captures-schema";
+import { cloudErrorSchema } from "@repo/contract/cloud/errors";
+import { pullResponseSchema, pushResponseSchema } from "@repo/contract/cloud/sync/sync-schema";
+import type { PushRequest } from "@repo/contract/cloud/sync/sync-schema";
+import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/sync/sync-ws";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";

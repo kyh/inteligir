@@ -1,6 +1,6 @@
-import type { CloudResult } from "@repo/api/cloud/client";
-import { planPage } from "@repo/api/cloud/sync/plan-page";
-import type { PullResponse } from "@repo/api/cloud/sync/sync-schema";
+import type { CloudResult } from "@repo/contract/cloud/client";
+import { planPage } from "@repo/contract/cloud/sync/plan-page";
+import type { PullResponse } from "@repo/contract/cloud/sync/sync-schema";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { SqlDriver } from "../../lib/sql-driver";

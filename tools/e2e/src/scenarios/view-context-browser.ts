@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { TimelineConversationRow, TimelineRow } from "@repo/api/local/thread-timeline";
-import { contentHashHex } from "@repo/api/local/vault/vault-schema";
+import type { TimelineConversationRow, TimelineRow } from "@repo/contract/local/thread-timeline";
+import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import { modChord } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import { pollUntil } from "../harness/poll";

@@ -1,5 +1,5 @@
 import type { ViewContext } from "@repo/domain/view-context";
-import type { CreateThreadRequest } from "@repo/api/local/threads/threads-schema";
+import type { CreateThreadRequest } from "@repo/contract/local/threads/threads-schema";
 
 import { client } from "../api";
 import { sendToThread } from "./send-to-thread";

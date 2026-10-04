@@ -1,4 +1,4 @@
-import { hexFromBytes, sha256Hex } from "@repo/api/cloud/bytes";
+import { hexFromBytes, sha256Hex } from "@repo/contract/cloud/bytes";
 import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
 import {
   syncConflictCopiedSchema,
@@ -66,7 +66,7 @@ export const contentHashBytesHex = async (
 
 // re-exported from the cloud side: local importing cloud is the direction the dep guard allows,
 // and one table keeps both routes accepting the same images.
-export { assetMediaType } from "@repo/api/cloud/vault/vault-schema";
+export { assetMediaType } from "@repo/contract/cloud/vault/vault-schema";
 
 export const vaultReadRequestSchema = z.object({ path: vaultPathSchema }).strict();
 export type VaultReadRequest = z.infer<typeof vaultReadRequestSchema>;

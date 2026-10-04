@@ -1,6 +1,6 @@
-import type { UnlinkedMentionWire } from "@repo/api/local/knowledge/knowledge-schema";
-import { contentHashHex } from "@repo/api/local/vault/vault-schema";
-import type { VaultWriteRequest } from "@repo/api/local/vault/vault-schema";
+import type { UnlinkedMentionWire } from "@repo/contract/local/knowledge/knowledge-schema";
+import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
+import type { VaultWriteRequest } from "@repo/contract/local/vault/vault-schema";
 import { describe, expect, it, vi } from "vitest";
 import { linkMentionInNote, linkMentionMessage } from "../link-mention";
 import type { LinkMentionApi } from "../link-mention";

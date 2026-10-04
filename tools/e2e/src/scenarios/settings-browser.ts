@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { DEVICE_CREDENTIAL_PREFIX } from "@repo/api/cloud/device/device-schema";
+import { DEVICE_CREDENTIAL_PREFIX } from "@repo/contract/cloud/device/device-schema";
 import { writeDeviceCredential } from "inteligir/server/cloud/credential-store";
 import { z } from "zod";
 import { clickButtonIn, parseEval, untilBodyHolds } from "../harness/agent-browser";

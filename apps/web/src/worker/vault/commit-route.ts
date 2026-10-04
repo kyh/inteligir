@@ -1,21 +1,21 @@
-import { bytesFromBase64 } from "@repo/api/cloud/bytes";
-import { CLOUD_ERROR_STATUS, cloudError } from "@repo/api/cloud/errors";
+import { bytesFromBase64 } from "@repo/contract/cloud/bytes";
+import { CLOUD_ERROR_STATUS, cloudError } from "@repo/contract/cloud/errors";
 import {
   VAULT_COMMIT_MAX_BYTES,
   VAULT_COMMIT_MAX_CHANGES,
   vaultChangePaths,
   vaultCommitRequestSchema,
-} from "@repo/api/cloud/vault/vault-commit-schema";
+} from "@repo/contract/cloud/vault/vault-commit-schema";
 import type {
   VaultChangeRequest,
   VaultCommitResponse,
   VaultConflictAnswer,
-} from "@repo/api/cloud/vault/vault-commit-schema";
+} from "@repo/contract/cloud/vault/vault-commit-schema";
 import {
   assetMediaType,
   VAULT_ASSET_MAX_BYTES,
   VAULT_FILE_MAX_BYTES,
-} from "@repo/api/cloud/vault/vault-schema";
+} from "@repo/contract/cloud/vault/vault-schema";
 import { declaredLength, refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";

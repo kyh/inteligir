@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
-import type { CloudResult, VaultCommitOutcome } from "@repo/api/cloud/client";
-import type { VaultCommitRequest } from "@repo/api/cloud/vault/vault-commit-schema";
+import { createCloudClient, describeCloudFailure } from "@repo/contract/cloud/client";
+import type { CloudResult, VaultCommitOutcome } from "@repo/contract/cloud/client";
+import type { VaultCommitRequest } from "@repo/contract/cloud/vault/vault-commit-schema";
 import { expect, expectEq } from "../harness/assert";
 import { loginDevice, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";

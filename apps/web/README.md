@@ -3,7 +3,7 @@
 One Cloudflare Worker serving the marketing site and the whole cloud from
 one origin: the TanStack Start pages, Better Auth on D1, device login, the
 per-user thread-sync Durable Object, the capture and dispatch inboxes and the
-hosted vault git remote. The wire contract is `@repo/api/cloud` — the Worker
+hosted vault git remote. The wire contract is `@repo/contract/cloud` — the Worker
 implements it, the local app's sync client consumes it.
 
 ## Layout
@@ -13,14 +13,15 @@ src/
   routes/            TanStack Start file routes (SSR)
     index.tsx        The marketing page
     privacy.tsx      docs/privacy.md itself, rendered
+    terms.tsx        docs/terms.md itself, rendered
     about, contact   lib/site-content.ts's markdown, rendered or answered as-is
     app/             /app/sign-in, /app/sign-up, /app/forgot-password and
                      /app/devices (the device table, client-only)
   components/        The site's own components (auth card, header, theme, orb)
     gallery/         The @repo/ui gallery: gallery-main.tsx mounts it under
                      gallery.html for `pnpm dev:gallery`, never a route
-  lib/               Better Auth client, session guard, site config, and the
-                     GitHub-release reader behind the Download button
+  lib/               Better Auth client, session guard, site config (the
+                     Download button's fixed dmg link among it), page markdown
   worker/            The Worker's API half — its OWN tsconfig program (no DOM)
     server.ts        The deployed entry: path-splits API vs site SSR
     index.ts         The API route table (also the test suite's entry)
@@ -52,6 +53,7 @@ its own `tsconfig.json`.
 | `/`                                     | —                 | Marketing page (SSR); markdown to `Accept: text/markdown`           |
 | `/about`, `/contact`                    | —                 | Trust pages from `lib/site-content.ts`, negotiated the same way     |
 | `/privacy`                              | —                 | Renders `docs/privacy.md` itself (SSR) — never a copy               |
+| `/terms`                                | —                 | Renders `docs/terms.md` itself (SSR) — never a copy                 |
 | `/llms.txt`, `/sitemap.xml`             | —                 | Agent and crawler files, beside `/robots.txt`                       |
 | `/*` (anything else)                    | —                 | 404; a markdown recovery body to `Accept: text/markdown`            |
 | `/app/sign-in`                          | —                 | Sign-in (SSR when signed out — see `lib/session-guard.ts`)          |
@@ -119,7 +121,7 @@ answers the same query as a GET's search params, the form older installs send
   header on sign-in/up.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
   (`src/worker/auth/invite.ts`). `POST /v1/auth/sign-up` parses its body with
-  `signUpRequestSchema` (`@repo/api/cloud/account/account-schema`, which the
+  `signUpRequestSchema` (`@repo/contract/cloud/account/account-schema`, which the
   page, the gate and the e2e harness share with `AUTH_PAGE_PATHS`) and refuses a
   password outside `PASSWORD_MIN_LENGTH`–`PASSWORD_MAX_LENGTH` before touching
   the code. It then claims the code in one atomic
@@ -145,7 +147,7 @@ answers the same query as a GET's search params, the form older installs send
   `internalNextPath` (`src/lib/next-path.ts`, the open-redirect guard), else
   lands on `SIGNED_IN_HOME`, as sign-up and bare `/app` do. The list loads in
   the route's loader and every refusal reads the cloud error envelope through
-  `readCloudCall` (`@repo/api/cloud/client`), so a failure is the route's error
+  `readCloudCall` (`@repo/contract/cloud/client`), so a failure is the route's error
   view with a retry, never a page stuck on Loading. The three auth forms submit
   through one `useAuthSubmit` (`src/components/auth-shell.tsx`), which turns a
   request that never left into a message rather than a button stuck busy.
@@ -299,3 +301,33 @@ does not know, while a new Worker against an old database 500s on every
 request touching a table that isn't there. The workflow's one secret is
 `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, plus Workers Routes: Edit on
 the inteligir.com zone).
+
+## Previews
+
+Every PR from a branch of this repo gets a
+[Worker Preview](https://developers.cloudflare.com/workers/previews/) once CI is
+green, the way Vercel previews a PR: a sticky comment with the status and the
+URL, a "View deployment" button on the PR, a fresh deploy on every push, and the
+Preview deleted when the PR closes. `.github/workflows/preview.yml` runs it;
+`.github/scripts/worker-preview.mjs` draws the comment and the deployment.
+
+A Preview never touches production data. `wrangler.jsonc`'s `previews` block
+binds `inteligir-auth-preview` (D1) and `inteligir-vault-preview` (R2), which
+the workflow creates on first use and pushes the PR's schema into with
+`drizzle-kit push --force`; the Durable Objects are a fresh namespace per
+Preview. All PRs share the one preview D1, so an account made on one Preview
+signs in on the next. There is no `send_email` binding, so a reset email is
+logged, not sent. Sign-up stays invite-gated: mint a code into the preview D1
+to create the first account.
+
+Setup, once:
+
+```bash
+# the Deploy token also needs D1: Edit and Workers R2 Storage: Edit, and the
+# repo needs a CLOUDFLARE_ACCOUNT_ID secret beside CLOUDFLARE_API_TOKEN
+pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET  # a preview-only value
+```
+
+Locally, `wrangler preview --name <name>` works once `<REPLACE_ME>` in the
+`previews` block holds the preview D1's id (`wrangler d1 info
+inteligir-auth-preview`); leave it uncommitted.

@@ -8,7 +8,7 @@ import { errnoCode } from "./errno";
 export const DEFAULT_STEP_TIMEOUT_MS = 5000;
 
 // the one place a budget is written; teardownStep takes a name from here, so no step carries its own number.
-/* oxlint-disable sort-keys -- listed in teardown order, which the per-step comments explain */
+// listed in teardown order, which the per-step comments explain.
 export const TEARDOWN_BUDGETS_MS = {
   listener: DEFAULT_STEP_TIMEOUT_MS,
   // cloud sync writes the db and the vault, so it stops above both.
@@ -23,7 +23,6 @@ export const TEARDOWN_BUDGETS_MS = {
   // the data dir stays claimed until the db behind it is closed. one unlink.
   lock: 1000,
 } as const satisfies Record<string, number>;
-/* oxlint-enable sort-keys */
 
 export type TeardownStepName = keyof typeof TEARDOWN_BUDGETS_MS;
 

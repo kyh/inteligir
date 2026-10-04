@@ -7,7 +7,7 @@ import { closeConnection, createConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
-import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
+import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { resolveMigrationsFolder } from "../paths";
 import { defaultHarnessId } from "./agents/agent-driver";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";

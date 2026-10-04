@@ -1,4 +1,4 @@
-import { VAULT_FILE_MAX_BYTES } from "@repo/api/cloud/vault/vault-schema";
+import { VAULT_FILE_MAX_BYTES } from "@repo/contract/cloud/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { outboxNotices, PARKED_ACTION_LABELS } from "../outbox-notices";
 import type { OutboxStatus } from "../vault-outbox";

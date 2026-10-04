@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { VaultRevision } from "@repo/api/local/vault/vault-schema";
+import type { VaultRevision } from "@repo/contract/local/vault/vault-schema";
 import { AGENT_COMMIT_AUTHOR, bootTestApp } from "inteligir/server/testing";
 import type { BootedTestApp } from "inteligir/server/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";

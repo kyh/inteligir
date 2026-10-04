@@ -7,8 +7,8 @@ import { renamedTag } from "@repo/notes/knowledge/rename-tags";
 import {
   KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
   KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
-} from "@repo/api/local/knowledge/knowledge-schema";
-import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/knowledge/knowledge-schema";
+import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import { useMemo, useState } from "react";
 import { useNotesWithTag } from "../vault-hooks";
 import { NotesList } from "./notes-list";

@@ -1,6 +1,6 @@
 import { siteConfig } from "@/lib/site-config";
 
-const { contact, description, github, name, twitterUrl, url } = siteConfig;
+const { contact, description, downloadUrl, github, name, twitterUrl, url } = siteConfig;
 
 const ORGANIZATION_ID = `${url}/#organization`;
 const WEBSITE_ID = `${url}/#website`;
@@ -39,7 +39,7 @@ export const siteGraph = () => ({
       applicationCategory: "ProductivityApplication",
       description:
         "A local-first notes app for the Mac in which an AI agent, running on your own Claude or ChatGPT plan, edits your markdown notes with you.",
-      downloadUrl: `${github}/releases/latest`,
+      downloadUrl,
       license: "https://opensource.org/licenses/MIT",
       name,
       operatingSystem: "macOS (Apple silicon)",

@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@repo/api": "workspace:*",
+    "@repo/contract": "workspace:*",
     "@repo/domain": "workspace:*",
     "@types/node": "catalog:",
     "inteligir": "workspace:*",

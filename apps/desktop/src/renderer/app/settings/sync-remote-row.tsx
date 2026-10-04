@@ -2,12 +2,12 @@
 // Advanced alone draws it, so it may name git; the choice lands on the vault repo's own origin,
 // the one record every sync reads.
 
-import { parseRemoteUrl, VAULT_REMOTE_PIN_ENV_VAR } from "@repo/api/local/vault/remote-url";
-import { externalSyncName } from "@repo/api/local/vault/vault-schema";
+import { parseRemoteUrl, VAULT_REMOTE_PIN_ENV_VAR } from "@repo/contract/local/vault/remote-url";
+import { externalSyncName } from "@repo/contract/local/vault/vault-schema";
 import type {
   VaultSetRemoteRequest,
   VaultStatusResponse,
-} from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/vault/vault-schema";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { useMutation, useQueryClient } from "@tanstack/react-query";

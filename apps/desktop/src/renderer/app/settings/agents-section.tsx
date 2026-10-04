@@ -1,6 +1,6 @@
-import { harnessReadiness } from "@repo/api/local/agents/agents-schema";
-import type { HarnessStatus } from "@repo/api/local/agents/agents-schema";
-import type { AgentStatus } from "@repo/api/local/system/system-schema";
+import { harnessReadiness } from "@repo/contract/local/agents/agents-schema";
+import type { HarnessStatus } from "@repo/contract/local/agents/agents-schema";
+import type { AgentStatus } from "@repo/contract/local/system/system-schema";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";

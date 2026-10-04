@@ -1,5 +1,8 @@
-import { VAULT_HISTORY_MAX_LIMIT } from "@repo/api/local/vault/vault-schema";
-import type { VaultHistoryRequest, VaultHistoryResponse } from "@repo/api/local/vault/vault-schema";
+import { VAULT_HISTORY_MAX_LIMIT } from "@repo/contract/local/vault/vault-schema";
+import type {
+  VaultHistoryRequest,
+  VaultHistoryResponse,
+} from "@repo/contract/local/vault/vault-schema";
 import { readingMinutes, useNoteStats } from "@repo/editor/note-stats";
 import { useQuery } from "@tanstack/react-query";
 

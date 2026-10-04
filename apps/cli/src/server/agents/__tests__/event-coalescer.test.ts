@@ -1,7 +1,7 @@
 import { setImmediate as tick } from "node:timers/promises";
-import { utf8ByteLength } from "@repo/api/cloud/bytes";
-import { EVENT_MAX_BYTES } from "@repo/api/cloud/sync/sync-schema";
-import { buildThreadTimeline } from "@repo/api/local/build-thread-timeline";
+import { utf8ByteLength } from "@repo/contract/cloud/bytes";
+import { EVENT_MAX_BYTES } from "@repo/contract/cloud/sync/sync-schema";
+import { buildThreadTimeline } from "@repo/contract/local/build-thread-timeline";
 import type { ThreadEvent, ThreadEventItem } from "@repo/domain/provider-event";
 import { isThreadEventDelta } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";

@@ -1,8 +1,8 @@
 import {
   KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
   KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
-} from "@repo/api/local/knowledge/knowledge-schema";
-import type { KnowledgeTagNotesRequest } from "@repo/api/local/knowledge/knowledge-schema";
+} from "@repo/contract/local/knowledge/knowledge-schema";
+import type { KnowledgeTagNotesRequest } from "@repo/contract/local/knowledge/knowledge-schema";
 import { defineCommand } from "citty";
 import { parseBoundedInteger } from "../args";
 import { apiFor } from "../context";

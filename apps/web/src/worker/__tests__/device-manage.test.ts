@@ -1,10 +1,10 @@
-import { cloudErrorSchema } from "@repo/api/cloud/errors";
+import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import {
   DEVICE_API_PATHS,
   listDevicesResponseSchema,
   revokeDeviceResponseSchema,
-} from "@repo/api/cloud/device/device-schema";
-import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
+} from "@repo/contract/cloud/device/device-schema";
+import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/sync/sync-ws";
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import {

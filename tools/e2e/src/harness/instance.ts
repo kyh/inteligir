@@ -5,13 +5,13 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
 import { authorizationHeader, loopbackOrigin, readServerFile } from "inteligir/server/server-file";
-import type { LocalContract } from "@repo/api/local";
+import type { LocalContract } from "@repo/contract/local";
 import {
   browserHandoffUrl,
   HEALTH_PATH,
   healthResponseSchema,
   RPC_PREFIX,
-} from "@repo/api/local/routes";
+} from "@repo/contract/local/routes";
 import { appLaunchEnv } from "./exec";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";

@@ -8,9 +8,9 @@ import {
   CommandShortcut,
 } from "@repo/ui/components/command";
 import { cn } from "@repo/ui/lib/cn";
-import type { VaultMatchWire } from "@repo/api/local/knowledge/knowledge-schema";
-import type { Thread } from "@repo/api/local/threads/threads-schema";
-import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+import type { VaultMatchWire } from "@repo/contract/local/knowledge/knowledge-schema";
+import type { Thread } from "@repo/contract/local/threads/threads-schema";
+import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { isTemplatePath } from "@repo/notes/templates/placeholders";

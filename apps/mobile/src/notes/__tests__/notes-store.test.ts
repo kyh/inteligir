@@ -1,8 +1,8 @@
-import { createCloudClient } from "@repo/api/cloud/client";
-import type { CloudFetch } from "@repo/api/cloud/client";
-import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
-import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
-import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
+import { createCloudClient } from "@repo/contract/cloud/client";
+import type { CloudFetch } from "@repo/contract/cloud/client";
+import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
+import { SYNC_API_PATHS } from "@repo/contract/cloud/sync/sync-schema";
+import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
 import { phoneDbReady } from "../../lib/phone-db";

@@ -3,8 +3,8 @@ import {
   changedMessageLenientSchema,
   serverMessageLenientSchema,
   serverMessageSchema,
-} from "@repo/api/local/notifications";
-import type { ServerMessage } from "@repo/api/local/notifications";
+} from "@repo/contract/local/notifications";
+import type { ServerMessage } from "@repo/contract/local/notifications";
 import { WsBus } from "../ws-bus";
 import type { BusSocket } from "../ws-bus";
 

@@ -1,10 +1,10 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { browserHandoffUrl } from "@repo/api/local/routes";
-import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
-import type { TurnChanges } from "@repo/api/local/threads/threads-schema";
-import { VAULT_MAX_CONTENT_LENGTH, contentHashHex } from "@repo/api/local/vault/vault-schema";
-import type { VaultSyncConflict } from "@repo/api/local/vault/vault-schema";
+import { browserHandoffUrl } from "@repo/contract/local/routes";
+import type { ThreadTimeline } from "@repo/contract/local/thread-timeline";
+import type { TurnChanges } from "@repo/contract/local/threads/threads-schema";
+import { VAULT_MAX_CONTENT_LENGTH, contentHashHex } from "@repo/contract/local/vault/vault-schema";
+import type { VaultSyncConflict } from "@repo/contract/local/vault/vault-schema";
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";

@@ -1,4 +1,7 @@
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/api/cloud/device/device-schema";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "@repo/contract/cloud/device/device-schema";
 
 // Cloud-hosted, not a deep link: email clients open browsers, and a reset must work with no
 // app installed. One static document with inline CSS/JS: the token never touches the markup

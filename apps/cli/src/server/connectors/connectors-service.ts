@@ -10,7 +10,7 @@ import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type {
   ConnectorAddRequest,
   ConnectorsResponse,
-} from "@repo/api/local/connectors/connectors-schema";
+} from "@repo/contract/local/connectors/connectors-schema";
 import type { VendorProcessContext } from "../agents/vendor-process";
 import { createClaudeMcpConfig } from "./claude-mcp-config";
 import { createCodexMcpConfig } from "./codex-mcp-config";

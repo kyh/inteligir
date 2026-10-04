@@ -1,8 +1,8 @@
 import { setTimeout as delay } from "node:timers/promises";
-import { THREADS_LIST_DEFAULT_LIMIT } from "@repo/api/local/threads/threads-schema";
-import type { CreateThreadRequest } from "@repo/api/local/threads/threads-schema";
+import { THREADS_LIST_DEFAULT_LIMIT } from "@repo/contract/local/threads/threads-schema";
+import type { CreateThreadRequest } from "@repo/contract/local/threads/threads-schema";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
-import type { AgentStatus } from "@repo/api/local/system/system-schema";
+import type { AgentStatus } from "@repo/contract/local/system/system-schema";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { bootThreadHarness, fakeAgentAccounts } from "inteligir/server/testing";
 import type { ThreadHarness } from "inteligir/server/testing";

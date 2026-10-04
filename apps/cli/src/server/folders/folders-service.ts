@@ -4,7 +4,7 @@
 import { realpathSync, statSync } from "node:fs";
 import nodePath from "node:path";
 
-import { CONNECTED_FOLDERS_MAX } from "@repo/api/local/folders/folders-schema";
+import { CONNECTED_FOLDERS_MAX } from "@repo/contract/local/folders/folders-schema";
 import { pathContains } from "../path-containment";
 import type { FoldersStore } from "./folders-store";
 

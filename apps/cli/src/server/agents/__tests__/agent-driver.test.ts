@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
-import { systemStatusResponseSchema } from "@repo/api/local/system/system-schema";
+import { systemStatusResponseSchema } from "@repo/contract/local/system/system-schema";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 import { defaultHarnessId, resolveAgentDriver } from "../agent-driver";

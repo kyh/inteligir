@@ -1,7 +1,7 @@
 // not a procedure: an rpc envelope cannot carry an etag, a 304 or its own csp.
 
-import { vaultAssetQuerySchema } from "@repo/api/local/routes";
-import { assetMediaType } from "@repo/api/local/vault/vault-schema";
+import { vaultAssetQuerySchema } from "@repo/contract/local/routes";
+import { assetMediaType } from "@repo/contract/local/vault/vault-schema";
 import type { Context } from "hono";
 import { vaultRefusalStatus } from "./vault-refusals";
 import type { VaultService } from "./vault-service";

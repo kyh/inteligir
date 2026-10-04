@@ -26,7 +26,7 @@ import { getThread, setThreadProviderSession } from "@repo/db/threads";
 import type { ThreadRow } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
-import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
+import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
 import type { DebugLog } from "../debug-log";
 import { messageOf } from "../error-message";
 import { setMostRecent } from "../evict-oldest";

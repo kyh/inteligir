@@ -3,8 +3,8 @@
 // file's bytes, the revision hash, the navigation stack) are handed in, so the store's answers run
 // under node against the same fake vault the store's own suites use.
 
-import { bytesFromBase64 } from "@repo/api/cloud/bytes";
-import { assetMediaType } from "@repo/api/cloud/vault/vault-schema";
+import { bytesFromBase64 } from "@repo/contract/cloud/bytes";
+import { assetMediaType } from "@repo/contract/cloud/vault/vault-schema";
 import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { docStem, isDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";

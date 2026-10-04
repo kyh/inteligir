@@ -60,10 +60,10 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | cycles. Then platform purity: `PURITY_RULES` per package (node, react,    |
 |                                | electron), `@repo/domain` declares only zod, no package imports an app,   |
 |                                | every `CLOUD_ONLY_CLIENTS` row (`@repo/web`, `@repo/mobile`, each with    |
-|                                | why it ships apart) reaches `@repo/api/cloud/*` and nothing else of the   |
-|                                | contract, `src/cloud` never reaches `src/local` and a third bucket under  |
-|                                | `packages/api/src` fails, and the Worker imports no package whose shipped |
-|                                | graph reaches `node:`.                                                    |
+|                                | why it ships apart) reaches `@repo/contract/cloud/*` and nothing else of  |
+|                                | the contract, `src/cloud` never reaches `src/local` and a third bucket    |
+|                                | under `packages/contract/src` fails, and the Worker imports no package    |
+|                                | whose shipped graph reaches `node:`.                                      |
 | `dangling-references.test.ts`  | Every `@repo/*` name and every group-anchored path written in a tracked   |
 |                                | source, config, markdown or yaml file resolves to a workspace or a path   |
 |                                | on disk. What it reads is stated in its own section below.                |
@@ -166,7 +166,7 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | registers in `tools/e2e/src/run.ts`, in its order, each read from its own |
 |                                | exported `name`.                                                          |
 | `privacy-routes.test.ts`       | Every `/v1/` string literal in tracked non-test source under              |
-|                                | `packages/api/src/cloud` has a row under `docs/privacy.md`'s "Every       |
+|                                | `packages/contract/src/cloud` has a row under `docs/privacy.md`'s "Every  |
 |                                | address the app talks to", and every backticked `/v1/` route there is     |
 |                                | still declared — the page promises every address the app talks to.        |
 | `decisions-index.test.ts`      | `CLAUDE.md` § Decisions' index lists every `###` group under it, in their |

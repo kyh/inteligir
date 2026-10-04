@@ -1,4 +1,4 @@
-import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";

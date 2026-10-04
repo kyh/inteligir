@@ -3,7 +3,7 @@
 // refusing the call; a procedure with no answer is a 404, which the client logs, so the console
 // gate names it.
 
-import { RPC_PREFIX } from "@repo/api/local/routes";
+import { RPC_PREFIX } from "@repo/contract/local/routes";
 import { vi } from "vitest";
 import { z } from "zod";
 

@@ -10,7 +10,7 @@ import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { resolverEntriesOf } from "@repo/notes/knowledge/link-graph-index";
 import { movesOf, renameAlias, renameWrites } from "@repo/notes/knowledge/plan-rename";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
-import type { VaultRenameResponse } from "@repo/api/local/vault/vault-schema";
+import type { VaultRenameResponse } from "@repo/contract/local/vault/vault-schema";
 import { snapshotDocs } from "./snapshot-docs";
 import { normalizeVaultPath } from "@repo/notes/knowledge/vault-path";
 import type { VaultService } from "../vault/vault-service";

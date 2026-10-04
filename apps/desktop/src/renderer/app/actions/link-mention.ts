@@ -1,4 +1,4 @@
-import type { UnlinkedMentionWire } from "@repo/api/local/knowledge/knowledge-schema";
+import type { UnlinkedMentionWire } from "@repo/contract/local/knowledge/knowledge-schema";
 import { linkMention } from "@repo/notes/knowledge/unlinked-mentions";
 import { rewriteNote } from "../note/rewrite-note";
 import type { RewriteNoteApi, RewriteNoteOutcome } from "../note/rewrite-note";

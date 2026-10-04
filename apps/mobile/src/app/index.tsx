@@ -15,7 +15,7 @@ import { logout, submitCapture, syncNow, useSyncStatus, useThreadList } from "@/
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 import type { Theme } from "@/lib/theme";
 import type { SyncStatus } from "@/sync/sync-runtime";
-import { describeCloudFailure } from "@repo/api/cloud/client";
+import { describeCloudFailure } from "@repo/contract/cloud/client";
 
 const styles = StyleSheet.create({
   bodyText: { fontSize: 16, textAlign: "center" },

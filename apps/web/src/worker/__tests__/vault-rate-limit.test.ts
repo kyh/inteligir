@@ -1,7 +1,7 @@
-import { DEVICE_API_PATHS } from "@repo/api/cloud/device/device-schema";
-import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
-import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
-import { cloudErrorSchema } from "@repo/api/cloud/errors";
+import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
+import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
+import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
+import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { eq, inArray } from "drizzle-orm";

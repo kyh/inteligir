@@ -22,7 +22,7 @@
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/tanstack-query": "catalog:",
-    "@repo/api": "workspace:*",
+    "@repo/contract": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/domain": "workspace:*",
     "@repo/editor": "workspace:*",

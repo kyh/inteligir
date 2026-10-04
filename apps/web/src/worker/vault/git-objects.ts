@@ -1,4 +1,4 @@
-import { hexFromBytes } from "@repo/api/cloud/bytes";
+import { hexFromBytes } from "@repo/contract/cloud/bytes";
 
 // git's object and pack encodings, byte for byte: an oid is the SHA-1 of what these write, so an
 // order or a mode spelled differently from git's is a different object, or one fsck refuses.

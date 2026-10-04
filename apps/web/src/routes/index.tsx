@@ -1,10 +1,11 @@
 import { Suspense, lazy } from "react";
+import type { ComponentProps } from "react";
 import { ClientOnly, createFileRoute, Link } from "@tanstack/react-router";
-import { createServerFn } from "@tanstack/react-start";
 import Markdown from "react-markdown";
+import type { ExtraProps } from "react-markdown";
 
-import { createDownloadUrlReader, downloadHref } from "@/lib/download-url";
 import { markdownHandler, varyHeaders } from "@/lib/markdown-route";
+import { siteConfig } from "@/lib/site-config";
 import { homeMarkdown } from "@/lib/site-content";
 import { SiteHeader } from "@/components/site-header";
 
@@ -24,73 +25,70 @@ const MacLogoIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const FOOTER_LINKS = [
+const HIDDEN_FOOTER_LINKS = [
   { label: "About", to: "/about" },
   { label: "Contact", to: "/contact" },
-  { label: "Privacy", to: "/privacy" },
 ] as const;
 
-const readDownloadUrl = createDownloadUrlReader();
+// links in sr-only text would otherwise be tab stops a sighted keyboard user cannot see
+const UntabbableAnchor = ({
+  node: _node,
+  children,
+  ...props
+}: ComponentProps<"a"> & ExtraProps) => (
+  <a {...props} tabIndex={-1}>
+    {children}
+  </a>
+);
 
-const getDownloadUrl = createServerFn().handler(async () => await readDownloadUrl());
-
-const Page = () => {
-  const href = downloadHref(Route.useLoaderData());
-
-  return (
-    <>
-      <SiteHeader />
-      <main className="flex min-h-dvh w-full flex-col">
-        <section className="sr-only">
-          <Markdown>{homeMarkdown}</Markdown>
-        </section>
-        <div className="flex flex-1 flex-col items-center justify-center">
-          <div className="h-48 w-48">
-            <ClientOnly fallback={null}>
-              <Suspense fallback={null}>
-                <HeroOrb />
-              </Suspense>
-            </ClientOnly>
-          </div>
+const Page = () => (
+  <>
+    <SiteHeader />
+    <main className="flex min-h-dvh w-full flex-col">
+      <section className="sr-only">
+        <Markdown components={{ a: UntabbableAnchor }}>{homeMarkdown}</Markdown>
+      </section>
+      <div className="flex flex-1 flex-col items-center justify-center">
+        <div className="h-48 w-48">
+          <ClientOnly fallback={null}>
+            <Suspense fallback={null}>
+              <HeroOrb />
+            </Suspense>
+          </ClientOnly>
         </div>
-        <div className="flex flex-col items-center gap-3 px-6 pb-10">
-          {href === null ? (
-            <span className={`${CTA_PILL} bg-muted text-muted-foreground`}>
-              <MacLogoIcon className="size-5 shrink-0" />
-              Coming soon for Mac
-            </span>
-          ) : (
-            <a
-              href={href}
-              className={`${CTA_PILL} bg-primary text-primary-foreground transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background`}
-            >
-              <MacLogoIcon className="size-5 shrink-0" />
-              Download for Mac
-            </a>
-          )}
-          <span className="text-center text-xs text-foreground/60">
-            For Macs with Apple silicon. The agent works with a paid Claude plan or any ChatGPT
-            plan.
-          </span>
-        </div>
-        <footer className="flex justify-center gap-4 pb-6">
-          {FOOTER_LINKS.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className="text-xs text-foreground/60 transition-colors hover:text-foreground"
-            >
+      </div>
+      <div className="flex flex-col items-center gap-3 px-6 pb-10">
+        <a
+          href={siteConfig.downloadUrl}
+          className={`${CTA_PILL} bg-primary text-primary-foreground transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background`}
+        >
+          <MacLogoIcon className="size-5 shrink-0" />
+          Download for Mac
+        </a>
+        <span className="text-center text-xs text-foreground/60">
+          For Macs with Apple silicon. The agent works with a paid Claude plan or any ChatGPT plan.
+        </span>
+      </div>
+      <footer className="flex justify-center pb-6">
+        <Link
+          to="/privacy"
+          className="text-xs text-foreground/60 transition-colors hover:text-foreground"
+        >
+          Privacy
+        </Link>
+        <nav aria-label="Site" className="sr-only">
+          {HIDDEN_FOOTER_LINKS.map((link) => (
+            <Link key={link.to} to={link.to} tabIndex={-1}>
               {link.label}
             </Link>
           ))}
-        </footer>
-      </main>
-    </>
-  );
-};
+        </nav>
+      </footer>
+    </main>
+  </>
+);
 
 export const Route = createFileRoute("/")({
-  loader: async () => await getDownloadUrl(),
   headers: varyHeaders,
   component: Page,
   server: { handlers: { GET: markdownHandler(homeMarkdown) } },

@@ -5,8 +5,8 @@
 // them: the page before it asks, main when it refuses or confirms.
 
 import { z } from "zod";
-import { externalSyncName, externalSyncSchema } from "@repo/api/local/vault/vault-schema";
-import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
+import { externalSyncName, externalSyncSchema } from "@repo/contract/local/vault/vault-schema";
+import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 
 const folderPathSchema = z.string().min(1);
 

@@ -20,7 +20,7 @@
   "dependencies": {
     "@better-auth/drizzle-adapter": "catalog:",
     "@react-three/fiber": "^9.8.1",
-    "@repo/api": "workspace:*",
+    "@repo/contract": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",

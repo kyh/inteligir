@@ -1,8 +1,11 @@
-import type { CaptureResponse } from "@repo/api/cloud/captures/captures-schema";
-import type { CloudResult } from "@repo/api/cloud/client";
-import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
-import type { CloudSocketOpener, OpenCloudSocketArgs } from "@repo/api/cloud/sync/cloud-socket";
-import type { PullResponse } from "@repo/api/cloud/sync/sync-schema";
+import type { CaptureResponse } from "@repo/contract/cloud/captures/captures-schema";
+import type { CloudResult } from "@repo/contract/cloud/client";
+import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
+import type {
+  CloudSocketOpener,
+  OpenCloudSocketArgs,
+} from "@repo/contract/cloud/sync/cloud-socket";
+import type { PullResponse } from "@repo/contract/cloud/sync/sync-schema";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { clientOver, createFakeVault } from "../../notes/__tests__/fake-vault";

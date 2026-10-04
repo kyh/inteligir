@@ -3,7 +3,7 @@
 // `errorStatus`, so one refusal answers the same status on both surfaces.
 
 import { COMMON_ERROR_STATUS_MAP } from "@orpc/client";
-import { LOCAL_ERROR_STATUS_MAP } from "@repo/api/local/errors";
+import { LOCAL_ERROR_STATUS_MAP } from "@repo/contract/local/errors";
 
 const STATUS_BY_CODE = new Map<string, number>([
   ...Object.entries(COMMON_ERROR_STATUS_MAP),

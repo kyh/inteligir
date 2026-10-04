@@ -31,12 +31,12 @@ import {
   contentHashHex,
   VAULT_ASSET_MAX_BYTES,
   VAULT_MAX_CONTENT_LENGTH,
-} from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/vault/vault-schema";
 import type {
   VaultEntry,
   VaultTreeResponse,
   VaultWriteGuard,
-} from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/vault/vault-schema";
 import { errnoCode } from "../errno";
 import { pathContains } from "../path-containment";
 import { ABSENT_ENTRY, entryFingerprintAt, fingerprintOf } from "./vault-changes";

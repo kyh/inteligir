@@ -1,5 +1,5 @@
-import { deviceCredentialSchema } from "@repo/api/cloud/device/device-schema";
-import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
+import { deviceCredentialSchema } from "@repo/contract/cloud/device/device-schema";
+import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
 
 // a malformed record reads as "signed out", not as a credential the cloud refuses on every request.
 export const parseStoredCredential = (raw: string | null): DeviceCredential | null => {

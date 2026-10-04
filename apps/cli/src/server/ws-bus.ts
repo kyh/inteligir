@@ -7,13 +7,13 @@ import {
   clientMessageSchema,
   realtimeSubscriptionTargetKey,
   subscriptionKeysForMessage,
-} from "@repo/api/local/notifications";
+} from "@repo/contract/local/notifications";
 import type {
   ChangedMessage,
   HelloMessage,
   RealtimeSubscriptionTarget,
   VaultChangedMessage,
-} from "@repo/api/local/notifications";
+} from "@repo/contract/local/notifications";
 
 export interface BusSocket {
   close: (code?: number, reason?: string) => void;

@@ -3,7 +3,7 @@
 // guarded-vault-io does for the open buffer): the caller named exact bytes, and a merge would be
 // a guess about a note that moved.
 
-import { contentHashHex } from "@repo/api/local/vault/vault-schema";
+import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import { isDefinedError, refusalMessage, safe } from "../api";
 import type { client } from "../api";
 

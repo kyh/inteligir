@@ -3,7 +3,7 @@ import { siteConfig } from "@/lib/site-config";
 // each page's markdown is its one source: the route renders it as HTML and answers it as-is to an
 // agent that negotiates text/markdown, so the two representations cannot drift
 
-const { contact, github, name, url } = siteConfig;
+const { contact, downloadUrl, github, name, url } = siteConfig;
 
 export const homeMarkdown = `# ${name}: the workspace for knowledge work
 
@@ -24,10 +24,11 @@ undone.
 
 ${name} runs on Macs with Apple silicon and is shared with a small invited group for now.
 
-- [Download for Mac](${github}/releases/latest)
+- [Download for Mac](${downloadUrl})
 - [About ${name}](${url}/about)
 - [Contact](${url}/contact)
 - [Privacy](${url}/privacy)
+- [Terms](${url}/terms)
 `;
 
 export const aboutMarkdown = `# About ${name}
@@ -115,11 +116,12 @@ open source (MIT), available for Apple silicon Macs, and shared with a small inv
 - [Home](${url}/): what ${name} is and how it works
 - [About](${url}/about): principles and who makes it
 - [Contact](${url}/contact): email and GitHub
-- [Privacy](${url}/privacy): exactly what leaves the user's Mac and what never does
+- [Privacy Policy](${url}/privacy): exactly what leaves the user's Mac and what never does
+- [Terms of Use](${url}/terms): the terms for using the site and the apps
 
 ## Optional
 
-- [Download](${github}/releases/latest): the signed macOS build
+- [Download](${downloadUrl}): the signed macOS build
 - [Source code](${github}): the open-source repository
 - [Sitemap](${url}/sitemap.xml)
 `;
@@ -133,4 +135,4 @@ Nothing is served at \`${path}\` on ${url}.
 - [Sitemap](${url}/sitemap.xml): every page on this site
 `;
 
-export const SITEMAP_PATHS = ["/", "/about", "/contact", "/privacy"] as const;
+export const SITEMAP_PATHS = ["/", "/about", "/contact", "/privacy", "/terms"] as const;

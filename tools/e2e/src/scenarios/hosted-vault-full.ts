@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { vaultStatusResponseSchema } from "@repo/api/local/vault/vault-schema";
+import { vaultStatusResponseSchema } from "@repo/contract/local/vault/vault-schema";
 import { writeDeviceCredential } from "inteligir/server/cloud/credential-store";
 import { agentShellCli } from "../harness/agent-shell-cli";
 import { expect, expectEq } from "../harness/assert";

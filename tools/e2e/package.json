@@ -11,7 +11,7 @@
   "dependencies": {
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
-    "@repo/api": "workspace:*",
+    "@repo/contract": "workspace:*",
     "@repo/mobile": "workspace:*",
     "@repo/mobile-editor": "workspace:*",
     "inteligir": "workspace:*"

@@ -1,4 +1,4 @@
-import type { DataDirScope } from "@repo/api/local/system/system-schema";
+import type { DataDirScope } from "@repo/contract/local/system/system-schema";
 import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
 import { toast } from "@repo/ui/components/sonner";
 

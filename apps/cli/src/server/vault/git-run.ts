@@ -1,7 +1,7 @@
 import { execFile, spawn } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
-import { ENGINE_COMMIT_EMAIL } from "@repo/api/cloud/vault/vault-git";
+import { ENGINE_COMMIT_EMAIL } from "@repo/contract/cloud/vault/vault-git";
 import { z } from "zod";
 import { messageOf } from "../error-message";
 

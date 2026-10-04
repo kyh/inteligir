@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import { setTimeout as delay } from "node:timers/promises";
-import type { ThreadChangedMessage } from "@repo/api/local/notifications";
-import type { TurnChanges, UndoTurnRequest } from "@repo/api/local/threads/threads-schema";
+import type { ThreadChangedMessage } from "@repo/contract/local/notifications";
+import type { TurnChanges, UndoTurnRequest } from "@repo/contract/local/threads/threads-schema";
 import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
 import { Toaster, toast } from "@repo/ui/components/sonner";

@@ -1,6 +1,6 @@
-import { AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
-import type { SignUpRequest } from "@repo/api/cloud/account/account-schema";
-import { deviceLoginResponseSchema } from "@repo/api/cloud/device/device-schema";
+import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
+import type { SignUpRequest } from "@repo/contract/cloud/account/account-schema";
+import { deviceLoginResponseSchema } from "@repo/contract/cloud/device/device-schema";
 import { z } from "zod";
 import { expect } from "./assert";
 import { E2E_INVITE_CODE } from "./cloud-worker";

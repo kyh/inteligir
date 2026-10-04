@@ -3,7 +3,7 @@
 // stored, so a reload says nothing again while a report the boot sync made before this window
 // mounted is still said.
 
-import type { VaultSyncConflict } from "@repo/api/local/vault/vault-schema";
+import type { VaultSyncConflict } from "@repo/contract/local/vault/vault-schema";
 import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { toast } from "@repo/ui/components/sonner";
 import { useEffect, useEffectEvent } from "react";

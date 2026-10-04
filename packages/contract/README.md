@@ -1,8 +1,8 @@
-# @repo/api
+# @repo/contract
 
-ONE contract package, TWO entry points. `@repo/api/local` is the oRPC contract
+ONE contract package, TWO entry points. `@repo/contract/local` is the oRPC contract
 the desktop renderer and the CLI compile against and `inteligir serve`
-implements. `@repo/api/cloud` is the wire between an install and the Cloudflare
+implements. `@repo/contract/cloud` is the wire between an install and the Cloudflare
 Worker — and the client runtime core both the CLI and the phone run over it.
 
 ## Why it exists
@@ -101,7 +101,7 @@ src/
   a capture to the vault. It reaches nothing under `/local` either, pinned by
   the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as apps/web: a phone
   install may be months stale against the deployed Worker.
-- **apps/desktop** compiles against `/local` (plus `cloud/bytes`, once).
+- **apps/desktop** compiles against `/local` alone.
 
 ## Invariants
 
@@ -121,9 +121,9 @@ src/
   populates itself from `src/cloud`, so a file outside both halves is one no
   guard reads; `dep-dag.test.ts` refuses a third. The sanctioned crossing is
   `local` importing a `cloud` constant (`local/vault/vault-schema.ts` takes the
-  asset ceiling and the hash helpers; `local/cloud/cloud-schema.ts` the device
-  name bound) — a number copied by hand passes locally and is refused at the
-  Worker as a shape error. The other direction never.
+  asset media-type allowlist and the hash helpers; `local/cloud/cloud-schema.ts`
+  the device name bound) — a number copied by hand passes locally and is
+  refused at the Worker as a shape error. The other direction never.
 - **Every local row declares only the error classes it can raise.** A base
   carrying every class hands each client switch unreachable branches; the
   vault rows' declared set is held against the handlers by
@@ -144,7 +144,7 @@ src/
   bytes to merge against, while any reader that knows only the envelope,
   `readCloudCall` included, still sees the refusal.
 - **One spelling per route path.** `route-paths.test.ts` sweeps the repo for
-  the literal strings behind `@repo/api/local/routes` and `VAULT_API_PATHS`
+  the literal strings behind `@repo/contract/local/routes` and `VAULT_API_PATHS`
   and refuses a second spelling outside the file that owns it.
 - **The `/ws` frame grammar is strict outbound, lenient inbound.** The
   `.strict()` schemas type what the server broadcasts and are what its tests
@@ -178,7 +178,7 @@ src/
 
 ## Testing
 
-`pnpm --filter @repo/api test` — vitest, no platform. `src/cloud/__tests__/`
+`pnpm --filter @repo/contract test` — vitest, no platform. `src/cloud/__tests__/`
 pins the contract shapes and refusals (and that every answer a newer Worker
 grows still reads), the login flow, the session fence and single-flight, the
 byte primitives, the sync clip (every event type fits the cap with its envelope

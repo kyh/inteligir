@@ -1,4 +1,4 @@
-import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
+import type { WikiTargetWire } from "@repo/contract/local/knowledge/knowledge-schema";
 import { rankWikiTargets } from "@repo/notes/knowledge/rank-wiki-targets";
 import { cn } from "@repo/ui/lib/cn";
 import { FileTextIcon } from "lucide-react";

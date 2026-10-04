@@ -2,15 +2,15 @@
 // cursor moves inside the apply's transaction: a separate advance is the window
 // a crash duplicates a conversation through.
 
-import { CLAIM_DEFAULT_LIMIT } from "@repo/api/cloud/captures/captures-schema";
-import { describeCloudFailure } from "@repo/api/cloud/client";
-import type { CloudClient, CloudFailure } from "@repo/api/cloud/client";
-import { DISPATCH_CLAIM_DEFAULT_LIMIT } from "@repo/api/cloud/dispatch/dispatch-schema";
-import type { DispatchResult } from "@repo/api/cloud/dispatch/dispatch-schema";
-import { SYNC_OUTBOX_CODES } from "@repo/api/cloud/errors";
-import type { LogPlanStep } from "@repo/api/cloud/sync/plan-page";
-import { pullPages } from "@repo/api/cloud/sync/sync-session";
-import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";
+import { CLAIM_DEFAULT_LIMIT } from "@repo/contract/cloud/captures/captures-schema";
+import { describeCloudFailure } from "@repo/contract/cloud/client";
+import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
+import { DISPATCH_CLAIM_DEFAULT_LIMIT } from "@repo/contract/cloud/dispatch/dispatch-schema";
+import type { DispatchResult } from "@repo/contract/cloud/dispatch/dispatch-schema";
+import { SYNC_OUTBOX_CODES } from "@repo/contract/cloud/errors";
+import type { LogPlanStep } from "@repo/contract/cloud/sync/plan-page";
+import { pullPages } from "@repo/contract/cloud/sync/sync-session";
+import type { SyncOutcome } from "@repo/contract/cloud/sync/sync-session";
 import { writeTransaction } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import { MissingTurnStartedError } from "@repo/db/events";

@@ -1,4 +1,4 @@
-import type { VaultConflictReason } from "@repo/api/cloud/vault/vault-commit-schema";
+import type { VaultConflictReason } from "@repo/contract/cloud/vault/vault-commit-schema";
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";

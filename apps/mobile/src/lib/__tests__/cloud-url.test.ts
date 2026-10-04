@@ -1,4 +1,4 @@
-import { PRODUCTION_CLOUD_ORIGIN } from "@repo/api/cloud/origin";
+import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getCloudUrl } from "../cloud-url";
 

@@ -1,10 +1,10 @@
 import { CommandEmpty, CommandGroup, CommandItem } from "@repo/ui/components/command";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
-import { KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT } from "@repo/api/local/knowledge/knowledge-schema";
-import type { KnowledgeProblemsResponse } from "@repo/api/local/knowledge/knowledge-schema";
-import { giveNoteOwnId } from "@repo/api/local/vault/give-note-own-id";
-import type { NoteOwnId } from "@repo/api/local/vault/give-note-own-id";
+import { KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT } from "@repo/contract/local/knowledge/knowledge-schema";
+import type { KnowledgeProblemsResponse } from "@repo/contract/local/knowledge/knowledge-schema";
+import { giveNoteOwnId } from "@repo/contract/local/vault/give-note-own-id";
+import type { NoteOwnId } from "@repo/contract/local/vault/give-note-own-id";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { client, failed, orpc, refusalMessage } from "../api";

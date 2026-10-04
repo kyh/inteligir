@@ -2,7 +2,7 @@
 // log's request carrying its id replaces it, a thread that so far exists only on this phone, and a
 // Mac's question waiting on the phone's answer. Pure, so the copy and the merge run under test.
 
-import type { ApprovalRow } from "@repo/api/cloud/dispatch/dispatch-schema";
+import type { ApprovalRow } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { answerableDecisions } from "@repo/domain/pending-interactions";
 import type {
   ApprovalPendingInteractionPayload,

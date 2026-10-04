@@ -2,13 +2,13 @@
 // position replayed with a different body sync-conflict, so re-serializing at
 // push time turns every retry after a grammar change into one.
 
-import { clipThreadEventForSync } from "@repo/api/cloud/sync/fit-sync-event";
+import { clipThreadEventForSync } from "@repo/contract/cloud/sync/fit-sync-event";
 import {
   EVENT_MAX_BYTES,
   PUSH_MAX_EVENTS,
   syncEventInputSchema,
-} from "@repo/api/cloud/sync/sync-schema";
-import type { PushRequest, SyncEventInput } from "@repo/api/cloud/sync/sync-schema";
+} from "@repo/contract/cloud/sync/sync-schema";
+import type { PushRequest, SyncEventInput } from "@repo/contract/cloud/sync/sync-schema";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import {
   deleteSyncOutboxThrough,

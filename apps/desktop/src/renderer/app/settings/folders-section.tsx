@@ -1,7 +1,7 @@
 // A typed path field rather than a picker: a browser has no native directory
 // picker, and the desktop shell ships no IPC to add one.
 
-import type { ConnectedFoldersResponse } from "@repo/api/local/folders/folders-schema";
+import type { ConnectedFoldersResponse } from "@repo/contract/local/folders/folders-schema";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";

@@ -1,15 +1,18 @@
-import { vaultChangePaths, vaultCollisionKey } from "@repo/api/cloud/vault/vault-commit-schema";
+import {
+  vaultChangePaths,
+  vaultCollisionKey,
+} from "@repo/contract/cloud/vault/vault-commit-schema";
 import type {
   VaultCommitConflict,
   VaultCommitResponse,
   VaultConflictReason,
-} from "@repo/api/cloud/vault/vault-commit-schema";
+} from "@repo/contract/cloud/vault/vault-commit-schema";
 import {
   deviceCommitEmail,
   vaultCommitSubject,
   WORKER_COMMITTER_EMAIL,
-} from "@repo/api/cloud/vault/vault-git";
-import { VAULT_FILE_MAX_BYTES } from "@repo/api/cloud/vault/vault-schema";
+} from "@repo/contract/cloud/vault/vault-git";
+import { VAULT_FILE_MAX_BYTES } from "@repo/contract/cloud/vault/vault-schema";
 import type { RepoCell, TreeEntryJson, TreeResult } from "durable-git";
 import {
   blobObject,
