@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { CONFIG_FILE_NAME, DEV_DATA_ROOT_DIR } from "inteligir/server/config";
 import { pathContains } from "inteligir/server/path-containment";
@@ -107,13 +107,16 @@ describe("the selector", () => {
     expect(after.target.vaultDir).toBe(work);
   });
 
-  it("opens a folder that is there where it is", async () => {
+  it("opens a folder that is there where it is, by its own spelling", async () => {
     const context = scratch();
     const notes = path.join(context.homeDir, "Notes");
     mkdirSync(notes);
+    // a selection keeps the folder's physical spelling, which macOS's tmpdir, behind a symlink
+    // (/tmp is /private/tmp), shows
+    const physical = realpathSync.native(notes);
     expect(answered(openingAnswer, await answerDoor(context, "plan-open", [notes]))).toEqual({
-      selector: notes,
-      vaultDir: notes,
+      selector: physical,
+      vaultDir: physical,
     });
   });
 });
@@ -130,9 +133,10 @@ describe("a switch", () => {
     const context = scratch();
     const other = path.join(context.homeDir, "Other");
     mkdirSync(other);
+    const physical = realpathSync.native(other);
     expect(answered(openingAnswer, await answerDoor(context, "plan-switch", [other]))).toEqual({
-      selector: other,
-      vaultDir: other,
+      selector: physical,
+      vaultDir: physical,
     });
   });
 });
