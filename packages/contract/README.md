@@ -101,7 +101,7 @@ src/
   a capture to the vault. It reaches nothing under `/local` either, pinned by
   the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as apps/web: a phone
   install may be months stale against the deployed Worker.
-- **apps/desktop** compiles against `/local` (plus `cloud/bytes`, once).
+- **apps/desktop** compiles against `/local` alone.
 
 ## Invariants
 
@@ -121,9 +121,9 @@ src/
   populates itself from `src/cloud`, so a file outside both halves is one no
   guard reads; `dep-dag.test.ts` refuses a third. The sanctioned crossing is
   `local` importing a `cloud` constant (`local/vault/vault-schema.ts` takes the
-  asset ceiling and the hash helpers; `local/cloud/cloud-schema.ts` the device
-  name bound) — a number copied by hand passes locally and is refused at the
-  Worker as a shape error. The other direction never.
+  asset media-type allowlist and the hash helpers; `local/cloud/cloud-schema.ts`
+  the device name bound) — a number copied by hand passes locally and is
+  refused at the Worker as a shape error. The other direction never.
 - **Every local row declares only the error classes it can raise.** A base
   carrying every class hands each client switch unreachable branches; the
   vault rows' declared set is held against the handlers by
