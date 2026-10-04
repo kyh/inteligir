@@ -5,7 +5,7 @@
 import { execFile } from "node:child_process";
 import { hostname } from "node:os";
 import { promisify } from "node:util";
-import { normalizeDeviceName } from "@repo/api/cloud/device/device-schema";
+import { normalizeDeviceName } from "@repo/contract/cloud/device/device-schema";
 import { readDeviceCredential } from "./cloud/credential-store";
 
 const execFileAsync = promisify(execFile);

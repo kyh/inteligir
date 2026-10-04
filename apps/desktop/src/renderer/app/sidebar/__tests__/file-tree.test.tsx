@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FileTreeProps, TreeOps } from "../file-tree";
 import { RailTree } from "./rail-tree";

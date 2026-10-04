@@ -3,18 +3,21 @@
 // running turn's pushes are pulled as they land; the poll stays, since the socket is latency and
 // never correctness.
 
-import type { CaptureRequest, CaptureResponse } from "@repo/api/cloud/captures/captures-schema";
-import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
-import { createSocketLink } from "@repo/api/cloud/sync/socket-link";
+import type {
+  CaptureRequest,
+  CaptureResponse,
+} from "@repo/contract/cloud/captures/captures-schema";
+import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
+import { createSocketLink } from "@repo/contract/cloud/sync/socket-link";
 import {
   createSingleFlight,
   createSyncSession,
   pullPages,
-} from "@repo/api/cloud/sync/sync-session";
-import type { SyncOutcome, SyncSessionHandle } from "@repo/api/cloud/sync/sync-session";
-import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
-import type { CloudClient, CloudFailure, CloudResult } from "@repo/api/cloud/client";
-import type { CloudSocketOpener } from "@repo/api/cloud/sync/cloud-socket";
+} from "@repo/contract/cloud/sync/sync-session";
+import type { SyncOutcome, SyncSessionHandle } from "@repo/contract/cloud/sync/sync-session";
+import { createCloudClient, describeCloudFailure } from "@repo/contract/cloud/client";
+import type { CloudClient, CloudFailure, CloudResult } from "@repo/contract/cloud/client";
+import type { CloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
 import type { SyncStore } from "./sync-store";

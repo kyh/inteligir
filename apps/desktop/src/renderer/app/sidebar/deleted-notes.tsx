@@ -1,7 +1,7 @@
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
-import { restoreCommentStore } from "@repo/api/local/vault/restore-comment-store";
-import type { VaultDeletedEntry } from "@repo/api/local/vault/vault-schema";
+import { restoreCommentStore } from "@repo/contract/local/vault/restore-comment-store";
+import type { VaultDeletedEntry } from "@repo/contract/local/vault/vault-schema";
 import {
   DropdownMenu,
   DropdownMenuContent,

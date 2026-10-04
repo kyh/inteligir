@@ -14,7 +14,7 @@ import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import type {
   ConnectorTarget,
   ConnectorTargetInput,
-} from "@repo/api/local/connectors/connectors-schema";
+} from "@repo/contract/local/connectors/connectors-schema";
 import type { VendorProcessContext } from "../agents/vendor-process";
 import { errnoCode } from "../errno";
 import { messageOf } from "../error-message";

@@ -1,6 +1,6 @@
 import path from "node:path";
-import type { VendorAccount } from "@repo/api/local/agents/agents-schema";
-import type { AgentStatus } from "@repo/api/local/system/system-schema";
+import type { VendorAccount } from "@repo/contract/local/agents/agents-schema";
+import type { AgentStatus } from "@repo/contract/local/system/system-schema";
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { bootTestApp, fakeAgentAccounts, makeTempDir } from "inteligir/server/testing";

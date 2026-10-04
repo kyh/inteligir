@@ -1,5 +1,5 @@
 import { defineCommand } from "citty";
-import type { HarnessStatus } from "@repo/api/local/agents/agents-schema";
+import type { HarnessStatus } from "@repo/contract/local/agents/agents-schema";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";

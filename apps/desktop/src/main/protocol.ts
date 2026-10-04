@@ -4,7 +4,7 @@
 
 import { net, protocol } from "electron";
 import type { Session } from "electron";
-import { websocketOrigin } from "@repo/api/local/routes";
+import { websocketOrigin } from "@repo/contract/local/routes";
 import { documentSecurityHeaders } from "inteligir/server/csp";
 import { APP_SCHEME, createAppRequestHandler } from "./protocol-handler";
 import type { AppRenderer } from "./protocol-handler";

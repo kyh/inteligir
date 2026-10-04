@@ -10,7 +10,7 @@ import {
   vaultFileQuerySchema,
   vaultFilesRequestSchema,
   vaultTreeQuerySchema,
-} from "@repo/api/cloud/vault/vault-schema";
+} from "@repo/contract/cloud/vault/vault-schema";
 import type {
   VaultAssetQuery,
   VaultFileQuery,
@@ -19,7 +19,7 @@ import type {
   VaultFilesRequest,
   VaultFilesResponse,
   VaultTreeQuery,
-} from "@repo/api/cloud/vault/vault-schema";
+} from "@repo/contract/cloud/vault/vault-schema";
 import type { RepoCell } from "durable-git";
 import { refuse } from "../cloud-http";
 import { createDb } from "../db/client";

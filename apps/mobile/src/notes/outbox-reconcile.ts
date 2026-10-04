@@ -3,14 +3,14 @@
 // answer into the one change set the phone sends next. Every round reconciles the row's intent
 // against the newest conflict, so a head that moved again is met again.
 
-import type { CloudFailure } from "@repo/api/cloud/client";
-import { utf8ByteLength } from "@repo/api/cloud/bytes";
-import { vaultCollisionKey } from "@repo/api/cloud/vault/vault-commit-schema";
+import type { CloudFailure } from "@repo/contract/cloud/client";
+import { utf8ByteLength } from "@repo/contract/cloud/bytes";
+import { vaultCollisionKey } from "@repo/contract/cloud/vault/vault-commit-schema";
 import type {
   VaultChangeRequest,
   VaultCommitConflict,
   VaultConflictReason,
-} from "@repo/api/cloud/vault/vault-commit-schema";
+} from "@repo/contract/cloud/vault/vault-commit-schema";
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";
 import type { FileSide, Reconciled } from "@repo/notes/sync/reconcile-file";

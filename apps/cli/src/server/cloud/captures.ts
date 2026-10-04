@@ -1,4 +1,4 @@
-import type { CaptureRow } from "@repo/api/cloud/captures/captures-schema";
+import type { CaptureRow } from "@repo/contract/cloud/captures/captures-schema";
 import { CAPTURE_INBOX_PATH } from "@repo/notes/sync/reconcile-file";
 import { messageOf } from "../error-message";
 import { VaultServiceError } from "../vault/vault-service";

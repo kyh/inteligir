@@ -8,7 +8,7 @@ import { siteConfig } from "@/lib/site-config";
 import privacy from "../../../../docs/privacy.md?raw";
 
 export const Route = createFileRoute("/privacy")({
-  head: () => ({ meta: [{ title: `Privacy · ${siteConfig.name}` }] }),
+  head: () => ({ meta: [{ title: `Privacy Policy · ${siteConfig.name}` }] }),
   headers: varyHeaders,
   component: () => <MarkdownPage markdown={privacy} />,
   server: { handlers: { GET: markdownHandler(privacy) } },

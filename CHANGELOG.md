@@ -4,6 +4,14 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ## Unreleased
 
+### New
+
+- **Terms of Use.** Inteligir now has Terms of Use, at inteligir.com/terms. They say what you agree to when you use the website and the apps: your notes stay yours, the agent runs under your own Claude or ChatGPT plan's terms, and the online copy of your notes is free up to about 1 GB.
+
+### Changed
+
+- **The privacy policy is reorganized.** inteligir.com/privacy now follows the sections privacy law asks for, with an index at the top, and says how to ask us for a copy of your information, a correction or a deletion, including under U.S. state and European law. What the app sends, what never leaves your Mac and how your account is deleted are the same as before, and every address the app talks to is still listed at the end.
+
 ### Fixed
 
 - **Messages you queued wait when your plan's usage limit is reached.** If Claude or ChatGPT stops an action because you've reached your plan's usage limit, or because you're signed out, the action now says so in plain words, and the messages you queued behind it stay queued instead of each failing the same way. Send again once the limit resets or you've signed in, and the oldest queued message goes first.

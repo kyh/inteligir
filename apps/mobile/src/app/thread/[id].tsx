@@ -34,7 +34,7 @@ import {
 import { firstParam } from "@/lib/routes";
 import { MONO_FONT, RADIUS, SPACE, useTheme } from "@/lib/theme";
 import type { ThreadDisplayItem } from "@/sync/thread-projection";
-import { DISPATCH_MAX_CHARS } from "@repo/api/cloud/dispatch/dispatch-schema";
+import { DISPATCH_MAX_CHARS } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { quoteSelection } from "@repo/domain/quote-selection";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 

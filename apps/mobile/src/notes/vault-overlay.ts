@@ -4,7 +4,7 @@
 // store, and a comment edit reads as its store and the note it anchored in. A parked row is laid
 // over too, since its bytes are the user's until they discard them.
 
-import { utf8ByteLength } from "@repo/api/cloud/bytes";
+import { utf8ByteLength } from "@repo/contract/cloud/bytes";
 import type { OutboxRow, VaultOp } from "./outbox-ops";
 import { noteFactsOf } from "./vault-mirror";
 import type { MirrorRow } from "./vault-mirror";

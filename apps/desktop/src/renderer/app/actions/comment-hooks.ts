@@ -1,5 +1,5 @@
 import { clearCommentMeta, setCommentMeta } from "@repo/editor/comments/comment-store";
-import type { CommentsResponse } from "@repo/api/local/comments/comments-schema";
+import type { CommentsResponse } from "@repo/contract/local/comments/comments-schema";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useEffect } from "react";

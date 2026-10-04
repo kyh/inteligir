@@ -7,8 +7,8 @@ import { createORPCClient, onError, onSuccess } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import type { ContractRouterClient } from "@orpc/contract";
-import type { LocalContract } from "@repo/api/local";
-import { RPC_PREFIX } from "@repo/api/local/routes";
+import type { LocalContract } from "@repo/contract/local";
+import { RPC_PREFIX } from "@repo/contract/local/routes";
 import { toast } from "@repo/ui/components/sonner";
 import { observeGateRefusal } from "./signed-out-state";
 

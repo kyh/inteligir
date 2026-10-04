@@ -1,5 +1,5 @@
-import type { WikiTargetWire } from "@repo/api/local/knowledge/knowledge-schema";
-import { MAX_CONTEXT_PATHS } from "@repo/api/local/threads/threads-schema";
+import type { WikiTargetWire } from "@repo/contract/local/knowledge/knowledge-schema";
+import { MAX_CONTEXT_PATHS } from "@repo/contract/local/threads/threads-schema";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogPopup } from "@repo/ui/components/dialog";

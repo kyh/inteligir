@@ -10,7 +10,7 @@ src/main/       the Electron main process: the window, the protocol, the fork, t
 src/preload/    index.ts: the ONE bridge into the app window (the loopback ws origin, the
                 updater, the spell checker, the vault switch, Reveal/Open, the diagnostics);
                 first-run.ts: the first-run window's, which carries the vault choice alone
-src/renderer/   the SPA — TanStack Router file routes over @repo/api/local — and
+src/renderer/   the SPA — TanStack Router file routes over @repo/contract/local — and
                 first-run.html, the page a launch with no vault opens (first-run/)
 ```
 

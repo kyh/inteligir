@@ -1,5 +1,5 @@
-import type { DeviceSignUpRequest } from "@repo/api/cloud/account/account-schema";
-import type { DeviceLoginResponse } from "@repo/api/cloud/device/device-schema";
+import type { DeviceSignUpRequest } from "@repo/contract/cloud/account/account-schema";
+import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
 import { APIError } from "better-auth/api";
 import { z } from "zod";
 import type { createSignUpAuth } from "../auth/auth";

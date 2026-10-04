@@ -9,7 +9,7 @@ import type {
   ConnectorAuth,
   ConnectorTarget,
   ConnectorTargetInput,
-} from "@repo/api/local/connectors/connectors-schema";
+} from "@repo/contract/local/connectors/connectors-schema";
 import { failureOf, printedUrlWatcher, runVendor, succeeded } from "../agents/vendor-process";
 import type { VendorProcessContext, VendorRun } from "../agents/vendor-process";
 import type { McpSignInEnd, McpSignInRun } from "./mcp-sign-ins";

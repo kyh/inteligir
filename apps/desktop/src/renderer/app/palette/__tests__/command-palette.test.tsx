@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import type { Thread } from "@repo/api/local/threads/threads-schema";
-import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+import type { Thread } from "@repo/contract/local/threads/threads-schema";
+import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
@@ -20,7 +20,7 @@ import type {
   KnowledgeMatchesResponse,
   KnowledgeProblemsResponse,
   KnowledgeSearchResponse,
-} from "@repo/api/local/knowledge/knowledge-schema";
+} from "@repo/contract/local/knowledge/knowledge-schema";
 import { ChangeBatch } from "../../workspace-context";
 import type { CommandPalette, PaletteActions, PaletteNote } from "../command-palette";
 import {

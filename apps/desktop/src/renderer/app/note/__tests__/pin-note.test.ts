@@ -1,5 +1,5 @@
-import { contentHashHex } from "@repo/api/local/vault/vault-schema";
-import type { VaultWriteRequest } from "@repo/api/local/vault/vault-schema";
+import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
+import type { VaultWriteRequest } from "@repo/contract/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 
 import { setNotePinned } from "../pin-note";

@@ -1,6 +1,6 @@
-import { CLOUD_ERROR_STATUS, cloudError } from "@repo/api/cloud/errors";
-import type { CloudErrorCode } from "@repo/api/cloud/errors";
-import type { DeviceLoginResponse } from "@repo/api/cloud/device/device-schema";
+import { CLOUD_ERROR_STATUS, cloudError } from "@repo/contract/cloud/errors";
+import type { CloudErrorCode } from "@repo/contract/cloud/errors";
+import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
 
 export const refuse = (code: CloudErrorCode, message: string, deviceSeq?: number): Response =>
   Response.json(cloudError(code, message, deviceSeq), {

@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clientMessageSchema } from "@repo/api/local/notifications";
+import { clientMessageSchema } from "@repo/contract/local/notifications";
 import type {
   ChangedMessage,
   ClientMessage,
   RealtimeSubscriptionTarget,
-} from "@repo/api/local/notifications";
+} from "@repo/contract/local/notifications";
 import { InvalidationClient } from "../invalidation-client";
 import type { InvalidationSocket } from "../invalidation-client";
 

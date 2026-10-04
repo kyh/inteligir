@@ -87,7 +87,7 @@
         "@agentclientprotocol/codex-acp"
       ]
     },
-    "packages/api": {
+    "packages/contract": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"]
     },

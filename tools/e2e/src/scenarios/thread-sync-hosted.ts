@@ -1,5 +1,5 @@
-import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
-import type { TimelineRow } from "@repo/api/local/thread-timeline";
+import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schema";
+import type { TimelineRow } from "@repo/contract/local/thread-timeline";
 import { POLL_INTERVAL_MS } from "inteligir/server/cloud/sync-cadence";
 import { expect } from "../harness/assert";
 import { signUp } from "../harness/cloud-account";

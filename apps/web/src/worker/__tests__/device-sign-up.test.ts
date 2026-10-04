@@ -2,15 +2,15 @@ import {
   ACCOUNT_API_PATHS,
   accountResponseSchema,
   AUTH_PAGE_PATHS,
-} from "@repo/api/cloud/account/account-schema";
-import type { DeviceSignUpRequest } from "@repo/api/cloud/account/account-schema";
-import { cloudErrorSchema } from "@repo/api/cloud/errors";
+} from "@repo/contract/cloud/account/account-schema";
+import type { DeviceSignUpRequest } from "@repo/contract/cloud/account/account-schema";
+import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import {
   DEVICE_API_PATHS,
   deviceLoginResponseSchema,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
-} from "@repo/api/cloud/device/device-schema";
+} from "@repo/contract/cloud/device/device-schema";
 import { eq } from "drizzle-orm";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";

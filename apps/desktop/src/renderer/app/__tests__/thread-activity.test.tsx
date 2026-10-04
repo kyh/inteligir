@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { isThreadRunning, threadStatusValues } from "@repo/domain/thread-status";
-import type { Thread } from "@repo/api/local/threads/threads-schema";
+import type { Thread } from "@repo/contract/local/threads/threads-schema";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {

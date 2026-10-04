@@ -6,11 +6,11 @@ import { z } from "zod";
 import {
   createDispatchRequestSchema,
   dispatchStatusSchema,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import type {
   CreateDispatchRequest,
   DispatchStatus,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { fencedExclusive, phoneDbReady } from "../lib/phone-db";
 import type { Fence } from "../lib/phone-db";
 import type { SqlDriver } from "../lib/sql-driver";

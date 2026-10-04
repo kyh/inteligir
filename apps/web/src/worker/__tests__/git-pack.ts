@@ -1,4 +1,4 @@
-import { hexFromBytes } from "@repo/api/cloud/bytes";
+import { hexFromBytes } from "@repo/contract/cloud/bytes";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import {

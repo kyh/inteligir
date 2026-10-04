@@ -1,6 +1,6 @@
-import { createCloudClient } from "@repo/api/cloud/client";
-import type { CloudFetch } from "@repo/api/cloud/client";
-import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
+import { createCloudClient } from "@repo/contract/cloud/client";
+import type { CloudFetch } from "@repo/contract/cloud/client";
+import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { SqlDriver } from "../../lib/sql-driver";

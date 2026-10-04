@@ -1,9 +1,12 @@
-import { AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
-import { DEVICE_API_PATHS, deviceLoginResponseSchema } from "@repo/api/cloud/device/device-schema";
-import type { DeviceLoginRequest } from "@repo/api/cloud/device/device-schema";
-import { cloudErrorSchema } from "@repo/api/cloud/errors";
-import { syncPingSchema } from "@repo/api/cloud/sync/sync-ws";
-import type { SyncPing } from "@repo/api/cloud/sync/sync-ws";
+import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
+import {
+  DEVICE_API_PATHS,
+  deviceLoginResponseSchema,
+} from "@repo/contract/cloud/device/device-schema";
+import type { DeviceLoginRequest } from "@repo/contract/cloud/device/device-schema";
+import { cloudErrorSchema } from "@repo/contract/cloud/errors";
+import { syncPingSchema } from "@repo/contract/cloud/sync/sync-ws";
+import type { SyncPing } from "@repo/contract/cloud/sync/sync-ws";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { expect, vi } from "vitest";

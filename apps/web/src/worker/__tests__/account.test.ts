@@ -1,5 +1,8 @@
-import { ACCOUNT_API_PATHS, accountResponseSchema } from "@repo/api/cloud/account/account-schema";
-import { cloudErrorSchema } from "@repo/api/cloud/errors";
+import {
+  ACCOUNT_API_PATHS,
+  accountResponseSchema,
+} from "@repo/contract/cloud/account/account-schema";
+import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { deviceHeaders, emitted, ORIGIN, loginDevice, signUpUser } from "./cloud-helpers";

@@ -190,7 +190,7 @@ apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device 
 apps/mobile             @repo/mobile — the iPhone app: notes in the editor page, offline, and asking a Mac's agent
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
 packages/domain         @repo/domain — zod-only leaf vocabulary
-packages/api            @repo/api — ONE contract, TWO entries: /local and /cloud
+packages/contract       @repo/contract — ONE contract, TWO entries: /local and /cloud
 packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
 packages/notes          @repo/notes — the pure, platform-neutral domain
 packages/editor         @repo/editor — the Plate WYSIWYG over the fixpoint serializer

@@ -4,7 +4,7 @@ import {
   RPC_PREFIX,
   VAULT_ASSET_PATH,
   WS_PATH,
-} from "@repo/api/local/routes";
+} from "@repo/contract/local/routes";
 import { mkdirSync, writeFileSync } from "node:fs";
 import nodePath from "node:path";
 import { describe, expect, it } from "vitest";

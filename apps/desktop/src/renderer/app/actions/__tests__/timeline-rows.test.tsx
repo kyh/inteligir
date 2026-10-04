@@ -5,8 +5,8 @@ import type {
   TimelineConversationRow,
   TimelineRow,
   TimelineTurnRow,
-} from "@repo/api/local/thread-timeline";
-import type { TurnChanges } from "@repo/api/local/threads/threads-schema";
+} from "@repo/contract/local/thread-timeline";
+import type { TurnChanges } from "@repo/contract/local/threads/threads-schema";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TimelineRowView, TurnChangesFooter, turnFooterSlots } from "../timeline-rows";

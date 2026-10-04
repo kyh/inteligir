@@ -28,7 +28,7 @@ import { Spinner } from "@repo/ui/components/spinner";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { useTheme } from "@repo/ui/lib/theme";
 import { cn } from "@repo/ui/lib/cn";
-import type { VaultEntry, VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import type { VaultEntry, VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
 import {
   ChevronDownIcon,
   ChevronsUpDownIcon,

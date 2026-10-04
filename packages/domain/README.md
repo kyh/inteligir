@@ -19,7 +19,7 @@ forbids node/react/electron imports, and the zod-only-leaf check refuses any
 every consumer — and by `tsconfig.json` (`ES2023`, `types: []`), so a node
 global is a type error before it is a lint error.
 
-Consumers: `@repo/db`, `@repo/api`, `@repo/agent-runtime`, the CLI server,
+Consumers: `@repo/db`, `@repo/contract`, `@repo/agent-runtime`, the CLI server,
 the desktop renderer, and `apps/mobile`, whose synced log is stored as this
 package's `ThreadEvent`.
 
@@ -120,12 +120,12 @@ Every subpath is exported by name in `package.json`; there is no barrel.
   with nothing listening. `apps/cli/src/server/threads/service.ts` builds a
   `NotificationBuffer` per ingest transaction and flushes it after the commit.
 - The change-kind tuples are the `/ws` bus's whole vocabulary:
-  `packages/api/src/local/notifications.ts` reads them, and the repo guard's
+  `packages/contract/src/local/notifications.ts` reads them, and the repo guard's
   ws-reachability test holds every kind to a producer in shipped source and
   every fired kind to the declaration; nothing checks that a client consumes
   a kind.
 - `threadEventSchema` is what the cloud page planner
-  (`packages/api/src/cloud/sync/plan-page.ts`) re-parses every pulled row
+  (`packages/contract/src/cloud/sync/plan-page.ts`) re-parses every pulled row
   through before it may move a cursor.
 
 ## Testing

@@ -5,7 +5,7 @@
 // not close cross-port either; browser-request.ts checks the origin of cookie-authed requests.
 
 import { randomBytes } from "node:crypto";
-import { constantTimeEqual } from "@repo/api/cloud/bytes";
+import { constantTimeEqual } from "@repo/contract/cloud/bytes";
 
 export const BROWSER_SESSION_COOKIE = "inteligir_session";
 

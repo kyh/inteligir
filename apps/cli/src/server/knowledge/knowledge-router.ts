@@ -8,8 +8,8 @@ import {
   KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
   KNOWLEDGE_TAGS_MAX,
   KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
-} from "@repo/api/local/knowledge/knowledge-schema";
-import type { KnowledgeRenameTagResponse } from "@repo/api/local/knowledge/knowledge-schema";
+} from "@repo/contract/local/knowledge/knowledge-schema";
+import type { KnowledgeRenameTagResponse } from "@repo/contract/local/knowledge/knowledge-schema";
 import { attributeWrites, base } from "../orpc";
 
 export type RenameTag = (from: string, to: string) => Promise<KnowledgeRenameTagResponse>;

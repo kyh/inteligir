@@ -17,12 +17,12 @@ import {
   getThread,
   setThreadProviderSession,
 } from "@repo/db/threads";
-import { serverMessageLenientSchema } from "@repo/api/local/notifications";
-import type { ServerMessage } from "@repo/api/local/notifications";
-import { WS_PATH } from "@repo/api/local/routes";
-import type { TimelineResponse } from "@repo/api/local/threads/threads-schema";
-import { applyTimelineDelta } from "@repo/api/local/thread-timeline";
-import type { TimelineRow } from "@repo/api/local/thread-timeline";
+import { serverMessageLenientSchema } from "@repo/contract/local/notifications";
+import type { ServerMessage } from "@repo/contract/local/notifications";
+import { WS_PATH } from "@repo/contract/local/routes";
+import type { TimelineResponse } from "@repo/contract/local/threads/threads-schema";
+import { applyTimelineDelta } from "@repo/contract/local/thread-timeline";
+import type { TimelineRow } from "@repo/contract/local/thread-timeline";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";

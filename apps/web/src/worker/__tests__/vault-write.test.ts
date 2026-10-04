@@ -1,16 +1,16 @@
-import { base64FromBytes } from "@repo/api/cloud/bytes";
-import { DEVICE_API_PATHS } from "@repo/api/cloud/device/device-schema";
+import { base64FromBytes } from "@repo/contract/cloud/bytes";
+import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
 import {
   VAULT_COMMIT_MAX_BYTES,
   vaultCommitResponseSchema,
   vaultConflictAnswerSchema,
-} from "@repo/api/cloud/vault/vault-commit-schema";
-import type { VaultCommitRequest } from "@repo/api/cloud/vault/vault-commit-schema";
+} from "@repo/contract/cloud/vault/vault-commit-schema";
+import type { VaultCommitRequest } from "@repo/contract/cloud/vault/vault-commit-schema";
 import {
   VAULT_API_PATHS,
   VAULT_FILE_MAX_BYTES,
   vaultFileResponseSchema,
-} from "@repo/api/cloud/vault/vault-schema";
+} from "@repo/contract/cloud/vault/vault-schema";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";

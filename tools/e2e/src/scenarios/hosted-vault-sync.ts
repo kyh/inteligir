@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
-import { DEVICE_CREDENTIAL_PREFIX } from "@repo/api/cloud/device/device-schema";
+import { createCloudClient, describeCloudFailure } from "@repo/contract/cloud/client";
+import { DEVICE_CREDENTIAL_PREFIX } from "@repo/contract/cloud/device/device-schema";
 import {
   readDeviceCredential,
   writeDeviceCredential,

@@ -2,8 +2,8 @@
 // four surfaces it guards are not procedures) and containment is the vault
 // service's alone — a resolveVaultPath middleware would be a second answer to it.
 
-import { localContract } from "@repo/api/local";
-import type { AgentStatus, DataDirScope } from "@repo/api/local/system/system-schema";
+import { localContract } from "@repo/contract/local";
+import type { AgentStatus, DataDirScope } from "@repo/contract/local/system/system-schema";
 import type { ORPCError } from "@orpc/server";
 import { implement } from "@orpc/server";
 import type { RecordAgentWrites } from "./agents/agent-driver";

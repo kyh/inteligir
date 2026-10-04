@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { HARNESS_IDS } from "@repo/agent-runtime/acp/harness-registry";
 import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
-import type { ConnectorTargetInput } from "@repo/api/local/connectors/connectors-schema";
+import type { ConnectorTargetInput } from "@repo/contract/local/connectors/connectors-schema";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { pathContains } from "../../path-containment";
