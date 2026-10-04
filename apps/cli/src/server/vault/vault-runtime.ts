@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { createVaultIgnore, isGitignorePath } from "@repo/notes/knowledge/vault-ignore";
-import type { ExternalSync, VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import type { ExternalSync, VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
 import { NO_ORIGIN } from "../cloud/vault-remote";
 import type { VaultRemoteProvider } from "../cloud/vault-remote";
 import type { DebugLog } from "../debug-log";

@@ -1,4 +1,4 @@
-// both ends ship in one bundle, so this half may break freely; @repo/api/cloud may never.
+// both ends ship in one bundle, so this half may break freely; @repo/contract/cloud may never.
 
 import { agentsContract } from "./agents/agents-contract";
 import { cloudContract } from "./cloud/cloud-contract";

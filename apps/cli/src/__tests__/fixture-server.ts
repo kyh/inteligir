@@ -1,23 +1,23 @@
 import { createServer } from "node:http";
 import { implement, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/node";
-import { localContract } from "@repo/api/local";
-import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
-import type { CommentThreadWire } from "@repo/api/local/comments/comments-schema";
-import type { ConnectorsResponse } from "@repo/api/local/connectors/connectors-schema";
-import type { ConnectedFoldersResponse } from "@repo/api/local/folders/folders-schema";
+import { localContract } from "@repo/contract/local";
+import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schema";
+import type { CommentThreadWire } from "@repo/contract/local/comments/comments-schema";
+import type { ConnectorsResponse } from "@repo/contract/local/connectors/connectors-schema";
+import type { ConnectedFoldersResponse } from "@repo/contract/local/folders/folders-schema";
 import {
   KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
   KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
   KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
   KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
-} from "@repo/api/local/knowledge/knowledge-schema";
+} from "@repo/contract/local/knowledge/knowledge-schema";
 import type {
   BacklinkEntryWire,
   RelatedNoteWire,
   SearchResultWire,
   TagCountWire,
-} from "@repo/api/local/knowledge/knowledge-schema";
+} from "@repo/contract/local/knowledge/knowledge-schema";
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { collectVaultMatches } from "@repo/notes/knowledge/text-matches";
 import { buildResolver } from "@repo/notes/knowledge/link-resolve";
@@ -27,23 +27,26 @@ import {
   mentionNames,
 } from "@repo/notes/knowledge/unlinked-mentions";
 import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
-import { RPC_PREFIX } from "@repo/api/local/routes";
-import type { AgentStatus, SystemStatusResponse } from "@repo/api/local/system/system-schema";
-import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
+import { RPC_PREFIX } from "@repo/contract/local/routes";
+import type { AgentStatus, SystemStatusResponse } from "@repo/contract/local/system/system-schema";
+import type { ThreadTimeline } from "@repo/contract/local/thread-timeline";
 import type {
   PendingInteraction,
   QueuedThreadMessage,
   Thread,
   TurnChanges,
   UndoTurnResponse,
-} from "@repo/api/local/threads/threads-schema";
-import { DEFAULT_ATTACHMENT_LOCATION, contentHashHex } from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/threads/threads-schema";
+import {
+  DEFAULT_ATTACHMENT_LOCATION,
+  contentHashHex,
+} from "@repo/contract/local/vault/vault-schema";
 import type {
   VaultEntry,
   VaultPrefsResponse,
   VaultRevision,
   VaultStatusResponse,
-} from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/vault/vault-schema";
 import type { ThreadStatus } from "@repo/domain/thread-status";
 import { boundAddressSchema } from "../server/__tests__/bound-address";
 

@@ -6,7 +6,7 @@ import { existsSync, statSync } from "node:fs";
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
+import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { hostedVaultRemoteUrl, NO_ORIGIN, ownOriginUrl } from "../cloud/vault-remote";
 import type { OriginConfig } from "../cloud/vault-remote";

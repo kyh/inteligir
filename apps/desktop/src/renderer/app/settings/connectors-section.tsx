@@ -4,14 +4,14 @@
 import {
   connectorAddRequestSchema,
   connectorTargetText,
-} from "@repo/api/local/connectors/connectors-schema";
+} from "@repo/contract/local/connectors/connectors-schema";
 import type {
   ConnectorAuth,
   ConnectorSignIn,
   ConnectorsResponse,
   ConnectorTargetInput,
   ConnectorView,
-} from "@repo/api/local/connectors/connectors-schema";
+} from "@repo/contract/local/connectors/connectors-schema";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Label } from "@repo/ui/components/label";

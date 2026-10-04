@@ -1,16 +1,16 @@
 // the credential never crosses this wire; deviceId is the only identity a client is shown.
 // no separate "sync enabled" flag beside the credential: two values that must agree can disagree.
 
-import { deviceSignUpRequestSchema } from "@repo/api/cloud/account/account-schema";
-import { deviceLoginRequestSchema } from "@repo/api/cloud/device/device-schema";
+import { deviceSignUpRequestSchema } from "@repo/contract/cloud/account/account-schema";
+import { deviceLoginRequestSchema } from "@repo/contract/cloud/device/device-schema";
 import { z } from "zod";
 
-export { deleteAccountRequestSchema as cloudDeleteAccountRequestSchema } from "@repo/api/cloud/account/account-schema";
+export { deleteAccountRequestSchema as cloudDeleteAccountRequestSchema } from "@repo/contract/cloud/account/account-schema";
 export {
   PASSWORD_MAX_LENGTH as CLOUD_PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH as CLOUD_PASSWORD_MIN_LENGTH,
   revokeDeviceRequestSchema as cloudRevokeDeviceRequestSchema,
-} from "@repo/api/cloud/device/device-schema";
+} from "@repo/contract/cloud/device/device-schema";
 
 export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
   z

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { RPC_PREFIX, VAULT_ASSET_PATH } from "@repo/api/local/routes";
+import { RPC_PREFIX, VAULT_ASSET_PATH } from "@repo/contract/local/routes";
 import { pathContains } from "inteligir/server/path-containment";
 
 // the set the protocol handler forwards, and so the set the bearer is attached to.

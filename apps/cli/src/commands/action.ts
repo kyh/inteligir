@@ -2,7 +2,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import {
   THREADS_LIST_DEFAULT_LIMIT,
   THREADS_LIST_MAX_LIMIT,
-} from "@repo/api/local/threads/threads-schema";
+} from "@repo/contract/local/threads/threads-schema";
 import type {
   InterruptThreadResponse,
   ListThreadsQuery,
@@ -11,7 +11,7 @@ import type {
   TurnChanges,
   UndoKeptReason,
   UndoTurnResponse,
-} from "@repo/api/local/threads/threads-schema";
+} from "@repo/contract/local/threads/threads-schema";
 import { defineCommand } from "citty";
 import { parseBoundedInteger, parsePositiveNumber } from "../args";
 import { CliExitError, failureFrom, getErrorMessage } from "../cli-error";

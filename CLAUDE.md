@@ -74,7 +74,7 @@ apps/
                  `bridge-store.ts`; beside it the first-run window's own,
                  which carries the vault choice alone),
                  and src/renderer/ (the SPA: TanStack Router file routes over
-                 @repo/api/local; `app/workspace.tsx` owns the note, the rail,
+                 @repo/contract/local; `app/workspace.tsx` owns the note, the rail,
                  the palette and the panel; `app/note/` the guarded writes;
                  `app/palette/` the ⌘P pages; `app/sidebar/` the rail's
                  Recent | Files | Deleted views; `app/agents/` the one agent
@@ -172,7 +172,7 @@ apps/
                  durable outbox of the phone's own edits
                  (src/notes/vault-outbox.ts) sent through the guarded commit
                  route, its file verbs (create, rename, delete, photos)
-                 planned in src/notes/file-ops.ts; reaches @repo/api/cloud,
+                 planned in src/notes/file-ops.ts; reaches @repo/contract/cloud,
                  @repo/domain, @repo/notes and
                  @repo/mobile-editor/bridge-protocol only.
   mobile-editor/ @repo/mobile-editor — the phone's editor: @repo/editor
@@ -189,7 +189,9 @@ packages/
   domain/        @repo/domain — zod-only leaf vocabulary (view context,
                  provider events, the thread-title rule), vendored-from-bb
                  shapes; every package may reach it, it reaches nothing.
-  api/           @repo/api — ONE contract package, TWO entry points (#611).
+  contract/      @repo/contract — ONE contract package, TWO entry points (#611),
+                 named as in kyh/init's contract-first layout but with no
+                 service package, since `apps/cli/src/server` implements /local.
                  `./local/*` is the oRPC contract the renderer and the CLI
                  compile against and `inteligir serve` implements: ONE folder
                  per domain, each a `<domain>-contract.ts` +
@@ -674,7 +676,7 @@ to the END of its group.
 
 - **A WRITE CARRIES THE BASE IT WAS COMPUTED FROM AND NAMES ITS GUARD, AND A
   CREATE IS NOT A WRITE WITH AN EMPTY BASE.** `vault.write`'s `guard` is a
-  required union (`packages/api/src/local/vault/vault-schema.ts`): `expected`
+  required union (`packages/contract/src/local/vault/vault-schema.ts`): `expected`
   carries the hash the write was computed from, `absent` is a create,
   `overwrite` is last-writer-wins spelled out. One required field rather than
   two optional ones, which would make last-writer-wins the silent default and
@@ -758,7 +760,7 @@ to the END of its group.
   beside the note, or one folder, default `assets/`), read per paste so a
   Settings or CLI change reaches the next one; the editor hands the host a base
   name and the host answers the folder through `attachmentDir`
-  (`@repo/api/local/vault/attachment-location`). `setPrefs` refuses only a path
+  (`@repo/contract/local/vault/attachment-location`). `setPrefs` refuses only a path
   that is a file, which would refuse every paste. The bytes ride as a multipart
   Blob rather than base64 inside the json.
   `apps/cli/src/server/vault/vault-prefs-store.ts`. The name is
@@ -935,7 +937,7 @@ to the END of its group.
   email (`apps/cli/src/server/vault/git-history.ts`); a phone's edit, which the
   Worker commits under the device's own address, reads as the user's own,
   never `external`, and the commit vocabulary both ends read is spelled once in
-  `@repo/api/cloud/vault/vault-git`. Quoting the engine's
+  `@repo/contract/cloud/vault/vault-git`. Quoting the engine's
   error inside a friendlier sentence is rejected: no sentence around git's
   stderr makes it the user's.
   `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts` holds the copy
@@ -969,7 +971,7 @@ to the END of its group.
   vault synced before a pass reached the new one, and a hand-set
   `remote.origin.pushurl`, which `set-url` leaves and git would keep pushing
   to. The url grammar is one,
-  `@repo/api/local/vault/remote-url`, which the pin, the wire and the field all
+  `@repo/contract/local/vault/remote-url`, which the pin, the wire and the field all
   run. A pinned vault refuses a change (`CONFLICT`), since every pass writes
   the pin over the origin. No "off" choice: a folder another service syncs is
   already the derived off.
@@ -1230,9 +1232,9 @@ to the END of its group.
   store goes with it unless a byte copy still carries that id, one rule
   (`@repo/notes/comments/store-removal`) the server's delete
   (`remove-with-comments.ts`) and the phone's both ask, and a restore brings
-  both back through `@repo/api/local/vault/restore-comment-store`, reporting a
+  both back through `@repo/contract/local/vault/restore-comment-store`, reporting a
   store it could not restore. A BYTE COPY IS RE-KEYED AND ITS STORE FORKED,
-  never stripped of its id: `@repo/api/local/vault/give-note-own-id` (the
+  never stripped of its id: `@repo/contract/local/vault/give-note-own-id` (the
   Problems page's Give its own id, `inteligir vault new-id`) copies the store
   under a new id first, then moves the copy's `id:` line under the CAS, so both
   notes keep every thread and the one keeping the old id keeps its
@@ -1254,7 +1256,7 @@ to the END of its group.
   own (`composeContextPathsBlock`). UNLIKE the view context, a queued send
   KEEPS them (`queued_thread_messages.context_paths`): a mention is part of
   what the user asked, not a statement about a screen since left.
-  `@repo/api/local/threads/threads-schema`.
+  `@repo/contract/local/threads/threads-schema`.
 
 - **THE DEFAULT HARNESS IS A STORED CHOICE, read per thread start.**
   `<dataDir>/agent-prefs.json`, not config.json, which is read once at boot and
@@ -1267,7 +1269,7 @@ to the END of its group.
   it (`legacyModelWarnings` in `apps/cli/src/server/config.ts`).
   `apps/cli/src/server/agents/agent-prefs-store.ts`, `defaultHarnessId` in
   `agent-driver.ts`, `harnessReadiness` in
-  `@repo/api/local/agents/agents-schema`.
+  `@repo/contract/local/agents/agents-schema`.
 
 - **CONNECTORS ARE THE DEFAULT AGENT'S OWN MCP CONFIG** (reversing the
   app-owned registry and its hand-built OAuth: one registry, the vendor's, with
@@ -1342,7 +1344,7 @@ to the END of its group.
   lands as a top-level row, and counting it would move the turn row on every
   token. A command row carries its first `COMMAND_OUTPUT_LINES` lines; the event
   log keeps every byte. Residual: a tool row's result still rides whole.
-  `packages/api/src/local/thread-timeline.ts`.
+  `packages/contract/src/local/thread-timeline.ts`.
 
 - **A THREAD IS NAMED BY ITS FIRST MESSAGE, ON THE SERVER**, in the
   transaction that appends it, local or synced; an explicit title stays.
@@ -1549,7 +1551,7 @@ to the END of its group.
   credential and deletes the session the sign-up created, so a person never
   signs in twice in a row. The site's sign-up page stays, the phone stays sign-in
   only, and the CLI has no sign-up verb, since creating an account is a
-  person's act. `@repo/api/cloud/device/login-flow.ts`,
+  person's act. `@repo/contract/cloud/device/login-flow.ts`,
   `apps/web/src/worker/device/login.ts`, `apps/web/src/worker/device/sign-up.ts`,
   `apps/web/src/worker/device/routes.ts`,
   `apps/desktop/src/renderer/app/account-form.tsx`,
@@ -1569,7 +1571,7 @@ to the END of its group.
   credential is already dead. `apps/web/src/worker/device/routes.ts`,
   `apps/cli/src/server/cloud/sync-runtime.ts`,
   `apps/mobile/src/sync/sync-runtime.ts`,
-  `packages/api/src/cloud/device/login-flow.ts`.
+  `packages/contract/src/cloud/device/login-flow.ts`.
 
 - **AN ACCOUNT IS DELETED FROM THE APP, THE PASSWORD ASKED AGAIN, THROUGH
   BETTER AUTH'S `deleteUser`** (owner decision: someone who lost their Mac signs
@@ -1631,7 +1633,7 @@ to the END of its group.
   `drizzle-kit push --explain` against a 0.31-shaped database reports no
   changes; refuse any plan that recreates a table.
 
-- **`@repo/api/cloud` IS THE CLIENT RUNTIME CORE, not only the wire**:
+- **`@repo/contract/cloud` IS THE CLIENT RUNTIME CORE, not only the wire**:
   `bytes.ts`, `device/login-flow.ts`, `sync/sync-session.ts`,
   `sync/socket-link.ts` and `sync/cloud-socket.ts`. The CLI and the phone
   inject only stores, timers and a socket dial (node's `{ headers }`, React
@@ -1647,7 +1649,7 @@ to the END of its group.
 
 - **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, and the Worker is held to
   exactly what it declares** (owner decision, reversing "final at birth").
-  Every response schema under `@repo/api/cloud` strips an undeclared field, and
+  Every response schema under `@repo/contract/cloud` strips an undeclared field, and
   an unknown refusal code reads as `internal`, a fault to retry, never a
   verdict on the credential. Strict readers made every additive change a new
   route and turned a stale client's `unauthorized` into `malformed`, so a
@@ -1658,12 +1660,12 @@ to the END of its group.
   because a stripping client would let a leaked column through. Two things
   still close the wire: 0.4.0 and older parse strictly, and a field that
   changes what a row MEANS reaches only a client whose request declares it.
-  `packages/api/src/cloud/cloud-client.ts`,
-  `packages/api/src/cloud/cloud-errors.ts`.
+  `packages/contract/src/cloud/cloud-client.ts`,
+  `packages/contract/src/cloud/cloud-errors.ts`.
 
 - **Say the delivery guarantee you implement.** Captures are at-least-once
   delivery with exactly-once deletion by the owning claim, so the apply must be
-  idempotent on the capture id (`@repo/api/cloud/captures/captures-schema`).
+  idempotent on the capture id (`@repo/contract/cloud/captures/captures-schema`).
 
 - **The THREAD channel carries thread events alone, and a thread's own facts
   are events on it** (owner decision). A thread with no events never reaches
@@ -1678,7 +1680,7 @@ to the END of its group.
   dispatch inbox carrying what the lane was for, and a 0.4.0 install's
   `threads` is still accepted and dropped, since refusing the key would refuse
   its every push. `apps/cli/src/server/threads/service.ts`,
-  `packages/api/src/cloud/sync/sync-schema.ts`.
+  `packages/contract/src/cloud/sync/sync-schema.ts`.
 
 - **A pulled event lands through the SAME ingest, marked with its origin**
   (`ThreadService.applySyncedEvents`): the thread row takes the log's id,
@@ -1705,11 +1707,11 @@ to the END of its group.
 - **A SYNC PASS IS FENCED BY SESSION IDENTITY, not by "is a session live?".**
   Every step re-checks the id after every await, because the dangerous case is
   a different sign-in: an old ack deletes rows a later sign-in queued. `dispose`
-  aborts too. The fence is `@repo/api/cloud/sync/sync-session.ts`.
+  aborts too. The fence is `@repo/contract/cloud/sync/sync-session.ts`.
 
 - **A SYNC PASS IS CAPPED, A CAPPED PASS IS FOLLOWED AT ONCE, AND "SYNCED"
   MEANS EVERY STEP REACHED THE CLOUD AND LEFT NOTHING.** Each step answers
-  where it stopped (`SyncOutcome` in `@repo/api/cloud/sync/sync-session`). The
+  where it stopped (`SyncOutcome` in `@repo/contract/cloud/sync/sync-session`). The
   cap stays because a teardown waits out the pass in flight; on `more` the
   next pass runs at once, so a backlog drains in one sync. Only a pass whose
   every step caught up stamps `lastSyncedAt`. A throw other than a row the log
@@ -1718,14 +1720,14 @@ to the END of its group.
   `sync-status-changed`, so nothing polls it; the socket drops itself after two
   silent keepalives, since a half-open connection neither answers nor closes.
   `apps/cli/src/server/cloud/sync-pass.ts`, `sync-runtime.ts` and
-  `packages/api/src/cloud/sync/cloud-socket.ts`.
+  `packages/contract/src/cloud/sync/cloud-socket.ts`.
 
 - **The outbox stores the bytes it will send, once, at enqueue.** The log calls
   a position replayed with a different body `sync-conflict`; `deviceSeq` is its
   own counter, not `MAX()` over a shrinking queue. A body over the row cap is
   CLIPPED before it is frozen, never dropped, because a dropped
   `item/completed` leaves its item pending on every other device forever:
-  `clipThreadEventForSync` (`@repo/api/cloud/sync/fit-sync-event`) elides the
+  `clipThreadEventForSync` (`@repo/contract/cloud/sync/fit-sync-event`) elides the
   middle of the largest texts and never a type, an id, a status or a scope. An
   event the contract still refuses is dropped rather than stranding every event
   behind it, and so is every row a log refusal names; each drop is COUNTED in
@@ -1802,7 +1804,7 @@ to the END of its group.
   bytes its listing never named. Forty because each path is a cell call and a
   Free invocation makes at most 50 subrequests; past the byte budget the rest
   is `deferred`, never the first file.
-  `packages/api/src/cloud/vault/vault-schema.ts`,
+  `packages/contract/src/cloud/vault/vault-schema.ts`,
   `apps/web/src/worker/vault/read-routes.ts`.
 
 - **A PHONE WRITE IS ONE CHANGE SET OF BLOB-CAS'D CHANGES, AND THE WORKER
@@ -1829,7 +1831,7 @@ to the END of its group.
   refused rather than guessed, since the cell decodes names leniently and a
   Mac cannot hold both. Author and committer name the device (the committer's
   email marking the Worker), because a conflict copy names the other device
-  from the committer. `packages/api/src/cloud/vault/vault-commit-schema.ts`,
+  from the committer. `packages/contract/src/cloud/vault/vault-commit-schema.ts`,
   `apps/web/src/worker/vault/commit-route.ts`,
   `apps/web/src/worker/vault/commit-changes.ts`.
 
@@ -1841,7 +1843,7 @@ to the END of its group.
   over durable-git (`patches/durable-git@0.0.8.patch`), the cell's own size:
   its SQLite file plus the packs it keeps in R2, not the gc guard's sum, which
   counts a SQLite-held pack twice. `VAULT_GIT_MAX_PUSH_BYTES`
-  (`packages/api/src/cloud/vault/vault-git.ts`) sits under the edge's 100 MB
+  (`packages/contract/src/cloud/vault/vault-git.ts`) sits under the edge's 100 MB
   request body, so the 413 is always the Worker's own. ONE gate, in
   `apps/web/src/worker/vault/receive-pack.ts`, meets every pack headed for a
   cell, a desktop's push and a phone's commit alike, so the two cannot
@@ -1958,7 +1960,7 @@ to the END of its group.
   phone's requests with the `dispatch` frame 0.4.0 already parses. Delivery is
   at-least-once to a claimant and a Mac's apply exactly-once on the dispatch
   id, which the phone mints so a resend is one row
-  (`packages/api/src/cloud/dispatch/dispatch-schema.ts`,
+  (`packages/contract/src/cloud/dispatch/dispatch-schema.ts`,
   `apps/web/src/worker/sync/dispatch-inbox.ts`). The Mac hands each claimed row
   to `ThreadService.acceptDispatch`, which runs the send's own decision, so a
   request starts, queues or is refused as a message typed here would. No table
@@ -1991,7 +1993,7 @@ to the END of its group.
   keeps each request's URL in the Worker's request log and in its sampled
   traces for up to seven days, and a vault path names a user's file, so the
   tree, file and asset reads POST their query to the routes they always had
-  (`packages/api/src/cloud/cloud-client.ts`); the Worker parses the body, or a
+  (`packages/contract/src/cloud/cloud-client.ts`); the Worker parses the body, or a
   GET's search params for the installs that still send those, with one schema
   per read (`parseRead` in `apps/web/src/worker/vault/read-routes.ts`).
   Rejected: turning the invocation log off, which leaves the traces' URLs and
@@ -2375,7 +2377,7 @@ to the END of its group.
   is one `dial()` row naming its `--editor-*` token
   (`apps/desktop/src/renderer/app/appearance-options.ts`). One table shared
   with the data dir was rejected: no preference is read by both programs, a
-  data-dir preference reaches the page through its `@repo/api/local` contract,
+  data-dir preference reaches the page through its `@repo/contract/local` contract,
   and a data-dir file's shape must stay readable, so it is not derived from a
   contract that may break freely. Labels and layout stay out of the rows,
   because Settings is laid out by hand. A keyed storage read outside the table
@@ -2530,7 +2532,7 @@ to the END of its group.
   version with the CLI and the desktop, and EAS builds with the repo's node and
   pnpm (`tools/repo-guards/src/release-versions.test.ts`). A JS-only fix is an
   EAS Update to builds of the same native fingerprint, a native change a new
-  build (owner decision). `PRODUCTION_CLOUD_ORIGIN` (`@repo/api/cloud/origin`)
+  build (owner decision). `PRODUCTION_CLOUD_ORIGIN` (`@repo/contract/cloud/origin`)
   is the one spelling the CLI's config and the phone's `getCloudUrl` fall back
   to; the phone reads `EXPO_PUBLIC_CLOUD_URL` at bundle time and refuses a
   malformed one. Rejected: per-profile env in `eas.json`, a second spelling of

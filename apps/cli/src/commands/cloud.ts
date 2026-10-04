@@ -2,8 +2,11 @@
 // that state rather than a verb for a model to drive. no sign-up either: creating an account is a
 // person's act, done in the app, where `cloud.signUp` is the form's.
 
-import { cloudDevicesPageUrl } from "@repo/api/local/cloud/cloud-schema";
-import type { CloudLoginRequest, CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
+import { cloudDevicesPageUrl } from "@repo/contract/local/cloud/cloud-schema";
+import type {
+  CloudLoginRequest,
+  CloudStatusResponse,
+} from "@repo/contract/local/cloud/cloud-schema";
 import { defineCommand } from "citty";
 import { invalidUsage } from "../cli-error";
 import { apiFor } from "../context";

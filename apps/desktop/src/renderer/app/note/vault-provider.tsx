@@ -21,10 +21,10 @@ import type { VaultSession, WorkspaceBoot } from "@repo/editor/note/vault-sessio
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
-import { HTML_FRAME_PATH, vaultAssetUrl } from "@repo/api/local/routes";
-import { attachmentDir } from "@repo/api/local/vault/attachment-location";
-import { VAULT_ASSET_MAX_BYTES } from "@repo/api/local/vault/vault-schema";
-import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
+import { HTML_FRAME_PATH, vaultAssetUrl } from "@repo/contract/local/routes";
+import { attachmentDir } from "@repo/contract/local/vault/attachment-location";
+import { VAULT_ASSET_MAX_BYTES } from "@repo/contract/local/vault/vault-schema";
+import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import { toast } from "@repo/ui/components/sonner";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode, RefObject } from "react";

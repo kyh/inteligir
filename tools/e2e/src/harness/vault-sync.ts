@@ -1,4 +1,4 @@
-import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import type { VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
 import { expect } from "./assert";
 import type { InstanceApi } from "./instance";
 

@@ -1,8 +1,8 @@
-# @repo/api
+# @repo/contract
 
-ONE contract package, TWO entry points. `@repo/api/local` is the oRPC contract
+ONE contract package, TWO entry points. `@repo/contract/local` is the oRPC contract
 the desktop renderer and the CLI compile against and `inteligir serve`
-implements. `@repo/api/cloud` is the wire between an install and the Cloudflare
+implements. `@repo/contract/cloud` is the wire between an install and the Cloudflare
 Worker — and the client runtime core both the CLI and the phone run over it.
 
 ## Why it exists
@@ -144,7 +144,7 @@ src/
   bytes to merge against, while any reader that knows only the envelope,
   `readCloudCall` included, still sees the refusal.
 - **One spelling per route path.** `route-paths.test.ts` sweeps the repo for
-  the literal strings behind `@repo/api/local/routes` and `VAULT_API_PATHS`
+  the literal strings behind `@repo/contract/local/routes` and `VAULT_API_PATHS`
   and refuses a second spelling outside the file that owns it.
 - **The `/ws` frame grammar is strict outbound, lenient inbound.** The
   `.strict()` schemas type what the server broadcasts and are what its tests
@@ -178,7 +178,7 @@ src/
 
 ## Testing
 
-`pnpm --filter @repo/api test` — vitest, no platform. `src/cloud/__tests__/`
+`pnpm --filter @repo/contract test` — vitest, no platform. `src/cloud/__tests__/`
 pins the contract shapes and refusals (and that every answer a newer Worker
 grows still reads), the login flow, the session fence and single-flight, the
 byte primitives, the sync clip (every event type fits the cap with its envelope

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { base64FromBytes } from "@repo/api/cloud/bytes";
+import { base64FromBytes } from "@repo/contract/cloud/bytes";
 import type { NativeFrame, RequestPayload } from "@repo/mobile-editor/bridge-protocol";
 import { serializeSidecar } from "@repo/notes/comments/sidecar-schema";
 import { describe, expect, it } from "vitest";

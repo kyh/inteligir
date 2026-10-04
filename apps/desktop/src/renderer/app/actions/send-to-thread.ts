@@ -1,5 +1,5 @@
 import type { ViewContext } from "@repo/domain/view-context";
-import type { SendMessageRequest } from "@repo/api/local/threads/threads-schema";
+import type { SendMessageRequest } from "@repo/contract/local/threads/threads-schema";
 import { isDefinedError, refusalMessage, safe } from "../api";
 import type { client } from "../api";
 

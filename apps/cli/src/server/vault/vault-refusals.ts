@@ -3,7 +3,7 @@
 // over VaultServiceErrorCode via satisfies, so a new code fails to compile rather than 500ing,
 // and each class is one the contract declares.
 
-import type { VAULT_REFUSAL_ERRORS } from "@repo/api/local/errors";
+import type { VAULT_REFUSAL_ERRORS } from "@repo/contract/local/errors";
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import { ORPCError } from "@orpc/server";
 import { errorStatus } from "../error-status";

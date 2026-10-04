@@ -1,14 +1,14 @@
-import { deviceSignUpRequestSchema } from "@repo/api/cloud/account/account-schema";
+import { deviceSignUpRequestSchema } from "@repo/contract/cloud/account/account-schema";
 import {
   DEVICE_API_PATHS,
   deviceLoginRequestSchema,
   listDevicesResponseSchema,
   revokeDeviceRequestSchema,
-} from "@repo/api/cloud/device/device-schema";
+} from "@repo/contract/cloud/device/device-schema";
 import type {
   ListDevicesResponse,
   RevokeDeviceResponse,
-} from "@repo/api/cloud/device/device-schema";
+} from "@repo/contract/cloud/device/device-schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { carriesDeviceCredential, verifyDeviceCredential } from "./device-auth";
 import { loginDevice } from "./login";

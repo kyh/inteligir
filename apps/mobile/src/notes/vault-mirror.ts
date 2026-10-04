@@ -6,14 +6,17 @@
 // alone. Pure over the SQL port and the cloud client; the store decides what the screens see.
 
 import { z } from "zod";
-import type { CloudClient, CloudFailure } from "@repo/api/cloud/client";
+import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
 import {
   VAULT_FILE_MAX_BYTES,
   VAULT_FILES_MAX_PATHS,
   VAULT_TREE_MAX_ENTRIES,
-} from "@repo/api/cloud/vault/vault-schema";
-import type { VaultFilesResponse, VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
-import { utf8ByteLength } from "@repo/api/cloud/bytes";
+} from "@repo/contract/cloud/vault/vault-schema";
+import type {
+  VaultFilesResponse,
+  VaultTreeResponse,
+} from "@repo/contract/cloud/vault/vault-schema";
+import { utf8ByteLength } from "@repo/contract/cloud/bytes";
 import { isCommentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { frontmatterAliases } from "@repo/notes/knowledge/link-extract";

@@ -3,8 +3,8 @@
 // person sees who they are signed in as and which devices share the account, removes one they
 // lost from any device still signed in, and deletes the account from any of them.
 
-import { cloudDevicesPageUrl } from "@repo/api/local/cloud/cloud-schema";
-import type { CloudDevice } from "@repo/api/local/cloud/cloud-schema";
+import { cloudDevicesPageUrl } from "@repo/contract/local/cloud/cloud-schema";
+import type { CloudDevice } from "@repo/contract/local/cloud/cloud-schema";
 import { Button } from "@repo/ui/components/button";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";

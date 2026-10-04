@@ -6,31 +6,31 @@ import {
   CAPTURE_API_PATHS,
   CAPTURE_CLAIM_TTL_MS,
   claimCapturesRequestSchema,
-} from "@repo/api/cloud/captures/captures-schema";
+} from "@repo/contract/cloud/captures/captures-schema";
 import type {
   AckCapturesResponse,
   CaptureRow,
   ClaimCapturesResponse,
-} from "@repo/api/cloud/captures/captures-schema";
+} from "@repo/contract/cloud/captures/captures-schema";
 import {
   ACCOUNT_API_PATHS,
   deleteAccountRequestSchema,
   deviceSignUpRequestSchema,
-} from "@repo/api/cloud/account/account-schema";
-import type { DeleteAccountResponse } from "@repo/api/cloud/account/account-schema";
-import { CLOUD_ERROR_STATUS, cloudError } from "@repo/api/cloud/errors";
-import type { CloudErrorCode } from "@repo/api/cloud/errors";
+} from "@repo/contract/cloud/account/account-schema";
+import type { DeleteAccountResponse } from "@repo/contract/cloud/account/account-schema";
+import { CLOUD_ERROR_STATUS, cloudError } from "@repo/contract/cloud/errors";
+import type { CloudErrorCode } from "@repo/contract/cloud/errors";
 import {
   DEVICE_API_PATHS,
   DEVICE_CREDENTIAL_PREFIX,
   deviceLoginRequestSchema,
   revokeDeviceRequestSchema,
-} from "@repo/api/cloud/device/device-schema";
+} from "@repo/contract/cloud/device/device-schema";
 import type {
   DeviceLoginResponse,
   ListDevicesResponse,
   RevokeDeviceResponse,
-} from "@repo/api/cloud/device/device-schema";
+} from "@repo/contract/cloud/device/device-schema";
 import {
   ackDispatchesRequestSchema,
   answerableDecisions,
@@ -42,7 +42,7 @@ import {
   DISPATCH_CLAIM_TTL_MS,
   DISPATCH_MAX_PENDING,
   openApprovalRequestSchema,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import type {
   AckDispatchesResponse,
   ApprovalRow,
@@ -53,15 +53,19 @@ import type {
   CreateDispatchResponse,
   DispatchStatus,
   OpenApprovalResponse,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import {
   pullQuerySchema,
   pushRequestSchema,
   SYNC_API_PATHS,
-} from "@repo/api/cloud/sync/sync-schema";
-import type { PullResponse, PushResponse, SyncEventRow } from "@repo/api/cloud/sync/sync-schema";
-import { createCloudClient, postDeviceLogin } from "@repo/api/cloud/client";
-import type { CloudClient, CloudFetch } from "@repo/api/cloud/client";
+} from "@repo/contract/cloud/sync/sync-schema";
+import type {
+  PullResponse,
+  PushResponse,
+  SyncEventRow,
+} from "@repo/contract/cloud/sync/sync-schema";
+import { createCloudClient, postDeviceLogin } from "@repo/contract/cloud/client";
+import type { CloudClient, CloudFetch } from "@repo/contract/cloud/client";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 

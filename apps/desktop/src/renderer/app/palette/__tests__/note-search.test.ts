@@ -1,4 +1,4 @@
-import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { listedNotePaths, searchNotesByFilename } from "../note-search";
 

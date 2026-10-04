@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
-import { browserHandoffUrl } from "@repo/api/local/routes";
+import { browserHandoffUrl } from "@repo/contract/local/routes";
 import { resolveAppConfig } from "inteligir/server/config";
 import type { AppConfig, ResolveAppConfigArgs, VaultDirSource } from "inteligir/server/config";
 import { DEBUG_NAMESPACES } from "inteligir/server/debug-log";

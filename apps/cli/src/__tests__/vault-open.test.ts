@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { externalSyncSchema } from "@repo/api/local/vault/vault-schema";
+import { externalSyncSchema } from "@repo/contract/local/vault/vault-schema";
 import { DEV_DATA_ROOT_DIR, resolveAppConfig, vaultDataDir } from "../server/config";
 import { resolveCheckoutRoot } from "../server/dev-instance";
 import { writeServerFile } from "../server/server-file";

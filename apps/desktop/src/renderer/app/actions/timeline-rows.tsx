@@ -6,8 +6,8 @@ import type {
   TimelineRowStatus,
   TimelineTurnRow,
   TimelineWorkRow,
-} from "@repo/api/local/thread-timeline";
-import type { TurnChanges } from "@repo/api/local/threads/threads-schema";
+} from "@repo/contract/local/thread-timeline";
+import type { TurnChanges } from "@repo/contract/local/threads/threads-schema";
 import { LoadingState } from "@repo/ui/ai/loading-state";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
 import { Thinking, ThinkingReasoning, ThinkingStep } from "@repo/ui/ai/thinking";

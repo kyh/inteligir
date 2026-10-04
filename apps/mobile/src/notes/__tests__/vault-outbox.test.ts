@@ -1,9 +1,9 @@
-import type { CloudFetch } from "@repo/api/cloud/client";
+import type { CloudFetch } from "@repo/contract/cloud/client";
 import {
   VAULT_API_PATHS,
   VAULT_FILE_MAX_BYTES,
   vaultTreeQuerySchema,
-} from "@repo/api/cloud/vault/vault-schema";
+} from "@repo/contract/cloud/vault/vault-schema";
 import { takenIgnoringCase } from "@repo/notes/knowledge/doc-file";
 import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";

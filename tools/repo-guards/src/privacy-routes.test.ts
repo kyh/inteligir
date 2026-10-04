@@ -9,7 +9,7 @@ import { isTestFile, REPO_ROOT, sourceOf, trackedFiles } from "./repo";
 
 const PRIVACY = "docs/privacy.md";
 const APPENDIX_HEADING = "## Every address the app talks to";
-const CONTRACT_DIR = "packages/api/src/cloud/";
+const CONTRACT_DIR = "packages/contract/src/cloud/";
 
 const ROUTE_LITERAL = /(?<quote>["'`])(?<route>\/v1\/[^"'`\s]+)\k<quote>/gu;
 const DOCUMENTED_ROUTE = /`(?<route>\/v1\/[^`\s]+)`/gu;

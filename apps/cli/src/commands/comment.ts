@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { defineCommand } from "citty";
 
-import type { CommentThreadWire } from "@repo/api/local/comments/comments-schema";
+import type { CommentThreadWire } from "@repo/contract/local/comments/comments-schema";
 import { COMMENT_SOURCES, mintCommentId } from "@repo/notes/comments/sidecar-schema";
 import type { CommentSource } from "@repo/notes/comments/sidecar-schema";
 import { apiFor, isAgentShell } from "../context";

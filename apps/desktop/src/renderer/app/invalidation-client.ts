@@ -1,12 +1,12 @@
 import {
   realtimeSubscriptionTargetKey,
   serverMessageLenientSchema,
-} from "@repo/api/local/notifications";
+} from "@repo/contract/local/notifications";
 import type {
   ChangedMessage,
   ClientMessage,
   RealtimeSubscriptionTarget,
-} from "@repo/api/local/notifications";
+} from "@repo/contract/local/notifications";
 import { z } from "zod";
 
 const encodeFrame = (frame: ClientMessage): string => JSON.stringify(frame);

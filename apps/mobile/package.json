@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "catalog:",
-    "@repo/api": "workspace:*",
+    "@repo/contract": "workspace:*",
     "@repo/domain": "workspace:*",
     "@repo/mobile-editor": "workspace:*",
     "@repo/notes": "workspace:*",

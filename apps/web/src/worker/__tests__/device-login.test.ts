@@ -1,9 +1,9 @@
-import { cloudErrorSchema } from "@repo/api/cloud/errors";
+import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import {
   deviceLoginResponseSchema,
   listDevicesResponseSchema,
   revokeDeviceResponseSchema,
-} from "@repo/api/cloud/device/device-schema";
+} from "@repo/contract/cloud/device/device-schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";

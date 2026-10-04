@@ -7,12 +7,12 @@ import { createHash } from "node:crypto";
 import {
   approvalPayloadSchema,
   DISPATCH_MESSAGE_MAX_CHARS,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import type {
   ClaimedDispatch,
   DispatchResult,
   OpenApprovalRequest,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import type { DbConnection } from "@repo/db/connection";
 import { turnDispatchId } from "@repo/db/events";
 import {

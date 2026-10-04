@@ -3,8 +3,8 @@
 // first, so boundaries never reorder around deltas. a merged row stays inside the sync row cap, so a merge
 // never turns deltas that would each have synced whole into one the outbox has to clip.
 
-import { utf8ByteLength } from "@repo/api/cloud/bytes";
-import { EVENT_MAX_BYTES } from "@repo/api/cloud/sync/sync-schema";
+import { utf8ByteLength } from "@repo/contract/cloud/bytes";
+import { EVENT_MAX_BYTES } from "@repo/contract/cloud/sync/sync-schema";
 import { isThreadEventDelta, mergeAdjacentDeltas } from "@repo/domain/provider-event";
 import type { DeltaRunLimit, ThreadEvent } from "@repo/domain/provider-event";
 

@@ -12,7 +12,7 @@ import {
   VAULT_ASSET_PATH,
   websocketOrigin,
   WS_PATH,
-} from "@repo/api/local/routes";
+} from "@repo/contract/local/routes";
 import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { Hono } from "hono";

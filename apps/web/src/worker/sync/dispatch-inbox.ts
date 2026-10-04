@@ -6,7 +6,7 @@ import {
   claimedDispatchSchema,
   DISPATCH_CLAIM_TTL_MS,
   DISPATCH_MAX_PENDING,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import type {
   AckDispatchesResponse,
   ApprovalRow,
@@ -19,7 +19,7 @@ import type {
   DispatchResult,
   DispatchStatus,
   OpenApprovalRequest,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import type { z } from "zod";
 
 // The dispatch inbox's SQL, over the thread-sync object's own storage; the object owns the

@@ -1,4 +1,4 @@
-import { CAPTURE_CLAIM_TTL_MS } from "@repo/api/cloud/captures/captures-schema";
+import { CAPTURE_CLAIM_TTL_MS } from "@repo/contract/cloud/captures/captures-schema";
 import type {
   AckCapturesRequest,
   AckCapturesResponse,
@@ -7,7 +7,7 @@ import type {
   CaptureRow,
   ClaimCapturesRequest,
   ClaimCapturesResponse,
-} from "@repo/api/cloud/captures/captures-schema";
+} from "@repo/contract/cloud/captures/captures-schema";
 import type {
   AckDispatchesRequest,
   AckDispatchesResponse,
@@ -24,17 +24,17 @@ import type {
   ListApprovalsResponse,
   OpenApprovalRequest,
   OpenApprovalResponse,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
-import type { CloudErrorCode } from "@repo/api/cloud/errors";
-import type { PullQuery, PushResponse } from "@repo/api/cloud/sync/sync-schema";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
+import type { CloudErrorCode } from "@repo/contract/cloud/errors";
+import type { PullQuery, PushResponse } from "@repo/contract/cloud/sync/sync-schema";
 import {
   devicePlatformSchema,
   SYNC_WS_KEEPALIVE_PING,
   SYNC_WS_KEEPALIVE_PONG,
   SYNC_WS_PHONE_REQUESTS_ON,
   SYNC_WS_REVOKED_CLOSE_CODE,
-} from "@repo/api/cloud/sync/sync-ws";
-import type { DevicePlatform, SyncPing } from "@repo/api/cloud/sync/sync-ws";
+} from "@repo/contract/cloud/sync/sync-ws";
+import type { DevicePlatform, SyncPing } from "@repo/contract/cloud/sync/sync-ws";
 import { DurableObject } from "cloudflare:workers";
 import { refuse } from "../cloud-http";
 import {

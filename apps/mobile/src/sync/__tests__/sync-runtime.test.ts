@@ -1,10 +1,13 @@
 import { setImmediate as tick } from "node:timers/promises";
-import type { CloudClient, CloudResult } from "@repo/api/cloud/client";
-import type { DeviceCredential, RevokeDeviceResponse } from "@repo/api/cloud/device/device-schema";
-import type { OpenCloudSocketArgs } from "@repo/api/cloud/sync/cloud-socket";
-import type { PullResponse } from "@repo/api/cloud/sync/sync-schema";
-import { MAX_PULL_PAGES_PER_PASS } from "@repo/api/cloud/sync/sync-session";
-import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/api/cloud/sync/sync-ws";
+import type { CloudClient, CloudResult } from "@repo/contract/cloud/client";
+import type {
+  DeviceCredential,
+  RevokeDeviceResponse,
+} from "@repo/contract/cloud/device/device-schema";
+import type { OpenCloudSocketArgs } from "@repo/contract/cloud/sync/cloud-socket";
+import type { PullResponse } from "@repo/contract/cloud/sync/sync-schema";
+import { MAX_PULL_PAGES_PER_PASS } from "@repo/contract/cloud/sync/sync-session";
+import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/sync/sync-ws";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { openSyncStore } from "../../notes/__tests__/phone-storage";
 import { createSyncRuntime } from "../sync-runtime";

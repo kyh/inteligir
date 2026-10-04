@@ -7,22 +7,22 @@ import {
   contentHashHex,
   contentHashSchema,
   externalSyncName,
-} from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/vault/vault-schema";
 import type {
   ExternalSync,
   VaultHistoryRequest,
   VaultSetRemoteRequest,
   VaultStatusResponse,
   VaultWriteGuard,
-} from "@repo/api/local/vault/vault-schema";
-import { parseRemoteUrl, VAULT_REMOTE_PIN_ENV_VAR } from "@repo/api/local/vault/remote-url";
+} from "@repo/contract/local/vault/vault-schema";
+import { parseRemoteUrl, VAULT_REMOTE_PIN_ENV_VAR } from "@repo/contract/local/vault/remote-url";
 import {
   ATTACHMENT_LOCATION_SPELLINGS,
   describeAttachmentLocation,
   formatAttachmentLocation,
   parseAttachmentLocation,
-} from "@repo/api/local/vault/attachment-location";
-import type { CommentStoreRestore } from "@repo/api/local/vault/restore-comment-store";
+} from "@repo/contract/local/vault/attachment-location";
+import type { CommentStoreRestore } from "@repo/contract/local/vault/restore-comment-store";
 import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
@@ -421,7 +421,7 @@ export const vaultCommand = (deps: CliDeps) =>
           // client verb reads argv (the build refuses that, scripts/build.mjs).
           const [{ frontmatterId }, { giveNoteOwnId }] = await Promise.all([
             import("@repo/notes/markdown/frontmatter"),
-            import("@repo/api/local/vault/give-note-own-id"),
+            import("@repo/contract/local/vault/give-note-own-id"),
           ]);
           const { content } = await api.vault.read({ path: args.path });
           const shared = frontmatterId(content);
@@ -610,7 +610,7 @@ export const vaultCommand = (deps: CliDeps) =>
             // dynamic import: it reads frontmatter, and a static one would load yaml before every
             // client verb reads argv (the build refuses that, scripts/build.mjs).
             const { restoreCommentStore } =
-              await import("@repo/api/local/vault/restore-comment-store");
+              await import("@repo/contract/local/vault/restore-comment-store");
             comments = await restoreCommentStore(api, revision.content, args.sha);
           }
           if (comments.kind === "failed") {

@@ -1,5 +1,5 @@
 import { isDefinedError, safe } from "@orpc/client";
-import { DEVICE_API_PATHS } from "@repo/api/cloud/device/device-schema";
+import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
 import { describe, expect, it } from "vitest";
 import { boot, signedInMac } from "./cloud-boot";
 import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";

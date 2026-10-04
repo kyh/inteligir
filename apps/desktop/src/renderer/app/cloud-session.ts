@@ -5,7 +5,7 @@ import type {
   CloudLoginRequest,
   CloudSignUpRequest,
   CloudStatusResponse,
-} from "@repo/api/local/cloud/cloud-schema";
+} from "@repo/contract/local/cloud/cloud-schema";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";

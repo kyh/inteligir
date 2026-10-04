@@ -7,14 +7,14 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { RenameResult } from "@repo/editor/note/vault-session";
 import { toast } from "@repo/ui/components/sonner";
 import { freeDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
-import type { KnowledgeWikiTargetsResponse } from "@repo/api/local/knowledge/knowledge-schema";
-import type { DataDirScope } from "@repo/api/local/system/system-schema";
-import { externalSyncName } from "@repo/api/local/vault/vault-schema";
+import type { KnowledgeWikiTargetsResponse } from "@repo/contract/local/knowledge/knowledge-schema";
+import type { DataDirScope } from "@repo/contract/local/system/system-schema";
+import { externalSyncName } from "@repo/contract/local/vault/vault-schema";
 import type {
   VaultEntry,
   VaultStatusResponse,
   VaultTreeResponse,
-} from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/vault/vault-schema";
 import { orpc, refusalMessage } from "./api";
 
 export const useVaultTree = () => useQuery(orpc.vault.tree.queryOptions());

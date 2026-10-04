@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { contentHashHex } from "@repo/api/local/vault/vault-schema";
-import type { VaultWriteRequest } from "@repo/api/local/vault/vault-schema";
+import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
+import type { VaultWriteRequest } from "@repo/contract/local/vault/vault-schema";
 import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
 import { createNoteRuntime } from "@repo/editor/note/note-runtime";
 import { bootTestApp } from "inteligir/server/testing";

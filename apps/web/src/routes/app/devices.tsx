@@ -2,14 +2,14 @@ import { useState } from "react";
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 
-import { readCloudCall } from "@repo/api/cloud/client";
-import type { CloudFailure } from "@repo/api/cloud/client";
+import { readCloudCall } from "@repo/contract/cloud/client";
+import type { CloudFailure } from "@repo/contract/cloud/client";
 import {
   DEVICE_API_PATHS,
   listDevicesResponseSchema,
   revokeDeviceResponseSchema,
-} from "@repo/api/cloud/device/device-schema";
-import type { Device, RevokeDeviceRequest } from "@repo/api/cloud/device/device-schema";
+} from "@repo/contract/cloud/device/device-schema";
+import type { Device, RevokeDeviceRequest } from "@repo/contract/cloud/device/device-schema";
 import { Button } from "@repo/ui/components/button";
 
 import { AuthError, CONNECTION_FAILED } from "@/components/auth-shell";

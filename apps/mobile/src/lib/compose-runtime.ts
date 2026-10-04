@@ -2,8 +2,8 @@
 // database, the attachment and outbox files, SHA-1 and the OS, so every transition between signed
 // in and out runs under test, and the scenario suite drives it under node against a real Worker.
 
-import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
-import type { DeviceCredentialStore } from "@repo/api/cloud/device/login-flow";
+import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
+import type { DeviceCredentialStore } from "@repo/contract/cloud/device/login-flow";
 import { createCaptureSender } from "../capture/capture-sender";
 import type { CaptureSender } from "../capture/capture-sender";
 import { createDispatchRuntime } from "../dispatch/dispatch-runtime";

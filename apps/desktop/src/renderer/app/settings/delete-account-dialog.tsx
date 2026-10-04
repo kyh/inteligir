@@ -2,7 +2,7 @@
 // it end the account, and the cloud checks the password before it deletes anything. The dialog
 // names what goes and what stays before the one button that cannot be undone.
 
-import { CLOUD_PASSWORD_MAX_LENGTH } from "@repo/api/local/cloud/cloud-schema";
+import { CLOUD_PASSWORD_MAX_LENGTH } from "@repo/contract/local/cloud/cloud-schema";
 import { Button } from "@repo/ui/components/button";
 import {
   Dialog,

@@ -3,17 +3,17 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDefinedError, safe, toORPCError } from "@orpc/client";
-import { vaultChangedMessageSchema } from "@repo/api/local/notifications";
+import { vaultChangedMessageSchema } from "@repo/contract/local/notifications";
 import { legacyCommentsSidecarPath } from "@repo/notes/comments/sidecar-schema";
-import { VAULT_ASSET_PATH, vaultAssetUrl } from "@repo/api/local/routes";
-import { knowledgeSearchResponseSchema } from "@repo/api/local/knowledge/knowledge-schema";
-import { giveNoteOwnId } from "@repo/api/local/vault/give-note-own-id";
-import { restoreCommentStore } from "@repo/api/local/vault/restore-comment-store";
+import { VAULT_ASSET_PATH, vaultAssetUrl } from "@repo/contract/local/routes";
+import { knowledgeSearchResponseSchema } from "@repo/contract/local/knowledge/knowledge-schema";
+import { giveNoteOwnId } from "@repo/contract/local/vault/give-note-own-id";
+import { restoreCommentStore } from "@repo/contract/local/vault/restore-comment-store";
 import {
   VAULT_ASSET_MAX_BYTES,
   VAULT_MAX_CONTENT_LENGTH,
   contentHashHex,
-} from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/vault/vault-schema";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { bootTestApp, listenTestApp, TEST_MACHINE_NAME } from "../../__tests__/boot-app";
 import { makeTempDir } from "../../__tests__/temp-dir";

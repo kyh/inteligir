@@ -1,10 +1,10 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
-import type { CloudClient, CloudFetch } from "@repo/api/cloud/client";
-import { DISPATCH_API_PATHS } from "@repo/api/cloud/dispatch/dispatch-schema";
-import { SYNC_API_PATHS } from "@repo/api/cloud/sync/sync-schema";
-import { MAX_PULL_PAGES_PER_PASS } from "@repo/api/cloud/sync/sync-session";
-import type { SocketListener } from "@repo/api/cloud/sync/sync-ws";
+import type { CloudClient, CloudFetch } from "@repo/contract/cloud/client";
+import { DISPATCH_API_PATHS } from "@repo/contract/cloud/dispatch/dispatch-schema";
+import { SYNC_API_PATHS } from "@repo/contract/cloud/sync/sync-schema";
+import { MAX_PULL_PAGES_PER_PASS } from "@repo/contract/cloud/sync/sync-session";
+import type { SocketListener } from "@repo/contract/cloud/sync/sync-ws";
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { listStoredThreadEvents, threadHoldsDispatch } from "@repo/db/events";
 import { createPendingInteraction, getPendingInteraction } from "@repo/db/pending-interactions";

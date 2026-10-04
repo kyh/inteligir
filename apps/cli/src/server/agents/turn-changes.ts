@@ -8,7 +8,7 @@ import type {
   UndoKeptPath,
   UndoKeptReason,
   UndoTurnResponse,
-} from "@repo/api/local/threads/threads-schema";
+} from "@repo/contract/local/threads/threads-schema";
 import type { DbConnection } from "@repo/db/connection";
 import { getThread } from "@repo/db/threads";
 import type { ThreadRow } from "@repo/db/threads";

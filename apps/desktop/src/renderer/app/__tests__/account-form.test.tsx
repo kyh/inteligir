@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { CloudLoginRequest, CloudSignUpRequest } from "@repo/api/local/cloud/cloud-schema";
-import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import type {
+  CloudLoginRequest,
+  CloudSignUpRequest,
+} from "@repo/contract/local/cloud/cloud-schema";
+import type { VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AccountForm } from "../account-form";
 import type { AccountFormProps } from "../account-form";

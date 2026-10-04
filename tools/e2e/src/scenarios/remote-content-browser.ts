@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { HTML_FRAME_PATH } from "@repo/api/local/routes";
+import { HTML_FRAME_PATH } from "@repo/contract/local/routes";
 import { parseEval } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import { pollUntil } from "../harness/poll";

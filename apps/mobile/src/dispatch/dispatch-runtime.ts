@@ -4,20 +4,20 @@
 // in the foreground its fate is polled, and it is handed to the log once a pulled request carries
 // its id. A phone-started turn's approvals are listed here and answered through the same inbox.
 
-import { describeCloudFailure } from "@repo/api/cloud/client";
-import type { CloudClient, CloudFailure } from "@repo/api/cloud/client";
+import { describeCloudFailure } from "@repo/contract/cloud/client";
+import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
 import {
   createDispatchRequestSchema,
   DISPATCH_MAX_CHARS,
   DISPATCH_MAX_PENDING,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import type {
   ApprovalRow,
   CreateDispatchRequest,
   DispatchStatus,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
-import { createSingleFlight } from "@repo/api/cloud/sync/sync-session";
-import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
+import { createSingleFlight } from "@repo/contract/cloud/sync/sync-session";
+import type { SyncOutcome } from "@repo/contract/cloud/sync/sync-session";
 import { answerableDecisions } from "@repo/domain/pending-interactions";
 import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
 import { messageOf } from "../lib/error-message";

@@ -1,4 +1,4 @@
-import { VAULT_GIT_MAX_PUSH_BYTES, VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
+import { VAULT_GIT_MAX_PUSH_BYTES, VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
 import type { Registry } from "durable-git";
 import { declaredLength } from "../cloud-http";
 import { createDb } from "../db/client";

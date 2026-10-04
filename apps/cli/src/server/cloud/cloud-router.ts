@@ -1,6 +1,9 @@
-import { isDeleteAccountRefusal } from "@repo/api/cloud/account/account-schema";
-import { describeCloudFailure } from "@repo/api/cloud/client";
-import { isDeviceLoginRefusal, isDeviceSignUpRefusal } from "@repo/api/cloud/device/device-schema";
+import { isDeleteAccountRefusal } from "@repo/contract/cloud/account/account-schema";
+import { describeCloudFailure } from "@repo/contract/cloud/client";
+import {
+  isDeviceLoginRefusal,
+  isDeviceSignUpRefusal,
+} from "@repo/contract/cloud/device/device-schema";
 import { base } from "../orpc";
 
 const status = base.cloud.status.handler(({ context }) => context.cloud.status());

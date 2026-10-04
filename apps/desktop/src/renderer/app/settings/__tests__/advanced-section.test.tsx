@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
-import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
+import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schema";
+import type { SystemStatusResponse } from "@repo/contract/local/system/system-schema";
 import type {
   VaultSetRemoteRequest,
   VaultStatusResponse,
-} from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/vault/vault-schema";
 import { afterEach, describe, expect, it } from "vitest";
 import { DiagnosticsRows, ThreadSyncRows, VaultSyncRows } from "../advanced-section";
 import { SyncRemoteForm } from "../sync-remote-row";

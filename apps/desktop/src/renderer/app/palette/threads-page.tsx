@@ -1,5 +1,5 @@
 import { CommandEmpty, CommandGroup, CommandItem } from "@repo/ui/components/command";
-import type { Thread } from "@repo/api/local/threads/threads-schema";
+import type { Thread } from "@repo/contract/local/threads/threads-schema";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { MessagesSquareIcon } from "lucide-react";
 import { orpc } from "../api";

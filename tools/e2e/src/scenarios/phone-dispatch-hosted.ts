@@ -1,8 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
-import { createCloudClient } from "@repo/api/cloud/client";
-import type { CloudClient } from "@repo/api/cloud/client";
-import { PULL_MAX_LIMIT } from "@repo/api/cloud/sync/sync-schema";
-import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
+import { createCloudClient } from "@repo/contract/cloud/client";
+import type { CloudClient } from "@repo/contract/cloud/client";
+import { PULL_MAX_LIMIT } from "@repo/contract/cloud/sync/sync-schema";
+import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schema";
 import { POLL_INTERVAL_MS } from "inteligir/server/cloud/sync-cadence";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
