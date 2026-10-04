@@ -6,7 +6,7 @@
 import { THREAD_CHANGE_KINDS, VAULT_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { pendingInteractionStatusValues } from "@repo/domain/pending-interaction-status";
 import { threadStatusValues } from "@repo/domain/thread-status";
-import { vaultStatusResponseSchema } from "@repo/api/local/vault/vault-schema";
+import { vaultStatusResponseSchema } from "@repo/contract/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
 
@@ -33,7 +33,7 @@ interface Vocabulary {
 
 const VOCABULARIES: Vocabulary[] = [
   {
-    declaredIn: "packages/api/src/local/vault/vault-schema.ts",
+    declaredIn: "packages/contract/src/local/vault/vault-schema.ts",
     dispatchedIn: {
       "apps/desktop/src/renderer/app/vault-hooks.ts":
         "the ONE client answer, four tables deliberately side by side so a ninth state cannot be answered in one and forgotten in another: `syncStateLabel` (the word), `syncStateDotClass` (the colour), `syncBlockedReason` (why a pass would not run — which `canSyncNow` reads as a boolean) and `syncNowNotice` (what the command owes the user afterwards)",

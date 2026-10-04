@@ -1,7 +1,7 @@
 import { partialMatchKey, QueryClient } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
-import type { ChangedMessage, ThreadChangedMessage } from "@repo/api/local/notifications";
-import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
+import type { ChangedMessage, ThreadChangedMessage } from "@repo/contract/local/notifications";
+import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
 import type { VaultChangedEvent } from "@repo/editor/host-io";
 import { THREAD_CHANGE_KINDS, VAULT_CHANGE_KINDS } from "@repo/domain/change-kinds";

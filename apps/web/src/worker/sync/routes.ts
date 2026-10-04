@@ -3,7 +3,7 @@ import {
   CAPTURE_API_PATHS,
   captureRequestSchema,
   claimCapturesRequestSchema,
-} from "@repo/api/cloud/captures/captures-schema";
+} from "@repo/contract/cloud/captures/captures-schema";
 import {
   ackDispatchesRequestSchema,
   cancelDispatchRequestSchema,
@@ -13,18 +13,22 @@ import {
   DISPATCH_API_PATHS,
   dispatchStatusRequestSchema,
   openApprovalRequestSchema,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import {
   pullQuerySchema,
   pushRequestSchema,
   SYNC_API_PATHS,
-} from "@repo/api/cloud/sync/sync-schema";
-import type { PullResponse, PushRequest, SyncEventRow } from "@repo/api/cloud/sync/sync-schema";
+} from "@repo/contract/cloud/sync/sync-schema";
+import type {
+  PullResponse,
+  PushRequest,
+  SyncEventRow,
+} from "@repo/contract/cloud/sync/sync-schema";
 import {
   SYNC_WS_PATH,
   SYNC_WS_PHONE_REQUESTS_PARAM,
   SYNC_WS_PLATFORM_PARAM,
-} from "@repo/api/cloud/sync/sync-ws";
+} from "@repo/contract/cloud/sync/sync-ws";
 import { z } from "zod";
 import { refuse } from "../cloud-http";
 import { createDb } from "../db/client";

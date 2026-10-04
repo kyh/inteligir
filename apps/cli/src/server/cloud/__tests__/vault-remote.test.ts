@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
+import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { clearDeviceCredential, writeDeviceCredential } from "../credential-store";
 import { createVaultRemoteProvider, hostedVaultRemoteUrl, NO_ORIGIN } from "../vault-remote";

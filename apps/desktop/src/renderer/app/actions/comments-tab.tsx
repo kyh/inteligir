@@ -2,7 +2,10 @@ import { ADD_COMMENT_SHORTCUT, scrollToCommentMarker } from "@repo/editor/commen
 import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
-import type { CommentEntryWire, CommentThreadWire } from "@repo/api/local/comments/comments-schema";
+import type {
+  CommentEntryWire,
+  CommentThreadWire,
+} from "@repo/contract/local/comments/comments-schema";
 import { commentSourceLabel, mintCommentId } from "@repo/notes/comments/sidecar-schema";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";

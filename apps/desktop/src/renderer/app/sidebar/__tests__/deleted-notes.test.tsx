@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { VaultDeletedEntry } from "@repo/api/local/vault/vault-schema";
+import type { VaultDeletedEntry } from "@repo/contract/local/vault/vault-schema";
 import { toast } from "@repo/ui/components/sonner";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";

@@ -1,5 +1,5 @@
-import { isIgnoredEntryName, vaultPathSchema } from "@repo/api/cloud/vault/vault-schema";
-import type { VaultTreeResponse } from "@repo/api/cloud/vault/vault-schema";
+import { isIgnoredEntryName, vaultPathSchema } from "@repo/contract/cloud/vault/vault-schema";
+import type { VaultTreeResponse } from "@repo/contract/cloud/vault/vault-schema";
 import type { TreeResult } from "durable-git";
 
 export type TreeFile = VaultTreeResponse["entries"][number];

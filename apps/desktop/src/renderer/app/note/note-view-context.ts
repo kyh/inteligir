@@ -1,5 +1,5 @@
 import type { ViewContext } from "@repo/domain/view-context";
-import { contentHashHex } from "@repo/api/local/vault/vault-schema";
+import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 
 export interface OpenNoteView {
   flush: () => Promise<void>;

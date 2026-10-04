@@ -7,14 +7,14 @@
 // row with its bytes and lets the rows on other paths go; nothing here ever drops the user's text.
 
 import { z } from "zod";
-import { base64FromBytes, utf8ByteLength } from "@repo/api/cloud/bytes";
-import { describeCloudFailure } from "@repo/api/cloud/client";
-import type { CloudClient, CloudFailure, VaultCommitOutcome } from "@repo/api/cloud/client";
-import type { CloudErrorCode } from "@repo/api/cloud/errors";
-import { createSingleFlight } from "@repo/api/cloud/sync/sync-session";
-import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";
-import { vaultChangePaths } from "@repo/api/cloud/vault/vault-commit-schema";
-import type { VaultChangeRequest } from "@repo/api/cloud/vault/vault-commit-schema";
+import { base64FromBytes, utf8ByteLength } from "@repo/contract/cloud/bytes";
+import { describeCloudFailure } from "@repo/contract/cloud/client";
+import type { CloudClient, CloudFailure, VaultCommitOutcome } from "@repo/contract/cloud/client";
+import type { CloudErrorCode } from "@repo/contract/cloud/errors";
+import { createSingleFlight } from "@repo/contract/cloud/sync/sync-session";
+import type { SyncOutcome } from "@repo/contract/cloud/sync/sync-session";
+import { vaultChangePaths } from "@repo/contract/cloud/vault/vault-commit-schema";
+import type { VaultChangeRequest } from "@repo/contract/cloud/vault/vault-commit-schema";
 import { docStem, freePath } from "@repo/notes/knowledge/doc-file";
 import { basenamePath, dirnamePath, extnamePath } from "@repo/notes/knowledge/vault-path";
 import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";

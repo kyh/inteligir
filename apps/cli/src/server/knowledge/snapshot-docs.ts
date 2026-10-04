@@ -2,7 +2,7 @@
 // writes that follow can carry the bytes they were computed from (writeIfUnchanged). A doc
 // the read refuses is skipped by name rather than failing the set.
 
-import type { VaultRenameSkipReason } from "@repo/api/local/vault/vault-schema";
+import type { VaultRenameSkipReason } from "@repo/contract/local/vault/vault-schema";
 import { mapWithConcurrency } from "../concurrency";
 import type { VaultService } from "../vault/vault-service";
 

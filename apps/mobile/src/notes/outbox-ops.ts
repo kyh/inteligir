@@ -3,10 +3,10 @@
 // settle because an edit made while the set is out is rebased onto what the set landed.
 
 import { z } from "zod";
-import { hexFromBytes } from "@repo/api/cloud/bytes";
-import { vaultCommitRequestSchema } from "@repo/api/cloud/vault/vault-commit-schema";
-import type { VaultChangeRequest } from "@repo/api/cloud/vault/vault-commit-schema";
-import { gitOidSchema, vaultPathSchema } from "@repo/api/cloud/vault/vault-schema";
+import { hexFromBytes } from "@repo/contract/cloud/bytes";
+import { vaultCommitRequestSchema } from "@repo/contract/cloud/vault/vault-commit-schema";
+import type { VaultChangeRequest } from "@repo/contract/cloud/vault/vault-commit-schema";
+import { gitOidSchema, vaultPathSchema } from "@repo/contract/cloud/vault/vault-schema";
 import { syncConflictReportSchema } from "@repo/notes/sync/conflict-copy";
 import { diff3 } from "@repo/notes/text/diff3";
 

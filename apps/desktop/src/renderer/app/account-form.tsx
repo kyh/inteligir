@@ -6,8 +6,8 @@ import {
   CLOUD_PASSWORD_MAX_LENGTH,
   CLOUD_PASSWORD_MIN_LENGTH,
   cloudForgotPasswordPageUrl,
-} from "@repo/api/local/cloud/cloud-schema";
-import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/cloud/cloud-schema";
+import type { VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
 import { Button } from "@repo/ui/components/button";
 import { useId, useState } from "react";
 import { accountOffer } from "./account-offer";

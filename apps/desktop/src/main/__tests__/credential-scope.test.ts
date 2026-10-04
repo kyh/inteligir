@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RPC_PREFIX, VAULT_ASSET_PATH } from "@repo/api/local/routes";
+import { RPC_PREFIX, VAULT_ASSET_PATH } from "@repo/contract/local/routes";
 import { bundleFile, isProxiedPath, socketCredentialFilter } from "../credential-scope";
 
 describe("which paths carry the device token", () => {

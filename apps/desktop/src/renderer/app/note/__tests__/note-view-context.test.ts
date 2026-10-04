@@ -1,4 +1,4 @@
-import { contentHashHex } from "@repo/api/local/vault/vault-schema";
+import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { readNoteViewContext } from "../note-view-context";
 import type { OpenNoteView } from "../note-view-context";

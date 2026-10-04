@@ -1,4 +1,4 @@
-import type { DialledSocket, SocketDial } from "@repo/api/cloud/sync/cloud-socket";
+import type { DialledSocket, SocketDial } from "@repo/contract/cloud/sync/cloud-socket";
 
 // the program types the global with the DOM's constructor, which takes no headers; React Native's
 // takes them third, and the bearer has to ride the upgrade.

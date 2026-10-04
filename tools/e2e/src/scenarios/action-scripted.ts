@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { isDefinedError, safe } from "@orpc/client";
-import { contentHashHex } from "@repo/api/local/vault/vault-schema";
+import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import { expect, expectEq } from "../harness/assert";
 import type { Scenario } from "../harness/scenario";
 import { agentNote, runTurn } from "../harness/threads";

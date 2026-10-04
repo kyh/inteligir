@@ -4,7 +4,7 @@ import {
   KNOWLEDGE_RELATED_MAX_LIMIT,
   KNOWLEDGE_SEARCH_MAX_LIMIT,
   KNOWLEDGE_UNLINKED_MAX_LIMIT,
-} from "@repo/api/local/knowledge/knowledge-schema";
+} from "@repo/contract/local/knowledge/knowledge-schema";
 import type {
   KnowledgeMatchesRequest,
   KnowledgeProblemsRequest,
@@ -13,7 +13,7 @@ import type {
   KnowledgeSearchRequest,
   KnowledgeUnlinkedMentionsRequest,
   KnowledgeUnlinkedMentionsResponse,
-} from "@repo/api/local/knowledge/knowledge-schema";
+} from "@repo/contract/local/knowledge/knowledge-schema";
 import { serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 import { defineCommand } from "citty";
 import { parseBoundedInteger } from "../args";

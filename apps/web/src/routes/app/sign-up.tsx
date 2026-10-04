@@ -1,9 +1,12 @@
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
-import type { SignUpRequest } from "@repo/api/cloud/account/account-schema";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/api/cloud/device/device-schema";
+import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
+import type { SignUpRequest } from "@repo/contract/cloud/account/account-schema";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "@repo/contract/cloud/device/device-schema";
 import { Button } from "@repo/ui/components/button";
 
 import {

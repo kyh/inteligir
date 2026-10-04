@@ -62,7 +62,7 @@ scratch dir and tears everything down afterwards:
   `db:export` schema plus one invite row; `vars` override wrangler.jsonc's
   (a storage cap a scenario can fill). Registered for teardown exactly like an
   instance.
-- `instance.api` — the oRPC client over `@repo/api/local`, carrying the device
+- `instance.api` — the oRPC client over `@repo/contract/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.
 - `desktopShell({ seedVault?, seedUserData?, firstRun? })` — the checkout's

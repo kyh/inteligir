@@ -1,6 +1,9 @@
-import { signUpRequestSchema } from "@repo/api/cloud/account/account-schema";
-import type { SignUpRequest } from "@repo/api/cloud/account/account-schema";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/api/cloud/device/device-schema";
+import { signUpRequestSchema } from "@repo/contract/cloud/account/account-schema";
+import type { SignUpRequest } from "@repo/contract/cloud/account/account-schema";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "@repo/contract/cloud/device/device-schema";
 import { and, eq, isNull } from "drizzle-orm";
 import type { z } from "zod";
 import { createSignUpAuth } from "./auth";

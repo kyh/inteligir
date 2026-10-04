@@ -6,7 +6,7 @@ import type {
   TimelineRow,
   TimelineRowStatus,
   TimelineWorkRow,
-} from "@repo/api/local/thread-timeline";
+} from "@repo/contract/local/thread-timeline";
 
 const CHILD_INDENT = "  ";
 const SNIPPET_LIMIT = 100;

@@ -1,5 +1,5 @@
-import { planPage } from "@repo/api/cloud/sync/plan-page";
-import type { PlannedLogRow } from "@repo/api/cloud/sync/plan-page";
+import { planPage } from "@repo/contract/cloud/sync/plan-page";
+import type { PlannedLogRow } from "@repo/contract/cloud/sync/plan-page";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { describe, expect, it } from "vitest";
 import { openSyncStore } from "../../notes/__tests__/phone-storage";

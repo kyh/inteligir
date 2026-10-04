@@ -1,11 +1,11 @@
 import {
   ACCOUNT_API_PATHS,
   deleteAccountRequestSchema,
-} from "@repo/api/cloud/account/account-schema";
+} from "@repo/contract/cloud/account/account-schema";
 import type {
   AccountResponse,
   DeleteAccountResponse,
-} from "@repo/api/cloud/account/account-schema";
+} from "@repo/contract/cloud/account/account-schema";
 import { eq } from "drizzle-orm";
 import { createAuth } from "../auth/auth";
 import { refuse } from "../cloud-http";

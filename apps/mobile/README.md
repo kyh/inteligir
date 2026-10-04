@@ -4,7 +4,7 @@ A full editor over the account's hosted vault. **The agent and the vault
 ENGINE stay on the desktop** (issue #542's re-founding): the phone holds the
 SYNCED THREADS, FEEDS the CAPTURE inbox, ASKS a Mac's agent through the
 DISPATCH inbox and holds a MIRROR of every note's text, reaching
-`@repo/api/cloud` (the wire), `@repo/domain` (the `ThreadEvent` grammar),
+`@repo/contract/cloud` (the wire), `@repo/domain` (the `ThreadEvent` grammar),
 `@repo/notes` (wiki resolution, the rename and delete rules and the one
 conflict verdict, guard-pure) and `@repo/mobile-editor/bridge-protocol` (the
 editor page's wire). No agent, no vault checkout, no git client — notes arrive
@@ -12,7 +12,7 @@ over the /v1/vault read rows into a local SQLite file and open offline in the
 desktop's own editor, and the phone's edits wait in a durable outbox beside
 them until the guarded commit route takes them.
 
-Expo + expo-router; `src/sync` is the RN implementation of the `@repo/api/cloud`
+Expo + expo-router; `src/sync` is the RN implementation of the `@repo/contract/cloud`
 wire.
 
 ## Layout
@@ -25,15 +25,15 @@ src/
   sync/         the RN sync client (pure, unit-tested)
     sync-store.ts          the storage PORT (pull cursor + applied thread log)
     sqlite-sync-store.ts   its one implementation, in the phone's database: a
-                           planned page (@repo/api/cloud/sync/plan-page plans
+                           planned page (@repo/contract/cloud/sync/plan-page plans
                            it) lands as one transaction, and a restore reads
                            the threads back (unit-tested against node:sqlite)
     sync-runtime.ts        the pull loop over the contract's own session machine
-                           (@repo/api/cloud/sync/sync-session); publishes the
+                           (@repo/contract/cloud/sync/sync-session); publishes the
                            status store the screens subscribe to (`restoring`
                            until the boot read ends), lends that session to
                            every other read under the sign-in, and holds the
-                           account's socket (@repo/api/cloud/sync/socket-link)
+                           account's socket (@repo/contract/cloud/sync/socket-link)
                            while signed in and in the foreground
     rn-socket-dial.ts      React Native's WebSocket with the bearer on the
                            upgrade, the one platform line of the shared opener;
@@ -63,11 +63,11 @@ src/
     credential-codec.ts        parse/serialize + the wire pattern
     secure-store-credential.ts expo-secure-store adapter (Keychain/Keystore)
                                behind the contract's DeviceCredentialStore port
-                               (@repo/api/cloud/device/login-flow)
+                               (@repo/contract/cloud/device/login-flow)
   login/        signing this phone in to an account
     login-store.ts      the screen's state machine (idle | signing-in | failed)
                         over the contract's login flow
-                        (@repo/api/cloud/device/login-flow)
+                        (@repo/contract/cloud/device/login-flow)
     device-name.ts      the name this phone offers the device list
   editor/       the note screen's editor: the @repo/mobile-editor page in a
                 WebView, the phone answering its bridge
@@ -262,7 +262,7 @@ The rows are sent oldest first,
 one change set per row, to `POST /v1/vault/commit`, on every write, on resume,
 when expo-network says the phone is back online, and on a backoff after a
 failure, one pass at a time (`createSingleFlight` from
-`@repo/api/cloud/sync/sync-session`).
+`@repo/contract/cloud/sync/sync-session`).
 
 - **A write carries the blob it was computed from.** A read records the base
   the caller's next write is guarded by, and a write the caller never read
@@ -372,7 +372,7 @@ sha-256 of the bytes the note screen showed as its view context's revision.
 A phone joins an account the way the desktop does: the account's own email
 and password, posted once to `POST /v1/device/login`, answered with this
 phone's own `igd_…` device credential. The contract's login flow
-(`@repo/api/cloud/device/login-flow`, the same one the desktop runs) posts the
+(`@repo/contract/cloud/device/login-flow`, the same one the desktop runs) posts the
 row and writes the answer through the injected credential store — here the
 Keychain adapter, which also activates the sync and notes runtimes. The
 password is held nowhere on the phone: it crosses the wire once and only the
@@ -470,7 +470,7 @@ script a Vite dev page injects), and Safari's Web Inspector reaches it in a
 development build (`webviewDebuggingEnabled`).
 
 Unset, the phone talks to the production origin, the same rule the desktop
-follows (`PRODUCTION_CLOUD_ORIGIN` in `@repo/api/cloud/origin`, the one
+follows (`PRODUCTION_CLOUD_ORIGIN` in `@repo/contract/cloud/origin`, the one
 spelling both read). `EXPO_PUBLIC_CLOUD_URL` is read once, at bundle time,
 through `src/lib/cloud-url.ts`: Metro inlines it, so a store build carries no
 value and cannot point anywhere else. A value that is not an absolute http(s)

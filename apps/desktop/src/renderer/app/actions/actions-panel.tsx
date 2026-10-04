@@ -9,8 +9,8 @@ import {
 import type { TaskStatus } from "@repo/ui/ai/task-rows";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
-import type { TimelineRow } from "@repo/api/local/thread-timeline";
-import type { Thread } from "@repo/api/local/threads/threads-schema";
+import type { TimelineRow } from "@repo/contract/local/thread-timeline";
+import type { Thread } from "@repo/contract/local/threads/threads-schema";
 import { isThreadRunning } from "@repo/domain/thread-status";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";

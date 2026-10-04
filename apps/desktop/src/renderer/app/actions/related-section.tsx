@@ -1,6 +1,6 @@
 // no dedup between backlinks and suggestions: the scorer excludes direct neighbours by construction.
 
-import type { UnlinkedMentionWire } from "@repo/api/local/knowledge/knowledge-schema";
+import type { UnlinkedMentionWire } from "@repo/contract/local/knowledge/knowledge-schema";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { COMMENT_MARKER_STRIP_RE } from "@repo/notes/markdown/remark-inline-constructs";
 import { wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";

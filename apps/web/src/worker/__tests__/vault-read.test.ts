@@ -7,7 +7,7 @@ import {
   vaultFileResponseSchema,
   vaultFilesResponseSchema,
   vaultTreeResponseSchema,
-} from "@repo/api/cloud/vault/vault-schema";
+} from "@repo/contract/cloud/vault/vault-schema";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";

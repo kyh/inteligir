@@ -3,8 +3,8 @@
 // rail's dialog. A vault another service syncs, or one with a server of its own, never starts
 // syncing through the account.
 
-import { externalSyncName } from "@repo/api/local/vault/vault-schema";
-import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import { externalSyncName } from "@repo/contract/local/vault/vault-schema";
+import type { VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
 
 interface AccountOffer {
   title: string;

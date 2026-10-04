@@ -6,7 +6,7 @@ import type {
   UndoKeptReason,
   UndoTurnRequest,
   UndoTurnResponse,
-} from "@repo/api/local/threads/threads-schema";
+} from "@repo/contract/local/threads/threads-schema";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { toast } from "@repo/ui/components/sonner";

@@ -7,7 +7,7 @@ import type { ServerFile } from "inteligir/server/server-file";
 import { silentOwnerSentence } from "inteligir/server/server-probe";
 import type { AskServerStatus, StatusAnswer } from "inteligir/server/server-probe";
 import { makeTempDir } from "inteligir/server/testing";
-import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
+import type { SystemStatusResponse } from "@repo/contract/local/system/system-schema";
 import { describe, expect, it } from "vitest";
 import {
   bundledServerVersion,

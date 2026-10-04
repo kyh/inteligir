@@ -5,9 +5,10 @@ import { threadStatusValues } from "@repo/domain/thread-status";
 import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
+// a table's column order is the CREATE TABLE order drizzle-kit emits; sorting it makes the next
+// generated migration recreate every table.
+
 // schema_version is seeded by the first migration and bumped by every later one.
-/* oxlint-disable sort-keys -- a table's column order is the CREATE TABLE order drizzle-kit
-   emits; sorting it makes the next generated migration recreate every table. */
 export const meta = sqliteTable("meta", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
@@ -203,4 +204,3 @@ export const syncAppliedCaptures = sqliteTable("sync_applied_captures", {
 export const syncOwnDevices = sqliteTable("sync_own_devices", {
   deviceId: text("device_id").primaryKey(),
 });
-/* oxlint-enable sort-keys */

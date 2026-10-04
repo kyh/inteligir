@@ -4,7 +4,7 @@ import { monitorEventLoopDelay } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
 import { noopNotifier } from "@repo/domain/notifier";
 import { PROJECTION_VERSION } from "@repo/notes/knowledge/projection";
-import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
+import { VAULT_MAX_CONTENT_LENGTH } from "@repo/contract/local/vault/vault-schema";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createVaultService } from "../../vault/vault-service";
 import type { VaultService } from "../../vault/vault-service";

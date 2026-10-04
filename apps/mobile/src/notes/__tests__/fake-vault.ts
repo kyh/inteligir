@@ -8,16 +8,16 @@
 // install sends, is refused, so a suite passes only while the phone keeps paths out of the URL.
 
 import { createHash } from "node:crypto";
-import { createCloudClient } from "@repo/api/cloud/client";
-import type { CloudClient, CloudFetch } from "@repo/api/cloud/client";
-import { vaultCommitRequestSchema } from "@repo/api/cloud/vault/vault-commit-schema";
+import { createCloudClient } from "@repo/contract/cloud/client";
+import type { CloudClient, CloudFetch } from "@repo/contract/cloud/client";
+import { vaultCommitRequestSchema } from "@repo/contract/cloud/vault/vault-commit-schema";
 import type {
   VaultChangeRequest,
   VaultCommitRequest,
   VaultCommitResponse,
   VaultConflictAnswer,
   VaultConflictReason,
-} from "@repo/api/cloud/vault/vault-commit-schema";
+} from "@repo/contract/cloud/vault/vault-commit-schema";
 import {
   assetMediaType,
   VAULT_API_PATHS,
@@ -26,8 +26,8 @@ import {
   vaultFileQuerySchema,
   vaultFilesRequestSchema,
   vaultTreeQuerySchema,
-} from "@repo/api/cloud/vault/vault-schema";
-import type { VaultFilesResponse } from "@repo/api/cloud/vault/vault-schema";
+} from "@repo/contract/cloud/vault/vault-schema";
+import type { VaultFilesResponse } from "@repo/contract/cloud/vault/vault-schema";
 import { z } from "zod";
 
 export const blobOid = (content: string): string => {

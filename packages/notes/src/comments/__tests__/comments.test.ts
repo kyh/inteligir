@@ -22,7 +22,7 @@ import type { CommentEntry, CommentSidecar } from "../sidecar-schema";
 
 const AT = 1_707_900_000;
 
-/* oxlint-disable sort-keys -- a sidecar's insertion order IS its thread order, which these tests assert */
+// a sidecar's insertion order IS its thread order, which these tests assert
 const SIDECAR: CommentSidecar = {
   c1: { createdAt: AT, source: "user", text: "Should this ship?", updatedAt: AT },
   "c1-r1": {
@@ -41,12 +41,11 @@ const SIDECAR: CommentSidecar = {
   },
   b9: { createdAt: AT, source: "user", text: "Unanchored root.", updatedAt: AT },
 };
-/* oxlint-enable sort-keys */
 
 describe("sidecar schema", () => {
   it("round-trips unknown fields and insertion order", () => {
-    // oxlint-disable sort-keys -- the fixture is the assertion: an unsorted root pair and a
-    // foreign field after the known ones is exactly what a round-trip has to give back.
+    // the fixture is the assertion: an unsorted root pair and a foreign field after the known ones
+    // is exactly what a round-trip has to give back.
     const raw = `${JSON.stringify(
       {
         z: { text: "t", createdAt: AT, updatedAt: AT, foreignOnly: { deep: true } },
@@ -55,7 +54,6 @@ describe("sidecar schema", () => {
       null,
       2,
     )}\n`;
-    // oxlint-enable sort-keys
     const parsed = parseSidecar(raw);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) {

@@ -1,7 +1,7 @@
 // `WebSocket` stub for DOM suites that drive the bus: it opens at once and hears nothing until
 // the test delivers a frame, since a booted server's own broadcasts never reach jsdom.
 
-import type { ServerMessage } from "@repo/api/local/notifications";
+import type { ServerMessage } from "@repo/contract/local/notifications";
 
 type Listener = (event: { data?: unknown }) => void;
 

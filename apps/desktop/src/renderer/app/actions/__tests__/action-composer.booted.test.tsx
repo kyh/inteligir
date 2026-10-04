@@ -6,7 +6,7 @@ import { WorkspaceProvider } from "../../workspace-context";
 import { ActionComposer } from "../action-composer";
 import { routeRendererFetch } from "./booted-fetch";
 import { bootThreadHarness, fakeAgentAccounts } from "inteligir/server/testing";
-import type { AgentStatus } from "@repo/api/local/system/system-schema";
+import type { AgentStatus } from "@repo/contract/local/system/system-schema";
 
 afterEach(() => {
   cleanup();

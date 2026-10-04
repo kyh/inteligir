@@ -5,8 +5,8 @@
 // to the live fold then, so it folds each row once and never one a reset dropped.
 
 import { z } from "zod";
-import { hexFromBytes } from "@repo/api/cloud/bytes";
-import type { LogPlanStep } from "@repo/api/cloud/sync/plan-page";
+import { hexFromBytes } from "@repo/contract/cloud/bytes";
+import type { LogPlanStep } from "@repo/contract/cloud/sync/plan-page";
 import { isThreadEventDelta, threadEventSchema } from "@repo/domain/provider-event";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { fencedExclusive, phoneDbReady } from "../lib/phone-db";

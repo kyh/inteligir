@@ -2,20 +2,20 @@ import type {
   AckCapturesRequest,
   CaptureRequest,
   CaptureResponse,
-} from "@repo/api/cloud/captures/captures-schema";
-import { syncEventRowSchema } from "@repo/api/cloud/sync/sync-schema";
+} from "@repo/contract/cloud/captures/captures-schema";
+import { syncEventRowSchema } from "@repo/contract/cloud/sync/sync-schema";
 import type {
   PullQuery,
   PullResponse,
   PushRequest,
   SyncEventRow,
-} from "@repo/api/cloud/sync/sync-schema";
+} from "@repo/contract/cloud/sync/sync-schema";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import type { CloudClient, CloudResult } from "@repo/api/cloud/client";
-import { fakeCloudClient, ok } from "@repo/api/cloud/test-support/fake-cloud-client";
+import type { CloudClient, CloudResult } from "@repo/contract/cloud/client";
+import { fakeCloudClient, ok } from "@repo/contract/cloud/test-support/fake-cloud-client";
 
-export { ok } from "@repo/api/cloud/test-support/fake-cloud-client";
+export { ok } from "@repo/contract/cloud/test-support/fake-cloud-client";
 
 export const userRequest = (threadId: string, text: string): ThreadEvent => ({
   scope: threadScope(),

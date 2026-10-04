@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 
 import { setTimeout as delay } from "node:timers/promises";
-import type { VaultStatusResponse, VaultSyncConflict } from "@repo/api/local/vault/vault-schema";
+import type {
+  VaultStatusResponse,
+  VaultSyncConflict,
+} from "@repo/contract/local/vault/vault-schema";
 import { Toaster, toast } from "@repo/ui/components/sonner";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 import { QueryClientProvider } from "@tanstack/react-query";

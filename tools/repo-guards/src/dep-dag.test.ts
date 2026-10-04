@@ -28,8 +28,8 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // the @repo/notes edge is the parser-free grammars the contract validates against (vault-path,
     // sidecar-schema, tag-grammar, link-kinds); widening it to a remark-carrying module drags
     // remark into every client bundle, which "the contract's @repo/notes edge" below walks for.
-    "@repo/api": ["@repo/domain", "@repo/notes"],
-    // below the wire: an edge to @repo/api would drag @orpc/contract and the contract's notes edge
+    "@repo/contract": ["@repo/domain", "@repo/notes"],
+    // below the wire: an edge to @repo/contract would drag @orpc/contract and the contract's notes edge
     // into a package that only writes rows.
     "@repo/db": ["@repo/domain"],
     // `inteligir` for the facts both processes must agree on: config resolution, the token's file
@@ -37,7 +37,7 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // html-block frame the protocol handler serves, and the fork broker's frames. forking its
     // bundle as a child is the same dependency, declared once.
     "@repo/desktop": [
-      "@repo/api",
+      "@repo/contract",
       "@repo/domain",
       "@repo/editor",
       "@repo/notes",
@@ -49,7 +49,7 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // instance; the @repo/mobile edge is the phone's own platform-free runtime, driven under node
     // against a real Worker, since no Expo boots headless; the @repo/mobile-editor edge is the
     // bridge's protocol, so the scripted phone speaks the frames the page parses.
-    "@repo/e2e": ["@repo/api", "@repo/mobile", "@repo/mobile-editor", "inteligir"],
+    "@repo/e2e": ["@repo/contract", "@repo/mobile", "@repo/mobile-editor", "inteligir"],
     // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
     "@repo/editor": ["@repo/notes", "@repo/ui"],
     // a partial cloud client: reads the thread log and produces captures, never pushes or claims,
@@ -57,16 +57,16 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // dialect's own parse, link resolver and the one conflict verdict its write queue settles
     // with; the @repo/mobile-editor edge is the editor page's wire alone (EDITOR_PAGE_CLIENTS
     // below), since the page itself ships built; it reaches no server, vault engine or agent.
-    "@repo/mobile": ["@repo/api", "@repo/domain", "@repo/mobile-editor", "@repo/notes"],
+    "@repo/mobile": ["@repo/contract", "@repo/domain", "@repo/mobile-editor", "@repo/notes"],
     // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through
     // its own bridge, so no contract and no cloud wire.
     "@repo/mobile-editor": ["@repo/editor", "@repo/notes", "@repo/ui"],
     "@repo/notes": [],
     "@repo/repo-guards": [],
     "@repo/ui": [],
-    "@repo/web": ["@repo/api", "@repo/ui"],
+    "@repo/web": ["@repo/contract", "@repo/ui"],
     // the server reaches no page: no @repo/ui, no @repo/editor, no react.
-    inteligir: ["@repo/agent-runtime", "@repo/api", "@repo/db", "@repo/domain", "@repo/notes"],
+    inteligir: ["@repo/agent-runtime", "@repo/contract", "@repo/db", "@repo/domain", "@repo/notes"],
   }),
 );
 
@@ -114,7 +114,7 @@ const PURITY_RULES = new Map<string, PurityRule>(
       forbidden: ["react", "electron"],
       why: "it spawns provider processes, so it is node-side by definition — and nothing it exports may pull a process tree into a renderer; the grammars a client reads live in @repo/domain",
     },
-    "@repo/api": {
+    "@repo/contract": {
       forbidden: ["node", "react", "electron"],
       why: "the contract both ends compile against: it loads in the Electron renderer, on node, on workerd and in React Native, so a platform import there is a package that stops loading somewhere",
     },
@@ -141,10 +141,10 @@ const PURITY_RULES = new Map<string, PurityRule>(
   }),
 );
 
-// @repo/api is not here: @orpc/contract is isomorphic and costs no portability.
+// @repo/contract is not here: @orpc/contract is isomorphic and costs no portability.
 const ZOD_ONLY_LEAVES = ["@repo/domain"];
 
-// @repo/api/cloud may never break and @repo/api/local may break freely, so a workspace that ships
+// @repo/contract/cloud may never break and @repo/contract/local may break freely, so a workspace that ships
 // apart from the desktop bundle reaches the cloud entry alone; each row says why it ships apart.
 const CLOUD_ONLY_CLIENTS = new Map<string, string>([
   ["@repo/web", "it serves the cloud wire and only the cloud wire"],
@@ -429,7 +429,7 @@ describe("platform purity", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("every cloud-only client reaches @repo/api's cloud entry and nothing else", () => {
+  it("every cloud-only client reaches @repo/contract's cloud entry and nothing else", () => {
     const violations: string[] = [];
     for (const [name, why] of CLOUD_ONLY_CLIENTS) {
       const client = workspaces().find((candidate) => candidate.name === name);
@@ -443,15 +443,15 @@ describe("platform purity", () => {
       const files = workspaceFiles(client);
       for (const file of [...files.shipped, ...files.test]) {
         for (const specifier of importsOf(file)) {
-          if (!specifier.startsWith("@repo/api/")) {
+          if (!specifier.startsWith("@repo/contract/")) {
             continue;
           }
-          if (specifier.startsWith("@repo/api/cloud/")) {
+          if (specifier.startsWith("@repo/contract/cloud/")) {
             continue;
           }
           violations.push(
             `LOCAL CONTRACT IN A CLOUD-ONLY CLIENT  ${file} imports "${specifier}"\n` +
-              `  rule: ${name} reaches @repo/api/cloud/* alone — ${why}`,
+              `  rule: ${name} reaches @repo/contract/cloud/* alone — ${why}`,
           );
         }
       }
@@ -489,22 +489,22 @@ describe("platform purity", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("@repo/api's cloud entry never reaches into its local entry", () => {
+  it("@repo/contract's cloud entry never reaches into its local entry", () => {
     // a file under src/cloud reaching src/local by relative path is invisible to the cloud-only
     // pin above; the sanctioned crossing is the other direction (local reusing a cloud constant).
-    const api = workspaces().find((candidate) => candidate.name === "@repo/api");
-    if (api === undefined) {
-      throw new Error("@repo/api is not a workspace");
+    const contract = workspaces().find((candidate) => candidate.name === "@repo/contract");
+    if (contract === undefined) {
+      throw new Error("@repo/contract is not a workspace");
     }
-    const cloudDir = path.join(api.dir, "src", "cloud");
-    const localDir = path.join(api.dir, "src", "local");
-    const files = workspaceFiles(api);
+    const cloudDir = path.join(contract.dir, "src", "cloud");
+    const localDir = path.join(contract.dir, "src", "local");
+    const files = workspaceFiles(contract);
     const violations: string[] = [];
     for (const file of [...files.shipped, ...files.test]) {
       if (!file.startsWith(`${cloudDir}/`) && !file.startsWith(`${localDir}/`)) {
         violations.push(
           `THIRD BUCKET  ${file}\n` +
-            `  rule: every file under packages/api/src lives in src/cloud or src/local — a third bucket is a file this guard never reads`,
+            `  rule: every file under packages/contract/src lives in src/cloud or src/local — a third bucket is a file this guard never reads`,
         );
         continue;
       }
@@ -514,11 +514,11 @@ describe("platform purity", () => {
       for (const specifier of importsOf(file)) {
         const reachesLocal = specifier.startsWith(".")
           ? path.join(path.dirname(file), specifier).startsWith(`${localDir}/`)
-          : specifier === "@repo/api/local" || specifier.startsWith("@repo/api/local/");
+          : specifier === "@repo/contract/local" || specifier.startsWith("@repo/contract/local/");
         if (reachesLocal) {
           violations.push(
             `CLOUD REACHES LOCAL  ${file} imports "${specifier}"\n` +
-              `  rule: @repo/api/cloud is the never-break wire — it may import zod, @repo/notes and its own cloud/ modules, never src/local`,
+              `  rule: @repo/contract/cloud is the never-break wire — it may import zod, @repo/notes and its own cloud/ modules, never src/local`,
           );
         }
       }
@@ -651,12 +651,12 @@ const markdownParserReach = (entry: string): ParserReach | null => {
 
 describe("the contract's @repo/notes edge", () => {
   it("reaches no markdown parser", () => {
-    const api = workspaces().find((candidate) => candidate.name === "@repo/api");
-    if (api === undefined) {
-      throw new Error("@repo/api is not a workspace");
+    const contract = workspaces().find((candidate) => candidate.name === "@repo/contract");
+    if (contract === undefined) {
+      throw new Error("@repo/contract is not a workspace");
     }
     const violations: string[] = [];
-    for (const file of workspaceFiles(api).shipped) {
+    for (const file of workspaceFiles(contract).shipped) {
       for (const specifier of runtimeImportsOf(file)) {
         if (!specifier.startsWith("@repo/notes/")) {
           continue;
@@ -674,7 +674,7 @@ describe("the contract's @repo/notes edge", () => {
           violations.push(
             `MARKDOWN PARSER IN THE CONTRACT  ${file} imports "${specifier}", which loads "${reach.specifier}"\n` +
               `  via ${reach.chain.join(" -> ")}\n` +
-              `  rule: @repo/api's @repo/notes edge is the parser-free grammars the contract validates against — the contract loads in every client, so a remark-carrying module drags the markdown parser into every bundle\n` +
+              `  rule: @repo/contract's @repo/notes edge is the parser-free grammars the contract validates against — the contract loads in every client, so a remark-carrying module drags the markdown parser into every bundle\n` +
               `  fix: move what the contract needs into an import-free module beside it, as tag-grammar.ts and link-kinds.ts are`,
           );
         }

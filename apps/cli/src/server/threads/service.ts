@@ -75,12 +75,12 @@ import type {
   ThreadStop,
   TimelineQuery,
   TimelineResponse,
-} from "@repo/api/local/threads/threads-schema";
+} from "@repo/contract/local/threads/threads-schema";
 import {
   encodeThreadListCursor,
   THREADS_LIST_DEFAULT_LIMIT,
-} from "@repo/api/local/threads/threads-schema";
-import { computeTimelineDelta } from "@repo/api/local/thread-timeline";
+} from "@repo/contract/local/threads/threads-schema";
+import { computeTimelineDelta } from "@repo/contract/local/thread-timeline";
 import { z } from "zod";
 import { mapWithConcurrency } from "../concurrency";
 import { messageOf } from "../error-message";

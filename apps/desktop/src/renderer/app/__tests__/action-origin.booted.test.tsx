@@ -1,4 +1,4 @@
-import { contentHashHex } from "@repo/api/local/vault/vault-schema";
+import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { readFrontmatterRaw } from "@repo/editor/properties/properties-node";
 import {

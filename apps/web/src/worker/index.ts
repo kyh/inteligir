@@ -1,6 +1,6 @@
-import { ACCOUNT_API_PATHS, AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
-import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
-import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
+import { ACCOUNT_API_PATHS, AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
+import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
+import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { createAuth } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import { handleResetPage } from "./auth/reset-page";

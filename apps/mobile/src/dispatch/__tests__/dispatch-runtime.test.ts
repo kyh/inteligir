@@ -1,6 +1,6 @@
-import type { CloudResult } from "@repo/api/cloud/client";
-import type { CreateDispatchResponse } from "@repo/api/cloud/dispatch/dispatch-schema";
-import { planPage } from "@repo/api/cloud/sync/plan-page";
+import type { CloudResult } from "@repo/contract/cloud/client";
+import type { CreateDispatchResponse } from "@repo/contract/cloud/dispatch/dispatch-schema";
+import { planPage } from "@repo/contract/cloud/sync/plan-page";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { afterEach, describe, expect, it, vi } from "vitest";

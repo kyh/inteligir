@@ -8,13 +8,13 @@
 import {
   VAULT_COMMIT_MAX_BYTES,
   VAULT_COMMIT_MAX_CHANGES,
-} from "@repo/api/cloud/vault/vault-commit-schema";
+} from "@repo/contract/cloud/vault/vault-commit-schema";
 import {
   assetMediaType,
   VAULT_ASSET_MAX_BYTES,
   VAULT_FILE_MAX_BYTES,
-} from "@repo/api/cloud/vault/vault-schema";
-import { utf8ByteLength } from "@repo/api/cloud/bytes";
+} from "@repo/contract/cloud/vault/vault-schema";
+import { utf8ByteLength } from "@repo/contract/cloud/bytes";
 import { commentStoresFreedBy } from "@repo/notes/comments/store-removal";
 import { freeAssetPath } from "@repo/notes/knowledge/asset-name";
 import {

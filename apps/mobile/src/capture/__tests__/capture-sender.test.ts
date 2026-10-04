@@ -1,5 +1,8 @@
-import type { CaptureRequest, CaptureResponse } from "@repo/api/cloud/captures/captures-schema";
-import type { CloudResult } from "@repo/api/cloud/client";
+import type {
+  CaptureRequest,
+  CaptureResponse,
+} from "@repo/contract/cloud/captures/captures-schema";
+import type { CloudResult } from "@repo/contract/cloud/client";
 import { describe, expect, it } from "vitest";
 import { createCaptureSender } from "../capture-sender";
 

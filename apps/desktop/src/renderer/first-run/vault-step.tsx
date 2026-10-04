@@ -6,7 +6,7 @@ import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
-import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
+import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { useId, useState } from "react";
 import { outsideSyncWarning, vaultNameProblem } from "../../first-run-state";
 import type { FirstRunChoice, FirstRunState, FolderFacts, OwnSync } from "../../first-run-state";

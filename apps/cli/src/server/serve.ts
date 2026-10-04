@@ -4,10 +4,10 @@
 
 import { mkdirSync } from "node:fs";
 import { inspect } from "node:util";
-import { createCloudSocketOpener } from "@repo/api/cloud/sync/cloud-socket";
-import { browserHandoffUrl } from "@repo/api/local/routes";
-import { externalSyncName } from "@repo/api/local/vault/vault-schema";
-import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
+import { createCloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
+import { browserHandoffUrl } from "@repo/contract/local/routes";
+import { externalSyncName } from "@repo/contract/local/vault/vault-schema";
+import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { resolveUiDir } from "../paths";
 import { resolveAgentDriver } from "./agents/agent-driver";
 import type { ResolveAgentDriverArgs } from "./agents/agent-driver";

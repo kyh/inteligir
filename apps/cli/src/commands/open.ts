@@ -1,4 +1,4 @@
-import { browserHandoffUrl } from "@repo/api/local/routes";
+import { browserHandoffUrl } from "@repo/contract/local/routes";
 import { defineCommand } from "citty";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";

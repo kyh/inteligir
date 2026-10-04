@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { connectedFolderPathSchema } from "@repo/api/local/folders/folders-schema";
+import { connectedFolderPathSchema } from "@repo/contract/local/folders/folders-schema";
 import { JsonFileStore } from "../json-file-store";
 
 const foldersFileSchema = z.object({ folders: z.array(connectedFolderPathSchema) }).strict();

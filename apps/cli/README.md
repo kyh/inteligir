@@ -9,7 +9,7 @@ runs a server.
 
 **Every other verb but `vault open` is a CLIENT** of a running one (`vault open`
 rewrites the vault selector without a server, so the next `serve` boots on it),
-over that same contract (`@repo/api/local`). Agent-facing by design: every leaf
+over that same contract (`@repo/contract/local`). Agent-facing by design: every leaf
 takes `--json`, the server serves the manual (`inteligir guide`), and the agent
 runtime prepends this bin directory to the PATH of the shells it spawns — so a
 model drives the product by typing `inteligir …` in bash.

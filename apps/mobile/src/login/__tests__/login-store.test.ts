@@ -1,5 +1,5 @@
-import type { CloudFetch } from "@repo/api/cloud/client";
-import type { DeviceCredential } from "@repo/api/cloud/device/device-schema";
+import type { CloudFetch } from "@repo/contract/cloud/client";
+import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createLoginStore } from "../login-store";

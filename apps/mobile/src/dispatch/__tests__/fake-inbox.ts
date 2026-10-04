@@ -2,13 +2,13 @@
 // the id is the idempotency key, a cancel takes only a row no Mac holds, and an answer marks its
 // approval answered. The Mac's side is three calls a test makes.
 
-import type { CloudClient, CloudResult } from "@repo/api/cloud/client";
+import type { CloudClient, CloudResult } from "@repo/contract/cloud/client";
 import type {
   ApprovalRow,
   CreateDispatchRequest,
   CreateDispatchResponse,
   DispatchStatus,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { ok } from "../../sync/__tests__/fakes";
 
 interface InboxRow {

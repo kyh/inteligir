@@ -4,8 +4,8 @@
 // read one answer), the presets the one-click rows add, the poll that waits out a sign-in, and what
 // a row offers in each state.
 
-import { connectorAddRequestSchema } from "@repo/api/local/connectors/connectors-schema";
-import type { ConnectorView } from "@repo/api/local/connectors/connectors-schema";
+import { connectorAddRequestSchema } from "@repo/contract/local/connectors/connectors-schema";
+import type { ConnectorView } from "@repo/contract/local/connectors/connectors-schema";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { CONNECTOR_PRESETS } from "../connector-presets";

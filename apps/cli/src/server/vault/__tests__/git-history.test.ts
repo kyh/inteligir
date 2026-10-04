@@ -7,7 +7,7 @@ import {
   deviceCommitEmail,
   vaultCommitSubject,
   WORKER_COMMITTER_EMAIL,
-} from "@repo/api/cloud/vault/vault-git";
+} from "@repo/contract/cloud/vault/vault-git";
 import { describe, expect, it } from "vitest";
 import { ensureVaultRepo } from "../git-bootstrap";
 import { ENGINE_IDENTITY, identityEnv, runGit } from "../git-run";

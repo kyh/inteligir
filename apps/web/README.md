@@ -3,7 +3,7 @@
 One Cloudflare Worker serving the marketing site and the whole cloud from
 one origin: the TanStack Start pages, Better Auth on D1, device login, the
 per-user thread-sync Durable Object, the capture and dispatch inboxes and the
-hosted vault git remote. The wire contract is `@repo/api/cloud` — the Worker
+hosted vault git remote. The wire contract is `@repo/contract/cloud` — the Worker
 implements it, the local app's sync client consumes it.
 
 ## Layout
@@ -121,7 +121,7 @@ answers the same query as a GET's search params, the form older installs send
   header on sign-in/up.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
   (`src/worker/auth/invite.ts`). `POST /v1/auth/sign-up` parses its body with
-  `signUpRequestSchema` (`@repo/api/cloud/account/account-schema`, which the
+  `signUpRequestSchema` (`@repo/contract/cloud/account/account-schema`, which the
   page, the gate and the e2e harness share with `AUTH_PAGE_PATHS`) and refuses a
   password outside `PASSWORD_MIN_LENGTH`–`PASSWORD_MAX_LENGTH` before touching
   the code. It then claims the code in one atomic
@@ -147,7 +147,7 @@ answers the same query as a GET's search params, the form older installs send
   `internalNextPath` (`src/lib/next-path.ts`, the open-redirect guard), else
   lands on `SIGNED_IN_HOME`, as sign-up and bare `/app` do. The list loads in
   the route's loader and every refusal reads the cloud error envelope through
-  `readCloudCall` (`@repo/api/cloud/client`), so a failure is the route's error
+  `readCloudCall` (`@repo/contract/cloud/client`), so a failure is the route's error
   view with a retry, never a page stuck on Loading. The three auth forms submit
   through one `useAuthSubmit` (`src/components/auth-shell.tsx`), which turns a
   request that never left into a message rather than a button stuck busy.

@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
-import type { AgentsStatusResponse } from "@repo/api/local/agents/agents-schema";
+import type { AgentsStatusResponse } from "@repo/contract/local/agents/agents-schema";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 import { bootTestApp, makeTempDir } from "../../__tests__/boot-app";

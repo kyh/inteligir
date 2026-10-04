@@ -2,10 +2,10 @@
 // rail, a toast and every other section speak only sync, so this is the one place that shows the
 // remote, a raw state and the last error verbatim.
 
-import type { CloudStatusResponse } from "@repo/api/local/cloud/cloud-schema";
-import type { SystemStatusResponse } from "@repo/api/local/system/system-schema";
-import { externalSyncName } from "@repo/api/local/vault/vault-schema";
-import type { VaultStatusResponse } from "@repo/api/local/vault/vault-schema";
+import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schema";
+import type { SystemStatusResponse } from "@repo/contract/local/system/system-schema";
+import { externalSyncName } from "@repo/contract/local/vault/vault-schema";
+import type { VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
 import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";

@@ -14,7 +14,7 @@ import type {
   PendingInteractionPayload,
   PendingInteractionResolution,
 } from "@repo/domain/pending-interactions";
-import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
+import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
 
 export const INTERACTION_TIMEOUT_MS = 30 * 60_000;
 

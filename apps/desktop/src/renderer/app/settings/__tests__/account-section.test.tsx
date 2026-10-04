@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { CloudDevice } from "@repo/api/local/cloud/cloud-schema";
+import type { CloudDevice } from "@repo/contract/local/cloud/cloud-schema";
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";

@@ -9,9 +9,9 @@ import type {
   KnowledgeProblemsResponse,
   KnowledgeSearchRequest,
   KnowledgeSearchResponse,
-} from "@repo/api/local/knowledge/knowledge-schema";
-import type { ListThreadsResponse } from "@repo/api/local/threads/threads-schema";
-import { contentHashHex } from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/knowledge/knowledge-schema";
+import type { ListThreadsResponse } from "@repo/contract/local/threads/threads-schema";
+import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import type { ReactNode } from "react";

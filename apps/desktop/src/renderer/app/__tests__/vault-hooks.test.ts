@@ -2,13 +2,13 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ORPCError } from "@orpc/client";
 import { DEFAULT_DOC_EXTENSION } from "@repo/notes/knowledge/doc-file";
-import { vaultStatusResponseSchema } from "@repo/api/local/vault/vault-schema";
+import { vaultStatusResponseSchema } from "@repo/contract/local/vault/vault-schema";
 import type {
   ExternalSync,
   VaultEntry,
   VaultStatusResponse,
   VaultTreeResponse,
-} from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import {
   canSyncNow,
