@@ -543,7 +543,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
           ? null
           : {
               exportPdf: () => {
-                exportNoteAsPdf(docStem(openPath));
+                void exportNoteAsPdf(docStem(openPath));
               },
               findInNote,
               insertTemplate: insertTemplateIntoNote,

@@ -179,9 +179,8 @@ as:
     an address.
   - **The update check — to GitHub.** The packaged desktop app asks GitHub's
     release feed whether a newer version exists 15 seconds after launch and
-    every 4 minutes after that. GitHub sees your IP address and the app's
-    version, nothing about your vault or your account. Nothing downloads or
-    installs without a click. `inteligir serve`, from a checkout or through
+    every 4 minutes after that. GitHub sees your IP address, nothing about your
+    vault or your account. Nothing downloads or installs without a click. `inteligir serve`, from a checkout or through
     `npx`, makes no such check.
   - **The phone's update check — to Expo.** Each time the phone app starts it
     asks Expo's update service whether a newer version of its app code exists,

@@ -176,28 +176,32 @@ server `serve` loads. The chunks sit FLAT beside the entry: `src/paths.ts` and
 the two sibling lookups below resolve from whichever file they landed in, so
 every file in `dist/` has to answer them the same way.
 
-Three bundles cannot ride inside the entry and each says why beside itself: the
-vault watcher is a CHILD PROCESS, the stdio host runs each ACP adapter in the
-desktop shell, and the knowledge projector is a WORKER THREAD, so each needs a
-real file on disk resolved as a sibling of the running entry. In a checkout the
-worker runs its `.ts` source under tsx's hook instead
+Two bundles cannot ride inside the entry and each says why beside itself: the
+vault watcher is a CHILD PROCESS and the knowledge projector is a WORKER
+THREAD, so each needs a real file on disk resolved as a sibling of the running
+entry. In a checkout the worker runs its `.ts` source under tsx's hook instead
 (`src/server/worker-entry.ts`).
 
-**Who starts a node child depends on who runs the server**
-(`src/server/child-host/node-children.ts`). Run by node (`serve`, npx, a suite),
-it forks the watcher and spawns each adapter with `child_process` over its own
-`process.execPath`. Run by the desktop shell, it is an Electron utility process:
-its `execPath` is Electron's helper, which the packaged binary's `runAsNode`
-fuse keeps from running JavaScript, and a utility process cannot fork one of its
-own. So it asks main over `process.parentPort` (`fork-broker-wire.ts`, parsed on
-both ends), main forks the child as a utility process of its own and hands each
-side one end of a MessageChannel, and the two talk directly. The watcher's IPC
-rides that port; an adapter speaks ACP over stdin and stdout, which a utility
-process cannot be given, so `stdio-port-host` carries its three streams over the
-port as frames and `brokered-adapter.ts` stands in for its `ChildProcess`. codex
-is the one adapter that runs a node script of its own (its bundled launcher,
-through `process.execPath`), so the harness row names the native binary that
-launcher would start as `CODEX_PATH`.
+**The desktop shell's door is a second entry, `dist/desktop.js`**
+(`src/desktop/desktop-entry.ts`), over the same chunks. The shell is Rust, and
+every rule it acts by that is the server's own is asked of this entry instead
+of spelled twice: which vault a launch boots, what a first run's choice opens,
+whether a switch may go ahead, a picked folder's facts, the selector's write
+and a browser's handoff, one question per process, answered as one JSON line
+(`src/desktop/desktop-door.ts`). `serve` is the one that stays: it is the
+server, run on the node the app ships, and it announces itself to the shell on
+one marked line (`src/desktop/desktop-serve.ts`), or adopts a server already
+serving its data dir at this version. Its stdin is the shell's lifeline: it
+closes only when the shell is gone, and the server then stops itself rather
+than go on holding the data dir. Packaged, it writes the agents' `inteligir`
+as a launcher into the data dir (`src/desktop/agent-launcher.ts`), which runs
+that same node on this CLI, since a Mac need hold no node of its own.
+
+Every node child the server starts it starts itself, with `child_process` over
+its own `process.execPath`: the watcher, and each ACP adapter. codex is the one
+adapter that runs a node script of its own (its bundled launcher, through
+`process.execPath`), so the harness row names the native binary that launcher
+would start as `CODEX_PATH`, one process fewer.
 
 A vendor's own binary is native, so the server runs it itself. Whether an agent
 is signed in is the vendor's own status command (the harness row's account

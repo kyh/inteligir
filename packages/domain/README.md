@@ -14,7 +14,7 @@ and every one of those parses it at its own boundary. One grammar in one
 package with one runtime dependency is what makes that the same parse on every
 target. The leaf-ness is held by `tools/repo-guards/src/dep-dag.test.ts` three
 ways — `@repo/domain` is declared with no outgoing edge, its purity rule
-forbids node/react/electron imports, and the zod-only-leaf check refuses any
+forbids node, react and `@tauri-apps` imports, and the zod-only-leaf check refuses any
 `dependencies` entry but `zod`, because a second runtime dep here ships to
 every consumer — and by `tsconfig.json` (`ES2023`, `types: []`), so a node
 global is a type error before it is a lint error.

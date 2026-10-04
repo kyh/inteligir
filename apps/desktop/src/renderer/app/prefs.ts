@@ -7,7 +7,6 @@ import { parseTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
 import { useCallback, useState } from "react";
 import { z } from "zod";
-import { spellcheckChoiceSchema } from "../../spellcheck-state";
 import { APPEARANCE_DEFAULTS, appearanceSchema } from "./appearance-options";
 
 export interface PagePref<Value, Fallback> {
@@ -77,7 +76,8 @@ export const PREFS = {
   railView: pref("inteligir.rail-view", z.enum(RAIL_VIEWS), "files"),
   relatedOpen: pref("inteligir.related-open", flag, true),
   sidebarWidth: pref("inteligir.sidebar-width", railWidth, 260),
-  spellcheck: unsetPref("inteligir.spellcheck", json(spellcheckChoiceSchema)),
+  // the document's own `spellcheck`, which every field inherits unless it sets its own
+  spellcheck: pref("inteligir.spellcheck", flag, true),
   // the `at` of the newest sync conflict this window announced, on the server's clock
   syncConflictSeenAt: unsetPref("inteligir.sync-conflict-seen-at", epochMs),
   theme: pref("inteligir.theme", themeName, "system"),

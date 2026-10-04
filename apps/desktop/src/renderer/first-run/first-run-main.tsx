@@ -1,6 +1,6 @@
 // The first-run window's page: no router, no query client and no socket, because no server exists
-// yet. It asks main for the vault choice over its own bridge, and main replaces it with the app
-// window once that vault's server is up.
+// yet. It asks the shell for the vault choice over its own bridge, and the shell replaces it with
+// the app window once that vault's server is up.
 
 import { MotionPolicy } from "@repo/ui/lib/motion-policy";
 import { RadiusProvider } from "@repo/ui/lib/radius-context";
@@ -12,14 +12,9 @@ import { createRoot } from "react-dom/client";
 import type { FirstRunState } from "../../first-run-state";
 import type { FirstRunBridge } from "../../types";
 import "../styles/globals.css";
+import { firstRunBridge } from "./first-run-bridge";
 import { VaultStep } from "./vault-step";
 import { WelcomeStep } from "./welcome-step";
-
-declare global {
-  interface Window {
-    firstRunBridge?: FirstRunBridge;
-  }
-}
 
 type Loaded = { kind: "loading" } | { kind: "failed" } | { kind: "state"; state: FirstRunState };
 
@@ -67,11 +62,9 @@ const FirstRun = ({ bridge }: { bridge: FirstRunBridge }) => {
   }
 };
 
-// a browser tab can load this file from the bundle a server stages, and has no bridge: nothing
-// here is a tab's to choose
-const FirstRunPage = () => {
+// a browser that reaches this page has no bridge: nothing here is a tab's to choose
+const FirstRunPage = ({ bridge }: { bridge: FirstRunBridge | undefined }) => {
   const [theme, setTheme] = useState<Theme>("system");
-  const bridge = window.firstRunBridge;
   return (
     <ThemeProvider theme={theme} setTheme={setTheme}>
       <MotionPolicy>
@@ -100,6 +93,6 @@ if (container === null) {
 
 createRoot(container).render(
   <StrictMode>
-    <FirstRunPage />
+    <FirstRunPage bridge={firstRunBridge()} />
   </StrictMode>,
 );

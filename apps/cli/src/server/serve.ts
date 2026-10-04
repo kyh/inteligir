@@ -16,8 +16,6 @@ import { createAgentAccounts } from "./agents/agent-sign-in";
 import { createApp } from "./app";
 import { bootReport } from "./boot-report";
 import type { BootPhases } from "./boot-report";
-import { readParentPort } from "./child-host/message-port";
-import { resolveNodeChildren } from "./child-host/node-children";
 import type { VaultRemoteSpec } from "./cloud/vault-remote";
 import { migrateLegacyCommentSidecars } from "./comments/comments-migration";
 import { composeRuntime, registerListener, registerLockRelease } from "./compose";
@@ -42,6 +40,7 @@ import {
   installShutdownSignals,
 } from "./shutdown";
 import type { ShutdownStep } from "./shutdown";
+import { uiDevOrigin } from "./ui-dev-server";
 import { redactRemoteUrl } from "./vault/git-run";
 
 // passed as env rather than written to process.env: a global write is inherited
@@ -138,10 +137,17 @@ export const claimDataDir = async (dataDir: string, teardown: ShutdownStep[]): P
   registerLockRelease(teardown, claim.release);
 };
 
+export interface RunServeOptions {
+  // the folder an agent shell finds `inteligir` in; absent, this package's own bin. the desktop
+  // app names a launcher that runs the node it ships, since its Mac may have none on PATH
+  cliBinDir?: string;
+}
+
 const boot = async (
   version: string,
   env: NodeJS.ProcessEnv,
   teardown: ShutdownStep[],
+  options: RunServeOptions,
 ): Promise<ServeResult> => {
   const began = performance.now();
   const checkoutPath = resolveCheckoutRoot();
@@ -154,15 +160,11 @@ const boot = async (
 
   // published only once the port is bound, so a reader never learns an address before it answers.
   const serverToken = mintServerToken();
-  const children = resolveNodeChildren(readParentPort());
   const clientDir = resolveUiDir();
+  const uiDev = uiDevOrigin(env, config.mode);
 
   const composeArgs: ComposeRuntimeArgs = {
-    accounts: createAgentAccounts({
-      cwd: config.dataDir,
-      env,
-      spawnAdapter: children.spawnAdapter,
-    }),
+    accounts: createAgentAccounts({ cwd: config.dataDir, env }),
     // injected: the composed graph is also compiled under the browser tsconfig, where
     // WebSocket's second argument is a protocol list, not node's `{ headers }`.
     cloudTransport: {
@@ -170,7 +172,7 @@ const boot = async (
     },
     config,
     driver: ({ config: driverConfig, db, bus, vault, folders, agentPrefs }) => {
-      const cliBinDir = resolveCliBinDir();
+      const cliBinDir = options.cliBinDir ?? resolveCliBinDir();
       const skillsDir = resolveSkillsDir();
       const driverArgs: ResolveAgentDriverArgs = {
         config: driverConfig,
@@ -186,18 +188,12 @@ const boot = async (
         }),
         vault,
       };
-      if (children.spawnAdapter !== undefined) {
-        driverArgs.spawnAdapter = children.spawnAdapter;
-      }
       return resolveAgentDriver(driverArgs);
     },
-    servesUi: clientDir !== null,
+    servesUi: clientDir !== null || uiDev !== null,
     teardown,
     version,
   };
-  if (children.watcherChannel !== undefined) {
-    composeArgs.ports = { vault: { spawnWatcherChannel: children.watcherChannel } };
-  }
   const runtime = await composeRuntime(composeArgs);
   const composed = performance.now();
 
@@ -206,6 +202,7 @@ const boot = async (
     clientDir,
     context: runtime.context,
     serverToken,
+    uiDevOrigin: uiDev,
   });
 
   const { port, server } = await listenWithRetry({
@@ -283,7 +280,7 @@ const boot = async (
     console.warn(`config: ${warning}`);
   }
   const uiUrl =
-    clientDir === null
+    clientDir === null && uiDev === null
       ? null
       : browserHandoffUrl(`${serverUrl}/`, runtime.context.browserSession.mintHandoff());
   return { serverUrl, uiUrl };
@@ -295,6 +292,7 @@ const boot = async (
 export const runServe = async (
   version: string,
   overrides: ServeOverrides = {},
+  options: RunServeOptions = {},
 ): Promise<ServeResult> => {
   const teardown: ShutdownStep[] = [];
   const shutdown = createGracefulShutdown({
@@ -331,7 +329,7 @@ export const runServe = async (
   });
 
   try {
-    return await boot(version, env, teardown);
+    return await boot(version, env, teardown, options);
   } catch (error) {
     // inspect, not the stack: drizzle names the failed query and carries the driver's own error
     // (`no such table: meta`) as the cause, which only the inspection prints.

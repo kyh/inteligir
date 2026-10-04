@@ -58,7 +58,8 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | dependency is imported, or is a `DECLARED_ARTIFACT_EDGES` row (installed  |
 |                                | and executed, never imported — `inteligir` → `@repo/agent-skills`); no    |
 |                                | cycles. Then platform purity: `PURITY_RULES` per package (node, react,    |
-|                                | electron), `@repo/domain` declares only zod, no package imports an app,   |
+|                                | `@tauri-apps`), `@repo/domain` declares only zod, no package imports an   |
+|                                | app,                                                                      |
 |                                | every `CLOUD_ONLY_CLIENTS` row (`@repo/web`, `@repo/mobile`, each with    |
 |                                | why it ships apart) reaches `@repo/contract/cloud/*` and nothing else of  |
 |                                | the contract, `src/cloud` never reaches `src/local` and a third bucket    |
@@ -102,6 +103,11 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | would cycle; a `WITHOUT_DEPENDENCY_EDGE` row carries its reason. And a    |
 |                                | relative import that leaves every workspace (`/privacy`'s                 |
 |                                | `docs/privacy.md`) is named in its build's `inputs` as `$TURBO_ROOT$/…`.  |
+| `desktop-shell-wire.test.ts`   | The words the Rust shell shares with the TypeScript page and CLI, read as |
+|                                | text from both sides: every command a page asks is named once in          |
+|                                | `build.rs`, handled in `lib.rs`, and granted by its window's capability   |
+|                                | (the app window's at runtime, `APP_WINDOW_COMMANDS`); the update event,   |
+|                                | the server's ready marker and the CLI entry the shell runs match.         |
 | `ui-orphan-exports.test.ts`    | PER EXPORT under `@repo/ui`'s wildcard-exported roots: a consumer outside |
 |                                | the gallery, an `AWAITING_CONSUMER` file (held whole, and not itself a    |
 |                                | consumer) or an `ALLOWED_EXPORTS` row with its reason. `export *` is      |

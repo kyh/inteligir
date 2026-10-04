@@ -65,21 +65,27 @@ scratch dir and tears everything down afterwards:
 - `instance.api` — the oRPC client over `@repo/contract/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.
-- `desktopShell({ seedVault?, seedUserData?, firstRun? })` — the checkout's
-  built Electron shell. It makes the default vault's folder before launch, as a
-  launch before first run left it, so the shell boots it; `firstRun: true`
+- `desktopShell({ seedVault?, seedOwnDir?, firstRun? })` — the checkout's
+  built Tauri shell (`pnpm turbo run build:shell --filter=@repo/desktop`, an
+  unbundled debug build the runner makes before the first scenario that asks,
+  outside every deadline). It makes the default vault's folder before launch,
+  as a launch before first run left it, so the shell boots it; `firstRun: true`
   makes nothing, so the shell opens its first-run page and boots no server
   until a vault is chosen, and a relaunch over the same scratch finds the vault
-  that run made. Launched with `--remote-debugging-port` on a scratch `HOME` and
-  `--user-data-dir` (never `INTELIGIR_DATA_DIR`/`INTELIGIR_VAULT_DIR`, which
-  would make it refuse a vault switch), a pinned server port and
-  `INTELIGIR_AGENT=scripted`. Its `cdpPort` is what an agent-browser session
-  `connect`s to; `api` is the oRPC client over whichever server it runs now;
-  `target()` is the data and vault dir it resolves now, derived as main derives
-  them; `quit()` sends main alone the SIGTERM an OS quit would. The Electron
-  binary is fetched by electron's own installer on first use (pnpm runs no
-  install script). Registered for teardown like an instance. On Linux with no
-  display it skips: run the suite under `xvfb-run -a`.
+  that run made. Launched by `tauri-driver` on a scratch `HOME` (never
+  `INTELIGIR_DATA_DIR`/`INTELIGIR_VAULT_DIR`, which would make it refuse a vault
+  switch), a pinned server port and `INTELIGIR_AGENT=scripted`. Its `window` is
+  a WebDriver session over the shell's FIRST window alone: Tauri hands WebKit's
+  automation the first web view it makes, and each vault's window lives in a
+  web context of its own, so a window made after it (a switch's, the app's
+  after a first run) is watched through its server and `serverLog()`, where the
+  shell notes each window it loads. `api` is the oRPC client over whichever
+  server it runs now; `target()` is the data and vault dir it resolves now,
+  derived as the shell's CLI door derives them; `ownDir` is the shell's own
+  folder (its recent vaults, its debug choice); `quit()` sends the shell the
+  SIGTERM it quits on. Registered for teardown like an instance. It runs on
+  Linux alone, and skips with no display (run the suite under `xvfb-run -a`),
+  no `tauri-driver` or `WebKitWebDriver`, or no built shell.
 - `browser(label)` — an agent-browser session registered for teardown like an
   instance, so a failed or abandoned scenario still closes it. It is callable
   with any agent-browser command, and `openWorkspace(app, { path? })`
@@ -173,22 +179,21 @@ what each one is FOR.
 |                            | mode, serves `dist/ui`'s shell byte for byte, migrates and indexes a      |
 |                            | write, hears an on-disk write through its forked watcher, and answers a   |
 |                            | client verb run from the same split bundle                                |
-| desktop-shell              | the built Electron shell over DevTools: the window is on `inteligir://`,  |
-|                            | the rail and a note ride the protocol handler's bearer, an API write      |
-|                            | reaches the open editor through the socket, `window.open` is denied, the  |
-|                            | microphone reads denied, Reveal refuses a symlink out of the vault, a     |
-|                            | switch boots a new child on the new vault, and a SIGTERM quit stops it    |
-|                            | and retracts `server.json`                                                |
-| desktop-diagnostics        | the shell's debug-logging choice, seeded in its own userData, reaches the |
-|                            | server it forks, whose output always lands in the data dir's              |
+| desktop-shell              | the built Tauri shell over WebDriver: the window is the server's own page |
+|                            | signed in by its handoff, the rail and a note ride its cookie, an API     |
+|                            | write reaches the open editor through the socket, `window.open` is        |
+|                            | denied, every permission request is refused, Reveal refuses a symlink out |
+|                            | of the vault, a switch boots a new child and a new window on the new      |
+|                            | vault, and a SIGTERM quit stops the server and retracts `server.json`     |
+| desktop-diagnostics        | the shell's debug-logging choice, seeded in its own folder, reaches the   |
+|                            | server it starts, whose output always lands in the data dir's             |
 |                            | `logs/server.log`: off, the boot line and no trace; on, an external write |
 |                            | traced there, the bridge reports the choice, and turning it off asks for  |
 |                            | a restart                                                                 |
 | desktop-onboarding         | the built shell on a fresh home opens only its first-run page and boots   |
 |                            | nothing; Create with the defaults boots the default vault, and the app    |
-|                            | window replaces the page on `/welcome` over the seeded vault; skipping    |
-|                            | the agent and the account shows Welcome.md, and a relaunch goes straight  |
-|                            | to the app                                                                |
+|                            | window replaces the page on `/welcome` over the seeded vault; a relaunch  |
+|                            | goes straight to the app                                                  |
 | threads-scripted           | a turn through the scripted driver: send, settle, timeline, and the note  |
 |                            | its changes name under the turn's own id                                  |
 | action-scripted            | an action attaches to its note; a scripted turn writes the vault; the     |
@@ -304,9 +309,9 @@ browser binary every browser scenario needs: `npm i -g agent-browser@X.Y.Z &&
 agent-browser install` (Linux: `--with-deps`), at the version
 `.github/workflows/ci.yml` pins so a local run drives the browser CI drives.
 The desktop shell opens a real window, so CI runs the suite under `xvfb-run -a`,
-after a sysctl that lets Chromium's namespace sandbox run under Ubuntu's
-AppArmor (the shell is never launched with `--no-sandbox`); with no display on
-Linux, `desktop-shell` skips. The first browser a run asks for probes the
+with WebKitGTK's WebDriver (`webkit2gtk-driver`) and `cargo install tauri-driver
+--version X.Y.Z --locked` beside it, at the version CI pins; with no display, no
+driver or no built shell, the shell scenarios skip. The first browser a run asks for probes the
 environment with `about:blank`, once per run and in a session of its own, so
 every scenario's session still launches with its own flags. Only a failure THERE (the browser cannot launch at all)
 reports SKIP, for that scenario and every browser scenario after it, with the

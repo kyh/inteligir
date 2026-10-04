@@ -10,6 +10,10 @@ routes and deploy, `AGENTS.md` the runnable quickstart for coding agents, and
 ## Prerequisites
 
 - Node 24, pnpm 12 (`corepack enable` reads the root `packageManager`)
+- Rust through rustup: `apps/desktop/rust-toolchain.toml` pins the toolchain the
+  desktop shell builds on, and the first `cargo` call installs it. On Linux,
+  Tauri's prerequisites too (`libwebkit2gtk-4.1-dev`,
+  `libayatana-appindicator3-dev`, `librsvg2-dev`); a Mac ships its own WebKit
 - `pnpm install` at the repo root (workspace-wide)
 - For `dev:web` only: `cp apps/web/.dev.vars.example apps/web/.dev.vars`,
   then set `BETTER_AUTH_SECRET` to anything. Without it every `/api/auth/*`
@@ -26,7 +30,7 @@ pnpm cli <verb>         # Every other verb, against this checkout's instance
 pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort)
 pnpm dev:gallery        # The @repo/ui gallery alone, at localhost:5175/gallery (never deployed)
 pnpm package:cli        # The npm artifact (apps/cli) — `npx inteligir serve`
-pnpm package:desktop    # The macOS arm64 dmg, signed + notarized when the keys are present
+pnpm package:desktop    # The macOS arm64 .app and dmg, signed + notarized when the keys are present
 pnpm smoke:cli          # Pack, install into a scratch prefix, boot, probe, stop
 pnpm smoke:desktop      # Package the .app, launch it, drive its server and an agent turn, SIGTERM (macOS only)
 pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; docs/releasing.md)
@@ -41,19 +45,19 @@ pnpm e2e                # The scenario suite (one mode — the SPA is a static b
 
 ## Running
 
-`pnpm dev` runs electron-vite: the renderer with HMR, the main process, and
-the CLI's bundle rebuilt first — because the shell FORKS that bundle, so a
-stale `dist/` would be a window on last week's server. The forked child boots
-the server: config → SQLite open + migrate → Hono (the oRPC handler at /rpc,
-the /ws invalidation bus). No login.
-
-The Electron binary is not in the npm package: `predev` runs electron's own
-`install-electron --no`, which downloads it once and exits early after that, so
-a version bump cannot leave electron-vite refusing with "Electron uninstall".
+`pnpm dev` runs `tauri dev`: the page's Vite dev server, the Rust shell
+compiled and launched, and the CLI's bundle rebuilt first — because the shell
+RUNS that bundle on your node, so a stale `dist/` would be a window on last
+week's server. Its child boots the server: config → SQLite open + migrate →
+Hono (the oRPC handler at /rpc, the /ws invalidation bus). No login. The window
+loads the server's own origin, as a packaged one does, and that server answers
+the page's files from Vite, so an edit reloads in place
+(`apps/cli/src/server/ui-dev-server.ts`). An edit to the shell's Rust rebuilds
+and relaunches it.
 
 Iterating on the SERVER is `pnpm cli serve` in its own terminal: that runs the
 TypeScript source under tsx, and a shell started afterwards ADOPTS it instead
-of forking a second one.
+of starting a second one.
 
 The dev port and data dir are DERIVED PER CHECKOUT (sha256 of the checkout
 root — `apps/cli/src/server/dev-instance.ts` is the whole scheme), so parallel
@@ -91,21 +95,22 @@ never by a note's content or a credential; an unknown name is refused at boot.
 
 A Finder-launched app has no env to set and no terminal to read, so the
 desktop shell carries both halves itself. Settings › Advanced › Debug logging
-is `diagnostics.json` in the shell's own userData, read before each fork: on,
-the server the shell forks next runs with every namespace
-(`serverProcessEnv` in `apps/desktop/src/main/server-instance.ts`), so a change
-asks for a restart; off, main's own `INTELIGIR_DEBUG` still reaches the child.
-Whatever that child prints, traced or not, is appended, stamped, to
-`<dataDir>/logs/server.log`, which rotates at 5 MiB into one `server.log.1`
-(`apps/desktop/src/main/server-log.ts`); Show log reveals it. A server the
+is `diagnostics.json` in the shell's own folder, read before each start: on,
+the server the shell starts next runs with every namespace (`serve --debug`
+through the CLI's desktop entry), so a change asks for a restart; off, the
+shell's own `INTELIGIR_DEBUG` still reaches the child. Whatever that child
+prints, traced or not, is appended, stamped, to `<dataDir>/logs/server.log`,
+which rotates at 5 MiB into one `server.log.1`
+(`apps/desktop/src-tauri/src/server_log.rs`); Show log reveals it. A server the
 shell adopted is not its child, so neither the switch nor the log reaches it.
 
 The prod path is `pnpm package:cli`, which bundles the server, the CLI and the
 staged workspace UI into `apps/cli/dist`; `inteligir serve` then runs plain
-`node` on port 4664. `pnpm package:desktop` wraps that same package in the
-.app, beside the git a Mac without the developer tools runs (fetched and
-pinned at package time), signed when the keychain holds a Developer ID and
-notarized when `.release/` is present (`apps/desktop/README.md` § Packaging).
+`node` on port 4664. `pnpm package:desktop` stages that same package with its
+production dependencies as the .app's resource, beside the node it runs on and
+the git a Mac without the developer tools runs (both fetched and pinned at
+package time), signed when the keychain holds a Developer ID and notarized when
+`.release/` is present (`apps/desktop/README.md` § Packaging).
 
 `pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, thread sync,
 the capture inbox, the hosted vault git remote — over a local D1 file and
@@ -117,13 +122,14 @@ miniflare's Durable Objects. Sign-up is invite-only and there is no seeded accou
 | What                                          | Where                                             |
 | --------------------------------------------- | ------------------------------------------------- |
 | The product (`pnpm dev`)                      | derived port 21000–28999 (hash of checkout root)  |
-| The renderer's vite dev server                | 31000, searching upward                           |
+| The page's vite dev server                    | 31000 (pinned — `strictPort`; `tauri dev` waits)  |
 | The product's SQLite + config.json            | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
 | A vault other than the default                | `<that dir>/vaults/<hash of the vault path>/`     |
 | Folders, agent, vault and phone-request prefs | JSON files beside them (the app writes these)     |
 | Connectors                                    | the agent's own: `~/.claude.json`, `~/.codex`     |
 | The desktop's server log                      | `<data dir>/logs/server.log` (+ one `.1`)         |
-| The desktop's debug-logging choice            | `diagnostics.json` in Electron's userData         |
+| The desktop's own folder (recent vaults,      | `~/Library/Application Support/Inteligir`; a      |
+| the debug choice, each vault's web store)     | development shell's is `Inteligir (Dev)`          |
 | Site + cloud Worker (`pnpm dev:web`)          | 5174 (pinned — `strictPort`)                      |
 | UI gallery (`pnpm dev:gallery`)               | 5175 (pinned — `strictPort`), at `/gallery`       |
 | Accounts, sessions, devices, invites          | D1 (local file under `apps/web/.wrangler`)        |
@@ -144,15 +150,15 @@ every gate independently (each step runs even if an earlier one fails), so a
 red format cannot hide test regressions behind it.
 
 CI then runs a few more that `verify` cannot: it installs agent-browser
-(pinned), lets Chromium's namespace sandbox run under Ubuntu's AppArmor, and
-runs the scenario suite under `xvfb-run`, since the desktop shell's scenario
-opens a real window. ONE run, because there is one build —
+and the shell's WebDriver (`webkit2gtk-driver`, `tauri-driver`), both pinned, and
+runs the scenario suite under `xvfb-run`, since the desktop shell's scenarios
+open a real window. ONE run, because there is one build —
 the workspace is a plain SPA served as files, so the suite drives the same
 bytes and the same policy a user gets. So a green `verify` is not a green CI;
 run `pnpm e2e` too before claiming one. A second job runs on macOS, where the
 app ships: `pnpm test` again, since APFS, FSEvents and a tmpdir behind a
-symlink exist only there, and `pnpm smoke:desktop` on an unsigned pack
-(`CSC_IDENTITY_AUTO_DISCOVERY=false`).
+symlink exist only there, and `pnpm smoke:desktop` on an ad-hoc pack
+(`INTELIGIR_PACK_UNSIGNED=1`).
 
 That "plus a few more" is a CLAIM, and
 `tools/repo-guards/src/ci-verify-parity.test.ts` is what keeps it one: every
@@ -169,6 +175,6 @@ span workspaces (the dep DAG, ws change kinds, CI parity, dangling references,
 the per-export orphan guard over `@repo/ui`).
 
 End-to-end: `pnpm e2e` boots real app instances on scratch dirs (fixture
-vaults, scratch git remotes, a headless browser, and the Electron shell itself,
-driven over DevTools) and is deliberately outside
+vaults, scratch git remotes, a headless browser, and the desktop shell itself,
+driven over WebDriver on Linux) and is deliberately outside
 `pnpm verify` — `tools/e2e/README.md` is the one-pager.

@@ -5,6 +5,9 @@
   something needs it: an entitlement carried "just in case" is a permission the
   shipped app really holds.
 
+  The shell, the node beside it and every binary in Contents/Resources take
+  this one file (scripts/sign-resources.mjs).
+
   Deliberately ABSENT: automation.apple-events (the shell scripts no other
   app), cs.disable-library-validation (it lets the process load unsigned
   dylibs; the only native code here is loaded by the server child from inside
@@ -14,7 +17,8 @@
 -->
 <plist version="1.0">
 <dict>
-  <!-- V8 compiles JavaScript at runtime; Electron does not start without these. -->
+  <!-- V8 compiles JavaScript at runtime: the node beside the shell, and the vendor runtimes it
+       starts, do not run without these. -->
   <key>com.apple.security.cs.allow-jit</key>
   <true/>
   <key>com.apple.security.cs.allow-unsigned-executable-memory</key>

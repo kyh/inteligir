@@ -1,7 +1,8 @@
-// The git the packaged app runs on a Mac without the developer tools (src/main/bundled-git.ts),
-// staged into resources/git for electron-builder's extraResources. A file fetch pinned by sha-256
-// rather than the dugite npm package, whose JS API nothing here calls and whose postinstall would
-// download the same tarball on every install.
+// The git the packaged app runs on a Mac without the developer tools
+// (apps/cli/src/desktop/bundled-git.ts), staged into resources/git, which scripts/package.mjs maps to
+// Contents/Resources/git beside the CLI. A file fetch pinned by sha-256 rather than the dugite npm
+// package, whose JS API nothing here calls and whose postinstall would download the same tarball
+// on every install.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";

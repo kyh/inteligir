@@ -74,7 +74,7 @@ export interface ComposePorts {
   connectors?: VendorMcpConfigs;
   // what this device is called before any sign-in names it; unset, the machine's own name.
   machineName?: string;
-  vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote" | "spawnWatcherChannel">>;
+  vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote">>;
 }
 
 export interface ComposeRuntimeArgs {
@@ -152,9 +152,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   }
   if (ports.vault?.gitEnv !== undefined) {
     vaultArgs.gitEnv = ports.vault.gitEnv;
-  }
-  if (ports.vault?.spawnWatcherChannel !== undefined) {
-    vaultArgs.spawnWatcherChannel = ports.vault.spawnWatcherChannel;
   }
   if (config.slowReads !== null) {
     vaultArgs.stallRead = slowReadStall(config.slowReads);

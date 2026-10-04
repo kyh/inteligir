@@ -32,18 +32,10 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // below the wire: an edge to @repo/contract would drag @orpc/contract and the contract's notes edge
     // into a package that only writes rows.
     "@repo/db": ["@repo/domain"],
-    // `inteligir` for the facts both processes must agree on: config resolution, the token's file
-    // and header spelling, the shutdown budget the stop grace must exceed, the CSP and the
-    // html-block frame the protocol handler serves, and the fork broker's frames. forking its
-    // bundle as a child is the same dependency, declared once.
-    "@repo/desktop": [
-      "@repo/contract",
-      "@repo/domain",
-      "@repo/editor",
-      "@repo/notes",
-      "@repo/ui",
-      "inteligir",
-    ],
+    // the page alone: the shell is Rust (src-tauri), and every rule it shares with the server it
+    // asks the CLI's desktop entry for, so no source here imports `inteligir`. its suites boot a
+    // server in-process, which is a test dependency, not a shipped edge.
+    "@repo/desktop": ["@repo/contract", "@repo/domain", "@repo/editor", "@repo/notes", "@repo/ui"],
     "@repo/domain": [],
     // the `inteligir` edge is the binary it spawns and the config resolution naming this checkout's
     // instance; the @repo/mobile edge is the phone's own platform-free runtime, driven under node
@@ -96,8 +88,9 @@ const platformSurfacesOf = (specifier: string): string[] => {
   if (specifier === "react-dom" || specifier.startsWith("react-dom/")) {
     surfaces.push("react");
   }
-  if (specifier === "electron" || specifier.startsWith("electron/")) {
-    surfaces.push("electron");
+  // the desktop shell's own API: only the desktop page, which runs inside the shell, may reach it
+  if (specifier.startsWith("@tauri-apps/")) {
+    surfaces.push("tauri");
   }
   return surfaces;
 };
@@ -111,31 +104,31 @@ interface PurityRule {
 const PURITY_RULES = new Map<string, PurityRule>(
   Object.entries({
     "@repo/agent-runtime": {
-      forbidden: ["react", "electron"],
+      forbidden: ["react", "tauri"],
       why: "it spawns provider processes, so it is node-side by definition — and nothing it exports may pull a process tree into a renderer; the grammars a client reads live in @repo/domain",
     },
     "@repo/contract": {
-      forbidden: ["node", "react", "electron"],
-      why: "the contract both ends compile against: it loads in the Electron renderer, on node, on workerd and in React Native, so a platform import there is a package that stops loading somewhere",
+      forbidden: ["node", "react", "tauri"],
+      why: "the contract both ends compile against: it loads in the desktop page, on node, on workerd and in React Native, so a platform import there is a package that stops loading somewhere",
     },
     "@repo/domain": {
-      forbidden: ["node", "react", "electron"],
+      forbidden: ["node", "react", "tauri"],
       why: "a zod-only leaf: the thread grammar is parsed on both sides of every wire",
     },
     "@repo/editor": {
-      forbidden: ["node", "electron"],
+      forbidden: ["node", "tauri"],
       why: "browser-only: Plate/Slate in the page, never in the Node process",
     },
     "@repo/mobile-editor": {
-      forbidden: ["node", "electron"],
+      forbidden: ["node", "tauri"],
       why: "a page in the phone's WebView, loaded from file://: nothing but the browser is there",
     },
     "@repo/notes": {
-      forbidden: ["node", "react", "electron"],
+      forbidden: ["node", "react", "tauri"],
       why: "the pure sharing seam: it runs in the browser AND on node, and every platform capability (the SQL driver, the clock, content hashes) is INJECTED",
     },
     "@repo/ui": {
-      forbidden: ["node", "electron"],
+      forbidden: ["node", "tauri"],
       why: "browser-only, and consumed by the Worker's SSR half as well as the local app",
     },
   }),

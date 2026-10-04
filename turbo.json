@@ -43,6 +43,14 @@
       // writes two files (tsbuildinfo.main.json / tsbuildinfo.renderer.json).
       "outputs": [".cache/tsbuildinfo*.json"]
     },
+    // the shell's Rust is the one workspace with a formatter of its own (oxfmt has the rest), and
+    // cargo fmt's check is quicker than a cache restore
+    "format": {
+      "cache": false
+    },
+    "format:fix": {
+      "cache": false
+    },
     "test": {
       "dependsOn": ["^topo"],
       // Every vitest.config.ts caps its own maxWorkers because this task runs

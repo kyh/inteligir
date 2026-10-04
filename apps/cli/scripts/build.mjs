@@ -10,7 +10,8 @@ const packageRoot = path.resolve(import.meta.dirname, "..");
 const distDir = path.join(packageRoot, "dist");
 const repoRoot = path.resolve(packageRoot, "..", "..");
 
-const rendererDir = path.join(repoRoot, "apps", "desktop", ".output", "app", "renderer");
+// the desktop app's page, which `serve` answers as the workspace UI (apps/desktop/vite.config.ts)
+const rendererDir = path.join(repoRoot, "apps", "desktop", "dist", "app");
 
 const NODE_ESM_REQUIRE_BANNER = [
   'import { createRequire as __createRequire } from "node:module";',
@@ -24,6 +25,8 @@ const NODE_ESM_REQUIRE_BANNER = [
 const NATIVE = ["better-sqlite3", "@parcel/watcher"];
 
 const shared = {
+  // so the metafile names every input and output from here
+  absWorkingDir: packageRoot,
   banner: { js: NODE_ESM_REQUIRE_BANNER },
   bundle: true,
   format: "esm",
@@ -43,9 +46,9 @@ await rm(distDir, { force: true, recursive: true });
 const LOADED_ON_EVERY_VERB_REFUSED = ["node_modules/.pnpm/yaml@"];
 const STATIC_IMPORT_KINDS = new Set(["import-statement", "require-call"]);
 
-const staticClosure = (metafile) => {
+const staticClosure = (metafile, entryPoint) => {
   const entry = Object.keys(metafile.outputs).find(
-    (output) => metafile.outputs[output].entryPoint !== undefined,
+    (output) => metafile.outputs[output].entryPoint === entryPoint,
   );
   const reached = new Set();
   const pending = entry === undefined ? [] : [entry];
@@ -63,8 +66,8 @@ const staticClosure = (metafile) => {
   return new Set([...reached].flatMap((output) => Object.keys(metafile.outputs[output].inputs)));
 };
 
-const assertEntryLoadsNone = (metafile, refused) => {
-  const loaded = staticClosure(metafile);
+const assertEntryLoadsNone = (metafile, entryPoint, refused) => {
+  const loaded = staticClosure(metafile, entryPoint);
   for (const marker of refused) {
     const importers = [...loaded].filter(
       (input) =>
@@ -82,35 +85,32 @@ const assertEntryLoadsNone = (metafile, refused) => {
   }
 };
 
+const CLI_ENTRY = "src/index.ts";
+
 // split so a client verb parses the client alone: every dynamic import is a chunk loaded on use.
 // the chunks sit flat beside index.js, because `import.meta.url` and `import.meta.dirname` in any
-// of them must name dist/ (src/paths.ts, and the sibling lookups of the bundles below).
+// of them must name dist/ (src/paths.ts, and the sibling lookups of the bundles below). the desktop
+// shell's own door (src/desktop/desktop-entry.ts) is a second entry over the same chunks, so the
+// server it runs is the one `inteligir serve` runs, loaded once.
 const { metafile } = await build({
   ...shared,
   chunkNames: "chunk-[hash]",
   entryNames: "[name]",
-  entryPoints: [path.join(packageRoot, "src", "index.ts")],
+  entryPoints: { desktop: "src/desktop/desktop-entry.ts", index: CLI_ENTRY },
   external: NATIVE,
   metafile: true,
   outdir: distDir,
   splitting: true,
 });
-assertEntryLoadsNone(metafile, LOADED_ON_EVERY_VERB_REFUSED);
+assertEntryLoadsNone(metafile, CLI_ENTRY, LOADED_ON_EVERY_VERB_REFUSED);
 
 // each runs outside the entry's process or thread, so each needs its own file beside it.
 const SIBLING_BUNDLES = [
-  // a child process, forked by node or by the desktop shell's main
+  // a child process the server forks
   {
     entry: path.join(packageRoot, "src", "server", "vault", "watcher", "parcel-child-entry.ts"),
     external: ["@parcel/watcher"],
     outfile: "parcel-watcher-child.mjs",
-  },
-  // the host the desktop shell runs each ACP adapter under, in a utility process of its own
-  // (src/server/child-host/node-children.ts)
-  {
-    entry: path.join(packageRoot, "src", "server", "child-host", "stdio-port-host-entry.ts"),
-    external: [],
-    outfile: "stdio-port-host.mjs",
   },
   // the projector, a worker thread (src/server/worker-entry.ts)
   {
@@ -150,4 +150,6 @@ if (!existsSync(rendererDir)) {
 }
 await cp(rendererDir, path.join(distDir, "ui"), { recursive: true });
 
-process.stdout.write("inteligir: bundled the server, the CLI and the workspace UI\n");
+process.stdout.write(
+  "inteligir: bundled the server, the CLI, the desktop shell's door and the workspace UI\n",
+);

@@ -21,7 +21,6 @@ import type { VaultService, VaultServiceArgs } from "./vault-service";
 import { createVaultWatcher } from "./watcher";
 import type { VaultWatcher, VaultWatcherArgs } from "./watcher";
 import type { ParcelWatcherBackend } from "./watcher/parcel-backend";
-import type { ChildChannel } from "./watcher/parcel-watcher-proxy";
 
 const DEFAULT_SYNC_INTERVAL_MS = 60_000;
 
@@ -43,7 +42,6 @@ export interface VaultRuntimeArgs {
   syncIntervalMs?: number | null;
   gitEnv?: Record<string, string>;
   watcherBackend?: ParcelWatcherBackend;
-  spawnWatcherChannel?: () => ChildChannel;
   stallRead?: ReadStall;
   // the watcher's trace: its verdict per event, then what this runtime strips, holds or delivers.
   debugLog?: DebugLog | undefined;
@@ -264,9 +262,6 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     };
     if (args.watcherBackend) {
       watcherArgs.backend = args.watcherBackend;
-    }
-    if (args.spawnWatcherChannel) {
-      watcherArgs.spawnChannel = args.spawnWatcherChannel;
     }
     watcher = createVaultWatcher(watcherArgs);
     watcher.start();

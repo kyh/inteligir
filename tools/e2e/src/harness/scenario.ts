@@ -30,7 +30,8 @@ export interface ScenarioContext {
   cloudWorker: (
     options?: Pick<LaunchCloudWorkerArgs, "builtConfig" | "vars">,
   ) => Promise<CloudWorker>;
-  // the built Electron shell on a scratch home, driven over DevTools; skips with no display.
+  // the built Tauri shell on a scratch home, driven over WebDriver; skips with no display, no
+  // driver or no built shell.
   desktopShell: (options?: DesktopShellOptions) => Promise<DesktopShell>;
   // skips the scenario when no headless browser can launch; closed at teardown like an instance.
   browser: (label: string) => Promise<ScenarioBrowser>;
@@ -41,6 +42,8 @@ export interface Scenario {
   description: string;
   // the runner fails a run still going past this, so a hang costs one scenario, not the job.
   timeoutMs?: number;
+  // the runner builds the shell before the first scenario that launches it, outside every deadline
+  usesDesktopShell?: true;
   run: (context: ScenarioContext) => Promise<void>;
 }
 

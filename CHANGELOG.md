@@ -4,6 +4,11 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ## Unreleased
 
+### Before you update
+
+- **Inteligir needs macOS 13.5 or later.** The app now runs on the Mac's own web engine instead of carrying a browser of its own, and what it brings in its place needs macOS 13.5. On an older Mac, the version you have keeps working and is not offered this update.
+- **Your window settings start over once.** The theme, the text appearance, the sidebar and panel widths, which list the sidebar shows, and the spell check switch go back to their defaults the first time this version opens; set them again in Settings. A message about a note two devices changed that you already saw can show once more. Your notes, vaults, sign-ins and agents are untouched. On macOS 13, every vault now shares one set of these settings.
+
 ### New
 
 - **Terms of Use.** Inteligir now has Terms of Use, at inteligir.com/terms. They say what you agree to when you use the website and the apps: your notes stay yours, the agent runs under your own Claude or ChatGPT plan's terms, and the online copy of your notes is free up to about 1 GB.
@@ -11,6 +16,10 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 ### Changed
 
 - **The privacy policy is reorganized.** inteligir.com/privacy now follows the sections privacy law asks for, with an index at the top, and says how to ask us for a copy of your information, a correction or a deletion, including under U.S. state and European law. What the app sends, what never leaves your Mac and how your account is deleted are the same as before, and every address the app talks to is still listed at the end.
+
+### Fixed
+
+- **The agent's own Inteligir commands work on every Mac.** The agent drives the app by typing `inteligir` commands; on a Mac without Node.js installed those failed, and now they run on what the app carries.
 
 ## 0.6.0 — 2026-09-27
 

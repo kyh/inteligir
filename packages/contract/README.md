@@ -20,9 +20,9 @@ in the router, so moving the deployed wire onto it would break exactly the
 installs `/cloud` exists to keep.
 
 The package is platform-neutral by construction (`lib: ["ES2023",
-"WebWorker"]`, `types: []`): it loads in the Electron renderer, on node, on
-workerd and in React Native, and `tools/repo-guards` refuses a node, react or
-electron import here.
+"WebWorker"]`, `types: []`): it loads in the desktop page, on node, on workerd
+and in React Native, and `tools/repo-guards` refuses a node, react or
+`@tauri-apps` import here.
 
 ## Layout
 

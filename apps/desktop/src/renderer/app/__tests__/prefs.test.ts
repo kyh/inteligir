@@ -58,13 +58,9 @@ describe("bytes already in storage", () => {
     ["inteligir.theme", "dark", PREFS.theme, "dark"],
     ["inteligir.theme", "sepia", PREFS.theme, "system"],
     ["inteligir.last-open-note", "Notes/a.md", PREFS.lastOpenNote, "Notes/a.md"],
-    [
-      "inteligir.spellcheck",
-      '{"enabled":false,"languages":["de-DE"]}',
-      PREFS.spellcheck,
-      { enabled: false, languages: ["de-DE"] },
-    ],
-    ["inteligir.spellcheck", "{", PREFS.spellcheck, null],
+    ["inteligir.spellcheck", "false", PREFS.spellcheck, false],
+    // the shape an Electron build stored reads as never chosen
+    ["inteligir.spellcheck", '{"enabled":false,"languages":["de-DE"]}', PREFS.spellcheck, true],
     [
       "inteligir.sync-conflict-seen-at",
       "1790000000000",
@@ -104,7 +100,7 @@ describe("a write", () => {
     writePref(PREFS.treeSort, "modified");
     writePref(PREFS.theme, "light");
     writePref(PREFS.lastOpenNote, "Notes/a.md");
-    writePref(PREFS.spellcheck, { enabled: true, languages: [] });
+    writePref(PREFS.spellcheck, false);
     writePref(PREFS.appearance, { ...APPEARANCE_DEFAULTS, size: "small" });
     writePref(PREFS.syncConflictSeenAt, 1_790_000_000_000);
 
@@ -116,10 +112,7 @@ describe("a write", () => {
     expect(stored("inteligir.theme")).toBe("light");
     expect(stored("inteligir.last-open-note")).toBe("Notes/a.md");
     expect(stored("inteligir.sync-conflict-seen-at")).toBe("1790000000000");
-    expect(JSON.parse(stored("inteligir.spellcheck") ?? "null")).toEqual({
-      enabled: true,
-      languages: [],
-    });
+    expect(stored("inteligir.spellcheck")).toBe("false");
     expect(JSON.parse(stored("inteligir.appearance") ?? "null")).toEqual({
       ...APPEARANCE_DEFAULTS,
       size: "small",

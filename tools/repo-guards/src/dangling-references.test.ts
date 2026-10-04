@@ -94,10 +94,14 @@ const referencesIn = (file: string, pattern: RegExp): Reference[] => {
 const WORKSPACE_NAME = /(?<reference>@repo\/[a-z0-9][a-z0-9-]*)/gu;
 
 // anchored on a workspace group so the population is this repo's layout, not any string with a
-// slash; a glob, a template hole or a trailing slash is a pattern, not a reference.
+// slash; a glob, a template hole or a trailing slash is a pattern, not a reference. a group must
+// start its word, so `@tauri-apps/api` names a package and no path.
 const repoPathPattern = (): RegExp => {
   const groups = workspaceGlobs().groups.map((group) => group.replaceAll(/[^a-z0-9]/gu, ""));
-  return new RegExp(`(?<reference>(?:${groups.join("|")})\\/[A-Za-z0-9._@/-]+[A-Za-z0-9_])`, "gu");
+  return new RegExp(
+    `(?<![\\w-])(?<reference>(?:${groups.join("|")})\\/[A-Za-z0-9._@/-]+[A-Za-z0-9_])`,
+    "gu",
+  );
 };
 
 interface Sweep {

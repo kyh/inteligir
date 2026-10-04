@@ -124,7 +124,6 @@ allowBuilds:
   better-sqlite3: true
   # eas-cli's bunyan: an optional DTrace probe it runs without
   dtrace-provider: false
-  electron-winstaller: true
   esbuild: true
   # eas-cli's centrifuge: a postinstall that only prints a version notice
   protobufjs: false

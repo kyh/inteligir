@@ -1,5 +1,6 @@
-// Main forks the server, so the debug choice, a restart, the server's log and the data folder are
-// main's; the page mirrors its answer. A browser tab did not start the server: no bridge, no row.
+// The shell starts the server, so the debug choice, a restart, the server's log and the data
+// folder are the shell's; the page mirrors its answer. A browser tab did not start the server: no
+// bridge, no row.
 
 import type { DesktopDiagnosticsBridge } from "../../types";
 import type { DiagnosticsState } from "../../diagnostics-state";
@@ -20,7 +21,7 @@ export const useDesktopDiagnostics = store.use;
 export const setDebugLogging = async (debug: boolean): Promise<string | null> =>
   await store.settle(async (diagnostics) => await diagnostics.setDebug(debug));
 
-// the window closes once main quits, so an answer that lands is a refusal or the last state
+// the window closes once the shell quits, so an answer that lands is a refusal or the last state
 export const restartApp = async (): Promise<string | null> =>
   await store.settle(async (diagnostics) => await diagnostics.restart());
 

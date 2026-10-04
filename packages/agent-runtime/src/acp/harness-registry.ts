@@ -140,10 +140,9 @@ const CODEX_TARGET_TRIPLES = new Map([
   ["win32-x64", "x86_64-pc-windows-msvc"],
 ]);
 
-// codex-acp runs its bundled codex as `process.execPath codex.js`, which needs execPath to be a
-// node binary; in the desktop shell the adapter's execPath is Electron's helper, which the
-// runAsNode fuse keeps from running JavaScript. CODEX_PATH names the native binary that launcher
-// would have spawned, so the adapter starts it directly. null leaves the launcher to find it.
+// codex-acp runs its bundled codex as `process.execPath codex.js`, a node launcher in front of the
+// native binary. CODEX_PATH names the binary that launcher would have spawned, so the adapter
+// starts it directly, one process fewer. null leaves the launcher to find it.
 const resolveCodexBinary = (): string | null => {
   const platform = `${process.platform}-${process.arch}`;
   const triple = CODEX_TARGET_TRIPLES.get(platform);

@@ -25,7 +25,7 @@ export type VaultsState = z.infer<typeof vaultsStateSchema>;
 export const vaultPathSchema = z.string().min(1);
 
 // a switch replaces the window before any answer lands, so an `ok` the page sees moved nothing
-// (a cancelled picker); a refusal is main's sentence, answered as a value
+// (a cancelled picker); a refusal is the shell's sentence, answered as a value
 export const vaultSwitchAnswerSchema = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(true), state: vaultsStateSchema }).strict(),
   z.object({ ok: z.literal(false), reason: z.string().min(1) }).strict(),
