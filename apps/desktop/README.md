@@ -286,11 +286,14 @@ pnpm smoke:desktop        # package, boot it, drive its server, quit
 
 1. `scripts/fetch-git.mjs` and `scripts/fetch-node.mjs` stage the git the app
    ships into `resources/git` and the node into `src-tauri/binaries` with its
-   licence in `resources/node` (all gitignored), each a file fetch pinned by
+   licence in `resources/node`, shipped as `notices/node` (all gitignored),
+   each a file fetch pinned by
    sha-256 and cached under `.cache/`. git is dugite-native's macOS arm64
    build less the Git Credential Manager and Git LFS it adds beside git (no
    config names either, and they were most of the payload and of what had to
-   be signed), with git's own `COPYING` and a `SOURCE` note; node is the
+   be signed) and less the dashed built-ins' links but the transports' (Tauri
+   copies a link as the file it names, so each would be one more whole git),
+   with git's own `COPYING` and a `SOURCE` note; node is the
    official darwin-arm64 build. A version bump is the tag and the hashes at
    the top of each script.
 2. `scripts/stage-server.mjs` stages the CLI as `.output/server`: the package

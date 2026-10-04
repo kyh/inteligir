@@ -2317,7 +2317,10 @@ to the END of its group.
   `GIT_CONFIG_COUNT`: the hosted remote's bearer rides those rows per
   invocation. A dev or e2e launch keeps the host's git. The fetch drops Git
   Credential Manager and Git LFS, which no config names and which were
-  five-sixths of the payload. Rejected: the dugite npm package, a JS API
+  five-sixths of the payload, and every dashed built-in's link but the three a
+  transport runs (git's own `SKIP_DASHED_BUILT_INS`) and `git-remote-https`,
+  since Tauri copies a link as the file it names: 140-odd whole gits, near
+  500 MB. Rejected: the dugite npm package, a JS API
   nothing calls and a postinstall download on every install.
   `apps/cli/src/desktop/bundled-git.ts`; the smoke's first launch plays such a
   Mac and proves the host's git never ran.

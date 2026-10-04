@@ -52,6 +52,18 @@ const isGitsOwn = (name) =>
   (name === "git" || name.startsWith("git-") || name === "scalar" || name === "mergetools") &&
   !isThirdParty(name);
 
+// The links git-core keeps: git runs every built-in in its own process and starts a dashed one only
+// where a transport runs it directly (the three git's own SKIP_DASHED_BUILT_INS keeps), and needs a
+// remote helper only for a scheme the vault's remote takes (https; ftp is not one). Tauri copies a
+// resource's symlink as the file it names, so every other link would ride as one more whole git:
+// 140-odd of them, near 500 MB
+const KEPT_LINKS = new Set([
+  "git-receive-pack",
+  "git-remote-https",
+  "git-upload-archive",
+  "git-upload-pack",
+]);
+
 const log = (line) => {
   process.stdout.write(`fetch-git: ${line}\n`);
 };
@@ -92,10 +104,14 @@ const unpack = (tarball, into) => {
   }
 };
 
-const pruneThirdParty = async (root) => {
+const pruneExecDir = async (root) => {
   const execDir = path.join(root, "libexec", "git-core");
-  const names = await readdir(execDir);
-  const pruned = names.filter((name) => !isGitsOwn(name));
+  const entries = await readdir(execDir, { withFileTypes: true });
+  const pruned = entries
+    .filter(
+      (entry) => !isGitsOwn(entry.name) || (entry.isSymbolicLink() && !KEPT_LINKS.has(entry.name)),
+    )
+    .map((entry) => entry.name);
   await Promise.all(
     pruned.map(async (name) => {
       await rm(path.join(execDir, name), { force: true, recursive: true });
@@ -111,7 +127,7 @@ try {
   await rm(stagingDir, { force: true, recursive: true });
   await mkdir(stagingDir, { recursive: true });
   unpack(tarball, stagingDir);
-  const pruned = await pruneThirdParty(stagingDir);
+  const pruned = await pruneExecDir(stagingDir);
   await copyFile(copying, path.join(stagingDir, "COPYING"));
   await writeFile(path.join(stagingDir, "SOURCE"), SOURCE_NOTE);
   await rm(payloadDir, { force: true, recursive: true });

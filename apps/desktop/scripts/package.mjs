@@ -147,7 +147,9 @@ const config = {
       "../.output/notices/": "notices/",
       "../.output/server/": "server/",
       "../resources/git/": "git/",
-      "../resources/node/": "node/",
+      // not `node/`: tauri-build copies the sidecar and the resources into one target folder, where
+      // the sidecar is already a file named `node`, and a folder of that name fails the build
+      "../resources/node/": "notices/node/",
     },
     targets: ["app", "dmg"],
   },

@@ -34,7 +34,7 @@ const runtimeRoot = path.join(appDir, "Contents", "Resources", "server");
 const serverEntry = path.join(runtimeRoot, "dist", "desktop.js");
 // scripts/package.mjs's resources, which the CLI's bundled-git.ts resolves beside itself
 const bundledGitRoot = path.join(appDir, "Contents", "Resources", "git");
-const bundledNodeNotices = path.join(appDir, "Contents", "Resources", "node");
+const bundledNodeNotices = path.join(appDir, "Contents", "Resources", "notices", "node");
 // scripts/rust-notices.mjs's, for the crates the shell's own binary links
 const bundledRustNotices = path.join(appDir, "Contents", "Resources", "notices");
 // the plugin's machine-wide socket (tauri-plugin-single-instance): an installed Inteligir that

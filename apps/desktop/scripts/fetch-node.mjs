@@ -1,7 +1,8 @@
 // The node the packaged app runs its server on, and every node child the server starts: the shell
 // is Rust, and a Mac need hold no node of its own. The official build, pinned by sha-256, staged
 // where `bundle.externalBin` finds it (src-tauri/binaries/node-<target>, which Tauri places beside
-// the shell as Contents/MacOS/node), with its licence in resources/node for Contents/Resources.
+// the shell as Contents/MacOS/node), with its licence in resources/node for
+// Contents/Resources/notices/node.
 
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
