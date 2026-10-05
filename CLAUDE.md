@@ -1484,6 +1484,22 @@ to the END of its group.
   names the vendor's own app it signs out too (`vendorApp`: the store is
   shared).
 
+- **A TURN THE VENDOR REFUSED FOR THE PLAN'S USAGE LIMIT OR A SIGN-IN LEAVES THE
+  QUEUE WHERE IT IS.** A refused prompt is read once, into its words and a class
+  (`auth | usage-limit | overloaded | context | other`, `providerFailureSchema`
+  in `@repo/domain/provider-event`), from what the adapter attaches: claude's
+  `errorKind`, codex's `codexErrorInfo`, the reserved -32000, and claude's own
+  limit text when no kind came with it (`readProviderError` in
+  `packages/agent-runtime/src/acp/provider-error.ts`). `authentication_failed`
+  reads as signed out whatever its code, so the panel says so rather than the
+  adapter's text. The class rides `provider/error` as an optional field, which
+  a log written before it parses without and a stale install strips. A
+  settle whose turn failed `usage-limit` or `auth` does not drain
+  (`failureHoldsQueue` in `apps/cli/src/server/threads/service.ts`): the next
+  send starts the oldest queued message first. Rejected: draining as for any
+  failure, which spends every queued message on the same refusal and leaves
+  nothing for after the limit resets or the sign-in.
+
 ### Dictation
 
 - **DICTATION IS THE OPERATING SYSTEM'S** (owner decision, reversing streaming

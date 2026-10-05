@@ -1,4 +1,4 @@
-import type { ThreadEventTurnStatus } from "@repo/domain/provider-event";
+import type { ProviderFailure, ThreadEventTurnStatus } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { agentMessageEvents } from "../agents/agent-message-events";
 import type {
@@ -73,5 +73,14 @@ export class FakeTurnDriver implements TurnDriver {
     this.sink.ingestProviderEvents(threadId, [
       { scope: turnScope(turnId), status, threadId, type: "turn/completed" },
     ]);
+  }
+
+  // a refused prompt as the runtime reports one: the error, carrying its class, then the failed end.
+  failTurn(threadId: string, turnId: string, failure: ProviderFailure): void {
+    const scope = turnScope(turnId);
+    this.sink.ingestProviderEvents(threadId, [
+      { failure, message: "refused", scope, threadId, type: "provider/error" },
+    ]);
+    this.completeTurn(threadId, turnId, "failed");
   }
 }

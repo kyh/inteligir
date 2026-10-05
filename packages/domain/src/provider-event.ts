@@ -23,6 +23,17 @@ export type ThreadEventItemApprovalStatus = z.infer<typeof threadEventItemApprov
 export const threadEventTurnStatusSchema = z.enum(["completed", "failed", "interrupted"]);
 export type ThreadEventTurnStatus = z.infer<typeof threadEventTurnStatusSchema>;
 
+// what kind of refusal failed a turn, as the adapter classed it: `auth` and `usage-limit` are
+// refusals the next queued message would meet too, so a settle holds the queue on them.
+export const providerFailureSchema = z.enum([
+  "auth",
+  "usage-limit",
+  "overloaded",
+  "context",
+  "other",
+]);
+export type ProviderFailure = z.infer<typeof providerFailureSchema>;
+
 export const threadEventFileChangeKindSchema = z.enum(["add", "delete", "update"]);
 
 export const threadEventFileChangeSchema = z.object({
@@ -183,6 +194,13 @@ export const threadEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     detail: z.string().optional(),
+    // optional, so a log written before it parses; a class a later build adds reads as none
+    // here rather than costing the whole event its parse on a stale install.
+    failure: z.preprocess(
+      (value) =>
+        value === undefined || providerFailureSchema.safeParse(value).success ? value : null,
+      providerFailureSchema.nullable().optional(),
+    ),
     message: z.string(),
     // thread scope for a provider setup or session failure, turn scope for one inside a turn.
     scope: threadEventScopeSchema,
