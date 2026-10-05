@@ -6,7 +6,7 @@ const LONG_LINES = 20_000;
 const SHORT_LINES = LONG_LINES / 8;
 // a ratio rather than a wall-clock ceiling, so a slow or loaded runner cannot fail it: linear, eight
 // times the lines costs 7.5x (0.36s against 0.05s); with micromark merging a paragraph's text
-// by one splice per line (patches/micromark@4.0.2.patch undoes that), 30-70x (3.9s)
+// by one splice per line (patches/micromark@4.0.3.patch undoes that), 30-70x (3.9s)
 const GROWTH_CEILING = 20;
 const ROUNDS = 5;
 

@@ -16,8 +16,8 @@ catalog:
   "@agentclientprotocol/codex-acp": 1.13.0
   "@agentclientprotocol/sdk": 1.5.0
   # optional peer @vitejs/plugin-react loads for `compiler: true`
-  oxc-transform-react: ^0.151.0
-  "@cloudflare/vite-plugin": ^1.60.2
+  oxc-transform-react: ^0.152.0
+  "@cloudflare/vite-plugin": ^1.62.5
   "@cloudflare/vitest-pool-workers": ^0.22.0
   "@expo/metro-runtime": ~57.0.16
   "@expo/plist": ~0.8.1
@@ -29,13 +29,13 @@ catalog:
   "@testing-library/dom": ^10.4.2
   "@testing-library/react": ^16.3.3
   # exact: the committed route tree is an artifact of the plugin version
-  "@tanstack/react-router": 1.170.38
-  "@tanstack/react-start": 1.168.56
-  "@tanstack/router-plugin": 1.168.40
+  "@tanstack/react-router": 1.170.41
+  "@tanstack/react-start": 1.168.60
+  "@tanstack/router-plugin": 1.168.42
   "@types/better-sqlite3": ^9.6.0
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
-  "@types/node": ^24.19.0
+  "@types/node": ^24.19.1
   "@types/react": 19.2.17
   "@types/react-dom": ^19.3.0
   "@vitejs/plugin-react": ^6.1.1
@@ -51,7 +51,7 @@ catalog:
   drizzle-orm: 1.0.0-rc.4
   # exact: `pnpm testflight:mobile` uploads the build through it, and apps/mobile/eas.json floors
   # cli.version at this release; a bump moves both
-  eas-cli: 24.8.0
+  eas-cli: 24.10.0
   esbuild: ^0.28.2
   expo: ~57.0.25
   expo-constants: ~57.0.19
@@ -66,10 +66,10 @@ catalog:
   expo-sqlite: ~57.0.3
   expo-status-bar: ~57.0.1
   expo-system-ui: ~57.0.4
-  expo-updates: ~57.0.23
-  hono: ^4.13.9
+  expo-updates: ~57.0.24
+  hono: ^4.13.13
   jsdom: ^30.1.1
-  lucide-react: ^1.48.0
+  lucide-react: ^1.52.0
   nanoid: ^6.0.1
   # held under 19.3: @react-three/fiber 9 peers react <19.3
   react: ~19.2.8
@@ -91,7 +91,7 @@ catalog:
   vite: 8.1.5
   # held on 4.x: @cloudflare/vitest-pool-workers peers vitest ^4.1
   vitest: ^4.1.11
-  wrangler: ^4.141.0
+  wrangler: ^4.147.0
   yaml: ^2.9.1
   zod: ^4.6.5
   zustand: ^5.0.15
@@ -145,7 +145,7 @@ patchedDependencies:
   # getPluginType resolves a throwaway plugin (two deep merges) for a key no plugin registers, and
   # the markdown serializer asks that of every mark rule on every text node: four fifths of a long
   # note's save. The patch answers from `editor.plugins`, dropped once a release does
-  "@platejs/core@53.3.14": patches/@platejs__core@53.3.14.patch
+  "@platejs/core@53.3.15": patches/@platejs__core@53.3.15.patch
   # the hosted vault is capped on what a repo cell stores, and the cell exposes no size; the patch
   # adds a `usage()` RPC over the SQLite file and the R2-held packs. Upstream takes no pull
   # requests, so it stays until a release exposes a size
@@ -153,4 +153,4 @@ patchedDependencies:
   # micromark merges a paragraph's text with one splice per line, so a long paragraph parses in time
   # quadratic in its lines; the patch is upstream's open fix (micromark/micromark#233), dropped once a
   # release carries it
-  micromark@4.0.2: patches/micromark@4.0.2.patch
+  micromark@4.0.3: patches/micromark@4.0.3.patch
