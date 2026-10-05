@@ -55,7 +55,7 @@ jobs:
       - name: Report building
         run: node .github/scripts/worker-preview.mjs report "$PROJECT" building
 
-      - uses: pnpm/setup@v2
+      - uses: pnpm/setup@v3
         with:
           runtime: node@24
           cache: true
@@ -131,7 +131,7 @@ jobs:
       # the base branch: pull_request_target must never run the PR's code
       - uses: actions/checkout@v7
 
-      - uses: pnpm/setup@v2
+      - uses: pnpm/setup@v3
         with:
           runtime: node@24
           cache: true
