@@ -41,8 +41,8 @@ catalog:
   "@vitejs/plugin-react": ^6.1.1
   # exact: 1.7.3+ drops account.issuer, which the D1 schema holds NOT NULL and unique-indexes;
   # lifting it needs a production D1 schema change first
-  "@better-auth/drizzle-adapter": 1.7.7
-  better-auth: 1.7.7
+  "@better-auth/drizzle-adapter": 1.7.2
+  better-auth: 1.7.2
   better-sqlite3: ^13.0.3
   citty: ^0.2.2
   cn: ^0.3.3
@@ -132,7 +132,7 @@ allowBuilds:
 
 overrides:
   # the adapter's auto-installed peer would otherwise resolve a second, newer core beside better-auth's
-  "@better-auth/core": 1.7.7
+  "@better-auth/core": 1.7.2
   "@types/react": "catalog:"
   # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
   vite: "catalog:"
