@@ -2496,7 +2496,7 @@ to the END of its group.
 - **A DEPENDENCY'S COST WE CANNOT WAIT OUT UPSTREAM IS A pnpm PATCH, AND A TEST
   FAILS WITHOUT IT.** micromark merges a paragraph's text with one splice per
   line, and GFM's email autolink splits it at every word, so one long paragraph
-  parsed in time quadratic in its lines. `patches/micromark@4.0.2.patch` is
+  parsed in time quadratic in its lines. `patches/micromark@4.0.3.patch` is
   upstream's own open fix (micromark/micromark#233), applied through
   `patchedDependencies` in `pnpm-workspace.yaml`; a bump fails the install
   until the patch is re-cut or dropped. A workaround in `@repo/notes` was
@@ -2504,7 +2504,7 @@ to the END of its group.
   `packages/notes/src/__tests__/projection-cost.test.ts` compares a 20k-line
   paragraph's projection with an eighth of it. Residual: a paragraph dense with
   emphasis or inline nodes is still superlinear upstream, and not patched.
-  `patches/@platejs__core@53.3.14.patch` is the second: Plate resolved a
+  `patches/@platejs__core@53.3.15.patch` is the second: Plate resolved a
   throwaway plugin to answer the type of a key no plugin registers, and the
   markdown serializer asks that of every mark rule on every text node, four
   fifths of a long note's save; `packages/editor/src/__tests__/typing-budget.test.tsx`
