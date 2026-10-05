@@ -1,5 +1,6 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
+  "agentGuidance": false,
   "ui": "tui",
   // Every workspace's tsconfig extends tsconfig.base.json, so the repo-wide
   // compiler settings (strict, noUncheckedIndexedAccess,

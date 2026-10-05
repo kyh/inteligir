@@ -16,8 +16,8 @@ catalog:
   "@agentclientprotocol/codex-acp": 1.13.0
   "@agentclientprotocol/sdk": 1.5.0
   # optional peer @vitejs/plugin-react loads for `compiler: true`
-  oxc-transform-react: ^0.151.0
-  "@cloudflare/vite-plugin": ^1.60.2
+  oxc-transform-react: ^0.152.0
+  "@cloudflare/vite-plugin": ^1.62.5
   "@cloudflare/vitest-pool-workers": ^0.22.0
   "@expo/metro-runtime": ~57.0.16
   "@expo/plist": ~0.8.1
@@ -45,7 +45,7 @@ catalog:
   better-auth: 1.7.2
   better-sqlite3: ^13.0.3
   citty: ^0.2.2
-  cn: ^0.3.3
+  cn: ^0.4.0
   consola: ^3.4.2
   drizzle-kit: 1.0.0-rc.4
   drizzle-orm: 1.0.0-rc.4
@@ -53,23 +53,23 @@ catalog:
   # cli.version at this release; a bump moves both
   eas-cli: 24.8.0
   esbuild: ^0.28.2
-  expo: ~57.0.25
-  expo-constants: ~57.0.19
+  expo: ~57.0.26
+  expo-constants: ~57.0.20
   expo-crypto: ~57.0.3
   expo-file-system: ~57.0.7
-  expo-image-manipulator: ~57.0.19
-  expo-image-picker: ~57.0.19
+  expo-image-manipulator: ~57.0.20
+  expo-image-picker: ~57.0.20
   expo-network: ~57.0.2
-  expo-router: ~57.0.23
+  expo-router: ~57.0.24
   expo-secure-store: ~57.0.4
   expo-splash-screen: ~57.0.9
   expo-sqlite: ~57.0.3
   expo-status-bar: ~57.0.1
   expo-system-ui: ~57.0.4
-  expo-updates: ~57.0.23
-  hono: ^4.13.9
-  jsdom: ^30.1.1
-  lucide-react: ^1.48.0
+  expo-updates: ~57.0.24
+  hono: ^4.13.13
+  jsdom: ^30.1.2
+  lucide-react: ^1.52.0
   nanoid: ^6.0.1
   # held under 19.3: @react-three/fiber 9 peers react <19.3
   react: ~19.2.8
@@ -91,7 +91,7 @@ catalog:
   vite: 8.1.5
   # held on 4.x: @cloudflare/vitest-pool-workers peers vitest ^4.1
   vitest: ^4.1.11
-  wrangler: ^4.141.0
+  wrangler: ^4.147.0
   yaml: ^2.9.1
   zod: ^4.6.5
   zustand: ^5.0.15
