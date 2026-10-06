@@ -34,10 +34,14 @@ export interface LaunchCloudWorkerArgs {
   vars?: Readonly<Record<string, string>>;
 }
 
+// a 200 json answer, not any answer: Miniflare's own loopback server binds an ephemeral port, can
+// land on the one reserved here, and answers 404 to every path
 const workerAnswered = async (origin: string): Promise<boolean> => {
   try {
-    await fetch(`${origin}/api/auth/get-session`, { signal: AbortSignal.timeout(2000) });
-    return true;
+    const response = await fetch(`${origin}/api/auth/get-session`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    return response.ok && (response.headers.get("content-type") ?? "").includes("application/json");
   } catch {
     return false;
   }
