@@ -18,15 +18,10 @@ const worker = defineWorker({
     enabled: true,
     traces: { enabled: true, headSamplingRate: 0.01 },
   },
-  // a namespace's whole history: a retired class stays declared as deleted so no deploy
-  // recreates it
   exports: {
     ThreadSyncDO: exports.durableObject({ storage: "sqlite" }),
     RepoCell: exports.durableObject({ storage: "sqlite" }),
     Registry: exports.durableObject({ storage: "sqlite" }),
-    VaultCoordinator: exports.durableObject({ state: "deleted" }),
-    UserHost: exports.durableObject({ state: "deleted" }),
-    AgentSandbox: exports.durableObject({ state: "deleted" }),
   },
 });
 
