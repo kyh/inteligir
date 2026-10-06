@@ -18,6 +18,9 @@ const worker = defineWorker({
     enabled: true,
     traces: { enabled: true, headSamplingRate: 0.01 },
   },
+  // cf sends no code_update_strategy, so the API would cut every open sync socket on deploy; this
+  // is wrangler's default, which lets them finish on the old code for up to 5 minutes
+  unsafe: { metadata: { code_update_strategy: { max_delay: 300, mode: "deferred" } } },
   exports: {
     ThreadSyncDO: exports.durableObject({ storage: "sqlite" }),
     RepoCell: exports.durableObject({ storage: "sqlite" }),
