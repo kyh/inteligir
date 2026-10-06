@@ -10,7 +10,7 @@ import { REPO_ROOT, trackedFiles, workspaceGlobs, workspaces } from "./repo";
 const SCANNED_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?|jsonc?|md|ya?ml)$/u;
 
 // emitted by a generator, which names whatever its input named.
-const GENERATED_FILE = /(?:\.gen\.ts|worker-configuration\.d\.ts|pnpm-lock\.yaml)$/u;
+const GENERATED_FILE = /(?:\.gen\.ts|pnpm-lock\.yaml)$/u;
 
 // data rather than claims: a fixture's `../outside.md` is the input to a containment test.
 const DATA_DIR = /(?:^|\/)(?:fixtures|__fixtures__|seed)\//u;

@@ -5,9 +5,9 @@
     // Response, BufferSource, crypto) are the ones that must win. See the note
     // in ../../tsconfig.json for why the two programs cannot be merged.
     "lib": ["ES2023"],
-    // worker-configuration.d.ts is not listed here — `include` already puts it
-    // in the program, and a relative path in `types` reads as a package name to
-    // anything that resolves this config without tsc's rules.
+    // the generated Env is listed in `include`, not here: a relative path in
+    // `types` reads as a package name to anything that resolves this config
+    // without tsc's rules.
     "types": ["@cloudflare/vitest-pool-workers/types"],
     // The site program's `${configDir}` resolves to apps/web, so an unqualified
     // inherited path would have both tsc runs sharing one incremental file and
@@ -18,6 +18,6 @@
     // program. The bundler ignores `paths` and still resolves the real source.
     "paths": { "durable-git": ["./types/durable-git.d.ts"] }
   },
-  "include": ["."],
+  "include": [".", "../../.cloudflare/types/index.d.ts"],
   "exclude": ["node_modules"]
 }

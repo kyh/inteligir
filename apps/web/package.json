@@ -4,18 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "cf-typegen": "wrangler types src/worker/worker-configuration.d.ts",
+    "build": "cf build",
     "db:export": "drizzle-kit export --dialect=sqlite --schema=./src/worker/db/schema.ts",
     "db:push": "drizzle-kit push --config drizzle.config.local.ts --force",
     "db:push:remote": "dotenv -e ../../.env.production.local -- drizzle-kit push",
     "db:studio": "drizzle-kit studio --config drizzle.config.local.ts",
     "db:studio:remote": "dotenv -e ../../.env.production.local -- drizzle-kit studio",
-    "dev": "vite dev",
+    "dev": "cf dev",
     "dev:gallery": "vite --config vite.gallery.config.ts",
     "start": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p src/worker"
+    "typecheck": "cf workers types && tsc --noEmit && tsc --noEmit -p src/worker"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "catalog:",
@@ -45,6 +44,7 @@
     "@types/react-dom": "catalog:",
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "catalog:",
+    "cf": "catalog:",
     "drizzle-kit": "catalog:",
     "oxc-transform-react": "catalog:",
     "tailwindcss": "catalog:",

@@ -1,25 +1,25 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { exec, hermeticProcessEnv } from "./exec";
+import { buildProcessEnv, exec, hermeticProcessEnv } from "./exec";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
 
 const READY_POLL_INTERVAL_MS = 250;
-// the first boot bundles the whole worker before workerd even starts.
+// a cold vite build of the whole Worker; a cached one returns at once.
+const BUILD_TIMEOUT_MS = 300_000;
+const SCHEMA_EXPORT_TIMEOUT_MS = 120_000;
+// the host applies the schema on a first Miniflare, then boots the one that listens.
 const READY_DEADLINE_MS = 120_000;
-const SCHEMA_APPLY_TIMEOUT_MS = 120_000;
 
-// a scenario that boots a Worker: the schema apply and a cold first boot may each spend their whole
-// budget, and two minutes more is the scenario's own work.
-export const WORKER_SCENARIO_TIMEOUT_MS = SCHEMA_APPLY_TIMEOUT_MS + READY_DEADLINE_MS + 120_000;
+// a scenario that boots a Worker: the build, the schema export and a cold boot may each spend their
+// whole budget, and two minutes more is the scenario's own work.
+export const WORKER_SCENARIO_TIMEOUT_MS =
+  BUILD_TIMEOUT_MS + SCHEMA_EXPORT_TIMEOUT_MS + READY_DEADLINE_MS + 120_000;
 
 // the worker cannot sign sessions without one, and there is no .dev.vars in CI.
 const BETTER_AUTH_SECRET = "e2e-better-auth-secret-000000000000";
 
 export const E2E_INVITE_CODE = "E2E-INVITE";
-
-// wrangler.jsonc's `d1_databases[].database_name`.
-const D1_DATABASE_NAME = "inteligir-auth";
 
 export interface CloudWorker extends TrackedProcess {
   origin: string;
@@ -30,18 +30,9 @@ export interface LaunchCloudWorkerArgs {
   scratchDir: string;
   onLog: (line: string) => void;
   register: (process: TrackedProcess) => void;
-  // the vite-emitted dist/server/wrangler.json; its own `main` names the built module, so no
-  // positional entry is passed.
-  builtConfig?: string;
-  // over wrangler.jsonc's own `vars`, such as a storage cap a scenario can fill
+  // over cloudflare.config.ts's own text bindings, such as a storage cap a scenario can fill
   vars?: Readonly<Record<string, string>>;
 }
-
-const workerEnv = (): NodeJS.ProcessEnv => {
-  const env = hermeticProcessEnv();
-  env.WRANGLER_SEND_METRICS = "false";
-  return env;
-};
 
 const workerAnswered = async (origin: string): Promise<boolean> => {
   try {
@@ -52,20 +43,23 @@ const workerAnswered = async (origin: string): Promise<boolean> => {
   }
 };
 
-const applySchema = async (
-  webDir: string,
-  binDir: string,
-  args: LaunchCloudWorkerArgs,
-  state: {
-    stateDir: string;
-    configPath: string;
-  },
-): Promise<void> => {
+// the Worker that deploys, not its source: built through turbo rather than looked for on disk, as a
+// present artifact may be stale and boot last week's Worker.
+const buildWorker = async (args: LaunchCloudWorkerArgs): Promise<void> => {
+  args.onLog("building the Worker (turbo, @repo/web)");
+  await exec("pnpm", ["turbo", "run", "build", "--filter=@repo/web"], {
+    cwd: args.repoRoot,
+    env: buildProcessEnv(),
+    timeoutMs: BUILD_TIMEOUT_MS,
+  });
+};
+
+const writeSchema = async (webDir: string, args: LaunchCloudWorkerArgs): Promise<string> => {
   args.onLog("deriving the D1 auth schema (apps/web db:export)");
   const ddl = await exec("pnpm", ["run", "--silent", "db:export"], {
     cwd: webDir,
-    env: workerEnv(),
-    timeoutMs: SCHEMA_APPLY_TIMEOUT_MS,
+    env: hermeticProcessEnv(),
+    timeoutMs: SCHEMA_EXPORT_TIMEOUT_MS,
   });
   const schemaFile = path.join(args.scratchDir, "worker-schema.sql");
   await writeFile(
@@ -73,43 +67,24 @@ const applySchema = async (
     `${ddl.stdout}\nINSERT INTO invite_code (code) VALUES ('${E2E_INVITE_CODE}');\n`,
     "utf-8",
   );
-
-  args.onLog("applying the schema to the scratch D1");
-  await exec(
-    path.join(binDir, "wrangler"),
-    [
-      "d1",
-      "execute",
-      D1_DATABASE_NAME,
-      "--config",
-      state.configPath,
-      "--local",
-      "--persist-to",
-      state.stateDir,
-      "--file",
-      schemaFile,
-    ],
-    { cwd: webDir, env: workerEnv(), timeoutMs: SCHEMA_APPLY_TIMEOUT_MS },
-  );
+  return schemaFile;
 };
 
 export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<CloudWorker> => {
   const webDir = path.join(args.repoRoot, "apps", "web");
-  const binDir = path.join(webDir, "node_modules", ".bin");
+  const e2eDir = path.join(args.repoRoot, "tools", "e2e");
   const stateDir = path.join(args.scratchDir, "worker-state");
   await mkdir(stateDir, { recursive: true });
 
-  // explicit --config everywhere: after a build, .wrangler/deploy/config.json redirects wrangler to
-  // dist/server/wrangler.json, whose `no_bundle: true` would hand workerd the raw TypeScript entry.
-  const configPath = args.builtConfig ?? path.join(webDir, "wrangler.jsonc");
-  await applySchema(webDir, binDir, args, { configPath, stateDir });
+  await buildWorker(args);
+  const schemaFile = await writeSchema(webDir, args);
 
   const worker = await bootWithPorts<CloudWorker>({
     deadlineMs: READY_DEADLINE_MS,
     label: "the cloud worker",
     onLog: args.onLog,
     pollIntervalMs: READY_POLL_INTERVAL_MS,
-    // the dev server, plus the inspector it always opens.
+    // the Worker, plus the inspector it always opens.
     portCount: 2,
     ready: async (handle) => await workerAnswered(handle.origin),
     spawn: (ports) => {
@@ -117,32 +92,24 @@ export const launchCloudWorker = async (args: LaunchCloudWorkerArgs): Promise<Cl
       const inspectorPort = ports[1] ?? 0;
       const child = spawnSupervised({
         argv: [
-          "dev",
-          // not server.ts: the deployed entry needs TanStack Start's build-time vite virtuals.
-          ...(args.builtConfig === undefined ? ["src/worker/index.ts"] : []),
-          "--config",
-          configPath,
-          "--ip",
-          "127.0.0.1",
-          "--port",
-          String(port),
-          "--inspector-port",
-          String(inspectorPort),
-          "--persist-to",
-          stateDir,
-          "--var",
-          `BETTER_AUTH_SECRET:${BETTER_AUTH_SECRET}`,
-          // the suite signs up more than one account from one IP.
-          "--var",
-          "RATE_LIMIT_DISABLED:true",
-          ...Object.entries(args.vars ?? {}).flatMap(([name, value]) => [
-            "--var",
-            `${name}:${value}`,
-          ]),
+          path.join(e2eDir, "src", "harness", "worker-host.ts"),
+          JSON.stringify({
+            inspectorPort,
+            outputDir: path.join(webDir, ".cloudflare", "output", "v0", "workers", "default"),
+            port,
+            schemaFile,
+            stateDir,
+            vars: {
+              BETTER_AUTH_SECRET,
+              // the suite signs up more than one account from one IP.
+              RATE_LIMIT_DISABLED: "true",
+              ...args.vars,
+            },
+          }),
         ],
-        cwd: webDir,
-        env: workerEnv(),
-        file: path.join(binDir, "wrangler"),
+        cwd: e2eDir,
+        env: hermeticProcessEnv(),
+        file: path.join(e2eDir, "node_modules", ".bin", "tsx"),
         name: "cloud-worker",
       });
       const handle: CloudWorker = { ...child, origin: `http://127.0.0.1:${String(port)}` };

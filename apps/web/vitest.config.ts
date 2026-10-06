@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
+import { compatibilityDate, compatibilityFlags } from "./compatibility.ts";
 
 // resolved from this file: cwd is apps/web under vitest but the repo root under knip.
 const HERE = import.meta.dirname;
@@ -12,17 +13,28 @@ const TEST_SCHEMA = execFileSync("pnpm", ["run", "--silent", "db:export"], {
   encoding: "utf-8",
 });
 
-// BETTER_AUTH_SECRET has a value only at runtime (.dev.vars / wrangler secret), so the test env
+// BETTER_AUTH_SECRET has a value only at runtime (.dev.vars / a Worker secret), so the test env
 // supplies one.
 const TEST_BETTER_AUTH_SECRET = "test-better-auth-secret-000000000000";
 
 export default defineConfig({
   plugins: [
     cloudflareTest({
-      // not wrangler's main: the deployed entry also mounts the SSR handler, whose virtual modules
-      // only the start plugin supplies.
+      // not cloudflare.config.ts's entrypoint: the deployed entry also mounts the SSR handler,
+      // whose virtual modules only the start plugin supplies.
       main: "./src/worker/index.ts",
+      // the pool reads only wrangler's config format, so the bindings cloudflare.config.ts declares
+      // are restated here
       miniflare: {
+        compatibilityDate,
+        compatibilityFlags,
+        d1Databases: ["DB"],
+        r2Buckets: ["PACK_CACHE"],
+        durableObjects: {
+          THREAD_SYNC: { className: "ThreadSyncDO", useSQLite: true },
+          REPO: { className: "RepoCell", useSQLite: true },
+          REGISTRY: { className: "Registry", useSQLite: true },
+        },
         bindings: {
           BETTER_AUTH_SECRET: TEST_BETTER_AUTH_SECRET,
           // every test shares one ip; vault-rate-limit.test.ts flips this per test.
@@ -32,7 +44,6 @@ export default defineConfig({
           VAULT_STORAGE_CAP_BYTES: String(1024 * 1024),
         },
       },
-      wrangler: { configPath: "./wrangler.jsonc" },
     }),
   ],
   // this config does not run the start plugin that reads tsconfig paths.

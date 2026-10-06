@@ -1,12 +1,8 @@
-import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { expect, expectEq } from "../harness/assert";
-import { buildProcessEnv, exec } from "../harness/exec";
+import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import type { Scenario } from "../harness/scenario";
-
-// a cold vite build of the whole Worker; a cached one returns at once.
-const BUILD_TIMEOUT_MS = 300_000;
 
 // each page renders its doc itself, so the doc is the page's words
 const DOC_PAGES = [
@@ -88,29 +84,11 @@ const pageWords = (html: string): string =>
   wordsOf(html.replaceAll(/<script\b[\s\S]*?<\/script>|<[^>]*>|&#?\w+;/giu, " "));
 
 export const builtWorkerBoot: Scenario = {
-  description: "the vite-built Worker bundle boots under wrangler dev and answers its routes",
+  description: "the built Worker bundle boots under Miniflare and answers its routes",
   name: "built-worker-boot",
-  // the build's own budget plus a cold wrangler dev boot.
-  timeoutMs: BUILD_TIMEOUT_MS + 180_000,
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(context) {
-    // built through turbo, not looked for on disk: a present artifact may be stale and boot last
-    // week's Worker.
-    await exec("pnpm", ["turbo", "run", "build", "--filter=@repo/web"], {
-      cwd: context.repoRoot,
-      env: buildProcessEnv(),
-      timeoutMs: BUILD_TIMEOUT_MS,
-    });
-    const builtConfig = path.join(
-      context.repoRoot,
-      "apps",
-      "web",
-      "dist",
-      "server",
-      "wrangler.json",
-    );
-    expect(existsSync(builtConfig), `the web build emitted no ${builtConfig}`);
-
-    const worker = await context.cloudWorker({ builtConfig });
+    const worker = await context.cloudWorker();
 
     // a bundle whose module scope threw answers 500 to everything.
     const session = await fetch(`${worker.origin}/api/auth/get-session`, {

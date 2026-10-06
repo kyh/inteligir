@@ -14,6 +14,8 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "noEmit": true,
+    // config files Node loads by stripping types (cloudflare.config.ts) must name `.ts`
+    "allowImportingTsExtensions": true,
     "incremental": true,
     "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.json",
     "strict": true,

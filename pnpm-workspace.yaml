@@ -91,6 +91,10 @@ catalog:
   vite: 8.1.5
   # held on 4.x: @cloudflare/vitest-pool-workers peers vitest ^4.1
   vitest: ^4.1.11
+  # exact: a beta, whose config API moves between releases
+  cf: 1.0.0-beta.12
+  # the one wrangler resolves; tools/e2e reads `cf build` output with it
+  miniflare: 5.20261001.0-alpha
   wrangler: ^4.147.0
   yaml: ^2.9.1
   zod: ^4.6.5

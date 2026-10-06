@@ -57,10 +57,11 @@ scratch dir and tears everything down afterwards:
   the data dir — a device credential, so the instance boots already signed in.
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
   `INTELIGIR_VAULT_REMOTE` or `vault.setRemote`.
-- `cloudWorker({ builtConfig?, vars? })` — the product Worker (apps/web) under
-  `wrangler dev` on a scratch persist dir, its D1 carrying apps/web's own
-  `db:export` schema plus one invite row; `vars` override wrangler.jsonc's
-  (a storage cap a scenario can fill). Registered for teardown exactly like an
+- `cloudWorker({ vars? })` — the product Worker (apps/web), built through turbo
+  and booted from its `cf build` output under Miniflare
+  (`src/harness/worker-host.ts`) on a scratch persist dir, its D1 carrying
+  apps/web's own `db:export` schema plus one invite row; `vars` override
+  cloudflare.config.ts's text bindings (a storage cap a scenario can fill). Registered for teardown exactly like an
   instance.
 - `instance.api` — the oRPC client over `@repo/contract/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
@@ -118,17 +119,17 @@ what each one is FOR.
 |                            | `vault.setRemote`, B through `inteligir vault remote` and pulls A's note; |
 |                            | A back on the account signed out has no origin, across a restart too;     |
 |                            | an instance `INTELIGIR_VAULT_REMOTE` pins refuses every choice            |
-| hosted-vault-sync          | the hosted loop for real: a wrangler-dev Worker, production login,        |
+| hosted-vault-sync          | the hosted loop for real: a Miniflare Worker, production login,           |
 |                            | convergence through the derived remote, boot clone, a same-line edit      |
 |                            | copied aside under the signed-in device's name, revoke → unauthorized     |
 | hosted-vault-second-mac    | A signs in, rewrites the starter Welcome.md and syncs; B boots fresh with |
 |                            | its own starter notes, signs in to the same account and syncs: B lands on |
 |                            | A's history byte for byte, with no conflict copy and A's note searchable, |
 |                            | and A's next sync takes nothing                                           |
-| hosted-vault-phone-write   | a second login plays the phone against a wrangler-dev Worker: its change  |
+| hosted-vault-phone-write   | a second login plays the phone against a Miniflare Worker: its change     |
 |                            | set lands and A syncs its bytes, history naming the phone; a stale set    |
 |                            | gets A's bytes back as a conflict, and a recommit on them converges       |
-| hosted-vault-full          | a wrangler-dev Worker capped at 1 MiB: A's first note syncs, an           |
+| hosted-vault-full          | a Miniflare Worker capped at 1 MiB: A's first note syncs, an              |
 |                            | attachment past the cap leaves A `full` with its own words, a later note  |
 |                            | commits on A and `inteligir vault status --json` still says full, and B's |
 |                            | clone holds the first note alone                                          |
@@ -150,23 +151,23 @@ what each one is FOR.
 |                            | or on a chart writes nothing, a nonce-less frame is ignored, an announced |
 |                            | change reloads the buffer, a write the phone finds changed lands merged   |
 |                            | and shows, and Ask agent and a wiki link tap reach the native end         |
-| thread-sync-hosted         | a thread sent on A reaches B through a wrangler-dev Worker: B's real      |
+| thread-sync-hosted         | a thread sent on A reaches B through a Miniflare Worker: B's real         |
 |                            | socket opens, and B holds A's timeline before its poll timer could run,   |
 |                            | so the Durable Object's ping is what delivered it                         |
 | phone-dispatch-hosted      | a second login plays the phone: its request waits with no desktop online  |
 |                            | until A signs in and runs it over the note it named, the reply naming the |
 |                            | note and the phone's pull holding the request; with A and B both          |
 |                            | listening, exactly one runs the next, before a poll could                 |
-| account-hosted             | an account created in the app (`cloud.signUp`) against a wrangler-dev     |
+| account-hosted             | an account created in the app (`cloud.signUp`) against a Miniflare        |
 |                            | Worker signs that instance in as it; the invite is spent, so a second     |
 |                            | sign-up with it is FORBIDDEN; a second instance signs in with the same    |
 |                            | email and password                                                        |
-| onboarding-account-browser | `/welcome`'s account step against a wrangler-dev Worker opens on Create;  |
+| onboarding-account-browser | `/welcome`'s account step against a Miniflare Worker opens on Create;     |
 |                            | an account made there with the invite code signs the instance in, its     |
 |                            | vault syncs through that account, and the page moves on by itself to      |
 |                            | Welcome.md                                                                |
-| built-worker-boot          | the vite-built bundle — what `wrangler deploy` ships — boots under        |
-|                            | wrangler dev and answers; built through turbo on every run, so it is the  |
+| built-worker-boot          | the built bundle — what `cf deploy` ships — boots under Miniflare and     |
+|                            | answers; built through turbo on every run, so it is the                   |
 |                            | current source, and the one place a module-scope crash of the emitted     |
 |                            | module can show                                                           |
 | built-cli-boot             | the esbuild bundle — what npm and the .app run — boots in production      |
@@ -273,7 +274,7 @@ Each feature issue lands with its scenario here.
 | `INTELIGIR_VAULT_REMOTE`     | git remote URL pinned over the vault's own origin;     |
 |                              | unset = that origin, else the signed-in account's      |
 | `INTELIGIR_CLOUD_URL`        | the cloud origin; hosted-vault-sync points it at its   |
-|                              | own scratch wrangler-dev Worker                        |
+|                              | own scratch Miniflare Worker                           |
 | `INTELIGIR_SYNC_INTERVAL_MS` | vault auto-sync cadence; `0` disables the loop AND the |
 |                              | boot sync (the sync scenarios set it for determinism)  |
 | `INTELIGIR_AGENT`            | `scripted` — the deterministic in-process driver the   |
@@ -297,8 +298,8 @@ stores; a scenario that wants a fake vendor sets it in `extraEnv`.
 
 Headless by construction: no interactive auth, no pinned ports, and no
 accounts on any EXTERNAL service — hosted-vault-sync signs up a real account,
-but against its own scratch wrangler-dev Worker (apps/web's wrangler, local
-mode, state under the scenario's scratch dir; secrets ride `--var`, so no
+but against its own scratch Miniflare Worker (apps/web's build output, state
+under the scenario's scratch dir; secrets are passed as text bindings, so no
 `.dev.vars` is needed). The one setup step beyond `pnpm install` is the
 browser binary every browser scenario needs: `npm i -g agent-browser@X.Y.Z &&
 agent-browser install` (Linux: `--with-deps`), at the version
