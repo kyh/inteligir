@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { REPO_ROOT } from "./repo";
 
 const LOCKFILE = "pnpm-lock.yaml";
-const WRANGLER_CONFIG = "apps/web/wrangler.jsonc";
+const COMPATIBILITY = "apps/web/compatibility.ts";
 
 // the package and its per-platform binaries; peer ranges carry no `@` and stay unmatched.
 const RESOLVED_WORKERD = /\bworkerd(?:-[a-z0-9-]+)?@1\.(?<stamp>\d{8})\./gu;
@@ -25,15 +25,15 @@ const resolvedWorkerdDates = (): string[] => {
 };
 
 const declaredCompatibilityDate = (): string => {
-  const source = fs.readFileSync(path.join(REPO_ROOT, WRANGLER_CONFIG), "utf-8");
-  const date = /"compatibility_date":\s*"(?<date>\d{4}-\d{2}-\d{2})"/u.exec(source)?.groups?.date;
+  const source = fs.readFileSync(path.join(REPO_ROOT, COMPATIBILITY), "utf-8");
+  const date = /compatibilityDate = "(?<date>\d{4}-\d{2}-\d{2})"/u.exec(source)?.groups?.date;
   if (date === undefined) {
-    throw new Error(`${WRANGLER_CONFIG}: no "compatibility_date" to hold against ${LOCKFILE}`);
+    throw new Error(`${COMPATIBILITY}: no compatibilityDate to hold against ${LOCKFILE}`);
   }
   return date;
 };
 
-describe("wrangler compatibility_date", () => {
+describe("workerd compatibilityDate", () => {
   it("is the date of the oldest workerd the lockfile resolves", () => {
     const dates = resolvedWorkerdDates();
     const [oldest] = dates;
@@ -42,9 +42,9 @@ describe("wrangler compatibility_date", () => {
     }
     expect(
       declaredCompatibilityDate(),
-      `${WRANGLER_CONFIG}: compatibility_date is not the OLDEST workerd date the lockfile resolves (resolved: ${dates.join(", ")}).\n` +
+      `${COMPATIBILITY}: compatibilityDate is not the OLDEST workerd date the lockfile resolves (resolved: ${dates.join(", ")}).\n` +
         `  rule: the runtime's version is its date — a config date behind the resolved runtime silently opts out of its fixes, and one ahead of the oldest is one that workerd cannot emulate\n` +
-        `  fix: set compatibility_date to ${oldest} in ${WRANGLER_CONFIG}`,
+        `  fix: set compatibilityDate to ${oldest} in ${COMPATIBILITY}`,
     ).toBe(oldest);
   });
 });

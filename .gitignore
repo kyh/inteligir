@@ -8,8 +8,9 @@ node_modules
 # testing
 coverage
 
-# tanstack start / wrangler
+# tanstack start / cloudflare (.wrangler/ holds local dev state)
 .tanstack/
+.cloudflare/
 .wrangler/
 out/
 

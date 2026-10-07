@@ -41,7 +41,7 @@ The owner publishes once, when every step and every check below has passed.
   `apps/desktop/README.md` § Packaging says how the package step reads them.
 - **GitHub and npm**: `gh auth status` has push rights on the repo, and
   `npm whoami` names the account that owns `inteligir`.
-- **Cloudflare**: `pnpm --filter @repo/web exec wrangler whoami` is signed in,
+- **Cloudflare**: `pnpm --filter @repo/web exec cf auth whoami` is signed in,
   and the root `.env.production.local` holds the three D1 credentials
   `.env.example` names.
 - **The phone**: `apps/mobile/README.md` § One-time setup (EAS, the App Store

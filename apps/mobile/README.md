@@ -536,8 +536,8 @@ without a vault.
 1. Mint a production invite with a fresh code, the recipe in
    `apps/web/README.md` § Auth:
    ```bash
-   pnpm --filter @repo/web exec wrangler d1 execute inteligir-auth --remote \
-     --command "INSERT INTO invite_code (code) VALUES ('<fresh code>')"
+   pnpm --filter @repo/web exec cf d1 query 005d0e52-f102-4298-8da9-492b672ed00f \
+     --sql "INSERT INTO invite_code (code) VALUES ('<fresh code>')"
    ```
 2. Sign up with it at `https://inteligir.com/app/sign-up`: an address you
    read, and a long password.

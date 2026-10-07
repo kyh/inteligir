@@ -1,7 +1,7 @@
 # Copy to apps/web/.dev.vars (gitignored — NEVER commit real values).
 #
 # `vite dev` loads this as the Worker's secrets. Production sets the same
-# keys with `wrangler secret put` (see README.md -> Deploy).
+# keys with `cf workers secrets update` (see README.md -> Deploy).
 
 # Better Auth's signing key. Required — without it every /api/auth/* request
 # fails. Any value works locally: `openssl rand -base64 32`.

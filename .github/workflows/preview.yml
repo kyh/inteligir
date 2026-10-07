@@ -1,6 +1,6 @@
 # Vercel-style previews on Cloudflare Worker Previews. Every PR from a branch of this repo gets
 # its own Preview of inteligir-web once CI is green: its own URL and Durable Objects over the
-# preview-only D1 and bucket that apps/web/wrangler.jsonc's `previews` block names. The PR shows
+# preview-only D1 and bucket apps/web/cloudflare.config.ts binds when `isPreview`. The PR shows
 # it twice, as Vercel's does: one sticky status comment, and a "View deployment" button from a
 # GitHub deployment in "Preview – inteligir-web". Closing the PR deletes the Preview.
 #
@@ -11,7 +11,8 @@
 #
 # Needs, beyond Deploy's CLOUDFLARE_API_TOKEN: the token also granted D1: Edit and Workers R2
 # Storage: Edit, the CLOUDFLARE_ACCOUNT_ID secret, and once, from a machine:
-#   pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET
+#   pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET --worker-name inteligir-web
+# (wrangler, as cf has no preview secret or delete command yet)
 name: Preview
 
 on:
@@ -68,15 +69,14 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          d1_id() { pnpm exec wrangler d1 list --json | jq -r '.[] | select(.name == "inteligir-auth-preview") | .uuid'; }
+          d1_id() { pnpm exec cf d1 list --name inteligir-auth-preview | jq -r '.[] | select(.name == "inteligir-auth-preview") | .uuid'; }
           id="$(d1_id)"
           if [ -z "$id" ]; then
-            pnpm exec wrangler d1 create inteligir-auth-preview
+            pnpm exec cf d1 create --name inteligir-auth-preview >/dev/null
             id="$(d1_id)"
           fi
-          pnpm exec wrangler r2 bucket info inteligir-vault-preview >/dev/null 2>&1 \
-            || pnpm exec wrangler r2 bucket create inteligir-vault-preview
-          sed -i "s/<REPLACE_ME>/$id/" wrangler.jsonc
+          pnpm exec cf r2 buckets get inteligir-vault-preview >/dev/null 2>&1 \
+            || pnpm exec cf r2 buckets create --name inteligir-vault-preview >/dev/null
           echo "d1_id=$id" >> "$GITHUB_OUTPUT"
 
       # --force: this is the preview database, and a PR's schema is the one it ships
@@ -88,8 +88,9 @@ jobs:
           CLOUDFLARE_D1_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: pnpm exec drizzle-kit push --force
 
+      # the workspace packages only: `cf previews deploy` builds the Worker itself, as a Preview
       - name: Build
-        run: pnpm turbo run build --filter=@repo/web...
+        run: pnpm turbo run build --filter=@repo/web^...
 
       - name: Deploy preview
         id: preview
@@ -98,10 +99,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PR_URL: ${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.workflow_run.pull_requests[0].number }}
-          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
         run: |
-          pnpm exec wrangler preview --name "pr-$PR_NUMBER" --tag "${HEAD_SHA:0:7}"
-          url="$(jq -rs 'map(select(.type == "preview")) | last | (.preview_urls[0] // .deployment_urls[0] // empty)' "$WRANGLER_OUTPUT_FILE_PATH")"
+          pnpm exec cf previews deploy "pr-$PR_NUMBER" | tee "$RUNNER_TEMP/preview.log"
+          url="$(grep -oE 'https://[^ ]+\.workers\.dev' "$RUNNER_TEMP/preview.log" | head -1)"
+          [ -n "$url" ] || { echo "::error::no Preview URL in cf's output"; exit 1; }
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Report ready
@@ -142,7 +143,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler preview delete --name "pr-$PR_NUMBER" --skip-confirmation || true
+        run: pnpm exec wrangler preview delete --worker-name inteligir-web --name "pr-$PR_NUMBER" --skip-confirmation || true
 
       - name: Report deleted
         run: node .github/scripts/worker-preview.mjs close inteligir-web

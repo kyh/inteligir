@@ -83,7 +83,7 @@ jobs:
           cache: true
 
       - name: Build & deploy web
-        run: pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec wrangler deploy
+        run: pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec cf deploy --prebuilt
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 

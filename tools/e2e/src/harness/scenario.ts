@@ -27,9 +27,7 @@ export interface ScenarioContext {
   log: (message: string) => void;
   boot: (options: BootOptions) => Promise<AppInstance>;
   bareRemote: (name?: string) => Promise<string>;
-  cloudWorker: (
-    options?: Pick<LaunchCloudWorkerArgs, "builtConfig" | "vars">,
-  ) => Promise<CloudWorker>;
+  cloudWorker: (options?: Pick<LaunchCloudWorkerArgs, "vars">) => Promise<CloudWorker>;
   // the built Tauri shell on a scratch home, driven over WebDriver; skips with no display, no
   // driver or no built shell.
   desktopShell: (options?: DesktopShellOptions) => Promise<DesktopShell>;
@@ -128,9 +126,6 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
       repoRoot: args.repoRoot,
       scratchDir: args.scratchDir,
     };
-    if (options?.builtConfig !== undefined) {
-      launch.builtConfig = options.builtConfig;
-    }
     if (options?.vars !== undefined) {
       launch.vars = options.vars;
     }

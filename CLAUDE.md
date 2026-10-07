@@ -1500,6 +1500,22 @@ to the END of its group.
   names the vendor's own app it signs out too (`vendorApp`: the store is
   shared).
 
+- **A TURN THE VENDOR REFUSED FOR THE PLAN'S USAGE LIMIT OR A SIGN-IN LEAVES THE
+  QUEUE WHERE IT IS.** A refused prompt is read once, into its words and a class
+  (`auth | usage-limit | overloaded | context | other`, `providerFailureSchema`
+  in `@repo/domain/provider-event`), from what the adapter attaches: claude's
+  `errorKind`, codex's `codexErrorInfo`, the reserved -32000, and claude's own
+  limit text when no kind came with it (`readProviderError` in
+  `packages/agent-runtime/src/acp/provider-error.ts`). `authentication_failed`
+  reads as signed out whatever its code, so the panel says so rather than the
+  adapter's text. The class rides `provider/error` as an optional field, which
+  a log written before it parses without and a stale install strips. A
+  settle whose turn failed `usage-limit` or `auth` does not drain
+  (`failureHoldsQueue` in `apps/cli/src/server/threads/service.ts`): the next
+  send starts the oldest queued message first. Rejected: draining as for any
+  failure, which spends every queued message on the same refusal and leaves
+  nothing for after the limit resets or the sign-in.
+
 ### Dictation
 
 - **DICTATION IS THE OPERATING SYSTEM'S** (owner decision, reversing streaming
@@ -1855,7 +1871,7 @@ to the END of its group.
   MOST 90 MiB** (owner decision: free, about 1 GB an account, every stored
   version counted, so deleting notes frees nothing, and no compaction in 0.6;
   a stated push cap now, large files later). `VAULT_STORAGE_CAP_BYTES` in
-  `apps/web/wrangler.jsonc` is the ceiling and `RepoCell.usage()`, a pnpm patch
+  `apps/web/cloudflare.config.ts` is the ceiling and `RepoCell.usage()`, a pnpm patch
   over durable-git (`patches/durable-git@0.0.8.patch`), the cell's own size:
   its SQLite file plus the packs it keeps in R2, not the gc guard's sum, which
   counts a SQLite-held pack twice. `VAULT_GIT_MAX_PUSH_BYTES`
@@ -2023,8 +2039,8 @@ to the END of its group.
   not wait for CI or keep Deploy's environment gate, so previews ride
   `workflow_run` after CI like Deploy does (which also keeps them out of the
   CI-parity sweep), limited to this repo's branches because that trigger holds
-  secrets. A preview inherits no binding, so `apps/web/wrangler.jsonc` restates
-  each against `inteligir-auth-preview` / `inteligir-vault-preview`; pointing a
+  secrets. A preview inherits no binding, so `apps/web/cloudflare.config.ts` binds
+  each, when `isPreview`, against `inteligir-auth-preview` / `inteligir-vault-preview`; pointing a
   preview at the production D1 was rejected, since PR code would write real
   accounts. The status is one sticky comment plus a GitHub deployment on the
   head commit (`.github/scripts/worker-preview.mjs`), created by the script
@@ -2515,7 +2531,7 @@ to the END of its group.
 - **TOOLING PINS, each with its reason beside it**: `vite` is a pnpm override
   because the catalog bound only the manifests that spell it; `@types/node`
   tracks `engines.node`; `compatibility_date` is the lockfile's oldest workerd,
-  held by `tools/repo-guards/src/wrangler-compat-date.test.ts`; `pnpm e2e` boots
+  held by `tools/repo-guards/src/workerd-compat-date.test.ts`; `pnpm e2e` boots
   the built Worker bundle (`tools/e2e/src/scenarios/built-worker-boot.ts`), the
   built CLI bundle (`tools/e2e/src/scenarios/built-cli-boot.ts`) and the built
   desktop shell (`tools/e2e/src/scenarios/desktop-shell.ts`); agent-browser and

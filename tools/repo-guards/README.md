@@ -141,7 +141,7 @@ worktree under `.claude` is never read as this commit's tree.
 | `tailwind-source.test.ts`      | Every `@source "…"` glob's static base is a directory that exists         |
 |                                | relative to the stylesheet — Tailwind answers a missing base with an      |
 |                                | empty scan, no error.                                                     |
-| `wrangler-compat-date.test.ts` | `apps/web/wrangler.jsonc`'s `compatibility_date` is the OLDEST workerd    |
+| `workerd-compat-date.test.ts`  | `apps/web/compatibility.ts`'s `compatibilityDate` is the OLDEST workerd   |
 |                                | date `pnpm-lock.yaml` resolves — a workerd cannot emulate a date it       |
 |                                | predates.                                                                 |
 | `durable-git-stub.test.ts`     | The header of `apps/web/src/worker/types/durable-git.d.ts` names the      |
@@ -194,7 +194,7 @@ The other guards read source, not prose — most through `sourceOf`, which drops
 full-line comments — so prose and configuration would rot unwatched; this one
 walks what the repo SAYS. Its population is git's index — never a directory walk, so build
 output is not read as a claim — minus generated files (`*.gen.ts`,
-`worker-configuration.d.ts`, the lockfile), dot-directories, `fixtures/`,
+the lockfile), dot-directories, `fixtures/`,
 `__fixtures__/` and `seed/` directories, and the `DATA_FILES` rows. It matches
 line by line with no markdown parsing, so a path inside a README's code block
 counts exactly as one in its prose does, and a comment in source counts like

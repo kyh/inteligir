@@ -21,7 +21,7 @@ const DEADLINE_MS = 30_000;
 
 export const onboardingAccountBrowser: Scenario = {
   description:
-    "the account step after a first run opens on Create against a wrangler-dev Worker: an account made there with the invite signs the instance in, its notes sync through that account, and the page moves on by itself to Welcome.md",
+    "the account step after a first run opens on Create against a Miniflare Worker: an account made there with the invite signs the instance in, its notes sync through that account, and the page moves on by itself to Welcome.md",
   name: "onboarding-account-browser",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

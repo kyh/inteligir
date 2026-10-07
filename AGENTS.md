@@ -99,11 +99,10 @@ pnpm dev:web                                       # vite dev on :5174
 curl -s -o /dev/null localhost:5174/api/auth/get-session
 pnpm --filter @repo/web db:push
 
-# Sign-up is invite-gated and there is no self-serve issuance. Mint one.
-# `code` is the primary key, so re-running this literal command after a code has
-# been minted fails on the constraint — pick a fresh string each time:
-pnpm --filter @repo/web exec wrangler d1 execute inteligir-auth --local \
-  --command "INSERT INTO invite_code (code) VALUES ('DEV-INVITE-001')"
+# Sign-up is invite-gated and there is no self-serve issuance. Mint one: add a
+# row to `invite_code` in the local studio. `code` is the primary key, so pick a
+# fresh string each time:
+pnpm --filter @repo/web db:studio
 ```
 
 Then `/app/sign-up` takes the invite code. Signing up returns 200 with a
