@@ -974,6 +974,21 @@ to the END of its group.
   the pin over the origin. No "off" choice: a folder another service syncs is
   already the derived off.
 
+- **THE ACCOUNT REMOTE IS REACHED WHEN THERE IS NEWS, NOT EVERY MINUTE.** The
+  hosted vault bills each fetch and push as an operation, and the minute tick
+  fetched from every open Mac whether anything moved. Another device's push
+  already pings this one over the account socket, so a tick leaves the account
+  remote alone while that socket is up, the last pass that reached it ended
+  clean, the commit it just made is already there and that pass is under 15
+  minutes old (`quietTickCanWait` in `apps/cli/src/server/vault/git-engine.ts`);
+  a ping, a sign-in, a socket reconnect, the boot pass and Sync now always
+  reach it, and the tick still pushes a commit within the minute. A pass whose
+  fetched tip already holds HEAD sends no push, since an empty push still asks
+  for the refs. A tick joining a pass already running asks for no second one.
+  Rejected: dropping the tick for the account remote, which leaves a lost ping
+  unanswered until the next edit. A BYO remote pings nobody, so every tick
+  fetches it as before.
+
 ### Knowledge: index, search and links
 
 - **The knowledge index persists no stat fingerprint.** A warm reconcile over

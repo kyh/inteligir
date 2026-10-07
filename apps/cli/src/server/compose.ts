@@ -19,7 +19,7 @@ import { createBrowserSession } from "./browser-session";
 import { createCommentsService } from "./comments/comments-service";
 import { CloudPrefsStore } from "./cloud/cloud-prefs-store";
 import { createCloudRuntime } from "./cloud/sync-runtime";
-import type { CloudRuntimeArgs, CloudTransport } from "./cloud/sync-runtime";
+import type { CloudRuntime, CloudRuntimeArgs, CloudTransport } from "./cloud/sync-runtime";
 import { createVaultRemoteProvider } from "./cloud/vault-remote";
 import type { AppConfig } from "./config";
 import { createConnectorsService, createVendorMcpConfigs } from "./connectors/connectors-service";
@@ -121,6 +121,8 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   // late-bound: the knowledge runtime needs the vault service; changes before it exists
   // are covered by the boot reconcile.
   let knowledgeRef: KnowledgeRuntime | null = null;
+  // built after the vault, which asks it only from a sync tick, long after both exist.
+  let cloudRef: CloudRuntime | null = null;
   // once: a folder does not move under a running server.
   const externalSync = folderExternalSync(config.vaultDir, config.homeDir);
   const vaultRemote =
@@ -133,6 +135,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     });
   const machineName = ports.machineName ?? (await readMachineName());
   const vaultArgs: VaultRuntimeArgs = {
+    accountPingsReach: () => cloudRef?.pingsReach() ?? false,
     dataDir: config.dataDir,
     debugLog: debugLog(config.debug, "watcher"),
     deviceName: deviceNameReader(config.dataDir, machineName),
@@ -238,6 +241,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     cloudArgs.transport = args.cloudTransport;
   }
   const cloud = createCloudRuntime(cloudArgs);
+  cloudRef = cloud;
   register("cloud", async () => {
     await cloud.dispose();
   });

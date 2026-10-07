@@ -2156,6 +2156,9 @@ describe("a remote with no room left", { timeout: 30_000 }, () => {
     const other = await makeEngine({ remoteUrl: remote.bare });
     expect(await syncState(other.engine)).toBe("clean");
     const { engine, root } = await makeEngine({ env: remote.env, remoteUrl: remote.bare });
+    // a pass whose fetched tip already holds its head pushes nothing, so give it a change of its own
+    await writeFile(path.join(root, "first.md"), "this device's own\n", "utf-8");
+    await engine.commitNow();
 
     const refused = await engine.syncNow();
     expect(refused.state).toBe("full");
@@ -2669,5 +2672,142 @@ describe("a remote the person chooses", { timeout: 30_000 }, () => {
     expect(await originOf(root)).toBe(`file://${pinned}`);
     await expect(runGit(root, ["config", "--get", REMOTE_MARKER_KEY], { env })).rejects.toThrow();
     expect(statusChanges).toEqual([]);
+  });
+});
+
+// a pass is real git; a slow runner takes far longer than waitFor's one second for a few of them
+const PASS_WAIT = { timeout: 10_000 };
+
+// counts the remote side of every push: git runs the receive-pack an origin names for a local url.
+const countPushes = async (root: string): Promise<() => Promise<number>> => {
+  const dir = scratchDir("inteligir-git-push-count-");
+  const log = path.join(dir, "pushes.log");
+  const script = path.join(dir, "receive-pack");
+  await writeFile(log, "");
+  await writeFile(script, `#!/bin/sh\necho push >> "${log}"\nexec git-receive-pack "$@"\n`);
+  await chmod(script, 0o755);
+  await runGit(root, ["config", "remote.origin.receivepack", script], { env });
+  return async () => {
+    const lines = await readFile(log, "utf-8");
+    return lines.split("\n").filter(Boolean).length;
+  };
+};
+
+const accountEngine = async (
+  remote: string,
+  options: { reach: () => boolean; quietFetchMs?: number },
+): Promise<{ engine: GitEngine; root: string; passes: () => number }> => {
+  const root = scratchDir("inteligir-git-quiet-");
+  await ensureVaultRepo({ env, root });
+  let passes = 0;
+  const engineArgs: GitEngineArgs = {
+    accountPingsReach: options.reach,
+    deviceName: () => TEST_DEVICE,
+    env,
+    remote: () => {
+      passes += 1;
+      return { account: { id: "user-quiet", state: "known" }, source: "account", url: remote };
+    },
+    root,
+  };
+  if (options.quietFetchMs !== undefined) {
+    engineArgs.quietFetchMs = options.quietFetchMs;
+  }
+  const engine = createGitEngine(engineArgs);
+  onTestFinished(async () => {
+    await engine.dispose();
+  });
+  return { engine, passes: () => passes, root };
+};
+
+const pushFromAnotherDevice = async (remote: string, file: string): Promise<void> => {
+  const other = await makeEngine({ device: "Other Device", remoteUrl: remote });
+  await writeFile(path.join(other.root, file), `# ${file}\n`);
+  await other.engine.commitNow();
+  expect(await syncState(other.engine)).toBe("clean");
+};
+
+const ticks = async (passes: () => number, count: number): Promise<void> => {
+  const from = passes();
+  await vi.waitFor(() => {
+    expect(passes()).toBeGreaterThanOrEqual(from + count);
+  }, PASS_WAIT);
+};
+
+describe("the account remote's quiet tick", { timeout: 30_000 }, () => {
+  it("leaves the remote alone while a ping would reach this device and nothing waits to go up", async () => {
+    const remote = await makeBareRemote();
+    let reach = true;
+    const { engine, passes, root } = await accountEngine(remote, { reach: () => reach });
+    await writeFile(path.join(root, "mine.md"), "# mine\n");
+    await engine.commitNow();
+    expect(await syncState(engine)).toBe("clean");
+
+    await pushFromAnotherDevice(remote, "theirs.md");
+    engine.startAutoSync(30);
+    await ticks(passes, 6);
+    expect(existsSync(path.join(root, "theirs.md"))).toBe(false);
+
+    // with the socket down no ping can come, so the next tick fetches.
+    reach = false;
+    await vi.waitFor(() => {
+      expect(existsSync(path.join(root, "theirs.md"))).toBe(true);
+    }, PASS_WAIT);
+  });
+
+  it("still sends a commit up on the next tick, and a forced pass always fetches", async () => {
+    const remote = await makeBareRemote();
+    const { engine, passes, root } = await accountEngine(remote, { reach: () => true });
+    await writeFile(path.join(root, "first.md"), "# first\n");
+    await engine.commitNow();
+    expect(await syncState(engine)).toBe("clean");
+
+    engine.startAutoSync(30);
+    await writeFile(path.join(root, "second.md"), "# second\n");
+    await engine.commitNow();
+    await vi.waitFor(async () => {
+      const listed = await runGit(remote, ["ls-tree", "--name-only", "main"], { env });
+      expect(listed.stdout).toContain("second.md");
+    }, PASS_WAIT);
+
+    await pushFromAnotherDevice(remote, "theirs.md");
+    await ticks(passes, 4);
+    expect(existsSync(path.join(root, "theirs.md"))).toBe(false);
+    // a ping, a sign-in and Sync now all arrive as syncNow.
+    await engine.syncNow();
+    expect(existsSync(path.join(root, "theirs.md"))).toBe(true);
+  });
+
+  it("reaches the remote again once the quiet window has passed", async () => {
+    const remote = await makeBareRemote();
+    const { engine, root } = await accountEngine(remote, { quietFetchMs: 200, reach: () => true });
+    await writeFile(path.join(root, "mine.md"), "# mine\n");
+    await engine.commitNow();
+    expect(await syncState(engine)).toBe("clean");
+
+    await pushFromAnotherDevice(remote, "theirs.md");
+    engine.startAutoSync(30);
+    await vi.waitFor(() => {
+      expect(existsSync(path.join(root, "theirs.md"))).toBe(true);
+    }, PASS_WAIT);
+  });
+
+  it("sends no push when the fetched tip already holds this device's head", async () => {
+    const remote = await makeBareRemote();
+    const { engine, root } = await accountEngine(remote, { reach: () => false });
+    await writeFile(path.join(root, "mine.md"), "# mine\n");
+    await engine.commitNow();
+    expect(await syncState(engine)).toBe("clean");
+    const pushes = await countPushes(root);
+
+    const inSync = await engine.syncNow();
+    expect(inSync.state).toBe("clean");
+    expect(await pushes()).toBe(0);
+
+    await writeFile(path.join(root, "more.md"), "# more\n");
+    await engine.commitNow();
+    const pushed = await engine.syncNow();
+    expect(pushed.state).toBe("clean");
+    expect(await pushes()).toBe(1);
   });
 });
