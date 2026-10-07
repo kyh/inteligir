@@ -4,7 +4,7 @@ import path from "node:path";
 import { ORPCError, safe } from "@orpc/client";
 import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
-import type { ConnectorTargetInput } from "@repo/api/local/connectors/connectors-schema";
+import type { ConnectorTargetInput } from "@repo/contract/local/connectors/connectors-schema";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { bootTestApp, instanceVendorEnv } from "../../__tests__/boot-app";
 import { AgentPrefsStore } from "../../agents/agent-prefs-store";

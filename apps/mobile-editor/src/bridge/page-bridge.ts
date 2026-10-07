@@ -1,3 +1,5 @@
+import { deferred } from "@repo/editor/deferred";
+import type { Deferred } from "@repo/editor/deferred";
 import { PAGE_RECEIVER, pageFrameSchema, parseNativeFrame, REQUESTS } from "./protocol";
 import type {
   NativeFrame,
@@ -61,14 +63,14 @@ const NO_DEADLINE: ReadonlySet<RequestKind> = new Set([
 ]);
 
 interface Pending {
-  readonly answer: PromiseWithResolvers<unknown>;
+  readonly answer: Deferred<unknown>;
   readonly timer: ReturnType<typeof setTimeout> | null;
 }
 
 // Resolves on the first well-formed `init`; a second is another load's and is dropped. Before it,
 // nothing but `ready` is sent, so no frame leaves the page without the nonce.
 export const connectPageBridge = async (transport: BridgeTransport): Promise<ConnectedPage> => {
-  const connected = Promise.withResolvers<ConnectedPage>();
+  const connected = deferred<ConnectedPage>();
   const pending = new Map<number, Pending>();
   const listeners = new Set<(event: NativeEvent) => void>();
   let nonce: string | null = null;
@@ -93,7 +95,7 @@ export const connectPageBridge = async (transport: BridgeTransport): Promise<Con
       nextId += 1;
       // parsed on the way out too, so a malformed ask is refused here rather than by the phone
       const frame = pageFrameSchema.parse({ id, kind, nonce: stamp, payload, type: "request" });
-      const answer = Promise.withResolvers<unknown>();
+      const answer = deferred<unknown>();
       const timer = NO_DEADLINE.has(kind)
         ? null
         : setTimeout(() => {

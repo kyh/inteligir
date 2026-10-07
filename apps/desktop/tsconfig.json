@@ -1,23 +1,14 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // this program compiles apps/cli's server, which it hosts in-process and which targets ES2024.
     "lib": ["ES2024"],
     "types": ["node"],
-    "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.main.json"
+    "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.config.json"
   },
-  "include": [
-    "src/main",
-    "src/preload",
-    "src/types.ts",
-    "src/update-state.ts",
-    "electron.vite.config.ts",
-    "vitest.config.ts"
-  ],
-  // `src/renderer` is its OWN program (src/renderer/tsconfig.json): it is the
-  // page, and it type-checks against the DOM and React rather than
-  // @types/node. Keeping the two halves in separate directories is what lets
-  // every tool that resolves a file's config by walking up (tsc, the editor,
-  // oxlint's type-aware pass) find the right one. `pnpm typecheck` runs both.
-  "exclude": ["node_modules", ".output", "src/renderer"]
+  "include": ["vite.config.ts", "vitest.config.ts"],
+  // `src` is the page and its own programs (src/renderer/tsconfig.json with its suites, and
+  // tsconfig.page.json at the window's stdlib): they type-check against the DOM and React rather
+  // than @types/node, and reach the shared states beside them (src/*.ts) by import. The shell is
+  // Rust (src-tauri), checked by clippy. `pnpm typecheck` runs all four.
+  "exclude": ["node_modules", "dist", "src", "src-tauri"]
 }

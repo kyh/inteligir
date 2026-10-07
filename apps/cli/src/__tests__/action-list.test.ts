@@ -1,7 +1,7 @@
 // against the real composition: the cursor is the server's to mint and to read back.
 
 import { setTimeout as delay } from "node:timers/promises";
-import { listThreadsResponseSchema } from "@repo/api/local/threads/threads-schema";
+import { listThreadsResponseSchema } from "@repo/contract/local/threads/threads-schema";
 import { describe, expect, it } from "vitest";
 import { bootThreadHarness, listenTestApp, TEST_SERVER_TOKEN } from "../server/__tests__/boot-app";
 import { loopbackOrigin } from "../server/server-file";

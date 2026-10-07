@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
-import { AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
+import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
 import { Button } from "@repo/ui/components/button";
 
 import {

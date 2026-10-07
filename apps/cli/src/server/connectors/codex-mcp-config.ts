@@ -10,7 +10,10 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
 import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
-import type { ConnectorAuth, ConnectorTarget } from "@repo/api/local/connectors/connectors-schema";
+import type {
+  ConnectorAuth,
+  ConnectorTarget,
+} from "@repo/contract/local/connectors/connectors-schema";
 import { failureOf, succeeded } from "../agents/vendor-process";
 import type { VendorProcessContext, VendorRun } from "../agents/vendor-process";
 import type { McpSignInRun } from "./mcp-sign-ins";

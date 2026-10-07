@@ -12,14 +12,14 @@ import {
   RPC_PREFIX,
   VAULT_ASSET_PATH,
   WS_PATH,
-} from "@repo/api/local/routes";
+} from "@repo/contract/local/routes";
 import {
   browserHandoffResponseSchema,
   guideResponseSchema,
   systemStatusResponseSchema,
-} from "@repo/api/local/system/system-schema";
-import { serverMessageLenientSchema } from "@repo/api/local/notifications";
-import type { ServerMessage } from "@repo/api/local/notifications";
+} from "@repo/contract/local/system/system-schema";
+import { serverMessageLenientSchema } from "@repo/contract/local/notifications";
+import type { ServerMessage } from "@repo/contract/local/notifications";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { BROWSER_SESSION_COOKIE } from "../browser-session";

@@ -4,7 +4,7 @@
 // checked out from there, never a write into the vault from here, so the tree the merge commits is
 // exactly the one on disk.
 
-import { VAULT_MAX_CONTENT_LENGTH } from "@repo/api/local/vault/vault-schema";
+import { VAULT_MAX_CONTENT_LENGTH } from "@repo/contract/local/vault/vault-schema";
 import { takenIgnoringCase } from "@repo/notes/knowledge/doc-file";
 import { deviceLabel } from "@repo/notes/sync/conflict-copy";
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";

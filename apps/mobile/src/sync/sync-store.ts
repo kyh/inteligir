@@ -1,7 +1,7 @@
 // the cursor and the applied log live in one store: a cursor persisted beside an in-memory log
 // claims rows the log never held.
 
-import type { LogPlanStep } from "@repo/api/cloud/sync/plan-page";
+import type { LogPlanStep } from "@repo/contract/cloud/sync/plan-page";
 import type { ThreadEvent, ThreadEventDelta } from "@repo/domain/provider-event";
 import type { SignInSource } from "../notes/notes-store";
 

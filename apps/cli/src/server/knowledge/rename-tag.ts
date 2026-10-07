@@ -2,7 +2,7 @@
 // writeIfUnchanged, so a doc that changed under the rename loses its rewrite, never its
 // content. Each write is the vault's own, so the auto-commit names the files.
 
-import type { KnowledgeRenameTagResponse } from "@repo/api/local/knowledge/knowledge-schema";
+import type { KnowledgeRenameTagResponse } from "@repo/contract/local/knowledge/knowledge-schema";
 import { snapshotDocs } from "./snapshot-docs";
 import type { VaultService } from "../vault/vault-service";
 import type { KnowledgeRuntime } from "./knowledge-runtime";

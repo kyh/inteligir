@@ -17,12 +17,12 @@ import {
   getThread,
   setThreadProviderSession,
 } from "@repo/db/threads";
-import { serverMessageLenientSchema } from "@repo/api/local/notifications";
-import type { ServerMessage } from "@repo/api/local/notifications";
-import { WS_PATH } from "@repo/api/local/routes";
-import type { TimelineResponse } from "@repo/api/local/threads/threads-schema";
-import { applyTimelineDelta } from "@repo/api/local/thread-timeline";
-import type { TimelineRow } from "@repo/api/local/thread-timeline";
+import { serverMessageLenientSchema } from "@repo/contract/local/notifications";
+import type { ServerMessage } from "@repo/contract/local/notifications";
+import { WS_PATH } from "@repo/contract/local/routes";
+import type { TimelineResponse } from "@repo/contract/local/threads/threads-schema";
+import { applyTimelineDelta } from "@repo/contract/local/thread-timeline";
+import type { TimelineRow } from "@repo/contract/local/thread-timeline";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
@@ -587,6 +587,44 @@ describe("the queue drain", () => {
     expect(listQueuedThreadMessages(db, threadId)).toEqual([]);
     expect(await getThreadStatus(client, threadId)).toBe("active");
   });
+
+  it("drains a queued message after a turn the vendor failed for an ordinary reason", async () => {
+    const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const started = await client.threads.send({ text: "first", threadId });
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    await client.threads.send({ text: "queued", threadId });
+
+    driver.failTurn(threadId, started.turnId, "overloaded");
+    expect(driver.startedTurns.map((turn) => turn.text)).toEqual(["first", "queued"]);
+    expect(listQueuedThreadMessages(db, threadId)).toEqual([]);
+  });
+
+  it.each(["usage-limit", "auth"] as const)(
+    "leaves the queue for the next send after a %s refusal, which would refuse it too",
+    async (failure) => {
+      const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
+      const threadId = await createThread(client);
+      const started = await client.threads.send({ text: "first", threadId });
+      if (started.kind !== "started") {
+        throw new Error("expected a started turn");
+      }
+      await client.threads.send({ text: "queued", threadId });
+
+      driver.failTurn(threadId, started.turnId, failure);
+      expect(driver.startedTurns.map((turn) => turn.text)).toEqual(["first"]);
+      expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["queued"]);
+      expect(await getThreadStatus(client, threadId)).toBe("error");
+
+      // the next send starts the oldest message first and waits behind it.
+      const later = await client.threads.send({ text: "later", threadId });
+      expect(later.kind).toBe("queued");
+      expect(driver.startedTurns.map((turn) => turn.text)).toEqual(["first", "queued"]);
+      expect(listQueuedThreadMessages(db, threadId).map((row) => row.text)).toEqual(["later"]);
+    },
+  );
 
   it("starts a stranded message before the send that found it, which queues behind", async () => {
     const { client, db, driver } = await bootThreadHarness({ mode: "manual" });

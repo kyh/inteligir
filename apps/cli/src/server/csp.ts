@@ -1,5 +1,7 @@
 export interface ContentSecurityPolicyArgs {
-  // null for a page with no server behind it, the desktop's first run, which dials no socket
+  // null for a page with no server behind it: the desktop's first run, which dials no socket and
+  // whose policy, held in the shell's config, is this one plus Tauri's IPC origins in connect-src
+  // (tools/repo-guards/src/desktop-shell-wire.test.ts)
   wsOrigin: string | null;
 }
 
@@ -25,7 +27,6 @@ export const buildContentSecurityPolicy = (args: ContentSecurityPolicyArgs): str
     "worker-src 'none'",
   ].join("; ");
 
-// one table for both stampers (this server and the desktop protocol handler).
 // the token cookie is not here: the window never needs one, so it belongs to the caller that has a token.
 export const documentSecurityHeaders = (args: ContentSecurityPolicyArgs) =>
   ({

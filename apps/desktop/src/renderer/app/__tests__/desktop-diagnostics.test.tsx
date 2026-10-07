@@ -49,7 +49,7 @@ afterAll(() => {
 });
 
 describe("under the shell", () => {
-  it("draws the choice, and the rows only main can answer", async () => {
+  it("draws the choice, and the rows only the shell can answer", async () => {
     render(<DiagnosticsRows system={undefined} />);
 
     const restartButton = await screen.findByText("Restart Inteligir");
@@ -68,7 +68,7 @@ describe("under the shell", () => {
     expect(restart).toHaveBeenCalledOnce();
   });
 
-  it("hands back main's refusal in main's words", async () => {
+  it("hands back the shell's refusal in its words", async () => {
     expect(await setDebugLogging(false)).toBe("The choice could not be saved: EACCES");
     expect(setDebug).toHaveBeenCalledWith(false);
   });

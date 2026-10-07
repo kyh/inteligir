@@ -1,6 +1,6 @@
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { ViewContext } from "@repo/domain/view-context";
-import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
+import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
 
 // what a stop found: a turn that will still report its own end through the sink, or none that
 // ever will, which leaves settling the stop to the caller.

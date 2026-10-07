@@ -2,7 +2,7 @@
 // their own apps, so a Mac already signed in to the default agent is shown connected instead.
 // Skipped, the app is a notes app, and ⌘K offers the same sign-in when it is first pressed.
 
-import type { AgentsStatusResponse } from "@repo/api/local/agents/agents-schema";
+import type { AgentsStatusResponse } from "@repo/contract/local/agents/agents-schema";
 import { Button } from "@repo/ui/components/button";
 import { Spinner } from "@repo/ui/components/spinner";
 import { useAgentsStatus } from "../agents/agent-hooks";

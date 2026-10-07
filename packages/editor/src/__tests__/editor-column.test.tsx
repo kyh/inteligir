@@ -1,3 +1,5 @@
+import { deferred } from "@repo/editor/deferred";
+import type { Deferred } from "@repo/editor/deferred";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -31,7 +33,7 @@ const retitle = (text: string): void => {
 
 describe("Enter in the note's title", () => {
   it("hands the caret to the body only once a rename has carried the note", async () => {
-    const rename: PromiseWithResolvers<boolean> = Promise.withResolvers();
+    const rename: Deferred<boolean> = deferred();
     installFakeEditorHost({ renameEntry: async () => await rename.promise });
     const store = createOpenNoteStore();
     showNote(store, "a.txt");

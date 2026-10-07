@@ -2,8 +2,8 @@ import site from "@tanstack/react-start/server-entry";
 import api, { ownsPath } from "./index";
 
 // A plain ExportedHandler rather than Start's createServerEntry: Cloudflare calls fetch with the
-// bindings, and a ServerEntry's (request, opts?) has nowhere to put them. wrangler.jsonc's `main`
-// must name this file by path; pointing it at the @tanstack/react-start/server-entry export builds
+// bindings, and a ServerEntry's (request, opts?) has nowhere to put them. cloudflare.config.ts's
+// `entrypoint` must be this file; pointing it at the @tanstack/react-start/server-entry export builds
 // that entry alone and silently drops everything here (cloudflare/workers-sdk#11100).
 
 // the runtime instantiates Durable Objects from the deployed entry's exports

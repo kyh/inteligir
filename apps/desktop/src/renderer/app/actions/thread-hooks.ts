@@ -7,9 +7,9 @@ import type {
   ListThreadsResponse,
   Thread,
   TurnChangesResponse,
-} from "@repo/api/local/threads/threads-schema";
-import { applyTimelineDelta } from "@repo/api/local/thread-timeline";
-import type { ThreadTimeline } from "@repo/api/local/thread-timeline";
+} from "@repo/contract/local/threads/threads-schema";
+import { applyTimelineDelta } from "@repo/contract/local/thread-timeline";
+import type { ThreadTimeline } from "@repo/contract/local/thread-timeline";
 import { skipToken, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { InfiniteData, UseInfiniteQueryResult, UseQueryResult } from "@tanstack/react-query";
 import { useEffect, useState } from "react";

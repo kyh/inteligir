@@ -1,6 +1,6 @@
-import { DEVICE_CREDENTIAL_PREFIX } from "@repo/api/cloud/device/device-schema";
-import type { DeviceLoginResponse } from "@repo/api/cloud/device/device-schema";
-import { hexFromBytes, sha256Hex } from "@repo/api/cloud/bytes";
+import { DEVICE_CREDENTIAL_PREFIX } from "@repo/contract/cloud/device/device-schema";
+import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
+import { hexFromBytes, sha256Hex } from "@repo/contract/cloud/bytes";
 import { APIError } from "better-auth/api";
 import { eq } from "drizzle-orm";
 import type { createAuth } from "../auth/auth";

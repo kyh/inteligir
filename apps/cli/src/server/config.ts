@@ -6,10 +6,10 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
 import type { HarnessId, HarnessModels } from "@repo/agent-runtime/acp/harness-registry";
-import { PRODUCTION_CLOUD_ORIGIN } from "@repo/api/cloud/origin";
-import { agentModeSchema, agentModeValues } from "@repo/api/local/system/system-schema";
-import type { AgentMode } from "@repo/api/local/system/system-schema";
-import { parseRemoteUrl, VAULT_REMOTE_PIN_ENV_VAR } from "@repo/api/local/vault/remote-url";
+import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
+import { agentModeSchema, agentModeValues } from "@repo/contract/local/system/system-schema";
+import type { AgentMode } from "@repo/contract/local/system/system-schema";
+import { parseRemoteUrl, VAULT_REMOTE_PIN_ENV_VAR } from "@repo/contract/local/vault/remote-url";
 import { DEBUG_NAMESPACES, parseDebugNamespaces } from "./debug-log";
 import type { DebugNamespace } from "./debug-log";
 import { resolveDevDefaultPort, resolveDevInstanceId } from "./dev-instance";
@@ -334,6 +334,10 @@ const retiredVaultRemoteWarnings = (
           "ignored: a vault syncs with its own git origin, so run `inteligir vault remote <url>`, " +
           `or pin one with ${ENV_VARS.vaultRemote.name}.`,
       ];
+
+// the selector as config.json holds it, unparsed, so writing it back restores exactly it
+export const readManagedVaultDir = (rootDataDir: string): string | null =>
+  readManagedConfigFile(rootDataDir).vaultDir ?? null;
 
 // The root's config.json is the vault selector: it is what `inteligir serve` reads with no
 // shell around, so a switch made in the shell is the CLI's next boot too. null removes the key, so

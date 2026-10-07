@@ -1,5 +1,5 @@
 import { createORPCErrorFromJson } from "@orpc/client";
-import { undoKeptReasonSchema } from "@repo/api/local/threads/threads-schema";
+import { undoKeptReasonSchema } from "@repo/contract/local/threads/threads-schema";
 import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { bootThreadHarness } from "inteligir/server/testing";

@@ -102,15 +102,11 @@ const HOST_AGENT_ENV: ReadonlySet<string> = new Set([
 ]);
 
 // the launch mode states the runtime, never the outer shell: an inherited INTELIGIR_* or NODE_ENV
-// moves an instance's dirs or mode, and a leaked ELECTRON_RUN_AS_NODE turns Electron into node.
+// moves an instance's dirs or mode.
 export const appLaunchEnv = (): NodeJS.ProcessEnv =>
   withoutKeys(
     hermeticProcessEnv(),
-    (key) =>
-      key.startsWith("INTELIGIR_") ||
-      key === "NODE_ENV" ||
-      key === "ELECTRON_RUN_AS_NODE" ||
-      HOST_AGENT_ENV.has(key),
+    (key) => key.startsWith("INTELIGIR_") || key === "NODE_ENV" || HOST_AGENT_ENV.has(key),
   );
 
 export const gitIn = async (dir: string, args: readonly string[]): Promise<string> => {

@@ -4,7 +4,7 @@ import type {
   AgentsSignOutResponse,
   AgentsStatusResponse,
   HarnessStatus,
-} from "@repo/api/local/agents/agents-schema";
+} from "@repo/contract/local/agents/agents-schema";
 import { HARNESS_IDS, HARNESSES, harnessIdSchema } from "@repo/agent-runtime/acp/harness-registry";
 import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 

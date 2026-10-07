@@ -11,16 +11,16 @@ import {
   KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
   KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
   KNOWLEDGE_UNLINKED_MAX_LIMIT,
-} from "@repo/api/local/knowledge/knowledge-schema";
+} from "@repo/contract/local/knowledge/knowledge-schema";
 import {
   THREADS_LIST_DEFAULT_LIMIT,
   THREADS_LIST_MAX_LIMIT,
-} from "@repo/api/local/threads/threads-schema";
+} from "@repo/contract/local/threads/threads-schema";
 import {
   VAULT_HISTORY_DEFAULT_LIMIT,
   VAULT_HISTORY_MAX_LIMIT,
   VAULT_MAX_CONTENT_LENGTH,
-} from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/vault/vault-schema";
 import { DEBUG_TRACES } from "../debug-log";
 import {
   DEFAULT_WAIT_POLL_INTERVAL_MS,

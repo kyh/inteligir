@@ -1,3 +1,4 @@
+import { deferred } from "@repo/editor/deferred";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createSlateEditor, ElementApi, KEYS } from "platejs";
 
@@ -96,7 +97,7 @@ describe("image ingestion", () => {
 
   it("lands nothing in a note that closed while its image uploaded, and says where it went", async () => {
     const { editor, unregister } = newEditor();
-    const upload = Promise.withResolvers<{ path: string }>();
+    const upload = deferred<{ path: string }>();
     helpers.writeVaultAsset.mockReturnValueOnce(upload.promise);
 
     const ingest = ingestImageFiles(editor, [

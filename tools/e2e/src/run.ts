@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { shellBinary } from "./harness/desktop-shell";
 import { buildProcessEnv, describeExecError, exec } from "./harness/exec";
 import { ScenarioSkipError } from "./harness/scenario-skip-error";
 import { killAllLiveGroups } from "./harness/tracked-child";
@@ -109,6 +110,8 @@ const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list] [--no-skip]
 const DEFAULT_SCENARIO_TIMEOUT_MS = 180_000;
 // a cold build runs the desktop renderer's vite build before the CLI bundles it.
 const CLI_BUILD_TIMEOUT_MS = 300_000;
+// a cold build compiles the shell and every crate under it
+const SHELL_BUILD_TIMEOUT_MS = 1_200_000;
 
 interface CliOptions {
   only: string[];
@@ -293,6 +296,30 @@ const buildCli = async (repoRoot: string): Promise<void> => {
   console.log(`${timestamp()} built (${seconds(Date.now() - startedAt)})`);
 };
 
+// the unbundled debug shell the shell scenarios drive (harness/desktop-shell.ts), built here so a
+// cold compile spends no scenario's deadline; cargo's own cache makes a warm one a check. a
+// machine that cannot build it leaves them to skip, saying why, and a failed build removes the
+// last one's binary, which would otherwise run code this checkout no longer holds
+const buildShell = async (repoRoot: string): Promise<void> => {
+  if (process.platform !== "linux") {
+    return;
+  }
+  const startedAt = Date.now();
+  console.log(`${timestamp()} building the desktop shell the shell scenarios drive`);
+  try {
+    await exec(
+      "pnpm",
+      ["turbo", "run", "build:shell", "--filter=@repo/desktop", "--output-logs=errors-only"],
+      { cwd: repoRoot, env: buildProcessEnv(), timeoutMs: SHELL_BUILD_TIMEOUT_MS },
+    );
+  } catch (error) {
+    console.error(`${timestamp()} the shell did not build:\n${describeExecError(error)}`);
+    await rm(shellBinary(repoRoot), { force: true });
+    return;
+  }
+  console.log(`${timestamp()} built the shell (${seconds(Date.now() - startedAt)})`);
+};
+
 const main = async (): Promise<number> => {
   const options = parseArgs(process.argv.slice(2));
   if (options.list) {
@@ -305,6 +332,9 @@ const main = async (): Promise<number> => {
   const selected = selectScenarios(options);
   const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..");
   await buildCli(repoRoot);
+  if (selected.some((scenario) => scenario.usesDesktopShell === true)) {
+    await buildShell(repoRoot);
+  }
   const scratchRoot = await mkdtemp(path.join(tmpdir(), "inteligir-e2e-"));
   console.log(`e2e: ${selected.length} scenario(s), scratch=${scratchRoot}`);
 

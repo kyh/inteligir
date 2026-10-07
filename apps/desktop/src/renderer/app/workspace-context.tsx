@@ -7,13 +7,12 @@ import { isCommentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
-import type { ChangedMessage, ThreadChangedMessage } from "@repo/api/local/notifications";
-import type { VaultEntry, VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
+import type { ChangedMessage, ThreadChangedMessage } from "@repo/contract/local/notifications";
+import type { VaultEntry, VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import { createContext, useContext, useEffect, useState } from "react";
-import { workspaceSocketUrl } from "@repo/api/local/routes";
+import { workspaceSocketUrl } from "@repo/contract/local/routes";
 import { AppearanceProvider } from "./appearance";
 import { orpc } from "./api";
-import { socketOrigin } from "./socket-origin";
 import { browserInvalidationSocket, InvalidationClient } from "./invalidation-client";
 import { PREFS, usePref } from "./prefs";
 
@@ -347,7 +346,8 @@ export const WorkspaceProvider = ({ children }: { children: React.ReactNode }) =
       due?.apply(runtime.queryClient, runtime.emitVaultChange, runtime.notifyThread);
     };
     const invalidation = new InvalidationClient({
-      createSocket: () => browserInvalidationSocket(workspaceSocketUrl(socketOrigin())),
+      // the page is the server's own, under the shell as in a tab, so the socket dials its origin
+      createSocket: () => browserInvalidationSocket(workspaceSocketUrl(window.location.origin)),
       onChanged: (message) => {
         if (batch === null) {
           batch = new ChangeBatch();

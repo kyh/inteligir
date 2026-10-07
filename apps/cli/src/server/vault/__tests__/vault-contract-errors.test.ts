@@ -2,14 +2,14 @@
 // handler raises hands the client a branch that never runs. the other direction
 // is not derivable: `refusing` throws outside the row's typed errors.
 
-import { localContract } from "@repo/api/local";
+import { localContract } from "@repo/contract/local";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { VAULT_REFUSALS } from "../vault-refusals";
 
 const ROUTER_FILE = fileURLToPath(new URL("../vault-router.ts", import.meta.url));
-const CONTRACT_FILE = "packages/api/src/local/vault/vault-contract.ts";
+const CONTRACT_FILE = "packages/contract/src/local/vault/vault-contract.ts";
 const ROUTER_ANCHOR = "\nexport const vaultRouter";
 
 // the call shape, not the token: a comment mentioning `refusing(` must not hand its block the table.

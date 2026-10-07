@@ -1,15 +1,16 @@
 // The one choice made before any server exists: a new vault, or a folder of notes the user already
-// has, taken as plain markdown where it is. Main picks every folder and plans the boot, so this page
-// names only what main handed it and shows main's refusal in main's words.
+// has, taken as plain markdown where it is. The shell picks every folder and plans the boot, so
+// this page names only what the shell handed it and shows its refusal in its words.
 
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
-import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
+import { outsideSyncWarning, vaultNameProblem } from "@repo/contract/local/vault/vault-folder";
+import type { FolderFacts, OwnSync } from "@repo/contract/local/vault/vault-folder";
+import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { useId, useState } from "react";
-import { outsideSyncWarning, vaultNameProblem } from "../../first-run-state";
-import type { FirstRunChoice, FirstRunState, FolderFacts, OwnSync } from "../../first-run-state";
+import type { FirstRunChoice, FirstRunState } from "../../first-run-state";
 import type { FirstRunBridge } from "../../types";
 
 type VaultMode = "create" | "open";
@@ -24,7 +25,7 @@ interface PickedFolder {
   facts: FolderFacts;
 }
 
-// a throw across the bridge is a fault Electron words itself, so the page says its own sentence
+// a rejected command is a fault worded for whoever reads the shell's log, so the page says its own
 const BRIDGE_FAILED = "Inteligir did not answer. Try again.";
 
 const noteCountLine = ({ capped, count }: FolderFacts["noteCount"]): string => {
@@ -82,7 +83,7 @@ export const VaultStep = ({ bridge, proposal }: VaultStepProps) => {
   const [refusal, setRefusal] = useState<string | null>(null);
   const nameProblem = vaultNameProblem(name);
 
-  // one ask at a time: a picker and a boot both hold the page until main answers
+  // one ask at a time: a picker and a boot both hold the page until the shell answers
   const ask = async (kind: "picking" | "opening", work: () => Promise<void>): Promise<void> => {
     setBusy(kind);
     setRefusal(null);

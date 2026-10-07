@@ -1,4 +1,4 @@
-// Reveal and Open reach the OS through main, which resolves the entry against the vault and
+// Reveal and Open reach the OS through the shell, which resolves the entry against the vault and
 // refuses anything outside it; the page only ever names a vault-relative path. Outside the
 // shell there is no bridge and no such row.
 
@@ -7,7 +7,7 @@ import type { DesktopPathsBridge } from "../../types";
 
 export const desktopPaths = (): DesktopPathsBridge | undefined => window.desktopBridge?.paths;
 
-// a refusal is main's, in main's words; a broken bridge is one sentence, never a stack
+// a refusal is the shell's, in its words; a broken bridge is one sentence, never a stack
 const settlePathAction = async (
   action: () => Promise<{ ok: true } | { ok: false; reason: string }>,
   fallback: string,

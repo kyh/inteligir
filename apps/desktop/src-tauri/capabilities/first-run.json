@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "first-run",
+  "description": "The first-run window: the vault choice and nothing else, before any server exists. Its page is the bundle's own, on tauri://.",
+  "windows": ["first-run"],
+  "permissions": [
+    "allow-first-run-finish",
+    "allow-first-run-get-state",
+    "allow-first-run-pick-folder",
+    "allow-first-run-pick-parent"
+  ]
+}

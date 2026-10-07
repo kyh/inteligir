@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { attachmentLocationSchema } from "@repo/api/local/vault/vault-schema";
+import { attachmentLocationSchema } from "@repo/contract/local/vault/vault-schema";
 import { JsonFileStore } from "../json-file-store";
 
 const vaultPrefsSchema = z.object({ attachments: attachmentLocationSchema.optional() }).strict();

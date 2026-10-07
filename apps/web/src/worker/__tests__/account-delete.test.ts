@@ -1,7 +1,7 @@
 import {
   ACCOUNT_API_PATHS,
   deleteAccountResponseSchema,
-} from "@repo/api/cloud/account/account-schema";
+} from "@repo/contract/cloud/account/account-schema";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { eq, sql } from "drizzle-orm";

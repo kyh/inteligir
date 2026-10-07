@@ -4,26 +4,16 @@
 
 import fs from "node:fs/promises";
 import parcelWatcher from "@parcel/watcher";
-import { attachedPort, readParentPort } from "../../child-host/message-port";
-import type { MessagePortLike } from "../../child-host/message-port";
 import { parentToChildMessageSchema } from "./messages";
 import type { ChildToParentMessage, ParentToChildMessage } from "./messages";
 import { createParcelChildHandler } from "./parcel-child-handler";
 
-// the way back to the server: node's ipc channel when node forked this child, or the port main
-// handed it when the desktop shell's main forked it for the server.
-interface ParentLink {
-  send: (message: ChildToParentMessage) => void;
-  onMessage: (listener: (message: ParentToChildMessage) => void) => void;
-  onDisconnect: (listener: () => void) => void;
-  start: () => void;
-}
-
-const ipcLink: ParentLink = {
-  onDisconnect: (listener) => {
+// the way back to the server is node's ipc channel: the server forked this child.
+const link = {
+  onDisconnect: (listener: () => void) => {
     process.on("disconnect", listener);
   },
-  onMessage: (listener) => {
+  onMessage: (listener: (message: ParentToChildMessage) => void) => {
     process.on("message", (message) => {
       const parsed = parentToChildMessageSchema.safeParse(message);
       if (parsed.success) {
@@ -31,36 +21,10 @@ const ipcLink: ParentLink = {
       }
     });
   },
-  send: (message) => {
+  send: (message: ChildToParentMessage) => {
     process.send?.(message);
   },
-  start: () => {
-    /* empty */
-  },
 };
-
-const portLink = (port: MessagePortLike): ParentLink => ({
-  onDisconnect: (listener) => {
-    port.on("close", listener);
-  },
-  onMessage: (listener) => {
-    port.on("message", ({ data }) => {
-      const parsed = parentToChildMessageSchema.safeParse(data);
-      if (parsed.success) {
-        listener(parsed.data);
-      }
-    });
-  },
-  send: (message) => {
-    port.postMessage(message);
-  },
-  start: () => {
-    port.start();
-  },
-});
-
-const parentPort = readParentPort();
-const link = parentPort === null ? ipcLink : portLink(await attachedPort(parentPort));
 
 const handler = createParcelChildHandler({
   listEntries: async (dir) => await fs.readdir(dir),
@@ -89,5 +53,4 @@ link.onDisconnect(() => {
   void disposeThenExit();
 });
 
-link.start();
 link.send({ kind: "ready" });

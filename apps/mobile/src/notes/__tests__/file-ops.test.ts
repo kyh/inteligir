@@ -1,4 +1,4 @@
-import { VAULT_ASSET_MAX_BYTES } from "@repo/api/cloud/vault/vault-schema";
+import { VAULT_ASSET_MAX_BYTES } from "@repo/contract/cloud/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 import { createFileOps } from "../file-ops";
 import type { NotesStore } from "../notes-store";

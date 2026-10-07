@@ -1,5 +1,5 @@
-import { VAULT_HISTORY_MAX_LIMIT } from "@repo/api/local/vault/vault-schema";
-import type { VaultHistoryRequest, VaultRevision } from "@repo/api/local/vault/vault-schema";
+import { VAULT_HISTORY_MAX_LIMIT } from "@repo/contract/local/vault/vault-schema";
+import type { VaultHistoryRequest, VaultRevision } from "@repo/contract/local/vault/vault-schema";
 import { describe, expect, it } from "vitest";
 
 import { firstRevisionAuthoredAt, readingTimeLabel } from "../note-facts";

@@ -26,8 +26,20 @@ const DECLARED_CI_EXTRAS = new Map<string, string>([
     "installs agent-browser and its system deps globally on the runner; a developer installs it once, so making `verify` do it on every run would be a minutes-long tax on the static gate",
   ],
   [
-    "ci.yml:check:Electron sandbox",
-    "a kernel setting on the runner, so the desktop-shell scenario's Electron can use Chromium's namespace sandbox under Ubuntu's AppArmor; a developer's machine needs no such change, and the scenario it serves runs outside `verify` already",
+    "ci.yml:check:Desktop system libraries",
+    "provisioning: WebKitGTK and the appindicator, which the shell compiles and runs against on Linux, and WebKit's WebDriver for the shell scenarios; a developer installs them once, as Tauri's prerequisites",
+  ],
+  [
+    "ci.yml:check:Desktop Rust toolchain",
+    "provisioning: the toolchain apps/desktop/rust-toolchain.toml pins, which `verify`'s clippy and cargo test run on",
+  ],
+  [
+    "ci.yml:check:E2E shell driver",
+    "installs tauri-driver, which the shell scenarios drive the window through; a developer installs it once, and the scenarios it serves run outside `verify` already",
+  ],
+  [
+    "ci.yml:test-macos:Desktop Rust toolchain",
+    "provisioning: the pinned toolchain, as the check job's",
   ],
   [
     "ci.yml:check:E2E",
@@ -36,7 +48,7 @@ const DECLARED_CI_EXTRAS = new Map<string, string>([
   ["ci.yml:test-macos:Install", INSTALL_IS_PROVISIONING],
   [
     "ci.yml:test-macos:Smoke desktop",
-    "packs the macOS arm64 .app with electron-builder and boots its server through the app's own Electron binary, including the vault selector — minutes of packaging per run, and only a macOS host can do either, so it stays out of the static gate that runs on every platform",
+    "packs the macOS arm64 .app with Tauri and boots it, the server on the node it ships, the default vault and then the one config.json's selector names (the switch that writes it is the scenario suite's) — minutes of packaging per run, and only a macOS host can do either, so it stays out of the static gate that runs on every platform",
   ],
 ]);
 

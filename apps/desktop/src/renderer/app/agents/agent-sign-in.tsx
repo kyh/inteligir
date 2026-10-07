@@ -1,8 +1,11 @@
 // The one sign-in surface: ⌘K over a signed-out agent, the panel's banner, each Settings card and
 // onboarding all draw it, so the order, the wording and the waiting state are spelled once.
 
-import { harnessReadiness, SIGN_IN_CODE_MAX_LENGTH } from "@repo/api/local/agents/agents-schema";
-import type { HarnessStatus } from "@repo/api/local/agents/agents-schema";
+import {
+  harnessReadiness,
+  SIGN_IN_CODE_MAX_LENGTH,
+} from "@repo/contract/local/agents/agents-schema";
+import type { HarnessStatus } from "@repo/contract/local/agents/agents-schema";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";

@@ -1,6 +1,8 @@
 // held outside React: every async edge (save-vs-reload, open-vs-reload, delete-vs-save) needs
 // a guard that reads and writes in one tick, which render-timed refs cannot give.
 
+import { deferred } from "@repo/editor/deferred";
+import type { Deferred } from "@repo/editor/deferred";
 import { diff3 } from "@repo/notes/text/diff3";
 import type { Diff3Result } from "@repo/notes/text/diff3";
 
@@ -48,7 +50,7 @@ export const EMPTY_EDITOR_STATE: VaultEditorState = { kind: "closed" };
 // had landed, and `reload` a change announced while held, run once resume has named the path.
 interface Hold {
   readonly base: string | null;
-  readonly released: PromiseWithResolvers<void>;
+  readonly released: Deferred<void>;
   reload: boolean;
 }
 
@@ -300,7 +302,7 @@ export class VaultEditorController {
       return;
     }
     const { st } = this;
-    const released: PromiseWithResolvers<void> = Promise.withResolvers();
+    const released: Deferred<void> = deferred();
     this.held = {
       base: st.kind === "open" && !st.dirty ? st.content : null,
       released,

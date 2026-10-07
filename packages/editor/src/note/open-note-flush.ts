@@ -2,6 +2,7 @@
 // send's view context) flush the open note through this module; a live store registers itself,
 // so a torn-down session is one nothing can flush.
 
+import { deferred } from "@repo/editor/deferred";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 
 const FLUSH_TIMEOUT_MS = 5000;
@@ -20,7 +21,7 @@ const flushStore = async (store: OpenNoteStore): Promise<boolean> => {
   if (flush === null) {
     return true;
   }
-  const timeout = Promise.withResolvers<boolean>();
+  const timeout = deferred<boolean>();
   const timer = setTimeout(() => {
     timeout.resolve(false);
   }, FLUSH_TIMEOUT_MS);

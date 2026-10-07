@@ -3,9 +3,9 @@ import {
   DEFAULT_ATTACHMENT_LOCATION,
   VAULT_ASSET_MAX_BYTES,
   VAULT_HISTORY_DEFAULT_LIMIT,
-} from "@repo/api/local/vault/vault-schema";
-import type { VaultRenameResponse } from "@repo/api/local/vault/vault-schema";
-import { VAULT_REMOTE_PIN_ENV_VAR } from "@repo/api/local/vault/remote-url";
+} from "@repo/contract/local/vault/vault-schema";
+import type { VaultRenameResponse } from "@repo/contract/local/vault/vault-schema";
+import { VAULT_REMOTE_PIN_ENV_VAR } from "@repo/contract/local/vault/remote-url";
 import { removeEntryWithComments } from "../comments/remove-with-comments";
 import { attributeWrites, base, refusals } from "../orpc";
 import { vaultWireError } from "./vault-refusals";

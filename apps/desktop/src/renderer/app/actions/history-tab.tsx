@@ -5,8 +5,8 @@ import {
   contentHashHex,
   VAULT_HISTORY_DEFAULT_LIMIT,
   VAULT_HISTORY_MAX_LIMIT,
-} from "@repo/api/local/vault/vault-schema";
-import type { VaultRevision } from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/vault/vault-schema";
+import type { VaultRevision } from "@repo/contract/local/vault/vault-schema";
 import { useOpenNote } from "@repo/editor/note/open-note-context";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { Button } from "@repo/ui/components/button";

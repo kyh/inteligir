@@ -41,6 +41,21 @@ jobs:
         id: install
         run: pnpm install --frozen-lockfile
 
+      # Tauri compiles the shell against WebKitGTK on Linux (the Mac ships its own WebKit), its menu
+      # bar icon loads the appindicator at runtime, and the shell scenarios drive the window
+      # through WebKit's own WebDriver
+      - name: Desktop system libraries
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev webkit2gtk-driver
+
+      - name: Desktop Rust toolchain
+        working-directory: apps/desktop
+        run: rustup toolchain install
+
+      - name: Desktop Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: apps/desktop/src-tauri
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -70,18 +85,18 @@ jobs:
         # rides no lockfile and no release cooldown
         run: pnpm add -g agent-browser@0.36.0 && agent-browser install --with-deps
 
-      - name: Electron sandbox
+      - name: E2E shell driver
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # Ubuntu's AppArmor denies unprivileged user namespaces, so the Electron shell the
-        # desktop-shell scenario launches aborts before its window opens; this lets Chromium's own
-        # sandbox run rather than launching the shell with --no-sandbox, which ships nowhere
-        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        # tauri-driver fronts WebKitWebDriver for the shell scenarios. pinned by hand, like
+        # agent-browser: a cargo install rides no lockfile. the Rust cache keeps the binary, so a
+        # warm run only checks it is that version
+        run: cargo install tauri-driver --version 2.1.0 --locked
 
       - name: E2E
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # "E2E browser" installed the browser, and xvfb-run gives the desktop shell's window the
-        # display the runner lacks, so a scenario that skips is a broken setup: --no-skip fails it
-        # instead of passing it behind a green step
+        # "E2E browser" installed the browser, "E2E shell driver" the shell's WebDriver, and
+        # xvfb-run gives the shell's window the display the runner lacks, so a scenario that skips is
+        # a broken setup: --no-skip fails it instead of passing it behind a green step
         run: xvfb-run -a pnpm e2e --no-skip
 
   # the app ships only as a macOS arm64 .app, and the suites meet APFS, FSEvents and a tmpdir
@@ -89,8 +104,9 @@ jobs:
   # check job alone runs them
   test-macos:
     runs-on: macos-latest
-    # a backstop: neither the suites nor electron-builder carry a deadline of their own
-    timeout-minutes: 30
+    # a backstop: neither the suites nor the Tauri pack carry a deadline of their own, and a cold
+    # release build of the shell is several minutes of it
+    timeout-minutes: 50
     env:
       TURBO_TELEMETRY_DISABLED: 1
       # three cores and 7 GB: four suites at once, the editor's 4 GB budget among them, push
@@ -111,13 +127,22 @@ jobs:
         id: install
         run: pnpm install --frozen-lockfile
 
+      - name: Desktop Rust toolchain
+        working-directory: apps/desktop
+        run: rustup toolchain install
+
+      - name: Desktop Rust cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: apps/desktop/src-tauri
+
       - name: Test
         run: pnpm test
 
       - name: Smoke desktop
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # unsigned whatever the runner's keychain holds; it reaches electron-builder only because
+        # ad-hoc whatever the runner's keychain holds; it reaches scripts/package.mjs only because
         # apps/desktop/turbo.json passes it through turbo's strict env
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          INTELIGIR_PACK_UNSIGNED: 1
         run: pnpm smoke:desktop

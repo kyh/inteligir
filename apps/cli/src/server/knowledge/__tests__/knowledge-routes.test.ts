@@ -6,7 +6,7 @@ import {
   knowledgeSearchResponseSchema,
   knowledgeTagNotesResponseSchema,
   knowledgeTagsResponseSchema,
-} from "@repo/api/local/knowledge/knowledge-schema";
+} from "@repo/contract/local/knowledge/knowledge-schema";
 import { describe, expect, it } from "vitest";
 import { bootTestApp } from "../../__tests__/boot-app";
 

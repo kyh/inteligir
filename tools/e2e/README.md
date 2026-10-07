@@ -57,29 +57,36 @@ scratch dir and tears everything down afterwards:
   the data dir — a device credential, so the instance boots already signed in.
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
   `INTELIGIR_VAULT_REMOTE` or `vault.setRemote`.
-- `cloudWorker({ builtConfig?, vars? })` — the product Worker (apps/web) under
-  `wrangler dev` on a scratch persist dir, its D1 carrying apps/web's own
-  `db:export` schema plus one invite row; `vars` override wrangler.jsonc's
-  (a storage cap a scenario can fill). Registered for teardown exactly like an
+- `cloudWorker({ vars? })` — the product Worker (apps/web), built through turbo
+  and booted from its `cf build` output under Miniflare
+  (`src/harness/worker-host.ts`) on a scratch persist dir, its D1 carrying
+  apps/web's own `db:export` schema plus one invite row; `vars` override
+  cloudflare.config.ts's text bindings (a storage cap a scenario can fill). Registered for teardown exactly like an
   instance.
-- `instance.api` — the oRPC client over `@repo/api/local`, carrying the device
+- `instance.api` — the oRPC client over `@repo/contract/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.
-- `desktopShell({ seedVault?, seedUserData?, firstRun? })` — the checkout's
-  built Electron shell. It makes the default vault's folder before launch, as a
-  launch before first run left it, so the shell boots it; `firstRun: true`
+- `desktopShell({ seedVault?, seedOwnDir?, firstRun? })` — the checkout's
+  built Tauri shell (`pnpm turbo run build:shell --filter=@repo/desktop`, an
+  unbundled debug build the runner makes before the first scenario that asks,
+  outside every deadline). It makes the default vault's folder before launch,
+  as a launch before first run left it, so the shell boots it; `firstRun: true`
   makes nothing, so the shell opens its first-run page and boots no server
   until a vault is chosen, and a relaunch over the same scratch finds the vault
-  that run made. Launched with `--remote-debugging-port` on a scratch `HOME` and
-  `--user-data-dir` (never `INTELIGIR_DATA_DIR`/`INTELIGIR_VAULT_DIR`, which
-  would make it refuse a vault switch), a pinned server port and
-  `INTELIGIR_AGENT=scripted`. Its `cdpPort` is what an agent-browser session
-  `connect`s to; `api` is the oRPC client over whichever server it runs now;
-  `target()` is the data and vault dir it resolves now, derived as main derives
-  them; `quit()` sends main alone the SIGTERM an OS quit would. The Electron
-  binary is fetched by electron's own installer on first use (pnpm runs no
-  install script). Registered for teardown like an instance. On Linux with no
-  display it skips: run the suite under `xvfb-run -a`.
+  that run made. Launched by `tauri-driver` on a scratch `HOME` (never
+  `INTELIGIR_DATA_DIR`/`INTELIGIR_VAULT_DIR`, which would make it refuse a vault
+  switch), a pinned server port and `INTELIGIR_AGENT=scripted`. Its `window` is
+  a WebDriver session over the shell's FIRST window alone: Tauri hands WebKit's
+  automation the first web view it makes, and each vault's window lives in a
+  web context of its own, so a window made after it (a switch's, the app's
+  after a first run) is watched through its server and `serverLog()`, where the
+  shell notes each window it loads. `api` is the oRPC client over whichever
+  server it runs now; `target()` is the data and vault dir it resolves now,
+  derived as the shell's CLI door derives them; `ownDir` is the shell's own
+  folder (its recent vaults, its debug choice); `quit()` sends the shell the
+  SIGTERM it quits on. Registered for teardown like an instance. It runs on
+  Linux alone, and skips with no display (run the suite under `xvfb-run -a`),
+  no `tauri-driver` or `WebKitWebDriver`, or no built shell.
 - `browser(label)` — an agent-browser session registered for teardown like an
   instance, so a failed or abandoned scenario still closes it. It is callable
   with any agent-browser command, and `openWorkspace(app, { path? })`
@@ -118,17 +125,17 @@ what each one is FOR.
 |                            | `vault.setRemote`, B through `inteligir vault remote` and pulls A's note; |
 |                            | A back on the account signed out has no origin, across a restart too;     |
 |                            | an instance `INTELIGIR_VAULT_REMOTE` pins refuses every choice            |
-| hosted-vault-sync          | the hosted loop for real: a wrangler-dev Worker, production login,        |
+| hosted-vault-sync          | the hosted loop for real: a Miniflare Worker, production login,           |
 |                            | convergence through the derived remote, boot clone, a same-line edit      |
 |                            | copied aside under the signed-in device's name, revoke → unauthorized     |
 | hosted-vault-second-mac    | A signs in, rewrites the starter Welcome.md and syncs; B boots fresh with |
 |                            | its own starter notes, signs in to the same account and syncs: B lands on |
 |                            | A's history byte for byte, with no conflict copy and A's note searchable, |
 |                            | and A's next sync takes nothing                                           |
-| hosted-vault-phone-write   | a second login plays the phone against a wrangler-dev Worker: its change  |
+| hosted-vault-phone-write   | a second login plays the phone against a Miniflare Worker: its change     |
 |                            | set lands and A syncs its bytes, history naming the phone; a stale set    |
 |                            | gets A's bytes back as a conflict, and a recommit on them converges       |
-| hosted-vault-full          | a wrangler-dev Worker capped at 1 MiB: A's first note syncs, an           |
+| hosted-vault-full          | a Miniflare Worker capped at 1 MiB: A's first note syncs, an              |
 |                            | attachment past the cap leaves A `full` with its own words, a later note  |
 |                            | commits on A and `inteligir vault status --json` still says full, and B's |
 |                            | clone holds the first note alone                                          |
@@ -150,45 +157,44 @@ what each one is FOR.
 |                            | or on a chart writes nothing, a nonce-less frame is ignored, an announced |
 |                            | change reloads the buffer, a write the phone finds changed lands merged   |
 |                            | and shows, and Ask agent and a wiki link tap reach the native end         |
-| thread-sync-hosted         | a thread sent on A reaches B through a wrangler-dev Worker: B's real      |
+| thread-sync-hosted         | a thread sent on A reaches B through a Miniflare Worker: B's real         |
 |                            | socket opens, and B holds A's timeline before its poll timer could run,   |
 |                            | so the Durable Object's ping is what delivered it                         |
 | phone-dispatch-hosted      | a second login plays the phone: its request waits with no desktop online  |
 |                            | until A signs in and runs it over the note it named, the reply naming the |
 |                            | note and the phone's pull holding the request; with A and B both          |
 |                            | listening, exactly one runs the next, before a poll could                 |
-| account-hosted             | an account created in the app (`cloud.signUp`) against a wrangler-dev     |
+| account-hosted             | an account created in the app (`cloud.signUp`) against a Miniflare        |
 |                            | Worker signs that instance in as it; the invite is spent, so a second     |
 |                            | sign-up with it is FORBIDDEN; a second instance signs in with the same    |
 |                            | email and password                                                        |
-| onboarding-account-browser | `/welcome`'s account step against a wrangler-dev Worker opens on Create;  |
+| onboarding-account-browser | `/welcome`'s account step against a Miniflare Worker opens on Create;     |
 |                            | an account made there with the invite code signs the instance in, its     |
 |                            | vault syncs through that account, and the page moves on by itself to      |
 |                            | Welcome.md                                                                |
-| built-worker-boot          | the vite-built bundle — what `wrangler deploy` ships — boots under        |
-|                            | wrangler dev and answers; built through turbo on every run, so it is the  |
+| built-worker-boot          | the built bundle — what `cf deploy` ships — boots under Miniflare and     |
+|                            | answers; built through turbo on every run, so it is the                   |
 |                            | current source, and the one place a module-scope crash of the emitted     |
 |                            | module can show                                                           |
 | built-cli-boot             | the esbuild bundle — what npm and the .app run — boots in production      |
 |                            | mode, serves `dist/ui`'s shell byte for byte, migrates and indexes a      |
 |                            | write, hears an on-disk write through its forked watcher, and answers a   |
 |                            | client verb run from the same split bundle                                |
-| desktop-shell              | the built Electron shell over DevTools: the window is on `inteligir://`,  |
-|                            | the rail and a note ride the protocol handler's bearer, an API write      |
-|                            | reaches the open editor through the socket, `window.open` is denied, the  |
-|                            | microphone reads denied, Reveal refuses a symlink out of the vault, a     |
-|                            | switch boots a new child on the new vault, and a SIGTERM quit stops it    |
-|                            | and retracts `server.json`                                                |
-| desktop-diagnostics        | the shell's debug-logging choice, seeded in its own userData, reaches the |
-|                            | server it forks, whose output always lands in the data dir's              |
+| desktop-shell              | the built Tauri shell over WebDriver: the window is the server's own page |
+|                            | signed in by its handoff, the rail and a note ride its cookie, an API     |
+|                            | write reaches the open editor through the socket, `window.open` is        |
+|                            | denied, every permission request is refused, Reveal refuses a symlink out |
+|                            | of the vault, a switch boots a new child and a new window on the new      |
+|                            | vault, and a SIGTERM quit stops the server and retracts `server.json`     |
+| desktop-diagnostics        | the shell's debug-logging choice, seeded in its own folder, reaches the   |
+|                            | server it starts, whose output always lands in the data dir's             |
 |                            | `logs/server.log`: off, the boot line and no trace; on, an external write |
 |                            | traced there, the bridge reports the choice, and turning it off asks for  |
 |                            | a restart                                                                 |
 | desktop-onboarding         | the built shell on a fresh home opens only its first-run page and boots   |
 |                            | nothing; Create with the defaults boots the default vault, and the app    |
-|                            | window replaces the page on `/welcome` over the seeded vault; skipping    |
-|                            | the agent and the account shows Welcome.md, and a relaunch goes straight  |
-|                            | to the app                                                                |
+|                            | window replaces the page on `/welcome` over the seeded vault; a relaunch  |
+|                            | goes straight to the app                                                  |
 | threads-scripted           | a turn through the scripted driver: send, settle, timeline, and the note  |
 |                            | its changes name under the turn's own id                                  |
 | action-scripted            | an action attaches to its note; a scripted turn writes the vault; the     |
@@ -273,7 +279,7 @@ Each feature issue lands with its scenario here.
 | `INTELIGIR_VAULT_REMOTE`     | git remote URL pinned over the vault's own origin;     |
 |                              | unset = that origin, else the signed-in account's      |
 | `INTELIGIR_CLOUD_URL`        | the cloud origin; hosted-vault-sync points it at its   |
-|                              | own scratch wrangler-dev Worker                        |
+|                              | own scratch Miniflare Worker                           |
 | `INTELIGIR_SYNC_INTERVAL_MS` | vault auto-sync cadence; `0` disables the loop AND the |
 |                              | boot sync (the sync scenarios set it for determinism)  |
 | `INTELIGIR_AGENT`            | `scripted` — the deterministic in-process driver the   |
@@ -297,16 +303,16 @@ stores; a scenario that wants a fake vendor sets it in `extraEnv`.
 
 Headless by construction: no interactive auth, no pinned ports, and no
 accounts on any EXTERNAL service — hosted-vault-sync signs up a real account,
-but against its own scratch wrangler-dev Worker (apps/web's wrangler, local
-mode, state under the scenario's scratch dir; secrets ride `--var`, so no
+but against its own scratch Miniflare Worker (apps/web's build output, state
+under the scenario's scratch dir; secrets are passed as text bindings, so no
 `.dev.vars` is needed). The one setup step beyond `pnpm install` is the
 browser binary every browser scenario needs: `npm i -g agent-browser@X.Y.Z &&
 agent-browser install` (Linux: `--with-deps`), at the version
 `.github/workflows/ci.yml` pins so a local run drives the browser CI drives.
 The desktop shell opens a real window, so CI runs the suite under `xvfb-run -a`,
-after a sysctl that lets Chromium's namespace sandbox run under Ubuntu's
-AppArmor (the shell is never launched with `--no-sandbox`); with no display on
-Linux, `desktop-shell` skips. The first browser a run asks for probes the
+with WebKitGTK's WebDriver (`webkit2gtk-driver`) and `cargo install tauri-driver
+--version X.Y.Z --locked` beside it, at the version CI pins; with no display, no
+driver or no built shell, the shell scenarios skip. The first browser a run asks for probes the
 environment with `about:blank`, once per run and in a session of its own, so
 every scenario's session still launches with its own flags. Only a failure THERE (the browser cannot launch at all)
 reports SKIP, for that scenario and every browser scenario after it, with the

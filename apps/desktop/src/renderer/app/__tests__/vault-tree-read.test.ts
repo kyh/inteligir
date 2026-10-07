@@ -3,7 +3,7 @@
 // server one walk between the two, and the session's own re-list is never served from the cache.
 
 import { QueryObserver } from "@tanstack/react-query";
-import type { VaultTreeResponse } from "@repo/api/local/vault/vault-schema";
+import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { orpc } from "../api";
 import { readVaultTree } from "../vault-hooks";

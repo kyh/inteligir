@@ -71,9 +71,9 @@ export const mintCommentId = (randomBytes: (length: number) => Uint8Array): stri
     .map((byte) => MINTED_ID_ALPHABET[byte % MINTED_ID_ALPHABET.length])
     .join("");
 
-// looseObject: fields from an external writer this version never heard of must survive a rewrite
-/* oxlint-disable sort-keys -- zod emits parsed keys in declaration order, so this is the
-   sidecar's on-disk field order; sorting it rewrites every vault's comment files. */
+// looseObject: fields from an external writer this version never heard of must survive a rewrite.
+// zod emits parsed keys in declaration order, so this is the sidecar's on-disk field order;
+// sorting it rewrites every vault's comment files.
 export const commentEntrySchema = z.looseObject({
   text: z.string(),
   /** Unix seconds. */
@@ -86,7 +86,6 @@ export const commentEntrySchema = z.looseObject({
   resolvedAt: z.number().optional(),
   resolvedBy: commentSourceSchema.optional(),
 });
-/* oxlint-enable sort-keys */
 export type CommentEntry = z.infer<typeof commentEntrySchema>;
 
 // a zod parse emits declared fields in one order, so equal entries stringify equally; an unknown

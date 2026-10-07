@@ -122,7 +122,7 @@ its text (`contextPaths` on `client/turn/requested`) and, being part of what
 was asked rather than a statement about the screen, survives the queue.
 
 **dispatch** — a CLOUD word first: a row in the account's dispatch inbox
-(`@repo/api/cloud/dispatch/dispatch-schema`), the one way a phone asks a Mac's
+(`@repo/contract/cloud/dispatch/dispatch-schema`), the one way a phone asks a Mac's
 agent anything. A `turn` dispatch asks for a turn on a thread, new or
 existing, and any Mac may claim it; an `answer` dispatch answers an
 **approval** a Mac opened there for a phone-started turn, and only that Mac
@@ -152,7 +152,7 @@ state.
   the persisted grammar. A provider event with no persisted counterpart is
   logged and dropped, never invented into a divergent shape.
 - **sync event** — the cloud's unit of transfer
-  (`@repo/api/cloud/sync/sync-schema`, `syncEventInputSchema`). Its body is
+  (`@repo/contract/cloud/sync/sync-schema`, `syncEventInputSchema`). Its body is
   `z.json()` on purpose: the Worker merges, dedupes and orders these WITHOUT
   parsing them. A sync event carries a thread event; it is not one.
 - **filesystem event** — what the vault watcher reports
@@ -163,7 +163,7 @@ state.
 
 The local realtime bus is deliberately NOT in this list. It carries **change
 kinds** — `events-appended`, `content-changed`, `status-changed`
-(`@repo/domain/change-kinds` declares them; `@repo/api/local/notifications` is
+(`@repo/domain/change-kinds` declares them; `@repo/contract/local/notifications` is
 the `/ws` frame grammar that carries them) — which are invalidation pings
 naming a subscription target, never payloads. A client told
 "events-appended" refetches; it is never handed the event.
@@ -227,7 +227,7 @@ Every other surface points here ("Sync details…") rather than quoting it.
 own user config, read and edited through its bundled binary
 (`apps/cli/src/server/connectors/vendor-mcp-config.ts`), and signed in to by
 the vendor's own login; the app keeps no registry. Not **Connected folders**
-(`folders` in `@repo/api/local`): directories outside the vault the agent may
+(`folders` in `@repo/contract/local`): directories outside the vault the agent may
 read (`INTELIGIR_CONNECTED_DIRS`).
 
 **Sign in with Claude** (ChatGPT under Other) — an AGENT's sign-in: the

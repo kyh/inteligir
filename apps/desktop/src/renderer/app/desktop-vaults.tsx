@@ -1,4 +1,4 @@
-// The vault is the server's, so main switches it: the child restarts on the new folder and a
+// The vault is the server's, so the shell switches it: the child restarts on the new folder and a
 // new window replaces this one. A browser tab did not start the server: no bridge, no row.
 
 import { useState } from "react";
@@ -14,7 +14,7 @@ const store = createBridgeStore<DesktopVaultsBridge, VaultsState>({
 
 export const useDesktopVaults = store.use;
 
-// main's refusal, in main's words, or null once the answer is adopted
+// the shell's refusal, in its words, or null once the answer is adopted
 type VaultRefusal = string | null;
 
 // each answers only when nothing moved: a cancelled picker, a forgotten row, or a refusal;
@@ -35,11 +35,11 @@ type VaultSwitchBusy = "picking" | "opening" | "forgetting";
 
 export interface VaultSwitch {
   busy: VaultSwitchBusy | null;
-  // the busy kind is what a surface shows while it waits; a refusal is toasted in main's words
+  // the busy kind is what a surface shows while it waits; a refusal is toasted in the shell's words
   run: (kind: VaultSwitchBusy, work: () => Promise<VaultRefusal>) => void;
 }
 
-// a throw across the bridge is a fault, worded by Electron, so it gets this sentence instead
+// a rejected command is a fault, worded for the shell's log, so it gets this sentence instead
 const settleSwitch = async (
   work: () => Promise<VaultRefusal>,
   onRefused: (message: string) => void,

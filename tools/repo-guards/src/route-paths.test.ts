@@ -2,22 +2,27 @@
 // that drift. tests are excluded on purpose: a route test that derived its URL from the contract
 // could not catch the contract moving.
 
-import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
-import { HEALTH_PATH, HTML_FRAME_PATH, RPC_PREFIX, VAULT_ASSET_PATH } from "@repo/api/local/routes";
+import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
+import {
+  HEALTH_PATH,
+  HTML_FRAME_PATH,
+  RPC_PREFIX,
+  VAULT_ASSET_PATH,
+} from "@repo/contract/local/routes";
 import { describe, expect, it } from "vitest";
 import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 
 // `/ws` is absent: two characters plus a slash matches far too much ordinary prose and code.
 const NAMESPACES = [
   {
-    home: "packages/api/src/local/local-routes.ts",
+    home: "packages/contract/src/local/local-routes.ts",
     paths: [VAULT_ASSET_PATH, HTML_FRAME_PATH, HEALTH_PATH, RPC_PREFIX],
-    use: "the constants in @repo/api/local/routes",
+    use: "the constants in @repo/contract/local/routes",
   },
   {
-    home: "packages/api/src/cloud/vault/vault-schema.ts",
+    home: "packages/contract/src/cloud/vault/vault-schema.ts",
     paths: Object.values(VAULT_API_PATHS),
-    use: "VAULT_API_PATHS from @repo/api/cloud/vault/vault-schema",
+    use: "VAULT_API_PATHS from @repo/contract/cloud/vault/vault-schema",
   },
 ];
 
@@ -31,10 +36,6 @@ const ELSEWHERE = new Map<string, string>([
   [
     "apps/cli/scripts/smoke.mjs",
     "a plain .mjs script run by `node` against a PACKED tarball in a scratch prefix — it has no bundler, no TypeScript and no workspace link to import the contract through, and giving it one would mean shipping the contract inside the published artifact to satisfy a test",
-  ],
-  [
-    "apps/desktop/scripts/smoke-packaged.mjs",
-    "the same, one layer further out: it drives the packaged .app's own Electron binary as a bare node process, with no module resolution into this workspace at all",
   ],
 ]);
 

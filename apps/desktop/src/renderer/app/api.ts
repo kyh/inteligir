@@ -7,8 +7,8 @@ import { createORPCClient, onError, onSuccess } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import type { ContractRouterClient } from "@orpc/contract";
-import type { LocalContract } from "@repo/api/local";
-import { RPC_PREFIX } from "@repo/api/local/routes";
+import type { LocalContract } from "@repo/contract/local";
+import { RPC_PREFIX } from "@repo/contract/local/routes";
 import { toast } from "@repo/ui/components/sonner";
 import { observeGateRefusal } from "./signed-out-state";
 
@@ -16,7 +16,8 @@ export { isDefinedError, safe } from "@orpc/client";
 
 const isAbort = (cause: unknown): boolean => cause instanceof Error && cause.name === "AbortError";
 
-// no `headers` thunk: the bearer is attached in main under `inteligir://app`, and by the same-origin cookie over plain HTTP.
+// no `headers` thunk: the page holds no bearer, under the shell as in a tab; it signs in once
+// through a handoff, and the same-origin cookie that leaves carries every call.
 const link = new RPCLink({
   // the raw response, below the codec: the http gate's refusal is plain text, which the codec only
   // sees as a malformed body. its challenge is what marks it: a procedure's UNAUTHORIZED (a

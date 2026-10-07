@@ -5,7 +5,7 @@
 import { readFileSync, rmSync } from "node:fs";
 import { stagedWriteFileSync } from "../staged-write";
 import nodePath from "node:path";
-import { deviceCredentialSchema } from "@repo/api/cloud/device/device-schema";
+import { deviceCredentialSchema } from "@repo/contract/cloud/device/device-schema";
 import { z } from "zod";
 import { errnoCode } from "../errno";
 

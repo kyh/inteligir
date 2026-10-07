@@ -9,8 +9,8 @@ export const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
 export const WORKSPACE_MANIFEST = "pnpm-workspace.yaml";
 
 // shared: a guard with its own shorter list passes on CI and fails on a machine that has run a
-// build.
-const SKIP_DIR_NAMES = new Set(["node_modules", "dist", "coverage"]);
+// build. `target` is cargo's (apps/desktop/src-tauri/target), gigabytes once the shell is built.
+const SKIP_DIR_NAMES = new Set(["node_modules", "dist", "coverage", "target"]);
 
 // dot-directories wholesale: none of pnpm's globs reaches one, and an agent worktree under .claude
 // is a whole checkout of this repo that would be read as this commit's tree.

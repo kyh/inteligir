@@ -3,7 +3,10 @@ import { betterAuth } from "better-auth";
 // reads `db._.relations`, which `createDb` populates.
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
 import { bearer } from "better-auth/plugins";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/api/cloud/device/device-schema";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "@repo/contract/cloud/device/device-schema";
 import { sql } from "drizzle-orm";
 import { deleteVaultGitRepo } from "../vault/git-remote";
 import { createDb } from "../db/client";

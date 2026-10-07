@@ -1,6 +1,6 @@
-import { VAULT_GIT_PATH } from "@repo/api/cloud/vault/vault-git";
-import { endpointUrl } from "@repo/api/cloud/client";
-import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
+import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
+import { endpointUrl } from "@repo/contract/cloud/client";
+import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { readDeviceCredential } from "./credential-store";
 
 // resolved per pass, not at boot, so sign-in / sign-out flips vault sync live. the

@@ -7,7 +7,7 @@ import { closeConnection, createConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import { getSchemaVersion } from "@repo/db/meta";
 import { runMigrations } from "@repo/db/migrate";
-import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
+import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { resolveMigrationsFolder } from "../paths";
 import { defaultHarnessId } from "./agents/agent-driver";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
@@ -74,7 +74,7 @@ export interface ComposePorts {
   connectors?: VendorMcpConfigs;
   // what this device is called before any sign-in names it; unset, the machine's own name.
   machineName?: string;
-  vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote" | "spawnWatcherChannel">>;
+  vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote">>;
 }
 
 export interface ComposeRuntimeArgs {
@@ -155,9 +155,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   }
   if (ports.vault?.gitEnv !== undefined) {
     vaultArgs.gitEnv = ports.vault.gitEnv;
-  }
-  if (ports.vault?.spawnWatcherChannel !== undefined) {
-    vaultArgs.spawnWatcherChannel = ports.vault.spawnWatcherChannel;
   }
   if (config.slowReads !== null) {
     vaultArgs.stallRead = slowReadStall(config.slowReads);

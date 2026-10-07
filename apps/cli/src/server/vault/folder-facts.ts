@@ -6,7 +6,7 @@ import { existsSync, statSync } from "node:fs";
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import type { ExternalSync } from "@repo/api/local/vault/vault-schema";
+import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { hostedVaultRemoteUrl, NO_ORIGIN, ownOriginUrl } from "../cloud/vault-remote";
 import type { OriginConfig } from "../cloud/vault-remote";
@@ -112,8 +112,8 @@ const isDirectory = (dir: string): boolean => {
 export interface InspectVaultFolderContext {
   homeDir: string;
   cloudUrl: string;
-  // the desktop's main runs no git of its own, and on a Mac without the developer tools the one on
-  // its PATH is the stub that offers the install, so main hands over the git its server runs
+  // absent: this process's own environment, which the desktop shell starts with the git its server
+  // runs (on a Mac without the developer tools, the one on launchd's PATH is the install stub)
   gitEnv?: Record<string, string>;
 }
 

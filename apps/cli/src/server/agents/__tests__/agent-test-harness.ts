@@ -1,8 +1,8 @@
 import type {
   CreateThreadRequest,
   PendingInteraction,
-} from "@repo/api/local/threads/threads-schema";
-import type { TimelineRow } from "@repo/api/local/thread-timeline";
+} from "@repo/contract/local/threads/threads-schema";
+import type { TimelineRow } from "@repo/contract/local/thread-timeline";
 import { expect, vi } from "vitest";
 import type { BootedTestApp } from "../../__tests__/boot-app";
 import type { AgentSessionFacts } from "../agent-shell-env";

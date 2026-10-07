@@ -3,9 +3,9 @@ import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
 import { quoteSelection } from "@repo/domain/quote-selection";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { ViewContextSource } from "./thread-activity";
-import type { VaultMatchWire } from "@repo/api/local/knowledge/knowledge-schema";
-import type { Thread } from "@repo/api/local/threads/threads-schema";
-import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+import type { VaultMatchWire } from "@repo/contract/local/knowledge/knowledge-schema";
+import type { Thread } from "@repo/contract/local/threads/threads-schema";
+import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import { plural } from "@repo/ui/lib/plural";
 import { toast } from "@repo/ui/components/sonner";
@@ -543,7 +543,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
           ? null
           : {
               exportPdf: () => {
-                exportNoteAsPdf(docStem(openPath));
+                void exportNoteAsPdf(docStem(openPath));
               },
               findInNote,
               insertTemplate: insertTemplateIntoNote,

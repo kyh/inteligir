@@ -3,21 +3,19 @@
 
 import type { DiagnosticsState } from "../../../diagnostics-state";
 import type { DesktopBridge } from "../../../types";
-import { initialUpdateState } from "../../../update-state";
+import type { UpdateState } from "../../../update-state";
 
-const inertUpdates = initialUpdateState("0.0.0", "a test stub");
+const inertUpdates: UpdateState = {
+  checkedAt: null,
+  currentVersion: "0.0.0",
+  reason: "a test stub",
+  status: "disabled",
+};
 
 const inertVaults = {
   blocked: null,
   current: { name: "Inteligir", path: "/home/me/Inteligir" },
   recent: [],
-};
-
-const inertSpellcheck = {
-  available: [],
-  enabled: true,
-  languages: [],
-  languagesConfigurable: false,
 };
 
 const inertDiagnostics: DiagnosticsState = {
@@ -39,11 +37,7 @@ export const inertBridge = (): DesktopBridge => ({
     open: async () => ({ ok: true }),
     reveal: async () => ({ ok: true }),
   },
-  socketOrigin: "http://127.0.0.1:1",
-  spellcheck: {
-    apply: async () => inertSpellcheck,
-    getState: async () => inertSpellcheck,
-  },
+  print: async () => ({ ok: true }),
   updates: {
     check: async () => inertUpdates,
     download: async () => inertUpdates,

@@ -1,5 +1,5 @@
 import type { ContractRouterClient } from "@orpc/contract";
-import type { LocalContract } from "@repo/api/local";
+import type { LocalContract } from "@repo/contract/local";
 import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
 import { systemOpenExternalUrl } from "./server/browser-opener";
 import type { OpenExternalUrl } from "./server/browser-opener";

@@ -1,0 +1,30 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "app-window",
+  "description": "The app window's commands, listed so the build keeps them. This file grants them to no page: the shell grants them when it opens the window, for that window and the server's exact origin alone (src/window.rs), since the port is the server's to choose.",
+  "windows": ["vault-*"],
+  "local": false,
+  "remote": { "urls": [] },
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-start-dragging",
+    "allow-diagnostics-get-state",
+    "allow-diagnostics-open-data-folder",
+    "allow-diagnostics-restart",
+    "allow-diagnostics-set-debug",
+    "allow-diagnostics-show-log",
+    "allow-paths-open",
+    "allow-paths-reveal",
+    "allow-print-page",
+    "allow-updates-check",
+    "allow-updates-download",
+    "allow-updates-get-state",
+    "allow-updates-install",
+    "allow-vaults-forget",
+    "allow-vaults-get-state",
+    "allow-vaults-open",
+    "allow-vaults-pick"
+  ]
+}

@@ -1,4 +1,4 @@
-import { hexFromBytes } from "@repo/api/cloud/bytes";
+import { hexFromBytes } from "@repo/contract/cloud/bytes";
 import {
   ackDispatchesResponseSchema,
   cancelDispatchResponseSchema,
@@ -10,17 +10,17 @@ import {
   dispatchStatusResponseSchema,
   listApprovalsResponseSchema,
   openApprovalResponseSchema,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import type {
   AckDispatchesRequest,
   CreateDispatchRequest,
   OpenApprovalRequest,
-} from "@repo/api/cloud/dispatch/dispatch-schema";
-import { cloudErrorSchema } from "@repo/api/cloud/errors";
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
+import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import {
   SYNC_WS_PHONE_REQUESTS_ON,
   SYNC_WS_PHONE_REQUESTS_PARAM,
-} from "@repo/api/cloud/sync/sync-ws";
+} from "@repo/contract/cloud/sync/sync-ws";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";

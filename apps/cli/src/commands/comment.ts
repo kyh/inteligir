@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { defineCommand } from "citty";
 
-import type { CommentThreadWire } from "@repo/api/local/comments/comments-schema";
+import type { CommentThreadWire } from "@repo/contract/local/comments/comments-schema";
 import { COMMENT_SOURCES, mintCommentId } from "@repo/notes/comments/sidecar-schema";
 import type { CommentSource } from "@repo/notes/comments/sidecar-schema";
 import { apiFor, isAgentShell } from "../context";
@@ -87,13 +87,12 @@ export const commentCommand = (deps: CliDeps) =>
       }),
 
       remove: defineCommand({
-        /* oxlint-disable sort-keys -- citty binds positionals in declaration order */
+        // citty binds positionals in declaration order.
         args: {
           path: { description: "Vault-relative note path", required: true, type: "positional" },
           id: { description: "The thread's root id", required: true, type: "positional" },
           ...jsonArg,
         },
-        /* oxlint-enable sort-keys */
         meta: {
           description: "Delete a comment thread's store entries (markers stay yours to strip)",
           name: "remove",
@@ -114,7 +113,7 @@ export const commentCommand = (deps: CliDeps) =>
       }),
 
       reply: defineCommand({
-        /* oxlint-disable sort-keys -- citty binds positionals in declaration order */
+        // citty binds positionals in declaration order.
         args: {
           path: { description: "Vault-relative note path", required: true, type: "positional" },
           parent: { description: "Root or reply id", required: true, type: "positional" },
@@ -122,7 +121,6 @@ export const commentCommand = (deps: CliDeps) =>
           ...sourceArg,
           ...jsonArg,
         },
-        /* oxlint-enable sort-keys */
         meta: { description: "Reply inside a comment thread", name: "reply" },
         run: async ({ args }) => {
           const api = apiFor(deps);
@@ -142,7 +140,7 @@ export const commentCommand = (deps: CliDeps) =>
       }),
 
       resolve: defineCommand({
-        /* oxlint-disable sort-keys -- citty binds positionals in declaration order */
+        // citty binds positionals in declaration order.
         args: {
           path: { description: "Vault-relative note path", required: true, type: "positional" },
           id: { description: "The thread's root id", required: true, type: "positional" },
@@ -150,7 +148,6 @@ export const commentCommand = (deps: CliDeps) =>
           ...sourceArg,
           ...jsonArg,
         },
-        /* oxlint-enable sort-keys */
         meta: { description: "Resolve (or reopen) a comment thread", name: "resolve" },
         run: async ({ args }) => {
           const api = apiFor(deps);

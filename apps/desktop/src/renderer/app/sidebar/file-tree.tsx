@@ -16,7 +16,7 @@ import { isImeComposing } from "@repo/ui/lib/ime";
 import { isDocPath, withDocExtension } from "@repo/notes/knowledge/doc-file";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
-import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import { ChevronRightIcon, EllipsisIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
@@ -33,7 +33,7 @@ export interface TreeOps {
   moveEntry: (fromPath: string, toDir: string) => void;
   removeEntry: (path: string, kind: "file" | "dir") => void;
   setPinned: (path: string, pinned: boolean) => void;
-  // present under the shell alone: the OS is reached through main, and a browser tab has no main
+  // present under the shell alone: the OS is reached through it, and a browser tab has no shell
   revealEntry?: (path: string) => void;
   openEntry?: (path: string) => void;
 }

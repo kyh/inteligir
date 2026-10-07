@@ -1,5 +1,5 @@
-import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/api/cloud/vault/vault-git";
-import { VAULT_API_PATHS } from "@repo/api/cloud/vault/vault-schema";
+import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/contract/cloud/vault/vault-git";
+import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";

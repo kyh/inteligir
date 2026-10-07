@@ -2,7 +2,7 @@
 
 The desktop's editor (`@repo/editor`), built as one page the phone opens in a
 WebView. `@repo/mobile` is React Native under Metro and TypeScript 6 and may
-reach only `@repo/api/cloud`, `@repo/domain`, `@repo/notes` and this package's
+reach only `@repo/contract/cloud`, `@repo/domain`, `@repo/notes` and this package's
 `./bridge-protocol`; the editor is DOM React under Vite, the React Compiler and
 TypeScript 7. Expo DOM components were rejected: they compile the editor a
 second way (Metro and babel) and typecheck it under the phone's TypeScript. A

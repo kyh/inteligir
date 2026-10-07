@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // WebWorker, not DOM: the fetch/Response/crypto surface without claiming a
+    // document — this contract loads in the desktop page, on node, on workerd
+    // and in React Native.
+    "lib": ["ES2023", "WebWorker"],
+    "types": []
+  },
+  "include": ["src", "vitest.config.ts"]
+}

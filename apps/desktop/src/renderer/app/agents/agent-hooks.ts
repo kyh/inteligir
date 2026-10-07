@@ -1,12 +1,12 @@
 // The agents' sign-ins as hooks, so ⌘K, the panel, Settings and onboarding read one status and run
 // one sign-in: the server runs a single sign-in at a time, and every surface shows that one.
 
-import { harnessReadiness } from "@repo/api/local/agents/agents-schema";
+import { harnessReadiness } from "@repo/contract/local/agents/agents-schema";
 import type {
   AgentsSignInCodeResponse,
   AgentsStatusResponse,
   HarnessStatus,
-} from "@repo/api/local/agents/agents-schema";
+} from "@repo/contract/local/agents/agents-schema";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { failed, orpc, refusalMessage } from "../api";

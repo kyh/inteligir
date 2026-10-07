@@ -1,6 +1,6 @@
 import type { GuardedVaultPort, GuardedWrite } from "@repo/editor/guarded-vault-io";
-import { contentHashHex } from "@repo/api/local/vault/vault-schema";
-import type { VaultWriteGuard } from "@repo/api/local/vault/vault-schema";
+import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
+import type { VaultWriteGuard } from "@repo/contract/local/vault/vault-schema";
 import { isDefinedError, safe } from "../api";
 import type { client } from "../api";
 

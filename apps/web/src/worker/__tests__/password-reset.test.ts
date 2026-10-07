@@ -1,5 +1,8 @@
-import { AUTH_PAGE_PATHS } from "@repo/api/cloud/account/account-schema";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@repo/api/cloud/device/device-schema";
+import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "@repo/contract/cloud/device/device-schema";
 import { eq } from "drizzle-orm";
 import { createExecutionContext, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";

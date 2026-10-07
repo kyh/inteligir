@@ -13,7 +13,7 @@ import type {
   ApprovalPendingInteractionPayload,
   PendingInteractionCreate,
 } from "@repo/domain/pending-interactions";
-import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
+import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { createInteractionWaiters, INTERACTION_TIMEOUT_MS } from "../interaction-waiters";
 import type { InteractionWaiters } from "../interaction-waiters";

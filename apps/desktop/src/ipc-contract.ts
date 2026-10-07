@@ -1,8 +1,8 @@
-// Every channel the bridge carries, declared once: its name, what the page sends and what
-// main answers. Main's handler and the preload's invoke are both typed from the row, and
-// each end parses what it receives, so a frame from a stranger or from a build this end
-// does not know fails at the parse. A refusal is an answer, never a throw: Electron hands
-// the page a thrown error's message wrapped in its own words.
+// Every command the page may ask the shell, declared once: its name as the shell's handler and
+// build.rs name it, the arguments it takes and what it answers. The page parses every answer
+// against its row and the shell parses every argument with serde
+// (apps/desktop/src-tauri/src/commands.rs), so a frame from a build this end does not know fails
+// at the parse. A refusal is an answer, never a rejection: a rejected command is a fault.
 
 import { z } from "zod";
 import {
@@ -18,86 +18,76 @@ import {
   pickParentAnswerSchema,
 } from "./first-run-state";
 import { pathActionRequestSchema, pathActionResultSchema } from "./path-action";
-import { spellcheckChoiceSchema, spellcheckStateSchema } from "./spellcheck-state";
 import { updateStateSchema } from "./update-state";
 import { vaultPathSchema, vaultsStateSchema, vaultSwitchAnswerSchema } from "./vaults-state";
 
-// the page asks, main answers
-export interface InvokeRoute<Request extends z.ZodType, Answer extends z.ZodType> {
-  readonly channel: string;
-  readonly request: Request;
+// the page asks, the shell answers
+export interface CommandRoute<Args extends z.ZodType, Answer extends z.ZodType> {
+  readonly command: string;
+  readonly args: Args;
   readonly answer: Answer;
 }
 
-// main tells the page, unasked
-export interface PushRoute<Frame extends z.ZodType> {
-  readonly channel: string;
-  readonly frame: Frame;
+// the shell tells the page, unasked
+export interface EventRoute<Payload extends z.ZodType> {
+  readonly event: string;
+  readonly payload: Payload;
 }
 
-const route = <Request extends z.ZodType, Answer extends z.ZodType>(
-  channel: string,
-  request: Request,
+const route = <Args extends z.ZodType, Answer extends z.ZodType>(
+  command: string,
+  args: Args,
   answer: Answer,
-): InvokeRoute<Request, Answer> => ({ answer, channel, request });
+): CommandRoute<Args, Answer> => ({ answer, args, command });
 
-// a channel the page asks with no frame
-const noRequest = z.undefined();
+// a command that takes nothing
+const noArgs = z.undefined();
+const vaultArgs = z.strictObject({ path: vaultPathSchema });
 
-export const INVOKE_ROUTES = {
+export const APP_COMMANDS = {
   diagnostics: {
-    getState: route("desktop:diagnostics-get-state", noRequest, diagnosticsStateSchema),
+    getState: route("diagnostics_get_state", noArgs, diagnosticsStateSchema),
     // the OS takes the folder or says why not, like Reveal/Open
-    openDataFolder: route(
-      "desktop:diagnostics-open-data-folder",
-      noRequest,
-      pathActionResultSchema,
-    ),
-    restart: route("desktop:diagnostics-restart", noRequest, diagnosticsAnswerSchema),
-    setDebug: route(
-      "desktop:diagnostics-set-debug",
-      diagnosticsChoiceSchema,
-      diagnosticsAnswerSchema,
-    ),
-    showLog: route("desktop:diagnostics-show-log", noRequest, pathActionResultSchema),
+    openDataFolder: route("diagnostics_open_data_folder", noArgs, pathActionResultSchema),
+    restart: route("diagnostics_restart", noArgs, diagnosticsAnswerSchema),
+    setDebug: route("diagnostics_set_debug", diagnosticsChoiceSchema, diagnosticsAnswerSchema),
+    showLog: route("diagnostics_show_log", noArgs, pathActionResultSchema),
   },
   paths: {
-    open: route("desktop:open-path", pathActionRequestSchema, pathActionResultSchema),
-    reveal: route("desktop:reveal-path", pathActionRequestSchema, pathActionResultSchema),
+    open: route("paths_open", pathActionRequestSchema, pathActionResultSchema),
+    reveal: route("paths_reveal", pathActionRequestSchema, pathActionResultSchema),
   },
-  spellcheck: {
-    apply: route("desktop:spellcheck-apply", spellcheckChoiceSchema, spellcheckStateSchema),
-    getState: route("desktop:spellcheck-get-state", noRequest, spellcheckStateSchema),
-  },
+  // WKWebView answers no `window.print()`, so the shell prints the window
+  print: route("print_page", noArgs, pathActionResultSchema),
   updates: {
-    check: route("desktop:update-check", noRequest, updateStateSchema),
-    download: route("desktop:update-download", noRequest, updateStateSchema),
-    getState: route("desktop:update-get-state", noRequest, updateStateSchema),
-    install: route("desktop:update-install", noRequest, updateStateSchema),
+    check: route("updates_check", noArgs, updateStateSchema),
+    download: route("updates_download", noArgs, updateStateSchema),
+    getState: route("updates_get_state", noArgs, updateStateSchema),
+    install: route("updates_install", noArgs, updateStateSchema),
   },
   vaults: {
     // forgetting a row cannot be refused, so it answers the state alone
-    forget: route("desktop:vaults-forget", vaultPathSchema, vaultsStateSchema),
-    getState: route("desktop:vaults-get-state", noRequest, vaultsStateSchema),
-    open: route("desktop:vaults-open", vaultPathSchema, vaultSwitchAnswerSchema),
-    pick: route("desktop:vaults-pick", noRequest, vaultSwitchAnswerSchema),
+    forget: route("vaults_forget", vaultArgs, vaultsStateSchema),
+    getState: route("vaults_get_state", noArgs, vaultsStateSchema),
+    open: route("vaults_open", vaultArgs, vaultSwitchAnswerSchema),
+    pick: route("vaults_pick", noArgs, vaultSwitchAnswerSchema),
   },
 } as const;
 
-// the first-run window's own channels, carried by its own preload: it has no server, so it asks
+// the first-run window's own commands, granted by its own capability: it has no server, so it asks
 // for nothing the app window asks for, and the app window for none of these
-export const FIRST_RUN_ROUTES = {
-  finish: route("desktop:first-run-finish", firstRunChoiceSchema, firstRunAnswerSchema),
-  getState: route("desktop:first-run-get-state", noRequest, firstRunStateSchema),
-  pickFolder: route("desktop:first-run-pick-folder", noRequest, pickFolderAnswerSchema),
-  pickParent: route("desktop:first-run-pick-parent", noRequest, pickParentAnswerSchema),
+export const FIRST_RUN_COMMANDS = {
+  finish: route(
+    "first_run_finish",
+    z.strictObject({ choice: firstRunChoiceSchema }),
+    firstRunAnswerSchema,
+  ),
+  getState: route("first_run_get_state", noArgs, firstRunStateSchema),
+  pickFolder: route("first_run_pick_folder", noArgs, pickFolderAnswerSchema),
+  pickParent: route("first_run_pick_parent", noArgs, pickParentAnswerSchema),
 } as const;
 
-export const UPDATE_STATE_PUSH: PushRoute<typeof updateStateSchema> = {
-  channel: "desktop:update-state",
-  frame: updateStateSchema,
+export const UPDATE_STATE_EVENT: EventRoute<typeof updateStateSchema> = {
+  event: "update-state",
+  payload: updateStateSchema,
 };
-
-// asked synchronously at preload load: the renderer needs the origin before its first socket
-export const SOCKET_ORIGIN_CHANNEL = "desktop:socket-origin";
-export const socketOriginSchema = z.url();

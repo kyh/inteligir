@@ -89,7 +89,7 @@ export interface SpawnSupervisedArgs {
   env: NodeJS.ProcessEnv;
 }
 
-// its own process group, so stop() kills the tree: the server's watcher and wrangler's workerd
+// its own process group, so stop() kills the tree: the server's watcher and Miniflare's workerd
 // would otherwise outlive it.
 export const spawnSupervised = (args: SpawnSupervisedArgs): SupervisedChild => {
   const child = spawn(args.file, [...args.argv], {
@@ -166,12 +166,29 @@ export interface BootWithPortsArgs<T extends TrackedProcess> {
   // must register the handle for teardown before returning, so a child that dies during the ready
   // wait is still owned.
   spawn: (ports: readonly number[]) => { handle: T; child: SupervisedChild };
-  // must not throw.
+  // false is "not yet"; a throw ends the boot, the child stopped and the probe's words kept.
   ready: (handle: T) => Promise<boolean>;
 }
 
 // retries with fresh ports when the child lost the reserve→bind race (reserveFreePorts releases
 // before returning).
+// a probe that throws has seen something no wait can mend: the child goes with the probe's words
+const readyOrStop = async <T extends TrackedProcess>(
+  args: BootWithPortsArgs<T>,
+  handle: T,
+  child: SupervisedChild,
+): Promise<boolean> => {
+  try {
+    return await args.ready(handle);
+  } catch (error) {
+    const tail = child.outputTail();
+    await child.stop();
+    throw new Error(`${args.label} failed before becoming ready: ${String(error)}\n${tail}`, {
+      cause: error,
+    });
+  }
+};
+
 export const bootWithPorts = async <T extends TrackedProcess>(
   args: BootWithPortsArgs<T>,
 ): Promise<T> => {
@@ -192,7 +209,7 @@ export const bootWithPorts = async <T extends TrackedProcess>(
           throw new Error(`${args.label} exited before becoming ready\n${tail}`);
         }
         outcome = "port-lost";
-      } else if (await args.ready(handle)) {
+      } else if (await readyOrStop(args, handle, child)) {
         outcome = "ready";
       } else if (Date.now() > deadline) {
         const tail = child.outputTail();

@@ -2,7 +2,7 @@
 // values that must agree can disagree. a pass is single-flight and coalescing —
 // two concurrent drains push one batch twice. the socket is latency, never correctness.
 
-import { createCloudClient, describeCloudFailure } from "@repo/api/cloud/client";
+import { createCloudClient, describeCloudFailure } from "@repo/contract/cloud/client";
 import type {
   CloudClient,
   CloudEndpoint,
@@ -10,18 +10,18 @@ import type {
   CloudFetch,
   CloudResult,
   CreateCloudClientArgs,
-} from "@repo/api/cloud/client";
-import { normalizeDeviceName } from "@repo/api/cloud/device/device-schema";
-import { loginDevice, signUpDevice } from "@repo/api/cloud/device/login-flow";
+} from "@repo/contract/cloud/client";
+import { normalizeDeviceName } from "@repo/contract/cloud/device/device-schema";
+import { loginDevice, signUpDevice } from "@repo/contract/cloud/device/login-flow";
 import type {
   DeviceCredentialStore,
   LoginOutcome as DeviceLoginOutcome,
-} from "@repo/api/cloud/device/login-flow";
-import { SYNC_TERMINAL_CODES } from "@repo/api/cloud/errors";
-import type { CloudSocketOpener } from "@repo/api/cloud/sync/cloud-socket";
-import { createSocketLink } from "@repo/api/cloud/sync/socket-link";
-import { createSingleFlight, createSyncSession } from "@repo/api/cloud/sync/sync-session";
-import type { SyncOutcome } from "@repo/api/cloud/sync/sync-session";
+} from "@repo/contract/cloud/device/login-flow";
+import { SYNC_TERMINAL_CODES } from "@repo/contract/cloud/errors";
+import type { CloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
+import { createSocketLink } from "@repo/contract/cloud/sync/socket-link";
+import { createSingleFlight, createSyncSession } from "@repo/contract/cloud/sync/sync-session";
+import type { SyncOutcome } from "@repo/contract/cloud/sync/sync-session";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import {
   countSyncOutbox,
@@ -38,7 +38,7 @@ import type {
   CloudRevokeDeviceResponse,
   CloudSignUpRequest,
   CloudStatusResponse,
-} from "@repo/api/local/cloud/cloud-schema";
+} from "@repo/contract/local/cloud/cloud-schema";
 import type { DebugLog } from "../debug-log";
 import { messageOf } from "../error-message";
 import type { CaptureVault } from "./captures";

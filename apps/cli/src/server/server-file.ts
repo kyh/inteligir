@@ -7,7 +7,7 @@ import { chmodSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
-import { constantTimeEqual } from "@repo/api/cloud/bytes";
+import { constantTimeEqual } from "@repo/contract/cloud/bytes";
 import { BROWSER_SESSION_COOKIE } from "./browser-session";
 import { errnoCode } from "./errno";
 import { LOOPBACK_HOST } from "./loopback-origin";

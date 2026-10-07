@@ -4,7 +4,7 @@
 // kills the vendor process rather than leave it waiting on a browser that is not coming back.
 
 import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
-import type { ConnectorSignIn } from "@repo/api/local/connectors/connectors-schema";
+import type { ConnectorSignIn } from "@repo/contract/local/connectors/connectors-schema";
 import { messageOf } from "../error-message";
 
 // long enough to finish in a browser, short enough that one walked away from ends.

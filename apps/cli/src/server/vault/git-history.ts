@@ -1,9 +1,9 @@
-import { isDeviceCommitEmail } from "@repo/api/cloud/vault/vault-git";
+import { isDeviceCommitEmail } from "@repo/contract/cloud/vault/vault-git";
 import {
   VAULT_DELETED_MAX_ENTRIES,
   VAULT_MAX_CONTENT_LENGTH,
-} from "@repo/api/local/vault/vault-schema";
-import type { VaultDeletedEntry, VaultRevision } from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/vault/vault-schema";
+import type { VaultDeletedEntry, VaultRevision } from "@repo/contract/local/vault/vault-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { ENGINE_IDENTITY } from "./git-run";
 import type { RunGitCommand } from "./git-run";

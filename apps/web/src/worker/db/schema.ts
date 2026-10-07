@@ -8,9 +8,10 @@ import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqli
 // mode and its index names. A new index must reach D1 as a bare CREATE INDEX: check
 // `drizzle-kit push --explain` and refuse any plan that recreates a table.
 
-/* oxlint-disable sort-keys -- a table's column order is the CREATE TABLE order drizzle-kit
-   emits, and it mirrors what `@better-auth/cli generate` prints; sorting it makes the next
-   generated migration recreate every table. */
+// A table's column order is the CREATE TABLE order drizzle-kit emits, and it mirrors what
+// `@better-auth/cli generate` prints; sorting it makes the next generated migration recreate
+// every table.
+
 export const user = sqliteTable(
   "user",
   {

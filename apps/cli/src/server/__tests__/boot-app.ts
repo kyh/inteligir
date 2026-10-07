@@ -5,8 +5,8 @@ import { serve } from "@hono/node-server";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { DbConnection } from "@repo/db/connection";
-import { RPC_PREFIX } from "@repo/api/local/routes";
-import type { AgentStatus } from "@repo/api/local/system/system-schema";
+import { RPC_PREFIX } from "@repo/contract/local/routes";
+import type { AgentStatus } from "@repo/contract/local/system/system-schema";
 import { createRouterClient } from "@orpc/server";
 import type { RouterClient } from "@orpc/server";
 import { HARNESS_IDS, HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
@@ -146,6 +146,8 @@ export interface BootTestAppOptions {
   // omitted, the real transport does nothing: a scratch data dir holds no device credential.
   cloudTransport?: CloudTransport;
   clientDir?: string;
+  // a development shell's Vite, answering the page in the bundle's place
+  uiDevOrigin?: string;
   // absent, the bundled vendors over stores of the instance's own, so no suite edits the Mac's.
   connectors?: VendorMcpConfigs;
   port?: number;
@@ -277,7 +279,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
       };
     },
     ports,
-    servesUi: options.clientDir !== undefined,
+    servesUi: options.clientDir !== undefined || options.uiDevOrigin !== undefined,
     teardown,
     version: "0.1.0-test",
   };
@@ -291,6 +293,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     clientDir: options.clientDir ?? null,
     context: runtime.context,
     serverToken: TEST_SERVER_TOKEN,
+    uiDevOrigin: options.uiDevOrigin ?? null,
   });
   const composed = { ...runtime, ...wired };
   const client = createRouterClient(localRouter, {

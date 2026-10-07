@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { VAULT_GIT_MAX_PUSH_BYTES, vaultCommitSubject } from "@repo/api/cloud/vault/vault-git";
-import { VAULT_SYNC_CONFLICTS_MAX } from "@repo/api/local/vault/vault-schema";
+import { VAULT_GIT_MAX_PUSH_BYTES, vaultCommitSubject } from "@repo/contract/cloud/vault/vault-git";
+import { VAULT_SYNC_CONFLICTS_MAX } from "@repo/contract/local/vault/vault-schema";
 import type {
   ExternalSync,
   VaultDeletedEntry,
@@ -9,7 +9,7 @@ import type {
   VaultSetRemoteRequest,
   VaultStatusResponse,
   VaultSyncConflict,
-} from "@repo/api/local/vault/vault-schema";
+} from "@repo/contract/local/vault/vault-schema";
 import { parseConflictCopyPath } from "@repo/notes/sync/conflict-copy";
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";

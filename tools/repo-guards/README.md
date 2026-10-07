@@ -58,12 +58,13 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | dependency is imported, or is a `DECLARED_ARTIFACT_EDGES` row (installed  |
 |                                | and executed, never imported — `inteligir` → `@repo/agent-skills`); no    |
 |                                | cycles. Then platform purity: `PURITY_RULES` per package (node, react,    |
-|                                | electron), `@repo/domain` declares only zod, no package imports an app,   |
+|                                | `@tauri-apps`), `@repo/domain` declares only zod, no package imports an   |
+|                                | app,                                                                      |
 |                                | every `CLOUD_ONLY_CLIENTS` row (`@repo/web`, `@repo/mobile`, each with    |
-|                                | why it ships apart) reaches `@repo/api/cloud/*` and nothing else of the   |
-|                                | contract, `src/cloud` never reaches `src/local` and a third bucket under  |
-|                                | `packages/api/src` fails, and the Worker imports no package whose shipped |
-|                                | graph reaches `node:`.                                                    |
+|                                | why it ships apart) reaches `@repo/contract/cloud/*` and nothing else of  |
+|                                | the contract, `src/cloud` never reaches `src/local` and a third bucket    |
+|                                | under `packages/contract/src` fails, and the Worker imports no package    |
+|                                | whose shipped graph reaches `node:`.                                      |
 | `dangling-references.test.ts`  | Every `@repo/*` name and every group-anchored path written in a tracked   |
 |                                | source, config, markdown or yaml file resolves to a workspace or a path   |
 |                                | on disk. What it reads is stated in its own section below.                |
@@ -102,6 +103,11 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | would cycle; a `WITHOUT_DEPENDENCY_EDGE` row carries its reason. And a    |
 |                                | relative import that leaves every workspace (`/privacy`'s                 |
 |                                | `docs/privacy.md`) is named in its build's `inputs` as `$TURBO_ROOT$/…`.  |
+| `desktop-shell-wire.test.ts`   | The words the Rust shell shares with the TypeScript page and CLI, read as |
+|                                | text from both sides: every command a page asks is named once in          |
+|                                | `build.rs`, handled in `lib.rs`, and granted by its window's capability   |
+|                                | (the app window's at runtime, `APP_WINDOW_COMMANDS`); the update event,   |
+|                                | the server's ready marker and the CLI entry the shell runs match.         |
 | `ui-orphan-exports.test.ts`    | PER EXPORT under `@repo/ui`'s wildcard-exported roots: a consumer outside |
 |                                | the gallery, an `AWAITING_CONSUMER` file (held whole, and not itself a    |
 |                                | consumer) or an `ALLOWED_EXPORTS` row with its reason. `export *` is      |
@@ -135,7 +141,7 @@ worktree under `.claude` is never read as this commit's tree.
 | `tailwind-source.test.ts`      | Every `@source "…"` glob's static base is a directory that exists         |
 |                                | relative to the stylesheet — Tailwind answers a missing base with an      |
 |                                | empty scan, no error.                                                     |
-| `wrangler-compat-date.test.ts` | `apps/web/wrangler.jsonc`'s `compatibility_date` is the OLDEST workerd    |
+| `workerd-compat-date.test.ts`  | `apps/web/compatibility.ts`'s `compatibilityDate` is the OLDEST workerd   |
 |                                | date `pnpm-lock.yaml` resolves — a workerd cannot emulate a date it       |
 |                                | predates.                                                                 |
 | `durable-git-stub.test.ts`     | The header of `apps/web/src/worker/types/durable-git.d.ts` names the      |
@@ -166,7 +172,7 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | registers in `tools/e2e/src/run.ts`, in its order, each read from its own |
 |                                | exported `name`.                                                          |
 | `privacy-routes.test.ts`       | Every `/v1/` string literal in tracked non-test source under              |
-|                                | `packages/api/src/cloud` has a row under `docs/privacy.md`'s "Every       |
+|                                | `packages/contract/src/cloud` has a row under `docs/privacy.md`'s "Every  |
 |                                | address the app talks to", and every backticked `/v1/` route there is     |
 |                                | still declared — the page promises every address the app talks to.        |
 | `decisions-index.test.ts`      | `CLAUDE.md` § Decisions' index lists every `###` group under it, in their |
@@ -188,7 +194,7 @@ The other guards read source, not prose — most through `sourceOf`, which drops
 full-line comments — so prose and configuration would rot unwatched; this one
 walks what the repo SAYS. Its population is git's index — never a directory walk, so build
 output is not read as a claim — minus generated files (`*.gen.ts`,
-`worker-configuration.d.ts`, the lockfile), dot-directories, `fixtures/`,
+the lockfile), dot-directories, `fixtures/`,
 `__fixtures__/` and `seed/` directories, and the `DATA_FILES` rows. It matches
 line by line with no markdown parsing, so a path inside a README's code block
 counts exactly as one in its prose does, and a comment in source counts like

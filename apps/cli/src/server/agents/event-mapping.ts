@@ -34,15 +34,18 @@ type TurnProviderEvent = Exclude<
 const mapProviderError = (
   event: Extract<ProviderEvent, { type: "provider/error" }>,
   turnId: string | null,
-): MapProviderEventResult => ({
-  event: {
+): MapProviderEventResult => {
+  const error: Extract<ThreadEvent, { type: "provider/error" }> = {
     message: event.message,
     scope: turnId === null ? threadScope() : turnScope(turnId),
     threadId: event.threadId,
     type: "provider/error",
-  },
-  kind: "mapped",
-});
+  };
+  if (event.failure !== undefined) {
+    error.failure = event.failure;
+  }
+  return { event: error, kind: "mapped" };
+};
 
 const mapTurnEvent = (event: TurnProviderEvent, turnId: string): MapProviderEventResult => {
   switch (event.type) {

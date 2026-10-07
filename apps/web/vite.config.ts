@@ -9,7 +9,10 @@ const src = fileURLToPath(new URL("src", import.meta.url));
 
 export default defineConfig({
   plugins: [
-    cloudflare({ viteEnvironment: { name: "ssr" } }),
+    cloudflare({
+      viteEnvironment: { name: "ssr" },
+      experimental: { newConfig: { cfBuildOutput: true } },
+    }),
     // the entry lives in src/worker because that directory is its own tsconfig program and the
     // entry names Env.
     tanstackStart({ server: { entry: "./worker/server.ts" } }),
@@ -23,4 +26,6 @@ export default defineConfig({
   },
   // strictPort: every doc and script names :5174, so failing to bind beats moving.
   server: { port: 5174, strictPort: true },
+  // `cf deploy` uploads whatever source maps the build emits
+  environments: { ssr: { build: { sourcemap: true } } },
 });

@@ -1,7 +1,7 @@
 // `thread wait` exit codes ARE the contract a shell script branches on:
 // 0 settled idle, 1 settled in error (or not found), 2 timeout, 4 an approval waiting (--until-input).
 
-import type { PendingInteraction } from "@repo/api/local/threads/threads-schema";
+import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
 import { describe, expect, it, onTestFinished } from "vitest";
 import {
   makeFixtureState,

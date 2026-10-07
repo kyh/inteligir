@@ -1,9 +1,9 @@
-import type { DataDirScope } from "@repo/api/local/system/system-schema";
+import type { DataDirScope } from "@repo/contract/local/system/system-schema";
 import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
 import { toast } from "@repo/ui/components/sonner";
 
-// main answers a refusal as a value, so a throw across the bridge is a fault, and Electron
-// wraps its message in words of its own: the row says its own sentence instead
+// the shell answers a refusal as a value, so a rejected command is a fault, worded for the
+// shell's log rather than for the person: the row says its own sentence instead
 export const bridgeFailed = (cause: unknown, sentence: string): void => {
   console.warn("[desktop] the shell did not answer", cause);
   toast.error(sentence);

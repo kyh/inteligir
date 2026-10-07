@@ -3,14 +3,11 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      // /privacy bundles docs/privacy.md, which sits in no workspace, so turbo hashes it only
-      // where it is named.
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/privacy.md"],
-      // The Cloudflare plugin also writes `.wrangler/deploy/config.json`, the
-      // redirect `wrangler deploy` and `vite preview` follow to the built
-      // worker. A cache hit that restored dist/ alone would leave them on
-      // wrangler.jsonc, whose `main` is the TypeScript source.
-      "outputs": ["dist/**", ".wrangler/deploy/**"]
+      // /privacy and /terms bundle docs/privacy.md and docs/terms.md, which sit in no workspace,
+      // so turbo hashes them only where they are named.
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/privacy.md", "$TURBO_ROOT$/docs/terms.md"],
+      // the Build Output `cf deploy --prebuilt` uploads
+      "outputs": [".cloudflare/output/**"]
     }
   }
 }

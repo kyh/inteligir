@@ -2,46 +2,58 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
-    // `^topo`, deliberately NOT `^build`. The CLI's own build stages THIS
-    // build's renderer, so `^build` would be a cycle; that ordering runs the
-    // other way and is named on `inteligir#build`. But these bundles inline
-    // the workspace packages' source, and a task with no `^` edge hashes none
-    // of it: an edit confined to @repo/editor or @repo/ui would be a cache hit
-    // that replays the stale renderer into the CLI's dist/ui. `^topo` is the
-    // transit node `typecheck` and `test` use: it runs no script and waits on
-    // no build, and it puts every dependency's files in this hash.
+    // The two pages (vite.config.ts). `^topo`, deliberately NOT `^build`: the CLI's own build
+    // stages the app page, so `^build` would be a cycle; that ordering runs the other way and is
+    // named on `inteligir#build`. But these bundles inline the workspace packages' source, and a
+    // task with no `^` edge hashes none of it: an edit confined to @repo/editor or @repo/ui would
+    // be a cache hit that replays a stale page into the CLI's dist/ui. `^topo` is the transit node
+    // `typecheck` and `test` use: it runs no script and waits on no build, and it puts every
+    // dependency's files in this hash.
     "build": {
       "dependsOn": ["^topo"],
-      "outputs": [".output/app/**"]
+      "outputs": ["dist/**"]
     },
-    // The .app is where the two halves meet: electron-builder packs the CLI
-    // bundle from node_modules, and that bundle already carries the renderer.
+    // The unbundled debug shell the scenario suite drives (tools/e2e/src/harness/desktop-shell.ts),
+    // its first-run page inside it. cargo keeps its own incremental cache, keyed on what turbo
+    // cannot see (the toolchain, ~/.cargo), so a turbo hit could only skip a no-op compile.
+    "build:shell": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    // The .app is where the halves meet: the shell compiled with the first-run page inside it, the
+    // node it ships, and the CLI bundle, which already carries the app page, as a resource.
     "package": {
       "dependsOn": ["build", "inteligir#build"],
       "outputs": [".output/bin/**"],
-      // Not a pure function of the source: the signature comes from the keychain and
-      // the notarization ticket from Apple, and a cache hit would replay an unsigned
-      // artifact over a signing key that has since appeared.
+      // Not a pure function of the source: the signature comes from the keychain and the
+      // notarization ticket from Apple, and a cache hit would replay an unsigned artifact over a
+      // signing key that has since appeared.
       "cache": false,
-      // CI's macOS job sets it to pack unsigned; strict env mode would strip it before
-      // electron-builder reads it, and the keychain search would run anyway.
-      "passThroughEnv": ["CSC_IDENTITY_AUTO_DISCOVERY"]
+      // the signing identity, the notary's key and the updater's: strict env mode strips anything
+      // unnamed before the Tauri CLI reads it (scripts/package.mjs says which it sets)
+      "passThroughEnv": [
+        "APPLE_API_ISSUER",
+        "APPLE_API_KEY",
+        "APPLE_API_KEY_PATH",
+        "APPLE_SIGNING_IDENTITY",
+        "INTELIGIR_PACK_UNSIGNED",
+        "TAURI_SIGNING_PRIVATE_KEY",
+        "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+      ]
     },
     "dev": {
       "cache": false,
       "persistent": true,
-      // The shell FORKS the CLI's bundle, so a stale `dist/` is a shell running
-      // last week's server with no error anywhere. esbuild rebuilds it in
-      // milliseconds; iterating on the server itself is `pnpm cli serve` in its
-      // own terminal, which this shell adopts.
+      // The shell runs the CLI's bundle, so a stale `dist/` is a shell running last week's
+      // server with no error anywhere. esbuild rebuilds it in milliseconds; iterating on the
+      // server itself is `pnpm cli serve` in its own terminal, which this shell adopts.
       "dependsOn": ["inteligir#build"],
-      // turbo runs in strict env mode and strips anything unnamed. The shell
-      // resolves its target through the server's own `resolveAppConfig`, so the
-      // set it needs is that module's whole table and not the port alone —
-      // stripping INTELIGIR_DATA_DIR alone would have the window verify a
-      // responder against the wrong data directory. Held against
-      // `ENV_VAR_NAMES` by tools/repo-guards/src/turbo-passthrough.test.ts,
-      // which derives its scope from who calls that function.
+      // turbo runs in strict env mode and strips anything unnamed. The shell resolves its target
+      // through the server's own `resolveAppConfig`, so the set it needs is that module's whole
+      // table and not the port alone — stripping INTELIGIR_DATA_DIR alone would have the window
+      // verify a responder against the wrong data directory. Held against `ENV_VAR_NAMES` by
+      // tools/repo-guards/src/turbo-passthrough.test.ts, which derives its scope from who calls
+      // that function.
       "passThroughEnv": [
         "INTELIGIR_AGENT",
         "INTELIGIR_CLAUDE_MODEL",

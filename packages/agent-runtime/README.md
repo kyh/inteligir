@@ -48,8 +48,9 @@ src/
                        # provider-event grammar, with the turn's item ids
     acp-permission-mapping.ts  # requestPermission ↔ @repo/domain's approval
                        # payload and resolution
-    provider-error.ts  # describeProviderError: a refusal's message, or for
-                       # an auth refusal the signed-out sentence
+    provider-error.ts  # readProviderError: a refusal's class and words —
+                       # the signed-out or usage-limit sentence, else the
+                       # adapter's message
   vocabulary/
     provider-event.ts  # ProviderEvent — the runtime's EMITTED grammar
   thread-shell-environment.ts  # stamps INTELIGIR_THREAD_ID onto a spawn's env
@@ -145,10 +146,13 @@ scripts/
   first, then the same allow/reject family; no offered option answers
   `cancelled`. An unrecognised tool kind falls back to the command subject,
   because the contract has no "other".
-- **What a user reads of a refusal is `describeProviderError`.** The SDK
+- **What a user reads of a refusal is `readProviderError`.** The SDK
   rejects a refused request with a `RequestError` (an Error carrying the
-  JSON-RPC `code`); the adapter's message is shown, except an auth refusal
-  (`-32000`) with a harness in hand, which says that harness is signed out.
+  JSON-RPC `code`); the adapter's message is shown, except, with a harness in
+  hand, an auth refusal (`-32000`, or an `errorKind` naming a sign-in), which
+  says that harness is signed out, and a usage-limit refusal, which says the
+  plan's limit is reached. Either class leaves the thread's queued messages
+  waiting for the next send.
 - **A session is registered only once the agent names it.** A refused or
   failed `initialize`, `session/new` or `session/load` registers nothing and
   takes its child with it, so the send after a sign-in opens a new adapter
@@ -221,14 +225,15 @@ pnpm --filter @repo/agent-runtime test
 ```
 
 `src/acp/__tests__/acp-mapping.test.ts` pins the pure halves: session
-notifications onto the provider-event grammar (one message item per turn,
-thoughts as one reasoning item, plans, edit-kind calls as `fileChange`, content
+notifications onto the provider-event grammar (a message or a reasoning item
+per spoken run, split where the messageId changes or a tool call opens, plans, edit-kind calls as `fileChange`, content
 replaced rather than appended, a failed tool, codex's shell commands as
 `commandExecution` with their raw output, notices and codex's warning chunk as
 `provider/notice`, cancellation interrupting open items, every non-`end_turn`
 stop but a cancel failing the turn, a prompt rejection failing through the
 grammar) and permission requests onto the pending-interaction contract;
-`provider-error.test.ts` pins the auth hint.
+`provider-error.test.ts` pins how a refused prompt is classed and worded (signed
+out, the plan's usage limit, overload, context, other).
 
 `src/acp/__tests__/acp-transcripts.test.ts` replays what the pinned adapters
 REALLY sent — `fixtures/<adapter>@<version>/*.ndjson`, one live turn per

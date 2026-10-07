@@ -4,7 +4,7 @@
 // and the breadcrumb's reveal — is applied during the owner's own render, because the tree
 // setting its owner's state while it renders is a React error; the tree only reads it.
 
-import type { VaultEntry } from "@repo/api/local/vault/vault-schema";
+import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { useState } from "react";
 

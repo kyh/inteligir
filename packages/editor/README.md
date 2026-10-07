@@ -12,7 +12,7 @@ contract, its fixture matrix and the kit-parity guards live together, and the
 workspace above it consumes an editor rather than containing one.
 
 Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
-(the components). No node, no electron. The host contract is this package's own
+(the components). No node, and nothing of the desktop shell's. The host contract is this package's own
 `host-io.ts` (`EditorHostIo`), `note/vault-session.ts` (`VaultSessionPorts`)
 and `guarded-vault-io.ts` (`GuardedVaultPort`); a host implements all three,
 and everything above its store (the write policy, the link resolver, note

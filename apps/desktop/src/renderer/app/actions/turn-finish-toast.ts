@@ -3,8 +3,8 @@
 // a later commit frame announces the newest applied turn that read did not hold. A thread first
 // heard through a commit frame alone ran nothing in between, so that frame is an undo's.
 
-import type { ThreadChangedMessage } from "@repo/api/local/notifications";
-import type { TurnChanges } from "@repo/api/local/threads/threads-schema";
+import type { ThreadChangedMessage } from "@repo/contract/local/notifications";
+import type { TurnChanges } from "@repo/contract/local/threads/threads-schema";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useEffect, useEffectEvent } from "react";
