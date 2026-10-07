@@ -33,7 +33,7 @@ export interface TreeOps {
   moveEntry: (fromPath: string, toDir: string) => void;
   removeEntry: (path: string, kind: "file" | "dir") => void;
   setPinned: (path: string, pinned: boolean) => void;
-  // present under the shell alone: the OS is reached through main, and a browser tab has no main
+  // present under the shell alone: the OS is reached through it, and a browser tab has no shell
   revealEntry?: (path: string) => void;
   openEntry?: (path: string) => void;
 }

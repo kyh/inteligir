@@ -1,5 +1,5 @@
 // In a plain browser tab ⌘T and sometimes ⌘L are reserved before the page sees
-// them; the Electron shell delivers both.
+// them; the desktop shell's window delivers both.
 
 import { isHotkey, KEYS } from "platejs";
 import { createPlatePlugin } from "platejs/react";

@@ -1,6 +1,7 @@
 // Keyed by path so a consumer never grabs a stale editor serving another note: a note switch
 // mounts a new editor, and the outgoing one must stop answering for the incoming path.
 
+import { deferred } from "@repo/editor/deferred";
 import type { SlateEditor } from "platejs";
 import { useSyncExternalStore } from "react";
 
@@ -68,7 +69,7 @@ export const whenLiveEditor = async (
   if (live !== undefined) {
     return live;
   }
-  const settled = Promise.withResolvers<SlateEditor | null>();
+  const settled = deferred<SlateEditor | null>();
   const unsubscribe = subscribeLiveEditors(() => {
     const mounted = editors.get(path);
     if (mounted !== undefined) {

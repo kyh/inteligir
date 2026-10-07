@@ -8,8 +8,8 @@ never meets it. `CLAUDE.md` § Project Overview holds the premises every change
 builds from, and where older prose assumes a developer, the overview wins.
 
 There are TWO programs. `apps/desktop` is THE SHIPPED PRODUCT, installed as the
-signed dmg: one window on the local server, forking it as a child, with the SPA
-as its renderer. `apps/cli` is the `inteligir` binary: `serve` runs the whole
+signed dmg: a Tauri window on the local server, which it runs as its one child
+on the node the .app carries, showing the SPA that server serves. `apps/cli` is the `inteligir` binary: `serve` runs the whole
 local server (the markdown vault, its index, the agent runtime and one oRPC API
 over SQLite), and every other verb but `vault open` is a client of a running
 one. The CLI is the agent's door and the developer's, which is how an agent
@@ -19,7 +19,7 @@ site, Better Auth on D1, device sign-in, sign-up and account deletion,
 cross-device sync, the capture and dispatch inboxes and the hosted vault. `apps/mobile` is the iPhone app:
 the same editor over the hosted vault, offline, asking a Mac to run the agent.
 This is the tool-agnostic guide for coding agents; `CLAUDE.md` holds the
-architecture and the durable decisions, GitHub issues #542 and #611 the
+architecture and the durable decisions, GitHub issues #542, #611 and #889 the
 decision record, the `note` issues the declines register (#877, #881, #788, #645,
 #674, #603, #705; read them before raising a finding), `CONTEXT.md` the domain
 glossary, `apps/web/README.md` the Worker's own routes and deploy.
@@ -205,7 +205,7 @@ tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
 - `apps/web/README.md` — the Worker's routes, auth, dev loop, deploy.
 - `docs/development.md` — the dev loop in one page.
 - `apps/cli/README.md` — the binary's two modes and every verb.
-- `apps/desktop/README.md` — the window, the protocol, the packaged app.
+- `apps/desktop/README.md` — the shell, its commands, the packaged app.
 - `docs/privacy.md` — what leaves the machine, what never does, what the phone
   keeps, how it dies.
 - `docs/releasing.md` — the release runbook and every owner-only check.

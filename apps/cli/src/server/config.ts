@@ -335,6 +335,10 @@ const retiredVaultRemoteWarnings = (
           `or pin one with ${ENV_VARS.vaultRemote.name}.`,
       ];
 
+// the selector as config.json holds it, unparsed, so writing it back restores exactly it
+export const readManagedVaultDir = (rootDataDir: string): string | null =>
+  readManagedConfigFile(rootDataDir).vaultDir ?? null;
+
 // The root's config.json is the vault selector: it is what `inteligir serve` reads with no
 // shell around, so a switch made in the shell is the CLI's next boot too. null removes the key, so
 // the next boot is on the default vault again: a first run whose boot failed must not leave the

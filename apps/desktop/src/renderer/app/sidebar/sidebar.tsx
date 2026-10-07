@@ -116,8 +116,8 @@ const VaultTile = ({ name }: { name: string }) => (
 );
 
 // The vault is the server's: switching it restarts the child and replaces this window, and the
-// folder is picked in main, so this is a menu over what main remembers. A browser tab has no
-// bridge and did not start the server, so it gets the name alone.
+// folder is picked in the shell, so this is a menu over what the shell remembers. A browser tab
+// has no bridge and did not start the server, so it gets the name alone.
 const VaultRow = ({ vaultName }: { vaultName: string }) => {
   const vaults = useDesktopVaults();
   const { busy, run } = useVaultSwitch((message) => {
@@ -464,7 +464,8 @@ export const SidebarRailContent = ({
     <>
       <SidebarHeader>
         {insetTitleBar ? (
-          <div aria-hidden="true" className="h-5 shrink-0 [-webkit-app-region:drag]" />
+          // the shell drags the window from a mousedown on this element itself
+          <div aria-hidden="true" className="h-5 shrink-0" data-tauri-drag-region />
         ) : null}
         <div className="flex items-center gap-1 pr-1.5">
           <div className="min-w-0 flex-1">

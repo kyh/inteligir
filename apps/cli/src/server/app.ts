@@ -30,6 +30,7 @@ import { localRouter } from "./root-router";
 import { presentedCredential, tokenAccepted } from "./server-file";
 import type { PresentedCredential } from "./server-file";
 import { SIGNED_OUT_PAGE, SIGNED_OUT_PAGE_HEADERS } from "./signed-out-page";
+import { forwardToUiDevServer } from "./ui-dev-server";
 import { handleVaultAsset } from "./vault/asset-route";
 import type { WsBus } from "./ws-bus";
 
@@ -38,6 +39,9 @@ export interface CreateAppArgs {
   bus: WsBus;
   serverToken: string;
   clientDir: string | null;
+  // a development shell's Vite, which answers the page's files in place of the bundle
+  // (ui-dev-server.ts); the sign-in, the api and the socket stay this server's own
+  uiDevOrigin?: string | null;
 }
 
 const STATIC_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
@@ -66,6 +70,16 @@ const SERVER_FAULT_STATUS = 500;
 
 const isOrpcError = (cause: unknown): cause is ORPCError<string, unknown> =>
   cause instanceof ORPCError;
+
+type UiSource = { kind: "dev"; origin: string } | { kind: "bundle"; dir: string } | null;
+
+// the page's files: a development shell's Vite when one is named, else the bundle's, else none
+const uiSource = (uiDevOrigin: string | null, clientDir: string | null): UiSource => {
+  if (uiDevOrigin !== null) {
+    return { kind: "dev", origin: uiDevOrigin };
+  }
+  return clientDir === null ? null : { dir: nodePath.resolve(clientDir), kind: "bundle" };
+};
 
 export const createApp = (args: CreateAppArgs) => {
   const app = new Hono<AppEnv>();
@@ -190,17 +204,8 @@ export const createApp = (args: CreateAppArgs) => {
     })),
   );
 
-  if (args.clientDir !== null) {
-    const clientDir = nodePath.resolve(args.clientDir);
-    // read once: the bundle is immutable for this process's life.
-    const shellDocument = readFileSync(nodePath.join(clientDir, "index.html"), "utf-8");
-    const serveClientFile = serveStatic<AppEnv>({
-      onFound: (path, c) => {
-        c.set("staticFilePath", path);
-      },
-      root: clientDir,
-    });
-
+  const ui = uiSource(args.uiDevOrigin ?? null, args.clientDir);
+  if (ui !== null) {
     // a browser's one way in. live or spent, the answer is the same URL without the nonce, so it
     // never lingers in the address bar or the history and a reload lands a browser that already
     // holds its cookie. the origin is the guard's: a path of `//elsewhere/` must stay on this server.
@@ -258,6 +263,28 @@ export const createApp = (args: CreateAppArgs) => {
 
     // ahead of the shell's route: its stamp would hand the frame the page's `script-src 'self'`.
     app.get(HTML_FRAME_PATH, (c) => c.body(HTML_FRAME_DOCUMENT, 200, HTML_FRAME_HEADERS));
+
+    if (ui.kind === "dev") {
+      // no policy is stamped: Vite's page runs the inline scripts its hot reload injects and dials
+      // a socket of its own. a release's policy is the bundle's, which the scenario suite holds
+      app.on(
+        ["GET", "HEAD"],
+        "*",
+        browserHandoff,
+        signedOutDocument,
+        async (c) => await forwardToUiDevServer(ui.origin, c.req.raw),
+      );
+      return { app, injectWebSocket, upgradedSockets };
+    }
+
+    // read once: the bundle is immutable for this process's life.
+    const shellDocument = readFileSync(nodePath.join(ui.dir, "index.html"), "utf-8");
+    const serveClientFile = serveStatic<AppEnv>({
+      onFound: (path, c) => {
+        c.set("staticFilePath", path);
+      },
+      root: ui.dir,
+    });
 
     // only /assets/* carries content hashes, so only it may be immutable; an asset miss must 404,
     // since answering with the shell hands the module loader html and an opaque mime error.

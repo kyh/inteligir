@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { deferred } from "@repo/editor/deferred";
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import type { Value } from "platejs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -106,7 +107,7 @@ describe("the comment surface", () => {
 const ARMED_RECT = { bottom: 20, height: 0, left: 10, right: 10, top: 10, width: 0 };
 
 const deferredCreate = (): ((ok: boolean) => void) => {
-  const answer = Promise.withResolvers<boolean>();
+  const answer = deferred<boolean>();
   setCommentActions({ create: () => answer.promise, open: () => {} });
   return answer.resolve;
 };

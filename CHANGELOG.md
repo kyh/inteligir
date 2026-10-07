@@ -4,6 +4,11 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ## Unreleased
 
+### Before you update
+
+- **Inteligir needs macOS 13.5 or later.** The app now runs on the Mac's own web engine instead of carrying a browser of its own, and what it brings in its place needs macOS 13.5. On an older Mac, the version you have keeps working and is not offered this update.
+- **Your window settings start over once.** The theme, the text appearance, the sidebar and panel widths, which list the sidebar shows, and the spell check switch go back to their defaults the first time this version opens; set them again in Settings. A message about a note two devices changed that you already saw can show once more. Your notes, vaults, sign-ins and agents are untouched. On macOS 13, every vault now shares one set of these settings.
+
 ### New
 
 - **Terms of Use.** Inteligir now has Terms of Use, at inteligir.com/terms. They say what you agree to when you use the website and the apps: your notes stay yours, the agent runs under your own Claude or ChatGPT plan's terms, and the online copy of your notes is free up to about 1 GB.
@@ -14,6 +19,8 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ### Fixed
 
+- **Notes open on iPhones with iOS 16.4 to 17.3.** On those versions the editor stopped before it could show a note; it now opens on every iPhone the app installs on.
+- **The agent's own Inteligir commands work on every Mac.** The agent drives the app by typing `inteligir` commands; on a Mac without Node.js installed those failed, and now they run on what the app carries.
 - **Messages you queued wait when your plan's usage limit is reached.** If Claude or ChatGPT stops an action because you've reached your plan's usage limit, or because you're signed out, the action now says so in plain words, and the messages you queued behind it stay queued instead of each failing the same way. Send again once the limit resets or you've signed in, and the oldest queued message goes first.
 - **An agent's separate replies within one action show as separate messages.** When the agent says what it is about to do, edits your notes and then says what it did, each message now shows where it happened, before and after its edits, instead of being joined into one block above all of them. The same goes for its thinking. Conversations from before this update still show the way they did.
 

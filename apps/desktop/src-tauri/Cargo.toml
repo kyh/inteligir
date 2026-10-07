@@ -1,0 +1,44 @@
+[package]
+name = "inteligir-desktop"
+description = "The Inteligir desktop shell"
+authors = ["kyh"]
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[lib]
+name = "inteligir_desktop"
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tauri = { version = "2.12", features = ["image-png", "tray-icon"] }
+tauri-plugin-dialog = "2.8"
+tauri-plugin-opener = "2.7"
+tauri-plugin-single-instance = "2.5"
+tauri-plugin-updater = "2.13"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", features = ["signal"] }
+signal-hook = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+expect_used = "warn"
+unwrap_used = "warn"

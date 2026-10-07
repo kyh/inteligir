@@ -1,0 +1,12 @@
+{
+  // The page alone, at the stdlib the window has: the system WebKit at the macOS 13.5 floor is
+  // Safari 16.6's, and Vite lowers syntax, never stdlib, so an ES2024 builtin would typecheck under
+  // tsconfig.json and then throw there. The suites stay on that program, since the booted ones
+  // compile apps/cli's server, which runs on node.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "dom", "dom.iterable"],
+    "tsBuildInfoFile": "${configDir}/../../.cache/tsbuildinfo.page.json"
+  },
+  "exclude": ["**/__tests__"]
+}

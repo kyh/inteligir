@@ -6,11 +6,11 @@ Developer ID and the notary key, npm's one-time code, the Apple team behind
 EAS, Cloudflare), and the agent environment refuses release operations
 outright.
 
-| Artifact           | Who gets it                                                     | How it ships                                                                  |
-| ------------------ | --------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `inteligir` on npm | `npx inteligir serve --open`                                    | `pnpm --filter inteligir publish`                                             |
-| The Mac app        | the site's Download button, and every installed app's updater   | a GitHub release carrying the dmg, the zip, its blockmap and `latest-mac.yml` |
-| The iPhone app     | TestFlight: the internal `Owner` group, then the `Cohort` group | `pnpm testflight:mobile` (EAS Build, submitted to App Store Connect)          |
+| Artifact           | Who gets it                                                     | How it ships                                                           |
+| ------------------ | --------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `inteligir` on npm | `npx inteligir serve --open`                                    | `pnpm --filter inteligir publish`                                      |
+| The Mac app        | the site's Download button, and every installed app's updater   | a GitHub release carrying the dmg, the signed update and `latest.json` |
+| The iPhone app     | TestFlight: the internal `Owner` group, then the `Cohort` group | `pnpm testflight:mobile` (EAS Build, submitted to App Store Connect)   |
 
 The three manifests carry one version (`apps/cli`, `apps/desktop`,
 `apps/mobile`; `tools/repo-guards/src/release-versions.test.ts` refuses a
@@ -31,7 +31,13 @@ The owner publishes once, when every step and every check below has passed.
 - **`.release/`** (gitignored) at the repo root: `notary.env` (`APPLE_API_KEY`,
   the `.p8`'s file name, beside it; `APPLE_API_KEY_ID`; `APPLE_API_ISSUER`)
   and the `.p8`, with the Developer ID Application certificate in the login
-  keychain (`security find-identity -v -p codesigning` lists it).
+  keychain (`security find-identity -v -p codesigning` lists it); and the
+  updater's key, which signs every update an installed app accepts:
+  `pnpm --filter @repo/desktop tauri signer generate -w ../../.release/updater.key`
+  (the path is the desktop package's, where the filter runs the script)
+  writes `updater.key` and `updater.key.pub`, and the password it asked for
+  goes in `updater.key.password`. Lose the key and no installed app can verify
+  an update again, so it is backed up wherever the Developer ID's export is.
   `apps/desktop/README.md` § Packaging says how the package step reads them.
 - **GitHub and npm**: `gh auth status` has push rights on the repo, and
   `npm whoami` names the account that owns `inteligir`.
@@ -64,13 +70,15 @@ pnpm format:fix && pnpm verify && pnpm e2e && pnpm smoke:cli && pnpm smoke:deskt
 ```
 
 `smoke:desktop` packages the app, signs it, notarizes it with `.release/` and
-boots it. Its output must say `package: notarizing with …`: a pack that
-reports `.release/` absent opens only on the Mac that built it. Package only
-through `pnpm smoke:desktop` or `pnpm package:desktop`: turbo's strict env mode
-strips `APPLE_API_*` exported in a shell (so they live in `notary.env`), and
-electron-builder run directly resolves dependencies npm's way, dropping pnpm's
-optional platform packages (`@parcel/watcher-darwin-arm64` among them), which
-leaves a watcher that crash-loops under a smoke that still passes.
+boots it; quit any running Inteligir first, since the packaged app would hand
+over to it. Its output must say `package: notarizing with …` and
+`package: signing the update`: a pack that reports `.release/` absent opens
+only on the Mac that built it, and one with no updater key ships an app that
+never updates. Package only through `pnpm smoke:desktop` or
+`pnpm package:desktop`: turbo's strict env mode strips `APPLE_API_*` exported
+in a shell (so they live in `.release/`), and the Tauri CLI run directly packs
+none of the resources (`apps/desktop/scripts/package.mjs` names them) and
+signs none of the binaries inside them.
 
 Commit as `release: <version>`, push, and wait for CI on that commit to go
 green: `gh run list --commit "$(git rev-parse HEAD)"`.
@@ -117,8 +125,8 @@ yet.
 Every check here needs a real device, a real account or a credential no CI
 holds. Run them on the release's own artifacts: the Mac app
 `pnpm smoke:desktop` left at
-`apps/desktop/.output/bin/mac-arm64/Inteligir.app` (signed and notarized; drag
-it to `/Applications` and open it from Finder), and the iPhone build from the
+`apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app` (signed and
+notarized; drag it to `/Applications` and open it from Finder), and the iPhone build from the
 `Owner` group, except where a check names the simulator or a development
 build. A failing check stops the release: fix it, and start again at step 1.
 
@@ -128,21 +136,22 @@ here, under its surface, with how to run it and what passing looks like.
 The commands below name the pack as `app`:
 
 ```sh
-app=apps/desktop/.output/bin/mac-arm64/Inteligir.app
+app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
 ```
 
 ### The Mac app
 
-- **Signed and notarized, the bundled git included.**
+- **Signed and notarized, the bundled node and git included.**
 
   ```sh
   codesign --verify --deep --strict --verbose=2 "$app"
+  codesign --verify --strict --verbose=2 "$app/Contents/MacOS/node"
   codesign --verify --strict --verbose=2 "$app/Contents/Resources/git/bin/git"
   spctl --assess --type execute --verbose=4 "$app"
   xcrun stapler validate "$app"
   ```
 
-  Passing: both `codesign` runs say `valid on disk` and
+  Passing: the three `codesign` runs say `valid on disk` and
   `satisfies its Designated Requirement`, `spctl` says `accepted` with
   `source=Notarized Developer ID`, and `stapler` says
   `The validate action worked!`.
@@ -271,25 +280,34 @@ refuses a server of another version, so npm and the Mac app ship as one.
 
 1. **The Mac app.** Tag and publish. The site's Download button links
    `releases/latest/download/Inteligir-arm64.dmg`, so the release must carry
-   the dmg under that fixed name (`apps/desktop/electron-builder.yml`), and
-   every installed app reads its `latest-mac.yml` and zip. The
-   notes are the changelog's top section, which
-   `apps/desktop/scripts/release-notes.mjs` prints only once it is titled for
-   this version, so a refusal stops the chain before the tag:
+   the dmg under that fixed name (`DMG_NAME` in
+   `apps/desktop/scripts/package.mjs`), and every installed app reads
+   `latest.json` and the signed `Inteligir.app.tar.gz` it names. The notes are
+   the changelog's top section, which `apps/desktop/scripts/release-notes.mjs`
+   prints only once it is titled for this version, so a refusal stops the
+   chain before the tag:
 
    ```sh
    node apps/desktop/scripts/release-notes.mjs > .release/notes.md &&
      git tag v<version> && git push origin v<version> &&
      gh release create v<version> --notes-file .release/notes.md \
        apps/desktop/.output/bin/Inteligir-arm64.dmg \
+       apps/desktop/.output/bin/Inteligir.app.tar.gz \
+       apps/desktop/.output/bin/Inteligir.app.tar.gz.sig \
+       apps/desktop/.output/bin/latest.json \
        apps/desktop/.output/bin/Inteligir-<version>-arm64.zip \
-       apps/desktop/.output/bin/Inteligir-<version>-arm64.zip.blockmap \
        apps/desktop/.output/bin/latest-mac.yml
    ```
 
-   A release missing the zip or the manifest is one no installed app can
+   A release missing `latest.json` or the archive is one no installed app can
    update to, and one missing `Inteligir-arm64.dmg` leaves the Download button
-   a 404.
+   a 404. The zip and `latest-mac.yml` are for the Electron builds (0.6.0 and
+   older), whose updater reads them: the zip holds this app, under the same
+   bundle id and team, so they update onto it. The manifest's
+   `minimumSystemVersion` is Darwin 22.6.0, which is macOS 13.5, node 24's
+   floor, since electron-updater compares Darwin releases: an Electron build
+   on an older Mac is offered nothing it cannot open and
+   stays on 0.6.0. Keep uploading both until no tester runs an Electron build.
 
 2. **npm.** `pnpm --filter inteligir publish --otp <code>`, from the tagged
    commit on a clean main (pnpm refuses another branch or a dirty tree); it

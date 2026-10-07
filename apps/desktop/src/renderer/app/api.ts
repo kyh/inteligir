@@ -16,7 +16,8 @@ export { isDefinedError, safe } from "@orpc/client";
 
 const isAbort = (cause: unknown): boolean => cause instanceof Error && cause.name === "AbortError";
 
-// no `headers` thunk: the bearer is attached in main under `inteligir://app`, and by the same-origin cookie over plain HTTP.
+// no `headers` thunk: the page holds no bearer, under the shell as in a tab; it signs in once
+// through a handoff, and the same-origin cookie that leaves carries every call.
 const link = new RPCLink({
   // the raw response, below the codec: the http gate's refusal is plain text, which the codec only
   // sees as a malformed body. its challenge is what marks it: a procedure's UNAUTHORIZED (a

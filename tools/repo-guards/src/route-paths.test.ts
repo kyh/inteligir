@@ -37,10 +37,6 @@ const ELSEWHERE = new Map<string, string>([
     "apps/cli/scripts/smoke.mjs",
     "a plain .mjs script run by `node` against a PACKED tarball in a scratch prefix — it has no bundler, no TypeScript and no workspace link to import the contract through, and giving it one would mean shipping the contract inside the published artifact to satisfy a test",
   ],
-  [
-    "apps/desktop/scripts/smoke-packaged.mjs",
-    "the same, one layer further out: it drives the packaged .app's own Electron binary as a bare node process, with no module resolution into this workspace at all",
-  ],
 ]);
 
 interface Spelled {

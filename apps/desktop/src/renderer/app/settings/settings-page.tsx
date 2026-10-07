@@ -25,7 +25,7 @@ import { AttachmentsRow } from "./attachments-row";
 import { ConnectorsSection } from "./connectors-section";
 import { FoldersSection } from "./folders-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
-import { SpellcheckRows } from "./spellcheck-rows";
+import { SpellcheckRow } from "./spellcheck-row";
 import { UpdatesRow } from "./updates-row";
 import { VaultsRow } from "./vaults-rows";
 import { VersionRow } from "./version-row";
@@ -199,7 +199,7 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
                   }}
                 />
               </Row>
-              <SpellcheckRows />
+              <SpellcheckRow />
             </dl>
           </section>
           <Separator />

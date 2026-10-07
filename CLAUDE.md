@@ -51,10 +51,13 @@ iPhone app, the same editor over the hosted vault.
 [#542](https://github.com/kyh/inteligir/issues/542) and
 [#611](https://github.com/kyh/inteligir/issues/611)** — what was chosen, and
 what was rejected and why. #611 is the v4 consolidation, and it REVERSES four
-of #542's lines deliberately; where the two disagree, #611 wins. Where either
-of them, or a Decisions bullet below, assumes a developer at the keyboard, this
-overview wins, and the issue that changes that code rewrites the bullet in the
-same commit.
+of #542's lines deliberately; where the two disagree, #611 wins.
+[#889](https://github.com/kyh/inteligir/issues/889) moves the desktop shell
+from Electron to Tauri and reverses three of #611's lines (the Electron shell,
+`utilityProcess` as the supervisor, the `inteligir://` door); where they
+disagree, #889 wins. Where any of them, or a Decisions bullet below, assumes a
+developer at the keyboard, this overview wins, and the issue that changes that
+code rewrites the bullet in the same commit.
 
 Turborepo + pnpm monorepo.
 
@@ -62,18 +65,13 @@ Turborepo + pnpm monorepo.
 
 ```
 apps/
-  desktop/       @repo/desktop — THE SHIPPED PRODUCT (issue #611). THREE
-                 bundles under electron-vite: src/main/ (the window, the
-                 inteligir:// protocol handler, the forked server, the first
-                 run), src/preload/ (the bridge: only what main owns — the
-                 loopback ws origin, the updater, the spell checker, the vault
-                 switch, Reveal/Open of a vault entry, the diagnostics (data
-                 folder, debug choice, restart, log) — and nothing that holds
-                 a token; every frame crosses as `unknown` and is parsed on
-                 both sides, the page mirroring each through one
-                 `bridge-store.ts`; beside it the first-run window's own,
-                 which carries the vault choice alone),
-                 and src/renderer/ (the SPA: TanStack Router file routes over
+  desktop/       @repo/desktop — THE SHIPPED PRODUCT (issues #611, #889). A
+                 Tauri 2 shell over the system WebKit: src-tauri/ (Rust: the
+                 windows and their pin, the server it starts and stops, the
+                 first run, the vault switch, the updater, the menus and the
+                 menu-bar icon), and src/renderer/ (the SPA, which every
+                 vault's server answers and the window loads from that
+                 server's own origin: TanStack Router file routes over
                  @repo/contract/local; `app/workspace.tsx` owns the note, the rail,
                  the palette and the panel; `app/note/` the guarded writes;
                  `app/palette/` the ⌘P pages; `app/sidebar/` the rail's
@@ -82,20 +80,25 @@ apps/
                  `app/settings/` the Settings layer, Account and Advanced
                  included; `app/onboarding/` the agent and account steps
                  `/welcome` offers after a first run; and `first-run/`, the
-                 page a launch with no vault opens, with no router and no
-                 server).
-                 The whole security surface is
-                 the ORIGIN PIN (src/main/origin-pin.ts, pure + unit-tested):
-                 one origin, top-level navigation away goes to the system
-                 browser, window.open denied unconditionally, every
-                 permission denied. utilityProcess forks
-                 `inteligir serve` and, through main's fork broker, every node
-                 child that server needs; a server already listening is
-                 ADOPTED once it answers this instance's token at the bundled
-                 version, and only a child the shell started is killed on quit.
-                 A Mac without the developer tools, or whose git is older
-                 than 2.45, runs the git the .app ships
-                 (src/main/bundled-git.ts).
+                 page a launch with no vault opens, which the shell carries,
+                 with no router and no server). The page asks the shell only
+                 what its server cannot answer (the updater, the vault switch,
+                 Reveal/Open of a vault entry, printing, the diagnostics), one
+                 Tauri command per row of `src/ipc-contract.ts`, every answer
+                 parsed on the page's side and mirrored through one
+                 `bridge-store.ts`, and nothing that holds a token: the window
+                 signs in by the server's one-time handoff, as a tab does.
+                 The whole security surface is the ORIGIN PIN
+                 (src-tauri/src/navigation.rs, pure + unit-tested): one origin,
+                 top-level navigation away goes to the system browser, no
+                 second window, every permission request denied. The shell
+                 asks the CLI's desktop entry every rule the server owns and
+                 runs `serve` on the node the .app ships beside it; a server
+                 already listening is ADOPTED once it answers this instance's
+                 token at the bundled version, and only a child the shell
+                 started is stopped on quit. A Mac without the developer
+                 tools, or whose git is older than 2.45, runs the git the .app
+                 ships (apps/cli/src/desktop/bundled-git.ts).
   cli/           inteligir — THE PUBLISHED BINARY, and THE SERVER (issues #553,
                  #611). `serve` is the whole local process — src/server/ owns
                  the vault, the knowledge index (its scan on a worker thread),
@@ -123,8 +126,15 @@ apps/
                  together, so the address and the credential cannot disagree
                  and no port is scanned. The ACP runtime injects
                  INTELIGIR_DATA_DIR + a PATH carrying this bin dir into agent
-                 shells, so a model drives the product by typing
-                 `inteligir …` in bash. The build inlines every workspace
+                 shells (under the packaged app, a launcher in the data dir
+                 that runs the node the .app ships), so a model drives the
+                 product by typing `inteligir …` in bash. src/desktop/ is the
+                 desktop shell's door, a second entry over the same chunks
+                 (dist/desktop.js): every rule the Rust shell acts by that is
+                 the server's own (which vault a launch boots, a first run's
+                 choice, a switch, a folder's facts, the selector's write) is
+                 asked of it, one JSON answer per process, and its `serve` is
+                 the server the shell runs. The build inlines every workspace
                  package (they export TS source) and stages as CONTENT the
                  migrations, the dialect skills, the vendored licence texts,
                  and the desktop renderer's bundle as dist/ui, which
@@ -703,20 +713,23 @@ to the END of its group.
   `packages/editor/src/guarded-vault-io.ts`, `packages/editor/src/vault-editor.ts`
   and `@repo/notes/text/diff3`.
 
-- **CONTAINMENT IS PHYSICAL, NOT LEXICAL, IN THE SERVER AND IN MAIN.** The
-  vault realpaths the deepest existing ancestor and refuses symlinked leaves; a
-  lexical check passes a `notes.md` that is a symlink to a private key, and a
-  `git pull` from a hostile remote can plant one
+- **CONTAINMENT IS PHYSICAL, NOT LEXICAL, IN THE SERVER AND IN THE SHELL.**
+  The vault realpaths the deepest existing ancestor and refuses symlinked
+  leaves; a lexical check passes a `notes.md` that is a symlink to a private
+  key, and a `git pull` from a hostile remote can plant one
   (`apps/cli/src/server/vault/vault-service.ts` over `path-containment.ts`).
   The vault dir and the data dir must be disjoint, refused at boot: a data dir
   inside the vault gets committed and pushed. The OS sees a vault entry through
-  main alone: Reveal in Finder and Open with default app send a vault-relative
-  path, which main parses with the vault grammar, joins under the current vault
-  and checks over both realpaths with `pathContains`
-  (`inteligir/server/path-containment`), so a `..`, an absolute path or a
-  planted symlink reaches no `shell.*` call
-  (`apps/desktop/src/main/vault-entry.ts`). A browser tab has no bridge and
-  draws no row; Copy path needs no main.
+  the shell alone: Reveal in Finder and Open with default app send a
+  vault-relative path, which the shell takes only as plain relative components,
+  joins under the current vault and checks over both realpaths, never the vault
+  itself, so a `..`, an absolute path or a planted symlink reaches no opener
+  call (`resolve_vault_entry` in `apps/desktop/src-tauri/src/paths.rs`). That
+  is the one rule the Rust shell spells a second time, because asking the CLI
+  would cost a node process per click; it is the realpath alone, since the
+  vault grammar's other refusals (`.git`, a staging file) guard writes and a
+  Finder window harms nothing. A browser tab has no bridge and draws no row;
+  Copy path needs no shell.
 
 - **THE ENGINE'S GIT IGNORES THE VAULT'S OWN GIT HABITS, AND A PASS REPORTS ONE
   OUTCOME.** `runGit` prepends `--literal-pathspecs`,
@@ -782,18 +795,21 @@ to the END of its group.
   accepted: the credential and the agent default live in the data dir, so a
   second vault starts signed out, which also keeps it off the account's hosted
   remote; connectors belong to the agent, so every vault shares them. The shell
-  switches only a child it started and opens a new window, since a
-  `BrowserWindow`'s session is fixed at creation; any failure puts the previous
-  vault back, and a rollback that cannot write the selector back quits rather
-  than leave `config.json` naming the vault that failed (`runVaultSwitch`). A
-  first run writes the selector before the first child exists unless it chose
-  the default, and a failed first boot removes it
-  (`writeManagedVaultDir(root, null)`), so the next launch asks again. The
-  folder is picked in main, so the page never names a path it was not handed,
-  and a picked switch to a folder another service syncs asks first, in the
-  first run's words. `inteligir vault open <dir>` runs the same plan
+  switches only a child it started and opens a new window, since a webview's
+  data store is fixed at creation and each vault has its own; any failure puts
+  the previous vault back, and a rollback that cannot write the selector back
+  quits rather than leave `config.json` naming the vault that failed
+  (`switch_vault` in `apps/desktop/src-tauri/src/shell.rs`). A first run writes
+  the selector before the first child exists unless it chose the default, and a
+  failed first boot removes it (the door's `select --default`, which is
+  `writeManagedVaultDir(root, null)`), so the next launch asks again. The
+  folder is picked in the shell, so the page never names a path it was not
+  handed, and a picked switch to a folder another service syncs asks first, in
+  the first run's words. Every rule of that plan is the CLI's, asked through
+  the desktop door (`apps/cli/src/desktop/desktop-door.ts` over
+  `apps/cli/src/desktop/vaults.ts`); the shell only orders the moves.
+  `inteligir vault open <dir>` runs the same plan
   (`apps/cli/src/server/vault-switch.ts`) and restarts nothing.
-  `apps/desktop/src/main/vaults.ts`, `main/index.ts` (`switchVault`),
   `apps/desktop/src/vaults-state.ts`.
 
 - **A SYNC PASS HOLDS THE REPO LOCK ONLY FOR ITS LOCAL STEPS.** The fetch and
@@ -1510,11 +1526,11 @@ to the END of its group.
   `NSMicrophoneUsageDescription`, no web permission, no model and no socket.
   Rejected: an in-app recognizer, whose live partials cost a native addon on a
   worker, a ~100 MB third-party download behind a sha gate, a dictation socket
-  and the app's only device grant. The window's session denies every
-  permission request and check (`lockDownSession` in
-  `apps/desktop/src/main/index.ts`), which
-  `tools/e2e/src/scenarios/desktop-shell.ts` reads back as a denied microphone;
-  the model folder an install already holds is removed after listen
+  and the app's only device grant. Every window denies every permission
+  request (`on_permission_request` in `apps/desktop/src-tauri/src/window.rs`),
+  which `tools/e2e/src/scenarios/desktop-shell.ts` reads back as a denied
+  location and notification request, since a runner has no microphone to ask
+  for; the model folder an install already holds is removed after listen
   (`apps/cli/src/server/retired-model-dir.ts`). A Mac's ⌘K composer says "fn
   fn to dictate" beside Send, the app's one hint
   (`apps/desktop/src/renderer/app/actions/action-composer.tsx`). A dictated
@@ -2036,10 +2052,18 @@ to the END of its group.
 - **ONE BINARY, TWO MODES: `inteligir serve` IS the server, and `npx` is a verb**
   (reversing the launcher-boots-in-process line). `npx inteligir serve --open`
   is the developer's and the agent's zero-install path, with one exit code; a
-  user installs the signed dmg and never meets it. The desktop shell still
-  forks a child so the compositor never shares an event loop with
-  better-sqlite3, a watcher fork and `git`, supervised with the deliberate
-  absence of a restart (`apps/desktop/src/main/server-process.ts`). Whether
+  user installs the signed dmg and never meets it. The desktop shell is Rust,
+  so the server is its one child, on the node the .app carries, supervised
+  with the deliberate absence of a restart, since a fresh child mints a
+  session the window's cookie does not hold. A quit sends SIGTERM and waits
+  the teardown budget the child announced before SIGKILL, inside
+  `RunEvent::Exit`, since Cmd+Q leaves no later step to wait in; the child
+  holds a pipe the shell never writes, so a shell that crashes or is killed
+  closes it and the server shuts down rather than hold the data dir, and runs
+  in a process group of its own, so a signal to the shell's group reaches the
+  server once, through the shell, since a second one skips the flush
+  (`apps/desktop/src-tauri/src/server.rs`, the `lifeline` `runServe` watches
+  once its signals are, in `apps/cli/src/server/serve.ts`). Whether
   `server.json`'s owner still serves has ONE reading,
   `apps/cli/src/server/server-probe.ts`, which the boot's guard and the shell's
   adoption both project; the shell refuses a server of another version,
@@ -2066,9 +2090,7 @@ to the END of its group.
   timestamps rather than re-arming a timer per frame; `writeTransaction` in
   `@repo/db/connection` as the one spelling of `BEGIN IMMEDIATE`. `serve.ts`
   injects node's socket dial and the agent driver because compose is reachable
-  from the renderer's test program, and, under the desktop shell, the brokered
-  watcher channel and adapter spawner (`child-host/node-children.ts`), because
-  only a utility-process child has a parent port to ask main through.
+  from the renderer's test program.
   `dev-instance.ts` owns the per-checkout derivation; `config.ts` stays the
   parser.
 
@@ -2084,9 +2106,11 @@ to the END of its group.
   read the data dir, not that it is this code. A BROWSER CANNOT SEND A HEADER,
   so it holds its own per-boot secret in an HttpOnly SameSite=Strict cookie,
   set only by trading a single-use handoff nonce a bearer holder minted
-  (`system.browserHandoff`); a request with neither gets a 401 page that runs
-  nothing and names the ways in, never the shell, which would fail every call
-  with nothing saying why (`apps/desktop/src/renderer/app/signed-out-state.ts`).
+  (`system.browserHandoff`), and the desktop window is such a browser (THE APP
+  WINDOW IS THE SERVER'S OWN PAGE, below); a request with neither gets a 401
+  page that runs nothing and names the ways in, never the workspace, which
+  would fail every call with nothing saying why
+  (`apps/desktop/src/renderer/app/signed-out-state.ts`).
   The cookie, being ambient, must also prove same-origin, because loopback
   "site" ignores the port, and EVERY REQUEST MUST NAME 127.0.0.1 OR localhost
   AS ITS HOST, so a rebinding page gets nothing. Residual: a cookie is
@@ -2105,11 +2129,13 @@ to the END of its group.
 
 - **THE CSP IS STATIC, and deleting TanStack Start from the product bought
   that** (reversing the nonce CSP). A plain Vite SPA injects no inline script,
-  so `script-src` is `'self'` and one fixed header serves both the protocol
-  handler and the server; `connect-src` earns the most, since a script that
-  cannot reach a third-party origin cannot exfiltrate the vault
-  (`apps/cli/src/server/csp.ts`). The first-run page's policy, as static, names
-  no websocket origin, since no server exists for it to dial. NOTHING REMOTE
+  so `script-src` is `'self'` and one fixed header serves every page the
+  server answers, the desktop window's included; `connect-src` earns the most,
+  since a script that cannot reach a third-party origin cannot exfiltrate the
+  vault (`apps/cli/src/server/csp.ts`). The first run is the shell's own page,
+  so its policy is the shell's config (`apps/desktop/src-tauri/tauri.conf.json`),
+  held to the server's for a page with no socket, plus Tauri's IPC origins, by
+  `tools/repo-guards/src/desktop-shell-wire.test.ts`. NOTHING REMOTE
   LOADS IN A NOTE: a remote embed is a beacon on every open, so it draws as a
   card (`packages/editor/src/nodes/remote-content-card.tsx`); widening the
   policy is a privacy decision. AN HTML BLOCK'S RUN IS A FRAME WITH A POLICY OF
@@ -2119,76 +2145,109 @@ to the END of its group.
   CSP, so only `tools/e2e/src/scenarios/remote-content-browser.ts` sees either
   regress.
 
-- **THE RENDERER'S ONLY DOOR IS `inteligir://app`.** The protocol handler
-  carries the bundle, `/rpc/*` and `/vault/asset`, attaching the bearer in
-  main, so the page is same-origin with its API, there is no CORS, and the
-  renderer never holds the token (which keeps `<img src>` working). Websockets
-  are the one exception, since a browser WebSocket cannot be proxied: main
-  attaches the bearer to those upgrades and the preload hands the renderer the
-  loopback origin. BOTH CARRIERS LEND THE BEARER ONLY TO THE PAGE
-  (`carriesBearer`), so a sandboxed note frame gets a 403 and a bare upgrade.
-  The pin cannot use `URL.origin`, which answers `"null"` for any non-special
-  scheme. Before the first boot the same scheme serves the first-run page on a
-  session of its own with no server behind it: `/rpc/*` and `/vault/asset`
-  answer 503. THE BRIDGE CARRIES ONLY WHAT MAIN OWNS (the loopback origin, the
-  updater, the spell checker, the vault switch, Reveal/Open, the diagnostics),
-  because no server can answer for any of them; the first-run window's preload
-  carries the vault choice alone, and main answers each window's rows to that
-  window only. Each channel is one row (`apps/desktop/src/ipc-contract.ts`)
-  typing both ends, every frame parsed by the side that receives it, held both
-  ways by `apps/desktop/src/main/__tests__/ipc-contract.test.ts`. A refusal
-  crosses as a value (`{ ok: false, reason }`), never a throw, because
-  Electron rewords a thrown error. `apps/desktop/src/main/protocol.ts` over
-  `protocol-handler.ts`, `origin-pin.ts`, `credential-scope.ts`,
-  `apps/desktop/src/types.ts`, `apps/desktop/src/renderer/app/socket-origin.ts`.
+- **THE APP WINDOW IS THE SERVER'S OWN PAGE, AND HOLDS NO BEARER** (#889,
+  reversing the `inteligir://` protocol door: a WKWebView scheme handler can
+  neither carry the socket's upgrade nor stream a body). The shell opens the
+  window on the one-time handoff link the server announces, so the page signs
+  in as a browser tab does (THE CREDENTIAL IS A FILE) and is same-origin with
+  `/rpc`, `/ws` and `/vault/asset`, with no CORS and no token in the page. The
+  window is pinned to that origin, compared by its parts, never by prefix or
+  `Url::origin`, which answers an opaque origin for a non-special scheme: any
+  other web page opens in the browser, at most once a second since WebKit says
+  nothing of the click behind a navigation, anything else is refused,
+  `window.open` opens no window, and every permission is denied
+  (`apps/desktop/src-tauri/src/navigation.rs`, `window.rs`). Each vault's
+  window keeps a web store of its own, keyed by its data dir, because every
+  vault's server answers on one port and the page's prefs are the origin's;
+  that needs macOS 14, below which every vault shares one. Rejected: a Rust
+  proxy on a custom scheme and a socket relay over IPC, which rebuild in a
+  second language what the browser path already is. THE BRIDGE CARRIES ONLY
+  WHAT THE SHELL OWNS (the updater, the vault switch, Reveal/Open, printing,
+  the diagnostics), because no server can answer for any of them. Each command
+  is one row of `apps/desktop/src/ipc-contract.ts`, parsed by zod in the page
+  (`apps/desktop/src/renderer/shell-commands.ts`) and by serde in the shell
+  (`apps/desktop/src-tauri/src/commands.rs`), and granted at runtime to that
+  window on the server's exact origin alone (`grant_app_window`); the first
+  run's own capability grants its four, and `removeUnusedCommands` drops every
+  command no capability names. `tools/repo-guards/src/desktop-shell-wire.test.ts`
+  holds the names equal across the two languages, which no compiler sees
+  together. A refusal crosses as a value (`{ ok: false, reason }`), never a
+  rejection, which the page reads as a fault. Residual: the page holds the
+  per-boot cookie (HttpOnly, SameSite=Strict, dead with the boot), and Tauri's
+  IPC from the server's origin falls back to `postMessage` under its CSP, at
+  the cost of one console line.
 
-- **UPDATES ARE electron-updater OVER THE GITHUB RELEASE, and nothing moves
-  without a click** (reversing "no update feed"). The release carries the dmg,
-  the zip Squirrel installs from, its blockmap and `latest-mac.yml`, uploaded
-  by the owner's release step (`docs/releasing.md`), never by
-  electron-builder. `autoDownload` and `autoInstallOnAppQuit` are off: a check
-  15s after launch and every 4 minutes, the download and the restart each a
-  click. Install stops the server child first, so the vault's pending commit
-  flushes before Squirrel swaps the bundle. `apps/desktop/src/main/updates.ts`
-  (the policy over an injectable port) and `apps/desktop/src/update-state.ts`
-  (a union by status).
+- **UPDATES ARE TAURI'S UPDATER OVER THE GITHUB RELEASE, and nothing moves
+  without a click** (reversing "no update feed"; electron-updater until #889).
+  The release carries the dmg, `Inteligir.app.tar.gz` with its minisign
+  signature and `latest.json`, written by the pack
+  (`apps/desktop/scripts/package.mjs`) and uploaded by the owner's release step
+  (`docs/releasing.md`); the signing key is the owner's release secret, and a
+  pack without it makes no feed. A check 15s after launch and every 4 minutes,
+  the download and the restart each a click. Install stops the server child
+  first, so the vault's pending commit flushes before the bundle is replaced.
+  The same release still carries electron-updater's zip and `latest-mac.yml`,
+  so an Electron install updates into the Tauri app, which keeps the bundle id
+  and the Developer ID that Squirrel's designated-requirement check needs; the
+  manifest names node 24's floor, macOS 13.5, as the Darwin release
+  electron-updater compares, so an older Mac is offered nothing it cannot
+  open. Drop the pair once no supported install runs Electron.
+  `apps/desktop/src-tauri/src/updater.rs` (the policy) over `update_state.rs`
+  (a union by status, which `apps/desktop/src/update-state.ts` parses from the
+  `update-state` event).
 
-- **SPELL CHECK IS THE SESSION'S SWITCH, AND THE PAGE KEEPS THE CHOICE.** Only
-  main can flip Chromium's checker, so Settings asks through the bridge and
-  keeps the choice in the page's own prefs; no main-side store, because the
-  choice is a page preference like the theme. On macOS the OS checker detects
-  the language itself, so the row says so instead of pretending.
-  `apps/desktop/src/main/spellcheck.ts`,
-  `apps/desktop/src/spellcheck-state.ts`,
-  `apps/desktop/src/renderer/app/desktop-spellcheck.ts`.
+- **SPELL CHECK IS THE PAGE'S ATTRIBUTE, AND EXPORT AS PDF IS THE SHELL'S
+  PRINT** (#889, reversing the session's switch, which WKWebView has no
+  counterpart for). The choice is a page pref like the theme, set as
+  `spellcheck` on the document root before the first paint and inherited by
+  every field; macOS picks the languages, so the row names none
+  (`apps/desktop/src/renderer/app/spellcheck.ts`). The note's title and body
+  keep theirs off. WKWebView does nothing on `window.print()`, so Export as
+  PDF asks the shell to print the window (`print_page`) under the note's
+  title, the suggested file name, which comes back on `afterprint`. A print is
+  light whatever the window shows: `.dark` steps aside between `beforeprint`
+  and `afterprint`, which WebKit fires around the shell's print as a browser
+  does around its own. #889's print stylesheet was rejected, since a
+  screen-only theme needs an at-rule in `packages/editor/src/styles.css`,
+  which its guard keeps flat (`apps/desktop/src/renderer/app/note/export-pdf.ts`).
 
-- **THE SHELL ASKS THE LOGIN SHELL FOR PATH BEFORE THE FIRST FORK.** A Finder
+- **THE SHELL ASKS THE LOGIN SHELL FOR PATH BEFORE THE FIRST CHILD.** A Finder
   or Dock launch inherits launchd's bare PATH. The agent's runtime needs none
   (it is bundled), but the agent's bash and the vendor's stdio MCP servers run
-  the user's own commands by name. A packaged macOS shell runs `$SHELL -ilc`
-  once, capped at 5s, and prepends its PATH to main's own, which every child
-  spreads. Rejected: a fixed list of bin dirs alone, and an `LSEnvironment`
+  the user's own commands by name. A packaged launch runs `$SHELL -ilc` once,
+  capped at 5s, through the desktop door's `launch`, and prepends its PATH to
+  the shell's own for every node child after it: the server and each door
+  question. Rejected: a fixed list of bin dirs alone, and an `LSEnvironment`
   PATH in the bundle, since neither can know a version manager's directory.
-  `apps/desktop/src/main/login-shell-path.ts`.
+  `apps/cli/src/desktop/login-shell-path.ts`.
 
-- **THE PACKAGED BINARY'S FUSES ARE ALL FLIPPED, AND MAIN FORKS THE SERVER'S
-  NODE CHILDREN.** electron-builder flips them before signing, so no local
-  process can run the signed app as a node interpreter, `file://` pages get no
-  extra privileges, the cookie store is encrypted, and only an `app.asar`
-  matching its embedded hash loads (the unpacked server is the signature's to
-  guard). With `runAsNode` off a utility process cannot fork one of its own, so
-  the server asks main over its parent port for the vault watcher and each ACP
-  adapter (`apps/desktop/src/main/fork-broker.ts`,
-  `apps/cli/src/server/child-host/`); under plain node (`serve`, npx) it forks
-  both with `child_process`. Rejected: a bundled node binary, a second signed
-  interpreter to patch, and worker threads, which trade the watcher's sigkill
-  recovery and an adapter's own process. The flip breaks Electron's ad-hoc
-  signature, which Apple Silicon enforces, so `resetAdHocDarwinSignature`
-  re-signs the app ad-hoc right after. `apps/desktop/electron-builder.yml`.
+- **NODE SHIPS BESIDE THE SHELL, SIGNED, AND THE SHELL HANDS IT NO
+  CODE-LOADING ENVIRONMENT** (#889, reversing the fuses and their "Rejected: a
+  bundled node binary"). The Tauri binary runs no JavaScript, so the server,
+  the watcher and each ACP adapter run on the official darwin-arm64 node, a
+  `bundle.externalBin` sidecar fetched against a pinned sha-256
+  (`apps/desktop/scripts/fetch-node.mjs`), with the CLI and its production
+  `node_modules` as a resource (`apps/desktop/scripts/stage-server.mjs`); the
+  server forks its children with `child_process`, as under `npx`. Every Mach-O
+  in the resources is signed with the hardened runtime before bundling, the
+  server's tree with the one entitlements file and the git, which runs no JIT,
+  with none (`apps/desktop/scripts/sign-resources.mjs`).
+  The shell finds node and the CLI only where its bundle carries them, never
+  through a variable, and starts every node child with `NODE_OPTIONS` and
+  every other `NODE_*` but `NODE_ENV` removed (`scrubbed_env` in
+  `apps/desktop/src-tauri/src/runtime.rs`), so an `open --env` runs no code
+  inside a process TCC counts as Inteligir: the job two fuses did. An agent's
+  `inteligir` runs on that node too, through a launcher on the agent's PATH
+  (`apps/cli/src/desktop/agent-launcher.ts`), since a Mac may have no node of
+  its own. Rejected: `bun build --compile`, under which better-sqlite3 does not
+  load, and Node's single-executable apps, whose blob holds no native addon and
+  no split ESM entry. Residual: that node is a signed interpreter any local
+  process can run, as the `runAsNode` fuse had ruled out for the Electron
+  binary; it carries the JIT entitlements and no other grant.
 
 - **DIAGNOSTICS ARE `INTELIGIR_DEBUG`'S NAMED TRACES, SHIPPED IN EVERY BUILD,
-  AND IN THE PACKAGED APP A SWITCH AND A FILE, BOTH MAIN'S.** The watcher, the
-  index, the sync pass and the ACP adapter drop, skip and fence without a
+  AND IN THE PACKAGED APP A SWITCH AND A FILE, BOTH THE SHELL'S.** The watcher,
+  the index, the sync pass and the ACP adapter drop, skip and fence without a
   trace, and a user's "it didn't update" cannot wait for a build. So each
   decision calls its namespace's log, `undefined` while the namespace is off,
   so an untraced site costs one read. A line names paths, ids and protocol
@@ -2198,18 +2257,20 @@ to the END of its group.
   at boot, since a misspelt one reads as "nothing happened". A levelled logger
   was rejected: the value is these few decisions, not more volume
   (`apps/cli/src/server/debug-log.ts`, `tools/e2e/src/scenarios/debug-log.ts`).
-  A Finder-launched app has no env and drops main's stdout, so debug logging is
-  Settings › Advanced's switch, kept as `diagnostics.json` in the shell's
-  userData because main reads it before the fork it changes (the page's prefs
-  load after that fork, and config.json is the app's to read, never to write);
-  on, the next child traces every namespace, since a report cannot know which
+  A Finder-launched app has no env and drops the shell's stdout, so debug
+  logging is Settings › Advanced's switch, kept as `diagnostics.json` in the
+  shell's own folder (Electron's userData, kept so an upgrade keeps the choice)
+  because the shell reads it before the start it changes (the page's prefs load
+  after that start, and config.json is the app's to read, never to write); on,
+  the next child traces every namespace, since a report cannot know which
   decision went wrong, so a change asks for a Restart through the ordinary
   quit. Whatever the child prints is appended to `<dataDir>/logs/server.log`,
-  rotated at 5 MiB, and a write that fails costs the log, never main; the
-  server writing its own file was rejected, since a crash before its logger is
-  up is the line a report most needs. An adopted server is nobody's child
-  here, so the switch is refused and says why.
-  `apps/desktop/src/main/diagnostics.ts`, `apps/desktop/src/main/server-log.ts`,
+  rotated at 5 MiB, beside the shell's note of each window it loads, and a
+  write that fails costs the log, never the shell; the server writing its own
+  file was rejected, since a crash before its logger is up is the line a
+  report most needs. An adopted server is nobody's child here, so the switch
+  and the Restart are refused and say why.
+  `apps/desktop/src-tauri/src/diagnostics.rs`, `server_log.rs`,
   `tools/e2e/src/scenarios/desktop-diagnostics.ts`.
 
 - **THE RELEASE NOTES ARE THE CHANGELOG, WRITTEN FOR THE PERSON USING THE
@@ -2223,7 +2284,7 @@ to the END of its group.
   shape. Settings › About links the file on main
   (`apps/desktop/src/renderer/app/settings/version-row.tsx`).
 
-- **FIRST RUN IS DECIDED IN MAIN BEFORE ANY SERVER EXISTS**, because a server
+- **FIRST RUN IS DECIDED BEFORE ANY SERVER EXISTS**, because a server
   is bound to one vault and one data dir and a knowledge worker chooses between
   a new vault and a folder they already have. `planLaunch` asks only when
   nothing chose a vault (no env pin, no `vaultDir` in config.json) and the
@@ -2231,17 +2292,21 @@ to the END of its group.
   pinned harness never meet it. Rejected: booting the default vault unasked,
   which created, seeded and committed `~/Inteligir` before the user said
   anything and left it behind when they opened a folder instead. The first-run
-  window is its own: an in-memory partition locked down like a vault's, no
-  server behind the handler, and a preload built apart, because a sandboxed
-  preload can require no chunk beside it (`apps/desktop/electron.vite.config.ts`).
-  Every folder the page names back is one main handed out, and a choice is
-  resolved exactly as a boot would before anything is written
-  (`planFirstRunChoice`). An existing folder is plain markdown where it is,
+  window is its own: the bundle's page on `tauri://`, built apart
+  (`apps/desktop/vite.config.ts`, `--mode first-run`), pinned and locked down
+  like a vault's, with no server behind it and a capability granting its four
+  commands alone (`apps/desktop/src-tauri/capabilities/first-run.json`). It
+  keeps the default web store rather than #889's non-persistent one, which the
+  scenario suite's WebDriver could not drive; every vault's window has a store
+  of its own, so nothing the first run keeps reaches one. Every folder the page
+  names back is one the shell handed out, and a choice is resolved exactly as
+  a boot would before anything is written (`planFirstRunChoice`, asked
+  through the desktop door). An existing folder is plain markdown where it is,
   shown with what `inspectVaultFolder` says of it (its notes, a service that
   syncs it, an origin of its own). The agent and the account follow as steps in
   the app window on `/welcome`, a layer over the workspace like Settings, each
   skippable, composing the shared `AgentSignIn` and `AccountForm` rather than
-  spelling either flow again. `apps/desktop/src/main/first-run.ts`,
+  spelling either flow again. `apps/cli/src/desktop/first-run.ts`,
   `apps/desktop/src/first-run-state.ts`,
   `apps/desktop/src/renderer/first-run/vault-step.tsx`,
   `apps/desktop/src/renderer/routes/_workspace/welcome.tsx`,
@@ -2256,22 +2321,25 @@ to the END of its group.
   install, so the vault could not even initialize. The pack carries
   dugite-native's macOS arm64 build, fetched at package time against a pinned
   sha-256 (`apps/desktop/scripts/fetch-git.mjs`) and signed and notarized with
-  the rest of the bundle. Main asks `xcode-select -p` once before the first
-  fork: a developer dir holding `usr/bin/git` keeps the Mac's own git (owner
+  the rest of the bundle. The desktop door's `launch` asks `xcode-select -p`
+  once, before the first child: a developer dir holding `usr/bin/git` keeps the Mac's own git (owner
   decision: a user with the tools and an https remote of their own keeps the
   Keychain helper, which dugite-native does not build), unless the git a PATH
   lookup finds once PATH is the login shell's is older than 2.45 or will not
   say its version: an older git sets its own `Transfer-Encoding` header, which
   libcurl 8.7.0 and 8.7.1 mishandle, so a push past 1 MiB goes out as its first
   4 bytes (Homebrew's 2.39.0 does). Any other Mac gets the bundled one on the
-  server child's env, which the engine, the ACP adapters and
-  every agent shell inherit, and on main's one git read. Never
+  env of every node child the shell starts, so the engine, the ACP adapters,
+  every agent shell and the door's own folder reads run it. Never
   `GIT_CONFIG_COUNT`: the hosted remote's bearer rides those rows per
   invocation. A dev or e2e launch keeps the host's git. The fetch drops Git
   Credential Manager and Git LFS, which no config names and which were
-  five-sixths of the payload. Rejected: the dugite npm package, a JS API
+  five-sixths of the payload, and every dashed built-in's link but the three a
+  transport runs (git's own `SKIP_DASHED_BUILT_INS`) and `git-remote-https`,
+  since Tauri copies a link as the file it names: 140-odd whole gits, near
+  500 MB. Rejected: the dugite npm package, a JS API
   nothing calls and a postinstall download on every install.
-  `apps/desktop/src/main/bundled-git.ts`; the smoke's first launch plays such a
+  `apps/cli/src/desktop/bundled-git.ts`; the smoke's first launch plays such a
   Mac and proves the host's git never ran.
 
 ### Desktop workspace surfaces
@@ -2421,8 +2489,11 @@ to the END of its group.
   reason. Every vendored file keeps its `// Vendored from X, MIT.` header and the
   licence texts live under `tools/licenses`, staged into the artifact as
   `dist/licenses`, with `pnpm smoke:cli` deriving the expected set from the
-  directory. The one licence shipped elsewhere is the bundled git's, beside it
-  in the .app, since only the .app carries it. `packages/ui/components.json`
+  directory. The licences shipped elsewhere are the .app's own, since only the
+  .app carries what they cover: the bundled git's and node's beside them, and
+  the notices of every Rust crate the shell links, written at package time from
+  cargo's resolve (`apps/desktop/scripts/rust-notices.mjs`) and checked by the
+  smoke. `packages/ui/components.json`
   declares `rsc: true` and it is inert: every consumer is a plain Vite build.
 
 - **THE ORPHAN GUARD OVER `@repo/ui` IS PER EXPORT**: every named export under
@@ -2463,9 +2534,11 @@ to the END of its group.
   held by `tools/repo-guards/src/workerd-compat-date.test.ts`; `pnpm e2e` boots
   the built Worker bundle (`tools/e2e/src/scenarios/built-worker-boot.ts`), the
   built CLI bundle (`tools/e2e/src/scenarios/built-cli-boot.ts`) and the built
-  desktop shell (`tools/e2e/src/scenarios/desktop-shell.ts`); agent-browser is
-  pinned by hand in `.github/workflows/ci.yml` because a global install rides
-  no lockfile. The arguments are `pnpm-workspace.yaml`'s comments. AN UPDATE
+  desktop shell (`tools/e2e/src/scenarios/desktop-shell.ts`); agent-browser and
+  tauri-driver are pinned by hand in `.github/workflows/ci.yml` because a
+  global install rides no lockfile, and the Rust toolchain by
+  `apps/desktop/rust-toolchain.toml`, beside the `Cargo.lock` every cargo step
+  runs `--locked` against. The arguments are `pnpm-workspace.yaml`'s comments. AN UPDATE
   SWEEP SKIPS THE EXPO SDK'S NAMES, NOT ITS `expo:` CATALOG: `update.ignoreDeps`
   holds `expo`, `expo-*`, `@expo/*`, `react-native`, `react-native-*` and
   `@react-native/*` under `pnpm up --latest -r`. It matches by name, so `react`
@@ -2510,16 +2583,21 @@ to the END of its group.
   fifths of a long note's save; `packages/editor/src/__tests__/typing-budget.test.tsx`
   fails on a save that resolves one.
 
-- **THE SHELL'S GLUE RUNS IN E2E OVER DEVTOOLS, AND ITS BRIDGE IS A GUARD.**
-  The shell's policies are pure and unit-tested; what joins them (the protocol
-  handler, the preload, every `ipcMain` handler, the vault switch, the quit) is
-  `tools/e2e/src/scenarios/desktop-shell.ts`: the built shell, driven over
-  `--remote-debugging-port` by agent-browser, never through the env pins,
-  since the shell refuses a switch while either pins the launch. Linux CI keeps
-  Chromium's sandbox on: `--no-sandbox` was rejected, because no user runs the
-  shell that way. Not the packaged `.app`: packing is minutes, and the fuses
-  and the signature stay `pnpm smoke:desktop`'s. The static half is the
-  ipc-contract test (THE RENDERER'S ONLY DOOR).
+- **THE SHELL'S GLUE RUNS IN E2E OVER WEBDRIVER, AND ITS WIRE IS A GUARD.**
+  The shell's policies are pure and unit-tested (`cargo test`, and the CLI's
+  desktop door under vitest); what joins them (the window's sign-in, the pin,
+  every command, the vault switch, the quit) is
+  `tools/e2e/src/scenarios/desktop-shell.ts`, with `desktop-onboarding.ts` and
+  `desktop-diagnostics.ts`: the built shell on Linux, driven through
+  `tauri-driver` and WebKitGTK's WebDriver (`tools/e2e/src/harness/webdriver.ts`),
+  which also gives the renderer its one WebKit run, never through the env
+  pins, since the shell refuses a switch while either pins the launch. Only
+  the first window is driveable, so a later one is read through its server and
+  the shell's note in its log. Not the packaged `.app`: packing is minutes, and
+  the bundle, the signatures and the sidecar stay `pnpm smoke:desktop`'s, on
+  the macOS job. The static half is
+  `tools/repo-guards/src/desktop-shell-wire.test.ts` (THE APP WINDOW IS THE
+  SERVER'S OWN PAGE).
 
 - **NO TYPE ASSERTION, AND NO ESCAPE COMMENT** (owner decision).
   `typescript/consistent-type-assertions` at `assertionStyle: "never"` refuses

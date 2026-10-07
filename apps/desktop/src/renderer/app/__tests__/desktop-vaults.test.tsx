@@ -32,7 +32,7 @@ const openThroughSwitch = async (): Promise<string[]> => {
 };
 
 describe("a vault switch's answer", () => {
-  it("shows main's refusal in main's words", async () => {
+  it("shows the shell's refusal in its words", async () => {
     installOpen(async () => ({ ok: false, reason: "That vault is not one the app remembers." }));
     expect(await openThroughSwitch()).toEqual(["That vault is not one the app remembers."]);
   });
@@ -42,10 +42,10 @@ describe("a vault switch's answer", () => {
     expect(await openThroughSwitch()).toEqual([]);
   });
 
-  it("words a fault itself rather than passing on Electron's wrapper", async () => {
+  it("words a fault itself rather than passing on its details", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     installOpen(async () => {
-      throw new Error("Error invoking remote method 'desktop:vaults-open': Error: refused");
+      throw new Error("Command vaults_open not allowed by ACL");
     });
     expect(await openThroughSwitch()).toEqual(["Could not open that vault."]);
   });

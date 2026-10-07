@@ -14,27 +14,19 @@ const DOC_PAGES = [
 const LANDING_CTA = "Download for Mac";
 const LANDING_REQUIREMENTS = ["Apple silicon", "a paid Claude plan or any ChatGPT plan"];
 
-const BUILDER_CONFIG = path.join("apps", "desktop", "electron-builder.yml");
+const PACKAGE_SCRIPT = path.join("apps", "desktop", "scripts", "package.mjs");
 const LATEST_DOWNLOAD = "https://github.com/kyh/inteligir/releases/latest/download/";
-const DMG_MACROS = new Map([
-  ["arch", "arm64"],
-  ["ext", "dmg"],
-]);
 
-// the dmg's name as electron-builder writes it for the one arch the app ships, read from the
-// builder's config so a rename there fails here rather than as a 404 behind the button
-const dmgName = (config: string): string => {
-  const block = /^dmg:\n(?<body>(?:[ \t].*\n|\n)*)/mu.exec(config)?.groups?.body ?? "";
-  const pattern = /^\s+artifactName:\s*(?<name>\S+)\s*$/mu.exec(block)?.groups?.name;
-  expect(pattern !== undefined, `${BUILDER_CONFIG} gives the dmg no artifactName of its own`);
+// the dmg's name as the package step writes it into the release, read from that script so a rename
+// there fails here rather than as a 404 behind the button
+const dmgName = (script: string): string => {
+  const name = /^const DMG_NAME = "(?<name>[^"]+)";$/mu.exec(script)?.groups?.name;
+  expect(name !== undefined, `${PACKAGE_SCRIPT} names the dmg nowhere a reader can find`);
   expect(
-    !/\$\{version\}/u.test(pattern),
-    `${BUILDER_CONFIG} names the dmg with its version, which releases/latest/download cannot know`,
+    !/\d+\.\d+/u.test(name),
+    `${PACKAGE_SCRIPT} names the dmg with a version, which releases/latest/download cannot know`,
   );
-  return pattern.replaceAll(
-    /\$\{(?<macro>\w+)\}/gu,
-    (whole, macro: string) => DMG_MACROS.get(macro) ?? whole,
-  );
+  return name;
 };
 
 const ctaHref = (html: string): string | undefined =>
@@ -134,11 +126,11 @@ export const builtWorkerBoot: Scenario = {
         `/ does not say "${phrase}"\n  rule: the landing page names what the app needs before anyone downloads it`,
       );
     }
-    const dmg = dmgName(await readFile(path.join(context.repoRoot, BUILDER_CONFIG), "utf-8"));
+    const dmg = dmgName(await readFile(path.join(context.repoRoot, PACKAGE_SCRIPT), "utf-8"));
     expectEq(
       ctaHref(landingHtml),
       `${LATEST_DOWNLOAD}${dmg}`,
-      `the Download button's link against the dmg ${BUILDER_CONFIG} names`,
+      `the Download button's link against the dmg ${PACKAGE_SCRIPT} names`,
     );
 
     const unknown = await fetch(`${worker.origin}/no-route-answers-this`);

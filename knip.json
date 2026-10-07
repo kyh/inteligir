@@ -8,8 +8,8 @@
       "entry": [
         "src/index.ts",
         "src/**/__tests__/**/*.test.ts",
+        "src/desktop/desktop-entry.ts",
         "src/server/vault/watcher/parcel-child-entry.ts",
-        "src/server/child-host/stdio-port-host-entry.ts",
         "src/server/knowledge/projection-worker.ts",
         "scripts/*.mjs"
       ],
@@ -22,11 +22,10 @@
       ]
     },
     "apps/desktop": {
-      // the first-run preload is its own build (electron.vite.config.ts), and first-run.html's
-      // script is read by knip's vite plugin only from index.html
+      // the first-run page is a build of its own (vite.config.ts), and first-run.html's script is
+      // read by knip's vite plugin only from index.html
       "entry": [
         "scripts/*.{mjs,cjs}",
-        "src/preload/first-run.ts",
         "src/renderer/first-run/first-run-main.tsx",
         "src/renderer/routes/**/*.tsx",
         "src/**/__tests__/**/*.test.{ts,tsx}"

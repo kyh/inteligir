@@ -1,3 +1,5 @@
+import { deferred } from "@repo/editor/deferred";
+import type { Deferred } from "@repo/editor/deferred";
 import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
 import type {
   GuardedVaultPort,
@@ -21,14 +23,14 @@ class CasStore implements GuardedVaultPort {
   readonly files: Map<string, string>;
   readonly sent: SentWrite[] = [];
   beforeWrite: ((count: number) => void) | null = null;
-  private gate: PromiseWithResolvers<void> | null = null;
+  private gate: Deferred<void> | null = null;
 
   constructor(seed: Readonly<Record<string, string>> = {}) {
     this.files = new Map(Object.entries(seed));
   }
 
-  hold = (): PromiseWithResolvers<void> => {
-    this.gate = Promise.withResolvers();
+  hold = (): Deferred<void> => {
+    this.gate = deferred();
     return this.gate;
   };
 

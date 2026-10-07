@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import type { FolderFacts } from "@repo/contract/local/vault/vault-folder";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   FirstRunAnswer,
   FirstRunChoice,
-  FolderFacts,
   PickFolderAnswer,
   PickParentAnswer,
 } from "../../../first-run-state";
@@ -29,7 +29,7 @@ const PARENT_CANCELLED: PickParentAnswer = { kind: "cancelled" };
 
 const fakeBridge = (picked: FolderFacts = facts(), parent: PickParentAnswer = PARENT_CANCELLED) => {
   const finish = vi.fn<(choice: FirstRunChoice) => Promise<FirstRunAnswer>>(
-    async () => await Promise.resolve({ ok: false, reason: "main said no" }),
+    async () => await Promise.resolve({ ok: false, reason: "the shell said no" }),
   );
   const bridge: FirstRunBridge = {
     finish,
@@ -62,7 +62,7 @@ describe("creating a new vault", () => {
     expect(screen.getByLabelText("Name")).toHaveProperty("value", "Inteligir");
     expect(screen.getByText(HOME)).toBeDefined();
     fireEvent.click(button("Create vault"));
-    expect(await screen.findByText("main said no")).toBeDefined();
+    expect(await screen.findByText("the shell said no")).toBeDefined();
     expect(finish).toHaveBeenCalledWith({ kind: "create", name: "Inteligir", parent: HOME });
   });
 
@@ -80,7 +80,7 @@ describe("creating a new vault", () => {
     expect(warning.textContent).toContain("Dropbox keeps syncing this folder.");
     expect(warning.textContent).toContain("your phone won't see them");
     fireEvent.click(button("Create vault"));
-    expect(await screen.findByText("main said no")).toBeDefined();
+    expect(await screen.findByText("the shell said no")).toBeDefined();
     expect(finish).toHaveBeenCalledWith({ kind: "create", name: "Inteligir", parent: DROPBOX });
   });
 
@@ -107,13 +107,13 @@ describe("creating a new vault", () => {
 });
 
 describe("opening a folder", () => {
-  it("shows how many notes it holds, and opens the folder main picked", async () => {
+  it("shows how many notes it holds, and opens the folder the shell picked", async () => {
     const { finish } = renderStep();
     await openAFolder();
     expect(screen.getByText("42 notes")).toBeDefined();
     expect(screen.queryByRole("note")).toBeNull();
     fireEvent.click(button("Open folder"));
-    expect(await screen.findByText("main said no")).toBeDefined();
+    expect(await screen.findByText("the shell said no")).toBeDefined();
     expect(finish).toHaveBeenCalledWith({ kind: "open", path: FOLDER });
   });
 

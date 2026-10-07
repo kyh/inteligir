@@ -1,4 +1,4 @@
-// The updater lives in main because it replaces the app; the page mirrors its state.
+// The updater lives in the shell because it replaces the app; the page mirrors its state.
 
 import type { DesktopUpdatesBridge } from "../../types";
 import type { UpdateAction, UpdateState } from "../../update-state";

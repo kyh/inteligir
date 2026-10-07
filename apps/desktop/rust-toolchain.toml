@@ -1,0 +1,6 @@
+# Pinned so a new stable's lints never turn `pnpm typecheck` (clippy -D warnings) red on their own,
+# and the same as kyh/init's and kyh/idlebiz's. Tauri 2.12 needs 1.90 or newer.
+[toolchain]
+channel = "1.99.0"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

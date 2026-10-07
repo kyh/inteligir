@@ -1,431 +1,400 @@
 # @repo/desktop — the shipped product
 
-The window, and the page inside it. This process owns **no vault, no agent and
-no index**: those live in the server it forks, and everything here is the OS
-affordances a browser tab cannot give — a dedicated window, a tray, a menu, and
-a process that starts and stops the server with the app.
+The window, and the page inside it. This app owns **no vault, no agent and no
+index**: those live in the server it starts, and everything here is what a
+browser tab cannot give — a dedicated window, a menu-bar icon, a menu, the
+updater, and a process that starts and stops the server with the app. It is a
+Tauri 2 shell: Rust over the system's own WebKit (WKWebView on the Mac), which
+runs the CLI's server on the node it ships beside itself (issue #889).
 
 ```
-src/main/       the Electron main process: the window, the protocol, the fork, the first run
-src/preload/    index.ts: the ONE bridge into the app window (the loopback ws origin, the
-                updater, the spell checker, the vault switch, Reveal/Open, the diagnostics);
-                first-run.ts: the first-run window's, which carries the vault choice alone
-src/renderer/   the SPA — TanStack Router file routes over @repo/contract/local — and
-                first-run.html, the page a launch with no vault opens (first-run/)
+src-tauri/      the shell, in Rust: the windows and their pin, the server it starts and stops,
+                the first run, the vault switch, the updater, the menus and the menu-bar icon
+src/renderer/   the page — TanStack Router file routes over @repo/contract/local — which every
+                vault's server answers; and first-run.html, the page a launch with no vault
+                opens, which the shell carries inside it (first-run/)
+src/*.ts        what the page and the shell say to each other: the command rows
+                (ipc-contract.ts) and the states they carry, parsed on the page's side
 ```
+
+## The shell asks the CLI, and spells none of its rules
+
+Every rule the shell acts by that is the server's own lives in TypeScript once,
+in the CLI, and the shell asks it through the CLI's desktop entry
+(`apps/cli/src/desktop/desktop-entry.ts`, built as `dist/desktop.js`): one
+question per process, answered as one JSON line, `{"answer": …}` or
+`{"reason": …}` for a refusal in the person's words. `launch` answers which
+vault the launch boots, or that a first run comes first, with the login
+shell's PATH and the git the Mac should run (below); `facts` and `sync` what a
+picked folder already is; `plan-open`, `plan-create` and `plan-switch` resolve
+a choice exactly as a boot would, before anything moves; `select` writes
+`config.json`'s selector; `handoff` mints a browser's sign-in; and `serve` is
+the server itself. A question costs a node start, about 0.2s, paid once a
+launch and once a pick. The wire breaks freely, since both ends ship in one
+bundle, and `tools/repo-guards/src/desktop-shell-wire.test.ts` holds the
+words the two languages share.
 
 ## The first run is decided before any server exists
 
 A server is bound to one vault and one data dir, so the vault is chosen before
-one boots, and the agent and the account follow as steps inside the app.
-`planLaunch` (`src/main/first-run.ts`, pure and unit-tested) makes the call at
-launch: a first run only when nothing chose a vault (no `INTELIGIR_VAULT_DIR`,
-no `INTELIGIR_DATA_DIR`, no `vaultDir` in `config.json`) and the default vault's
-folder does not exist yet. Every other launch boots as it always has, so an
-upgrade, `inteligir serve` and a pinned harness never meet it.
+one boots, and the agent and the account follow as steps inside the app. The
+call is `planLaunch` (`apps/cli/src/desktop/first-run.ts`, pure and
+unit-tested), asked at launch: a first run only when nothing chose a vault (no
+`INTELIGIR_VAULT_DIR`, no `INTELIGIR_DATA_DIR`, no `vaultDir` in
+`config.json`) and the default vault's folder does not exist yet. Every other
+launch boots as it always has, so an upgrade, `inteligir serve` and a pinned
+harness never meet it.
 
-A first run opens its own window, on an in-memory partition locked down like a
-vault's, loading `inteligir://app/first-run.html` over its own preload
-(`window.firstRunBridge`: `getState`, `pickParent`, `pickFolder`, `finish`,
-answered only to that window). The same scheme serves the page with no server
-behind it: `/rpc/*` and `/vault/asset` answer 503, and the page's policy names
-no websocket origin. The page offers a new vault (the default's name and place,
-or another folder main's picker handed out) or an existing folder of notes,
-with what the folder already is: how many notes, whether another service
-(iCloud Drive, Dropbox, Obsidian Sync…) syncs it, which the app then leaves to
-that service, and whether it already syncs somewhere of its own. `finish`
-plans the choice exactly as a boot would resolve it (`planFirstRunChoice`),
-writes the vault selector unless the choice is the default vault, boots, and
-opens the app window at `/welcome` before closing the first-run window; a boot
-that fails stops what it started, removes the selector it wrote, and answers
-the page why (`runFirstRun`). Until a vault is open, the Dock, a second launch
-and the tray show the first-run window, and Open Vault…, Open Recent Vault and
-Open Data Folder are off. A picked switch (File › Open Vault…, Settings) asks
-first when another service syncs the folder, in the first run's words
-(`outsideSyncWarning` in `src/first-run-state.ts`), over the outside-sync check
-alone (`folderExternalSync`): it neither counts the notes nor asks git.
+A first run opens its own window on the page the shell carries,
+`tauri://localhost/first-run.html`, under the static policy in
+`src-tauri/tauri.conf.json`: the server's own for a page with no socket, plus
+Tauri's IPC origins, which `tools/repo-guards/src/desktop-shell-wire.test.ts`
+holds it to. Its capability (`src-tauri/capabilities/first-run.json`) grants
+that window four commands and nothing else: the proposal, a picked parent, a
+picked folder, and `finish`. It keeps WebKit's default store, which no vault's
+window shares, so nothing it keeps reaches a vault. The
+page offers a new vault (the default's name and place, or another folder the
+shell's picker handed out) or an existing folder of notes, with what the folder
+already is: how many notes, whether another service (iCloud Drive, Dropbox,
+Obsidian Sync…) syncs it, which the app then leaves to that service, and
+whether it already syncs somewhere of its own. `finish` takes back only a
+folder the shell handed out, plans the choice as a boot would, writes the
+selector unless the choice is the default vault, boots, and opens the app
+window at `/welcome` before closing the first run's; a boot that fails stops
+what it started, removes the selector it wrote, and answers the page why. A
+picked switch (File › Open Vault…, Settings) asks first when another service
+syncs the folder, in the first run's words (`outsideSyncWarning` in
+`@repo/contract/local/vault/vault-folder`).
 
 `/welcome` (`src/renderer/routes/_workspace/welcome.tsx`) draws over the
 workspace like Settings, so the vault loads underneath, and offers two steps in
-turn, each with Skip for now: the agent (`AgentSignIn`, or the default agent
-shown connected when its vendor's shared store is already signed in), then an
-account (`AccountForm` opening on Create, in words that follow where the vault
-already syncs; a sign-up or a sign-in moves on by itself). The step rides
-`?step=`, beside the `?note=` the workspace mirrors, and finishing opens the
-notes on the one the workspace booted on: Welcome.md when the vault has one.
+turn, each with Skip for now: the agent (`AgentSignIn`), then an account
+(`AccountForm`). A fresh checkout's `pnpm dev` shows the first run too, since
+its dev instance has no vault yet; `INTELIGIR_VAULT_DIR` (or
+`INTELIGIR_DATA_DIR`) skips it.
 
-The first-run preload is a build of its own: a sandboxed preload can require
-no file beside it, and two inputs to one build share a chunk each would
-require (`electron.vite.config.ts` says how).
+## The window is the server's own page
 
-A fresh checkout's `pnpm dev` shows the first run too, since its dev instance
-has no vault yet; `INTELIGIR_VAULT_DIR` (or `INTELIGIR_DATA_DIR`) skips it.
+The app window loads the server's origin, `http://127.0.0.1:<port>`, through a
+one-time handoff the server minted: the server trades the nonce for an
+HttpOnly, SameSite=Strict cookie and drops the nonce from the URL, exactly as
+it signs a browser tab in. So the page, its API and its socket are one origin,
+there is no proxy in front of the server, and **the page never holds the
+device token**. The server's own policy and headers are the page's
+(`apps/cli/src/server/csp.ts`). Under `tauri dev` the window loads the same
+origin, and that server answers the page's files from Vite's dev server
+(`apps/cli/src/server/ui-dev-server.ts`), so an edit reloads in place on the
+sign-in a release runs.
 
-## The renderer's only door
+Each vault's window gets **a web store of its own** (`data_store_identifier`
+from its data dir on the Mac, a `data_directory` on Linux), so two vaults never
+read each other's cookies or localStorage, as Electron's per-vault partitions
+kept them apart. The page's preferences are that store's localStorage, so the
+move from Electron started each vault's from its defaults once.
 
-The window loads `inteligir://app`, a scheme registered `standard` (so Chromium
-gives it a real origin), `secure`, `supportFetchAPI` and `stream`.
-`src/main/protocol.ts` registers it and `src/main/protocol-handler.ts` (pure,
-unit-tested over a fake fetch) answers everything on it: the built bundle,
-`/html-frame` (the document a note's html block runs in, under its own sandbox
-policy rather than the page's), and — proxied to the loopback server — `/rpc/*`
-and `/vault/asset`.
-
-That shape is what keeps the page same-origin with its own API without putting
-CORS on the loopback server, and **the renderer never holds the device token**:
-the handler attaches it in main, where the page cannot read it. An `<img src>`
-inside a note therefore still renders, which is the failure that would otherwise
-be invisible until integration — an image tag cannot carry an `Authorization`
-header.
-
-The one thing that does not come through the handler is a WEBSOCKET: a browser
-`WebSocket` cannot be proxied by one. The invalidation bus dials the loopback
-origin directly, main attaches the bearer to that upgrade with
-`onBeforeSendHeaders`, and the preload hands the renderer that origin as
-`window.desktopBridge.socketOrigin` — because `window.location.origin` is now
-`inteligir://app` and names no server.
-
-**Both carriers lend the bearer to the page alone.** Chromium tells main which
-origin made each request (`initiatorOrigin`), and neither the page nor a frame
-inside it can forge it. The handler forwards a proxied path only when that is
-`inteligir://app`, or absent for a request the browser started itself, and
-answers anything else 403; the socket filter attaches the header under the same
-rule (`carriesBearer`). A note's own frame is the case it exists for: an
-`inteligir-html` block runs sandboxed, so its origin is opaque (`"null"`), and
-what a note carries must never act with the device token. The gate runs ahead
-of both renderers, because `pnpm dev` serves no CSP.
+The page reaches the shell through Tauri's commands, one row each in
+`src/ipc-contract.ts` (its name beside its argument and answer schemas), over
+`src/renderer/shell-commands.ts`, which parses every answer and every event.
+`window.desktopBridge` is installed before the first render only when the page
+runs inside the shell; a browser tab on the same server has none, and every
+surface that needs it draws nothing. The commands are granted when the shell
+opens the window, to that window and the server's exact origin alone
+(`grant_app_window` in `src-tauri/src/window.rs`), since the port is the
+server's to choose; `src-tauri/capabilities/app-window.json` grants nothing,
+and lists them only so the build keeps them (`removeUnusedCommands`). A
+refusal is an answer, never a rejected promise: a rejection is a fault.
 
 ## The origin pin is the whole security surface
 
-`src/main/origin-pin.ts` is pure, unit-tested, and the only thing standing
-between this shell and a browser:
+`src-tauri/src/navigation.rs` is pure, unit-tested, and the policy every window
+runs (`pinned` in `window.rs`):
 
-- The window loads **exactly one origin** and stays on it. Any top-level
-  navigation away (a crafted link in a note, agent output, injected content) is
-  a phishing surface inside the product's chrome, so it is blocked; an http(s)
-  target is handed to the system browser instead.
-- **`window.open` is denied unconditionally**, even same-origin.
-- `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`. The app
-  window's preload exposes the loopback origin, the updater, the spell checker,
-  the vault switch, Reveal/Open and the diagnostics, nothing that holds a
-  token; the first-run window's exposes the vault choice alone.
+- A window loads **exactly one origin** and stays on it: the server's, or the
+  first run's. A top-level navigation anywhere else (a crafted link in a note,
+  agent output, injected content) is refused; an http(s) target is handed to
+  the system browser instead, at most once a second, since WebKit tells the
+  shell nothing of a user gesture and a script loop would otherwise be a loop
+  of browser launches.
+- **No window opens a second one.** `window.open` and `target="_blank"` are
+  refused; a web URL among them goes to the browser.
+- **Every permission request is refused**: dictation is the operating
+  system's (fn twice), typed into the field like a keyboard, so the page needs
+  no microphone, camera or location.
+- A file dropped from Finder is the page's (an image into a note), not the
+  shell's.
 
-Origins are compared **field by field** — scheme, host, and port only where the
-scheme has one — never with `URL.origin`: Node's parser answers the opaque
-string `"null"` for any non-special scheme, so `inteligir://app` and
-`inteligir://evil` would compare EQUAL and the pin would collapse to nothing.
-Chromium's own parser knows better, but this module runs in Node.
-
-Three more, on the window's session:
-
-- **Its own storage partition**, keyed to the DATA DIR rather than the port
-  (`sessionPartition`). The shell's scheme is ONE origin whatever vault is
-  behind it, so on a shared session two different vaults would read each other's
-  localStorage, IndexedDB and cookies.
-- **Every web permission is denied**, the check and the prompt alike, and
-  every device picker. Electron's default is to grant most of them to whatever
-  a window loads, and the app needs none: dictation is the operating system's
-  (fn twice), typed into the field like a keyboard.
-- **A page-initiated URL reaches the system browser only with a recent user
-  gesture.** Electron exposes no activation flag on `setWindowOpenHandler` or
-  `will-navigate`, so the shell measures it from `webContents`'s `input-event`,
-  counting only HTML's activation-triggering inputs (a press, a key, a tap —
-  `grantsActivation`), never a pointer passing over the page or a wheel;
-  without it a script loop calling `window.open` becomes a loop of OS browser
-  launches. Menu and tray items bypass the gate — the click IS the gesture.
+Origins are compared **by their parts** — scheme, host and port, with each
+scheme's default port filled in — and a URL that carries a login is never one.
+Closing a window hides it: the app lives on in the menu bar, and Show brings
+the same page back.
 
 ## The server is a child process
 
-`src/main/server-process.ts` forks the CLI's bundle with `utilityProcess`, one
-argument: `serve`.
+`src-tauri/src/server.rs` starts `node dist/desktop.js serve` and is its one
+supervisor. Why a child rather than in-process: the server opens
+`better-sqlite3` synchronously, runs a `@parcel/watcher` child, shells out to
+`git` and starts the agents, and none of that belongs in the process that owns
+the window.
 
-Why a child rather than in-process: the server opens `better-sqlite3`
-synchronously, runs a `@parcel/watcher` child and shells out to `git`.
-In-process, all of that would share the event loop that paints the window and
-the lifetime of the compositor.
+The child prints one marked line once it answers (`inteligir-desktop:` and a
+JSON body): ready, with its origin, the window's handoff and how long a stop
+may take; adopted, when a server already serving this data dir at this version
+was found, and the entry exits leaving it running; or refused, in the person's
+words, when one holds the data dir but cannot be adopted (silent, or another
+version). The judgement is the CLI's own (`inteligir/server/server-probe`),
+the reading `serve`'s guard runs before it boots. Quitting leaves an adopted
+server running: the shell stops only the child it started.
 
-**Main forks the server's node children too** (`src/main/fork-broker.ts`). A
-utility process cannot fork one of its own, and the packaged binary's
-`runAsNode` fuse is off, so `child_process` cannot run node under it either:
-nothing runs this binary as a plain Node interpreter. The server asks over its
-parent port for the vault watcher and for each ACP adapter; main forks each as a
-utility process, hands the server and the child the two ends of one
-`MessageChannelMain` so they talk directly, reports the child's exit, and kills
-whatever is still running once the server exits. The frames are the CLI's
-(`inteligir/server/child-host/fork-broker-wire`), parsed on both ends; how the
-server rides them is `apps/cli/README.md` § What ships. Nothing here polices
-what the server asks for: it is this app's own child and already runs whatever
-it likes.
+**The child's stdin is its lifeline.** The shell holds the pipe's other end
+and never writes to it, so it closes only when the shell is gone; a server
+whose app crashed or was killed then stops itself rather than go on holding
+the data dir. That is also why the child runs in a process group of its own:
+a signal to the shell's group (Ctrl-C under `tauri dev`, a supervisor's
+`killpg`) reaches the shell alone, which stops the server once, where a
+second signal mid-shutdown would read to the server as impatience and skip
+the flush.
 
-Why `utilityProcess` rather than a supervisor of our own: it IS a managed Node
-child with owned bookkeeping, so the process handle, the piped stdio and the
-SIGTERM `kill()` sends are the runtime's. Three things are this module's.
-WHEN the server is ready — when it has published `<dataDir>/server.json` and
-answered its own token. The SIGKILL that follows an overrun grace, so quitting
-cannot hang on a wedged child. And the absence of a RESTART: a fresh child
-mints a fresh token, and the protocol handler and the socket-credential filter
-are bound to the current one, so an unexpected exit surfaces a dialog and
-quits instead.
+**Quit stops the server first**: Quit, a `kill` (SIGTERM or SIGINT, which the
+shell takes as Quit), the vault switch and an update's install all send the
+child SIGTERM and wait the grace the server announced (its own
+`SHUTDOWN_TIMEOUT_MS` plus headroom, never spelled here), so the vault's pending
+commit flushes; a child still running after it gets SIGKILL. There is no
+restart: a fresh child mints a fresh session the window does not hold, so an
+unexpected exit says so in a dialog and quits.
 
-**Quit sends SIGTERM first**, because that is the signal the server's graceful
-shutdown listens for: it flushes the vault's pending git commit and closes the
-database. `kill()` sends it on POSIX, and the grace behind it is DERIVED from
-the server's own `SHUTDOWN_TIMEOUT_MS` rather than written down twice — a shell
-that kills early lands SIGKILL on the commit the ordering exists to protect.
-The wait ends on the child's `exit` event, not a poll, so a quick teardown
-costs a quit, a vault switch or an install nothing extra; after a SIGKILL the
-shell still waits for that exit before the next child may claim the data dir.
+**What the child prints is kept.** Each line is appended, stamped, to
+`<dataDir>/logs/server.log` (`src-tauri/src/server_log.rs`), rotated at 5 MiB
+into one `server.log.1`, beside the shell's own notes of the child's start and
+exit and of each window it loads; a write that fails costs the log, never the
+shell. Debug logging is the shell's choice rather than the env's, since a
+Finder launch has none: `diagnostics.json` in the shell's own folder
+(`src-tauri/src/diagnostics.rs`), read before each start and handed to the
+child as `serve --debug`, every namespace. The choice reaches the next child,
+so Settings › Advanced offers Restart, which relaunches the whole app through
+the ordinary quit. A development shell refuses it, since `tauri dev` owns that
+process, and a server the shell adopted is not its child: neither the choice
+nor its output reaches it, and the page says so.
 
-**A running server is ADOPTED, not fought.** The shell verifies the responder by
-calling `system.status` with the token from the data dir it resolved, and
-adopting requires that call to succeed AND the responder to name that same data
-dir AND to run the version bundled in this app — the renderer and the server
-speak `/local`, whose two ends are free to break together. A port squatter has
-no token; a neighbouring checkout names another dir. Quitting leaves an adopted
-server running — the shell only kills the child it started.
+## The node children run on the node the app ships
 
-The judgement is the CLI's own (`inteligir/server/server-probe`), the reading
-`serve`'s guard runs before it boots. So a server whose pid is alive but which
-does not answer in time is **silent**, live to both: the shell says so in a
-dialog instead of spawning a child that server's lock would refuse. A server of
-another version is refused the same way, naming both versions and its origin.
+`src-tauri/src/runtime.rs` decides what runs, and nothing in the environment
+can move it: an app launched with another `PATH` or `open --env` must not run
+another program inside a process the OS counts as this one. Inside
+`Inteligir.app/Contents/MacOS` the bundle carries both halves: the official
+node build beside the shell (`bundle.externalBin`, fetched and pinned by
+`scripts/fetch-node.mjs`) and the CLI with its production dependencies as
+`Contents/Resources/server`; a missing one is a broken install, said as one. A
+shell outside a bundle (`tauri dev`, the scenario suite's build) runs the
+checkout's CLI on the developer's own node, as `pnpm cli serve` does. Every
+`NODE_*` variable but `NODE_ENV` is dropped from every child's environment, so
+no `NODE_OPTIONS` reaches the server, the role Electron's fuses played.
 
-**What the child prints is kept.** Its piped stdio reaches main's console, which
-a Finder launch drops, so each line is also appended, stamped, to
-`<dataDir>/logs/server.log` (`src/main/server-log.ts`), rotated at 5 MiB into
-one `server.log.1`; a write that fails costs the log, never main. Debug logging
-is the shell's choice rather than the env's, since a Finder launch has none:
-`diagnostics.json` in userData (`src/main/diagnostics.ts`), read before each
-fork and handed to the child as `INTELIGIR_DEBUG` naming every namespace. The
-choice reaches the next child, so Settings › Advanced offers Restart, which
-relaunches the whole app through the ordinary quit (the child stops first and
-its commit flushes); there is still no in-place restart of the child. A
-development shell refuses it, since electron-vite owns that process. An adopted
-server is not this shell's child: neither the choice nor its output reaches
-the shell, and the page says so.
-
-## One config resolution
-
-The shell owns **no** copy of the app's configuration. `resolveServerTarget`
-(`src/main/server-instance.ts`) calls the server's own `resolveAppConfig` — the
-same module the CLI's discovery reuses — and hands the answer (data dir, vault
-dir) to the child as environment. Reading only part of the layering is
-what puts a window on a dead port.
-
-Which mode that resolution runs in is decided by `app.isPackaged`, never by the
-ambient `NODE_ENV`: a packaged install is the production one (`~/.inteligir`,
-`~/Inteligir`, port 4664) and a checkout gets the same per-checkout dev instance
-`pnpm cli serve` derives, so developing never drives your real vault.
+An agent drives the app by typing `inteligir …` in its shell, and the CLI's
+own bin finds node through `#!/usr/bin/env node`, which a Mac may not have. So
+the packaged server writes a launcher of its own into the data dir
+(`apps/cli/src/desktop/agent-launcher.ts`), which runs the shipped node on the
+shipped CLI, and puts that folder first on every agent shell's PATH.
 
 ## The child's PATH is the login shell's
 
 An app opened from Finder or the Dock inherits launchd's PATH
 (`/usr/bin:/bin:/usr/sbin:/sbin`). The agent itself never needs PATH — its
 runtimes are bundled — but its bash and the vendor's stdio MCP servers run the
-user's own commands by name (`node`, `npx`, `uvx`, a version manager's
-shims), and none of those is on launchd's PATH. So before the first fork
-the packaged shell runs `$SHELL -ilc` once, reads the PATH it prints, and puts
-those entries ahead of the inherited ones on main's own environment, which every
-child spreads (`src/main/login-shell-path.ts`). A shell that hangs past 5s,
+user's own commands by name (`node`, `npx`, `uvx`, a version manager's shims),
+and none of those is on launchd's PATH. So the launch question runs `$SHELL
+-ilc` once, reads the PATH it prints, and every node child the shell starts
+after runs with those entries ahead of the inherited ones
+(`apps/cli/src/desktop/login-shell-path.ts`). A shell that hangs past 5s,
 fails or prints nothing leaves the usual install dirs that exist
 (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`) in its place. A dev
-launch skips it: its terminal already has the user's PATH. The unit tests pin
-the parse; the smoke's scratch-home launches run it for real.
+launch skips it: its terminal already has the user's PATH.
 
 ## The child's git is the Mac's, or the one the app ships
 
 The vault engine, the ACP adapters and every agent shell run `git` by name. On
 a Mac without Xcode or its command-line tools, `/usr/bin/git` is a stub that
 fails and offers to install them, so the vault could not initialize. The pack
-therefore carries a git of its own under `Contents/Resources/git`, and before
-the first fork main asks `xcode-select -p` which developer dir is selected
-(`src/main/bundled-git.ts`). One holding `usr/bin/git` keeps the Mac's own git,
-and with it the Keychain helper an https remote of the user's own signs in
-through, which the shipped git lacks, unless the `git` its login-shell PATH
-finds is older than 2.45 (or will not say its version): an older git sets its
-own `Transfer-Encoding` header, which libcurl 8.7.0 and 8.7.1 mishandle, and a
-push past 1 MiB goes out as its first 4 bytes. Any other Mac gets the shipped
-one: its
-`bin/` goes ahead of the login shell's PATH on the server child's environment,
-beside `GIT_EXEC_PATH`, `GIT_TEMPLATE_DIR` and `GIT_CONFIG_SYSTEM`, because it
-was built for prefix `/` and finds its helpers, templates and system config
-only where those name them. `GIT_CONFIG_COUNT` is never set there: the hosted
-remote's bearer rides it per invocation. A dev launch keeps the developer's own
-git, as `pnpm e2e` does.
+therefore carries a git of its own under `Contents/Resources/git`, and the
+launch question asks `xcode-select -p` which developer dir is selected
+(`apps/cli/src/desktop/bundled-git.ts`). One holding `usr/bin/git` keeps the
+Mac's own git, and with it the Keychain helper an https remote of the user's
+own signs in through, which the shipped git lacks, unless the `git` its
+login-shell PATH finds is older than 2.45 (or will not say its version): an
+older git sets its own `Transfer-Encoding` header, which libcurl 8.7.0 and
+8.7.1 mishandle, and a push past 1 MiB goes out as its first 4 bytes. Any
+other Mac gets the shipped one: its `bin/` goes ahead of the login shell's PATH
+on every child's environment, beside `GIT_EXEC_PATH`, `GIT_TEMPLATE_DIR` and
+`GIT_CONFIG_SYSTEM`, because it was built for prefix `/` and finds its helpers,
+templates and system config only where those name them. `GIT_CONFIG_COUNT` is
+never set there: the hosted remote's bearer rides it per invocation. A dev
+launch keeps the developer's own git, as `pnpm e2e` does.
+
+## Spell check and printing
+
+Spell check is the page's own: the `spellcheck` attribute on the document
+root, a page preference, which WebKit's checker honours and every field
+inherits unless it sets its own (`src/renderer/app/spellcheck.ts`). macOS
+picks the languages, as it always did under Electron on the Mac.
+
+WKWebView answers no `window.print()`, so Export as PDF asks the shell to run
+the print panel as a sheet over the window (`print_page`). A print is light
+whatever the window shows, because the theme steps aside between WebKit's
+`beforeprint` and `afterprint` (`src/renderer/app/note/export-pdf.ts`), which
+it fires for the shell's sheet as a browser does for `window.print()`.
 
 ## Running it
 
 ```bash
-pnpm dev              # electron-vite: the renderer with HMR, main, and the
-                      # CLI bundle rebuilt first
+pnpm dev              # tauri dev: the page's Vite server, the shell compiled and
+                      # launched, and the CLI bundle rebuilt first
 ```
 
-The shell FORKS that bundle, which is why the dev task depends on
+The shell RUNS that bundle, which is why the dev task depends on
 `inteligir#build` — a stale `dist/` is a window on last week's server with no
-error anywhere. Iterating on the SERVER is `pnpm cli serve` in its own terminal:
-that runs the TypeScript source under tsx, and a shell started afterwards adopts
-it. (Forking the source directly does not work: `utilityProcess` gives its child
-no module-customization loader thread, so `--import tsx` registers nothing.)
+error anywhere. Iterating on the SERVER is `pnpm cli serve` in its own
+terminal: that runs the TypeScript source under tsx, and a shell started
+afterwards adopts it. A debug build's window has WebKit's inspector (right
+click, Inspect Element).
 
-To drive the window itself, start it with Chromium's own flag and connect:
-
-```sh
-pnpm dev -- --remote-debugging-port=9222
-agent-browser connect 9222
-```
-
-The shell's unit tests cover the policy, never the glue. `pnpm e2e`'s
-`desktop-shell` scenario (`tools/e2e/src/scenarios/desktop-shell.ts`) is the
-automated form of the same thing: it launches the built shell on a scratch home
-and user-data dir with that flag, and asserts over DevTools that the window is
-on `inteligir://app`, that the rail's listing and a note ride the protocol
-handler's bearer, that an API write reaches the open editor (so the socket
-upgrade carried the bearer), that `window.open` is denied, that Reveal refuses a
+The shell's unit tests (`cargo test`, beside the page's vitest suites in
+`pnpm test`) cover the policy, never the glue. `pnpm e2e`'s shell scenarios are
+the glue (`tools/e2e/README.md`): they launch the checkout's unbundled shell
+(`pnpm turbo run build:shell --filter=@repo/desktop`) on a scratch home through
+`tauri-driver` and WebKitGTK's WebDriver, and `desktop-shell` asserts that the
+window is the server's page, that the rail's listing and a note ride its
+cookie, that an API write reaches the open editor through the socket, that
+`window.open` and every permission request are refused, that Reveal refuses a
 symlink out of the vault and a `..`, that a switch to a remembered vault stops
-the child and boots one on the new vault's data dir, and that a SIGTERM quit
-stops that child and retracts its `server.json`. `desktop-onboarding` launches
-it on a home with no vault: only the first-run page, no server, then Create
-boots the default vault and the app window opens on `/welcome`, skipping its
-two steps shows Welcome.md, and a relaunch goes straight to the app. Both run on the checkout's build, not the packaged `.app`, so the fuses, the signature and the login
-shell's PATH stay the smoke's and the unit tests'. On Linux it needs a display:
-CI runs the suite under `xvfb-run`.
+the child and boots one, and a window, on the new vault's data dir, and that a
+SIGTERM quit stops the server and retracts its `server.json`.
+`desktop-onboarding` launches it on a home with no vault: only the first-run
+page, no server, then Create boots the default vault and the app window opens
+on `/welcome`, and a relaunch goes straight to the app. They run on Linux, under
+`xvfb-run` in CI: WebKit's WebDriver is WebKitGTK's alone, and Tauri hands it
+the first window a shell makes, so a later window is watched through its
+server and the log the shell keeps beside it.
 
 ## Packaging
 
 ```bash
-pnpm package:desktop      # → .output/bin/Inteligir-arm64.dmg
-pnpm smoke:desktop        # package, boot its server, drive it, SIGTERM
+pnpm package:desktop      # → src-tauri/target/release/bundle/macos/Inteligir.app,
+                          #   and the release's assets in .output/bin
+pnpm smoke:desktop        # package, boot it, drive its server, quit
 ```
 
-The app is signed with the Developer ID electron-builder finds in the keychain,
-under the hardened runtime with `resources/entitlements.mac.plist`, and
+`scripts/package.mjs` runs on a Mac and does it in order:
+
+1. `scripts/fetch-git.mjs` and `scripts/fetch-node.mjs` stage the git the app
+   ships into `resources/git` and the node into `src-tauri/binaries` with its
+   licence in `resources/node`, shipped as `notices/node` (all gitignored),
+   each a file fetch pinned by
+   sha-256 and cached under `.cache/`. git is dugite-native's macOS arm64
+   build less the Git Credential Manager and Git LFS it adds beside git (no
+   config names either, and they were most of the payload and of what had to
+   be signed) and less the dashed built-ins' links but the transports' (Tauri
+   copies a link as the file it names, so each would be one more whole git),
+   with git's own `COPYING` and a `SOURCE` note; node is the
+   official darwin-arm64 build. A version bump is the tag and the hashes at
+   the top of each script.
+2. `scripts/stage-server.mjs` stages the CLI as `.output/server`: the package
+   as npm would publish it (its `files`) and its production dependencies,
+   through `pnpm deploy` with a hoisted linker, so the lockfile's versions and
+   the workspace's patches ship (codex-acp's among them, which npm itself would
+   drop) and no symlink rides into the bundle.
+3. `scripts/sign-resources.mjs` signs every Mach-O those resources carry (the
+   git, the native addons, the vendors' own binaries) with the hardened runtime,
+   the server's tree with `resources/entitlements.mac.plist` and the git, which
+   runs no JIT, with none: Tauri signs the shell, the node and the bundle, but
+   notarization refuses any binary inside that is not itself signed.
+4. `scripts/rust-notices.mjs` writes `.output/notices/rust-crates.txt`: every
+   crate the shell's binary links on the Mac, read from cargo's own resolve,
+   with its version, licence and source, and each licence text the crates ship,
+   once, since their licences ask that the notices travel with the binary.
+5. `tauri build` with a config of the script's own that names the resources,
+   the node and the signing: they live there and never in
+   `src-tauri/tauri.conf.json`, because tauri-build copies resources and
+   checks the external binary on every cargo build, so a clippy run would copy
+   the 700 MB server, and a checkout that never packaged could not typecheck.
+
+The identity is the Developer ID the keychain holds; with none, or with
+`INTELIGIR_PACK_UNSIGNED=1` (CI's), the pack is signed ad-hoc, without the
+hardened runtime, whose library validation would refuse the pack's own
+unsigned-by-a-team addons, and it opens only on the Mac that built it. It is
 notarized with the App Store Connect key in `<repo>/.release/` (gitignored):
 `notary.env` carries `APPLE_API_KEY` (the `.p8`'s filename, resolved against
-that directory), `APPLE_API_KEY_ID` and `APPLE_API_ISSUER`, and
-`scripts/package.mjs` sets them before electron-builder starts — inside the
-turbo task, because turbo's strict env mode strips an undeclared variable
-before the task begins. A tree with no cert or no `.release/` still packages
-— both steps are skipped with a warning — but that artifact opens only on the
-machine that built it.
+that directory), `APPLE_API_KEY_ID` and `APPLE_API_ISSUER`, which the script
+hands Tauri under its own names — inside the turbo task, because turbo's strict
+env mode strips an undeclared variable before the task begins. The minimum
+macOS is 13.5, node 24's own floor.
 
-`package` first runs `scripts/fetch-git.mjs`, which stages the git the app
-ships into `resources/git` (gitignored), and `extraResources` carries it
-beside the asar, where osx-sign signs each of its Mach-Os with the rest of the
-bundle. The source is dugite-native's macOS arm64 tarball, pinned by tag and
-sha-256 and cached under `.cache/bundled-git`, as a file fetch rather than the
-`dugite` npm package, whose JS API nothing calls and whose postinstall would
-download it on every install. The fetch drops the Git Credential Manager (a
-.NET runtime) and Git LFS that dugite-native adds beside git: no config names
-either, and they were most of the payload and of what had to be signed. The
-tarball carries no licence text, so git's own `COPYING`, pinned the same way,
-ships beside it with a `SOURCE` note naming both source tags. A version bump is
-the tag, the name and both hashes at the top of the script, dugite's
-`script/embedded-git.json` giving the tarball's.
+There is no native-rebuild step, and that is a fact rather than an omission:
+the two native modules are Node-API addons shipping per-platform prebuilds,
+which the node the app ships loads as any node does. Re-check this if either
+goes back to a gyp build.
 
-The smoke LAUNCHES the packaged app — the binary runs no JavaScript as plain
-Node, so main is the only way in — on its own `--user-data-dir` (an installed
-Inteligir neither blocks it nor sees it) and a mock keychain (an unsigned pack
-must not stop on a prompt for the installed app's cookie key), with the data and
-vault dirs pinned by environment. It checks that the native modules load under
-Electron's runtime, that the SPA and API answer, that the watcher main forked
-reports an external write, that both vendor runtimes ship in the pack and each
-answers signed out over a scratch store (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`),
-with the host's vendor overrides and keys stripped from its environment
-(`HOST_AGENT_ENV`), that an agent turn reaches a live adapter (codex:
-main forks the adapter, the adapter starts its bundled native codex, and codex
-refuses the session for want of a sign-in, which only a live adapter can say),
-that the bundled CLI is executable where the agent's PATH
-resolver looks for it, and that SIGTERM to main stops the server cleanly and
-exits 0. Its first launch plays a Mac without the developer tools:
-`DEVELOPER_DIR` names a dir holding no git, and a login shell of the smoke's
-own resolves `git` to one that fails and logs each call. That launch
-must still initialize the vault and commit an API write, and the log must stay
-empty through the quit, agent turn and shutdown flush included. **The window
-opens, and the smoke checks nothing in it**: the origin pin is proven by its
-unit tests, and the window, the protocol handler, the bridge and the vault
-switch are the `desktop-shell` scenario's, over the checkout's build. CI's
-`test-macos` job runs it on every push and pull request, unsigned:
-`CSC_IDENTITY_AUTO_DISCOVERY=false`, which `turbo.json` passes through to the
-`package` task, because turbo's strict env mode would strip it.
-
-There is no native-rebuild step, and that is a fact rather than an omission: the
-two native modules are Node-API addons shipping per-platform prebuilds, and
-Node-API is ABI-stable across Node and Electron. `npmRebuild` stays off because
-an in-place rebuild in a pnpm workspace clobbers the shared store's copy the
-rest of the repo depends on. Re-check this if any of them goes back to a gyp
-build.
-
-`node_modules` is unpacked from the asar because a child process cannot be
-spawned from inside an archive and a `.node` binary cannot be loaded from one.
-
-The CLI ships as npm would publish it. electron-builder copies a
-workspace-linked dependency as its whole directory and never reads its
-`files`, so unnarrowed the CLI's sources, every `__tests__` file and its build
-caches ride beside the bundle the shell forks. One exclusion in
-`electron-builder.yml` keeps only the names `apps/cli/package.json`'s `files`
-lists; a dependency sees only `!` patterns, so the allowlist is an extglob
-inside one. Staging the CLI through `pnpm deploy` is rejected: a staging step
-and a second copy of the package for what one pattern does. The smoke reads
-the packaged manifest's `files` and refuses any other top-level name, and any
-`__tests__`.
-
-`electronFuses` in `electron-builder.yml` flips the binary's fuses before it is
-signed: `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` and `--inspect` are ignored, so
-no local process can run the signed app as a node interpreter, `file://` pages
-get no extra privileges, and cookies are encrypted at rest. The app loads only
-from `app.asar` and only when it matches the hash in `Info.plist`, so neither a
-tampered archive nor an `app/` folder planted beside it runs; the hash does not
-cover `app.asar.unpacked`, where the server runs, which the code signature
-guards instead. The flip invalidates
-Electron's own ad-hoc signature, which Apple Silicon kills at launch, so
-`resetAdHocDarwinSignature` re-signs the app ad-hoc right after it: an unsigned
-build (no Developer ID, `CSC_IDENTITY_AUTO_DISCOVERY=false` or
-`-c.mac.identity=null`) runs as it is, and a signed one is re-signed over it.
+The smoke LAUNCHES the packaged app, with the data and vault dirs pinned by
+environment and a home of its own, so the shell's folder lands in the scratch.
+It refuses to start while an Inteligir answers on the single-instance socket,
+which is machine-wide and would take the launch over. It checks that the
+packaged CLI is the package npm would publish, that git and node carry their
+licences, that the native modules load on the shipped node, that the page and
+the API answer, that the watcher reports an external write, that both vendor
+runtimes ship and each answers signed out over a scratch store
+(`CLAUDE_CONFIG_DIR`, `CODEX_HOME`), with the host's vendor overrides and keys
+stripped from its environment, that an agent turn reaches a live codex
+adapter, that the agents' `inteligir` drives the server with no node on PATH,
+and that a SIGTERM quit stops the server cleanly (the shell's note in the
+server's log says `server exited (code 0)`) and exits 0. Its first launch plays
+a Mac without the developer tools: `DEVELOPER_DIR` names a dir holding no git,
+and a login shell of the smoke's own resolves `git` to one that fails and logs
+each call. That launch must still initialize the vault and commit an API
+write, and the log must stay empty through the quit. **The window opens, and
+the smoke checks nothing in it** but that it loaded: the pin is proven by its
+unit tests and the window by the shell scenarios. CI's `test-macos` job runs
+it on every push and pull request, on an ad-hoc pack.
 
 ### The release path
 
 `docs/releasing.md`: the version the three artifacts share, the gates, the
-signed and notarized pack, the GitHub release with its four assets, the npm
+signed and notarized pack, the GitHub release with its assets, the npm
 publish, and the owner's checks on the packaged app.
 
 ## Updates
 
-`src/main/updates.ts` drives electron-updater against the GitHub release.
-`electron-builder.yml`'s `publish` row is what writes `app-update.yml` beside
-the packaged app and `latest-mac.yml` into `.output/bin`; the release must
-carry the dmg, the zip (Squirrel installs from the zip — the dmg is what a
-person downloads), the zip's blockmap and that manifest. Nothing moves without
-a click: `autoDownload` and `autoInstallOnAppQuit` are off, a check runs 15s
-after launch and every 4 minutes, and the download and the restart are each a
-button — in Settings › About, or the app menu's Check for Updates… with native
-dialogs. Install stops the server child first (the same SIGTERM + grace as
-quit, so the vault's pending commit flushes), then hands Squirrel a silent
-forced relaunch. Squirrel installs after that call returns, so a failure there
-reaches the shell only as the updater's `error` event: the install step owns
-it, and the shell says so and quits, since the server is already down. One
-step at a time: a poll during a download is skipped, not queued. An unpackaged
-build, or one with no `app-update.yml`, reports itself disabled with the reason
-instead of checking a feed it does not have. The state is one plain value
-(`src/update-state.ts`), a union by status in which each status carries only
-what it knows, reduced in main and parsed off the bridge by the page; the
-policy is unit-tested against a fake updater (`src/main/__tests__/updates.test.ts`).
+`src-tauri/src/updater.rs` drives Tauri's updater against the GitHub release's
+`latest.json`, whose archive is signed with the updater key in `.release/`
+(minisign; the app carries the public half). Nothing moves without a click: a
+check runs 15s after launch and every 4 minutes, and the download and the
+install are each a button — in Settings › About, or the app menu's Check for
+Updates… with native dialogs. Install stops the server child first (the same
+SIGTERM and grace as quit, so the vault's pending commit flushes), installs and
+relaunches; an install that fails says so and quits, since the server is
+already down. One step at a time: a check during a download is skipped, not
+queued. A shell outside a bundle, or a pack with no updater key, reports
+itself disabled with the reason instead of checking a feed it does not have.
+The state is one plain value, a union by status in which each status carries
+only what it knows, reduced in the shell (`src-tauri/src/update_state.rs`) and
+parsed off the bridge by the page (`src/update-state.ts`).
+
+The Electron builds update through electron-updater, which reads the release's
+`latest-mac.yml` and zip, so the package step writes both too, around this
+app: same bundle id and team, so they move onto it. This app needs macOS 13.5,
+node 24's floor, where the Electron builds ran on older ones, so the manifest names
+that floor as the Darwin release electron-updater compares (22.6.0), and an
+older Mac is offered nothing it could not open.
 
 ## What is deliberately not here
 
-- **No deep-link scheme.** `inteligir://` is the renderer's own origin now; a
-  cross-device link would need a second, registered scheme and there is nothing
-  to receive yet.
-- **No IPC for anything the server can answer.** The bridge carries what the
-  page cannot ask its server: the loopback origin, because a browser
-  `WebSocket` cannot be proxied; the updater, the spell checker and the vault
-  switch, because each lives in main; Reveal/Open of a vault entry, because
-  only main may hand the OS a path; and the diagnostics (Open data folder, the
-  debug-logging choice, Restart, Show log), because main forks the server with
-  that choice and keeps its log. Every other question the page
-  has, it asks its own server over `/rpc`. Each channel is one row in
-  `src/ipc-contract.ts`, its name beside its request and answer schemas, and a
-  refusal crosses as a value rather than a throw, which Electron would reword.
-  `src/main/__tests__/ipc-contract.test.ts` holds both ends to every row: main
-  registers each channel exactly once, the preload calls it, and neither side
-  spells a channel as a literal, because a row one end forgot fails only at
-  runtime ("No handler registered", or a handler nothing calls).
+- **No custom scheme.** Electron's `inteligir://app` and the protocol handler
+  that carried the bearer in front of the server are gone: the window is the
+  server's own page, signed in like a tab. A cross-device link would need a
+  registered scheme, and there is nothing to receive yet.
+- **No command for anything the server can answer.** The shell answers what
+  the page cannot ask its server: the updater, because it replaces the app;
+  the vault switch, because the shell starts and stops the server; Reveal/Open
+  of a vault entry, because only the shell may hand the OS a path, and it
+  resolves the entry against the vault and refuses anything outside it;
+  printing, because WKWebView will not; and the diagnostics (Open data folder,
+  the debug choice, Restart, Show log), because the shell starts the server
+  with that choice and keeps its log. Every other question the page has, it
+  asks its own server over `/rpc`.

@@ -1,3 +1,5 @@
+import { deferred } from "@repo/editor/deferred";
+import type { Deferred } from "@repo/editor/deferred";
 import type { VaultChangedEvent, VaultEntry } from "@repo/editor/host-io";
 import type { OpenPathChange } from "@repo/editor/note/open-note-store";
 import { createVaultSession } from "@repo/editor/note/vault-session";
@@ -358,7 +360,7 @@ describe("renaming the open note", () => {
   });
 
   it("keeps a keystroke typed while the move is in flight, and saves it at the new path", async () => {
-    const gate: PromiseWithResolvers<void> = Promise.withResolvers();
+    const gate: Deferred<void> = deferred();
     const { session, vault, log } = await started({ ...TWO_NOTES, renameGate: gate.promise });
     const renaming = session.actions.renameEntry("a.md", "c.md");
     await settle();
@@ -371,7 +373,7 @@ describe("renaming the open note", () => {
   });
 
   it("takes what the surface still holds under the old path before the note moves", async () => {
-    const gate: PromiseWithResolvers<void> = Promise.withResolvers();
+    const gate: Deferred<void> = deferred();
     const { session, vault } = await started({ ...TWO_NOTES, renameGate: gate.promise });
     let held: string | null = null;
     session.actions.registerNoteSerializeFlush("a.md", () => {
@@ -390,7 +392,7 @@ describe("renaming the open note", () => {
   });
 
   it("rebases that keystroke onto the bytes the move left at the new path", async () => {
-    const gate: PromiseWithResolvers<void> = Promise.withResolvers();
+    const gate: Deferred<void> = deferred();
     const { session, vault } = await started({
       files: { "a.md": "A\n", "b.md": "B" },
       openAtBoot: "a.md",
@@ -407,7 +409,7 @@ describe("renaming the open note", () => {
   });
 
   it("saves a keystroke typed while a refused move is in flight where the note still is", async () => {
-    const gate: PromiseWithResolvers<void> = Promise.withResolvers();
+    const gate: Deferred<void> = deferred();
     const { session, vault, log } = await started({
       ...TWO_NOTES,
       refuseRename: "A file already exists at c.md",
@@ -424,7 +426,7 @@ describe("renaming the open note", () => {
   });
 
   it("holds a switch asked for during the move until the carried note is written", async () => {
-    const gate: PromiseWithResolvers<void> = Promise.withResolvers();
+    const gate: Deferred<void> = deferred();
     const { session, vault, log } = await started({ ...TWO_NOTES, renameGate: gate.promise });
     const renaming = session.actions.renameEntry("a.md", "c.md");
     await settle();
@@ -565,7 +567,7 @@ describe("a vault change", () => {
 
 describe("starting and stopping", () => {
   it("lets a note opened while the boot is in flight win over the boot's note", async () => {
-    const gate: PromiseWithResolvers<void> = Promise.withResolvers();
+    const gate: Deferred<void> = deferred();
     const { session, opened } = harness({ ...TWO_NOTES, bootGate: gate.promise });
     const booting = session.start();
     session.actions.openFile("b.md");
@@ -577,7 +579,7 @@ describe("starting and stopping", () => {
   });
 
   it("applies nothing when the boot answers after the session stopped", async () => {
-    const gate: PromiseWithResolvers<void> = Promise.withResolvers();
+    const gate: Deferred<void> = deferred();
     const { session, opened, listings } = harness({ ...TWO_NOTES, bootGate: gate.promise });
     const booting = session.start();
     session.stop();

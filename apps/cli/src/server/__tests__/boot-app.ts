@@ -146,6 +146,8 @@ export interface BootTestAppOptions {
   // omitted, the real transport does nothing: a scratch data dir holds no device credential.
   cloudTransport?: CloudTransport;
   clientDir?: string;
+  // a development shell's Vite, answering the page in the bundle's place
+  uiDevOrigin?: string;
   // absent, the bundled vendors over stores of the instance's own, so no suite edits the Mac's.
   connectors?: VendorMcpConfigs;
   port?: number;
@@ -277,7 +279,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
       };
     },
     ports,
-    servesUi: options.clientDir !== undefined,
+    servesUi: options.clientDir !== undefined || options.uiDevOrigin !== undefined,
     teardown,
     version: "0.1.0-test",
   };
@@ -291,6 +293,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     clientDir: options.clientDir ?? null,
     context: runtime.context,
     serverToken: TEST_SERVER_TOKEN,
+    uiDevOrigin: options.uiDevOrigin ?? null,
   });
   const composed = { ...runtime, ...wired };
   const client = createRouterClient(localRouter, {
