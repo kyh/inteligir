@@ -1,5 +1,5 @@
 // Whether the server the shell starts traces its decisions, and whether the one running does:
-// plain values the page parses off the shell's answers, like the updater's and the vaults'.
+// plain values the page parses off the shell's answers, like the updater's.
 
 import { z } from "zod";
 

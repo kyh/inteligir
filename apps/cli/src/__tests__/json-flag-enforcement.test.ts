@@ -6,14 +6,7 @@ import { z } from "zod";
 import { argsOf, collectGroupCommands, collectLeafCommands } from "../command-tree";
 import type { CommandAtPath } from "../command-tree";
 import { LEAF_INVOCATIONS, testProgram } from "./command-tree";
-import {
-  FIXTURE_REVISION_SHA,
-  makeFixtureState,
-  makeRevision,
-  makeThread,
-  serveFixture,
-  EMPTY_TIMELINE,
-} from "./fixture-server";
+import { makeFixtureState, makeThread, serveFixture, EMPTY_TIMELINE } from "./fixture-server";
 import type { FixtureServer, FixtureState } from "./fixture-server";
 import { runCliForTest } from "./run-cli";
 
@@ -24,38 +17,11 @@ const EXCLUDED_COMMANDS = new Map<string, string>([
     "serve",
     "it IS the server rather than a caller of one — it answers no document, it never returns while it is working, and the fixture it would be run against is the very thing it replaces",
   ],
-  [
-    "vault open",
-    "it writes the selector `serve` reads and dials no server: this table drives every leaf against the fixture over a real home, and this one would rewrite the developer's own config.json; vault-open.test.ts drives it over a scratch home instead, refusals included",
-  ],
 ]);
 
-// re-applied between leaves: they mutate it (rename moves the file delete then wants).
+// re-applied between leaves: they mutate it (archive marks the thread a later leaf reads).
 const seedFixture = (state: FixtureState): void => {
-  state.vault.clear();
-  state.vault.set("notes/hello.md", "# Hello\n");
-  state.vault.set("notes/copy.md", "---\nid: 0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b\n---\n# Copy\n");
-  state.revisions.set("notes/hello.md", [
-    { content: "# Hello\n", revision: makeRevision({ sha: FIXTURE_REVISION_SHA }) },
-  ]);
-  state.searchResults = [{ path: "notes/hello.md", score: 1, snippet: "hi", title: "hello" }];
-  state.tags = [{ count: 2, tag: "project" }];
-  state.backlinks = [
-    { embed: false, kind: "wiki", line: 1, snippet: "[[hello]]", sourcePath: "Welcome.md" },
-  ];
-  state.related = [
-    { path: "notes/nearby.md", reasons: ["shares #project"], score: 3, title: "Nearby" },
-  ];
   state.threads.length = 0;
-  state.comments.set("notes/hello.md", [
-    {
-      anchored: false,
-      replies: [],
-      resolved: false,
-      root: { createdAt: 1, source: "user", text: "seeded", updatedAt: 1 },
-      rootId: "c1",
-    },
-  ]);
   state.threads.push({
     pendingInteractions: [
       {
@@ -72,7 +38,6 @@ const seedFixture = (state: FixtureState): void => {
     ],
     thread: makeThread({ id: "thr_1", status: "idle" }),
     timeline: EMPTY_TIMELINE,
-    turnChanges: [{ paths: ["notes/hello.md"], state: "applied", turnId: "turn_1" }],
   });
 };
 

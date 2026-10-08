@@ -1,60 +1,30 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { Thread } from "@repo/contract/local/threads/threads-schema";
-import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
-import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
-import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
-import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
-import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
-import { frontmatterId } from "@repo/notes/markdown/frontmatter";
-import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
-import { toast } from "@repo/ui/components/sonner";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hotkeyCaps } from "@repo/ui/lib/hotkey-spelling";
-import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../../global-shortcuts";
-import type {
-  KnowledgeMatchesRequest,
-  KnowledgeMatchesResponse,
-  KnowledgeProblemsResponse,
-  KnowledgeSearchResponse,
-} from "@repo/contract/local/knowledge/knowledge-schema";
-import { ChangeBatch } from "../../workspace-context";
-import type { CommandPalette, PaletteActions, PaletteNote } from "../command-palette";
+import type { CommandPalette } from "../command-palette";
 import {
   defaultRequest,
   makeActions,
-  makeNote,
   renderWithQueries,
   stubPaletteFetch,
 } from "./palette-harness";
-import type { FakeVault, PaletteFakes } from "./palette-harness";
-
-const ENTRIES: VaultEntry[] = [
-  { kind: "dir", path: "notes" },
-  { kind: "dir", path: "notes/daily" },
-  { kind: "file", path: "notes/ideas.md" },
-  { kind: "file", path: "Welcome.md" },
-];
+import type { PaletteFakes } from "./palette-harness";
 
 type PaletteProps = React.ComponentProps<typeof CommandPalette>;
 
-type RenderOverrides = Partial<PaletteProps> & {
-  fakes?: PaletteFakes;
-  // the open note, folded into the actions the render hands back
-  note?: PaletteNote;
-};
+type RenderOverrides = Partial<PaletteProps> & { fakes?: PaletteFakes };
 
-const renderPalette = ({ fakes, note, ...overrides }: RenderOverrides = {}) => {
+const renderPalette = ({ fakes, ...overrides }: RenderOverrides = {}) => {
   stubPaletteFetch(fakes ?? {});
-  const actions = { ...makeActions(), note: note ?? null };
+  const actions = makeActions();
   const onOpenChange = vi.fn<PaletteProps["onOpenChange"]>();
   const props: PaletteProps = {
     actions,
     canSync: false,
-    entries: ENTRIES,
     modifier: "meta",
     onOpenChange,
     open: true,
@@ -67,7 +37,7 @@ const renderPalette = ({ fakes, note, ...overrides }: RenderOverrides = {}) => {
 };
 
 // The footer names the row Enter would run, so a row's label is on screen twice. Every row
-// assertion scopes itself to the list; the toolbar's own controls stay on `screen`.
+// assertion scopes itself to the list.
 const rows = () => within(screen.getByRole("listbox"));
 
 // A chord draws one box per key, so it is read off the row's own caps rather than as one string.
@@ -76,111 +46,7 @@ const chords = (): string[][] =>
     [...kbd.children].map((cap) => cap.textContent ?? ""),
   );
 
-const OUTLINE = [
-  { depth: 1, id: "0", path: [0], title: "Plan" },
-  { depth: 2, id: "2", path: [2], title: "Week one" },
-  { depth: 3, id: "5", path: [5], title: "Monday" },
-];
-
-describe("the headings page", () => {
-  it("is offered while a note is open, and lists the outline with its levels", () => {
-    const { actions, onOpenChange } = renderPalette({
-      note: { ...makeNote(), listHeadings: () => OUTLINE },
-    });
-    fireEvent.click(rows().getByText("Go to heading…"));
-    expect(screen.getByPlaceholderText("Go to heading…")).toBeDefined();
-    expect(rows().getByText("Week one")).toBeDefined();
-    expect(rows().getByText("H3")).toBeDefined();
-    fireEvent.click(rows().getByText("Monday"));
-    expect(actions.goToHeading).toHaveBeenCalledWith(OUTLINE[2]);
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("opens straight on the page a shortcut names, and filters by title", () => {
-    renderPalette({
-      note: makeNote(),
-      request: { nonce: 1, outline: OUTLINE, page: "headings" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Go to heading…"), {
-      target: { value: "week" },
-    });
-    expect(rows().getByText("Week one")).toBeDefined();
-    expect(rows().queryByText("Monday")).toBeNull();
-  });
-
-  it("says so with no note open, and hides the root command", () => {
-    renderPalette({ request: { nonce: 1, outline: [], page: "headings" } });
-    expect(rows().getByText("Open a note to jump to its headings.")).toBeDefined();
-    cleanup();
-    renderPalette();
-    expect(rows().queryByText("Go to heading…")).toBeNull();
-  });
-
-  it("walks the outline once as the page opens, never as it renders", () => {
-    const note = { ...makeNote(), listHeadings: vi.fn<PaletteNote["listHeadings"]>(() => OUTLINE) };
-    renderPalette({ note });
-    expect(note.listHeadings).not.toHaveBeenCalled();
-    fireEvent.click(rows().getByText("Go to heading…"));
-    for (const value of ["w", "we", "wee", "week"]) {
-      fireEvent.change(screen.getByPlaceholderText("Go to heading…"), { target: { value } });
-    }
-    expect(rows().getByText("Week one")).toBeDefined();
-    expect(note.listHeadings).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("pinning from the palette", () => {
-  it("offers the one verb the open note needs, and runs it", () => {
-    const note = makeNote();
-    const { onOpenChange } = renderPalette({ note });
-    expect(rows().queryByText("Unpin note")).toBeNull();
-    fireEvent.click(rows().getByText("Pin note"));
-    expect(note.togglePin).toHaveBeenCalledTimes(1);
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-    cleanup();
-    renderPalette({ note: { ...makeNote(), pinned: true } });
-    expect(rows().queryByText("Pin note")).toBeNull();
-    expect(rows().getByText("Unpin note")).toBeDefined();
-  });
-
-  it("offers neither with no note open", () => {
-    renderPalette();
-    expect(rows().queryByText("Pin note")).toBeNull();
-    expect(rows().queryByText("Unpin note")).toBeNull();
-  });
-});
-
-const EMPTY_FAMILY = { rows: [], total: 0 };
-
-const searchBox = (): HTMLElement => screen.getByPlaceholderText("Search notes or commands…");
-
-const vaultSearchBox = (): HTMLElement => screen.getByPlaceholderText("Search across the vault…");
-
-const replaceButton = (): HTMLElement => screen.getByRole("button", { name: "Replace all" });
-
-const indexHit = (path: string, title = ""): KnowledgeSearchResponse["results"][number] => ({
-  path,
-  score: 1,
-  snippet: "",
-  title,
-});
-
-interface Deferred<T> {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-}
-
-const deferred = <T,>(): Deferred<T> => {
-  let settle: ((value: T) => void) | undefined;
-  // oxlint-disable-next-line promise/avoid-new -- a promise settled from outside its executor has no async/await form
-  const promise = new Promise<T>((resolve) => {
-    settle = resolve;
-  });
-  if (settle === undefined) {
-    throw new Error("the promise executor did not run");
-  }
-  return { promise, resolve: settle };
-};
+const searchBox = (): HTMLElement => screen.getByPlaceholderText("Search commands…");
 
 beforeEach(() => {
   stubPaletteFetch({});
@@ -192,174 +58,21 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("note search", () => {
-  it("lists notes from the listing and opens the picked one", async () => {
-    const { actions, onOpenChange } = renderPalette();
-    fireEvent.click(await rows().findByText("Welcome.md"));
-    expect(actions.openNote).toHaveBeenCalledWith("Welcome.md");
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("answers an empty box from the listing, asking the index nothing", async () => {
-    const asked: string[] = [];
-    renderPalette({
-      fakes: {
-        search: (request) => {
-          asked.push(request.q);
-          return { results: [] };
-        },
-      },
-    });
-    expect(await rows().findByText("Welcome.md")).toBeDefined();
-    expect(asked).toEqual([]);
-  });
-
-  it("lists only what the user wrote, never a dot-folder's notes", async () => {
-    renderPalette({ entries: [...ENTRIES, { kind: "file", path: ".github/x.md" }] });
-    expect(await rows().findByText("Welcome.md")).toBeDefined();
-    expect(rows().queryByText(".github/x.md")).toBeNull();
-  });
-
-  it("lists a note created between two opens", async () => {
-    const { props, rerender } = renderPalette();
-    expect(await rows().findByText("Welcome.md")).toBeDefined();
-    rerender({ ...props, open: false });
-    rerender({
-      ...props,
-      entries: [...ENTRIES, { kind: "file", path: "Fresh.md" }],
-      request: { ...defaultRequest, nonce: 2 },
-    });
-    expect(await rows().findByText("Fresh.md")).toBeDefined();
-  });
-
-  it("narrows the note list as the query types", async () => {
-    renderPalette();
-    fireEvent.change(searchBox(), { target: { value: "ideas" } });
-    expect(await rows().findByText("notes/ideas.md")).toBeDefined();
-    await waitFor(() => {
-      expect(rows().queryByText("Welcome.md")).toBeNull();
-    });
-  });
-
-  it("renders full-text hits with title and path, and their pick opens the path", async () => {
-    const { actions } = renderPalette({
-      fakes: { search: () => ({ results: [indexHit("notes/ideas.md", "Big Ideas")] }) },
-    });
-    fireEvent.change(searchBox(), { target: { value: "big" } });
-    fireEvent.click(await rows().findByText("Big Ideas"));
-    expect(actions.openNote).toHaveBeenCalledWith("notes/ideas.md");
-  });
-
-  it("re-reads the index's hits when the bus sweeps the vault", async () => {
-    let title = "Before";
-    const { queryClient } = renderPalette({
-      fakes: { search: () => ({ results: [indexHit("notes/ideas.md", title)] }) },
-    });
-    fireEvent.change(searchBox(), { target: { value: "idea" } });
-    expect(await rows().findByText("Before")).toBeDefined();
-    title = "After";
-    act(() => {
-      const batch = new ChangeBatch();
-      batch.add({ changes: ["files-changed"], entity: "vault", type: "changed" });
-      batch.apply(queryClient, vi.fn(), vi.fn());
-    });
-    expect(await rows().findByText("After")).toBeDefined();
-  });
-
-  it("falls back to the filenames when the index refuses", async () => {
-    // the client logs every refused call in dev
-    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    renderPalette({
-      fakes: {
-        search: (request) => {
-          if (request.q === "big") {
-            return { results: [indexHit("notes/ideas.md", "Big Ideas")] };
-          }
-          throw new Error("index down");
-        },
-      },
-    });
-    fireEvent.change(searchBox(), { target: { value: "big" } });
-    expect(await rows().findByText("Big Ideas")).toBeDefined();
-    fireEvent.change(searchBox(), { target: { value: "ideas" } });
-    // the last answer stands in while the read is in flight, so only the refusal clears it
-    await waitFor(() => {
-      expect(rows().queryByText("Big Ideas")).toBeNull();
-    });
-    expect(rows().getByText("notes/ideas.md")).toBeDefined();
-    expect(logged).toHaveBeenCalled();
-  });
-
-  it("debounces: a query superseded within the window never reaches the index", async () => {
-    const asked: string[] = [];
-    renderPalette({
-      fakes: {
-        search: (request) => {
-          asked.push(request.q);
-          return { results: [indexHit(`${request.q}.md`)] };
-        },
-      },
-    });
-    fireEvent.change(searchBox(), { target: { value: "old" } });
-    fireEvent.change(searchBox(), { target: { value: "new" } });
-    expect(await rows().findByText("new.md")).toBeDefined();
-    expect(asked).not.toContain("old");
-  });
-
-  it("aborts an in-flight query and drops its answer when a newer one arrives", async () => {
-    let slowSignal: AbortSignal | undefined;
-    const slowReached = deferred<null>();
-    const slow = deferred<KnowledgeSearchResponse>();
-    renderPalette({
-      fakes: {
-        search: async (request, signal) => {
-          if (request.q === "old") {
-            slowSignal = signal;
-            slowReached.resolve(null);
-            return await slow.promise;
-          }
-          return { results: [indexHit("fresh.md")] };
-        },
-      },
-    });
-    fireEvent.change(searchBox(), { target: { value: "old" } });
-    // Only once the slow request is in flight does the newer query exercise
-    // the abort rather than the debounce.
-    await slowReached.promise;
-    fireEvent.change(searchBox(), { target: { value: "new" } });
-    expect(await rows().findByText("fresh.md")).toBeDefined();
-    // the cache drops the superseded read once its observer moved to the new key
-    await waitFor(() => {
-      expect(slowSignal?.aborted).toBe(true);
-    });
-    slow.resolve({ results: [indexHit("stale.md")] });
-    await waitFor(() => {
-      expect(rows().queryByText("stale.md")).toBeNull();
-    });
-  });
-});
-
 describe("commands", () => {
-  it("runs New note at the vault root", () => {
+  it("asks the agent", () => {
     const { actions } = renderPalette();
-    fireEvent.click(rows().getByText("New note"));
-    expect(actions.newNote).toHaveBeenCalledWith("");
+    fireEvent.click(rows().getByText("Ask the agent"));
+    expect(actions.askAgent).toHaveBeenCalled();
   });
 
   it("filters commands by the query", () => {
     renderPalette();
-    fireEvent.change(searchBox(), { target: { value: "daily" } });
-    expect(rows().getByText("Daily note")).toBeDefined();
+    fireEvent.change(searchBox(), { target: { value: "short" } });
+    expect(rows().getByText("Keyboard shortcuts")).toBeDefined();
     expect(rows().queryByText("Settings")).toBeNull();
   });
 
-  it("runs the daily note command", () => {
-    const { actions } = renderPalette();
-    fireEvent.click(rows().getByText("Daily note"));
-    expect(actions.openDailyNote).toHaveBeenCalled();
-  });
-
-  it("hides Sync now without a remote and shows it with one", () => {
+  it("hides Sync now while signed out and shows it signed in", () => {
     renderPalette();
     expect(rows().queryByText("Sync now")).toBeNull();
     cleanup();
@@ -380,7 +93,6 @@ const ACTION: Thread = {
   archivedAt: null,
   createdAt: 1,
   id: "thr_1",
-  originDocPath: "Welcome.md",
   providerId: null,
   runsElsewhere: false,
   status: "idle",
@@ -440,510 +152,15 @@ describe("a page switch", () => {
     await waitFor(() => {
       expect(document.activeElement).toBe(field);
     });
-    fireEvent.click(rows().getByText("Search across the vault…"));
+    fireEvent.click(rows().getByText("Keyboard shortcuts"));
     expect(screen.getByRole("dialog")).toBe(dialog);
-    expect(vaultSearchBox()).toBe(field);
+    expect(screen.getByPlaceholderText("Filter shortcuts…")).toBe(field);
     expect(document.activeElement).toBe(field);
   });
 });
 
-const TEMPLATE: VaultEntry = { kind: "file", path: "templates/Meeting.md" };
-
-describe("the template pages", () => {
-  it("lists templates by stem and creates a note from the picked one", () => {
-    const { actions, onOpenChange } = renderPalette({ entries: [...ENTRIES, TEMPLATE] });
-    fireEvent.click(rows().getByText("New note from template…"));
-    expect(onOpenChange).not.toHaveBeenCalledWith(false);
-    fireEvent.click(rows().getByText("Meeting"));
-    expect(actions.newNoteFromTemplate).toHaveBeenCalledWith("templates/Meeting.md");
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("offers Insert template only over an open note, and inserts the picked one", () => {
-    renderPalette({ entries: [...ENTRIES, TEMPLATE] });
-    expect(rows().queryByText("Insert template…")).toBeNull();
-    cleanup();
-    const note = makeNote();
-    const { actions } = renderPalette({ entries: [...ENTRIES, TEMPLATE], note });
-    fireEvent.click(rows().getByText("Insert template…"));
-    fireEvent.click(rows().getByText("Meeting"));
-    expect(note.insertTemplate).toHaveBeenCalledWith("templates/Meeting.md");
-    expect(actions.newNoteFromTemplate).not.toHaveBeenCalled();
-  });
-
-  it("says where templates come from when the folder is empty", () => {
-    renderPalette();
-    fireEvent.click(rows().getByText("New note from template…"));
-    expect(rows().getByText(/No templates yet/u)).toBeDefined();
-  });
-});
-
-describe("the new-note-in-folder page", () => {
-  it("stays open, lists folders and creates in the picked one", () => {
-    const { actions, onOpenChange } = renderPalette();
-    fireEvent.click(rows().getByText("New note in folder…"));
-    expect(onOpenChange).not.toHaveBeenCalledWith(false);
-    expect(rows().getByText("Vault root")).toBeDefined();
-    fireEvent.click(rows().getByText("notes/daily"));
-    expect(actions.newNote).toHaveBeenCalledWith("notes/daily");
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("filters folders by the query and always keeps the root", () => {
-    renderPalette();
-    fireEvent.click(rows().getByText("New note in folder…"));
-    fireEvent.change(screen.getByPlaceholderText("New note in which folder?"), {
-      target: { value: "daily" },
-    });
-    expect(rows().getByText("notes/daily")).toBeDefined();
-    expect(rows().queryByText(/^notes$/u)).toBeNull();
-    expect(rows().getByText("Vault root")).toBeDefined();
-  });
-});
-
-describe("the move-to-folder page", () => {
-  it("is offered for the open note and moves it into the picked folder", () => {
-    const { actions, onOpenChange } = renderPalette({ note: makeNote("Welcome.md") });
-    fireEvent.click(rows().getByText("Move note to folder…"));
-    expect(onOpenChange).not.toHaveBeenCalledWith(false);
-    fireEvent.click(rows().getByText("notes/daily"));
-    expect(actions.moveNote).toHaveBeenCalledWith("Welcome.md", "notes/daily");
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("hides the folder the note is already in, and the root when that is it", () => {
-    renderPalette({ note: makeNote("Welcome.md") });
-    fireEvent.click(rows().getByText("Move note to folder…"));
-    expect(rows().queryByText("Vault root")).toBeNull();
-    expect(rows().getByText(/^notes$/u)).toBeDefined();
-  });
-
-  it("opens straight on the page for a requested entry, and hides its own subtree", () => {
-    const { actions } = renderPalette({
-      request: { nonce: 1, page: "move-to-folder", subject: "notes" },
-    });
-    expect(screen.getByPlaceholderText("Move to which folder?")).toBeDefined();
-    expect(rows().queryByText(/^notes$/u)).toBeNull();
-    expect(rows().queryByText("notes/daily")).toBeNull();
-    expect(rows().queryByText("Vault root")).toBeNull();
-    expect(rows().getByText("No folder it can move to.")).toBeDefined();
-    expect(actions.moveNote).not.toHaveBeenCalled();
-  });
-
-  it("is absent from the root page with no note open", () => {
-    renderPalette();
-    expect(rows().queryByText("Move note to folder…")).toBeNull();
-  });
-});
-
-const twoMatches =
-  (total: number) =>
-  (request: KnowledgeMatchesRequest): KnowledgeMatchesResponse => ({
-    matches: [
-      {
-        after: " idea",
-        before: "the ",
-        column: 4,
-        length: request.q.length,
-        line: 3,
-        ordinal: 0,
-        path: "notes/ideas.md",
-        text: request.q,
-        title: "Big Ideas",
-      },
-      {
-        after: " again",
-        before: "",
-        column: 0,
-        length: request.q.length,
-        line: 9,
-        ordinal: 1,
-        path: "notes/ideas.md",
-        text: request.q,
-        title: "Big Ideas",
-      },
-    ],
-    total,
-  });
-
-describe("the search page", () => {
-  it("is reached from the root's command and from the page a shortcut names", () => {
-    renderPalette();
-    fireEvent.click(rows().getByText("Search across the vault…"));
-    expect(vaultSearchBox()).toBeDefined();
-    cleanup();
-    renderPalette({ request: { nonce: 1, page: "search" } });
-    expect(vaultSearchBox()).toBeDefined();
-  });
-
-  it("lists match rows under their note, and a pick lands on that match", async () => {
-    const { actions, onOpenChange } = renderPalette({
-      fakes: { matches: twoMatches(2) },
-      request: { nonce: 1, page: "search" },
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    expect(await rows().findByText("again")).toBeDefined();
-    expect(rows().getByText("Big Ideas · notes/ideas.md")).toBeDefined();
-    const hits = rows().getAllByText("big");
-    expect(hits).toHaveLength(2);
-    const [, second] = hits;
-    if (second === undefined) {
-      throw new Error("the second match row is missing");
-    }
-    fireEvent.click(second);
-    expect(actions.openMatch).toHaveBeenCalledWith(
-      expect.objectContaining({ line: 9, ordinal: 1, path: "notes/ideas.md" }),
-      "big",
-      { caseSensitive: false, wholeWord: false },
-    );
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("hands a pick the toggles its listing was read with, so the ordinal counts among them", async () => {
-    const { actions } = renderPalette({
-      fakes: { matches: twoMatches(2) },
-      request: { nonce: 1, page: "search" },
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await rows().findByText("again");
-    fireEvent.click(screen.getByLabelText("Whole word"));
-    await waitFor(() => {
-      expect(replaceButton()).toHaveProperty("disabled", false);
-    });
-    const [first] = rows().getAllByText("big");
-    if (first === undefined) {
-      throw new Error("the first match row is missing");
-    }
-    fireEvent.click(first);
-    expect(actions.openMatch).toHaveBeenCalledWith(
-      expect.objectContaining({ ordinal: 0, path: "notes/ideas.md" }),
-      "big",
-      { caseSensitive: false, wholeWord: true },
-    );
-  });
-
-  it("replaces across the listed notes with the toggles it shows", async () => {
-    const { actions } = renderPalette({
-      fakes: { matches: twoMatches(2) },
-      request: { nonce: 1, page: "search" },
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await rows().findByText("again");
-    fireEvent.click(screen.getByLabelText("Match case"));
-    fireEvent.change(screen.getByLabelText("Replace with"), { target: { value: "huge" } });
-    // the toggle re-keys the listing, and the replace waits for the rows that answer it
-    await waitFor(() => {
-      expect(replaceButton()).toHaveProperty("disabled", false);
-    });
-    fireEvent.click(replaceButton());
-    const [call] = actions.replaceAll.mock.calls;
-    expect(call?.[0]).toEqual({
-      needle: "big",
-      options: { caseSensitive: true, wholeWord: false },
-      paths: ["notes/ideas.md"],
-      replacement: "huge",
-    });
-    expect(call?.[1].signal).toBeInstanceOf(AbortSignal);
-  });
-
-  it("offers no replace while a flipped toggle's listing is in flight", async () => {
-    const wholeWordListing = deferred<null>();
-    const { actions } = renderPalette({
-      fakes: {
-        matches: async (request) => {
-          if (request.wholeWord === true) {
-            await wholeWordListing.promise;
-          }
-          return twoMatches(2)(request);
-        },
-      },
-      request: { nonce: 1, page: "search" },
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await rows().findByText("again");
-    expect(replaceButton()).toHaveProperty("disabled", false);
-    fireEvent.click(screen.getByLabelText("Whole word"));
-    // the last listing stays up while the new one is read, but it no longer answers the toggles
-    expect(rows().getByText("again")).toBeDefined();
-    expect(replaceButton()).toHaveProperty("disabled", true);
-    fireEvent.click(replaceButton());
-    expect(actions.replaceAll).not.toHaveBeenCalled();
-    wholeWordListing.resolve(null);
-    await waitFor(() => {
-      expect(replaceButton()).toHaveProperty("disabled", false);
-    });
-    fireEvent.click(replaceButton());
-    expect(actions.replaceAll.mock.calls[0]?.[0].options).toEqual({
-      caseSensitive: false,
-      wholeWord: true,
-    });
-  });
-
-  it("offers no replace while the box is ahead of its listing", async () => {
-    const { actions } = renderPalette({
-      fakes: { matches: twoMatches(2) },
-      request: { nonce: 1, page: "search" },
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await rows().findByText("again");
-    fireEvent.change(vaultSearchBox(), { target: { value: "bigger" } });
-    expect(replaceButton()).toHaveProperty("disabled", true);
-    await waitFor(() => {
-      expect(replaceButton()).toHaveProperty("disabled", false);
-    });
-    fireEvent.click(replaceButton());
-    expect(actions.replaceAll.mock.calls[0]?.[0].needle).toBe("bigger");
-  });
-
-  it("cancels a running replace when the palette closes", async () => {
-    const run = deferred<null>();
-    const replaceAll = vi.fn<PaletteActions["replaceAll"]>(async () => {
-      await run.promise;
-    });
-    const { onOpenChange, props, rerender } = renderPalette({
-      actions: { ...makeActions(), replaceAll },
-      fakes: { matches: twoMatches(2) },
-      request: { nonce: 1, page: "search" },
-    });
-    // the workspace closes the palette when it asks to close
-    onOpenChange.mockImplementation((open) => {
-      rerender({ ...props, open });
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await rows().findByText("again");
-    fireEvent.click(replaceButton());
-    const handed = replaceAll.mock.calls[0]?.[1];
-    expect(handed?.signal?.aborted).toBe(false);
-    fireEvent.keyDown(vaultSearchBox(), { key: "Escape" });
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-    expect(handed?.signal?.aborted).toBe(true);
-    run.resolve(null);
-  });
-
-  it("shows the run's count while it lasts, and Cancel aborts the signal it handed out", async () => {
-    const run = deferred<null>();
-    let port: Parameters<PaletteActions["replaceAll"]>[1] | null = null;
-    const replaceAll = vi.fn<PaletteActions["replaceAll"]>(async (_request, handed) => {
-      port = handed;
-      await run.promise;
-    });
-    renderPalette({
-      actions: { ...makeActions(), replaceAll },
-      fakes: { matches: twoMatches(2) },
-      request: { nonce: 1, page: "search" },
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await rows().findByText("again");
-    fireEvent.click(replaceButton());
-    expect(screen.getByText("Replacing… 0 of 1 notes")).toBeDefined();
-    if (port === null) {
-      throw new Error("the palette handed out no port");
-    }
-    const handed: Parameters<PaletteActions["replaceAll"]>[1] = port;
-    fireEvent.click(screen.getByText("Cancel"));
-    expect(handed.signal?.aborted).toBe(true);
-    expect(screen.getByText("Stopping…")).toBeDefined();
-    run.resolve(null);
-    await waitFor(() => {
-      expect(screen.queryByText(/Replacing…/u)).toBeNull();
-    });
-  });
-
-  it("drops the last listing when the scan refuses, and says so", async () => {
-    // the client logs every refused call in dev
-    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    renderPalette({
-      fakes: {
-        matches: (request) => {
-          if (request.q === "bigger") {
-            throw new Error("scan down");
-          }
-          return twoMatches(2)(request);
-        },
-      },
-      request: { nonce: 1, page: "search" },
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await rows().findByText("again");
-    fireEvent.change(vaultSearchBox(), { target: { value: "bigger" } });
-    // the last listing stands in while the read is in flight, so only the refusal clears it
-    expect(await rows().findByText("Could not search just now.")).toBeDefined();
-    expect(rows().queryByText("again")).toBeNull();
-    expect(logged).toHaveBeenCalled();
-  });
-
-  it("refuses to replace while the listing is cut, and says so", async () => {
-    const { actions } = renderPalette({
-      fakes: { matches: twoMatches(5) },
-      request: { nonce: 1, page: "search" },
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await rows().findByText("again");
-    expect(rows().getByText(/2 of 5 matches shown/u)).toBeDefined();
-    fireEvent.click(replaceButton());
-    expect(actions.replaceAll).not.toHaveBeenCalled();
-  });
-});
-
-const SHARED_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
-// a Finder duplicate: the same bytes, the same id, the anchors' bodies in the one store
-const PLAN_COPY = `---\ntitle: Plan\nid: ${SHARED_ID}\n---\n%%i:c1:start%%Plan%%i:c1:end%%\n`;
-const SHARED_STORE_BYTES = '{\n  "c1": { "text": "kept", "createdAt": 1, "updatedAt": 1 }\n}\n';
-
-const copiedVault = (): FakeVault => ({
-  files: new Map([
-    ["Plan.md", PLAN_COPY],
-    ["Plan copy.md", PLAN_COPY],
-    [`.inteligir/comments/${SHARED_ID}.json`, SHARED_STORE_BYTES],
-  ]),
-  log: [],
-});
-
-const someProblems = (): KnowledgeProblemsResponse => ({
-  duplicateIds: {
-    rows: [{ id: SHARED_ID, paths: ["Plan.md", "Plan copy.md"] }],
-    total: 1,
-  },
-  duplicateStems: {
-    rows: [{ paths: ["Guide.md", "a/Guide.md"], stem: "Guide" }],
-    total: 1,
-  },
-  missingEmbeds: EMPTY_FAMILY,
-  orphans: { rows: [{ path: "Lonely.md", title: "Lonely" }], total: 1 },
-  unresolvedLinks: {
-    rows: [
-      {
-        embed: false,
-        kind: "wiki",
-        line: 3,
-        snippet: "See [[Nowhere]].",
-        sourcePath: "Welcome.md",
-        sourceTitle: "Welcome",
-        target: "Nowhere",
-      },
-    ],
-    total: 3,
-  },
-});
-
-describe("the problems page", () => {
-  it("lists each family with its count, and a link row lands on that link", async () => {
-    const { actions, onOpenChange } = renderPalette({ fakes: { problems: someProblems } });
-    fireEvent.click(rows().getByText("Problems"));
-    expect(await rows().findByText("Unresolved links · 3")).toBeDefined();
-    expect(rows().getByText("Orphans · 1")).toBeDefined();
-    expect(rows().getByText("Duplicate stems · 1")).toBeDefined();
-    expect(rows().getByText("Duplicate ids · 1")).toBeDefined();
-    expect(rows().queryByText(/Missing embeds/u)).toBeNull();
-    expect(rows().getByText(/2 more not shown/u)).toBeDefined();
-    fireEvent.click(rows().getByText("[[Nowhere]] in Welcome"));
-    expect(actions.openProblemLink).toHaveBeenCalledWith("Welcome.md", "Nowhere");
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("opens an orphan or a duplicate as a note, and filters rows by the query", async () => {
-    const { actions } = renderPalette({ fakes: { problems: someProblems } });
-    fireEvent.click(rows().getByText("Problems"));
-    await rows().findByText("Lonely");
-    fireEvent.change(screen.getByPlaceholderText("Filter problems…"), {
-      target: { value: "a/guide" },
-    });
-    expect(rows().queryByText("Lonely")).toBeNull();
-    fireEvent.click(rows().getByText("a/Guide.md"));
-    expect(actions.openNote).toHaveBeenCalledWith("a/Guide.md");
-    expect(actions.openProblemLink).not.toHaveBeenCalled();
-  });
-
-  it("names each note sharing an id, and gives the one picked its own, comments and all", async () => {
-    const vault = copiedVault();
-    let reads = 0;
-    const success = vi.spyOn(toast, "success");
-    const { actions } = renderPalette({
-      fakes: {
-        problems: () => {
-          reads += 1;
-          return someProblems();
-        },
-        vault,
-      },
-    });
-    render(<ConfirmDialogHost />);
-    fireEvent.click(rows().getByText("Problems"));
-    await rows().findByText("Duplicate ids · 1");
-    expect(rows().getAllByText(SHARED_ID)).toHaveLength(2);
-    const copyRow = rows().getByText("Plan copy.md").closest<HTMLElement>("[data-command-item]");
-    expect(copyRow?.dataset.commandAction).toBe("Give its own id");
-
-    fireEvent.click(rows().getByText("Plan copy.md"));
-    const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText("Give Plan copy.md its own id?")).toBeDefined();
-    expect(within(dialog).getByText(/stays with Plan\.md/u)).toBeDefined();
-    expect(within(dialog).getByText(/its comments come with it/u)).toBeDefined();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Give its own id" }));
-
-    await waitFor(() => {
-      expect(vault.log).toHaveLength(2);
-    });
-    const id = frontmatterId(vault.files.get("Plan copy.md") ?? "");
-    expect(id).not.toBe(SHARED_ID);
-    expect(vault.files.get("Plan copy.md")).toBe(PLAN_COPY.replace(SHARED_ID, id ?? ""));
-    expect(vault.files.get(`.inteligir/comments/${id ?? ""}.json`)).toBe(SHARED_STORE_BYTES);
-    expect(vault.files.get("Plan.md")).toBe(PLAN_COPY);
-    expect(vault.log).toEqual([`write .inteligir/comments/${id ?? ""}.json`, "write Plan copy.md"]);
-    await waitFor(() => {
-      expect(reads).toBe(2);
-    });
-    expect(success).toHaveBeenCalledWith(
-      "Plan copy.md has its own id now, and its comments came with it.",
-    );
-    expect(actions.openNote).not.toHaveBeenCalled();
-  });
-
-  it("writes nothing when the confirm is declined", async () => {
-    const vault = copiedVault();
-    renderPalette({ fakes: { problems: someProblems, vault } });
-    render(<ConfirmDialogHost />);
-    fireEvent.click(rows().getByText("Problems"));
-    fireEvent.click(await rows().findByText("Plan copy.md"));
-    const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
-    await waitFor(() => {
-      expect(screen.queryByRole("alertdialog")).toBeNull();
-    });
-    expect(vault.log).toEqual([]);
-    expect(vault.files.get("Plan copy.md")).toBe(PLAN_COPY);
-  });
-
-  it("lands the open note's unsaved edits before it rewrites that note", async () => {
-    const vault = copiedVault();
-    const store = createOpenNoteStore();
-    store.setFlush(async () => {
-      vault.log.push("flush");
-      return true;
-    });
-    onTestFinished(registerOpenNoteStore(store));
-    renderPalette({ fakes: { problems: someProblems, vault }, note: makeNote("Plan copy.md") });
-    render(<ConfirmDialogHost />);
-    fireEvent.click(rows().getByText("Problems"));
-    fireEvent.click(await rows().findByText("Plan copy.md"));
-    const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Give its own id" }));
-
-    await waitFor(() => {
-      expect(vault.log).toHaveLength(3);
-    });
-    expect(vault.log[0]).toBe("flush");
-  });
-
-  it("says when the vault is clean", async () => {
-    renderPalette();
-    fireEvent.click(rows().getByText("Problems"));
-    expect(await rows().findByText(/No problems:/u)).toBeDefined();
-  });
-});
-
 describe("the keyboard shortcuts page", () => {
-  it("lists every row of every table, spelled for the keyboard the palette was given", () => {
+  it("lists every row of the table, spelled for the keyboard the palette was given", () => {
     renderPalette();
     fireEvent.click(rows().getByText("Keyboard shortcuts"));
     expect(screen.getByPlaceholderText("Filter shortcuts…")).toBeDefined();
@@ -951,36 +168,27 @@ describe("the keyboard shortcuts page", () => {
       expect(rows().getByText(row.label)).toBeDefined();
       expect(chords()).toContainEqual(hotkeyCaps(globalShortcutHotkey(row), "meta"));
     }
-    for (const row of [
-      ...MARK_SHORTCUTS,
-      ...EDITOR_SHORTCUTS,
-      ...FIND_BAR_SHORTCUTS,
-      ...COMMENT_SHORTCUTS,
-    ]) {
-      expect(rows().getByText(row.label)).toBeDefined();
-      expect(chords()).toContainEqual(hotkeyCaps(row.hotkey, "meta"));
-    }
   });
 
   it("filters by label or chord", () => {
     renderPalette();
     fireEvent.click(rows().getByText("Keyboard shortcuts"));
     fireEvent.change(screen.getByPlaceholderText("Filter shortcuts…"), {
-      target: { value: "⇧⌘G" },
+      target: { value: "⌘," },
     });
-    expect(rows().getByText("Previous match")).toBeDefined();
-    expect(rows().queryByText("Next match")).toBeNull();
+    expect(rows().getByText("Settings")).toBeDefined();
+    expect(rows().queryByText("Ask the agent")).toBeNull();
   });
 });
 
 describe("a command's binding", () => {
   it("is the global table's row, not a literal", () => {
     renderPalette();
-    expect(chords()).toContainEqual(["⌘", "D"]);
+    expect(chords()).toContainEqual(["⌘", "K"]);
     expect(chords()).toContainEqual(["⌘", ","]);
     cleanup();
     renderPalette({ modifier: "ctrl" });
-    expect(chords()).toContainEqual(["Ctrl", "D"]);
+    expect(chords()).toContainEqual(["Ctrl", "K"]);
     expect(chords()).toContainEqual(["Ctrl", ","]);
   });
 });

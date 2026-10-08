@@ -17,12 +17,6 @@ export default defineConfig({
   ],
   overrides: [
     {
-      // The Plate editor's tests stub platejs/react and the host-io singleton at
-      // module scope: the module seam is the subject under test.
-      files: ["packages/editor/src/**/*.test.ts", "packages/editor/src/**/*.test.tsx"],
-      rules: { "anti-slop/no-module-mocking": "off" },
-    },
-    {
       // A stand-in for an async port is spelled `async` to match the contract
       // it stands in for, with nothing inside to await.
       files: tests,
@@ -30,35 +24,12 @@ export default defineConfig({
         "require-await": "off",
       },
     },
-    {
-      // The server posts to worker threads, never to a window, which is the only target that
-      // takes an origin.
-      files: ["apps/cli/src/server/**"],
-      rules: { "unicorn/require-post-message-target-origin": "off" },
-    },
-    {
-      files: ["packages/notes/src/**"],
-      rules: {
-        "no-restricted-imports": [
-          "error",
-          {
-            patterns: [
-              {
-                group: ["node:*", "react", "react-dom", "react/*", "@repo/ui", "@repo/ui/*"],
-                message:
-                  "@repo/notes is pure and platform-neutral — no node/react/ui imports; callers inject platform capabilities",
-              },
-            ],
-          },
-        ],
-      },
-    },
   ],
   rules: {
     // Its message asks for a `// SAFETY:` comment, which admits nothing now that
     // `typescript/consistent-type-assertions` refuses every assertion.
     "anti-slop/require-safety-comment-for-type-assertion": "off",
-    // Sequential awaits in loops are deliberate here (ordered vault writes, rate-limited reads).
+    // Sequential awaits in loops are deliberate here (ordered writes, rate-limited reads).
     "no-await-in-loop": "off",
     // Both shapes it flags are load-bearing idioms: an exhaustive `switch` over a
     // union with no `default` (the fall-off-the-end is what makes tsc reject the

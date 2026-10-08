@@ -1,6 +1,6 @@
 // orpc v2 keeps no status on an error or its contract row: the handler maps code → status
-// through `errorStatusMap`, and /vault/asset (raw http, outside the contract) reads
-// `errorStatus`, so one refusal answers the same status on both surfaces.
+// through `errorStatusMap`, and the rpc interceptor reads `errorStatus` to tell a refusal from a
+// fault, so one code answers one status everywhere.
 
 import { COMMON_ERROR_STATUS_MAP } from "@orpc/client";
 import { LOCAL_ERROR_STATUS_MAP } from "@repo/contract/local/errors";

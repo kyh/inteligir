@@ -1,4 +1,4 @@
-import { isDefinedError, ORPCError, safe } from "@orpc/client";
+import { isDefinedError, safe } from "@orpc/client";
 import { noopNotifier } from "@repo/domain/notifier";
 import type { DbNotifier } from "@repo/domain/notifier";
 import type { ThreadEvent } from "@repo/domain/provider-event";
@@ -12,11 +12,7 @@ import {
   listQueuedThreadMessages,
   releaseAllQueuedMessageClaims,
 } from "@repo/db/queued-messages";
-import {
-  applyThreadLifecycleEventInTransaction,
-  getThread,
-  setThreadProviderSession,
-} from "@repo/db/threads";
+import { applyThreadLifecycleEventInTransaction, getThread } from "@repo/db/threads";
 import { serverMessageLenientSchema } from "@repo/contract/local/notifications";
 import type { ServerMessage } from "@repo/contract/local/notifications";
 import { WS_PATH } from "@repo/contract/local/routes";
@@ -31,7 +27,6 @@ import { authorizationHeader } from "../server-file";
 import { bootTestApp, bootThreadHarness, listenTestApp, TEST_SERVER_TOKEN } from "./boot-app";
 import type { BootedTestApp } from "./boot-app";
 import { FakeTurnDriver } from "./fake-turn-driver";
-import { pathOnlyOrigins } from "./path-only-origins";
 
 type ThreadsClient = BootedTestApp["client"];
 
@@ -166,150 +161,10 @@ describe("the send policy", () => {
   });
 });
 
-describe("the view context a message carries", () => {
-  const VIEW_CONTEXT = {
-    resource: "Notes/Plans.md",
-    revision: "a".repeat(64),
-    surface: "doc",
-  } as const;
-
-  it("reaches the driver, is recorded beside the text, and never becomes the text", async () => {
-    const { client, driver } = await bootThreadHarness({ mode: "manual" });
-    const threadId = await createThread(client);
-    const send = await client.threads.send({
-      text: "make this shorter",
-      threadId,
-      viewContext: VIEW_CONTEXT,
-    });
-    expect(send.kind).toBe("started");
-    expect(driver?.startedTurns[0]?.viewContext).toEqual(VIEW_CONTEXT);
-
-    const row = timelineRows(await fetchTimeline(client, threadId)).find(
-      (candidate) => candidate.kind === "conversation",
-    );
-    if (row?.kind !== "conversation") {
-      throw new Error("expected the user's conversation row");
-    }
-    expect(row.text).toBe("make this shorter");
-    expect(row.viewContext).toEqual(VIEW_CONTEXT);
-  });
-
-  it("is DROPPED by a queued send, which drains onto a screen the user has left", async () => {
-    const { client, driver } = await bootThreadHarness({ mode: "manual" });
-    const threadId = await createThread(client);
-    const started = await client.threads.send({
-      text: "first",
-      threadId,
-    });
-    if (started.kind !== "started") {
-      throw new Error("expected a started turn");
-    }
-    const queued = await client.threads.send({
-      text: "for later",
-      threadId,
-      viewContext: VIEW_CONTEXT,
-    });
-    expect(queued.kind).toBe("queued");
-
-    driver.completeTurn(threadId, started.turnId, "completed");
-    expect(driver.startedTurns[1]?.text).toBe("for later");
-    expect(driver.startedTurns[1]?.viewContext).toBeUndefined();
-
-    const drained = timelineRows(await fetchTimeline(client, threadId)).find(
-      (row) => row.kind === "conversation" && row.text === "for later",
-    );
-    if (drained?.kind !== "conversation") {
-      throw new Error("expected the drained message's row");
-    }
-    expect(drained.viewContext).toBeNull();
-  });
-
-  it("refuses a resource that is not a vault path", async () => {
-    const { client } = await bootThreadHarness({ mode: "manual" });
-    const threadId = await createThread(client);
-    const [error] = await safe(
-      client.threads.send({
-        text: "hi",
-        threadId,
-        viewContext: { ...VIEW_CONTEXT, resource: "../outside.md" },
-      }),
-    );
-    // the path grammar rides the input schema, so the refusal is oRPC's own BAD_REQUEST rather than a declared class.
-    expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
-  });
-
-  it("refuses a revision that is not a content hash", async () => {
-    const { client } = await bootThreadHarness({ mode: "manual" });
-    const threadId = await createThread(client);
-    const [error] = await safe(
-      client.threads.send({
-        text: "hi",
-        threadId,
-        viewContext: { ...VIEW_CONTEXT, revision: "HEAD" },
-      }),
-    );
-    expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
-  });
-});
-
-const userRow = async (client: ThreadsClient, threadId: string, text: string) => {
-  const row = timelineRows(await fetchTimeline(client, threadId)).find(
-    (candidate) => candidate.kind === "conversation" && candidate.text === text,
-  );
-  if (row?.kind !== "conversation") {
-    throw new Error(`expected the conversation row for "${text}"`);
-  }
-  return row;
-};
-
 const threadTitle = async (client: ThreadsClient, threadId: string): Promise<string | null> => {
   const detail = await client.threads.get({ threadId });
   return detail.thread.title;
 };
-
-describe("the notes a message attaches", () => {
-  const ATTACHED = ["Notes/Plans.md", "Notes/Goals.md"];
-
-  it("reach the driver and the timeline beside the text, which stays what was typed", async () => {
-    const { client, driver } = await bootThreadHarness({ mode: "manual" });
-    const threadId = await createThread(client);
-    await client.threads.send({ contextPaths: ATTACHED, text: "compare these", threadId });
-
-    expect(driver.startedTurns[0]?.text).toBe("compare these");
-    expect(driver.startedTurns[0]?.contextPaths).toEqual(ATTACHED);
-    const row = await userRow(client, threadId, "compare these");
-    expect(row.contextPaths).toEqual(ATTACHED);
-  });
-
-  it("are KEPT by a queued send, unlike its view context", async () => {
-    const { client, driver } = await bootThreadHarness({ mode: "manual" });
-    const threadId = await createThread(client);
-    const started = await client.threads.send({ text: "first", threadId });
-    if (started.kind !== "started") {
-      throw new Error("expected a started turn");
-    }
-    const queued = await client.threads.send({
-      contextPaths: ATTACHED,
-      text: "then these",
-      threadId,
-    });
-    expect(queued.kind).toBe("queued");
-
-    driver.completeTurn(threadId, started.turnId, "completed");
-    expect(driver.startedTurns[1]?.contextPaths).toEqual(ATTACHED);
-    const row = await userRow(client, threadId, "then these");
-    expect(row.contextPaths).toEqual(ATTACHED);
-  });
-
-  it("refuses a path outside the vault, an empty list and a repeated note", async () => {
-    const { client } = await bootThreadHarness({ mode: "manual" });
-    const threadId = await createThread(client);
-    for (const contextPaths of [["../outside.md"], [], ["a.md", "a.md"]]) {
-      const [error] = await safe(client.threads.send({ contextPaths, text: "hi", threadId }));
-      expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
-    }
-  });
-});
 
 describe("a thread's title", () => {
   it("comes from the first message when the thread was created without one", async () => {
@@ -335,7 +190,6 @@ describe("a thread's title", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
-      origins: pathOnlyOrigins,
     });
     service.applySyncedEvents({
       cursor: 1,
@@ -374,11 +228,6 @@ const recordingNotifier = (): RecordedChanges => {
   };
 };
 
-const createThreadOver = async (client: ThreadsClient, originDocPath: string): Promise<string> => {
-  const { thread } = await client.threads.create({ originDocPath });
-  return thread.id;
-};
-
 const synced = (event: ThreadEvent, deviceSeq: number): SyncedEventInput => ({
   event,
   origin: { deviceId: "dev_other", deviceSeq },
@@ -392,7 +241,6 @@ describe("a thread's own facts", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier,
-      origins: pathOnlyOrigins,
     });
     const threadId = "thr_remote";
     service.applySyncedEvents({
@@ -404,8 +252,6 @@ describe("a thread's own facts", () => {
         ),
         synced(
           {
-            originDocPath: "Offsite.md",
-            originNoteId: "note-offsite",
             providerId: "codex",
             scope: threadScope(),
             threadId,
@@ -421,13 +267,11 @@ describe("a thread's own facts", () => {
 
     const { thread } = await client.threads.get({ threadId });
     expect(thread).toMatchObject({
-      originDocPath: "Offsite.md",
       providerId: "codex",
       title: "Offsite",
     });
     expect(thread.archivedAt).not.toBeNull();
-    expect(getThread(db, threadId)?.originNoteId).toBe("note-offsite");
-    for (const kind of ["title-changed", "origin-changed", "archived-changed"]) {
+    for (const kind of ["title-changed", "archived-changed"]) {
       expect(changes.filter((change) => change === `${threadId} ${kind}`)).toHaveLength(1);
     }
   });
@@ -438,7 +282,6 @@ describe("a thread's own facts", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
-      origins: pathOnlyOrigins,
     });
     const threadId = "thr_remote";
     const request: ThreadEvent = {
@@ -462,7 +305,7 @@ describe("a thread's own facts", () => {
 
   it("are stated on the log with a thread's first request, and not with its next", async () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });
-    const { thread } = await client.threads.create({ originDocPath: "Plans.md" });
+    const { thread } = await client.threads.create({});
     await client.threads.send({ text: "Tidy the intro", threadId: thread.id });
     await client.threads.interrupt({ threadId: thread.id });
     await client.threads.send({ text: "and the outro", threadId: thread.id });
@@ -472,45 +315,12 @@ describe("a thread's own facts", () => {
     );
     expect(metas).toEqual([
       {
-        originDocPath: "Plans.md",
         scope: threadScope(),
         threadId: thread.id,
         title: "Tidy the intro",
         type: "thread/meta",
       },
     ]);
-  });
-
-  it("state a bound harness with the first turn a provider starts, once", async () => {
-    const { client, db } = await bootThreadHarness({ mode: "manual" });
-    const threadId = await createThread(client);
-    await client.threads.send({ text: "unbound", threadId });
-    await client.threads.interrupt({ threadId });
-    setThreadProviderSession(db, { providerId: "codex", providerThreadId: "pt_1", threadId });
-    await client.threads.send({ text: "bound", threadId });
-    await client.threads.interrupt({ threadId });
-    await client.threads.send({ text: "again", threadId });
-
-    const stated = listStoredThreadEvents(db, { threadId }).flatMap(({ event }) =>
-      event.type === "thread/meta" && event.providerId !== undefined ? [event.providerId] : [],
-    );
-    expect(stated).toEqual(["codex"]);
-  });
-
-  it("state the origin's note id beside its path, so another device follows a move by id", async () => {
-    const { client, db } = await bootThreadHarness({ mode: "manual" });
-    await client.vault.write({
-      content: "---\nid: note-plans\n---\n# Plans\n",
-      guard: { kind: "overwrite" },
-      path: "Plans.md",
-    });
-    const threadId = await createThreadOver(client, "Plans.md");
-    await client.threads.send({ text: "go", threadId });
-
-    const identity = listStoredThreadEvents(db, { threadId }).find(
-      ({ event }) => event.type === "thread/meta",
-    )?.event;
-    expect(identity).toMatchObject({ originDocPath: "Plans.md", originNoteId: "note-plans" });
   });
 
   it("reach the log only for a thread that made a request", async () => {
@@ -668,7 +478,6 @@ describe("the queue drain", () => {
       },
       db,
       notifier: noopNotifier,
-      origins: pathOnlyOrigins,
     });
     const [revivedDriver] = drivers;
     if (revivedDriver === undefined) {
@@ -723,7 +532,6 @@ describe("the queue drain", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
-      origins: pathOnlyOrigins,
     });
     revived.boot();
     const recovered = await revived.get(threadId);
@@ -780,7 +588,6 @@ describe("turn identity and crash recovery", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
-      origins: pathOnlyOrigins,
     });
     expect(() => {
       service.ingestProviderEvents(threadId, [
@@ -813,7 +620,6 @@ describe("turn identity and crash recovery", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
-      origins: pathOnlyOrigins,
     });
     revived.boot();
     const recovered = await revived.get(threadId);
@@ -915,7 +721,6 @@ describe("stopping a turn", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
-      origins: pathOnlyOrigins,
     });
     const threadId = "thr_remote";
     remote.applySyncedEvents({
@@ -1147,28 +952,18 @@ describe("a phone's request", () => {
   const DISPATCH = "a".repeat(32);
   const LATER = "b".repeat(32);
 
-  it("starts a new thread under the phone's id, over the note it was asked from", async () => {
-    const { client, composed, db, driver } = await bootThreadHarness({ mode: "manual" });
-    await client.vault.write({
-      content: "---\nid: note-plans\n---\n# Plans\n",
-      guard: { kind: "overwrite" },
-      path: "Plans.md",
-    });
+  it("starts a new thread under the phone's id", async () => {
+    const { composed, db, driver } = await bootThreadHarness({ mode: "manual" });
     const threadId = "thr_phone";
 
-    const outcome = await composed.context.threads.acceptDispatch({
+    const outcome = composed.context.threads.acceptDispatch({
       id: DISPATCH,
-      originDocPath: "Plans.md",
       text: "Tidy the intro",
       threadId,
     });
 
     expect(outcome).toEqual({ kind: "delivered" });
-    expect(getThread(db, threadId)).toMatchObject({
-      originDocPath: "Plans.md",
-      originNoteId: "note-plans",
-      status: "active",
-    });
+    expect(getThread(db, threadId)).toMatchObject({ status: "active" });
     expect(requestsIn(db, threadId)).toEqual([
       {
         dispatchId: DISPATCH,
@@ -1181,35 +976,8 @@ describe("a phone's request", () => {
     const identity = listStoredThreadEvents(db, { threadId }).find(
       ({ event }) => event.type === "thread/meta",
     )?.event;
-    expect(identity).toMatchObject({
-      originDocPath: "Plans.md",
-      originNoteId: "note-plans",
-      title: "Tidy the intro",
-    });
+    expect(identity).toMatchObject({ title: "Tidy the intro" });
     expect(driver.startedTurns.map((turn) => turn.dispatchId)).toEqual([DISPATCH]);
-  });
-
-  it("binds a note with no id by its path and never writes one into it", async () => {
-    const { client, composed, db } = await bootThreadHarness({ mode: "manual" });
-    await client.vault.write({
-      content: "# Plans\n",
-      guard: { kind: "overwrite" },
-      path: "Plans.md",
-    });
-
-    await composed.context.threads.acceptDispatch({
-      id: DISPATCH,
-      originDocPath: "Plans.md",
-      text: "go",
-      threadId: "thr_phone",
-    });
-
-    expect(getThread(db, "thr_phone")).toMatchObject({
-      originDocPath: "Plans.md",
-      originNoteId: null,
-    });
-    const note = await client.vault.read({ path: "Plans.md" });
-    expect(note.content).toBe("# Plans\n");
   });
 
   it("runs once however many times it is handed over", async () => {
@@ -1217,8 +985,8 @@ describe("a phone's request", () => {
     const { threads } = composed.context;
     const dispatch = { id: DISPATCH, text: "go", threadId: "thr_phone" };
 
-    expect(await threads.acceptDispatch(dispatch)).toEqual({ kind: "delivered" });
-    expect(await threads.acceptDispatch(dispatch)).toEqual({ kind: "held" });
+    expect(threads.acceptDispatch(dispatch)).toEqual({ kind: "delivered" });
+    expect(threads.acceptDispatch(dispatch)).toEqual({ kind: "held" });
 
     expect(requestsIn(db, "thr_phone")).toHaveLength(1);
     expect(driver.startedTurns).toHaveLength(1);
@@ -1234,9 +1002,9 @@ describe("a phone's request", () => {
     const { threads } = composed.context;
     const dispatch = { id: LATER, text: "from the phone", threadId };
 
-    expect(await threads.acceptDispatch(dispatch)).toEqual({ kind: "delivered" });
+    expect(threads.acceptDispatch(dispatch)).toEqual({ kind: "delivered" });
     expect(listQueuedThreadMessages(db, threadId).map((row) => row.dispatchId)).toEqual([LATER]);
-    expect(await threads.acceptDispatch(dispatch)).toEqual({ kind: "held" });
+    expect(threads.acceptDispatch(dispatch)).toEqual({ kind: "held" });
 
     driver.completeTurn(threadId, started.turnId, "completed");
     expect(driver.startedTurns.map((turn) => turn.dispatchId)).toEqual([undefined, LATER]);
@@ -1244,7 +1012,7 @@ describe("a phone's request", () => {
       undefined,
       LATER,
     ]);
-    expect(await threads.acceptDispatch(dispatch)).toEqual({ kind: "held" });
+    expect(threads.acceptDispatch(dispatch)).toEqual({ kind: "held" });
   });
 
   it("is refused on an archived thread, and nothing is appended", async () => {
@@ -1252,7 +1020,7 @@ describe("a phone's request", () => {
     const threadId = await createThread(client);
     await client.threads.archive({ threadId });
 
-    const outcome = await composed.context.threads.acceptDispatch({
+    const outcome = composed.context.threads.acceptDispatch({
       id: DISPATCH,
       text: "go",
       threadId,
@@ -1273,7 +1041,7 @@ describe("a phone's request", () => {
       threadId,
     });
 
-    const outcome = await composed.context.threads.acceptDispatch({
+    const outcome = composed.context.threads.acceptDispatch({
       id: DISPATCH,
       text: "go",
       threadId,
@@ -1289,7 +1057,7 @@ describe("a phone's request", () => {
     const { composed, db } = await bootTestApp();
     const threadId = "thr_phone";
 
-    const outcome = await composed.context.threads.acceptDispatch({
+    const outcome = composed.context.threads.acceptDispatch({
       id: DISPATCH,
       text: "go",
       threadId,

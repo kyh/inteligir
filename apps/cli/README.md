@@ -2,17 +2,20 @@
 
 One program, two modes.
 
-**`inteligir serve` IS the product's server**: it opens the vault (a git repo
-of markdown), builds and maintains the knowledge index, drives the agent, and
-answers one oRPC API plus the invalidation socket. Nothing else in the repo
-runs a server.
+**`inteligir serve` IS the server**: it owns the data dir, keeps the agent
+threads and their sync with the account's cloud, and answers one oRPC API plus
+the invalidation socket. Nothing else in the repo runs a server.
 
-**Every other verb but `vault open` is a CLIENT** of a running one (`vault open`
-rewrites the vault selector without a server, so the next `serve` boots on it),
-over that same contract (`@repo/contract/local`). Agent-facing by design: every leaf
-takes `--json`, the server serves the manual (`inteligir guide`), and the agent
-runtime prepends this bin directory to the PATH of the shells it spawns — so a
-model drives the product by typing `inteligir …` in bash.
+**Every other verb is a CLIENT** of a running one, over that same contract
+(`@repo/contract/local`). Every leaf takes `--json`.
+
+This build carries no agent runtime: with `INTELIGIR_AGENT` unset (`auto`) a
+send is refused as `PROVIDER_UNAVAILABLE`, in words that say so;
+`INTELIGIR_AGENT=scripted` runs the in-process fake the scenario suite drives
+(`src/server/agents/scripted-driver.ts`), and `off` refuses every send. The
+seam a runtime plugs into is `resolveAgentDriver`
+(`src/server/agents/agent-driver.ts`), which hands the thread service its
+`CreateTurnDriver`.
 
 ## Running it
 
@@ -23,9 +26,9 @@ pnpm cli status             # in a checkout, against this checkout's instance
 apps/cli/bin/inteligir --help
 ```
 
-`serve` takes `--port`, `--data-dir`, `--vault` and `--open`; each resolves to
-the same `INTELIGIR_*` variable the config layer reads, so a flag can never
-mean something the environment cannot.
+`serve` takes `--port`, `--data-dir` and `--open`; each resolves to the same
+`INTELIGIR_*` variable the config layer reads, so a flag can never mean
+something the environment cannot.
 
 The bin (`bin/inteligir`) runs the source under tsx inside a checkout and the
 esbuild bundle (`pnpm package:cli` → `dist/index.js`) when packaged, so dev
@@ -37,9 +40,9 @@ following — the directory holding the link has no `dist/` beside it.
 ## Which server, and may I talk to it
 
 Both answers come out of ONE file. On boot the server writes
-`<dataDir>/server.json` at `0600` — `{ port, token, vaultDir, pid, version }` —
-and removes it on ordered shutdown, if the row is still its own. A client reads
-it and sends `Authorization: Bearer <token>`. A verb refuses a server whose
+`<dataDir>/server.json` at `0600` — `{ port, token, pid, version }` — and
+removes it on ordered shutdown, if the row is still its own. A client reads it
+and sends `Authorization: Bearer <token>`. A verb refuses a server whose
 `version` is not its own release (`SERVER_VERSION_MISMATCH`, exit 3), a row
 with none included: `/local` may break between releases, and this binary
 installs and updates apart from the desktop app. Which process may serve a data
@@ -59,10 +62,10 @@ refused before it reaches a route.
 
 There is no probing. A derived dev port may have been probed upward at bind, so
 a client that dialled the derived value could reach a NEIGHBOURING checkout's
-server, and writing a note into someone else's vault is a silent, destructive
-wrong answer. The file names the port that actually answered, so the ambiguity
-has nowhere to live — and a squatter holding the port cannot have written the
-file, so a wrong responder is refused rather than adopted.
+server, and acting on someone else's threads is a silent, destructive wrong
+answer. The file names the port that actually answered, so the ambiguity has
+nowhere to live — and a squatter holding the port cannot have written the file,
+so a wrong responder is refused rather than adopted.
 
 WHICH data dir is still the client's own question, and it reuses the server's
 resolution (`src/server/config.ts`) rather than re-deriving it: env →
@@ -74,25 +77,18 @@ you stand) name the same instance.
 There is deliberately NO "point the CLI at a URL" escape hatch. Under a bearer
 model, naming a URL is naming somewhere to SEND A CREDENTIAL — and the token
 would still have to come from a local data dir, so the two halves could
-disagree. `INTELIGIR_DATA_DIR` names the instance instead, which is also what
-agent shells are given.
+disagree. `INTELIGIR_DATA_DIR` names the instance instead.
 
 ## Command surface
 
-`serve` · `open` · `vault
-list|read|history|revision|restore|write|rename|delete|deleted|mkdir|new-id|attachments|remote|open|status|sync`
-· `search` (`tag:` terms pass through) · `matches` · `backlinks` · `related` ·
-`unlinked` · `problems` · `tags` · `tag notes|rename` · `action
-list|new|send|show|stop|wait|archive|changes|undo` · `comment list|add|reply|resolve|remove` ·
-`interactions list|answer` · `agents list|default` · `folders
-list|add|remove` · `cloud status|login|sync` · `status` · `guide`.
+`serve` · `open` · `action list|new|send|show|stop|wait|archive` ·
+`interactions list|answer` · `cloud status|login|sync` · `status`.
 
 Exit codes: 0 success · 1 error (including an action settling in error) ·
 2 `action wait` timeout · 3 no server reachable · 4 `action wait
 --until-input` met an approval · 130 interrupted. Each class the CLI raises
-itself carries its exit code in one table, `CLI_FAILURE_EXIT_CODES` in
-`src/cli-error.ts`, so a class cannot leave with another's code, and
-`guide-covers-commands.test.ts` holds the served guide to naming every row.
+itself carries its exit code in one table in `src/cli-error.ts`, so a class
+cannot leave with another's code.
 
 **A refusal can never be printed as an answer.** The oRPC client throws on a
 typed error, and `src/program.ts` turns that into a failure on stderr with the
@@ -102,14 +98,14 @@ itself is `{"error","message"}` JSON on stderr.
 ## Output
 
 `src/output.ts` is the whole output layer, and which sink a line takes is
-decided by what the line IS. Anything derived from vault or server CONTENT —
-file bytes, snippets, diffs, timelines, the manual — is written raw
-(`writeOut`/`writeLines`), because consola's reporter rewrites `backtick` and
-`_underscore_` spans in every message it formats and a note's own text carries
-both. Prose the CLI wrote itself goes through consola (`out.success`,
-`out.info`, `out.box`, `out.error`). `--json` uses neither: `outputJson` writes
-the document and returns, so stdout stays one JSON value without any command
-having to remember it.
+decided by what the line IS. Anything derived from server CONTENT — a thread's
+timeline, a message's text — is written raw (`writeOut`/`writeLines`), because
+consola's reporter rewrites `backtick` and `_underscore_` spans in every
+message it formats and what a person typed carries both. Prose the CLI wrote
+itself goes through consola (`out.success`, `out.info`, `out.box`,
+`out.error`). `--json` uses neither: `outputJson` writes the document and
+returns, so stdout stays one JSON value without any command having to remember
+it.
 
 The consola instance pins its reporter, its level and its throttle rather than
 letting consola derive them, because all three differ under `NODE_ENV=test` —
@@ -117,49 +113,23 @@ the derived reporter prefixes every line with `[log]` and the derived level
 silences `.log`, `.info` and `.success` outright, so the goldens would pin
 bytes no user ever sees.
 
-## Agent reachability
+## The command tree is enforced
 
-The agent runs `inteligir` as a BARE command, so the server resolves this bin
-directory (`src/server/agents/agent-shell-env.ts`) and PREPENDS it to the PATH
-it injects into the agent's shell, alongside `INTELIGIR_DATA_DIR` (which names
-the instance without handing a child the credential) and
-`INTELIGIR_THREAD_ID`. The directory is CHECKED for an executable rather than
-assumed: npm strips the execute bit from a packed file it does not name in
-`bin`, and the failure mode is the command silently disappearing from a
-model's PATH. If nothing resolves, the PATH entry is omitted AND the session
-instructions drop the CLI pointer — instructions never promise a command the
-shell cannot run. The e2e `cli-drive` scenario invokes the bare name through
-that same composed env.
-
-Under `INTELIGIR_THREAD_ID` every call names its thread in an
-`x-inteligir-thread` header (`src/server/agent-thread-header.ts`), so a note the
-agent writes, renames, re-tags or attaches through the CLI lands in that turn's
-agent-authored commit, like an edit its own tools reported, rather than in the
-next auto-commit. The header is attribution, not authority: the bearer already
-admitted the call, and a thread with no turn running records nothing.
-
-## Doc-sync discipline
-
-The served manual (`src/server/guide/cli-skill.ts`) must name every leaf
-command AND every flag those leaves accept —
-`src/__tests__/guide-covers-commands.test.ts` walks the real citty tree against
-the guide's rendered bytes, never its source, and against § Command surface
-above, which must list every leaf and no other.
-`json-flag-enforcement.test.ts` (bb's pattern, MIT) walks the same tree and
-EXECUTES every leaf: JSON on stdout under `--json`, and non-zero exits with
+`json-flag-enforcement.test.ts` (bb's pattern, MIT) walks the real citty tree
+and EXECUTES every leaf: JSON on stdout under `--json`, and non-zero exits with
 empty stdout when the server refuses.
 
-Both read the tree through `src/command-tree.ts`, which is shipped rather than
+It reads the tree through `src/command-tree.ts`, which is shipped rather than
 test-only: `--help` resolves the deepest command through the same walk, and so
 does the gate that refuses what citty would drop — a flag the command never
 declared, long or short, and a word past its last positional. citty parses with
 node's `parseArgs` in NON-strict mode and binds positionals in order, so
-without that gate `vault write notes/a.md --contentt x` would silently read
-stdin and exit 0, and `search two words` would search for `two`. `--` ends the
-options, and the words after it still count as operands, so a word past the
-last positional is refused on either side of it (`vault read a.md -- b.md`),
-while `vault read -- -draft.md` reads the draft. The walk is exact only while
-no command with subcommands declares args, and the enforcement test holds every
+without that gate `action send thr_1 hi --textt` would silently ignore the
+flag, and `action show thr_1 b` would drop `b`. `--` ends the options, and the
+words after it still count as operands, so a word past the last positional is
+refused on either side of it (`action show thr_1 -- b`), while
+`action show -- -draft` shows that thread. The walk is exact only while no
+command with subcommands declares args, and the enforcement test holds every
 group to that.
 
 ## What ships
@@ -167,77 +137,45 @@ group to that.
 `dist/index.js` and the `dist/chunk-*.js` beside it are the whole program,
 bundled by esbuild — every workspace package is inlined, because they export
 TypeScript source a published install cannot resolve. What stays external is
-what a bundler cannot swallow: the two NATIVE modules (`better-sqlite3` and
-`@parcel/watcher`, both N-API prebuilds) and the two ACP adapters, which are
-resolved at runtime with `require.resolve` and spawned as children.
+what a bundler cannot swallow: `better-sqlite3`, an N-API prebuild, which the
+build resolves from this package so a manifest that dropped it fails the build
+rather than an install.
 
 The bundle is SPLIT at every dynamic import, so a client verb never parses the
-server `serve` loads. The chunks sit FLAT beside the entry: `src/paths.ts` and
-the two sibling lookups below resolve from whichever file they landed in, so
-every file in `dist/` has to answer them the same way.
-
-Two bundles cannot ride inside the entry and each says why beside itself: the
-vault watcher is a CHILD PROCESS and the knowledge projector is a WORKER
-THREAD, so each needs a real file on disk resolved as a sibling of the running
-entry. In a checkout the worker runs its `.ts` source under tsx's hook instead
-(`src/server/worker-entry.ts`).
+server `serve` loads; the build refuses a static import that would load hono or
+drizzle on every verb. The chunks sit FLAT beside the entry: `src/paths.ts`
+resolves from whichever file it landed in, so every file in `dist/` has to
+answer it the same way.
 
 **The desktop shell's door is a second entry, `dist/desktop.js`**
 (`src/desktop/desktop-entry.ts`), over the same chunks. The shell is Rust, and
 every rule it acts by that is the server's own is asked of this entry instead
-of spelled twice: which vault a launch boots, what a first run's choice opens,
-whether a switch may go ahead, a picked folder's facts, the selector's write
-and a browser's handoff, one question per process, answered as one JSON line
-(`src/desktop/desktop-door.ts`). `serve` is the one that stays: it is the
+of spelled twice: the data dir a launch serves and the environment its child
+runs with, and a browser's handoff, one question per process, answered as one
+JSON line (`src/desktop/desktop-door.ts`). `serve` is the one that stays: it is the
 server, run on the node the app ships, and it announces itself to the shell on
 one marked line (`src/desktop/desktop-serve.ts`), or adopts a server already
 serving its data dir at this version that can sign a window in (one built
 without its app is refused, in words). Its stdin is the shell's lifeline: it
 closes only when the shell is gone, and the server then stops itself rather
-than go on holding the data dir. Packaged, it writes the agents' `inteligir`
-as a launcher into the data dir (`src/desktop/agent-launcher.ts`), which runs
-that same node on this CLI, since a Mac need hold no node of its own.
+than go on holding the data dir.
 
-Every node child the server starts it starts itself, with `child_process` over
-its own `process.execPath`: the watcher, and each ACP adapter. codex is the one
-adapter that runs a node script of its own (its bundled launcher, through
-`process.execPath`), so the harness row names the native binary that launcher
-would start as `CODEX_PATH`, one process fewer.
-
-A vendor's own binary is native, so the server runs it itself. Whether an agent
-is signed in is the vendor's own status command (the harness row's account
-probe) over its shared store (`~/.claude`, `~/.codex`), so a machine already
-signed in needs nothing more, asked through `src/server/agents/vendor-process.ts`,
-the one vendor spawn policy: the bundled binary alone, never PATH's; the data
-dir as cwd, never the vault; the harness's `envOmit` dropped; a deadline that
-kills the process group. `vendor-accounts.ts` shares one probe between
-concurrent asks and keeps its answer for 10s. Signing in is the vendor's own
-too (`agent-sign-in.ts`): claude's login is that binary run under the same
-policy, with its stdin kept open for the code its sign-in page shows
-(`agents.submitSignInCode`), codex's is its adapter's `authenticate`, one
-sign-in per server, and a cancel, the ceiling or shutdown ends it. Nothing
-about the agent reads PATH: a send is refused up front only when the thread's
-runtime is missing from the install, and a signed-out vendor refuses the
-session itself. Connectors are the default agent's own MCP config, read and
-edited through the same bundled binary and spawn policy
-(`src/server/connectors/vendor-mcp-config.ts`); the app keeps no registry.
-
-Four trees are staged as CONTENT rather than code: the committed SQL
-migrations, the dialect skills the agent reads with its own shell, the
-workspace UI — the desktop renderer's build — which `serve` answers over plain
-HTTP so `--open` lands a browser in the product, and `tools/licenses` as
-`dist/licenses`, because the repo-root path no `files` glob can name is where
-the vendored sources' notices live. The migrations resolve SOURCE-FIRST — the
-staged copy answers only where `@repo/db` cannot be resolved, because `dist/`
-is the ordinary state of a worked-in checkout and a frozen snapshot would
-migrate a dev database past what the running code carries. The UI stays
-staged-first, which is why the two resolvers read differently.
+Three trees are staged as CONTENT rather than code: the committed SQL
+migrations, the workspace UI — the desktop renderer's build — which `serve`
+answers over plain HTTP so `--open` lands a browser in the product, and
+`tools/licenses` as `dist/licenses`, because the repo-root path no `files` glob
+can name is where the vendored sources' notices live. The migrations resolve
+SOURCE-FIRST — the staged copy answers only where `@repo/db` cannot be
+resolved, because `dist/` is the ordinary state of a worked-in checkout and a
+frozen snapshot would migrate a dev database past what the running code
+carries. The UI stays staged-first, which is why the two resolvers read
+differently.
 
 `pnpm smoke:cli` proves all of it against a real `npm install` of the packed
 tarball: the layout (every file the build emitted, chunks included), the
-execute bit, the licence texts, a boot, the two native modules, a graceful
-SIGTERM. The e2e `built-cli-boot` scenario boots the same bundle from the
-checkout on every CI run.
+execute bit, the licence texts, a boot, the native module, a graceful SIGTERM.
+The e2e `built-cli-boot` scenario boots the same bundle from the checkout on
+every CI run.
 
 The published surface is the bin and nothing else: `publishConfig.exports` is
 `{}`, so pnpm rewrites the manifest on the way out. The subpath map in
@@ -253,5 +191,4 @@ closes.
 Unit suites run the real program object against an in-process server built from
 the SAME contract (so the fixture cannot drift) — output goldens, `action wait`
 exit codes, discovery resolution. The server's own suites sit under
-`src/server/__tests__/`. The real-server integration lives in `e2e`
-(`cli-drive`): the CLI drives a booted instance under the scripted agent.
+`src/server/__tests__/`, booting the real composition with a fake turn driver.

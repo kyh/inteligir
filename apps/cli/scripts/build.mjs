@@ -22,7 +22,11 @@ const NODE_ESM_REQUIRE_BANNER = [
   "var __dirname = __pathDirname(__filename);",
 ].join("\n");
 
-const NATIVE = ["better-sqlite3", "@parcel/watcher"];
+// left external, so the published install must carry it as a dependency of its own: the code that
+// opens it is @repo/db's, inlined, and a name only that package declared would be missing from the
+// install. resolving it from here fails a build whose manifest dropped it, rather than its users.
+import.meta.resolve("better-sqlite3");
+const NATIVE = ["better-sqlite3"];
 
 const shared = {
   // so the metafile names every input and output from here
@@ -40,10 +44,13 @@ const shared = {
 
 await rm(distDir, { force: true, recursive: true });
 
-// what every client verb loads before it reads argv. yaml is 72 modules the few verbs that read
-// frontmatter need, so they reach it through a dynamic import; a static one slips past every test
-// and every review, so the build refuses it.
-const LOADED_ON_EVERY_VERB_REFUSED = ["node_modules/.pnpm/yaml@"];
+// what every client verb loads before it reads argv. the server (hono, drizzle) is `serve`'s alone,
+// reached through a dynamic import; a static one slips past every test and every review, so the
+// build refuses it.
+const LOADED_ON_EVERY_VERB_REFUSED = [
+  "node_modules/.pnpm/hono@",
+  "node_modules/.pnpm/drizzle-orm@",
+];
 const STATIC_IMPORT_KINDS = new Set(["import-statement", "require-call"]);
 
 const staticClosure = (metafile, entryPoint) => {
@@ -89,7 +96,7 @@ const CLI_ENTRY = "src/index.ts";
 
 // split so a client verb parses the client alone: every dynamic import is a chunk loaded on use.
 // the chunks sit flat beside index.js, because `import.meta.url` and `import.meta.dirname` in any
-// of them must name dist/ (src/paths.ts, and the sibling lookups of the bundles below). the desktop
+// of them must name dist/ (src/paths.ts). the desktop
 // shell's own door (src/desktop/desktop-entry.ts) is a second entry over the same chunks, so the
 // server it runs is the one `inteligir serve` runs, loaded once.
 const { metafile } = await build({
@@ -104,36 +111,7 @@ const { metafile } = await build({
 });
 assertEntryLoadsNone(metafile, CLI_ENTRY, LOADED_ON_EVERY_VERB_REFUSED);
 
-// each runs outside the entry's process or thread, so each needs its own file beside it.
-const SIBLING_BUNDLES = [
-  // a child process the server forks
-  {
-    entry: path.join(packageRoot, "src", "server", "vault", "watcher", "parcel-child-entry.ts"),
-    external: ["@parcel/watcher"],
-    outfile: "parcel-watcher-child.mjs",
-  },
-  // the projector, a worker thread (src/server/worker-entry.ts)
-  {
-    entry: path.join(packageRoot, "src", "server", "knowledge", "projection-worker.ts"),
-    external: [],
-    outfile: "projection-worker.mjs",
-  },
-];
-
-for (const { entry, external, outfile } of SIBLING_BUNDLES) {
-  await build({
-    ...shared,
-    entryPoints: [entry],
-    external,
-    outfile: path.join(distDir, outfile),
-  });
-}
-
 await cp(path.join(repoRoot, "packages", "db", "drizzle"), path.join(distDir, "drizzle"), {
-  recursive: true,
-});
-
-await cp(path.join(repoRoot, "packages", "agent-skills", "skills"), path.join(distDir, "skills"), {
   recursive: true,
 });
 

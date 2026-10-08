@@ -2,7 +2,6 @@
 
 import { setTimeout as delay } from "node:timers/promises";
 import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schema";
-import type { VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -30,15 +29,6 @@ const SIGNED_IN: CloudStatusResponse = {
   state: "signed-in",
 };
 
-const NO_REMOTE: VaultStatusResponse = {
-  conflicts: [],
-  device: "This Mac",
-  externalSync: null,
-  lastError: null,
-  lastSyncAt: null,
-  state: "no-remote",
-};
-
 // a dialog opens through a portal a frame after its state flips, so an absent one is only
 // absent after a wait
 const DIALOG_PAINT_MS = 50;
@@ -56,10 +46,9 @@ describe("the rail's sign-in", () => {
     });
     const queryClient = createWorkspaceQueryClient();
     queryClient.setQueryData(orpc.cloud.status.queryKey(), SIGNED_OUT);
-    queryClient.setQueryData(orpc.vault.status.queryKey(), NO_REMOTE);
     render(
       <QueryClientProvider client={queryClient}>
-        <SyncRow onSyncNow={() => {}} onOpenSyncDetails={() => {}} />
+        <SyncRow onOpenSyncDetails={() => {}} />
       </QueryClientProvider>,
     );
 
@@ -90,10 +79,9 @@ describe("the rail's sign-in", () => {
     });
     const queryClient = createWorkspaceQueryClient();
     queryClient.setQueryData(orpc.cloud.status.queryKey(), SIGNED_OUT);
-    queryClient.setQueryData(orpc.vault.status.queryKey(), NO_REMOTE);
     render(
       <QueryClientProvider client={queryClient}>
-        <SyncRow onSyncNow={() => {}} onOpenSyncDetails={() => {}} />
+        <SyncRow onOpenSyncDetails={() => {}} />
       </QueryClientProvider>,
     );
 
@@ -117,28 +105,16 @@ describe("the rail's sign-in", () => {
   });
 });
 
-// what a failed pass leaves in `lastError`: git's own words
-const GIT_STDERR =
-  "fatal: unable to access 'https://example.com/vault.git/': Could not resolve host";
+// what a failed pass leaves in `lastError`: the sync's own words
+const RAW_ERROR = "sync-conflict: position 7 replayed";
 
-const REMOTE_FIELDS = {
-  conflicts: [],
-  device: "This Mac",
-  externalSync: null,
-  lastError: GIT_STDERR,
-  lastSyncAt: null,
-  remote: "https://example.com/vault.git",
-  remoteSource: "explicit",
-} satisfies Omit<Extract<VaultStatusResponse, { state: "offline" }>, "state">;
-
-const openRow = async (vault: VaultStatusResponse, onOpenSyncDetails = () => {}) => {
+const openRow = async (cloud: CloudStatusResponse, onOpenSyncDetails = () => {}) => {
   stubRpc({ "threads/list": () => ({ nextCursor: null, threads: [] }) });
   const queryClient = createWorkspaceQueryClient();
-  queryClient.setQueryData(orpc.cloud.status.queryKey(), SIGNED_IN);
-  queryClient.setQueryData(orpc.vault.status.queryKey(), vault);
+  queryClient.setQueryData(orpc.cloud.status.queryKey(), cloud);
   render(
     <QueryClientProvider client={queryClient}>
-      <SyncRow onSyncNow={() => {}} onOpenSyncDetails={onOpenSyncDetails} />
+      <SyncRow onOpenSyncDetails={onOpenSyncDetails} />
     </QueryClientProvider>,
   );
   fireEvent.click(screen.getByLabelText("Sync and account"));
@@ -146,28 +122,34 @@ const openRow = async (vault: VaultStatusResponse, onOpenSyncDetails = () => {})
 };
 
 describe("the rail's sync row", () => {
-  it("says a failed pass in its own words, never the engine's", async () => {
-    await openRow({ state: "offline", ...REMOTE_FIELDS });
+  it("says a failed pass in its own words, never the sync's", async () => {
+    await openRow({ ...SIGNED_IN, lastError: RAW_ERROR });
 
-    expect(document.body.textContent).not.toContain(GIT_STDERR);
-    expect(document.body.textContent).not.toMatch(/\b(?:git|remote|fatal)\b/iu);
-    expect(screen.getByText("Offline")).toBeDefined();
+    expect(document.body.textContent).not.toContain(RAW_ERROR);
+    expect(screen.getByText("Sync paused")).toBeDefined();
   });
 
-  it("offers no second sync for actions, which sync on their own", async () => {
-    await openRow({ state: "clean", ...REMOTE_FIELDS, lastError: null });
+  it("says synced once a pass caught up, and offers its account's sign-out", async () => {
+    await openRow({ ...SIGNED_IN, lastSyncedAt: 1 });
 
+    expect(screen.getByText("Synced")).toBeDefined();
     expect(screen.getByText("Sign out")).toBeDefined();
-    expect(screen.queryByText("Sync threads now")).toBeNull();
     expect(screen.queryByText("Sync details…")).toBeNull();
   });
 
   it("opens the details in Settings when sync cannot continue on its own", async () => {
     const opened = vi.fn<() => void>();
-    await openRow({ state: "broken", ...REMOTE_FIELDS }, opened);
+    await openRow({ ...SIGNED_IN, lastError: RAW_ERROR }, opened);
 
     fireEvent.click(screen.getByText("Sync details…"));
     expect(opened).toHaveBeenCalledOnce();
-    expect(document.body.textContent).not.toContain(GIT_STDERR);
+    expect(document.body.textContent).not.toContain(RAW_ERROR);
+  });
+
+  it("offers no sync while signed out", async () => {
+    await openRow(SIGNED_OUT);
+
+    expect(screen.getByText("Only on this Mac")).toBeDefined();
+    expect(screen.getByText("Sync now").closest("[data-disabled]")).not.toBeNull();
   });
 });

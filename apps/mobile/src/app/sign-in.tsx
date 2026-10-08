@@ -43,7 +43,7 @@ const SignInScreen = () => {
   const reason =
     status.state === "unauthorized"
       ? "This device was signed out. Sign in again to resume syncing."
-      : "Sign in with your account to read your notes and threads, and capture ideas.";
+      : "Sign in with your account to follow your threads and answer your agent.";
   const fieldStyle = [
     styles.input,
     { backgroundColor: theme.card, borderColor: theme.input, color: theme.foreground },

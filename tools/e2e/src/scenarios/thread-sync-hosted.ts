@@ -2,9 +2,8 @@ import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schem
 import type { TimelineRow } from "@repo/contract/local/thread-timeline";
 import { POLL_INTERVAL_MS } from "inteligir/server/cloud/sync-cadence";
 import { expect } from "../harness/assert";
-import { signUp } from "../harness/cloud-account";
+import { signInOwner, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { signInOwner } from "../harness/hosted-vault";
 import type { AppInstance, InstanceApi } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
@@ -58,13 +57,10 @@ export const threadSyncHosted: Scenario = {
     ctx.log("creating the account through the invite gate");
     await signUp(worker.origin);
 
-    // each vault syncs to a bare remote of its own: on the hosted remote B's history would meet
-    // A's as an unrelated one, a conflict beside the channel this scenario proves.
     const boot = async (name: string): Promise<AppInstance> =>
       await ctx.boot({
         extraEnv: { INTELIGIR_AGENT: "scripted", INTELIGIR_CLOUD_URL: worker.origin },
         name,
-        vaultRemote: await ctx.bareRemote(name),
       });
     const a = await boot("a");
     const b = await boot("b");

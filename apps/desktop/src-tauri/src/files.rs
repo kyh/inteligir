@@ -1,5 +1,5 @@
-//! The shell's own small files (the recent vaults, the debug choice) are written whole beside their
-//! destination and renamed over it, as the server's `staged-write.ts` writes its own: a crash
+//! The shell's own small files (the debug choice) are written whole beside their destination and
+//! renamed over it, as the server's `staged-write.ts` writes its own: a crash
 //! mid-write leaves the old file or the new one, never half of either.
 
 use std::fs::{self, OpenOptions};

@@ -14,7 +14,6 @@ import type { DbConnection, DbExecutor, DbTransaction } from "@repo/db/connectio
 import {
   appendEventsInTransaction,
   appendSyncedEventsInTransaction,
-  listThreadMetaEvents,
   storedTurnCompletion,
   storedTurnFailure,
   threadHasEvents,
@@ -48,22 +47,19 @@ import {
   applyThreadLifecycleEventInTransaction,
   applyThreadMetaInTransaction,
   archiveThreadInTransaction,
-  bindPathOnlyOrigins,
   createThread,
   ensureThreadInTransaction,
   getThread,
-  listPathOnlyOriginPaths,
   listRunningThreads,
   listThreads,
   nameUntitledThreadInTransaction,
 } from "@repo/db/threads";
-import type { CreateThreadInput, ThreadOriginInput, ThreadRow } from "@repo/db/threads";
+import type { CreateThreadInput, ThreadRow } from "@repo/db/threads";
 import type { ProviderFailure, ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { deriveThreadTitle } from "@repo/domain/thread-title";
 import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import { isThreadRunning } from "@repo/domain/thread-status";
-import type { ViewContext } from "@repo/domain/view-context";
 import type {
   AnswerInteractionRequest,
   CreateThreadRequest,
@@ -82,11 +78,8 @@ import {
   THREADS_LIST_DEFAULT_LIMIT,
 } from "@repo/contract/local/threads/threads-schema";
 import { computeTimelineDelta } from "@repo/contract/local/thread-timeline";
-import { z } from "zod";
-import { mapWithConcurrency } from "../concurrency";
 import { messageOf } from "../error-message";
 import { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
-import type { ThreadOrigins } from "./thread-origins";
 import { ThreadTimelineProjector } from "./timeline-projection";
 import { TurnDriverUnavailableError } from "./turn-driver";
 import type { CreateTurnDriver, TurnDriver, ProviderEventSink, TurnRequest } from "./turn-driver";
@@ -112,8 +105,6 @@ export interface DispatchedTurn {
   id: string;
   threadId: string;
   text: string;
-  originDocPath?: string | undefined;
-  viewContext?: ViewContext | undefined;
 }
 
 // delivered: this device took it into the thread now, started, queued, or recorded beside the
@@ -131,9 +122,6 @@ interface SendTarget {
   turn: TurnRequest;
 }
 
-// each path is a note read and maybe a write; a vault of old actions is not opened all at once.
-const ORIGIN_BACKFILL_CONCURRENCY = 4;
-
 type SendDecision =
   | {
       kind: "dispatch";
@@ -150,7 +138,7 @@ export type InterruptOutcome =
   | { kind: "not-found" }
   | { kind: "remote"; message: string };
 
-// the row, not the wire thread: its origin is resolved after the transaction, off the index.
+// the row, not the wire thread: whether its turn runs elsewhere is read after the transaction.
 type StopOutcome =
   | { kind: "answered"; stop: ThreadStop; thread: ThreadRow }
   | Exclude<InterruptOutcome, { kind: "answered" }>;
@@ -187,7 +175,6 @@ export interface ThreadServiceArgs {
   db: DbConnection;
   notifier: DbNotifier;
   createTurnDriver: CreateTurnDriver;
-  origins: ThreadOrigins;
   sync?: ThreadSyncHooks;
 }
 
@@ -197,16 +184,11 @@ const turnRunsElsewhere = (db: DbExecutor, row: ThreadRow): boolean =>
   row.activeTurnId !== null &&
   turnStartOriginDeviceId(db, { threadId: row.id, turnId: row.activeTurnId }) !== null;
 
-const toWireThread = (
-  row: ThreadRow,
-  originDocPath: string | null,
-  runsElsewhere: boolean,
-): Thread => ({
+const toWireThread = (row: ThreadRow, runsElsewhere: boolean): Thread => ({
   activeTurnId: row.activeTurnId,
   archivedAt: row.archivedAt,
   createdAt: row.createdAt,
   id: row.id,
-  originDocPath,
   providerId: row.providerId,
   runsElsewhere,
   status: row.status,
@@ -243,7 +225,7 @@ const toWirePendingInteraction = (row: PendingInteractionRow): PendingInteractio
   };
 };
 
-// the same parse the runtime's answer path runs, so a resolution this passes is never silently denied downstream.
+// the same parse the waiters' answer path runs, so a resolution this passes is never silently denied downstream.
 const invalidResolutionMessage = (payloadJson: string, resolution: string): string | null => {
   const payload = parseStoredApprovalPayload(payloadJson);
   if (payload === null) {
@@ -283,9 +265,6 @@ const lifecycleEventFor = (event: ThreadEvent): ThreadLifecycleEvent | null => {
   }
 };
 
-// a queued message carries no view context: it drains minutes later, long
-// after the screen it described; storing one gives away the immediacy that keeps it honest. its
-// context paths stay: an @-mention is part of what the user asked.
 const queueInTransaction = (
   tx: DbTransaction,
   threadId: string,
@@ -293,7 +272,6 @@ const queueInTransaction = (
   buffer: NotificationBuffer,
 ): QueuedSendOutcome => {
   const queued = createQueuedThreadMessageInTransaction(tx, {
-    contextPaths: turn.contextPaths === undefined ? null : JSON.stringify(turn.contextPaths),
     dispatchId: turn.dispatchId ?? null,
     text: turn.text,
     threadId,
@@ -302,30 +280,8 @@ const queueInTransaction = (
   return { kind: "queued", queuedMessageId: queued.id };
 };
 
-const storedContextPathsSchema = z.array(z.string().min(1)).min(1);
-
-// only this process writes the column, from a parsed request; bytes that no longer parse cost the
-// message its attachments, never the message.
-const storedContextPaths = (stored: string | null): string[] | undefined => {
-  if (stored === null) {
-    return undefined;
-  }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(stored);
-  } catch {
-    return undefined;
-  }
-  const parsed = storedContextPathsSchema.safeParse(raw);
-  return parsed.success ? parsed.data : undefined;
-};
-
 const queuedTurn = (claimed: ClaimedQueuedThreadMessageRow): TurnRequest => {
   const turn: TurnRequest = { text: claimed.text };
-  const contextPaths = storedContextPaths(claimed.contextPaths);
-  if (contextPaths !== undefined) {
-    turn.contextPaths = contextPaths;
-  }
   if (claimed.dispatchId !== null) {
     turn.dispatchId = claimed.dispatchId;
   }
@@ -334,11 +290,7 @@ const queuedTurn = (claimed: ClaimedQueuedThreadMessageRow): TurnRequest => {
 
 // a send's request also carries its routing (the thread, the turn it expects), which is no part of
 // what the turn carries to the driver.
-const requestedTurn = (request: SendMessageRequest): TurnRequest => ({
-  contextPaths: request.contextPaths,
-  text: request.text,
-  viewContext: request.viewContext,
-});
+const requestedTurn = (request: SendMessageRequest): TurnRequest => ({ text: request.text });
 
 // the first message a thread carries names it, whichever client sent it and on whichever device.
 const nameThreadFromRequestsInTransaction = (
@@ -378,9 +330,6 @@ const projectThreadFactsInTransaction = (
       if (change.title) {
         buffer.notifyThread(threadId, ["title-changed"]);
       }
-      if (change.origin) {
-        buffer.notifyThread(threadId, ["origin-changed"]);
-      }
     } else if (event.type === "thread/archived" && archiveThreadInTransaction(tx, threadId)) {
       buffer.notifyThread(threadId, ["archived-changed"]);
       archived = true;
@@ -389,21 +338,12 @@ const projectThreadFactsInTransaction = (
   return archived;
 };
 
-// what a thread is as its first request leaves it: the name that request gave it and the note it
-// was started over. its harness is stated once a provider starts a turn on it.
-const threadIdentity = (row: ThreadRow): ThreadMetaEvent | null => {
-  const meta: ThreadMetaEvent = { scope: threadScope(), threadId: row.id, type: "thread/meta" };
-  if (row.title !== null) {
-    meta.title = row.title;
-  }
-  if (row.originDocPath !== null) {
-    meta.originDocPath = row.originDocPath;
-    if (row.originNoteId !== null) {
-      meta.originNoteId = row.originNoteId;
-    }
-  }
-  return meta.title === undefined && meta.originDocPath === undefined ? null : meta;
-};
+// what a thread is as its first request leaves it: the name that request gave it. its harness is
+// stated once a provider starts a turn on it.
+const threadIdentity = (row: ThreadRow): ThreadMetaEvent | null =>
+  row.title === null
+    ? null
+    : { scope: threadScope(), threadId: row.id, title: row.title, type: "thread/meta" };
 
 // a turn the vendor refused for the plan's usage limit or a sign-in would refuse the next message
 // the same way, so a settle on one leaves the queue for the user's next send rather than draining
@@ -497,13 +437,11 @@ export class ThreadService implements ProviderEventSink {
   private readonly notifier: DbNotifier;
   private readonly driver: TurnDriver;
   private readonly timelines: ThreadTimelineProjector;
-  private readonly origins: ThreadOrigins;
   private readonly sync: ThreadSyncHooks | null;
 
   constructor(args: ThreadServiceArgs) {
     this.db = args.db;
     this.notifier = args.notifier;
-    this.origins = args.origins;
     this.sync = args.sync ?? null;
     this.timelines = new ThreadTimelineProjector(args.db);
     this.driver = args.createTurnDriver(this);
@@ -518,30 +456,6 @@ export class ThreadService implements ProviderEventSink {
     // both the queue read and the next drain. a swept row does not auto-dispatch: the next send starts it first.
     releaseAllQueuedMessageClaims(this.db);
     this.recoverWedgedThreads();
-  }
-
-  // a thread bound by its path alone loses its note to a rename, so each such path takes the id its
-  // note carries, minted through the create's own guarded step; a note that is gone or cannot take
-  // one leaves its threads on the path. a bound row is never listed again, so a rerun reads only
-  // the paths still without one.
-  async backfillOriginNoteIds(): Promise<void> {
-    await mapWithConcurrency(
-      listPathOnlyOriginPaths(this.db),
-      ORIGIN_BACKFILL_CONCURRENCY,
-      async (path) => {
-        let noteId: string | null;
-        try {
-          noteId = await this.origins.noteIdAt(path);
-        } catch (error) {
-          // one note's fault costs its threads the id until the next boot, never the sweep.
-          console.warn(`thread origins: ${path} stays bound by path: ${messageOf(error)}`);
-          return;
-        }
-        if (noteId !== null) {
-          bindPathOnlyOrigins(this.db, { noteId, path });
-        }
-      },
-    );
   }
 
   // a copy's turn/started re-opened a turn its original had already settled, and when the
@@ -573,19 +487,6 @@ export class ThreadService implements ProviderEventSink {
     this.sync?.enqueue(tx, events);
   }
 
-  // a provider started a turn here, so the harness the row names is bound: the log states it once,
-  // and another device keeps it. the session id is this device's alone and never travels.
-  private stateHarnessInTransaction(tx: DbTransaction, threadId: string): void {
-    const providerId = getThread(tx, threadId)?.providerId ?? null;
-    if (
-      providerId === null ||
-      listThreadMetaEvents(tx, threadId).some((meta) => meta.providerId !== undefined)
-    ) {
-      return;
-    }
-    this.appendLocal(tx, [{ providerId, scope: threadScope(), threadId, type: "thread/meta" }]);
-  }
-
   // a thread reaches another device with its first request, so a fact about one that never made
   // one stays here: sent alone, it would arrive there as an empty action.
   private announceInTransaction(
@@ -600,51 +501,33 @@ export class ThreadService implements ProviderEventSink {
     buffer.notifyThread(fact.threadId, ["events-appended"]);
   }
 
-  // the stored path answers for a note with no id, or one no indexed doc carries any more.
-  private async toWire(row: ThreadRow): Promise<Thread> {
-    const { originDocPath, originNoteId } = row;
-    const runsElsewhere = turnRunsElsewhere(this.db, row);
-    if (originDocPath === null || originNoteId === null) {
-      return toWireThread(row, originDocPath, runsElsewhere);
-    }
-    const resolved = await this.origins.pathForNoteId(originNoteId, originDocPath);
-    return toWireThread(row, resolved ?? originDocPath, runsElsewhere);
+  private toWire(row: ThreadRow): Thread {
+    return toWireThread(row, turnRunsElsewhere(this.db, row));
   }
 
-  async create(input: CreateThreadRequest): Promise<Thread> {
+  create(input: CreateThreadRequest): Thread {
     const created: CreateThreadInput = {};
     if (input.title !== undefined) {
       created.title = input.title;
     }
-    if (input.originDocPath !== undefined) {
-      created.origin = {
-        noteId: await this.origins.noteIdAt(input.originDocPath),
-        path: input.originDocPath,
-      };
-    }
-    return await this.toWire(createThread(this.db, this.notifier, created));
+    return this.toWire(createThread(this.db, this.notifier, created));
   }
 
-  async list(query: ParsedListThreadsQuery): Promise<ListThreadsResponse> {
-    const path = query.originDocPath ?? null;
+  list(query: ParsedListThreadsQuery): ListThreadsResponse {
     const page = listThreads(this.db, {
       after: query.cursor ?? null,
       contains: query.query ?? null,
       includeArchived: query.includeArchived ?? false,
       limit: query.limit ?? THREADS_LIST_DEFAULT_LIMIT,
-      origin: path === null ? null : { noteId: await this.origins.noteIdOf(path), path },
       running: query.running ?? false,
     });
-    const threads = await Promise.all(page.rows.map(async (row) => await this.toWire(row)));
     return {
       nextCursor: page.next === null ? null : encodeThreadListCursor(page.next),
-      // the page is narrowed by the stored path or the note's id; the answer is where each row
-      // resolves now, so a row whose note moved away leaves the page short, never wrong.
-      threads: path === null ? threads : threads.filter((thread) => thread.originDocPath === path),
+      threads: page.rows.map((row) => this.toWire(row)),
     };
   }
 
-  async get(threadId: string): Promise<GetThreadResponse | null> {
+  get(threadId: string): GetThreadResponse | null {
     const thread = getThread(this.db, threadId);
     if (thread === null) {
       return null;
@@ -658,7 +541,7 @@ export class ThreadService implements ProviderEventSink {
         id: row.id,
         text: row.text,
       })),
-      thread: await this.toWire(thread),
+      thread: this.toWire(thread),
     };
   }
 
@@ -672,7 +555,7 @@ export class ThreadService implements ProviderEventSink {
 
   // the stop comes after the archive: a settled stop drains the queue, and only an archived thread
   // refuses the turn that drain would start.
-  async archive(threadId: string): Promise<Thread | null> {
+  archive(threadId: string): Thread | null {
     const buffer = new NotificationBuffer();
     const found = writeTransaction(this.db, (tx) => {
       if (getThread(tx, threadId) === null) {
@@ -694,13 +577,13 @@ export class ThreadService implements ProviderEventSink {
     }
     this.stop(threadId);
     const thread = getThread(this.db, threadId);
-    return thread === null ? null : await this.toWire(thread);
+    return thread === null ? null : this.toWire(thread);
   }
 
-  async interrupt(threadId: string): Promise<InterruptOutcome> {
+  interrupt(threadId: string): InterruptOutcome {
     const outcome = this.stop(threadId);
     return outcome.kind === "answered"
-      ? { ...outcome, thread: await this.toWire(outcome.thread) }
+      ? { ...outcome, thread: this.toWire(outcome.thread) }
       : outcome;
   }
 
@@ -775,20 +658,11 @@ export class ThreadService implements ProviderEventSink {
   }
 
   // a phone's request lands through the send's own decision, so it starts, queues or is refused
-  // exactly as a message typed here would. the phone's thread id is kept, and a new thread takes
-  // the note it was asked over, read and never minted: a mint waits on the vault's lock, and a
-  // claim held past its lapse is the same request running on a second Mac.
-  async acceptDispatch(dispatch: DispatchedTurn): Promise<DispatchOutcome> {
-    const origin =
-      dispatch.originDocPath === undefined || getThread(this.db, dispatch.threadId) !== null
-        ? undefined
-        : {
-            noteId: await this.origins.noteIdOf(dispatch.originDocPath),
-            path: dispatch.originDocPath,
-          };
+  // exactly as a message typed here would. the phone's thread id is kept.
+  acceptDispatch(dispatch: DispatchedTurn): DispatchOutcome {
     const buffer = new NotificationBuffer();
     const decision = writeTransaction(this.db, (tx) =>
-      this.resolveDispatchInTransaction(tx, dispatch, origin, buffer),
+      this.resolveDispatchInTransaction(tx, dispatch, buffer),
     );
     buffer.flushTo(this.notifier);
     if (decision.kind !== "send") {
@@ -816,14 +690,13 @@ export class ThreadService implements ProviderEventSink {
   private resolveDispatchInTransaction(
     tx: DbTransaction,
     dispatch: DispatchedTurn,
-    origin: ThreadOriginInput | undefined,
     buffer: NotificationBuffer,
   ): DispatchDecision {
     const { threadId } = dispatch;
     if (threadHoldsDispatch(tx, { dispatchId: dispatch.id, threadId })) {
       return { kind: "held" };
     }
-    const ensured = ensureThreadInTransaction(tx, threadId, origin);
+    const ensured = ensureThreadInTransaction(tx, threadId);
     if (ensured.created) {
       buffer.notifyThread(threadId, ["thread-created"]);
     }
@@ -834,9 +707,6 @@ export class ThreadService implements ProviderEventSink {
       return { kind: "refused", message: RUNS_ELSEWHERE_REFUSAL };
     }
     const turn: TurnRequest = { dispatchId: dispatch.id, text: dispatch.text };
-    if (dispatch.viewContext !== undefined) {
-      turn.viewContext = dispatch.viewContext;
-    }
     return { kind: "send", send: this.resolveSendInTransaction(tx, { threadId, turn }, buffer) };
   }
 
@@ -921,12 +791,6 @@ export class ThreadService implements ProviderEventSink {
       threadId,
       type: "client/turn/requested",
     };
-    if (turn.contextPaths !== undefined) {
-      requested.contextPaths = [...turn.contextPaths];
-    }
-    if (turn.viewContext !== undefined) {
-      requested.viewContext = turn.viewContext;
-    }
     if (turn.dispatchId !== undefined) {
       requested.dispatchId = turn.dispatchId;
     }
@@ -1106,9 +970,6 @@ export class ThreadService implements ProviderEventSink {
         if (claimed !== null) {
           drains.push(claimed);
         }
-      }
-      if (args.origin === "local" && projected.some((event) => event.type === "turn/started")) {
-        this.stateHarnessInTransaction(tx, threadId);
       }
       return archivedHere;
     });

@@ -29,19 +29,14 @@ export default defineConfig({
         compatibilityDate,
         compatibilityFlags,
         d1Databases: ["DB"],
-        r2Buckets: ["PACK_CACHE"],
         durableObjects: {
           THREAD_SYNC: { className: "ThreadSyncDO", useSQLite: true },
-          REPO: { className: "RepoCell", useSQLite: true },
-          REGISTRY: { className: "Registry", useSQLite: true },
         },
         bindings: {
           BETTER_AUTH_SECRET: TEST_BETTER_AUTH_SECRET,
-          // every test shares one ip; vault-rate-limit.test.ts flips this per test.
+          // every test shares one ip; a rate-limit test flips this for its own run.
           RATE_LIMIT_DISABLED: "true",
           TEST_SCHEMA,
-          // small enough that a test fills a vault with a few pushes
-          VAULT_STORAGE_CAP_BYTES: String(1024 * 1024),
         },
       },
     }),

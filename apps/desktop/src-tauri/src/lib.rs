@@ -9,7 +9,6 @@ mod files;
 mod launch;
 mod menu;
 mod navigation;
-mod paths;
 mod runtime;
 mod server;
 mod server_log;
@@ -17,7 +16,6 @@ mod shell;
 mod tray;
 mod update_state;
 mod updater;
-mod vaults;
 mod window;
 
 use tauri::{Manager, RunEvent};
@@ -26,8 +24,8 @@ use crate::shell::Shell;
 use crate::updater::Updates;
 
 /// SIGTERM and SIGINT quit as Quit does, so the server's teardown runs: a `kill`, launchd at
-/// shutdown and Ctrl-C under `tauri dev` all flush the vault's pending commit. A handler, not a
-/// blocked mask: nothing of it reaches the children the shell starts.
+/// shutdown and Ctrl-C under `tauri dev` all stop it in order. A handler, not a blocked mask:
+/// nothing of it reaches the children the shell starts.
 #[cfg(unix)]
 fn quit_on_signals<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     use signal_hook::consts::{SIGINT, SIGTERM};
@@ -87,25 +85,14 @@ pub fn run() {
             commands::diagnostics_restart,
             commands::diagnostics_set_debug,
             commands::diagnostics_show_log,
-            commands::first_run_finish,
-            commands::first_run_get_state,
-            commands::first_run_pick_folder,
-            commands::first_run_pick_parent,
-            commands::paths_open,
-            commands::paths_reveal,
-            commands::print_page,
             commands::updates_check,
             commands::updates_download,
             commands::updates_get_state,
             commands::updates_install,
-            commands::vaults_forget,
-            commands::vaults_get_state,
-            commands::vaults_open,
-            commands::vaults_pick,
         ])
         .on_menu_event(|app, event| menu::on_event(app, &event))
         .setup(move |app| {
-            // the Electron shell's userData, so an upgrade keeps the recent list and the debug choice
+            // the Electron shell's userData, so an upgrade keeps the debug choice
             let own_dir = app.path().data_dir()?.join(if bundled {
                 "Inteligir"
             } else {
@@ -133,7 +120,7 @@ pub fn run() {
             code: None, api, ..
         } => api.prevent_exit(),
         // Cmd+Q ends in applicationWillTerminate, with nothing after it to wait in, so the
-        // server's flush is waited for here
+        // server's ordered stop is waited for here
         RunEvent::Exit => shell::stop_owned_server(app),
         #[cfg(target_os = "macos")]
         RunEvent::Reopen { .. } => shell::show_current_window(app),

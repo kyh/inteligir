@@ -9,7 +9,7 @@ export const RenderCrash = ({ error, reset }: ErrorComponentProps) => (
     <div className="max-w-lg space-y-3">
       <h1 className="text-title font-medium">The workspace stopped rendering.</h1>
       <p className="text-subtitle text-muted-foreground">
-        Your notes are files on disk and the local server is still running — nothing was lost.
+        Your threads are kept by the local server, which is still running — nothing was lost.
       </p>
       <pre className="max-h-48 overflow-auto rounded border border-border bg-muted/40 p-3 font-mono text-body whitespace-pre-wrap">
         {error instanceof Error ? (error.stack ?? error.message) : String(error)}

@@ -4,7 +4,7 @@ import type { PullResponse } from "@repo/contract/cloud/sync/sync-schema";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { SqlDriver } from "../../lib/sql-driver";
-import { openSyncStore, openTempDb, tempDbPath } from "../../notes/__tests__/phone-storage";
+import { openSyncStore, openTempDb, tempDbPath } from "../../lib/__tests__/phone-storage";
 import { createSyncRuntime } from "../sync-runtime";
 import type { SyncStore } from "../sync-store";
 import { agentDelta, agentMessage, createFakeCloud, logRow, ok, userRequest } from "./fakes";

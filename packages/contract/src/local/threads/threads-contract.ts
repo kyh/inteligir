@@ -28,9 +28,6 @@ import {
   threadResponseSchema,
   timelineQuerySchema,
   timelineResponseSchema,
-  turnChangesResponseSchema,
-  undoTurnRequestSchema,
-  undoTurnResponseSchema,
 } from "./threads-schema";
 
 export const threadsContract = {
@@ -67,16 +64,4 @@ export const threadsContract = {
   }),
 
   timeline: oc.input(timelineQuerySchema).output(timelineResponseSchema).errors({ NOT_FOUND: {} }),
-
-  turnChanges: oc
-    .input(threadIdQuerySchema)
-    .output(turnChangesResponseSchema)
-    .errors({ NOT_FOUND: {} }),
-
-  // NOT_FOUND: no such thread, or no change of that turn recorded here. CONFLICT: the turn is
-  // still running, or was already undone.
-  undoTurn: oc
-    .input(undoTurnRequestSchema)
-    .output(undoTurnResponseSchema)
-    .errors({ CONFLICT: {}, NOT_FOUND: {} }),
 };

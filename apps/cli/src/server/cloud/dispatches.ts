@@ -86,14 +86,14 @@ const answerApproval = (
 
 // a throw is this build's fault, never the phone's: the caller leaves the row unacked, so its claim
 // lapses and it is handed over again
-export const applyDispatch = async (
+export const applyDispatch = (
   sink: DispatchSink,
   db: DbConnection,
   dispatch: ClaimedDispatch,
-): Promise<DispatchResult> => {
+): DispatchResult => {
   switch (dispatch.kind) {
     case "turn": {
-      const outcome = await sink.acceptDispatch(dispatch);
+      const outcome = sink.acceptDispatch(dispatch);
       return outcome.kind === "refused"
         ? refused(dispatch.id, outcome.message)
         : { id: dispatch.id, outcome: "delivered" };

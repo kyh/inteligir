@@ -5,24 +5,25 @@ import { siteConfig } from "@/lib/site-config";
 
 const { contact, downloadUrl, github, name, url } = siteConfig;
 
-export const homeMarkdown = `# ${name}: the workspace for knowledge work
+export const homeMarkdown = `# ${name}: an inbox for the coding agents you already run
 
-${name} is a notes app for the Mac where an AI agent edits your notes with you. You write, and
-when you ask, the agent reads your notes, drafts, reorganizes and answers from them, editing the
-same files you do. Every change it makes is kept in your notes' history, so any of it can be
-undone.
+${name} is being rebuilt. It was a notes app with an AI agent inside; it is becoming an
+open-source companion for the coding agents a developer already runs in their own terminals,
+Claude Code and Codex first: a Mac app, an iPhone remote and a Linux connector that show at a
+glance which agent needs you, and let you answer it, message it, start it and stop it.
 
-## How it works
+## How it will work
 
-- **Your notes stay yours.** They are plain markdown files in a folder on your Mac. The app, its
-  search and the agent all run on that Mac.
-- **The agent runs on the plan you already have.** Sign in with a paid Claude plan or any ChatGPT
-  plan; ${name} never bills you for model usage and never asks for an API key.
-- **An account is optional.** Without one ${name} is a local notes app that makes no cloud request.
-  With one, your notes and conversations sync between your devices, and a hosted copy of your
-  notes is kept for your phone and your other Macs.
+- **Your agents stay yours.** ${name} runs no agent of its own and bundles none: it watches the
+  ones you already run, on the plans you already pay for, and never routes a model call through
+  its own servers.
+- **tmux is the control layer.** An agent in a tmux pane can be answered, messaged, stopped and
+  started from ${name}; one outside tmux is shown, with a jump to its window.
+- **An account is optional.** Without one ${name} stays on your Mac and makes no cloud request.
+  With one, your phone and your other machines follow the same agents.
 
-${name} runs on Macs with Apple silicon and is shared with a small invited group for now.
+What ships today is the foundation the rebuild grows from, shared with a small invited group on
+Macs with Apple silicon.
 
 - [Download for Mac](${downloadUrl})
 - [About ${name}](${url}/about)
@@ -33,30 +34,30 @@ ${name} runs on Macs with Apple silicon and is shared with a small invited group
 
 export const aboutMarkdown = `# About ${name}
 
-${name} is a notes app built around one idea: an AI agent should work in your notes the way a
-thoughtful collaborator would, in the open, on files you own, with every change reversible. It
-is made for knowledge workers (writers, researchers, analysts, operators), not for developers,
-and nothing about using it requires a terminal.
+${name} is an open-source project being rebuilt around one idea: the coding agents a developer
+already runs should be easy to keep an eye on, and easy to answer, from wherever the developer
+is. It is made for developers who run several agents at once, in their own terminals, on their
+own Macs and Linux servers.
 
 ## What makes it different
 
-- **Local-first.** Your notes are ordinary markdown files in a folder you choose. They open in
-  any other editor, and they keep working if ${name} ever goes away.
-- **Your own model plan.** The agent runs on your Mac through your own Claude or ChatGPT sign-in.
-  ${name} does not resell model access, has no API-key fallback, and never routes a model call
-  through its own servers.
-- **History by default.** Every edit, yours or the agent's, is recorded, so you can see what
-  changed and take any of it back.
-- **Sync when you want it.** An optional account syncs your notes, your conversations with the
-  agent and your quick captures across your Macs and your phone. The hosted copy of your notes is
-  free up to about 1 GB.
+- **No agent of its own.** ${name} watches Claude Code, Codex and the agents that follow; it
+  does not resell model access, has no hosted model, and never routes a model call through its
+  own servers.
+- **tmux as the control layer.** Answering, messaging, stopping and starting an agent happen in
+  its tmux pane, through keystrokes ${name} checks against what the pane shows before it sends
+  them.
+- **Speech on the device.** Talking to your agents will run on your Mac, with nothing sent to
+  a speech service.
+- **A relay, not a brain.** An optional account carries your agents' state between your Mac,
+  your phone and your servers; nothing runs in the cloud but the relay.
 
 ## Who makes it
 
 ${name} is an independent, open-source project by Kaiyu Hsu, released under the MIT license. The
 source code, the release notes and the issue tracker all live on
 [GitHub](${github}). It is currently shared with a small invited group on Macs with Apple
-silicon while it matures.
+silicon while it is rebuilt.
 
 Read the [privacy policy](${url}/privacy) for exactly what leaves your Mac, or
 [get in touch](${url}/contact).
@@ -76,7 +77,7 @@ data.
 
 Bugs and feature requests are best filed as
 [issues on GitHub](${github}/issues), where you can also follow what is being worked on and read
-the source. Please leave the contents of your notes out of a public issue.
+the source. Please leave the contents of your conversations out of a public issue.
 
 ## Elsewhere
 
@@ -91,25 +92,26 @@ Updates are posted on X as [${siteConfig.twitter}](${siteConfig.twitterUrl}).
 
 export const llmsTxt = `# ${name}
 
-> ${name} is a local-first notes app for the Mac in which an AI agent, running on the user's own
-> Claude or ChatGPT plan, reads and edits the user's markdown notes alongside them.
+> ${name} is an open-source companion, being rebuilt, for the coding agents a developer already
+> runs in their own terminals: it shows which one needs attention and lets the developer answer,
+> message, start and stop it, with tmux as the control layer.
 
-${name} stores notes as plain markdown files in a folder on the user's Mac. The app, its search
-and the agent run on that Mac; an optional account adds sync across Macs and an iPhone app. It is
-open source (MIT), available for Apple silicon Macs, and shared with a small invited group.
+${name} runs no agent and no model of its own: it watches agents such as Claude Code and Codex
+that the developer runs on their own plans. It is a Mac app with an iPhone remote and a Linux
+connector; an optional account relays state between them. It is open source (MIT), available
+for Apple silicon Macs, and shared with a small invited group while it is rebuilt.
 
 ## When to use ${name}
 
-- A person wants an AI agent to draft, reorganize, summarize or answer questions from their own
-  notes, with every agent edit recorded and reversible.
-- A person wants notes as plain markdown files they own on disk, not in a proprietary cloud.
-- A person already pays for Claude or ChatGPT and wants that plan, not a separate subscription or
-  API key, to power the agent.
+- A developer runs several coding agents at once and wants to see which one is waiting on them.
+- A developer wants to answer an agent's question or approval from another device.
+- A developer wants a tool that uses the agents and plans they already have, not a new
+  subscription or API key.
 
 ## When not to use ${name}
 
-- The person is on Windows, Linux or an Intel Mac.
-- The person needs real-time multi-user collaboration on the same document.
+- The person wants an AI agent hosted for them, or a notes app.
+- The person is on Windows or an Intel Mac.
 
 ## Pages
 

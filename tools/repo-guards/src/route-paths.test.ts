@@ -2,13 +2,7 @@
 // that drift. tests are excluded on purpose: a route test that derived its URL from the contract
 // could not catch the contract moving.
 
-import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
-import {
-  HEALTH_PATH,
-  HTML_FRAME_PATH,
-  RPC_PREFIX,
-  VAULT_ASSET_PATH,
-} from "@repo/contract/local/routes";
+import { HEALTH_PATH, RPC_PREFIX } from "@repo/contract/local/routes";
 import { describe, expect, it } from "vitest";
 import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 
@@ -16,18 +10,12 @@ import { isTestFile, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 const NAMESPACES = [
   {
     home: "packages/contract/src/local/local-routes.ts",
-    paths: [VAULT_ASSET_PATH, HTML_FRAME_PATH, HEALTH_PATH, RPC_PREFIX],
+    paths: [HEALTH_PATH, RPC_PREFIX],
     use: "the constants in @repo/contract/local/routes",
-  },
-  {
-    home: "packages/contract/src/cloud/vault/vault-schema.ts",
-    paths: Object.values(VAULT_API_PATHS),
-    use: "VAULT_API_PATHS from @repo/contract/cloud/vault/vault-schema",
   },
 ];
 
-// longest first, so the cloud's `/v1/vault/asset` is tried before the local `/vault/asset` it
-// contains.
+// longest first, so a path another contains is tried after it.
 const GUARDED = NAMESPACES.flatMap((namespace) =>
   namespace.paths.map((path) => ({ home: namespace.home, path, use: namespace.use })),
 ).toSorted((left, right) => right.path.length - left.path.length);
@@ -49,8 +37,8 @@ interface Hit extends Spelled {
   file: string;
 }
 
-// not followed by a word character or a dash, which tells `"/vault/asset?path="` from
-// `"./vault/asset-route"`.
+// not followed by a word character or a dash, which tells `"/health?probe"` from
+// `"./health-check"`.
 const spells = (source: string, path: string): boolean =>
   new RegExp(`${path}(?![\\w-])`, "u").test(source);
 

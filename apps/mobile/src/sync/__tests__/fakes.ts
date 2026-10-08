@@ -1,8 +1,3 @@
-import type {
-  AckCapturesRequest,
-  CaptureRequest,
-  CaptureResponse,
-} from "@repo/contract/cloud/captures/captures-schema";
 import { syncEventRowSchema } from "@repo/contract/cloud/sync/sync-schema";
 import type {
   PullQuery,
@@ -67,30 +62,14 @@ export const logRow = (args: {
 export interface FakeCloud {
   client: CloudClient;
   pushes: PushRequest[];
-  claims: number;
-  captures: CaptureRequest[];
   pullResults: CloudResult<PullResponse>[];
-  captureResults: CloudResult<CaptureResponse>[];
 }
 
-// `vault` answers the vault reads in place of an empty tree
-export const createFakeCloud = (vault: Partial<CloudClient> = {}): FakeCloud => {
+// `overrides` answers in place of the defaults below, the dispatch inbox's routes among them
+export const createFakeCloud = (overrides: Partial<CloudClient> = {}): FakeCloud => {
   const fake: FakeCloud = {
-    captureResults: [],
-    captures: [],
-    claims: 0,
     client: fakeCloudClient({
       account: async () => ok({ email: "signed-in@example.test", id: "user_fake" }),
-      ackCaptures: async (request: AckCapturesRequest) =>
-        ok({ results: request.ids.map((id) => ({ id, outcome: "deleted" as const })) }),
-      claimCaptures: async () => {
-        fake.claims += 1;
-        return ok({ captures: [], claimToken: "tok", expiresAt: 1 });
-      },
-      createCapture: async (request) => {
-        fake.captures.push(request);
-        return fake.captureResults.shift() ?? ok({ createdAt: 0, duplicate: false, id: "cap_1" });
-      },
       pull: async (query: PullQuery) =>
         fake.pullResults.shift() ?? ok({ events: [], hasMore: false, lastSeq: query.afterSeq }),
       push: async (request) => {
@@ -98,12 +77,7 @@ export const createFakeCloud = (vault: Partial<CloudClient> = {}): FakeCloud => 
         return ok({ accepted: request.events.length, duplicates: 0, lastSeq: 0 });
       },
       signOut: async () => ok({ revoked: true }),
-      vaultFile: async () => ({
-        failure: { code: "not-found", deviceSeq: null, kind: "refused", message: "empty fake" },
-        ok: false,
-      }),
-      vaultTree: async () => ok({ commit: "0".repeat(40), entries: [], next: null }),
-      ...vault,
+      ...overrides,
     }),
     pullResults: [],
     pushes: [],

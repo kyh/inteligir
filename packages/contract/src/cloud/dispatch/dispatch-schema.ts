@@ -2,13 +2,11 @@ import {
   approvalPendingInteractionPayloadSchema,
   pendingInteractionApprovalDecisionSchema,
 } from "@repo/domain/pending-interactions";
-import { viewContextSchema } from "@repo/domain/view-context";
 import { z } from "zod";
 import { exceedsUtf8Bytes } from "../bytes";
 import { threadIdSchema } from "../sync/sync-schema";
-import { vaultPathSchema } from "../vault/vault-schema";
 
-// The phone asks a Mac's agent through this inbox, beside captures, because it never pushes to
+// The phone asks a Mac's agent through this inbox because it never pushes to
 // the thread log. Two kinds of row ride it from the phone: a `turn`, which any Mac may claim and
 // the first claim wins, and an `answer` to an approval, which only the Mac that asked may claim.
 // The approvals themselves ride the other way, opened by that Mac and listed for the phone.
@@ -49,30 +47,9 @@ export const dispatchIdSchema = z
 const turnIdSchema = z.string().min(1).max(128);
 const createdAtSchema = z.number().int().nonnegative();
 
-// the resource reaches a Mac's prompt with no further check, so it is held to the vault path
-// grammar here; the revision is the sha-256 of the bytes the phone showed
-const wireViewContextSchema = viewContextSchema.superRefine((value, ctx) => {
-  if (!vaultPathSchema.safeParse(value.resource).success) {
-    ctx.addIssue({
-      code: "custom",
-      message: "viewContext.resource is not a vault path",
-      path: ["resource"],
-    });
-  }
-  if (!/^[0-9a-f]{64}$/u.test(value.revision)) {
-    ctx.addIssue({
-      code: "custom",
-      message: "viewContext.revision is not a sha-256 hex digest",
-      path: ["revision"],
-    });
-  }
-});
-
 const turnFields = {
-  originDocPath: vaultPathSchema.optional(),
   text: z.string().min(1).max(DISPATCH_MAX_CHARS),
   threadId: threadIdSchema,
-  viewContext: wireViewContextSchema.optional(),
 };
 
 const answerFields = {

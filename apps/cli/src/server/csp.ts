@@ -1,6 +1,6 @@
 export interface ContentSecurityPolicyArgs {
-  // null for a page with no server behind it: the desktop's first run, which dials no socket and
-  // whose policy, held in the shell's config, is this one plus Tauri's IPC origins in connect-src
+  // null for a page with no server behind it, which dials no socket: the shell's config holds that
+  // policy for a page it serves itself, this one plus Tauri's IPC origins in connect-src
   // (tools/repo-guards/src/desktop-shell-wire.test.ts)
   wsOrigin: string | null;
 }
@@ -20,9 +20,8 @@ export const buildContentSecurityPolicy = (args: ContentSecurityPolicyArgs): str
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    // inteligir-html's two frames, the srcdoc preview and the loader in html-block-frame.ts that
-    // Run navigates to; remote frames stay refused, which also refuses a running block a way out.
-    "frame-src 'self'",
+    // no page frames another, its own origin's included.
+    "frame-src 'none'",
     // no page code runs off the main thread, so a script that slipped in cannot start a worker either.
     "worker-src 'none'",
   ].join("; ");

@@ -9,24 +9,15 @@
         "src/index.ts",
         "src/**/__tests__/**/*.test.ts",
         "src/desktop/desktop-entry.ts",
-        "src/server/vault/watcher/parcel-child-entry.ts",
-        "src/server/knowledge/projection-worker.ts",
         "scripts/*.mjs"
       ],
       "project": ["src/**/*.ts", "scripts/**/*.mjs"],
-      // the ACP adapters are resolved with require from the running bundle, never imported
-      "ignoreDependencies": [
-        "@agentclientprotocol/claude-agent-acp",
-        "@agentclientprotocol/codex-acp",
-        "tsx"
-      ]
+      // bin/inteligir runs the source under tsx in a checkout, resolving it, never importing it
+      "ignoreDependencies": ["tsx"]
     },
     "apps/desktop": {
-      // the first-run page is a build of its own (vite.config.ts), and first-run.html's script is
-      // read by knip's vite plugin only from index.html
       "entry": [
         "scripts/*.{mjs,cjs}",
-        "src/renderer/first-run/first-run-main.tsx",
         "src/renderer/routes/**/*.tsx",
         "src/**/__tests__/**/*.test.{ts,tsx}"
       ],
@@ -35,16 +26,11 @@
       "ignoreDependencies": ["tailwindcss"]
     },
     "apps/mobile": {
-      // expo reads fingerprint.config.js by its name when it fingerprints the native build
-      "entry": ["src/app/**/*.tsx", "src/**/__tests__/**/*.test.ts", "fingerprint.config.js"],
+      "entry": ["src/app/**/*.tsx", "src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"],
       // linked natively; knip's expo plugin counts it only while `updates` is on, and app.config.js
       // leaves it off until the EAS project is committed
       "ignoreDependencies": ["expo-updates"]
-    },
-    "apps/mobile-editor": {
-      "entry": ["src/**/__tests__/**/*.test.{ts,tsx}", "vite/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx,css}", "vite/**/*.ts"]
     },
     "apps/web": {
       // gallery-main is gallery.html's script, which knip's vite plugin reads only from index.html
@@ -56,36 +42,14 @@
         "src/worker/__tests__/**/*.test.ts"
       ],
       "project": ["src/**/*.{ts,tsx,css}"],
-      "ignore": ["src/worker/types/durable-git.d.ts"],
       // `cloudflare:` is a workerd built-in module scheme, not a package
       "ignoreDependencies": ["cloudflare", "tailwindcss"]
-    },
-    "packages/notes": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": true,
-      "ignoreExportsUsedInFile": true
-    },
-    "packages/editor": {
-      "entry": ["src/**/__tests__/**/*.test.{ts,tsx}"],
-      "project": ["src/**/*.{ts,tsx}"],
-      "includeEntryExports": true,
-      "ignoreExportsUsedInFile": true
     },
     "packages/domain": {
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": true,
       "ignoreExportsUsedInFile": true
-    },
-    "packages/agent-runtime": {
-      // the fake vendors are spawned by path, never imported
-      "entry": ["src/**/__tests__/**/*.test.ts", "src/test-support/*.mjs", "scripts/*.ts"],
-      "project": ["src/**/*.{ts,mjs}", "scripts/*.ts"],
-      "ignoreDependencies": [
-        "@agentclientprotocol/claude-agent-acp",
-        "@agentclientprotocol/codex-acp"
-      ]
     },
     "packages/contract": {
       "entry": ["src/**/__tests__/**/*.test.ts"],

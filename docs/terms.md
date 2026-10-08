@@ -1,6 +1,6 @@
 # Terms of Use
 
-**Version 1.0 Last revised:** October 3, 2026
+**Version 1.0 Last revised:** October 8, 2026
 
 The website located at inteligir.com, together with the Inteligir app for Mac,
 the Inteligir app for iPhone and the `inteligir` command line (collectively, the
@@ -24,9 +24,9 @@ to opt out of the arbitration agreement, as further described in Section 11.
 ## 1. Accounts
 
 1.1 **Creating an Account.** Some features of the Site may require you to
-register for an account. An account is optional: without one, the Mac app is a
-notes app on your Mac that sends nothing to our cloud (the part of the Site we
-host, at inteligir.com, which syncs your devices), while syncing between your
+register for an account. An account is optional: without one, the Mac app sends
+nothing to our cloud (the part of the Site we host, at inteligir.com, which
+syncs your devices), while syncing between your
 devices and the iPhone app need an account. Creating an account requires an
 invite code from us, which we issue at our discretion. When you register, you
 agree to provide accurate and complete information and to keep that information
@@ -76,56 +76,38 @@ royalty-free license to use that feedback freely, in any manner and for any
 purpose, without attribution. Please do not submit any feedback that you
 consider proprietary or confidential.
 
-2.7 **Your Content.** Your notes, attachments, comments, quick captures and
-conversations with the agent ("**Your Content**") belong to you. Your notes are
-files in a folder on your Mac, and they stay there whatever happens to your
-account or to the Site. When you sync Your Content through our cloud, you grant
-us a limited, non-exclusive, worldwide, royalty-free license to host, store,
-copy and transmit it, and to apply to it the changes you make from your phone,
-solely to store it, sync it and serve it to your own devices, for as long as it
-is in our cloud. You are responsible for Your Content, and you represent and
-warrant that you have the rights you need to store and sync it through the Site
-and that doing so violates no law and no one else's rights. Our cloud does not
-encrypt Your Content end to end: what it holds is stored where we can read it,
-as our Privacy Policy describes. Keep your own copies of anything you cannot
-afford to lose (Section 6).
+2.7 **Your Content.** Your conversations with an agent, and the messages and
+answers you send from your devices ("**Your Content**"), belong to you. When you
+sync Your Content through our cloud, you grant us a limited, non-exclusive,
+worldwide, royalty-free license to host, store, copy and transmit it, solely to
+store it, sync it and serve it to your own devices, for as long as it is in our
+cloud. You are responsible for Your Content, and you represent and warrant that
+you have the rights you need to store and sync it through the Site and that
+doing so violates no law and no one else's rights. Our cloud does not encrypt
+Your Content end to end: what it holds is stored where we can read it, as our
+Privacy Policy describes. Keep your own copies of anything you cannot afford to
+lose (Section 6).
 
-2.8 **The Agent.** The Site's agent is Claude's or ChatGPT's own agent program,
-which the apps include, run on your Mac on your own Claude plan from Anthropic
-or ChatGPT plan from OpenAI. Your use of the agent, and what it sends to that
-provider, is governed by your own agreement with the provider, including its
-terms and usage policies; we are not a party to that agreement. We never bill
-you for model usage and never ask for an API key. To use the agent you need a
-paid Claude plan or any ChatGPT plan; without one, the Site works as a notes
-app. The agent reads and changes your notes when you ask it to, and what it
-produces may be inaccurate, incomplete or inappropriate, so review what it
-changes before you rely on it. The services you connect the agent to are
-Third-Party Services (Section 5.1).
+2.8 **Agents.** This version of the Site runs no AI agent and calls no AI model.
+The coding agents whose conversations it keeps are yours: your use of them, and
+what they send to their providers, is governed by your own agreement with each
+provider, including its terms and usage policies, and we are not a party to
+that agreement. We never bill you for model usage. What an agent produces may
+be inaccurate, incomplete or inappropriate, so review it before you rely on it.
+The agents' providers are Third-Party Services (Section 5.1).
 
-2.9 **The Hosted Vault.** Signed in to an account, the Site keeps a hosted copy
-of your vault (the app calls it your cloud vault) so that your phone and your
-other Macs can read it. The hosted vault is free and holds about 1 GB per
-account, counting every earlier version of every file, so deleting notes frees
-no room, and it cannot take a single change of more than 90 MB. When it is full
-it takes no new changes: they keep saving on your Mac, and your phone keeps its
-edits waiting, until it has room. A vault that syncs to a sync server of your
-own, or that sits in a folder iCloud Drive, Dropbox, Google Drive, OneDrive or
-Obsidian Sync already syncs, does not use the hosted vault. We may change these
-limits, or the hosted vault itself, as described in Section 2.3.
-
-2.10 **Acceptable Use.** You may not: (i) use the Site to store, sync or share
+2.9 **Acceptable Use.** You may not: (i) use the Site to store, sync or share
 content that is unlawful, or that infringes or misappropriates anyone else's
 rights; (ii) access, or attempt to access, another person's account, devices or
 content; or (iii) interfere with or disrupt the Site or our cloud, including by
-working around its rate limits or storage limits.
+working around its rate limits.
 
-2.11 **Open-Source Software.** Source code that we publish under an open-source
+2.10 **Open-Source Software.** Source code that we publish under an open-source
 license, such as the MIT License, is governed by that license, and nothing in
 these Terms limits your rights under it. We publish the source code of the Site
 under the MIT License at https://github.com/kyh/inteligir. These Terms govern
 the hosted Site: our website, our cloud and your account. Third-party software
-included in the apps, such as the agent programs from Anthropic and OpenAI,
-comes under its own license terms.
+included in the apps comes under its own license terms.
 
 ## 3. Privacy
 
@@ -166,8 +148,8 @@ claim we become aware of.
 
 5.1 **Third-Party Services.** The Site may include links to or integrations with
 third-party websites or services (collectively, "**Third-Party Services**"),
-such as the agent's provider, the services you connect the agent to, a sync
-server of your own, and the services that deliver the apps and their updates. We
+such as the providers of the agents you run and the services that deliver the
+apps and their updates. We
 do not control, endorse, or take responsibility for any Third-Party Services.
 You use all Third-Party Services at your own risk, and you acknowledge and agree
 that the applicable third party's own terms and privacy practices will apply to
@@ -193,9 +175,9 @@ UNINTERRUPTED, ERROR-FREE, SECURE, OR FREE OF VIRUSES OR HARMFUL CODE. WHERE
 APPLICABLE LAW REQUIRES WARRANTIES, THEY ARE LIMITED TO 90 DAYS FROM YOUR FIRST
 USE.
 
-WHAT THE AGENT PRODUCES COMES FROM THIRD-PARTY AI MODELS AND MAY BE INACCURATE,
-INCOMPLETE OR INAPPROPRIATE, AND IT MAY CHANGE YOUR NOTES IN WAYS YOU DID NOT
-INTEND; WE MAKE NO WARRANTY ABOUT ANYTHING THE AGENT PRODUCES. WE DO NOT WARRANT
+WHAT AN AGENT PRODUCES COMES FROM THIRD-PARTY AI MODELS AND MAY BE INACCURATE,
+INCOMPLETE OR INAPPROPRIATE; WE MAKE NO WARRANTY ABOUT ANYTHING AN AGENT
+PRODUCES. WE DO NOT WARRANT
 THAT YOUR CONTENT WILL BE PRESERVED, SYNCED OR RECOVERABLE; KEEP YOUR OWN COPIES
 OF ANYTHING YOU CANNOT AFFORD TO LOSE.
 
@@ -216,8 +198,8 @@ These Terms remain in effect while you use the Site. We may suspend or terminate
 your access (including suspending access to or deleting your account) at any
 time and for any reason, including if we believe you have violated these Terms.
 We are not liable to you for any such termination. If your account is deleted,
-your notes on your Mac and their history stay where they are, and what our cloud
-held for the account is deleted as our Privacy Policy describes. Upon
+what the app keeps on your Mac stays where it is, and what our cloud held for
+the account is deleted as our Privacy Policy describes. Upon
 termination, Sections 2.2 through 2.6 and Sections 3 through 11 will survive.
 
 ## 9. State-Specific Legal Notices
@@ -323,7 +305,7 @@ freely. These Terms bind any permitted assignees.
 All trademarks, logos, and service marks displayed on the Site are owned by
 Inteligir or third parties. You may not use any of them without prior written
 consent from the owner. Open-source code is licensed as described in
-Section 2.11.
+Section 2.10.
 
 10.8 **Contact Information:** kai@kyh.io
 

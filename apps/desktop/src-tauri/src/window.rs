@@ -1,6 +1,5 @@
-//! The two windows. The app window is a page of the server's own, signed in by a one-time handoff
-//! and pinned to the server's origin; the first-run window is the bundle's own page, before any
-//! server exists. Each opens no second window and gets no device permission, and closing one hides
+//! The app window: a page of the server's own, signed in by a one-time handoff and pinned to the
+//! server's origin. It opens no second window and gets no device permission, and closing it hides
 //! it: the app lives on in the menu bar, and the page keeps its state for the next Show.
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -19,10 +18,10 @@ use crate::commands::APP_WINDOW_COMMANDS;
 use crate::navigation::{self, ExternalOpens, Verdict};
 use crate::server_log::ServerLog;
 
-pub const FIRST_RUN: &str = "first-run";
-pub const FIRST_RUN_PAGE: &str = "first-run.html";
-/// Where the app window lands after a first run: the steps between the vault and the notes.
+/// Where the app window lands on a first launch: the steps before the workspace.
 pub const WELCOME_PATH: &str = "/welcome";
+/// Where it lands on every other launch.
+pub const WORKSPACE_PATH: &str = "/";
 
 /// The title every window keeps; the page's own `<title>` never reaches it.
 pub fn app_title() -> &'static str {
@@ -43,8 +42,8 @@ fn open_externally<R: Runtime>(app: &AppHandle<R>, opens: &ExternalOpens, url: &
     }
 }
 
-/// The pin, the popup policy, the permission policy and the show-once-loaded every window shares.
-/// `noted` hears the line each load prints, for a window whose vault keeps a log.
+/// The pin, the popup policy, the permission policy and the show-once-loaded the window carries.
+/// `noted` hears the line each load prints, for the server's log.
 fn pinned<'a, R: Runtime, M: Manager<R>>(
     builder: WebviewWindowBuilder<'a, R, M>,
     app: &AppHandle<R>,
@@ -59,7 +58,7 @@ fn pinned<'a, R: Runtime, M: Manager<R>>(
     builder
         .title(app_title())
         .visible(false)
-        // a file dropped from Finder is the page's (an image into a note), not the shell's
+        // a file dropped from Finder is the page's, not the shell's
         .disable_drag_drop_handler()
         .zoom_hotkeys_enabled(true)
         .on_navigation(move |url| match navigation::classify(url, &pinned_origin) {
@@ -111,7 +110,7 @@ fn hide_on_close<R: Runtime>(window: &WebviewWindow<R>) {
     });
 }
 
-/// The page prefs (localStorage) are the origin's, and every vault's server answers on one port,
+/// The page prefs (localStorage) are the origin's, and every data dir's server answers on one port,
 /// so each data dir gets a data store of its own, as Electron's per-vault partitions were.
 pub fn data_store_id(data_dir: &str) -> [u8; 16] {
     let digest = Sha256::digest(data_dir.as_bytes());
@@ -129,9 +128,9 @@ pub struct AppWindow<'a> {
     /// Where the page lands once signed in.
     pub path: &'a str,
     pub data_dir: &'a str,
-    /// Where WebKitGTK keeps a vault's store, for the platforms with no data-store identifier.
+    /// Where WebKitGTK keeps a data dir's store, for the platforms with no data-store identifier.
     pub webview_dir: std::path::PathBuf,
-    /// The vault's server log, where the window notes that it loaded.
+    /// The server's log, where the window notes that it loaded.
     pub log: Arc<Mutex<ServerLog>>,
 }
 
@@ -170,6 +169,7 @@ pub fn create_app_window<R: Runtime>(
     let mut url = Url::parse(spec.handoff_url).map_err(|_| {
         tauri::Error::InvalidWebviewUrl("the server announced a handoff that is not a URL")
     })?;
+    // the server redeems the nonce on any path and answers that path without it
     url.set_path(spec.path);
     grant_app_window(app, spec.label, spec.origin)?;
     let log = Arc::clone(&spec.log);
@@ -196,38 +196,6 @@ pub fn create_app_window<R: Runtime>(
         .hidden_title(true)
         .traffic_light_position(tauri::LogicalPosition::new(16.0, 12.0));
     let window = builder.build()?;
-    hide_on_close(&window);
-    Ok(window)
-}
-
-/// The first run's page is the bundle's own: under `tauri dev` the renderer's dev server, else
-/// Tauri's embedded assets.
-fn first_run_origin<R: Runtime>(app: &AppHandle<R>) -> String {
-    let dev_url = app
-        .config()
-        .build
-        .dev_url
-        .clone()
-        .filter(|_| tauri::is_dev());
-    let url = dev_url.or_else(|| Url::parse("tauri://localhost").ok());
-    url.as_ref()
-        .and_then(navigation::comparable_origin)
-        .unwrap_or_default()
-}
-
-pub fn create_first_run_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>> {
-    let window = pinned(
-        WebviewWindowBuilder::new(app, FIRST_RUN, WebviewUrl::App(FIRST_RUN_PAGE.into())),
-        app,
-        first_run_origin(app),
-        "first run",
-        |_| {},
-    )
-    .inner_size(720.0, 620.0)
-    .min_inner_size(560.0, 520.0)
-    // the default store: every vault's window has a store of its own, so nothing the first run
-    // keeps reaches one
-    .build()?;
     hide_on_close(&window);
     Ok(window)
 }

@@ -1,11 +1,16 @@
-// echoes the composed prompt rather than the raw text: the prompt is assembled by production
-// code a real provider would receive and an e2e otherwise cannot see.
+// The scenario suite's agent: every turn answers `Noted: <text>` and completes, in process, with
+// no provider behind it, so a test drives the whole thread path without spending a model call. A
+// turn asked `ask: <command>` first parks an approval for that command on the interaction waiters,
+// the seam the observer's hook wait parks on, and answers with the decision, so the panel's and
+// the phone's approval cards run end to end against it.
 
+import type { DbConnection } from "@repo/db/connection";
+import { interruptOpenPendingInteractions } from "@repo/db/pending-interactions";
 import type { DbNotifier } from "@repo/domain/notifier";
+import type { PendingInteractionResolution } from "@repo/domain/pending-interactions";
+import type { ThreadEvent } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
-import { messageOf } from "../error-message";
-import type { GitEngine } from "../vault/git-engine";
-import type { VaultService } from "../vault/vault-service";
+import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
 import type {
   CreateTurnDriver,
   ProviderEventSink,
@@ -13,24 +18,27 @@ import type {
   TurnDriverStartArgs,
   TurnInterrupt,
 } from "../threads/turn-driver";
-import { beginAgentTurnWrites } from "./agent-commits";
 import { agentMessageEvents } from "./agent-message-events";
-import { turnPromptInput } from "./view-context-prompt";
+import type { InteractionWaiters } from "./interaction-waiters";
 
-export interface ScriptedDriverDeps {
-  vault: VaultService;
-  git: GitEngine;
+export const SCRIPTED_ASK_PREFIX = "ask: ";
+
+const answerTo = (command: string, resolution: PendingInteractionResolution): string =>
+  `${resolution.decision === "deny" ? "Denied" : "Allowed"}: ${command}`;
+
+interface ScriptedDriverDeps {
+  db: DbConnection;
   notifier: DbNotifier;
-  onError?: (message: string) => void;
+  waiters: InteractionWaiters;
+  // read when a parked turn's answer lands: a driver torn down reports nothing more.
+  disposed: () => boolean;
 }
-
-export const scriptedNotePath = (threadId: string): string => `Agent/${threadId}.md`;
 
 class ScriptedTurnDriver implements TurnDriver {
   private readonly sink: ProviderEventSink;
   private readonly deps: ScriptedDriverDeps;
-  // tests await this to know the async tail (write, commit, complete) landed.
-  lastTurn: Promise<void> = Promise.resolve();
+  // threads whose parked turn a stop cancelled, so its answer settles it interrupted.
+  private readonly stopping = new Set<string>();
 
   constructor(sink: ProviderEventSink, deps: ScriptedDriverDeps) {
     this.sink = sink;
@@ -39,80 +47,88 @@ class ScriptedTurnDriver implements TurnDriver {
 
   startTurn(args: TurnDriverStartArgs): void {
     const scope = turnScope(args.turnId);
-    const itemId = `item_${args.turnId}_message`;
-    const prompt = turnPromptInput(args)
-      .map((part) => part.text)
-      .join("\n\n");
-    const text = `Noted: ${prompt}`;
-    this.sink.ingestProviderEvents(args.threadId, [
-      { scope, threadId: args.threadId, type: "turn/started" },
-      ...agentMessageEvents({ itemId, scope, text, threadId: args.threadId }),
-    ]);
-    this.lastTurn = this.runFileHalf(args, scope);
+    const started: ThreadEvent = { scope, threadId: args.threadId, type: "turn/started" };
+    const command = args.text.startsWith(SCRIPTED_ASK_PREFIX)
+      ? args.text.slice(SCRIPTED_ASK_PREFIX.length).trim()
+      : "";
+    if (command === "") {
+      this.finish(args, `Noted: ${args.text}`, [started]);
+      return;
+    }
+    this.sink.ingestProviderEvents(args.threadId, [started]);
+    void this.askThenAnswer(args, command);
   }
 
-  // a scripted turn has no provider to cancel, and its file half always reports the turn's end.
-  // oxlint-disable-next-line class-methods-use-this -- the TurnDriver's instance API: the service calls it on the driver it was handed
-  interruptTurn(): TurnInterrupt {
+  // park writes the row before its first await, so the card is up by the time the send answers.
+  private async askThenAnswer(args: TurnDriverStartArgs, command: string): Promise<void> {
+    const resolution = await this.deps.waiters.park(
+      {
+        payload: {
+          availableDecisions: ["allow_once", "deny"],
+          kind: "approval",
+          reason: null,
+          subject: { command, cwd: null, itemId: `item_${args.turnId}_ask`, kind: "command" },
+        },
+        providerId: "scripted",
+        providerRequestId: `ask_${args.turnId}`,
+        providerThreadId: args.threadId,
+        threadId: args.threadId,
+        turnId: args.turnId,
+      },
+      args.turnId,
+    );
+    if (this.deps.disposed()) {
+      return;
+    }
+    if (this.stopping.delete(args.threadId)) {
+      this.sink.ingestProviderEvents(args.threadId, [
+        {
+          scope: turnScope(args.turnId),
+          status: "interrupted",
+          threadId: args.threadId,
+          type: "turn/completed",
+        },
+      ]);
+      return;
+    }
+    this.finish(args, answerTo(command, resolution));
+  }
+
+  // a turn parked on its question is the one a stop can reach: the cancel answers it denied, the
+  // card goes, and the turn ends interrupted through the sink.
+  interruptTurn(threadId: string): TurnInterrupt {
+    if (!this.deps.waiters.hasParked(threadId)) {
+      return "not-running";
+    }
+    this.stopping.add(threadId);
+    this.deps.waiters.cancel(threadId);
+    interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
     return "settling";
   }
 
-  private async runFileHalf(
+  onInteractionResolved(interaction: PendingInteraction): void {
+    this.deps.waiters.resolve(interaction);
+  }
+
+  // the answer rides with whatever opened the turn, and the settle on its own, as a provider's would.
+  private finish(
     args: TurnDriverStartArgs,
-    scope: ReturnType<typeof turnScope>,
-  ): Promise<void> {
-    const turnCommit = beginAgentTurnWrites({
-      git: this.deps.git,
-      notifier: this.deps.notifier,
-      onError: (message) => {
-        this.deps.onError?.(message);
-      },
-      threadId: args.threadId,
-      turnId: args.turnId,
-    });
-    const fileItemId = `item_${args.turnId}_file`;
-    try {
-      // waits out a mid-flight sync so the write never lands in a rebase window, and the
-      // checkpoint so the turn's commit never carries what the user had not yet committed.
-      await turnCommit.ready;
-      const notePath = scriptedNotePath(args.threadId);
-      const written = await this.deps.vault.write(notePath, `# Agent note\n\n${args.text}\n`);
-      turnCommit.recordPaths([written.path]);
-      this.sink.ingestProviderEvents(args.threadId, [
-        {
-          item: {
-            approvalStatus: null,
-            changes: [{ kind: "add", path: written.path }],
-            id: fileItemId,
-            status: "completed",
-            type: "fileChange",
-          },
-          scope,
-          threadId: args.threadId,
-          type: "item/completed",
-        },
-      ]);
-      await turnCommit.finish();
-      this.sink.ingestProviderEvents(args.threadId, [
-        { scope, status: "completed", threadId: args.threadId, type: "turn/completed" },
-      ]);
-    } catch (error) {
-      const detail = messageOf(error);
-      this.deps.onError?.(detail);
-      await turnCommit.finish().catch(() => {
-        /* empty */
-      });
-      this.sink.ingestProviderEvents(args.threadId, [
-        {
-          detail,
-          message: "Scripted turn failed",
-          scope,
-          threadId: args.threadId,
-          type: "provider/error",
-        },
-        { scope, status: "failed", threadId: args.threadId, type: "turn/completed" },
-      ]);
-    }
+    text: string,
+    opening: readonly ThreadEvent[] = [],
+  ): void {
+    const scope = turnScope(args.turnId);
+    this.sink.ingestProviderEvents(args.threadId, [
+      ...opening,
+      ...agentMessageEvents({
+        itemId: `item_${args.turnId}_message`,
+        scope,
+        text,
+        threadId: args.threadId,
+      }),
+    ]);
+    this.sink.ingestProviderEvents(args.threadId, [
+      { scope, status: "completed", threadId: args.threadId, type: "turn/completed" },
+    ]);
   }
 }
 

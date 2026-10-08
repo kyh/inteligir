@@ -50,7 +50,6 @@ export const runCliForTest = async (args: RunArgs): Promise<CliRunResult> => {
         baseUrl,
         dataDir: "/fixture/data",
         token: args.token ?? FIXTURE_SERVER_TOKEN,
-        vaultDir: "/fixture/vault",
       };
     },
   };

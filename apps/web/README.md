@@ -2,8 +2,8 @@
 
 One Cloudflare Worker serving the marketing site and the whole cloud from
 one origin: the TanStack Start pages, Better Auth on D1, device login, the
-per-user thread-sync Durable Object, the capture and dispatch inboxes and the
-hosted vault git remote. The wire contract is `@repo/contract/cloud` — the Worker
+per-user thread-sync Durable Object and the dispatch inbox a phone asks a Mac
+through. The wire contract is `@repo/contract/cloud` — the Worker
 implements it, the local app's sync client consumes it.
 
 ## Layout
@@ -29,14 +29,8 @@ src/
     device/          Device login, credential verification, /v1/account
     sync/            ThreadSyncDO + the device-authed route chokepoint + the
                      dispatch inbox's SQL (dispatch-inbox.ts)
-    vault/           The hosted vault git remote (durable-git behind the
-                     wrapper) + the git-less /v1/vault/* read routes + the
-                     Worker's own commits (commit-changes.ts, pushed through
-                     the cell's receive-pack like any client's)
     db/              Drizzle schema + client for the D1 auth database
     rate-limit.ts    The D1 fixed window every throttled route spends
-    types/           The hand-authored durable-git .d.ts (it ships untyped TS
-                     source) — re-check on every version bump
     __tests__/       vitest-pool-workers suites (real miniflare + D1 + DO)
 ```
 
@@ -71,9 +65,6 @@ its own `tsconfig.json`.
 | `POST /v1/sync/push`                    | device            | Outbox batch in — idempotent, conflict-aware                        |
 | `GET /v1/sync/pull`                     | device            | Page the merged log by global `seq`                                 |
 | `GET /v1/sync/ws`                       | device            | Invalidation socket (Bearer on the upgrade; hibernatable)           |
-| `POST /v1/capture`                      | device            | Quick capture in, deduped on an idempotency key                     |
-| `POST /v1/sync/captures/claim`          | device            | Take the inbox for a five-minute window                             |
-| `POST /v1/sync/captures/ack`            | device            | Delete what that claim owns — per-id outcomes                       |
 | `POST /v1/sync/dispatch`                | device            | A phone's turn or approval answer in, deduped on its id             |
 | `POST /v1/sync/dispatch/claim`          | device            | Take waiting turns, and answers meant for this Mac, for two minutes |
 | `POST /v1/sync/dispatch/ack`            | device            | Settle what that claim owns, delivered or refused — per-id outcomes |
@@ -82,12 +73,6 @@ its own `tsconfig.json`.
 | `POST /v1/sync/dispatch/approval`       | device            | A Mac opens an approval a phone-started turn waits on               |
 | `POST /v1/sync/dispatch/approval/close` | device            | That Mac closes it: answered there, or its turn ended               |
 | `GET /v1/sync/dispatch/approvals`       | device            | The approvals waiting for the phone's answer                        |
-| `/v1/git/vault.git/*`                   | device            | The hosted vault git remote — smart HTTP, 90 MiB push, 1 GiB stored |
-| `POST /v1/vault/tree`                   | device            | Flat listing — path, size, blob oid — at one commit                 |
-| `POST /v1/vault/file`                   | device            | One note's bytes at that commit — 2 MB ceiling                      |
-| `POST /v1/vault/files`                  | device            | Up to 40 notes at a pinned commit — 4 MiB, rest deferred            |
-| `POST /v1/vault/asset`                  | device            | One embedded binary at that commit                                  |
-| `POST /v1/vault/commit`                 | device            | A change set, each change CAS'd on its blob — one commit            |
 | `GET /v1/account`                       | device            | Whose account this device credential syncs as                       |
 | `POST /v1/account/delete`               | device + password | Delete the account through Better Auth's `deleteUser`               |
 
@@ -96,20 +81,19 @@ hash compare against D1 — never cached, so revocation is immediate; its
 `last_seen_at` is written at most every five minutes
 (`LAST_SEEN_RESOLUTION_MS`), so a verify is one read. The
 VERIFIED credential's userId — never a path or a body — names the state it
-reaches: the sync and capture routes fan out to that user's own
+reaches: the sync and dispatch routes fan out to that user's own
 `ThreadSyncDO` by RPC (the Worker parses each body and hands the object the
-verified deviceId; only the socket upgrade is a forwarded request), the git
-remote and the `/v1/vault/*` reads and commits to that user's own durable-git
-`RepoCell`, and `/v1/account` reads D1 directly. A commit is authored by the
-verified device row's name, and a stale base answers 409 `vault-conflict` with
-what the head holds beside the envelope; the Worker never merges. Every `/v1` refusal, an unknown route and
-an unhandled fault included, is the JSON error envelope; the git mount alone
-answers git clients in plain text.
+verified deviceId; only the socket upgrade is a forwarded request), and
+`/v1/account` reads D1 directly. Every `/v1` refusal, an unknown route and an
+unhandled fault included, is the JSON error envelope.
 
-The tree, file and asset reads take their query as a JSON body, so no vault
-path reaches a URL, which the Worker's request log and traces keep; each still
-answers the same query as a GET's search params, the form older installs send
-(`src/worker/vault/read-routes.ts`).
+The hosted vault (`/v1/git/*`, `/v1/vault/*`) and the capture inbox
+(`/v1/capture`, `/v1/sync/captures/*`) are gone: those paths answer the
+not-found envelope, and `cloudflare.config.ts` declares the vault's Durable
+Object classes, `RepoCell` and `Registry`, deleted, so the first deploy
+without them erases every account's hosted vault. Nothing binds the R2 buckets
+that held its packs (`inteligir-vault`, `inteligir-vault-preview`) any more;
+they keep their bytes until the owner deletes them by hand.
 
 ## Auth
 
@@ -187,15 +171,9 @@ answers the same query as a GET's search params, the form older installs send
   read that fails is unknown to the route guards, never signed out
   (`src/lib/auth-client.ts`), and `/app/devices` shows it, like a device list
   that failed to load, as its message and a retry
-  (`src/routes/app/devices.tsx`). The hosted
-  vault's three budgets (`/v1/git/*` 600/min, the `/v1/vault/*` reads
-  3,000/min, `/v1/vault/commit` 300/min) spend the same table keyed on the
-  DEVICE, never the address: a stolen credential moves between addresses, and
-  the device row is what `/app/devices` revokes. A batch of files spends one
-  unit however many paths it names, so a phone's first mirror of 50,000 notes
-  costs about 1,350; a phone's queue sends one change set at a time, so 300
-  drains a long offline backlog within the minute. Three families so a drained
-  budget never takes another down: a looping writer still syncs and reads.
+  (`src/routes/app/devices.tsx`). The account deletion's window spends the
+  same table keyed on the DEVICE, never the address: a stolen credential moves
+  between addresses, and the device row is what `/app/devices` revokes.
   Revocation and account deletion drop the rows. Better Auth prunes the shared table on its own writes, every row past
   its 60s window with it, so every Worker window is declared in `RATE_WINDOWS`
   and a guard holds each to 60s or less.
@@ -207,8 +185,7 @@ answers the same query as a GET's search params, the form older installs send
   so a failed step aborts the deletion rather than orphaning data. THE ORDER IS
   LOAD-BEARING: device rows first (while one lives its credential still
   verifies, and a request on it can rebuild whatever was deleted before it),
-  then the hosted vault git repo, then the
-  ThreadSyncDO — purged whole and TOMBSTONED, which refuses the request that
+  then the ThreadSyncDO — purged whole and TOMBSTONED, which refuses the request that
   authenticated microseconds before step one — then the deleted email off the
   invite it spent (`redeemed_at` stays set, so the code stays burned).
   The app asks it at `POST /v1/account/delete` (`src/worker/device/account.ts`),
@@ -281,10 +258,7 @@ pnpm -F @repo/web exec cf workers secrets update BETTER_AUTH_SECRET --worker int
 #    (dashboard: Email Sending, then the DKIM/SPF DNS), and if needed:
 # cf workers secrets update RESET_FROM_ADDRESS --worker inteligir-web --text 'no-reply@<verified-domain>'
 
-# 6. The vault pack bucket (once — the R2 binding refuses to deploy without it)
-pnpm -F @repo/web exec cf r2 buckets create --name inteligir-vault
-
-# 7. Deploy — the exact command the `Deploy` workflow runs
+# 6. Deploy — the exact command the `Deploy` workflow runs
 pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec cf deploy --prebuilt
 
 # (optional) tail logs: cf cannot tail yet
@@ -310,9 +284,7 @@ Preview deleted when the PR closes. `.github/workflows/preview.yml` runs it;
 `.github/scripts/worker-preview.mjs` draws the comment and the deployment.
 
 A Preview never touches production data. `cloudflare.config.ts` binds
-`inteligir-auth-preview` (D1) and `inteligir-vault-preview` (R2) when
-`isPreview`, which
-the workflow creates on first use and pushes the PR's schema into with
+`inteligir-auth-preview` (D1) when `isPreview`, which the workflow creates on first use and pushes the PR's schema into with
 `drizzle-kit push --force`; the Durable Objects are a fresh namespace per
 Preview. All PRs share the one preview D1, so an account made on one Preview
 signs in on the next. There is no `send_email` binding, so a reset email is
@@ -322,8 +294,7 @@ to create the first account.
 Setup, once:
 
 ```bash
-# the Deploy token also needs D1: Edit and Workers R2 Storage: Edit, and the
-# repo needs a CLOUDFLARE_ACCOUNT_ID secret beside CLOUDFLARE_API_TOKEN
+# the Deploy token also needs D1: Edit, and the repo needs a CLOUDFLARE_ACCOUNT_ID secret beside CLOUDFLARE_API_TOKEN
 # wrangler: cf has no preview secret command yet
 pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET --worker-name inteligir-web  # a preview-only value
 ```

@@ -29,7 +29,7 @@ export const SYNC_WS_KEEPALIVE_PONG = "pong";
 // the verdict: the client answers it with an http pass, and that pass's refusal is what ends it.
 export const SYNC_WS_REVOKED_CLOSE_CODE = 1008;
 
-// sync and vault are not sent to the pushing device's own sockets. dispatch says the dispatch
+// sync is not sent to the pushing device's own sockets. dispatch says the dispatch
 // inbox holds something for the thread: a phone's turn, to the sockets of Macs that take one; an answer, to the
 // sockets of the Mac that asked; an approval, to mobile sockets. every frame is bare: the pull,
 // the claim or the listing carries the state.
@@ -39,14 +39,8 @@ export const syncPingSchema = z.discriminatedUnion("type", [
     type: z.literal("sync"),
   }),
   z.object({
-    type: z.literal("capture"),
-  }),
-  z.object({
     threadId: z.string().min(1),
     type: z.literal("dispatch"),
-  }),
-  z.object({
-    type: z.literal("vault"),
   }),
 ]);
 export type SyncPing = z.infer<typeof syncPingSchema>;

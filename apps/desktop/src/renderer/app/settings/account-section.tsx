@@ -14,10 +14,9 @@ import { AccountForm } from "../account-form";
 import { failed, orpc, refusalMessage } from "../api";
 import { useCloudSession } from "../cloud-session";
 import { relativeTimeLabel, useNow } from "../relative-time";
-import { useDataDirScope, useVaultStatus } from "../vault-hooks";
 import { DeleteAccountDialog } from "./delete-account-dialog";
 import { PhoneRequestsRow } from "./phone-requests-row";
-import { Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
+import { Row, SectionHeading } from "./settings-chrome";
 
 export const RevokeFailedNotice = ({ cloudUrl }: { cloudUrl: string }) => {
   const devicesUrl = cloudDevicesPageUrl(cloudUrl);
@@ -165,8 +164,6 @@ export const AccountDevices = ({ thisMacName, lastSyncedAt, ...others }: Account
 export const AccountSection = () => {
   const session = useCloudSession();
   const { status, pending, signOut } = session;
-  const scope = useDataDirScope();
-  const vaultStatus = useVaultStatus().data;
   const nowMs = useNow();
   const queryClient = useQueryClient();
   // the refused credential this person chose to replace: a later refusal asks again
@@ -185,7 +182,7 @@ export const AccountSection = () => {
       onSuccess: (next) => {
         queryClient.setQueryData(orpc.cloud.status.queryKey(), next);
         setDeleteOpen(false);
-        toast.success("Your account was deleted. Your notes on this Mac are still here.");
+        toast.success("Your account was deleted. Your threads on this Mac are still here.");
       },
     }),
   );
@@ -209,9 +206,7 @@ export const AccountSection = () => {
       : { devices: devicesQuery.data.devices, kind: "loaded" };
   };
 
-  const accountForm = (cloudUrl: string) => (
-    <AccountForm cloudUrl={cloudUrl} session={session} vault={vaultStatus} />
-  );
+  const accountForm = (cloudUrl: string) => <AccountForm cloudUrl={cloudUrl} session={session} />;
 
   const body = () => {
     if (status === undefined) {
@@ -220,7 +215,6 @@ export const AccountSection = () => {
     if (status.state === "signed-out") {
       return (
         <div className="space-y-2">
-          <SecondVaultNote scope={scope} />
           {status.revokeError === null ? null : <RevokeFailedNotice cloudUrl={status.cloudUrl} />}
           {accountForm(status.cloudUrl)}
         </div>
@@ -247,7 +241,7 @@ export const AccountSection = () => {
             </span>
           </Row>
           <AccountDevices
-            thisMacName={vaultStatus?.device}
+            thisMacName={devicesQuery.data?.devices.find((device) => device.current)?.name}
             lastSyncedAt={status.lastSyncedAt}
             nowMs={nowMs}
             devices={deviceList()}

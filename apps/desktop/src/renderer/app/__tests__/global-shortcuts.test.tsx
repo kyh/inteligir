@@ -95,15 +95,12 @@ describe("the matcher", () => {
     expect(globalShortcutFor(keydown({}), "meta")).toBeNull();
   });
 
-  it("tells a shifted key from its unshifted row, whatever case the key reports", () => {
-    expect(globalShortcutFor(keydown({ key: "f", metaKey: true }), "meta")?.action).toBe(
-      "find-in-note",
+  it("never fires an unshifted row on a shifted chord, whatever case the key reports", () => {
+    expect(globalShortcutFor(keydown({ key: "P", metaKey: true }), "meta")?.action).toBe(
+      "open-palette",
     );
     expect(
-      globalShortcutFor(keydown({ key: "O", metaKey: true, shiftKey: true }), "meta")?.action,
-    ).toBe("open-headings");
-    expect(
-      globalShortcutFor(keydown({ altKey: true, key: "f", metaKey: true, shiftKey: true }), "meta"),
+      globalShortcutFor(keydown({ key: "P", metaKey: true, shiftKey: true }), "meta"),
     ).toBeNull();
   });
 

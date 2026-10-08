@@ -186,8 +186,6 @@ describe("ids", () => {
 describe("noopNotifier", () => {
   it("swallows every notification", () => {
     expect(() => {
-      noopNotifier.notifyVault(["files-changed"]);
-      noopNotifier.notifyDoc("doc-1", ["content-changed"]);
       noopNotifier.notifyThread("thr_1", ["events-appended"]);
     }).not.toThrow();
   });

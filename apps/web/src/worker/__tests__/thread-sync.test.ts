@@ -1,8 +1,3 @@
-import {
-  ackCapturesResponseSchema,
-  captureResponseSchema,
-  claimCapturesResponseSchema,
-} from "@repo/contract/cloud/captures/captures-schema";
 import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import { pullResponseSchema, pushResponseSchema } from "@repo/contract/cloud/sync/sync-schema";
 import type { PushRequest } from "@repo/contract/cloud/sync/sync-schema";
@@ -63,37 +58,6 @@ const event = (
   event: { payload, type: "test" },
   threadId,
 });
-
-const capture = async (
-  credential: string,
-  text: string,
-  idempotencyKey: string,
-): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}/v1/capture`, {
-    body: JSON.stringify({ idempotencyKey, text }),
-    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
-    method: "POST",
-  });
-
-const claim = async (credential: string) => {
-  const response = await SELF.fetch(`${ORIGIN}/v1/sync/captures/claim`, {
-    body: JSON.stringify({}),
-    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
-    method: "POST",
-  });
-  expect(response.status).toBe(200);
-  return emitted(claimCapturesResponseSchema, await response.text());
-};
-
-const ack = async (credential: string, claimToken: string, ids: string[]) => {
-  const response = await SELF.fetch(`${ORIGIN}/v1/sync/captures/ack`, {
-    body: JSON.stringify({ claimToken, ids }),
-    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
-    method: "POST",
-  });
-  expect(response.status).toBe(200);
-  return emitted(ackCapturesResponseSchema, await response.text());
-};
 
 describe("thread sync log", () => {
   it("pushes, pulls, and ignores a replayed outbox batch", async () => {
@@ -319,102 +283,11 @@ describe("thread sync log", () => {
   });
 });
 
-describe("capture inbox", () => {
-  it("hands a capture to exactly one claimer, and deletes it once", async () => {
-    const { bearer } = await signUpUser("capture-once@example.test");
-    const phone = await loginDevice(bearer, "Phone");
-    const laptop = await loginDevice(bearer, "Laptop");
-
-    const captured = await capture(phone.credential, "buy oat milk", "key-oat-milk-1");
-    const posted = emitted(captureResponseSchema, await captured.text());
-    expect(posted.duplicate).toBe(false);
-
-    const laptopClaim = await claim(laptop.credential);
-    expect(laptopClaim.captures).toEqual([
-      { createdAt: posted.createdAt, id: posted.id, text: "buy oat milk" },
-    ]);
-
-    const phoneClaim = await claim(phone.credential);
-    expect(phoneClaim.captures).toEqual([]);
-
-    expect(await ack(laptop.credential, laptopClaim.claimToken, [posted.id])).toEqual({
-      results: [{ id: posted.id, outcome: "deleted" }],
-    });
-    expect(await ack(phone.credential, phoneClaim.claimToken, [posted.id])).toEqual({
-      results: [{ id: posted.id, outcome: "unknown" }],
-    });
-
-    const emptied = await claim(laptop.credential);
-    expect(emptied.captures).toEqual([]);
-  });
-
-  it("tells a lapsed claimer its rows were reclaimed rather than deleting them", async () => {
-    const { bearer } = await signUpUser("capture-lapsed@example.test");
-    const phone = await loginDevice(bearer, "Phone");
-    const laptop = await loginDevice(bearer, "Laptop");
-    const captured = await capture(phone.credential, "remember", "key-remember-1");
-    const posted = emitted(captureResponseSchema, await captured.text());
-
-    const stale = await claim(laptop.credential);
-    expect(stale.captures).toHaveLength(1);
-
-    const userId = await userIdOf(bearer);
-    const stub = threadSyncStub(env, userId);
-    await runInDurableObject(stub, (_instance, state) => {
-      state.storage.sql.exec("UPDATE captures SET claimed_at = 0");
-    });
-    const fresh = await claim(phone.credential);
-    expect(fresh.captures.map((row) => row.id)).toEqual([posted.id]);
-
-    expect(await ack(laptop.credential, stale.claimToken, [posted.id])).toEqual({
-      results: [{ id: posted.id, outcome: "reclaimed" }],
-    });
-    expect(await ack(phone.credential, fresh.claimToken, [posted.id])).toEqual({
-      results: [{ id: posted.id, outcome: "deleted" }],
-    });
-  });
-
-  it("dedupes a retried capture on its idempotency key", async () => {
-    const { bearer } = await signUpUser("capture-idem@example.test");
-    const phone = await loginDevice(bearer, "Phone");
-
-    const captured = await capture(phone.credential, "one thought", "key-shared");
-    const first = emitted(captureResponseSchema, await captured.text());
-    const recaptured = await capture(phone.credential, "one thought", "key-shared");
-    const retry = emitted(captureResponseSchema, await recaptured.text());
-    expect(retry.id).toBe(first.id);
-    expect(retry.duplicate).toBe(true);
-
-    const claimed = await claim(phone.credential);
-    expect(claimed.captures).toHaveLength(1);
-  });
-
-  it("pings every socket when a capture lands", async () => {
-    const { bearer } = await signUpUser("capture-ping@example.test");
-    const phone = await loginDevice(bearer, "Phone");
-    const laptop = await loginDevice(bearer, "Laptop");
-    const laptopWs = await openSocket(laptop.credential, "desktop");
-
-    await capture(phone.credential, "remember the thing", "key-ping-1");
-
-    await awaitFrames(laptopWs, [{ type: "capture" }]);
-    laptopWs.socket.close();
-  });
-
-  it("refuses an empty capture", async () => {
-    const { bearer } = await signUpUser("capture-empty@example.test");
-    const phone = await loginDevice(bearer, "Phone");
-    const response = await capture(phone.credential, "   ", "key-empty-1");
-    expect(response.status).toBe(400);
-  });
-});
-
 describe("account deletion", () => {
   it("purges the thread-sync object and every device row", async () => {
     const { bearer, password } = await signUpUser("delete-me@example.test");
     const { credential } = await loginDevice(bearer, "Laptop");
     await push(credential, { events: [event("th_1", 1, "to be purged")] });
-    await capture(credential, "to be purged too", "key-purge-1");
     const page = await pull(credential, 0);
     expect(page.lastSeq).toBe(1);
 
@@ -434,11 +307,10 @@ describe("account deletion", () => {
     // read off the SQL: every route refuses a tombstoned object, so a route answer would prove the tombstone, not the wipe
     const stub = threadSyncStub(env, userId);
     const rows = await runInDurableObject(stub, (_instance, state) => ({
-      captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
       dispatches: state.storage.sql.exec("SELECT COUNT(*) AS n FROM dispatches").one().n,
       events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
     }));
-    expect(rows).toEqual({ captures: 0, dispatches: 0, events: 0 });
+    expect(rows).toEqual({ dispatches: 0, events: 0 });
   });
 
   it("refuses a request that verified just before the account died", async () => {
@@ -460,14 +332,8 @@ describe("account deletion", () => {
         { createdAt: 2, deviceSeq: 2, event: '"after the purge"', threadId: "th_1" },
       ]),
       await stub.pull({ afterSeq: 0, limit: 10 }),
-      await stub.capture({ idempotencyKey: "key-after-purge", text: "after the purge" }),
-      await stub.claimCaptures({ limit: 10 }),
-      await stub.ackCaptures({ claimToken: "late-claim", ids: ["late-capture"] }),
     ];
     expect(late.map((result) => (result.ok ? "answered" : result.code))).toEqual([
-      "account-deleted",
-      "account-deleted",
-      "account-deleted",
       "account-deleted",
       "account-deleted",
     ]);
@@ -479,9 +345,8 @@ describe("account deletion", () => {
     expect(emitted(cloudErrorSchema, await socket.text()).error.code).toBe("account-deleted");
 
     const remaining = await runInDurableObject(stub, (_instance, state) => ({
-      captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
       events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
     }));
-    expect(remaining).toEqual({ captures: 0, events: 0 });
+    expect(remaining).toEqual({ events: 0 });
   });
 });

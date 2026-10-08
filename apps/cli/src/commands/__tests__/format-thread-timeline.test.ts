@@ -32,11 +32,9 @@ describe("formatThreadTimeline", () => {
     const rows: TimelineRow[] = [
       {
         ...base(),
-        contextPaths: [],
         kind: "conversation",
         role: "user",
         text: "Write me a note",
-        viewContext: null,
       },
       {
         ...base(),
@@ -70,11 +68,9 @@ describe("formatThreadTimeline", () => {
       },
       {
         ...base(),
-        contextPaths: [],
         kind: "conversation",
         role: "assistant",
         text: "Done — see notes/a.md",
-        viewContext: null,
       },
     ];
     expect(formatThreadTimeline(timeline(rows))).toBe(

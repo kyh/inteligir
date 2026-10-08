@@ -1,4 +1,4 @@
-import { asc, count, eq, inArray, lt, lte, sql } from "drizzle-orm";
+import { asc, count, eq, lte, sql } from "drizzle-orm";
 import { writeTransaction } from "./connection";
 import type { DbConnection, DbExecutor, DbTransaction } from "./connection";
 import { createSyncOutboxId } from "./ids";
@@ -208,38 +208,3 @@ export const ownDeviceIds = (db: DbExecutor): ReadonlySet<string> =>
       .all()
       .map((row) => row.deviceId),
   );
-
-export const unappliedCaptureIds = (db: DbConnection, ids: readonly string[]): Set<string> => {
-  if (ids.length === 0) {
-    return new Set();
-  }
-  const applied = new Set(
-    db
-      .select({ id: syncAppliedCaptures.id })
-      .from(syncAppliedCaptures)
-      .where(inArray(syncAppliedCaptures.id, [...ids]))
-      .all()
-      .map((row) => row.id),
-  );
-  return new Set(ids.filter((id) => !applied.has(id)));
-};
-
-// runs after the vault write commits: the reverse order loses a capture to a crash, this order
-// at worst repeats one.
-export const recordAppliedCaptures = (
-  db: DbConnection,
-  ids: readonly string[],
-  now: number,
-): void => {
-  if (ids.length === 0) {
-    return;
-  }
-  db.insert(syncAppliedCaptures)
-    .values(ids.map((id) => ({ appliedAt: now, id })))
-    .onConflictDoNothing()
-    .run();
-};
-
-export const pruneAppliedCaptures = (db: DbConnection, before: number): void => {
-  db.delete(syncAppliedCaptures).where(lt(syncAppliedCaptures.appliedAt, before)).run();
-};

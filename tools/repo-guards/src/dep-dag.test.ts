@@ -2,17 +2,13 @@
 // edge no manifest declares (pnpm's hoisting resolves it). adding a package or an edge: add the
 // row.
 
-import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
 import {
   importsOf,
   isTestFile,
   manifestWorkspaceDeps,
-  REPO_ROOT,
   resolveWorkspace,
-  sourceOf,
   workspaceFiles,
   workspaces,
 } from "./repo";
@@ -22,57 +18,33 @@ import type { Workspace } from "./repo";
 // be declared in the manifest.
 const DECLARED_EDGES = new Map<string, readonly string[]>(
   Object.entries({
-    "@repo/agent-runtime": ["@repo/domain"],
-    // a leaf: content (markdown served to agents), imported as files.
-    "@repo/agent-skills": [],
-    // the @repo/notes edge is the parser-free grammars the contract validates against (vault-path,
-    // sidecar-schema, tag-grammar, link-kinds); widening it to a remark-carrying module drags
-    // remark into every client bundle, which "the contract's @repo/notes edge" below walks for.
-    "@repo/contract": ["@repo/domain", "@repo/notes"],
-    // below the wire: an edge to @repo/contract would drag @orpc/contract and the contract's notes edge
-    // into a package that only writes rows.
+    "@repo/contract": ["@repo/domain"],
+    // below the wire: an edge to @repo/contract would drag @orpc/contract and the contract's zod
+    // surface into a package that only writes rows.
     "@repo/db": ["@repo/domain"],
     // the page alone: the shell is Rust (src-tauri), and every rule it shares with the server it
     // asks the CLI's desktop entry for, so no source here imports `inteligir`. its suites boot a
     // server in-process, which is a test dependency, not a shipped edge.
-    "@repo/desktop": ["@repo/contract", "@repo/domain", "@repo/editor", "@repo/notes", "@repo/ui"],
+    "@repo/desktop": ["@repo/contract", "@repo/domain", "@repo/ui"],
     "@repo/domain": [],
     // the `inteligir` edge is the binary it spawns and the config resolution naming this checkout's
-    // instance; the @repo/mobile edge is the phone's own platform-free runtime, driven under node
-    // against a real Worker, since no Expo boots headless; the @repo/mobile-editor edge is the
-    // bridge's protocol, so the scripted phone speaks the frames the page parses.
-    "@repo/e2e": ["@repo/contract", "@repo/mobile", "@repo/mobile-editor", "inteligir"],
-    // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
-    "@repo/editor": ["@repo/notes", "@repo/ui"],
-    // a partial cloud client: reads the thread log and produces captures, never pushes or claims,
-    // and writes the vault only through the guarded commit route. the @repo/notes edge is the
-    // dialect's own parse, link resolver and the one conflict verdict its write queue settles
-    // with; the @repo/mobile-editor edge is the editor page's wire alone (EDITOR_PAGE_CLIENTS
-    // below), since the page itself ships built; it reaches no server, vault engine or agent.
-    "@repo/mobile": ["@repo/contract", "@repo/domain", "@repo/mobile-editor", "@repo/notes"],
-    // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through
-    // its own bridge, so no contract and no cloud wire.
-    "@repo/mobile-editor": ["@repo/editor", "@repo/notes", "@repo/ui"],
-    "@repo/notes": [],
+    // instance.
+    "@repo/e2e": ["@repo/contract", "inteligir"],
+    // a partial cloud client: reads the thread log and asks a Mac through the dispatch inbox, never
+    // pushes or claims; it reaches no server or agent.
+    "@repo/mobile": ["@repo/contract", "@repo/domain"],
     "@repo/repo-guards": [],
     "@repo/ui": [],
     "@repo/web": ["@repo/contract", "@repo/ui"],
-    // the server reaches no page: no @repo/ui, no @repo/editor, no react.
-    inteligir: ["@repo/agent-runtime", "@repo/contract", "@repo/db", "@repo/domain", "@repo/notes"],
+    // the server reaches no page: no @repo/ui, no react.
+    inteligir: ["@repo/contract", "@repo/db", "@repo/domain"],
   }),
 );
 
 // installed and executed, never imported: absent from DECLARED_EDGES on purpose, so a module import
 // across one still fails as undeclared. its own table because the manifest checks read opposite
 // things off one row: pnpm must link it, and nothing under src/ imports it.
-const DECLARED_ARTIFACT_EDGES = new Map<string, Record<string, string>>(
-  Object.entries({
-    inteligir: {
-      "@repo/agent-skills":
-        "the dialect skills are CONTENT the agent reads with its shell — agent-shell-env.ts resolves the package's skills/ directory via createRequire and hands the path to agent sessions as INTELIGIR_SKILLS_DIR; no module import exists or should",
-    },
-  }),
-);
+const DECLARED_ARTIFACT_EDGES = new Map<string, Record<string, string>>();
 
 const artifactEdgesFrom = (name: string): Record<string, string> =>
   DECLARED_ARTIFACT_EDGES.get(name) ?? {};
@@ -103,10 +75,6 @@ interface PurityRule {
 // absent means no platform constraint.
 const PURITY_RULES = new Map<string, PurityRule>(
   Object.entries({
-    "@repo/agent-runtime": {
-      forbidden: ["react", "tauri"],
-      why: "it spawns provider processes, so it is node-side by definition — and nothing it exports may pull a process tree into a renderer; the grammars a client reads live in @repo/domain",
-    },
     "@repo/contract": {
       forbidden: ["node", "react", "tauri"],
       why: "the contract both ends compile against: it loads in the desktop page, on node, on workerd and in React Native, so a platform import there is a package that stops loading somewhere",
@@ -114,18 +82,6 @@ const PURITY_RULES = new Map<string, PurityRule>(
     "@repo/domain": {
       forbidden: ["node", "react", "tauri"],
       why: "a zod-only leaf: the thread grammar is parsed on both sides of every wire",
-    },
-    "@repo/editor": {
-      forbidden: ["node", "tauri"],
-      why: "browser-only: Plate/Slate in the page, never in the Node process",
-    },
-    "@repo/mobile-editor": {
-      forbidden: ["node", "tauri"],
-      why: "a page in the phone's WebView, loaded from file://: nothing but the browser is there",
-    },
-    "@repo/notes": {
-      forbidden: ["node", "react", "tauri"],
-      why: "the pure sharing seam: it runs in the browser AND on node, and every platform capability (the SQL driver, the clock, content hashes) is INJECTED",
     },
     "@repo/ui": {
       forbidden: ["node", "tauri"],
@@ -144,17 +100,6 @@ const CLOUD_ONLY_CLIENTS = new Map<string, string>([
   [
     "@repo/mobile",
     "a phone install may be months stale against the deployed Worker, while /local ships in the desktop bundle and may break freely",
-  ],
-]);
-
-// The phone's editor page is DOM React built by Vite; a native client that hosts it reaches the
-// bridge's wire alone and loads the page as a built bundle. Any other import would compile DOM
-// code a second way, under the client's own bundler and TypeScript.
-const EDITOR_PAGE_WIRE = "@repo/mobile-editor/bridge-protocol";
-const EDITOR_PAGE_CLIENTS = new Map<string, string>([
-  [
-    "@repo/mobile",
-    "React Native under Metro and TypeScript 6, hosting the page in a WebView from the app bundle",
   ],
 ]);
 
@@ -452,36 +397,6 @@ describe("platform purity", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("every editor page client reaches the page's wire and nothing else of it", () => {
-    const violations: string[] = [];
-    for (const [name, why] of EDITOR_PAGE_CLIENTS) {
-      const client = workspaces().find((candidate) => candidate.name === name);
-      if (client === undefined) {
-        violations.push(
-          `EDITOR_PAGE_CLIENTS ROW NAMES NO WORKSPACE  ${name}\n` +
-            `  rule: a pin on a workspace that is gone pins nothing — delete the row from tools/repo-guards/src/dep-dag.test.ts`,
-        );
-        continue;
-      }
-      const files = workspaceFiles(client);
-      for (const file of [...files.shipped, ...files.test]) {
-        for (const specifier of importsOf(file)) {
-          if (resolveWorkspace(specifier)?.name !== "@repo/mobile-editor") {
-            continue;
-          }
-          if (specifier === EDITOR_PAGE_WIRE) {
-            continue;
-          }
-          violations.push(
-            `EDITOR PAGE SOURCE IN ITS HOST  ${file} imports "${specifier}"\n` +
-              `  rule: ${name} reaches ${EDITOR_PAGE_WIRE} alone — ${why}`,
-          );
-        }
-      }
-    }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
-  });
-
   it("@repo/contract's cloud entry never reaches into its local entry", () => {
     // a file under src/cloud reaching src/local by relative path is invisible to the cloud-only
     // pin above; the sanctioned crossing is the other direction (local reusing a cloud constant).
@@ -511,7 +426,7 @@ describe("platform purity", () => {
         if (reachesLocal) {
           violations.push(
             `CLOUD REACHES LOCAL  ${file} imports "${specifier}"\n` +
-              `  rule: @repo/contract/cloud is the never-break wire — it may import zod, @repo/notes and its own cloud/ modules, never src/local`,
+              `  rule: @repo/contract/cloud is the never-break wire — it may import zod, @repo/domain and its own cloud/ modules, never src/local`,
           );
         }
       }
@@ -567,127 +482,11 @@ describe("platform purity", () => {
   });
 });
 
-// `import type` ships nothing, so a type-only edge loads no module
-const RUNTIME_IMPORT =
-  /\bimport\s*\(\s*["'](?<dynamic>[^"'\n]+)["']|\b(?:import|export)\s+(?<typeOnly>type\s+)?(?:[\w$*{}\s,]+?\s+from\s*)?["'](?<specifier>[^"'\n]+)["']/gu;
-
-const runtimeImportsOf = (file: string): string[] => {
-  const specifiers: string[] = [];
-  for (const match of sourceOf(file).matchAll(RUNTIME_IMPORT)) {
-    const found =
-      match.groups?.dynamic ??
-      (match.groups?.typeOnly === undefined ? match.groups?.specifier : undefined);
-    if (found !== undefined) {
-      specifiers.push(found);
-    }
-  }
-  return specifiers;
-};
-
-const MARKDOWN_PARSER = /^(?:remark-|unified$|micromark|mdast-util-)/u;
-
-const NOTES_DIR = "packages/notes";
-
-const notesExports = z
-  .object({ exports: z.record(z.string(), z.string()) })
-  .parse(
-    JSON.parse(fs.readFileSync(path.join(REPO_ROOT, NOTES_DIR, "package.json"), "utf-8")),
-  ).exports;
-
-const notesExportFile = (specifier: string): string | null => {
-  const target = specifier.startsWith("@repo/notes/")
-    ? notesExports[`./${specifier.slice("@repo/notes/".length)}`]
-    : undefined;
-  return target === undefined ? null : path.posix.join(NOTES_DIR, target);
-};
-
-const resolveRelative = (from: string, specifier: string): string | null => {
-  const base = path.posix.join(path.posix.dirname(from), specifier);
-  return (
-    [base, `${base}.ts`, `${base}.tsx`, path.posix.join(base, "index.ts")].find((candidate) => {
-      const full = path.join(REPO_ROOT, candidate);
-      return fs.existsSync(full) && fs.statSync(full).isFile();
-    }) ?? null
-  );
-};
-
-interface ParserReach {
-  chain: string[];
-  specifier: string;
-}
-
-// the first markdown-parser import in the module's runtime closure, and the files that lead to it
-const markdownParserReach = (entry: string): ParserReach | null => {
-  const seen = new Set<string>();
-  const visit = (file: string, chain: readonly string[]): ParserReach | null => {
-    if (seen.has(file)) {
-      return null;
-    }
-    seen.add(file);
-    const here = [...chain, file];
-    for (const specifier of runtimeImportsOf(file)) {
-      if (MARKDOWN_PARSER.test(specifier)) {
-        return { chain: here, specifier };
-      }
-      const next = specifier.startsWith(".")
-        ? resolveRelative(file, specifier)
-        : notesExportFile(specifier);
-      const found = next === null ? null : visit(next, here);
-      if (found !== null) {
-        return found;
-      }
-    }
-    return null;
-  };
-  return visit(entry, []);
-};
-
-describe("the contract's @repo/notes edge", () => {
-  it("reaches no markdown parser", () => {
-    const contract = workspaces().find((candidate) => candidate.name === "@repo/contract");
-    if (contract === undefined) {
-      throw new Error("@repo/contract is not a workspace");
-    }
-    const violations: string[] = [];
-    for (const file of workspaceFiles(contract).shipped) {
-      for (const specifier of runtimeImportsOf(file)) {
-        if (!specifier.startsWith("@repo/notes/")) {
-          continue;
-        }
-        const entry = notesExportFile(specifier);
-        if (entry === null) {
-          violations.push(
-            `UNRESOLVED NOTES IMPORT  ${file} imports "${specifier}"\n` +
-              `  rule: every @repo/notes specifier the contract imports is a row in ${NOTES_DIR}/package.json's exports, or this walk cannot follow it`,
-          );
-          continue;
-        }
-        const reach = markdownParserReach(entry);
-        if (reach !== null) {
-          violations.push(
-            `MARKDOWN PARSER IN THE CONTRACT  ${file} imports "${specifier}", which loads "${reach.specifier}"\n` +
-              `  via ${reach.chain.join(" -> ")}\n` +
-              `  rule: @repo/contract's @repo/notes edge is the parser-free grammars the contract validates against — the contract loads in every client, so a remark-carrying module drags the markdown parser into every bundle\n` +
-              `  fix: move what the contract needs into an import-free module beside it, as tag-grammar.ts and link-kinds.ts are`,
-          );
-        }
-      }
-    }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
-  });
-
-  it("sees the parser behind the scan, so a clean walk is a real one", () => {
-    const scan = notesExportFile("@repo/notes/knowledge/link-extract");
-    expect(scan).not.toBeNull();
-    expect(scan === null ? null : markdownParserReach(scan)?.specifier).toMatch(MARKDOWN_PARSER);
-  });
-});
-
 describe("tests are excluded from the shipped graph", () => {
   it("classifies suites, fixtures and test-only ports as tests", () => {
     expect(isTestFile("packages/db/src/__tests__/db.test.ts")).toBe(true);
     expect(isTestFile("apps/cli/src/server/__tests__/boot-app.ts")).toBe(true);
-    expect(isTestFile("packages/agent-runtime/src/test-support/fake-acp-agent.mjs")).toBe(true);
+    expect(isTestFile("packages/contract/src/cloud/test-support/fake-cloud-client.ts")).toBe(true);
     expect(isTestFile("packages/db/src/schema.ts")).toBe(false);
   });
 });

@@ -1,13 +1,3 @@
-import { CAPTURE_CLAIM_TTL_MS } from "@repo/contract/cloud/captures/captures-schema";
-import type {
-  AckCapturesRequest,
-  AckCapturesResponse,
-  CaptureRequest,
-  CaptureResponse,
-  CaptureRow,
-  ClaimCapturesRequest,
-  ClaimCapturesResponse,
-} from "@repo/contract/cloud/captures/captures-schema";
 import type {
   AckDispatchesRequest,
   AckDispatchesResponse,
@@ -99,8 +89,6 @@ const accepted = <T>(value: T): SyncResult<T> => ({ ok: true, value });
 const refused = (code: CloudErrorCode, message: string, deviceSeq?: number): SyncRefusal =>
   deviceSeq === undefined ? { code, message, ok: false } : { code, deviceSeq, message, ok: false };
 
-type AckResult = AckCapturesResponse["results"][number];
-
 const deviceTag = (deviceId: string): string => `device:${deviceId}`;
 const platformTag = (platform: DevicePlatform): string => `platform:${platform}`;
 // a Mac whose person lets the phone ask it: a phone's turn pings these, and the phone counts them
@@ -139,23 +127,17 @@ export class ThreadSyncDO extends DurableObject<Env> {
         created_at INTEGER NOT NULL,
         UNIQUE (device_id, device_seq)
       );
-      CREATE TABLE IF NOT EXISTS captures (
-        id TEXT PRIMARY KEY,
-        idempotency_key TEXT NOT NULL UNIQUE,
-        text TEXT NOT NULL,
-        created_at INTEGER NOT NULL,
-        claim_token TEXT,
-        claimed_at INTEGER
-      );
       CREATE TABLE IF NOT EXISTS account_state (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         purged_at INTEGER NOT NULL
       );
     `);
     this.ctx.storage.sql.exec(DISPATCH_TABLES);
-    // an object older than the dispatch inbox still holds each thread's lane and title, which
-    // nothing reads: dropped on wake, or it would sit in the account's storage for good
+    // an object older than the dispatch inbox still holds each thread's lane and title, and one
+    // older than the cut its capture inbox, which nothing reads: dropped on wake, or they would sit
+    // in the account's storage for good
     this.ctx.storage.sql.exec("DROP TABLE IF EXISTS thread_meta");
+    this.ctx.storage.sql.exec("DROP TABLE IF EXISTS captures");
   }
 
   // the tombstone refuses a call that verified its credential just before the account was
@@ -204,11 +186,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
   private socketsExcept(deviceId: string, tag?: string): WebSocket[] {
     const own = deviceTag(deviceId);
     return this.ctx.getWebSockets(tag).filter((ws) => !this.ctx.getTags(ws).includes(own));
-  }
-
-  // the pusher is excluded: it already holds what it pushed
-  vaultPing(pushingDeviceId: string): void {
-    broadcast({ type: "vault" }, this.socketsExcept(pushingDeviceId));
   }
 
   // a credential check on the next request does not reach a socket that already has one, nor a
@@ -340,95 +317,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
       threadId: row.thread_id,
     }));
     return accepted({ hasMore, lastSeq: this.lastSeq(), rows });
-  }
-
-  capture(request: CaptureRequest): SyncResult<CaptureResponse> {
-    const gone = this.tombstone();
-    if (gone !== null) {
-      return gone;
-    }
-    const { sql } = this.ctx.storage;
-    const [existing] = sql
-      .exec<{ id: string; created_at: number }>(
-        "SELECT id, created_at FROM captures WHERE idempotency_key = ?",
-        request.idempotencyKey,
-      )
-      .toArray();
-    if (existing !== undefined) {
-      // a share-sheet retry after a lost response; no ping, nothing changed
-      return accepted({ createdAt: existing.created_at, duplicate: true, id: existing.id });
-    }
-
-    const id = crypto.randomUUID();
-    const createdAt = Date.now();
-    sql.exec(
-      "INSERT INTO captures (id, idempotency_key, text, created_at) VALUES (?, ?, ?, ?)",
-      id,
-      request.idempotencyKey,
-      request.text,
-      createdAt,
-    );
-    // every socket, the capturer included: whichever device claims first applies it, and the capturer may be the only one online
-    broadcast({ type: "capture" }, this.ctx.getWebSockets());
-    return accepted({ createdAt, duplicate: false, id });
-  }
-
-  // the TTL is judged here on read, so a lapsed claim needs no alarm to reclaim
-  claimCaptures(request: ClaimCapturesRequest): SyncResult<ClaimCapturesResponse> {
-    const gone = this.tombstone();
-    if (gone !== null) {
-      return gone;
-    }
-    const now = Date.now();
-    const claimToken = crypto.randomUUID();
-    const rows = this.ctx.storage.sql
-      .exec<{ id: string; text: string; created_at: number }>(
-        `UPDATE captures SET claim_token = ?, claimed_at = ?
-         WHERE id IN (
-           SELECT id FROM captures
-           WHERE claim_token IS NULL OR claimed_at <= ?
-           ORDER BY created_at, id LIMIT ?
-         )
-         RETURNING id, text, created_at`,
-        claimToken,
-        now,
-        now - CAPTURE_CLAIM_TTL_MS,
-        request.limit,
-      )
-      .toArray();
-
-    const captures: CaptureRow[] = rows.map((row) => ({
-      createdAt: row.created_at,
-      id: row.id,
-      text: row.text,
-    }));
-    return accepted({ captures, claimToken, expiresAt: now + CAPTURE_CLAIM_TTL_MS });
-  }
-
-  // a row reclaimed since is not deleted: this device raced its own lapsed claim, and the current owner will apply it
-  ackCaptures(request: AckCapturesRequest): SyncResult<AckCapturesResponse> {
-    const gone = this.tombstone();
-    if (gone !== null) {
-      return gone;
-    }
-    const { sql } = this.ctx.storage;
-    const results = request.ids.map((id): AckResult => {
-      const deleted = sql
-        .exec<{ id: string }>(
-          "DELETE FROM captures WHERE id = ? AND claim_token = ? RETURNING id",
-          id,
-          request.claimToken,
-        )
-        .toArray();
-      if (deleted.length > 0) {
-        return { id, outcome: "deleted" };
-      }
-      const [survivor] = sql
-        .exec<{ id: string }>("SELECT id FROM captures WHERE id = ?", id)
-        .toArray();
-      return { id, outcome: survivor === undefined ? "unknown" : "reclaimed" };
-    });
-    return accepted({ results });
   }
 
   private sendDispatchPing(fromDeviceId: string, ping: DispatchPing): void {

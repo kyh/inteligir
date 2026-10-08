@@ -16,10 +16,8 @@ const bootLister = async () => {
   const list = async (...argv: string[]) =>
     await runCliForTest({ argv: ["action", "list", ...argv], baseUrl, token: TEST_SERVER_TOKEN });
   // a millisecond apart, so the order is the creation order and no tie decides it.
-  const create = async (title: string, originDocPath?: string): Promise<string> => {
-    const { thread } = await client.threads.create(
-      originDocPath === undefined ? { title } : { originDocPath, title },
-    );
+  const create = async (title: string): Promise<string> => {
+    const { thread } = await client.threads.create({ title });
     await delay(2);
     return thread.id;
   };
@@ -70,27 +68,16 @@ describe("action list", () => {
   // the cursor names a position, not the query: dropped flags continue another listing.
   it("names every filter the next page must repeat, and following it stays filtered", async () => {
     const { client, create, list } = await bootLister();
-    const doc = "notes/the plan.md";
-    const olderOnDoc = await create("Older on doc", doc);
+    const older = await create("Older");
     const elsewhere = await create("Elsewhere");
-    const newerOnDoc = await create("Newer on doc", doc);
+    const newer = await create("Newer");
     await client.threads.archive({ threadId: elsewhere });
-
-    const firstByDoc = await list("--doc", doc, "--limit", "1");
-    const byDoc = readPage(firstByDoc.stdout);
-    expect(byDoc.rows).toEqual([`${newerOnDoc}  idle  Newer on doc`]);
-    expect(byDoc.flags).toBe(" --doc 'notes/the plan.md' --limit 1");
-    const nextByDoc = await list("--cursor", byDoc.cursor, "--doc", doc, "--limit", "1");
-    expect(nextByDoc.stdout).toBe(`${olderOnDoc}  idle  Older on doc\n`);
 
     // two live rows fill the page, so its cursor sits at the end of the live segment and only
     // --archived reaches the rest.
     const firstArchived = await list("--archived", "--limit", "2");
     const archived = readPage(firstArchived.stdout);
-    expect(archived.rows).toEqual([
-      `${newerOnDoc}  idle  Newer on doc`,
-      `${olderOnDoc}  idle  Older on doc`,
-    ]);
+    expect(archived.rows).toEqual([`${newer}  idle  Newer`, `${older}  idle  Older`]);
     expect(archived.flags).toBe(" --archived --limit 2");
     const nextArchived = await list("--cursor", archived.cursor, "--archived", "--limit", "2");
     expect(nextArchived.stdout).toBe(`${elsewhere}  idle  Elsewhere  (archived)\n`);

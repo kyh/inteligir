@@ -1,136 +1,99 @@
-import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
-import { isDefinedError, safe } from "@orpc/client";
-import { describe, expect, it } from "vitest";
+import type { TimelineRow } from "@repo/contract/local/thread-timeline";
+import { describe, expect, it, vi } from "vitest";
 import { resolveAgentDriver } from "../agent-driver";
-import { scriptedNotePath } from "../scripted-driver";
-import { bootTestApp, TEST_MACHINE_NAME } from "../../__tests__/boot-app";
-import type { BootedTestApp } from "../../__tests__/boot-app";
-import {
-  awaitThreadStatus,
-  createThread,
-  fakeSessionFacts,
-  fetchTimelineRows,
-  flattenTimelineRows,
-  sendMessage,
-} from "./agent-test-harness";
-import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
-import { undoCommitMessage } from "../../vault/turn-trailers";
+import { SCRIPTED_ASK_PREFIX } from "../scripted-driver";
+import { bootTestApp, listenTestApp } from "../../__tests__/boot-app";
 
-const gitIn = (vaultDir: string, args: readonly string[]): string =>
-  execFileSync("git", args, {
-    cwd: vaultDir,
-    encoding: "utf-8",
-    env: {
-      ...process.env,
-      ...hermeticGitEnv(),
-      GIT_AUTHOR_EMAIL: "a@b.c",
-      GIT_AUTHOR_NAME: "A",
-      GIT_COMMITTER_EMAIL: "a@b.c",
-      GIT_COMMITTER_NAME: "A",
-    },
-  });
+const flatten = (rows: readonly TimelineRow[]): TimelineRow[] =>
+  rows.flatMap((row): TimelineRow[] => (row.kind === "turn" ? [row, ...row.children] : [row]));
 
-const gitLogHead = (vaultDir: string): string =>
-  gitIn(vaultDir, ["log", "-1", "--format=%an%n%ae%n%cn%n%s%n%(trailers)"]);
-
-const bootScripted = async (): Promise<BootedTestApp> =>
-  await bootTestApp({
+const bootScripted = async () => {
+  const booted = await bootTestApp({
     agent: { detail: null, mode: "scripted", runtime: "scripted" },
-    makeDriver: ({ db, bus, vault, vaultDir }) => {
-      const resolved = resolveAgentDriver({
-        config: {
-          agent: "scripted",
-          agentModels: { claude: null, codex: null },
-          vaultDir,
-        },
-        db,
-        notifier: bus,
-        sessionFacts: () => fakeSessionFacts(),
-        vault,
-      });
-      expect(resolved.status()).toEqual({ detail: null, mode: "scripted", runtime: "scripted" });
-      return { createTurnDriver: resolved.createTurnDriver, dispose: resolved.dispose };
-    },
+    makeDriver: ({ bus, db }) =>
+      resolveAgentDriver({ config: { agent: "scripted" }, db, notifier: bus }),
   });
-
-const runTurn = async (harness: BootedTestApp, threadId: string, text: string): Promise<string> => {
-  const turnId = await sendMessage(harness.client, threadId, text);
-  await awaitThreadStatus(harness.client, threadId, "idle");
-  return turnId;
+  return await listenTestApp(booted);
 };
 
 describe("the scripted driver over real HTTP", () => {
-  it("runs the deterministic turn: timeline, vault file, agent-attributed commit", async () => {
-    const harness = await bootScripted();
+  it("answers each turn with what it was asked, and settles the thread", async () => {
+    const { client } = await bootScripted();
 
-    const threadId = await createThread(harness.client);
-    const turnId = await sendMessage(harness.client, threadId, "remember the milk");
+    const { thread } = await client.threads.create({});
+    const sent = await client.threads.send({ text: "remember the milk", threadId: thread.id });
+    if (sent.kind !== "started") {
+      throw new Error(`expected the send to start a turn, got ${sent.kind}`);
+    }
 
-    await awaitThreadStatus(harness.client, threadId, "idle");
-
-    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
-    const user = rows.find((row) => row.kind === "conversation" && row.role === "user");
-    expect(user).toMatchObject({ text: "remember the milk" });
-    const assistant = rows.find((row) => row.kind === "conversation" && row.role === "assistant");
-    expect(assistant).toMatchObject({ text: "Noted: remember the milk", turnId });
-    const fileChange = rows.find((row) => row.kind === "work" && row.workKind === "file-change");
-    expect(fileChange).toMatchObject({ status: "completed", turnId });
-
-    const notePath = path.join(harness.vaultDir, scriptedNotePath(threadId));
-    expect(readFileSync(notePath, "utf-8")).toContain("remember the milk");
-
-    const head = gitLogHead(harness.vaultDir);
-    const [authorName, authorEmail, committerName, subject, ...trailerLines] = head.split("\n");
-    expect(authorName).toBe("inteligir-agent");
-    expect(authorEmail).toBe("agent@inteligir.local");
-    expect(committerName).toBe(TEST_MACHINE_NAME);
-    expect(subject).toBe("agent: vault update");
-    expect(trailerLines.join("\n")).toContain(`Thread: ${threadId}`);
-    expect(trailerLines.join("\n")).toContain(`Turn: ${turnId}`);
+    const detail = await client.threads.get({ threadId: thread.id });
+    expect(detail.thread.status).toBe("idle");
+    const timeline = await client.threads.timeline({ threadId: thread.id });
+    if (timeline.kind !== "full") {
+      throw new Error("expected a full timeline");
+    }
+    const rows = flatten(timeline.timeline.rows);
+    expect(rows.find((row) => row.kind === "conversation" && row.role === "user")).toMatchObject({
+      text: "remember the milk",
+    });
+    expect(
+      rows.find((row) => row.kind === "conversation" && row.role === "assistant"),
+    ).toMatchObject({ text: "Noted: remember the milk", turnId: sent.turnId });
   });
 });
 
-describe("a thread's turn changes", () => {
-  it("lists each turn that changed the vault, oldest first, and flips one an undo names", async () => {
-    const harness = await bootScripted();
-    const threadId = await createThread(harness.client);
-    const other = await createThread(harness.client);
-    const first = await runTurn(harness, threadId, "remember the milk");
-    await runTurn(harness, other, "another action's turn");
-    const second = await runTurn(harness, threadId, "and the eggs");
+type ScriptedClient = Awaited<ReturnType<typeof bootScripted>>["client"];
 
-    const agentNote = scriptedNotePath(threadId);
-    expect(await harness.client.threads.turnChanges({ threadId })).toEqual({
-      turns: [
-        { paths: [agentNote], state: "applied", turnId: first },
-        { paths: [agentNote], state: "applied", turnId: second },
-      ],
+const assistantText = async (client: ScriptedClient, threadId: string): Promise<string | null> => {
+  const timeline = await client.threads.timeline({ threadId });
+  if (timeline.kind !== "full") {
+    throw new Error("expected a full timeline");
+  }
+  const row = flatten(timeline.timeline.rows).find(
+    (each) => each.kind === "conversation" && each.role === "assistant",
+  );
+  return row?.kind === "conversation" ? row.text : null;
+};
+
+const settlesIdle = async (client: ScriptedClient, threadId: string): Promise<void> => {
+  await vi.waitFor(async () => {
+    const detail = await client.threads.get({ threadId });
+    expect(detail.thread.status).toBe("idle");
+  });
+};
+
+describe("a scripted turn that asks first", () => {
+  it("parks an approval card, and answers with the decision once it is given", async () => {
+    const { client } = await bootScripted();
+    const { thread } = await client.threads.create({});
+    await client.threads.send({ text: `${SCRIPTED_ASK_PREFIX}rm drafts`, threadId: thread.id });
+
+    const parked = await client.threads.get({ threadId: thread.id });
+    expect(parked.thread.status).toBe("active");
+    const [card] = parked.pendingInteractions;
+    expect(card?.payload?.subject).toMatchObject({ command: "rm drafts", kind: "command" });
+    if (card === undefined) {
+      throw new Error("expected the approval card");
+    }
+
+    await client.threads.answerInteraction({
+      interactionId: card.id,
+      resolution: "allow_once",
+      threadId: thread.id,
     });
-
-    writeFileSync(path.join(harness.vaultDir, agentNote), "# Agent note\n\nremember the milk\n");
-    gitIn(harness.vaultDir, ["add", "-A"]);
-    gitIn(harness.vaultDir, [
-      "-c",
-      "commit.gpgsign=false",
-      "commit",
-      "-m",
-      undoCommitMessage(threadId, second),
-    ]);
-    const { turns } = await harness.client.threads.turnChanges({ threadId });
-    expect(turns.map((turn) => [turn.turnId, turn.state])).toEqual([
-      [first, "applied"],
-      [second, "undone"],
-    ]);
+    await settlesIdle(client, thread.id);
+    expect(await assistantText(client, thread.id)).toBe("Allowed: rm drafts");
   });
 
-  it("answers an empty list for a thread with no turn, and NOT_FOUND for an unknown one", async () => {
-    const harness = await bootScripted();
-    const threadId = await createThread(harness.client);
-    expect(await harness.client.threads.turnChanges({ threadId })).toEqual({ turns: [] });
+  it("is stopped while it waits: the card goes and the turn ends interrupted", async () => {
+    const { client } = await bootScripted();
+    const { thread } = await client.threads.create({});
+    await client.threads.send({ text: `${SCRIPTED_ASK_PREFIX}rm drafts`, threadId: thread.id });
 
-    const [missing] = await safe(harness.client.threads.turnChanges({ threadId: "thr_missing" }));
-    expect(isDefinedError(missing) && missing.code).toBe("NOT_FOUND");
+    await client.threads.interrupt({ threadId: thread.id });
+    await settlesIdle(client, thread.id);
+    const settled = await client.threads.get({ threadId: thread.id });
+    expect(settled.pendingInteractions).toEqual([]);
+    expect(await assistantText(client, thread.id)).toBeNull();
   });
 });

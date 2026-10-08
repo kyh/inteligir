@@ -1,10 +1,8 @@
-// Every Mach-O the .app carries in Contents/Resources, signed before Tauri copies it there: the git
-// a Mac without the developer tools runs, and the CLI's native addons and vendor binaries (better-
-// sqlite3, the watcher, claude, codex and what they ship). Tauri signs the shell, the node beside it
-// and the bundle, and its seal covers each resource's bytes, but notarization refuses any Mach-O
-// inside that is not itself signed with the hardened runtime and a timestamp. The server's tree
-// takes the app's entitlements, since the vendors' own runtimes JIT as node does; git takes none,
-// since it runs no JIT and an entitlement a binary never uses is still a permission it holds.
+// Every Mach-O the .app carries in Contents/Resources, signed before Tauri copies it there: the
+// CLI's native addons (better-sqlite3 today). Tauri signs the shell, the node beside it and the bundle, and its seal covers each
+// resource's bytes, but notarization refuses any Mach-O inside that is not itself signed with the
+// hardened runtime and a timestamp. The server's tree takes the app's entitlements, the ones the
+// node it loads into runs under.
 
 import { spawnSync } from "node:child_process";
 import { open, readdir } from "node:fs/promises";
@@ -43,19 +41,15 @@ const machOsUnder = async (dir) => {
   return found;
 };
 
-// `jit`: trees whose binaries may run a JavaScript engine, signed with the app's entitlements;
-// `plain`: trees of native tools, signed with none. `-` signs ad-hoc: what an unsigned pack runs
-// on, since Apple silicon runs nothing unsigned. An ad-hoc pack carries no team, so it takes no
-// hardened runtime, whose library validation would refuse its own addons, and no timestamp, which
-// only a Developer ID can get
-export const signResources = async ({ jit, plain }, identity, hardened) => {
+// `trees`: folders whose binaries may run a JavaScript engine, signed with the app's
+// entitlements. `-` signs ad-hoc: what an unsigned pack runs on, since Apple silicon runs nothing
+// unsigned. An ad-hoc pack carries no team, so it takes no hardened runtime, whose library
+// validation would refuse its own addons, and no timestamp, which only a Developer ID can get
+export const signResources = async (trees, identity, hardened) => {
   const options = hardened ? ["--options", "runtime", "--timestamp"] : [];
-  const trees = [
-    ...jit.map((dir) => ({ dir, entitlements: ["--entitlements", ENTITLEMENTS] })),
-    ...plain.map((dir) => ({ dir, entitlements: [] })),
-  ];
+  const entitlements = ["--entitlements", ENTITLEMENTS];
   let signed = 0;
-  for (const { dir, entitlements } of trees) {
+  for (const dir of trees) {
     for (const file of await machOsUnder(dir)) {
       const result = spawnSync(
         "codesign",

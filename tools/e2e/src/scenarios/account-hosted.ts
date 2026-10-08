@@ -2,9 +2,8 @@ import { existsSync } from "node:fs";
 import { isDefinedError, safe } from "@orpc/client";
 import { deviceCredentialPath } from "inteligir/server/cloud/credential-store";
 import { expect, expectEq } from "../harness/assert";
-import { OWNER } from "../harness/cloud-account";
+import { OWNER, untilIdentityKnown } from "../harness/cloud-account";
 import { E2E_INVITE_CODE, WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { hostedVaultEnv, untilIdentityKnown } from "../harness/hosted-vault";
 import type { AppInstance } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
@@ -19,14 +18,8 @@ export const accountHosted: Scenario = {
   async run(ctx) {
     const worker = await ctx.cloudWorker();
 
-    // each vault syncs to a bare remote of its own: the account's hosted one would meet B's
-    // history as an unrelated one, a conflict beside what this scenario proves.
     const boot = async (name: string): Promise<AppInstance> =>
-      await ctx.boot({
-        extraEnv: hostedVaultEnv(worker.origin),
-        name,
-        vaultRemote: await ctx.bareRemote(name),
-      });
+      await ctx.boot({ extraEnv: { INTELIGIR_CLOUD_URL: worker.origin }, name });
     const a = await boot("a");
     const b = await boot("b");
 

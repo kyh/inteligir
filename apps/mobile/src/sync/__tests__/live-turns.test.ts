@@ -2,7 +2,7 @@ import { planPage } from "@repo/contract/cloud/sync/plan-page";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
-import { nodeSha1, openTempDb } from "../../notes/__tests__/phone-storage";
+import { nodeSha1, openTempDb } from "../../lib/__tests__/phone-storage";
 import { createLiveTurns } from "../live-turns";
 import { createSqliteSyncStore } from "../sqlite-sync-store";
 import { agentDelta, agentMessage, logRow } from "./fakes";

@@ -2,6 +2,7 @@ import {
   ACCOUNT_API_PATHS,
   deleteAccountResponseSchema,
 } from "@repo/contract/cloud/account/account-schema";
+import { DISPATCH_API_PATHS } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { eq, sql } from "drizzle-orm";
@@ -10,7 +11,6 @@ import { createDb } from "../db/client";
 import { inviteCode, rateLimit, session, user } from "../db/schema";
 import { deviceRateKey } from "../rate-limit";
 import { threadSyncStub } from "../sync/routes";
-import { vaultRepoName, vaultRegistry } from "../vault/git-remote";
 import {
   deviceHeaders,
   emitted,
@@ -23,7 +23,6 @@ import {
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
-import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
 const DELETE = `${ORIGIN}${ACCOUNT_API_PATHS.delete}`;
 const ACCOUNT = `${ORIGIN}${ACCOUNT_API_PATHS.account}`;
@@ -58,15 +57,6 @@ describe("deleting the account from a device", () => {
     const invite = await inviteOf(email);
     expect(invite).toBeDefined();
 
-    const pushed = await pushVaultFiles(
-      laptop.credential,
-      "vault: initialize",
-      [{ content: "a note the deletion covers\n", path: "note.md" }],
-      ZERO_OID,
-      { length: "undeclared" },
-    );
-    expect(pushed.response.status).toBe(200);
-    await pushed.response.arrayBuffer();
     const synced = await SELF.fetch(`${ORIGIN}/v1/sync/push`, {
       body: JSON.stringify({
         events: [{ createdAt: 1, deviceSeq: 1, event: { type: "test" }, threadId: "th_1" }],
@@ -75,12 +65,17 @@ describe("deleting the account from a device", () => {
       method: "POST",
     });
     expect(synced.status).toBe(200);
-    const captured = await SELF.fetch(`${ORIGIN}/v1/capture`, {
-      body: JSON.stringify({ idempotencyKey: "key-delete-1", text: "a capture" }),
+    const asked = await SELF.fetch(`${ORIGIN}${DISPATCH_API_PATHS.dispatch}`, {
+      body: JSON.stringify({
+        id: "a".repeat(32),
+        kind: "turn",
+        text: "a request the deletion covers",
+        threadId: "th_1",
+      }),
       headers: { ...deviceHeaders(phone.credential), "content-type": "application/json" },
       method: "POST",
     });
-    expect(captured.status).toBe(200);
+    expect(asked.status).toBe(200);
 
     const deletion = await postDelete(deviceHeaders(laptop.credential), PASSWORD);
     expect(deletion.status).toBe(200);
@@ -103,13 +98,10 @@ describe("deleting the account from a device", () => {
 
     // read off the SQL: every route refuses a tombstoned object, so an answer would prove only the tombstone
     const rows = await runInDurableObject(threadSyncStub(env, userId), (_instance, state) => ({
-      captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
       dispatches: state.storage.sql.exec("SELECT COUNT(*) AS n FROM dispatches").one().n,
       events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
     }));
-    expect(rows).toEqual({ captures: 0, dispatches: 0, events: 0 });
-
-    expect(await vaultRegistry(env).get(vaultRepoName(userId))).toBeNull();
+    expect(rows).toEqual({ dispatches: 0, events: 0 });
 
     const spent = await createDb(env.DB)
       .select()

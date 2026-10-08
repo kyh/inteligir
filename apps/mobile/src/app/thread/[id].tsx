@@ -17,6 +17,7 @@ import {
   DECISION_LABELS,
   dispatchCaption,
   localThreadTitle,
+  threadComposer,
   WORKING_CAPTION,
 } from "@/dispatch/dispatch-projection";
 import type { ApprovalView } from "@/dispatch/dispatch-projection";
@@ -31,12 +32,10 @@ import {
   useLiveItems,
   useThread,
 } from "@/lib/app-runtime";
-import { firstParam } from "@/lib/routes";
+import { firstParam, startsHere } from "@/lib/routes";
 import { MONO_FONT, RADIUS, SPACE, useTheme } from "@/lib/theme";
 import type { ThreadDisplayItem } from "@/sync/thread-projection";
 import { DISPATCH_MAX_CHARS } from "@repo/contract/cloud/dispatch/dispatch-schema";
-import { quoteSelection } from "@repo/domain/quote-selection";
-import { docStem } from "@repo/notes/knowledge/doc-file";
 
 const styles = StyleSheet.create({
   action: { fontSize: 13, fontWeight: "600" },
@@ -333,16 +332,14 @@ const ApprovalCard = ({
 
 const Composer = ({
   placeholder,
-  seed,
   onSend,
 }: {
   placeholder: string;
-  seed: string;
   // the reason it was not sent, or null once it is durable on this phone
   onSend: (text: string) => Promise<string | null>;
 }) => {
   const theme = useTheme();
-  const [text, setText] = useState(seed);
+  const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const ready = text.trim() !== "" && !sending;
@@ -406,35 +403,24 @@ const Composer = ({
 // take a gap each.
 const Separator = () => <View style={styles.separator} />;
 
-const quotedSeed = (selection: string | null): string =>
-  selection === null ? "" : quoteSelection(selection).slice(0, DISPATCH_MAX_CHARS);
-
 // A synced thread — the Mac agent's work, mirrored — with what this phone has asked of it and not
-// yet seen in the log. A `note` param makes an empty thread one about that note: its first message
-// carries the note as the thread's origin, and the bytes the note screen showed as the revision;
-// a `quote` is the selection it was asked over, which the composer starts with.
+// yet seen in the log. A thread this phone opened to start (New request, `start`) asks for its
+// first request, which a Mac claims from the dispatch inbox; one it has neither synced, asked
+// anything of nor opened to start draws no composer.
 const ThreadScreen = () => {
   const theme = useTheme();
   const headerHeight = useHeaderHeight();
-  const params = useLocalSearchParams<{
-    id: string | string[];
-    note?: string | string[];
-    quote?: string | string[];
-    revision?: string | string[];
-  }>();
+  const params = useLocalSearchParams<{ id: string | string[]; start?: string | string[] }>();
   const threadId = firstParam(params.id) ?? "";
-  const notePath = firstParam(params.note);
-  const revision = firstParam(params.revision);
-  const quote = firstParam(params.quote);
   const thread = useThread(threadId);
   const live = useLiveItems(threadId);
   const { approvals, desktops, pending } = useDispatches(threadId);
   const list = useRef<FlatList<ThreadRow>>(null);
 
   const fresh = thread === null && pending.length === 0;
-  const canCompose = thread === null ? !fresh || notePath !== null : !thread.archived;
+  const composer = threadComposer({ pending, startsHere: startsHere(params.start), thread });
   const title =
-    thread?.title ?? localThreadTitle(pending) ?? (notePath === null ? "Thread" : "Ask agent");
+    thread?.title ?? localThreadTitle(pending) ?? (composer === "ask" ? "New request" : "Thread");
 
   const running = thread?.running === true;
   const rows: ThreadRow[] = [
@@ -449,9 +435,6 @@ const ThreadScreen = () => {
 
   const send = async (text: string): Promise<string | null> => {
     const request: AskAgentRequest = { text, threadId };
-    if (fresh && notePath !== null) {
-      request.note = revision === null ? { path: notePath } : { path: notePath, revision };
-    }
     const outcome = await askAgent(request);
     return outcome.ok ? null : outcome.message;
   };
@@ -477,9 +460,9 @@ const ThreadScreen = () => {
   let emptyLine: string | null = null;
   if (fresh) {
     emptyLine =
-      notePath === null
-        ? "This thread has not synced to this device yet."
-        : `Ask the agent about ${docStem(notePath)}. It runs on your Mac, and its answer shows up here.`;
+      composer === "ask"
+        ? "Ask your Mac's agent. It runs on your Mac, and its answer shows up here."
+        : "This thread has not synced to this device yet.";
   }
 
   return (
@@ -512,13 +495,9 @@ const ThreadScreen = () => {
             <Text style={[styles.body, { color: theme.mutedForeground }]}>{emptyLine}</Text>
           </View>
         )}
-        {canCompose ? (
-          <Composer
-            placeholder={fresh ? "Ask the agent…" : "Reply…"}
-            seed={fresh ? quotedSeed(quote) : ""}
-            onSend={send}
-          />
-        ) : null}
+        {composer === null ? null : (
+          <Composer placeholder={composer === "ask" ? "Ask the agent…" : "Reply…"} onSend={send} />
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

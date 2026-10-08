@@ -13,11 +13,10 @@ import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Route as rootRoute } from "../../routes/__root";
-import { Route as workspaceRoute } from "../../routes/_workspace";
 import { InertSocket } from "./inert-socket";
 
 const dialled: string[] = [];
-let vaultReads = 0;
+let queryReads = 0;
 let layoutMounts = 0;
 
 class CountingSocket extends InertSocket {
@@ -27,13 +26,13 @@ class CountingSocket extends InertSocket {
   }
 }
 
-const VaultReader = () => {
+const ThreadsReader = () => {
   const { data } = useQuery({
     queryFn: async () => {
-      vaultReads += 1;
-      return await Promise.resolve("vault");
+      queryReads += 1;
+      return await Promise.resolve("threads");
     },
-    queryKey: ["vault", "tree"],
+    queryKey: ["threads", "list"],
   });
   return <p>{data ?? "loading"}</p>;
 };
@@ -46,7 +45,7 @@ const CountingLayout = () => {
   }, []);
   return (
     <>
-      <VaultReader />
+      <ThreadsReader />
       <Outlet />
     </>
   );
@@ -57,7 +56,6 @@ const mountRouter = (entry: string) => {
     component: CountingLayout,
     getParentRoute: () => rootRoute,
     id: "_workspace",
-    validateSearch: workspaceRoute.options.validateSearch,
   });
   const indexRoute = createRoute({ getParentRoute: () => layoutRoute, path: "/" });
   const settingsRoute = createRoute({
@@ -79,7 +77,7 @@ const settle = async (): Promise<void> => {
 
 beforeEach(() => {
   dialled.length = 0;
-  vaultReads = 0;
+  queryReads = 0;
   layoutMounts = 0;
   vi.stubGlobal("WebSocket", CountingSocket);
 });
@@ -90,26 +88,24 @@ afterEach(() => {
 });
 
 describe("the workspace runtime", () => {
-  it("survives / → /settings → /: one layout mount, one socket, no second vault read, the note kept", async () => {
-    const router = mountRouter("/?note=Notes%2FA.md");
+  it("survives / → /settings → /: one layout mount, one socket, no second read", async () => {
+    const router = mountRouter("/");
     await settle();
     expect(layoutMounts).toBe(1);
-    expect(vaultReads).toBe(1);
+    expect(queryReads).toBe(1);
     expect(dialled).toHaveLength(1);
 
     await act(async () => {
-      await router.navigate({ search: true, to: "/settings" });
+      await router.navigate({ to: "/settings" });
     });
     expect(screen.getByText("settings")).toBeDefined();
-    expect(router.state.location.search).toEqual({ note: "Notes/A.md" });
 
     await act(async () => {
-      await router.navigate({ search: true, to: "/" });
+      await router.navigate({ to: "/" });
     });
     await settle();
-    expect(router.state.location.search).toEqual({ note: "Notes/A.md" });
     expect(layoutMounts).toBe(1);
-    expect(vaultReads).toBe(1);
+    expect(queryReads).toBe(1);
     expect(dialled).toHaveLength(1);
   });
 });

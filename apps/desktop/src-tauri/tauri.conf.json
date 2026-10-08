@@ -7,7 +7,6 @@
   "build": {
     "beforeDevCommand": "pnpm exec vite",
     "devUrl": "http://localhost:31000",
-    "frontendDist": "../dist/first-run",
     "removeUnusedCommands": true
   },
   "app": {
@@ -24,7 +23,7 @@
         "base-uri": "'self'",
         "form-action": "'self'",
         "frame-ancestors": "'none'",
-        "frame-src": "'self'",
+        "frame-src": "'none'",
         "worker-src": "'none'"
       }
     }

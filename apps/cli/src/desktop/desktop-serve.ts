@@ -8,11 +8,10 @@
 // line says where it listens, the one-time link that signs the window in, and how long a stop may
 // take before the shell kills it, which is the server's own budget and never spelled in the shell.
 
-import { readCliVersion, packageFile } from "../paths";
+import { readCliVersion } from "../paths";
 import { DEBUG_NAMESPACES } from "../server/debug-log";
 import type { RunServeOptions } from "../server/serve";
 import { SHUTDOWN_TIMEOUT_MS } from "../server/shutdown";
-import { writeAgentLauncher } from "./agent-launcher";
 import { adoptServer, planServerStart, resolveServerTarget, verifyServer } from "./server-start";
 import type { ResolveServerTargetArgs } from "./server-start";
 
@@ -73,17 +72,7 @@ export const desktopServe = async (
     process.exit(0);
   }
   // the shell holds stdin's other end and never writes it, so it ends only when the shell is gone
-  const options: RunServeOptions = resolveArgs.isPackaged
-    ? {
-        cliBinDir: writeAgentLauncher({
-          cliEntry: packageFile("dist/index.js"),
-          dataDir,
-          node: process.execPath,
-          nodeEnv: "production",
-        }),
-        lifeline: process.stdin,
-      }
-    : { lifeline: process.stdin };
+  const options: RunServeOptions = { lifeline: process.stdin };
   // dynamic: the shell's other questions load no server
   const { runServe } = await import("../server/serve");
   const { serverUrl, uiUrl } = await runServe(version, {}, options);

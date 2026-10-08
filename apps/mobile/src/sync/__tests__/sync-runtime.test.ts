@@ -9,7 +9,7 @@ import type { PullResponse } from "@repo/contract/cloud/sync/sync-schema";
 import { MAX_PULL_PAGES_PER_PASS } from "@repo/contract/cloud/sync/sync-session";
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/sync/sync-ws";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { openSyncStore } from "../../notes/__tests__/phone-storage";
+import { openSyncStore } from "../../lib/__tests__/phone-storage";
 import { createSyncRuntime } from "../sync-runtime";
 import type { SyncRuntime, SyncStatus } from "../sync-runtime";
 import { agentMessage, createFakeCloud, logRow, ok, userRequest } from "./fakes";
@@ -75,7 +75,7 @@ describe("the sync runtime", () => {
     expect(runtime.get()).toStrictEqual({ state: "signed-out" });
   });
 
-  it("pulls the log, and neither pushes nor claims — both halves are the desktop's", async () => {
+  it("pulls the log, and never pushes — that half is the desktop's", async () => {
     const store = openSyncStore();
     const cloud = createFakeCloud();
     cloud.pullResults.push(
@@ -106,7 +106,6 @@ describe("the sync runtime", () => {
     expect(store.readCursor()).toBe(1);
     expect(runtime.get()).toMatchObject({ cursor: 1, lastError: null, state: "signed-in" });
     expect(cloud.pushes).toHaveLength(0);
-    expect(cloud.claims).toBe(0);
   });
 
   it("goes unauthorized on a terminal refusal and stops", async () => {
@@ -255,27 +254,6 @@ describe("the sync runtime", () => {
     expect(revoked).toMatchObject({ deviceId: CRED.deviceId, state: "unauthorized" });
   });
 
-  it("ends the sign-in when a capture is refused as unauthorized", async () => {
-    const store = openSyncStore();
-    const cloud = createFakeCloud();
-    cloud.captureResults.push({
-      failure: { code: "unauthorized", deviceSeq: null, kind: "refused", message: "unauthorized" },
-      ok: false,
-    });
-    const runtime = createSyncRuntime({
-      cloudUrl: "https://cloud.test",
-      createClient: () => cloud.client,
-      pollIntervalMs: null,
-      store,
-    });
-    runtime.setCredential(CRED);
-
-    const result = await runtime.createCapture({ idempotencyKey: "k".repeat(16), text: "idea" });
-
-    expect(result.ok).toBe(false);
-    expect(runtime.get()).toMatchObject({ deviceId: CRED.deviceId, state: "unauthorized" });
-  });
-
   it("hands its diagnostics to the injected sink — a row this build cannot read is named", async () => {
     const store = openSyncStore();
     const cloud = createFakeCloud();
@@ -318,7 +296,7 @@ const socketed = () => {
   const store = openSyncStore();
   const cloud = createFakeCloud();
   const dials: OpenCloudSocketArgs[] = [];
-  const pings = { dispatch: 0, vault: 0 };
+  const pings = { dispatch: 0 };
   let closes = 0;
   let pulls = 0;
   const runtime = createSyncRuntime({
@@ -332,9 +310,6 @@ const socketed = () => {
     }),
     onDispatchPing: () => {
       pings.dispatch += 1;
-    },
-    onVaultPing: () => {
-      pings.vault += 1;
     },
     openSocket: (args) => {
       dials.push(args);
@@ -416,19 +391,17 @@ describe("the account's socket", () => {
     expect(pulls()).toBeGreaterThan(settled);
   });
 
-  it("hands a vault ping to the notes and a dispatch ping to the inbox, and pulls for neither", async () => {
+  it("hands a dispatch ping to the inbox, and pulls for it not", async () => {
     const { lastDial, pings, pulls, runtime } = socketed();
     runtime.setCredential(CRED);
     runtime.start();
     await runtime.syncNow();
     const settled = pulls();
 
-    lastDial().onPing({ type: "vault" });
     lastDial().onPing({ threadId: "thr_x", type: "dispatch" });
-    lastDial().onPing({ type: "capture" });
     await tick();
 
-    expect(pings).toEqual({ dispatch: 1, vault: 1 });
+    expect(pings).toEqual({ dispatch: 1 });
     expect(pulls()).toBe(settled);
   });
 

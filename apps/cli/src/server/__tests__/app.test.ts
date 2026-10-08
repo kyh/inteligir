@@ -8,14 +8,11 @@ import {
   BROWSER_HANDOFF_PARAM,
   HEALTH_PATH,
   healthResponseSchema,
-  HTML_FRAME_PATH,
   RPC_PREFIX,
-  VAULT_ASSET_PATH,
   WS_PATH,
 } from "@repo/contract/local/routes";
 import {
   browserHandoffResponseSchema,
-  guideResponseSchema,
   systemStatusResponseSchema,
 } from "@repo/contract/local/system/system-schema";
 import { serverMessageLenientSchema } from "@repo/contract/local/notifications";
@@ -23,7 +20,6 @@ import type { ServerMessage } from "@repo/contract/local/notifications";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { BROWSER_SESSION_COOKIE } from "../browser-session";
-import { HTML_FRAME_DOCUMENT } from "../html-block-frame";
 import { closeServer } from "../listen";
 import { authorizationHeader } from "../server-file";
 import { bootTestApp, listenTestApp, TEST_HOST, TEST_SERVER_TOKEN } from "./boot-app";
@@ -113,18 +109,10 @@ describe("the API over the in-process app", () => {
     const status = systemStatusResponseSchema.parse(await client.system.status());
     expect(status.version).toBe("0.1.0-test");
     expect(status.dataDir).toBe(config.dataDir);
-    expect(status.vaultDir).toBe(config.vaultDir);
     // not the number: pinning it makes every migration an edit here, and @repo/db's schema-agreement test owns that.
     expect(status.schemaVersion).toBe(composed.context.system.schemaVersion);
     expect(status.schemaVersion).toBeGreaterThan(0);
     expect(status.uptimeMs).toBeGreaterThanOrEqual(0);
-  });
-
-  it("serves the CLI manual on system.guide per the contract", async () => {
-    const { client } = await bootTestApp();
-    const guide = guideResponseSchema.parse(await client.system.guide());
-    expect(guide.markdown).toContain("# The inteligir CLI");
-    expect(guide.markdown).toContain("inteligir action wait");
   });
 
   it("404s unmatched paths when this install ships no UI", async () => {
@@ -230,20 +218,6 @@ describe("the workspace UI this server ships", () => {
 
     const asset = await request("/assets/app-abc123.js");
     expect(asset.headers.get("content-security-policy")).toBeNull();
-  });
-
-  it("answers a note's html frame under its own sandbox policy, to a tab with no session", async () => {
-    const { clientDir } = makeUi();
-    const { bareRequest } = await bootTestApp({ clientDir });
-
-    const frame = await bareRequest(HTML_FRAME_PATH);
-    expect(frame.status).toBe(200);
-    expect(await frame.text()).toBe(HTML_FRAME_DOCUMENT);
-    const policy = frame.headers.get("content-security-policy") ?? "";
-    expect(policy).toContain("sandbox allow-scripts");
-    expect(policy).toContain("default-src 'none'");
-    expect(policy).toContain("script-src 'unsafe-inline'");
-    expect(policy).not.toContain("'self'");
   });
 
   it("refuses traversal out of the client dir", async () => {
@@ -440,7 +414,6 @@ describe("the host guard", () => {
       [`/?${BROWSER_HANDOFF_PARAM}=${nonce}`, {}],
       [HEALTH_PATH, {}],
       [STATUS_RPC_PATH, rpcPost({ authorization: bearer })],
-      [`${VAULT_ASSET_PATH}?path=a.png`, { headers: { authorization: bearer } }],
       [WS_PATH, { headers: { authorization: bearer, upgrade: "websocket" } }],
       ["/assets/app.js", {}],
     ];
@@ -524,11 +497,11 @@ describe("the real socket upgrade", () => {
     const hello = await nextFrame();
     expect(hello).toEqual({ type: "hello" });
 
-    socket.send(JSON.stringify({ target: { kind: "vault" }, type: "subscribe" }));
+    socket.send(JSON.stringify({ target: { kind: "sync" }, type: "subscribe" }));
     // a notification sent before the subscribe lands is dropped, so re-notify on every probe.
     const changed = await vi.waitFor(
       () => {
-        bus.notifyDoc("d1", ["content-changed"]);
+        bus.notifySync(["sync-status-changed"]);
         const frame = frames.shift();
         if (frame === undefined) {
           throw new Error("no changed frame yet");
@@ -538,9 +511,8 @@ describe("the real socket upgrade", () => {
       { interval: 25, timeout: 5000 },
     );
     expect(changed).toEqual({
-      changes: ["content-changed"],
-      entity: "doc",
-      id: "d1",
+      changes: ["sync-status-changed"],
+      entity: "sync",
       type: "changed",
     });
   });

@@ -56,8 +56,8 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | row; shipped imports match it (an undeclared edge and a dead edge both    |
 |                                | fail); every import is in the importer's manifest; every manifest         |
 |                                | dependency is imported, or is a `DECLARED_ARTIFACT_EDGES` row (installed  |
-|                                | and executed, never imported — `inteligir` → `@repo/agent-skills`); no    |
-|                                | cycles. Then platform purity: `PURITY_RULES` per package (node, react,    |
+|                                | and executed, never imported); no cycles. Then                            |
+|                                | platform purity: `PURITY_RULES` per package (node, react,                 |
 |                                | `@tauri-apps`), `@repo/domain` declares only zod, no package imports an   |
 |                                | app,                                                                      |
 |                                | every `CLOUD_ONLY_CLIENTS` row (`@repo/web`, `@repo/mobile`, each with    |
@@ -73,22 +73,15 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | `DECLARED_CI_EXTRAS` row with a reason; every workspace `smoke` script is |
 |                                | reachable from a root script; every root `smoke*` runs in a gate or is a  |
 |                                | `MANUAL_SMOKES` row; a `run:` step with no `name:` throws.                |
-| `ws-change-kinds.test.ts`      | Every kind in `@repo/domain/change-kinds` is fired by a `notifyVault`,    |
-|                                | `notifyDoc` or `notifyThread` call in shipped source outside              |
-|                                | `packages/domain`, and every fired kind is declared.                      |
+| `ws-change-kinds.test.ts`      | Every kind in `@repo/domain/change-kinds` is fired by a `notifySync` or   |
+|                                | `notifyThread` call in shipped source outside `packages/domain`, and      |
+|                                | every fired kind is declared.                                             |
 | `domain-dispatch.test.ts`      | One total dispatch per vocabulary: a shipped file quoting EVERY member    |
-|                                | (vault sync state, thread status, pending-interaction status, thread and  |
-|                                | vault change kinds) is a table, and must be the declaration or a          |
+|                                | (thread status, pending-interaction status, thread change kinds) is a     |
+|                                | table, and must be the declaration or a                                   |
 |                                | `dispatchedIn` row saying what it decides that the others do not. The     |
 |                                | members are read from the declarations themselves.                        |
-| `one-spelling.test.ts`         | One spelling per cross-cutting predicate: "is path P under root R?" is    |
-|                                | `apps/cli/src/server/path-containment.ts`, "what does                     |
-|                                | `git status --porcelain` say?" is                                         |
-|                                | `apps/cli/src/server/vault/git-porcelain.ts`; a re-spelling needs an      |
-|                                | `elsewhere` row. Detection is textual and a lower bound — the shapes      |
-|                                | these were actually re-spelled in.                                        |
-| `route-paths.test.ts`          | Every non-procedure route path (the local `/rpc`, `/health`,              |
-|                                | `/vault/asset` and `/html-frame`; the cloud `VAULT_API_PATHS`) is         |
+| `route-paths.test.ts`          | Every non-procedure route path (the local `/rpc` and `/health`) is        |
 |                                | spelled only at its contract home. The sweep covers `scripts/`, where the |
 |                                | smokes that drift live; tests are excluded, because a test deriving its   |
 |                                | URL from the contract could not catch the contract moving.                |
@@ -115,18 +108,14 @@ worktree under `.claude` is never read as this commit's tree.
 | `gallery-coverage.test.ts`     | Every component under the demoed roots is imported by the gallery         |
 |                                | (`pnpm dev:gallery`) or is a `NOT_DEMOED` row; `hooks` and `lib` are      |
 |                                | declared non-component roots.                                             |
-| `type-roles.test.ts`           | The chrome under `apps/desktop/src/renderer`, `packages/editor/src`,      |
+| `type-roles.test.ts`           | The chrome under `apps/desktop/src/renderer`,                             |
 |                                | `packages/ui/src/components` and `packages/ui/src/ai` (minus              |
-|                                | `AWAITING_CONSUMER`) draws text only in the five roles; a fixed note size |
-|                                | is a `PROSE_SIZES` row with its reason.                                   |
+|                                | `AWAITING_CONSUMER`) draws text only in the five roles; a fixed size is a |
+|                                | `PROSE_SIZES` row with its reason.                                        |
 | `compiled-hook-shapes.test.ts` | No react-importing source defines a `use*` hook inside another function — |
 |                                | the React Compiler hoists its closures to module scope and reports no     |
 |                                | diagnostic. The scanner is self-tested against braces in strings,         |
 |                                | comments and template holes.                                              |
-| `appearance-tokens.test.ts`    | The `--editor-*` funnel: the `dial()` rows in `appearance-options.ts`     |
-|                                | write only tokens something reads, every read resolves to a `globals.css` |
-|                                | declaration, every declaration is read, `--editor-width` carries no       |
-|                                | fallback, and every fallback spells the stylesheet default exactly.       |
 | `page-prefs.test.ts`           | Storage is read and written by key only in the desktop's `PREFS` table    |
 |                                | (`apps/desktop/src/renderer/app/prefs.ts`), and no other file spells one  |
 |                                | of its keys, which are read off the table's own rows; a store that is not |
@@ -144,15 +133,9 @@ worktree under `.claude` is never read as this commit's tree.
 | `workerd-compat-date.test.ts`  | `apps/web/compatibility.ts`'s `compatibilityDate` is the OLDEST workerd   |
 |                                | date `pnpm-lock.yaml` resolves — a workerd cannot emulate a date it       |
 |                                | predates.                                                                 |
-| `durable-git-stub.test.ts`     | The header of `apps/web/src/worker/types/durable-git.d.ts` names the      |
-|                                | durable-git version `pnpm-lock.yaml` resolves — tsc checks the Worker     |
-|                                | against that hand-written stub and never reads the package it bundles.    |
 | `d1-unique-index.test.ts`      | The schema every `d1-http` drizzle config pushes declares no `.unique()`  |
 |                                | column modifier — drizzle-kit 1.0 plans it as a table recreate, and D1's  |
 |                                | DROP cascade-wipes the children. Uniques are named `uniqueIndex` rows.    |
-| `agent-skills.test.ts`         | Every skill directory has a `SKILL.md` naming itself; the hub's Focused   |
-|                                | Contracts index lists every other skill and no phantom; the file the CLI  |
-|                                | resolver probes exists — a renamed probe answers null, not an error.      |
 | `control-bytes.test.ts`        | No tracked source, markdown, config or sql file carries a raw control     |
 |                                | byte other than tab, LF and CR — git diffs a file holding a NUL as        |
 |                                | binary and ripgrep skips it. A string literal spells it as an escape.     |
@@ -164,8 +147,8 @@ worktree under `.claude` is never read as this commit's tree.
 | `release-versions.test.ts`     | The CLI, the desktop and the phone manifests carry one version, and the   |
 |                                | phone's EAS build installs with the pnpm, the node major and at least the |
 |                                | eas-cli the repo pins — a release ships three artifacts as one product.   |
-| `ime-enter.test.ts`            | A source under `packages/ui/src`, `packages/editor/src` or the desktop    |
-|                                | renderer that tests a key against Enter imports `isImeComposing`, or is   |
+| `ime-enter.test.ts`            | A source under `packages/ui/src` or the desktop renderer that tests a key |
+|                                | against Enter imports `isImeComposing`, or is                             |
 |                                | a `NOT_A_TEXT_FIELD` row — the Enter that commits an IME candidate is not |
 |                                | the user's, and no unit suite types through a composition.                |
 | `e2e-scenario-table.test.ts`   | `tools/e2e/README.md`'s scenario table names every scenario `SCENARIOS`   |
@@ -202,8 +185,8 @@ both.
 
 Two limits, stated. A reference is checked only if it is a `@repo/<name>` (the
 subpath after the name is not resolved) or a path anchored on a workspace group
-(`packages/notes/src/knowledge/projection.ts` is checked; a relative
-`src/projection.ts` in a Layout block is not). And a path git ignores (`dist/`,
+(`packages/db/src/threads.ts` is checked; a relative `src/threads.ts` in a
+Layout block is not). And a path git ignores (`dist/`,
 `.wrangler/`) is excused by asking `git check-ignore`, so the rule stays in
 `.gitignore` and this guard cannot disagree with it.
 

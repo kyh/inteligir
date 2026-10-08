@@ -392,16 +392,6 @@ const DropdownMenuRadioItem = ({
   );
 };
 
-interface DropdownMenuGroupProps extends Omit<ComponentProps<typeof Menu.Group>, "className"> {
-  className?: string | undefined;
-}
-
-// display: contents keeps grouped rows direct flex children of the popup, so the gap layout and
-// the proximity measurement still see them.
-const DropdownMenuGroup = ({ className, ...props }: DropdownMenuGroupProps) => (
-  <Menu.Group className={cn("contents", className)} {...props} />
-);
-
 interface DropdownMenuRadioGroupProps extends Omit<
   ComponentProps<typeof Menu.RadioGroup>,
   "className" | "value" | "defaultValue" | "onValueChange"
@@ -411,7 +401,8 @@ interface DropdownMenuRadioGroupProps extends Omit<
   onValueChange: (value: string) => void;
 }
 
-// display: contents for the same reason as DropdownMenuGroup; every value Base UI hands back is a
+// display: contents keeps the grouped rows direct flex children of the popup, so the gap layout
+// and the proximity measurement still see them; every value Base UI hands back is a
 // DropdownMenuRadioItem's, which is a string
 const DropdownMenuRadioGroup = ({ className, ...props }: DropdownMenuRadioGroupProps) => (
   <Menu.RadioGroup className={cn("contents", className)} {...props} />
@@ -423,7 +414,6 @@ export {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuRadioItem,
-  DropdownMenuGroup,
   DropdownMenuRadioGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,

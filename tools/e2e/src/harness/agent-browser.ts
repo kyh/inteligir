@@ -3,7 +3,7 @@ import { skip } from "./assert";
 import { describeExecError, exec } from "./exec";
 import type { AppInstance } from "./instance";
 import { pollUntil } from "./poll";
-import { EDITOR, SIDEBAR } from "./selectors";
+import { SIDEBAR } from "./selectors";
 
 export type AgentBrowser = (args: readonly string[], timeoutMs?: number) => Promise<string>;
 
@@ -127,7 +127,6 @@ export const createScenarioBrowser = (label: string): ScenarioBrowser => {
       const url = await app.browserUrl(options.path ?? "/");
       await run(["open", url], 60_000);
       await run(["wait", SIDEBAR], 90_000);
-      await run(["wait", EDITOR], 90_000);
     },
   };
   return Object.assign(run, controls);

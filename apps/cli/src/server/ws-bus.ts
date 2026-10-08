@@ -1,6 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import type { DocChangeKind, ThreadChangeKind, VaultChangeKind } from "@repo/domain/change-kinds";
+import type { SyncChangeKind, ThreadChangeKind } from "@repo/domain/change-kinds";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { z } from "zod";
 import {
@@ -12,7 +12,6 @@ import type {
   ChangedMessage,
   HelloMessage,
   RealtimeSubscriptionTarget,
-  VaultChangedMessage,
 } from "@repo/contract/local/notifications";
 
 export interface BusSocket {
@@ -134,16 +133,8 @@ export class WsBus implements DbNotifier {
     }
   }
 
-  notifyVault(changes: VaultChangeKind[], paths?: readonly string[]): void {
-    const message: VaultChangedMessage = { changes, entity: "vault", type: "changed" };
-    if (paths !== undefined) {
-      message.paths = paths;
-    }
-    this.notifyClients(message);
-  }
-
-  notifyDoc(docId: string, changes: DocChangeKind[]): void {
-    this.notifyClients({ changes, entity: "doc", id: docId, type: "changed" });
+  notifySync(changes: SyncChangeKind[]): void {
+    this.notifyClients({ changes, entity: "sync", type: "changed" });
   }
 
   notifyThread(threadId: string, changes: ThreadChangeKind[]): void {

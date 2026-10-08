@@ -10,7 +10,7 @@ const errorFields = (cause: unknown): ErrorFields => ({
 
 // Every expected failure is already a response, so a throw is a bug or an outage; without this
 // line workerd's own 500 leaves nothing in `wrangler tail`. Workers Logs indexes the fields of a
-// logged object. The search string is dropped: ?path= carries vault file names, ?state= a nonce.
+// logged object. The search string is dropped: ?state= carries a nonce.
 export const logUnhandled = (surface: string, request: Request, cause: unknown): void => {
   console.error({
     event: "unhandled-error",

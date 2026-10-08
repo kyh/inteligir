@@ -8,22 +8,19 @@ import type {
   ListThreadsQuery,
   PendingInteraction,
   Thread,
-  TurnChanges,
-  UndoKeptReason,
-  UndoTurnResponse,
 } from "@repo/contract/local/threads/threads-schema";
 import { defineCommand } from "citty";
 import { parseBoundedInteger, parsePositiveNumber } from "../args";
 import { CliExitError, failureFrom, getErrorMessage } from "../cli-error";
 import { apiFor } from "../context";
-import type { Api, CliDeps } from "../context";
+import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 import {
   DEFAULT_WAIT_POLL_INTERVAL_MS,
   DEFAULT_WAIT_TIMEOUT_SECONDS,
   MAX_WAIT_POLL_INTERVAL_MS,
   MAX_WAIT_TIMEOUT_SECONDS,
-} from "../server/guide/action-wait-bounds";
+} from "./action-wait-bounds";
 import { describeInteraction } from "./describe-interaction";
 import { formatThreadTimeline } from "./format-thread-timeline";
 
@@ -64,57 +61,17 @@ const describeStop = (body: InterruptThreadResponse): string => {
   }
 };
 
-const turnChangeLines = (turn: TurnChanges): string[] => [
-  `${turn.turnId}  ${turn.state}`,
-  ...turn.paths.map((changed) => `  ${changed}`),
-];
-
-const KEPT_BECAUSE: Record<UndoKeptReason, string> = {
-  busy: "a running turn is changing it",
-  "deleted-since": "deleted since the turn",
-  "edited-since": "edited since the turn, where the turn changed it",
-  "recreated-since": "made again since the turn deleted it",
-  unreadable: "not text an undo can merge",
-};
-
-const undoLines = (body: UndoTurnResponse): string[] => [
-  ...body.reverted.map((path) => `reverted  ${path}`),
-  ...body.kept.map((row) => `kept      ${row.path}  (${KEPT_BECAUSE[row.reason]})`),
-];
-
-// the turn an undo with no --turn names: the newest one still applied.
-const newestAppliedTurn = async (api: Api, threadId: string): Promise<string> => {
-  const { turns } = await api.threads.turnChanges({ threadId });
-  const newest = turns.findLast((turn) => turn.state === "applied");
-  if (newest === undefined) {
-    throw new CliExitError(`No turn of ${threadId} has changes left to undo.`, {
-      code: "NOT_FOUND",
-    });
-  }
-  return newest.turnId;
-};
-
-const turnStillApplied = async (api: Api, threadId: string, turnId: string): Promise<boolean> => {
-  const { turns } = await api.threads.turnChanges({ threadId });
-  return turns.some((turn) => turn.turnId === turnId && turn.state === "applied");
-};
-
 const awaitingAnswer = (interactions: readonly PendingInteraction[]): string[] =>
   interactions.filter((row) => row.status === "pending").map((row) => row.id);
 
 const answerHint = (ids: readonly string[]): string =>
   `approval ${ids.join(", ")} (\`inteligir interactions answer <id> <decision>\`)`;
 
-// the hint is pasted back into a shell, so a value that is not one plain word is single-quoted.
-const shellWord = (word: string): string =>
-  /^[\w./@%+=:,-]+$/u.test(word) ? word : `'${word.replaceAll("'", String.raw`'\''`)}'`;
-
 // the cursor names a position, not the query, so the next page is only the same listing with the same flags.
 const nextPageHint = (cursor: string, request: ListThreadsQuery): string => {
   const flags = [
     `--cursor ${cursor}`,
     ...(request.includeArchived === true ? ["--archived"] : []),
-    ...(request.originDocPath === undefined ? [] : [`--doc ${shellWord(request.originDocPath)}`]),
     ...(request.running === true ? ["--running"] : []),
     ...(request.limit === undefined ? [] : [`--limit ${String(request.limit)}`]),
   ];
@@ -123,7 +80,7 @@ const nextPageHint = (cursor: string, request: ListThreadsQuery): string => {
 
 export const actionCommand = (deps: CliDeps) =>
   defineCommand({
-    meta: { description: "Agent actions — threads attached to notes", name: "action" },
+    meta: { description: "Agent actions — conversations with the agent", name: "action" },
     subCommands: {
       archive: defineCommand({
         args: {
@@ -141,29 +98,6 @@ export const actionCommand = (deps: CliDeps) =>
         },
       }),
 
-      changes: defineCommand({
-        args: {
-          id: { description: "The thread id", required: true, type: "positional" },
-          ...jsonArg,
-        },
-        meta: {
-          description: "The vault paths each turn changed, oldest first, and whether it was undone",
-          name: "changes",
-        },
-        run: async ({ args }) => {
-          const api = apiFor(deps);
-          const body = await api.threads.turnChanges({ threadId: args.id });
-          if (outputJson(args, body)) {
-            return;
-          }
-          if (body.turns.length === 0) {
-            out.info(`No turn of ${args.id} changed the vault.`);
-            return;
-          }
-          writeLines(body.turns.flatMap(turnChangeLines));
-        },
-      }),
-
       list: defineCommand({
         args: {
           archived: {
@@ -171,7 +105,6 @@ export const actionCommand = (deps: CliDeps) =>
             type: "boolean",
           },
           cursor: { description: "Continue where the previous page stopped", type: "string" },
-          doc: { description: "Only actions attached to this note", type: "string" },
           limit: {
             description: `Page size (1–${THREADS_LIST_MAX_LIMIT}, default ${THREADS_LIST_DEFAULT_LIMIT})`,
             type: "string",
@@ -187,9 +120,6 @@ export const actionCommand = (deps: CliDeps) =>
           }
           if (args.cursor !== undefined) {
             request.cursor = args.cursor;
-          }
-          if (args.doc !== undefined) {
-            request.originDocPath = args.doc;
           }
           if (args.limit !== undefined) {
             request.limit = parseBoundedInteger(args.limit, "--limit", {
@@ -214,19 +144,16 @@ export const actionCommand = (deps: CliDeps) =>
 
       new: defineCommand({
         args: {
-          doc: { description: "Attach the action to this note", type: "string" },
           prompt: { description: "The first turn's text", required: true, type: "positional" },
           ...jsonArg,
         },
         meta: {
-          description: "Start an action (optionally attached to a note) and send the first turn",
+          description: "Start an action and send the first turn",
           name: "new",
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
-          const { thread: createdThread } = await api.threads.create(
-            args.doc === undefined ? {} : { originDocPath: args.doc },
-          );
+          const { thread: createdThread } = await api.threads.create({});
           let outcome: SendOutcome;
           try {
             outcome = await api.threads.send({
@@ -300,9 +227,6 @@ export const actionCommand = (deps: CliDeps) =>
           writeLines([
             `Thread ${detail.thread.id} — ${detail.thread.status}`,
             ...(detail.thread.title === null ? [] : [`Title: ${detail.thread.title}`]),
-            ...(detail.thread.originDocPath === null
-              ? []
-              : [`Doc: ${detail.thread.originDocPath}`]),
             ...(detail.pendingInteractions.length === 0
               ? []
               : [
@@ -332,58 +256,6 @@ export const actionCommand = (deps: CliDeps) =>
             return;
           }
           out.success(describeStop(body));
-        },
-      }),
-
-      undo: defineCommand({
-        args: {
-          id: { description: "The thread id", required: true, type: "positional" },
-          turn: {
-            description: "The turn to undo (default: the newest one not yet undone)",
-            type: "string",
-          },
-          ...jsonArg,
-        },
-        meta: {
-          description:
-            "Take back what one turn changed, keeping every edit made since; a note edited where the turn changed it is kept and named",
-          name: "undo",
-        },
-        run: async ({ args }) => {
-          const api = apiFor(deps);
-          const turnId = args.turn ?? (await newestAppliedTurn(api, args.id));
-          const body = await api.threads.undoTurn({ threadId: args.id, turnId });
-          if (outputJson(args, { ...body, turnId })) {
-            return;
-          }
-          writeLines(undoLines(body));
-          // an undo that writes nothing commits nothing, so the turn stays the one a bare undo names.
-          const stillNewest =
-            args.turn === undefined
-              ? "; it stays the newest turn to undo, so pass --turn to undo an earlier one"
-              : "";
-          // asked, not inferred: a comment store taken back in part is named kept, yet it was written.
-          if (
-            body.reverted.length === 0 &&
-            body.kept.length > 0 &&
-            (await turnStillApplied(api, args.id, turnId))
-          ) {
-            out.warn(`Nothing of turn ${turnId} could be undone${stillNewest}.`);
-            return;
-          }
-          if (body.kept.length > 0) {
-            out.warn(
-              `Undid what it could of turn ${turnId}; a kept note is left as it is, and its history holds the version from before the turn (\`inteligir vault history <path>\`).`,
-            );
-            return;
-          }
-          if (body.reverted.length === 0) {
-            out.info(
-              `Turn ${turnId} left nothing to undo: every note it changed is back already${stillNewest}.`,
-            );
-            return;
-          }
-          out.success(`Undid turn ${turnId}.`);
         },
       }),
 

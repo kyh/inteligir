@@ -2,7 +2,6 @@
 // cursor moves inside the apply's transaction: a separate advance is the window
 // a crash duplicates a conversation through.
 
-import { CLAIM_DEFAULT_LIMIT } from "@repo/contract/cloud/captures/captures-schema";
 import { describeCloudFailure } from "@repo/contract/cloud/client";
 import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
 import { DISPATCH_CLAIM_DEFAULT_LIMIT } from "@repo/contract/cloud/dispatch/dispatch-schema";
@@ -19,19 +18,14 @@ import { setInteractionRelay } from "@repo/db/pending-interactions";
 import {
   countSyncOutbox,
   dropSyncOutboxThrough,
-  pruneAppliedCaptures,
   readSyncState,
-  recordAppliedCaptures,
   recordSkippedRow,
   touchSyncedAt,
-  unappliedCaptureIds,
   writeSyncCursor,
 } from "@repo/db/sync-outbox";
 import type { DebugLog } from "../debug-log";
 import { messageOf } from "../error-message";
 import { ThreadEventThreadIdMismatchError } from "../threads/thread-event-mismatch-error";
-import { appendToInbox, APPLIED_CAPTURE_RETENTION_MS } from "./captures";
-import type { CaptureVault } from "./captures";
 import {
   applyDispatch,
   approvalsToClose,
@@ -66,7 +60,6 @@ export interface SyncPassDeps {
   db: DbConnection;
   /** the running build, recorded beside a row it could not read so a different one pulls it again. */
   build: string;
-  vault: CaptureVault;
   debug: (message: string) => void;
   /** INTELIGIR_DEBUG's sync trace: where each step of a pass stopped, and each pulled page. */
   debugLog?: DebugLog | undefined;
@@ -80,7 +73,7 @@ export interface SyncPassDeps {
   setLastError: (message: string | null) => void;
 }
 
-type PassStepName = "push" | "pull" | "captures" | "dispatch" | "approvals";
+type PassStepName = "push" | "pull" | "dispatch" | "approvals";
 
 // what the steps before one concluded, for a step that waits on another's work
 type EarlierSteps = ReadonlyMap<PassStepName, SyncOutcome>;
@@ -187,7 +180,7 @@ const skipStep = (deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "skip" 
 };
 
 // a throw is a row that did not land, and applyStep's refusal to move the cursor past it: this
-// step fails with the cursor where the last commit left it, and the captures still run.
+// step fails with the cursor where the last commit left it, and the steps after it still run.
 const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> => {
   try {
     return await pullPages({
@@ -216,68 +209,6 @@ const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<S
     deps.debug(`applying the account's log failed: ${message}`);
     return "failed";
   }
-};
-
-// vault write, then ledger, then ack. the ledger closes the lapsed-claim window;
-// a crash between the write and the ledger (two stores, no shared transaction)
-// duplicates a bullet, and that direction is chosen: recording first would lose
-// the capture outright.
-const applyCaptures = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> => {
-  if (!deps.fenced(context)) {
-    return "fenced";
-  }
-  const claimed = await context.client.claimCaptures(CLAIM_DEFAULT_LIMIT);
-  // what follows writes the vault — the one side effect that outlives the session.
-  if (!deps.fenced(context)) {
-    return "fenced";
-  }
-  if (!claimed.ok) {
-    return failedOrFenced(deps, claimed.failure);
-  }
-  const { captures } = claimed.value;
-  if (captures.length === 0) {
-    return "caught-up";
-  }
-  const fresh = unappliedCaptureIds(
-    deps.db,
-    captures.map((capture) => capture.id),
-  );
-  const toWrite = captures.filter((capture) => fresh.has(capture.id));
-  if (toWrite.length > 0) {
-    const written = await appendToInbox(deps.vault, toWrite);
-    if (!deps.fenced(context)) {
-      return "fenced";
-    }
-    if (!written.applied) {
-      // nothing recorded, nothing acked: the claim lapses and these are redelivered.
-      deps.debug(written.reason);
-      deps.setLastError(written.reason);
-      return "failed";
-    }
-    recordAppliedCaptures(
-      deps.db,
-      toWrite.map((capture) => capture.id),
-      Date.now(),
-    );
-  }
-  const acked = await context.client.ackCaptures({
-    claimToken: claimed.value.claimToken,
-    ids: captures.map((capture) => capture.id),
-  });
-  if (!deps.fenced(context)) {
-    return "fenced";
-  }
-  if (!acked.ok) {
-    return failedOrFenced(deps, acked.failure);
-  }
-  for (const outcome of acked.value.results) {
-    if (outcome.outcome === "reclaimed") {
-      deps.debug(`capture ${outcome.id} was reclaimed before this device acked it`);
-    }
-  }
-  pruneAppliedCaptures(deps.db, Date.now() - APPLIED_CAPTURE_RETENTION_MS);
-  // a full claim may have left more in the inbox behind it.
-  return captures.length < CLAIM_DEFAULT_LIMIT ? "caught-up" : "more";
 };
 
 // waits for a whole log, so a request another Mac already ran for a dispatch is here to be found
@@ -330,7 +261,7 @@ const applyDispatches = async (
       return "fenced";
     }
     try {
-      results.push(await applyDispatch(sink, deps.db, dispatch));
+      results.push(applyDispatch(sink, deps.db, dispatch));
     } catch (error) {
       failed = true;
       const message = messageOf(error);
@@ -414,7 +345,6 @@ const relayApprovals = async (deps: SyncPassDeps, context: PassContext): Promise
 const PASS_STEPS: readonly (readonly [PassStepName, PassStep])[] = [
   ["push", drain],
   ["pull", pullAndApply],
-  ["captures", applyCaptures],
   ["dispatch", applyDispatches],
   ["approvals", relayApprovals],
 ];

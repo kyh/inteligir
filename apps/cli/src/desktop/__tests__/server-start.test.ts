@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "inteligir/server/config";
 import { loopbackOrigin, SERVER_FILE_NAME } from "inteligir/server/server-file";
@@ -21,15 +21,6 @@ import type { LiveServer, ServerVerdict } from "../server-start";
 
 const scratchHome = (): string => makeTempDir("inteligir-shell-home-");
 
-interface ManagedConfig {
-  vaultDir: string;
-}
-
-const writeManagedConfig = (dataDir: string, config: ManagedConfig): void => {
-  mkdirSync(dataDir, { recursive: true });
-  writeFileSync(path.join(dataDir, "config.json"), JSON.stringify(config), "utf-8");
-};
-
 describe("resolveServerTarget", () => {
   it("takes the packaged defaults from the app's own resolution", () => {
     const homeDir = scratchHome();
@@ -38,57 +29,15 @@ describe("resolveServerTarget", () => {
       homeDir,
       isPackaged: true,
     });
-    expect(resolved).toEqual({
+    const dataDir = path.join(homeDir, PROD_DATA_DIR_NAME);
+    expect(resolved).toMatchObject({
       kind: "resolved",
-      target: {
-        dataDir: path.join(homeDir, PROD_DATA_DIR_NAME),
-        dataDirSource: "default",
-        rootDataDir: path.join(homeDir, PROD_DATA_DIR_NAME),
-        vaultDir: path.join(homeDir, "Inteligir"),
-        vaultDirSource: "default",
-      },
+      target: { dataDir, dataDirSource: "default" },
     });
-  });
-
-  it("carries config.json's vault dir down to the child", () => {
-    const homeDir = scratchHome();
-    const vaultDir = path.join(homeDir, "Notes");
-    writeManagedConfig(path.join(homeDir, PROD_DATA_DIR_NAME), { vaultDir });
-    const resolved = resolveServerTarget({
-      env: {},
-      homeDir,
-      isPackaged: true,
-    });
-    expect(resolved.kind === "resolved" && resolved.target.vaultDir).toBe(vaultDir);
-    expect(resolved.kind === "resolved" && resolved.target.vaultDirSource).toBe("managed-config");
-    // not the root: a vault other than the default gets a dir of its own beneath it
-    expect(resolved.kind === "resolved" && resolved.target.dataDir).not.toBe(
-      path.join(homeDir, PROD_DATA_DIR_NAME),
+    // the thread log a boot opens lives in the data dir it serves
+    expect(resolved.kind === "resolved" && path.dirname(resolved.target.databasePath)).toBe(
+      dataDir,
     );
-    expect(resolved.kind === "resolved" && resolved.target.rootDataDir).toBe(
-      path.join(homeDir, PROD_DATA_DIR_NAME),
-    );
-  });
-
-  it("resolves a switch candidate as a boot would, refusing a vault that nests the data dir", () => {
-    const homeDir = scratchHome();
-    const candidate = resolveServerTarget({
-      env: {},
-      homeDir,
-      isPackaged: true,
-      vaultDir: path.join(homeDir, "Second"),
-    });
-    expect(candidate.kind === "resolved" && candidate.target.vaultDir).toBe(
-      path.join(homeDir, "Second"),
-    );
-    expect(candidate.kind === "resolved" && candidate.target.vaultDirSource).toBe("env");
-    const nested = resolveServerTarget({
-      env: {},
-      homeDir,
-      isPackaged: true,
-      vaultDir: path.join(homeDir, PROD_DATA_DIR_NAME, "notes"),
-    });
-    expect(nested.kind).toBe("refused");
   });
 
   it("a checkout resolves the per-checkout dev instance, whatever NODE_ENV says", () => {
@@ -104,7 +53,6 @@ describe("resolveServerTarget", () => {
     }
     const devRoot = path.join(homeDir, DEV_DATA_ROOT_DIR);
     expect(resolved.target.dataDir.startsWith(devRoot)).toBe(true);
-    expect(resolved.target.vaultDir.startsWith(devRoot)).toBe(true);
   });
 
   it("surfaces the app's own refusal rather than falling back to a default", () => {
@@ -126,7 +74,6 @@ const serverRow = (dataDir: string, port: number, pid: number = process.pid): Se
   pid,
   port,
   token: TOKEN,
-  vaultDir: path.join(dataDir, "vault"),
 });
 
 // this process's own pid by default, so the row's owner is alive and the probe dials it.
@@ -148,10 +95,8 @@ const exitedPid = (): number => spawnSync(process.execPath, ["-e", ""]).pid;
 const systemStatus = (dataDir: string, version: string): SystemStatusResponse => ({
   agent: { detail: null, mode: "off", runtime: "off" },
   dataDir,
-  dataDirScope: "root",
   schemaVersion: 1,
   uptimeMs: 1,
-  vaultDir: path.join(dataDir, "vault"),
   version,
 });
 

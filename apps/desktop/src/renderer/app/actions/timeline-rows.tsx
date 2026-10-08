@@ -1,26 +1,18 @@
-import type { ViewContext } from "@repo/domain/view-context";
 import type {
   TimelineErrorRow,
   TimelineFileChange,
   TimelineRow,
-  TimelineRowStatus,
   TimelineTurnRow,
   TimelineWorkRow,
 } from "@repo/contract/local/thread-timeline";
-import type { TurnChanges } from "@repo/contract/local/threads/threads-schema";
 import { LoadingState } from "@repo/ui/ai/loading-state";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
 import { Thinking, ThinkingReasoning, ThinkingStep } from "@repo/ui/ai/thinking";
 import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
-import { Button } from "@repo/ui/components/button";
 import { cn } from "@repo/ui/lib/cn";
 import { plural } from "@repo/ui/lib/plural";
-import { Undo2Icon } from "lucide-react";
 import { memo } from "react";
 import type { ReactNode } from "react";
-
-import { NoteBadge } from "./note-badge";
-import { turnNotePaths } from "./undo-turn";
 
 const CHANGE_MARKS = {
   add: "+",
@@ -29,20 +21,6 @@ const CHANGE_MARKS = {
 } satisfies Record<TimelineFileChange["kind"], string>;
 
 const firstLine = (text: string): string => text.split("\n", 1)[0] ?? "";
-
-const ViewContextAttribution = ({ context }: { context: ViewContext }) => (
-  <div className="max-w-[85%] truncate px-3 text-body text-muted-foreground">
-    {context.resource}
-  </div>
-);
-
-const ContextPathChips = ({ paths }: { paths: readonly string[] }) => (
-  <div className="flex max-w-[85%] flex-wrap justify-end gap-1">
-    {paths.map((path) => (
-      <NoteBadge key={path} path={path} />
-    ))}
-  </div>
-);
 
 const isThought = (row: TimelineRow): boolean =>
   row.kind === "work" && (row.workKind === "reasoning" || row.workKind === "plan");
@@ -199,8 +177,6 @@ const TimelineRowContent = ({ row }: { row: TimelineRow }) => {
             <div className="max-w-[85%] rounded-2xl bg-surface-raised px-3 py-1.5 text-subtitle whitespace-pre-wrap shadow-surface-1">
               {row.text}
             </div>
-            {row.contextPaths.length === 0 ? null : <ContextPathChips paths={row.contextPaths} />}
-            {row.viewContext === null ? null : <ViewContextAttribution context={row.viewContext} />}
           </div>
         );
       }
@@ -225,91 +201,6 @@ const TimelineRowContent = ({ row }: { row: TimelineRow }) => {
 
 // memoized on `row`: `applyTimelineDelta` preserves untouched rows' identity, and a patched turn its untouched children's.
 export const TimelineRowView = memo(TimelineRowContent);
-
-// keyed by the row a turn's footer follows: the turn's last row, so the footer sits under its reply
-// rather than above it.
-export const turnFooterSlots = (
-  rows: readonly TimelineRow[],
-): ReadonlyMap<string, TimelineTurnRow> => {
-  const turns = new Map<string, TimelineTurnRow>();
-  const lastRows = new Map<string, string>();
-  for (const row of rows) {
-    if (row.turnId === null) {
-      continue;
-    }
-    if (row.kind === "turn") {
-      turns.set(row.turnId, row);
-    }
-    lastRows.set(row.turnId, row.id);
-  }
-  const slots = new Map<string, TimelineTurnRow>();
-  for (const [turnId, rowId] of lastRows) {
-    const turn = turns.get(turnId);
-    if (turn !== undefined) {
-      slots.set(rowId, turn);
-    }
-  }
-  return slots;
-};
-
-// withheld while the thread runs: the running turn may hold the very notes an undo would merge.
-export type TurnUndoState = "offered" | "pending" | "withheld";
-
-interface TurnChangesFooterProps {
-  status: TimelineRowStatus;
-  changes: TurnChanges | undefined;
-  undo: TurnUndoState;
-  onUndo: (turnId: string) => void;
-}
-
-const TurnChangesFooterContent = ({ status, changes, undo, onUndo }: TurnChangesFooterProps) => {
-  if (status === "pending" || changes === undefined) {
-    return null;
-  }
-  const paths = turnNotePaths(changes);
-  if (paths.length === 0) {
-    return null;
-  }
-  if (changes.state === "undone") {
-    return (
-      <div className="flex items-center gap-1.5 text-body text-muted-foreground">
-        <Undo2Icon className="size-3.5" />
-        Changes undone
-      </div>
-    );
-  }
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex min-h-7 items-center justify-between gap-2">
-        <span className="text-body text-muted-foreground">
-          Edited {plural(paths.length, "note")}
-        </span>
-        {undo === "withheld" ? null : (
-          <Button
-            variant="ghost"
-            size="compact"
-            leadingIcon={Undo2Icon}
-            loading={undo === "pending"}
-            onClick={() => {
-              onUndo(changes.turnId);
-            }}
-          >
-            Undo changes
-          </Button>
-        )}
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {paths.map((path) => (
-          <NoteBadge key={path} path={path} />
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// apart from TimelineRowView, so a streamed delta re-renders no footer and a refetched set of
-// changes re-renders no row.
-export const TurnChangesFooter = memo(TurnChangesFooterContent);
 
 // the user bubble's shape, unfilled: the reply waits in the thread's queue, not yet in its events.
 export const QueuedReplyView = ({ text }: { text: string }) => (

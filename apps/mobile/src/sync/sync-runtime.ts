@@ -1,12 +1,8 @@
-// the phone only pulls threads and never pushes or claims: a phone claiming a capture takes one the
-// desktop never sees. while signed in and in the foreground it holds the account's socket, so a
+// the phone only pulls threads and never pushes to the log: its requests to a Mac ride the dispatch
+// inbox. while signed in and in the foreground it holds the account's socket, so a
 // running turn's pushes are pulled as they land; the poll stays, since the socket is latency and
 // never correctness.
 
-import type {
-  CaptureRequest,
-  CaptureResponse,
-} from "@repo/contract/cloud/captures/captures-schema";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
 import { createSocketLink } from "@repo/contract/cloud/sync/socket-link";
 import {
@@ -16,7 +12,7 @@ import {
 } from "@repo/contract/cloud/sync/sync-session";
 import type { SyncOutcome, SyncSessionHandle } from "@repo/contract/cloud/sync/sync-session";
 import { createCloudClient, describeCloudFailure } from "@repo/contract/cloud/client";
-import type { CloudClient, CloudFailure, CloudResult } from "@repo/contract/cloud/client";
+import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
 import type { CloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
@@ -47,8 +43,6 @@ export interface SyncRuntimeArgs {
   pollIntervalMs?: number | null;
   // absent is poll-only; the app's is React Native's dial under the shared opener
   openSocket?: CloudSocketOpener;
-  // another device pushed to the hosted vault
-  onVaultPing?: () => void;
   // the dispatch inbox holds something for this phone: a question a Mac is waiting on
   onDispatchPing?: () => void;
   onDebug?: (message: string) => void;
@@ -66,7 +60,6 @@ export type SessionPort = Pick<
 export interface SyncRuntime extends ReadableStore<SyncStatus> {
   // null leaves `restoring` for signed-out when the boot read found nothing
   setCredential: (next: DeviceCredential | null) => void;
-  createCapture: (request: CaptureRequest) => Promise<CloudResult<CaptureResponse>>;
   start: () => void;
   // the app is in the foreground again: the socket reopens and a pass runs
   resume: () => void;
@@ -132,12 +125,10 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
         requestPass?.();
       }
     },
-    // a capture ping is the desktop's, which claims captures, and a sync ping the cursor covers
-    // (the log's high-water) is already here
+    // a dispatch ping is the inbox's; a sync ping the cursor covers (the log's high-water) is
+    // already here, and every other ping is another device's business
     onPing: (ping) => {
-      if (ping.type === "vault") {
-        args.onVaultPing?.();
-      } else if (ping.type === "dispatch") {
+      if (ping.type === "dispatch") {
         args.onDispatchPing?.();
       } else if (ping.type === "sync" && ping.seq > args.store.readCursor()) {
         requestPass?.();
@@ -290,20 +281,6 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
   };
 
   return {
-    async createCapture(request) {
-      const current = session.current();
-      if (current.kind !== "live") {
-        return {
-          failure: { kind: "unreachable", message: "signed out" },
-          ok: false,
-        };
-      }
-      const result = await current.client.createCapture(request);
-      if (!result.ok && session.fenced(current.id)) {
-        recordFailure(result.failure);
-      }
-      return result;
-    },
     get: status.get,
     session: { current: session.current, fenced: session.fenced, recordFailure },
     setCredential(next) {

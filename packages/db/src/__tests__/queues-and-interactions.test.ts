@@ -26,10 +26,10 @@ import { openTempDb } from "./open-temp-db";
 // each in the transaction the server composes it in.
 const enqueue = (
   db: DbConnection,
-  input: Omit<CreateQueuedThreadMessageInput, "contextPaths" | "dispatchId">,
+  input: Omit<CreateQueuedThreadMessageInput, "dispatchId">,
 ): QueuedThreadMessageRow =>
   writeTransaction(db, (tx) =>
-    createQueuedThreadMessageInTransaction(tx, { ...input, contextPaths: null, dispatchId: null }),
+    createQueuedThreadMessageInTransaction(tx, { ...input, dispatchId: null }),
   );
 
 const claimNext = (db: DbConnection, threadId: string): ClaimedQueuedThreadMessageRow | null =>

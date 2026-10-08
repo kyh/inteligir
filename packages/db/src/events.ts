@@ -291,21 +291,6 @@ const threadScopedRows = (threadId: string, type: ThreadEvent["type"]): SQL | un
     isNull(events.itemId),
   );
 
-type ThreadMetaEvent = Extract<ThreadEvent, { type: "thread/meta" }>;
-
-// the facts a thread's log has stated about it, oldest first.
-export const listThreadMetaEvents = (db: DbExecutor, threadId: string): ThreadMetaEvent[] =>
-  db
-    .select({ data: events.data })
-    .from(events)
-    .where(threadScopedRows(threadId, "thread/meta"))
-    .orderBy(events.sequence)
-    .all()
-    .flatMap((row) => {
-      const event = readStoredEvent(row.data);
-      return event?.type === "thread/meta" ? [event] : [];
-    });
-
 type TurnCompletedEvent = Extract<ThreadEvent, { type: "turn/completed" }>;
 
 // how a turn's own rows say it ended, the latest statement when there are several.

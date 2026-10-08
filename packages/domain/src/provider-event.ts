@@ -5,7 +5,6 @@
 import { z } from "zod";
 import { threadEventScopeSchema, threadScopeSchema, turnScopeSchema } from "./thread-event-scope";
 import { MAX_THREAD_TITLE_LENGTH } from "./thread-title";
-import { viewContextSchema } from "./view-context";
 
 export const threadEventItemStatusSchema = z.enum([
   "pending",
@@ -18,7 +17,6 @@ export type ThreadEventItemStatus = z.infer<typeof threadEventItemStatusSchema>;
 export const threadEventItemApprovalStatusSchema = z
   .enum(["waiting_for_approval", "denied"])
   .nullable();
-export type ThreadEventItemApprovalStatus = z.infer<typeof threadEventItemApprovalStatusSchema>;
 
 export const threadEventTurnStatusSchema = z.enum(["completed", "failed", "interrupted"]);
 export type ThreadEventTurnStatus = z.infer<typeof threadEventTurnStatusSchema>;
@@ -208,12 +206,8 @@ export const threadEventSchema = z.discriminatedUnion("type", [
     type: z.literal("provider/error"),
     willRetry: z.boolean().optional(),
   }),
-  // contextPaths and viewContext are local additions to bb's shape, beside `text` rather than
-  // folded into it, so `text` stays exactly what the user typed; no migration, since events.data
-  // is free-form json re-parsed through this schema.
+  // `text` is exactly what the user typed.
   z.object({
-    // the notes the user attached by @-mention, held to the vault path grammar at the wire.
-    contextPaths: z.array(z.string().min(1)).optional(),
     // the phone's dispatch this request carries out, so the phone swaps its pending message for
     // this row; a build that predates it strips it, since this object is not strict.
     dispatchId: z.string().min(1).optional(),
@@ -222,15 +216,11 @@ export const threadEventSchema = z.discriminatedUnion("type", [
     text: z.string(),
     threadId: z.string(),
     type: z.literal("client/turn/requested"),
-    viewContext: viewContextSchema.optional(),
   }),
   // local: a thread's own facts ride its log, so another device learns them the way it learns the
   // conversation. bb's thread/name/updated is a provider naming its session, not the app's title.
   // a field present is the thread's value as of this row; an absent one is left as it is.
   z.object({
-    originDocPath: z.string().min(1).optional(),
-    // the origin note's frontmatter id, stated only beside its path: a move anywhere keeps it.
-    originNoteId: z.string().min(1).optional(),
     providerId: z.string().min(1).optional(),
     // a fact about the thread itself, stated outside any turn.
     scope: threadScopeSchema,
@@ -304,57 +294,4 @@ export const isThreadEventDelta = (event: ThreadEvent): event is ThreadEventDelt
     }
     // no default
   }
-};
-
-// a reset replaces what came before it, so it opens a run rather than joining one; the appends
-// after it join it and fold to the same text.
-const joinsRun = (run: ThreadEventDelta, next: ThreadEventDelta): boolean =>
-  next.type === run.type &&
-  next.itemId === run.itemId &&
-  next.threadId === run.threadId &&
-  next.scope.turnId === run.scope.turnId &&
-  !(next.type === "item/commandExecution/outputDelta" && next.reset === true);
-
-export interface DeltaRunLimit {
-  maxBytes: number;
-  // utf-8 bytes of the value's json, a text's quotes included.
-  jsonBytes: (value: ThreadEventDelta | string) => number;
-}
-
-const QUOTE_BYTES = 2;
-
-const appendDelta = (run: ThreadEventDelta, next: ThreadEventDelta): ThreadEventDelta => ({
-  ...run,
-  delta: run.delta + next.delta,
-});
-
-// every fold concatenates an item's deltas, so a run of adjacent ones is stored as one row rather
-// than one per token. a join that would take the row past `maxBytes` starts the next run instead.
-// a run grows by at most what the joined text adds, so a burst measures each event once rather
-// than the whole run at every join.
-export const mergeAdjacentDeltas = (
-  events: readonly ThreadEvent[],
-  limit: DeltaRunLimit,
-): ThreadEvent[] => {
-  const merged: ThreadEvent[] = [];
-  let run: { event: ThreadEventDelta; bytes: number } | null = null;
-  for (const event of events) {
-    if (!isThreadEventDelta(event)) {
-      merged.push(event);
-      run = null;
-      continue;
-    }
-    if (run !== null && joinsRun(run.event, event)) {
-      const bytes: number = run.bytes + limit.jsonBytes(event.delta) - QUOTE_BYTES;
-      if (bytes <= limit.maxBytes) {
-        const joined = appendDelta(run.event, event);
-        merged[merged.length - 1] = joined;
-        run = { bytes, event: joined };
-        continue;
-      }
-    }
-    merged.push(event);
-    run = { bytes: limit.jsonBytes(event), event };
-  }
-  return merged;
 };

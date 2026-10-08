@@ -6,11 +6,10 @@ import type {
   ListThreadsQuery,
   ListThreadsResponse,
   Thread,
-  TurnChangesResponse,
 } from "@repo/contract/local/threads/threads-schema";
 import { applyTimelineDelta } from "@repo/contract/local/thread-timeline";
 import type { ThreadTimeline } from "@repo/contract/local/thread-timeline";
-import { skipToken, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { InfiniteData, UseInfiniteQueryResult, UseQueryResult } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { client, orpc } from "../api";
@@ -22,23 +21,16 @@ type ThreadListFilter = Omit<ListThreadsQuery, "cursor">;
 const flattenPages = (data: InfiniteData<ListThreadsResponse, string | null>): Thread[] =>
   data.pages.flatMap((page) => page.threads);
 
-const threadPages = (filter: ThreadListFilter | typeof skipToken) =>
+const threadPages = (filter: ThreadListFilter) =>
   orpc.threads.list.infiniteOptions({
     getNextPageParam: (page) => page.nextCursor,
     initialPageParam: null,
-    input:
-      filter === skipToken
-        ? skipToken
-        : (cursor: string | null) => (cursor === null ? filter : { ...filter, cursor }),
+    input: (cursor: string | null) => (cursor === null ? filter : { ...filter, cursor }),
     select: flattenPages,
   });
 
 // live threads, most recently active first; `fetchNextPage` reads on past the pages held.
 export const useThreads = (): UseInfiniteQueryResult<Thread[]> => useInfiniteQuery(threadPages({}));
-
-// asked for by path, so a note's older actions are not lost below the recent pages.
-export const useNoteThreads = (docPath: string | null): UseInfiniteQueryResult<Thread[]> =>
-  useInfiniteQuery(threadPages(docPath === null ? skipToken : { originDocPath: docPath }));
 
 // archived or not: an archived thread still running is still the agent at work.
 const RUNNING_ANYWHERE: ListThreadsQuery = { includeArchived: true, limit: 1, running: true };
@@ -52,19 +44,11 @@ export const useAgentWorking = (): boolean =>
 export const useThreadDetail = (threadId: string): UseQueryResult<GetThreadResponse> =>
   useQuery(orpc.threads.get.queryOptions({ input: { threadId } }));
 
-// kept fresh by the thread's changes-committed frame for a local commit, and by files-changed for
-// a pull, which moves the log with no thread frame; the workspace's batch sweeps both whether or
-// not a transcript is open: a cached answer outlives the panel that read it.
-export const useTurnChanges = (threadId: string): UseQueryResult<TurnChangesResponse> =>
-  useQuery(orpc.threads.turnChanges.queryOptions({ input: { threadId } }));
-
 // total over the kinds: one not weighed here is a row the user never sees until they reopen the thread.
 const MOVES_THE_TIMELINE = {
   "archived-changed": false,
-  "changes-committed": false,
   "events-appended": true,
   "interactions-changed": false,
-  "origin-changed": false,
   "queue-changed": false,
   "status-changed": true,
   "thread-created": false,

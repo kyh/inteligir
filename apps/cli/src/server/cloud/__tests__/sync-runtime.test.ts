@@ -1,5 +1,4 @@
 import { ACCOUNT_API_PATHS } from "@repo/contract/cloud/account/account-schema";
-import { CAPTURE_API_PATHS } from "@repo/contract/cloud/captures/captures-schema";
 import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
 import { DISPATCH_API_PATHS } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { CLOUD_ERROR_STATUS, cloudError } from "@repo/contract/cloud/errors";
@@ -14,12 +13,10 @@ import { runMigrations } from "@repo/db/migrate";
 import { countSyncOutbox, readSyncState, writeSyncCursor } from "@repo/db/sync-outbox";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
-import { CAPTURE_INBOX_PATH } from "@repo/notes/sync/reconcile-file";
 import nodePath from "node:path";
 import { setImmediate as tick } from "node:timers/promises";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
-import type { CaptureVault } from "../captures";
 import type { CloudFetch } from "@repo/contract/cloud/client";
 import type { CloudSocket, OpenCloudSocketArgs } from "@repo/contract/cloud/sync/cloud-socket";
 import { readDeviceCredential, writeDeviceCredential } from "../credential-store";
@@ -27,7 +24,6 @@ import type { DeviceCredential } from "../credential-store";
 import type { SyncedEventSink } from "../sync-pass";
 import { createCloudRuntime } from "../sync-runtime";
 import type { CloudRuntime, CloudTransport, LoginOutcome } from "../sync-runtime";
-import { VaultServiceError } from "../../vault/vault-service";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";
 
@@ -43,45 +39,9 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-interface FakeVault extends CaptureVault {
-  files: Map<string, string>;
-}
-
-const makeVault = (): FakeVault => {
-  const files = new Map<string, string>();
-  return {
-    files,
-    read: async (path) => {
-      const content = files.get(path);
-      if (content === undefined) {
-        throw new VaultServiceError("not_found", `No such vault entry: ${path}`);
-      }
-      return await Promise.resolve({ content, path });
-    },
-    writeGuarded: async (path, content, guard) => {
-      if (guard.kind === "absent") {
-        if (files.has(path)) {
-          return await Promise.resolve({ applied: false, reason: "exists" });
-        }
-        files.set(path, content);
-        return await Promise.resolve({ applied: true, path });
-      }
-      files.set(path, content);
-      return await Promise.resolve({ applied: true, path });
-    },
-    writeIfUnchanged: async (path, expected, content) => {
-      if (files.get(path) !== expected) {
-        return await Promise.resolve({ applied: false, reason: "changed" });
-      }
-      files.set(path, content);
-      return await Promise.resolve({ applied: true, path });
-    },
-  };
-};
-
 // a sink holding no thread: every phone turn lands and no approval is found here to answer
 const dispatchStub: Pick<SyncedEventSink, "acceptDispatch" | "answerInteraction"> = {
-  acceptDispatch: async () => await Promise.resolve({ kind: "delivered" }),
+  acceptDispatch: () => ({ kind: "delivered" }),
   answerInteraction: () => ({ kind: "not-found" }),
 };
 
@@ -89,13 +49,11 @@ interface Harness {
   db: DbConnection;
   dataDir: string;
   cloud: FakeCloud;
-  vault: FakeVault;
   runtime: CloudRuntime;
   applied: { threadId: string; events: readonly ThreadEvent[]; cursor: number }[];
   /** the phone turns each pass handed the sink, in claim order. */
   dispatched: string[];
   socketOpens: OpenCloudSocketArgs[];
-  vaultPings: () => number;
   /** the status as each onStatusChanged found it. */
   statusNotices: CloudStatusResponse[];
   /** every line of the sync trace, which every harness runs with on. */
@@ -118,11 +76,9 @@ const makeHarness = (
   const db = createConnection(nodePath.join(dataDir, "inteligir.db"));
   runMigrations(db);
   const cloud = options.cloud ?? new FakeCloud();
-  const vault = makeVault();
   const applied: Harness["applied"] = [];
   const dispatched: string[] = [];
   const socketOpens: OpenCloudSocketArgs[] = [];
-  let vaultPings = 0;
   const statusNotices: CloudStatusResponse[] = [];
   const traced: string[] = [];
   // null before the constructor returns (a stored credential opens its session inside it) and
@@ -130,9 +86,9 @@ const makeHarness = (
   let asked: CloudRuntime | null = null;
   const sink: SyncedEventSink = {
     ...dispatchStub,
-    acceptDispatch: async (dispatch) => {
+    acceptDispatch: (dispatch) => {
       dispatched.push(dispatch.id);
-      return await Promise.resolve({ kind: "delivered" });
+      return { kind: "delivered" };
     },
     applySyncedEvents: (args) => {
       applied.push({
@@ -169,11 +125,7 @@ const makeHarness = (
         statusNotices.push(asked.status());
       }
     },
-    onVaultPing: () => {
-      vaultPings += 1;
-    },
     transport,
-    vault,
   });
   asked = runtime;
   runtime.attach(sink);
@@ -192,8 +144,6 @@ const makeHarness = (
     socketOpens,
     statusNotices,
     traced,
-    vault,
-    vaultPings: () => vaultPings,
   };
 };
 
@@ -273,7 +223,7 @@ describe("signing in", () => {
     expect(status.state).toBe("signed-in");
   });
 
-  it("retries the account identity on the next pass rather than losing vault sync for good", async () => {
+  it("retries the account identity on the next pass rather than leaving the account unnamed", async () => {
     const cloud = new FakeCloud();
     let refusals = 1;
     const harness = makeHarness({
@@ -290,12 +240,11 @@ describe("signing in", () => {
 
     await signIn(harness);
     expect(readDeviceCredential(harness.dataDir)?.userId).toBeUndefined();
-    const pingsWhileBlind = harness.vaultPings();
 
     await harness.runtime.syncNow();
 
     expect(readDeviceCredential(harness.dataDir)?.userId).toBe("user_fake");
-    expect(harness.vaultPings()).toBe(pingsWhileBlind + 1);
+    expect(harness.runtime.status()).toMatchObject({ accountEmail: FAKE_ACCOUNT.email });
   });
 
   it("reports the cloud's own refusal for a wrong password, and keeps nothing", async () => {
@@ -437,33 +386,6 @@ describe("an event the cloud will never hold", () => {
   });
 });
 
-describe("a capture delivered twice", () => {
-  it("applies once", async () => {
-    const cloud = new FakeCloud();
-    let lapsed = false;
-    // lapse every claim as the first ack goes out, so that ack owns nothing.
-    const fetchWithLapse: CloudFetch = async (input, init) => {
-      if (!lapsed && new URL(input).pathname === CAPTURE_API_PATHS.ack) {
-        lapsed = true;
-        cloud.lapseClaims();
-      }
-      return await cloud.fetch(input, init);
-    };
-    const harness = makeHarness({ fetch: fetchWithLapse, pollIntervalMs: null });
-    // the login goes through the wrapped fetch, so it lands on the cloud that fetch reaches.
-    const outcome = await loginAs(harness.runtime, "Laptop");
-    expect(outcome.kind).toBe("logged-in");
-
-    cloud.capture("buy oat milk");
-    await harness.runtime.syncNow();
-    expect(harness.vault.files.get(CAPTURE_INBOX_PATH)).toContain("buy oat milk");
-
-    await harness.runtime.syncNow();
-    const inbox = harness.vault.files.get(CAPTURE_INBOX_PATH) ?? "";
-    expect(inbox.match(/buy oat milk/gu)).toHaveLength(1);
-  });
-});
-
 describe("a revoked device", () => {
   it("fails closed and surfaces as unauthorized rather than retrying forever", async () => {
     const harness = makeHarness({ pollIntervalMs: null });
@@ -526,7 +448,7 @@ const fromANewerWorker =
   };
 
 describe("a worker newer than this build", () => {
-  it("signs in, pushes, pulls, claims and acks through answers that grew a field", async () => {
+  it("signs in, pushes and pulls through answers that grew a field", async () => {
     const cloud = new FakeCloud();
     const peer = makeHarness({ cloud, pollIntervalMs: null });
     await signIn(peer);
@@ -536,13 +458,11 @@ describe("a worker newer than this build", () => {
     const harness = makeHarness({ cloud, fetch: fromANewerWorker(cloud), pollIntervalMs: null });
     await signIn(harness);
     append(harness, [message("thr_mine", "from this device")]);
-    cloud.capture("buy oat milk");
     const status = await harness.runtime.syncNow();
 
     expect(status).toMatchObject({ lastError: null, state: "signed-in" });
     expect(harness.applied.map((batch) => batch.threadId)).toEqual(["thr_peer"]);
     expect(cloud.logSize()).toBe(2);
-    expect(harness.vault.files.get(CAPTURE_INBOX_PATH)).toContain("buy oat milk");
     expect(readDeviceCredential(harness.dataDir)?.userId).toBe("user_fake");
   });
 
@@ -601,7 +521,6 @@ describe("the sync trace", () => {
       /^session \d+ push: caught-up$/u,
       /^pulled 1 row\(s\) after \d+: 0 to apply across 0 thread\(s\), 1 skipped as this device's own or unreadable$/u,
       /^session \d+ pull: caught-up$/u,
-      /^session \d+ captures: caught-up$/u,
       /^session \d+ pass: caught-up$/u,
       /^sync ping at 0 skipped: the cursor \d+ covers it$/u,
     ]) {
@@ -632,22 +551,6 @@ describe("the invalidation socket", () => {
     await harness.runtime.syncNow();
     expect(afterCovered).toBeGreaterThan(quiet);
     expect(harness.cloud.requests.length).toBeGreaterThan(afterCovered);
-  });
-
-  it("routes a vault ping to the vault hook and starts no thread pass", async () => {
-    const harness = makeHarness({ pollIntervalMs: null });
-    await signIn(harness);
-    const [dial] = harness.socketOpens;
-    if (dial === undefined) {
-      throw new Error("expected a socket dial");
-    }
-    // one from the login, one from the account-identity learner.
-    expect(harness.vaultPings()).toBe(2);
-    const quiet = harness.cloud.requests.length;
-
-    dial.onPing({ type: "vault" });
-    expect(harness.vaultPings()).toBe(3);
-    expect(harness.cloud.requests).toHaveLength(quiet);
   });
 
   it("re-dials after a close, and a severed socket turns into a refusal", async () => {
@@ -802,20 +705,6 @@ describe("a pass that did not reach the cloud", () => {
 
     expect(after).toMatchObject({ lastSyncedAt: 1_000_000, pending: 1, state: "signed-in" });
     expect(after.state === "signed-in" ? after.lastError : null).toMatch(/HTTP 503/u);
-  });
-
-  it("says why a capture it claimed could not be written", async () => {
-    const harness = makeHarness({ pollIntervalMs: null });
-    await signIn(harness);
-    harness.vault.writeGuarded = async () =>
-      await Promise.resolve({ applied: false, reason: "exists" });
-
-    harness.cloud.capture("buy oat milk");
-    const after = await harness.runtime.syncNow();
-
-    expect(after.state === "signed-in" ? after.lastError : null).toMatch(
-      /appeared under the capture write/u,
-    );
   });
 });
 
@@ -1037,7 +926,6 @@ describe("dispose", () => {
     const gate = gatedFetch(cloud, SYNC_API_PATHS.pull);
     const harness = makeHarness({ cloud, fetch: gate.fetch, pollIntervalMs: null });
     await loginAs(harness.runtime, "Laptop");
-    cloud.capture("something the inbox is holding");
 
     gate.arm();
     const pass = harness.runtime.syncNow();
@@ -1049,7 +937,6 @@ describe("dispose", () => {
     await pass;
 
     expect(cloud.requests.slice(requestsAtDispose)).toEqual([]);
-    expect(harness.vault.files.get(CAPTURE_INBOX_PATH)).toBeUndefined();
   });
 });
 
@@ -1215,7 +1102,6 @@ describe("every cloud call carries a deadline", () => {
       },
       pollIntervalMs: null,
     });
-    cloud.capture("so the capture calls happen too");
     await signIn(harness);
     append(harness, [message("thr_1", "so the push happens too")]);
     await harness.runtime.syncNow();
@@ -1284,31 +1170,6 @@ describe("applying the account's log", () => {
     await loginAs(harness.runtime, "Reader");
 
     expect(readSyncState(harness.db).cursor).toBe(1);
-    expect(harness.runtime.status()).toMatchObject({
-      lastError: "the disk is full",
-      lastSyncedAt: null,
-    });
-  });
-
-  it("still lands the captures while a row it cannot apply holds the cursor", async () => {
-    const cloud = new FakeCloud();
-    const harness = makeHarness({ cloud, pollIntervalMs: null });
-    const writer = makeHarness({ cloud, pollIntervalMs: null });
-    await signIn(writer);
-    append(writer, [message("thr_1", "one")]);
-    await writer.runtime.syncNow();
-
-    harness.runtime.attach({
-      ...dispatchStub,
-      applySyncedEvents: () => {
-        throw new Error("the disk is full");
-      },
-    });
-    cloud.capture("buy oat milk");
-    await loginAs(harness.runtime, "Reader");
-
-    expect(readSyncState(harness.db).cursor).toBe(0);
-    expect(harness.vault.files.get(CAPTURE_INBOX_PATH)).toContain("buy oat milk");
     expect(harness.runtime.status()).toMatchObject({
       lastError: "the disk is full",
       lastSyncedAt: null,

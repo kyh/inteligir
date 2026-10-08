@@ -1,4 +1,3 @@
-import type { CaptureResponse } from "@repo/contract/cloud/captures/captures-schema";
 import type { CloudResult } from "@repo/contract/cloud/client";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
 import type {
@@ -8,21 +7,13 @@ import type {
 import type { PullResponse } from "@repo/contract/cloud/sync/sync-schema";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { clientOver, createFakeVault } from "../../notes/__tests__/fake-vault";
-import {
-  createMemoryAttachments,
-  createMemoryOutboxFiles,
-  MINTED_NOTE_ID,
-  nodeSha1,
-  openTempDb,
-  tempDbPath,
-} from "../../notes/__tests__/phone-storage";
 import { agentMessage, createFakeCloud, logRow, ok } from "../../sync/__tests__/fakes";
 import type { FakeCloud } from "../../sync/__tests__/fakes";
 import { composeRuntime } from "../compose-runtime";
 import type { CredentialStore } from "../compose-runtime";
 import type { ReadableStore } from "../external-store";
 import type { SqlDriver } from "../sql-driver";
+import { nodeSha1, openTempDb, tempDbPath } from "./phone-storage";
 
 const CRED = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_self" };
 const OTHER_CRED = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_other" };
@@ -69,41 +60,6 @@ const keychain = (stored: DeviceCredential | null, overrides: Partial<Credential
   return { calls, store };
 };
 
-interface PhoneStorage {
-  db: SqlDriver;
-  attachments: ReturnType<typeof createMemoryAttachments>;
-  outboxFiles: ReturnType<typeof createMemoryOutboxFiles>;
-}
-
-const phoneStorage = (db: SqlDriver = openTempDb()): PhoneStorage => ({
-  attachments: createMemoryAttachments(),
-  db,
-  outboxFiles: createMemoryOutboxFiles(),
-});
-
-// a cloud whose hosted vault holds one note and one image
-const vaultCloud = (): FakeCloud => {
-  const vault = clientOver(
-    createFakeVault({ "media/photo.png": "png bytes", "note.md": "# note\n" }).fetch,
-  );
-  return createFakeCloud({
-    vaultAsset: vault.vaultAsset,
-    vaultFile: vault.vaultFile,
-    vaultFiles: vault.vaultFiles,
-    vaultTree: vault.vaultTree,
-  });
-};
-
-const heldRows = async (db: SqlDriver): Promise<number> => {
-  const [row] = await db.all("SELECT count(content) AS held FROM mirror_entries");
-  return z.object({ held: z.number() }).parse(row).held;
-};
-
-const queuedRows = async (db: SqlDriver): Promise<number> => {
-  const [row] = await db.all("SELECT count(*) AS queued FROM outbox");
-  return z.object({ queued: z.number() }).parse(row).queued;
-};
-
 const threadRows = async (db: SqlDriver): Promise<number> => {
   const [row] = await db.all("SELECT count(*) AS held FROM thread_events");
   return z.object({ held: z.number() }).parse(row).held;
@@ -117,25 +73,19 @@ const dispatchRows = async (db: SqlDriver): Promise<number> => {
 const runtimeOver = (
   cloud: FakeCloud,
   credentials: CredentialStore,
-  storage: PhoneStorage = phoneStorage(),
+  db: SqlDriver = openTempDb(),
   openSocket?: CloudSocketOpener,
 ) => {
   let minted = 0;
   return composeRuntime({
-    attachments: storage.attachments,
     cloudUrl: "https://cloud.test",
     credentials,
-    db: storage.db,
-    deviceName: "Test Phone",
+    db,
     dispatchPollIntervalMs: null,
     mintId: () => {
       minted += 1;
       return mintedId(minted);
     },
-    mintNoteId: () => MINTED_NOTE_ID,
-    outboxFiles: storage.outboxFiles,
-    randomBytes: (length) => new Uint8Array(length),
-    retryBaseMs: null,
     sha1: nodeSha1,
     sync:
       openSocket === undefined
@@ -145,14 +95,6 @@ const runtimeOver = (
 };
 
 type Runtime = ReturnType<typeof runtimeOver>;
-
-// signed in and mirrored, with the image downloaded, so a wipe has something of each to take
-const mirrorOnce = async (rt: Runtime): Promise<void> => {
-  await rt.start();
-  await until(rt.notes.tree, (tree) => tree.state === "ready" && tree.progress === null);
-  await rt.notes.refresh();
-  expect(await rt.notes.attachmentFile("media/photo.png")).toMatchObject({ ok: true });
-};
 
 // a cloud whose log holds one answer from the Mac
 const threadCloud = (): FakeCloud => {
@@ -182,14 +124,13 @@ const pulledOnce = async (rt: Runtime): Promise<void> => {
 };
 
 describe("the composed runtime", () => {
-  it("is restoring until the stored credential is read, then signed in with its tree", async () => {
+  it("is restoring until the stored credential is read, then signed in", async () => {
     const rt = runtimeOver(createFakeCloud(), keychain(CRED).store);
     expect(rt.sync.get()).toStrictEqual({ state: "restoring" });
 
     await rt.start();
 
     expect(rt.sync.get()).toMatchObject({ deviceId: CRED.deviceId, state: "signed-in" });
-    await until(rt.notes.tree, (tree) => tree.state === "ready");
   });
 
   it("ends restoring as signed out when nothing is stored", async () => {
@@ -214,26 +155,6 @@ describe("the composed runtime", () => {
     });
   });
 
-  it("idles the notes and wipes the mirror when a pull hears unauthorized, keeping the credential", async () => {
-    const cloud = vaultCloud();
-    const credentials = keychain(CRED);
-    const storage = phoneStorage();
-    const rt = runtimeOver(cloud, credentials.store, storage);
-    await mirrorOnce(rt);
-    await until(rt.sync, (status) => status.state === "signed-in" && status.lastSyncedAt !== null);
-
-    cloud.pullResults.push(UNAUTHORIZED);
-    await rt.sync.syncNow();
-
-    expect(rt.sync.get().state).toBe("unauthorized");
-    expect(rt.notes.tree.get()).toStrictEqual({ state: "idle" });
-    await vi.waitFor(async () => {
-      expect(await heldRows(storage.db)).toBe(0);
-      expect(storage.attachments.names()).toEqual([]);
-    });
-    expect(credentials.calls).not.toContain("clear");
-  });
-
   it("signs both runtimes out when the Keychain refuses the delete, and says so", async () => {
     const credentials = keychain(CRED, {
       clear: async () => {
@@ -242,12 +163,10 @@ describe("the composed runtime", () => {
     });
     const rt = runtimeOver(createFakeCloud(), credentials.store);
     await rt.start();
-    await until(rt.notes.tree, (tree) => tree.state === "ready");
 
     await rt.logout();
 
     expect(rt.sync.get()).toStrictEqual({ state: "signed-out" });
-    expect(rt.notes.tree.get()).toStrictEqual({ state: "idle" });
     expect(rt.login.get()).toMatchObject({
       kind: "failed",
       message: expect.stringContaining("keychain locked"),
@@ -281,16 +200,10 @@ describe("the composed runtime", () => {
   });
 
   it("hears another device's push over the socket, and closes it in the background", async () => {
-    let trees = 0;
-    const cloud = createFakeCloud({
-      vaultTree: async () => {
-        trees += 1;
-        return ok({ commit: "0".repeat(40), entries: [], next: null });
-      },
-    });
+    const cloud = createFakeCloud();
     const dials: OpenCloudSocketArgs[] = [];
     let closes = 0;
-    const rt = runtimeOver(cloud, keychain(CRED).store, phoneStorage(), (args) => {
+    const rt = runtimeOver(cloud, keychain(CRED).store, openTempDb(), (args) => {
       dials.push(args);
       return {
         close: () => {
@@ -299,121 +212,45 @@ describe("the composed runtime", () => {
       };
     });
     await rt.start();
-    // a ping during the sign-in's own refresh joins it rather than listing again
-    await rt.notes.refresh();
+    await until(rt.sync, (status) => status.state === "signed-in" && status.lastSyncedAt !== null);
     const [dial] = dials;
     if (dial === undefined) {
       throw new Error("expected the signed-in phone to dial its socket");
     }
-    const listed = trees;
 
-    dial.onPing({ type: "vault" });
-    await vi.waitFor(() => {
-      expect(trees).toBeGreaterThan(listed);
-    });
+    cloud.pullResults.push(
+      ok({
+        events: [
+          logRow({
+            deviceId: "dev_other",
+            deviceSeq: 0,
+            event: agentMessage("thr_x", "t1", "m1", "pushed while the phone watched"),
+            seq: 1,
+          }),
+        ],
+        hasMore: false,
+        lastSeq: 1,
+      }),
+    );
+    dial.onPing({ seq: 1, type: "sync" });
+    await until(rt.sync, (status) => status.state === "signed-in" && status.cursor === 1);
 
     rt.suspend();
     expect(closes).toBe(1);
     rt.resume();
     expect(dials).toHaveLength(2);
   });
-
-  it("sends a capture's retry under the key its first try carried", async () => {
-    const cloud = createFakeCloud();
-    const lost: CloudResult<CaptureResponse> = {
-      failure: { kind: "unreachable", message: "offline" },
-      ok: false,
-    };
-    cloud.captureResults.push(lost);
-    const rt = runtimeOver(cloud, keychain(CRED).store);
-    await rt.start();
-
-    const first = await rt.submitCapture("buy milk");
-    const retried = await rt.submitCapture("buy milk");
-    expect([first.ok, retried.ok]).toEqual([false, true]);
-
-    expect(cloud.captures.map((request) => request.idempotencyKey)).toEqual([
-      mintedId(1),
-      mintedId(1),
-    ]);
-  });
-});
-
-describe("the phone's note mirror across sign-ins", () => {
-  it("keeps what it holds across a relaunch, and serves it before any request", async () => {
-    const file = tempDbPath();
-    const first = phoneStorage(openTempDb(file));
-    await mirrorOnce(runtimeOver(vaultCloud(), keychain(CRED).store, first));
-
-    const offline = createFakeCloud({
-      vaultTree: async () => ({ failure: { kind: "unreachable", message: "offline" }, ok: false }),
-    });
-    const relaunched = runtimeOver(offline, keychain(CRED).store, {
-      ...first,
-      db: openTempDb(file),
-    });
-    await relaunched.start();
-    await until(relaunched.notes.tree, (tree) => tree.state === "ready");
-
-    expect(await relaunched.notes.readNote("note.md")).toMatchObject({ content: "# note\n" });
-    expect(await heldRows(first.db)).toBe(1);
-    expect(first.attachments.names()).toHaveLength(1);
-  });
-
-  it("wipes the mirror and the attachments on signing out", async () => {
-    const storage = phoneStorage();
-    const rt = runtimeOver(vaultCloud(), keychain(CRED).store, storage);
-    await mirrorOnce(rt);
-
-    await rt.logout();
-
-    await vi.waitFor(async () => {
-      expect(await heldRows(storage.db)).toBe(0);
-      expect(storage.attachments.names()).toEqual([]);
-    });
-  });
-
-  it("wipes the mirror and the attachments on signing in", async () => {
-    const storage = phoneStorage();
-    const cloud = vaultCloud();
-    const rt = runtimeOver(cloud, keychain(CRED).store, storage);
-    await mirrorOnce(rt);
-    // the new sign-in's own mirror would refill the rows; this one cannot reach its vault
-    cloud.client.vaultTree = async () => ({
-      failure: { kind: "unreachable", message: "offline" },
-      ok: false,
-    });
-    vi.stubGlobal("fetch", async () => Response.json(OTHER_CRED));
-    try {
-      await rt.login.login({
-        deviceName: "phone",
-        email: "me@example.test",
-        password: "a".repeat(12),
-      });
-    } finally {
-      vi.unstubAllGlobals();
-    }
-
-    expect(rt.login.get()).toStrictEqual({ kind: "idle" });
-    expect(rt.sync.get()).toMatchObject({ deviceId: OTHER_CRED.deviceId });
-    await vi.waitFor(async () => {
-      expect(await heldRows(storage.db)).toBe(0);
-      expect(storage.attachments.names()).toEqual([]);
-    });
-  });
 });
 
 describe("the phone's threads across sign-ins", () => {
   it("keeps them across a relaunch, listed before any request lands", async () => {
     const file = tempDbPath();
-    await pulledOnce(
-      runtimeOver(threadCloud(), keychain(CRED).store, phoneStorage(openTempDb(file))),
-    );
+    await pulledOnce(runtimeOver(threadCloud(), keychain(CRED).store, openTempDb(file)));
 
     const offline = createFakeCloud({
       pull: async () => ({ failure: { kind: "unreachable", message: "offline" }, ok: false }),
     });
-    const relaunched = runtimeOver(offline, keychain(CRED).store, phoneStorage(openTempDb(file)));
+    const relaunched = runtimeOver(offline, keychain(CRED).store, openTempDb(file));
     await relaunched.start();
 
     expect(relaunched.store.snapshotThread("thr_x")?.events).toHaveLength(1);
@@ -421,19 +258,19 @@ describe("the phone's threads across sign-ins", () => {
   });
 
   it("wipes them on signing out", async () => {
-    const storage = phoneStorage();
-    const rt = runtimeOver(threadCloud(), keychain(CRED).store, storage);
+    const db = openTempDb();
+    const rt = runtimeOver(threadCloud(), keychain(CRED).store, db);
     await pulledOnce(rt);
 
     await rt.logout();
 
     expect(rt.store.snapshotThreads()).toStrictEqual([]);
-    expect(await threadRows(storage.db)).toBe(0);
+    expect(await threadRows(db)).toBe(0);
   });
 
   it("wipes them on signing in, and the new sign-in starts at the log's first row", async () => {
-    const storage = phoneStorage();
-    const rt = runtimeOver(threadCloud(), keychain(CRED).store, storage);
+    const db = openTempDb();
+    const rt = runtimeOver(threadCloud(), keychain(CRED).store, db);
     await pulledOnce(rt);
     vi.stubGlobal("fetch", async () => Response.json(OTHER_CRED));
     try {
@@ -448,71 +285,52 @@ describe("the phone's threads across sign-ins", () => {
 
     expect(rt.sync.get()).toMatchObject({ cursor: 0, deviceId: OTHER_CRED.deviceId });
     expect(rt.store.snapshotThreads()).toStrictEqual([]);
-    expect(await threadRows(storage.db)).toBe(0);
+    expect(await threadRows(db)).toBe(0);
   });
 
-  it("wipes them when a pull hears the device was signed out", async () => {
-    const storage = phoneStorage();
+  it("wipes them when a pull hears the device was signed out, keeping the credential", async () => {
+    const db = openTempDb();
     const cloud = threadCloud();
-    const rt = runtimeOver(cloud, keychain(CRED).store, storage);
+    const credentials = keychain(CRED);
+    const rt = runtimeOver(cloud, credentials.store, db);
     await pulledOnce(rt);
 
     cloud.pullResults.push(UNAUTHORIZED);
     await rt.sync.syncNow();
 
+    expect(rt.sync.get().state).toBe("unauthorized");
     expect(rt.store.snapshotThreads()).toStrictEqual([]);
     await vi.waitFor(async () => {
-      expect(await threadRows(storage.db)).toBe(0);
+      expect(await threadRows(db)).toBe(0);
     });
+    expect(credentials.calls).not.toContain("clear");
   });
 });
 
-describe("signing out with edits the vault has not taken", () => {
-  it("refuses without a discard, and a discard wipes the queue and the staged files", async () => {
-    const storage = phoneStorage();
-    // the vault's write route never answers, so every edit stays on the phone
-    const rt = runtimeOver(vaultCloud(), keychain(CRED).store, storage);
-    await mirrorOnce(rt);
-    expect(await rt.notes.readNote("note.md")).toMatchObject({ ok: true });
-    await rt.notes.write("note.md", "# note\n\nwritten offline\n");
-    await rt.notes.putAsset("media/new.png", new Uint8Array([1, 2, 3]));
-
-    expect(await rt.logout()).toStrictEqual({ edits: 2, kind: "unsent", requests: 0 });
-    expect(rt.sync.get()).toMatchObject({ state: "signed-in" });
-    expect(await queuedRows(storage.db)).toBe(2);
-    expect(storage.outboxFiles.names()).toHaveLength(1);
-
-    expect(await rt.logout({ discardUnsent: true })).toStrictEqual({ kind: "signed-out" });
-    expect(rt.sync.get()).toStrictEqual({ state: "signed-out" });
-    await vi.waitFor(async () => {
-      expect(await queuedRows(storage.db)).toBe(0);
-      expect(storage.outboxFiles.names()).toEqual([]);
-    });
-  });
-
+describe("signing out with requests no Mac has had yet", () => {
   it("counts the requests no Mac has had yet, and a discard wipes them", async () => {
-    const storage = phoneStorage();
-    const rt = runtimeOver(createFakeCloud(), keychain(CRED).store, storage);
+    const db = openTempDb();
+    const rt = runtimeOver(createFakeCloud(), keychain(CRED).store, db);
     await rt.start();
     expect(
       await rt.dispatch.askAgent({ text: "asked offline", threadId: rt.dispatch.newThreadId() }),
     ).toMatchObject({ ok: true });
-    expect(await dispatchRows(storage.db)).toBe(1);
+    expect(await dispatchRows(db)).toBe(1);
 
-    expect(await rt.logout()).toStrictEqual({ edits: 0, kind: "unsent", requests: 1 });
+    expect(await rt.logout()).toStrictEqual({ kind: "unsent", requests: 1 });
     expect(rt.sync.get()).toMatchObject({ state: "signed-in" });
-    expect(await dispatchRows(storage.db)).toBe(1);
+    expect(await dispatchRows(db)).toBe(1);
 
     expect(await rt.logout({ discardUnsent: true })).toStrictEqual({ kind: "signed-out" });
     expect(rt.dispatch.get().dispatches).toStrictEqual([]);
     await vi.waitFor(async () => {
-      expect(await dispatchRows(storage.db)).toBe(0);
+      expect(await dispatchRows(db)).toBe(0);
     });
   });
 
   it("signs straight out when nothing is unsent", async () => {
-    const rt = runtimeOver(vaultCloud(), keychain(CRED).store);
-    await mirrorOnce(rt);
+    const rt = runtimeOver(createFakeCloud(), keychain(CRED).store);
+    await rt.start();
     expect(await rt.logout()).toStrictEqual({ kind: "signed-out" });
   });
 });

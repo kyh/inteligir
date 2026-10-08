@@ -42,6 +42,10 @@ const ALLOWED_EXPORTS = new Map<string, string>([
     "packages/ui/src/components/dropdown-menu.tsx#DropdownMenuRadioItem",
     "A row inside DropdownMenuRadioGroup — held with it.",
   ],
+  [
+    "packages/ui/src/components/sidebar-menu.tsx#SidebarMenuAction",
+    "A rail row's trailing action; its consumer was the notes rail, held for the rebuild's agent rows.",
+  ],
 ]);
 
 const SOURCE_FILE = /\.tsx?$/u;

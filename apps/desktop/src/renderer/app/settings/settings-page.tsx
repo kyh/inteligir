@@ -3,31 +3,12 @@ import { Separator } from "@repo/ui/components/separator";
 import { useTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
 import { ArrowLeftIcon } from "lucide-react";
-import { useAppearance } from "../appearance";
-import {
-  EDITOR_FONTS,
-  EDITOR_LEADINGS,
-  EDITOR_MEASURES,
-  EDITOR_SIZES,
-} from "../appearance-options";
-import {
-  canSyncNow,
-  syncStateLabel,
-  useSyncNow,
-  useSystemStatus,
-  useVaultStatus,
-  useVaultTree,
-} from "../vault-hooks";
+import { useSystemStatus } from "../system-hooks";
 import { AccountSection } from "./account-section";
 import { AdvancedSection } from "./advanced-section";
-import { AgentsSection } from "./agents-section";
-import { AttachmentsRow } from "./attachments-row";
-import { ConnectorsSection } from "./connectors-section";
-import { FoldersSection } from "./folders-section";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SpellcheckRow } from "./spellcheck-row";
 import { UpdatesRow } from "./updates-row";
-import { VaultsRow } from "./vaults-rows";
 import { VersionRow } from "./version-row";
 
 const THEMES: readonly { value: Theme; label: string }[] = [
@@ -38,12 +19,8 @@ const THEMES: readonly { value: Theme; label: string }[] = [
 
 // Ids must agree with the section anchors below.
 const NAV = [
-  { id: "vault", label: "Vault" },
-  { id: "agents", label: "Agent" },
-  { id: "connectors", label: "Connectors" },
-  { id: "folders", label: "Connected folders" },
   { id: "account", label: "Account" },
-  { id: "editor", label: "Editor" },
+  { id: "appearance", label: "Appearance" },
   { id: "advanced", label: "Advanced" },
   { id: "about", label: "About" },
 ] as const;
@@ -63,14 +40,9 @@ const AboutSection = ({ system }: { system: SystemStatus }) => (
 );
 
 export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
-  const treeQuery = useVaultTree();
-  const statusQuery = useVaultStatus();
   const systemQuery = useSystemStatus();
-  const { syncNow, inFlight: syncInFlight } = useSyncNow();
   const { theme, setTheme } = useTheme();
-  const { appearance, setAppearance } = useAppearance();
 
-  const status = statusQuery.data;
   const system = systemQuery.data;
 
   return (
@@ -79,7 +51,7 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
         <nav className="sticky top-10 hidden w-40 shrink-0 self-start md:block">
           <Button variant="ghost" size="compact" className="-ml-2 mb-6 gap-1.5" onClick={onBack}>
             <ArrowLeftIcon />
-            Notes
+            Back
           </Button>
           <ul className="space-y-1 text-subtitle">
             {NAV.map((item) => (
@@ -100,7 +72,7 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
             <Button
               variant="ghost"
               size="icon-compact"
-              aria-label="Back to notes"
+              aria-label="Back to the workspace"
               className="md:hidden"
               onClick={onBack}
             >
@@ -109,95 +81,15 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
             <h2 className="text-title font-semibold">Settings</h2>
           </header>
 
-          <section id="vault" className="scroll-mt-10 space-y-2">
-            <SectionHeading>Vault</SectionHeading>
-            <dl className="space-y-1.5">
-              <Row label="Location">
-                <span className="block truncate font-mono text-body" title={treeQuery.data?.root}>
-                  {treeQuery.data?.root ?? "…"}
-                </span>
-              </Row>
-              <Row label="Sync">
-                <span className="flex items-center gap-2">
-                  {status === undefined ? "…" : syncStateLabel(status)}
-                  {canSyncNow(status) ? (
-                    <Button
-                      variant="tertiary"
-                      size="compact"
-                      disabled={syncInFlight}
-                      onClick={syncNow}
-                    >
-                      Sync now
-                    </Button>
-                  ) : null}
-                </span>
-              </Row>
-              <AttachmentsRow />
-              <VaultsRow />
-            </dl>
-          </section>
-          <Separator />
-          <div id="agents" className="scroll-mt-10">
-            <AgentsSection />
-          </div>
-          <Separator />
-          <div id="connectors" className="scroll-mt-10">
-            <ConnectorsSection />
-          </div>
-          <Separator />
-          <div id="folders" className="scroll-mt-10">
-            <FoldersSection />
-          </div>
-          <Separator />
           <div id="account" className="scroll-mt-10">
             <AccountSection />
           </div>
           <Separator />
-          <section id="editor" className="scroll-mt-10 space-y-2">
-            <SectionHeading>Editor</SectionHeading>
+          <section id="appearance" className="scroll-mt-10 space-y-2">
+            <SectionHeading>Appearance</SectionHeading>
             <dl className="space-y-1.5">
               <Row label="Theme">
                 <ChoiceRow label="Theme" options={THEMES} value={theme} onChange={setTheme} />
-              </Row>
-              <Row label="Editor font">
-                <ChoiceRow
-                  label="Editor font"
-                  options={EDITOR_FONTS}
-                  value={appearance.font}
-                  onChange={(font) => {
-                    setAppearance({ ...appearance, font });
-                  }}
-                />
-              </Row>
-              <Row label="Text size">
-                <ChoiceRow
-                  label="Text size"
-                  options={EDITOR_SIZES}
-                  value={appearance.size}
-                  onChange={(size) => {
-                    setAppearance({ ...appearance, size });
-                  }}
-                />
-              </Row>
-              <Row label="Line height">
-                <ChoiceRow
-                  label="Line height"
-                  options={EDITOR_LEADINGS}
-                  value={appearance.leading}
-                  onChange={(leading) => {
-                    setAppearance({ ...appearance, leading });
-                  }}
-                />
-              </Row>
-              <Row label="Measure">
-                <ChoiceRow
-                  label="Measure"
-                  options={EDITOR_MEASURES}
-                  value={appearance.measure}
-                  onChange={(measure) => {
-                    setAppearance({ ...appearance, measure });
-                  }}
-                />
               </Row>
               <SpellcheckRow />
             </dl>

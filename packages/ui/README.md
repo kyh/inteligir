@@ -9,8 +9,6 @@ attribution header on each file.
 ## Consumers
 
 - `apps/desktop` — the product's renderer
-- `packages/editor` — note editor
-- `apps/mobile-editor` — the phone's editor page
 - `apps/web` — the site, the auth pages and the gallery (`pnpm dev:gallery`)
 
 The package stays a leaf: no `@repo/*` runtime dependencies. Consumers import

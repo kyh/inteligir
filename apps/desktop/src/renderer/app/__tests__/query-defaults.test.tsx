@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// react-query's own refetch triggers are a full vault walk and a `git status` per window focus.
+// react-query's own refetch triggers are a re-read of every thread per window focus.
 
 import { QueryClientProvider, focusManager, useQuery } from "@tanstack/react-query";
 import { act, cleanup, renderHook } from "@testing-library/react";

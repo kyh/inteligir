@@ -9,13 +9,10 @@ export const unreachable = async <T>(): Promise<CloudResult<T>> =>
 // default line here rather than an edit to every fake
 export const fakeCloudClient = (answers: Partial<CloudClient> = {}): CloudClient => ({
   account: unreachable,
-  ackCaptures: unreachable,
   ackDispatches: unreachable,
   cancelDispatch: unreachable,
-  claimCaptures: unreachable,
   claimDispatches: unreachable,
   closeApproval: unreachable,
-  createCapture: unreachable,
   createDispatch: unreachable,
   deleteAccount: unreachable,
   dispatchStatus: unreachable,
@@ -26,10 +23,5 @@ export const fakeCloudClient = (answers: Partial<CloudClient> = {}): CloudClient
   push: unreachable,
   revokeDevice: unreachable,
   signOut: unreachable,
-  vaultAsset: unreachable,
-  vaultCommit: unreachable,
-  vaultFile: unreachable,
-  vaultFiles: unreachable,
-  vaultTree: unreachable,
   ...answers,
 });

@@ -126,7 +126,7 @@ const spellingsOf = (name: string, def: ArgDef): string[] => {
 export const HELP_FLAGS: ReadonlySet<string> = new Set(["--help", "-h"]);
 export const VERSION_FLAGS: ReadonlySet<string> = new Set(["--version", "-v"]);
 
-export const declaredFlags = (argsDef: ArgsDef): Set<string> => {
+const declaredFlags = (argsDef: ArgsDef): Set<string> => {
   const names = new Set(
     [...HELP_FLAGS, ...VERSION_FLAGS]
       .filter((flag) => flag.startsWith("--"))
@@ -198,8 +198,8 @@ const isDeclaredFlag = (raw: string, declared: ReadonlySet<string>): boolean => 
   return declared.has(flag) || (flag.startsWith("no-") && declared.has(flag.slice(3)));
 };
 
-// citty runs parseArgs with `strict: false`, so an undeclared flag is dropped: `--contentt x` would make
-// `vault write` read stdin and exit 0, and `-n 5` would be an unread boolean and a stray word.
+// citty runs parseArgs with `strict: false`, so an undeclared flag is dropped: `--textt x` would make
+// `action send` ignore it and exit 0, and `-n 5` would be an unread boolean and a stray word.
 export const assertKnownFlags = (rawArgs: readonly string[], argsDef: ArgsDef): void => {
   const declared = declaredFlags(argsDef);
   const unknown = splitArgv(rawArgs, argsDef)

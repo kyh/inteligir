@@ -10,7 +10,6 @@ import { describe, expect, it } from "vitest";
 import { ThreadService } from "../service";
 import { unavailableTurnDriver } from "../turn-driver";
 import { makeTempDir } from "../../__tests__/temp-dir";
-import { pathOnlyOrigins } from "../../__tests__/path-only-origins";
 
 // a new service on the same db is a process restart; the constructor alone writes nothing.
 const openService = (db: DbConnection): ThreadService =>
@@ -18,7 +17,6 @@ const openService = (db: DbConnection): ThreadService =>
     createTurnDriver: () => unavailableTurnDriver,
     db,
     notifier: noopNotifier,
-    origins: pathOnlyOrigins,
   });
 
 describe("removing this install's own rows pulled back from the log at boot", () => {

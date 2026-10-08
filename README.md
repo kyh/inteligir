@@ -1,46 +1,33 @@
 # Inteligir
 
-> The workspace for knowledge work.
+> An open-source inbox for the coding agents you already run.
 
-Notes with an agent that edits them beside you. Your notes are plain markdown
-files in a folder on your Mac. Ask Claude or ChatGPT to draft, tidy, link or
-summarize, and it edits those notes directly; every reply that changed a note
-can be undone, and every earlier version of a note is in its History.
+Inteligir is being rebuilt. It used to be a notes app with an agent; that app
+is gone, and in its place grows an open-source rebuild of One: a Mac app, an
+iPhone remote and a Linux connector that watch the coding agents you already
+run in your own terminals (Claude Code and Codex first), show at a glance
+which one needs you, and let you answer, message, start and stop them, with
+tmux as the control layer.
 
-## Get it
-
-**[Download for Mac (Apple silicon)](https://inteligir.com)**
-
-What you need:
-
-- A Mac with Apple silicon.
-- To use the agent, a paid Claude plan or any ChatGPT plan. The app signs in to
-  it for you and brings everything the agent needs; without a plan it is a notes
-  app.
-- Nothing else to install or set up.
-
-An account is optional and needs an invite: it keeps your notes in step across
-your Macs and your iPhone, and lets your phone ask your Mac's agent. The iPhone
-app comes by TestFlight invite.
+This tree is the skeleton the rebuild starts from: the local server and its
+thread log, the desktop window, accounts, and the cloud relay that carries
+threads and requests between your devices. None of the watching exists yet.
 
 What leaves your Mac, and when: [docs/privacy.md](./docs/privacy.md).
 
 ## For developers
 
-The app runs on your machine: one local Node process owns the vault (a git
-repo), indexes it, serves the API, and drives the agent — Claude or Codex over
-ACP — that edits those same files. Nothing reaches this project's cloud unless
-you sign in; the desktop app checks GitHub for updates and the agent talks to
-its own provider.
+The app runs on your machine: one local Node process owns the thread log and
+serves the API, and every surface (the window, the CLI) is a client of it. No
+model runs inside the app and none is called through this project's cloud:
+the agents are the ones you already run, on your own plans. Nothing reaches
+this project's cloud unless you sign in; the desktop app checks GitHub for
+updates.
 
 ### Install & run
 
 The desktop app is the product: one window on that local server, which it
-starts and stops with itself — [`apps/desktop`](./apps/desktop/README.md). The
-signed, notarized macOS build is on the latest GitHub release (the site's
-Download button reads it), and an installed app offers each new release from
-Settings › About. Its first launch asks where your notes live, a new vault or
-a folder you already have, before it starts anything.
+starts and stops with itself — [`apps/desktop`](./apps/desktop/README.md).
 
 Without installing the app:
 
@@ -48,17 +35,10 @@ Without installing the app:
 npx inteligir serve --open
 ```
 
-Same server, same workspace, in a browser tab instead of a window. The vault is
-created at `~/Inteligir` the first time it serves; the database and settings live in
-`~/.inteligir`. `--port`, `--data-dir` and `--vault` override that; `^C` stops
-it cleanly (the pending vault commit is flushed and the database closed before
-it exits). Every other verb of that same binary but `vault open`, which picks
-the vault the next server opens, is a client against a running server — see
-[`apps/cli`](./apps/cli/README.md).
-
-The agents ship inside the app: sign in with Claude or ChatGPT in
-Settings › Agent; a Mac already signed in to Claude Code or Codex stays signed
-in. Signed in to neither, the app is a notes editor and says so.
+Same server, same workspace, in a browser tab instead of a window. The
+database and settings live in `~/.inteligir`; `--port` and `--data-dir`
+override that, and `^C` stops it cleanly. Every other verb of that same binary
+is a client against a running server — see [`apps/cli`](./apps/cli/README.md).
 
 From a checkout instead:
 
@@ -75,16 +55,11 @@ the owned description of each.
 ```
 apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the window and the SPA in it
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
-apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, dispatch, hosted vault
-apps/mobile             @repo/mobile — the iPhone app: the editor offline over the hosted vault, captures, asks a Mac
-apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
+apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, dispatch
+apps/mobile             @repo/mobile — the iPhone app: the synced threads, and asking a Mac's agent
 packages/domain         @repo/domain — zod-only leaf vocabulary
 packages/contract       @repo/contract — ONE contract, TWO entries: /local and /cloud
 packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
-packages/notes          @repo/notes — the pure, platform-neutral domain
-packages/editor         @repo/editor — the Plate WYSIWYG over the fixpoint serializer
-packages/agent-runtime  @repo/agent-runtime — the ACP runtime over the harnesses
-packages/agent-skills   @repo/agent-skills — the dialect spec, as files agents read
 packages/ui             @repo/ui — the shared component vocabulary on Base UI
 tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself
 tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
@@ -93,8 +68,8 @@ tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
 Boundaries are enforced, not documented: `tools/repo-guards` derives the
 dependency DAG from the tree and fails on an undeclared edge, a cycle, a
 phantom dependency, or a package acquiring a platform it may not have
-(`@repo/notes` runs in the browser and on node; the zod-only leaves touch
-neither node nor react).
+(the contract loads in every client, and the zod-only leaves touch neither
+node nor react).
 
 **[`AGENTS.md`](./AGENTS.md) is the guide for coding agents** — quickstart and
 the runnable recipes. `CLAUDE.md` (root) holds the architecture summary,

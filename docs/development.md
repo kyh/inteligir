@@ -34,7 +34,7 @@ pnpm dev:gallery        # The @repo/ui gallery alone, at localhost:5175/gallery 
 pnpm package:cli        # The npm artifact (apps/cli) — `npx inteligir serve`
 pnpm package:desktop    # The macOS arm64 .app and dmg, signed + notarized when the keys are present
 pnpm smoke:cli          # Pack, install into a scratch prefix, boot, probe, stop
-pnpm smoke:desktop      # Package the .app, launch it, drive its server and an agent turn, SIGTERM (macOS only)
+pnpm smoke:desktop      # Package the .app, launch it, drive its server, SIGTERM (macOS only)
 pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; docs/releasing.md)
 pnpm hotfix:mobile      # A JS-only fix to the phone builds already out, as an EAS Update
 pnpm build              # Build all
@@ -70,29 +70,23 @@ wherever the command started, so `pnpm dev` (from apps/desktop) and
 and `INTELIGIR_DATA_DIR` override; a dev data dir is marked with its checkout
 path on first boot and refuses a different checkout thereafter.
 
-A checkout whose dev instance has no vault yet opens the shell on its FIRST
-RUN, as a fresh install does: a page that asks for a new vault or an existing
-folder before any server boots (`apps/desktop/README.md` § The first run is
-decided before any server exists). Its proposed vault is the dev instance's
-own `vault/` folder, so Create with the defaults never touches `~/Inteligir`.
-`INTELIGIR_VAULT_DIR` or `INTELIGIR_DATA_DIR` skips it, as does a vault an
-earlier `pnpm dev` or `pnpm cli serve` already made.
+The shell opens the window straight on that server: there is no first run to
+answer.
 
 Every `INTELIGIR_*` variable that module declares works on `pnpm dev`, and
 that is a fact `apps/desktop/turbo.json` has to keep: turbo runs in STRICT env
 mode, so a variable its `dev` task does not name is stripped before the
 process starts — silently, with no error to read, so
-`INTELIGIR_AGENT=scripted pnpm dev` would simply boot the default agent. The
+`INTELIGIR_AGENT=scripted pnpm dev` would simply boot the default driver. The
 task list is held against the module's own declared set by
 `tools/repo-guards/src/turbo-passthrough.test.ts`, so adding a variable to
 `config.ts` fails the gate until the task names it.
 
 When something "didn't update", `INTELIGIR_DEBUG` names what to trace,
-comma-separated: `watcher`, `knowledge`, `sync`, `acp`
-(`INTELIGIR_DEBUG=watcher,knowledge pnpm dev`). The server then writes each
-decision those make to its stderr as a `[debug:<name>]` line, by path and id,
-never by a note's content or a credential; an unknown name is refused at boot.
-`inteligir guide` § Diagnostics is the user's copy, and
+comma-separated; `sync` is the one namespace today
+(`INTELIGIR_DEBUG=sync pnpm dev`). The server then writes each decision it
+makes to its stderr as a `[debug:<name>]` line, by id, never by a message's
+content or a credential; an unknown name is refused at boot.
 `apps/cli/src/server/debug-log.ts` says what each one traces.
 
 A Finder-launched app has no env to set and no terminal to read, so the
@@ -109,33 +103,29 @@ shell adopted is not its child, so neither the switch nor the log reaches it.
 The prod path is `pnpm package:cli`, which bundles the server, the CLI and the
 staged workspace UI into `apps/cli/dist`; `inteligir serve` then runs plain
 `node` on port 4664. `pnpm package:desktop` stages that same package with its
-production dependencies as the .app's resource, beside the node it runs on and
-the git a Mac without the developer tools runs (both fetched and pinned at
-package time), signed when the keychain holds a Developer ID and notarized when
+production dependencies as the .app's resource, beside the node it runs on
+(fetched and pinned at package time), signed when the keychain holds a Developer ID and notarized when
 `.release/` is present (`apps/desktop/README.md` § Packaging).
 
-`pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, thread sync,
-the capture inbox, the hosted vault git remote — over a local D1 file and
-miniflare's Durable Objects. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
+`pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, thread sync
+and the dispatch inbox — over a local D1 file and miniflare's Durable Objects. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 § "There is no seeded login" has the exact commands.
 
 ## Where state lives
 
-| What                                          | Where                                             |
-| --------------------------------------------- | ------------------------------------------------- |
-| The product (`pnpm dev`)                      | derived port 21000–28999 (hash of checkout root)  |
-| The page's vite dev server                    | 31000 (pinned — `strictPort`; `tauri dev` waits)  |
-| The product's SQLite + config.json            | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
-| A vault other than the default                | `<that dir>/vaults/<hash of the vault path>/`     |
-| Folders, agent, vault and phone-request prefs | JSON files beside them (the app writes these)     |
-| Connectors                                    | the agent's own: `~/.claude.json`, `~/.codex`     |
-| The desktop's server log                      | `<data dir>/logs/server.log` (+ one `.1`)         |
-| The desktop's own folder (recent vaults,      | `~/Library/Application Support/Inteligir`; a      |
-| the debug choice, each vault's web store)     | development shell's is `Inteligir (Dev)`          |
-| Site + cloud Worker (`pnpm dev:web`)          | 5174 (pinned — `strictPort`)                      |
-| UI gallery (`pnpm dev:gallery`)               | 5175 (pinned — `strictPort`), at `/gallery`       |
-| Accounts, sessions, devices, invites          | D1 (local file under `apps/web/.wrangler`)        |
-| Thread log, captures, hosted vault            | Durable Objects (same `.wrangler` dir)            |
+| What                                        | Where                                             |
+| ------------------------------------------- | ------------------------------------------------- |
+| The product (`pnpm dev`)                    | derived port 21000–28999 (hash of checkout root)  |
+| The page's vite dev server                  | 31000 (pinned — `strictPort`; `tauri dev` waits)  |
+| The product's SQLite + config.json          | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
+| Phone-request prefs (`cloud-prefs.json`)    | beside them (the app writes it)                   |
+| The desktop's server log                    | `<data dir>/logs/server.log` (+ one `.1`)         |
+| The desktop's own folder (the debug choice, | `~/Library/Application Support/Inteligir`; a      |
+| each data dir's web store)                  | development shell's is `Inteligir (Dev)`          |
+| Site + cloud Worker (`pnpm dev:web`)        | 5174 (pinned — `strictPort`)                      |
+| UI gallery (`pnpm dev:gallery`)             | 5175 (pinned — `strictPort`), at `/gallery`       |
+| Accounts, sessions, devices, invites        | D1 (local file under `apps/web/.wrangler`)        |
+| Thread log, dispatch inbox                  | Durable Objects (same `.wrangler` dir)            |
 
 ## Quality gates
 
@@ -159,8 +149,8 @@ open a real window. ONE run, because there is one build —
 the workspace is a plain SPA served as files, so the suite drives the same
 bytes and the same policy a user gets. So a green `verify` is not a green CI;
 run `pnpm e2e` too before claiming one. A second job runs on macOS, where the
-app ships: `pnpm test` again, since APFS, FSEvents and a tmpdir behind a
-symlink exist only there, and `pnpm smoke:desktop` on an ad-hoc pack
+app ships: `pnpm test` again, since APFS and a tmpdir behind a symlink exist
+only there, and `pnpm smoke:desktop` on an ad-hoc pack
 (`INTELIGIR_PACK_UNSIGNED=1`).
 
 That "plus a few more" is a CLAIM, and
@@ -177,7 +167,7 @@ header says what it pins, and `tools/repo-guards` holds the invariants that
 span workspaces (the dep DAG, ws change kinds, CI parity, dangling references,
 the per-export orphan guard over `@repo/ui`).
 
-End-to-end: `pnpm e2e` boots real app instances on scratch dirs (fixture
-vaults, scratch git remotes, a headless browser, and the desktop shell itself,
+End-to-end: `pnpm e2e` boots real app instances on scratch dirs (scratch
+Workers under Miniflare, a headless browser, and the desktop shell itself,
 driven over WebDriver on Linux) and is deliberately outside
 `pnpm verify` — `tools/e2e/README.md` is the one-pager.

@@ -1,16 +1,19 @@
-import { writeFile } from "node:fs/promises";
 import path from "node:path";
+import { readDeviceCredential } from "inteligir/server/cloud/credential-store";
 import { readServerFile } from "inteligir/server/server-file";
 import { expect } from "../harness/assert";
+import { signInOwner, signUp } from "../harness/cloud-account";
+import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
+import { appLaunchEnv, describeExecError, exec } from "../harness/exec";
 import type { AppInstance } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
+import { untilThreadIdle } from "../harness/threads";
 
-const WATCHED_PATH = "Watched.md";
 const BODY_TOKEN = "debugtracebodytoken";
-const IGNORED_NAME = ".inteligir-tmp-e2e";
 const DEADLINE_MS = 30_000;
-const WATCH_ROUND_MS = 5000;
+// the step every pass runs first, traced as `session <id> push: <outcome>`
+const PUSH_TRACE = /\[debug:sync\] session \S+ push: \S+$/u;
 
 const debugLines = (app: AppInstance): string[] =>
   app
@@ -18,80 +21,71 @@ const debugLines = (app: AppInstance): string[] =>
     .split("\n")
     .filter((line) => line.includes("[debug:"));
 
-// rewritten each round: the first write can land before the watcher subscribes, and only a write
-// on disk reaching the index proves the watcher made its decisions.
-const writeUntilIndexed = async (app: AppInstance): Promise<void> => {
-  let round = 0;
-  let rewriteAt = 0;
-  await pollUntil(
-    async () => {
-      if (Date.now() >= rewriteAt) {
-        await writeFile(
-          path.join(app.vaultDir, WATCHED_PATH),
-          `# Watched\n\n${BODY_TOKEN} round ${round}\n`,
-        );
-        round += 1;
-        rewriteAt = Date.now() + WATCH_ROUND_MS;
-      }
-      const { results } = await app.api.knowledge.search({ q: BODY_TOKEN });
-      return results.some((result) => result.path === WATCHED_PATH);
-    },
-    (indexed) => indexed,
-    {
-      deadlineMs: DEADLINE_MS,
-      describe: () => `${app.name} never indexed the write to ${WATCHED_PATH} (${DEADLINE_MS}ms)`,
-    },
-  );
-};
-
 export const debugLogTrace: Scenario = {
   description:
-    "INTELIGIR_DEBUG traces what the watcher kept and dropped and the index's verdict, by path and never by content; unset, nothing",
+    "INTELIGIR_DEBUG traces each sync step by id and never by content or credential; unset, nothing; a misspelt namespace refuses the boot",
   name: "debug-log",
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
+    ctx.log("a namespace no build traces refuses the boot, naming the ones it does");
+    let refused = "";
+    try {
+      await exec(path.join(ctx.repoRoot, "apps", "cli", "bin", "inteligir"), ["serve"], {
+        env: {
+          ...appLaunchEnv(),
+          INTELIGIR_DATA_DIR: path.join(ctx.scratchDir, "refused"),
+          INTELIGIR_DEBUG: "watcher",
+        },
+      });
+    } catch (error) {
+      refused = describeExecError(error);
+    }
+    expect(
+      refused.includes("INTELIGIR_DEBUG") && refused.includes("sync"),
+      `a misspelt namespace booted, or failed without naming the variable:\n${refused}`,
+    );
+
+    const worker = await ctx.cloudWorker();
+    await signUp(worker.origin);
+    const env = { INTELIGIR_AGENT: "scripted", INTELIGIR_CLOUD_URL: worker.origin };
     const traced = await ctx.boot({
-      extraEnv: { INTELIGIR_DEBUG: "watcher,knowledge" },
+      extraEnv: { ...env, INTELIGIR_DEBUG: "sync" },
       name: "traced",
     });
-    const quiet = await ctx.boot({ name: "quiet" });
+    const quiet = await ctx.boot({ extraEnv: env, name: "quiet" });
 
-    ctx.log("an external write reaches both indexes");
-    await writeUntilIndexed(traced);
-    await writeUntilIndexed(quiet);
+    ctx.log("both sign in, and each pushes a turn whose words must not reach a trace");
+    for (const [app, label] of [
+      [traced, "traced"],
+      [quiet, "quiet"],
+    ] as const) {
+      await signInOwner(app, label, `E2E ${label}`);
+      const { thread } = await app.api.threads.create({ title: "traced turn" });
+      await app.api.threads.send({ text: `${BODY_TOKEN} from ${label}`, threadId: thread.id });
+      await untilThreadIdle(app.api, thread.id);
+      await app.api.cloud.syncNow();
+    }
 
-    ctx.log("the traced instance names the note it kept, delivered and indexed");
-    const kept = /\[debug:watcher\] \w+ Watched\.md: kept$/u;
-    const lines = debugLines(traced);
-    expect(
-      lines.some((line) => kept.test(line)),
-      `no kept verdict among:\n${lines.join("\n")}`,
-    );
-    expect(
-      lines.some((line) => line.endsWith("[debug:watcher] delivered: Watched.md")),
-      `no delivery among:\n${lines.join("\n")}`,
-    );
-    expect(
-      lines.some((line) => line.endsWith("[debug:knowledge] Watched.md: changed, indexing")),
-      `no index verdict among:\n${lines.join("\n")}`,
-    );
-
-    ctx.log("and why it dropped a staging file");
-    await writeFile(path.join(traced.vaultDir, IGNORED_NAME), `${BODY_TOKEN} staged\n`);
-    const dropped = `: dropped, under ignored entry ${IGNORED_NAME}`;
-    const withDrop = await pollUntil(
+    ctx.log("the traced instance names each step its passes ran");
+    const lines = await pollUntil(
       async () => await Promise.resolve(debugLines(traced)),
-      (current) => current.some((line) => line.endsWith(dropped)),
+      (current) => current.some((line) => PUSH_TRACE.test(line)),
       {
         deadlineMs: DEADLINE_MS,
-        describe: (current) => `no drop verdict for ${IGNORED_NAME} among:\n${current.join("\n")}`,
+        describe: (current) => `no push step among:\n${current.join("\n")}`,
       },
     );
 
-    ctx.log("no line carries a note's content or the server's credential");
+    ctx.log("no line carries a message's words or a credential");
     const server = readServerFile(traced.dataDir);
     expect(server !== null, "the traced server published no server.json");
-    const leaked = withDrop.filter(
-      (line) => line.includes(BODY_TOKEN) || line.includes(server.token),
+    const device = readDeviceCredential(traced.dataDir);
+    expect(device !== null, "the traced instance holds no device credential");
+    const leaked = lines.filter(
+      (line) =>
+        line.includes(BODY_TOKEN) ||
+        line.includes(server.token) ||
+        line.includes(device.credential),
     );
     expect(leaked.length === 0, `a debug line leaked:\n${leaked.join("\n")}`);
 

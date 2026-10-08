@@ -2,10 +2,10 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
-    // The two pages (vite.config.ts). `^topo`, deliberately NOT `^build`: the CLI's own build
+    // The app page (vite.config.ts). `^topo`, deliberately NOT `^build`: the CLI's own build
     // stages the app page, so `^build` would be a cycle; that ordering runs the other way and is
     // named on `inteligir#build`. But these bundles inline the workspace packages' source, and a
-    // task with no `^` edge hashes none of it: an edit confined to @repo/editor or @repo/ui would
+    // task with no `^` edge hashes none of it: an edit confined to @repo/ui would
     // be a cache hit that replays a stale page into the CLI's dist/ui. `^topo` is the transit node
     // `typecheck` and `test` use: it runs no script and waits on no build, and it puts every
     // dependency's files in this hash.
@@ -13,15 +13,15 @@
       "dependsOn": ["^topo"],
       "outputs": ["dist/**"]
     },
-    // The unbundled debug shell the scenario suite drives (tools/e2e/src/harness/desktop-shell.ts),
-    // its first-run page inside it. cargo keeps its own incremental cache, keyed on what turbo
+    // The unbundled debug shell the scenario suite drives (tools/e2e/src/harness/desktop-shell.ts).
+    // cargo keeps its own incremental cache, keyed on what turbo
     // cannot see (the toolchain, ~/.cargo), so a turbo hit could only skip a no-op compile.
     "build:shell": {
       "dependsOn": ["build"],
       "cache": false
     },
-    // The .app is where the halves meet: the shell compiled with the first-run page inside it, the
-    // node it ships, and the CLI bundle, which already carries the app page, as a resource.
+    // The .app is where the halves meet: the shell, the node it ships, and the CLI bundle, which
+    // already carries the app page, as a resource.
     "package": {
       "dependsOn": ["build", "inteligir#build"],
       "outputs": [".output/bin/**"],
@@ -56,16 +56,10 @@
       // that function.
       "passThroughEnv": [
         "INTELIGIR_AGENT",
-        "INTELIGIR_CLAUDE_MODEL",
         "INTELIGIR_CLOUD_URL",
-        "INTELIGIR_CODEX_MODEL",
         "INTELIGIR_DATA_DIR",
         "INTELIGIR_DEBUG",
-        "INTELIGIR_PORT",
-        "INTELIGIR_SLOW_READS",
-        "INTELIGIR_SYNC_INTERVAL_MS",
-        "INTELIGIR_VAULT_DIR",
-        "INTELIGIR_VAULT_REMOTE"
+        "INTELIGIR_PORT"
       ]
     }
   }

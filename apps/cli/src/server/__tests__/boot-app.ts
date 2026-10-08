@@ -9,21 +9,12 @@ import { RPC_PREFIX } from "@repo/contract/local/routes";
 import type { AgentStatus } from "@repo/contract/local/system/system-schema";
 import { createRouterClient } from "@orpc/server";
 import type { RouterClient } from "@orpc/server";
-import { HARNESS_IDS, HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
-import type { HarnessId, VendorAccount } from "@repo/agent-runtime/acp/harness-registry";
 import { onTestFinished } from "vitest";
 import { createApp } from "../app";
 import type { CloudTransport } from "../cloud/sync-runtime";
-import type { VaultRemoteProvider } from "../cloud/vault-remote";
 import { composeRuntime } from "../compose";
-import type { ComposedRuntime, ComposePorts, ComposeRuntimeArgs } from "../compose";
-import { createVendorMcpConfigs } from "../connectors/connectors-service";
-import type { VendorMcpConfigs } from "../connectors/vendor-mcp-config";
-import type { RecordAgentWrites } from "../agents/agent-driver";
-import { SignInInProgressError } from "../agents/agent-sign-in";
-import type { AgentAccounts, SigningIn } from "../agents/agent-sign-in";
+import type { ComposedRuntime, ComposeRuntimeArgs } from "../compose";
 import type { AppConfig } from "../config";
-import { createInlineProjector } from "../knowledge/__tests__/inline-projector";
 import { closeServer } from "../listen";
 import { localRouter } from "../root-router";
 import { LOOPBACK_HOST } from "../loopback-origin";
@@ -31,8 +22,6 @@ import { authorizationHeader, loopbackOrigin } from "../server-file";
 import type { ShutdownStep } from "../shutdown";
 import { unavailableTurnDriver } from "../threads/turn-driver";
 import type { CreateTurnDriver } from "../threads/turn-driver";
-import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
-import type { VaultRuntime } from "../vault/vault-runtime";
 import type { WsBus } from "../ws-bus";
 import { boundAddressSchema } from "./bound-address";
 import { FakeTurnDriver } from "./fake-turn-driver";
@@ -40,7 +29,6 @@ import type { FakeTurnDriverOptions } from "./fake-turn-driver";
 import { makeTempDir } from "./temp-dir";
 
 export { makeTempDir, TEMP_DIR_FOLDS_CASE } from "./temp-dir";
-export { AGENT_COMMIT_AUTHOR, agentCommitMessage } from "../vault/turn-trailers";
 export { FAKE_ACCOUNT, FakeCloud } from "../cloud/__tests__/fake-cloud";
 
 export const TEST_SERVER_TOKEN = "test-server-token";
@@ -48,122 +36,20 @@ export const TEST_SERVER_TOKEN = "test-server-token";
 // an in-process Request carries no Host until one is set, and the host guard refuses one naming none.
 export const TEST_HOST = "127.0.0.1:4664";
 
-type FakeSignInOutcome = Awaited<ReturnType<AgentAccounts["signIn"]>>;
-
-// a booted suite never runs a vendor binary: every harness answers signed in unless told otherwise.
-// A sign-in stays running until it is cancelled, as one the person never finishes in the browser,
-// or until a code is pasted, which signs it in as the vendor's own exchange would; `authUrl` is the
-// address it says it printed, and `refusal` fails every sign-in at once with that detail. A sign-out
-// signs the harness out.
-export const fakeAgentAccounts = (
-  answers: Partial<Record<HarnessId, VendorAccount>> = {},
-  signIn: { authUrl?: string; refusal?: string } = {},
-): AgentAccounts => {
-  const accounts = new Map<HarnessId, VendorAccount>(
-    HARNESS_IDS.map((id) => [
-      id,
-      answers[id] ?? { email: null, label: HARNESSES[id].displayName, state: "signed-in" },
-    ]),
-  );
-  const disposed = new AbortController();
-  let current: {
-    progress: SigningIn;
-    finish: (outcome: FakeSignInOutcome) => void;
-    ended: Promise<FakeSignInOutcome>;
-  } | null = null;
-  return {
-    cancel: async (id) => {
-      const running = current;
-      if (running?.progress.id !== id) {
-        return;
-      }
-      running.finish({ outcome: "cancelled" });
-      await Promise.allSettled([running.ended]);
-    },
-    dispose: async () => {
-      disposed.abort();
-      await Promise.resolve();
-    },
-    signIn: async (id) => {
-      if (current !== null) {
-        throw new SignInInProgressError(HARNESSES[current.progress.id]);
-      }
-      if (signIn.refusal !== undefined) {
-        return { detail: signIn.refusal, outcome: "failed" };
-      }
-      const ended = Promise.withResolvers<FakeSignInOutcome>();
-      const stop = (): void => {
-        ended.resolve({ outcome: "cancelled" });
-      };
-      current = {
-        ended: ended.promise,
-        finish: ended.resolve,
-        progress: {
-          acceptsCode: HARNESSES[id].signIn.kind === "terminal",
-          authUrl: signIn.authUrl ?? null,
-          id,
-        },
-      };
-      if (disposed.signal.aborted) {
-        stop();
-      }
-      disposed.signal.addEventListener("abort", stop, { once: true });
-      try {
-        return await ended.promise;
-      } finally {
-        disposed.signal.removeEventListener("abort", stop);
-        current = null;
-      }
-    },
-    signOut: async (id) => {
-      accounts.set(id, { state: "signed-out" });
-      return await Promise.resolve({ outcome: "signed-out" });
-    },
-    signingIn: () => (current === null ? null : { ...current.progress }),
-    status: async (id) => await Promise.resolve(accounts.get(id) ?? { state: "signed-out" }),
-    submitCode: (id, code) => {
-      const method = HARNESSES[id].signIn;
-      if (method.kind !== "terminal" || current?.progress.id !== id) {
-        return "not-waiting";
-      }
-      if (!method.acceptsCode(code)) {
-        return "incomplete";
-      }
-      accounts.set(id, { email: null, label: HARNESSES[id].displayName, state: "signed-in" });
-      current.finish({ outcome: "signed-in" });
-      return "sent";
-    },
-  };
-};
-
 // what a booted app calls itself before a sign-in names it, so no suite reads the host's own name.
 export const TEST_MACHINE_NAME = "Test Mac";
 
 export interface BootTestAppOptions {
   agent?: AgentStatus;
-  // absent, every harness answers signed in.
-  accounts?: AgentAccounts;
   // omitted, the real transport does nothing: a scratch data dir holds no device credential.
   cloudTransport?: CloudTransport;
   clientDir?: string;
   // a development shell's Vite, answering the page in the bundle's place
   uiDevOrigin?: string;
-  // absent, the bundled vendors over stores of the instance's own, so no suite edits the Mac's.
-  connectors?: VendorMcpConfigs;
   port?: number;
-  // the vault's place under the instance dir, which is the config's home too; absent, "vault".
-  vaultPath?: string;
-  // the vault's remote: "derived" is the one the config, the vault's origin and a credential
-  // derive, as a server composes it; absent, none.
-  remote?: "derived" | VaultRemoteProvider;
-  // INTELIGIR_VAULT_REMOTE's pin, over a derived remote.
-  pinnedRemote?: string;
-  // the vault's folder is left for the boot to create, so it seeds the starter notes.
-  seedsStarters?: boolean;
-  makeDriver?: (deps: { db: DbConnection; bus: WsBus; vault: VaultRuntime; vaultDir: string }) => {
+  makeDriver?: (deps: { db: DbConnection; bus: WsBus }) => {
     createTurnDriver: CreateTurnDriver;
     dispose?: () => Promise<void>;
-    recordAgentWrites?: RecordAgentWrites;
     // absent, `agent` answers every request.
     status?: () => AgentStatus;
   };
@@ -178,73 +64,27 @@ export interface BootedTestApp {
   // from the loopback host, carrying whatever credential `init` does.
   bareRequest: (input: string, init?: RequestInit) => Promise<Response>;
   config: AppConfig;
-  // the vendor configs Settings' connectors read and write, as wired.
-  connectors: VendorMcpConfigs;
   db: DbConnection;
-  vault: VaultRuntime;
-  vaultDir: string;
   dataDir: string;
 }
-
-// what a booted instance hands a vendor it runs: the host's env, but the vendor's stores (and the
-// home a store defaults under) are the instance's own. codex refuses a CODEX_HOME that does not exist.
-export const instanceVendorEnv = (instanceDir: string): NodeJS.ProcessEnv => {
-  const home = path.join(instanceDir, "vendor-home");
-  const stores = {
-    CLAUDE_CONFIG_DIR: path.join(home, "claude"),
-    CODEX_HOME: path.join(home, "codex"),
-  };
-  for (const dir of Object.values(stores)) {
-    mkdirSync(dir, { recursive: true });
-  }
-  return { ...process.env, ...stores, HOME: home };
-};
 
 export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<BootedTestApp> => {
   const instanceDir = makeTempDir("inteligir-app-test-");
   const dataDir = path.join(instanceDir, "data");
-  const vaultDir = path.join(instanceDir, options.vaultPath ?? "vault");
-  if (options.seedsStarters !== true) {
-    // pre-created so the boot is not virgin and seeds no starter note.
-    mkdirSync(vaultDir, { recursive: true });
-  }
   mkdirSync(dataDir, { recursive: true });
 
   const agent = options.agent ?? { detail: null, mode: "off", runtime: "off" };
   const config: AppConfig = {
     agent: agent.mode,
-    agentModels: { claude: null, codex: null },
     cloudUrl: "https://cloud.test",
     dataDir,
     dataDirSource: "env",
     databasePath: path.join(dataDir, "inteligir.db"),
     debug: new Set(),
-    homeDir: instanceDir,
     mode: "dev",
     port: options.port ?? 0,
     portSource: "env",
-    rootDataDir: dataDir,
-    slowReads: null,
-    vaultDir,
-    vaultDirSource: "env",
-    vaultRemote: options.pinnedRemote ?? null,
-    // tests drive syncNow directly; a timer would race the assertions.
-    vaultSyncIntervalMs: null,
-    warnings: [],
   };
-
-  const ports: ComposePorts = {
-    knowledge: { projector: createInlineProjector() },
-    machineName: TEST_MACHINE_NAME,
-    vault:
-      options.remote === "derived" || options.pinnedRemote !== undefined
-        ? { gitEnv: hermeticGitEnv(), watch: false }
-        : { gitEnv: hermeticGitEnv(), remote: options.remote ?? (() => null), watch: false },
-  };
-  const connectors =
-    options.connectors ??
-    createVendorMcpConfigs({ cwd: dataDir, env: instanceVendorEnv(instanceDir) });
-  ports.connectors = connectors;
 
   // registered before composing: a compose that throws part-way has a database open, and the steps already on the array release it.
   const teardown: ShutdownStep[] = [];
@@ -254,15 +94,9 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     }
   });
   const composeArgs: ComposeRuntimeArgs = {
-    accounts: options.accounts ?? fakeAgentAccounts(),
     config,
     driver: (deps) => {
-      const made = options.makeDriver?.({
-        bus: deps.bus,
-        db: deps.db,
-        vault: deps.vault,
-        vaultDir,
-      });
+      const made = options.makeDriver?.({ bus: deps.bus, db: deps.db });
       return {
         createTurnDriver: made?.createTurnDriver ?? (() => unavailableTurnDriver),
         dispose:
@@ -270,15 +104,10 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
           (async () => {
             await Promise.resolve();
           }),
-        recordAgentWrites:
-          made?.recordAgentWrites ??
-          (() => {
-            /* empty */
-          }),
         status: made?.status ?? (() => agent),
       };
     },
-    ports,
+    ports: { machineName: TEST_MACHINE_NAME },
     servesUi: options.clientDir !== undefined || options.uiDevOrigin !== undefined,
     teardown,
     version: "0.1.0-test",
@@ -296,12 +125,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     uiDevOrigin: options.uiDevOrigin ?? null,
   });
   const composed = { ...runtime, ...wired };
-  const client = createRouterClient(localRouter, {
-    context: {
-      ...runtime.context,
-      agentThreadId: null,
-    },
-  });
+  const client = createRouterClient(localRouter, { context: runtime.context });
   const bareRequest = async (input: string, init?: RequestInit): Promise<Response> => {
     const headers = new Headers(init?.headers);
     if (!headers.has("host")) {
@@ -320,12 +144,9 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     client,
     composed,
     config,
-    connectors,
     dataDir,
     db: runtime.db,
     request,
-    vault: runtime.context.vault,
-    vaultDir,
   };
 };
 

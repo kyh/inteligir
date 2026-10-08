@@ -1,36 +1,23 @@
 import { Stack, useRouter } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { useCallback, useState } from "react";
+import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { logout, submitCapture, syncNow, useSyncStatus, useThreadList } from "@/lib/app-runtime";
+import { logout, newThreadId, syncNow, useSyncStatus, useThreadList } from "@/lib/app-runtime";
+import type { ThreadParams } from "@/lib/routes";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
-import type { Theme } from "@/lib/theme";
 import type { SyncStatus } from "@/sync/sync-runtime";
-import { describeCloudFailure } from "@repo/contract/cloud/client";
 
 const styles = StyleSheet.create({
   bodyText: { fontSize: 16, textAlign: "center" },
-  captionText: { fontSize: 12 },
-  captureBox: { gap: SPACE.sm, paddingHorizontal: SPACE.lg, paddingTop: SPACE.md },
   empty: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96 },
   footer: { borderTopWidth: 1, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
-  input: {
+  list: { paddingBottom: 32, paddingHorizontal: SPACE.lg },
+  newButton: {
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    fontSize: 16,
     paddingHorizontal: SPACE.lg,
-    paddingVertical: SPACE.md,
+    paddingVertical: SPACE.sm,
   },
-  list: { paddingBottom: 32, paddingHorizontal: SPACE.lg },
   pressed70: { opacity: 0.7 },
   pressed80: { opacity: 0.8 },
   screen: { flex: 1 },
@@ -66,114 +53,12 @@ const describeStatus = (status: SyncStatus): string => {
   return status.lastSyncedAt === null ? "Not synced yet" : "Synced";
 };
 
-type CaptureNotice =
-  | { kind: "idle" }
-  | { kind: "sending" }
-  | { kind: "captured" }
-  | { kind: "failed"; message: string };
+const unsentLine = (requests: number): string =>
+  requests === 1
+    ? "1 request to your Mac has not reached it yet."
+    : `${String(requests)} requests to your Mac have not reached it yet.`;
 
-const captureNoticeLine = (
-  notice: CaptureNotice,
-  theme: Theme,
-): { text: string; color: string } | null => {
-  switch (notice.kind) {
-    case "captured": {
-      return { color: theme.mutedForeground, text: "Captured" };
-    }
-    case "failed": {
-      return { color: theme.destructive, text: notice.message };
-    }
-    case "idle":
-    case "sending": {
-      return null;
-    }
-    // no default
-  }
-};
-
-const CaptureBox = () => {
-  const theme = useTheme();
-  const [text, setText] = useState("");
-  const [notice, setNotice] = useState<CaptureNotice>({ kind: "idle" });
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (timer.current !== null) {
-        clearTimeout(timer.current);
-      }
-    },
-    [],
-  );
-
-  const capture = useCallback(async () => {
-    const value = text.trim();
-    if (value === "" || notice.kind === "sending") {
-      return;
-    }
-    if (timer.current !== null) {
-      clearTimeout(timer.current);
-    }
-    setNotice({ kind: "sending" });
-    const result = await submitCapture(value);
-    if (!result.ok) {
-      setNotice({ kind: "failed", message: describeCloudFailure(result.failure) });
-      return;
-    }
-    // clear only the words that were sent; text typed while the POST was in flight stays.
-    setText((current) => (current === text ? "" : current));
-    setNotice({ kind: "captured" });
-    timer.current = setTimeout(() => {
-      setNotice({ kind: "idle" });
-    }, 2500);
-  }, [text, notice.kind]);
-
-  const line = captureNoticeLine(notice, theme);
-  return (
-    <View style={styles.captureBox}>
-      <TextInput
-        style={[
-          styles.input,
-          { backgroundColor: theme.card, borderColor: theme.input, color: theme.foreground },
-        ]}
-        placeholder="Capture to your inbox…"
-        placeholderTextColor={theme.mutedForeground}
-        value={text}
-        onChangeText={setText}
-        returnKeyType="done"
-        submitBehavior="blurAndSubmit"
-        onSubmitEditing={() => {
-          void capture();
-        }}
-      />
-      {line === null ? null : (
-        <Text style={[styles.captionText, { color: line.color }]}>{line.text}</Text>
-      )}
-    </View>
-  );
-};
-
-const unsentLines = (edits: number, requests: number): string[] => {
-  const lines: string[] = [];
-  if (edits > 0) {
-    lines.push(
-      edits === 1
-        ? "1 change on this phone has not reached your vault yet."
-        : `${String(edits)} changes on this phone have not reached your vault yet.`,
-    );
-  }
-  if (requests > 0) {
-    lines.push(
-      requests === 1
-        ? "1 request to your Mac has not reached it yet."
-        : `${String(requests)} requests to your Mac have not reached it yet.`,
-    );
-  }
-  return lines;
-};
-
-// a sign-out that would discard edits the vault has not taken, or requests no Mac holds yet, asks
-// first, naming how many
+// a sign-out that would discard requests no Mac holds yet asks first, naming how many
 const signOut = async (): Promise<void> => {
   const outcome = await logout();
   if (outcome.kind === "signed-out") {
@@ -181,7 +66,7 @@ const signOut = async (): Promise<void> => {
   }
   Alert.alert(
     "Sign out and discard them?",
-    [...unsentLines(outcome.edits, outcome.requests), "Signing out discards them."].join(" "),
+    `${unsentLine(outcome.requests)} Signing out discards them.`,
     [
       { style: "cancel", text: "Cancel" },
       {
@@ -214,23 +99,24 @@ const HomeScreen = () => {
       edges={["top", "left", "right"]}
     >
       <Stack.Screen options={{ title: "inteligir" }} />
-      <CaptureBox />
       <View style={styles.syncRow}>
         <Text style={[styles.smallText, { color: theme.mutedForeground }]} numberOfLines={1}>
           {describeStatus(status)}
         </Text>
         <View style={styles.syncActions}>
           <Pressable
+            accessibilityRole="button"
             style={({ pressed }) => [
-              styles.syncButton,
-              { borderColor: theme.border, borderWidth: 1 },
+              styles.newButton,
+              { borderColor: theme.border },
               pressed && styles.pressed80,
             ]}
             onPress={() => {
-              router.push("/notes");
+              const params: ThreadParams = { id: newThreadId(), start: "1" };
+              router.push({ params, pathname: "/thread/[id]" });
             }}
           >
-            <Text style={[styles.smallLabel, { color: theme.foreground }]}>Notes</Text>
+            <Text style={[styles.smallLabel, { color: theme.foreground }]}>New request</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [
@@ -267,7 +153,7 @@ const HomeScreen = () => {
           <View style={styles.empty}>
             <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>No threads yet.</Text>
             <Text style={[styles.smallText, { color: theme.mutedForeground }]}>
-              Pull to refresh, or open a note and ask the agent.
+              Pull to refresh.
             </Text>
           </View>
         }

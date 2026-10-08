@@ -2,7 +2,7 @@ import { planPage } from "@repo/contract/cloud/sync/plan-page";
 import type { PlannedLogRow } from "@repo/contract/cloud/sync/plan-page";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { describe, expect, it } from "vitest";
-import { openSyncStore } from "../../notes/__tests__/phone-storage";
+import { openSyncStore } from "../../lib/__tests__/phone-storage";
 import { agentDelta, agentMessage, logRow, userRequest } from "./fakes";
 
 const SELF = "dev_self";

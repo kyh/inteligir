@@ -14,12 +14,7 @@ const GENERATED_FILE = /(?:\.gen\.ts|pnpm-lock\.yaml)$/u;
 
 // data rather than claims: a fixture's `../outside.md` is the input to a containment test.
 const DATA_DIR = /(?:^|\/)(?:fixtures|__fixtures__|seed)\//u;
-const DATA_FILES = new Map<string, string>([
-  [
-    "packages/editor/src/__tests__/sample-notes.ts",
-    "sample note BODIES — the package names inside them are prose in a fake roadmap note, which is the input the parse is asserted against",
-  ],
-]);
+const DATA_FILES = new Map<string, string>();
 
 // each is a guard's own negative fixture; a blanket ignore-under-tests would hide the rot, which is
 // mostly in tests and configs.

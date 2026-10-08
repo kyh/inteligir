@@ -1,4 +1,3 @@
-import type { DataDirScope } from "@repo/contract/local/system/system-schema";
 import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
 import { toast } from "@repo/ui/components/sonner";
 
@@ -7,23 +6,6 @@ import { toast } from "@repo/ui/components/sonner";
 export const bridgeFailed = (cause: unknown, sentence: string): void => {
   console.warn("[desktop] the shell did not answer", cause);
   toast.error(sentence);
-};
-
-// The credential and the agent default live in the data dir, and a second vault has one of its
-// own: one sentence, wherever a surface would otherwise look reset. Connectors belong to the agent,
-// so every vault shares them. A section whose state is not all the vault's own says which part is,
-// in place of the default sentence.
-export const SecondVaultNote = ({
-  scope,
-  children = "This is a second vault with a data dir of its own: its sign-in and default agent start empty and stay with it.",
-}: {
-  scope: DataDirScope | undefined;
-  children?: React.ReactNode;
-}) => {
-  if (scope !== "vault") {
-    return null;
-  }
-  return <p className="text-body text-muted-foreground">{children}</p>;
 };
 
 export const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (

@@ -1,17 +1,13 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import {
-  DOC_CHANGE_KINDS,
-  THREAD_CHANGE_KINDS,
-  VAULT_CHANGE_KINDS,
-} from "@repo/domain/change-kinds";
+import { SYNC_CHANGE_KINDS, THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { z } from "zod";
 import { assertUnreachable } from "./assert-unreachable";
 
 export const realtimeSubscriptionTargetSchema = z.discriminatedUnion("kind", [
   z
     .object({
-      kind: z.literal("vault"),
+      kind: z.literal("sync"),
     })
     .strict(),
   z
@@ -48,8 +44,8 @@ export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
 export const realtimeSubscriptionTargetKey = (target: RealtimeSubscriptionTarget): string => {
   switch (target.kind) {
-    case "vault": {
-      return "vault";
+    case "sync": {
+      return "sync";
     }
     case "thread-list": {
       return "thread-list";
@@ -95,30 +91,20 @@ const changedMessagePair = <
   };
 };
 
-// `paths` is optional because absence is a claim: the post-sync consolidated notification has
-// no path list, and a client that sees none must assume everything moved
-const vaultChangedMessagePair = changedMessagePair("vault", VAULT_CHANGE_KINDS, {
-  paths: z.array(z.string().min(1)).readonly().optional(),
-});
-const docChangedMessagePair = changedMessagePair("doc", DOC_CHANGE_KINDS, {
-  id: z.string().min(1),
-});
+// the cloud sync's status rides the `sync` entity, the target the renderer's sync row subscribes to
+const syncChangedMessagePair = changedMessagePair("sync", SYNC_CHANGE_KINDS, {});
 const threadChangedMessagePair = changedMessagePair("thread", THREAD_CHANGE_KINDS, {
   id: z.string().optional(),
 });
 
-export const vaultChangedMessageSchema = vaultChangedMessagePair.strict;
-export type VaultChangedMessage = z.infer<typeof vaultChangedMessageSchema>;
-
-export const docChangedMessageSchema = docChangedMessagePair.strict;
-export type DocChangedMessage = z.infer<typeof docChangedMessageSchema>;
+export const syncChangedMessageSchema = syncChangedMessagePair.strict;
+export type SyncChangedMessage = z.infer<typeof syncChangedMessageSchema>;
 
 export const threadChangedMessageSchema = threadChangedMessagePair.strict;
 export type ThreadChangedMessage = z.infer<typeof threadChangedMessageSchema>;
 
 export const changedMessageSchema = z.discriminatedUnion("entity", [
-  vaultChangedMessageSchema,
-  docChangedMessageSchema,
+  syncChangedMessageSchema,
   threadChangedMessageSchema,
 ]);
 export type ChangedMessage = z.infer<typeof changedMessageSchema>;
@@ -134,8 +120,7 @@ export const serverMessageSchema = z.union([helloMessageSchema, changedMessageSc
 export type ServerMessage = z.infer<typeof serverMessageSchema>;
 
 export const changedMessageLenientSchema = z.discriminatedUnion("entity", [
-  vaultChangedMessagePair.lenient,
-  docChangedMessagePair.lenient,
+  syncChangedMessagePair.lenient,
   threadChangedMessagePair.lenient,
 ]);
 
@@ -148,15 +133,13 @@ export const serverMessageLenientSchema = z.union([
   changedMessageLenientSchema,
 ]);
 
-const VAULT_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "vault" });
+const SYNC_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "sync" });
 const THREAD_LIST_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "thread-list" });
 
-// `vault` is the doc list target: a doc change reaches it too
 export const subscriptionKeysForMessage = (message: ChangedMessage): string[] => {
   switch (message.entity) {
-    case "vault":
-    case "doc": {
-      return [VAULT_TARGET_KEY];
+    case "sync": {
+      return [SYNC_TARGET_KEY];
     }
     case "thread": {
       return [THREAD_LIST_TARGET_KEY];

@@ -83,25 +83,6 @@ const activeBgVariants = {
     "bg-active shadow-[0_0_0_1px_var(--border),inset_0_0_0_0px_var(--border)] group-active:shadow-[0_0_0_0px_var(--border),inset_0_0_0_1px_var(--border)]",
 } satisfies Record<ButtonVariant, string>;
 
-// class-string consumers cannot carry the layered press surface, so they get the flat palette on the root.
-const flatBgVariants = {
-  destructive: "bg-destructive hover:bg-destructive/90",
-  ghost: "bg-transparent hover:bg-hover active:bg-active",
-  primary: "bg-foreground hover:bg-foreground/90 active:bg-foreground/80",
-  secondary: "bg-accent hover:bg-accent/80",
-  tertiary: "bg-transparent shadow-[inset_0_0_0_1px_var(--border)] hover:bg-hover active:bg-active",
-} satisfies Record<ButtonVariant, string>;
-
-const buttonVariants = (props?: {
-  variant?: ButtonVariant | null;
-  size?: ButtonSize | null;
-  className?: string;
-}): string => {
-  const variant = props?.variant ?? "primary";
-  const size = props?.size ?? "default";
-  return cn(buttonStructure({ size, variant }), flatBgVariants[variant], props?.className);
-};
-
 interface ButtonProps extends Omit<ButtonPrimitive.Props, "className" | "style"> {
   className?: string;
   style?: CSSProperties;
@@ -303,4 +284,4 @@ const Button = ({
 
 Button.displayName = "Button";
 
-export { Button, buttonVariants };
+export { Button };

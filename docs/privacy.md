@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective as of October 3, 2026.
+Effective as of October 8, 2026.
 
 To view previous versions of this Privacy Policy, see its [history on
 GitHub](https://github.com/kyh/inteligir/commits/main/docs/privacy.md).
@@ -10,9 +10,10 @@ privacy rights notice](#state-privacy-rights-notice) section below for important
 information about your rights under applicable state privacy laws.
 
 Kaiyu Hsu ("**Inteligir**," "**we**," "**us**" or "**our**") provides Inteligir,
-a local-first notes app for the Mac, with an iPhone app, in which an AI agent
-running on your own Claude or ChatGPT plan edits your notes with you. This
-Privacy Policy describes how Inteligir processes personal information that we
+a Mac app, with an iPhone app, that keeps the conversations of coding agents on
+your Mac and, if you sign in, follows them on your other devices. Inteligir is
+being rebuilt as an open-source companion for the coding agents you already
+run; this version runs no agent and calls no AI model. This Privacy Policy describes how Inteligir processes personal information that we
 collect through our digital or online properties or services that link to this
 Privacy Policy (including, as applicable, our website at inteligir.com, our Mac
 app, our iPhone app and the `inteligir` command line) and the other activities
@@ -44,24 +45,19 @@ refer to as "**Europe**", and "**European**" should be understood accordingly).
 
 ## Personal information we collect
 
-The Service is local-first: your notes are markdown files in a folder you choose
-on your Mac, with their history kept beside them. The app and its search run on
-that Mac, and so does the agent, which talks to its provider from there. An
-account is optional, and without one the apps send our cloud nothing. Our cloud
-is the part of the Service we run on Cloudflare, at inteligir.com. Signed in, it
-carries your conversations with the agent between your devices, your quick
-captures and your phone's requests, and keeps a hosted copy of your vault for
-your phone and your other Macs. This Privacy Policy states exactly what that
-means: what leaves your machine, what never does, what your phone keeps, how
-long our cloud keeps it, and how it is deleted.
+The Service is local-first: the app keeps its log of conversations on your Mac,
+and an account is optional; without one the apps send our cloud nothing. Our
+cloud is the part of the Service we run on Cloudflare, at inteligir.com. Signed
+in, it carries your conversations between your devices and your phone's
+requests to your Mac. This Privacy Policy states exactly what that means: what
+leaves your machine, what never does, what your phone keeps, how long our cloud
+keeps it, and how it is deleted.
 
-Your vault itself (its notes, attachments, their history and the search index)
-lives on your Mac, and our cloud holds none of it unless you sign in on a vault
-nothing else syncs (see the hosted vault, below). The exceptions are what the
-agent reads, which goes to its provider (see [Tracking & Other
-Technologies](#tracking--other-technologies)), and your conversations: thread
-sync carries each one whole, and a conversation holds what the agent read and
-changed in it.
+Earlier versions of the Service were a notes app that also kept a hosted copy of
+your notes and your quick captures in our cloud. This version holds neither, and
+the first deployment of our cloud without them erases every hosted copy of
+every account's notes and every capture still waiting (see
+[Retention](#retention)).
 
 **Information you provide to us.** Personal information you may provide to us
 through the Service or otherwise includes:
@@ -92,61 +88,34 @@ through the Service or otherwise includes:
 - **Communications data** based on our exchanges with you, including when you
   contact us by email, open an issue on GitHub, or send us feedback through
   Apple's TestFlight while you test the iPhone app.
-- **User-generated content and input data**, such as your notes, attachments,
-  comments, quick captures, what you ask the agent and other content or
-  information that you generate, transmit, or otherwise make available on the
+- **User-generated content and input data**, such as your messages in a
+  conversation and other content or information that you generate, transmit, or otherwise make available on the
   Service, as well as associated metadata. Metadata includes information on how,
   when, where and by whom a piece of content was collected and how that content
   has been formatted or edited. Metadata also includes information that users
   can add or can have added to their content, such as keywords, geographical or
   location information, and other similar data. Once you sign in, our cloud
   receives:
-  - **Thread events** — the append-only log of your conversations with the
-    agent: your messages, its replies, what its tools did (the text of notes and
-    files it read and the changes it made to them, as its tools reported them),
-    its status, and each conversation's title, the path and frontmatter id of
-    the note it was started over, the agent it runs on and whether you archived
-    it. Each Mac pushes them to your account's own thread-sync Durable Object so
+  - **Thread events** — the append-only log of your conversations with an
+    agent: your messages, its replies, what its tools did (the text of files it
+    read and the changes it made to them, as its tools reported them), its
+    status, and each conversation's title, the agent it runs on and whether you
+    archived it (a conversation an earlier version started over a note also
+    names that note). Each Mac pushes them to your account's own thread-sync
+    Durable Object so
     your other devices can follow along, and your phone keeps a copy. Our cloud
     stores these as opaque JSON and fans them out; it does not interpret them.
-  - **Requests from your phone to your Mac's agent** — what you ask the agent on
-    your phone (the text, the conversation it belongs to, and the note you asked
-    from, with a fingerprint of the text you were looking at), and your answer
-    when the agent asks your permission, held in the same per-user object until
-    one of your Macs picks it up. The first Mac to pick a request up runs it
-    there, on that Mac's own Claude or ChatGPT plan, so what the agent reads for
-    it goes to that provider as if you had asked on the Mac; the conversation
-    then syncs back as thread events. A request is handed to one Mac at a time;
+  - **Requests from your phone to your Mac** — what you ask on your phone (the
+    text and the conversation it belongs to), and your answer when an agent asks
+    your permission, held in the same per-user object until one of your Macs
+    picks it up. The first Mac to pick a request up handles it there (this
+    version runs no agent, so it answers that it cannot run it), and the
+    conversation then syncs back as thread events. A request is handed to one Mac at a time;
     if that Mac stops mid-way the hold lapses after two minutes and another may
     take it. When a phone-started conversation needs your permission, the Mac
     running it sends the question (the command or the change the agent wants to
     make, and why) to the same place for your phone to answer. A Mac with Let my
     phone ask this Mac turned off in Settings never picks one up.
-  - **Captures** — quick-capture text you post from a device, held in the same
-    per-user object until one of your Macs applies it to your Inbox note and
-    acknowledges it, which deletes the row. A capture is handed to one Mac at a
-    time (a claim), and the row is deleted only by the Mac that held that claim.
-    If that Mac dies mid-apply the claim lapses after five minutes and the
-    capture is offered again — so a capture can be delivered twice and is never
-    silently lost. The app deduplicates on the capture's id.
-  - **Your vault, in your account's hosted vault — only for a vault nothing else
-    syncs.** Signed in, each Mac sends its vault — notes, attachments, comments
-    and every earlier version, each change named for the device that saved it
-    and an agent's changes for the conversation that made them — to one hosted
-    copy per account, which your other Macs and your phone read from. Our cloud
-    also WRITES it: your phone's edits, new notes, renames, deletions, comments
-    and photos are saved into it by our cloud as changes named for the phone,
-    and every Mac takes them in at its next sync. The hosted vault is reachable
-    only with a device credential from your own account, and holds about 1 GB,
-    history included: a full one still opens and downloads everywhere, but takes
-    no new changes, which wait on your Macs and your phone until it has room. It
-    is encrypted at rest by Cloudflare, but we can read it — there is no
-    end-to-end encryption; the trade is what lets your phone read and edit notes
-    without holding their history. A vault with a git server of its own (see
-    [How we share your personal
-    information](#how-we-share-your-personal-information)), or a folder iCloud
-    Drive, Dropbox, Google Drive, OneDrive or Obsidian Sync already syncs, never
-    goes to the hosted vault.
 - **Other data** not specifically listed here, which we will use as described in
   this Privacy Policy or as otherwise disclosed at the time of collection.
 
@@ -174,34 +143,31 @@ as:
     D1's `rate_limit` table: a row holds the address beside the route it counts,
     a count and a timestamp. Before sign-in the address is all our cloud knows
     about a caller, and a login with no throttle is a password oracle. Once
-    signed in, a device's reads and writes of the hosted vault, and its attempts
-    to delete the account, are counted the same way under the device's id, never
-    an address.
+    signed in, a device's attempts to delete the account are counted the same
+    way under the device's id, never an address.
   - **The update check — to GitHub.** The packaged desktop app asks GitHub's
     release feed whether a newer version exists 15 seconds after launch and
     every 4 minutes after that. GitHub sees your IP address, nothing about your
-    vault or your account. Nothing downloads or installs without a click. `inteligir serve`, from a checkout or through
+    conversations or your account. Nothing downloads or installs without a click. `inteligir serve`, from a checkout or through
     `npx`, makes no such check.
   - **The phone's update check — to Expo.** Each time the phone app starts it
     asks Expo's update service whether a newer version of its app code exists,
     downloads one in the background and runs it from the next start. Expo sees
     your IP address, the app's build and a random id the app keeps for that
-    install, nothing about your vault or your account.
+    install, nothing about your conversations or your account.
 - **Online activity data**, limited to **a log of each request, kept by
   Cloudflare.** Cloudflare, which runs our cloud, logs each request our cloud
   answers, the pages of our website included — the address asked for, the
   answer's status and the time — and keeps that log for up to seven days, for us
   to diagnose failures with; about one request in a hundred is traced in more
-  detail. The address names a route, never one of your files: when your phone
-  opens a note or an attachment, the file's name travels inside the request,
-  which neither the log nor the trace keeps. Our cloud's own error lines name a
-  route, never a file.
+  detail. The address names a route, never a conversation, and our cloud's own
+  error lines name a route, never what a request carried.
 
 For more information concerning our automatic collection of data, please see the
 [Tracking & Other Technologies](#tracking--other-technologies) section below.
 
-**Data about others.** Content you sync, such as your notes, captures and
-conversations with the agent, may hold personal information about other people,
+**Data about others.** Content you sync, such as your conversations with an
+agent, may hold personal information about other people,
 and our cloud holds what you sync. Please do not share someone else's personal
 information with us through the Service unless you have their permission to do
 so.
@@ -229,57 +195,24 @@ facilitated by cookies and other technologies. The Service uses only these:
 
 The apps also hold to these, plainly:
 
-- **Telemetry.** The apps send none, about your notes or anything else.
-- **Anything a note points at on the web.** Opening a note loads nothing from
-  the web, on the Mac or the phone: an image or embed at a web address is not
-  fetched, so nobody learns you opened it. A link opens in your browser only
-  when you follow it.
+- **Telemetry.** The apps send none, about your conversations or anything else.
 - **Your voice.** Neither the Mac app nor the phone app ever opens the
   microphone. Dictation is your operating system's own — on a Mac, press fn
   twice; on the phone, the keyboard's microphone key — which types into the app
   like a keyboard; where that audio goes is Apple's to say, under its own
   settings and terms.
-- **Where a phone photo was taken.** The phone opens the camera only when you
-  take a photo for a note, and from your library it receives only the photo you
-  pick. It keeps a copy at most 2048 pixels on its long side, saved again as a
-  JPEG without its location or any other camera details and named for when you
-  added it; only that copy reaches your vault.
 - **The app's log.** The desktop app keeps what its local server prints in
   `logs/server.log` inside its data folder (at most 5 MB, plus one older file),
   whether or not Debug logging is on; with it on (Settings › Advanced), the log
-  also records each file change, sync step and agent message by file name and
-  id, never what a note says or a credential. Nothing reads or sends it: it
+  also records each sync step by id, never what a message says or a credential. Nothing reads or sends it: it
   leaves the machine only if you attach it to a report yourself.
 
-**Chat and other artificial intelligence ("AI") technologies**, such as those
-provided by Anthropic (Claude) and OpenAI (ChatGPT), that the Mac app runs on
-your Mac to operate the agent features that you can use to ask an agent to read,
-draft and edit your notes through the Service. Anthropic, OpenAI and other third
-parties may access and use what you ask the agent, the name of the note you were
-looking at, and the notes and files the agent reads to facilitate the provision
-of the Service, under their own terms with you rather than ours. Specifically:
-
-- **What your agent reads — to that agent's provider.** The agent is Claude's or
-  ChatGPT's own agent program, shipped inside the app and run on your Mac on
-  your own Claude or ChatGPT plan. What you ask it, the name of the note you
-  were looking at, and the notes and files it reads to answer — in your vault,
-  in a folder you connected under Settings, or anywhere else on this Mac it is
-  allowed to open — travel from your Mac to that provider (Anthropic or OpenAI)
-  under the provider's own terms, as they would in the provider's own app. That
-  program also reports to its maker whatever it reports when you run it
-  yourself.
-- **Signing the agent in — with the provider, directly.** Signing in from the
-  app runs the provider's own sign-in: your browser signs in with Anthropic or
-  OpenAI directly, and when it cannot hand the result back on its own, you paste
-  the code it shows into the app, which passes it straight to the provider's
-  program on this Mac. The credential lands in that program's own store.
-- **The agent's sign-in stays on your Mac.** The credential stays in the
-  provider's own store on this Mac — for Claude, a folder in your home folder
-  and the macOS Keychain; for ChatGPT, Codex's folder in your home folder — the
-  same store Claude Code or Codex uses, so signing in or out in the app does so
-  there too. The app asks the provider's program whether you are signed in, and
-  to which account and plan, to show you in Settings; it never reads, copies or
-  sends the credential, and our cloud never sees or carries a call to the model.
+**Chat and other artificial intelligence ("AI") technologies.** This version of
+the Service runs no AI agent and makes no call to an AI model, on your Mac, your
+phone or our cloud. A conversation an earlier version ran stays in your thread
+log as it was, and what that agent read then went to its provider (Anthropic or
+OpenAI) under the provider's own terms; the app never held the provider's
+sign-in, which stays in that provider's own store on your Mac.
 
 For information concerning your choices with respect to the use of tracking
 technologies, see the [Your choices](#your-choices) section below.
@@ -355,15 +288,15 @@ Specifically, in our cloud:
   log is append-only — that is what makes multi-device merge trivial — so
   archiving a conversation hides it and deletes nothing; there is no deleting
   one conversation from our cloud.
-- A capture is deleted once a Mac has added it to your Inbox note.
 - A request from your phone, and a permission question sent to it, is kept for a
   day after a Mac settles it, then deleted the next time a request is sent or a
   Mac checks for one. One still waiting stays until a Mac picks it up, you
   cancel it, or you revoke the phone that sent it, which deletes every request
   of its no Mac has picked up yet; revoking a Mac settles every question it
   sent.
-- The hosted vault keeps every version of every file until the account is
-  deleted. Deleting a note removes it from the vault, not from its history.
+- The hosted copies of every account's notes, and every capture still waiting,
+  are erased by the first deployment of our cloud without them; nothing of
+  either is kept after it.
 - Device rows (including revoked ones) persist as the dashboard's audit trail
   until account deletion. A device's throttling counters are deleted when it is
   revoked.
@@ -378,31 +311,24 @@ Specifically, in our cloud:
   and once the account is gone it opens nothing.
 - Cloudflare's request log keeps each entry for up to seven days.
 
-**Your phone.** Signed in, the phone keeps its own copy, so it opens and edits
-your notes offline:
+**Your phone.** Signed in, the phone keeps its own copy, so it opens your
+conversations offline:
 
-- **Every note's text**, with its comments, downloaded from your hosted vault;
-  an attachment only once you open it.
-- **Your conversations with the agent**, as your Macs sync them.
-- **Whatever it has not sent yet.** Edits, new notes, renames, deletions,
-  comments and photos wait on the phone until the hosted vault takes them, and
-  requests to your Mac wait until one picks them up. A change the vault cannot
-  take as it is stays on the phone and says so, until you retry it, keep it as a
-  new note or discard it.
+- **Your conversations with an agent**, as your Macs sync them.
+- **Whatever it has not sent yet.** Requests to your Mac wait on the phone until
+  one picks them up.
 
-It all lives in the app's own storage on the phone. The notes, conversations and
-unsent changes, photos waiting to be sent included, sit where the app keeps them
-out of the phone's iCloud backup: a phone restored from a backup downloads your
-notes again, and anything it had not sent is gone. Attachments you opened sit in
-the app's cache, which iOS may clear and never backs up. The phone's sign-in is
+It all lives in the app's own storage on the phone, which the phone's iCloud
+backup includes when you back the phone up to iCloud. The phone's sign-in is
 kept in the iPhone's Keychain for that iPhone alone: a backup restored onto
 another phone does not carry it, so the new phone signs in again and becomes a
-device of its own.
+device of its own. An earlier version kept your notes there too; this version
+deletes them, and the outbox of edits beside them, the first time it opens.
 
-- **Signing out** on the phone erases all of it — notes, attachments,
-  conversations and anything unsent, which it asks about first — and tells our
-  cloud to remove the phone from your account. A phone that signs out offline
-  forgets its sign-in all the same; revoke it from Settings › Account on a Mac.
+- **Signing out** on the phone erases all of it — conversations and anything
+  unsent, which it asks about first — and tells our cloud to remove the phone
+  from your account. A phone that signs out offline forgets its sign-in all the
+  same; revoke it from Settings › Account on a Mac.
 - **Revoking the phone** from a Mac, or **deleting the account**, erases the
   same the next time the phone reaches our cloud and is refused. Until then it
   keeps what it holds.
@@ -419,9 +345,8 @@ and email delivery). Specifically:
 
 - **Cloudflare** runs our cloud and our website. Its D1 database holds your
   account, sessions, devices, the invite you redeemed and the throttling rows;
-  storage it keeps for your account alone (your own Durable Objects, and storage
-  named for your vault) holds your thread events, captures, requests and hosted
-  vault; its email sending delivers your password-reset emails; and it keeps the
+  storage it keeps for your account alone (your own Durable Object) holds your
+  thread events and requests; its email sending delivers your password-reset emails; and it keeps the
   request log described above.
 - **GitHub** hosts the Mac app's releases and its update feed, and the issues
   you open there.
@@ -431,23 +356,6 @@ and email delivery). Specifically:
 
 **Third parties designated by you.** We may share your personal information with
 third parties where you have instructed us or provided your consent to do so.
-Each of these travels from your own Mac, never through our cloud:
-
-- **What your agent reads — to that agent's provider**, as described in
-  [Tracking & Other Technologies](#tracking--other-technologies). A request you
-  send from your phone runs on the plan of the Mac that picks it up.
-- **Connectors — to the services you connect.** A connector is added to the
-  default agent's own settings in your home folder: the same list Claude Code or
-  Codex reads everywhere on this Mac, so it reaches that agent outside the app
-  too. When a connector asks you to sign in, the agent's program runs that
-  sign-in in your browser and keeps it; the app keeps no connector's secret.
-  What the agent sends a connector and gets back travels between your Mac and
-  that service, and on to the agent's provider as part of the conversation.
-- **Your vault, to a git server of your own — if it has one.** A folder you open
-  that already syncs to a server of its own keeps syncing there, and you can
-  choose one in Settings › Advanced › Sync with. Your notes, attachments,
-  comments and every earlier version, each change named for the device that
-  saved it, go to that server under its own terms and retention.
 
 **Professional advisors.** Professional advisors, such as lawyers, auditors,
 bankers and insurers, in the course of the professional services that they
@@ -483,10 +391,9 @@ page can email you a link to set a new password. To change anything else, such
 as your name or email address, contact us.
 
 **Privacy settings.** We make available certain privacy settings on the Service,
-including options to control whether your phone may ask a Mac's agent (Let my
-phone ask this Mac, in Settings › Account), where a vault syncs (Settings ›
-Advanced › Sync with), and whether the app's log records each file change, sync
-step and agent message (Debug logging, in Settings › Advanced). Signing a device
+including options to control whether your phone may ask a Mac (Let my phone ask
+this Mac, in Settings › Account), and whether the app's log records each sync
+step (Debug logging, in Settings › Advanced). Signing a device
 out of your account stops it syncing.
 
 **Cookies and other technologies.** Most browsers let you remove or reject
@@ -503,13 +410,12 @@ other websites.
 **Declining to provide information.** We need to collect personal information to
 provide certain services. If you do not provide the information we identify as
 required or mandatory, we may not be able to provide those services. An account
-is optional: without one, the Mac app is a notes app on your Mac that sends our
-cloud nothing, while syncing your devices and the iPhone app need one.
+is optional: without one, the Mac app sends our cloud nothing, while syncing your
+devices and the iPhone app need one.
 
 **Delete your content or close your account.** You can choose to delete certain
-content through your account: deleting a note removes it from your vault, though
-not from its history (see [Security](#security)), and archiving a conversation
-hides it without deleting it. To delete everything our cloud holds for you,
+content through your account: archiving a conversation hides it without deleting
+it. To delete everything our cloud holds for you,
 delete your account in the app: Settings › Account › Delete account…, on any Mac
 signed in to it. It asks for your password again, and our cloud checks the
 password before it deletes anything, so this Mac's sign-in alone cannot end the
@@ -525,26 +431,20 @@ account row itself goes:
    D1. This is first on purpose: while a device row lives its credential still
    works, so any later step could be undone by a request that arrives a moment
    after it.
-2. **Your hosted vault** — every version of every file, created once a signed-in
-   Mac first sends it — with the listing of its file names, sizes and content
-   ids kept for your phone's reads and the cached copies of its history our
-   cloud serves downloads from. An account whose vault was never sent wipes
-   empty tables, so the step is idempotent either way.
-3. **Your thread-sync Durable Object** is purged whole: every thread event,
-   every capture, every request from your phone and every permission question,
+2. **Your thread-sync Durable Object** is purged whole: every thread event,
+   every request from your phone and every permission question,
    every open socket closed. It is then tombstoned, so a request that
    authenticated microseconds before step 1 cannot rebuild what was just
    deleted; it is refused instead.
-4. **Your email is dropped from the invite you redeemed** (the code stays
+3. **Your email is dropped from the invite you redeemed** (the code stays
    burned).
 
 Then Better Auth deletes your sessions, your password hash and the account row.
-All four steps run BEFORE that, so a step that fails aborts the deletion and
+All three steps run BEFORE that, so a step that fails aborts the deletion and
 leaves the account able to ask again; every step is idempotent, so asking again
-resumes. What deletion does NOT touch is your Mac: the local vault, its history
-and the local databases are yours. Your phone erases its copy the next time it
-is refused (see [Retention](#retention)). A git server you chose yourself is
-yours to delete from. The throttling rows keyed on an address and an unused
+resumes. What deletion does NOT touch is your Mac: the local databases are yours.
+Your phone erases its copy the next time it is refused (see
+[Retention](#retention)). The throttling rows keyed on an address and an unused
 reset link's row are not found by it (see [Retention](#retention)), and
 Cloudflare's request log lapses on its own.
 
@@ -568,33 +468,20 @@ your personal information.
 
 Everything our cloud keeps for your account, but the throttling rows and
 Cloudflare's request log, lands in infrastructure scoped to your account — a
-Cloudflare D1 row keyed to your user, your own per-user Durable Objects, or
-storage named for your vault alone — never in anything shared across accounts.
+Cloudflare D1 row keyed to your user or your own per-user Durable Object — never
+in anything shared across accounts.
 Your password and each device credential are kept only as hashes, and the apps
 talk to our cloud over HTTPS.
 
 These are the edges of that protection, stated plainly:
 
-- **We can read what our cloud holds.** Thread events, requests, captures and
-  the hosted vault are stored unencrypted to us (Cloudflare encrypts its storage
-  at rest, but there is no end-to-end encryption). Don't sync a conversation or
-  a vault you wouldn't store in a hosted notes app.
-- **Our cloud writes your hosted vault.** Your phone's changes become changes in
-  your vault's history that our cloud made on the phone's behalf, and every Mac
-  takes them in.
-- **A lost phone holds a full copy of your notes' text and your conversations**,
-  behind its passcode. Revoke it from Settings › Account on a Mac: it erases its
-  copy the next time it goes online, but a phone that never does keeps it.
-- **A vault in a folder iCloud Drive, Dropbox, Google Drive, OneDrive or
-  Obsidian Sync syncs is also held by that service**, under its own terms. The
-  app keeps such a vault off the hosted vault; it cannot keep the service out of
-  it.
-- **Deleting a note does not delete its history**: every earlier version stays
-  on your Mac, on the hosted vault until the account is deleted, and on a git
-  server of your own under that server's retention. There is no purge.
-- **An image you paste or drop into a note on a Mac is kept as the file it
-  was**, with any location or camera details it carries; only the phone saves a
-  photo again without them.
+- **We can read what our cloud holds.** Thread events and requests are stored
+  unencrypted to us (Cloudflare encrypts its storage at rest, but there is no
+  end-to-end encryption). Don't sync a conversation you wouldn't store with a
+  hosted service.
+- **A lost phone holds a full copy of your conversations**, behind its
+  passcode. Revoke it from Settings › Account on a Mac: it erases its copy the
+  next time it goes online, but a phone that never does keeps it.
 - **A revoked device stops at the next request**, and its live connection is
   closed as part of the revoke — but revocation cannot reach a response already
   in flight.
@@ -644,7 +531,8 @@ the methods listed below.
 
 For a question that involves no personal information, such as a bug report, you
 can also open an issue on [GitHub](https://github.com/kyh/inteligir/issues).
-Issues are public, so please leave the contents of your notes out of them.
+Issues are public, so please leave the contents of your conversations out of
+them.
 
 ## State privacy rights notice
 
@@ -765,15 +653,15 @@ months preceding the effective date of this Privacy Policy. Information you
 voluntarily provide to us, such as in free-form webforms, may contain other
 categories of personal information not described below.
 
-| Personal Information ("PI") we collect | CCPA statutory category                                                                                                                            | Purposes                                                                                                    | Categories of third parties to whom we "disclose" PI for a business purpose                                             | Categories of third parties to whom we "sell" or "share" PI |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Contact data                           | Identifiers; California Customer Records                                                                                                           | Service delivery and operations; Compliance and protection; Data sharing in the context of corporate events | Service providers; Professional advisors; Authorities and others; Business transferees                                  | None                                                        |
-| Profile data                           | Identifiers; California Customer Records; Sensitive personal information (your account's login credentials)                                        | Service delivery and operations; Compliance and protection; Data sharing in the context of corporate events | Service providers; Professional advisors; Authorities and others; Business transferees                                  | None                                                        |
-| Communications data                    | Identifiers; California Customer Records; Audio, electronic, visual or similar information (screenshots you send)                                  | Service delivery and operations; Compliance and protection; Data sharing in the context of corporate events | Service providers; Professional advisors; Authorities and others; Business transferees                                  | None                                                        |
-| User-generated content and input data  | Any category the content you create holds, such as Identifiers and Audio, electronic, visual or similar information (photos and other attachments) | Service delivery and operations; Compliance and protection; Data sharing in the context of corporate events | Service providers; Third parties designated by you; Professional advisors; Authorities and others; Business transferees | None                                                        |
-| Data from service providers            | Identifiers; Internet or other electronic network activity information; Audio, electronic, visual or similar information (screenshots you send)    | Service delivery and operations; Compliance and protection                                                  | Service providers; Professional advisors; Authorities and others; Business transferees                                  | None                                                        |
-| Device data                            | Identifiers; Internet or other electronic network activity information                                                                             | Service delivery and operations; Service personalization; Compliance and protection                         | Service providers; Professional advisors; Authorities and others; Business transferees                                  | None                                                        |
-| Online activity data                   | Internet or other electronic network activity information                                                                                          | Service delivery and operations; Compliance and protection                                                  | Service providers; Professional advisors; Authorities and others; Business transferees                                  | None                                                        |
+| Personal Information ("PI") we collect | CCPA statutory category                                                                                                                         | Purposes                                                                                                    | Categories of third parties to whom we "disclose" PI for a business purpose                                             | Categories of third parties to whom we "sell" or "share" PI |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Contact data                           | Identifiers; California Customer Records                                                                                                        | Service delivery and operations; Compliance and protection; Data sharing in the context of corporate events | Service providers; Professional advisors; Authorities and others; Business transferees                                  | None                                                        |
+| Profile data                           | Identifiers; California Customer Records; Sensitive personal information (your account's login credentials)                                     | Service delivery and operations; Compliance and protection; Data sharing in the context of corporate events | Service providers; Professional advisors; Authorities and others; Business transferees                                  | None                                                        |
+| Communications data                    | Identifiers; California Customer Records; Audio, electronic, visual or similar information (screenshots you send)                               | Service delivery and operations; Compliance and protection; Data sharing in the context of corporate events | Service providers; Professional advisors; Authorities and others; Business transferees                                  | None                                                        |
+| User-generated content and input data  | Any category the content you create holds, such as Identifiers and Audio, electronic, visual or similar information (images in a conversation)  | Service delivery and operations; Compliance and protection; Data sharing in the context of corporate events | Service providers; Third parties designated by you; Professional advisors; Authorities and others; Business transferees | None                                                        |
+| Data from service providers            | Identifiers; Internet or other electronic network activity information; Audio, electronic, visual or similar information (screenshots you send) | Service delivery and operations; Compliance and protection                                                  | Service providers; Professional advisors; Authorities and others; Business transferees                                  | None                                                        |
+| Device data                            | Identifiers; Internet or other electronic network activity information                                                                          | Service delivery and operations; Service personalization; Compliance and protection                         | Service providers; Professional advisors; Authorities and others; Business transferees                                  | None                                                        |
+| Online activity data                   | Internet or other electronic network activity information                                                                                       | Service delivery and operations; Compliance and protection                                                  | Service providers; Professional advisors; Authorities and others; Business transferees                                  | None                                                        |
 
 **Additional information for California residents.**
 
@@ -886,7 +774,7 @@ indefinitely without further notice to you.
 personal information (e.g., social security numbers, information related to
 racial or ethnic origin, political opinions, religion or other beliefs, health,
 biometrics or genetic characteristics, criminal background or trade union
-membership). Your notes and conversations are yours to write, and if you choose
+membership). Your conversations are yours to write, and if you choose
 to include sensitive personal information in content you create and sync through
 the Service, you consent to our processing it in accordance with this Privacy
 Policy solely to provide the Service to you. If you do not consent, do not
@@ -991,51 +879,32 @@ app or the phone makes to it is one of these routes, as is every call the
 account pages make but their sign-in, session and password-reset calls, which go
 to Better Auth under `/api/auth/`. Nothing else under `/v1/` exists.
 
-| Route                              | What it carries                                                                                                                                                                                                      | What authenticates it                                               |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `/v1/auth/sign-up`                 | Your email, name, password and invite code, once, to create the account on the website.                                                                                                                              | The invite code; attempts are throttled per caller address.         |
-| `/v1/device/login`                 | Your email, password and this device's name, once; it answers the device's credential.                                                                                                                               | Your password; attempts are throttled per caller address.           |
-| `/v1/device/sign-up`               | Your name, email, password, invite code and this Mac's name, once, to create the account from the app.                                                                                                               | The invite code; attempts are throttled per caller address.         |
-| `/v1/device/sign-out`              | Nothing but the credential; the device it names is removed from your account.                                                                                                                                        | That device's credential.                                           |
-| `/v1/device/list`                  | Your devices' names and when each was created, last seen and revoked, for the account pages and Settings › Account.                                                                                                  | Your signed-in browser session, or a signed-in device's credential. |
-| `/v1/device/revoke`                | The id of the device to revoke.                                                                                                                                                                                      | Your signed-in browser session, or a signed-in device's credential. |
-| `/v1/account`                      | Your account's email and id, answered to a signed-in device.                                                                                                                                                         | The device's credential.                                            |
-| `/v1/account/delete`               | Your password, once, to delete the account and everything this page says the cloud holds for it.                                                                                                                     | Your password and the device's credential; throttled per device.    |
-| `/v1/sync/push`                    | Your conversations with the agent, as events, including what the agent read and changed, with each one's title, note, agent and archived state.                                                                      | The device's credential.                                            |
-| `/v1/sync/pull`                    | The same events, written by your other devices.                                                                                                                                                                      | The device's credential.                                            |
-| `/v1/sync/ws`                      | A live connection that says only that something changed, and whether a Mac takes your phone's requests.                                                                                                              | The device's credential.                                            |
-| `/v1/capture`                      | The text of a quick capture.                                                                                                                                                                                         | The device's credential.                                            |
-| `/v1/sync/captures/claim`          | The captures waiting for a Mac to add them to your Inbox note.                                                                                                                                                       | The device's credential.                                            |
-| `/v1/sync/captures/ack`            | The ids of the captures that Mac added.                                                                                                                                                                              | The device's credential and the claim it was handed.                |
-| `/v1/sync/dispatch`                | What you ask your Mac's agent from your phone, or your answer to its permission question.                                                                                                                            | The device's credential.                                            |
-| `/v1/sync/dispatch/claim`          | The requests waiting for a Mac to pick up, and the answers meant for that Mac.                                                                                                                                       | The device's credential.                                            |
-| `/v1/sync/dispatch/ack`            | The ids of the requests that Mac took, and why it turned one down.                                                                                                                                                   | The device's credential and the claim it was handed.                |
-| `/v1/sync/dispatch/status`         | Whether your requests are waiting, picked up or answered, and how many Macs are online, taking them or not.                                                                                                          | The device's credential.                                            |
-| `/v1/sync/dispatch/cancel`         | The id of a request you took back before a Mac picked it up.                                                                                                                                                         | The device's credential.                                            |
-| `/v1/sync/dispatch/approval`       | The command or change an agent wants your permission for, in a conversation your phone started.                                                                                                                      | The device's credential.                                            |
-| `/v1/sync/dispatch/approval/close` | The id of a permission question that no longer needs your answer.                                                                                                                                                    | The device's credential.                                            |
-| `/v1/sync/dispatch/approvals`      | The permission questions waiting for your answer.                                                                                                                                                                    | The device's credential.                                            |
-| `/v1/vault/tree`                   | The names, sizes and content ids of the files in your hosted vault.                                                                                                                                                  | The device's credential, within a per-device budget.                |
-| `/v1/vault/file`                   | One note's text from your hosted vault.                                                                                                                                                                              | The device's credential, within a per-device budget.                |
-| `/v1/vault/files`                  | Up to 40 notes' text from your hosted vault, in one request.                                                                                                                                                         | The device's credential, within a per-device budget.                |
-| `/v1/vault/asset`                  | One attachment from your hosted vault, when your phone opens it.                                                                                                                                                     | The device's credential, within a per-device budget.                |
-| `/v1/vault/commit`                 | Your phone's edits, new notes, renames, deletions, comments and photos, saved into your hosted vault as one change named for the phone; a note another device changed first answers its text and that device's name. | The device's credential, within a per-device budget.                |
-| `/v1/git/vault.git`                | Your vault and its whole history, sent up from and down to your Macs.                                                                                                                                                | The device's credential, within a per-device budget.                |
+| Route                              | What it carries                                                                                                                           | What authenticates it                                               |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `/v1/auth/sign-up`                 | Your email, name, password and invite code, once, to create the account on the website.                                                   | The invite code; attempts are throttled per caller address.         |
+| `/v1/device/login`                 | Your email, password and this device's name, once; it answers the device's credential.                                                    | Your password; attempts are throttled per caller address.           |
+| `/v1/device/sign-up`               | Your name, email, password, invite code and this Mac's name, once, to create the account from the app.                                    | The invite code; attempts are throttled per caller address.         |
+| `/v1/device/sign-out`              | Nothing but the credential; the device it names is removed from your account.                                                             | That device's credential.                                           |
+| `/v1/device/list`                  | Your devices' names and when each was created, last seen and revoked, for the account pages and Settings › Account.                       | Your signed-in browser session, or a signed-in device's credential. |
+| `/v1/device/revoke`                | The id of the device to revoke.                                                                                                           | Your signed-in browser session, or a signed-in device's credential. |
+| `/v1/account`                      | Your account's email and id, answered to a signed-in device.                                                                              | The device's credential.                                            |
+| `/v1/account/delete`               | Your password, once, to delete the account and everything this page says the cloud holds for it.                                          | Your password and the device's credential; throttled per device.    |
+| `/v1/sync/push`                    | Your conversations with the agent, as events, including what the agent read and changed, with each one's title, agent and archived state. | The device's credential.                                            |
+| `/v1/sync/pull`                    | The same events, written by your other devices.                                                                                           | The device's credential.                                            |
+| `/v1/sync/ws`                      | A live connection that says only that something changed, and whether a Mac takes your phone's requests.                                   | The device's credential.                                            |
+| `/v1/sync/dispatch`                | What you ask your Mac's agent from your phone, or your answer to its permission question.                                                 | The device's credential.                                            |
+| `/v1/sync/dispatch/claim`          | The requests waiting for a Mac to pick up, and the answers meant for that Mac.                                                            | The device's credential.                                            |
+| `/v1/sync/dispatch/ack`            | The ids of the requests that Mac took, and why it turned one down.                                                                        | The device's credential and the claim it was handed.                |
+| `/v1/sync/dispatch/status`         | Whether your requests are waiting, picked up or answered, and how many Macs are online, taking them or not.                               | The device's credential.                                            |
+| `/v1/sync/dispatch/cancel`         | The id of a request you took back before a Mac picked it up.                                                                              | The device's credential.                                            |
+| `/v1/sync/dispatch/approval`       | The command or change an agent wants your permission for, in a conversation your phone started.                                           | The device's credential.                                            |
+| `/v1/sync/dispatch/approval/close` | The id of a permission question that no longer needs your answer.                                                                         | The device's credential.                                            |
+| `/v1/sync/dispatch/approvals`      | The permission questions waiting for your answer.                                                                                         | The device's credential.                                            |
 
 Everything else the app reaches is someone else's:
 
 - **GitHub's release feed**, for the desktop's update check described above.
 - **Expo's update service**, for the phone's update check described above.
-- **The agent's provider** (Anthropic for Claude, OpenAI for ChatGPT). The agent
-  runs on your Mac and sends what it reads to that provider, under your own plan
-  with them.
-- **That provider's sign-in page**, opened in your browser when you sign the
-  agent in; the credential it gives back stays in the provider's own store on
-  your Mac.
-- **The services you connect the agent to**, each at the address you gave it,
-  and their own sign-in pages when they ask for one.
-- **Your own git server**, if a vault syncs to one instead of your account's
-  hosted vault.
 
 ---
 

@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
@@ -9,21 +8,19 @@ import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { AppInstance } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR, PALETTE_INPUT, SIDEBAR } from "../harness/selectors";
+import { PALETTE_INPUT, SIDEBAR } from "../harness/selectors";
 
 const MOUNT_DEADLINE_MS = 60_000;
 // a late async failure must not slip in after the error sweep.
 const QUIESCENCE_MS = 1000;
-// longer than the note's save debounce, so a corrupted buffer has reached disk by the read.
-const SAVE_SETTLE_MS = 2500;
 const PALETTE_CHORD = modChord("p");
 // the one thing the signed-out page must say: the command that signs a browser in.
 const SIGNED_OUT_NAMES = "inteligir open";
 
 const pageIsMounted = (bodyText: string): boolean =>
-  // the welcome content only arrives through a vault.read round trip; the sync pill proves the
+  // the empty list only arrives through a threads.list round trip; the sync row proves the cloud
   // status query ran.
-  bodyText.includes("Welcome to inteligir") && bodyText.includes("Only on this Mac");
+  bodyText.includes("No actions yet.") && bodyText.includes("Only on this Mac");
 
 // here, not a unit test: `pnpm verify` runs tests before the build, so a unit test over dist/ reads
 // the previous build.
@@ -107,7 +104,7 @@ const assertSignedOutJourney = async (
 
 export const browserSmoke: Scenario = {
   description:
-    "the page renders headless: signed-out page, `inteligir open` sign-in, title, SPA mount, API reached, palette chord safe, clean console",
+    "the page renders headless: signed-out page, `inteligir open` sign-in, title, SPA mount, API reached, palette chord, clean console",
   name: "browser-smoke",
   async run(ctx) {
     const app = await ctx.boot({ name: "solo" });
@@ -119,7 +116,7 @@ export const browserSmoke: Scenario = {
     await freshBrowser.close();
 
     const agentBrowser = await ctx.browser("smoke");
-    ctx.log(`opening ${app.baseUrl}/: the SPA mounts and the virgin-boot note opens`);
+    ctx.log(`opening ${app.baseUrl}/: the SPA mounts`);
     await agentBrowser.openWorkspace(app);
 
     const title = await agentBrowser(["get", "title"]);
@@ -132,22 +129,10 @@ export const browserSmoke: Scenario = {
       intervalMs: 500,
     });
 
-    // disk is the oracle, not rendered text: decorations move with the caret, bytes do not, and
-    // the palette's focus steal flushes the editor, so a corrupted buffer would land.
-    ctx.log("the palette chord opens the palette without editing the note under it");
-    const welcomeFile = path.join(app.vaultDir, "Welcome.md");
-    const beforeChord = await readFile(welcomeFile, "utf-8");
-    await agentBrowser(["click", EDITOR]);
-    await agentBrowser(["press", "End"]);
+    ctx.log("the palette chord opens the palette, and Escape closes it");
     await agentBrowser(["press", PALETTE_CHORD]);
     await agentBrowser(["wait", PALETTE_INPUT], 30_000);
     await agentBrowser(["press", "Escape"]);
-    await delay(SAVE_SETTLE_MS);
-    const afterChord = await readFile(welcomeFile, "utf-8");
-    expect(
-      afterChord === beforeChord,
-      `${PALETTE_CHORD} changed Welcome.md on disk:\n${JSON.stringify(afterChord)}`,
-    );
 
     ctx.log("settling, then sweeping for page and console errors");
     await delay(QUIESCENCE_MS);

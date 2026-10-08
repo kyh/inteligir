@@ -15,7 +15,7 @@ against a real file: "two writers never allocate the same sequence", "one
 claimant per queued message", "a settle for a stale turn is a typed no-op".
 The package sits BELOW the wire (`@repo/db` → `@repo/domain` only, pinned by
 `tools/repo-guards/src/dep-dag.test.ts`): an edge to `@repo/contract` would drag
-the oRPC contract and its `@repo/notes` edge into a package that only writes
+the oRPC contract and its zod surface into a package that only writes
 rows. The events, threads, queue and interaction writers are vendored from bb
 (MIT) and carry its header.
 
@@ -29,8 +29,9 @@ src/
                       # back and checkpoints the -wal
   schema.ts           # the tables: meta, threads, events, queued_thread_messages,
                       # pending_interactions, sync_outbox, sync_state,
-                      # sync_applied_captures, sync_own_devices — each constraint
-                      # says why beside itself
+                      # sync_applied_captures (the retired capture inbox's
+                      # ledger, cleared on sign-out), sync_own_devices — each
+                      # constraint says why beside itself
   migrate.ts          # runMigrations: drizzle's migrator over drizzle/, foreign keys
                       # OFF around it and foreign_key_check after; returns the
                       # migration-folder count, which IS the schema version
@@ -39,17 +40,14 @@ src/
                       # pint_, obx_) over a 32-letter alphabet minus the look-alikes
   events.ts           # the append-only log: contiguous per-thread sequence, the
                       # turn/started gate, synced-origin dedupe, one prepared insert
-  threads.ts          # thread rows (an origin is the note's path and its frontmatter
-                      # id, resolved by the server on read), the keyset-paged
-                      # listing, the lifecycle CAS,
-                      # setThreadProviderSession
+  threads.ts          # thread rows, the keyset-paged listing, the lifecycle
+                      # CAS, a synced `thread/meta` row's facts
   queued-messages.ts  # FIFO per thread under claim tokens, released whole at boot
   pending-interactions.ts
                       # provider prompts, idempotent on (thread, requestKey)
   sync-outbox.ts      # the frozen-body outbox, the device_seq high-water, the pull
                       # cursor and its skipped-row marker, the count of rows
-                      # dropped unsent, the applied-capture ledger, the own
-                      # device ids
+                      # dropped unsent, the own device ids
   own-synced-copies.ts
                       # the once-per-database removal of this install's own rows
                       # a replay pulled back under a device id it never recorded
@@ -175,9 +173,7 @@ id)`, which the cursor's row-value comparison seeks with no temp b-tree. Crash
   commit, so a subscriber never sees rolled-back state. That is how an archive
   lands (`archiveThreadInTransaction`) and a synced `thread/meta` row fills a
   thread the log created bare (`applyThreadMetaInTransaction`), each beside the
-  event that tells other devices. `setThreadProviderSession` announces nothing
-  on purpose: the provider session is runtime plumbing, not a fact a client
-  renders.
+  event that tells other devices.
 - **A claim has no TTL, so boot releases them all.** One server owns a data
   dir, so no claim can be live at boot; `releaseAllQueuedMessageClaims` runs
   in `ThreadService.boot()` (`apps/cli/src/server/threads/service.ts`).

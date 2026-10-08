@@ -7,22 +7,26 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 ### Before you update
 
 - **Inteligir needs macOS 13.5 or later.** The app now runs on the Mac's own web engine instead of carrying a browser of its own, and what it brings in its place needs macOS 13.5. On an older Mac, the version you have keeps working and is not offered this update.
-- **Your window settings start over once.** The theme, the text appearance, the sidebar and panel widths, which list the sidebar shows, and the spell check switch go back to their defaults the first time this version opens; set them again in Settings. A message about a note two devices changed that you already saw can show once more. Your notes, vaults, sign-ins and agents are untouched. On macOS 13, every vault now shares one set of these settings.
+- **The notes app is gone: inteligir is being rebuilt as an open-source inbox for the coding agents you already run.** The note editor, the note list, a note's history and comments, the question about where your notes live on first launch, quick capture, the online copy of your notes, and the iPhone app's notes and photos are gone. Your notes on your Mac are untouched: they stay as files in their folder, and any text editor opens them. The online copy is deleted from our cloud, so keep the folder on your Mac. The Mac app now opens straight to your actions and Settings (the very first time, it offers to sign in to your account first), and the iPhone app shows your conversations, lets you answer them, and asks your Mac something new with New request; the first time this version opens on your phone it frees the space its copy of your notes took.
+- **The agent does not run in this version.** The app no longer starts Claude or ChatGPT itself, and Settings › Agent and Settings › Connectors are gone. Your actions and their conversations stay and keep syncing to your other devices, but a new message is answered with "No agent runtime yet" instead of a reply.
+- **Your window settings start over once.** The theme, the sidebar and panel widths and the spell check switch go back to their defaults the first time this version opens; set them again in Settings. Your actions and your sign-in are untouched.
 
 ### New
 
-- **Terms of Use.** Inteligir now has Terms of Use, at inteligir.com/terms. They say what you agree to when you use the website and the apps: your notes stay yours, the agent runs under your own Claude or ChatGPT plan's terms, and the online copy of your notes is free up to about 1 GB.
+- **Terms of Use.** Inteligir now has Terms of Use, at inteligir.com/terms. They say what you agree to when you use the website and the apps: what you sync stays yours, and the agents you run stay under their providers' own terms.
 
 ### Changed
 
-- **The privacy policy is reorganized.** inteligir.com/privacy now follows the sections privacy law asks for, with an index at the top, and says how to ask us for a copy of your information, a correction or a deletion, including under U.S. state and European law. What the app sends, what never leaves your Mac and how your account is deleted are the same as before, and every address the app talks to is still listed at the end.
+- **The privacy policy is reorganized.** inteligir.com/privacy now follows the sections privacy law asks for, with an index at the top, and says how to ask us for a copy of your information, a correction or a deletion, including under U.S. state and European law. It also says what this version no longer does: our cloud keeps no copy of your notes and no captures, and the app runs no agent. Every address the app talks to is still listed at the end.
 
 ### Fixed
 
-- **Notes open on iPhones with iOS 16.4 to 17.3.** On those versions the editor stopped before it could show a note; it now opens on every iPhone the app installs on.
-- **The agent's own Inteligir commands work on every Mac.** The agent drives the app by typing `inteligir` commands; on a Mac without Node.js installed those failed, and now they run on what the app carries.
-- **Messages you queued wait when your plan's usage limit is reached.** If Claude or ChatGPT stops an action because you've reached your plan's usage limit, or because you're signed out, the action now says so in plain words, and the messages you queued behind it stay queued instead of each failing the same way. Send again once the limit resets or you've signed in, and the oldest queued message goes first.
-- **An agent's separate replies within one action show as separate messages.** When the agent says what it is about to do, edits your notes and then says what it did, each message now shows where it happened, before and after its edits, instead of being joined into one block above all of them. The same goes for its thinking. Conversations from before this update still show the way they did.
+- **An agent's separate replies within one action show as separate messages.** When the agent says what it is about to do, makes its changes and then says what it did, each message now shows where it happened, before and after its changes, instead of being joined into one block above all of them. The same goes for its thinking. Conversations from before this update still show the way they did.
+
+### On the command line
+
+- `inteligir vault`, `search`, `matches`, `backlinks`, `related`, `unlinked`, `problems`, `tags`, `tag`, `comment`, `folders`, `agents` and `guide` are gone, and so are `inteligir action changes`, `inteligir action undo`, the `--doc` flag of `action list` and `action new`, and `inteligir serve --vault`. `inteligir status` no longer prints a vault. `INTELIGIR_VAULT_DIR`, `INTELIGIR_VAULT_REMOTE`, `INTELIGIR_SYNC_INTERVAL_MS`, `INTELIGIR_SLOW_READS`, `INTELIGIR_CLAUDE_MODEL` and `INTELIGIR_CODEX_MODEL` are no longer read, and `INTELIGIR_DEBUG` takes `sync` alone.
+- `inteligir action send` and `inteligir action new` answer `PROVIDER_UNAVAILABLE` ("No agent runtime yet") instead of starting a turn; `INTELIGIR_AGENT=scripted` still runs the test agent.
 
 ## 0.6.0 — 2026-09-27
 

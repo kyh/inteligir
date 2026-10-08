@@ -2,14 +2,12 @@
 
 import type {
   TimelineCommandWorkRow,
-  TimelineConversationRow,
   TimelineRow,
   TimelineTurnRow,
 } from "@repo/contract/local/thread-timeline";
-import type { TurnChanges } from "@repo/contract/local/threads/threads-schema";
-import { cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { TimelineRowView, TurnChangesFooter, turnFooterSlots } from "../timeline-rows";
+import { cleanup, render } from "@testing-library/react";
+import { afterEach, expect, it } from "vitest";
+import { TimelineRowView } from "../timeline-rows";
 
 afterEach(cleanup);
 
@@ -36,7 +34,6 @@ const base = { createdAt: 1000, threadId: "thr_1" };
 
 const assistant = (text: string, seq: number): TimelineRow => ({
   ...base,
-  contextPaths: [],
   id: "item:turn_1:item_a",
   kind: "conversation",
   role: "assistant",
@@ -44,7 +41,6 @@ const assistant = (text: string, seq: number): TimelineRow => ({
   sourceSeqStart: 5,
   text,
   turnId: "turn_1",
-  viewContext: null,
 });
 
 const pendingTurn: TimelineTurnRow = {
@@ -150,12 +146,8 @@ it("names the lines a command's head leaves out", () => {
   expect(view.container.textContent).toContain("9960 more lines");
 });
 
-const userMessage = (
-  viewContext: TimelineConversationRow["viewContext"],
-  contextPaths: string[] = [],
-): TimelineRow => ({
+const userMessage = (): TimelineRow => ({
   ...base,
-  contextPaths,
   id: "user:1",
   kind: "conversation",
   role: "user",
@@ -163,121 +155,9 @@ const userMessage = (
   sourceSeqStart: 1,
   text: "make this shorter",
   turnId: null,
-  viewContext,
 });
 
-it("attributes a user message to what the sender was looking at", () => {
-  const view = render(
-    <List
-      rows={[
-        userMessage({
-          resource: "Notes/Plans.md",
-          revision: "a".repeat(64),
-          surface: "doc",
-        }),
-      ]}
-    />,
-  );
-
-  expect(view.container.textContent).toContain("make this shorter");
-  expect(view.container.textContent).toContain("Notes/Plans.md");
-  expect(view.container.textContent).not.toContain("a".repeat(64));
-});
-
-it("renders a message with no context as the bubble alone", () => {
-  const view = render(<List rows={[userMessage(null)]} />);
+it("renders a user message as its bubble alone", () => {
+  const view = render(<List rows={[userMessage()]} />);
   expect(view.container.textContent).toBe("make this shorter");
-});
-
-it("draws the notes a message attached under its bubble, apart from the text", () => {
-  const view = render(<List rows={[userMessage(null, ["Notes/Plans.md", "Notes/Goals.md"])]} />);
-  const bubble = view.getByText("make this shorter");
-  expect(bubble.textContent).toBe("make this shorter");
-  expect(view.getByText("Notes/Plans.md")).toBeTruthy();
-  expect(view.getByText("Notes/Goals.md")).toBeTruthy();
-});
-
-const turnChanges = (state: TurnChanges["state"]): TurnChanges => ({
-  paths: ["Plans.md", ".inteligir/comments/note-1.json", "Ideas.md"],
-  state,
-  turnId: "turn_1",
-});
-
-describe("a turn's changes footer", () => {
-  it("names the notes a settled turn edited, and offers them back", () => {
-    const onUndo = vi.fn<(turnId: string) => void>();
-    const view = render(
-      <TurnChangesFooter
-        status="completed"
-        changes={turnChanges("applied")}
-        undo="offered"
-        onUndo={onUndo}
-      />,
-    );
-
-    expect(view.getByText("Edited 2 notes")).toBeTruthy();
-    expect(view.getByText("Plans.md")).toBeTruthy();
-    expect(view.getByText("Ideas.md")).toBeTruthy();
-    expect(view.queryByText(".inteligir/comments/note-1.json")).toBeNull();
-    fireEvent.click(view.getByRole("button", { name: "Undo changes" }));
-    expect(onUndo).toHaveBeenCalledWith("turn_1");
-  });
-
-  it("draws nothing for a turn still running", () => {
-    const view = render(
-      <TurnChangesFooter
-        status="pending"
-        changes={turnChanges("applied")}
-        undo="offered"
-        onUndo={() => {}}
-      />,
-    );
-
-    expect(view.container.textContent).toBe("");
-  });
-
-  it("offers no undo while the thread runs, and holds one in flight", () => {
-    const withheld = render(
-      <TurnChangesFooter
-        status="completed"
-        changes={turnChanges("applied")}
-        undo="withheld"
-        onUndo={() => {}}
-      />,
-    );
-    expect(withheld.getByText("Edited 2 notes")).toBeTruthy();
-    expect(withheld.queryByRole("button", { name: "Undo changes" })).toBeNull();
-    cleanup();
-
-    const pending = render(
-      <TurnChangesFooter
-        status="completed"
-        changes={turnChanges("applied")}
-        undo="pending"
-        onUndo={() => {}}
-      />,
-    );
-    expect(pending.getByRole("button", { name: "Undo changes" })).toHaveProperty("disabled", true);
-  });
-
-  it("says a turn's changes were undone, and offers nothing more", () => {
-    const view = render(
-      <TurnChangesFooter
-        status="completed"
-        changes={turnChanges("undone")}
-        undo="offered"
-        onUndo={() => {}}
-      />,
-    );
-
-    expect(view.container.textContent).toBe("Changes undone");
-    expect(view.queryByRole("button")).toBeNull();
-  });
-
-  it("follows the turn's reply, not the turn's own row", () => {
-    const settled: TimelineTurnRow = { ...pendingTurn, status: "completed" };
-    const slots = turnFooterSlots([userMessage(null), settled, assistant("Done.", 6)]);
-
-    expect([...slots]).toEqual([["item:turn_1:item_a", settled]]);
-  });
 });

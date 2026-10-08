@@ -1,5 +1,5 @@
 // a role says what a line IS; a raw size says only how big, and two scales in one window read as
-// a slash menu at 14px beside a palette at 12. a scale held by convention alone drifts.
+// a menu at 14px beside a palette at 12. a scale held by convention alone drifts.
 
 import { describe, expect, it } from "vitest";
 
@@ -12,13 +12,12 @@ const ROLES_DECLARED = "packages/ui/src/styles/globals.css";
 // draws it.
 const CHROME_ROOTS = [
   "apps/desktop/src/renderer/",
-  "packages/editor/src/",
   "packages/ui/src/components/",
   "packages/ui/src/ai/",
 ];
 
-// Tailwind's own ladder and any px or rem literal. An em literal is allowed: it follows the note's
-// size dial, which is how the prose sizes anything it draws inline.
+// Tailwind's own ladder and any px or rem literal. An em literal is allowed: it follows whatever
+// size its surface inherits.
 const RAW_SIZE = /(?<![\w-])text-(?:xs|sm|base|lg|[2-9]?xl|\[\d*\.?\d+(?:px|rem)\])(?![\w-])/gu;
 
 interface ProseSize {
@@ -26,7 +25,7 @@ interface ProseSize {
   readonly reason: string;
 }
 
-// the note is not chrome, so a fixed size drawn as part of it is a row here; a row names the
+// a fixed size a surface must draw (content that is not chrome) is a row here; a row names the
 // literals it permits, so a new raw size in the same file still fails.
 const PROSE_SIZES = new Map<string, ProseSize>();
 
@@ -63,7 +62,7 @@ describe("the chrome's type roles", () => {
         ? ""
         : `RAW TYPE SIZES IN THE CHROME\n${offenders.map((line) => `  ${line}`).join("\n")}\n` +
             `  rule: chrome speaks text-caption | body | subtitle | title | display (${ROLES_DECLARED}); a raw size beside them is a second scale\n` +
-            `  fix: name the role the line is; inside the note's prose, size in em so the size dial reaches it, or add a PROSE_SIZES row with its reason`,
+            `  fix: name the role the line is; inside content that is not chrome, size in em, or add a PROSE_SIZES row with its reason`,
     ).toEqual([]);
   });
 

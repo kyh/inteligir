@@ -25,8 +25,6 @@ const requireClaimedQueuedThreadMessage = (
 export interface CreateQueuedThreadMessageInput {
   threadId: string;
   text: string;
-  // the stored text, null for none: the caller that parses the column back owns its encoding too.
-  contextPaths: string | null;
   // the phone's dispatch this message carries out, null for one typed here
   dispatchId: string | null;
 }
@@ -58,7 +56,6 @@ export const createQueuedThreadMessageInTransaction = (
     .values({
       claimToken: null,
       claimedAt: null,
-      contextPaths: input.contextPaths,
       createdAt: now,
       dispatchId: input.dispatchId,
       id: createQueuedThreadMessageId(),

@@ -5,26 +5,14 @@ import type {
   CloudLoginRequest,
   CloudSignUpRequest,
 } from "@repo/contract/local/cloud/cloud-schema";
-import type { VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AccountForm } from "../account-form";
 import type { AccountFormProps } from "../account-form";
 
 afterEach(cleanup);
 
-const NO_REMOTE: VaultStatusResponse = {
-  conflicts: [],
-  device: "Kai's MacBook",
-  externalSync: null,
-  lastError: null,
-  lastSyncAt: null,
-  state: "no-remote",
-};
-
-const IN_DROPBOX: VaultStatusResponse = { ...NO_REMOTE, externalSync: { kind: "dropbox" } };
-
 const renderForm = (
-  overrides: Partial<Pick<AccountFormProps, "initialMode" | "vault">> & { pending?: boolean } = {},
+  overrides: Partial<Pick<AccountFormProps, "initialMode">> & { pending?: boolean } = {},
 ) => {
   const signIn = vi.fn<(request: CloudLoginRequest) => void>();
   const signUp = vi.fn<(request: CloudSignUpRequest) => void>();
@@ -32,7 +20,6 @@ const renderForm = (
     cloudUrl: "https://cloud.test",
     session: { pending: overrides.pending ?? false, refusal, signIn, signUp },
     initialMode: overrides.initialMode ?? "sign-in",
-    vault: "vault" in overrides ? overrides.vault : NO_REMOTE,
   });
   const { rerender } = render(<AccountForm {...props(null)} />);
   const refuse = (refusal: string): void => {
@@ -58,7 +45,7 @@ describe("the account form, signing in", () => {
     expect(screen.getByLabelText("Password").getAttribute("type")).toBe("password");
     expect(
       screen.getByText(
-        "An account backs up your notes and brings them to your other Macs and your iPhone.",
+        "An account carries your conversations with the agent to your other devices and your iPhone.",
       ),
     ).toBeDefined();
     expect(screen.queryByLabelText("Invite code")).toBeNull();
@@ -164,18 +151,10 @@ describe("the account form, creating an account", () => {
     expect(screen.queryByText(/invite code isn't valid/u)).toBeNull();
   });
 
-  it("opens on Create when asked, saying what an account does for notes another service syncs", () => {
-    renderForm({ initialMode: "create", vault: IN_DROPBOX });
-    const lead = /^Dropbox already syncs these notes/u;
+  it("opens on Create when asked", () => {
+    renderForm({ initialMode: "create" });
     expect(screen.getByLabelText("Invite code")).toBeDefined();
-    expect(screen.getByText(lead)).toBeDefined();
     fireEvent.click(button("I have an account"));
-    expect(screen.getByText(lead)).toBeDefined();
-  });
-
-  it("says nothing of what an account does until the vault's status is known", () => {
-    renderForm({ vault: undefined });
-    expect(screen.getByLabelText("Email")).toBeDefined();
-    expect(screen.queryByText(/notes/u)).toBeNull();
+    expect(screen.queryByLabelText("Invite code")).toBeNull();
   });
 });

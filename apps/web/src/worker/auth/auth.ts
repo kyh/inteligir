@@ -8,7 +8,6 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
 import { sql } from "drizzle-orm";
-import { deleteVaultGitRepo } from "../vault/git-remote";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 import { purgeDeviceRows } from "../device/login";
@@ -81,7 +80,6 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
         // request that verified before step 1 committed.
         beforeDelete: async (user) => {
           await purgeDeviceRows(createDb(env.DB), user.id);
-          await deleteVaultGitRepo(env, user.id);
           await purgeThreadSync(env, user.id);
           await forgetInviteRedeemer(env, user.email);
         },

@@ -1,22 +1,13 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import type { DocChangeKind, ThreadChangeKind, VaultChangeKind } from "./change-kinds";
+import type { ThreadChangeKind } from "./change-kinds";
 
 export interface DbNotifier {
-  // omitted `paths` means no path list: every consumer must re-diff.
-  notifyVault: (changes: VaultChangeKind[], paths?: readonly string[]) => void;
-  notifyDoc: (docId: string, changes: DocChangeKind[]) => void;
   notifyThread: (threadId: string, changes: ThreadChangeKind[]) => void;
 }
 
 export const noopNotifier: DbNotifier = {
-  notifyDoc() {
-    /* empty */
-  },
   notifyThread() {
-    /* empty */
-  },
-  notifyVault() {
     /* empty */
   },
 };
@@ -25,18 +16,6 @@ export const noopNotifier: DbNotifier = {
 // never re-enters the database mid-transaction.
 export class NotificationBuffer implements DbNotifier {
   private deliveries: ((target: DbNotifier) => void)[] = [];
-
-  notifyVault(changes: VaultChangeKind[], paths?: readonly string[]): void {
-    this.deliveries.push((target) => {
-      target.notifyVault(changes, paths);
-    });
-  }
-
-  notifyDoc(docId: string, changes: DocChangeKind[]): void {
-    this.deliveries.push((target) => {
-      target.notifyDoc(docId, changes);
-    });
-  }
 
   notifyThread(threadId: string, changes: ThreadChangeKind[]): void {
     this.deliveries.push((target) => {

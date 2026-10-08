@@ -36,8 +36,7 @@ describe("buildContentSecurityPolicy", () => {
     expect(policy).toContain("default-src 'self'");
     expect(policy).toContain("object-src 'none'");
     expect(policy).toContain("frame-ancestors 'none'");
-    // 'self' rather than 'none' for one frame: inteligir-html's sandboxed srcdoc preview.
-    expect(policy).toContain("frame-src 'self'");
+    expect(policy).toContain("frame-src 'none'");
     expect(policy).toContain("worker-src 'none'");
     expect(policy).toContain("base-uri 'self'");
     expect(policy).toContain("form-action 'self'");

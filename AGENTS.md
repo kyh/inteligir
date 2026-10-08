@@ -1,28 +1,27 @@
 # AGENTS.md
 
-**inteligir** is Obsidian where an agent edits your notes with you: a Mac app
-for general knowledge workers, not developers, shipped to a small invited
-cohort on Apple silicon. The agent runs on the user's own Claude or ChatGPT
-plan, on their Mac; git versions and syncs the vault underneath, and the user
-never meets it. `CLAUDE.md` § Project Overview holds the premises every change
-builds from, and where older prose assumes a developer, the overview wins.
+**inteligir** is being rebuilt as an open-source One: a Mac app, an iPhone
+remote and a Linux connector that watch the coding agents a developer already
+runs in their own terminals (Claude Code and Codex first), with tmux as the
+control layer. The notes app this repo used to be has been deleted; what
+remains is the skeleton the rebuild grows from. `CLAUDE.md` § Project Overview
+holds the premises every change builds from.
 
 There are TWO programs. `apps/desktop` is THE SHIPPED PRODUCT, installed as the
 signed dmg: a Tauri window on the local server, which it runs as its one child
-on the node the .app carries, showing the SPA that server serves. `apps/cli` is the `inteligir` binary: `serve` runs the whole
-local server (the markdown vault, its index, the agent runtime and one oRPC API
-over SQLite), and every other verb but `vault open` is a client of a running
-one. The CLI is the agent's door and the developer's, which is how an agent
-drives the product from bash; nothing the user does needs a terminal.
+on the node the .app carries, showing the SPA that server serves. `apps/cli` is
+the `inteligir` binary: `serve` runs the whole local server (the thread log and
+one oRPC API over SQLite), and every other verb is a client of a running one.
 `apps/web` is the one hosted piece — a Cloudflare Worker carrying the marketing
 site, Better Auth on D1, device sign-in, sign-up and account deletion,
-cross-device sync, the capture and dispatch inboxes and the hosted vault. `apps/mobile` is the iPhone app:
-the same editor over the hosted vault, offline, asking a Mac to run the agent.
+cross-device thread sync and the dispatch inbox. `apps/mobile` is the iPhone
+app: the synced threads, offline, and the requests and answers it sends a Mac.
 This is the tool-agnostic guide for coding agents; `CLAUDE.md` holds the
 architecture and the durable decisions, GitHub issues #542, #611 and #889 the
-decision record, the `note` issues the declines register (#877, #881, #788, #645,
-#674, #603, #705; read them before raising a finding), `CONTEXT.md` the domain
-glossary, `apps/web/README.md` the Worker's own routes and deploy.
+decision record the rebuild inherits, the `note` issues the declines register
+(#877, #881, #788, #645, #674, #603, #705; read them before raising a finding),
+`CONTEXT.md` the domain glossary, `apps/web/README.md` the Worker's own routes
+and deploy.
 
 ## Quickstart
 
@@ -46,36 +45,27 @@ Requirements: **Node 24** and **pnpm 12** (`corepack enable` reads the
 root `packageManager`).
 (`.codex/environments/environment.toml` runs `pnpm i` for cloud runners.)
 
-The agent RUNTIME is selected by `INTELIGIR_AGENT` (`auto` · `scripted` ·
-`off`; default `auto` — the ACP runtime, which runs the vendor binaries bundled
-beside its adapters and never looks at PATH; it refuses a send only when the
-thread's runtime is missing from the install, with the reason `system.status`
-states under `agent`, and a signed-out vendor refuses the session itself). WHICH
-harness runs is a thread's own `providerId`, never this variable; unset, a new
-thread starts on claude. `inteligir agents list` asks each bundled vendor for
-its sign-in over its shared store (`~/.claude`, `~/.codex`), so a machine
-already signed in to either needs nothing more; Settings › Agent signs one in
-through the vendor's own login.
-**`INTELIGIR_AGENT=scripted` is the login-free e2e mode**: an in-process
-deterministic driver over the REAL ingest/timeline/vault/commit paths — send an
-action message, watch the turn stream, find the note in the vault with an
-agent-attributed commit. `INTELIGIR_CLAUDE_MODEL` and `INTELIGIR_CODEX_MODEL`
-each pass a model to their own harness; the one-model `INTELIGIR_AGENT_MODEL` is
-ignored with a boot warning.
+The agent driver is selected by `INTELIGIR_AGENT` (`auto` · `scripted` ·
+`off`; default `auto`). This build carries no agent runtime: `auto` refuses
+every send with `PROVIDER_UNAVAILABLE` ("No agent runtime yet"), and
+`system.status` says so under `agent`. **`INTELIGIR_AGENT=scripted` is the
+login-free e2e mode**: an in-process deterministic driver over the REAL
+ingest and timeline paths — every turn answers `Noted: <text>` and completes,
+and a turn sent as `ask: <command>` first raises an approval card for that
+command and answers `Allowed: …` or `Denied: …` once it is answered.
 
 **The `inteligir` CLI drives a running instance from the shell** — often
-faster than the browser for vault/search/action checks:
+faster than the browser for thread and sync checks:
 
 ```sh
 pnpm cli status            # reads this checkout's <dataDir>/server.json
-pnpm cli guide             # the agent manual the app serves (system.guide)
+pnpm cli action list       # the threads, newest first
 ```
 
 Every leaf takes `--json`. `INTELIGIR_DATA_DIR` names WHICH instance — the port
 and the bearer are both read out of the `server.json` there, so the address and
-the credential can never disagree. Agent shells get it injected, plus
-`INTELIGIR_THREAD_ID` for their own thread; there is deliberately no way to
-point the CLI at a bare URL.
+the credential can never disagree; there is deliberately no way to point the
+CLI at a bare URL.
 
 The marketing/auth Worker is separate:
 
@@ -155,21 +145,13 @@ rather than moving the app somewhere the docs don't name.
 
 - **`pnpm format:fix` before the gates, commit after.** Never the other way.
 - **A change a user can notice updates `CHANGELOG.md` in the same task**, under
-  `## Unreleased`, written for someone who takes notes: a release's notes are
+  `## Unreleased`, written for the person using the app: a release's notes are
   that section. A change to the command line goes under its
   `### On the command line` heading.
-- **Product surfaces speak the user's words.** The window, the phone,
-  onboarding, the seed notes, the site and the changelog (outside its
-  `### On the command line` heading) never say git, commit, remote, repo,
-  terminal, CLI, PATH or MCP. Settings › Advanced, the CLI, the agent manual
-  and code keep their words.
 - **No `any`, no non-null `!`, no type assertions** (lint-enforced, with no
   escape comment; `as const` and `satisfies` are fine): parse at the boundary
   or narrow with a type guard. Kebab-case filenames. Make illegal states
   unrepresentable.
-- **`@repo/notes` is pure and platform-neutral** — no node/react/ui imports
-  (lint-enforced); callers inject platform capabilities (the SQL driver, the
-  clock).
 - **`pnpm knip` is a CI gate.** A new file must be reachable from a knip
   `entry` glob in `knip.json` or it reads as unused and CI goes red.
   `ignoreDependencies` is the escape hatch for what knip genuinely can't see,
@@ -185,16 +167,11 @@ description of each.
 ```
 apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the window and the SPA in it
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
-apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, dispatch, hosted vault
-apps/mobile             @repo/mobile — the iPhone app: notes in the editor page, offline, and asking a Mac's agent
-apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
+apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, dispatch
+apps/mobile             @repo/mobile — the iPhone app: the synced threads, and asking a Mac's agent
 packages/domain         @repo/domain — zod-only leaf vocabulary
 packages/contract       @repo/contract — ONE contract, TWO entries: /local and /cloud
 packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
-packages/notes          @repo/notes — the pure, platform-neutral domain
-packages/editor         @repo/editor — the Plate WYSIWYG over the fixpoint serializer
-packages/agent-runtime  @repo/agent-runtime — the ACP runtime over the harnesses
-packages/agent-skills   @repo/agent-skills — the dialect spec, as files agents read
 packages/ui             @repo/ui — the shared component vocabulary on Base UI
 tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself
 tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs

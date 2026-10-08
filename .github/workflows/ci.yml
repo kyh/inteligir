@@ -99,8 +99,8 @@ jobs:
         # a broken setup: --no-skip fails it instead of passing it behind a green step
         run: xvfb-run -a pnpm e2e --no-skip
 
-  # the app ships only as a macOS arm64 .app, and the suites meet APFS, FSEvents and a tmpdir
-  # behind a symlink only here; typecheck, lint, knip, format and build read no platform, so the
+  # the app ships only as a macOS arm64 .app, and the suites meet APFS and a tmpdir behind a
+  # symlink only here; typecheck, lint, knip, format and build read no platform, so the
   # check job alone runs them
   test-macos:
     runs-on: macos-latest
@@ -109,11 +109,9 @@ jobs:
     timeout-minutes: 50
     env:
       TURBO_TELEMETRY_DISABLED: 1
-      # three cores and 7 GB: four suites at once, the editor's 4 GB budget among them, push
-      # every timing-bound test past its limit on a slow runner
+      # three cores and 7 GB: four suites at once push every timing-bound test past its limit on a
+      # slow runner
       TEST_CONCURRENCY: 2
-      # the editor's typing budget measures swap on a 7 GB runner; the check job holds it
-      SKIP_TYPING_BUDGET: 1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

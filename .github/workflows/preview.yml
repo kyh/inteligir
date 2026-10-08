@@ -1,6 +1,6 @@
 # Vercel-style previews on Cloudflare Worker Previews. Every PR from a branch of this repo gets
 # its own Preview of inteligir-web once CI is green: its own URL and Durable Objects over the
-# preview-only D1 and bucket apps/web/cloudflare.config.ts binds when `isPreview`. The PR shows
+# preview-only D1 apps/web/cloudflare.config.ts binds when `isPreview`. The PR shows
 # it twice, as Vercel's does: one sticky status comment, and a "View deployment" button from a
 # GitHub deployment in "Preview – inteligir-web". Closing the PR deletes the Preview.
 #
@@ -9,8 +9,8 @@
 # gate. workflow_run runs with secrets against PR code, so it is limited to this repo's own
 # branches; a fork's PR never reaches the build.
 #
-# Needs, beyond Deploy's CLOUDFLARE_API_TOKEN: the token also granted D1: Edit and Workers R2
-# Storage: Edit, the CLOUDFLARE_ACCOUNT_ID secret, and once, from a machine:
+# Needs, beyond Deploy's CLOUDFLARE_API_TOKEN: the token also granted D1: Edit, the
+# CLOUDFLARE_ACCOUNT_ID secret, and once, from a machine:
 #   pnpm -F @repo/web exec wrangler preview base-config secret put BETTER_AUTH_SECRET --worker-name inteligir-web
 # (wrangler, as cf has no preview secret or delete command yet)
 name: Preview
@@ -75,8 +75,6 @@ jobs:
             pnpm exec cf d1 create --name inteligir-auth-preview >/dev/null
             id="$(d1_id)"
           fi
-          pnpm exec cf r2 buckets get inteligir-vault-preview >/dev/null 2>&1 \
-            || pnpm exec cf r2 buckets create --name inteligir-vault-preview >/dev/null
           echo "d1_id=$id" >> "$GITHUB_OUTPUT"
 
       # --force: this is the preview database, and a PR's schema is the one it ships

@@ -10,19 +10,7 @@ import {
   isDeleteAccountRefusal,
   signUpRequestSchema,
 } from "../account/account-schema";
-import {
-  ackCapturesRequestSchema,
-  ackCapturesResponseSchema,
-  captureRequestSchema,
-  captureResponseSchema,
-  claimCapturesResponseSchema,
-} from "../captures/captures-schema";
-import {
-  CLOUD_ERROR_CODES,
-  CLOUD_ERROR_STATUS,
-  cloudError,
-  cloudErrorSchema,
-} from "../cloud-errors";
+import { CLOUD_ERROR_CODES, cloudError, cloudErrorSchema } from "../cloud-errors";
 import {
   ackDispatchesRequestSchema,
   ackDispatchesResponseSchema,
@@ -64,7 +52,7 @@ import {
   revokeDeviceResponseSchema,
 } from "../device/device-schema";
 import { createCloudClient, readCloudCall } from "../cloud-client";
-import type { CloudFailure, CloudFetch } from "../cloud-client";
+import type { CloudFailure } from "../cloud-client";
 import {
   EVENT_MAX_BYTES,
   pullQuerySchema,
@@ -73,33 +61,6 @@ import {
   pushResponseSchema,
 } from "../sync/sync-schema";
 import { syncPingSchema } from "../sync/sync-ws";
-import {
-  VAULT_COMMIT_MAX_CHANGES,
-  vaultCollisionKey,
-  vaultCommitRequestSchema,
-  vaultCommitResponseSchema,
-  vaultConflictAnswerSchema,
-} from "../vault/vault-commit-schema";
-import type { VaultCommitRequest } from "../vault/vault-commit-schema";
-import {
-  assetMediaType,
-  VAULT_API_PATHS,
-  VAULT_ASSET_MEDIA_TYPES,
-  VAULT_FILES_MAX_PATHS,
-  vaultAssetQuerySchema,
-  vaultFileQuerySchema,
-  vaultFileResponseSchema,
-  vaultFilesRequestSchema,
-  vaultFilesResponseSchema,
-  vaultTreeQuerySchema,
-  vaultTreeResponseSchema,
-} from "../vault/vault-schema";
-import type {
-  VaultAssetQuery,
-  VaultFileQuery,
-  VaultFilesRequest,
-  VaultTreeQuery,
-} from "../vault/vault-schema";
 
 describe("error envelope", () => {
   it("round-trips through its own schema", () => {
@@ -111,13 +72,6 @@ describe("error envelope", () => {
     expect(
       cloudErrorSchema.parse({ error: { code: "teapot", message: "Short and stout." } }),
     ).toEqual({ error: { code: "internal", message: "Short and stout." } });
-  });
-
-  it("carries a full hosted vault as vault-full on a 507", () => {
-    expect(CLOUD_ERROR_CODES).toContain("vault-full");
-    expect(CLOUD_ERROR_STATUS["vault-full"]).toBe(507);
-    const envelope = cloudError("vault-full", "Your cloud vault is full.");
-    expect(cloudErrorSchema.parse(envelope)).toEqual(envelope);
   });
 
   it("names the outbox position on a sync refusal", () => {
@@ -216,7 +170,6 @@ const grown = (value: Json): Json => {
   };
 };
 
-const COMMIT = "a".repeat(40);
 const DISPATCH_ID = "d".repeat(32);
 const APPROVAL_ID = "a".repeat(32);
 const APPROVAL_PAYLOAD = {
@@ -228,17 +181,6 @@ const APPROVAL_PAYLOAD = {
 
 const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
   ["the account", accountResponseSchema, { email: "owner@example.test", id: "user_1" }],
-  ["a capture", captureResponseSchema, { createdAt: 1, duplicate: false, id: "cap_1" }],
-  [
-    "a claim",
-    claimCapturesResponseSchema,
-    {
-      captures: [{ createdAt: 1, id: "cap_1", text: "buy oat milk" }],
-      claimToken: "tok",
-      expiresAt: 2,
-    },
-  ],
-  ["an ack", ackCapturesResponseSchema, { results: [{ id: "cap_1", outcome: "deleted" }] }],
   [
     "a login",
     deviceLoginResponseSchema,
@@ -272,61 +214,6 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
       lastSeq: 1,
     },
   ],
-  [
-    "a tree page",
-    vaultTreeResponseSchema,
-    {
-      commit: COMMIT,
-      entries: [{ oid: "b".repeat(40), path: "notes/a.md", size: 12 }],
-      next: null,
-    },
-  ],
-  [
-    "a file",
-    vaultFileResponseSchema,
-    { commit: COMMIT, content: "# a\n", oid: "b".repeat(40), path: "notes/a.md" },
-  ],
-  [
-    "a batch of files",
-    vaultFilesResponseSchema,
-    {
-      commit: COMMIT,
-      deferred: ["notes/d.md"],
-      files: [{ content: "# a\n", oid: "b".repeat(40), path: "notes/a.md" }],
-      missing: ["notes/b.md"],
-      refused: [{ code: "not-text", path: "notes/c.md" }],
-    },
-  ],
-  [
-    "a commit",
-    vaultCommitResponseSchema,
-    {
-      commit: COMMIT,
-      results: [
-        { oid: "b".repeat(40), path: "notes/a.md" },
-        { oid: null, path: "notes/gone.md" },
-      ],
-    },
-  ],
-  [
-    "a vault conflict",
-    vaultConflictAnswerSchema,
-    {
-      conflict: {
-        conflicts: [
-          {
-            current: { content: "# theirs\n", oid: "c".repeat(40) },
-            device: "Laptop",
-            path: "notes/a.md",
-            reason: "changed",
-          },
-          { current: null, device: null, path: "notes/b.md", reason: "missing" },
-        ],
-        head: COMMIT,
-      },
-      error: { code: "vault-conflict", message: "The vault changed under this change set." },
-    },
-  ],
   ["a sync ping", syncPingSchema, { seq: 1, type: "sync" }],
   ["a dispatch ping", syncPingSchema, { threadId: "th_1", type: "dispatch" }],
   [
@@ -344,10 +231,8 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
           createdAt: 1,
           id: DISPATCH_ID,
           kind: "turn",
-          originDocPath: "notes/Week.md",
           text: "summarise this week",
           threadId: "thr_1",
-          viewContext: { resource: "notes/Week.md", revision: "c".repeat(64), surface: "doc" },
         },
         {
           approvalId: APPROVAL_ID,
@@ -690,36 +575,12 @@ describe("pull query", () => {
   });
 });
 
-describe("capture handoff", () => {
-  it("demands an idempotency key, so a retried share-sheet post is one capture", () => {
-    expect(captureRequestSchema.safeParse({ text: "buy oat milk" }).success).toBe(false);
-    expect(
-      captureRequestSchema.safeParse({ idempotencyKey: "k".repeat(8), text: "buy oat milk" })
-        .success,
-    ).toBe(true);
-  });
-
-  it("acks by claim token and answers per id", () => {
-    const parsed = ackCapturesResponseSchema.parse({
-      results: [
-        { id: "c1", outcome: "deleted" },
-        { id: "c2", outcome: "reclaimed" },
-        { id: "c3", outcome: "unknown" },
-      ],
-    });
-    expect(parsed.results.map((row) => row.outcome)).toEqual(["deleted", "reclaimed", "unknown"]);
-    expect(ackCapturesRequestSchema.safeParse({ ids: ["c1"] }).success).toBe(false);
-  });
-});
-
 describe("the dispatch inbox", () => {
   const TURN: CreateDispatchRequest = {
     id: DISPATCH_ID,
     kind: "turn",
-    originDocPath: "notes/Week.md",
     text: "summarise this week",
     threadId: "thr_1",
-    viewContext: { resource: "notes/Week.md", revision: "c".repeat(64), surface: "doc" },
   };
   const ANSWER: CreateDispatchRequest = {
     approvalId: APPROVAL_ID,
@@ -764,12 +625,7 @@ describe("the dispatch inbox", () => {
     const refused = [
       { ...TURN, id: "D".repeat(32) },
       { ...TURN, id: "d".repeat(31) },
-      { ...TURN, originDocPath: "notes//Week.md" },
-      {
-        ...TURN,
-        viewContext: { resource: "/etc/passwd", revision: "c".repeat(64), surface: "doc" },
-      },
-      { ...TURN, viewContext: { resource: "notes/Week.md", revision: "HEAD", surface: "doc" } },
+      { ...TURN, originDocPath: "notes/Week.md" },
       { ...TURN, text: "" },
       { ...TURN, text: "x".repeat(DISPATCH_MAX_CHARS + 1) },
       { ...TURN, threadId: "" },
@@ -862,9 +718,7 @@ describe("the dispatch inbox", () => {
 describe("ws ping frames", () => {
   it("parses each server frame", () => {
     expect(syncPingSchema.parse({ seq: 12, type: "sync" }).type).toBe("sync");
-    expect(syncPingSchema.parse({ type: "capture" }).type).toBe("capture");
     expect(syncPingSchema.parse({ threadId: "th_1", type: "dispatch" }).type).toBe("dispatch");
-    expect(syncPingSchema.parse({ type: "vault" }).type).toBe("vault");
   });
 
   it("reads a frame a newer worker grew, and a frame type it does not know is no frame", () => {
@@ -873,420 +727,5 @@ describe("ws ping frames", () => {
       type: "sync",
     });
     expect(syncPingSchema.safeParse({ type: "presence" }).success).toBe(false);
-  });
-});
-
-// the vault routes' own decode: the search params whole, then the row's schema
-const paramsOf = (uri: string | undefined): Record<string, string> => {
-  if (uri === undefined) {
-    throw new Error("the client sent no request");
-  }
-  return Object.fromEntries(new URL(uri).searchParams);
-};
-
-describe("vault read rows", () => {
-  it("parses the tree page and the file", () => {
-    const tree = vaultTreeResponseSchema.parse({
-      commit: COMMIT,
-      entries: [{ oid: "b".repeat(40), path: "notes/a.md", size: 12 }],
-      next: null,
-    });
-    expect(tree.entries[0]?.path).toBe("notes/a.md");
-    expect(
-      vaultTreeResponseSchema.safeParse({
-        commit: COMMIT,
-        entries: [{ path: "notes/a.md", size: 12 }],
-        next: null,
-      }).success,
-    ).toBe(false);
-    const file = vaultFileResponseSchema.parse({
-      commit: COMMIT,
-      content: "# a\n",
-      oid: "b".repeat(40),
-      path: "notes/a.md",
-    });
-    expect(file.content).toBe("# a\n");
-  });
-
-  it("refuses paths that are not vault-relative", () => {
-    for (const bad of ["/rooted.md", "../up.md", "a//b.md", "a/./b.md", ""]) {
-      expect(vaultFileQuerySchema.safeParse({ path: bad }).success).toBe(false);
-    }
-    expect(vaultFileQuerySchema.safeParse({ path: "notes/ok.md" }).success).toBe(true);
-  });
-
-  it("refuses a short or uppercase ref — the cursor pins one commit exactly", () => {
-    expect(vaultTreeQuerySchema.safeParse({ ref: "abc123" }).success).toBe(false);
-    expect(vaultTreeQuerySchema.safeParse({ ref: "A".repeat(40) }).success).toBe(false);
-    expect(vaultTreeQuerySchema.safeParse({ ref: COMMIT }).success).toBe(true);
-  });
-
-  it("the asset query REQUIRES its ref — an unpinned read names no immutable bytes", () => {
-    expect(vaultAssetQuerySchema.safeParse({ path: "a.png" }).success).toBe(false);
-    expect(vaultAssetQuerySchema.safeParse({ path: "a.png", ref: COMMIT }).success).toBe(true);
-    expect(vaultAssetQuerySchema.safeParse({ path: "../up.png", ref: COMMIT }).success).toBe(false);
-    expect(vaultAssetQuerySchema.safeParse({ extra: 1, path: "a.png", ref: COMMIT }).success).toBe(
-      false,
-    );
-  });
-
-  it("posts each read's query in the body the route decodes, never a path in the URL", async () => {
-    const sent: { body: unknown; method: string; url: URL }[] = [];
-    const client = createCloudClient({
-      baseUrl: "https://cloud.test",
-      credential: `igd_${"a".repeat(64)}`,
-      fetch: async (input, init) => {
-        sent.push({
-          body: JSON.parse(String(init?.body)),
-          method: init?.method ?? "GET",
-          url: new URL(input),
-        });
-        return new Response(null, { status: 404 });
-      },
-    });
-    const posted = <TSchema extends z.ZodType>(path: string, schema: TSchema): z.infer<TSchema> => {
-      const request = sent.pop();
-      expect(request?.method).toBe("POST");
-      expect(request?.url.pathname).toBe(path);
-      expect(request?.url.search).toBe("");
-      return schema.parse(request?.body);
-    };
-
-    const trees: VaultTreeQuery[] = [
-      {},
-      { limit: 7 },
-      { after: "notes/α β&c=d+e.md", limit: 500, ref: COMMIT },
-    ];
-    for (const query of trees) {
-      await client.vaultTree(query);
-      expect(posted(VAULT_API_PATHS.tree, vaultTreeQuerySchema)).toEqual(query);
-    }
-
-    const files: VaultFileQuery[] = [{ path: "100%done.md" }, { path: "a b/c?.md", ref: COMMIT }];
-    for (const query of files) {
-      await client.vaultFile(query);
-      expect(posted(VAULT_API_PATHS.file, vaultFileQuerySchema)).toEqual(query);
-    }
-
-    const asset: VaultAssetQuery = { path: "media/α β#1.png", ref: COMMIT };
-    await client.vaultAsset(asset);
-    expect(posted(VAULT_API_PATHS.asset, vaultAssetQuerySchema)).toEqual(asset);
-  });
-
-  it("decodes the GET form a stale install sends from its search params", () => {
-    const query: VaultTreeQuery = { after: "notes/α β&c=d+e.md", limit: 500, ref: COMMIT };
-    const url = new URL(`https://cloud.test${VAULT_API_PATHS.tree}`);
-    url.search = new URLSearchParams({
-      after: "notes/α β&c=d+e.md",
-      limit: "500",
-      ref: COMMIT,
-    }).toString();
-    expect(vaultTreeQuerySchema.parse(paramsOf(url.toString()))).toEqual(query);
-  });
-
-  it("refuses a tree limit that is not a whole number in range", () => {
-    for (const limit of ["", "0", "501", "1.5", "ten"]) {
-      expect(vaultTreeQuerySchema.safeParse({ limit }).success).toBe(false);
-    }
-  });
-
-  it("the batch REQUIRES its ref and names one to forty unique vault paths", () => {
-    const paths = Array.from({ length: VAULT_FILES_MAX_PATHS }, (_, index) => `n${index}.md`);
-    expect(vaultFilesRequestSchema.safeParse({ paths, ref: COMMIT }).success).toBe(true);
-    for (const refused of [
-      { paths },
-      { paths: [...paths, "one-more.md"], ref: COMMIT },
-      { paths: [], ref: COMMIT },
-      { paths: ["a.md", "a.md"], ref: COMMIT },
-      { paths: ["../up.md"], ref: COMMIT },
-      { paths: ["a.md"], ref: "abc123" },
-      { extra: 1, paths: ["a.md"], ref: COMMIT },
-    ]) {
-      expect(vaultFilesRequestSchema.safeParse(refused).success, JSON.stringify(refused)).toBe(
-        false,
-      );
-    }
-  });
-
-  it("posts a batch the route decodes to exactly the request, the bearer in a header", async () => {
-    const credential = `igd_${"a".repeat(64)}`;
-    const request: VaultFilesRequest = { paths: ["notes/α β&c=d.md", "100%done.md"], ref: COMMIT };
-    const answer = { commit: COMMIT, deferred: [], files: [], missing: request.paths, refused: [] };
-    const seen: { authorization: string | null; body: unknown; method: string; url: URL }[] = [];
-    const result = await createCloudClient({
-      baseUrl: "https://cloud.test",
-      credential,
-      fetch: async (input, init) => {
-        seen.push({
-          authorization: new Headers(init?.headers).get("authorization"),
-          body: JSON.parse(String(init?.body)),
-          method: init?.method ?? "GET",
-          url: new URL(input),
-        });
-        return Response.json(answer);
-      },
-    }).vaultFiles(request);
-    expect(result).toStrictEqual({ ok: true, value: answer });
-    expect(seen).toHaveLength(1);
-    const [sent] = seen;
-    expect(sent?.method).toBe("POST");
-    expect(sent?.url.pathname).toBe(VAULT_API_PATHS.files);
-    expect(sent?.url.search).toBe("");
-    expect(sent?.authorization).toBe(`Bearer ${credential}`);
-    expect(vaultFilesRequestSchema.parse(sent?.body)).toEqual(request);
-  });
-
-  it("the asset allowlist answers a type or nothing — never a fallback", () => {
-    expect(assetMediaType("media/diagram.png")).toBe("image/png");
-    expect(assetMediaType("media/PHOTO.JPG")).toBe("image/jpeg");
-    expect(assetMediaType("notes.md")).toBeNull();
-    expect(assetMediaType("script.html")).toBeNull();
-    expect(assetMediaType("no-extension")).toBeNull();
-  });
-
-  it("pins the asset allowlist WHOLE — growth is additive, removal never happens", () => {
-    // hand-listed on purpose: removing an entry 400s every stale phone whose notes embed it
-    expect(Object.fromEntries(VAULT_ASSET_MEDIA_TYPES)).toEqual({
-      ".apng": "image/apng",
-      ".avif": "image/avif",
-      ".bmp": "image/bmp",
-      ".gif": "image/gif",
-      ".ico": "image/x-icon",
-      ".jpeg": "image/jpeg",
-      ".jpg": "image/jpeg",
-      ".png": "image/png",
-      ".svg": "image/svg+xml",
-      ".webp": "image/webp",
-    });
-  });
-});
-
-describe("an attachment's bytes", () => {
-  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-  const CREDENTIAL = `igd_${"a".repeat(64)}`;
-  const QUERY: VaultAssetQuery = { path: "media/α β.png", ref: COMMIT };
-
-  const assetOver = async (fetch: CloudFetch) =>
-    await createCloudClient({
-      baseUrl: "https://cloud.test",
-      credential: CREDENTIAL,
-      fetch,
-    }).vaultAsset(QUERY);
-
-  it("answers the bytes under the allowlist's type, the bearer and the path never in the URL", async () => {
-    const seen: { authorization: string | null; body: unknown; method: string; uri: string }[] = [];
-    const result = await assetOver(async (input, init) => {
-      seen.push({
-        authorization: new Headers(init?.headers).get("authorization"),
-        body: JSON.parse(String(init?.body)),
-        method: init?.method ?? "GET",
-        uri: input,
-      });
-      return new Response(PNG, { headers: { "content-type": "image/png" } });
-    });
-    expect(result).toStrictEqual({ ok: true, value: { bytes: PNG, mediaType: "image/png" } });
-    expect(seen.map((request) => request.authorization)).toStrictEqual([`Bearer ${CREDENTIAL}`]);
-    expect(seen.map((request) => request.method)).toStrictEqual(["POST"]);
-    expect(vaultAssetQuerySchema.parse(seen[0]?.body)).toStrictEqual(QUERY);
-    const url = new URL(seen[0]?.uri ?? "");
-    expect(url.pathname).toBe(VAULT_API_PATHS.asset);
-    expect(url.search).toBe("");
-    expect(url.username).toBe("");
-  });
-
-  it("reads a type the allowlist does not name for the path as malformed, never as bytes", async () => {
-    for (const contentType of ["text/html", "image/jpeg", "image/png; charset=utf-8"]) {
-      const result = await assetOver(
-        async () => new Response(PNG, { headers: { "content-type": contentType } }),
-      );
-      expect(result.ok ? null : result.failure.kind, contentType).toBe("malformed");
-    }
-  });
-
-  it("keeps a refusal the cloud worded, and reads a request that never left as unreachable", async () => {
-    const refused = await assetOver(async () =>
-      Response.json(cloudError("not-found", "That revision does not carry the path."), {
-        status: 404,
-      }),
-    );
-    expect(refused).toStrictEqual({
-      failure: {
-        code: "not-found",
-        deviceSeq: null,
-        kind: "refused",
-        message: "That revision does not carry the path.",
-      },
-      ok: false,
-    });
-    const offline = await assetOver(async () => {
-      throw new TypeError("Failed to fetch");
-    });
-    expect(offline).toStrictEqual({
-      failure: { kind: "unreachable", message: "Failed to fetch" },
-      ok: false,
-    });
-  });
-});
-
-const put = (path: string): VaultCommitRequest["changes"][number] => ({
-  base: null,
-  content: { encoding: "utf-8", text: "x" },
-  op: "put",
-  path,
-});
-
-describe("a vault change set", () => {
-  const BASE = "b".repeat(40);
-  const CREDENTIAL = `igd_${"a".repeat(64)}`;
-
-  // as a phone sent it: the Worker must read this body for as long as that phone is installed
-  const RECORDED = `{"authoredAt":1790000000000,"changes":[
-    {"op":"put","path":"notes/a.md","base":"${BASE}","content":{"encoding":"utf-8","text":"# a\\n"}},
-    {"op":"put","path":"media/photo.png","base":null,"content":{"encoding":"base64","data":"iVBORw0KGgo="}},
-    {"op":"delete","path":"old.md","base":"${BASE}"},
-    {"op":"move","from":"x.md","to":"notes/x.md","base":"${BASE}"}
-  ]}`;
-
-  it("reads a set a phone recorded, every op and both encodings", () => {
-    const body: unknown = JSON.parse(RECORDED);
-    expect(vaultCommitRequestSchema.parse(body)).toStrictEqual(body);
-  });
-
-  it("refuses a set that names a path twice, a move's ends included", () => {
-    for (const changes of [
-      [put("a.md"), put("a.md")],
-      [put("b.md"), { base: BASE, from: "a.md", op: "move", to: "b.md" }],
-      [put("a.md"), { base: BASE, op: "delete", path: "a.md" }],
-    ]) {
-      expect(vaultCommitRequestSchema.safeParse({ changes }).success).toBe(false);
-    }
-  });
-
-  it("refuses an empty or oversized set, and any change it cannot read exactly", () => {
-    const many = Array.from({ length: VAULT_COMMIT_MAX_CHANGES + 1 }, (_, index) =>
-      put(`n${String(index)}.md`),
-    );
-    expect(vaultCommitRequestSchema.safeParse({ changes: many.slice(1) }).success).toBe(true);
-    for (const refused of [
-      { changes: [] },
-      { changes: many },
-      { changes: [put("a.md")], deviceId: "dev_1" },
-      { changes: [{ ...put("a.md"), mode: "100755" }] },
-      { changes: [{ ...put("a.md"), base: "abc123" }] },
-      { changes: [put("a//b.md")] },
-      { changes: [put(".git/config")] },
-      { changes: [{ ...put("a.png"), content: { data: "not base64!", encoding: "base64" } }] },
-      { changes: [{ base: null, op: "delete", path: "a.md" }] },
-      { authoredAt: -1, changes: [put("a.md")] },
-    ]) {
-      expect(vaultCommitRequestSchema.safeParse(refused).success, JSON.stringify(refused)).toBe(
-        false,
-      );
-    }
-  });
-
-  it("keys a name the way a Mac's filesystem compares it", () => {
-    expect(vaultCollisionKey("Notes/Readme.md")).toBe(vaultCollisionKey("notes/readme.md"));
-    expect(vaultCollisionKey("café.md")).toBe(vaultCollisionKey("café.md"));
-    expect(vaultCollisionKey("a.md")).not.toBe(vaultCollisionKey("b.md"));
-  });
-
-  const CONFLICT = {
-    conflict: {
-      conflicts: [
-        {
-          current: { content: "# theirs\n", oid: "c".repeat(40) },
-          device: "Laptop",
-          path: "notes/a.md",
-          reason: "changed",
-        },
-        { current: null, device: null, path: "notes/b.md", reason: "missing" },
-      ],
-      head: COMMIT,
-    },
-    error: { code: "vault-conflict", message: "The vault changed under this change set." },
-  } as const;
-
-  it("reads a conflict whose reason it does not know as a path it cannot write", () => {
-    const newer = {
-      ...CONFLICT,
-      conflict: {
-        ...CONFLICT.conflict,
-        conflicts: [{ ...CONFLICT.conflict.conflicts[1], reason: "quota" }],
-      },
-    };
-    expect(vaultConflictAnswerSchema.parse(newer).conflict.conflicts[0]?.reason).toBe("unwritable");
-  });
-
-  it("reaches a reader that knows only the envelope as the refusal vault-conflict", async () => {
-    const result = await readCloudCall(
-      async () => Response.json(CONFLICT, { status: 409 }),
-      vaultCommitResponseSchema,
-    );
-    expect(result).toStrictEqual({
-      failure: {
-        code: "vault-conflict",
-        deviceSeq: null,
-        kind: "refused",
-        message: CONFLICT.error.message,
-      },
-      ok: false,
-    });
-  });
-
-  const commitOver = async (response: Response) => {
-    const seen: { authorization: string | null; body: unknown; method: string; url: URL }[] = [];
-    const request: VaultCommitRequest = { authoredAt: 1, changes: [put("notes/α β&c.md")] };
-    const result = await createCloudClient({
-      baseUrl: "https://cloud.test",
-      credential: CREDENTIAL,
-      fetch: async (input, init) => {
-        seen.push({
-          authorization: new Headers(init?.headers).get("authorization"),
-          body: JSON.parse(String(init?.body)),
-          method: init?.method ?? "GET",
-          url: new URL(input),
-        });
-        return response;
-      },
-    }).vaultCommit(request);
-    return { request, result, seen };
-  };
-
-  it("posts the set the route decodes to exactly the request, the bearer in a header", async () => {
-    const answer = { commit: COMMIT, results: [{ oid: BASE, path: "notes/α β&c.md" }] };
-    const { request, result, seen } = await commitOver(Response.json(answer));
-    expect(result).toStrictEqual({ ok: true, value: { kind: "committed", ...answer } });
-    expect(seen).toHaveLength(1);
-    const [sent] = seen;
-    expect(sent?.method).toBe("POST");
-    expect(sent?.url.pathname).toBe(VAULT_API_PATHS.commit);
-    expect(sent?.authorization).toBe(`Bearer ${CREDENTIAL}`);
-    expect(vaultCommitRequestSchema.parse(sent?.body)).toEqual(request);
-  });
-
-  it("answers a conflict as a value carrying each path, never as a failure", async () => {
-    const { result } = await commitOver(Response.json(CONFLICT, { status: 409 }));
-    expect(result.ok && result.value.kind === "conflict" ? result.value : null).toStrictEqual({
-      ...CONFLICT.conflict,
-      kind: "conflict",
-    });
-  });
-
-  it("keeps every other refusal a failure, a 409 without the conflict included", async () => {
-    for (const [code, status] of [
-      ["not-found", 404],
-      ["device-limit", 409],
-      ["file-too-large", 413],
-      ["vault-full", 507],
-    ] as const) {
-      const { result } = await commitOver(Response.json(cloudError(code, "no"), { status }));
-      expect(result.ok ? null : result.failure, code).toStrictEqual({
-        code,
-        deviceSeq: null,
-        kind: "refused",
-        message: "no",
-      });
-    }
   });
 });

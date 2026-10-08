@@ -29,17 +29,14 @@ and in React Native, and `tools/repo-guards` refuses a node, react or
 ```
 src/
   local/               the oRPC contract — ONE folder per domain
-    local-contract.ts  # the router: agents · cloud · comments · connectors ·
-                       # folders · knowledge · system · threads · vault
+    local-contract.ts  # the router: cloud · system · threads
     <domain>/          # each is a `<domain>-contract.ts` (rows: input, output,
                        # and ONLY the error classes that row can raise) beside
                        # a `<domain>-schema.ts` (the zod shapes)
     local-errors.ts    # the custom error classes and LOCAL_ERROR_STATUS_MAP,
                        # checked exhaustive: oRPC carries no status on an error,
                        # and a code with no entry would answer 500 silently
-    local-routes.ts    # the paths that are NOT procedures: /health, /vault/asset
-                       # (bytes + etag + sandbox csp), /html-frame (the document
-                       # a note's html block runs in) and /ws
+    local-routes.ts    # the paths that are NOT procedures: /health and /ws
     notifications.ts   # the /ws frame grammar: subscribe/unsubscribe in, hello
                        # and `changed` pings out — never a payload
     thread-timeline.ts # the timeline row grammar, and the delta algebra
@@ -72,19 +69,12 @@ src/
                        # fit-sync-event.ts (the clip
                        # that fits an over-cap event to one row, payload text
                        # only, so a peer's fold settles it the same)
-    captures/          # at-least-once delivery, exactly-once deletion by claim
     dispatch/          # the dispatch inbox: a phone's `turn` any Mac may claim,
                        # its `answer` only the asking Mac may, and the
                        # approvals that Mac opens for the phone
     account/           # /v1/account — its own route, because 0.4.0 and older
                        # read the login answer strictly — and the delete,
                        # which asks the password again
-    vault/             # VAULT_API_PATHS, the hosted tree/file/files/asset
-                       # shapes and ceilings, VAULT_GIT_PATH, and the asset
-                       # media-type allowlist the desktop and Worker routes share;
-                       # vault-commit-schema.ts is the phone's write: a change
-                       # set CAS'd per path, its 409 conflict beside the
-                       # envelope, and the one collision key a Mac compares by
 ```
 
 ## Who consumes which half
@@ -92,13 +82,12 @@ src/
 - **apps/web** SERVES every `/cloud` row and reaches nothing under `/local`;
   `dep-dag.test.ts` pins that per import.
 - **apps/cli** implements `/local` and, in `src/server/cloud/`, consumes all
-  of `/cloud` — push, pull, the capture and dispatch claims and acks, the
-  approvals it relays, the git remote.
-- **apps/mobile** pulls threads, produces captures and dispatches, answers a
-  phone-started turn's approvals and commits vault change sets
-  (`vaultCommit`), and never pushes thread events, claims a capture or a
-  dispatch or speaks git, because the desktop runs the turns and owns applying
-  a capture to the vault. It reaches nothing under `/local` either, pinned by
+  of `/cloud` — push, pull, the dispatch claims and acks, and the approvals it
+  relays.
+- **apps/mobile** pulls threads, produces dispatches and answers a
+  phone-started turn's approvals, and never pushes thread events or claims a
+  dispatch, because the desktop runs the turns. It reaches nothing under
+  `/local` either, pinned by
   the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as apps/web: a phone
   install may be months stale against the deployed Worker.
 - **apps/desktop** compiles against `/local` alone.
@@ -114,20 +103,17 @@ src/
   `apps/web/src/worker/__tests__/cloud-helpers.ts`), since a stripping client
   would let a leaked column through. Two things stay closed: 0.4.0 and older
   parse every response strictly, so a field they must read rides a new route;
-  and a field that changes what a row MEANS (a new capture kind) reaches only
+  and a field that changes what a row MEANS (a new dispatch kind) reaches only
   a client whose request declares it, because stripped, the row reads as the
   old kind.
 - **`src/` holds exactly two buckets.** The cloud-never-reaches-local guard
   populates itself from `src/cloud`, so a file outside both halves is one no
   guard reads; `dep-dag.test.ts` refuses a third. The sanctioned crossing is
-  `local` importing a `cloud` constant (`local/vault/vault-schema.ts` takes the
-  asset media-type allowlist and the hash helpers; `local/cloud/cloud-schema.ts`
-  the device name bound) — a number copied by hand passes locally and is
-  refused at the Worker as a shape error. The other direction never.
+  `local` importing a `cloud` constant (`local/cloud/cloud-schema.ts` takes the
+  device name bound) — a number copied by hand passes locally and is refused
+  at the Worker as a shape error. The other direction never.
 - **Every local row declares only the error classes it can raise.** A base
-  carrying every class hands each client switch unreachable branches; the
-  vault rows' declared set is held against the handlers by
-  `apps/cli/src/server/vault/__tests__/vault-contract-errors.test.ts`.
+  carrying every class hands each client switch unreachable branches.
 - **One page planner.** Two copies of `sync/plan-page.ts` would be two answers
   to "did this row move the cursor?", and a mis-set cursor is a duplicated
   conversation. The same reason keeps the session fence, the login flow and
@@ -139,13 +125,10 @@ src/
   `refused` (a code this build names, `internal` for one it does not),
   `unreachable` (no verdict on the credential) or `malformed` (a body this
   build cannot read); an `Error("HTTP 409")` would retry a batch the server
-  refuses forever. One refusal is an answer: `vaultCommit` reads a 409
-  `vault-conflict` as the value `{ kind: "conflict" }`, since it carries the
-  bytes to merge against, while any reader that knows only the envelope,
-  `readCloudCall` included, still sees the refusal.
+  refuses forever.
 - **One spelling per route path.** `route-paths.test.ts` sweeps the repo for
-  the literal strings behind `@repo/contract/local/routes` and `VAULT_API_PATHS`
-  and refuses a second spelling outside the file that owns it.
+  the literal strings behind `@repo/contract/local/routes` and refuses a second
+  spelling outside the file that owns it.
 - **The `/ws` frame grammar is strict outbound, lenient inbound.** The
   `.strict()` schemas type what the server broadcasts and are what its tests
   parse the frames with; no broadcast is parsed at runtime. A client parses
@@ -181,10 +164,6 @@ src/
 `pnpm --filter @repo/contract test` — vitest, no platform. `src/cloud/__tests__/`
 pins the contract shapes and refusals (and that every answer a newer Worker
 grows still reads), the login flow, the session fence and single-flight, the
-byte primitives, the sync clip (every event type fits the cap with its envelope
-untouched), and that the cloud vault-path grammar admits exactly what
-`parseVaultPath` returns unchanged; `src/local/**/__tests__/` pin the timeline
-fold and delta algebra, the `/ws` strict/lenient pair, each domain's schemas and
-the two comment-store compositions both clients run (a deleted note's restore,
-and a copy given its own id); `knowledge/__tests__/engine-mirror.test.ts` is
-type-level and fails under `tsc`, not `vitest`.
+byte primitives and the sync clip (every event type fits the cap with its
+envelope untouched); `src/local/**/__tests__/` pin the timeline fold and delta
+algebra, the `/ws` strict/lenient pair and each domain's schemas.

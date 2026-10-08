@@ -78,58 +78,6 @@ describe("sendToThread", () => {
   });
 });
 
-describe("the view context a composer send carries", () => {
-  const VIEW_CONTEXT = {
-    resource: "Notes/Plans.md",
-    revision: "c".repeat(64),
-    surface: "doc",
-  } as const;
-
-  it("reaches the provider dispatch through the real send path", async () => {
-    const { client, driver } = await bootThreadHarness({ mode: "manual" });
-    const { thread } = await client.threads.create({});
-    const outcome = await sendToThread(client, {
-      activeTurnId: null,
-      text: "make this shorter",
-      threadId: thread.id,
-      viewContext: VIEW_CONTEXT,
-    });
-    expect(outcome.kind).toBe("started");
-    expect(driver.startedTurns[0]?.viewContext).toEqual(VIEW_CONTEXT);
-  });
-
-  it("carries none when nothing is open — the palette and the CLI send this shape", async () => {
-    const { client, driver } = await bootThreadHarness({ mode: "manual" });
-    const { thread } = await client.threads.create({});
-    await sendToThread(client, { activeTurnId: null, text: "hello", threadId: thread.id });
-    expect(driver.startedTurns[0]?.viewContext).toBeUndefined();
-  });
-
-  it("survives the queue as a DROP, not as a stale claim", async () => {
-    const { client, driver } = await bootThreadHarness({ mode: "manual" });
-    const { thread } = await client.threads.create({});
-    const started = await sendToThread(client, {
-      activeTurnId: null,
-      text: "first",
-      threadId: thread.id,
-    });
-    if (started.kind !== "started") {
-      throw new Error(`expected started, got ${started.kind}`);
-    }
-    const queued = await sendToThread(client, {
-      activeTurnId: started.turnId,
-      text: "for later",
-      threadId: thread.id,
-      viewContext: VIEW_CONTEXT,
-    });
-    expect(queued.kind).toBe("queued");
-
-    driver.completeTurn(thread.id, started.turnId, "completed");
-    expect(driver.startedTurns[1]?.text).toBe("for later");
-    expect(driver.startedTurns[1]?.viewContext).toBeUndefined();
-  });
-});
-
 describe("the inline approval card's answer", () => {
   it("round-trips the card's decision verb through the answer route", async () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });

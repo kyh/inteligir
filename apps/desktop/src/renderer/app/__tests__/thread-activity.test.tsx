@@ -22,7 +22,6 @@ const thread = (over: Partial<Thread> = {}): Thread => ({
   archivedAt: null,
   createdAt: 0,
   id: "thr_1",
-  originDocPath: null,
   providerId: null,
   runsElsewhere: false,
   status: "idle",
@@ -78,7 +77,6 @@ describe("the palette renders that answer and no other", () => {
     renderWithQueries({
       actions: makeActions(),
       canSync: false,
-      entries: [],
       onOpenChange: vi.fn<() => void>(),
       open: true,
       request: defaultRequest,

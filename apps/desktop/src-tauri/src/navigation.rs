@@ -1,5 +1,5 @@
-//! What a window may show. A window keeps its own origin: the app window the server's, the first
-//! run's the bundle's. Any other web page opens in the browser instead, and nothing else loads.
+//! What the window may show. It keeps its own origin, the server's. Any other web page opens in
+//! the browser instead, and nothing else loads.
 
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -98,10 +98,7 @@ mod tests {
             Verdict::Allow
         );
         assert_eq!(
-            classify(
-                &url("tauri://localhost/first-run.html"),
-                "tauri://localhost"
-            ),
+            classify(&url("tauri://localhost/index.html"), "tauri://localhost"),
             Verdict::Allow
         );
     }
