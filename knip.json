@@ -42,7 +42,6 @@
         "src/worker/__tests__/**/*.test.ts"
       ],
       "project": ["src/**/*.{ts,tsx,css}"],
-      "ignore": ["src/worker/types/durable-git.d.ts"],
       // `cloudflare:` is a workerd built-in module scheme, not a package
       "ignoreDependencies": ["cloudflare", "tailwindcss"]
     },

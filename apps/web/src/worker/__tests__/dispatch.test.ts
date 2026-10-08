@@ -173,10 +173,8 @@ describe("a phone's turn", () => {
     const request: CreateDispatchRequest = {
       id: mintId(),
       kind: "turn",
-      originDocPath: "notes/Week.md",
       text: "summarise this week",
       threadId: "thr_phone1",
-      viewContext: { resource: "notes/Week.md", revision: "c".repeat(64), surface: "doc" },
     };
     expect(await create(phone.credential, request)).toEqual({
       dispatch: { id: request.id, state: "waiting" },
@@ -411,7 +409,6 @@ describe("a phone's turn", () => {
     const { phone } = await account("dispatch-malformed@example.test");
     const malformed = [
       { ...turn("thr_bad", "hello"), id: "not-hex" },
-      { ...turn("thr_bad", "hello"), originDocPath: "notes//Week.md" },
       { ...turn("thr_bad", "hello"), extra: true },
       { ...turn("thr_bad", "") },
     ];

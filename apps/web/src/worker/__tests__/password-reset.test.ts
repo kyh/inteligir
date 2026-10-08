@@ -4,7 +4,7 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
 import { eq } from "drizzle-orm";
-import { createExecutionContext, SELF } from "cloudflare:test";
+import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import worker from "../index";
@@ -49,7 +49,6 @@ const requestReset = async (email: string, testEnv: Env): Promise<Response> =>
       method: "POST",
     }),
     testEnv,
-    createExecutionContext(),
   );
 
 const signIn = async (email: string, password: string): Promise<Response> =>

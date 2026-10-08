@@ -48,7 +48,7 @@ const DECLARED_CI_EXTRAS = new Map<string, string>([
   ["ci.yml:test-macos:Install", INSTALL_IS_PROVISIONING],
   [
     "ci.yml:test-macos:Smoke desktop",
-    "packs the macOS arm64 .app with Tauri and boots it, the server on the node it ships, the default vault and then the one config.json's selector names (the switch that writes it is the scenario suite's) — minutes of packaging per run, and only a macOS host can do either, so it stays out of the static gate that runs on every platform",
+    "packs the macOS arm64 .app with Tauri and boots it, window and all, the server on the node it ships — minutes of packaging per run, and only a macOS host can do either, so it stays out of the static gate that runs on every platform",
   ],
 ]);
 

@@ -1,10 +1,10 @@
 # @repo/mobile — the inteligir phone
 
-The account's threads, on the phone. **The agent and the vault stay on the
-desktop** (issue #542's re-founding): the phone holds the SYNCED THREADS and
-ASKS a Mac's agent through the DISPATCH inbox, reaching `@repo/contract/cloud`
-(the wire) and `@repo/domain` (the `ThreadEvent` grammar). No agent, no vault,
-no git client — threads arrive over the account's merged log into a local
+The account's threads, on the phone, and the remote the rebuild grows it into.
+**The agents stay on the machines that run them**: the phone holds the SYNCED
+THREADS and ASKS a Mac through the DISPATCH inbox, reaching
+`@repo/contract/cloud` (the wire) and `@repo/domain` (the `ThreadEvent`
+grammar). No agent and no model — threads arrive over the account's merged log into a local
 SQLite file and read offline, and a request to a Mac waits in a durable outbox
 until the inbox takes it.
 

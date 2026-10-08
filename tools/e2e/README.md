@@ -13,7 +13,7 @@ suite drives the same bytes and the same policy a user gets.
 
 ```sh
 pnpm e2e                      # every scenario (the runner builds the CLI first)
-pnpm e2e --only vault-sync    # one scenario (comma-separated, repeatable)
+pnpm e2e --only debug-log     # one scenario (comma-separated, repeatable)
 pnpm e2e --keep               # keep the scratch dirs for post-mortem
 pnpm e2e --list               # names + descriptions
 pnpm e2e --no-skip            # every SKIP FAILS: for a provisioned browser and display
@@ -38,34 +38,29 @@ sweep), but its scenarios boot processes and a browser, so they run only via
 Each scenario receives a context (`src/harness/scenario.ts`) that owns its
 scratch dir and tears everything down afterwards:
 
-- `boot({ name, mode?, vaultRemote?, extraEnv?, seedVault?, seedData? })` — a
-  fresh instance. `mode` is `source` (the default: `bin/inteligir`, which runs
-  `src/` under tsx in a checkout) or `built` (`dist/index.js` under
-  `NODE_ENV=production`, what npm and the .app run). Scratch `data/` + `vault/`
-  siblings, empty vendor stores of its own (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`,
-  named on the instance as `vendorDirs`, so no instance runs the agent, asks
-  its sign-in or edits its connectors on the host's account), a
-  reserved free port (bind races retry with a fresh port,
-  bounded), health-gated on `/health` answering `{ok:true}`. Registered for
-  teardown at SPAWN, before the health wait, and torn down as a process group
-  that is polled to verified-dead (SIGTERM →
-  SIGKILL → ESRCH) before its scratch is removed; Ctrl-C kills every live
-  group. `extraEnv` may not touch harness-owned keys (paths, vendor stores,
-  port, NODE_ENV, `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
-  before boot; the app's repo init commits them. A seeded vault exists before
-  boot, so the bootstrap adds no starter notes. `seedData` does the same for
-  the data dir — a device credential, so the instance boots already signed in.
-- `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
-  `INTELIGIR_VAULT_REMOTE` or `vault.setRemote`.
+- `boot({ name, mode?, extraEnv?, seedData? })` — a fresh instance. `mode` is
+  `source` (the default: `bin/inteligir`, which runs `src/` under tsx in a
+  checkout) or `built` (`dist/index.js` under `NODE_ENV=production`, what npm
+  and the .app run). A scratch `data/` dir, empty vendor stores of its own
+  (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, named on the instance as `vendorDirs`, so
+  nothing an instance starts reaches the host's account), a reserved free port
+  (bind races retry with a fresh port, bounded), health-gated on `/health`
+  answering `{ok:true}`. Registered for teardown at SPAWN, before the health
+  wait, and torn down as a process group that is polled to verified-dead
+  (SIGTERM → SIGKILL → ESRCH) before its scratch is removed; Ctrl-C kills every
+  live group. `extraEnv` may not touch harness-owned keys (paths, vendor
+  stores, port, NODE_ENV, `GIT_*`) — collisions are refused loudly. `seedData`
+  writes into the data dir before boot — a device credential, so the instance
+  boots already signed in.
 - `cloudWorker({ vars? })` — the product Worker (apps/web), built through turbo
   and booted from its `cf build` output under Miniflare
   (`src/harness/worker-host.ts`) on a scratch persist dir, its D1 carrying
   apps/web's own `db:export` schema plus one invite row; `vars` override
-  cloudflare.config.ts's text bindings (a storage cap a scenario can fill). Registered for teardown exactly like an
-  instance.
-- `instance.api` — the oRPC client over `@repo/contract/local`, carrying the device
-  token this instance published in `<dataDir>/server.json`;
-  `instance.vaultDir` / `dataDir` for on-disk assertions.
+  cloudflare.config.ts's text bindings. Registered for teardown exactly like
+  an instance.
+- `instance.api` — the oRPC client over `@repo/contract/local`, carrying the
+  device token this instance published in `<dataDir>/server.json`;
+  `instance.dataDir` for on-disk assertions.
 - `desktopShell({ seedOwnDir? })` — the checkout's built Tauri shell
   (`pnpm turbo run build:shell --filter=@repo/desktop`, an unbundled debug
   build the runner makes before the first scenario that asks, outside every
@@ -88,16 +83,12 @@ scratch dir and tears everything down afterwards:
 
 Beside the context, `src/harness/` carries what the scenarios would otherwise
 each re-spell: `pollUntil` (`poll.ts`), which returns the value it waited for
-and fails with what the last read held; `untilThreadIdle`, `runTurn` and the
-scripted driver's `agentNote` (`threads.ts`); `modChord` for the platform's
-modifier key, `clickButtonIn` and `untilBodyHolds` (`agent-browser.ts`); the
-workspace and Settings selectors (`selectors.ts`); `gitIn` and `readOrNull`
-(`exec.ts`); the bare `inteligir` on an agent shell's PATH
-(`agent-shell-cli.ts`); the account's sign-up and device routes against a dev
-Worker, and `PHONE_NAME`, the device a scenario's second login plays the phone
-as (`cloud-account.ts`); `NO_AUTO_SYNC` and the one strict sync pass,
-`syncExpectClean` (`vault-sync.ts`); and the owner's sign-in and a signed-in
-instance's explicit sync against the hosted vault (`hosted-vault.ts`).
+and fails with what the last read held; `untilThreadIdle` (`threads.ts`);
+`modChord` for the platform's modifier key, `clickButtonIn` and
+`untilBodyHolds` (`agent-browser.ts`); the workspace and Settings selectors
+(`selectors.ts`); and the account's sign-up, device routes and the owner's
+sign-in against a dev Worker, with `PHONE_NAME`, the device a scenario's
+second login plays the phone as (`cloud-account.ts`).
 
 ## The scenarios
 
@@ -106,36 +97,14 @@ what each one is FOR.
 
 | name                       | proves                                                                    |
 | -------------------------- | ------------------------------------------------------------------------- |
-| vault-crud                 | write/read/rename/delete over the wire, bytes verified on disk; refused   |
-|                            | ops verified to leave the disk untouched                                  |
-| slow-storage               | a doc whose read stalls 30s (`INTELIGIR_SLOW_READS`): the reconcile       |
-|                            | finishes and search answers without it, the boot line counts it deferred, |
-|                            | and it is indexed once its read lands                                     |
-| vault-sync                 | two instances + one bare remote (auto-sync off, every sync explicit):     |
-|                            | propagation, then a same-line edit merged with a copy aside, both repos   |
-|                            | converged byte-identical and left mid-nothing                             |
-| vault-remote-setting       | the one write to where a vault syncs: A picks a bare remote over          |
-|                            | `vault.setRemote`, B through `inteligir vault remote` and pulls A's note; |
-|                            | A back on the account signed out has no origin, across a restart too;     |
-|                            | an instance `INTELIGIR_VAULT_REMOTE` pins refuses every choice            |
-| hosted-vault-sync          | the hosted loop for real: a Miniflare Worker, production login,           |
-|                            | convergence through the derived remote, boot clone, a same-line edit      |
-|                            | copied aside under the signed-in device's name, revoke → unauthorized     |
-| hosted-vault-second-mac    | A signs in, rewrites the starter Welcome.md and syncs; B boots fresh with |
-|                            | its own starter notes, signs in to the same account and syncs: B lands on |
-|                            | A's history byte for byte, with no conflict copy and A's note searchable, |
-|                            | and A's next sync takes nothing                                           |
-| hosted-vault-full          | a Miniflare Worker capped at 1 MiB: A's first note syncs, an              |
-|                            | attachment past the cap leaves A `full` with its own words, a later note  |
-|                            | commits on A and `inteligir vault status --json` still says full, and B's |
-|                            | clone holds the first note alone                                          |
 | thread-sync-hosted         | a thread sent on A reaches B through a Miniflare Worker: B's real         |
 |                            | socket opens, and B holds A's timeline before its poll timer could run,   |
 |                            | so the Durable Object's ping is what delivered it                         |
 | phone-dispatch-hosted      | a second login plays the phone: its request waits with no desktop online  |
-|                            | until A signs in and runs it over the note it named, the reply naming the |
-|                            | note and the phone's pull holding the request; with A and B both          |
-|                            | listening, exactly one runs the next, before a poll could                 |
+|                            | until A signs in and runs it, the reply answering it and the phone's pull |
+|                            | holding the request; with A and B both listening, exactly one runs the    |
+|                            | next, before a poll could; a Mac that stops taking the phone's requests   |
+|                            | is no longer counted                                                      |
 | account-hosted             | an account created in the app (`cloud.signUp`) against a Miniflare        |
 |                            | Worker signs that instance in as it; the invite is spent, so a second     |
 |                            | sign-up with it is FORBIDDEN; a second instance signs in with the same    |
@@ -148,9 +117,9 @@ what each one is FOR.
 |                            | current source, and the one place a module-scope crash of the emitted     |
 |                            | module can show                                                           |
 | built-cli-boot             | the esbuild bundle — what npm and the .app run — boots in production      |
-|                            | mode, serves `dist/ui`'s shell byte for byte, migrates and indexes a      |
-|                            | write, hears an on-disk write through its forked watcher, and answers a   |
-|                            | client verb run from the same split bundle                                |
+|                            | mode, serves `dist/ui`'s shell byte for byte, lists a thread over its     |
+|                            | migrated database, and answers a client verb run from the same split      |
+|                            | bundle                                                                    |
 | desktop-shell              | the built Tauri shell over WebDriver: the window is the server's own page |
 |                            | signed in by its handoff, an action the API creates reaches the rail      |
 |                            | through the socket, `window.open` is denied, every permission request is  |
@@ -160,21 +129,12 @@ what each one is FOR.
 |                            | `logs/server.log`: off, the boot line and no trace; on, the shell says it |
 |                            | started its server tracing, and turning it off over the bridge asks for a |
 |                            | restart                                                                   |
-| threads-scripted           | a turn through the scripted driver: send, settle, timeline, and the note  |
-|                            | its changes name under the turn's own id                                  |
-| action-scripted            | an action attaches to its note; a scripted turn writes the vault; the     |
-|                            | CAS write guards the save (typed conflict, current bytes in the body);    |
-|                            | a rename drags the attachment along — all verified on disk                |
-| undo-scripted              | undoing the second of two scripted turns leaves the first turn's text     |
-|                            | and a line the user added since, on disk and through `vault.read`; the    |
-|                            | first turn's note is then kept as edited since, and an untouched turn's   |
-|                            | undo removes the note it made                                             |
-| cli-drive                  | the CLI drives a real instance, and the env an agent's shell would get    |
-|                            | resolves against this checkout; a byte copy's shared id is listed, and    |
-|                            | `vault new-id` gives it its own on the same line with a copy of the store |
-| debug-log                  | `INTELIGIR_DEBUG` traces what the watcher kept and dropped and the        |
-|                            | index's verdict, by path and never by content or credential; an instance  |
-|                            | without it writes no debug line                                           |
+| threads-scripted           | a turn through the scripted driver: send, settle, and the timeline        |
+|                            | holding the message and the driver's answer                               |
+| debug-log                  | a namespace no build traces refuses the boot; `INTELIGIR_DEBUG=sync`      |
+|                            | traces each step of a signed-in instance's passes against a Miniflare     |
+|                            | Worker, never a message's words or a credential; an instance without it   |
+|                            | writes no debug line                                                      |
 | browser-smoke              | headless page load: the REAL policy on the served document, SPA mount,    |
 |                            | API reached, the palette chord safe, clean console after a settle window  |
 | os-dictation-browser       | words the OS dictates (CDP's `Input.insertText`, the IME-style commit     |
@@ -201,38 +161,28 @@ Each feature issue lands with its scenario here.
 
 ## The env contract the harness drives
 
-| var                          | effect                                                 |
-| ---------------------------- | ------------------------------------------------------ |
-| `INTELIGIR_DATA_DIR`         | absolute data dir (SQLite + config.json)               |
-| `INTELIGIR_VAULT_DIR`        | absolute vault dir; must be disjoint from the data dir |
-| `INTELIGIR_PORT`             | exact port (env-configured ports are never probed)     |
-| `INTELIGIR_VAULT_REMOTE`     | git remote URL pinned over the vault's own origin;     |
-|                              | unset = that origin, else the signed-in account's      |
-| `INTELIGIR_CLOUD_URL`        | the cloud origin; hosted-vault-sync points it at its   |
-|                              | own scratch Miniflare Worker                           |
-| `INTELIGIR_SYNC_INTERVAL_MS` | vault auto-sync cadence; `0` disables the loop AND the |
-|                              | boot sync (the sync scenarios set it for determinism)  |
-| `INTELIGIR_AGENT`            | `scripted` — the deterministic in-process driver the   |
-|                              | thread and action scenarios run against                |
-| `INTELIGIR_SLOW_READS`       | `<ms>:<vault path>` — every read of that path, and     |
-|                              | everything under it, answers that late (an empty path  |
-|                              | is the whole vault); slow-storage's stand-in for       |
-|                              | storage that fetches or wakes                          |
-| `INTELIGIR_DEBUG`            | the diagnostics debug-log reads off an instance's      |
-|                              | stderr; unset on every other instance                  |
+| var                   | effect                                               |
+| --------------------- | ---------------------------------------------------- |
+| `INTELIGIR_DATA_DIR`  | absolute data dir (SQLite + config.json)             |
+| `INTELIGIR_PORT`      | exact port (env-configured ports are never probed)   |
+| `INTELIGIR_CLOUD_URL` | the cloud origin; the hosted scenarios point it at   |
+|                       | their own scratch Miniflare Worker                   |
+| `INTELIGIR_AGENT`     | `scripted` — the deterministic in-process driver the |
+|                       | thread scenarios run against                         |
+| `INTELIGIR_DEBUG`     | the diagnostics debug-log reads off an instance's    |
+|                       | stderr; unset on every other instance                |
 
 Instances run with every host `GIT_*` variable stripped, `GIT_CONFIG_GLOBAL`
 /`GIT_CONFIG_SYSTEM` pinned to `/dev/null` and an explicit harness git
-identity, so no commit or fixture depends on the host's git configuration —
-the same env every git the harness itself runs gets. They also drop the host's
-vendor credentials and executable overrides (`HOST_AGENT_ENV` in
-`src/harness/exec.ts`), so the agent runs the bundled vendors over their empty
-stores; a scenario that wants a fake vendor sets it in `extraEnv`.
+identity, the same env every git the harness itself runs gets. They also drop
+the host's vendor credentials and executable overrides (`HOST_AGENT_ENV` in
+`src/harness/exec.ts`), so nothing an instance starts reaches the host's
+account.
 
 ## CI
 
 Headless by construction: no interactive auth, no pinned ports, and no
-accounts on any EXTERNAL service — hosted-vault-sync signs up a real account,
+accounts on any EXTERNAL service — thread-sync-hosted signs up a real account,
 but against its own scratch Miniflare Worker (apps/web's build output, state
 under the scenario's scratch dir; secrets are passed as text bindings, so no
 `.dev.vars` is needed). The one setup step beyond `pnpm install` is the

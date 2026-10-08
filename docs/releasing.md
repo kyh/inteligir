@@ -107,7 +107,7 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    git fetch origin --tags --force
    gh run list --workflow Deploy --limit 3                  # the run after step 2's CI succeeded
    pnpm turbo ls --filter="@repo/web...[deployed/web]"      # names no package
-   curl -s -X POST https://inteligir.com/v1/vault/commit    # an "unauthorized" error, never "not-found"
+   curl -s -X POST https://inteligir.com/v1/sync/dispatch   # an "unauthorized" error, never "not-found"
    ```
 
    A package named means the Worker at this commit is not deployed yet: wait
@@ -155,10 +155,6 @@ app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
   `source=Notarized Developer ID`, and `stapler` says
   `The validate action worked!`.
 
-- **A connector added outside the app.** With the bundled binary,
-  `"$(find "$app" -type f -perm +111 -name claude | head -1)" mcp add --scope user <name> -- <command>`
-  for any stdio server. Passing: a new action asked which tools it has lists
-  that server's, with nothing set in the app.
 - **Dictation is the Mac's.** Press fn twice in the ⌘K composer and speak,
   then type. Passing: the words land once, at the caret; typing carries on
   after them; Enter while dictation is live does not send; the Edit menu shows
@@ -175,17 +171,10 @@ On the owner's iPhone, installed from TestFlight, never a development build.
   Passing: every thread opens. Reply in one while still offline, kill the app,
   open it, turn airplane mode off. Passing: the reply reaches the Mac.
 - **Ask your Mac.** Reply in a thread with the Mac app open. Passing: the
-  request shows Waiting for your Mac…, then Your Mac has it; the Mac runs it,
-  and its reply appears on the phone after a pull; the composer rides above the
-  keyboard; a question the agent asks for permission is answered on the phone.
-  Quit the Mac app and ask again. Passing: Waiting for your Mac — open
-  inteligir on it to run this.
-- **A reply grows as the Mac writes it.** With the phone's app in the
-  foreground, ask the Mac something that takes a while. Passing: the reply's
-  text grows under the running indicator while the Mac writes it, well before
-  the 60s poll would land it (the account's socket upgraded from the device,
-  React Native's headers argument carrying the bearer), and ends as the
-  settled reply.
+  request shows Waiting for your Mac…, then the Mac takes it, and since this
+  build runs no agent, the phone shows the Mac's reason (no agent runtime yet)
+  until dismissed; the composer rides above the keyboard. Quit the Mac app and
+  ask again. Passing: Waiting for your Mac — open inteligir on it to run this.
 - **Sign out.** With a request still unsent (airplane mode), Sign out. Passing: it
   asks first and names the count; confirmed, the sign-in screen shows.
 - **Revoke.** Sign the phone in again, then Revoke it in Settings › Account on
@@ -266,8 +255,8 @@ refuses a server of another version, so npm and the Mac app ship as one.
   no warning beyond macOS's downloaded-from-the-internet notice.
 - **The update.** On a Mac running the previous release, Settings › About ›
   Check for Updates. Passing: it finds `<version>`, Download and Restart each
-  take a click, and the app comes back as `<version>` with the vault as it
-  was.
+  take a click, and the app comes back as `<version>` with its threads as they
+  were.
 - **npm.** Passing: `npm view inteligir version` and
   `npx -y inteligir@<version> --version` both print `<version>`.
 - **The cohort.** Passing: the phone build is approved in the `Cohort` group,

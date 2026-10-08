@@ -1,10 +1,4 @@
 import {
-  ackCapturesRequestSchema,
-  CAPTURE_API_PATHS,
-  captureRequestSchema,
-  claimCapturesRequestSchema,
-} from "@repo/contract/cloud/captures/captures-schema";
-import {
   ackDispatchesRequestSchema,
   cancelDispatchRequestSchema,
   claimDispatchesRequestSchema,
@@ -151,27 +145,6 @@ const SYNC_ROUTES = new Map<string, (call: SyncCall) => Promise<Response>>([
     },
   ],
   [
-    `POST ${CAPTURE_API_PATHS.capture}`,
-    withBody(captureRequestSchema, "Send { text, idempotencyKey }.", async ({ stub }, body) =>
-      answer(await stub.capture(body)),
-    ),
-  ],
-  [
-    `POST ${CAPTURE_API_PATHS.claim}`,
-    withBody(
-      claimCapturesRequestSchema,
-      "Send { limit? }.",
-      async ({ stub }, body) => answer(await stub.claimCaptures(body)),
-      { emptyIsDefault: true },
-    ),
-  ],
-  [
-    `POST ${CAPTURE_API_PATHS.ack}`,
-    withBody(ackCapturesRequestSchema, "Send { claimToken, ids }.", async ({ stub }, body) =>
-      answer(await stub.ackCaptures(body)),
-    ),
-  ],
-  [
     `POST ${DISPATCH_API_PATHS.dispatch}`,
     withBody(
       createDispatchRequestSchema,
@@ -256,18 +229,5 @@ export const severDeviceSockets = async (
     await threadSyncStub(env, userId).severDevice(deviceId);
   } catch {
     // the revoke already stands
-  }
-};
-
-// best-effort like the sever: a lost ping costs staleness until the next poll
-export const pingVaultAdvanced = async (
-  env: Env,
-  userId: string,
-  pushingDeviceId: string,
-): Promise<void> => {
-  try {
-    await threadSyncStub(env, userId).vaultPing(pushingDeviceId);
-  } catch {
-    // the push already stands
   }
 };

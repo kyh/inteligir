@@ -73,16 +73,15 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | `DECLARED_CI_EXTRAS` row with a reason; every workspace `smoke` script is |
 |                                | reachable from a root script; every root `smoke*` runs in a gate or is a  |
 |                                | `MANUAL_SMOKES` row; a `run:` step with no `name:` throws.                |
-| `ws-change-kinds.test.ts`      | Every kind in `@repo/domain/change-kinds` is fired by a `notifyVault`,    |
-|                                | `notifyDoc` or `notifyThread` call in shipped source outside              |
-|                                | `packages/domain`, and every fired kind is declared.                      |
+| `ws-change-kinds.test.ts`      | Every kind in `@repo/domain/change-kinds` is fired by a `notifyVault` or  |
+|                                | `notifyThread` call in shipped source outside `packages/domain`, and      |
+|                                | every fired kind is declared.                                             |
 | `domain-dispatch.test.ts`      | One total dispatch per vocabulary: a shipped file quoting EVERY member    |
-|                                | (thread status, pending-interaction status, thread and                    |
-|                                | vault change kinds) is a table, and must be the declaration or a          |
+|                                | (thread status, pending-interaction status, thread change kinds) is a     |
+|                                | table, and must be the declaration or a                                   |
 |                                | `dispatchedIn` row saying what it decides that the others do not. The     |
 |                                | members are read from the declarations themselves.                        |
-| `route-paths.test.ts`          | Every non-procedure route path (the local `/rpc`, `/health`,              |
-|                                | `/vault/asset` and `/html-frame`; the cloud `VAULT_API_PATHS`) is         |
+| `route-paths.test.ts`          | Every non-procedure route path (the local `/rpc` and `/health`) is        |
 |                                | spelled only at its contract home. The sweep covers `scripts/`, where the |
 |                                | smokes that drift live; tests are excluded, because a test deriving its   |
 |                                | URL from the contract could not catch the contract moving.                |
@@ -134,9 +133,6 @@ worktree under `.claude` is never read as this commit's tree.
 | `workerd-compat-date.test.ts`  | `apps/web/compatibility.ts`'s `compatibilityDate` is the OLDEST workerd   |
 |                                | date `pnpm-lock.yaml` resolves — a workerd cannot emulate a date it       |
 |                                | predates.                                                                 |
-| `durable-git-stub.test.ts`     | The header of `apps/web/src/worker/types/durable-git.d.ts` names the      |
-|                                | durable-git version `pnpm-lock.yaml` resolves — tsc checks the Worker     |
-|                                | against that hand-written stub and never reads the package it bundles.    |
 | `d1-unique-index.test.ts`      | The schema every `d1-http` drizzle config pushes declares no `.unique()`  |
 |                                | column modifier — drizzle-kit 1.0 plans it as a table recreate, and D1's  |
 |                                | DROP cascade-wipes the children. Uniques are named `uniqueIndex` rows.    |

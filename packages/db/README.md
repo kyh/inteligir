@@ -29,8 +29,9 @@ src/
                       # back and checkpoints the -wal
   schema.ts           # the tables: meta, threads, events, queued_thread_messages,
                       # pending_interactions, sync_outbox, sync_state,
-                      # sync_applied_captures, sync_own_devices — each constraint
-                      # says why beside itself
+                      # sync_applied_captures (the retired capture inbox's
+                      # ledger, cleared on sign-out), sync_own_devices — each
+                      # constraint says why beside itself
   migrate.ts          # runMigrations: drizzle's migrator over drizzle/, foreign keys
                       # OFF around it and foreign_key_check after; returns the
                       # migration-folder count, which IS the schema version
@@ -39,17 +40,15 @@ src/
                       # pint_, obx_) over a 32-letter alphabet minus the look-alikes
   events.ts           # the append-only log: contiguous per-thread sequence, the
                       # turn/started gate, synced-origin dedupe, one prepared insert
-  threads.ts          # thread rows (an origin is the note's path and its frontmatter
-                      # id, resolved by the server on read), the keyset-paged
-                      # listing, the lifecycle CAS,
+  threads.ts          # thread rows (the origin note a synced log may still
+                      # state), the keyset-paged listing, the lifecycle CAS,
                       # setThreadProviderSession
   queued-messages.ts  # FIFO per thread under claim tokens, released whole at boot
   pending-interactions.ts
                       # provider prompts, idempotent on (thread, requestKey)
   sync-outbox.ts      # the frozen-body outbox, the device_seq high-water, the pull
                       # cursor and its skipped-row marker, the count of rows
-                      # dropped unsent, the applied-capture ledger, the own
-                      # device ids
+                      # dropped unsent, the own device ids
   own-synced-copies.ts
                       # the once-per-database removal of this install's own rows
                       # a replay pulled back under a device id it never recorded

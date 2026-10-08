@@ -122,9 +122,3 @@ overrides:
   "@types/react": "catalog:"
   # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
   vite: "catalog:"
-
-patchedDependencies:
-  # the hosted vault is capped on what a repo cell stores, and the cell exposes no size; the patch
-  # adds a `usage()` RPC over the SQLite file and the R2-held packs. Upstream takes no pull
-  # requests, so it stays until a release exposes a size
-  durable-git@0.0.8: patches/durable-git@0.0.8.patch

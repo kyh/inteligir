@@ -11,82 +11,36 @@ not belong here.
 
 ---
 
-## The vault
-
-**doc** — a file whose extension is editable text: `.md`, `.markdown`, `.mdx`,
-`.txt` (`@repo/notes/knowledge/doc-file`, the single source of that answer).
-"Doc" is a CLASSIFICATION, not a shape: it decides what the index projects and
-what a rename rewrites links in. It is deliberately WIDER than what the client
-writes — a note named without a doc extension is `.md`
-(`withDocExtension`), so `Node.js` becomes `Node.js.md` and a `.txt` in the
-vault is indexed and linkable but minted only by name. It is also WIDER than what a link may leave off: `.md` alone, so a
-`.txt` note links as `[[todo.txt]]` (`wikiLinkName`, which the resolver keys).
-
-**note** — a doc as a user and the knowledge surfaces address it: the filename
-IS the title, there is no slug layer (`@repo/notes/knowledge/note-name`). A
-name may not hold `[` or `]`, which would end a link to it.
-
-**line** — a line's content EXCLUDES its terminator, whichever flavor
-(`\r\n`, `\r`, `\n`). That rule is stated once, in `@repo/notes`'
-`text/source-lines`, and read once, by `splitLines` — the projection cuts
-link snippets under it. A
-second reading of "what a line is" anywhere else is a file-corruption bug
-waiting to happen; `text/line-diff`'s `splitLinesLf` is the one deliberate
-exception, LF-only because diff3 joins its segments back into the file's own
-bytes. Note what the split is NOT for: joining back rewrites every terminator
-in the file, so a CRLF doc saved after ticking one box would come back with
-every line changed. Writes go through the vault's whole-file CAS, never through
-a re-joined split.
-
-**projection** — what ONE parse of a doc yields: title, headings, links, tags,
-aliases, the pin and the note's `id` (`@repo/notes/knowledge/projection`,
-`projectDoc`). An index stores projections, not documents.
-
-**conflict copy** — the other device's whole version of a file both devices
-changed where their edits overlap, written beside it as
-`<name> (conflict, <device>)<ext>`, while the path keeps the line merge with
-this device's lines at the overlaps. A note's copy drops its `id:`, so the two
-never answer to one `[[Title|uuid]]` link. Which paths get one is
-`@repo/notes/sync/reconcile-file` (the one verdict the desktop's sync and the
-phone's write queue both run: an edit beats a deletion, the capture inbox and
-the comment store merge and are never copied, another app's dot-folder keeps
-this device's); the name, its parse and the one sentence every surface says
-about it are `@repo/notes/sync/conflict-copy`.
-
 ## The agent
 
-The four words below are one chain and are constantly swapped for each other.
-Read them together.
+The words below are one chain and are constantly swapped for each other. Read
+them together.
 
 **thread** — the durable conversation, a row in this app's own SQLite
-(`threads` in `@repo/db/schema`, id `thr_…`). It survives process restarts,
-owns its title, status, `activeTurnId` and — for a doc-attached action — its
-origin note (see **view context vs thread origin**). Everything the user can
-reopen lives here.
+(`threads` in `@repo/db/schema`, id `thr_…`). It survives process restarts and
+owns its title, status and `activeTurnId`. Everything the user can reopen lives
+here.
 
 **turn** — one request-to-settle exchange inside a thread. It names no table:
 a turn exists only as the SCOPE its events share (`@repo/db/ids`, id `turn_…`),
 and `threads.activeTurnId` is the one the current status describes — bound by
 `run.started`, unbound by every settle.
 
-**session** — the PROVIDER's own conversation, `{ providerId, providerThreadId }`
-(`setThreadProviderSession` in `@repo/db/threads`, the one writer), cached on
-the thread row so a later turn resumes into it. A session is disposable: it is
-reaped when idle, closed when the host abandons a turn on it, and dies with
-the provider process, while the thread and its events do not. Only its
-`providerId` travels, in a `thread/meta` row: another device learns the
-harness, never the session id, and opens a session of its own. Not to be
-confused with the auth **session** in `apps/web` — a signed-in user's row in
-D1 — which shares only the word.
+**turn driver** — what runs a turn: the one seam a send goes through
+(`TurnDriver` in `apps/cli/src/server/threads/turn-driver.ts`), handed the
+host's turn id and reporting the turn's events back through a sink. This build
+carries two: `auto`, which refuses every send as `PROVIDER_UNAVAILABLE`
+because no agent runtime exists yet, and `scripted`, the in-process fake the
+suites drive (`apps/cli/src/server/agents/agent-driver.ts`). Not the agent
+itself: the rebuild watches the agents a developer already runs, and a driver
+is only how a turn this app starts gets carried out.
 
-**host turn id vs provider turn id** — TWO id spaces for one turn, and the
-distinction is load-bearing. The service mints the host id (`turn_…`) and hands
-it to `startTurn`; the harness mints its own and puts it in its events. The
-first `turn/started` BINDS the two, and
-`apps/cli/src/server/agents/runtime-manager.ts` rewrites every turn-scoped event
-through that binding — so an event naming any other provider turn (a resume
-replay) is dropped rather than persisted. Everything stored, subscribed to or
-shown is the HOST id; the provider id is only ever spoken to the provider.
+**session** — the PROVIDER's own conversation, `{ providerId, providerThreadId }`
+(`setThreadProviderSession` in `@repo/db/threads`), carried on the thread row so
+a later turn could resume into it. Nothing in this build writes it. Only its
+`providerId` travels, in a `thread/meta` row: another device learns the
+harness, never the session id. Not to be confused with the auth **session** in
+`apps/web` — a signed-in user's row in D1 — which shares only the word.
 
 **scope** — how far up an event's meaning reaches: `{ kind: "thread" }` or
 `{ kind: "turn", turnId }` (`@repo/domain/thread-event-scope`). Turn scope is
@@ -99,72 +53,53 @@ chronology has to justify it in writing and a consumer reads a turn event's
 parse, a CHECK constraint on the `events` table — because a turn-scoped row
 with no turn id is a row no query can place.
 
-**view context vs thread origin** — two answers to "which doc is this about",
-and they are not interchangeable. A **view context**
-(`@repo/domain/view-context`) rides ONE message: the path and the revision those
-bytes hashed to, taken at submit and consumed by that turn's prompt. It is EPHEMERAL and it is a statement about the PAST — the screen the
-message left from, which is what "this" and "here" in it refer to — so nothing
-has to reconcile it when the user navigates away. A **thread origin**
-(`originDocPath` on the wire) is the DURABLE binding an action makes: the note
-it was composed over, found by the note's frontmatter id
-(`threads.origin_note_id`) so a move anywhere — Finder, a pull, an agent's
-`mv` — keeps it, the path at compose time answering for a note with no id. A
-message can carry a view context into a thread with no origin. Neither is a
-**context path**: a note the user @-mentioned, which rides the message beside
-its text (`contextPaths` on `client/turn/requested`) and, being part of what
-was asked rather than a statement about the screen, survives the queue.
+**view context, thread origin, context path** — what the notes app's threads
+said about the note they were about: a message's view context
+(`@repo/domain/view-context`), a thread's origin note (`originDocPath` on the
+wire thread) and the notes a message @-mentioned (`contextPaths` on
+`client/turn/requested`). The event grammar still parses all three, so a log
+written before the cut reads and syncs; nothing this build sends sets them.
 
-**dispatch** — a CLOUD word first: a row in the account's dispatch inbox
-(`@repo/contract/cloud/dispatch/dispatch-schema`), the one way a phone asks a Mac's
-agent anything. A `turn` dispatch asks for a turn on a thread, new or
-existing, and any Mac may claim it; an `answer` dispatch answers an
-**approval** a Mac opened there for a phone-started turn, and only that Mac
-may claim it. A dispatch is not a thread event: once a Mac takes a turn in,
-its `client/turn/requested` row (or, while the thread is busy, the queued
-message waiting to become one) carries the `dispatchId`, and the log is the
-record from then on — the phone's pending copy of the message, kept in its
-own `dispatch_outbox`, gives way to that row. Locally the word also names a
-runtime handing a turn to its provider
-(`apps/cli/src/server/agents/runtime-manager.ts`); the two never meet.
+**dispatch** — a row in the account's dispatch inbox
+(`@repo/contract/cloud/dispatch/dispatch-schema`), the one way a phone asks a
+Mac anything. A `turn` dispatch asks for a turn on a thread, new or existing,
+and any Mac may claim it; an `answer` dispatch answers an **approval** a Mac
+opened there for a phone-started turn, and only that Mac may claim it. A
+dispatch is not a thread event: once a Mac takes a turn in, its
+`client/turn/requested` row (or, while the thread is busy, the queued message
+waiting to become one) carries the `dispatchId`, and the log is the record
+from then on — the phone's pending copy of the message, kept in its own
+`dispatch_outbox`, gives way to that row (`apps/cli/src/server/cloud/dispatches.ts`).
 
-## "event" means four things
+## "event" means three things
 
-Four different layers all say "event", and only the first is durable product
+Three different layers all say "event", and only the first is durable product
 state.
 
 - **thread event** — the PERSISTED log entry: `ThreadEvent`
   (`@repo/domain/provider-event`, despite the file's name), one row in the
   `events` table, server-assigned `sequence` contiguous per thread. This is
   what a client replays and what syncs.
-- **provider event** — the runtime's EMITTED grammar: exactly what the ACP
-  mapper constructs from an adapter's session updates
-  (`@repo/agent-runtime/vocabulary/provider-event`). The two
-  grammars are near-twins with the same file name and are not the same set —
-  the runtime constructs its events and never parses them, and
-  `apps/cli/src/server/agents/event-mapping.ts` is the one place that narrows onto
-  the persisted grammar. A provider event with no persisted counterpart is
-  logged and dropped, never invented into a divergent shape.
+- **provider event** — what a turn driver reports through its sink
+  (`ProviderEventSink` in `apps/cli/src/server/threads/turn-driver.ts`): thread
+  events not yet stored, which the ONE ingest transaction appends, projects
+  and announces (`apps/cli/src/server/threads/service.ts`). A driver reports
+  in the persisted grammar; there is no second one to map from.
 - **sync event** — the cloud's unit of transfer
   (`@repo/contract/cloud/sync/sync-schema`, `syncEventInputSchema`). Its body is
   `z.json()` on purpose: the Worker merges, dedupes and orders these WITHOUT
   parsing them. A sync event carries a thread event; it is not one.
-- **filesystem event** — what the vault watcher reports
-  (`apps/cli/src/server/vault/watcher`). Related but distinct: `fileChange` is a
-  thread event ITEM type, the agent's own report of what it wrote, which is
-  what an agent commit stages, beside what the agent wrote through the
-  `inteligir` CLI from its own shell.
 
 The local realtime bus is deliberately NOT in this list. It carries **change
-kinds** — `events-appended`, `content-changed`, `status-changed`
-(`@repo/domain/change-kinds` declares them; `@repo/contract/local/notifications` is
-the `/ws` frame grammar that carries them) — which are invalidation pings
-naming a subscription target, never payloads. A client told
-"events-appended" refetches; it is never handed the event.
+kinds** — `events-appended`, `status-changed`, `sync-status-changed`
+(`@repo/domain/change-kinds` declares them; `@repo/contract/local/notifications`
+is the `/ws` frame grammar that carries them) — which are invalidation pings
+naming a subscription target, never payloads. A client told "events-appended"
+refetches; it is never handed the event.
 
 ## The words the user sees
 
-The product never says git, commit, remote, repo, terminal, CLI, PATH or MCP,
-so each word below stands for an engine concept with another name in code.
+Each word below stands for an engine concept with another name in code.
 Reading a report or a screenshot means translating back.
 
 **Sync** — the rail footer's state and its Sync now: the THREAD sync, the
@@ -172,29 +107,7 @@ account's merged log every action reaches other devices through
 (`cloud.status`, `cloud.syncNow`; the pass is
 `apps/cli/src/server/cloud/sync-pass.ts`), worded by `syncLabel` in
 `apps/desktop/src/renderer/app/sidebar/sidebar.tsx`. "Only on this Mac" is no
-account; "Sync paused" is a pass only Settings › Advanced can explain. Not the
-VAULT's pass against where it syncs (`vault.status`, `vault.syncNow`;
-`apps/cli/src/server/vault/git-engine.ts`), which no window surface draws.
-
-**History** — a note's versions (`inteligir vault history`): the vault's own git log
-for that path (`apps/cli/src/server/vault/git-history.ts`), each version named
-by when and by whom (`authorKind`: you, the agent, or another device), never
-by a commit subject or sha. Restoring one is an ordinary guarded write of its
-bytes (`vault restore` in `apps/cli/src/commands/vault.ts`). Not
-**Undo changes**.
-
-**Undo changes** — taking back what one agent turn changed
-(`inteligir action undo`): `threads.undoTurn`, a three-way revert of one
-turn's commit, found by its trailers
-(`apps/cli/src/server/agents/turn-changes.ts` over
-`@repo/notes/text/revert-edit`), which keeps every edit made since; a note
-whose later edits overlap the turn's is kept whole and named. Not a History
-restore, which puts back exact bytes and so drops whatever came after.
-
-**Kept both versions** — what a sync report says when a sync met a note two
-devices changed on the same lines: the **conflict copy** above, named in the
-user's words by `describeSyncConflict` (`@repo/notes/sync/conflict-copy`).
-There is no conflict state to clear: sync never stops for one.
+account; "Sync paused" is a pass only Settings › Advanced can explain.
 
 **Account** and **Devices** — Settings › Account: an inteligir account (Better
 Auth, in `apps/web`) and this install's DEVICE CREDENTIAL, the one secret a Mac
@@ -202,28 +115,10 @@ or a phone keeps after signing in (`<dataDir>/device-credential`,
 `apps/cli/src/server/cloud/credential-store.ts`). Devices lists the account's
 credentials and revokes a lost one
 (`apps/desktop/src/renderer/app/settings/account-section.tsx`); each sign-in
-mints a new device, and this Mac leaves only by signing out. Not the agent's
-sign-in (**Sign in with Claude**), which holds no inteligir account.
+mints a new device, and this Mac leaves only by signing out.
 
 **Advanced** — Settings › Advanced
 (`apps/desktop/src/renderer/app/settings/advanced-section.tsx`), the one
-product surface that keeps the engine's words: where the vault syncs (its own
-origin, `sync-remote-row.tsx`), the raw sync state and git's last error, the
-thread sync's, this device's id, the data folder and the debug-logging switch.
-Every other surface points here ("Sync details…") rather than quoting it.
-
-**Connectors** — the MCP servers in the DEFAULT agent's
-own user config, read and edited through its bundled binary
-(`apps/cli/src/server/connectors/vendor-mcp-config.ts`), and signed in to by
-the vendor's own login; the app keeps no registry. Not **Connected folders**
-(`folders` in `@repo/contract/local`): directories outside the vault the agent may
-read (`INTELIGIR_CONNECTED_DIRS`).
-
-**Sign in with Claude** (ChatGPT under Other) — an AGENT's sign-in: the
-vendor's own login, run by the server through the bundled binary or adapter
-(`agents.signIn`, `apps/cli/src/server/agents/agent-sign-in.ts`) into the
-vendor's shared store (`~/.claude`, `~/.codex`).
-"Claude" is the `claude` harness and "ChatGPT" the `codex` one (their
-`displayName` in `@repo/agent-runtime`'s harness rows); since the store is
-shared, signing out here signs the vendor's own app (`vendorApp`) out too. Not
-an inteligir **Account**.
+surface that keeps the engine's raw words: the thread sync's raw state and last
+error, this device's id, the data folder and the debug-logging switch. Every
+other surface points here ("Sync details…") rather than quoting it.

@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { createCloudClient } from "@repo/contract/cloud/client";
 import type { CloudClient } from "@repo/contract/cloud/client";
 import { PULL_MAX_LIMIT } from "@repo/contract/cloud/sync/sync-schema";
@@ -6,16 +6,13 @@ import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schem
 import { POLL_INTERVAL_MS } from "inteligir/server/cloud/sync-cadence";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, PHONE_NAME, signUp } from "../harness/cloud-account";
+import { loginDevice, PHONE_NAME, signInOwner, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { signInOwner } from "../harness/hosted-vault";
 import type { AppInstance, InstanceApi } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { untilThreadIdle } from "../harness/threads";
 
-const NOTE = "notes/plan.md";
-const NOTE_BYTES = "# Plan\n\nShip the phone.\n";
 const ASKED = "Tidy this plan";
 const ASKED_AGAIN = "Draft the launch note";
 const SOCKET_DEADLINE_MS = 30_000;
@@ -124,7 +121,7 @@ const timesAsked = async (api: InstanceApi, threadId: string, text: string): Pro
 
 export const phoneDispatchHosted: Scenario = {
   description:
-    "a phone's request waits in the dispatch inbox until a Mac signs in, runs there over the note it was asked from, and reaches the phone's pull; with two Macs listening, exactly one runs it, before a poll could; a Mac that stops taking the phone's requests is no longer counted as listening",
+    "a phone's request waits in the dispatch inbox until a Mac signs in, runs there, and reaches the phone's pull; with two Macs listening, exactly one runs it, before a poll could; a Mac that stops taking the phone's requests is no longer counted as listening",
   name: "phone-dispatch-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -135,15 +132,12 @@ export const phoneDispatchHosted: Scenario = {
     const phoneLogin = await loginDevice(worker.origin, PHONE_NAME);
     const phone = createCloudClient({ baseUrl: worker.origin, credential: phoneLogin.credential });
 
-    // each vault syncs to a bare remote of its own, so the hosted vault plays no part
     const boot = async (name: string): Promise<AppInstance> =>
       await ctx.boot({
         extraEnv: { INTELIGIR_AGENT: "scripted", INTELIGIR_CLOUD_URL: worker.origin },
         name,
-        vaultRemote: await ctx.bareRemote(name),
       });
     const a = await boot("a");
-    await a.api.vault.write({ content: NOTE_BYTES, guard: { kind: "absent" }, path: NOTE });
 
     ctx.log("the phone asks while no Mac is signed in");
     const first = mintDispatchId();
@@ -151,14 +145,8 @@ export const phoneDispatchHosted: Scenario = {
     const created = await phone.createDispatch({
       id: first,
       kind: "turn",
-      originDocPath: NOTE,
       text: ASKED,
       threadId: firstThread,
-      viewContext: {
-        resource: NOTE,
-        revision: createHash("sha256").update(NOTE_BYTES).digest("hex"),
-        surface: "doc",
-      },
     });
     expect(
       created.ok,
@@ -179,8 +167,6 @@ export const phoneDispatchHosted: Scenario = {
       { deadlineMs: DELIVERY_DEADLINE_MS, describe: () => `A never listed ${firstThread}` },
     );
     await untilThreadIdle(a.api, firstThread);
-    const { thread } = await a.api.threads.get({ threadId: firstThread });
-    expectEq(thread.originDocPath, NOTE, "the thread's origin");
     const timeline = await a.api.threads.timeline({ threadId: firstThread });
     expect(timeline.kind === "full", "timeline without afterSequence answers full");
     const said = timeline.timeline.rows.flatMap((row) =>
@@ -188,8 +174,8 @@ export const phoneDispatchHosted: Scenario = {
     );
     expect(said.includes(`user: ${ASKED}`), `A's timeline lacks the request:\n${said.join("\n")}`);
     expect(
-      said.some((line) => line.startsWith("assistant: Noted:") && line.includes(NOTE)),
-      `A's scripted reply does not name ${NOTE}:\n${said.join("\n")}`,
+      said.includes(`assistant: Noted: ${ASKED}`),
+      `A's scripted reply does not answer the request:\n${said.join("\n")}`,
     );
 
     await a.api.cloud.syncNow();

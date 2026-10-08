@@ -1,9 +1,8 @@
 // Every Mach-O the .app carries in Contents/Resources, signed before Tauri copies it there: the
-// CLI's native addons and vendor binaries (better-sqlite3, the watcher, claude, codex and what they
-// ship). Tauri signs the shell, the node beside it and the bundle, and its seal covers each
+// CLI's native addons (better-sqlite3 today). Tauri signs the shell, the node beside it and the bundle, and its seal covers each
 // resource's bytes, but notarization refuses any Mach-O inside that is not itself signed with the
-// hardened runtime and a timestamp. The server's tree takes the app's entitlements, since the
-// vendors' own runtimes JIT as node does.
+// hardened runtime and a timestamp. The server's tree takes the app's entitlements, the ones the
+// node it loads into runs under.
 
 import { spawnSync } from "node:child_process";
 import { open, readdir } from "node:fs/promises";

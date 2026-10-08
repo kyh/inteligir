@@ -1,8 +1,8 @@
 // The CLI the .app ships, as a folder of its own that `bundle.resources` maps to
 // Contents/Resources/server: the package as npm would publish it (its `files`), and its production
-// dependencies installed from the lockfile, the workspace's patches applied, hoisted so no
-// symlink rides into the bundle. `pnpm deploy` does exactly that;
-// npm itself would ignore the lockfile and every patch. Run after `inteligir#build`.
+// dependencies installed from the lockfile, hoisted so no symlink rides into the bundle.
+// `pnpm deploy` does exactly that; npm itself would ignore the lockfile. Run after
+// `inteligir#build`.
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";

@@ -8,12 +8,11 @@ import api, { ownsPath } from "./index";
 
 // the runtime instantiates Durable Objects from the deployed entry's exports
 export { ThreadSyncDO } from "./sync/thread-sync-do";
-export { RepoCell, Registry } from "durable-git";
 
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     return ownsPath(new URL(request.url).pathname)
-      ? await api.fetch(request, env, ctx)
+      ? await api.fetch(request, env)
       : await site.fetch(request);
   },
 } satisfies ExportedHandler<Env>;

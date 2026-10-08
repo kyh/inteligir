@@ -1,32 +1,17 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { authorizationHeader, readServerFile } from "inteligir/server/server-file";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv } from "../harness/exec";
-import type { AppInstance } from "../harness/instance";
-import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-
-const WRITTEN_PATH = "notes/built.md";
-const WRITTEN_TOKEN = "builtwritetoken";
-const WATCHED_PATH = "Watched.md";
-const WATCHED_TOKEN = "builtwatchtoken";
-const DEADLINE_MS = 30_000;
-const POLL_INTERVAL_MS = 250;
-const WATCH_ROUND_MS = 5000;
 
 const manifestSchema = z.looseObject({ version: z.string() });
 const statusOutputSchema = z.looseObject({ dataDir: z.string(), version: z.string() });
 
-const searchFinds = async (app: AppInstance, token: string, notePath: string): Promise<boolean> => {
-  const { results } = await app.api.knowledge.search({ q: token });
-  return results.some((result) => result.path === notePath);
-};
-
 export const builtCliBoot: Scenario = {
   description:
-    "the esbuild bundle npm and the .app run boots, migrates, indexes, watches and serves its UI",
+    "the esbuild bundle npm and the .app run boots, migrates, answers its API and serves its UI",
   name: "built-cli-boot",
   // no build step: the runner builds this bundle at suite start, through turbo.
   async run(ctx) {
@@ -45,47 +30,12 @@ export const builtCliBoot: Scenario = {
     const staged = await readFile(path.join(distDir, "ui", "index.html"), "utf-8");
     expect((await shell.text()) === staged, "GET / answers dist/ui/index.html byte for byte");
 
-    ctx.log("a write through the API reaches the index");
-    await app.api.vault.write({
-      content: `# Built\n\n${WRITTEN_TOKEN}\n`,
-      guard: { kind: "overwrite" },
-      path: WRITTEN_PATH,
-    });
-    await pollUntil(
-      async () => await searchFinds(app, WRITTEN_TOKEN, WRITTEN_PATH),
-      (found) => found,
-      {
-        deadlineMs: DEADLINE_MS,
-        describe: () => `search never found ${WRITTEN_PATH} (${DEADLINE_MS}ms)`,
-        intervalMs: POLL_INTERVAL_MS,
-      },
-    );
-
-    // the child is resolved as a sibling of whichever chunk forks it, and the proxy respawns a
-    // child that cannot load forever, so only an external write reaching the index proves it
-    // lives. rewritten each round: the first can land before the child subscribes.
-    ctx.log("a write on disk reaches the index through the forked watcher");
-    let round = 0;
-    let rewriteAt = 0;
-    await pollUntil(
-      async () => {
-        if (Date.now() >= rewriteAt) {
-          await writeFile(
-            path.join(app.vaultDir, WATCHED_PATH),
-            `# Watched\n\n${WATCHED_TOKEN} round ${round}\n`,
-          );
-          round += 1;
-          rewriteAt = Date.now() + WATCH_ROUND_MS;
-        }
-        return await searchFinds(app, WATCHED_TOKEN, WATCHED_PATH);
-      },
-      (seen) => seen,
-      {
-        deadlineMs: DEADLINE_MS,
-        describe: () =>
-          `the watcher never reported an external write to ${WATCHED_PATH} (${DEADLINE_MS}ms)`,
-        intervalMs: POLL_INTERVAL_MS,
-      },
+    ctx.log("a thread created through the API lists, over the migrated database");
+    const { thread } = await app.api.threads.create({ title: "built" });
+    const { threads } = await app.api.threads.list({});
+    expect(
+      threads.some((listed) => listed.id === thread.id),
+      "the built server lists the thread it created",
     );
 
     // a client verb loads other chunks than serve does, and reads the version through the

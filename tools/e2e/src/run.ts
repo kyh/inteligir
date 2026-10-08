@@ -10,37 +10,20 @@ import type { TrackedProcess } from "./harness/tracked-child";
 import { createScenarioContext } from "./harness/scenario";
 import type { Scenario, ScenarioContext } from "./harness/scenario";
 import { accountHosted } from "./scenarios/account-hosted";
-import { actionScripted } from "./scenarios/action-scripted";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { builtCliBoot } from "./scenarios/built-cli-boot";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
-import { cliDrive } from "./scenarios/cli-drive";
 import { debugLogTrace } from "./scenarios/debug-log";
 import { desktopDiagnostics } from "./scenarios/desktop-diagnostics";
 import { desktopShell } from "./scenarios/desktop-shell";
-import { hostedVaultFull } from "./scenarios/hosted-vault-full";
-import { hostedVaultSecondMac } from "./scenarios/hosted-vault-second-mac";
-import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
 import { onboardingAccountBrowser } from "./scenarios/onboarding-account-browser";
 import { osDictationBrowser } from "./scenarios/os-dictation-browser";
 import { phoneDispatchHosted } from "./scenarios/phone-dispatch-hosted";
 import { settingsBrowser } from "./scenarios/settings-browser";
-import { slowStorage } from "./scenarios/slow-storage";
 import { threadSyncHosted } from "./scenarios/thread-sync-hosted";
 import { threadsScripted } from "./scenarios/threads-scripted";
-import { undoScripted } from "./scenarios/undo-scripted";
-import { vaultCrud } from "./scenarios/vault-crud";
-import { vaultRemoteSetting } from "./scenarios/vault-remote-setting";
-import { vaultSync } from "./scenarios/vault-sync";
 
 const SCENARIOS: readonly Scenario[] = [
-  vaultCrud,
-  slowStorage,
-  vaultSync,
-  vaultRemoteSetting,
-  hostedVaultSync,
-  hostedVaultSecondMac,
-  hostedVaultFull,
   threadSyncHosted,
   phoneDispatchHosted,
   accountHosted,
@@ -50,9 +33,6 @@ const SCENARIOS: readonly Scenario[] = [
   desktopShell,
   desktopDiagnostics,
   threadsScripted,
-  actionScripted,
-  undoScripted,
-  cliDrive,
   debugLogTrace,
   browserSmoke,
   osDictationBrowser,

@@ -36,9 +36,9 @@ export const siteGraph = () => ({
     {
       "@id": APP_ID,
       "@type": "SoftwareApplication",
-      applicationCategory: "ProductivityApplication",
+      applicationCategory: "DeveloperApplication",
       description:
-        "A local-first notes app for the Mac in which an AI agent, running on your own Claude or ChatGPT plan, edits your markdown notes with you.",
+        "An open-source companion for the coding agents you already run: it shows which one needs you and lets you answer, message, start and stop it, with tmux as the control layer.",
       downloadUrl,
       license: "https://opensource.org/licenses/MIT",
       name,

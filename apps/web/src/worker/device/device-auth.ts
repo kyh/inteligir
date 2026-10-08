@@ -7,8 +7,8 @@ import { device } from "../db/schema";
 // A hash compare against D1 on every request, never cached: a cache with any TTL is the
 // window a revoked credential keeps working through.
 
-// last seen is written at most this often per device: every sync, vault read and git call
-// verifies, and a D1 write on each kept current a devices page nobody reads to the second
+// last seen is written at most this often per device: every sync and dispatch call verifies,
+// and a D1 write on each kept current a devices page nobody reads to the second
 export const LAST_SEEN_RESOLUTION_MS = 5 * 60_000;
 
 export interface VerifiedDevice {
@@ -28,35 +28,7 @@ const bearerCredential = (authorization: string | null): string | null => {
   return credential;
 };
 
-// Basic as well: a stock git client answers the vault remote's 401 that way with the credential
-// as the password; a token put in the username slot still verifies, since the other field is empty then
-export const deviceCredentialFromHeader = (authorization: string | null): string | null => {
-  const bearer = bearerCredential(authorization);
-  if (bearer !== null) {
-    return bearer;
-  }
-  if (authorization === null) {
-    return null;
-  }
-  const [scheme, value, ...rest] = authorization.split(" ");
-  if (scheme?.toLowerCase() !== "basic" || value === undefined || rest.length > 0) {
-    return null;
-  }
-  let decoded: string;
-  try {
-    decoded = atob(value);
-  } catch {
-    return null;
-  }
-  const colon = decoded.indexOf(":");
-  if (colon === -1) {
-    return decoded;
-  }
-  const pass = decoded.slice(colon + 1);
-  return pass === "" ? decoded.slice(0, colon) : pass;
-};
-
-export const verifyDeviceCredentialValue = async (
+const verifyDeviceCredentialValue = async (
   db: Db,
   credential: string,
 ): Promise<VerifiedDevice | null> => {

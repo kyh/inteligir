@@ -1,7 +1,7 @@
 # @repo/desktop — the shipped product
 
-The window, and the page inside it. This app owns **no vault, no agent and no
-index**: those live in the server it starts, and everything here is what a
+The window, and the page inside it. This app owns **no thread, no agent and no
+database**: those live in the server it starts, and everything here is what a
 browser tab cannot give — a dedicated window, a menu-bar icon, a menu, the
 updater, and a process that starts and stops the server with the app. It is a
 Tauri 2 shell: Rust over the system's own WebKit (WKWebView on the Mac), which
@@ -51,8 +51,7 @@ sign-in a release runs.
 
 The window gets **a web store keyed by its data dir** (`data_store_identifier`
 on the Mac, a `data_directory` on Linux), so two data dirs never read each
-other's cookies or localStorage, as Electron's per-vault partitions kept them
-apart. The page's preferences are that store's localStorage, so the move from
+other's cookies or localStorage, as Electron's partitions kept them apart. The page's preferences are that store's localStorage, so the move from
 Electron started each one's from its defaults once.
 
 The page reaches the shell through Tauri's commands, one row each in
@@ -94,9 +93,9 @@ the same page back.
 
 `src-tauri/src/server.rs` starts `node dist/desktop.js serve` and is its one
 supervisor. Why a child rather than in-process: the server opens
-`better-sqlite3` synchronously, runs a `@parcel/watcher` child, shells out to
-`git` and starts the agents, and none of that belongs in the process that owns
-the window.
+`better-sqlite3` synchronously and holds the sync socket, and the rebuild's
+server reads tmux and the agents' hooks too; none of that belongs in the
+process that owns the window.
 
 The child prints one marked line once it answers (`inteligir-desktop:` and a
 JSON body): ready, with its origin, the window's handoff and how long a stop
@@ -153,10 +152,10 @@ no `NODE_OPTIONS` reaches the server, the role Electron's fuses played.
 ## The child's PATH is the login shell's
 
 An app opened from Finder or the Dock inherits launchd's PATH
-(`/usr/bin:/bin:/usr/sbin:/sbin`). The agent itself never needs PATH — its
-runtimes are bundled — but its bash and the vendor's stdio MCP servers run the
-user's own commands by name (`node`, `npx`, `uvx`, a version manager's shims),
-and none of those is on launchd's PATH. So the launch question runs `$SHELL
+(`/usr/bin:/bin:/usr/sbin:/sbin`). The rebuild's server finds the user's own
+tmux and agent binaries by name, and hands that PATH to the agents it starts
+(`node`, `npx`, a version manager's shims), and none of those is on launchd's
+PATH. So the launch question runs `$SHELL
 -ilc` once, reads the PATH it prints, and every node child the shell starts
 after runs with those entries ahead of the inherited ones
 (`apps/cli/src/desktop/login-shell-path.ts`). A shell that hangs past 5s,
@@ -213,11 +212,10 @@ pnpm smoke:desktop        # package, boot it, drive its server, quit
    the script.
 2. `scripts/stage-server.mjs` stages the CLI as `.output/server`: the package
    as npm would publish it (its `files`) and its production dependencies,
-   through `pnpm deploy` with a hoisted linker, so the lockfile's versions and
-   the workspace's patches ship (codex-acp's among them, which npm itself would
-   drop) and no symlink rides into the bundle.
+   through `pnpm deploy` with a hoisted linker, so the lockfile's versions ship
+   and no symlink rides into the bundle.
 3. `scripts/sign-resources.mjs` signs every Mach-O those resources carry (the
-   native addons, the vendors' own binaries) with the hardened runtime and
+   native addons) with the hardened runtime and
    `resources/entitlements.mac.plist`: Tauri signs the shell, the node and the bundle, but
    notarization refuses any binary inside that is not itself signed.
 4. `scripts/rust-notices.mjs` writes `.output/notices/rust-crates.txt`: every
@@ -242,22 +240,20 @@ env mode strips an undeclared variable before the task begins. The minimum
 macOS is 13.5, node 24's own floor.
 
 There is no native-rebuild step, and that is a fact rather than an omission:
-the two native modules are Node-API addons shipping per-platform prebuilds,
-which the node the app ships loads as any node does. Re-check this if either
-goes back to a gyp build.
+the one native module, better-sqlite3, is a Node-API addon shipping
+per-platform prebuilds, which the node the app ships loads as any node does.
+Re-check this if it, or a native module added later, needs a gyp build.
 
-The smoke LAUNCHES the packaged app, with the data and vault dirs pinned by
-environment and a home of its own, so the shell's folder lands in the scratch,
+The smoke LAUNCHES the packaged app, with the data dir pinned by environment
+and a home of its own, so the shell's folder lands in the scratch,
 and then again under a scratch home with nothing pinned.
 It refuses to start while an Inteligir answers on the single-instance socket,
 which is machine-wide and would take the launch over. It checks that the
 packaged CLI is the package npm would publish, that node and the Rust crates
-carry their licences, that the native modules load on the shipped node, that
-the page and the API answer, that the watcher reports an external write, that
-both vendor runtimes ship and each answers signed out over a scratch store
-(`CLAUDE_CONFIG_DIR`, `CODEX_HOME`), with the host's vendor overrides and keys
-stripped from its environment, that an agent turn reaches a live codex
-adapter, that the unpinned launch serves the home's own data dir, and that each
+carry their licences, that the native module loads on the shipped node, that
+the page and the API answer, that the server reports no agent runtime rather
+than claiming one it does not carry, that the unpinned launch serves the
+home's own data dir, and that each
 SIGTERM quit stops the server cleanly (the shell's note in the server's log
 says `server exited (code 0)`) and exits 0. **The window opens, and
 the smoke checks nothing in it** but that it loaded: the pin is proven by its

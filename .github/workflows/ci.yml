@@ -99,8 +99,8 @@ jobs:
         # a broken setup: --no-skip fails it instead of passing it behind a green step
         run: xvfb-run -a pnpm e2e --no-skip
 
-  # the app ships only as a macOS arm64 .app, and the suites meet APFS, FSEvents and a tmpdir
-  # behind a symlink only here; typecheck, lint, knip, format and build read no platform, so the
+  # the app ships only as a macOS arm64 .app, and the suites meet APFS and a tmpdir behind a
+  # symlink only here; typecheck, lint, knip, format and build read no platform, so the
   # check job alone runs them
   test-macos:
     runs-on: macos-latest

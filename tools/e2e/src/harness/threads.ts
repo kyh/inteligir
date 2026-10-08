@@ -21,17 +21,3 @@ export const untilThreadIdle = async (api: InstanceApi, threadId: string): Promi
     },
   );
 };
-
-// the scripted driver writes `# Agent note\n\n<text>\n` to Agent/<thread>.md on every turn.
-export const agentNote = (text: string): string => `# Agent note\n\n${text}\n`;
-
-export const runTurn = async (
-  api: InstanceApi,
-  threadId: string,
-  text: string,
-): Promise<string> => {
-  const outcome = await api.threads.send({ text, threadId });
-  expect(outcome.kind === "started", `send outcome was "${outcome.kind}"`);
-  await untilThreadIdle(api, threadId);
-  return outcome.turnId;
-};

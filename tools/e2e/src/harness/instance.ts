@@ -28,7 +28,6 @@ export interface LaunchAppArgs {
   instanceDir: string;
   repoRoot: string;
   mode: LaunchMode;
-  vaultRemote?: string;
   extraEnv?: Readonly<Record<string, string>>;
   onLog: (line: string) => void;
   register: (instance: AppInstance) => void;
@@ -42,7 +41,6 @@ export interface AppInstance extends TrackedProcess {
   // a browser holds no bearer: each open signs it in through a fresh single-use handoff.
   browserUrl: (pathAndSearch: string) => Promise<string>;
   dataDir: string;
-  vaultDir: string;
   // the vendors' stores this instance runs them over, empty until something writes them.
   vendorDirs: VendorDirs;
   port: number;
@@ -52,9 +50,7 @@ const HARNESS_OWNED_ENV_KEYS = new Set([
   "CLAUDE_CONFIG_DIR",
   "CODEX_HOME",
   "INTELIGIR_DATA_DIR",
-  "INTELIGIR_VAULT_DIR",
   "INTELIGIR_PORT",
-  "INTELIGIR_VAULT_REMOTE",
   "NODE_ENV",
 ]);
 
@@ -83,7 +79,6 @@ export const vendorEnv = (dirs: VendorDirs) => ({
 
 interface InstanceDirs extends VendorDirs {
   dataDir: string;
-  vaultDir: string;
 }
 
 interface LaunchCommand {
@@ -109,11 +104,7 @@ const buildChildEnv = (
   // extraEnv merges first; every harness-owned key after it wins.
   Object.assign(env, args.extraEnv ?? {}, command.env, vendorEnv(dirs));
   env.INTELIGIR_DATA_DIR = dirs.dataDir;
-  env.INTELIGIR_VAULT_DIR = dirs.vaultDir;
   env.INTELIGIR_PORT = String(port);
-  if (args.vaultRemote !== undefined) {
-    env.INTELIGIR_VAULT_REMOTE = args.vaultRemote;
-  }
   return env;
 };
 
@@ -172,7 +163,7 @@ export const createInstanceApi = (baseUrl: string, dataDir: () => string): Insta
 };
 
 const attachInstance = (child: TrackedProcess, dirs: InstanceDirs, port: number): AppInstance => {
-  const { claudeConfigDir, codexHome, dataDir, vaultDir } = dirs;
+  const { claudeConfigDir, codexHome, dataDir } = dirs;
   const baseUrl = loopbackOrigin(port);
   const api = createInstanceApi(baseUrl, () => dataDir);
   return {
@@ -185,17 +176,14 @@ const attachInstance = (child: TrackedProcess, dirs: InstanceDirs, port: number)
     },
     dataDir,
     port,
-    vaultDir,
     vendorDirs: { claudeConfigDir, codexHome },
   };
 };
 
 export const launchApp = async (args: LaunchAppArgs): Promise<AppInstance> => {
-  // siblings: the app refuses a data dir inside the vault.
   const dataDir = path.join(args.instanceDir, "data");
-  const vaultDir = path.join(args.instanceDir, "vault");
   await mkdir(dataDir, { recursive: true });
-  const dirs: InstanceDirs = { ...(await makeVendorDirs(args.instanceDir)), dataDir, vaultDir };
+  const dirs: InstanceDirs = { ...(await makeVendorDirs(args.instanceDir)), dataDir };
 
   const cliDir = path.join(args.repoRoot, "apps", "cli");
   const command = resolveCommand(cliDir, args.mode);

@@ -6,7 +6,6 @@ import { launchCloudWorker } from "./cloud-worker";
 import type { CloudWorker, LaunchCloudWorkerArgs } from "./cloud-worker";
 import { launchDesktopShell } from "./desktop-shell";
 import type { DesktopShell, DesktopShellOptions } from "./desktop-shell";
-import { exec, hermeticProcessEnv } from "./exec";
 import { launchApp } from "./instance";
 import type { AppInstance, LaunchAppArgs, LaunchMode } from "./instance";
 import type { TrackedProcess } from "./tracked-child";
@@ -14,10 +13,8 @@ import type { TrackedProcess } from "./tracked-child";
 interface BootOptions {
   name: string;
   mode?: LaunchMode;
-  vaultRemote?: string;
   extraEnv?: Readonly<Record<string, string>>;
-  // both run before boot; the app's repo init commits whatever it finds in the vault.
-  seedVault?: (vaultDir: string) => Promise<void>;
+  // runs before boot, so the server finds what it seeds
   seedData?: (dataDir: string) => void | Promise<void>;
 }
 
@@ -26,7 +23,6 @@ export interface ScenarioContext {
   scratchDir: string;
   log: (message: string) => void;
   boot: (options: BootOptions) => Promise<AppInstance>;
-  bareRemote: (name?: string) => Promise<string>;
   cloudWorker: (options?: Pick<LaunchCloudWorkerArgs, "vars">) => Promise<CloudWorker>;
   // the built Tauri shell on a scratch home, driven over WebDriver; skips with no display, no
   // driver or no built shell.
@@ -71,22 +67,8 @@ const own = (args: CreateScenarioContextArgs, instance: TrackedProcess): void =>
 };
 
 export const createScenarioContext = (args: CreateScenarioContextArgs): ScenarioContext => ({
-  async bareRemote(name = "remote") {
-    const remoteDir = path.join(args.scratchDir, `${name}.git`);
-    await mkdir(remoteDir, { recursive: true });
-    await exec("git", ["init", "--bare", "-b", "main", remoteDir], {
-      env: hermeticProcessEnv(),
-    });
-    args.log(`bare remote at ${remoteDir}`);
-    return `file://${remoteDir}`;
-  },
   async boot(options) {
     const instanceDir = path.join(args.scratchDir, options.name);
-    if (options.seedVault) {
-      const vaultDir = path.join(instanceDir, "vault");
-      await mkdir(vaultDir, { recursive: true });
-      await options.seedVault(vaultDir);
-    }
     if (options.seedData) {
       const dataDir = path.join(instanceDir, "data");
       await mkdir(dataDir, { recursive: true });
@@ -103,9 +85,6 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
       repoRoot: args.repoRoot,
     };
     // exactOptionalPropertyTypes: an absent option stays absent, never an explicit undefined.
-    if (options.vaultRemote !== undefined) {
-      launchArgs.vaultRemote = options.vaultRemote;
-    }
     if (options.extraEnv !== undefined) {
       launchArgs.extraEnv = options.extraEnv;
     }

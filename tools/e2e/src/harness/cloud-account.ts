@@ -4,6 +4,11 @@ import { deviceLoginResponseSchema } from "@repo/contract/cloud/device/device-sc
 import { z } from "zod";
 import { expect } from "./assert";
 import { E2E_INVITE_CODE } from "./cloud-worker";
+import type { AppInstance, InstanceApi } from "./instance";
+import { pollUntil } from "./poll";
+
+const IDENTITY_DEADLINE_MS = 15_000;
+const POLL_INTERVAL_MS = 200;
 
 // the account every device signs in as; the password is what login needs
 export const OWNER = { email: "e2e-owner@inteligir.local", password: "e2e-password-1234" };
@@ -45,15 +50,27 @@ export const loginDevice = async (
   return deviceLoginResponseSchema.parse(await response.json());
 };
 
-export const revokeDevice = async (
-  origin: string,
-  bearer: string,
-  deviceId: string,
+// the account identity lands asynchronously after the login, and the cross-account fence fails closed
+// until it does; named by email, so a device signed in as another account never passes.
+export const untilIdentityKnown = async (api: InstanceApi, label: string): Promise<void> => {
+  await pollUntil(
+    async () => await api.cloud.status(),
+    (status) => status.state === "signed-in" && status.accountEmail === OWNER.email,
+    {
+      deadlineMs: IDENTITY_DEADLINE_MS,
+      describe: (status) =>
+        `${label} never answered signed in as ${OWNER.email} within ${IDENTITY_DEADLINE_MS}ms: ${JSON.stringify(status)}`,
+      intervalMs: POLL_INTERVAL_MS,
+    },
+  );
+};
+
+export const signInOwner = async (
+  app: AppInstance,
+  label: string,
+  deviceName: string,
 ): Promise<void> => {
-  const response = await fetch(`${origin}/v1/device/revoke`, {
-    body: JSON.stringify({ deviceId }),
-    headers: { authorization: `Bearer ${bearer}`, "content-type": "application/json", origin },
-    method: "POST",
-  });
-  expect(response.ok, `revoke answered ${response.status}`);
+  const signedIn = await app.api.cloud.login({ ...OWNER, deviceName });
+  expect(signedIn.state === "signed-in", `${label}'s login answered ${signedIn.state}`);
+  await untilIdentityKnown(app.api, label);
 };
