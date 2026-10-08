@@ -51,7 +51,9 @@ src/
                            once a pulled request carries its id
     dispatch-projection.ts what the screens draw beside the log: the pending
                            rows, a thread only this phone holds so far, the
-                           approval cards, and each state's words
+                           approval cards, what the thread view offers to type
+                           (a reply, or a first request on a thread this phone
+                           opened to start), and each state's words
   credential/   the device credential at rest
     credential-codec.ts        parse/serialize + the wire pattern
     secure-store-credential.ts expo-secure-store adapter (Keychain/Keystore)
@@ -70,9 +72,10 @@ src/
                 sql-driver.ts (the port), expo-sql-driver.ts (the app's),
                 node-sql-driver.ts (the tests'), phone-db.ts (every table's
                 migrations); the external store the runtimes publish through,
-                theme, cloud URL, and routes.ts (a route's one param)
-  app/          expo-router screens: sign-in, the thread list, and a thread
-                view with its composer, pending requests and approval cards;
+                theme, cloud URL, and routes.ts (a route's params)
+  app/          expo-router screens: sign-in, the thread list with New
+                request, and a thread view with its composer, pending
+                requests and approval cards;
                 _layout.tsx holds the splash and the route guard
 ```
 

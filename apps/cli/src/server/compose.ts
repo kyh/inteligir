@@ -96,9 +96,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     db,
     debugLog: debugLog(config.debug, "sync"),
     machineName,
-    // the renderer's sync row subscribes to the `vault` target, so the status rides its one kind.
+    // the renderer's sync row subscribes to the `sync` target, so the status rides its one kind.
     onStatusChanged: () => {
-      bus.notifyVault(["sync-status-changed"]);
+      bus.notifySync(["sync-status-changed"]);
     },
     phoneRequests: () => cloudPrefs.phoneRequests(),
   };
@@ -109,9 +109,10 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   register("cloud", async () => {
     await cloud.dispose();
   });
-  // an approval is raised by the agent runtime and settled by the thread service or its turn's
-  // end; the bus hears every one of them, so a phone-started turn's reaches the phone whoever wrote
-  // it. a disposed runtime schedules nothing, so the listener outlives it harmlessly.
+  // an approval is raised by the turn's driver (parked on `agents/interaction-waiters`) and settled
+  // by the thread service or its turn's end; the bus hears every one of them, so a phone-started
+  // turn's reaches the phone whoever wrote it. a disposed runtime schedules nothing, so the
+  // listener outlives it harmlessly.
   bus.onThreadChange((_threadId, changes) => {
     if (changes.includes("interactions-changed")) {
       cloud.approvalsChanged();

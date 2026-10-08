@@ -1,6 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-import type { ThreadChangeKind, VaultChangeKind } from "@repo/domain/change-kinds";
+import type { SyncChangeKind, ThreadChangeKind } from "@repo/domain/change-kinds";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { z } from "zod";
 import {
@@ -133,8 +133,8 @@ export class WsBus implements DbNotifier {
     }
   }
 
-  notifyVault(changes: VaultChangeKind[]): void {
-    this.notifyClients({ changes, entity: "vault", type: "changed" });
+  notifySync(changes: SyncChangeKind[]): void {
+    this.notifyClients({ changes, entity: "sync", type: "changed" });
   }
 
   notifyThread(threadId: string, changes: ThreadChangeKind[]): void {

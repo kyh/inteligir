@@ -15,6 +15,8 @@ import type { AskServerStatus, ServerFileProbe } from "../server/server-probe";
 interface ServerTarget {
   dataDir: string;
   dataDirSource: "env" | "default";
+  // the thread log a boot opens, or creates on a data dir nothing has served yet.
+  databasePath: string;
 }
 
 export type ServerTargetResult =
@@ -46,7 +48,11 @@ export const resolveServerTarget = (args: ResolveServerTargetArgs): ServerTarget
     const config = resolveConfigFor(args);
     return {
       kind: "resolved",
-      target: { dataDir: config.dataDir, dataDirSource: config.dataDirSource },
+      target: {
+        dataDir: config.dataDir,
+        dataDirSource: config.dataDirSource,
+        databasePath: config.databasePath,
+      },
     };
   } catch (error) {
     return { error: messageOf(error), kind: "refused" };

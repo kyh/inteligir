@@ -73,7 +73,7 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | `DECLARED_CI_EXTRAS` row with a reason; every workspace `smoke` script is |
 |                                | reachable from a root script; every root `smoke*` runs in a gate or is a  |
 |                                | `MANUAL_SMOKES` row; a `run:` step with no `name:` throws.                |
-| `ws-change-kinds.test.ts`      | Every kind in `@repo/domain/change-kinds` is fired by a `notifyVault` or  |
+| `ws-change-kinds.test.ts`      | Every kind in `@repo/domain/change-kinds` is fired by a `notifySync` or   |
 |                                | `notifyThread` call in shipped source outside `packages/domain`, and      |
 |                                | every fired kind is declared.                                             |
 | `domain-dispatch.test.ts`      | One total dispatch per vocabulary: a shipped file quoting EVERY member    |

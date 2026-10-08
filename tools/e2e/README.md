@@ -121,7 +121,8 @@ what each one is FOR.
 |                            | migrated database, and answers a client verb run from the same split      |
 |                            | bundle                                                                    |
 | desktop-shell              | the built Tauri shell over WebDriver: the window is the server's own page |
-|                            | signed in by its handoff, an action the API creates reaches the rail      |
+|                            | signed in by its handoff, a fresh data dir's first launch lands on        |
+|                            | `/welcome`, an action the API creates reaches the rail                    |
 |                            | through the socket, `window.open` is denied, every permission request is  |
 |                            | refused, and a SIGTERM quit stops the server and retracts `server.json`   |
 | desktop-diagnostics        | the shell's debug-logging choice, seeded in its own folder, reaches the   |

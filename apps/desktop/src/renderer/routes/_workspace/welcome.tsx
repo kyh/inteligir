@@ -1,5 +1,5 @@
-// The account step, skippable, drawn over the workspace like Settings. Nothing opens it on its
-// own yet: it is reached by its url.
+// The account step, skippable, drawn over the workspace like Settings. The shell lands a data
+// dir's first launch here (`WELCOME_PATH` in apps/desktop/src-tauri/src/window.rs).
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AccountStep } from "../../app/onboarding/account-step";

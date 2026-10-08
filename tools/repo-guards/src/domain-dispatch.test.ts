@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
 
 // below this, naming every member is a coincidence rather than a table: one literal is a use, not
-// a dispatch, so a one-member vocabulary (VAULT_CHANGE_KINDS) has no row here — the guard cannot
+// a dispatch, so a one-member vocabulary (SYNC_CHANGE_KINDS) has no row here — the guard cannot
 // tell its producer from its table.
 const TOTALITY_FLOOR = 2;
 

@@ -40,9 +40,8 @@ src/
                       # pint_, obx_) over a 32-letter alphabet minus the look-alikes
   events.ts           # the append-only log: contiguous per-thread sequence, the
                       # turn/started gate, synced-origin dedupe, one prepared insert
-  threads.ts          # thread rows (the origin note a synced log may still
-                      # state), the keyset-paged listing, the lifecycle CAS,
-                      # setThreadProviderSession
+  threads.ts          # thread rows, the keyset-paged listing, the lifecycle
+                      # CAS, a synced `thread/meta` row's facts
   queued-messages.ts  # FIFO per thread under claim tokens, released whole at boot
   pending-interactions.ts
                       # provider prompts, idempotent on (thread, requestKey)
@@ -174,9 +173,7 @@ id)`, which the cursor's row-value comparison seeks with no temp b-tree. Crash
   commit, so a subscriber never sees rolled-back state. That is how an archive
   lands (`archiveThreadInTransaction`) and a synced `thread/meta` row fills a
   thread the log created bare (`applyThreadMetaInTransaction`), each beside the
-  event that tells other devices. `setThreadProviderSession` announces nothing
-  on purpose: the provider session is runtime plumbing, not a fact a client
-  renders.
+  event that tells other devices.
 - **A claim has no TTL, so boot releases them all.** One server owns a data
   dir, so no claim can be live at boot; `releaseAllQueuedMessageClaims` runs
   in `ThreadService.boot()` (`apps/cli/src/server/threads/service.ts`).

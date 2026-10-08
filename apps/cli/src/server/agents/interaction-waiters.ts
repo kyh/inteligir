@@ -1,3 +1,8 @@
+// A turn parked on a question the user answers: the row the panel and the phone draw, and the
+// promise its driver awaits until that row is resolved, interrupted or times out. The scripted
+// driver parks here today, and the observer's hook wait (Claude's PermissionRequest) is the seam's
+// next caller.
+
 import type { DbConnection } from "@repo/db/connection";
 import {
   createPendingInteraction,
@@ -28,8 +33,6 @@ export interface InteractionWaitersDeps {
   db: DbConnection;
   notifier: DbNotifier;
   debug: (message: string) => void;
-  // the turn watchdog restarts its silence clock here: a parked wait is the user's time, not the provider's.
-  onWaitSettled: (threadId: string) => void;
 }
 
 export interface InteractionWaiters {
@@ -102,7 +105,6 @@ export const createInteractionWaiters = (deps: InteractionWaitersDeps): Interact
               threadId: create.threadId,
             });
             settle({ decision: "deny" });
-            deps.onWaitSettled(create.threadId);
           }
         }, INTERACTION_TIMEOUT_MS);
         timer.unref();
@@ -111,7 +113,6 @@ export const createInteractionWaiters = (deps: InteractionWaitersDeps): Interact
           resolve: (resolution) => {
             clearTimeout(timer);
             settle(resolution);
-            deps.onWaitSettled(create.threadId);
           },
           threadId: create.threadId,
         });

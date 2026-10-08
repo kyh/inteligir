@@ -1,4 +1,3 @@
-import type { ViewContext } from "@repo/domain/view-context";
 import type {
   TimelineErrorRow,
   TimelineFileChange,
@@ -15,8 +14,6 @@ import { plural } from "@repo/ui/lib/plural";
 import { memo } from "react";
 import type { ReactNode } from "react";
 
-import { NoteBadge } from "./note-badge";
-
 const CHANGE_MARKS = {
   add: "+",
   delete: "−",
@@ -24,20 +21,6 @@ const CHANGE_MARKS = {
 } satisfies Record<TimelineFileChange["kind"], string>;
 
 const firstLine = (text: string): string => text.split("\n", 1)[0] ?? "";
-
-const ViewContextAttribution = ({ context }: { context: ViewContext }) => (
-  <div className="max-w-[85%] truncate px-3 text-body text-muted-foreground">
-    {context.resource}
-  </div>
-);
-
-const ContextPathChips = ({ paths }: { paths: readonly string[] }) => (
-  <div className="flex max-w-[85%] flex-wrap justify-end gap-1">
-    {paths.map((path) => (
-      <NoteBadge key={path} path={path} />
-    ))}
-  </div>
-);
 
 const isThought = (row: TimelineRow): boolean =>
   row.kind === "work" && (row.workKind === "reasoning" || row.workKind === "plan");
@@ -194,8 +177,6 @@ const TimelineRowContent = ({ row }: { row: TimelineRow }) => {
             <div className="max-w-[85%] rounded-2xl bg-surface-raised px-3 py-1.5 text-subtitle whitespace-pre-wrap shadow-surface-1">
               {row.text}
             </div>
-            {row.contextPaths.length === 0 ? null : <ContextPathChips paths={row.contextPaths} />}
-            {row.viewContext === null ? null : <ViewContextAttribution context={row.viewContext} />}
           </div>
         );
       }

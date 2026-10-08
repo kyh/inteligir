@@ -116,24 +116,8 @@ describe("thread CRUD", () => {
     const thread = createThread(db, notifier, { title: "Research" });
     expect(thread.status).toBe("idle");
     expect(thread.title).toBe("Research");
-    expect(thread.originDocPath).toBeNull();
     expect(getThread(db, thread.id)).toEqual(thread);
     expect(threadChanges).toEqual([{ changes: ["thread-created"], threadId: thread.id }]);
-  });
-
-  it("stores the doc attachment, with the note's id when it has one", () => {
-    const db = openTempDb();
-    const identified = createThread(db, noopNotifier, {
-      origin: { noteId: "note-today", path: "notes/today.md" },
-    });
-    expect(identified).toMatchObject({
-      originDocPath: "notes/today.md",
-      originNoteId: "note-today",
-    });
-    const pathOnly = createThread(db, noopNotifier, {
-      origin: { noteId: null, path: "notes/draft.md" },
-    });
-    expect(pathOnly).toMatchObject({ originDocPath: "notes/draft.md", originNoteId: null });
   });
 
   it("lists live threads before archived ones", () => {
@@ -158,77 +142,43 @@ describe("thread CRUD", () => {
 });
 
 describe("applyThreadMetaInTransaction", () => {
-  it("gives a thread the log created bare its title, origin and harness", () => {
+  it("gives a thread the log created bare its title and harness", () => {
     const db = openTempDb();
     writeTransaction(db, (tx) => ensureThreadInTransaction(tx, "thr_synced"));
 
     expect(
       applyMeta(db, "thr_synced", {
-        originDocPath: "Plans.md",
-        originNoteId: "note-plans",
         providerId: "codex",
         title: "Plan the week",
       }),
-    ).toEqual({ origin: true, title: true });
+    ).toEqual({ title: true });
     expect(getThread(db, "thr_synced")).toMatchObject({
-      originDocPath: "Plans.md",
-      originNoteId: "note-plans",
       providerId: "codex",
       title: "Plan the week",
     });
   });
 
-  it("takes an origin's path and note id as one statement", () => {
-    const db = openTempDb();
-    const thread = createThread(db, noopNotifier, {
-      origin: { noteId: "note-plans", path: "Plans.md" },
-    });
-
-    expect(applyMeta(db, thread.id, { originNoteId: "note-other" })).toEqual({
-      origin: false,
-      title: false,
-    });
-    expect(applyMeta(db, thread.id, { originDocPath: "Plans.md" })).toEqual({
-      origin: true,
-      title: false,
-    });
-    expect(getThread(db, thread.id)).toMatchObject({
-      originDocPath: "Plans.md",
-      originNoteId: null,
-    });
-  });
-
   it("changes nothing when a replay states what the thread already holds", () => {
     const db = openTempDb();
-    const thread = createThread(db, noopNotifier, {
-      origin: { noteId: null, path: "Plans.md" },
-      title: "Plan",
-    });
+    const thread = createThread(db, noopNotifier, { title: "Plan" });
     const before = getThread(db, thread.id);
 
-    expect(applyMeta(db, thread.id, { originDocPath: "Plans.md", title: "Plan" })).toEqual({
-      origin: false,
-      title: false,
-    });
+    expect(applyMeta(db, thread.id, { title: "Plan" })).toEqual({ title: false });
     expect(getThread(db, thread.id)).toEqual(before);
   });
 
-  it("moves the title and the origin to the latest statement, and keeps a bound harness", () => {
+  it("moves the title to the latest statement, and keeps a bound harness", () => {
     const db = openTempDb();
-    const thread = createThread(db, noopNotifier, {
-      origin: { noteId: null, path: "Plans.md" },
-    });
+    const thread = createThread(db, noopNotifier, {});
     applyMeta(db, thread.id, { providerId: "claude", title: "Named from the first line" });
 
     expect(
       applyMeta(db, thread.id, {
-        originDocPath: "Archive/Plans.md",
         providerId: "codex",
         title: "Explicit",
       }),
-    ).toEqual({ origin: true, title: true });
+    ).toEqual({ title: true });
     expect(getThread(db, thread.id)).toMatchObject({
-      originDocPath: "Archive/Plans.md",
       providerId: "claude",
       title: "Explicit",
     });
@@ -236,24 +186,14 @@ describe("applyThreadMetaInTransaction", () => {
 
   it("leaves absent facts as they are, and a missing thread alone", () => {
     const db = openTempDb();
-    const thread = createThread(db, noopNotifier, {
-      origin: { noteId: null, path: "Plans.md" },
-      title: "Plan",
-    });
+    const thread = createThread(db, noopNotifier, { title: "Plan" });
 
-    expect(applyMeta(db, thread.id, { providerId: "codex" })).toEqual({
-      origin: false,
-      title: false,
-    });
+    expect(applyMeta(db, thread.id, { providerId: "codex" })).toEqual({ title: false });
     expect(getThread(db, thread.id)).toMatchObject({
-      originDocPath: "Plans.md",
       providerId: "codex",
       title: "Plan",
     });
-    expect(applyMeta(db, "thr_missing", { title: "Nobody" })).toEqual({
-      origin: false,
-      title: false,
-    });
+    expect(applyMeta(db, "thr_missing", { title: "Nobody" })).toEqual({ title: false });
   });
 });
 
@@ -473,9 +413,6 @@ describe("listThreads paging", () => {
     const underscore = titled(3, "snake_case");
     titled(4, "snakeXcase");
     const backslash = titled(5, String.raw`a\b`);
-    const onPath = createThread(db, noopNotifier, {
-      origin: { noteId: null, path: "projects/q3-plan.md" },
-    });
 
     const ids = (contains: string): string[] =>
       listThreads(db, { ...EVERY_LIVE_THREAD, contains }).rows.map((row) => row.id);
@@ -486,6 +423,5 @@ describe("listThreads paging", () => {
     expect(ids("50%")).toEqual([percent]);
     expect(ids("e_c")).toEqual([underscore]);
     expect(ids("\\")).toEqual([backslash]);
-    expect(ids("q3-plan")).toEqual([onPath.id]);
   });
 });

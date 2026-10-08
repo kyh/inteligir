@@ -31,16 +31,18 @@ and `threads.activeTurnId` is the one the current status describes — bound by
 host's turn id and reporting the turn's events back through a sink. This build
 carries two: `auto`, which refuses every send as `PROVIDER_UNAVAILABLE`
 because no agent runtime exists yet, and `scripted`, the in-process fake the
-suites drive (`apps/cli/src/server/agents/agent-driver.ts`). Not the agent
+suites drive, which parks an **approval** when a turn asks `ask: <command>`
+(`apps/cli/src/server/agents/agent-driver.ts`). Not the agent
 itself: the rebuild watches the agents a developer already runs, and a driver
 is only how a turn this app starts gets carried out.
 
 **session** — the PROVIDER's own conversation, `{ providerId, providerThreadId }`
-(`setThreadProviderSession` in `@repo/db/threads`), carried on the thread row so
-a later turn could resume into it. Nothing in this build writes it. Only its
-`providerId` travels, in a `thread/meta` row: another device learns the
-harness, never the session id. Not to be confused with the auth **session** in
-`apps/web` — a signed-in user's row in D1 — which shares only the word.
+on the thread row, so a later turn could resume into it. Nothing in this build
+binds one: the columns wait for the observer, which binds a thread to the
+vendor session it watches. Only `providerId`, the harness, travels, in a
+`thread/meta` row a log may state; another device never learns the session id.
+Not to be confused with the auth **session** in `apps/web` — a signed-in
+user's row in D1 — which shares only the word.
 
 **scope** — how far up an event's meaning reaches: `{ kind: "thread" }` or
 `{ kind: "turn", turnId }` (`@repo/domain/thread-event-scope`). Turn scope is
@@ -53,12 +55,13 @@ chronology has to justify it in writing and a consumer reads a turn event's
 parse, a CHECK constraint on the `events` table — because a turn-scoped row
 with no turn id is a row no query can place.
 
-**view context, thread origin, context path** — what the notes app's threads
-said about the note they were about: a message's view context
-(`@repo/domain/view-context`), a thread's origin note (`originDocPath` on the
-wire thread) and the notes a message @-mentioned (`contextPaths` on
-`client/turn/requested`). The event grammar still parses all three, so a log
-written before the cut reads and syncs; nothing this build sends sets them.
+**view context, thread origin, context path** — gone with the notes app: what
+its threads said about the note they were about. A log written before the cut
+may still carry them (`viewContext` and `contextPaths` on
+`client/turn/requested`, `originDocPath` and `originNoteId` on `thread/meta`);
+the grammar declares none of them, so a parse strips them as it strips any
+undeclared field, and the `threads` and `queued_thread_messages` columns that
+held them stay in the schema unread rather than cost a migration.
 
 **dispatch** — a row in the account's dispatch inbox
 (`@repo/contract/cloud/dispatch/dispatch-schema`), the one way a phone asks a

@@ -88,8 +88,9 @@ apps/
                  pages; `app/sidebar/` the rail; `app/actions/` the composer
                  and the panel's threads; `app/settings/` the Settings layer,
                  Account and Advanced included; `app/onboarding/` the account
-                 step `/welcome` draws). The page asks the shell only what its
-                 server cannot answer (the updater and the diagnostics), one
+                 step `/welcome` draws, where a data dir's first launch
+                 lands). The page asks the shell only what its server cannot
+                 answer (the updater and the diagnostics), one
                  Tauri command per row of `src/ipc-contract.ts`, every answer
                  parsed on the page's side and mirrored through one
                  `bridge-store.ts`, and nothing that holds a token: the window
@@ -153,7 +154,8 @@ apps/
                  (src/sync/live-turns.ts), that it
                  asks a Mac's agent in through the dispatch inbox, from a
                  durable queue of its own (src/dispatch/dispatch-runtime.ts),
-                 whose replies and approvals it answers there; reaches
+                 whose replies and approvals it answers there, and on a thread
+                 it starts itself (New request); reaches
                  @repo/contract/cloud and @repo/domain only.
 packages/
   domain/        @repo/domain — zod-only leaf vocabulary (provider events,
@@ -199,12 +201,12 @@ packages/
                  ai/, all vendored and now this repo's own (see VENDORED CODE).
                  A LIBRARY AHEAD OF ITS CONSUMERS: `src/ai` holds fifteen
                  components no surface draws on yet, kept by owner decision,
-                 and three in components/ lost their one consumer with the
+                 and four in components/ lost their one consumer with the
                  notes editor; each is listed one by one in
                  `AWAITING_CONSUMER` (`tools/repo-guards/src/ui-package.ts`),
                  which the PER-EXPORT orphan guard
                  (`tools/repo-guards/src/ui-orphan-exports.test.ts`) reads, so
-                 a nineteenth still fails. Leaf.
+                 a twentieth still fails. Leaf.
 tools/
   repo-guards/   @repo/repo-guards — derived fitness tests over the REPO: the
                  package dependency DAG + its platform-purity rules, ws
@@ -305,10 +307,12 @@ to the END of its group.
   ("No agent runtime yet"), so a thread is never left waiting on a turn
   nothing will run. `INTELIGIR_AGENT=scripted` is the in-process fake the
   booted suites and the scenario suite drive: every turn answers
-  `Noted: <text>` and completes. Rejected: keeping the ACP runtime until the
-  observer could replace it, which kept a terms-of-service risk and every
-  vault dependency it carried. `apps/cli/src/server/agents/agent-driver.ts`,
-  `scripted-driver.ts`.
+  `Noted: <text>` and completes, and one asked `ask: <command>` first parks an
+  approval on the interaction waiters and answers with the decision, so the
+  panel's and the phone's approval cards run end to end against it. Rejected:
+  keeping the ACP runtime until the observer could replace it, which kept a
+  terms-of-service risk and every vault dependency it carried.
+  `apps/cli/src/server/agents/agent-driver.ts`, `scripted-driver.ts`.
 
 - **A TIMELINE DELTA MOVES A HELD TURN AS A PATCH, AND A ROW CARRIES WHAT THE
   PANEL DRAWS.** Upserting a turn whole resends every command, tool call and
@@ -348,8 +352,7 @@ to the END of its group.
   was rejected because a thread touched between two reads would shift every
   row behind it. A page is a window, so what must be whole is its own query:
   the rail's agent spinner (one `running` thread, archived ones included), and
-  the palette's Actions search (`query`, a LIKE over the title and the origin
-  path a synced thread may still carry).
+  the palette's Actions search (`query`, a LIKE over the title).
   `packages/db/src/threads.ts`,
   `apps/desktop/src/renderer/app/actions/thread-hooks.ts`,
   `apps/desktop/src/renderer/app/palette/threads-page.tsx`.
@@ -543,11 +546,10 @@ to the END of its group.
 - **The THREAD channel carries thread events alone, and a thread's own facts are
   events on it** (owner decision). A thread with no events never reaches another
   device. A thread states its title, harness and archive as rows on its log
-  (`thread/meta`, `thread/archived` in `@repo/domain/provider-event`), and the
-  origin note a log written before the cut states still parses; a fact about a
-  thread that never made a request stays local, since alone it would arrive as
-  an empty action. A stale install skips a type it cannot read, so a new event
-  type needs no new route. The Worker keeps no per-thread row beside the log
+  (`thread/meta`, `thread/archived` in `@repo/domain/provider-event`); a fact
+  about a thread that never made a request stays local, since alone it would
+  arrive as an empty action. A stale install skips a type it cannot read, so a
+  new event type needs no new route. The Worker keeps no per-thread row beside the log
   (owner decision): the push's `threads` half and the `thread_meta` lane it
   filled are gone, the dispatch inbox carrying what the lane was for, and a
   0.4.0 install's `threads` is still accepted and dropped, since refusing the
@@ -745,8 +747,10 @@ to the END of its group.
   from it because crash recovery writes. The seams: `cloud/sync-pass` /
   `sync-cadence` (the socket link is the client core's, shared with the phone);
   `threads/turn-driver`, the one shape every turn runs through;
-  `writeTransaction` in `@repo/db/connection` as the one spelling of
-  `BEGIN IMMEDIATE`. `serve.ts` injects node's socket dial and the agent driver
+  `agents/interaction-waiters`, where a turn parks on a question until its
+  card is answered, stopped or timed out (the scripted driver parks there
+  today, and the observer's hook wait is its next caller); `writeTransaction`
+  in `@repo/db/connection` as the one spelling of `BEGIN IMMEDIATE`. `serve.ts` injects node's socket dial and the agent driver
   because compose is reachable from the renderer's test program.
   `dev-instance.ts` owns the per-checkout derivation; `config.ts` stays the
   parser.
@@ -807,9 +811,13 @@ to the END of its group.
   the browser, at most once a second since WebKit says nothing of the click
   behind a navigation, anything else is refused, `window.open` opens no window,
   and every permission is denied (`apps/desktop/src-tauri/src/navigation.rs`,
-  `window.rs`). The window keeps a web store keyed by its data dir, because
-  every data dir's server answers on one port and the page's prefs are the
-  origin's; that needs macOS 14, below which every data dir shares one.
+  `window.rs`). The handoff lands the page on `/welcome`, the onboarding
+  steps, when the desktop door's `launch` finds the data dir's thread log
+  absent (no server has opened it), and on the workspace otherwise, so no
+  marker file records that onboarding ran. The window keeps a web store keyed
+  by its data dir, because every data dir's server answers on one port and the
+  page's prefs are the origin's; that needs macOS 14, below which every data
+  dir shares one.
   Rejected: a Rust proxy on a custom scheme and a socket relay over IPC, which
   rebuild in a second language what the browser path already is. THE BRIDGE
   CARRIES ONLY WHAT THE SHELL OWNS (the updater and the diagnostics), because no

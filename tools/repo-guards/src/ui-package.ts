@@ -11,7 +11,7 @@ export const UI_PACKAGE = "@repo/ui";
 export const GALLERY_DIR = "apps/web/src/components/gallery";
 
 // held whole by owner decision, listed per file so an unlisted unwired component still fails; a
-// held file is not a consumer, and it keeps its own type sizes until a surface draws it. The three
+// held file is not a consumer, and it keeps its own type sizes until a surface draws it. The four
 // components/ rows lost their one consumer with the notes editor and are held for the rebuild.
 export const AWAITING_CONSUMER: ReadonlySet<string> = new Set([
   "packages/ui/src/ai/chat.tsx",
@@ -29,6 +29,7 @@ export const AWAITING_CONSUMER: ReadonlySet<string> = new Set([
   "packages/ui/src/ai/search.tsx",
   "packages/ui/src/ai/selection-actions.tsx",
   "packages/ui/src/ai/sidebar-nav.tsx",
+  "packages/ui/src/components/badge.tsx",
   "packages/ui/src/components/checkbox.tsx",
   "packages/ui/src/components/hover-card.tsx",
   "packages/ui/src/components/popover.tsx",

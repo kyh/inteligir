@@ -1,7 +1,7 @@
 //! The shell's one state: the data dir it serves, the server behind it and the window that shows
 //! it, and the moves between them. A launch boots the server on the data dir the server's own
-//! rules name (asked of the CLI, `door.rs`) and opens the window on it; what is here is the order
-//! of the moves.
+//! rules name (asked of the CLI, `door.rs`) and opens the window on it, on the welcome steps when
+//! nothing has served that data dir yet; what is here is the order of the moves.
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -151,14 +151,23 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
     }
     crate::menu::rebuild(app);
     crate::updater::start(app);
-    if let Err(reason) = boot_server(app, launch.target) {
+    let landing = if launch.first {
+        window::WELCOME_PATH
+    } else {
+        window::WORKSPACE_PATH
+    };
+    if let Err(reason) = boot_server(app, launch.target, landing) {
         fail_start(app, &reason);
     }
 }
 
-/// The server first, then the window that loads from it. On failure nothing of this boot is left
-/// running.
-fn boot_server<R: Runtime>(app: &AppHandle<R>, target: Target) -> Result<(), String> {
+/// The server first, then the window that loads from it, landing on `landing`. On failure nothing
+/// of this boot is left running.
+fn boot_server<R: Runtime>(
+    app: &AppHandle<R>,
+    target: Target,
+    landing: &str,
+) -> Result<(), String> {
     let shell = app.state::<Shell>();
     let door = shell.door()?;
     let debug = shell
@@ -230,6 +239,7 @@ fn boot_server<R: Runtime>(app: &AppHandle<R>, target: Target) -> Result<(), Str
             label: &label,
             origin: &live.origin,
             handoff_url: &live.handoff_url,
+            path: landing,
             data_dir: &target.data_dir,
             webview_dir,
             log,

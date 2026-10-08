@@ -50,7 +50,9 @@ The agent driver is selected by `INTELIGIR_AGENT` (`auto` · `scripted` ·
 every send with `PROVIDER_UNAVAILABLE` ("No agent runtime yet"), and
 `system.status` says so under `agent`. **`INTELIGIR_AGENT=scripted` is the
 login-free e2e mode**: an in-process deterministic driver over the REAL
-ingest and timeline paths — every turn answers `Noted: <text>` and completes.
+ingest and timeline paths — every turn answers `Noted: <text>` and completes,
+and a turn sent as `ask: <command>` first raises an approval card for that
+command and answers `Allowed: …` or `Denied: …` once it is answered.
 
 **The `inteligir` CLI drives a running instance from the shell** — often
 faster than the browser for thread and sync checks:

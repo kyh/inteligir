@@ -143,6 +143,9 @@ export const useDispatches = (threadId: string): ThreadDispatches => {
 export const askAgent = async (request: AskAgentRequest): Promise<DispatchOutcome> =>
   await getRuntime().dispatch.askAgent(request);
 
+// a thread id no Mac has seen, minted here so the first request can start it
+export const newThreadId = (): string => getRuntime().dispatch.newThreadId();
+
 export const answerApproval = async (
   approvalId: string,
   decision: PendingInteractionApprovalDecision,

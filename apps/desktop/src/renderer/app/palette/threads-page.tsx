@@ -10,13 +10,10 @@ const THREAD_ROWS = 30;
 
 const threadRowLabel = (thread: Thread): string => thread.title ?? "Action";
 
-const threadRowDetail = (thread: Thread): string => {
-  const activity = THREAD_ACTIVITY_LABELS[threadActivity(thread)];
-  return thread.originDocPath === null ? activity : `${activity} · ${thread.originDocPath}`;
-};
+const threadRowDetail = (thread: Thread): string => THREAD_ACTIVITY_LABELS[threadActivity(thread)];
 
 const matchesThread = (thread: Thread, query: string): boolean =>
-  matchesQuery(threadRowLabel(thread), query) || matchesQuery(thread.originDocPath ?? "", query);
+  matchesQuery(threadRowLabel(thread), query);
 
 export interface ThreadsPageProps {
   open: boolean;

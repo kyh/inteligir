@@ -1,7 +1,6 @@
 import { listStoredThreadEvents } from "@repo/db/events";
 import { NotificationBuffer } from "@repo/domain/notifier";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import { getThread, setThreadProviderSession } from "@repo/db/threads";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { bootThreadHarness } from "../../__tests__/boot-app";
@@ -369,7 +368,7 @@ describe("two installs against one account", () => {
     expect(texts).toContain("from B");
   });
 
-  it("carries a thread's title, harness and archive to the other install", async () => {
+  it("carries a thread's title and archive to the other install", async () => {
     const cloud = new FakeCloud();
     const a = await bootInstall(cloud);
     const b = await bootInstall(cloud);
@@ -377,12 +376,6 @@ describe("two installs against one account", () => {
     await login(b, "B");
 
     const { thread } = await a.client.threads.create({ title: "Plan the week" });
-    // the bind a real runtime makes before its first prompt; the scripted driver makes none.
-    setThreadProviderSession(a.db, {
-      providerId: "codex",
-      providerThreadId: "session_on_a",
-      threadId: thread.id,
-    });
     await a.client.threads.send({ text: "draft a plan", threadId: thread.id });
     await syncNow(a);
     await syncNow(b);
@@ -390,10 +383,8 @@ describe("two installs against one account", () => {
     const pulled = await b.client.threads.get({ threadId: thread.id });
     expect(pulled.thread).toMatchObject({
       archivedAt: null,
-      providerId: "codex",
       title: "Plan the week",
     });
-    expect(getThread(b.db, thread.id)?.providerThreadId).toBeNull();
 
     await a.client.threads.archive({ threadId: thread.id });
     await syncNow(a);

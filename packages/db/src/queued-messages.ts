@@ -56,8 +56,6 @@ export const createQueuedThreadMessageInTransaction = (
     .values({
       claimToken: null,
       claimedAt: null,
-      // the notes a message once attached; nothing attaches one any more
-      contextPaths: null,
       createdAt: now,
       dispatchId: input.dispatchId,
       id: createQueuedThreadMessageId(),

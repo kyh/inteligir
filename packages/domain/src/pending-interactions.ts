@@ -67,7 +67,7 @@ export const answerableDecisions = (
   "deny",
 ];
 
-// one parser for the answer route's 400 gate and the runtime: the decision must be answerable.
+// one parser for the answer route's 400 gate and the waiters: the decision must be answerable.
 export const parseApprovalResolution = (
   raw: string,
   payload: ApprovalPendingInteractionPayload,

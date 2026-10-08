@@ -1,7 +1,7 @@
 import { partialMatchKey, QueryClient } from "@tanstack/react-query";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/contract/local/notifications";
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
-import { THREAD_CHANGE_KINDS, VAULT_CHANGE_KINDS } from "@repo/domain/change-kinds";
+import { THREAD_CHANGE_KINDS, SYNC_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { describe, expect, it, vi } from "vitest";
 import { orpc } from "../api";
 import { ChangeBatch, sweepAfterReconnect } from "../workspace-context";
@@ -52,7 +52,7 @@ describe("a sync change", () => {
   it("sweeps the account's sync status on its own kind", () => {
     const applied = apply({
       changes: ["sync-status-changed"],
-      entity: "vault",
+      entity: "sync",
       type: "changed",
     });
 
@@ -82,7 +82,6 @@ describe("a thread change", () => {
     "thread-created",
     "status-changed",
     "archived-changed",
-    "origin-changed",
     "title-changed",
   ];
   const MOVES_DETAIL_ALONE: readonly ThreadChangeKind[] = ["queue-changed", "interactions-changed"];
@@ -136,7 +135,7 @@ describe("a thread change", () => {
 describe("a reconnect", () => {
   it("covers every query a frame can invalidate, since a gap in the socket produced none", () => {
     const everyFrame = [
-      apply({ changes: VAULT_CHANGE_KINDS, entity: "vault", type: "changed" }),
+      apply({ changes: SYNC_CHANGE_KINDS, entity: "sync", type: "changed" }),
       apply(threadChanged("t1", THREAD_CHANGE_KINDS)),
       apply({ changes: THREAD_CHANGE_KINDS, entity: "thread", type: "changed" }),
     ].flatMap((applied) => applied.invalidated);

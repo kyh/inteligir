@@ -186,7 +186,6 @@ describe("ids", () => {
 describe("noopNotifier", () => {
   it("swallows every notification", () => {
     expect(() => {
-      noopNotifier.notifyVault(["sync-status-changed"]);
       noopNotifier.notifyThread("thr_1", ["events-appended"]);
     }).not.toThrow();
   });

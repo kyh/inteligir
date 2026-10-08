@@ -23,6 +23,8 @@ export const threads = sqliteTable(
     // the lifecycle cas matches settles against it, so a late completion for an old turn cannot
     // settle the running one.
     activeTurnId: text("active_turn_id"),
+    // the note a notes-era thread was composed over, and that note's frontmatter `id` below:
+    // nothing reads or writes either since the cut, and both stay rather than cost a migration.
     originDocPath: text("origin_doc_path"),
     // no CHECK pairs them: sqlite cannot ADD a checked column without rebuilding the table, and
     // a rebuild cascades through the children's foreign keys mid-migration.
@@ -31,10 +33,6 @@ export const threads = sqliteTable(
     archivedAt: integer("archived_at"),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
-    // the origin note's frontmatter `id`, which a move anywhere (Finder, a pull, an agent's `mv`)
-    // keeps; origin_doc_path stays the path at compose time and answers for a note with none. no
-    // index: the listing filters by it (and by origin_doc_path) inside the (updated_at, id)
-    // partial-index scan, which a vault's thread count keeps cheap.
     originNoteId: text("origin_note_id"),
   },
   (table) => [
@@ -110,8 +108,8 @@ export const queuedThreadMessages = sqliteTable(
     sortKey: text("sort_key").notNull(),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
-    // json array of vault paths, null for none. Kept, unlike the view context the queue drops:
-    // an @-mention is part of what the user asked, not a statement about a screen since left.
+    // the notes a notes-era message attached by @-mention: nothing reads or writes it since the
+    // cut, and it stays rather than cost a migration.
     contextPaths: text("context_paths"),
     // the phone's dispatch this message carries out, so a claim that finds it queued here is a
     // duplicate and the request it drains into names it

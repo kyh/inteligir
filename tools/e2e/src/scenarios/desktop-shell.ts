@@ -12,7 +12,7 @@ const RAIL_DEADLINE_MS = 30_000;
 
 export const desktopShell: Scenario = {
   description:
-    "the built Tauri shell over WebDriver: its window signs in on the server's own origin, the socket reaches the rail, the pin and every permission refuse, and the server never outlives the shell",
+    "the built Tauri shell over WebDriver: its window signs in on the server's own origin and a first launch lands on /welcome, the socket reaches the rail, the pin and every permission refuse, and the server never outlives the shell",
   name: "desktop-shell",
   usesDesktopShell: true,
   async run(ctx) {
@@ -25,6 +25,8 @@ export const desktopShell: Scenario = {
     const url = await page.url();
     expect(url.startsWith(`${shell.serverOrigin}/`), `the window is not on the server: ${url}`);
     expect(!url.includes("handoff"), `the handoff's nonce stayed in the window's url: ${url}`);
+    // a fresh home's data dir holds no thread log yet, so this is its first launch
+    expectEq(new URL(url).pathname, "/welcome", "where a data dir's first launch lands");
 
     ctx.log(
       "an action made over the API reaches the rail: the cookie and the page's socket are live",

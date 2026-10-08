@@ -4,6 +4,7 @@
 // `{ reason }` for a refusal in the person's words; anything thrown is a fault. desktop-entry.ts
 // asks one per process.
 
+import { existsSync } from "node:fs";
 import { readCliVersion } from "../paths";
 import { isDirectory, resolveShellPath, runShell } from "./login-shell-path";
 import {
@@ -28,8 +29,9 @@ export const doorTargetArgs = (context: DoorContext): ResolveServerTargetArgs =>
   isPackaged: context.env.NODE_ENV === "production",
 });
 
-// the login shell's PATH, answered as what every node child the shell starts after runs with, and
-// the data dir the launch serves
+// the login shell's PATH, answered as what every node child the shell starts after runs with, the
+// data dir the launch serves, and whether it is the first: a data dir no server has opened yet
+// holds no thread log, so its window lands on /welcome rather than the workspace
 const launch = async (context: DoorContext): Promise<DoorReply> => {
   const { isPackaged } = doorTargetArgs(context);
   const notes: string[] = [];
@@ -54,7 +56,10 @@ const launch = async (context: DoorContext): Promise<DoorReply> => {
   if (resolved.kind === "refused") {
     return { reason: resolved.error };
   }
-  return { answer: { env, notes, target: { dataDir: resolved.target.dataDir } } };
+  const { dataDir, databasePath } = resolved.target;
+  return {
+    answer: { env, firstLaunch: !existsSync(databasePath), notes, target: { dataDir } },
+  };
 };
 
 // a browser holds no bearer, so "Open in Browser" signs one in through a handoff

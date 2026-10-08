@@ -14,7 +14,6 @@ import type { DbConnection, DbExecutor, DbTransaction } from "@repo/db/connectio
 import {
   appendEventsInTransaction,
   appendSyncedEventsInTransaction,
-  listThreadMetaEvents,
   storedTurnCompletion,
   storedTurnFailure,
   threadHasEvents,
@@ -190,7 +189,6 @@ const toWireThread = (row: ThreadRow, runsElsewhere: boolean): Thread => ({
   archivedAt: row.archivedAt,
   createdAt: row.createdAt,
   id: row.id,
-  originDocPath: row.originDocPath,
   providerId: row.providerId,
   runsElsewhere,
   status: row.status,
@@ -227,7 +225,7 @@ const toWirePendingInteraction = (row: PendingInteractionRow): PendingInteractio
   };
 };
 
-// the same parse the runtime's answer path runs, so a resolution this passes is never silently denied downstream.
+// the same parse the waiters' answer path runs, so a resolution this passes is never silently denied downstream.
 const invalidResolutionMessage = (payloadJson: string, resolution: string): string | null => {
   const payload = parseStoredApprovalPayload(payloadJson);
   if (payload === null) {
@@ -332,9 +330,6 @@ const projectThreadFactsInTransaction = (
       if (change.title) {
         buffer.notifyThread(threadId, ["title-changed"]);
       }
-      if (change.origin) {
-        buffer.notifyThread(threadId, ["origin-changed"]);
-      }
     } else if (event.type === "thread/archived" && archiveThreadInTransaction(tx, threadId)) {
       buffer.notifyThread(threadId, ["archived-changed"]);
       archived = true;
@@ -343,21 +338,12 @@ const projectThreadFactsInTransaction = (
   return archived;
 };
 
-// what a thread is as its first request leaves it: the name that request gave it and the note it
-// was started over. its harness is stated once a provider starts a turn on it.
-const threadIdentity = (row: ThreadRow): ThreadMetaEvent | null => {
-  const meta: ThreadMetaEvent = { scope: threadScope(), threadId: row.id, type: "thread/meta" };
-  if (row.title !== null) {
-    meta.title = row.title;
-  }
-  if (row.originDocPath !== null) {
-    meta.originDocPath = row.originDocPath;
-    if (row.originNoteId !== null) {
-      meta.originNoteId = row.originNoteId;
-    }
-  }
-  return meta.title === undefined && meta.originDocPath === undefined ? null : meta;
-};
+// what a thread is as its first request leaves it: the name that request gave it. its harness is
+// stated once a provider starts a turn on it.
+const threadIdentity = (row: ThreadRow): ThreadMetaEvent | null =>
+  row.title === null
+    ? null
+    : { scope: threadScope(), threadId: row.id, title: row.title, type: "thread/meta" };
 
 // a turn the vendor refused for the plan's usage limit or a sign-in would refuse the next message
 // the same way, so a settle on one leaves the queue for the user's next send rather than draining
@@ -499,19 +485,6 @@ export class ThreadService implements ProviderEventSink {
   private appendLocal(tx: DbTransaction, events: readonly ThreadEvent[]): void {
     appendEventsInTransaction(tx, events);
     this.sync?.enqueue(tx, events);
-  }
-
-  // a provider started a turn here, so the harness the row names is bound: the log states it once,
-  // and another device keeps it. the session id is this device's alone and never travels.
-  private stateHarnessInTransaction(tx: DbTransaction, threadId: string): void {
-    const providerId = getThread(tx, threadId)?.providerId ?? null;
-    if (
-      providerId === null ||
-      listThreadMetaEvents(tx, threadId).some((meta) => meta.providerId !== undefined)
-    ) {
-      return;
-    }
-    this.appendLocal(tx, [{ providerId, scope: threadScope(), threadId, type: "thread/meta" }]);
   }
 
   // a thread reaches another device with its first request, so a fact about one that never made
@@ -997,9 +970,6 @@ export class ThreadService implements ProviderEventSink {
         if (claimed !== null) {
           drains.push(claimed);
         }
-      }
-      if (args.origin === "local" && projected.some((event) => event.type === "turn/started")) {
-        this.stateHarnessInTransaction(tx, threadId);
       }
       return archivedHere;
     });

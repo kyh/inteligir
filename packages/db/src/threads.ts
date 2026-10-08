@@ -15,16 +15,8 @@ import { threads } from "./schema";
 
 export type ThreadRow = typeof threads.$inferSelect;
 
-// the note's path at compose time and its frontmatter `id`, null for a note that has none; the
-// columns are independent, so this shape is what keeps an id from arriving without its path.
-export interface ThreadOriginInput {
-  path: string;
-  noteId: string | null;
-}
-
 export interface CreateThreadInput {
   title?: string;
-  origin?: ThreadOriginInput;
 }
 
 export const createThread = (
@@ -40,8 +32,6 @@ export const createThread = (
       archivedAt: null,
       createdAt: now,
       id: createThreadId(),
-      originDocPath: input.origin?.path ?? null,
-      originNoteId: input.origin?.noteId ?? null,
       providerId: null,
       status: "idle",
       title: input.title ?? null,
@@ -59,7 +49,7 @@ export interface EnsureThreadOutcome {
 }
 
 // created with the id another device minted, not `createThread`'s: a device minting its own turns
-// one synced conversation into two. a pulled thread is created bare, its title, origin and harness
+// one synced conversation into two. a pulled thread is created bare, its title and harness
 // arriving as the log's thread/meta rows through `applyThreadMetaInTransaction`.
 export const ensureThreadInTransaction = (tx: DbTransaction, id: string): EnsureThreadOutcome => {
   const existing = tx.select().from(threads).where(eq(threads.id, id)).get();
@@ -96,7 +86,7 @@ export interface ThreadListQuery {
   after: ThreadListPosition | null;
   includeArchived: boolean;
   limit: number;
-  // text the title or the stored origin path holds, ascii case folded as LIKE folds it.
+  // text the title holds, ascii case folded as LIKE folds it.
   contains: string | null;
   running: boolean;
 }
@@ -121,7 +111,7 @@ const containsPredicate = (text: string | null): SQL | undefined => {
     return undefined;
   }
   const pattern = `%${text.replaceAll(/[\\%_]/gu, "\\$&")}%`;
-  return sql`(${threads.title} LIKE ${pattern} ESCAPE '\\' OR ${threads.originDocPath} LIKE ${pattern} ESCAPE '\\')`;
+  return sql`${threads.title} LIKE ${pattern} ESCAPE '\\'`;
 };
 
 const listSegment = (
@@ -202,45 +192,34 @@ export const archiveThreadInTransaction = (tx: DbTransaction, id: string): boole
 
 export interface ThreadMetaFacts {
   title?: string | undefined;
-  originDocPath?: string | undefined;
-  originNoteId?: string | undefined;
   providerId?: string | undefined;
 }
 
 export interface ThreadMetaChange {
   title: boolean;
-  origin: boolean;
 }
 
-// a title and an origin take the latest statement: a title a skipping build pulls again lands
-// after the first message already named the thread. an origin is stated as its path and its note's
-// id together, so an id never pairs with another statement's path. a bound harness stays, because
-// this device's provider session was opened on it.
+// a title takes the latest statement: a title a skipping build pulls again lands after the first
+// message already named the thread. a bound harness stays, because this device's provider session
+// was opened on it.
 export const applyThreadMetaInTransaction = (
   tx: DbTransaction,
   args: { threadId: string; facts: ThreadMetaFacts },
 ): ThreadMetaChange => {
   const row = getThread(tx, args.threadId);
   if (row === null) {
-    return { origin: false, title: false };
+    return { title: false };
   }
-  const { originDocPath, providerId, title } = args.facts;
+  const { providerId, title } = args.facts;
   const patch: Partial<typeof threads.$inferInsert> = {};
   if (title !== undefined && title !== row.title) {
     patch.title = title;
   }
-  if (originDocPath !== undefined) {
-    const originNoteId = args.facts.originNoteId ?? null;
-    if (originDocPath !== row.originDocPath || originNoteId !== row.originNoteId) {
-      patch.originDocPath = originDocPath;
-      patch.originNoteId = originNoteId;
-    }
-  }
   if (providerId !== undefined && row.providerId === null) {
     patch.providerId = providerId;
   }
-  const change = { origin: patch.originDocPath !== undefined, title: patch.title !== undefined };
-  if (!change.origin && !change.title && patch.providerId === undefined) {
+  const change = { title: patch.title !== undefined };
+  if (!change.title && patch.providerId === undefined) {
     return change;
   }
   tx.update(threads)
@@ -248,27 +227,6 @@ export const applyThreadMetaInTransaction = (
     .where(eq(threads.id, args.threadId))
     .run();
   return change;
-};
-
-export interface SetThreadProviderSessionArgs {
-  threadId: string;
-  providerId: string;
-  providerThreadId: string;
-}
-
-// no notification: runtime plumbing, not a fact a client renders.
-export const setThreadProviderSession = (
-  db: DbConnection,
-  args: SetThreadProviderSessionArgs,
-): void => {
-  db.update(threads)
-    .set({
-      providerId: args.providerId,
-      providerThreadId: args.providerThreadId,
-      updatedAt: Date.now(),
-    })
-    .where(eq(threads.id, args.threadId))
-    .run();
 };
 
 export type ApplyThreadLifecycleEventNoopReason =

@@ -83,10 +83,10 @@ describe("subscriptions", () => {
     h.client.start();
     const [socket] = h.sockets;
     expect(socket).toBeDefined();
-    h.client.subscribe({ kind: "vault" });
+    h.client.subscribe({ kind: "sync" });
     expect(socket?.sent).toEqual([]);
     socket?.open();
-    expect(socket?.sentFrames()).toEqual([{ target: { kind: "vault" }, type: "subscribe" }]);
+    expect(socket?.sentFrames()).toEqual([{ target: { kind: "sync" }, type: "subscribe" }]);
   });
 
   it("subscribes immediately when already connected", () => {
@@ -103,14 +103,14 @@ describe("subscriptions", () => {
     h.client.start();
     const [socket] = h.sockets;
     socket?.open();
-    const releaseA = h.client.subscribe({ kind: "vault" });
-    const releaseB = h.client.subscribe({ kind: "vault" });
+    const releaseA = h.client.subscribe({ kind: "sync" });
+    const releaseB = h.client.subscribe({ kind: "sync" });
     expect(socket?.sent).toHaveLength(1);
     releaseA();
     expect(socket?.sent).toHaveLength(1);
     releaseB();
     expect(socket?.sentFrames().at(-1)).toEqual({
-      target: { kind: "vault" },
+      target: { kind: "sync" },
       type: "unsubscribe",
     });
   });
@@ -120,8 +120,8 @@ describe("subscriptions", () => {
     h.client.start();
     const [socket] = h.sockets;
     socket?.open();
-    const release = h.client.subscribe({ kind: "vault" });
-    h.client.subscribe({ kind: "vault" });
+    const release = h.client.subscribe({ kind: "sync" });
+    h.client.subscribe({ kind: "sync" });
     release();
     release();
     const unsubscribes = socket?.sentFrames().filter((frame) => frame.type === "unsubscribe");
@@ -136,9 +136,9 @@ describe("messages", () => {
     const [socket] = h.sockets;
     socket?.open();
     socket?.receive({ type: "hello" });
-    socket?.receive({ changes: ["sync-status-changed"], entity: "vault", type: "changed" });
+    socket?.receive({ changes: ["sync-status-changed"], entity: "sync", type: "changed" });
     expect(h.changed).toEqual([
-      { changes: ["sync-status-changed"], entity: "vault", type: "changed" },
+      { changes: ["sync-status-changed"], entity: "sync", type: "changed" },
     ]);
   });
 
@@ -149,11 +149,11 @@ describe("messages", () => {
     socket?.open();
     socket?.receive({
       changes: ["sync-status-changed", "brand-new-kind"],
-      entity: "vault",
+      entity: "sync",
       type: "changed",
     });
     expect(h.changed).toEqual([
-      { changes: ["sync-status-changed"], entity: "vault", type: "changed" },
+      { changes: ["sync-status-changed"], entity: "sync", type: "changed" },
     ]);
   });
 
@@ -172,7 +172,7 @@ describe("reconnect", () => {
   it("reconnects after a drop and resubscribes every held target", async () => {
     const h = harness();
     h.client.start();
-    h.client.subscribe({ kind: "vault" });
+    h.client.subscribe({ kind: "sync" });
     h.client.subscribe({ kind: "thread-list" });
     const [first] = h.sockets;
     first?.open();
@@ -186,7 +186,7 @@ describe("reconnect", () => {
     const [, second] = h.sockets;
     second?.open();
     expect(second?.sentFrames()).toEqual([
-      { target: { kind: "vault" }, type: "subscribe" },
+      { target: { kind: "sync" }, type: "subscribe" },
       { target: { kind: "thread-list" }, type: "subscribe" },
     ]);
   });
@@ -194,7 +194,7 @@ describe("reconnect", () => {
   it("does not resubscribe targets released while disconnected", async () => {
     const h = harness();
     h.client.start();
-    const release = h.client.subscribe({ kind: "vault" });
+    const release = h.client.subscribe({ kind: "sync" });
     h.sockets[0]?.open();
     h.sockets[0]?.drop();
     release();
@@ -226,14 +226,14 @@ describe("reconnect", () => {
   it("reports a reconnect with the held targets — and never the first connect", async () => {
     const h = harness();
     h.client.start();
-    h.client.subscribe({ kind: "vault" });
+    h.client.subscribe({ kind: "sync" });
     h.sockets[0]?.open();
     expect(h.reconnected).toEqual([]);
 
     h.sockets[0]?.drop();
     await vi.advanceTimersByTimeAsync(500);
     h.sockets[1]?.open();
-    expect(h.reconnected).toEqual([[{ kind: "vault" }]]);
+    expect(h.reconnected).toEqual([[{ kind: "sync" }]]);
 
     h.sockets[1]?.drop();
     await vi.advanceTimersByTimeAsync(500);

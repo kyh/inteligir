@@ -18,6 +18,11 @@ use crate::commands::APP_WINDOW_COMMANDS;
 use crate::navigation::{self, ExternalOpens, Verdict};
 use crate::server_log::ServerLog;
 
+/// Where the app window lands on a first launch: the steps before the workspace.
+pub const WELCOME_PATH: &str = "/welcome";
+/// Where it lands on every other launch.
+pub const WORKSPACE_PATH: &str = "/";
+
 /// The title every window keeps; the page's own `<title>` never reaches it.
 pub fn app_title() -> &'static str {
     if cfg!(debug_assertions) {
@@ -118,8 +123,10 @@ pub struct AppWindow<'a> {
     pub label: &'a str,
     /// The server's origin, which the window is pinned to.
     pub origin: &'a str,
-    /// The one-time link the page signs in with, which lands it on the workspace.
+    /// The one-time link the page signs in with.
     pub handoff_url: &'a str,
+    /// Where the page lands once signed in.
+    pub path: &'a str,
     pub data_dir: &'a str,
     /// Where WebKitGTK keeps a data dir's store, for the platforms with no data-store identifier.
     pub webview_dir: std::path::PathBuf,
@@ -159,9 +166,11 @@ pub fn create_app_window<R: Runtime>(
     app: &AppHandle<R>,
     spec: &AppWindow<'_>,
 ) -> tauri::Result<WebviewWindow<R>> {
-    let url = Url::parse(spec.handoff_url).map_err(|_| {
+    let mut url = Url::parse(spec.handoff_url).map_err(|_| {
         tauri::Error::InvalidWebviewUrl("the server announced a handoff that is not a URL")
     })?;
+    // the server redeems the nonce on any path and answers that path without it
+    url.set_path(spec.path);
     grant_app_window(app, spec.label, spec.origin)?;
     let log = Arc::clone(&spec.log);
     let builder = pinned(

@@ -40,7 +40,6 @@ const MOVES_THE_LIST = {
   "archived-changed": true,
   "events-appended": false,
   "interactions-changed": false,
-  "origin-changed": true,
   "queue-changed": false,
   "status-changed": true,
   "thread-created": true,
@@ -51,7 +50,6 @@ const MOVES_THE_DETAIL = {
   "archived-changed": true,
   "events-appended": false,
   "interactions-changed": true,
-  "origin-changed": true,
   "queue-changed": true,
   "status-changed": true,
   "thread-created": true,
@@ -72,7 +70,7 @@ export class ChangeBatch {
 
   add(message: ChangedMessage): void {
     switch (message.entity) {
-      case "vault": {
+      case "sync": {
         if (message.changes.includes("sync-status-changed")) {
           this.syncStatusChanged = true;
         }
@@ -201,7 +199,7 @@ export const WorkspaceProvider = ({ children }: { children: React.ReactNode }) =
       },
     });
     invalidation.start();
-    invalidation.subscribe({ kind: "vault" });
+    invalidation.subscribe({ kind: "sync" });
     invalidation.subscribe({ kind: "thread-list" });
     return () => {
       invalidation.dispose();

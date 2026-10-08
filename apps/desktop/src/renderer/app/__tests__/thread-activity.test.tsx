@@ -22,7 +22,6 @@ const thread = (over: Partial<Thread> = {}): Thread => ({
   archivedAt: null,
   createdAt: 0,
   id: "thr_1",
-  originDocPath: null,
   providerId: null,
   runsElsewhere: false,
   status: "idle",

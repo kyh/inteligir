@@ -12,11 +12,7 @@ import {
   listQueuedThreadMessages,
   releaseAllQueuedMessageClaims,
 } from "@repo/db/queued-messages";
-import {
-  applyThreadLifecycleEventInTransaction,
-  getThread,
-  setThreadProviderSession,
-} from "@repo/db/threads";
+import { applyThreadLifecycleEventInTransaction, getThread } from "@repo/db/threads";
 import { serverMessageLenientSchema } from "@repo/contract/local/notifications";
 import type { ServerMessage } from "@repo/contract/local/notifications";
 import { WS_PATH } from "@repo/contract/local/routes";
@@ -256,8 +252,6 @@ describe("a thread's own facts", () => {
         ),
         synced(
           {
-            originDocPath: "Offsite.md",
-            originNoteId: "note-offsite",
             providerId: "codex",
             scope: threadScope(),
             threadId,
@@ -273,13 +267,11 @@ describe("a thread's own facts", () => {
 
     const { thread } = await client.threads.get({ threadId });
     expect(thread).toMatchObject({
-      originDocPath: "Offsite.md",
       providerId: "codex",
       title: "Offsite",
     });
     expect(thread.archivedAt).not.toBeNull();
-    expect(getThread(db, threadId)?.originNoteId).toBe("note-offsite");
-    for (const kind of ["title-changed", "origin-changed", "archived-changed"]) {
+    for (const kind of ["title-changed", "archived-changed"]) {
       expect(changes.filter((change) => change === `${threadId} ${kind}`)).toHaveLength(1);
     }
   });
@@ -329,22 +321,6 @@ describe("a thread's own facts", () => {
         type: "thread/meta",
       },
     ]);
-  });
-
-  it("state a bound harness with the first turn a provider starts, once", async () => {
-    const { client, db } = await bootThreadHarness({ mode: "manual" });
-    const threadId = await createThread(client);
-    await client.threads.send({ text: "unbound", threadId });
-    await client.threads.interrupt({ threadId });
-    setThreadProviderSession(db, { providerId: "codex", providerThreadId: "pt_1", threadId });
-    await client.threads.send({ text: "bound", threadId });
-    await client.threads.interrupt({ threadId });
-    await client.threads.send({ text: "again", threadId });
-
-    const stated = listStoredThreadEvents(db, { threadId }).flatMap(({ event }) =>
-      event.type === "thread/meta" && event.providerId !== undefined ? [event.providerId] : [],
-    );
-    expect(stated).toEqual(["codex"]);
   });
 
   it("reach the log only for a thread that made a request", async () => {
@@ -987,7 +963,7 @@ describe("a phone's request", () => {
     });
 
     expect(outcome).toEqual({ kind: "delivered" });
-    expect(getThread(db, threadId)).toMatchObject({ originDocPath: null, status: "active" });
+    expect(getThread(db, threadId)).toMatchObject({ status: "active" });
     expect(requestsIn(db, threadId)).toEqual([
       {
         dispatchId: DISPATCH,

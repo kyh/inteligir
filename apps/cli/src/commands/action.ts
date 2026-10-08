@@ -227,9 +227,6 @@ export const actionCommand = (deps: CliDeps) =>
           writeLines([
             `Thread ${detail.thread.id} — ${detail.thread.status}`,
             ...(detail.thread.title === null ? [] : [`Title: ${detail.thread.title}`]),
-            ...(detail.thread.originDocPath === null
-              ? []
-              : [`Doc: ${detail.thread.originDocPath}`]),
             ...(detail.pendingInteractions.length === 0
               ? []
               : [

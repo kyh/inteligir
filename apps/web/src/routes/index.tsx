@@ -65,9 +65,7 @@ const Page = () => (
           <MacLogoIcon className="size-5 shrink-0" />
           Download for Mac
         </a>
-        <span className="text-center text-xs text-foreground/60">
-          For Macs with Apple silicon. The agent works with a paid Claude plan or any ChatGPT plan.
-        </span>
+        <span className="text-center text-xs text-foreground/60">For Macs with Apple silicon.</span>
       </div>
       <footer className="flex justify-center pb-6">
         <Link

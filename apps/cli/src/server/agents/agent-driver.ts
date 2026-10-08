@@ -2,15 +2,19 @@
 // a send synchronously with PROVIDER_UNAVAILABLE rather than wedging a thread, and `scripted` is
 // the in-process fake the scenario suite drives.
 
+import type { DbConnection } from "@repo/db/connection";
 import type { DbNotifier } from "@repo/domain/notifier";
 import type { AgentStatus } from "@repo/contract/local/system/system-schema";
 import type { CreateTurnDriver } from "../threads/turn-driver";
 import { createUnavailableTurnDriver } from "../threads/turn-driver";
 import type { AppConfig } from "../config";
+import { createInteractionWaiters } from "./interaction-waiters";
 import { createScriptedTurnDriverFactory } from "./scripted-driver";
 
 export interface ResolveAgentDriverArgs {
   config: Pick<AppConfig, "agent">;
+  // where a driver's approvals are parked, and who hears them.
+  db: DbConnection;
   notifier: DbNotifier;
 }
 
@@ -41,9 +45,27 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
       return unavailable(AGENT_OFF, { detail: AGENT_OFF, mode, runtime: "off" });
     }
     case "scripted": {
+      const { db, notifier } = args;
+      let disposed = false;
+      const waiters = createInteractionWaiters({
+        db,
+        debug: (message) => {
+          console.warn(`scripted agent: ${message}`);
+        },
+        notifier,
+      });
       return {
-        createTurnDriver: createScriptedTurnDriverFactory(),
-        dispose: noDispose,
+        createTurnDriver: createScriptedTurnDriverFactory({
+          db,
+          disposed: () => disposed,
+          notifier,
+          waiters,
+        }),
+        dispose: async () => {
+          disposed = true;
+          waiters.cancel();
+          await Promise.resolve();
+        },
         status: () => ({ detail: null, mode, runtime: "scripted" }),
       };
     }

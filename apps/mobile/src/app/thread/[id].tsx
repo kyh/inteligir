@@ -17,6 +17,7 @@ import {
   DECISION_LABELS,
   dispatchCaption,
   localThreadTitle,
+  threadComposer,
   WORKING_CAPTION,
 } from "@/dispatch/dispatch-projection";
 import type { ApprovalView } from "@/dispatch/dispatch-projection";
@@ -31,7 +32,7 @@ import {
   useLiveItems,
   useThread,
 } from "@/lib/app-runtime";
-import { firstParam } from "@/lib/routes";
+import { firstParam, startsHere } from "@/lib/routes";
 import { MONO_FONT, RADIUS, SPACE, useTheme } from "@/lib/theme";
 import type { ThreadDisplayItem } from "@/sync/thread-projection";
 import { DISPATCH_MAX_CHARS } from "@repo/contract/cloud/dispatch/dispatch-schema";
@@ -403,12 +404,13 @@ const Composer = ({
 const Separator = () => <View style={styles.separator} />;
 
 // A synced thread — the Mac agent's work, mirrored — with what this phone has asked of it and not
-// yet seen in the log. A thread this phone has neither synced nor asked anything of draws no
-// composer: the phone replies to a Mac's thread, it does not start one.
+// yet seen in the log. A thread this phone opened to start (New request, `start`) asks for its
+// first request, which a Mac claims from the dispatch inbox; one it has neither synced, asked
+// anything of nor opened to start draws no composer.
 const ThreadScreen = () => {
   const theme = useTheme();
   const headerHeight = useHeaderHeight();
-  const params = useLocalSearchParams<{ id: string | string[] }>();
+  const params = useLocalSearchParams<{ id: string | string[]; start?: string | string[] }>();
   const threadId = firstParam(params.id) ?? "";
   const thread = useThread(threadId);
   const live = useLiveItems(threadId);
@@ -416,8 +418,9 @@ const ThreadScreen = () => {
   const list = useRef<FlatList<ThreadRow>>(null);
 
   const fresh = thread === null && pending.length === 0;
-  const canCompose = thread === null ? !fresh : !thread.archived;
-  const title = thread?.title ?? localThreadTitle(pending) ?? "Thread";
+  const composer = threadComposer({ pending, startsHere: startsHere(params.start), thread });
+  const title =
+    thread?.title ?? localThreadTitle(pending) ?? (composer === "ask" ? "New request" : "Thread");
 
   const running = thread?.running === true;
   const rows: ThreadRow[] = [
@@ -454,7 +457,13 @@ const ThreadScreen = () => {
     }
   };
 
-  const emptyLine = fresh ? "This thread has not synced to this device yet." : null;
+  let emptyLine: string | null = null;
+  if (fresh) {
+    emptyLine =
+      composer === "ask"
+        ? "Ask your Mac's agent. It runs on your Mac, and its answer shows up here."
+        : "This thread has not synced to this device yet.";
+  }
 
   return (
     <SafeAreaView
@@ -486,7 +495,9 @@ const ThreadScreen = () => {
             <Text style={[styles.body, { color: theme.mutedForeground }]}>{emptyLine}</Text>
           </View>
         )}
-        {canCompose ? <Composer placeholder="Reply…" onSend={send} /> : null}
+        {composer === null ? null : (
+          <Composer placeholder={composer === "ask" ? "Ask the agent…" : "Reply…"} onSend={send} />
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

@@ -11,7 +11,12 @@ import { createFakeCloud, logRow } from "../../sync/__tests__/fakes";
 import { createSyncRuntime } from "../../sync/sync-runtime";
 import type { SyncStore } from "../../sync/sync-store";
 import { projectThread } from "../../sync/thread-projection";
-import { dispatchCaption, threadDispatches, threadListEntries } from "../dispatch-projection";
+import {
+  dispatchCaption,
+  threadComposer,
+  threadDispatches,
+  threadListEntries,
+} from "../dispatch-projection";
 import { createDispatchRuntime, DISPATCH_STATUS_POLL_MS } from "../dispatch-runtime";
 import type { DesktopsOnline, DispatchView } from "../dispatch-runtime";
 import { createFakeInbox } from "./fake-inbox";
@@ -138,6 +143,35 @@ describe("the phone's requests to a Mac", () => {
       phase: { kind: "waiting" },
       text: "summarize my week",
     });
+  });
+
+  it("starts a thread the phone opened as new: it asks, and its first send is a turn request", async () => {
+    const inbox = createFakeInbox();
+    const { dispatch } = phoneOver(inbox, openTempDb());
+    const threadId = dispatch.newThreadId();
+    const opened = (startsHere: boolean) =>
+      threadComposer({
+        pending: threadDispatches(threadId, null, dispatch.get()).pending,
+        startsHere,
+        thread: null,
+      });
+    expect(opened(true)).toBe("ask");
+    expect(opened(false)).toBeNull();
+
+    const id = idOf(await dispatch.askAgent({ text: "Run the tests", threadId }));
+    await dispatch.sendNow();
+
+    expect(inbox.creates).toStrictEqual([{ id, kind: "turn", text: "Run the tests", threadId }]);
+    expect(opened(false)).toBe("reply");
+  });
+
+  it("offers no composer on an archived thread, and a reply on a live one", () => {
+    expect(
+      threadComposer({ pending: [], startsHere: true, thread: { archived: true } }),
+    ).toBeNull();
+    expect(threadComposer({ pending: [], startsHere: false, thread: { archived: false } })).toBe(
+      "reply",
+    );
   });
 
   it("lists a new thread before any Mac has it", async () => {

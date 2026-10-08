@@ -207,3 +207,22 @@ export const localThreadTitle = (pending: readonly TurnDispatch[]): string | nul
   const [first] = pending;
   return first === undefined ? null : (deriveThreadTitle(first.text) ?? UNTITLED_THREAD);
 };
+
+// what the thread view offers to type into: a reply on a thread a Mac or this phone has started, a
+// first request on one this phone opened to start (its id is new, so no Mac has it yet), and
+// nothing on an archived thread or one that has not synced here.
+export type ThreadComposer = "reply" | "ask" | null;
+
+export const threadComposer = (args: {
+  thread: Pick<ThreadProjection, "archived"> | null;
+  pending: readonly TurnDispatch[];
+  startsHere: boolean;
+}): ThreadComposer => {
+  if (args.thread !== null) {
+    return args.thread.archived ? null : "reply";
+  }
+  if (args.pending.length > 0) {
+    return "reply";
+  }
+  return args.startsHere ? "ask" : null;
+};

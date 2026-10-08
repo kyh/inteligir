@@ -29,13 +29,15 @@ describe("resolveServerTarget", () => {
       homeDir,
       isPackaged: true,
     });
-    expect(resolved).toEqual({
+    const dataDir = path.join(homeDir, PROD_DATA_DIR_NAME);
+    expect(resolved).toMatchObject({
       kind: "resolved",
-      target: {
-        dataDir: path.join(homeDir, PROD_DATA_DIR_NAME),
-        dataDirSource: "default",
-      },
+      target: { dataDir, dataDirSource: "default" },
     });
+    // the thread log a boot opens lives in the data dir it serves
+    expect(resolved.kind === "resolved" && path.dirname(resolved.target.databasePath)).toBe(
+      dataDir,
+    );
   });
 
   it("a checkout resolves the per-checkout dev instance, whatever NODE_ENV says", () => {

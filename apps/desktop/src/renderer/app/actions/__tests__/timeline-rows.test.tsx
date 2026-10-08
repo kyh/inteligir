@@ -2,7 +2,6 @@
 
 import type {
   TimelineCommandWorkRow,
-  TimelineConversationRow,
   TimelineRow,
   TimelineTurnRow,
 } from "@repo/contract/local/thread-timeline";
@@ -35,7 +34,6 @@ const base = { createdAt: 1000, threadId: "thr_1" };
 
 const assistant = (text: string, seq: number): TimelineRow => ({
   ...base,
-  contextPaths: [],
   id: "item:turn_1:item_a",
   kind: "conversation",
   role: "assistant",
@@ -43,7 +41,6 @@ const assistant = (text: string, seq: number): TimelineRow => ({
   sourceSeqStart: 5,
   text,
   turnId: "turn_1",
-  viewContext: null,
 });
 
 const pendingTurn: TimelineTurnRow = {
@@ -149,12 +146,8 @@ it("names the lines a command's head leaves out", () => {
   expect(view.container.textContent).toContain("9960 more lines");
 });
 
-const userMessage = (
-  viewContext: TimelineConversationRow["viewContext"],
-  contextPaths: string[] = [],
-): TimelineRow => ({
+const userMessage = (): TimelineRow => ({
   ...base,
-  contextPaths,
   id: "user:1",
   kind: "conversation",
   role: "user",
@@ -162,36 +155,9 @@ const userMessage = (
   sourceSeqStart: 1,
   text: "make this shorter",
   turnId: null,
-  viewContext,
 });
 
-it("attributes a user message to what the sender was looking at", () => {
-  const view = render(
-    <List
-      rows={[
-        userMessage({
-          resource: "Notes/Plans.md",
-          revision: "a".repeat(64),
-          surface: "doc",
-        }),
-      ]}
-    />,
-  );
-
-  expect(view.container.textContent).toContain("make this shorter");
-  expect(view.container.textContent).toContain("Notes/Plans.md");
-  expect(view.container.textContent).not.toContain("a".repeat(64));
-});
-
-it("renders a message with no context as the bubble alone", () => {
-  const view = render(<List rows={[userMessage(null)]} />);
+it("renders a user message as its bubble alone", () => {
+  const view = render(<List rows={[userMessage()]} />);
   expect(view.container.textContent).toBe("make this shorter");
-});
-
-it("draws the notes a message attached under its bubble, apart from the text", () => {
-  const view = render(<List rows={[userMessage(null, ["Notes/Plans.md", "Notes/Goals.md"])]} />);
-  const bubble = view.getByText("make this shorter");
-  expect(bubble.textContent).toBe("make this shorter");
-  expect(view.getByText("Notes/Plans.md")).toBeTruthy();
-  expect(view.getByText("Notes/Goals.md")).toBeTruthy();
 });

@@ -2,7 +2,8 @@ import { Stack, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { logout, syncNow, useSyncStatus, useThreadList } from "@/lib/app-runtime";
+import { logout, newThreadId, syncNow, useSyncStatus, useThreadList } from "@/lib/app-runtime";
+import type { ThreadParams } from "@/lib/routes";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 import type { SyncStatus } from "@/sync/sync-runtime";
 
@@ -11,6 +12,12 @@ const styles = StyleSheet.create({
   empty: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96 },
   footer: { borderTopWidth: 1, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
   list: { paddingBottom: 32, paddingHorizontal: SPACE.lg },
+  newButton: {
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    paddingHorizontal: SPACE.lg,
+    paddingVertical: SPACE.sm,
+  },
   pressed70: { opacity: 0.7 },
   pressed80: { opacity: 0.8 },
   screen: { flex: 1 },
@@ -97,6 +104,20 @@ const HomeScreen = () => {
           {describeStatus(status)}
         </Text>
         <View style={styles.syncActions}>
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.newButton,
+              { borderColor: theme.border },
+              pressed && styles.pressed80,
+            ]}
+            onPress={() => {
+              const params: ThreadParams = { id: newThreadId(), start: "1" };
+              router.push({ params, pathname: "/thread/[id]" });
+            }}
+          >
+            <Text style={[styles.smallLabel, { color: theme.foreground }]}>New request</Text>
+          </Pressable>
           <Pressable
             style={({ pressed }) => [
               styles.syncButton,

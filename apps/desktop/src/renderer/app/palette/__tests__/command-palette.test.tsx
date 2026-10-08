@@ -93,7 +93,6 @@ const ACTION: Thread = {
   archivedAt: null,
   createdAt: 1,
   id: "thr_1",
-  originDocPath: null,
   providerId: null,
   runsElsewhere: false,
   status: "idle",

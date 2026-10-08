@@ -34,7 +34,6 @@ interface Harness {
   db: DbConnection;
   threadId: string;
   waiters: InteractionWaiters;
-  settledThreads: string[];
   debugLines: string[];
 }
 
@@ -45,7 +44,6 @@ const makeHarness = (): Harness => {
     closeConnection(db);
   });
   const threadId = createThread(db, noopNotifier, {}).id;
-  const settledThreads: string[] = [];
   const debugLines: string[] = [];
   const waiters = createInteractionWaiters({
     db,
@@ -53,11 +51,8 @@ const makeHarness = (): Harness => {
       debugLines.push(message);
     },
     notifier: noopNotifier,
-    onWaitSettled: (settled) => {
-      settledThreads.push(settled);
-    },
   });
-  return { db, debugLines, settledThreads, threadId, waiters };
+  return { db, debugLines, threadId, waiters };
 };
 
 const requestFor = (threadId: string, requestKey = "req-1"): PendingInteractionCreate => ({
@@ -83,7 +78,7 @@ const resolvedRow = (id: string, threadId: string, resolution: string): PendingI
 
 describe("createInteractionWaiters", () => {
   it("parks the provider on the row and answers it from the recorded resolution", async () => {
-    const { db, threadId, waiters, settledThreads } = makeHarness();
+    const { db, threadId, waiters } = makeHarness();
     const parked = waiters.park(requestFor(threadId), "turn_host");
 
     const [row] = listOpenPendingInteractions(db, threadId);
@@ -96,7 +91,6 @@ describe("createInteractionWaiters", () => {
     waiters.resolve(resolvedRow(row.id, threadId, "allow_once"));
     await expect(parked).resolves.toEqual({ decision: "allow_once" });
     expect(waiters.hasParked(threadId)).toBe(false);
-    expect(settledThreads).toEqual([threadId]);
   });
 
   it("denies an unparseable resolution rather than passing it through", async () => {
@@ -112,9 +106,9 @@ describe("createInteractionWaiters", () => {
     expect(debugLines.some((line) => line.includes("unparseable"))).toBe(true);
   });
 
-  it("times out onto a deny, interrupting the row and restarting the clock", async () => {
+  it("times out onto a deny, interrupting the row", async () => {
     vi.useFakeTimers();
-    const { db, threadId, waiters, settledThreads } = makeHarness();
+    const { db, threadId, waiters } = makeHarness();
     const parked = waiters.park(requestFor(threadId), null);
     const [row] = listOpenPendingInteractions(db, threadId);
     if (row === undefined) {
@@ -124,7 +118,6 @@ describe("createInteractionWaiters", () => {
     await vi.advanceTimersByTimeAsync(INTERACTION_TIMEOUT_MS);
     await expect(parked).resolves.toEqual({ decision: "deny" });
     expect(getPendingInteraction(db, row.id)?.status).toBe("interrupted");
-    expect(settledThreads).toEqual([threadId]);
   });
 
   it("answers a row the store already resolved without parking anything", async () => {

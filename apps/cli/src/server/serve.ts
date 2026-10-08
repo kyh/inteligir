@@ -141,8 +141,8 @@ const boot = async (
       openSocket: createCloudSocketOpener((url, headers) => new WebSocket(url, { headers })),
     },
     config,
-    driver: ({ config: driverConfig, bus }) =>
-      resolveAgentDriver({ config: driverConfig, notifier: bus }),
+    driver: ({ config: driverConfig, bus, db }) =>
+      resolveAgentDriver({ config: driverConfig, db, notifier: bus }),
     servesUi: clientDir !== null || uiDev !== null,
     teardown,
     version,

@@ -23,7 +23,8 @@ in the CLI, and the shell asks it through the CLI's desktop entry
 (`apps/cli/src/desktop/desktop-entry.ts`, built as `dist/desktop.js`): one
 question per process, answered as one JSON line, `{"answer": …}` or
 `{"reason": …}` for a refusal in the person's words. `launch` answers the data
-dir the launch serves and the login shell's PATH (below); `handoff` mints a
+dir the launch serves, whether it is that data dir's first launch, and the
+login shell's PATH (below); `handoff` mints a
 browser's sign-in; and `serve` is the server itself. A question costs a node
 start, about 0.2s, paid once a launch. The wire breaks freely, since both ends ship in one
 bundle, and `tools/repo-guards/src/desktop-shell-wire.test.ts` holds the
@@ -31,10 +32,13 @@ words the two languages share.
 
 ## A launch goes straight to the server's page
 
-There is no first run: every launch asks the door which data dir it serves,
-starts (or adopts) that server, and opens the window on it. `/welcome`
-(`src/renderer/routes/_workspace/welcome.tsx`) still draws the account step
-over the workspace like Settings, with Skip for now, for whoever links to it.
+There is no first-run window: every launch asks the door which data dir it
+serves, starts (or adopts) that server, and opens the window on it. The first
+launch of a data dir, one no server has opened yet (it holds no thread log),
+lands on `/welcome` (`src/renderer/routes/_workspace/welcome.tsx`), which
+draws the account step over the workspace like Settings, with Skip for now;
+every later launch lands on the workspace (`WELCOME_PATH` and
+`WORKSPACE_PATH` in `src-tauri/src/window.rs`).
 
 ## The window is the server's own page
 

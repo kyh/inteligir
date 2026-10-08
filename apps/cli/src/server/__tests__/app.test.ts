@@ -497,11 +497,11 @@ describe("the real socket upgrade", () => {
     const hello = await nextFrame();
     expect(hello).toEqual({ type: "hello" });
 
-    socket.send(JSON.stringify({ target: { kind: "vault" }, type: "subscribe" }));
+    socket.send(JSON.stringify({ target: { kind: "sync" }, type: "subscribe" }));
     // a notification sent before the subscribe lands is dropped, so re-notify on every probe.
     const changed = await vi.waitFor(
       () => {
-        bus.notifyVault(["sync-status-changed"]);
+        bus.notifySync(["sync-status-changed"]);
         const frame = frames.shift();
         if (frame === undefined) {
           throw new Error("no changed frame yet");
@@ -512,7 +512,7 @@ describe("the real socket upgrade", () => {
     );
     expect(changed).toEqual({
       changes: ["sync-status-changed"],
-      entity: "vault",
+      entity: "sync",
       type: "changed",
     });
   });
