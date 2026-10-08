@@ -11,8 +11,8 @@ const TABLE = "apps/desktop/src/renderer/app/prefs.ts";
 const KEYED_ACCESS =
   /\b(?:localStorage|sessionStorage)\s*\.\s*(?:getItem|setItem|removeItem)\s*\(/u;
 
-// every row is `pref("<key>", …)` or `unsetPref("<key>", …)`, so the key set is read off the table
-const ROW_KEY = /\b(?:pref|unsetPref)\(\s*"(?<key>[^"]+)"/gu;
+// every row is `pref("<key>", …)`, so the key set is read off the table
+const ROW_KEY = /\bpref\(\s*"(?<key>[^"]+)"/gu;
 
 const ELSEWHERE = new Map<string, string>([
   [
@@ -22,10 +22,6 @@ const ELSEWHERE = new Map<string, string>([
   [
     "apps/web/src/components/theme-provider.tsx",
     "the marketing site is another program on another origin, with its own theme key; the shell's table is not its storage",
-  ],
-  [
-    "packages/editor/src/heading-collapse.tsx",
-    "the editor's own per-note fold state: @repo/editor is hosted by the shell and cannot reach its table",
   ],
   [
     "packages/ui/src/lib/theme.tsx",

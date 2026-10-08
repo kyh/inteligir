@@ -2,7 +2,7 @@
 // tests'. rows cross as `unknown` because a column's type is the file's to say, not the query's;
 // each call site parses what it selected.
 
-export type SqlValue = string | number | null;
+type SqlValue = string | number | null;
 
 export interface SqlExecutor {
   // statements without parameters, several allowed

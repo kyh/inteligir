@@ -7,7 +7,6 @@
   "build": {
     "beforeDevCommand": "pnpm exec vite",
     "devUrl": "http://localhost:31000",
-    "frontendDist": "../dist/first-run",
     "removeUnusedCommands": true
   },
   "app": {

@@ -9,10 +9,8 @@ import type { Scenario } from "../harness/scenario";
 // the shell's own choice (apps/desktop/src-tauri/src/diagnostics.rs) and the log it keeps of the
 // child it starts (apps/desktop/src-tauri/src/server_log.rs)
 const DIAGNOSTICS_FILE = "diagnostics.json";
-const WATCHED_NOTE = "Traced.md";
 const LOG_DEADLINE_MS = 60_000;
 const PAGE_DEADLINE_MS = 30_000;
-const WATCH_ROUND_MS = 5000;
 
 const diagnosticsStateSchema = z.looseObject({
   debug: z.boolean(),
@@ -34,35 +32,9 @@ const seedChoice =
 const logLines = async (shell: DesktopShell): Promise<string[]> =>
   await shell.serverLog(shell.target());
 
-// rewritten each round: the first write can land before the watcher subscribes
-const writeUntilTraced = async (shell: DesktopShell): Promise<void> => {
-  let round = 0;
-  let rewriteAt = 0;
-  await pollUntil(
-    async () => {
-      if (Date.now() >= rewriteAt) {
-        await writeFile(
-          path.join(shell.target().vaultDir, WATCHED_NOTE),
-          `# Traced\n\nround ${round}\n`,
-        );
-        round += 1;
-        rewriteAt = Date.now() + WATCH_ROUND_MS;
-      }
-      return await logLines(shell);
-    },
-    (lines) =>
-      lines.some((line) => line.includes("[debug:watcher]") && line.includes(WATCHED_NOTE)),
-    {
-      deadlineMs: LOG_DEADLINE_MS,
-      describe: (lines) =>
-        `no [debug:watcher] line names ${WATCHED_NOTE} in the server's log:\n${lines.join("\n")}`,
-    },
-  );
-};
-
 export const desktopDiagnostics: Scenario = {
   description:
-    "the shell's debug-logging choice, kept in its own folder, reaches the server it starts, whose output always lands in the data dir's logs/server.log: off, the boot line and no trace; on, an external write traced there, and turning it off over the bridge asks for a restart",
+    "the shell's debug-logging choice, kept in its own folder, reaches the server it starts, whose output always lands in the data dir's logs/server.log: off, the boot line and no trace; on, the shell says it started its server tracing, and turning it off over the bridge asks for a restart",
   name: "desktop-diagnostics",
   // the shell boots twice
   timeoutMs: 300_000,
@@ -83,12 +55,9 @@ export const desktopDiagnostics: Scenario = {
     // the same scratch home: the next launch appends to this log, so its traces are its own
     await quiet.quit();
 
-    ctx.log("seeded on: an external write is traced into the same file");
+    ctx.log("seeded on: the bridge reports the choice, and turning it off asks for a restart");
     const traced = await ctx.desktopShell({ seedOwnDir: seedChoice(true) });
-    await writeUntilTraced(traced);
-
-    ctx.log("the bridge reports the choice, and turning it off asks for a restart");
-    // the trace is the server's; the window's page may still be loading
+    // the window's page may still be loading
     await traced.window.waitUntil("window.desktopBridge", PAGE_DEADLINE_MS);
     const state = await traced.window.runAsync(
       "window.desktopBridge.diagnostics.getState().then(done)",

@@ -136,8 +136,10 @@ describe("messages", () => {
     const [socket] = h.sockets;
     socket?.open();
     socket?.receive({ type: "hello" });
-    socket?.receive({ changes: ["files-changed"], entity: "vault", type: "changed" });
-    expect(h.changed).toEqual([{ changes: ["files-changed"], entity: "vault", type: "changed" }]);
+    socket?.receive({ changes: ["sync-status-changed"], entity: "vault", type: "changed" });
+    expect(h.changed).toEqual([
+      { changes: ["sync-status-changed"], entity: "vault", type: "changed" },
+    ]);
   });
 
   it("tolerates unknown change kinds from a newer server", () => {
@@ -146,11 +148,13 @@ describe("messages", () => {
     const [socket] = h.sockets;
     socket?.open();
     socket?.receive({
-      changes: ["files-changed", "brand-new-kind"],
+      changes: ["sync-status-changed", "brand-new-kind"],
       entity: "vault",
       type: "changed",
     });
-    expect(h.changed).toEqual([{ changes: ["files-changed"], entity: "vault", type: "changed" }]);
+    expect(h.changed).toEqual([
+      { changes: ["sync-status-changed"], entity: "vault", type: "changed" },
+    ]);
   });
 
   it("drops undecodable frames without dying", () => {

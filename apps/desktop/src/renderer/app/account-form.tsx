@@ -1,5 +1,5 @@
-// The one account form, which the rail's dialog, Settings › Account and the first run's account
-// step draw over `useCloudSession`. Creating the account signs this device in with it, so nobody
+// The one account form, which the rail's dialog, Settings › Account and `/welcome`'s account step
+// draw over `useCloudSession`. Creating the account signs this device in with it, so nobody
 // meets a second sign-in right after the first.
 
 import {
@@ -7,10 +7,8 @@ import {
   CLOUD_PASSWORD_MIN_LENGTH,
   cloudForgotPasswordPageUrl,
 } from "@repo/contract/local/cloud/cloud-schema";
-import type { VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
 import { Button } from "@repo/ui/components/button";
 import { useId, useState } from "react";
-import { accountOffer } from "./account-offer";
 import type { CloudSession } from "./cloud-session";
 import { LabelledField } from "./labelled-field";
 
@@ -19,19 +17,11 @@ type AccountFormMode = "sign-in" | "create";
 export interface AccountFormProps {
   cloudUrl: string;
   session: Pick<CloudSession, "pending" | "refusal" | "signIn" | "signUp">;
-  // what an account does for these notes depends on where they already sync, so the form says
-  // nothing of it until the vault's status is known
-  vault: VaultStatusResponse | undefined;
-  // absent, sign-in: only a first run meets someone who most likely has an invite and no account
+  // absent, sign-in: only `/welcome` meets someone who most likely has an invite and no account
   initialMode?: AccountFormMode;
 }
 
-export const AccountForm = ({
-  cloudUrl,
-  session,
-  vault,
-  initialMode = "sign-in",
-}: AccountFormProps) => {
+export const AccountForm = ({ cloudUrl, session, initialMode = "sign-in" }: AccountFormProps) => {
   const formId = useId();
   const [mode, setMode] = useState<AccountFormMode>(initialMode);
   // a refusal answers the mode it was asked in; switched away, it would sit under the wrong fields
@@ -63,9 +53,9 @@ export const AccountForm = ({
         }
       }}
     >
-      {vault === undefined ? null : (
-        <p className="text-body text-muted-foreground">{accountOffer(vault).lead}</p>
-      )}
+      <p className="text-body text-muted-foreground">
+        An account carries your conversations with the agent to your other devices and your iPhone.
+      </p>
       {creating ? (
         <LabelledField
           id={`${formId}-name`}

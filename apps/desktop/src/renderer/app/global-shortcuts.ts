@@ -1,4 +1,5 @@
-// a key both this table and `packages/editor/src/editor-shortcuts.ts` claim runs both.
+// every chord the window listens for, one row each: a label is spelled from its row, so a
+// rebinding leaves no stale one.
 
 import { hotkeyCaps, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
@@ -7,11 +8,7 @@ import { useEffect, useEffectEvent } from "react";
 export type GlobalShortcutAction =
   | "open-action-composer"
   | "open-palette"
-  | "find-in-note"
-  | "open-headings"
   | "open-settings"
-  | "open-daily-note"
-  | "toggle-zen"
   | "toggle-rail"
   | "toggle-panel";
 
@@ -40,17 +37,13 @@ export type GlobalShortcut = ModShortcut | BareShortcut;
 export const GLOBAL_SHORTCUTS: readonly GlobalShortcut[] = [
   { action: "open-action-composer", key: "k", label: "Ask the agent" },
   { action: "open-palette", key: "p", label: "Command palette" },
-  { action: "open-headings", key: "o", label: "Go to heading", shift: true },
-  { action: "find-in-note", key: "f", label: "Find in note" },
-  { action: "open-daily-note", key: "d", label: "Daily note" },
-  { action: "toggle-zen", key: "\\", label: "Zen mode" },
   { action: "open-settings", key: ",", label: "Settings" },
   // bare: ⌘[ and ⌘] are the browser's history keys
   { action: "toggle-rail", bare: true, key: "[", label: "Toggle sidebar" },
   { action: "toggle-panel", bare: true, key: "]", label: "Toggle panel" },
 ];
 
-// is-hotkey's spelling, so a global row and an editor row compare as one chord
+// is-hotkey's spelling, which the ui's hotkey spelling reads
 export const globalShortcutHotkey = (shortcut: GlobalShortcut): string =>
   shortcut.bare === true
     ? shortcut.key

@@ -70,13 +70,9 @@ wherever the command started, so `pnpm dev` (from apps/desktop) and
 and `INTELIGIR_DATA_DIR` override; a dev data dir is marked with its checkout
 path on first boot and refuses a different checkout thereafter.
 
-A checkout whose dev instance has no vault yet opens the shell on its FIRST
-RUN, as a fresh install does: a page that asks for a new vault or an existing
-folder before any server boots (`apps/desktop/README.md` § The first run is
-decided before any server exists). Its proposed vault is the dev instance's
-own `vault/` folder, so Create with the defaults never touches `~/Inteligir`.
-`INTELIGIR_VAULT_DIR` or `INTELIGIR_DATA_DIR` skips it, as does a vault an
-earlier `pnpm dev` or `pnpm cli serve` already made.
+A checkout's dev instance boots its own `vault/` folder unless
+`INTELIGIR_VAULT_DIR` names another, so `pnpm dev` never touches
+`~/Inteligir`; the shell opens the window straight on that server.
 
 Every `INTELIGIR_*` variable that module declares works on `pnpm dev`, and
 that is a fact `apps/desktop/turbo.json` has to keep: turbo runs in STRICT env

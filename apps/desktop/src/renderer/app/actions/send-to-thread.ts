@@ -1,4 +1,3 @@
-import type { ViewContext } from "@repo/domain/view-context";
 import type { SendMessageRequest } from "@repo/contract/local/threads/threads-schema";
 import { isDefinedError, refusalMessage, safe } from "../api";
 import type { client } from "../api";
@@ -12,9 +11,6 @@ export interface SendToThreadArgs {
   threadId: string;
   text: string;
   activeTurnId: string | null;
-  // carried on the retry too: start-vs-queue is the server's call, and it drops a queued message's context.
-  viewContext?: ViewContext;
-  contextPaths?: readonly string[];
 }
 
 const SEND_REFUSED = "The send was refused.";
@@ -24,12 +20,6 @@ const sendRequest = (args: SendToThreadArgs, expectedTurnId: string | null): Sen
   const request: SendMessageRequest = { text: args.text, threadId: args.threadId };
   if (expectedTurnId !== null) {
     request.expectedTurnId = expectedTurnId;
-  }
-  if (args.viewContext !== undefined) {
-    request.viewContext = args.viewContext;
-  }
-  if (args.contextPaths !== undefined && args.contextPaths.length > 0) {
-    request.contextPaths = [...args.contextPaths];
   }
   return request;
 };

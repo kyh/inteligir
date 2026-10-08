@@ -1,12 +1,9 @@
-// The engine's own words, raw, for whoever brings their own sync server or sends a report: the
-// rail, a toast and every other section speak only sync, so this is the one place that shows the
-// remote, a raw state and the last error verbatim.
+// The engine's own words, raw, for whoever sends a report: the rail, a toast and every other
+// section speak only sync, so this is the one place that shows a raw state and the last error
+// verbatim.
 
 import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schema";
 import type { SystemStatusResponse } from "@repo/contract/local/system/system-schema";
-import { externalSyncName } from "@repo/contract/local/vault/vault-schema";
-import type { VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
-import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { Switch } from "@repo/ui/components/switch";
@@ -22,9 +19,8 @@ import {
   useDesktopDiagnostics,
 } from "../desktop-diagnostics";
 import { relativeTimeLabel, useNow } from "../relative-time";
-import { useSystemStatus, useVaultStatus } from "../vault-hooks";
+import { useSystemStatus } from "../system-hooks";
 import { bridgeFailed, Row, SectionHeading } from "./settings-chrome";
-import { SyncRemoteRow } from "./sync-remote-row";
 
 // the seconds tier of the label, or "40s ago" freezes until the minute tick
 const LAST_SYNC_TICK_MS = 1000;
@@ -53,66 +49,6 @@ const Group = ({ title, children }: { title: string; children: React.ReactNode }
 );
 
 const Waiting = () => <p className="text-subtitle text-muted-foreground">…</p>;
-
-export const VaultSyncRows = ({
-  status,
-  nowMs,
-}: {
-  status: VaultStatusResponse | undefined;
-  nowMs: number;
-}) => {
-  if (status === undefined) {
-    return <Waiting />;
-  }
-  return (
-    <dl className="space-y-1.5">
-      <Row label="State">
-        <Raw>{status.state}</Raw>
-      </Row>
-      {status.state === "no-remote" ? (
-        <Row label="Remote">
-          <span className="text-body text-muted-foreground">
-            {status.externalSync === null
-              ? "None — sign in under Account to sync through your account, or choose your own git server above."
-              : `None — ${externalSyncName(status.externalSync)} syncs this folder, so the hosted vault stays off; your own git server, chosen above, still syncs.`}
-          </span>
-        </Row>
-      ) : (
-        <>
-          <Row label="Remote">
-            <Raw title={status.remote}>{status.remote}</Raw>
-          </Row>
-          <Row label="Source">
-            <Raw>{status.remoteSource}</Raw>
-          </Row>
-        </>
-      )}
-      <Row label="Last sync">
-        <span className="text-body">{lastSyncLabel(status.lastSyncAt, nowMs)}</span>
-      </Row>
-      <Row label="Last error">
-        <RawError error={status.lastError} />
-      </Row>
-      <Row label="Device">
-        <Raw title={status.device}>{status.device}</Raw>
-      </Row>
-      {status.conflicts.length > 0 ? (
-        <Row label="Conflicts">
-          <ul className="space-y-0.5">
-            {status.conflicts.map((report) => (
-              <li
-                key={`${String(report.at)}:${report.kind === "copied" ? report.copyPath : report.path}`}
-                className="text-body text-muted-foreground"
-              >
-                {describeSyncConflict(report, { thisDevice: status.device })}
-              </li>
-            ))}
-          </ul>
-        </Row>
-      ) : null}
-    </dl>
-  );
-};
 
 export interface ThreadSyncRowsProps {
   status: CloudStatusResponse | undefined;
@@ -199,9 +135,7 @@ type OwnedDiagnostics = Extract<DiagnosticsState, { server: "owned" }>;
 
 const debugNote = (state: OwnedDiagnostics): string => {
   if (!state.restartRequired) {
-    return state.debug
-      ? "Every file change, index pass, sync step and agent message is traced into the log."
-      : "Off.";
+    return state.debug ? "Every sync step is traced into the log." : "Off.";
   }
   return state.canRestart
     ? "Takes effect when the app restarts."
@@ -289,7 +223,6 @@ export const DiagnosticsRows = ({ system }: { system: SystemStatusResponse | und
 };
 
 export const AdvancedSection = () => {
-  const vault = useVaultStatus().data;
   const system = useSystemStatus().data;
   const { status: cloud, pending, syncThreads } = useCloudSession();
   const now = useNow(LAST_SYNC_TICK_MS);
@@ -297,12 +230,6 @@ export const AdvancedSection = () => {
   return (
     <section className="space-y-4">
       <SectionHeading>Advanced</SectionHeading>
-      <Group title="Vault sync">
-        <dl>
-          <SyncRemoteRow status={vault} />
-        </dl>
-        <VaultSyncRows status={vault} nowMs={now} />
-      </Group>
       <Group title="Thread sync">
         <ThreadSyncRows status={cloud} nowMs={now} pending={pending} onSync={syncThreads} />
       </Group>

@@ -17,11 +17,9 @@ not belong here.
 `.txt` (`@repo/notes/knowledge/doc-file`, the single source of that answer).
 "Doc" is a CLASSIFICATION, not a shape: it decides what the index projects and
 what a rename rewrites links in. It is deliberately WIDER than what the client
-writes — every note the UI creates is `.md` unless the name typed for it
-already ends in a doc extension (`withDocExtension`, read by
-`packages/editor/src/note/vault-session.ts` and the tree's inline create), so `Node.js` becomes
-`Node.js.md` and a `.txt` in the vault is indexed and linkable but minted only
-by name. It is also WIDER than what a link may leave off: `.md` alone, so a
+writes — a note named without a doc extension is `.md`
+(`withDocExtension`), so `Node.js` becomes `Node.js.md` and a `.txt` in the
+vault is indexed and linkable but minted only by name. It is also WIDER than what a link may leave off: `.md` alone, so a
 `.txt` note links as `[[todo.txt]]` (`wikiLinkName`, which the resolver keys).
 
 **note** — a doc as a user and the knowledge surfaces address it: the filename
@@ -53,10 +51,7 @@ never answer to one `[[Title|uuid]]` link. Which paths get one is
 phone's write queue both run: an edit beats a deletion, the capture inbox and
 the comment store merge and are never copied, another app's dot-folder keeps
 this device's); the name, its parse and the one sentence every surface says
-about it are `@repo/notes/sync/conflict-copy`. Not the open note's own
-overlap: a save that meets a concurrent write merges into the buffer, keeps
-its lines and makes no copy (`packages/editor/src/vault-editor.ts`), because
-the person is looking at the note and its History holds the rest.
+about it are `@repo/notes/sync/conflict-copy`.
 
 ## The agent
 
@@ -113,10 +108,8 @@ has to reconcile it when the user navigates away. A **thread origin**
 (`originDocPath` on the wire) is the DURABLE binding an action makes: the note
 it was composed over, found by the note's frontmatter id
 (`threads.origin_note_id`) so a move anywhere — Finder, a pull, an agent's
-`mv` — keeps it, the path at compose time answering for a note with no id; it
-is the thing the panel's note-first ordering resolves. A message can carry a
-view context into a thread with no origin — a composer send with the note chip
-detached has none. Neither is a
+`mv` — keeps it, the path at compose time answering for a note with no id. A
+message can carry a view context into a thread with no origin. Neither is a
 **context path**: a note the user @-mentioned, which rides the message beside
 its text (`contextPaths` on `client/turn/requested`) and, being part of what
 was asked rather than a statement about the screen, survives the queue.
@@ -174,37 +167,33 @@ The product never says git, commit, remote, repo, terminal, CLI, PATH or MCP,
 so each word below stands for an engine concept with another name in code.
 Reading a report or a screenshot means translating back.
 
-**Sync** — the rail footer's state, Sync now, and Settings › Vault's Sync
-row: the VAULT's pass against where it syncs (`vault.status`,
-`vault.syncNow`; the pass is `apps/cli/src/server/vault/git-engine.ts`),
-worded only by `syncStateLabel` and `syncStateNote`
-(`apps/desktop/src/renderer/app/vault-hooks.ts`). "Only on this Mac" is the
-`no-remote` state; "Synced by iCloud Drive" is a folder another service syncs,
-which the app leaves to it; "Sync paused" is any state only the engine can
-explain. Not the THREAD sync: actions reach other devices through the
-account's merged log on their own (`apps/cli/src/server/cloud/sync-pass.ts`),
-with no button, and never ride the vault's remote.
+**Sync** — the rail footer's state and its Sync now: the THREAD sync, the
+account's merged log every action reaches other devices through
+(`cloud.status`, `cloud.syncNow`; the pass is
+`apps/cli/src/server/cloud/sync-pass.ts`), worded by `syncLabel` in
+`apps/desktop/src/renderer/app/sidebar/sidebar.tsx`. "Only on this Mac" is no
+account; "Sync paused" is a pass only Settings › Advanced can explain. Not the
+VAULT's pass against where it syncs (`vault.status`, `vault.syncNow`;
+`apps/cli/src/server/vault/git-engine.ts`), which no window surface draws.
 
-**History** — the panel tab listing a note's versions: the vault's own git log
+**History** — a note's versions (`inteligir vault history`): the vault's own git log
 for that path (`apps/cli/src/server/vault/git-history.ts`), each version named
 by when and by whom (`authorKind`: you, the agent, or another device), never
 by a commit subject or sha. Restoring one is an ordinary guarded write of its
-bytes (`apps/desktop/src/renderer/app/actions/history-tab.tsx`). Not the
-editor's own undo (⌘Z), which lives and dies with the open note, and not
+bytes (`vault restore` in `apps/cli/src/commands/vault.ts`). Not
 **Undo changes**.
 
-**Undo changes** — the button under an agent's reply, and the Undo on the
-"Agent edited N notes" toast: `threads.undoTurn`, a three-way revert of one
+**Undo changes** — taking back what one agent turn changed
+(`inteligir action undo`): `threads.undoTurn`, a three-way revert of one
 turn's commit, found by its trailers
 (`apps/cli/src/server/agents/turn-changes.ts` over
 `@repo/notes/text/revert-edit`), which keeps every edit made since; a note
 whose later edits overlap the turn's is kept whole and named. Not a History
 restore, which puts back exact bytes and so drops whatever came after.
 
-**Kept both versions** — what the window says when a sync met a note two
+**Kept both versions** — what a sync report says when a sync met a note two
 devices changed on the same lines: the **conflict copy** above, named in the
-user's words by `describeSyncConflict` (`@repo/notes/sync/conflict-copy`) and
-said once per report (`apps/desktop/src/renderer/app/sync-conflict-notices.ts`).
+user's words by `describeSyncConflict` (`@repo/notes/sync/conflict-copy`).
 There is no conflict state to clear: sync never stops for one.
 
 **Account** and **Devices** — Settings › Account: an inteligir account (Better
@@ -223,7 +212,7 @@ origin, `sync-remote-row.tsx`), the raw sync state and git's last error, the
 thread sync's, this device's id, the data folder and the debug-logging switch.
 Every other surface points here ("Sync details…") rather than quoting it.
 
-**Connectors** — Settings › Connectors: the MCP servers in the DEFAULT agent's
+**Connectors** — the MCP servers in the DEFAULT agent's
 own user config, read and edited through its bundled binary
 (`apps/cli/src/server/connectors/vendor-mcp-config.ts`), and signed in to by
 the vendor's own login; the app keeps no registry. Not **Connected folders**
@@ -233,8 +222,7 @@ read (`INTELIGIR_CONNECTED_DIRS`).
 **Sign in with Claude** (ChatGPT under Other) — an AGENT's sign-in: the
 vendor's own login, run by the server through the bundled binary or adapter
 (`agents.signIn`, `apps/cli/src/server/agents/agent-sign-in.ts`) into the
-vendor's shared store (`~/.claude`, `~/.codex`), and drawn everywhere by one
-`AgentSignIn` (`apps/desktop/src/renderer/app/agents/agent-sign-in.tsx`).
+vendor's shared store (`~/.claude`, `~/.codex`).
 "Claude" is the `claude` harness and "ChatGPT" the `codex` one (their
 `displayName` in `@repo/agent-runtime`'s harness rows); since the store is
 shared, signing out here signs the vendor's own app (`vendorApp`) out too. Not

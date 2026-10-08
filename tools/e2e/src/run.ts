@@ -11,46 +11,27 @@ import { createScenarioContext } from "./harness/scenario";
 import type { Scenario, ScenarioContext } from "./harness/scenario";
 import { accountHosted } from "./scenarios/account-hosted";
 import { actionScripted } from "./scenarios/action-scripted";
-import { agentSignInBrowser } from "./scenarios/agent-sign-in-browser";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { builtCliBoot } from "./scenarios/built-cli-boot";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
 import { cliDrive } from "./scenarios/cli-drive";
-import { connectorsBrowser } from "./scenarios/connectors-browser";
 import { debugLogTrace } from "./scenarios/debug-log";
 import { desktopDiagnostics } from "./scenarios/desktop-diagnostics";
-import { desktopOnboarding } from "./scenarios/desktop-onboarding";
 import { desktopShell } from "./scenarios/desktop-shell";
-import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
-import { externalEditBrowser } from "./scenarios/external-edit-browser";
-import { extractNoteBrowser } from "./scenarios/extract-note-browser";
 import { hostedVaultFull } from "./scenarios/hosted-vault-full";
-import { hostedVaultPhoneWrite } from "./scenarios/hosted-vault-phone-write";
 import { hostedVaultSecondMac } from "./scenarios/hosted-vault-second-mac";
 import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
-import { noteCreateBrowser } from "./scenarios/note-create-browser";
 import { onboardingAccountBrowser } from "./scenarios/onboarding-account-browser";
 import { osDictationBrowser } from "./scenarios/os-dictation-browser";
-import { phoneCommentsHosted } from "./scenarios/phone-comments-hosted";
 import { phoneDispatchHosted } from "./scenarios/phone-dispatch-hosted";
-import { phoneEditorPage } from "./scenarios/phone-editor-page";
-import { phoneFileOpsHosted } from "./scenarios/phone-file-ops-hosted";
-import { phoneOfflineEdit } from "./scenarios/phone-offline-edit";
-import { remoteContentBrowser } from "./scenarios/remote-content-browser";
 import { settingsBrowser } from "./scenarios/settings-browser";
-import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
 import { slowStorage } from "./scenarios/slow-storage";
-import { syncConflictBrowser } from "./scenarios/sync-conflict-browser";
 import { threadSyncHosted } from "./scenarios/thread-sync-hosted";
 import { threadsScripted } from "./scenarios/threads-scripted";
-import { treeOpsBrowser } from "./scenarios/tree-ops-browser";
-import { undoBrowser } from "./scenarios/undo-browser";
 import { undoScripted } from "./scenarios/undo-scripted";
 import { vaultCrud } from "./scenarios/vault-crud";
-import { vaultSearchBrowser } from "./scenarios/vault-search-browser";
 import { vaultRemoteSetting } from "./scenarios/vault-remote-setting";
 import { vaultSync } from "./scenarios/vault-sync";
-import { viewContextBrowser } from "./scenarios/view-context-browser";
 
 const SCENARIOS: readonly Scenario[] = [
   vaultCrud,
@@ -59,12 +40,7 @@ const SCENARIOS: readonly Scenario[] = [
   vaultRemoteSetting,
   hostedVaultSync,
   hostedVaultSecondMac,
-  hostedVaultPhoneWrite,
   hostedVaultFull,
-  phoneOfflineEdit,
-  phoneFileOpsHosted,
-  phoneCommentsHosted,
-  phoneEditorPage,
   threadSyncHosted,
   phoneDispatchHosted,
   accountHosted,
@@ -73,28 +49,14 @@ const SCENARIOS: readonly Scenario[] = [
   builtCliBoot,
   desktopShell,
   desktopDiagnostics,
-  desktopOnboarding,
   threadsScripted,
   actionScripted,
   undoScripted,
   cliDrive,
   debugLogTrace,
   browserSmoke,
-  noteCreateBrowser,
-  editorConstructsBrowser,
-  slashMenuBrowser,
-  externalEditBrowser,
-  viewContextBrowser,
   osDictationBrowser,
-  undoBrowser,
   settingsBrowser,
-  connectorsBrowser,
-  agentSignInBrowser,
-  vaultSearchBrowser,
-  treeOpsBrowser,
-  extractNoteBrowser,
-  remoteContentBrowser,
-  syncConflictBrowser,
 ];
 
 const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list] [--no-skip]

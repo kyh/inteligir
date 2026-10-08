@@ -133,7 +133,7 @@ rather than dropped. Quote an argument that holds spaces
   \`none\` when there was no store). A note that changed since it was read is
   refused as \`CAS_MISMATCH\` and left as it was: run it again.
 - \`inteligir vault open <dir>\` — select the vault the next \`inteligir serve\`
-  boots on (the app's own vault switch writes the same selector). A running
+  boots on, which is also the vault the app opens next. A running
   server is untouched and named; restart it, or reopen the app, to switch. A
   vault other than the default keeps its own data dir beneath the root, so it
   starts with no index and no credential. \`--json\` also carries the folder's

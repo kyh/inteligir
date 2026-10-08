@@ -1,7 +1,6 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import * as Crypto from "expo-crypto";
-import { File } from "expo-file-system";
 import { addNetworkStateListener } from "expo-network";
 import * as SecureStore from "expo-secure-store";
 import { createKeychainCredentials } from "../credential/secure-store-credential";
@@ -13,28 +12,15 @@ import type {
   DispatchOutcome,
   DispatchState,
 } from "../dispatch/dispatch-runtime";
-import { createEditorPorts } from "../editor/editor-ports";
-import type { EditorPorts, EditorPortsArgs } from "../editor/editor-ports";
-import { defaultDeviceName } from "../login/device-name";
 import type { LoginRequest, LoginState } from "../login/login-store";
-
-import { createExpoAttachmentFiles } from "../notes/expo-attachment-files";
-import { createExpoOutboxFolder } from "../notes/expo-outbox-files";
-import type { CreatedNote, RenamedNote } from "../notes/file-ops";
-import type { CommentsRead, NoteRead, NoteText, NotesTreeState } from "../notes/notes-store";
-import { excludedFromBackup } from "../notes/outbox-files";
-import { ingestPhoto } from "../notes/photo-ingest";
-import type { OutboxStatus } from "../notes/vault-outbox";
 import type { LiveItem } from "../sync/live-turns";
 import { rnSocketDial } from "../sync/rn-socket-dial";
 import type { SyncStatus } from "../sync/sync-runtime";
 import { liveThreadsFirst, projectThread } from "../sync/thread-projection";
 import type { ThreadProjection } from "../sync/thread-projection";
 import { hexFromBytes } from "@repo/contract/cloud/bytes";
-import type { CloudFailure } from "@repo/contract/cloud/client";
 import { createCloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
 import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
-import { excludeFromBackup } from "./backup-exclusion";
 import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
 import type { AppRuntime, LogoutOutcome } from "./compose-runtime";
@@ -51,15 +37,10 @@ const devLog = (message: string): void => {
 
 const build = (): AppRuntime => {
   const rt = composeRuntime({
-    attachments: createExpoAttachmentFiles(),
     cloudUrl: getCloudUrl(),
     credentials: createKeychainCredentials(SecureStore),
     db: createExpoSqlDriver("inteligir.db"),
-    deviceName: defaultDeviceName(),
     mintId: () => hexFromBytes(Crypto.getRandomBytes(16)),
-    mintNoteId: Crypto.randomUUID,
-    outboxFiles: excludedFromBackup(createExpoOutboxFolder(), excludeFromBackup),
-    randomBytes: Crypto.getRandomBytes,
     sha1: async (bytes) =>
       new Uint8Array(await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA1, bytes)),
     sync: { onDebug: devLog, openSocket: createCloudSocketOpener(rnSocketDial) },
@@ -73,7 +54,7 @@ const build = (): AppRuntime => {
       rt.suspend();
     }
   });
-  // a phone back online sends what it saved offline without waiting for the retry timer; in the
+  // a phone back online sends what it asked offline without waiting for the retry timer; in the
   // background it waits for the foreground, which reopens the socket too
   let online = true;
   addNetworkStateListener((network) => {
@@ -104,92 +85,6 @@ export const logout = async (options?: { discardUnsent?: boolean }): Promise<Log
 
 export const login = async (request: LoginRequest): Promise<void> => {
   await getRuntime().login.login(request);
-};
-
-export const submitCapture = async (
-  text: string,
-): Promise<{ ok: true } | { ok: false; failure: CloudFailure }> => {
-  const result = await getRuntime().submitCapture(text);
-  return result.ok ? { ok: true } : { failure: result.failure, ok: false };
-};
-
-export const refreshNotes = async (): Promise<void> => {
-  await getRuntime().notes.refresh();
-};
-
-export const readNote = async (path: string): Promise<NoteRead> =>
-  await getRuntime().notes.readNote(path);
-
-export const readNoteComments = async (note: NoteText): Promise<CommentsRead> =>
-  await getRuntime().notes.readComments(note);
-
-export const createNote = async (dir: string): Promise<CreatedNote> =>
-  await getRuntime().fileOps.create(dir);
-
-export const renameNote = async (from: string, name: string): Promise<RenamedNote> =>
-  await getRuntime().fileOps.rename(from, name);
-
-export const deleteNote = async (path: string): Promise<void> => {
-  await getRuntime().fileOps.remove(path);
-};
-
-// the view context's revision: the sha-256 of the note's bytes as the screen showed them
-const noteRevision = async (content: string): Promise<string> =>
-  hexFromBytes(
-    new Uint8Array(
-      await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, new TextEncoder().encode(content)),
-    ),
-  );
-
-// the editor page's ports over the store and the file verbs, bound to their native halves: the
-// photo picker, a held file's bytes, the revision hash and a new thread's id
-export const createNoteEditorPorts = (
-  screen: Pick<
-    EditorPortsArgs,
-    "editorState" | "go" | "notify" | "openFailed" | "opened" | "showComments"
-  >,
-): EditorPorts => {
-  const rt = getRuntime();
-  return createEditorPorts({
-    ...screen,
-    comments: rt.comments,
-    fileOps: rt.fileOps,
-    newThreadId: () => rt.dispatch.newThreadId(),
-    pickImage: async () => await ingestPhoto(rt.fileOps),
-    readBase64: async (uri) => await new File(uri).base64(),
-    revisionOf: noteRevision,
-    store: rt.notes,
-  });
-};
-
-// one per load of the editor page
-export const mintBridgeNonce = (): string => hexFromBytes(Crypto.getRandomBytes(16));
-
-export const useNotesTree = (): NotesTreeState => {
-  const rt = getRuntime();
-  return useSyncExternalStore(rt.notes.tree.subscribe, rt.notes.tree.get);
-};
-
-// what has not reached the vault: the parked changes and the conflicts the queue settled
-export const useOutboxStatus = (): OutboxStatus => {
-  const { status } = getRuntime().notes.outbox;
-  return useSyncExternalStore(status.subscribe, status.get);
-};
-
-export const retryUnsent = async (seq: number): Promise<void> => {
-  await getRuntime().notes.outbox.retry(seq);
-};
-
-// the path the change was kept at, or null when it had nothing to keep
-export const saveUnsentAsNew = async (seq: number): Promise<string | null> =>
-  await getRuntime().notes.outbox.saveAsNew(seq);
-
-export const discardUnsent = async (seq: number): Promise<void> => {
-  await getRuntime().notes.outbox.discard(seq);
-};
-
-export const dismissSyncNotice = (id: number): void => {
-  getRuntime().notes.outbox.dismiss(id);
 };
 
 export const useSyncStatus = (): SyncStatus => {

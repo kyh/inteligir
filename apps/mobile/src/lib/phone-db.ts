@@ -4,9 +4,8 @@
 import { z } from "zod";
 import type { SqlDriver, SqlExecutor } from "./sql-driver";
 
-// mirror_meta's tree_commit is the tree the rows hold, mirrored_commit the last one they held
-// every wanted text of. mirror_entries puts content last: a listing read stops at the columns
-// before it rather than walking a long note's overflow pages to reach one after it.
+// the first two steps made the notes mirror and its outbox, which the fifth drops: their words stay
+// as they shipped, since a step is never edited once it has run on a phone.
 const MIGRATIONS: readonly string[] = [
   `CREATE TABLE mirror_meta (
      id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -69,6 +68,11 @@ const MIGRATIONS: readonly string[] = [
      thread_id TEXT PRIMARY KEY NOT NULL,
      last_seq INTEGER NOT NULL
    );`,
+  // the notes mirror and the outbox of the phone's own edits are gone with the phone's notes
+  `DROP TABLE IF EXISTS mirror_landings;
+   DROP TABLE IF EXISTS outbox;
+   DROP TABLE IF EXISTS mirror_entries;
+   DROP TABLE IF EXISTS mirror_meta;`,
 ];
 
 const userVersionSchema = z.object({ user_version: z.number().int().min(0) });
@@ -78,7 +82,7 @@ const migratePhoneDb = async (db: SqlDriver): Promise<void> => {
     const [row] = await tx.all("PRAGMA user_version");
     const version = userVersionSchema.parse(row).user_version;
     if (version > MIGRATIONS.length) {
-      throw new Error("This phone's notes were saved by a newer version of the app.");
+      throw new Error("This phone's data was saved by a newer version of the app.");
     }
     for (const step of MIGRATIONS.slice(version)) {
       await tx.exec(step);

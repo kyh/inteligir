@@ -1,12 +1,11 @@
 // boots the packaged app itself, window and all: the shell, the node it ships beside it and the CLI
-// it carries as a resource, which the shell starts as its server, and the server its watcher and
-// ACP adapters on that same node. needs a macOS arm64 host with a display: CI's test-macos job runs
-// it on an ad-hoc pack.
+// it carries as a resource, which the shell starts as its server on that same node. needs a macOS
+// arm64 host with a display: CI's test-macos job runs it on an ad-hoc pack.
 
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { accessSync, constants, existsSync, readdirSync, readFileSync } from "node:fs";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -34,8 +33,6 @@ const appBinary = path.join(appDir, "Contents", "MacOS", "Inteligir");
 const bundledNode = path.join(appDir, "Contents", "MacOS", "node");
 const runtimeRoot = path.join(appDir, "Contents", "Resources", "server");
 const serverEntry = path.join(runtimeRoot, "dist", "desktop.js");
-// scripts/package.mjs's resources, which the CLI's bundled-git.ts resolves beside itself
-const bundledGitRoot = path.join(appDir, "Contents", "Resources", "git");
 const bundledNodeNotices = path.join(appDir, "Contents", "Resources", "notices", "node");
 // scripts/rust-notices.mjs's, for the crates the shell's own binary links
 const bundledRustNotices = path.join(appDir, "Contents", "Resources", "notices");
@@ -47,9 +44,6 @@ const EXIT_TIMEOUT_MS = 40_000;
 const AGENT_TIMEOUT_MS = 60_000;
 // the prod layout the packaged server derives under a home (apps/cli/src/server/config.ts)
 const PROD_DATA_DIR_NAME = ".inteligir";
-const PROD_VAULT_DIR_NAME = "Inteligir";
-const VAULTS_DIR_NAME = "vaults";
-const CONFIG_FILE_NAME = "config.json";
 // what the runtime reports when the vendor refuses for want of a sign-in
 // (packages/agent-runtime/src/acp/provider-error.ts)
 const CODEX_SIGNED_OUT = "ChatGPT is signed out on this Mac";
@@ -58,9 +52,8 @@ const CODEX_SIGNED_OUT = "ChatGPT is signed out on this Mac";
 const SERVER_STARTING = "[desktop] starting the server";
 const SERVER_STOPPED_CLEANLY = "server exited (code 0)";
 const SERVER_LOG = path.join("logs", "server.log");
-// the shell's lines once a window's page has loaded (src-tauri/src/window.rs)
+// the shell's line once the window's page has loaded (src-tauri/src/window.rs)
 const WINDOW_LOADED = "[desktop] window loaded";
-const FIRST_RUN_LOADED = "[desktop] first run loaded";
 // each would steer the agent off the bundled vendors and their empty stores: the host's own vendor
 // binaries, its credentials, or an agent mode that is not ACP
 const HOST_AGENT_ENV = new Set([
@@ -106,24 +99,6 @@ const waitForUrl = async (url, deadlineMs) => {
   }
 };
 
-const run = async (file, argv, options = {}) => {
-  const child = spawn(file, argv, { stdio: ["ignore", "pipe", "pipe"], ...options });
-  let stdout = "";
-  let stderr = "";
-  child.stdout?.on("data", (chunk) => {
-    stdout += chunk;
-  });
-  child.stderr?.on("data", (chunk) => {
-    stderr += chunk;
-  });
-  // `once` rejects on "error", as the close listener never fires for a spawn that failed
-  const [code] = await once(child, "close");
-  if (code !== 0) {
-    throw new Error(`${file} ${argv.join(" ")} exited ${code}\n${stdout}\n${stderr}`);
-  }
-  return stdout;
-};
-
 if (!existsSync(appBinary)) {
   fail(`no packaged app at ${appDir} — run \`pnpm package:desktop\` first`);
 }
@@ -133,12 +108,7 @@ if (!existsSync(bundledNode)) {
 if (!existsSync(serverEntry)) {
   fail(`the packaged app carries no server entry at ${serverEntry}`);
 }
-const notesSkill = path.join(runtimeRoot, "dist", "skills", "inteligir-notes", "SKILL.md");
-if (!existsSync(notesSkill)) {
-  fail(`the packaged app carries no dialect skills at ${notesSkill}`);
-}
-
-// the agent's PATH resolver refuses a bin without the execute bit, silently
+// the bin npm would link refuses to run without the execute bit, silently
 const cliBin = path.join(runtimeRoot, "bin", CLI_BIN_NAME);
 if (!existsSync(cliBin)) {
   fail(`the packaged CLI is missing at ${cliBin}`);
@@ -172,11 +142,9 @@ if (testDirs.length > 0) {
 }
 log(`packaged CLI -> ${readdirSync(runtimeRoot).join(", ")}`);
 
-// git's licence obliges the pack to carry its text and say where the source is, node's its own,
-// and the shell's crates theirs
+// node's licence obliges the pack to carry its text and say where the source is, and the shell's
+// crates theirs
 for (const [root, name] of [
-  [bundledGitRoot, "COPYING"],
-  [bundledGitRoot, "SOURCE"],
   [bundledNodeNotices, "LICENSE"],
   [bundledNodeNotices, "SOURCE"],
   [bundledRustNotices, "rust-crates.txt"],
@@ -208,8 +176,8 @@ const port = 4900 + Math.floor(Math.random() * 90);
 const baseUrl = `http://127.0.0.1:${port}`;
 const dataDir = path.join(scratch, "data");
 const vaultDir = path.join(scratch, "vault");
-// a home of its own, so the shell's folder (its recent vaults, its debug choice, its web stores)
-// lands in the scratch rather than beside an installed Inteligir's
+// a home of its own, so the shell's folder (its debug choice, its web stores) lands in the scratch
+// rather than beside an installed Inteligir's
 const pinnedHome = path.join(scratch, "pinned-home");
 // no sign-in lives in either, so each vendor answers signed out and the turn stops at its refusal
 const claudeConfigDir = path.join(scratch, "claude-config");
@@ -219,29 +187,6 @@ await mkdir(claudeConfigDir, { recursive: true });
 await mkdir(codexHome, { recursive: true });
 await mkdir(pinnedHome, { recursive: true });
 
-// the first launch plays a Mac without the developer tools: xcode-select names a dir holding no git,
-// and the git first on the login shell's PATH fails, as the stub does, noting each call. the login
-// shell is the smoke's own so that PATH is exactly this one, whatever the host's rc files add
-const hostBinDir = path.join(scratch, "host-bin");
-const hostGitCalls = path.join(scratch, "host-git-calls.log");
-const loginShell = path.join(scratch, "login-shell");
-const POISONED_HOST_ENV = {
-  DEVELOPER_DIR: path.join(scratch, "no-developer-tools"),
-  PATH: `${hostBinDir}:${process.env.PATH ?? ""}`,
-  SHELL: loginShell,
-};
-await mkdir(hostBinDir, { recursive: true });
-await writeFile(
-  path.join(hostBinDir, "git"),
-  `#!/bin/sh\necho "$*" >> '${hostGitCalls}'\nexit 1\n`,
-);
-await writeFile(
-  loginShell,
-  `#!/bin/sh\nPATH='${hostBinDir}:/usr/bin:/bin:/usr/sbin:/sbin' exec /bin/sh -c "$2"\n`,
-);
-await chmod(path.join(hostBinDir, "git"), 0o755);
-await chmod(loginShell, 0o755);
-
 // an undefined value unsets the variable
 const appEnv = (env) =>
   Object.fromEntries(
@@ -249,7 +194,6 @@ const appEnv = (env) =>
       ...process.env,
       CLAUDE_CONFIG_DIR: claudeConfigDir,
       CODEX_HOME: codexHome,
-      INTELIGIR_SYNC_INTERVAL_MS: "0",
       ...env,
     }).filter(([name, value]) => value !== undefined && !HOST_AGENT_ENV.has(name)),
   );
@@ -279,23 +223,18 @@ const waitHealthy = async (url) => {
 };
 
 // a healthy server is not a loaded window: the pin and the handoff decide what the page loads
-const waitPageLoaded = async (launched, { loaded, page }) => {
+const waitWindowLoaded = async (launched) => {
   const deadline = Date.now() + BOOT_TIMEOUT_MS;
   for (;;) {
-    const output = launched.output();
-    if (output.includes(loaded)) {
-      log(`${page} loaded`);
+    if (launched.output().includes(WINDOW_LOADED)) {
+      log("window loaded");
       return;
     }
     if (Date.now() > deadline) {
-      fail(`the ${page} had not loaded within ${BOOT_TIMEOUT_MS}ms`);
+      fail(`the window had not loaded within ${BOOT_TIMEOUT_MS}ms`);
     }
     await delay(250);
   }
-};
-
-const waitWindowLoaded = async (launched) => {
-  await waitPageLoaded(launched, { loaded: WINDOW_LOADED, page: "window" });
 };
 
 // hand-rolled: the typed client needs a bundler this script does not have
@@ -349,17 +288,6 @@ const stopApp = async (launched, forDataDir) => {
     fail(`the packaged app exited ${exit.code ?? exit.signal} — a quit must exit 0`);
   }
   log("the server stopped cleanly and the app exited 0");
-};
-
-// a first run has no server to stop, so its quit is the shell's alone
-const quitFirstRun = async (launched) => {
-  const exit = await quitApp(launched);
-  if (exit.code !== 0) {
-    fail(
-      `the packaged app exited ${exit.code ?? exit.signal} from its first run — a quit must exit 0`,
-    );
-  }
-  log("the first run quit and the app exited 0");
 };
 
 const killGroup = (launched) => {
@@ -416,37 +344,11 @@ const proveAgentTurn = async (rpc) => {
   }
 };
 
-// the boot's init and first commit ran before the server listened, so a healthy server already
-// proves those; an API write committing proves the engine's later runs.
-const proveBundledGitCommits = async (rpc) => {
-  const note = "Smoke Bundled Git.md";
-  await rpc("vault/write", {
-    content: "# Smoke Bundled Git\n",
-    guard: { kind: "absent" },
-    path: note,
-  });
-  await rpc("vault/commitNow", { paths: [note] });
-  const { revisions } = await rpc("vault/history", { path: note });
-  if (revisions.length === 0) {
-    fail(`a write to ${note} was never committed`);
-  }
-  log(`bundled git -> ${note} committed as ${revisions[0].sha.slice(0, 7)}`);
-};
-
-// read once the app has quit, so the engine's shutdown flush and the agent's turn are counted too
-const proveHostGitUntouched = () => {
-  if (existsSync(hostGitCalls)) {
-    fail(`the host's git ran instead of the bundled one:\n${readFileSync(hostGitCalls, "utf-8")}`);
-  }
-  log("the host's git never ran");
-};
-
 let launched = null;
 
 try {
-  log(`launching the packaged app on ${baseUrl}, as a Mac without the developer tools`);
+  log(`launching the packaged app on ${baseUrl}`);
   launched = launchApp({
-    ...POISONED_HOST_ENV,
     HOME: pinnedHome,
     INTELIGIR_DATA_DIR: dataDir,
     INTELIGIR_PORT: String(port),
@@ -467,115 +369,42 @@ try {
   }
   log(`SPA shell -> ${shell.status} ${html.length} bytes`);
 
-  // exercises better-sqlite3, @parcel/watcher and git init, the first to fail on an ABI mismatch
-  const tree = await rpc("vault/tree");
-  log(`vault tree -> ${tree.entries.length} entries under ${tree.root}`);
+  // exercises better-sqlite3 and @parcel/watcher, the first to fail on an ABI mismatch
+  const { threads } = await rpc("threads/list", {});
+  log(`threads -> ${threads.length} listed`);
   await proveWatcherAlive({ fail, log, rpc, vaultDir });
 
   await proveVendorsBundled(rpc);
   await proveAgentTurn(rpc);
-  await proveBundledGitCommits(rpc);
-
-  // an agent's `inteligir` is the launcher the server wrote into its data dir, which runs the
-  // bundled node on the bundled CLI, so a PATH holding no node still reaches the server
-  const agentCli = path.join(dataDir, "bin", CLI_BIN_NAME);
-  const status = await run(agentCli, ["status", "--json"], {
-    env: { HOME: pinnedHome, INTELIGIR_DATA_DIR: dataDir, PATH: "/usr/bin:/bin" },
-  });
-  if (!status.includes(baseUrl)) {
-    fail(`the agent's CLI did not reach the packaged server: ${status}`);
-  }
-  log("the agent's CLI drove the packaged server on the bundled node");
 
   await stopApp(launched, dataDir);
   launched = null;
-  proveHostGitUntouched();
 
-  // a home with no vault and nothing pinning one opens the first run, whose window loads the page
-  // the shell carries and boots nothing until a vault is chosen
-  const firstRunHome = path.join(scratch, "first-run-home");
-  await mkdir(firstRunHome, { recursive: true });
-  log("launching under a fresh home: the first run");
-  launched = launchApp({
-    HOME: firstRunHome,
-    INTELIGIR_DATA_DIR: undefined,
-    INTELIGIR_VAULT_DIR: undefined,
-  });
-  await waitPageLoaded(launched, { loaded: FIRST_RUN_LOADED, page: "first run" });
-  const firstRunServerFile = path.join(firstRunHome, PROD_DATA_DIR_NAME, "server.json");
-  if (existsSync(firstRunServerFile)) {
-    fail(`the first run started a server before any vault was chosen (${firstRunServerFile})`);
-  }
-  await quitFirstRun(launched);
-  launched = null;
-
-  // the shell's vault switch is a rewrite of the root config.json's vaultDir and a restart of
-  // its child; the switch itself is a click in the window, so this proves what the app boots
-  // under a scratch home: the default vault keeps the root data dir, the selector boots the
-  // server on a data dir of that vault's own, and each quit stops it cleanly. these two launches
-  // run on the host as it is: its own login shell, and its own git where it has the tools.
+  // a launch with nothing pinned boots the server on the home's own data dir, and its quit stops
+  // that server cleanly too
   const home = path.join(scratch, "home");
   const rootDataDir = path.join(home, PROD_DATA_DIR_NAME);
-  const secondVault = path.join(scratch, "second-vault");
-  // a home with no default vault opens the first run and boots nothing until one is chosen, so
-  // the folder is made first, as a launch before first run left it
-  await mkdir(path.join(home, PROD_VAULT_DIR_NAME), { recursive: true });
-  const selectorPort = port + 1;
-  const selectorUrl = `http://127.0.0.1:${selectorPort}`;
-  const selectorEnv = {
+  await mkdir(home, { recursive: true });
+  const homePort = port + 1;
+  const homeUrl = `http://127.0.0.1:${homePort}`;
+  log(`launching under a scratch home on ${homeUrl}`);
+  launched = launchApp({
     HOME: home,
     INTELIGIR_DATA_DIR: undefined,
-    INTELIGIR_PORT: String(selectorPort),
+    INTELIGIR_PORT: String(homePort),
     INTELIGIR_VAULT_DIR: undefined,
-  };
-
-  log(`launching under a scratch home on ${selectorUrl}: the default vault`);
-  launched = launchApp(selectorEnv);
-  await waitHealthy(selectorUrl);
-  const defaultStatus = await rpcClient(selectorUrl, rootDataDir)("system/status");
-  if (
-    defaultStatus.dataDir !== rootDataDir ||
-    defaultStatus.vaultDir !== path.join(home, PROD_VAULT_DIR_NAME)
-  ) {
-    fail(
-      `the default vault did not keep the root data dir: ${JSON.stringify({ dataDir: defaultStatus.dataDir, vaultDir: defaultStatus.vaultDir })}`,
-    );
+  });
+  await waitHealthy(homeUrl);
+  await waitWindowLoaded(launched);
+  const homeStatus = await rpcClient(homeUrl, rootDataDir)("system/status");
+  if (homeStatus.dataDir !== rootDataDir) {
+    fail(`the server did not boot on the home's data dir: ${homeStatus.dataDir}`);
   }
-  log(`default vault -> ${defaultStatus.vaultDir} on ${defaultStatus.dataDir}`);
+  log(`home launch -> ${homeStatus.dataDir}`);
   await stopApp(launched, rootDataDir);
   launched = null;
 
-  await writeFile(
-    path.join(rootDataDir, CONFIG_FILE_NAME),
-    `${JSON.stringify({ vaultDir: secondVault }, null, 2)}\n`,
-  );
-  log(`launching on the selector's vault ${secondVault}`);
-  launched = launchApp(selectorEnv);
-  await waitHealthy(selectorUrl);
-  const vaultDirs = readdirSync(path.join(rootDataDir, VAULTS_DIR_NAME));
-  if (vaultDirs.length !== 1) {
-    fail(
-      `expected one per-vault data dir under ${VAULTS_DIR_NAME}/, found ${vaultDirs.join(", ")}`,
-    );
-  }
-  const secondDataDir = path.join(rootDataDir, VAULTS_DIR_NAME, vaultDirs[0]);
-  const secondStatus = await rpcClient(selectorUrl, secondDataDir)("system/status");
-  if (secondStatus.dataDir !== secondDataDir || secondStatus.vaultDir !== secondVault) {
-    fail(
-      `the selector's vault did not get its own data dir: ${JSON.stringify({ dataDir: secondStatus.dataDir, vaultDir: secondStatus.vaultDir })}`,
-    );
-  }
-  if (
-    !existsSync(path.join(rootDataDir, "inteligir.db")) ||
-    !existsSync(path.join(secondDataDir, "inteligir.db"))
-  ) {
-    fail("the two vaults do not each hold a database of their own");
-  }
-  log(`selector vault -> ${secondStatus.vaultDir} on ${secondStatus.dataDir}`);
-  await stopApp(launched, secondDataDir);
-  launched = null;
-
-  log("PASS (each window loaded its page; their rendering is not checked)");
+  log("PASS (each window loaded its page; its rendering is not checked)");
 } finally {
   killGroup(launched);
   await rm(scratch, { force: true, recursive: true });

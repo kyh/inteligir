@@ -12,8 +12,6 @@
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@repo/contract": "workspace:*",
-    "@repo/mobile": "workspace:*",
-    "@repo/mobile-editor": "workspace:*",
     "inteligir": "workspace:*"
   },
   "devDependencies": {

@@ -4,12 +4,8 @@ import {
   CommandItem,
   CommandShortcut,
 } from "@repo/ui/components/command";
-import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
-import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
-import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { hotkeyCaps, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
-import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../global-shortcuts";
 import { matchesQuery, PalettePage } from "./palette-page";
 
@@ -32,19 +28,13 @@ const shortcutRow = (
   label: row.label,
 });
 
-// derived from the tables the listeners read, never a list of its own
+// derived from the table the listener reads, never a list of its own
 const shortcutGroups = (
   modifier: ShortcutModifier,
 ): readonly { heading: string; rows: ShortcutRow[] }[] => [
   {
     heading: "Everywhere",
     rows: GLOBAL_SHORTCUTS.map((row) => shortcutRow(row, globalShortcutHotkey(row), modifier)),
-  },
-  {
-    heading: "In the note",
-    rows: [...MARK_SHORTCUTS, ...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS, ...COMMENT_SHORTCUTS].map(
-      (row) => shortcutRow(row, row.hotkey, modifier),
-    ),
   },
 ];
 

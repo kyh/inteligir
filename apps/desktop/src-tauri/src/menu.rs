@@ -1,8 +1,6 @@
-//! The macOS menu bar and the menu-bar icon's menu, rebuilt whenever what they offer moves (a vault
-//! opens, the recent list changes). Both offer the data folder only once a vault is open, which a
-//! first run has not yet, and a switch only where the page offers one (`vaults_state`'s `blocked`).
-//! A menu click is the main thread's, so anything that waits (the CLI, a dialog, a server's start)
-//! runs on a thread of its own.
+//! The macOS menu bar and the menu-bar icon's menu, rebuilt whenever what they offer moves (the
+//! server comes up). Both offer the data folder only once the server is up. A menu click is the
+//! main thread's, so anything that waits (the CLI, a dialog) runs on a thread of its own.
 
 use tauri::menu::{
     AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu, SubmenuBuilder,
@@ -10,16 +8,14 @@ use tauri::menu::{
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
-use crate::shell::{self, Outcome, Shell};
-use crate::{commands, tray, updater};
+use crate::shell::{self, Shell};
+use crate::{tray, updater};
 
 const CHECK_FOR_UPDATES: &str = "check-for-updates";
 pub const OPEN_DATA_FOLDER: &str = "open-data-folder";
-const OPEN_VAULT: &str = "open-vault";
 const OPEN_IN_BROWSER: &str = "open-in-browser";
 pub const SHOW_APP: &str = "show-app";
 pub const HIDE_APP: &str = "hide-app";
-const RECENT_PREFIX: &str = "open-recent:";
 
 fn item<R: Runtime>(
     app: &AppHandle<R>,
@@ -31,7 +27,7 @@ fn item<R: Runtime>(
     MenuItem::with_id(app, id, text, enabled, accelerator)
 }
 
-fn app_menu<R: Runtime>(app: &AppHandle<R>, vault_open: bool) -> tauri::Result<Submenu<R>> {
+fn app_menu<R: Runtime>(app: &AppHandle<R>, server_open: bool) -> tauri::Result<Submenu<R>> {
     let info = app.package_info();
     let about = AboutMetadata {
         name: Some(crate::window::app_title().to_owned()),
@@ -52,7 +48,7 @@ fn app_menu<R: Runtime>(app: &AppHandle<R>, vault_open: bool) -> tauri::Result<S
             app,
             OPEN_DATA_FOLDER,
             "Open Data Folder",
-            vault_open,
+            server_open,
             None,
         )?)
         .separator()
@@ -66,33 +62,8 @@ fn app_menu<R: Runtime>(app: &AppHandle<R>, vault_open: bool) -> tauri::Result<S
         .build()
 }
 
-fn file_menu<R: Runtime>(
-    app: &AppHandle<R>,
-    switchable: bool,
-    recent: &[String],
-) -> tauri::Result<Submenu<R>> {
-    let mut recent_menu =
-        SubmenuBuilder::new(app, "Open Recent Vault").enabled(switchable && !recent.is_empty());
-    for path in recent {
-        let name = crate::vaults::vault_ref(path).name;
-        recent_menu = recent_menu.item(&item(
-            app,
-            &format!("{RECENT_PREFIX}{path}"),
-            &name,
-            true,
-            None,
-        )?);
-    }
+fn file_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Submenu<R>> {
     SubmenuBuilder::new(app, "File")
-        .item(&item(
-            app,
-            OPEN_VAULT,
-            "Open Vault…",
-            switchable,
-            Some("CmdOrCtrl+O"),
-        )?)
-        .item(&recent_menu.build()?)
-        .separator()
         .item(&PredefinedMenuItem::close_window(app, None)?)
         .build()
 }
@@ -112,11 +83,7 @@ fn edit_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Submenu<R>> {
 }
 
 fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
-    let shell = app.state::<Shell>();
-    let vault_open = shell.target().is_some();
-    // an adopted server, or a launch an env var pins, refuses a switch: no entry offers one
-    let switchable = shell::vaults_state(app).is_some_and(|state| state.blocked.is_none());
-    let recent = shell::remember_list(app);
+    let server_open = app.state::<Shell>().target().is_some();
     let view = SubmenuBuilder::new(app, "View")
         .item(&PredefinedMenuItem::fullscreen(app, None)?)
         .build()?;
@@ -129,15 +96,15 @@ fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             app,
             OPEN_IN_BROWSER,
             "Open in Browser",
-            vault_open,
+            server_open,
             None,
         )?)
         .build()?;
     Menu::with_items(
         app,
         &[
-            &app_menu(app, vault_open)?,
-            &file_menu(app, switchable, &recent)?,
+            &app_menu(app, server_open)?,
+            &file_menu(app)?,
             &edit_menu(app)?,
             &view,
             &window,
@@ -170,13 +137,6 @@ fn say<R: Runtime>(app: &AppHandle<R>, title: &str, message: &str) {
         .blocking_show();
 }
 
-fn switch_from_menu<R: Runtime>(app: &AppHandle<R>, vault_dir: &str, confirm: bool) {
-    match shell::switch_vault(app, vault_dir, confirm) {
-        Outcome::Done | Outcome::Reported(_) => {}
-        Outcome::Refused(reason) => say(app, "Could not open the vault", &reason),
-    }
-}
-
 pub fn on_event<R: Runtime>(app: &AppHandle<R>, event: &MenuEvent) {
     let id = event.id().as_ref().to_owned();
     let app = app.clone();
@@ -199,21 +159,9 @@ pub fn on_event<R: Runtime>(app: &AppHandle<R>, event: &MenuEvent) {
                 }
             });
         }
-        OPEN_VAULT => {
-            std::thread::spawn(move || {
-                if let Some(picked) = commands::pick_vault_dir(&app) {
-                    switch_from_menu(&app, &picked, true);
-                }
-            });
-        }
         OPEN_IN_BROWSER => {
             std::thread::spawn(move || shell::open_in_browser(&app));
         }
-        other => {
-            if let Some(path) = other.strip_prefix(RECENT_PREFIX) {
-                let path = path.to_owned();
-                std::thread::spawn(move || switch_from_menu(&app, &path, false));
-            }
-        }
+        _ => {}
     }
 }

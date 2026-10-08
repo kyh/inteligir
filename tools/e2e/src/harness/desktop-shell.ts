@@ -12,14 +12,9 @@ import type { InstanceApi, VendorDirs } from "./instance";
 import { pollUntil } from "./poll";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
-import { NO_AUTO_SYNC } from "./vault-sync";
 import { openSession } from "./webdriver";
 import type { WebDriverSession } from "./webdriver";
 
-// the first-run window's page, the one the shell carries inside it (src-tauri/tauri.conf.json)
-export const SHELL_FIRST_RUN_URL = "tauri://localhost/first-run.html";
-// what the shell notes in a vault's server log as each app window loads (src-tauri/src/window.rs)
-export const WINDOW_LOADED = "[desktop] window loaded";
 const SERVER_LOG = path.join("logs", "server.log");
 
 // a cold boot starts the driver, the shell, its server, migrates, indexes and paints the window
@@ -28,42 +23,30 @@ const READY_POLL_INTERVAL_MS = 500;
 // a killed shell's server sees its lifeline close and runs its whole teardown
 const QUIT_DEADLINE_MS = SHUTDOWN_TIMEOUT_MS + 30_000;
 
-export interface ShellTarget {
+interface ShellTarget {
   dataDir: string;
-  vaultDir: string;
 }
 
 export interface DesktopShell extends TrackedProcess {
-  // the server the shell runs now: the port is pinned across a switch, the bearer re-read per call,
-  // so on a first run it answers once the chosen vault's server.json appears
+  // the server the shell runs: the port is pinned, the bearer re-read per call
   api: InstanceApi;
   serverOrigin: string;
-  // what the shell resolves now, derived as the shell's CLI door derives it, so a switch moves it
+  // what the shell resolves, derived as the shell's CLI door derives it
   target: () => ShellTarget;
-  // the shell's own folder: its recent-vaults list, its debug choice, each vault's web store
+  // the shell's own folder: its debug choice, each data dir's web store
   ownDir: string;
   // the shell's first window, and only it (harness/webdriver.ts says why)
   window: WebDriverSession;
-  // the lines a vault's server log holds, the shell's notes of its windows among them
+  // the lines the server's log holds, the shell's notes of its windows among them
   serverLog: (target: ShellTarget) => Promise<string[]>;
   // SIGTERM to the shell, as a session's end or a crash sends it: its server must not outlive it
   quit: () => Promise<void>;
 }
 
-export type DesktopShellOptions = {
-  // the shell's own folder (its recent-vaults list, its debug choice)
+export interface DesktopShellOptions {
+  // the shell's own folder (its debug choice)
   seedOwnDir?: (ownDir: string) => Promise<void>;
-} & (
-  | {
-      firstRun?: false;
-      // the vault the shell opens, made before launch so the shell boots it rather than asking
-      // for one; seeded before its server's repo init commits it
-      seedVault?: (vaultDir: string) => Promise<void>;
-    }
-  // no vault and nothing seeded: the shell opens its first run and boots nothing until a vault
-  // is chosen. A relaunch over the same scratch finds the vault that run made
-  | { firstRun: true }
-);
+}
 
 export type LaunchDesktopShellArgs = DesktopShellOptions & {
   repoRoot: string;
@@ -73,7 +56,7 @@ export type LaunchDesktopShellArgs = DesktopShellOptions & {
 };
 
 // what `pnpm turbo run build:shell --filter=@repo/desktop` leaves, which the runner builds before a
-// shell scenario: an unbundled debug build, its first-run page inside it
+// shell scenario: an unbundled debug build
 export const shellBinary = (repoRoot: string): string =>
   path.join(repoRoot, "apps", "desktop", "src-tauri", "target", "debug", "Inteligir");
 
@@ -104,11 +87,11 @@ const requireShellSetup = (binary: string): void => {
 
 type ShellDirs = VendorDirs & { homeDir: string };
 
-// HOME, not INTELIGIR_DATA_DIR/INTELIGIR_VAULT_DIR: the shell refuses a switch while either is
-// pinned, so the scratch is reached through the dev instance a home derives. The driver passes
-// its environment down to the shell it starts.
+// HOME, not INTELIGIR_DATA_DIR: the scratch is reached through the dev instance a home derives, as
+// a launch from the Dock reaches its own. The driver passes its environment down to the shell it
+// starts.
 const shellEnv = (dirs: ShellDirs, serverPort: number): NodeJS.ProcessEnv =>
-  Object.assign(appLaunchEnv(), vendorEnv(dirs), NO_AUTO_SYNC, {
+  Object.assign(appLaunchEnv(), vendorEnv(dirs), {
     HOME: dirs.homeDir,
     INTELIGIR_AGENT: "scripted",
     INTELIGIR_PORT: String(serverPort),
@@ -172,20 +155,14 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
   // an unbundled shell's door resolves in development mode, for the checkout it belongs to; the
   // rest of the env it hands the resolution moves neither dir
   const target = (): ShellTarget => {
-    const { dataDir, vaultDir } = resolveAppConfig({
+    const { dataDir } = resolveAppConfig({
       checkoutPath,
       env: { NODE_ENV: "development" },
       homeDir,
     });
-    return { dataDir, vaultDir };
+    return { dataDir };
   };
 
-  // the default vault already there is what a launch before first run left, so the shell boots it
-  if (args.firstRun !== true) {
-    const { vaultDir } = target();
-    await mkdir(vaultDir, { recursive: true });
-    await args.seedVault?.(vaultDir);
-  }
   await args.seedOwnDir?.(ownDir);
 
   let session: WebDriverSession | null = null;

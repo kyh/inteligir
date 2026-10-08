@@ -340,9 +340,8 @@ export const readManagedVaultDir = (rootDataDir: string): string | null =>
   readManagedConfigFile(rootDataDir).vaultDir ?? null;
 
 // The root's config.json is the vault selector: it is what `inteligir serve` reads with no
-// shell around, so a switch made in the shell is the CLI's next boot too. null removes the key, so
-// the next boot is on the default vault again: a first run whose boot failed must not leave the
-// next launch opening the folder that failed.
+// shell around, so a switch made by `inteligir vault open` is the next boot. null removes the key,
+// so the next boot is on the default vault again.
 export const writeManagedVaultDir = (rootDataDir: string, vaultDir: string | null): void => {
   const current = readManagedConfigFile(rootDataDir);
   const kept = Object.fromEntries(Object.entries(current).filter(([key]) => key !== "vaultDir"));

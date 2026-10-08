@@ -93,10 +93,7 @@ guard holds the fences to the parser: every `inteligir-*` fence an example
 opens is a `*_LANG` that `@repo/notes/markdown/fence-langs` exports, and every
 one it exports is taught — except a `COMPAT_*` spelling, which the app reads
 but never writes new, so no skill and no note under `apps/cli/seed/` may open
-one. `packages/editor/src/__tests__/skill-examples.test.ts`
-holds the examples themselves: each `markdown` fence in a `SKILL.md` must open
-rich through the editor's gate and settle after one save. The
-rest of the pins are downstream:
+one. The rest of the pins are downstream:
 `apps/cli/src/server/agents/__tests__/agent-shell-env.test.ts` and
 `agent-instructions.test.ts` (the env var and the pointer appear together, and
 only when a dir resolved), `acp-manager.test.ts` (the pointer leads the first

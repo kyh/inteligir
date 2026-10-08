@@ -44,8 +44,6 @@ const RootLayout = () => {
       >
         <Stack.Protected guard={signedIn}>
           <Stack.Screen name="index" />
-          <Stack.Screen name="notes/index" />
-          <Stack.Screen name="notes/[...path]" />
           <Stack.Screen name="thread/[id]" />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>

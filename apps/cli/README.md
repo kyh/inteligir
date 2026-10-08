@@ -185,18 +185,15 @@ entry. In a checkout the worker runs its `.ts` source under tsx's hook instead
 **The desktop shell's door is a second entry, `dist/desktop.js`**
 (`src/desktop/desktop-entry.ts`), over the same chunks. The shell is Rust, and
 every rule it acts by that is the server's own is asked of this entry instead
-of spelled twice: which vault a launch boots, what a first run's choice opens,
-whether a switch may go ahead, a picked folder's facts, the selector's write
-and a browser's handoff, one question per process, answered as one JSON line
-(`src/desktop/desktop-door.ts`). `serve` is the one that stays: it is the
+of spelled twice: the data dir a launch serves and the environment its child
+runs with, and a browser's handoff, one question per process, answered as one
+JSON line (`src/desktop/desktop-door.ts`). `serve` is the one that stays: it is the
 server, run on the node the app ships, and it announces itself to the shell on
 one marked line (`src/desktop/desktop-serve.ts`), or adopts a server already
 serving its data dir at this version that can sign a window in (one built
 without its app is refused, in words). Its stdin is the shell's lifeline: it
 closes only when the shell is gone, and the server then stops itself rather
-than go on holding the data dir. Packaged, it writes the agents' `inteligir`
-as a launcher into the data dir (`src/desktop/agent-launcher.ts`), which runs
-that same node on this CLI, since a Mac need hold no node of its own.
+than go on holding the data dir.
 
 Every node child the server starts it starts itself, with `child_process` over
 its own `process.execPath`: the watcher, and each ACP adapter. codex is the one

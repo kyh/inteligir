@@ -17,7 +17,7 @@ try {
   if (verb === "serve") {
     await desktopServe(doorTargetArgs(context), args.includes("--debug"));
   } else {
-    process.stdout.write(`${JSON.stringify(await answerDoor(context, verb, args))}\n`);
+    process.stdout.write(`${JSON.stringify(await answerDoor(context, verb))}\n`);
   }
 } catch (error) {
   process.stderr.write(`${messageOf(error)}\n`);

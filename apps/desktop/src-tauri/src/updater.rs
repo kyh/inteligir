@@ -1,6 +1,6 @@
 //! Tauri's updater makes the moves; this owns the policy. One step at a time, nothing downloads or
 //! installs without a click, a check 15 seconds after launch and every 4 minutes after, and the
-//! server stopped before the bundle is replaced, so the vault's pending commit flushes first. The
+//! server stopped before the bundle is replaced, so its ordered shutdown runs first. The
 //! state is the `UpdateState` union, which the page mirrors from the `update-state` event.
 
 use std::sync::{Mutex, MutexGuard, PoisonError};

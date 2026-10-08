@@ -12,12 +12,6 @@ const inertUpdates: UpdateState = {
   status: "disabled",
 };
 
-const inertVaults = {
-  blocked: null,
-  current: { name: "Inteligir", path: "/home/me/Inteligir" },
-  recent: [],
-};
-
 const inertDiagnostics: DiagnosticsState = {
   canRestart: false,
   debug: false,
@@ -33,22 +27,11 @@ export const inertBridge = (): DesktopBridge => ({
     setDebug: async () => ({ ok: true, state: inertDiagnostics }),
     showLog: async () => ({ ok: true }),
   },
-  paths: {
-    open: async () => ({ ok: true }),
-    reveal: async () => ({ ok: true }),
-  },
-  print: async () => ({ ok: true }),
   updates: {
     check: async () => inertUpdates,
     download: async () => inertUpdates,
     getState: async () => inertUpdates,
     install: async () => inertUpdates,
     onState: () => () => {},
-  },
-  vaults: {
-    forget: async () => inertVaults,
-    getState: async () => inertVaults,
-    open: async () => ({ ok: true, state: inertVaults }),
-    pick: async () => ({ ok: true, state: inertVaults }),
   },
 });

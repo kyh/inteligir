@@ -4,7 +4,7 @@
 //! itself on a ready line, or a server already serving this data dir at the bundled version is
 //! adopted: the entry announces it and exits. One that holds the data dir but cannot be adopted
 //! is refused in the person's words. Whatever the child prints is appended to the server log. On quit the shell sends SIGTERM and waits the server's own teardown budget before
-//! SIGKILL, so the vault's pending commit is flushed. There is no restart: a fresh child mints a
+//! SIGKILL, so its ordered shutdown runs to its end. There is no restart: a fresh child mints a
 //! fresh session, which the window's cookie does not hold.
 
 use std::collections::BTreeMap;
@@ -21,7 +21,7 @@ use serde::Deserialize;
 
 use crate::server_log::ServerLog;
 
-/// A warm boot answers in well under a second; a first boot seeds and commits a vault.
+/// A warm boot answers in well under a second; a first boot creates and migrates its database.
 pub const READY_TIMEOUT: Duration = Duration::from_secs(45);
 
 /// The line the desktop entry prints once the server answers, before anything else it says is
@@ -302,7 +302,7 @@ fn describe(code: Option<i32>) -> String {
 
 impl OwnedServer {
     /// SIGTERM, then the server's own budget, then SIGKILL. Blocks: a quit has no later step to
-    /// wait in, and the vault's pending commit is what the wait is for.
+    /// wait in, and the server's ordered shutdown is what the wait is for.
     pub fn stop(&self) {
         {
             let mut state = self

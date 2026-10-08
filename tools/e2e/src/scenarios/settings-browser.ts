@@ -1,5 +1,3 @@
-import { writeFile } from "node:fs/promises";
-import path from "node:path";
 import { DEVICE_CREDENTIAL_PREFIX } from "@repo/contract/cloud/device/device-schema";
 import { writeDeviceCredential } from "inteligir/server/cloud/credential-store";
 import { z } from "zod";
@@ -7,21 +5,13 @@ import { clickButtonIn, parseEval, untilBodyHolds } from "../harness/agent-brows
 import { expect } from "../harness/assert";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import {
-  ALERT_DIALOG,
-  CONNECTOR_FORM,
-  DIALOG_PRESENCE,
-  NAME_INPUT,
-  TOAST,
-  URL_INPUT,
-} from "../harness/selectors";
-import { NO_AUTO_SYNC } from "../harness/vault-sync";
+import { ALERT_DIALOG, DIALOG_PRESENCE } from "../harness/selectors";
 
 // nothing listens on port 1, so every cloud request is refused at once; the credential file alone
 // puts Sign out on screen.
 const DEAD_CLOUD_URL = "http://127.0.0.1:1";
-const CONNECTOR_NAME = "dupe";
-const CONNECTOR_URL = "https://mcp.example.com/mcp";
+// the Account section's anchor (apps/desktop/src/renderer/app/settings/settings-page.tsx)
+const ACCOUNT_SECTION = "#account";
 const STATUS_DEADLINE_MS = 30_000;
 // the section's own heading, not a row or the nav link that share its word
 const ACCOUNT_HEADING = `[...document.querySelectorAll("h3")].some((el) => el.textContent.trim() === "Account") ? "drawn" : "missing"`;
@@ -52,8 +42,8 @@ const NEW_ACCOUNT = {
   name: "New Person",
   password: "a fresh passphrase",
 };
-// each field of the form that holds "Invite code", by its label: the connector form beside it has a
-// Name too, and the ids are React-minted per mount.
+// each field of the form that holds "Invite code", by its label: the ids are React-minted per
+// mount.
 const ACCOUNT_FIELDS = `(() => {
   const labelled = (root, text) => [...root.querySelectorAll("label")].find((el) => el.textContent.trim() === text);
   const invite = labelled(document, "Invite code");
@@ -76,11 +66,11 @@ const accountFieldsSchema = z.object({
 
 export const settingsBrowser: Scenario = {
   description:
-    "/settings hosts the dialog and the toaster: the Account section says a dead cloud's device list couldn't load, Delete account… holds its button until a password is typed and shows the dead cloud's refusal, Sign out confirms, a refused connector add toasts, and signed out a refused sign-up keeps the form",
+    "/settings hosts the dialog: the Account section says a dead cloud's device list couldn't load, Delete account… holds its button until a password is typed and shows the dead cloud's refusal, Sign out confirms, and signed out a refused sign-up keeps the form",
   name: "settings-browser",
   async run(ctx) {
     const app = await ctx.boot({
-      extraEnv: { INTELIGIR_CLOUD_URL: DEAD_CLOUD_URL, ...NO_AUTO_SYNC },
+      extraEnv: { INTELIGIR_CLOUD_URL: DEAD_CLOUD_URL },
       name: "solo",
       seedData: (dataDir) => {
         writeDeviceCredential(dataDir, {
@@ -89,17 +79,11 @@ export const settingsBrowser: Scenario = {
         });
       },
     });
-    // the row the form's add will collide with, in the claude store the instance runs claude over.
-    await writeFile(
-      path.join(app.vendorDirs.claudeConfigDir, ".claude.json"),
-      JSON.stringify({ mcpServers: { [CONNECTOR_NAME]: { type: "http", url: CONNECTOR_URL } } }),
-    );
-
     const agentBrowser = await ctx.browser("settings");
 
     ctx.log(`opening ${app.baseUrl}/settings`);
     await agentBrowser(["open", await app.browserUrl("/settings")], 60_000);
-    await agentBrowser(["wait", NAME_INPUT], 90_000);
+    await agentBrowser(["wait", ACCOUNT_SECTION], 90_000);
 
     ctx.log("waiting for the signed-in status to reach the page");
     await untilBodyHolds(agentBrowser, ["Sign out"], STATUS_DEADLINE_MS);
@@ -199,17 +183,6 @@ export const settingsBrowser: Scenario = {
     );
     await agentBrowser(["press", "Escape"]);
     await confirmLeft();
-
-    ctx.log("a refused add toasts on this route");
-    await agentBrowser(["fill", NAME_INPUT, CONNECTOR_NAME]);
-    await agentBrowser(["fill", URL_INPUT, CONNECTOR_URL]);
-    await clickButtonIn(agentBrowser, CONNECTOR_FORM, "Add", 10_000);
-    await agentBrowser(["wait", TOAST], 30_000);
-    const toastText = await agentBrowser(["get", "text", TOAST]);
-    expect(
-      toastText.includes(`already has a connector named "${CONNECTOR_NAME}"`),
-      `the toast did not carry the refusal:\n${toastText}`,
-    );
 
     ctx.log("signed out, the Account section offers to create an account");
     await openSignOutConfirm();

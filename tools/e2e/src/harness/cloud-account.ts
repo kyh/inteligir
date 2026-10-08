@@ -8,6 +8,9 @@ import { E2E_INVITE_CODE } from "./cloud-worker";
 // the account every device signs in as; the password is what login needs
 export const OWNER = { email: "e2e-owner@inteligir.local", password: "e2e-password-1234" };
 
+// the device name a scenario's phone signs in as
+export const PHONE_NAME = "E2E Phone";
+
 const sessionUserSchema = z.looseObject({ user: z.looseObject({ id: z.string() }) });
 
 export const signUp = async (origin: string): Promise<{ bearer: string; userId: string }> => {

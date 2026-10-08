@@ -138,9 +138,6 @@ export const claimDataDir = async (dataDir: string, teardown: ShutdownStep[]): P
 };
 
 export interface RunServeOptions {
-  // the folder an agent shell finds `inteligir` in; absent, this package's own bin. the desktop
-  // app names a launcher that runs the node it ships, since its Mac may have none on PATH
-  cliBinDir?: string;
   // the desktop shell's lifeline (desktop/desktop-serve.ts): a stream it holds open and never
   // writes, so its end means the shell is gone
   lifeline?: NodeJS.ReadableStream;
@@ -150,7 +147,6 @@ const boot = async (
   version: string,
   env: NodeJS.ProcessEnv,
   teardown: ShutdownStep[],
-  options: RunServeOptions,
 ): Promise<ServeResult> => {
   const began = performance.now();
   const checkoutPath = resolveCheckoutRoot();
@@ -175,7 +171,7 @@ const boot = async (
     },
     config,
     driver: ({ config: driverConfig, db, bus, vault, folders, agentPrefs }) => {
-      const cliBinDir = options.cliBinDir ?? resolveCliBinDir();
+      const cliBinDir = resolveCliBinDir();
       const skillsDir = resolveSkillsDir();
       const driverArgs: ResolveAgentDriverArgs = {
         config: driverConfig,
@@ -344,7 +340,7 @@ export const runServe = async (
   }
 
   try {
-    return await boot(version, env, teardown, options);
+    return await boot(version, env, teardown);
   } catch (error) {
     // inspect, not the stack: drizzle names the failed query and carries the driver's own error
     // (`no such table: meta`) as the cause, which only the inspection prints.

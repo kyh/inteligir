@@ -141,89 +141,40 @@ app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
 
 ### The Mac app
 
-- **Signed and notarized, the bundled node and git included.**
+- **Signed and notarized, the bundled node included.**
 
   ```sh
   codesign --verify --deep --strict --verbose=2 "$app"
   codesign --verify --strict --verbose=2 "$app/Contents/MacOS/node"
-  codesign --verify --strict --verbose=2 "$app/Contents/Resources/git/bin/git"
   spctl --assess --type execute --verbose=4 "$app"
   xcrun stapler validate "$app"
   ```
 
-  Passing: the three `codesign` runs say `valid on disk` and
+  Passing: both `codesign` runs say `valid on disk` and
   `satisfies its Designated Requirement`, `spctl` says `accepted` with
   `source=Notarized Developer ID`, and `stapler` says
   `The validate action worked!`.
 
-- **Sign in with Claude, for real.** On a Mac user signed out of both agents (a
-  spare macOS user keeps your own sign-ins), open the app from Finder and
-  choose Sign in with Claude, in `/welcome`'s agent step or Settings › Agent.
-  Passing: the browser opens Claude's sign-in, and once you approve, the app
-  finishes on its own (Paste the code is only the fallback); the card turns
-  signed in without a reload; and the bundled binary agrees:
-  `"$(find "$app" -type f -perm +111 -name claude | head -1)" auth status`
-  reports signed in. Then sign out, start Sign in with Claude again and press
-  Cancel mid-way: the card goes back to signed out, and the attempt after it
-  completes.
-- **Sign in with ChatGPT**, under Other, the same way. Passing: as above, and
-  `"$(find "$app" -type f -perm +111 -name codex -path '*/bin/*' | head -1)" login status`
-  says logged in.
-- **A connector through the browser.** With a real Linear account, Settings ›
-  Connectors › Linear while Claude is the default agent. Passing: the browser
-  asks Linear to approve, the row turns connected, and a new action asked to
-  list your Linear issues calls a Linear tool and lists them. Make ChatGPT the
-  default in Settings › Agent and repeat: the same.
 - **A connector added outside the app.** With the bundled binary,
   `"$(find "$app" -type f -perm +111 -name claude | head -1)" mcp add --scope user <name> -- <command>`
-  for any stdio server. Passing: Settings › Connectors lists it, and a new
-  action asked which tools it has lists that server's, with nothing set in the
-  app.
+  for any stdio server. Passing: a new action asked which tools it has lists
+  that server's, with nothing set in the app.
 - **Dictation is the Mac's.** Press fn twice in the ⌘K composer and speak,
   then type. Passing: the words land once, at the caret; typing carries on
   after them; Enter while dictation is live does not send; the Edit menu shows
-  Start Dictation…; and dictating into a note behaves the same.
+  Start Dictation….
 
 ### The iPhone app, on the internal build
 
-On the owner's iPhone, installed from TestFlight, never a development build. An
-account whose vault holds about 2,000 notes gives the timing check its load.
+On the owner's iPhone, installed from TestFlight, never a development build.
 
-- **Sign in** with the account's email and password. Passing: the first
-  mirror says Loading your vault… with its count, then the notes list and the
-  threads show. Kill the app and open it again. Passing: the splash holds
-  until it knows, the sign-in form never flashes, and the phone is still
-  signed in.
-- **Edit.** Open a note, type, go back. Passing: typing, autocorrect and the
-  keyboard's microphone each land once; the selection handles and the edit
-  menu work, with no floating toolbar; the formatting toolbar rides the
-  keyboard; and the edit shows in the note on the Mac after its next sync.
-  Background the phone's app, change a note on the Mac, come back. Passing:
-  the change shows.
-- **The editor's edges.** Passing: a cold open of a note is editable within a
-  second; New note opens with its title focused and the keyboard up; a
-  `[[link]]` pushes its note and back returns; an external link opens Safari
-  and the page never navigates; a chart and tabs refuse edits; dark mode
-  follows the system; typing and then backgrounding and killing the app keeps
-  what was typed.
+- **Sign in** with the account's email and password. Passing: the threads
+  show. Kill the app and open it again. Passing: the splash holds until it
+  knows, the sign-in form never flashes, and the phone is still signed in.
 - **Offline.** Sync once, turn on airplane mode, kill the app and open it.
-  Passing: the notes list, any note and every thread open. Edit a note and add
-  a photo while still offline, kill the app, open it, turn airplane mode off.
-  Passing: both reach the Mac.
-- **Both devices at once.** With the phone offline, change the same lines of
-  one note on the phone and on the Mac, then reconnect; repeat with different
-  lines. Passing: different lines merge; the same lines leave a copy named for
-  the device it came from, such as `Plan (conflict, <device>).md`, and the
-  phone's banner says how it settled, with Open.
-- **Create, rename, delete.** New note; rename a note another note links to;
-  delete a note with comments. Passing: the Mac shows the new note, the link
-  rewritten to the new name, and Deleted on the Mac brings the note back with
-  its comments.
-- **Photos.** Add one from the camera and one from the library. Passing: each
-  lands in the vault as `assets/<name>.jpg` of about 1 MB or less, draws in
-  its note on the Mac, and has no location: Preview's Inspector (⌘I) shows no
-  GPS tab.
-- **Ask your Mac.** Ask agent from a note with the Mac app open. Passing: the
+  Passing: every thread opens. Reply in one while still offline, kill the app,
+  open it, turn airplane mode off. Passing: the reply reaches the Mac.
+- **Ask your Mac.** Reply in a thread with the Mac app open. Passing: the
   request shows Waiting for your Mac…, then Your Mac has it; the Mac runs it,
   and its reply appears on the phone after a pull; the composer rides above the
   keyboard; a question the agent asks for permission is answered on the phone.
@@ -235,16 +186,11 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   the 60s poll would land it (the account's socket upgraded from the device,
   React Native's headers argument carrying the bearer), and ends as the
   settled reply.
-- **Capture.** Passing: a quick capture lands in `Inbox.md` on the Mac.
-- **Sign out.** With an edit still unsent (airplane mode), Sign out. Passing: it
+- **Sign out.** With a request still unsent (airplane mode), Sign out. Passing: it
   asks first and names the count; confirmed, the sign-in screen shows.
 - **Revoke.** Sign the phone in again, then Revoke it in Settings › Account on
   the Mac. Passing: the phone's next request ends its sign-in, and the sign-in
   screen says this device was signed out.
-- **No iCloud backup of the notes.** Settings › your name › iCloud › Manage
-  Account Storage › Backups › this iPhone. Passing: Inteligir's backup is a
-  small fraction of the notes it holds (the mirror downloads again from the
-  hosted vault), and photos added in airplane mode do not grow it.
 - **A new phone signs in as itself.** Restore this iPhone's encrypted backup
   onto another iPhone and open the app. Passing: it shows the sign-in screen,
   and once signed in Settings › Account on the Mac lists it beside the first
@@ -257,21 +203,13 @@ account whose vault holds about 2,000 notes gives the timing check its load.
 
 ### The iPhone app, in the simulator or a development build
 
-- **The editor page's policy under WebKit.** In a development build
-  (`pnpm --filter @repo/mobile ios`), open a note, then Safari › Develop ›
-  Simulator › the note's page. Passing: the note is editable, and the console
-  has no `Refused to` line; the static CSP is otherwise proven in Chromium
-  alone.
-- **A killed page reloads.** In the simulator, quit the note's
-  `com.apple.WebKit.WebContent` process in Activity Monitor. Passing: the note
-  reloads with its text.
 - **The database upgrades.** Every step appended to `MIGRATIONS` in
   `apps/mobile/src/lib/phone-db.ts` since the build testers hold: install that
   build (for this release, a development build from the last commit whose
-  `MIGRATIONS` held three steps), sign in, sync, leave an edit unsent, then
-  install this build over it. Passing: it opens with no error, the unsent edit
-  still waits, and after one sync, turning on airplane mode and a cold launch
-  shows the threads.
+  `MIGRATIONS` held three steps), sign in, sync, leave a request unsent, then
+  install this build over it. Passing: it opens with no error, the unsent
+  request still waits, and after one sync, turning on airplane mode and a cold
+  launch shows the threads.
 
 ## 6. Publish
 
@@ -345,13 +283,10 @@ refuses a server of another version, so npm and the Mac app ship as one.
   An update reaches only builds whose fingerprint matches, and the fingerprint
   covers the app config, `version` included, so one bundled after a version
   bump reaches nobody; `pnpm --filter @repo/mobile exec eas fingerprint:compare --build-id <id>`
-  names what differs. The editor page is part of the fingerprint too, so a
-  mismatch that names `apps/mobile-editor/dist` with no page change means the
-  page's build is not byte-identical across machines. Passing: as the update
+  names what differs. Passing: as the update
   check in § 5. A bad update is rolled back with
   `pnpm --filter @repo/mobile exec eas update:rollback <group id>`.
-- **The phone, anything native** (a module, a config plugin, the SDK, the
-  editor page): a new build of the same version, `pnpm testflight:mobile` from
+- **The phone, anything native** (a module, a config plugin, the SDK): a new build of the same version, `pnpm testflight:mobile` from
   a branch off the tag, then `apps/mobile/README.md` § Per release from step 3.
 - **The Mac app or the CLI**: a patch version through this whole runbook. All
   three manifests move with it, but the phone's build may stay behind; its

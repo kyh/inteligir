@@ -6,12 +6,11 @@ import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schem
 import { POLL_INTERVAL_MS } from "inteligir/server/cloud/sync-cadence";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, signUp } from "../harness/cloud-account";
+import { loginDevice, PHONE_NAME, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { signInOwner } from "../harness/hosted-vault";
 import type { AppInstance, InstanceApi } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
-import { PHONE_NAME } from "../harness/phone-runtime";
 import type { Scenario } from "../harness/scenario";
 import { untilThreadIdle } from "../harness/threads";
 

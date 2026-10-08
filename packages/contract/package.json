@@ -42,7 +42,6 @@
     "./local/vault/attachment-location": "./src/local/vault/attachment-location.ts",
     "./local/vault/give-note-own-id": "./src/local/vault/give-note-own-id.ts",
     "./local/vault/remote-url": "./src/local/vault/remote-url.ts",
-    "./local/vault/vault-folder": "./src/local/vault/vault-folder.ts",
     "./local/vault/vault-schema": "./src/local/vault/vault-schema.ts",
     "./local/vault/restore-comment-store": "./src/local/vault/restore-comment-store.ts"
   },

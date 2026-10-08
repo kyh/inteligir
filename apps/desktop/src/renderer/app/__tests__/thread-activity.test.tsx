@@ -78,7 +78,6 @@ describe("the palette renders that answer and no other", () => {
     renderWithQueries({
       actions: makeActions(),
       canSync: false,
-      entries: [],
       onOpenChange: vi.fn<() => void>(),
       open: true,
       request: defaultRequest,

@@ -56,9 +56,6 @@ catalog:
   expo: ~57.0.26
   expo-constants: ~57.0.20
   expo-crypto: ~57.0.3
-  expo-file-system: ~57.0.7
-  expo-image-manipulator: ~57.0.20
-  expo-image-picker: ~57.0.20
   expo-network: ~57.0.2
   expo-router: ~57.0.24
   expo-secure-store: ~57.0.4
@@ -77,8 +74,6 @@ catalog:
   react-native: ~0.86.3
   react-native-safe-area-context: ~5.7.0
   react-native-screens: ~4.26.2
-  # exact: the SDK's bundledNativeModules pins it, and `npx expo install --check` holds it there
-  react-native-webview: 13.16.1
   remark-frontmatter: ^5.0.0
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0
@@ -98,7 +93,6 @@ catalog:
   wrangler: ^4.147.0
   yaml: ^2.9.1
   zod: ^4.6.5
-  zustand: ^5.0.15
 
 catalogs:
   # the SDK-blessed react/typescript; bump only with an Expo SDK upgrade
@@ -145,10 +139,6 @@ patchedDependencies:
   # config, hooks and exec policies, and no per-session option reaches it; the vault is synced
   # content, so the patch marks it untrusted, dropped once upstream lets the client decide
   "@agentclientprotocol/codex-acp@1.13.0": patches/@agentclientprotocol__codex-acp@1.13.0.patch
-  # getPluginType resolves a throwaway plugin (two deep merges) for a key no plugin registers, and
-  # the markdown serializer asks that of every mark rule on every text node: four fifths of a long
-  # note's save. The patch answers from `editor.plugins`, dropped once a release does
-  "@platejs/core@53.3.14": patches/@platejs__core@53.3.14.patch
   # the hosted vault is capped on what a repo cell stores, and the cell exposes no size; the patch
   # adds a `usage()` RPC over the SQLite file and the R2-held packs. Upstream takes no pull
   # requests, so it stays until a release exposes a size

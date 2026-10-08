@@ -17,7 +17,7 @@ drives the product from bash; nothing the user does needs a terminal.
 `apps/web` is the one hosted piece — a Cloudflare Worker carrying the marketing
 site, Better Auth on D1, device sign-in, sign-up and account deletion,
 cross-device sync, the capture and dispatch inboxes and the hosted vault. `apps/mobile` is the iPhone app:
-the same editor over the hosted vault, offline, asking a Mac to run the agent.
+the synced threads, offline, asking a Mac to run the agent.
 This is the tool-agnostic guide for coding agents; `CLAUDE.md` holds the
 architecture and the durable decisions, GitHub issues #542, #611 and #889 the
 decision record, the `note` issues the declines register (#877, #881, #788, #645,
@@ -54,8 +54,7 @@ states under `agent`, and a signed-out vendor refuses the session itself). WHICH
 harness runs is a thread's own `providerId`, never this variable; unset, a new
 thread starts on claude. `inteligir agents list` asks each bundled vendor for
 its sign-in over its shared store (`~/.claude`, `~/.codex`), so a machine
-already signed in to either needs nothing more; Settings › Agent signs one in
-through the vendor's own login.
+already signed in to either needs nothing more.
 **`INTELIGIR_AGENT=scripted` is the login-free e2e mode**: an in-process
 deterministic driver over the REAL ingest/timeline/vault/commit paths — send an
 action message, watch the turn stream, find the note in the vault with an
@@ -186,13 +185,11 @@ description of each.
 apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the window and the SPA in it
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
 apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, dispatch, hosted vault
-apps/mobile             @repo/mobile — the iPhone app: notes in the editor page, offline, and asking a Mac's agent
-apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
+apps/mobile             @repo/mobile — the iPhone app: the synced threads, and asking a Mac's agent
 packages/domain         @repo/domain — zod-only leaf vocabulary
 packages/contract       @repo/contract — ONE contract, TWO entries: /local and /cloud
 packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
 packages/notes          @repo/notes — the pure, platform-neutral domain
-packages/editor         @repo/editor — the Plate WYSIWYG over the fixpoint serializer
 packages/agent-runtime  @repo/agent-runtime — the ACP runtime over the harnesses
 packages/agent-skills   @repo/agent-skills — the dialect spec, as files agents read
 packages/ui             @repo/ui — the shared component vocabulary on Base UI

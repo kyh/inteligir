@@ -6,12 +6,12 @@
   "author": "kyh",
   "type": "module",
   "scripts": {
-    "build": "vite build && vite build --mode first-run",
+    "build": "vite build",
     "build:shell": "tauri build --debug --no-bundle",
     "dev": "tauri dev",
     "format": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
     "format:fix": "cargo fmt --manifest-path src-tauri/Cargo.toml",
-    "package": "node scripts/fetch-git.mjs && node scripts/fetch-node.mjs && node scripts/package.mjs",
+    "package": "node scripts/fetch-node.mjs && node scripts/package.mjs",
     "smoke": "node scripts/smoke-packaged.mjs",
     "tauri": "tauri",
     "test": "vitest run && cargo test --locked --manifest-path src-tauri/Cargo.toml",
@@ -24,8 +24,6 @@
     "@repo/contract": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/domain": "workspace:*",
-    "@repo/editor": "workspace:*",
-    "@repo/notes": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-query": "^5.104.1",
@@ -49,7 +47,6 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
-    "zod": "catalog:",
-    "zustand": "catalog:"
+    "zod": "catalog:"
   }
 }

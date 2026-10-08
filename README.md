@@ -4,8 +4,7 @@
 
 Notes with an agent that edits them beside you. Your notes are plain markdown
 files in a folder on your Mac. Ask Claude or ChatGPT to draft, tidy, link or
-summarize, and it edits those notes directly; every reply that changed a note
-can be undone, and every earlier version of a note is in its History.
+summarize, and it edits those notes directly.
 
 ## Get it
 
@@ -14,13 +13,13 @@ can be undone, and every earlier version of a note is in its History.
 What you need:
 
 - A Mac with Apple silicon.
-- To use the agent, a paid Claude plan or any ChatGPT plan. The app signs in to
-  it for you and brings everything the agent needs; without a plan it is a notes
-  app.
+- To use the agent, a paid Claude plan or any ChatGPT plan. The app brings
+  everything the agent needs.
 - Nothing else to install or set up.
 
 An account is optional and needs an invite: it keeps your notes in step across
-your Macs and your iPhone, and lets your phone ask your Mac's agent. The iPhone
+your Macs, carries your conversations with the agent to your iPhone, and lets
+your phone ask your Mac's agent. The iPhone
 app comes by TestFlight invite.
 
 What leaves your Mac, and when: [docs/privacy.md](./docs/privacy.md).
@@ -39,8 +38,7 @@ The desktop app is the product: one window on that local server, which it
 starts and stops with itself — [`apps/desktop`](./apps/desktop/README.md). The
 signed, notarized macOS build is on the latest GitHub release (the site's
 Download button reads it), and an installed app offers each new release from
-Settings › About. Its first launch asks where your notes live, a new vault or
-a folder you already have, before it starts anything.
+Settings › About.
 
 Without installing the app:
 
@@ -56,9 +54,8 @@ it exits). Every other verb of that same binary but `vault open`, which picks
 the vault the next server opens, is a client against a running server — see
 [`apps/cli`](./apps/cli/README.md).
 
-The agents ship inside the app: sign in with Claude or ChatGPT in
-Settings › Agent; a Mac already signed in to Claude Code or Codex stays signed
-in. Signed in to neither, the app is a notes editor and says so.
+The agents ship inside the app and use the vendor's own sign-in: a Mac already
+signed in to Claude Code or Codex is signed in here too.
 
 From a checkout instead:
 
@@ -76,13 +73,11 @@ the owned description of each.
 apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the window and the SPA in it
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
 apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, dispatch, hosted vault
-apps/mobile             @repo/mobile — the iPhone app: the editor offline over the hosted vault, captures, asks a Mac
-apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
+apps/mobile             @repo/mobile — the iPhone app: the synced threads, and asking a Mac's agent
 packages/domain         @repo/domain — zod-only leaf vocabulary
 packages/contract       @repo/contract — ONE contract, TWO entries: /local and /cloud
 packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
 packages/notes          @repo/notes — the pure, platform-neutral domain
-packages/editor         @repo/editor — the Plate WYSIWYG over the fixpoint serializer
 packages/agent-runtime  @repo/agent-runtime — the ACP runtime over the harnesses
 packages/agent-skills   @repo/agent-skills — the dialect spec, as files agents read
 packages/ui             @repo/ui — the shared component vocabulary on Base UI

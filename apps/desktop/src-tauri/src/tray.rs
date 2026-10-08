@@ -12,7 +12,7 @@ use crate::shell::Shell;
 const TRAY_ID: &str = "inteligir";
 
 fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
-    let vault_open = app.state::<Shell>().target().is_some();
+    let server_open = app.state::<Shell>().target().is_some();
     Menu::with_items(
         app,
         &[
@@ -29,7 +29,7 @@ fn menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
                 app,
                 OPEN_DATA_FOLDER,
                 "Open Data Folder",
-                vault_open,
+                server_open,
                 None::<&str>,
             )?,
             &PredefinedMenuItem::separator(app)?,

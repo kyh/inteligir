@@ -1,8 +1,7 @@
 // The W3C WebDriver calls the shell scenarios make, against tauri-driver, which fronts
 // WebKitWebDriver on Linux. A session is the shell's FIRST window alone: Tauri hands WebKit's
-// automation the first web view it makes, and every vault's window lives in a web context of its
-// own, so a window made after the first (a vault switch's, the app's after a first run) is watched
-// from outside, through the server and its log.
+// automation the first web view it makes, and a window lives in a web context of its own, so any
+// later one would be watched from outside, through the server and its log.
 
 import { z } from "zod";
 import { pollUntil } from "./poll";

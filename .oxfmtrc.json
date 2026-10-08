@@ -9,7 +9,6 @@
     ".tanstack",
     "out",
     "routeTree.gen.ts",
-    "packages/editor/src/__tests__/fixtures",
     "apps/cli/seed"
   ]
 }

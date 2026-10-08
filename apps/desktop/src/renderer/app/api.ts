@@ -1,6 +1,5 @@
-// mutations sweep the queries they affect in their own `onSuccess`, except `vault` and
-// `knowledge`, swept whole: a link into a note lives in another note's bytes, so no
-// path-scoped invalidation is expressible.
+// mutations sweep the queries they affect in their own `onSuccess`; the ws bus sweeps what the
+// server moves on its own.
 
 import { createORPCClient, onError, onSuccess } from "@orpc/client";
 

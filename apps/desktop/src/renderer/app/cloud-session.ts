@@ -10,7 +10,6 @@ import { confirm } from "@repo/ui/components/confirm-dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { failed, orpc, refusalMessage } from "./api";
-import { useVaultStatus } from "./vault-hooks";
 
 export interface CloudSession {
   status: CloudStatusResponse | undefined;
@@ -26,7 +25,6 @@ export interface CloudSession {
 
 export const useCloudSession = (): CloudSession => {
   const queryClient = useQueryClient();
-  const { data: vaultStatus } = useVaultStatus();
   const statusQuery = useQuery(orpc.cloud.status.queryOptions());
   const [refusal, setRefusal] = useState<string | null>(null);
 
@@ -72,13 +70,8 @@ export const useCloudSession = (): CloudSession => {
 
   const signOut = (): void => {
     void (async () => {
-      // Only an account-derived vault remote dies with the credential.
-      const vaultViaAccount =
-        vaultStatus !== undefined &&
-        vaultStatus.state !== "no-remote" &&
-        vaultStatus.remoteSource === "account";
       const confirmed = await confirm({
-        body: `This machine forgets its credential and everything queued for the cloud, and revokes itself on your account if it can reach it.${vaultViaAccount ? " Your vault stops syncing through your account." : ""} Your notes and threads stay here.`,
+        body: "This machine forgets its credential and everything queued for the cloud, and revokes itself on your account if it can reach it. Your threads stay here.",
         confirmLabel: "Sign out",
         destructive: true,
         title: "Stop syncing this device?",

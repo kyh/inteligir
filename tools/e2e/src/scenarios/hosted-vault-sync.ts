@@ -8,11 +8,10 @@ import {
   writeDeviceCredential,
 } from "inteligir/server/cloud/credential-store";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, revokeDevice, signUp } from "../harness/cloud-account";
+import { loginDevice, PHONE_NAME, revokeDevice, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { gitIn } from "../harness/exec";
 import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
-import { PHONE_NAME } from "../harness/phone-runtime";
 import type { Scenario } from "../harness/scenario";
 
 const SHARED_PATH = "notes/shared.md";

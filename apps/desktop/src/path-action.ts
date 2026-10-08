@@ -1,9 +1,7 @@
-// A vault entry the page asks the OS to show or open: the request names it vault-relative,
-// the shell resolves and checks it, and the answer says only whether the OS took it.
+// What the shell answers when it asks the OS to show a folder or open a file of its own (the data
+// folder, the server's log): only whether the OS took it.
 
 import { z } from "zod";
-
-export const pathActionRequestSchema = z.object({ path: z.string().min(1) }).strict();
 
 export const pathActionResultSchema = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(true) }).strict(),

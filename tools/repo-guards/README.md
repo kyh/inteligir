@@ -77,7 +77,7 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | `notifyDoc` or `notifyThread` call in shipped source outside              |
 |                                | `packages/domain`, and every fired kind is declared.                      |
 | `domain-dispatch.test.ts`      | One total dispatch per vocabulary: a shipped file quoting EVERY member    |
-|                                | (vault sync state, thread status, pending-interaction status, thread and  |
+|                                | (thread status, pending-interaction status, thread and                    |
 |                                | vault change kinds) is a table, and must be the declaration or a          |
 |                                | `dispatchedIn` row saying what it decides that the others do not. The     |
 |                                | members are read from the declarations themselves.                        |
@@ -115,18 +115,14 @@ worktree under `.claude` is never read as this commit's tree.
 | `gallery-coverage.test.ts`     | Every component under the demoed roots is imported by the gallery         |
 |                                | (`pnpm dev:gallery`) or is a `NOT_DEMOED` row; `hooks` and `lib` are      |
 |                                | declared non-component roots.                                             |
-| `type-roles.test.ts`           | The chrome under `apps/desktop/src/renderer`, `packages/editor/src`,      |
+| `type-roles.test.ts`           | The chrome under `apps/desktop/src/renderer`,                             |
 |                                | `packages/ui/src/components` and `packages/ui/src/ai` (minus              |
-|                                | `AWAITING_CONSUMER`) draws text only in the five roles; a fixed note size |
-|                                | is a `PROSE_SIZES` row with its reason.                                   |
+|                                | `AWAITING_CONSUMER`) draws text only in the five roles; a fixed size is a |
+|                                | `PROSE_SIZES` row with its reason.                                        |
 | `compiled-hook-shapes.test.ts` | No react-importing source defines a `use*` hook inside another function — |
 |                                | the React Compiler hoists its closures to module scope and reports no     |
 |                                | diagnostic. The scanner is self-tested against braces in strings,         |
 |                                | comments and template holes.                                              |
-| `appearance-tokens.test.ts`    | The `--editor-*` funnel: the `dial()` rows in `appearance-options.ts`     |
-|                                | write only tokens something reads, every read resolves to a `globals.css` |
-|                                | declaration, every declaration is read, `--editor-width` carries no       |
-|                                | fallback, and every fallback spells the stylesheet default exactly.       |
 | `page-prefs.test.ts`           | Storage is read and written by key only in the desktop's `PREFS` table    |
 |                                | (`apps/desktop/src/renderer/app/prefs.ts`), and no other file spells one  |
 |                                | of its keys, which are read off the table's own rows; a store that is not |
@@ -164,8 +160,8 @@ worktree under `.claude` is never read as this commit's tree.
 | `release-versions.test.ts`     | The CLI, the desktop and the phone manifests carry one version, and the   |
 |                                | phone's EAS build installs with the pnpm, the node major and at least the |
 |                                | eas-cli the repo pins — a release ships three artifacts as one product.   |
-| `ime-enter.test.ts`            | A source under `packages/ui/src`, `packages/editor/src` or the desktop    |
-|                                | renderer that tests a key against Enter imports `isImeComposing`, or is   |
+| `ime-enter.test.ts`            | A source under `packages/ui/src` or the desktop renderer that tests a key |
+|                                | against Enter imports `isImeComposing`, or is                             |
 |                                | a `NOT_A_TEXT_FIELD` row — the Enter that commits an IME candidate is not |
 |                                | the user's, and no unit suite types through a composition.                |
 | `e2e-scenario-table.test.ts`   | `tools/e2e/README.md`'s scenario table names every scenario `SCENARIOS`   |

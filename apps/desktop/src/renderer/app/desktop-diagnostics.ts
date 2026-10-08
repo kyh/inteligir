@@ -2,10 +2,10 @@
 // folder are the shell's; the page mirrors its answer. A browser tab did not start the server: no
 // bridge, no row.
 
+import { toast } from "@repo/ui/components/sonner";
 import type { DesktopDiagnosticsBridge } from "../../types";
 import type { DiagnosticsState } from "../../diagnostics-state";
 import { createBridgeStore } from "./bridge-store";
-import { runPathAction } from "./desktop-paths";
 
 const diagnosticsBridge = (): DesktopDiagnosticsBridge | undefined =>
   window.desktopBridge?.diagnostics;
@@ -17,6 +17,30 @@ const store = createBridgeStore<DesktopDiagnosticsBridge, DiagnosticsState>({
 });
 
 export const useDesktopDiagnostics = store.use;
+
+// a refusal is the shell's, in its words; a broken bridge is one sentence, never a stack
+const settlePathAction = async (
+  action: () => Promise<{ ok: true } | { ok: false; reason: string }>,
+  fallback: string,
+): Promise<void> => {
+  let result;
+  try {
+    result = await action();
+  } catch {
+    toast.error(fallback);
+    return;
+  }
+  if (!result.ok) {
+    toast.error(result.reason);
+  }
+};
+
+const runPathAction = (
+  action: () => Promise<{ ok: true } | { ok: false; reason: string }>,
+  fallback: string,
+): void => {
+  void settlePathAction(action, fallback);
+};
 
 export const setDebugLogging = async (debug: boolean): Promise<string | null> =>
   await store.settle(async (diagnostics) => await diagnostics.setDebug(debug));

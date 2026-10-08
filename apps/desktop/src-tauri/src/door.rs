@@ -1,7 +1,7 @@
-//! The shell asks the CLI's desktop entry whatever the server's own rules decide: the vault a
-//! launch boots, what a first run's choice opens, whether a switch may happen, a folder's facts,
-//! the selector's write. Those rules are TypeScript over `inteligir/server/*`, so they are asked of
-//! it and never spelled a second time here. Each ask is one node process answering one JSON line
+//! The shell asks the CLI's desktop entry whatever the server's own rules decide: the environment
+//! a launch runs the server with and the data dir it serves, and a browser's sign-in. Those rules
+//! are TypeScript over `inteligir/server/*`, so they are asked of it and never spelled a second
+//! time here. Each ask is one node process answering one JSON line
 //! (`apps/cli/src/desktop/desktop-entry.ts`): an answer, or a refusal in the page's words.
 
 use std::collections::BTreeMap;
@@ -90,20 +90,20 @@ mod tests {
     use super::*;
 
     #[derive(Debug, PartialEq, Eq, Deserialize)]
-    struct Vault {
+    struct Folder {
         path: String,
     }
 
     #[test]
     fn reads_an_answer_and_a_refusal() {
         assert_eq!(
-            parse_reply::<Vault>(r#"{"answer":{"path":"/v"}}"#),
-            Ok(Vault {
+            parse_reply::<Folder>(r#"{"answer":{"path":"/v"}}"#),
+            Ok(Folder {
                 path: "/v".to_owned()
             })
         );
         assert_eq!(
-            parse_reply::<Vault>(r#"{"reason":"That folder is not there any more."}"#),
+            parse_reply::<Folder>(r#"{"reason":"That folder is not there any more."}"#),
             Err(DoorError::Refused(
                 "That folder is not there any more.".to_owned()
             ))
@@ -113,11 +113,11 @@ mod tests {
     #[test]
     fn anything_else_is_a_fault() {
         assert!(matches!(
-            parse_reply::<Vault>(r#"{"answer":{"wrong":1}}"#),
+            parse_reply::<Folder>(r#"{"answer":{"wrong":1}}"#),
             Err(DoorError::Fault(_))
         ));
         assert!(matches!(
-            parse_reply::<Vault>("not json"),
+            parse_reply::<Folder>("not json"),
             Err(DoorError::Fault(_))
         ));
     }

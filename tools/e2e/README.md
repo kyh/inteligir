@@ -66,32 +66,25 @@ scratch dir and tears everything down afterwards:
 - `instance.api` — the oRPC client over `@repo/contract/local`, carrying the device
   token this instance published in `<dataDir>/server.json`;
   `instance.vaultDir` / `dataDir` for on-disk assertions.
-- `desktopShell({ seedVault?, seedOwnDir?, firstRun? })` — the checkout's
-  built Tauri shell (`pnpm turbo run build:shell --filter=@repo/desktop`, an
-  unbundled debug build the runner makes before the first scenario that asks,
-  outside every deadline). It makes the default vault's folder before launch,
-  as a launch before first run left it, so the shell boots it; `firstRun: true`
-  makes nothing, so the shell opens its first-run page and boots no server
-  until a vault is chosen, and a relaunch over the same scratch finds the vault
-  that run made. Launched by `tauri-driver` on a scratch `HOME` (never
-  `INTELIGIR_DATA_DIR`/`INTELIGIR_VAULT_DIR`, which would make it refuse a vault
-  switch), a pinned server port and `INTELIGIR_AGENT=scripted`. Its `window` is
-  a WebDriver session over the shell's FIRST window alone: Tauri hands WebKit's
-  automation the first web view it makes, and each vault's window lives in a
-  web context of its own, so a window made after it (a switch's, the app's
-  after a first run) is watched through its server and `serverLog()`, where the
-  shell notes each window it loads. `api` is the oRPC client over whichever
-  server it runs now; `target()` is the data and vault dir it resolves now,
-  derived as the shell's CLI door derives them; `ownDir` is the shell's own
-  folder (its recent vaults, its debug choice); `quit()` sends the shell the
-  SIGTERM it quits on. Registered for teardown like an instance. It runs on
-  Linux alone, and skips with no display (run the suite under `xvfb-run -a`),
-  no `tauri-driver` or `WebKitWebDriver`, or no built shell.
+- `desktopShell({ seedOwnDir? })` — the checkout's built Tauri shell
+  (`pnpm turbo run build:shell --filter=@repo/desktop`, an unbundled debug
+  build the runner makes before the first scenario that asks, outside every
+  deadline). Launched by `tauri-driver` on a scratch `HOME` (never
+  `INTELIGIR_DATA_DIR`, so the data dir is the one a home derives, as the
+  shell's CLI door derives it), a pinned server port and
+  `INTELIGIR_AGENT=scripted`. Its `window` is a WebDriver session over the
+  shell's first window: Tauri hands WebKit's automation the first web view it
+  makes. `api` is the oRPC client over the server it runs; `target()` is the
+  data dir it resolves; `ownDir` is the shell's own folder (its debug choice);
+  `serverLog()` reads the server's log, where the shell notes each window it
+  loads; `quit()` sends the shell the SIGTERM it quits on. Registered for
+  teardown like an instance. It runs on Linux alone, and skips with no display
+  (run the suite under `xvfb-run -a`), no `tauri-driver` or `WebKitWebDriver`,
+  or no built shell.
 - `browser(label)` — an agent-browser session registered for teardown like an
   instance, so a failed or abandoned scenario still closes it. It is callable
   with any agent-browser command, and `openWorkspace(app, { path? })`
-  signs it in through a fresh handoff and returns once the rail and the editor
-  mounted. It skips the scenario when no headless browser can launch (see CI).
+  signs it in through a fresh handoff and returns once the rail mounted. It skips the scenario when no headless browser can launch (see CI).
 
 Beside the context, `src/harness/` carries what the scenarios would otherwise
 each re-spell: `pollUntil` (`poll.ts`), which returns the value it waited for
@@ -101,10 +94,10 @@ modifier key, `clickButtonIn` and `untilBodyHolds` (`agent-browser.ts`); the
 workspace and Settings selectors (`selectors.ts`); `gitIn` and `readOrNull`
 (`exec.ts`); the bare `inteligir` on an agent shell's PATH
 (`agent-shell-cli.ts`); the account's sign-up and device routes against a dev
-Worker (`cloud-account.ts`); `NO_AUTO_SYNC` and the one strict sync pass,
-`syncExpectClean` (`vault-sync.ts`); the owner's sign-in and a signed-in
-instance's explicit sync against the hosted vault (`hosted-vault.ts`); and the
-phone's own runtime, logged in as `PHONE_NAME` (`phone-runtime.ts`).
+Worker, and `PHONE_NAME`, the device a scenario's second login plays the phone
+as (`cloud-account.ts`); `NO_AUTO_SYNC` and the one strict sync pass,
+`syncExpectClean` (`vault-sync.ts`); and the owner's sign-in and a signed-in
+instance's explicit sync against the hosted vault (`hosted-vault.ts`).
 
 ## The scenarios
 
@@ -132,31 +125,10 @@ what each one is FOR.
 |                            | its own starter notes, signs in to the same account and syncs: B lands on |
 |                            | A's history byte for byte, with no conflict copy and A's note searchable, |
 |                            | and A's next sync takes nothing                                           |
-| hosted-vault-phone-write   | a second login plays the phone against a Miniflare Worker: its change     |
-|                            | set lands and A syncs its bytes, history naming the phone; a stale set    |
-|                            | gets A's bytes back as a conflict, and a recommit on them converges       |
 | hosted-vault-full          | a Miniflare Worker capped at 1 MiB: A's first note syncs, an              |
 |                            | attachment past the cap leaves A `full` with its own words, a later note  |
 |                            | commits on A and `inteligir vault status --json` still says full, and B's |
 |                            | clone holds the first note alone                                          |
-| phone-offline-edit         | the phone's own runtime (`composeRuntime` under node, over node's sqlite) |
-|                            | edits a note offline while A edits it too; reconnected, a far edit lands  |
-|                            | merged with A's, and a same-line one keeps the phone's version with A's   |
-|                            | as the copy the phone named, both on A's disk after A syncs               |
-| phone-file-ops-hosted      | the phone's own runtime creates a note, renames one another note links    |
-|                            | to, deletes one with a comment and adds a photo; after A syncs, A holds   |
-|                            | the rewritten link, the old name as the note's alias, no comment store    |
-|                            | and the photo's bytes                                                     |
-| phone-comments-hosted      | the phone's own runtime comments on a note with no id, minting it one;    |
-|                            | offline it replies and comments again while A comments on the same note;  |
-|                            | after A syncs, every thread is anchored on its own words, the reply is    |
-|                            | there, and the phone's resolve reaches A                                  |
-| phone-editor-page          | the phone's editor page, built through turbo, loads from `file://` at     |
-|                            | 390×844 with a scripted phone on its bridge: a typed paragraph writes     |
-|                            | exactly the note's new bytes under its read base, typing in a tab panel   |
-|                            | or on a chart writes nothing, a nonce-less frame is ignored, an announced |
-|                            | change reloads the buffer, a write the phone finds changed lands merged   |
-|                            | and shows, and Ask agent and a wiki link tap reach the native end         |
 | thread-sync-hosted         | a thread sent on A reaches B through a Miniflare Worker: B's real         |
 |                            | socket opens, and B holds A's timeline before its poll timer could run,   |
 |                            | so the Durable Object's ping is what delivered it                         |
@@ -169,9 +141,8 @@ what each one is FOR.
 |                            | sign-up with it is FORBIDDEN; a second instance signs in with the same    |
 |                            | email and password                                                        |
 | onboarding-account-browser | `/welcome`'s account step against a Miniflare Worker opens on Create;     |
-|                            | an account made there with the invite code signs the instance in, its     |
-|                            | vault syncs through that account, and the page moves on by itself to      |
-|                            | Welcome.md                                                                |
+|                            | an account made there with the invite code signs the instance in, and     |
+|                            | the page moves on by itself to the workspace                              |
 | built-worker-boot          | the built bundle — what `cf deploy` ships — boots under Miniflare and     |
 |                            | answers; built through turbo on every run, so it is the                   |
 |                            | current source, and the one place a module-scope crash of the emitted     |
@@ -181,20 +152,14 @@ what each one is FOR.
 |                            | write, hears an on-disk write through its forked watcher, and answers a   |
 |                            | client verb run from the same split bundle                                |
 | desktop-shell              | the built Tauri shell over WebDriver: the window is the server's own page |
-|                            | signed in by its handoff, the rail and a note ride its cookie, an API     |
-|                            | write reaches the open editor through the socket, `window.open` is        |
-|                            | denied, every permission request is refused, Reveal refuses a symlink out |
-|                            | of the vault, a switch boots a new child and a new window on the new      |
-|                            | vault, and a SIGTERM quit stops the server and retracts `server.json`     |
+|                            | signed in by its handoff, an action the API creates reaches the rail      |
+|                            | through the socket, `window.open` is denied, every permission request is  |
+|                            | refused, and a SIGTERM quit stops the server and retracts `server.json`   |
 | desktop-diagnostics        | the shell's debug-logging choice, seeded in its own folder, reaches the   |
 |                            | server it starts, whose output always lands in the data dir's             |
-|                            | `logs/server.log`: off, the boot line and no trace; on, an external write |
-|                            | traced there, the bridge reports the choice, and turning it off asks for  |
-|                            | a restart                                                                 |
-| desktop-onboarding         | the built shell on a fresh home opens only its first-run page and boots   |
-|                            | nothing; Create with the defaults boots the default vault, and the app    |
-|                            | window replaces the page on `/welcome` over the seeded vault; a relaunch  |
-|                            | goes straight to the app                                                  |
+|                            | `logs/server.log`: off, the boot line and no trace; on, the shell says it |
+|                            | started its server tracing, and turning it off over the bridge asks for a |
+|                            | restart                                                                   |
 | threads-scripted           | a turn through the scripted driver: send, settle, timeline, and the note  |
 |                            | its changes name under the turn's own id                                  |
 | action-scripted            | an action attaches to its note; a scripted turn writes the vault; the     |
@@ -212,49 +177,14 @@ what each one is FOR.
 |                            | without it writes no debug line                                           |
 | browser-smoke              | headless page load: the REAL policy on the served document, SPA mount,    |
 |                            | API reached, the palette chord safe, clean console after a settle window  |
-| note-create-browser        | a note created through the session — the sidebar's New note, the inline   |
-|                            | name, Enter — lands on disk as the file a user would go looking for       |
-| editor-constructs-browser  | every live-preview construct renders in a real browser (jsdom has no      |
-|                            | layout, so the unit suite cannot prove a widget survived the bundle and   |
-|                            | a measure pass), and the file is re-read to prove rendering wrote no      |
-|                            | bytes                                                                     |
-| slash-menu-browser         | a typed slash opens the menu, and the picked construct lands in the file  |
-| external-edit-browser      | a clean buffer adopts an agent write; a dirty buffer merges instead of    |
-|                            | clobbering                                                                |
-| view-context-browser       | the agent is told which note the message left from, and at what revision  |
 | os-dictation-browser       | words the OS dictates (CDP's `Input.insertText`, the IME-style commit     |
 |                            | macOS dictation makes) and words typed after them land in order and       |
-|                            | once: in the ⌘K composer's field, sending nothing, and in the note focus  |
-|                            | returns to, on disk                                                       |
-| undo-browser               | a ⌘K action's finish toast offers Undo, which removes the note it made    |
-|                            | and the reply says Changes undone; a reply's Undo changes, clicked inside |
-|                            | the autosave debounce, takes its turn back and keeps a line typed since,  |
-|                            | on disk and in the editor                                                 |
-| settings-browser           | /settings hosts the window-level surfaces: Sign out opens its confirm     |
-|                            | dialog on that route, and a connector add that collides with a row in     |
-|                            | the instance's claude store toasts there; signed out, Create an account   |
-|                            | asks for an invite code, and a sign-up the cloud cannot answer says so    |
-|                            | and keeps what was typed                                                  |
-| connectors-browser         | Settings' connectors are the default agent's own config, through the real |
-|                            | bundled binaries: a URL added under Claude lands in the instance's        |
-|                            | `.claude.json`, a command added under ChatGPT in its codex `config.toml`, |
-|                            | and each Remove confirms and takes its row out of that file               |
-| agent-sign-in-browser      | signed out, ⌘K offers Sign in with Claude in place of the field; the      |
-|                            | login (a fake claude, `tools/e2e/src/fixtures/fake-claude.mjs`) takes the |
-|                            | code pasted from its page and the field opens; Settings shows Claude      |
-|                            | signed in and ChatGPT under Other; a send on the real bundled codex,      |
-|                            | signed out under the instance's empty store, puts ChatGPT's sign-in above |
-|                            | the reply                                                                 |
-| vault-search-browser       | the palette's vault search lists every match; Enter lands the find bar on |
-|                            | one; Replace all rewrites the notes on disk                               |
-| tree-ops-browser           | the tree's row menu pins a note into its frontmatter, and a drag moves it |
-| extract-note-browser       | the selection toolbar extracts the selected block to a new note and       |
-|                            | leaves a link                                                             |
-| remote-content-browser     | under the built bundle's CSP a remote embed is an unloaded card, and an   |
-|                            | html block's Run executes its script under its own policy                 |
-| sync-conflict-browser      | two instances + one bare remote, B's window open: B's sync meets A's      |
-|                            | same-line edit and the window says both versions were kept, naming the    |
-|                            | copy, still up past a toast's usual 4s; its Open shows A's line           |
+|                            | once in the ⌘K composer's field, sending nothing                          |
+| settings-browser           | /settings hosts the window-level surfaces: the Account section says a     |
+|                            | dead cloud's device list couldn't load, Delete account… holds its button  |
+|                            | until a password is typed and shows the refusal, Sign out opens its       |
+|                            | confirm dialog on that route; signed out, Create an account asks for an   |
+|                            | invite code, and a sign-up the cloud cannot answer keeps what was typed   |
 
 ## Adding a scenario
 

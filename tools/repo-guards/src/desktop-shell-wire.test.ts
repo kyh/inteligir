@@ -1,8 +1,9 @@
 // The desktop shell is Rust, and the page and the CLI it runs are TypeScript, so the words they share
 // cross no compiler: every command a page may ask, the capability that grants it, the event the
-// updater pushes, the line the server announces itself on, the entry the shell runs and the first
-// run's content policy. Each is read as text from both sides here and held equal, so a rename on one
-// side fails here rather than as a command no window can reach or a server the shell never hears.
+// updater pushes, the line the server announces itself on, the entry the shell runs and the content
+// policy of any page the shell serves itself. Each is read as text from both sides here and held
+// equal, so a rename on one side fails here rather than as a command no window can reach or a
+// server the shell never hears.
 
 import { buildContentSecurityPolicy } from "inteligir/server/csp";
 import { describe, expect, it } from "vitest";
@@ -14,7 +15,6 @@ const BUILD_SCRIPT = "apps/desktop/src-tauri/build.rs";
 const COMMANDS = "apps/desktop/src-tauri/src/commands.rs";
 const LIB = "apps/desktop/src-tauri/src/lib.rs";
 const APP_CAPABILITY = "apps/desktop/src-tauri/capabilities/app-window.json";
-const FIRST_RUN_CAPABILITY = "apps/desktop/src-tauri/capabilities/first-run.json";
 const UPDATER = "apps/desktop/src-tauri/src/updater.rs";
 const SERVER = "apps/desktop/src-tauri/src/server.rs";
 const RUNTIME = "apps/desktop/src-tauri/src/runtime.rs";
@@ -23,7 +23,7 @@ const CLI_BUILD = "apps/cli/scripts/build.mjs";
 const TAURI_CONFIG = "apps/desktop/src-tauri/tauri.conf.json";
 const CSP = "apps/cli/src/server/csp.ts";
 
-// Tauri's own transport for commands, how the first run reaches its four; it carries IPC alone
+// Tauri's own transport for commands, how a page the shell serves would reach them; IPC alone
 const TAURI_IPC_ORIGINS = ["ipc:", "http://ipc.localhost"];
 
 // sorted, never deduplicated: a name two rows spell is the clash "once" refuses
@@ -84,16 +84,13 @@ describe("the desktop shell's wire", () => {
   const appCommands = sorted(
     allMatches(block(CONTRACT, "export const APP_COMMANDS", "} as const;"), ROUTE),
   );
-  const firstRunCommands = sorted(
-    allMatches(block(CONTRACT, "export const FIRST_RUN_COMMANDS", "} as const;"), ROUTE),
-  );
 
   it("names every command the page asks once, on both sides, and nothing else", () => {
     const manifest = sorted(allMatches(block(BUILD_SCRIPT, ".commands(&[", "])"), RUST_STRING));
     const handlers = sorted(
       allMatches(block(LIB, "generate_handler![", "]"), /commands::(?<name>[a-z_]+)/gu),
     );
-    const asked = sorted([...appCommands, ...firstRunCommands]);
+    const asked = appCommands;
     expect(
       manifest,
       `${BUILD_SCRIPT}'s app manifest and ${CONTRACT}'s rows disagree.\n` +
@@ -106,7 +103,7 @@ describe("the desktop shell's wire", () => {
     ).toEqual(asked);
   });
 
-  it("grants the app window its commands and the first run its own, and neither the other's", () => {
+  it("grants the app window its commands, and nothing else", () => {
     const appWindow = sorted(
       allMatches(block(COMMANDS, "pub const APP_WINDOW_COMMANDS", "];"), RUST_STRING),
     );
@@ -118,10 +115,6 @@ describe("the desktop shell's wire", () => {
       sorted(grantedBy(APP_CAPABILITY)),
       `${APP_CAPABILITY} keeps the app window's commands in the build, and must list exactly APP_COMMANDS\n`,
     ).toEqual(appCommands);
-    expect(
-      sorted(grantedBy(FIRST_RUN_CAPABILITY)),
-      `${FIRST_RUN_CAPABILITY} must grant exactly FIRST_RUN_COMMANDS: the first run has no server, so it asks for nothing else\n`,
-    ).toEqual(firstRunCommands);
   });
 
   it("pushes the update state under the event the page hears", () => {
@@ -141,7 +134,7 @@ describe("the desktop shell's wire", () => {
     );
   });
 
-  it("holds the first run to the server's policy for a page with no socket", () => {
+  it("holds a page the shell serves itself to the server's policy for a page with no socket", () => {
     const served = directives(buildContentSecurityPolicy({ wsOrigin: null }));
     const expected = {
       ...served,
@@ -152,7 +145,7 @@ describe("the desktop shell's wire", () => {
     expect(
       csp,
       `${TAURI_CONFIG}'s CSP is not ${CSP}'s for a page with no socket.\n` +
-        `  rule: the first run is the shell's own page, so its policy lives in the shell's config, and it is the server's for a page with no socket plus Tauri's IPC origins, so neither loosens alone\n`,
+        `  rule: a page the shell serves itself takes its policy from the shell's config, and it is the server's for a page with no socket plus Tauri's IPC origins, so neither loosens alone\n`,
     ).toEqual(expected);
   });
 

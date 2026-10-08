@@ -20,10 +20,8 @@ out/
 
 # build output
 dist/
-# the desktop app's git and node, fetched and pinned by apps/desktop/scripts/fetch-git.mjs and
-# fetch-node.mjs at package time
-apps/desktop/resources/git/
-apps/desktop/resources/git.partial/
+# the desktop app's node, fetched and pinned by apps/desktop/scripts/fetch-node.mjs at package
+# time
 apps/desktop/resources/node/
 apps/desktop/resources/node.partial/
 

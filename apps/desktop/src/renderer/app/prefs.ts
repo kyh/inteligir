@@ -7,7 +7,6 @@ import { parseTheme } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
 import { useCallback, useState } from "react";
 import { z } from "zod";
-import { APPEARANCE_DEFAULTS, appearanceSchema } from "./appearance-options";
 
 export interface PagePref<Value, Fallback> {
   readonly key: string;
@@ -20,29 +19,6 @@ const pref = <Value>(
   schema: z.ZodType<Value, string>,
   fallback: NoInfer<Value>,
 ): PagePref<Value, Value> => ({ fallback, key, schema });
-
-const unsetPref = <Value>(
-  key: string,
-  schema: z.ZodType<Value, string>,
-): PagePref<Value, null> => ({
-  fallback: null,
-  key,
-  schema,
-});
-
-const json = <Value>(schema: z.ZodType<Value>) =>
-  z.codec(z.string(), z.unknown().pipe(schema), {
-    decode: (raw, payload) => {
-      try {
-        const parsed: unknown = JSON.parse(raw);
-        return parsed;
-      } catch {
-        payload.issues.push({ code: "custom", input: raw, message: "not JSON" });
-        return z.NEVER;
-      }
-    },
-    encode: (value) => JSON.stringify(value),
-  });
 
 const flag = z.stringbool({ case: "sensitive", falsy: ["false"], truthy: ["true"] });
 
@@ -57,40 +33,20 @@ const railWidth = z.codec(
 
 const themeName = z.string().refine((raw): raw is Theme => parseTheme(raw) === raw);
 
-const epochMs = z.codec(z.string(), z.int().nonnegative(), { decode: Number, encode: String });
-
-// in the order the rail's view menu lists them
-export const RAIL_VIEWS = ["recent", "files", "deleted"] as const;
-export type RailView = (typeof RAIL_VIEWS)[number];
-
-const TREE_SORTS = ["name", "modified"] as const;
-export type TreeSort = (typeof TREE_SORTS)[number];
-
 export const PREFS = {
-  appearance: pref("inteligir.appearance", json(appearanceSchema), APPEARANCE_DEFAULTS),
-  lastOpenNote: unsetPref("inteligir.last-open-note", z.string()),
-  // closed until asked for: a comment focus or the top bar's Comments opens it
+  // closed until asked for: opening an action or the panel's toggle opens it
   panelOpen: pref("inteligir.panel-open", flag, false),
   // the right panel is the same primitive as the rail, dragged by the same handle
   panelWidth: pref("inteligir.panel-width", railWidth, 320),
-  railView: pref("inteligir.rail-view", z.enum(RAIL_VIEWS), "files"),
-  relatedOpen: pref("inteligir.related-open", flag, true),
   sidebarWidth: pref("inteligir.sidebar-width", railWidth, 260),
   // the document's own `spellcheck`, which every field inherits unless it sets its own
   spellcheck: pref("inteligir.spellcheck", flag, true),
-  // the `at` of the newest sync conflict this window announced, on the server's clock
-  syncConflictSeenAt: unsetPref("inteligir.sync-conflict-seen-at", epochMs),
   theme: pref("inteligir.theme", themeName, "system"),
-  treeSort: pref("inteligir.tree-sort", z.enum(TREE_SORTS), "name"),
 };
 
-const store = (key: string, value: string | null): void => {
+const store = (key: string, value: string): void => {
   try {
-    if (value === null) {
-      window.localStorage.removeItem(key);
-    } else {
-      window.localStorage.setItem(key, value);
-    }
+    window.localStorage.setItem(key, value);
   } catch {
     // A full or blocked store loses a preference, nothing more.
   }
@@ -112,10 +68,6 @@ export const readPref = <Value, Fallback>(row: PagePref<Value, Fallback>): Value
 
 export const writePref = <Value>(row: PagePref<Value, unknown>, value: Value): void => {
   store(row.key, row.schema.encode(value));
-};
-
-export const forgetPref = (row: PagePref<unknown, unknown>): void => {
-  store(row.key, null);
 };
 
 export const usePref = <Value>(

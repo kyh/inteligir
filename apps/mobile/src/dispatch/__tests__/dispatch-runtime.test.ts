@@ -6,7 +6,7 @@ import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { SqlDriver } from "../../lib/sql-driver";
-import { openSyncStore, openTempDb, tempDbPath } from "../../notes/__tests__/phone-storage";
+import { openSyncStore, openTempDb, tempDbPath } from "../../lib/__tests__/phone-storage";
 import { createFakeCloud, logRow } from "../../sync/__tests__/fakes";
 import { createSyncRuntime } from "../../sync/sync-runtime";
 import type { SyncStore } from "../../sync/sync-store";
@@ -21,8 +21,6 @@ const CRED = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_phone" };
 const OTHER_CRED = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_phone_2" };
 const MAC = "dev_mac";
 const OWN = new Set([CRED.deviceId]);
-const NOTE = "notes/plan.md";
-const REVISION = "c".repeat(64);
 
 afterEach(() => {
   vi.useRealTimers();
@@ -142,28 +140,17 @@ describe("the phone's requests to a Mac", () => {
     });
   });
 
-  it("attaches a new thread to the note it was asked from, and lists it before any Mac has it", async () => {
+  it("lists a new thread before any Mac has it", async () => {
     const inbox = createFakeInbox();
     const { dispatch } = phoneOver(inbox, openTempDb());
 
     const id = idOf(
-      await dispatch.askAgent({
-        note: { path: NOTE, revision: REVISION },
-        text: "Draft the plan\nwith three steps",
-        threadId: "thr_new",
-      }),
+      await dispatch.askAgent({ text: "Draft the plan\nwith three steps", threadId: "thr_new" }),
     );
     await dispatch.sendNow();
 
     expect(inbox.creates).toStrictEqual([
-      {
-        id,
-        kind: "turn",
-        originDocPath: NOTE,
-        text: "Draft the plan\nwith three steps",
-        threadId: "thr_new",
-        viewContext: { resource: NOTE, revision: REVISION, surface: "doc" },
-      },
+      { id, kind: "turn", text: "Draft the plan\nwith three steps", threadId: "thr_new" },
     ]);
     expect(threadListEntries([], dispatch.get())).toStrictEqual([
       { caption: "Waiting for your Mac…", threadId: "thr_new", title: "Draft the plan" },

@@ -12,9 +12,12 @@ import type { ThreadEvent } from "@repo/domain/provider-event";
 import { fencedExclusive, phoneDbReady } from "../lib/phone-db";
 import { createSerialLock } from "../lib/sql-driver";
 import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
-import type { Sha1 } from "../notes/outbox-ops";
 import type { LiveTurns } from "./live-turns";
 import type { StoredThread, StoredThreadEvent, SyncStore } from "./sync-store";
+
+// the phone's own SHA-1, which digests the event grammar: expo-crypto's on a device, node's under
+// test
+export type Sha1 = (bytes: Uint8Array<ArrayBuffer>) => Promise<Uint8Array>;
 
 export interface CreateSqliteSyncStoreArgs {
   db: SqlDriver;

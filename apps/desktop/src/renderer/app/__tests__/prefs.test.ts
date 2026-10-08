@@ -5,8 +5,7 @@
 
 import { SIDEBAR_MAX_WIDTH } from "@repo/ui/components/sidebar-core";
 import { afterEach, describe, expect, it } from "vitest";
-import { APPEARANCE_DEFAULTS } from "../appearance-options";
-import { forgetPref, PREFS, readPref, writePref } from "../prefs";
+import { PREFS, readPref, writePref } from "../prefs";
 import type { PagePref } from "../prefs";
 
 afterEach(() => {
@@ -45,43 +44,15 @@ describe("bytes already in storage", () => {
   ][] = [
     ["inteligir.panel-open", "true", PREFS.panelOpen, true],
     ["inteligir.panel-open", "yes", PREFS.panelOpen, false],
-    ["inteligir.related-open", "false", PREFS.relatedOpen, false],
-    ["inteligir.related-open", "no", PREFS.relatedOpen, true],
     ["inteligir.sidebar-width", "300", PREFS.sidebarWidth, 300],
     ["inteligir.sidebar-width", "9999", PREFS.sidebarWidth, SIDEBAR_MAX_WIDTH],
     ["inteligir.sidebar-width", "wide", PREFS.sidebarWidth, 260],
     ["inteligir.panel-width", "280", PREFS.panelWidth, 280],
-    ["inteligir.rail-view", "deleted", PREFS.railView, "deleted"],
-    ["inteligir.rail-view", "tags", PREFS.railView, "files"],
-    ["inteligir.tree-sort", "modified", PREFS.treeSort, "modified"],
-    ["inteligir.tree-sort", "size", PREFS.treeSort, "name"],
     ["inteligir.theme", "dark", PREFS.theme, "dark"],
     ["inteligir.theme", "sepia", PREFS.theme, "system"],
-    ["inteligir.last-open-note", "Notes/a.md", PREFS.lastOpenNote, "Notes/a.md"],
     ["inteligir.spellcheck", "false", PREFS.spellcheck, false],
     // the shape an Electron build kept, in a store no window of this build opens, reads as never chosen
     ["inteligir.spellcheck", '{"enabled":false,"languages":["de-DE"]}', PREFS.spellcheck, true],
-    [
-      "inteligir.sync-conflict-seen-at",
-      "1790000000000",
-      PREFS.syncConflictSeenAt,
-      1_790_000_000_000,
-    ],
-    ["inteligir.sync-conflict-seen-at", "soon", PREFS.syncConflictSeenAt, null],
-    ["inteligir.sync-conflict-seen-at", "12.5", PREFS.syncConflictSeenAt, null],
-    [
-      "inteligir.appearance",
-      '{"font":"serif","leading":"relaxed","measure":"wide","size":"large"}',
-      PREFS.appearance,
-      { font: "serif", leading: "relaxed", measure: "wide", size: "large" },
-    ],
-    [
-      "inteligir.appearance",
-      '{"font":"serif","size":"huge"}',
-      PREFS.appearance,
-      { ...APPEARANCE_DEFAULTS, font: "serif" },
-    ],
-    ["inteligir.appearance", "{", PREFS.appearance, APPEARANCE_DEFAULTS],
   ];
 
   it.each(cases)("%s = %s reads as its value", (key, raw, row, read) => {
@@ -94,35 +65,13 @@ describe("bytes already in storage", () => {
 describe("a write", () => {
   it("stores the bytes a reader already understands", () => {
     writePref(PREFS.panelOpen, true);
-    writePref(PREFS.relatedOpen, false);
     writePref(PREFS.sidebarWidth, 300.4);
-    writePref(PREFS.railView, "recent");
-    writePref(PREFS.treeSort, "modified");
     writePref(PREFS.theme, "light");
-    writePref(PREFS.lastOpenNote, "Notes/a.md");
     writePref(PREFS.spellcheck, false);
-    writePref(PREFS.appearance, { ...APPEARANCE_DEFAULTS, size: "small" });
-    writePref(PREFS.syncConflictSeenAt, 1_790_000_000_000);
 
     expect(stored("inteligir.panel-open")).toBe("true");
-    expect(stored("inteligir.related-open")).toBe("false");
     expect(stored("inteligir.sidebar-width")).toBe("300");
-    expect(stored("inteligir.rail-view")).toBe("recent");
-    expect(stored("inteligir.tree-sort")).toBe("modified");
     expect(stored("inteligir.theme")).toBe("light");
-    expect(stored("inteligir.last-open-note")).toBe("Notes/a.md");
-    expect(stored("inteligir.sync-conflict-seen-at")).toBe("1790000000000");
     expect(stored("inteligir.spellcheck")).toBe("false");
-    expect(JSON.parse(stored("inteligir.appearance") ?? "null")).toEqual({
-      ...APPEARANCE_DEFAULTS,
-      size: "small",
-    });
-  });
-
-  it("forgets a key, which then reads as the fallback", () => {
-    writePref(PREFS.lastOpenNote, "Notes/a.md");
-    forgetPref(PREFS.lastOpenNote);
-    expect(stored("inteligir.last-open-note")).toBeNull();
-    expect(readPref(PREFS.lastOpenNote)).toBeNull();
   });
 });

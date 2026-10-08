@@ -26,9 +26,8 @@ import type { ReadableStore } from "../lib/external-store";
 import type { Fence } from "../lib/phone-db";
 import { createSerialLock } from "../lib/sql-driver";
 import type { SqlDriver } from "../lib/sql-driver";
-import type { SignInSource } from "../notes/notes-store";
 import type { SessionPort } from "../sync/sync-runtime";
-import type { SyncStore } from "../sync/sync-store";
+import type { SignInSource, SyncStore } from "../sync/sync-store";
 import { projectThread } from "../sync/thread-projection";
 import { createDispatchOutbox } from "./dispatch-outbox";
 import type { DispatchRow } from "./dispatch-outbox";
@@ -95,8 +94,6 @@ const EMPTY_STATE: DispatchState = { approvals: [], desktops: null, dispatches: 
 export interface AskAgentRequest {
   threadId: string;
   text: string;
-  // the note a new thread is attached to, and the sha-256 of its bytes the phone showed
-  note?: { path: string; revision?: string };
 }
 
 export type DispatchOutcome = { ok: true; id: string } | { ok: false; message: string };
@@ -462,8 +459,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     rearm();
   };
 
-  // parsed although typed: the wire holds a note's path to the vault grammar and a revision to a
-  // sha-256, and a request the cloud would refuse is better refused before it is kept
+  // parsed although typed: a request the cloud would refuse is better refused before it is kept
   const enqueue = async (
     threadId: string,
     candidate: CreateDispatchRequest,
@@ -615,16 +611,6 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
         text,
         threadId: ask.threadId,
       };
-      if (ask.note !== undefined) {
-        request.originDocPath = ask.note.path;
-        if (ask.note.revision !== undefined) {
-          request.viewContext = {
-            resource: ask.note.path,
-            revision: ask.note.revision,
-            surface: "doc",
-          };
-        }
-      }
       return await enqueue(ask.threadId, request);
     },
 

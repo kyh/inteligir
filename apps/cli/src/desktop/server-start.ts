@@ -1,26 +1,19 @@
-// Which vault the desktop's server is bound to, and whether the one already listening for it may be
+// Which data dir the desktop's server serves, and whether the one already listening for it may be
 // adopted. The resolution is the server's own, so the shell and `inteligir serve` can never boot
-// two answers to "which vault".
+// two answers to "which data dir".
 
 import { isDefinedError, safe } from "@orpc/client";
 import { browserHandoffUrl } from "@repo/contract/local/routes";
 import { resolveAppConfig } from "../server/config";
-import type { AppConfig, ResolveAppConfigArgs, VaultDirSource } from "../server/config";
+import type { AppConfig, ResolveAppConfigArgs } from "../server/config";
 import { resolveCheckoutRoot } from "../server/dev-instance";
 import { messageOf } from "../server/error-message";
 import { createLocalClient } from "../server/local-client";
 import { probeServerFile, silentOwnerSentence } from "../server/server-probe";
 import type { AskServerStatus, ServerFileProbe } from "../server/server-probe";
-import { resolveVaultCandidate } from "../server/vault-switch";
-import type { InspectVaultFolderContext } from "../server/vault/folder-facts";
 
-export interface ServerTarget {
+interface ServerTarget {
   dataDir: string;
-  vaultDir: string;
-  // where config.json lives; the data dir of any vault but the default sits beneath it
-  rootDataDir: string;
-  // env-pinned values are not the shell's to change, so a switch is refused while either is
-  vaultDirSource: VaultDirSource;
   dataDirSource: "env" | "default";
 }
 
@@ -32,13 +25,11 @@ export interface ResolveServerTargetArgs {
   isPackaged: boolean;
   env: NodeJS.ProcessEnv;
   homeDir?: string;
-  // a candidate for a switch: resolved and refused exactly as a boot would, before anything moves
-  vaultDir?: string;
 }
 
 const resolveConfigFor = (args: ResolveServerTargetArgs): AppConfig => {
   // `isPackaged` decides the mode, never the ambient NODE_ENV: a checkout run as
-  // production would drive the developer's real ~/.inteligir and ~/Inteligir.
+  // production would drive the developer's real ~/.inteligir.
   const env: NodeJS.ProcessEnv = {
     ...args.env,
     NODE_ENV: args.isPackaged ? "production" : "development",
@@ -47,17 +38,7 @@ const resolveConfigFor = (args: ResolveServerTargetArgs): AppConfig => {
   if (args.homeDir !== undefined) {
     configArgs.homeDir = args.homeDir;
   }
-  return args.vaultDir === undefined
-    ? resolveAppConfig(configArgs)
-    : resolveVaultCandidate(configArgs, args.vaultDir);
-};
-
-// what a folder is judged against before it is a vault: the home the outside-sync roots hang from,
-// and the cloud whose hosted url is the app's own origin rather than one the folder brought. git is
-// the one the shell's environment names, which the entry runs under
-export const folderFactsContext = (args: ResolveServerTargetArgs): InspectVaultFolderContext => {
-  const { cloudUrl, homeDir } = resolveConfigFor(args);
-  return { cloudUrl, homeDir };
+  return resolveAppConfig(configArgs);
 };
 
 export const resolveServerTarget = (args: ResolveServerTargetArgs): ServerTargetResult => {
@@ -65,13 +46,7 @@ export const resolveServerTarget = (args: ResolveServerTargetArgs): ServerTarget
     const config = resolveConfigFor(args);
     return {
       kind: "resolved",
-      target: {
-        dataDir: config.dataDir,
-        dataDirSource: config.dataDirSource,
-        rootDataDir: config.rootDataDir,
-        vaultDir: config.vaultDir,
-        vaultDirSource: config.vaultDirSource,
-      },
+      target: { dataDir: config.dataDir, dataDirSource: config.dataDirSource },
     };
   } catch (error) {
     return { error: messageOf(error), kind: "refused" };

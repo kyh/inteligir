@@ -4,7 +4,6 @@
 
 import { openDatabaseAsync } from "expo-sqlite";
 import type { SQLiteDatabase } from "expo-sqlite";
-import { excludeFromBackup } from "./backup-exclusion";
 import { createSerialLock } from "./sql-driver";
 import type { SqlDriver, SqlExecutor } from "./sql-driver";
 
@@ -18,12 +17,9 @@ const executorOver = (db: SQLiteDatabase): SqlExecutor => ({
   },
 });
 
-const directoryOf = (path: string): string => path.slice(0, path.lastIndexOf("/"));
-
 const openPrepared = async (name: string): Promise<SQLiteDatabase> => {
   const db = await openDatabaseAsync(name);
   await db.execAsync("PRAGMA journal_mode = WAL");
-  await excludeFromBackup(directoryOf(db.databasePath));
   return db;
 };
 

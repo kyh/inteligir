@@ -1,28 +1,9 @@
 @import "@repo/ui/globals.css";
-@import "@repo/editor/styles.css";
-@import "./print.css";
-/* The editor package is outside this app's scan root, so an editor-only
-   utility silently never generates unless its sources are named here. */
-@source "../../../../../packages/editor/src/**/*.{ts,tsx}";
 
 :root {
-  /* The only place each appearance default is written: app/appearance.tsx
-     sets an inline property for a chosen option and clears it back to here
-     otherwise. */
-  --editor-font: var(--font-body);
-  --editor-mono: var(--font-code);
-  --editor-size: 14px;
-  --editor-line-height: 1.75;
-
-  /* The note's top bar and the right panel's tab row live in different
+  /* The workspace's top bar and the right panel's tab row live in different
      stacking contexts, so no grid can span them; their bottom borders read as
      one rule only while both use this. The left rail is a floating card and
      is not on it. */
   --app-header-h: 2.25rem;
-  --app-footer-h: 1.375rem;
-
-  /* The page title, the editor and the composer sit in different stacking
-     contexts; :root is the only ancestor all three share. */
-  --editor-width: 38rem;
-  --editor-column-inset: calc(50% - var(--editor-width) / 2);
 }

@@ -12,7 +12,6 @@ const ROLES_DECLARED = "packages/ui/src/styles/globals.css";
 // draws it.
 const CHROME_ROOTS = [
   "apps/desktop/src/renderer/",
-  "packages/editor/src/",
   "packages/ui/src/components/",
   "packages/ui/src/ai/",
 ];

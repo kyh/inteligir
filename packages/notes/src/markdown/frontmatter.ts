@@ -60,8 +60,6 @@ export const replaceFrontmatterYaml = (content: string, yaml: string): string =>
 
 // yaml 1.2 core schema: `true`/`false` are the only booleans (yes/no/on/off stay text) and
 // dates are recognized only from explicit `YYYY-MM-DD` strings.
-export type PropertyType = "text" | "number" | "checkbox" | "date" | "tags" | "unsupported";
-
 export type TypedProperty =
   | { key: string; type: "text"; value: string }
   | { key: string; type: "number"; value: number }
@@ -494,18 +492,4 @@ export const setFrontmatterPinned = (content: string, pinned: boolean): string |
     return content;
   }
   return replaceFrontmatterYaml(content, verdict.yaml);
-};
-
-export const typeNewProperty = (key: string, rawValue: string): TypedProperty => {
-  if (rawValue.trim() === "") {
-    return { key, type: "text", value: "" };
-  }
-  try {
-    const parsed = yamlValue.safeParse(parseYaml(rawValue));
-    return parsed.success
-      ? classify(key, parsed.data, rawValue)
-      : { key, rawYaml: rawValue, type: "unsupported" };
-  } catch {
-    return classify(key, rawValue, rawValue);
-  }
 };

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { documentLinkSpans, mdLinkTarget, scanDoc } from "../knowledge/link-extract";
 import type { ExtractedLink } from "../knowledge/link-extract";
+import { CANVAS_LANG, CHART_LANG, HTML_LANG } from "../markdown/fence-langs";
 import { parseMdast } from "../markdown/parse";
 
 const links = (source: string): ExtractedLink[] => scanDoc(source).links;
@@ -350,6 +351,13 @@ describe("callout fence bodies (editor ⊆ vault)", () => {
   it("plain code fences stay unindexed", () => {
     const scan = scanDoc("```\n[[Not A Link]]\n```\n");
     expect(scan.links).toEqual([]);
+  });
+
+  it("a rich block's fence stays unindexed: only the callout's body is prose", () => {
+    for (const lang of [CHART_LANG, CANVAS_LANG, HTML_LANG]) {
+      const scan = scanDoc(`\`\`\`${lang}\n{"title": "[[Not A Link]]"}\n\`\`\`\n`);
+      expect(scan.links).toEqual([]);
+    }
   });
 });
 

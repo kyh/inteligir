@@ -4,7 +4,7 @@ import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
 import { threadListEntries, WORKING_CAPTION } from "../../dispatch/dispatch-projection";
 import type { DispatchState } from "../../dispatch/dispatch-runtime";
-import { openSyncStore } from "../../notes/__tests__/phone-storage";
+import { openSyncStore } from "../../lib/__tests__/phone-storage";
 import type { StoredThread, SyncStore } from "../sync-store";
 import { liveThreadsFirst, projectThread } from "../thread-projection";
 import { agentDelta, agentMessage, logRow, userRequest } from "./fakes";
