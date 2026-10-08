@@ -41,7 +41,6 @@ import type {
 } from "@repo/contract/local/cloud/cloud-schema";
 import type { DebugLog } from "../debug-log";
 import { messageOf } from "../error-message";
-import type { CaptureVault } from "./captures";
 import {
   clearDeviceCredential,
   readDeviceCredential,
@@ -75,10 +74,7 @@ export interface CloudRuntimeArgs {
   build: string;
   /** the name a sign-in that names none gives this device (`readMachineName`). */
   machineName: string;
-  vault: CaptureVault;
   transport?: CloudTransport;
-  /** the vault ping's handler; also kicked once after a login so the derived remote syncs now. */
-  onVaultPing?: () => void;
   /** what status() answers moved: a sign-in or out, a revocation, the identity, the socket, a
    *  pass's end. never per enqueue: the queued count rides the drain pass that follows it. */
   onStatusChanged?: () => void;
@@ -125,7 +121,7 @@ export interface CloudRuntime {
   devices: () => Promise<AccountCallOutcome<CloudDevicesResponse>>;
   /** cuts another of the account's devices off; this one signs out instead. */
   revokeDevice: (deviceId: string) => Promise<RevokeDeviceOutcome>;
-  /** ends the account and forgets this device's sign-in; the vault is left as it is. */
+  /** ends the account and forgets this device's sign-in; the threads here stay. */
   deleteAccount: (password: string) => Promise<AccountCallOutcome<CloudStatusResponse>>;
   syncNow: () => Promise<CloudStatusResponse>;
   dispose: () => Promise<void>;
@@ -211,8 +207,8 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   const fenced = (context: PassContext): boolean => sessionAlive(context.sessionId);
 
   // retried at the top of every pass while missing: the credential is written
-  // once, so a single dropped answer would leave the vault's fail-closed fence
-  // shut for the process's whole life.
+  // once, so a single dropped answer would leave the account unnamed for the
+  // process's whole life.
   const learnAccountIdentity = async (): Promise<void> => {
     const current = session.current();
     if (current.kind !== "live") {
@@ -237,7 +233,6 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
           const updated = { ...credential, userId: result.value.id };
           writeDeviceCredential(args.dataDir, updated);
           session.replaceCredential(sessionId, updated);
-          args.onVaultPing?.();
         }
       } finally {
         if (learningIdentity?.sessionId === sessionId) {
@@ -300,17 +295,11 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       const current = session.current();
       return current.kind === "live" ? current.credential.credential : null;
     },
-    // this process owns the vault and drives the agent, so a phone's turn is addressed to it
-    // while it takes them.
+    // this process drives the agent, so a phone's turn is addressed to it while it takes them.
     listener: () => ({ phoneRequests: announcesPhoneRequests(), platform: "desktop" }),
     onPing: (ping) => {
       // pings carry no payload; a sync ping's seq is the log's high-water, so one
-      // the cursor covers is skipped. vault is another device's push — the git
-      // engine's pass, not this one's.
-      if (ping.type === "vault") {
-        args.onVaultPing?.();
-        return;
-      }
+      // the cursor covers is skipped.
       if (ping.type === "sync") {
         const { cursor } = readSyncState(args.db);
         if (ping.seq <= cursor) {
@@ -403,7 +392,6 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       lastError = message;
     },
     sink: () => sink,
-    vault: args.vault,
   };
 
   const runPass = async (): Promise<SyncOutcome> => {
@@ -509,8 +497,6 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     cadence.armPoll();
     link.connect();
     await syncNow();
-    // the login just derived a hosted remote; sync it now.
-    args.onVaultPing?.();
   };
 
   const forgetSignIn = (): CloudStatusResponse => {
@@ -589,7 +575,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   };
 
   // login and sign-up both end in a credential this device adopts, through the one store, which
-  // keeps the name it joined under: the vault's commits carry it.
+  // keeps the name it joined under.
   const joinAccount = async (
     requestedName: string | undefined,
     join: (store: DeviceCredentialStore, deviceName: string) => Promise<DeviceLoginOutcome>,

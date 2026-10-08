@@ -16,7 +16,7 @@ import {
 import { makeTempDir } from "./temp-dir";
 
 // what a server wrote before it named its release.
-const OLDER_ROW = { pid: 42, port: 4664, token: "tok", vaultDir: "/vault" };
+const OLDER_ROW = { pid: 42, port: 4664, token: "tok" };
 const ROW = { ...OLDER_ROW, version: "1.2.3" };
 
 describe("the server file", () => {

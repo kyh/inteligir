@@ -19,7 +19,7 @@ forbids node, react and `@tauri-apps` imports, and the zod-only-leaf check refus
 every consumer — and by `tsconfig.json` (`ES2023`, `types: []`), so a node
 global is a type error before it is a lint error.
 
-Consumers: `@repo/db`, `@repo/contract`, `@repo/agent-runtime`, the CLI server,
+Consumers: `@repo/db`, `@repo/contract`, the CLI server,
 the desktop renderer, and `apps/mobile`, whose synced log is stored as this
 package's `ThreadEvent`.
 
@@ -61,9 +61,6 @@ src/
                          # the phone's projection both run; and
                          # `MAX_THREAD_TITLE_LENGTH`, an explicit title's bound
                          # on the create route and on `thread/meta`
-  quote-selection.ts     # `quoteSelection`: a selection the agent is asked
-                         # about, quoted the one way the Mac's composer and
-                         # the phone's both start with
   pending-interactions.ts  # the provider-neutral approval grammar — subjects
                          # (command | file_change), decisions, payload,
                          # resolution — and `parseApprovalResolution`, the ONE
@@ -72,8 +69,8 @@ src/
                          # be a decision the request offered)
   pending-interaction-status.ts  # pending|resolved|interrupted, the
                          # same tuple-feeds-both-sides shape as thread-status
-  change-kinds.ts        # the invalidation vocabulary: vault, doc and thread
-                         # change kinds — pings naming a subscription target,
+  change-kinds.ts        # the invalidation vocabulary: the sync status and
+                         # thread change kinds — pings naming a subscription target,
                          # never payloads
   notifier.ts            # DbNotifier, the seam writes announce through;
                          # NotificationBuffer queues deliveries and `flushTo`
@@ -85,15 +82,11 @@ Every subpath is exported by name in `package.json`; there is no barrel.
 
 ## Invariants
 
-- **Two grammars share the word "event"; only this one is durable.**
-  `@repo/agent-runtime/vocabulary/provider-event` is what a provider adapter
-  may EMIT; `provider-event.ts` here is what the `events` table STORES and a
-  client replays. `apps/cli/src/server/agents/event-mapping.ts` is the one
-  place that narrows the first onto the second — a kind with no persisted
-  counterpart is dropped with a reason, never re-shaped. The shared leaves
-  (file change, item status, scope) are one type here so a narrowing assigns
-  them; a field-by-field respelling would mean the two had drifted. A shape bb
-  already names is re-vendored from bb, not invented.
+- **Only this grammar is durable.** `provider-event.ts` is what the `events`
+  table STORES and a client replays; whatever reports an agent's turn narrows
+  onto it, and a kind with no persisted counterpart is dropped with a reason,
+  never re-shaped. A shape bb already names is re-vendored from bb, not
+  invented.
 - **Scope is enforced twice, on purpose.** `threadEventSchema` refuses a
   turn-only event under thread scope, and a turn scope with no id, at parse;
   the `events_scope_shape_check` CHECK in
@@ -105,8 +98,8 @@ Every subpath is exported by name in `package.json`; there is no barrel.
   settle validated against turn A cannot land after turn B bound.
 - **Vendored from bb, and the header says so.** Every file that came from bb
   keeps `// Vendored from bb (github.com/get-bb/bb), MIT.` on its first line;
-  the licence text is `tools/licenses/bb.LICENSE`; `view-context.ts`,
-  `thread-title.ts` and `quote-selection.ts` are this repo's own. Rename, trim and restructure freely — the attribution line is
+  the licence text is `tools/licenses/bb.LICENSE`; `view-context.ts`
+  and `thread-title.ts` are this repo's own. Rename, trim and restructure freely — the attribution line is
   the one thing a vendored file must keep.
 - **A view context rides the message.** Never a thread column, never a
   mutable "current view": it describes the screen a message left from, so

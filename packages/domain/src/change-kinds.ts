@@ -1,10 +1,8 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
-export const VAULT_CHANGE_KINDS = ["files-changed", "sync-status-changed"] as const;
+// the cloud sync's status: it rides the `vault` entity, the one the renderer's sync row reads.
+export const VAULT_CHANGE_KINDS = ["sync-status-changed"] as const;
 export type VaultChangeKind = (typeof VAULT_CHANGE_KINDS)[number];
-
-export const DOC_CHANGE_KINDS = ["content-changed"] as const;
-export type DocChangeKind = (typeof DOC_CHANGE_KINDS)[number];
 
 export const THREAD_CHANGE_KINDS = [
   "thread-created",
@@ -15,6 +13,5 @@ export const THREAD_CHANGE_KINDS = [
   "interactions-changed",
   "origin-changed",
   "title-changed",
-  "changes-committed",
 ] as const;
 export type ThreadChangeKind = (typeof THREAD_CHANGE_KINDS)[number];

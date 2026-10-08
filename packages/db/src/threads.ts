@@ -6,7 +6,7 @@ import type {
 } from "@repo/domain/thread-lifecycle";
 import { evaluateThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import { isThreadRunning, threadStatusValues } from "@repo/domain/thread-status";
-import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { DbConnection, DbExecutor, DbTransaction } from "./connection";
 import { createThreadId } from "./ids";
@@ -60,13 +60,8 @@ export interface EnsureThreadOutcome {
 
 // created with the id another device minted, not `createThread`'s: a device minting its own turns
 // one synced conversation into two. a pulled thread is created bare, its title, origin and harness
-// arriving as the log's thread/meta rows through `applyThreadMetaInTransaction`; a phone's request
-// states its origin, which only the create takes, since an existing thread already has its own.
-export const ensureThreadInTransaction = (
-  tx: DbTransaction,
-  id: string,
-  origin?: ThreadOriginInput,
-): EnsureThreadOutcome => {
+// arriving as the log's thread/meta rows through `applyThreadMetaInTransaction`.
+export const ensureThreadInTransaction = (tx: DbTransaction, id: string): EnsureThreadOutcome => {
   const existing = tx.select().from(threads).where(eq(threads.id, id)).get();
   if (existing !== undefined) {
     return { created: false, row: existing };
@@ -77,8 +72,6 @@ export const ensureThreadInTransaction = (
     .values({
       createdAt: now,
       id,
-      originDocPath: origin?.path ?? null,
-      originNoteId: origin?.noteId ?? null,
       status: "idle",
       updatedAt: now,
     })
@@ -103,9 +96,6 @@ export interface ThreadListQuery {
   after: ThreadListPosition | null;
   includeArchived: boolean;
   limit: number;
-  // the note's path and, when it carries one, its frontmatter `id`: a thread bound to that id is
-  // the note's wherever it was composed, so the caller re-checks each row's resolved origin.
-  origin: ThreadOriginInput | null;
   // text the title or the stored origin path holds, ascii case folded as LIKE folds it.
   contains: string | null;
   running: boolean;
@@ -124,14 +114,6 @@ const positionOf = (row: ThreadRow): ThreadListPosition => ({
   id: row.id,
   updatedAt: row.updatedAt,
 });
-
-const originPredicate = (origin: ThreadOriginInput | null): SQL | undefined => {
-  if (origin === null) {
-    return undefined;
-  }
-  const byPath = eq(threads.originDocPath, origin.path);
-  return origin.noteId === null ? byPath : or(byPath, eq(threads.originNoteId, origin.noteId));
-};
 
 // LIKE's wildcards and its escape character match only themselves.
 const containsPredicate = (text: string | null): SQL | undefined => {
@@ -158,7 +140,6 @@ const listSegment = (
         after === null
           ? undefined
           : sql`(${threads.updatedAt}, ${threads.id}) < (${after.updatedAt}, ${after.id})`,
-        originPredicate(query.origin),
         containsPredicate(query.contains),
         query.running ? inArray(threads.status, RUNNING_STATUSES) : undefined,
       ),
@@ -193,29 +174,6 @@ export const listThreads = (db: DbConnection, query: ThreadListQuery): ThreadPag
 // every one, unpaged: the boot's crash recovery must reach each turn left running.
 export const listRunningThreads = (db: DbConnection): ThreadRow[] =>
   db.select().from(threads).where(inArray(threads.status, RUNNING_STATUSES)).all();
-
-// the paths threads are bound by alone: composed over a note with no id to give, or before the
-// id column existed.
-export const listPathOnlyOriginPaths = (db: DbExecutor): string[] =>
-  db
-    .selectDistinct({ path: threads.originDocPath })
-    .from(threads)
-    .where(and(isNotNull(threads.originDocPath), isNull(threads.originNoteId)))
-    .all()
-    .flatMap((row) => (row.path === null ? [] : [row.path]));
-
-// only rows still bound by that path alone: a thread/meta that restated an origin meanwhile is the
-// newer statement, and an id never pairs with another statement's path. updated_at stays, because
-// the listing orders by it and nothing about the thread changed.
-export const bindPathOnlyOrigins = (
-  db: DbExecutor,
-  args: { path: string; noteId: string },
-): void => {
-  db.update(threads)
-    .set({ originNoteId: args.noteId })
-    .where(and(eq(threads.originDocPath, args.path), isNull(threads.originNoteId)))
-    .run();
-};
 
 // fills an empty title only: an explicit one, or one an earlier message already set, stays.
 export const nameUntitledThreadInTransaction = (

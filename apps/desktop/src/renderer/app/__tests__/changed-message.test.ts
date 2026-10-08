@@ -58,17 +58,6 @@ describe("a sync change", () => {
 
     expect(applied.invalidated).toEqual([[...orpc.cloud.status.key()]]);
   });
-
-  it("re-reads nothing for a document's change: no surface draws one", () => {
-    const applied = apply({
-      changes: ["content-changed"],
-      entity: "doc",
-      id: "a.md",
-      type: "changed",
-    });
-
-    expect(applied.invalidated).toEqual([]);
-  });
 });
 
 describe("a burst of frames in one flush", () => {
@@ -97,7 +86,7 @@ describe("a thread change", () => {
     "title-changed",
   ];
   const MOVES_DETAIL_ALONE: readonly ThreadChangeKind[] = ["queue-changed", "interactions-changed"];
-  const MOVES_NEITHER: readonly ThreadChangeKind[] = ["events-appended", "changes-committed"];
+  const MOVES_NEITHER: readonly ThreadChangeKind[] = ["events-appended"];
 
   it("weighs every kind in the vocabulary here too", () => {
     expect([...MOVES_LIST_AND_DETAIL, ...MOVES_DETAIL_ALONE, ...MOVES_NEITHER].toSorted()).toEqual(

@@ -1,6 +1,5 @@
 import path from "node:path";
 import { DEV_DATA_ROOT_DIR } from "inteligir/server/config";
-import { pathContains } from "inteligir/server/path-containment";
 import { makeTempDir } from "inteligir/server/testing";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
@@ -33,9 +32,8 @@ describe("the launch", () => {
     const context = scratch();
     const launch = answered(launchAnswer, await answerDoor(context, "launch"));
     expect(launch).toMatchObject({ env: {}, notes: [] });
-    expect(pathContains(path.join(context.homeDir, DEV_DATA_ROOT_DIR), launch.target.dataDir)).toBe(
-      true,
-    );
+    const devRoot = path.join(context.homeDir, DEV_DATA_ROOT_DIR);
+    expect(launch.target.dataDir.startsWith(devRoot)).toBe(true);
   });
 
   it("answers a launch the app's own config refuses with the refusal", async () => {

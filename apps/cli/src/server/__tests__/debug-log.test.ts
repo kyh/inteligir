@@ -3,7 +3,7 @@ import { debugLog } from "../debug-log";
 
 describe("debugLog", () => {
   it("is absent for a namespace that is off, so a site's line is never built", () => {
-    const log = debugLog(new Set(["sync"]), "watcher");
+    const log = debugLog(new Set(), "sync");
     expect(log).toBeUndefined();
     const build = vi.fn(() => "a line");
     log?.(build());
@@ -17,7 +17,7 @@ describe("debugLog", () => {
     onTestFinished(() => {
       stderr.mockRestore();
     });
-    debugLog(new Set(["watcher"]), "watcher")?.("update notes/a.md: kept");
-    expect(stderr).toHaveBeenCalledWith("[debug:watcher] update notes/a.md: kept");
+    debugLog(new Set(["sync"]), "sync")?.("session 1 pull: caught-up");
+    expect(stderr).toHaveBeenCalledWith("[debug:sync] session 1 pull: caught-up");
   });
 });

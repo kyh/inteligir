@@ -54,7 +54,6 @@ const EVERY_LIVE_THREAD = {
   contains: null,
   includeArchived: false,
   limit: 50,
-  origin: null,
   running: false,
 } satisfies ThreadListQuery;
 
@@ -438,15 +437,8 @@ describe("listThreads paging", () => {
     expect(page.next).toBeNull();
   });
 
-  it("filters by the note a thread is attached to and by a running turn", () => {
+  it("filters by a running turn", () => {
     const db = openTempDb();
-    const onNote = createThread(db, noopNotifier, {
-      origin: { noteId: null, path: "notes/a.md" },
-    });
-    createThread(db, noopNotifier, { origin: { noteId: null, path: "notes/b.md" } });
-    const byId = createThread(db, noopNotifier, {
-      origin: { noteId: "note-a", path: "old/a.md" },
-    });
     const running = createThread(db, noopNotifier, {});
     applyLifecycle(db, { event: { type: "run.preparing" }, threadId: running.id });
     const archivedRunning = createThread(db, noopNotifier, {});
@@ -455,10 +447,6 @@ describe("listThreads paging", () => {
 
     const ids = (query: Partial<ThreadListQuery>): string[] =>
       listThreads(db, { ...EVERY_LIVE_THREAD, ...query }).rows.map((row) => row.id);
-    expect(ids({ origin: { noteId: null, path: "notes/a.md" } })).toEqual([onNote.id]);
-    expect(ids({ origin: { noteId: "note-a", path: "notes/a.md" } }).toSorted()).toEqual(
-      [byId.id, onNote.id].toSorted(),
-    );
     expect(ids({ running: true })).toEqual([running.id]);
     expect(ids({ includeArchived: true, running: true })).toEqual([running.id, archivedRunning.id]);
     expect(

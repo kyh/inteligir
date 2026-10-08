@@ -12,7 +12,7 @@ const packageRootUrl = new URL("../", import.meta.url);
 
 const manifestSchema = z.looseObject({ version: z.string() });
 
-export const packageFile = (relativePath: string): string =>
+const packageFile = (relativePath: string): string =>
   fileURLToPath(new URL(relativePath, packageRootUrl));
 
 export const readCliVersion = (): string => {

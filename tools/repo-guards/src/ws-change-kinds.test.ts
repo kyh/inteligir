@@ -2,17 +2,12 @@
 // sees it: the compiler is satisfied by the declaration, knip sees importers, the ws-bus suite
 // fires the kind itself.
 
-import {
-  DOC_CHANGE_KINDS,
-  THREAD_CHANGE_KINDS,
-  VAULT_CHANGE_KINDS,
-} from "@repo/domain/change-kinds";
+import { THREAD_CHANGE_KINDS, VAULT_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { describe, expect, it } from "vitest";
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
 
 const ENTITIES = [
   { entity: "vault", kinds: VAULT_CHANGE_KINDS, notifier: "notifyVault" },
-  { entity: "doc", kinds: DOC_CHANGE_KINDS, notifier: "notifyDoc" },
   { entity: "thread", kinds: THREAD_CHANGE_KINDS, notifier: "notifyThread" },
 ] as const;
 
@@ -154,7 +149,7 @@ describe("ws change-kind reachability", () => {
       fired.some(
         (producer) =>
           producer.entity === "vault" &&
-          producer.kind === "files-changed" &&
+          producer.kind === "sync-status-changed" &&
           producer.file.startsWith("apps/cli/"),
       ),
     ).toBe(true);

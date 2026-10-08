@@ -7,9 +7,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import {
   BROWSER_HANDOFF_PARAM,
   HEALTH_PATH,
-  HTML_FRAME_PATH,
   RPC_PREFIX,
-  VAULT_ASSET_PATH,
   websocketOrigin,
   WS_PATH,
 } from "@repo/contract/local/routes";
@@ -17,25 +15,22 @@ import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { Hono } from "hono";
 import type { Context, MiddlewareHandler } from "hono";
-import { AGENT_THREAD_HEADER, agentThreadIdOf } from "./agent-thread-header";
 import { isSameOriginBrowserRequest } from "./browser-request";
 import { documentSecurityHeaders } from "./csp";
 import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
-import { HTML_FRAME_DOCUMENT, HTML_FRAME_HEADERS } from "./html-block-frame";
 import { JsonFileStoreError } from "./json-file-store";
 import type { UpgradedSocket } from "./listen";
 import { loopbackRequestOrigin } from "./loopback-origin";
-import type { AppServices } from "./orpc";
+import type { AppContext } from "./orpc";
 import { localRouter } from "./root-router";
 import { presentedCredential, tokenAccepted } from "./server-file";
 import type { PresentedCredential } from "./server-file";
 import { SIGNED_OUT_PAGE, SIGNED_OUT_PAGE_HEADERS } from "./signed-out-page";
 import { forwardToUiDevServer } from "./ui-dev-server";
-import { handleVaultAsset } from "./vault/asset-route";
 import type { WsBus } from "./ws-bus";
 
 export interface CreateAppArgs {
-  context: AppServices;
+  context: AppContext;
   bus: WsBus;
   serverToken: string;
   clientDir: string | null;
@@ -119,7 +114,7 @@ export const createApp = (args: CreateAppArgs) => {
     return accepted ? credential : null;
   };
 
-  // one gate at the http boundary: two of the three surfaces it protects are not procedures.
+  // one gate at the http boundary: the socket it protects is no procedure.
   // /health stays outside (a supervisor's spawn probe holds no credential yet). a cookie is ambient
   // and loopback "site" ignores the port, so a co-resident page on another 127.0.0.1 port carries
   // it: a cookie-authed request must also prove same-origin.
@@ -171,22 +166,13 @@ export const createApp = (args: CreateAppArgs) => {
   app.use(`${RPC_PREFIX}/*`, requireServerToken);
   app.all(`${RPC_PREFIX}/*`, async (c) => {
     const { response } = await rpc.handle(c.req.raw, {
-      context: {
-        ...args.context,
-        agentThreadId: agentThreadIdOf(c.req.header(AGENT_THREAD_HEADER)),
-      },
+      context: args.context,
       prefix: RPC_PREFIX,
     });
     return response ?? c.text("Not found", 404);
   });
 
   app.get(HEALTH_PATH, (c) => c.json({ ok: true } as const));
-
-  app.get(
-    VAULT_ASSET_PATH,
-    requireServerToken,
-    async (c) => await handleVaultAsset(c, args.context.vault.service),
-  );
 
   app.get(
     WS_PATH,
@@ -260,9 +246,6 @@ export const createApp = (args: CreateAppArgs) => {
         c.res.headers.set(name, value);
       }
     };
-
-    // ahead of the shell's route: its stamp would hand the frame the page's `script-src 'self'`.
-    app.get(HTML_FRAME_PATH, (c) => c.body(HTML_FRAME_DOCUMENT, 200, HTML_FRAME_HEADERS));
 
     if (ui.kind === "dev") {
       // no policy is stamped: Vite's page runs the inline scripts its hot reload injects and dials

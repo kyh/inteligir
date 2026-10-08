@@ -2,11 +2,8 @@ import { pendingInteractionStatusSchema } from "@repo/domain/pending-interaction
 import { approvalPendingInteractionPayloadSchema } from "@repo/domain/pending-interactions";
 import { threadStatusSchema } from "@repo/domain/thread-status";
 import { MAX_THREAD_TITLE_LENGTH } from "@repo/domain/thread-title";
-import { viewContextSchema } from "@repo/domain/view-context";
-import type { ViewContext } from "@repo/domain/view-context";
 import { z } from "zod";
 import { threadTimelineSchema, timelineDeltaSchema } from "../thread-timeline";
-import { contentHashSchema, vaultPathSchema } from "../vault/vault-schema";
 
 export const threadSchema = z
   .object({
@@ -44,8 +41,6 @@ export type PendingInteraction = z.infer<typeof pendingInteractionSchema>;
 
 export const createThreadRequestSchema = z
   .object({
-    // a stored path nothing downstream re-validates.
-    originDocPath: vaultPathSchema.optional(),
     title: z.string().min(1).max(MAX_THREAD_TITLE_LENGTH).optional(),
   })
   .strict();
@@ -90,7 +85,6 @@ export const listThreadsQuerySchema = z
     cursor: threadListCursorSchema.optional(),
     includeArchived: z.boolean().optional(),
     limit: z.number().int().min(1).max(THREADS_LIST_MAX_LIMIT).optional(),
-    originDocPath: vaultPathSchema.optional(),
     // text the title or the stored origin path holds, ascii case folded; a page of the whole
     // listing cannot answer it.
     query: z.string().trim().min(1).max(200).optional(),
@@ -172,51 +166,13 @@ export const interruptThreadResponseSchema = z
   .strict();
 export type InterruptThreadResponse = z.infer<typeof interruptThreadResponseSchema>;
 
-// the resource and the revision reach a prompt with no further validation. the stored grammar
-// stays looser so a row written before either rule still parses.
-const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewContext => {
-  const resource = vaultPathSchema.safeParse(value.resource);
-  if (!resource.success) {
-    ctx.addIssue({
-      code: "custom",
-      message: "viewContext.resource is not a vault path",
-      path: ["resource"],
-    });
-    return z.NEVER;
-  }
-  if (!contentHashSchema.safeParse(value.revision).success) {
-    ctx.addIssue({
-      code: "custom",
-      message: "viewContext.revision is not a content hash",
-      path: ["revision"],
-    });
-    return z.NEVER;
-  }
-  return { ...value, resource: resource.data };
-});
-
-export const MAX_CONTEXT_PATHS = 16;
-
-// absent, never empty, when nothing is attached: one spelling of "none".
-const contextPathsSchema = z
-  .array(vaultPathSchema)
-  .min(1)
-  .max(MAX_CONTEXT_PATHS)
-  .refine((paths) => new Set(paths).size === paths.length, {
-    message: "contextPaths names a note twice",
-  });
-
 export const sendMessageRequestSchema = z
   .object({
-    // the notes the user attached; the server names them to the agent in a block of their own,
-    // so `text` stays exactly what was typed.
-    contextPaths: contextPathsSchema.optional(),
     // the turn the client believes is running; when it no longer names the open turn the send
     // answers 409 rather than starting one.
     expectedTurnId: z.string().min(1).optional(),
     text: z.string().min(1),
     threadId: z.string().min(1),
-    viewContext: wireViewContextSchema.optional(),
   })
   .strict();
 export type SendMessageRequest = z.infer<typeof sendMessageRequestSchema>;
@@ -252,61 +208,6 @@ export const timelineResponseSchema = z.discriminatedUnion("kind", [
     .strict(),
 ]);
 export type TimelineResponse = z.infer<typeof timelineResponseSchema>;
-
-// undone: a later commit reverted the turn's changes.
-export const turnChangeStateSchema = z.enum(["applied", "undone"]);
-export type TurnChangeState = z.infer<typeof turnChangeStateSchema>;
-
-export const turnChangesSchema = z
-  .object({
-    // every path the turn's commit added, edited or deleted; a move is the path it left and the
-    // path it made.
-    paths: z.array(z.string().min(1)),
-    state: turnChangeStateSchema,
-    turnId: z.string().min(1),
-  })
-  .strict();
-export type TurnChanges = z.infer<typeof turnChangesSchema>;
-
-// oldest first, only the turns that committed a change.
-export const turnChangesResponseSchema = z.object({ turns: z.array(turnChangesSchema) }).strict();
-export type TurnChangesResponse = z.infer<typeof turnChangesResponseSchema>;
-
-export const undoTurnRequestSchema = z
-  .object({
-    threadId: z.string().min(1),
-    turnId: z.string().min(1),
-  })
-  .strict();
-export type UndoTurnRequest = z.infer<typeof undoTurnRequestSchema>;
-
-// why a path the turn changed was left as it is: edited, deleted or put back since the turn;
-// claimed by a turn still running; or not text the undo can merge (too large, or not UTF-8).
-export const undoKeptReasonSchema = z.enum([
-  "edited-since",
-  "deleted-since",
-  "recreated-since",
-  "busy",
-  "unreadable",
-]);
-export type UndoKeptReason = z.infer<typeof undoKeptReasonSchema>;
-
-export const undoKeptPathSchema = z
-  .object({
-    path: z.string().min(1),
-    reason: undoKeptReasonSchema,
-  })
-  .strict();
-export type UndoKeptPath = z.infer<typeof undoKeptPathSchema>;
-
-// a path already back as it was before the turn is in neither list.
-export const undoTurnResponseSchema = z
-  .object({
-    kept: z.array(undoKeptPathSchema),
-    reverted: z.array(z.string().min(1)),
-  })
-  .strict();
-export type UndoTurnResponse = z.infer<typeof undoTurnResponseSchema>;
 
 export const answerInteractionRequestSchema = z
   .object({

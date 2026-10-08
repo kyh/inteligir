@@ -77,9 +77,6 @@ apps/mobile             @repo/mobile — the iPhone app: the synced threads, and
 packages/domain         @repo/domain — zod-only leaf vocabulary
 packages/contract       @repo/contract — ONE contract, TWO entries: /local and /cloud
 packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
-packages/notes          @repo/notes — the pure, platform-neutral domain
-packages/agent-runtime  @repo/agent-runtime — the ACP runtime over the harnesses
-packages/agent-skills   @repo/agent-skills — the dialect spec, as files agents read
 packages/ui             @repo/ui — the shared component vocabulary on Base UI
 tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself
 tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
@@ -88,8 +85,8 @@ tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
 Boundaries are enforced, not documented: `tools/repo-guards` derives the
 dependency DAG from the tree and fails on an undeclared edge, a cycle, a
 phantom dependency, or a package acquiring a platform it may not have
-(`@repo/notes` runs in the browser and on node; the zod-only leaves touch
-neither node nor react).
+(the contract loads in every client, and the zod-only leaves touch neither
+node nor react).
 
 **[`AGENTS.md`](./AGENTS.md) is the guide for coding agents** — quickstart and
 the runnable recipes. `CLAUDE.md` (root) holds the architecture summary,

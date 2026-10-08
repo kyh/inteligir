@@ -53,12 +53,10 @@ describe("the thread sync, raw", () => {
 });
 
 const SYSTEM: SystemStatusResponse = {
-  agent: { detail: null, mode: "auto", runtime: "acp" },
+  agent: { detail: null, mode: "scripted", runtime: "scripted" },
   dataDir: "/home/me/.inteligir",
-  dataDirScope: "root",
   schemaVersion: 7,
   uptimeMs: 42_000,
-  vaultDir: "/home/me/Inteligir",
   version: "0.6.0",
 };
 

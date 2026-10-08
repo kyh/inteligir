@@ -13,7 +13,6 @@ import { setTimeout as delay } from "node:timers/promises";
 // the workspace's links, not the packaged copies: `files` does not ship scripts, and the route
 // constants are the contract's own source, which node strips of its types
 import { HEALTH_PATH, RPC_PREFIX } from "@repo/contract/local/routes";
-import { proveWatcherAlive } from "inteligir/scripts/smoke-lib.mjs";
 
 const CLI_BIN_NAME = "inteligir";
 const TEST_DIR_NAME = "__tests__";
@@ -41,12 +40,8 @@ const bundledRustNotices = path.join(appDir, "Contents", "Resources", "notices")
 const SINGLE_INSTANCE_SOCKET = "/tmp/com_inteligir_desktop_si.sock";
 const BOOT_TIMEOUT_MS = 90_000;
 const EXIT_TIMEOUT_MS = 40_000;
-const AGENT_TIMEOUT_MS = 60_000;
 // the prod layout the packaged server derives under a home (apps/cli/src/server/config.ts)
 const PROD_DATA_DIR_NAME = ".inteligir";
-// what the runtime reports when the vendor refuses for want of a sign-in
-// (packages/agent-runtime/src/acp/provider-error.ts)
-const CODEX_SIGNED_OUT = "ChatGPT is signed out on this Mac";
 // the shell's notes in the server's log as it starts a child and once that child has stopped
 // (src-tauri/src/server.rs)
 const SERVER_STARTING = "[desktop] starting the server";
@@ -54,18 +49,8 @@ const SERVER_STOPPED_CLEANLY = "server exited (code 0)";
 const SERVER_LOG = path.join("logs", "server.log");
 // the shell's line once the window's page has loaded (src-tauri/src/window.rs)
 const WINDOW_LOADED = "[desktop] window loaded";
-// each would steer the agent off the bundled vendors and their empty stores: the host's own vendor
-// binaries, its credentials, or an agent mode that is not ACP
-const HOST_AGENT_ENV = new Set([
-  "ANTHROPIC_API_KEY",
-  "ANTHROPIC_AUTH_TOKEN",
-  "CLAUDE_CODE_EXECUTABLE",
-  "CLAUDE_CODE_OAUTH_TOKEN",
-  "CODEX_PATH",
-  "CODEX_API_KEY",
-  "OPENAI_API_KEY",
-  "INTELIGIR_AGENT",
-]);
+// a host's own agent mode would answer for the app's default, which the smoke reads back
+const HOST_AGENT_ENV = new Set(["INTELIGIR_AGENT"]);
 
 /**
  * @param {string} message what went wrong, for stderr and the thrown error
@@ -175,27 +160,18 @@ const scratch = await mkdtemp(path.join(tmpdir(), "inteligir-desktop-smoke-"));
 const port = 4900 + Math.floor(Math.random() * 90);
 const baseUrl = `http://127.0.0.1:${port}`;
 const dataDir = path.join(scratch, "data");
-const vaultDir = path.join(scratch, "vault");
 // a home of its own, so the shell's folder (its debug choice, its web stores) lands in the scratch
 // rather than beside an installed Inteligir's
 const pinnedHome = path.join(scratch, "pinned-home");
-// no sign-in lives in either, so each vendor answers signed out and the turn stops at its refusal
-const claudeConfigDir = path.join(scratch, "claude-config");
-const codexHome = path.join(scratch, "codex-home");
 
-await mkdir(claudeConfigDir, { recursive: true });
-await mkdir(codexHome, { recursive: true });
 await mkdir(pinnedHome, { recursive: true });
 
 // an undefined value unsets the variable
 const appEnv = (env) =>
   Object.fromEntries(
-    Object.entries({
-      ...process.env,
-      CLAUDE_CONFIG_DIR: claudeConfigDir,
-      CODEX_HOME: codexHome,
-      ...env,
-    }).filter(([name, value]) => value !== undefined && !HOST_AGENT_ENV.has(name)),
+    Object.entries({ ...process.env, ...env }).filter(
+      ([name, value]) => value !== undefined && !HOST_AGENT_ENV.has(name),
+    ),
   );
 
 const launchApp = (env) => {
@@ -300,48 +276,15 @@ const killGroup = (launched) => {
   }
 };
 
-// the server runs each vendor's bundled binary itself and asks it for the sign-in: both must be
-// there in the pack, and over an empty store both must answer signed out, never unknown.
-const proveVendorsBundled = async (rpc) => {
-  const { harnesses } = await rpc("agents/status");
-  for (const id of ["claude", "codex"]) {
-    const harness = harnesses.find((row) => row.id === id);
-    if (harness?.runtime !== "bundled") {
-      fail(`the packaged app does not carry the ${id} runtime: ${JSON.stringify(harness)}`);
-    }
-    if (harness.account.state !== "signed-out") {
-      fail(`${id} over an empty store did not answer signed out: ${JSON.stringify(harness)}`);
-    }
+// this build carries no agent runtime: the server says so rather than claiming one it cannot run
+const proveNoAgentRuntime = async (rpc) => {
+  const { agent } = await rpc("system/status");
+  if (agent.mode !== "auto" || agent.runtime !== "unavailable") {
+    fail(
+      `the packaged server reports an agent runtime it does not carry: ${JSON.stringify(agent)}`,
+    );
   }
-  log("agents -> claude and codex bundled, both signed out");
-};
-
-// the server starts the codex adapter on the bundled node, the adapter starts its bundled native
-// codex, and the ACP handshake runs; with no sign-in the vendor then refuses the session. only a
-// live adapter can say that: one the server could not start, or a codex it could not run, fails
-// the turn differently.
-const proveAgentTurn = async (rpc) => {
-  await rpc("agents/setDefault", { id: "codex" });
-  const { thread } = await rpc("threads/create", {});
-  await rpc("threads/send", { text: "smoke", threadId: thread.id });
-  const deadline = Date.now() + AGENT_TIMEOUT_MS;
-  for (;;) {
-    const answer = await rpc("threads/timeline", { threadId: thread.id });
-    const rows = answer.kind === "full" ? answer.timeline.rows : [];
-    const turn = rows.find((row) => row.kind === "turn");
-    if (turn !== undefined && turn.status !== "pending") {
-      const said = JSON.stringify(rows);
-      if (!said.includes(CODEX_SIGNED_OUT)) {
-        fail(`the agent turn ended ${turn.status} without reaching codex: ${said}`);
-      }
-      log(`agent turn -> ${turn.status}: the adapter reached codex, which asked for a sign-in`);
-      return;
-    }
-    if (Date.now() > deadline) {
-      fail(`the agent turn had not settled after ${AGENT_TIMEOUT_MS}ms`);
-    }
-    await delay(500);
-  }
+  log(`agent -> ${agent.runtime}: ${agent.detail}`);
 };
 
 let launched = null;
@@ -352,7 +295,6 @@ try {
     HOME: pinnedHome,
     INTELIGIR_DATA_DIR: dataDir,
     INTELIGIR_PORT: String(port),
-    INTELIGIR_VAULT_DIR: vaultDir,
   });
   await waitHealthy(baseUrl);
   await waitWindowLoaded(launched);
@@ -369,13 +311,11 @@ try {
   }
   log(`SPA shell -> ${shell.status} ${html.length} bytes`);
 
-  // exercises better-sqlite3 and @parcel/watcher, the first to fail on an ABI mismatch
+  // exercises better-sqlite3, the first to fail on an ABI mismatch
   const { threads } = await rpc("threads/list", {});
   log(`threads -> ${threads.length} listed`);
-  await proveWatcherAlive({ fail, log, rpc, vaultDir });
 
-  await proveVendorsBundled(rpc);
-  await proveAgentTurn(rpc);
+  await proveNoAgentRuntime(rpc);
 
   await stopApp(launched, dataDir);
   launched = null;
@@ -392,7 +332,6 @@ try {
     HOME: home,
     INTELIGIR_DATA_DIR: undefined,
     INTELIGIR_PORT: String(homePort),
-    INTELIGIR_VAULT_DIR: undefined,
   });
   await waitHealthy(homeUrl);
   await waitWindowLoaded(launched);

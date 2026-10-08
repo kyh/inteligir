@@ -72,7 +72,6 @@ const serverRow = (dataDir: string, port: number, pid: number = process.pid): Se
   pid,
   port,
   token: TOKEN,
-  vaultDir: path.join(dataDir, "vault"),
 });
 
 // this process's own pid by default, so the row's owner is alive and the probe dials it.
@@ -94,10 +93,8 @@ const exitedPid = (): number => spawnSync(process.execPath, ["-e", ""]).pid;
 const systemStatus = (dataDir: string, version: string): SystemStatusResponse => ({
   agent: { detail: null, mode: "off", runtime: "off" },
   dataDir,
-  dataDirScope: "root",
   schemaVersion: 1,
   uptimeMs: 1,
-  vaultDir: path.join(dataDir, "vault"),
   version,
 });
 

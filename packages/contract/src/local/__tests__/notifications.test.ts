@@ -17,9 +17,9 @@ describe("realtimeSubscriptionTargetKey", () => {
 describe("strict outbound schemas", () => {
   it("rejects an unknown change kind", () => {
     const result = changedMessageSchema.safeParse({
-      changes: ["content-changed", "not-a-kind"],
-      entity: "doc",
-      id: "d1",
+      changes: ["events-appended", "not-a-kind"],
+      entity: "thread",
+      id: "t1",
       type: "changed",
     });
     expect(result.success).toBe(false);
@@ -27,7 +27,7 @@ describe("strict outbound schemas", () => {
 
   it("rejects an unknown field", () => {
     const result = changedMessageSchema.safeParse({
-      changes: ["files-changed"],
+      changes: ["sync-status-changed"],
       entity: "vault",
       extra: true,
       type: "changed",
@@ -35,10 +35,11 @@ describe("strict outbound schemas", () => {
     expect(result.success).toBe(false);
   });
 
-  it("requires an id on doc messages", () => {
+  it("refuses an entity it does not declare", () => {
     const result = changedMessageSchema.safeParse({
       changes: ["content-changed"],
       entity: "doc",
+      id: "d1",
       type: "changed",
     });
     expect(result.success).toBe(false);
@@ -75,13 +76,13 @@ describe("lenient inbound schemas", () => {
 
   it("strips unknown fields instead of rejecting the message", () => {
     const result = changedMessageLenientSchema.parse({
-      changes: ["files-changed"],
+      changes: ["sync-status-changed"],
       entity: "vault",
       futureField: { nested: true },
       type: "changed",
     });
     expect(result).toEqual({
-      changes: ["files-changed"],
+      changes: ["sync-status-changed"],
       entity: "vault",
       type: "changed",
     });

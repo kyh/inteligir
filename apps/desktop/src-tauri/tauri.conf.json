@@ -23,7 +23,7 @@
         "base-uri": "'self'",
         "form-action": "'self'",
         "frame-ancestors": "'none'",
-        "frame-src": "'self'",
+        "frame-src": "'none'",
         "worker-src": "'none'"
       }
     }

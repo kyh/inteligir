@@ -20,9 +20,8 @@ export const buildContentSecurityPolicy = (args: ContentSecurityPolicyArgs): str
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    // inteligir-html's two frames, the srcdoc preview and the loader in html-block-frame.ts that
-    // Run navigates to; remote frames stay refused, which also refuses a running block a way out.
-    "frame-src 'self'",
+    // no page frames another, its own origin's included.
+    "frame-src 'none'",
     // no page code runs off the main thread, so a script that slipped in cannot start a worker either.
     "worker-src 'none'",
   ].join("; ");

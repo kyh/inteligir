@@ -56,16 +56,10 @@
       // that function.
       "passThroughEnv": [
         "INTELIGIR_AGENT",
-        "INTELIGIR_CLAUDE_MODEL",
         "INTELIGIR_CLOUD_URL",
-        "INTELIGIR_CODEX_MODEL",
         "INTELIGIR_DATA_DIR",
         "INTELIGIR_DEBUG",
-        "INTELIGIR_PORT",
-        "INTELIGIR_SLOW_READS",
-        "INTELIGIR_SYNC_INTERVAL_MS",
-        "INTELIGIR_VAULT_DIR",
-        "INTELIGIR_VAULT_REMOTE"
+        "INTELIGIR_PORT"
       ]
     }
   }

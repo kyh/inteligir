@@ -11,7 +11,6 @@ import { unavailableTurnDriver } from "../../threads/turn-driver";
 import { createCloudRuntime } from "../sync-runtime";
 import type { CloudRuntime } from "../sync-runtime";
 import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";
-import { pathOnlyOrigins } from "../../__tests__/path-only-origins";
 
 // pollIntervalMs: null — the test triggers every pass itself.
 const bootInstall = async (
@@ -67,14 +66,12 @@ const rebootCloud = async (
     db: install.db,
     onDebug: () => {},
     transport: { fetch: cloud.fetch, pollIntervalMs: null },
-    vault: install.vault.service,
   });
   runtime.attach(
     new ThreadService({
       createTurnDriver: () => unavailableTurnDriver,
       db: install.db,
       notifier: new NotificationBuffer(),
-      origins: pathOnlyOrigins,
       sync: runtime,
     }),
   );
@@ -259,7 +256,6 @@ describe("two installs against one account", () => {
       createTurnDriver: () => unavailableTurnDriver,
       db: b.db,
       notifier: new NotificationBuffer(),
-      origins: pathOnlyOrigins,
     });
     rebooted.boot();
     const listed = await rebooted.list({});
@@ -373,22 +369,14 @@ describe("two installs against one account", () => {
     expect(texts).toContain("from B");
   });
 
-  it("carries a thread's title, note, harness and archive to the other install", async () => {
+  it("carries a thread's title, harness and archive to the other install", async () => {
     const cloud = new FakeCloud();
     const a = await bootInstall(cloud);
     const b = await bootInstall(cloud);
     await login(a, "A");
     await login(b, "B");
 
-    await a.client.vault.write({
-      content: "# Week\n",
-      guard: { kind: "overwrite" },
-      path: "Week.md",
-    });
-    const { thread } = await a.client.threads.create({
-      originDocPath: "Week.md",
-      title: "Plan the week",
-    });
+    const { thread } = await a.client.threads.create({ title: "Plan the week" });
     // the bind a real runtime makes before its first prompt; the scripted driver makes none.
     setThreadProviderSession(a.db, {
       providerId: "codex",
@@ -402,24 +390,17 @@ describe("two installs against one account", () => {
     const pulled = await b.client.threads.get({ threadId: thread.id });
     expect(pulled.thread).toMatchObject({
       archivedAt: null,
-      originDocPath: "Week.md",
       providerId: "codex",
       title: "Plan the week",
     });
     expect(getThread(b.db, thread.id)?.providerThreadId).toBeNull();
 
-    await a.client.vault.rename({ from: "Week.md", to: "Plans/Week.md" });
     await a.client.threads.archive({ threadId: thread.id });
     await syncNow(a);
     await syncNow(b);
-    // the move reaches B through git, never the log: B's vault takes A's bytes, the note's id with
-    // them, and B's thread follows that id.
-    const { content } = await a.client.vault.read({ path: "Plans/Week.md" });
-    await b.client.vault.write({ content, guard: { kind: "overwrite" }, path: "Plans/Week.md" });
 
-    const moved = await b.client.threads.get({ threadId: thread.id });
-    expect(moved.thread.originDocPath).toBe("Plans/Week.md");
-    expect(moved.thread.archivedAt).not.toBeNull();
+    const archived = await b.client.threads.get({ threadId: thread.id });
+    expect(archived.thread.archivedAt).not.toBeNull();
     expect(eventOrder(b, thread.id)).toEqual(eventOrder(a, thread.id));
   });
 
@@ -451,20 +432,14 @@ describe("two installs against one account", () => {
     expect(detail.thread.archivedAt).not.toBeNull();
   });
 
-  it("keeps a thread that never made a request on its own install, archived or moved", async () => {
+  it("keeps a thread that never made a request on its own install, archived or not", async () => {
     const cloud = new FakeCloud();
     const a = await bootInstall(cloud);
     const b = await bootInstall(cloud);
     await login(a, "A");
     await login(b, "B");
 
-    await a.client.vault.write({
-      content: "# Draft\n",
-      guard: { kind: "overwrite" },
-      path: "Draft.md",
-    });
-    const { thread } = await a.client.threads.create({ originDocPath: "Draft.md" });
-    await a.client.vault.rename({ from: "Draft.md", to: "Kept/Draft.md" });
+    const { thread } = await a.client.threads.create({ title: "Draft" });
     await a.client.threads.archive({ threadId: thread.id });
     await syncNow(a);
     await syncNow(b);
@@ -473,7 +448,7 @@ describe("two installs against one account", () => {
     const onB = await b.client.threads.list({ includeArchived: true });
     expect(onB.threads).toEqual([]);
     const local = await a.client.threads.get({ threadId: thread.id });
-    expect(local.thread.originDocPath).toBe("Kept/Draft.md");
+    expect(local.thread.title).toBe("Draft");
     expect(local.thread.archivedAt).not.toBeNull();
   });
 

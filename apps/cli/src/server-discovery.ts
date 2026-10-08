@@ -1,6 +1,6 @@
 // server.json names the bound port and the bearer together: dialling a derived port could reach a neighbouring
-// checkout's server and write into its vault. no "point the CLI at a URL" hatch for the same reason: the token
-// would still come from a data dir, and the two halves could disagree.
+// checkout's server and write into its threads. no "point the CLI at a URL" hatch for the same reason: the
+// token would still come from a data dir, and the two halves could disagree.
 
 import { DATA_DIR_ENV_VAR, resolveAppConfig } from "./server/config";
 import type { ResolveAppConfigArgs } from "./server/config";
@@ -13,7 +13,6 @@ export interface ResolvedServer {
   // from the data dir, never the environment: an env var is inherited by every child.
   token: string;
   dataDir: string;
-  vaultDir: string;
 }
 
 export interface ResolveDataDirArgs {
@@ -81,6 +80,5 @@ export const resolveServer = (args: ResolveServerArgs): ResolvedServer => {
     baseUrl: loopbackOrigin(server.port),
     dataDir,
     token: server.token,
-    vaultDir: server.vaultDir,
   };
 };

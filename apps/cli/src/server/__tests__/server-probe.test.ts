@@ -20,7 +20,6 @@ describe("probeServerFile", () => {
       pid: exitedPid(),
       port: 4664,
       token: "t",
-      vaultDir: `${dataDir}/vault`,
       version: "0.1.0-test",
     };
     writeServerFile(dataDir, row);
@@ -41,7 +40,6 @@ describe("probeServerFile", () => {
       pid: process.pid,
       port,
       token: TEST_SERVER_TOKEN,
-      vaultDir: booted.vaultDir,
       version: "0.1.0-test",
     });
     await expect(probeServerFile(booted.dataDir)).resolves.toMatchObject({
@@ -58,7 +56,6 @@ describe("probeServerFile", () => {
       pid: process.pid,
       port,
       token: "not-this-boot",
-      vaultDir: booted.vaultDir,
       version: "0.1.0-test",
     });
     await expect(probeServerFile(booted.dataDir)).resolves.toMatchObject({ kind: "refused" });
@@ -70,7 +67,6 @@ describe("probeServerFile", () => {
       pid: process.pid,
       port: 4664,
       token: "t",
-      vaultDir: "/v",
       version: "0.1.0-test",
     });
     const probe = await probeServerFile(dataDir, async () => {

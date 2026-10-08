@@ -1,14 +1,10 @@
 {
   "name": "inteligir",
   "version": "0.6.0",
-  "description": "The `inteligir` binary: `serve` runs the whole local server — vault, index, agent, API — and every other verb is an oRPC client against a running one. Agent-facing by design: every leaf takes --json, the server serves the manual, and agent shells get INTELIGIR_DATA_DIR/INTELIGIR_THREAD_ID injected.",
+  "description": "The `inteligir` binary: `serve` runs the whole local server — the agent threads, their sync and the API — and every other verb is an oRPC client against a running one. Every leaf takes --json.",
   "keywords": [
     "agent",
-    "local-first",
-    "markdown",
-    "notes",
-    "obsidian",
-    "vault"
+    "local-first"
   ],
   "homepage": "https://github.com/kyh/inteligir#readme",
   "bugs": {
@@ -26,31 +22,23 @@
   "files": [
     "bin",
     "dist",
-    "seed",
     "README.md",
     "!dist/**/*.map"
   ],
   "type": "module",
   "exports": {
-    "./server/agent-shell-env": "./src/server/agents/agent-shell-env.ts",
     "./server/cloud/credential-store": "./src/server/cloud/credential-store.ts",
     "./server/cloud/sync-cadence": "./src/server/cloud/sync-cadence.ts",
     "./server/config": "./src/server/config.ts",
     "./server/csp": "./src/server/csp.ts",
     "./server/debug-log": "./src/server/debug-log.ts",
     "./server/dev-instance": "./src/server/dev-instance.ts",
-    "./server/html-block-frame": "./src/server/html-block-frame.ts",
     "./server/local-client": "./src/server/local-client.ts",
-    "./server/path-containment": "./src/server/path-containment.ts",
     "./server/server-file": "./src/server/server-file.ts",
     "./server/server-probe": "./src/server/server-probe.ts",
     "./server/shutdown": "./src/server/shutdown.ts",
     "./server/staged-write": "./src/server/staged-write.ts",
-    "./server/vault-switch": "./src/server/vault-switch.ts",
-    "./server/testing": "./src/server/__tests__/boot-app.ts",
-    "./server/vault/folder-facts": "./src/server/vault/folder-facts.ts",
-    "./server/vault/seed-vault": "./src/server/vault/seed-vault.ts",
-    "./scripts/smoke-lib.mjs": "./scripts/smoke-lib.mjs"
+    "./server/testing": "./src/server/__tests__/boot-app.ts"
   },
   "publishConfig": {
     "exports": {},
@@ -63,9 +51,6 @@
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
-    "@agentclientprotocol/claude-agent-acp": "catalog:",
-    "@agentclientprotocol/codex-acp": "catalog:",
-    "@parcel/watcher": "catalog:",
     "better-sqlite3": "catalog:"
   },
   "devDependencies": {
@@ -74,13 +59,9 @@
     "@orpc/client": "catalog:",
     "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
-    "@repo/agent-runtime": "workspace:*",
-    "@repo/agent-skills": "workspace:*",
     "@repo/contract": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/domain": "workspace:*",
-    "@repo/notes": "workspace:*",
-    "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
     "citty": "catalog:",
     "consola": "catalog:",

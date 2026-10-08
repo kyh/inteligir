@@ -3,15 +3,12 @@ import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
 import type { LocalContract } from "@repo/contract/local";
 import { RPC_PREFIX } from "@repo/contract/local/routes";
-import { AGENT_THREAD_HEADER } from "./agent-thread-header";
 import { authorizationHeader } from "./server-file";
 
 export interface LocalClientArgs {
   origin: string;
   token: string;
   timeoutMs: number;
-  // the agent thread whose shell this client runs in, if any.
-  agentThreadId?: string;
 }
 
 export const createLocalClient = (args: LocalClientArgs): ContractRouterClient<LocalContract> => {
@@ -22,11 +19,7 @@ export const createLocalClient = (args: LocalClientArgs): ContractRouterClient<L
       const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
       return await fetch(url, { ...init, signal });
     },
-    // an undefined value sends no header at all.
-    headers: () => ({
-      [AGENT_THREAD_HEADER]: args.agentThreadId,
-      authorization: authorizationHeader(args.token),
-    }),
+    headers: () => ({ authorization: authorizationHeader(args.token) }),
     // oRPC v2: `origin` is the host, `url` the mount path (must start with `/`).
     origin: args.origin,
     url: RPC_PREFIX,

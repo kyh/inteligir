@@ -6,29 +6,17 @@ import { mkdirSync } from "node:fs";
 import { inspect } from "node:util";
 import { createCloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
 import { browserHandoffUrl } from "@repo/contract/local/routes";
-import { externalSyncName } from "@repo/contract/local/vault/vault-schema";
-import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { resolveUiDir } from "../paths";
 import { resolveAgentDriver } from "./agents/agent-driver";
-import type { ResolveAgentDriverArgs } from "./agents/agent-driver";
-import { resolveCliBinDir, resolveSkillsDir } from "./agents/agent-shell-env";
-import { createAgentAccounts } from "./agents/agent-sign-in";
 import { createApp } from "./app";
 import { bootReport } from "./boot-report";
-import type { BootPhases } from "./boot-report";
-import type { VaultRemoteSpec } from "./cloud/vault-remote";
-import { migrateLegacyCommentSidecars } from "./comments/comments-migration";
 import { composeRuntime, registerListener, registerLockRelease } from "./compose";
 import type { ComposeRuntimeArgs } from "./compose";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
-import { debugLog } from "./debug-log";
 import { resolveCheckoutRoot } from "./dev-instance";
-import { messageOf } from "./error-message";
-import type { ReconcileStats } from "./knowledge/knowledge-runtime";
 import { closeServer, guardUpgradeSockets, listenWithRetry } from "./listen";
 import { LOOPBACK_HOST } from "./loopback-origin";
-import { removeRetiredModelDir } from "./retired-model-dir";
 import { acquireServeLock, serveLockPath } from "./serve-lock";
 import { loopbackOrigin, mintServerToken, removeServerFile, writeServerFile } from "./server-file";
 import { probeServerFile, processAlive, silentOwnerSentence } from "./server-probe";
@@ -41,14 +29,12 @@ import {
 } from "./shutdown";
 import type { ShutdownStep } from "./shutdown";
 import { uiDevOrigin } from "./ui-dev-server";
-import { redactRemoteUrl } from "./vault/git-run";
 
-// passed as env rather than written to process.env: a global write is inherited
-// by every child this server spawns (agent shells, the watcher fork).
+// passed as env rather than written to process.env: a global write is inherited by every child
+// this server spawns.
 export interface ServeOverrides {
   INTELIGIR_PORT?: string;
   INTELIGIR_DATA_DIR?: string;
-  INTELIGIR_VAULT_DIR?: string;
 }
 
 export interface ServeResult {
@@ -83,20 +69,6 @@ const liveOwnerRefusal = (dataDir: string, probe: ServerFileProbe): string | nul
 };
 
 const STOP_IT_FIRST = "Stop it first, or select another instance with INTELIGIR_DATA_DIR.";
-
-// where the vault syncs, for the boot line; a folder another service syncs says so, since that is
-// why a signed-in install has no hosted remote.
-const bootSyncNote = (
-  remote: VaultRemoteSpec | null,
-  externalSync: ExternalSync | null,
-): string => {
-  if (remote !== null) {
-    return ` ⇄ ${redactRemoteUrl(remote.url)}${remote.source === "account" ? " (account)" : ""}`;
-  }
-  return externalSync === null
-    ? ""
-    : ` — ${externalSyncName(externalSync)} syncs this folder, so the hosted vault stays off`;
-};
 
 export const assertNoLiveServer = async (dataDir: string): Promise<void> => {
   const refusal = liveOwnerRefusal(dataDir, await probeServerFile(dataDir));
@@ -163,32 +135,14 @@ const boot = async (
   const uiDev = uiDevOrigin(env, config.mode);
 
   const composeArgs: ComposeRuntimeArgs = {
-    accounts: createAgentAccounts({ cwd: config.dataDir, env }),
     // injected: the composed graph is also compiled under the browser tsconfig, where
     // WebSocket's second argument is a protocol list, not node's `{ headers }`.
     cloudTransport: {
       openSocket: createCloudSocketOpener((url, headers) => new WebSocket(url, { headers })),
     },
     config,
-    driver: ({ config: driverConfig, db, bus, vault, folders, agentPrefs }) => {
-      const cliBinDir = resolveCliBinDir();
-      const skillsDir = resolveSkillsDir();
-      const driverArgs: ResolveAgentDriverArgs = {
-        config: driverConfig,
-        db,
-        debugLog: debugLog(driverConfig.debug, "acp"),
-        notifier: bus,
-        preferredProviderId: () => agentPrefs.read().defaultHarness ?? null,
-        sessionFacts: () => ({
-          cliBinDir,
-          connectedDirs: folders.list(),
-          dataDir: driverConfig.dataDir,
-          skillsDir,
-        }),
-        vault,
-      };
-      return resolveAgentDriver(driverArgs);
-    },
+    driver: ({ config: driverConfig, bus }) =>
+      resolveAgentDriver({ config: driverConfig, notifier: bus }),
     servesUi: clientDir !== null || uiDev !== null,
     teardown,
     version,
@@ -220,64 +174,24 @@ const boot = async (
     pid: process.pid,
     port,
     token: serverToken,
-    vaultDir: config.vaultDir,
     version,
   });
   guardUpgradeSockets(server);
   injectWebSocket(server);
   const listening = performance.now();
-  // kicked after listen: an unsettled index only delays the searches that ask for it.
-  void (async () => {
-    let reconcile: ReconcileStats | null = null;
-    try {
-      await runtime.context.knowledge.settle();
-      reconcile = runtime.context.knowledge.lastReconcile;
-    } catch {
-      // logged inside the pass; a rebuild that fails again fails the query that needs it.
-    }
-    const phases: BootPhases = {
+  console.log(
+    bootReport({
       claimMs: claimed - began,
       composeMs: composed - claimed,
-      indexMs: performance.now() - listening,
       listenMs: listening - composed,
-    };
-    console.log(bootReport(phases, reconcile));
-  })();
-  // after listen too, and guarded: a whole-vault walk ahead of the bind delays the readiness the
-  // shell waits on, and a sweep that throws must not fail the boot. a note opened meanwhile folds
-  // its own sidecar on first touch, through the same CAS writes.
-  void (async () => {
-    try {
-      await migrateLegacyCommentSidecars({
-        comments: runtime.context.comments,
-        vault: runtime.context.vault.service,
-        warn: (message) => {
-          console.warn(`[comments] ${message}`);
-        },
-      });
-    } catch (error) {
-      console.warn(`[comments] boot sweep skipped: ${messageOf(error)}`);
-    }
-  })();
-  // after listen and guarded for the same reasons: removing a folder no build reads must neither
-  // delay the readiness the shell waits on nor fail a boot.
-  void (async () => {
-    try {
-      await removeRetiredModelDir(config);
-    } catch (error) {
-      console.warn(`[models] retired model folder left in place: ${messageOf(error)}`);
-    }
-  })();
-  const bootRemote = await runtime.context.vault.git.currentRemote();
+    }),
+  );
   const agent = runtime.context.system.agent();
   const serverUrl = loopbackOrigin(port);
   console.log(
-    `inteligir ${version} (${config.mode}) listening on ${serverUrl} — data: ${config.dataDir} — vault: ${config.vaultDir}${bootSyncNote(bootRemote, runtime.externalSync)}`,
+    `inteligir ${version} (${config.mode}) listening on ${serverUrl} — data: ${config.dataDir}`,
   );
   console.log(`agent: ${agent.runtime}${agent.detail === null ? "" : ` — ${agent.detail}`}`);
-  for (const warning of config.warnings) {
-    console.warn(`config: ${warning}`);
-  }
   const uiUrl =
     clientDir === null && uiDev === null
       ? null
@@ -348,7 +262,7 @@ export const runServe = async (
       `inteligir failed to start: ${error instanceof Error ? inspect(error) : String(error)}`,
     );
     await shutdown.run();
-    // exit, not an exit code: the watcher fork's IPC channel is a live handle, so the loop would never drain.
+    // exit, not an exit code: a handle the failed boot left open would keep the loop from draining.
     process.exit(1);
   }
 };

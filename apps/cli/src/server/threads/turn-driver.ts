@@ -1,5 +1,4 @@
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import type { ViewContext } from "@repo/domain/view-context";
 import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
 
 // what a stop found: a turn that will still report its own end through the sink, or none that
@@ -16,11 +15,9 @@ export interface TurnDriver {
   onInteractionResolved?: (interaction: PendingInteraction) => void;
 }
 
-// what a message asks its turn to carry, beside the text the user typed.
+// what a message asks its turn to carry: the text the user typed.
 export interface TurnRequest {
   text: string;
-  contextPaths?: readonly string[] | undefined;
-  viewContext?: ViewContext | undefined;
   // the phone's dispatch the message carries out, stated on its request so the phone finds it
   dispatchId?: string | undefined;
 }

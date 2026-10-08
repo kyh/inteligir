@@ -1,7 +1,7 @@
-// every writer stops before the vault flush, and the flush before the handles
-// close. every step runs even after one throws, each under its own budget: a
-// single budget lets one wedged step starve the vault flush behind it, so the
-// sequence deadline is derived from the steps, never declared.
+// every writer stops before the handles close. every step runs even after one
+// throws, each under its own budget: a single budget lets one wedged step starve
+// the steps behind it, so the sequence deadline is derived from the steps, never
+// declared.
 
 import { errnoCode } from "./errno";
 
@@ -11,14 +11,9 @@ export const DEFAULT_STEP_TIMEOUT_MS = 5000;
 // listed in teardown order, which the per-step comments explain.
 export const TEARDOWN_BUDGETS_MS = {
   listener: DEFAULT_STEP_TIMEOUT_MS,
-  // cloud sync writes the db and the vault, so it stops above both.
+  // cloud sync writes the db, so it stops above it.
   cloud: DEFAULT_STEP_TIMEOUT_MS,
   agent: DEFAULT_STEP_TIMEOUT_MS,
-  // each running connector sign-in's vendor process is killed and its close awaited.
-  connectors: 2000,
-  knowledge: DEFAULT_STEP_TIMEOUT_MS,
-  // a git commit over a large dirty tree; the step the ordering exists to protect.
-  vault: 8000,
   db: DEFAULT_STEP_TIMEOUT_MS,
   // the data dir stays claimed until the db behind it is closed. one unlink.
   lock: 1000,
@@ -141,7 +136,7 @@ export const createGracefulShutdown = (args: GracefulShutdownArgs): GracefulShut
   };
 };
 
-// SIGHUP is a closed terminal, and node's default for it exits on the spot, skipping the vault flush.
+// SIGHUP is a closed terminal, and node's default for it exits on the spot, skipping the teardown.
 export const SHUTDOWN_SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
 
 interface SignalTarget {
@@ -193,7 +188,7 @@ export interface InstallFatalErrorHandlersArgs {
 }
 
 // node's default exits immediately, skipping the sqlite close that checkpoints
-// the WAL and the vault's pending commit; exit 1 so a supervisor can tell a crash from a quit.
+// the WAL; exit 1 so a supervisor can tell a crash from a quit.
 export const installFatalErrorHandlers = (args: InstallFatalErrorHandlersArgs): void => {
   for (const event of FATAL_EVENTS) {
     args.target.on(event, (cause) => {

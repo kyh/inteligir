@@ -85,14 +85,12 @@ describe("resolveServer", () => {
       pid: process.pid,
       port: 24_911,
       token: "abc",
-      vaultDir: path.join(homeDir, "vault"),
       version: CLI_VERSION,
     });
     expect(resolveIn(homeDir, dataDir)).toEqual({
       baseUrl: "http://127.0.0.1:24911",
       dataDir,
       token: "abc",
-      vaultDir: path.join(homeDir, "vault"),
     });
   });
 
@@ -126,7 +124,6 @@ describe("resolveServer", () => {
       pid: process.pid,
       port: 24_911,
       token: "abc",
-      vaultDir: path.join(homeDir, "vault"),
       version: "0.6.1",
     });
     const failure = captureExit(() => {
@@ -147,7 +144,6 @@ describe("resolveServer", () => {
       pid: exitedPid(),
       port: 24_911,
       token: "abc",
-      vaultDir: path.join(homeDir, "vault"),
       version: "0.6.1",
     });
     const failure = captureExit(() => {
@@ -169,7 +165,6 @@ describe("resolveServer", () => {
       pid: process.pid,
       port: 24_911,
       token: "abc",
-      vaultDir: path.join(homeDir, "vault"),
     });
     const failure = captureExit(() => {
       resolveIn(homeDir, dataDir);

@@ -70,7 +70,6 @@ const rowFor = (dataDir: string, port: number, pid: number): void => {
     pid,
     port,
     token: "probe-token",
-    vaultDir: `${dataDir}/vault`,
     version: "0.1.0-test",
   });
 };

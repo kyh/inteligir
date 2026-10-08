@@ -1,7 +1,5 @@
 // the paths outside the rpc handler, none of which may acquire a typed client: /health is an
-// unauthenticated supervisor probe, /vault/asset answers bytes with an etag, a 304 and a
-// sandbox csp, /html-frame is the document a note's html block runs in under its own sandbox
-// csp, and the /ws socket carries frames.
+// unauthenticated supervisor probe, and the /ws socket carries frames.
 
 import { z } from "zod";
 
@@ -9,19 +7,10 @@ export const RPC_PREFIX = "/rpc";
 
 export const HEALTH_PATH = "/health";
 
-export const VAULT_ASSET_PATH = "/vault/asset";
-
-export const HTML_FRAME_PATH = "/html-frame";
-
 export const WS_PATH = "/ws";
 
 export const healthResponseSchema = z.object({ ok: z.literal(true) }).strict();
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
-
-export const vaultAssetQuerySchema = z.object({ path: z.string().min(1) }).strict();
-
-export const vaultAssetUrl = (origin: string, path: string): string =>
-  `${origin}${VAULT_ASSET_PATH}?path=${encodeURIComponent(path)}`;
 
 // the server names this value in connect-src and every client dials it; computed two ways, the browser refuses the socket
 export const websocketOrigin = (httpOrigin: string): string => httpOrigin.replace(/^http/u, "ws");

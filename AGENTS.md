@@ -166,9 +166,6 @@ rather than moving the app somewhere the docs don't name.
   escape comment; `as const` and `satisfies` are fine): parse at the boundary
   or narrow with a type guard. Kebab-case filenames. Make illegal states
   unrepresentable.
-- **`@repo/notes` is pure and platform-neutral** — no node/react/ui imports
-  (lint-enforced); callers inject platform capabilities (the SQL driver, the
-  clock).
 - **`pnpm knip` is a CI gate.** A new file must be reachable from a knip
   `entry` glob in `knip.json` or it reads as unused and CI goes red.
   `ignoreDependencies` is the escape hatch for what knip genuinely can't see,
@@ -189,9 +186,6 @@ apps/mobile             @repo/mobile — the iPhone app: the synced threads, and
 packages/domain         @repo/domain — zod-only leaf vocabulary
 packages/contract       @repo/contract — ONE contract, TWO entries: /local and /cloud
 packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
-packages/notes          @repo/notes — the pure, platform-neutral domain
-packages/agent-runtime  @repo/agent-runtime — the ACP runtime over the harnesses
-packages/agent-skills   @repo/agent-skills — the dialect spec, as files agents read
 packages/ui             @repo/ui — the shared component vocabulary on Base UI
 tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself
 tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs

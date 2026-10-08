@@ -1,14 +1,10 @@
 import { existsSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
-import path from "node:path";
 import { isDefinedError, safe } from "@orpc/client";
 import { ACCOUNT_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
 import type { CloudFetch } from "@repo/contract/cloud/client";
 import { describe, expect, it } from "vitest";
-import type { BootedTestApp } from "../../__tests__/boot-app";
 import { deviceCredentialPath, readDeviceCredential } from "../credential-store";
-import { createVaultRemoteProvider, NO_ORIGIN } from "../vault-remote";
 import { boot, signedInMac } from "./cloud-boot";
 import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";
 
@@ -27,21 +23,11 @@ const lostFirstDeletion = (cloud: FakeCloud): CloudFetch => {
   };
 };
 
-// the account's hosted vault, as the vault engine derives it from the data dir each pass
-const accountRemote = (app: BootedTestApp) =>
-  createVaultRemoteProvider({
-    cloudUrl: app.config.cloudUrl,
-    dataDir: app.dataDir,
-    externalSync: null,
-    pinnedRemote: null,
-  })(NO_ORIGIN);
-
 describe("cloud.deleteAccount", () => {
-  it("ends the account and forgets this Mac's sign-in, leaving the vault as it is", async () => {
+  it("ends the account and forgets this Mac's sign-in, leaving its threads as they are", async () => {
     const cloud = new FakeCloud();
     const app = await signedInMac(cloud);
-    await writeFile(path.join(app.vaultDir, "kept.md"), "# kept\n");
-    expect(accountRemote(app)?.source).toBe("account");
+    const { thread } = await app.client.threads.create({ title: "Kept" });
 
     const status = await app.client.cloud.deleteAccount(RIGHT_PASSWORD);
     expect(status).toEqual({
@@ -50,12 +36,12 @@ describe("cloud.deleteAccount", () => {
       state: "signed-out",
     });
     expect(existsSync(deviceCredentialPath(app.dataDir))).toBe(false);
-    expect(accountRemote(app)).toBeNull();
     expect(cloud.hasAccount(FAKE_ACCOUNT.email)).toBe(false);
     expect(cloud.deviceCount()).toBe(0);
     // no sign-out follows: the deletion took this device's row with it
     expect(cloud.requests).not.toContain(`POST ${DEVICE_API_PATHS.signOut}`);
-    expect(existsSync(path.join(app.vaultDir, "kept.md"))).toBe(true);
+    const kept = await app.client.threads.get({ threadId: thread.id });
+    expect(kept.thread.title).toBe("Kept");
   });
 
   it("lands a deletion whose own revocation a pass met midway, which ended the session", async () => {

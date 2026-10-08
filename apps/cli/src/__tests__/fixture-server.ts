@@ -3,30 +3,6 @@ import { implement, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/node";
 import { localContract } from "@repo/contract/local";
 import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schema";
-import type { CommentThreadWire } from "@repo/contract/local/comments/comments-schema";
-import type { ConnectorsResponse } from "@repo/contract/local/connectors/connectors-schema";
-import type { ConnectedFoldersResponse } from "@repo/contract/local/folders/folders-schema";
-import {
-  KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
-  KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
-  KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
-  KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
-} from "@repo/contract/local/knowledge/knowledge-schema";
-import type {
-  BacklinkEntryWire,
-  RelatedNoteWire,
-  SearchResultWire,
-  TagCountWire,
-} from "@repo/contract/local/knowledge/knowledge-schema";
-import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
-import { collectVaultMatches } from "@repo/notes/knowledge/text-matches";
-import { buildResolver } from "@repo/notes/knowledge/link-resolve";
-import {
-  findUnlinkedMentions,
-  mentionLinkTarget,
-  mentionNames,
-} from "@repo/notes/knowledge/unlinked-mentions";
-import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
 import { RPC_PREFIX } from "@repo/contract/local/routes";
 import type { AgentStatus, SystemStatusResponse } from "@repo/contract/local/system/system-schema";
 import type { ThreadTimeline } from "@repo/contract/local/thread-timeline";
@@ -34,19 +10,7 @@ import type {
   PendingInteraction,
   QueuedThreadMessage,
   Thread,
-  TurnChanges,
-  UndoTurnResponse,
 } from "@repo/contract/local/threads/threads-schema";
-import {
-  DEFAULT_ATTACHMENT_LOCATION,
-  contentHashHex,
-} from "@repo/contract/local/vault/vault-schema";
-import type {
-  VaultEntry,
-  VaultPrefsResponse,
-  VaultRevision,
-  VaultStatusResponse,
-} from "@repo/contract/local/vault/vault-schema";
 import type { ThreadStatus } from "@repo/domain/thread-status";
 import { boundAddressSchema } from "../server/__tests__/bound-address";
 
@@ -64,9 +28,6 @@ export interface FixtureThread {
   timeline: ThreadTimeline;
   // each threads.get consumes one entry; the last one sticks.
   statusSequence?: ThreadStatus[];
-  turnChanges?: TurnChanges[];
-  // what undoing any applied turn answers; absent, every path the turn changed is reverted.
-  turnUndo?: UndoTurnResponse;
 }
 
 export interface FixtureState {
@@ -75,26 +36,9 @@ export interface FixtureState {
   refuseSend: { code: "PROVIDER_UNAVAILABLE"; message: string } | null;
   // false: the server of an unbuilt checkout, which mints no browser handoff.
   servesUi: boolean;
-  vault: Map<string, string>;
-  // every commitNow and landed write, in order, so a composition's ordering is assertable.
-  vaultLog: string[];
-  // bytes another writer lands just after the next read of that path is answered: the race a
-  // guarded write exists to refuse.
-  concurrentWrite: { path: string; content: string } | null;
-  // newest first.
-  revisions: Map<string, { revision: VaultRevision; content: string }[]>;
-  searchResults: SearchResultWire[];
-  tags: TagCountWire[];
-  backlinks: BacklinkEntryWire[];
-  related: RelatedNoteWire[];
-  folders: ConnectedFoldersResponse;
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
-  comments: Map<string, CommentThreadWire[]>;
-  guideMarkdown: string;
   agent: AgentStatus;
-  vaultStatus: VaultStatusResponse;
-  vaultPrefs: VaultPrefsResponse;
   nextCreatedThreadId: string;
 }
 
@@ -126,91 +70,21 @@ export const makeInteraction = (
   ...overrides,
 });
 
-export const FIXTURE_REVISION_SHA = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c";
-
-export const makeRevision = (
-  overrides: Partial<VaultRevision> & Pick<VaultRevision, "sha">,
-): VaultRevision => ({
-  authorEmail: "vault@inteligir.local",
-  authorKind: "app",
-  authorName: "inteligir",
-  authoredAt: "2026-08-01T10:00:00+00:00",
-  path: "notes/hello.md",
-  subject: "vault: update notes/hello.md",
-  ...overrides,
-});
-
 export const makeFixtureState = (): FixtureState => ({
-  agent: { detail: null, mode: "auto", runtime: "acp" },
-  backlinks: [],
+  agent: { detail: null, mode: "auto", runtime: "unavailable" },
   cloud: { cloudUrl: FIXTURE_CLOUD_URL, revokeError: null, state: "signed-out" },
-  comments: new Map(),
-  concurrentWrite: null,
   dataDir: "/fixture/data",
   failWith: null,
-  folders: { folders: [] },
-  guideMarkdown: "# Fixture guide\n\nBe kind to the vault.\n",
   nextCreatedThreadId: "thr_created_1",
   refuseSend: null,
-  related: [],
-  revisions: new Map(),
-  searchResults: [],
   servesUi: true,
-  tags: [],
   threads: [],
-  vault: new Map(),
-  vaultLog: [],
-  vaultPrefs: { attachments: DEFAULT_ATTACHMENT_LOCATION },
-  vaultStatus: {
-    conflicts: [],
-    device: "Fixture Mac",
-    externalSync: null,
-    lastError: null,
-    lastSyncAt: null,
-    state: "no-remote",
-  },
 });
-
-const deriveTree = (vault: Map<string, string>): VaultEntry[] => {
-  const dirs = new Set<string>();
-  for (const path of vault.keys()) {
-    const segments = path.split("/");
-    for (let depth = 1; depth < segments.length; depth += 1) {
-      dirs.add(segments.slice(0, depth).join("/"));
-    }
-  }
-  const dirEntries: VaultEntry[] = [...dirs].toSorted().map((path) => ({ kind: "dir", path }));
-  const fileEntries: VaultEntry[] = [...vault.keys()].toSorted().map((path) => ({
-    kind: "file",
-    path,
-  }));
-  return [...dirEntries, ...fileEntries];
-};
 
 const findThread = (state: FixtureState, threadId: string): FixtureThread | undefined =>
   state.threads.find((entry) => entry.thread.id === threadId);
 
-const commentsBody = (state: FixtureState, path: string) => {
-  const threads = state.comments.get(path) ?? [];
-  return { orphanMarkers: [], path, strayIds: [], threads, total: threads.length };
-};
-
 const base = implement(localContract).$context<FixtureState>();
-
-const FIXTURE_AGENTS = { defaultId: "claude", harnesses: [], signingIn: null };
-
-// no verb signs an agent in or out; the contract asks every server to answer those rows
-const agentsRouter = {
-  cancelSignIn: base.agents.cancelSignIn.handler(() => FIXTURE_AGENTS),
-  setDefault: base.agents.setDefault.handler(({ input }) => ({
-    ...FIXTURE_AGENTS,
-    defaultId: input.id,
-  })),
-  signIn: base.agents.signIn.handler(() => ({ outcome: "cancelled", status: FIXTURE_AGENTS })),
-  signOut: base.agents.signOut.handler(() => ({ outcome: "signed-out", status: FIXTURE_AGENTS })),
-  status: base.agents.status.handler(() => FIXTURE_AGENTS),
-  submitSignInCode: base.agents.submitSignInCode.handler(() => ({ outcome: "sent" })),
-};
 
 const cloudRouter = {
   login: base.cloud.login.handler(({ context, input }) => {
@@ -249,160 +123,6 @@ const cloudRouter = {
   syncNow: base.cloud.syncNow.handler(({ context }) => context.cloud),
 };
 
-const commentsRouter = {
-  add: base.comments.add.handler(({ context, input }) => {
-    const threads = context.comments.get(input.path) ?? [];
-    threads.push({
-      anchored: false,
-      replies: [],
-      resolved: false,
-      root: { createdAt: 1, source: input.source ?? "user", text: input.text, updatedAt: 1 },
-      rootId: input.id,
-    });
-    context.comments.set(input.path, threads);
-    return commentsBody(context, input.path);
-  }),
-  list: base.comments.list.handler(({ context, input }) => commentsBody(context, input.path)),
-  remove: base.comments.remove.handler(({ context, input, errors }) => {
-    const threads = context.comments.get(input.path) ?? [];
-    const remaining = threads.filter((row) => row.rootId !== input.id);
-    if (remaining.length === threads.length) {
-      throw errors.NOT_FOUND({ message: `no thread ${input.id}` });
-    }
-    context.comments.set(input.path, remaining);
-    return { ...commentsBody(context, input.path), removedIds: [input.id] };
-  }),
-  reply: base.comments.reply.handler(({ context, input, errors }) => {
-    const threads = context.comments.get(input.path) ?? [];
-    const thread = threads.find((row) => row.rootId === input.parentId);
-    if (thread === undefined) {
-      throw errors.NOT_FOUND({ message: `no thread ${input.parentId}` });
-    }
-    thread.replies.push({
-      entry: { createdAt: 2, source: input.source ?? "user", text: input.text, updatedAt: 2 },
-      id: input.id,
-    });
-    return commentsBody(context, input.path);
-  }),
-  resolve: base.comments.resolve.handler(({ context, input, errors }) => {
-    const thread = (context.comments.get(input.path) ?? []).find((row) => row.rootId === input.id);
-    if (thread === undefined) {
-      throw errors.NOT_FOUND({ message: `no thread ${input.id}` });
-    }
-    thread.resolved = input.resolved;
-    return commentsBody(context, input.path);
-  }),
-};
-
-const FIXTURE_CONNECTORS: ConnectorsResponse = {
-  agent: { displayName: "Claude", id: "claude" },
-  servers: [],
-};
-
-// no verb reaches these; the contract asks every server to answer them
-const connectorsRouter = {
-  add: base.connectors.add.handler(() => FIXTURE_CONNECTORS),
-  list: base.connectors.list.handler(() => FIXTURE_CONNECTORS),
-  remove: base.connectors.remove.handler(() => FIXTURE_CONNECTORS),
-  signIn: base.connectors.signIn.handler(() => FIXTURE_CONNECTORS),
-};
-
-const foldersRouter = {
-  add: base.folders.add.handler(({ context, input, errors }) => {
-    if (context.folders.folders.includes(input.path)) {
-      throw errors.ALREADY_EXISTS({ message: `"${input.path}" is connected` });
-    }
-    context.folders.folders.push(input.path);
-    return context.folders;
-  }),
-  list: base.folders.list.handler(({ context }) => context.folders),
-  remove: base.folders.remove.handler(({ context, input, errors }) => {
-    const before = context.folders.folders.length;
-    context.folders.folders = context.folders.folders.filter((row) => row !== input.path);
-    if (context.folders.folders.length === before) {
-      throw errors.NOT_FOUND({ message: `not connected: ${input.path}` });
-    }
-    return context.folders;
-  }),
-};
-
-const knowledgeRouter = {
-  backlinks: base.knowledge.backlinks.handler(({ context, input }) => ({
-    backlinks: context.backlinks,
-    path: input.path,
-    total: context.backlinks.length,
-  })),
-  // the real fold over the fixture vault: a stub list would not exercise the rows' shape
-  matches: base.knowledge.matches.handler(({ context, input }) =>
-    collectVaultMatches(
-      [...context.vault].map(([path, body]) => ({ body, path, title: docStem(path) })),
-      input.q,
-      { caseSensitive: input.caseSensitive ?? false, wholeWord: input.wholeWord ?? false },
-      input.limit ?? KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
-    ),
-  ),
-  // the real collector over an in-memory index of the fixture vault, so a leaf sees real rows
-  problems: base.knowledge.problems.handler(({ context, input }) => {
-    const index = new KnowledgeIndex();
-    for (const [path, body] of context.vault) {
-      if (isDocPath(path)) {
-        index.setDoc(path, body);
-      } else {
-        index.setOther(path);
-      }
-    }
-    return index.problems({
-      includeConventionFolders: input.includeConventionFolders ?? false,
-      limit: input.limit ?? KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
-    });
-  }),
-  related: base.knowledge.related.handler(({ context, input }) => ({
-    path: input.path,
-    related: context.related.slice(0, input.limit),
-  })),
-  renameTag: base.knowledge.renameTag.handler(({ context, input }) => ({
-    from: input.from,
-    rewritten: [...context.vault.keys()].filter((path) => path.startsWith("notes/")),
-    skipped: [],
-    to: input.to,
-  })),
-  search: base.knowledge.search.handler(({ context, input }) => ({
-    results: input.q.length === 0 ? [] : context.searchResults,
-  })),
-  // the fixture vault's own bytes, the family by prefix: a tag is `[\w/-]`, so anything else ends it
-  tagNotes: base.knowledge.tagNotes.handler(({ context, input }) => {
-    const family = new RegExp(`(^|\\s)#${input.tag}(?:/[\\w-]+)*(?![\\w/-])`, "iu");
-    const all = [...context.vault.entries()]
-      .filter(([, content]) => family.test(content))
-      .map(([path]) => path)
-      .toSorted();
-    const offset = input.offset ?? 0;
-    return {
-      paths: all.slice(offset, offset + (input.limit ?? KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT)),
-      tag: input.tag,
-      total: all.length,
-    };
-  }),
-  tags: base.knowledge.tags.handler(({ context }) => ({
-    tags: context.tags,
-    total: context.tags.length,
-  })),
-  // the real scan over the fixture vault, excluding what the fixture's backlinks already link
-  unlinkedMentions: base.knowledge.unlinkedMentions.handler(({ context, input }) => ({
-    linkTarget: mentionLinkTarget(input.path, buildResolver(context.vault.keys()).resolveWiki),
-    path: input.path,
-    ...findUnlinkedMentions(
-      [...context.vault].map(([path, body]) => ({ body, path, title: docStem(path) })),
-      {
-        exclude: new Set([input.path, ...context.backlinks.map((entry) => entry.sourcePath)]),
-        limit: input.limit ?? KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
-        names: mentionNames(input.path, []),
-      },
-    ),
-  })),
-  wikiTargets: base.knowledge.wikiTargets.handler(() => ({ targets: [] })),
-};
-
 const systemRouter = {
   browserHandoff: base.system.browserHandoff.handler(({ context, errors }) => {
     if (!context.servesUi) {
@@ -410,15 +130,12 @@ const systemRouter = {
     }
     return { nonce: FIXTURE_HANDOFF_NONCE };
   }),
-  guide: base.system.guide.handler(({ context }) => ({ markdown: context.guideMarkdown })),
   status: base.system.status.handler(({ context }) => {
     const status: SystemStatusResponse = {
       agent: context.agent,
       dataDir: context.dataDir,
-      dataDirScope: "root",
       schemaVersion: 3,
       uptimeMs: 65_000,
-      vaultDir: "/fixture/vault",
       version: "9.9.9-fixture",
     };
     return status;
@@ -452,10 +169,7 @@ const threadsRouter = {
     return { thread: entry.thread };
   }),
   create: base.threads.create.handler(({ context, input }) => {
-    const overrides: Partial<Thread> & Pick<Thread, "id"> = {
-      id: context.nextCreatedThreadId,
-      originDocPath: input.originDocPath ?? null,
-    };
+    const overrides: Partial<Thread> & Pick<Thread, "id"> = { id: context.nextCreatedThreadId };
     if (input.title !== undefined) {
       overrides.title = input.title;
     }
@@ -519,140 +233,6 @@ const threadsRouter = {
     }
     return { kind: "full", timeline: entry.timeline };
   }),
-  turnChanges: base.threads.turnChanges.handler(({ context, input, errors }) => {
-    const entry = findThread(context, input.threadId);
-    if (entry === undefined) {
-      throw errors.NOT_FOUND({ message: "Not found" });
-    }
-    return { turns: entry.turnChanges ?? [] };
-  }),
-  undoTurn: base.threads.undoTurn.handler(({ context, input, errors }) => {
-    const entry = findThread(context, input.threadId);
-    const turn = entry?.turnChanges?.find((changes) => changes.turnId === input.turnId);
-    if (entry === undefined || turn === undefined) {
-      throw errors.NOT_FOUND({ message: "Not found" });
-    }
-    if (turn.state === "undone") {
-      throw errors.CONFLICT({ message: `Turn ${turn.turnId} was already undone` });
-    }
-    const answer = entry.turnUndo ?? { kept: [], reverted: turn.paths };
-    // the real route commits only what it wrote, so an undo that kept every note leaves the turn applied.
-    if (answer.reverted.length > 0) {
-      turn.state = "undone";
-    }
-    return answer;
-  }),
-};
-
-const parentFolders = (path: string): string[] => {
-  const segments = path.split("/");
-  return segments.slice(1).map((_, index) => segments.slice(0, index + 1).join("/"));
-};
-
-const vaultRouter = {
-  assetWrite: base.vault.assetWrite.handler(({ input }) => ({
-    path: `${input.dir}/${input.baseName}`,
-  })),
-  commitNow: base.vault.commitNow.handler(({ context, input }) => {
-    context.vaultLog.push(input === undefined ? "commitNow" : `commitNow ${input.paths.join(" ")}`);
-    return { files: 0 };
-  }),
-  // a path with revisions and no bytes on disk: the fixture's "deleted".
-  deleted: base.vault.deleted.handler(({ context }) => ({
-    entries: [...context.revisions]
-      .filter(([path]) => !context.vault.has(path))
-      .flatMap(([path, rows]) => {
-        const [newest] = rows;
-        return newest === undefined
-          ? []
-          : [{ deletedAt: newest.revision.authoredAt, path, sha: newest.revision.sha }];
-      }),
-  })),
-  history: base.vault.history.handler(({ context, input }) => ({
-    revisions: (context.revisions.get(input.path) ?? []).map((row) => row.revision),
-  })),
-  mkdir: base.vault.mkdir.handler(({ input }) => ({ path: input.path })),
-  prefs: base.vault.prefs.handler(({ context }) => context.vaultPrefs),
-  read: base.vault.read.handler(({ context, input, errors }) => {
-    const content = context.vault.get(input.path);
-    if (content === undefined) {
-      throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
-    }
-    const racing = context.concurrentWrite;
-    if (racing?.path === input.path) {
-      context.concurrentWrite = null;
-      context.vault.set(racing.path, racing.content);
-    }
-    return { content, path: input.path };
-  }),
-  remove: base.vault.remove.handler(({ context, input, errors }) => {
-    if (!context.vault.delete(input.path)) {
-      throw errors.NOT_FOUND({ message: `No file at ${input.path}` });
-    }
-    return { ok: true } as const;
-  }),
-  rename: base.vault.rename.handler(({ context, input, errors }) => {
-    const content = context.vault.get(input.from);
-    if (content === undefined) {
-      throw errors.NOT_FOUND({ message: `No file at ${input.from}` });
-    }
-    context.vault.delete(input.from);
-    context.vault.set(input.to, content);
-    return { path: input.to, rewritten: [], skipped: [] };
-  }),
-  revision: base.vault.revision.handler(({ context, input, errors }) => {
-    const row = (context.revisions.get(input.path) ?? []).find(
-      ({ revision }) => revision.sha === input.sha,
-    );
-    if (row === undefined) {
-      throw errors.NOT_FOUND({ message: `${input.path} does not exist at ${input.sha}` });
-    }
-    return { content: row.content };
-  }),
-  setPrefs: base.vault.setPrefs.handler(({ context, input }) => {
-    context.vaultPrefs = { attachments: input.attachments };
-    return context.vaultPrefs;
-  }),
-  // the status a choice leaves, signed out as a scratch data dir is: the account is no remote
-  // until a sign-in, and a url is the vault's own origin, not yet synced.
-  setRemote: base.vault.setRemote.handler(({ context, input }) => {
-    const { conflicts, device, externalSync, lastError, lastSyncAt } = context.vaultStatus;
-    const fields = { conflicts, device, externalSync, lastError, lastSyncAt };
-    return input.kind === "account"
-      ? { ...fields, state: "no-remote" }
-      : { ...fields, remote: input.url, remoteSource: "explicit", state: "dirty" };
-  }),
-  status: base.vault.status.handler(({ context }) => context.vaultStatus),
-  syncNow: base.vault.syncNow.handler(({ context }) => context.vaultStatus),
-  tree: base.vault.tree.handler(({ context }) => ({
-    entries: deriveTree(context.vault),
-    name: "vault",
-    root: "/fixture/vault",
-  })),
-  // the real route's refusals, spelled as it spells them.
-  write: base.vault.write.handler(async ({ context, input, errors }) => {
-    const current = context.vault.get(input.path);
-    const { guard } = input;
-    if (guard.kind === "absent" && current !== undefined) {
-      throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
-    }
-    if (parentFolders(input.path).some((folder) => context.vault.has(folder))) {
-      throw errors.CONFLICT({ message: `A file shadows a parent folder of ${input.path}` });
-    }
-    if (guard.kind === "expected") {
-      const message = `${input.path} changed since the base this write was derived from`;
-      if (current === undefined) {
-        throw errors.CAS_MISMATCH({ data: {}, message });
-      }
-      const hash = await contentHashHex(current);
-      if (hash !== guard.hash) {
-        throw errors.CAS_MISMATCH({ data: { current: { content: current, hash } }, message });
-      }
-    }
-    context.vault.set(input.path, input.content);
-    context.vaultLog.push(`write ${input.path}`);
-    return { path: input.path };
-  }),
 };
 
 // a middleware rather than a handler interceptor, so the refusal reaches the client as an ORPCError like a real one.
@@ -665,15 +245,9 @@ const fixtureRouter = base
     return next();
   })
   .router({
-    agents: agentsRouter,
     cloud: cloudRouter,
-    comments: commentsRouter,
-    connectors: connectorsRouter,
-    folders: foldersRouter,
-    knowledge: knowledgeRouter,
     system: systemRouter,
     threads: threadsRouter,
-    vault: vaultRouter,
   });
 
 export interface FixtureServer {

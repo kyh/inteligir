@@ -8,7 +8,6 @@
     ".output",
     ".tanstack",
     "out",
-    "routeTree.gen.ts",
-    "apps/cli/seed"
+    "routeTree.gen.ts"
   ]
 }

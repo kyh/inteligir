@@ -48,7 +48,7 @@ describe("registerClient", () => {
 });
 
 describe("subscribe/broadcast", () => {
-  it("routes a doc change to the vault subscribers and not the thread-list ones", () => {
+  it("routes a sync status change to the vault subscribers and not the thread-list ones", () => {
     const bus = createBus();
     const vaultSocket = createFakeSocket();
     const threadSocket = createFakeSocket();
@@ -58,12 +58,11 @@ describe("subscribe/broadcast", () => {
     bus.subscribe(vaultSocket, { kind: "vault" });
     bus.subscribe(threadSocket, { kind: "thread-list" });
 
-    bus.notifyDoc("d1", ["content-changed"]);
+    bus.notifyVault(["sync-status-changed"]);
 
     expect(lastFrame(vaultSocket)).toEqual({
-      changes: ["content-changed"],
-      entity: "doc",
-      id: "d1",
+      changes: ["sync-status-changed"],
+      entity: "vault",
       type: "changed",
     });
     expect(threadSocket.sent).toHaveLength(1);
@@ -77,7 +76,7 @@ describe("subscribe/broadcast", () => {
     bus.subscribe(socket, { kind: "thread-list" });
 
     bus.notifyThread("t1", ["events-appended"]);
-    bus.notifyDoc("d1", ["content-changed"]);
+    bus.notifyVault(["sync-status-changed"]);
     expect(socket.sent).toHaveLength(3);
   });
 
@@ -91,7 +90,7 @@ describe("subscribe/broadcast", () => {
     bus.subscribe(closing, { kind: "vault" });
     closing.readyState = 2;
 
-    bus.notifyVault(["files-changed"]);
+    bus.notifyVault(["sync-status-changed"]);
     expect(open.sent).toHaveLength(2);
     expect(closing.sent).toHaveLength(1);
   });
@@ -102,16 +101,16 @@ describe("subscribe/broadcast", () => {
     bus.registerClient(socket);
     bus.subscribe(socket, { kind: "vault" });
 
-    bus.notifyVault(["files-changed"]);
+    bus.notifyVault(["sync-status-changed"]);
     expect(socket.sent).toHaveLength(2);
 
     bus.unsubscribe(socket, { kind: "vault" });
-    bus.notifyVault(["files-changed"]);
+    bus.notifyVault(["sync-status-changed"]);
     expect(socket.sent).toHaveLength(2);
 
     bus.subscribe(socket, { kind: "vault" });
     bus.unregisterClient(socket);
-    bus.notifyVault(["files-changed"]);
+    bus.notifyVault(["sync-status-changed"]);
     expect(socket.sent).toHaveLength(2);
   });
 });
@@ -125,7 +124,7 @@ describe("an in-process listener", () => {
     });
 
     bus.notifyThread("thr_1", ["interactions-changed"]);
-    bus.notifyVault(["files-changed"]);
+    bus.notifyVault(["sync-status-changed"]);
 
     expect(heard).toEqual(["thr_1 interactions-changed"]);
   });
@@ -138,11 +137,11 @@ describe("handleMessage", () => {
     bus.registerClient(socket);
 
     bus.handleMessage(socket, JSON.stringify({ target: { kind: "vault" }, type: "subscribe" }));
-    bus.notifyVault(["files-changed"]);
+    bus.notifyVault(["sync-status-changed"]);
     expect(socket.sent).toHaveLength(2);
 
     bus.handleMessage(socket, JSON.stringify({ target: { kind: "vault" }, type: "unsubscribe" }));
-    bus.notifyVault(["files-changed"]);
+    bus.notifyVault(["sync-status-changed"]);
     expect(socket.sent).toHaveLength(2);
     expect(socket.closed).toBeNull();
   });
@@ -155,7 +154,7 @@ describe("handleMessage", () => {
       JSON.stringify({ target: { kind: "vault" }, type: "subscribe" }),
     );
     bus.handleMessage(socket, payload);
-    bus.notifyVault(["files-changed"]);
+    bus.notifyVault(["sync-status-changed"]);
     expect(socket.sent).toHaveLength(2);
   });
 
@@ -197,12 +196,10 @@ describe("outbound frames against the contract schemas", () => {
     bus.registerClient(socket);
     bus.subscribe(socket, { kind: "vault" });
     bus.subscribe(socket, { kind: "thread-list" });
-    bus.notifyVault(["files-changed"]);
-    bus.notifyVault(["files-changed"], ["notes/a.md"]);
-    bus.notifyDoc("d1", ["content-changed"]);
+    bus.notifyVault(["sync-status-changed"]);
     bus.notifyThread("t1", ["thread-created"]);
 
-    expect(socket.sent.length).toBe(5);
+    expect(socket.sent.length).toBe(3);
     for (const raw of socket.sent) {
       const frame: unknown = JSON.parse(raw);
       expect(() => serverMessageSchema.parse(frame)).not.toThrow();
@@ -210,38 +207,16 @@ describe("outbound frames against the contract schemas", () => {
     }
   });
 
-  it("a files-changed frame carries the paths it names, and omits the field when it names none", () => {
-    const bus = createBus();
-    const socket = createFakeSocket();
-    bus.registerClient(socket);
-    bus.subscribe(socket, { kind: "vault" });
-    bus.notifyVault(["files-changed"], ["notes/a.md", "notes/b.md"]);
-    bus.notifyVault(["files-changed"]);
-
-    const [, named, unnamed] = socket.sent;
-    expect(JSON.parse(named ?? "null")).toEqual({
-      changes: ["files-changed"],
-      entity: "vault",
-      paths: ["notes/a.md", "notes/b.md"],
-      type: "changed",
-    });
-    expect(JSON.parse(unnamed ?? "null")).toEqual({
-      changes: ["files-changed"],
-      entity: "vault",
-      type: "changed",
-    });
-  });
-
   it("a future server's extra kinds would be filtered, not fatal", () => {
     const futureFrame = {
-      changes: ["files-changed", "kind-from-the-future"],
+      changes: ["sync-status-changed", "kind-from-the-future"],
       entity: "vault",
       metadata: { newField: 1 },
       type: "changed",
     };
     const parsed = changedMessageLenientSchema.parse(futureFrame);
     expect(parsed).toEqual({
-      changes: ["files-changed"],
+      changes: ["sync-status-changed"],
       entity: "vault",
       type: "changed",
     });

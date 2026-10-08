@@ -1,7 +1,6 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 // (action wrapper shape + fetch-cause unwrapping); the exit-code table and
-// the error CLASSES are this CLI's own and are documented in the served
-// guide (cli-skill.ts).
+// the error CLASSES are this CLI's own.
 
 import { ORPCError } from "@orpc/client";
 import { z } from "zod";
@@ -14,7 +13,7 @@ const EXIT_AWAITING_INTERACTION = 4;
 const EXIT_INTERRUPTED = 130;
 
 // every class the CLI raises itself, and the exit code it carries: a class cannot leave with another's code.
-export const CLI_FAILURE_EXIT_CODES = {
+const CLI_FAILURE_EXIT_CODES = {
   AWAITING_INTERACTION: EXIT_AWAITING_INTERACTION,
   INTERRUPTED: EXIT_INTERRUPTED,
   INVALID_USAGE: EXIT_ERROR,

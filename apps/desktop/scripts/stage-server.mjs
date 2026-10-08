@@ -1,7 +1,7 @@
 // The CLI the .app ships, as a folder of its own that `bundle.resources` maps to
 // Contents/Resources/server: the package as npm would publish it (its `files`), and its production
-// dependencies installed from the lockfile, the workspace's patches applied (codex-acp's trust
-// patch among them), hoisted so no symlink rides into the bundle. `pnpm deploy` does exactly that;
+// dependencies installed from the lockfile, the workspace's patches applied, hoisted so no
+// symlink rides into the bundle. `pnpm deploy` does exactly that;
 // npm itself would ignore the lockfile and every patch. Run after `inteligir#build`.
 
 import { spawnSync } from "node:child_process";
@@ -37,7 +37,7 @@ for (const entry of PRUNED) {
   await rm(path.join(STAGED_SERVER_DIR, entry), { force: true, recursive: true });
 }
 // the package's own `files`, and its dependencies: nothing else may reach the bundle
-const kept = new Set(["README.md", "bin", "dist", "node_modules", "package.json", "seed"]);
+const kept = new Set(["README.md", "bin", "dist", "node_modules", "package.json"]);
 const staged = await readdir(STAGED_SERVER_DIR);
 const stray = staged.filter((name) => !kept.has(name));
 if (stray.length > 0) {

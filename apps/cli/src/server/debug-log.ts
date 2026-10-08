@@ -1,14 +1,10 @@
 // the decisions these make leave no other trace, so "it didn't update" can come with a log and no
-// build. a line names paths, ids and verdicts, never note content and never a credential: it is
+// build. a line names ids and verdicts, never a message's content and never a credential: it is
 // written to be pasted into a public report.
 
-// what each namespace traces, as the guide prints it.
-export const DEBUG_TRACES = {
-  acp: "every frame traded with an agent adapter, named by method, id and session",
-  knowledge: "the index's verdict for each file a pass looked at",
+// what each namespace traces.
+const DEBUG_TRACES = {
   sync: "each pulled page, where each step of a sync pass stopped, and a pass fenced out by a newer sign-in",
-  watcher:
-    "every file event, kept or dropped and why, then whether it was stripped as this app's own write, held behind a vault sync, or delivered",
 };
 
 export type DebugNamespace = keyof typeof DEBUG_TRACES;

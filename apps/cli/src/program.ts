@@ -21,27 +21,12 @@ import {
   assertPositionalArity,
   resolveCommandPath,
 } from "./command-tree";
-import { agentsCommand } from "./commands/agents";
-import { foldersCommand } from "./commands/folders";
-import { guideCommand } from "./commands/guide";
 import { interactionsCommand } from "./commands/interactions";
-import {
-  backlinksCommand,
-  matchesCommand,
-  problemsCommand,
-  unlinkedCommand,
-  relatedCommand,
-  searchCommand,
-  tagsCommand,
-} from "./commands/knowledge";
 import { openCommand } from "./commands/open";
 import { statusCommand } from "./commands/status";
-import { tagCommand } from "./commands/tag";
 import { cloudCommand } from "./commands/cloud";
 import { actionCommand } from "./commands/action";
-import { commentCommand } from "./commands/comment";
 import { serveCommand } from "./commands/serve";
-import { vaultCommand } from "./commands/vault";
 import { describeContext } from "./context";
 import type { CliDeps } from "./context";
 import { readCliVersion } from "./paths";
@@ -52,30 +37,17 @@ import { out, wantsJsonOutput, writeOut } from "./output";
 export const buildProgram = (deps: CliDeps): CommandDef =>
   defineCommand({
     meta: {
-      description: "Run the local inteligir notes app, and drive it — vault, search, agent actions",
+      description: "Run the local inteligir server, and drive it — agent actions and their sync",
       name: "inteligir",
       version: readCliVersion(),
     },
     subCommands: {
       action: actionCommand(deps),
-      agents: agentsCommand(deps),
-      backlinks: backlinksCommand(deps),
       cloud: cloudCommand(deps),
-      comment: commentCommand(deps),
-      folders: foldersCommand(deps),
-      guide: guideCommand(deps),
       interactions: interactionsCommand(deps),
-      matches: matchesCommand(deps),
       open: openCommand(deps),
-      problems: problemsCommand(deps),
-      related: relatedCommand(deps),
-      search: searchCommand(deps),
       serve: serveCommand(),
       status: statusCommand(deps),
-      tag: tagCommand(deps),
-      tags: tagsCommand(deps),
-      unlinked: unlinkedCommand(deps),
-      vault: vaultCommand(deps),
     },
   });
 
@@ -137,8 +109,8 @@ export const runCli = async (argv: readonly string[], deps: CliDeps): Promise<nu
     }
     const resolved = resolveCommandPath(program, rawArgs);
     if (resolved.command.run !== undefined) {
-      // citty hands a leaf only the argv after its name, so a flag before the name is never parsed: `--json vault
-      // read x` would print human text and exit 0. refused rather than hoisted, since a valued flag there loses its
+      // citty hands a leaf only the argv after its name, so a flag before the name is never parsed: `--json action
+      // show x` would print human text and exit 0. refused rather than hoisted, since a valued flag there loses its
       // value to the name walk (`--limit 5 action list`); only the remainder is left to check.
       const prefix = rawArgs.slice(0, rawArgs.length - resolved.rest.length);
       if (prefix.some((token) => token.startsWith("-"))) {

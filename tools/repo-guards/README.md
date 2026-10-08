@@ -56,8 +56,8 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | row; shipped imports match it (an undeclared edge and a dead edge both    |
 |                                | fail); every import is in the importer's manifest; every manifest         |
 |                                | dependency is imported, or is a `DECLARED_ARTIFACT_EDGES` row (installed  |
-|                                | and executed, never imported — `inteligir` → `@repo/agent-skills`); no    |
-|                                | cycles. Then platform purity: `PURITY_RULES` per package (node, react,    |
+|                                | and executed, never imported); no cycles. Then                            |
+|                                | platform purity: `PURITY_RULES` per package (node, react,                 |
 |                                | `@tauri-apps`), `@repo/domain` declares only zod, no package imports an   |
 |                                | app,                                                                      |
 |                                | every `CLOUD_ONLY_CLIENTS` row (`@repo/web`, `@repo/mobile`, each with    |
@@ -81,12 +81,6 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | vault change kinds) is a table, and must be the declaration or a          |
 |                                | `dispatchedIn` row saying what it decides that the others do not. The     |
 |                                | members are read from the declarations themselves.                        |
-| `one-spelling.test.ts`         | One spelling per cross-cutting predicate: "is path P under root R?" is    |
-|                                | `apps/cli/src/server/path-containment.ts`, "what does                     |
-|                                | `git status --porcelain` say?" is                                         |
-|                                | `apps/cli/src/server/vault/git-porcelain.ts`; a re-spelling needs an      |
-|                                | `elsewhere` row. Detection is textual and a lower bound — the shapes      |
-|                                | these were actually re-spelled in.                                        |
 | `route-paths.test.ts`          | Every non-procedure route path (the local `/rpc`, `/health`,              |
 |                                | `/vault/asset` and `/html-frame`; the cloud `VAULT_API_PATHS`) is         |
 |                                | spelled only at its contract home. The sweep covers `scripts/`, where the |
@@ -146,9 +140,6 @@ worktree under `.claude` is never read as this commit's tree.
 | `d1-unique-index.test.ts`      | The schema every `d1-http` drizzle config pushes declares no `.unique()`  |
 |                                | column modifier — drizzle-kit 1.0 plans it as a table recreate, and D1's  |
 |                                | DROP cascade-wipes the children. Uniques are named `uniqueIndex` rows.    |
-| `agent-skills.test.ts`         | Every skill directory has a `SKILL.md` naming itself; the hub's Focused   |
-|                                | Contracts index lists every other skill and no phantom; the file the CLI  |
-|                                | resolver probes exists — a renamed probe answers null, not an error.      |
 | `control-bytes.test.ts`        | No tracked source, markdown, config or sql file carries a raw control     |
 |                                | byte other than tab, LF and CR — git diffs a file holding a NUL as        |
 |                                | binary and ripgrep skips it. A string literal spells it as an escape.     |
@@ -198,8 +189,8 @@ both.
 
 Two limits, stated. A reference is checked only if it is a `@repo/<name>` (the
 subpath after the name is not resolved) or a path anchored on a workspace group
-(`packages/notes/src/knowledge/projection.ts` is checked; a relative
-`src/projection.ts` in a Layout block is not). And a path git ignores (`dist/`,
+(`packages/db/src/threads.ts` is checked; a relative `src/threads.ts` in a
+Layout block is not). And a path git ignores (`dist/`,
 `.wrangler/`) is excused by asking `git check-ignore`, so the rule stays in
 `.gitignore` and this guard cannot disagree with it.
 

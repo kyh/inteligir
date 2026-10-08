@@ -30,8 +30,6 @@ const serverFileSchema = z.object({
   // the bound port, which may be a probed one; never the configured value.
   port: z.number().int().min(1).max(65_535),
   token: z.string().min(1),
-  // diagnostic only; nothing branches on it.
-  vaultDir: z.string().min(1),
   // /local may break between releases, so a CLI installed apart from the app refuses a server of
   // another one. optional so an older server's row reads as another release, not as no server.
   version: z.string().min(1).optional(),

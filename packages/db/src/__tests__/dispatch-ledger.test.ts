@@ -18,7 +18,7 @@ import {
   setInteractionRelay,
 } from "../pending-interactions";
 import { createQueuedThreadMessageInTransaction } from "../queued-messages";
-import { createThread, ensureThreadInTransaction, getThread } from "../threads";
+import { createThread } from "../threads";
 import { openTempDb } from "./open-temp-db";
 
 const DISPATCH = "a".repeat(32);
@@ -57,7 +57,6 @@ describe("the dispatch ledger", () => {
     const thread = createThread(db, noopNotifier, {});
     writeTransaction(db, (tx) =>
       createQueuedThreadMessageInTransaction(tx, {
-        contextPaths: null,
         dispatchId: DISPATCH,
         text: "asked",
         threadId: thread.id,
@@ -97,25 +96,6 @@ describe("the dispatch ledger", () => {
     append(db, [started(thread.id, "turn_asked")]);
 
     expect(turnDispatchId(db, { threadId: thread.id, turnId: "turn_asked" })).toBe(DISPATCH);
-  });
-});
-
-describe("a thread another device named", () => {
-  it("takes the origin it was asked over only when this call creates it", () => {
-    const db = openTempDb();
-    const origin = { noteId: "note-plans", path: "Plans.md" };
-    writeTransaction(db, (tx) => ensureThreadInTransaction(tx, "thr_phone", origin));
-    expect(getThread(db, "thr_phone")).toMatchObject({
-      originDocPath: "Plans.md",
-      originNoteId: "note-plans",
-    });
-
-    const existing = createThread(db, noopNotifier, {});
-    const ensured = writeTransaction(db, (tx) =>
-      ensureThreadInTransaction(tx, existing.id, origin),
-    );
-    expect(ensured.created).toBe(false);
-    expect(getThread(db, existing.id)).toMatchObject({ originDocPath: null, originNoteId: null });
   });
 });
 

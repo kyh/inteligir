@@ -1,99 +1,53 @@
-import { spawn } from "node:child_process";
-import { createRequire } from "node:module";
-import path from "node:path";
-import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
-import { systemStatusResponseSchema } from "@repo/contract/local/system/system-schema";
 import { isDefinedError, safe } from "@orpc/client";
+import { systemStatusResponseSchema } from "@repo/contract/local/system/system-schema";
+import type { AgentMode } from "@repo/contract/local/system/system-schema";
+import { noopNotifier } from "@repo/domain/notifier";
 import { describe, expect, it } from "vitest";
-import { defaultHarnessId, resolveAgentDriver } from "../agent-driver";
-import { bootTestApp, makeTempDir } from "../../__tests__/boot-app";
-import {
-  awaitThreadStatus,
-  createThread,
-  fakeSessionFacts,
-  fetchTimelineRows,
-  flattenTimelineRows,
-  sendMessage,
-} from "./agent-test-harness";
+import { NO_AGENT_RUNTIME, resolveAgentDriver } from "../agent-driver";
+import { bootTestApp } from "../../__tests__/boot-app";
+import type { BootedTestApp } from "../../__tests__/boot-app";
 
-const require = createRequire(import.meta.url);
-const FAKE_AGENT = require.resolve("@repo/agent-runtime/test-support/fake-acp-agent");
-
-const NO_MODELS = { claude: null, codex: null };
-
-// the fake stands in for the adapter, so no turn here reaches a vendor or spends a model call.
-const spawnFakeAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (_harness, env) => ({
-  child: spawn(process.execPath, [FAKE_AGENT], {
-    env: { ...env, FAKE_ACP_MODE: "message" },
-    stdio: ["pipe", "pipe", "pipe"],
-  }),
-});
-
-const bootAuto = async (env: NodeJS.ProcessEnv) =>
-  await bootTestApp({
-    agent: { detail: "placeholder", mode: "auto", runtime: "unavailable" },
-    makeDriver: ({ db, bus, vault, vaultDir }) =>
-      resolveAgentDriver({
-        config: { agent: "auto", agentModels: NO_MODELS, vaultDir },
-        db,
-        env,
-        notifier: bus,
-        sessionFacts: () => fakeSessionFacts(),
-        spawnAdapter: spawnFakeAdapter,
-        vault,
-      }),
+const bootIn = async (agent: AgentMode): Promise<BootedTestApp> => {
+  const resolved = resolveAgentDriver({ config: { agent }, notifier: noopNotifier });
+  return await bootTestApp({
+    agent: resolved.status(),
+    makeDriver: ({ bus }) => resolveAgentDriver({ config: { agent }, notifier: bus }),
   });
+};
+
+const refusalOfSend = async (harness: BootedTestApp) => {
+  const { thread } = await harness.client.threads.create({});
+  const [refusal] = await safe(harness.client.threads.send({ text: "hello", threadId: thread.id }));
+  return isDefinedError(refusal) ? { code: refusal.code, message: refusal.message } : null;
+};
 
 describe("agent driver resolution", () => {
-  it("runs on the bundled runtime with nothing on PATH, and a send is not refused", async () => {
-    const harness = await bootAuto({ PATH: "/nonexistent-dir" });
-    const status = systemStatusResponseSchema.parse(await harness.client.system.status());
-    expect(status.agent).toEqual({ detail: null, mode: "auto", runtime: "acp" });
-
-    const threadId = await createThread(harness.client);
-    const turnId = await sendMessage(harness.client, threadId, "hello");
-    await awaitThreadStatus(harness.client, threadId, "idle");
-    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
-    expect(
-      rows.find((row) => row.kind === "conversation" && row.role === "assistant"),
-    ).toMatchObject({ text: "hello from the fake agent", turnId });
-  });
-
-  it("refuses a send when the runtime the thread runs on is missing, and says to reinstall", async () => {
-    const missing = path.join(makeTempDir("inteligir-agent-runtime-"), "claude");
-    const harness = await bootAuto({ CLAUDE_CODE_EXECUTABLE: missing });
-    const reinstall = "This copy of inteligir is missing its Claude runtime — reinstall it";
-    const status = systemStatusResponseSchema.parse(await harness.client.system.status());
-    expect(status.agent).toEqual({ detail: reinstall, mode: "auto", runtime: "unavailable" });
-
-    const threadId = await createThread(harness.client);
-    const [refusal] = await safe(harness.client.threads.send({ text: "hello", threadId }));
-    expect(isDefinedError(refusal) && refusal.code).toBe("PROVIDER_UNAVAILABLE");
-    expect(refusal?.message).toBe(reinstall);
-  });
-
-  it("starts a new thread on claude with nothing chosen, whatever PATH holds", () => {
-    expect(defaultHarnessId(null)).toBe("claude");
-    expect(defaultHarnessId("codex")).toBe("codex");
-  });
-
-  it("the off mode reads as off on /system/status", async () => {
-    const harness = await bootTestApp({
-      agent: { detail: "The agent is disabled (INTELIGIR_AGENT=off)", mode: "off", runtime: "off" },
-      makeDriver: ({ db, bus, vault, vaultDir }) =>
-        resolveAgentDriver({
-          config: { agent: "off", agentModels: NO_MODELS, vaultDir },
-          db,
-          notifier: bus,
-          sessionFacts: () => fakeSessionFacts(),
-          vault,
-        }),
-    });
+  it("has no runtime to run a turn on by default, and refuses a send in those words", async () => {
+    const harness = await bootIn("auto");
     const status = systemStatusResponseSchema.parse(await harness.client.system.status());
     expect(status.agent).toEqual({
-      detail: "The agent is disabled (INTELIGIR_AGENT=off)",
-      mode: "off",
-      runtime: "off",
+      detail: NO_AGENT_RUNTIME,
+      mode: "auto",
+      runtime: "unavailable",
     });
+    expect(await refusalOfSend(harness)).toEqual({
+      code: "PROVIDER_UNAVAILABLE",
+      message: NO_AGENT_RUNTIME,
+    });
+  });
+
+  it("the off mode reads as off, and refuses a send", async () => {
+    const harness = await bootIn("off");
+    const status = systemStatusResponseSchema.parse(await harness.client.system.status());
+    const detail = "The agent is disabled (INTELIGIR_AGENT=off)";
+    expect(status.agent).toEqual({ detail, mode: "off", runtime: "off" });
+    expect(await refusalOfSend(harness)).toEqual({ code: "PROVIDER_UNAVAILABLE", message: detail });
+  });
+
+  it("the scripted mode runs a turn", async () => {
+    const harness = await bootIn("scripted");
+    const status = systemStatusResponseSchema.parse(await harness.client.system.status());
+    expect(status.agent).toEqual({ detail: null, mode: "scripted", runtime: "scripted" });
+    expect(await refusalOfSend(harness)).toBeNull();
   });
 });

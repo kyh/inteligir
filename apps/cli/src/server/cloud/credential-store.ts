@@ -1,5 +1,4 @@
-// not in inteligir.db (the thread log this credential uploads) and not in the
-// vault (a git repo pushed to a remote the user chose). the mode is re-applied
+// not in inteligir.db (the thread log this credential uploads). the mode is re-applied
 // on every write: writeFileSync's mode is ignored for an existing file.
 
 import { readFileSync, rmSync } from "node:fs";

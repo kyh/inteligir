@@ -3,14 +3,14 @@
 // by iterating the array is invisible here and cannot drift. no subset rule: a derived `as const`
 // subset spells literals too, and UI leaves collide on common words ("idle", "error").
 
-import { THREAD_CHANGE_KINDS, VAULT_CHANGE_KINDS } from "@repo/domain/change-kinds";
+import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import { pendingInteractionStatusValues } from "@repo/domain/pending-interaction-status";
 import { threadStatusValues } from "@repo/domain/thread-status";
 import { describe, expect, it } from "vitest";
 import { sourceOf, workspaceFiles, workspaces } from "./repo";
 
 // below this, naming every member is a coincidence rather than a table: one literal is a use, not
-// a dispatch, so a one-member vocabulary (DOC_CHANGE_KINDS) has no row here — the guard cannot
+// a dispatch, so a one-member vocabulary (VAULT_CHANGE_KINDS) has no row here — the guard cannot
 // tell its producer from its table.
 const TOTALITY_FLOOR = 2;
 
@@ -52,15 +52,6 @@ const VOCABULARIES: Vocabulary[] = [
     },
     members: THREAD_CHANGE_KINDS,
     name: "thread change kind",
-  },
-  {
-    declaredIn: "packages/domain/src/change-kinds.ts",
-    dispatchedIn: {
-      "apps/cli/src/server/vault/vault-runtime.ts":
-        "the PRODUCER — the seam where the git engine's status changes and the watcher's batches become kinds on the bus, which is the only place that decides which kind a vault event is",
-    },
-    members: VAULT_CHANGE_KINDS,
-    name: "vault change kind",
   },
 ];
 

@@ -15,7 +15,6 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ThreadService } from "../service";
 import { unavailableTurnDriver } from "../turn-driver";
 import { makeTempDir } from "../../__tests__/temp-dir";
-import { pathOnlyOrigins } from "../../__tests__/path-only-origins";
 
 const { reads, projections } = vi.hoisted(() => ({
   projections: { calls: 0 },
@@ -60,7 +59,6 @@ const openService = () => {
       createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
-      origins: pathOnlyOrigins,
     }),
   };
 };

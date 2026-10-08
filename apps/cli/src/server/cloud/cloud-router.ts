@@ -113,7 +113,7 @@ const revokeDevice = base.cloud.revokeDevice.handler(async ({ context, input, er
   }
 });
 
-// the vault is not touched either way: its notes and their history stay on this Mac
+// this Mac's threads are not touched either way: they stay here
 const deleteAccount = base.cloud.deleteAccount.handler(async ({ context, input, errors }) => {
   const outcome = await context.cloud.deleteAccount(input.password);
   switch (outcome.kind) {

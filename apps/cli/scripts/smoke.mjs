@@ -6,7 +6,6 @@ import { accessSync, constants, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import nodePath from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { proveWatcherAlive } from "./smoke-lib.mjs";
 
 const CLI_BIN_NAME = "inteligir";
 
@@ -77,7 +76,6 @@ const processAlive = (pid) => {
 const scratch = await mkdtemp(nodePath.join(tmpdir(), "inteligir-smoke-"));
 const installDir = nodePath.join(scratch, "install");
 const dataDir = nodePath.join(scratch, "data");
-const vaultDir = nodePath.join(scratch, "vault");
 const port = 4500 + Math.floor(Math.random() * 400);
 const baseUrl = `http://127.0.0.1:${port}`;
 let server = null;
@@ -109,18 +107,10 @@ try {
   } catch {
     fail(`the packaged CLI is not executable (${cliBin}) — it must stay in package.json's bin map`);
   }
-  // each of these silently disables a capability when missing
-  for (const [what, path] of [
-    [
-      "the dialect skills",
-      nodePath.join(installRoot, "dist", "skills", "inteligir-notes", "SKILL.md"),
-    ],
-    ["the workspace UI", nodePath.join(installRoot, "dist", "ui", "index.html")],
-    ["the starter vault", nodePath.join(installRoot, "seed", "Welcome.md")],
-  ]) {
-    if (!existsSync(path)) {
-      fail(`the packaged install carries no ${what} (${path})`);
-    }
+  // a bundle without it boots and answers a browser with a 404
+  const ui = nodePath.join(installRoot, "dist", "ui", "index.html");
+  if (!existsSync(ui)) {
+    fail(`the packaged install carries no workspace UI (${ui})`);
   }
 
   // derived from what the build emitted: the split bundle's chunk names are content hashes, so
@@ -166,15 +156,11 @@ try {
   };
 
   process.stdout.write(`smoke: booting on ${baseUrl}\n`);
-  server = spawn(
-    bin,
-    ["serve", "--port", String(port), "--data-dir", dataDir, "--vault", vaultDir],
-    {
-      detached: true,
-      env: { ...process.env, INTELIGIR_AGENT: "off", INTELIGIR_SYNC_INTERVAL_MS: "0" },
-      stdio: ["ignore", "inherit", "inherit"],
-    },
-  );
+  server = spawn(bin, ["serve", "--port", String(port), "--data-dir", dataDir], {
+    detached: true,
+    env: { ...process.env, INTELIGIR_AGENT: "off" },
+    stdio: ["ignore", "inherit", "inherit"],
+  });
 
   const health = await waitForUrl(`${baseUrl}/health`, BOOT_TIMEOUT_MS);
   if (health === null) {
@@ -190,14 +176,8 @@ try {
   }
   process.stdout.write(`smoke: SPA shell -> ${shell.status} ${html.length} bytes\n`);
 
-  const vaultList = await rpc("vault/tree");
-  process.stdout.write(`smoke: vault tree -> ${vaultList.entries.length} entries\n`);
-  await proveWatcherAlive({
-    fail,
-    log: (line) => process.stdout.write(`smoke: ${line}\n`),
-    rpc,
-    vaultDir,
-  });
+  const threads = await rpc("threads/list", {});
+  process.stdout.write(`smoke: threads list -> ${threads.threads.length} threads\n`);
 
   // exercises the bundled client half the hand-rolled fetch above bypasses
   const { stdout: statusJson } = await run(bin, ["status", "--json"], {
@@ -213,7 +193,7 @@ try {
   if (pid === undefined) {
     fail("the server process has no pid — it never spawned");
   }
-  // the leader only: kill(-pid) would take the forked watcher too and make the
+  // the leader only: kill(-pid) would take any child it forked too and make the
   // orphan check below a tautology
   process.stdout.write(`smoke: SIGTERM ${pid} (the server alone)\n`);
   process.kill(pid, "SIGTERM");
@@ -237,7 +217,7 @@ try {
   // POSIX: signal 0 against -pid asks whether the group still has members
   await delay(500);
   if (processAlive(-pid)) {
-    fail(`process group ${pid} still has members — the watcher child was orphaned`);
+    fail(`process group ${pid} still has members — a child of the server was orphaned`);
   }
   process.stdout.write("smoke: no orphan processes\n");
 

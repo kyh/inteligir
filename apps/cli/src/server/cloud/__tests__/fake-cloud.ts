@@ -2,17 +2,6 @@
 // object's; change both, or the client passes here and fails deployed.
 
 import {
-  ackCapturesRequestSchema,
-  CAPTURE_API_PATHS,
-  CAPTURE_CLAIM_TTL_MS,
-  claimCapturesRequestSchema,
-} from "@repo/contract/cloud/captures/captures-schema";
-import type {
-  AckCapturesResponse,
-  CaptureRow,
-  ClaimCapturesResponse,
-} from "@repo/contract/cloud/captures/captures-schema";
-import {
   ACCOUNT_API_PATHS,
   deleteAccountRequestSchema,
   deviceSignUpRequestSchema,
@@ -75,8 +64,6 @@ const parseJson = (text: string): RequestBody => z.json().parse(JSON.parse(text)
 
 const typedEventSchema = z.object({ type: z.string() }).catchall(z.json());
 
-type AckCaptureResult = AckCapturesResponse["results"][number];
-
 const refuse = (code: CloudErrorCode, message: string, deviceSeq?: number): Response =>
   Response.json(cloudError(code, message, deviceSeq), {
     status: CLOUD_ERROR_STATUS[code],
@@ -89,14 +76,6 @@ interface LogRow {
   deviceSeq: number;
   body: string;
   createdAt: number;
-}
-
-interface InboxRow {
-  id: string;
-  text: string;
-  createdAt: number;
-  claimToken: string | null;
-  claimedAt: number;
 }
 
 type DispatchSettle =
@@ -150,13 +129,11 @@ export class FakeCloud {
   ]);
   private readonly inviteCodes = new Set([FAKE_INVITE_CODE]);
   private readonly log: LogRow[] = [];
-  private readonly inbox: InboxRow[] = [];
   // insertion order is the claim order, as rowid is the object's
   private readonly dispatches: DispatchRow[] = [];
   private readonly approvals = new Map<string, ApprovalEntry>();
   private nextDevice = 0;
   private nextSeq = 0;
-  private nextCapture = 0;
   readonly requests: string[] = [];
   /** fails the next push after its first event is stored — an interrupted push. */
   dropNextPushResponse = false;
@@ -190,18 +167,8 @@ export class FakeCloud {
     }
   }
 
-  capture(text: string): string {
-    this.nextCapture += 1;
-    const id = `cap_${this.nextCapture}`;
-    this.inbox.push({ claimToken: null, claimedAt: 0, createdAt: this.nextCapture, id, text });
-    return id;
-  }
-
-  // every claim, a capture's and a dispatch's, as if its ttl ran out
+  // every dispatch claim, as if its ttl ran out
   lapseClaims(): void {
-    for (const row of this.inbox) {
-      row.claimedAt = 0;
-    }
     for (const row of this.dispatches) {
       row.claimedAt = 0;
     }
@@ -264,12 +231,6 @@ export class FakeCloud {
     }
     if (route === `GET ${SYNC_API_PATHS.pull}`) {
       return this.pull(url);
-    }
-    if (route === `POST ${CAPTURE_API_PATHS.claim}`) {
-      return this.claim(body);
-    }
-    if (route === `POST ${CAPTURE_API_PATHS.ack}`) {
-      return this.ack(body);
     }
     if (route === `GET ${ACCOUNT_API_PATHS.account}`) {
       return this.account(device);
@@ -760,53 +721,5 @@ export class FakeCloud {
       return event;
     }
     return { ...typed.data, type: `${typed.data.type}@newer` };
-  }
-
-  private claim(body: RequestBody): Response {
-    const parsed = claimCapturesRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Send { limit? }.");
-    }
-    const now = Date.now();
-    const claimToken = `claim_${now}_${this.inbox.length}_${Math.random()}`;
-    const taken = this.inbox
-      .filter((row) => row.claimToken === null || row.claimedAt <= now - CAPTURE_CLAIM_TTL_MS)
-      .slice(0, parsed.data.limit);
-    for (const row of taken) {
-      row.claimToken = claimToken;
-      row.claimedAt = now;
-    }
-    const captures: CaptureRow[] = taken.map((row) => ({
-      createdAt: row.createdAt,
-      id: row.id,
-      text: row.text,
-    }));
-    const response: ClaimCapturesResponse = {
-      captures,
-      claimToken,
-      expiresAt: now + CAPTURE_CLAIM_TTL_MS,
-    };
-    return Response.json(response);
-  }
-
-  private ack(body: RequestBody): Response {
-    const parsed = ackCapturesRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Send { claimToken, ids }.");
-    }
-    const results = parsed.data.ids.map((id): AckCaptureResult => {
-      const index = this.inbox.findIndex((row) => row.id === id);
-      if (index === -1) {
-        return { id, outcome: "unknown" };
-      }
-      const row = this.inbox[index];
-      if (row === undefined || row.claimToken !== parsed.data.claimToken) {
-        return { id, outcome: "reclaimed" };
-      }
-      this.inbox.splice(index, 1);
-      return { id, outcome: "deleted" };
-    });
-    const response: AckCapturesResponse = { results };
-    return Response.json(response);
   }
 }

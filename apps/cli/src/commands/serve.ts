@@ -37,13 +37,9 @@ export const serveCommand = () =>
         type: "boolean",
       },
       port: { description: "TCP port for the local server (default 4664)", type: "string" },
-      vault: {
-        description: "The vault: your markdown files (default ~/Inteligir)",
-        type: "string",
-      },
     },
     meta: {
-      description: "Run the local server: the vault, the index, the agent and the API",
+      description: "Run the local server: the agent threads and the API",
       name: "serve",
     },
     run: async ({ args }) => {
@@ -56,12 +52,9 @@ export const serveCommand = () =>
       if (args["data-dir"] !== undefined) {
         overrides.INTELIGIR_DATA_DIR = resolvePathFlag(args["data-dir"], cwd);
       }
-      if (args.vault !== undefined) {
-        overrides.INTELIGIR_VAULT_DIR = resolvePathFlag(args.vault, cwd);
-      }
 
-      // dynamic import: the bundle splits the server into a chunk of its own, and a static one would load hono, drizzle
-      // and the runtimes before every client verb reads argv (~50ms each, measured on the bundle).
+      // dynamic import: the bundle splits the server into a chunk of its own, and a static one would load hono and
+      // drizzle before every client verb reads argv (~50ms each, measured on the bundle).
       const { runServe } = await import("../server/serve");
       const { serverUrl, uiUrl } = await runServe(readCliVersion(), overrides);
       writeOut(`\n  inteligir is running — ${uiUrl ?? serverUrl}\n\n`);

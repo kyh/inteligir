@@ -58,7 +58,7 @@ export type ServerFileProbe =
   | { kind: "none" }
   | { kind: "dead-owner"; row: ServerFile }
   // connected and never answered: better-sqlite3 is synchronous, so a large batch blocks the loop
-  // of a server still holding the vault.
+  // of a server still holding the data dir.
   | { kind: "silent"; row: ServerFile; origin: string }
   | { kind: "refused"; row: ServerFile; origin: string }
   // a 200 that names no server proves nothing, not even that the token was read.

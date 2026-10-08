@@ -1,4 +1,4 @@
-// `inteligir action wait`'s defaults and caps, beside the guide that states them so the two cannot drift.
+// `inteligir action wait`'s defaults and caps.
 
 export const DEFAULT_WAIT_TIMEOUT_SECONDS = 600;
 export const DEFAULT_WAIT_POLL_INTERVAL_MS = 300;
