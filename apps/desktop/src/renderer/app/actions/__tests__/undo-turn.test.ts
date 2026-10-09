@@ -21,7 +21,6 @@ const refusing = (code: string, message: string): UndoTurnApi => ({
         code,
         data: undefined,
         defined: true,
-        inferable: true,
         message,
       });
     },
