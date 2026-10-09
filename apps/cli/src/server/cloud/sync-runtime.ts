@@ -128,6 +128,8 @@ export interface CloudRuntime {
   /** ends the account and forgets this device's sign-in; the vault is left as it is. */
   deleteAccount: (password: string) => Promise<AccountCallOutcome<CloudStatusResponse>>;
   syncNow: () => Promise<CloudStatusResponse>;
+  /** the account socket is up, so another device's vault push pings this one. */
+  pingsReach: () => boolean;
   dispose: () => Promise<void>;
 }
 
@@ -322,9 +324,11 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     },
     onConnectionChanged: (connected) => {
       notifyStatus();
-      // a ping sent while this socket was not up reached nothing; the pull carries what it announced.
+      // a ping sent while this socket was not up reached nothing; the pull carries what it
+      // announced, and the vault's pass what another device pushed meanwhile.
       if (connected) {
         requestPass?.();
+        args.onVaultPing?.();
       }
     },
     onSevered: () => {
@@ -747,6 +751,8 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       link.connect();
       void syncNow();
     },
+
+    pingsReach: () => session.current().kind === "live" && link.isConnected(),
 
     status,
 
