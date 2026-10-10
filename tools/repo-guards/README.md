@@ -41,6 +41,9 @@ src/
                       # workspaceTurboConfig)
   ui-package.ts       # @repo/ui's swept roots, read from its exports map, and
                       # the gallery dir that never counts as a consumer
+  content-security-policy.ts
+                      # a policy read as a map of directives, so the first
+                      # run's and the phone page's compare to the server's
   *.test.ts           # one guard per file — the table below
 ```
 
@@ -108,6 +111,11 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | `build.rs`, handled in `lib.rs`, and granted by its window's capability   |
 |                                | (the app window's at runtime, `APP_WINDOW_COMMANDS`); the update event,   |
 |                                | the server's ready marker and the CLI entry the shell runs match.         |
+| `phone-page-csp.test.ts`       | The phone editor page's meta CSP (`apps/mobile-editor/index.html`) is     |
+|                                | `csp.ts`'s for a page with no socket, apart from a `PAGE_DEPARTURES` row  |
+|                                | with its reason (`connect-src 'none'`, no `frame-ancestors`), so a        |
+|                                | directive the server adds fails until the phone decides it; a row naming  |
+|                                | a directive the server no longer spells fails too.                        |
 | `ui-orphan-exports.test.ts`    | PER EXPORT under `@repo/ui`'s wildcard-exported roots: a consumer outside |
 |                                | the gallery, an `AWAITING_CONSUMER` file (held whole, and not itself a    |
 |                                | consumer) or an `ALLOWED_EXPORTS` row with its reason. `export *` is      |

@@ -1675,7 +1675,9 @@ to the END of its group.
   keepalive and reconnect are one too. The core is what BOTH clients run, so
   the CLI-only browser opener sits beside its consumer
   (`apps/cli/src/server/browser-opener.ts`). The cloud vault-path grammar is
-  `parseVaultPath` with the parse required to be the identity. The
+  `parseVaultPath` with the parse required to be the identity, one schema
+  (`@repo/notes/knowledge/vault-path-schema`) the phone's editor page parses
+  its wire by too. The
   `[[Title|uuid]]` tier lives in `buildResolver` (tier 0), reached through the
   `id` the wiki-targets rows carry, and on the phone through the id and aliases
   its mirror reads from each note's frontmatter.
@@ -2143,7 +2145,10 @@ to the END of its group.
   vault (`apps/cli/src/server/csp.ts`). The first run is the shell's own page,
   so its policy is the shell's config (`apps/desktop/src-tauri/tauri.conf.json`),
   held to the server's for a page with no socket, plus Tauri's IPC origins, by
-  `tools/repo-guards/src/desktop-shell-wire.test.ts`. NOTHING REMOTE
+  `tools/repo-guards/src/desktop-shell-wire.test.ts`; the phone's editor page
+  loads from disk, so its policy is a meta tag held to the same one, each
+  departure (`connect-src 'none'`, no `frame-ancestors`) a reasoned row of
+  `tools/repo-guards/src/phone-page-csp.test.ts`. NOTHING REMOTE
   LOADS IN A NOTE: a remote embed is a beacon on every open, so it draws as a
   card (`packages/editor/src/nodes/remote-content-card.tsx`); widening the
   policy is a privacy decision. AN HTML BLOCK'S RUN IS A FRAME WITH A POLICY OF
