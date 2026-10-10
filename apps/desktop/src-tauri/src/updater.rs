@@ -11,7 +11,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 use crate::server_log::utc_stamp;
-use crate::update_state::{UpdateAction, UpdateState, failure_reason};
+use crate::update_state::{UpdateAction, UpdateState, UpdateStatus, failure_reason};
 
 pub const UPDATE_STATE_EVENT: &str = "update-state";
 pub const STARTUP_DELAY: Duration = Duration::from_secs(15);
@@ -114,8 +114,8 @@ pub async fn check<R: Runtime>(app: &AppHandle<R>, reason: &str) -> UpdateState 
             return state;
         }
         if matches!(
-            state,
-            UpdateState::Downloading { .. } | UpdateState::Downloaded { .. }
+            state.status,
+            UpdateStatus::Downloading { .. } | UpdateStatus::Downloaded { .. }
         ) {
             println!("[updater] check ({reason}) skipped: an update is already on its way");
             return state;
@@ -267,8 +267,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> UpdateState {
 
 /// The first check shortly after launch, then every few minutes; a disabled updater runs neither.
 pub fn start<R: Runtime>(app: &AppHandle<R>) {
-    let state = updates(app).state();
-    if let UpdateState::Disabled { reason, .. } = state {
+    if let UpdateStatus::Disabled { reason } = updates(app).state().status {
         println!("[updater] updates disabled: {reason}");
         return;
     }
@@ -323,19 +322,22 @@ pub async fn check_from_menu<R: Runtime>(app: AppHandle<R>) {
     let menu_app = app.clone();
     let _ = tauri::async_runtime::spawn_blocking(move || {
         let app = menu_app;
-        match state {
-            UpdateState::Idle { .. }
-            | UpdateState::Checking { .. }
-            | UpdateState::Downloading { .. } => {}
-            UpdateState::UpToDate {
-                current_version, ..
-            } => tell(
+        let UpdateState {
+            current_version,
+            status,
+            ..
+        } = state;
+        match status {
+            UpdateStatus::Idle
+            | UpdateStatus::Checking { .. }
+            | UpdateStatus::Downloading { .. } => {}
+            UpdateStatus::UpToDate => tell(
                 &app,
                 "You're up to date",
                 &format!("Inteligir {current_version} is the newest version."),
                 MessageDialogKind::Info,
             ),
-            UpdateState::Available { version, .. } => {
+            UpdateStatus::Available { version } => {
                 if ask(
                     &app,
                     "Update available",
@@ -343,21 +345,20 @@ pub async fn check_from_menu<R: Runtime>(app: AppHandle<R>) {
                     "Download",
                     "Later",
                 ) {
-                    let downloaded = tauri::async_runtime::block_on(download(&app));
-                    match downloaded {
-                        UpdateState::Downloaded { version, .. } => ask_to_restart(&app, &version),
-                        UpdateState::Error { message, .. } => {
+                    match tauri::async_runtime::block_on(download(&app)).status {
+                        UpdateStatus::Downloaded { version } => ask_to_restart(&app, &version),
+                        UpdateStatus::Error { message, .. } => {
                             tell(&app, "Download failed", &message, MessageDialogKind::Error);
                         }
                         _ => {}
                     }
                 }
             }
-            UpdateState::Downloaded { version, .. } => ask_to_restart(&app, &version),
-            UpdateState::Disabled { reason, .. } => {
+            UpdateStatus::Downloaded { version } => ask_to_restart(&app, &version),
+            UpdateStatus::Disabled { reason } => {
                 tell(&app, "Updates are off", &reason, MessageDialogKind::Warning);
             }
-            UpdateState::Error { message, .. } => {
+            UpdateStatus::Error { message, .. } => {
                 tell(
                     &app,
                     "Update check failed",

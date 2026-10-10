@@ -11,7 +11,7 @@ import {
   stubPaletteFetch,
 } from "../palette/__tests__/palette-harness";
 import { APP_COMMANDS } from "../../../ipc-contract";
-import type { PathActionResult } from "../../../path-action";
+import type { DoneAnswer } from "../../../shell-answer";
 import { clearShell, mockShell, reply } from "../../__tests__/mock-shell";
 import { exportNoteAsPdf, installLightPrints } from "../note/export-pdf";
 import type { PaletteNote } from "../palette/command-palette";
@@ -69,7 +69,7 @@ describe("exportNoteAsPdf", () => {
 
   it("asks the shell to print, keeping the title until the sheet is done", async () => {
     document.title = "inteligir";
-    const print = vi.fn<() => PathActionResult>(() => ({ ok: true }));
+    const print = vi.fn<() => DoneAnswer>(() => ({ ok: true }));
     mockShell(reply(APP_COMMANDS.print)(print));
     await exportNoteAsPdf("Weekly Plan");
     expect(print).toHaveBeenCalledOnce();

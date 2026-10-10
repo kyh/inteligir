@@ -1,6 +1,7 @@
 //! What a page may ask the shell, one command per row of `apps/desktop/src/ipc-contract.ts`. Each
-//! answers a plain value the page parses with that row's schema, and a refusal is a value too,
-//! never an error: the page shows it in the shell's words.
+//! answers a plain value the page parses with that row's schema. A command that can be refused
+//! answers an `Answer`, so the page shows the refusal in the shell's words; one that can fail only
+//! by a fault answers a `Result`, whose `Err` rejects.
 //!
 //! The app window reaches these through a capability the shell adds for the server's exact origin
 //! (`window.rs`); the first run reaches only its four, through `capabilities/first-run.json`.
@@ -13,9 +14,10 @@ use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
+use crate::answer::Answer;
 use crate::diagnostics;
 use crate::launch::FolderSync;
-use crate::paths::{self, PathAction};
+use crate::paths;
 use crate::shell::{self, Outcome, Shell};
 use crate::update_state::UpdateState;
 use crate::updater::{self, Updates};
@@ -42,34 +44,6 @@ pub const APP_WINDOW_COMMANDS: &[&str] = &[
     "vaults_pick",
 ];
 
-/// A refusal or the state: `{ ok: true, state }` or `{ ok: false, reason }`.
-#[derive(Debug, Serialize)]
-pub struct Answer<T: Serialize> {
-    ok: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    state: Option<T>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    reason: Option<String>,
-}
-
-impl<T: Serialize> Answer<T> {
-    fn done(state: T) -> Self {
-        Self {
-            ok: true,
-            state: Some(state),
-            reason: None,
-        }
-    }
-
-    fn refused(reason: impl Into<String>) -> Self {
-        Self {
-            ok: false,
-            state: None,
-            reason: Some(reason.into()),
-        }
-    }
-}
-
 /// Blocking work (a door call, a dialog, a server's start) runs off the async runtime's threads.
 async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
     match tauri::async_runtime::spawn_blocking(work).await {
@@ -79,7 +53,7 @@ async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) 
 }
 
 fn no_vault() -> String {
-    "No vault is open yet.".to_owned()
+    shell::NO_VAULT.to_owned()
 }
 
 // ---- diagnostics ----
@@ -89,7 +63,7 @@ pub async fn diagnostics_get_state<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<diagnostics::State, String> {
     app.state::<Shell>()
-        .with_diagnostics(|diagnostics| diagnostics.state())
+        .with_diagnostics(|diagnostics, run| diagnostics.state(run))
         .ok_or_else(no_vault)
 }
 
@@ -97,9 +71,9 @@ pub async fn diagnostics_get_state<R: Runtime>(
 pub async fn diagnostics_set_debug<R: Runtime>(
     app: AppHandle<R>,
     debug: bool,
-) -> Result<diagnostics::Answer, String> {
+) -> Result<Answer<diagnostics::State>, String> {
     app.state::<Shell>()
-        .with_diagnostics(|diagnostics| diagnostics.set_debug(debug))
+        .with_diagnostics(|diagnostics, run| diagnostics.set_debug(debug, run))
         .ok_or_else(no_vault)
 }
 
@@ -108,33 +82,25 @@ pub async fn diagnostics_set_debug<R: Runtime>(
 #[tauri::command]
 pub async fn diagnostics_restart<R: Runtime>(
     app: AppHandle<R>,
-) -> Result<diagnostics::Answer, String> {
+) -> Result<Answer<diagnostics::State>, String> {
     let answer = app
         .state::<Shell>()
-        .with_diagnostics(|diagnostics| diagnostics.restart())
+        .with_diagnostics(|diagnostics, run| diagnostics.restart(run))
         .ok_or_else(no_vault)?;
-    if answer.is_done() {
+    if matches!(answer, Answer::Done(_)) {
         std::thread::spawn(move || app.restart());
     }
     Ok(answer)
 }
 
 #[tauri::command]
-pub async fn diagnostics_open_data_folder<R: Runtime>(app: AppHandle<R>) -> PathAction {
-    blocking(move || match shell::open_data_folder(&app) {
-        Ok(()) => PathAction::done(),
-        Err(reason) => PathAction::refused(reason),
-    })
-    .await
+pub async fn diagnostics_open_data_folder<R: Runtime>(app: AppHandle<R>) -> Answer {
+    blocking(move || shell::open_data_folder(&app).into()).await
 }
 
 #[tauri::command]
-pub async fn diagnostics_show_log<R: Runtime>(app: AppHandle<R>) -> PathAction {
-    blocking(move || match shell::show_server_log(&app) {
-        Ok(()) => PathAction::done(),
-        Err(reason) => PathAction::refused(reason),
-    })
-    .await
+pub async fn diagnostics_show_log<R: Runtime>(app: AppHandle<R>) -> Answer {
+    blocking(move || shell::show_server_log(&app).into()).await
 }
 
 // ---- Reveal / Open ----
@@ -145,31 +111,29 @@ fn resolved<R: Runtime>(app: &AppHandle<R>, path: &str) -> Result<std::path::Pat
 }
 
 #[tauri::command]
-pub async fn paths_reveal<R: Runtime>(app: AppHandle<R>, path: String) -> PathAction {
+pub async fn paths_reveal<R: Runtime>(app: AppHandle<R>, path: String) -> Answer {
     blocking(move || {
-        match resolved(&app, &path).and_then(|entry| {
-            app.opener()
-                .reveal_item_in_dir(entry)
-                .map_err(|error| error.to_string())
-        }) {
-            Ok(()) => PathAction::done(),
-            Err(reason) => PathAction::refused(reason),
-        }
+        resolved(&app, &path)
+            .and_then(|entry| {
+                app.opener()
+                    .reveal_item_in_dir(entry)
+                    .map_err(|error| error.to_string())
+            })
+            .into()
     })
     .await
 }
 
 #[tauri::command]
-pub async fn paths_open<R: Runtime>(app: AppHandle<R>, path: String) -> PathAction {
+pub async fn paths_open<R: Runtime>(app: AppHandle<R>, path: String) -> Answer {
     blocking(move || {
-        match resolved(&app, &path).and_then(|entry| {
-            app.opener()
-                .open_path(entry.to_string_lossy(), None::<&str>)
-                .map_err(|error| error.to_string())
-        }) {
-            Ok(()) => PathAction::done(),
-            Err(reason) => PathAction::refused(reason),
-        }
+        resolved(&app, &path)
+            .and_then(|entry| {
+                app.opener()
+                    .open_path(entry.to_string_lossy(), None::<&str>)
+                    .map_err(|error| error.to_string())
+            })
+            .into()
     })
     .await
 }
@@ -178,11 +142,8 @@ pub async fn paths_open<R: Runtime>(app: AppHandle<R>, path: String) -> PathActi
 
 /// WKWebView answers no `window.print()`, so the page asks the shell to print the window.
 #[tauri::command]
-pub async fn print_page<R: Runtime>(window: WebviewWindow<R>) -> PathAction {
-    match window.print() {
-        Ok(()) => PathAction::done(),
-        Err(error) => PathAction::refused(error.to_string()),
-    }
+pub async fn print_page<R: Runtime>(window: WebviewWindow<R>) -> Answer {
+    window.print().map_err(|error| error.to_string()).into()
 }
 
 // ---- updates ----
@@ -216,10 +177,7 @@ pub async fn vaults_get_state<R: Runtime>(app: AppHandle<R>) -> Result<VaultsSta
 
 fn switch_answer<R: Runtime>(app: &AppHandle<R>, outcome: Outcome) -> Answer<VaultsState> {
     match outcome {
-        Outcome::Done => match shell::vaults_state(app) {
-            Some(state) => Answer::done(state),
-            None => Answer::refused(no_vault()),
-        },
+        Outcome::Done => shell::vaults_state(app).ok_or_else(no_vault).into(),
         Outcome::Refused(reason) | Outcome::Reported(reason) => Answer::refused(reason),
     }
 }
@@ -383,19 +341,9 @@ pub enum FirstRunChoice {
     Open { path: String },
 }
 
-#[derive(Serialize)]
-pub struct FirstRunAnswer {
-    ok: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    reason: Option<String>,
-}
-
 /// Every folder the page names back is one handed out here, the proposal's parent or a pick.
 #[tauri::command]
-pub async fn first_run_finish<R: Runtime>(
-    app: AppHandle<R>,
-    choice: FirstRunChoice,
-) -> FirstRunAnswer {
+pub async fn first_run_finish<R: Runtime>(app: AppHandle<R>, choice: FirstRunChoice) -> Answer {
     blocking(move || {
         let shell = app.state::<Shell>();
         let handed_out = shell.with_first_run(|first_run| match &choice {
@@ -413,24 +361,15 @@ pub async fn first_run_finish<R: Runtime>(
             (_, Some(true)) => None,
         };
         if let Some(reason) = refusal {
-            return FirstRunAnswer {
-                ok: false,
-                reason: Some(reason.to_owned()),
-            };
+            return Answer::refused(reason);
         }
         let args: Vec<&str> = match &choice {
             FirstRunChoice::Create { name, parent } => vec!["plan-create", parent, name],
             FirstRunChoice::Open { path } => vec!["plan-open", path],
         };
         match shell::finish_first_run(&app, &args) {
-            Outcome::Done => FirstRunAnswer {
-                ok: true,
-                reason: None,
-            },
-            Outcome::Refused(reason) | Outcome::Reported(reason) => FirstRunAnswer {
-                ok: false,
-                reason: Some(reason),
-            },
+            Outcome::Done => Answer::Done(()),
+            Outcome::Refused(reason) | Outcome::Reported(reason) => Answer::Refused(reason),
         }
     })
     .await
@@ -441,18 +380,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn answers_cross_as_values() -> Result<(), serde_json::Error> {
+    fn a_cancelled_pick_crosses_as_its_kind() -> Result<(), serde_json::Error> {
         assert_eq!(
-            serde_json::to_string(&Answer::<u8>::refused("no"))?,
-            r#"{"ok":false,"reason":"no"}"#
-        );
-        assert_eq!(
-            serde_json::to_string(&Answer::done(1_u8))?,
-            r#"{"ok":true,"state":1}"#
-        );
-        assert_eq!(
-            serde_json::to_string(&PickParent::Cancelled)?,
-            r#"{"kind":"cancelled"}"#
+            serde_json::to_value(PickParent::Cancelled)?,
+            serde_json::json!({ "kind": "cancelled" })
         );
         Ok(())
     }

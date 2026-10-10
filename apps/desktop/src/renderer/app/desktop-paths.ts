@@ -3,6 +3,7 @@
 // shell there is no bridge and no such row.
 
 import { toast } from "@repo/ui/components/sonner";
+import type { DoneAnswer } from "../../shell-answer";
 import { shellPaths, underShell } from "../shell-commands";
 
 export const desktopPaths = (): typeof shellPaths | undefined =>
@@ -10,7 +11,7 @@ export const desktopPaths = (): typeof shellPaths | undefined =>
 
 // a refusal is the shell's, in its words; a broken bridge is one sentence, never a stack
 const settlePathAction = async (
-  action: () => Promise<{ ok: true } | { ok: false; reason: string }>,
+  action: () => Promise<DoneAnswer>,
   fallback: string,
 ): Promise<void> => {
   let result;
@@ -25,9 +26,6 @@ const settlePathAction = async (
   }
 };
 
-export const runPathAction = (
-  action: () => Promise<{ ok: true } | { ok: false; reason: string }>,
-  fallback: string,
-): void => {
+export const runPathAction = (action: () => Promise<DoneAnswer>, fallback: string): void => {
   void settlePathAction(action, fallback);
 };

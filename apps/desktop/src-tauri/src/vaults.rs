@@ -7,6 +7,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::answer::Payload;
 use crate::files::write_staged;
 
 pub const RECENT_VAULTS_FILE_NAME: &str = "recent-vaults.json";
@@ -40,6 +41,8 @@ pub struct VaultsState {
     /// The others, newest first; the current one is never in it.
     pub recent: Vec<VaultRef>,
 }
+
+impl Payload for VaultsState {}
 
 /// Newest first, one row per path.
 pub fn remember(recent: &[String], path: &str) -> Vec<String> {

@@ -2,7 +2,8 @@
 //! launch boots, what a first run's choice opens, whether a switch may happen, a folder's facts,
 //! the selector's write. Those rules are TypeScript over `inteligir/server/*`, so they are asked of
 //! it and never spelled a second time here. Each ask is one node process answering one JSON line
-//! (`apps/cli/src/desktop/desktop-entry.ts`): an answer, or a refusal in the page's words.
+//! (`apps/cli/src/desktop/desktop-entry.ts`): an answer, or a refusal in the page's words. Every
+//! caller says a refusal and a fault alike, so both come back as one sentence.
 
 use std::collections::BTreeMap;
 use std::ffi::OsString;
@@ -13,22 +14,6 @@ use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
 use crate::runtime::NodeRuntime;
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum DoorError {
-    /// A refusal the CLI words for the person: shown as it stands.
-    Refused(String),
-    /// The entry could not answer at all.
-    Fault(String),
-}
-
-impl DoorError {
-    pub fn message(&self) -> &str {
-        match self {
-            Self::Refused(message) | Self::Fault(message) => message,
-        }
-    }
-}
 
 #[derive(Deserialize)]
 #[serde(untagged)]
@@ -45,7 +30,9 @@ pub struct Door {
 }
 
 impl Door {
-    pub fn ask<T: DeserializeOwned>(&self, args: &[&str]) -> Result<T, DoorError> {
+    /// The answer, or why there is none: the CLI's refusal as it stands, or what kept the entry from
+    /// answering at all.
+    pub fn ask<T: DeserializeOwned>(&self, args: &[&str]) -> Result<T, String> {
         let output = Command::new(&self.runtime.node)
             .arg(self.runtime.desktop_entry())
             .args(args)
@@ -54,34 +41,29 @@ impl Door {
             .current_dir(&self.cwd)
             .stdin(Stdio::null())
             .output()
-            .map_err(|error| {
-                DoorError::Fault(format!(
-                    "{} could not start: {error}",
-                    self.runtime.node.display()
-                ))
-            })?;
+            .map_err(|error| format!("{} could not start: {error}", self.runtime.node.display()))?;
         let stdout = String::from_utf8_lossy(&output.stdout);
         let line = stdout.lines().rev().find(|line| !line.trim().is_empty());
         if !output.status.success() || line.is_none() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             let said = stderr.trim();
-            return Err(DoorError::Fault(if said.is_empty() {
+            return Err(if said.is_empty() {
                 format!("the app's helper exited {}", output.status)
             } else {
                 said.to_owned()
-            }));
+            });
         }
         parse_reply(line.unwrap_or_default())
     }
 }
 
-fn parse_reply<T: DeserializeOwned>(line: &str) -> Result<T, DoorError> {
+fn parse_reply<T: DeserializeOwned>(line: &str) -> Result<T, String> {
     match serde_json::from_str::<Reply<T>>(line) {
         Ok(Reply::Answer { answer }) => Ok(answer),
-        Ok(Reply::Refusal { reason }) => Err(DoorError::Refused(reason)),
-        Err(error) => Err(DoorError::Fault(format!(
+        Ok(Reply::Refusal { reason }) => Err(reason),
+        Err(error) => Err(format!(
             "the app's helper answered something it should not: {error}"
-        ))),
+        )),
     }
 }
 
@@ -104,21 +86,18 @@ mod tests {
         );
         assert_eq!(
             parse_reply::<Vault>(r#"{"reason":"That folder is not there any more."}"#),
-            Err(DoorError::Refused(
-                "That folder is not there any more.".to_owned()
-            ))
+            Err("That folder is not there any more.".to_owned())
         );
     }
 
     #[test]
-    fn anything_else_is_a_fault() {
-        assert!(matches!(
-            parse_reply::<Vault>(r#"{"answer":{"wrong":1}}"#),
-            Err(DoorError::Fault(_))
-        ));
-        assert!(matches!(
-            parse_reply::<Vault>("not json"),
-            Err(DoorError::Fault(_))
-        ));
+    fn anything_else_says_the_helper_misspoke() {
+        for line in [r#"{"answer":{"wrong":1}}"#, "not json"] {
+            assert!(
+                parse_reply::<Vault>(line)
+                    .is_err_and(|reason| reason.starts_with("the app's helper answered")),
+                "{line}"
+            );
+        }
     }
 }

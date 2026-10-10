@@ -47,11 +47,3 @@ export const firstRunChoiceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("open"), path: folderPathSchema }).strict(),
 ]);
 export type FirstRunChoice = z.infer<typeof firstRunChoiceSchema>;
-
-// a vault that opens replaces the page before any answer lands, so what the page sees is a refusal
-// in the shell's words, or the boot's own failure
-export const firstRunAnswerSchema = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true) }).strict(),
-  z.object({ ok: z.literal(false), reason: z.string().min(1) }).strict(),
-]);
-export type FirstRunAnswer = z.infer<typeof firstRunAnswerSchema>;

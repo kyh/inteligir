@@ -6,7 +6,7 @@ import { ZodError } from "zod";
 import { APP_COMMANDS, UPDATE_STATE_EVENT } from "../../ipc-contract";
 import type { UpdateState } from "../../update-state";
 import type { VaultsState } from "../../vaults-state";
-import { shellUpdates, shellVaults, underShell } from "../shell-commands";
+import { shellPaths, shellUpdates, shellVaults, underShell } from "../shell-commands";
 import { clearShell, mockShell, reply } from "./mock-shell";
 
 afterEach(clearShell);
@@ -39,6 +39,19 @@ describe("the shell's door", () => {
       command: APP_COMMANDS.updates.getState.command,
     });
     await expect(shellUpdates.getState()).rejects.toBeInstanceOf(ZodError);
+  });
+
+  it("reads a refusal as a value, and an answer of the other shape as a fault", async () => {
+    mockShell(
+      reply(APP_COMMANDS.vaults.pick)(() => ({ ok: false, reason: "No vault is open yet." })),
+    );
+    expect(await shellVaults.pick()).toEqual({ ok: false, reason: "No vault is open yet." });
+    mockShell(
+      { answer: () => ({ ok: true }), command: APP_COMMANDS.vaults.pick.command },
+      { answer: () => ({ ok: true, state: VAULTS }), command: APP_COMMANDS.paths.open.command },
+    );
+    await expect(shellVaults.pick()).rejects.toBeInstanceOf(ZodError);
+    await expect(shellPaths.open({ path: "a.md" })).rejects.toBeInstanceOf(ZodError);
   });
 
   it("rejects a command the shell refuses, as a fault", async () => {

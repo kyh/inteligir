@@ -2,6 +2,7 @@
 //! itself as the one child it supervises, and what only a native host can do for that page: menus,
 //! the menu-bar icon, dialogs, Finder, and the updates.
 
+mod answer;
 mod commands;
 mod diagnostics;
 mod door;

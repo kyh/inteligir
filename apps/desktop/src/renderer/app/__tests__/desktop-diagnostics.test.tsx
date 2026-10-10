@@ -2,9 +2,9 @@
 
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import type { DiagnosticsAnswer, DiagnosticsState } from "../../../diagnostics-state";
+import type { DiagnosticsState } from "../../../diagnostics-state";
 import { APP_COMMANDS } from "../../../ipc-contract";
-import type { PathActionResult } from "../../../path-action";
+import type { BridgeAnswer, DoneAnswer } from "../../../shell-answer";
 import { clearShell, mockShell, reply } from "../../__tests__/mock-shell";
 import { setDebugLogging } from "../desktop-diagnostics";
 import { DiagnosticsRows } from "../settings/advanced-section";
@@ -16,9 +16,12 @@ const PENDING_RESTART: DiagnosticsState = {
   server: "owned",
 };
 
-const openDataFolder = vi.fn<() => PathActionResult>(() => ({ ok: true }));
-const restart = vi.fn<() => DiagnosticsAnswer>(() => ({ ok: true, state: PENDING_RESTART }));
-const setDebug = vi.fn<(choice: { debug: boolean }) => DiagnosticsAnswer>(() => ({
+const openDataFolder = vi.fn<() => DoneAnswer>(() => ({ ok: true }));
+const restart = vi.fn<() => BridgeAnswer<DiagnosticsState>>(() => ({
+  ok: true,
+  state: PENDING_RESTART,
+}));
+const setDebug = vi.fn<(choice: { debug: boolean }) => BridgeAnswer<DiagnosticsState>>(() => ({
   ok: false,
   reason: "The choice could not be saved: EACCES",
 }));

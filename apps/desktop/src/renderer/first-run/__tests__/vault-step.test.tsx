@@ -4,8 +4,9 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { FolderFacts } from "@repo/contract/local/vault/vault-folder";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { FirstRunAnswer, FirstRunChoice, PickParentAnswer } from "../../../first-run-state";
+import type { FirstRunChoice, PickParentAnswer } from "../../../first-run-state";
 import { FIRST_RUN_COMMANDS } from "../../../ipc-contract";
+import type { DoneAnswer } from "../../../shell-answer";
 import { clearShell, mockShell, reply } from "../../__tests__/mock-shell";
 import { VaultStep } from "../vault-step";
 
@@ -27,7 +28,7 @@ const facts = (overrides: Partial<FolderFacts> = {}): FolderFacts => ({
 const PARENT_CANCELLED: PickParentAnswer = { kind: "cancelled" };
 
 const renderStep = (picked: FolderFacts = facts(), parent: PickParentAnswer = PARENT_CANCELLED) => {
-  const finish = vi.fn<(choice: FirstRunChoice) => FirstRunAnswer>(() => ({
+  const finish = vi.fn<(choice: FirstRunChoice) => DoneAnswer>(() => ({
     ok: false,
     reason: "the shell said no",
   }));

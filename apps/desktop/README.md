@@ -111,7 +111,10 @@ opens the window, to that window and the server's exact origin alone
 (`grant_app_window` in `src-tauri/src/window.rs`), since the port is the
 server's to choose; `src-tauri/capabilities/app-window.json` grants nothing,
 and lists them only so the build keeps them (`removeUnusedCommands`). A
-refusal is an answer, never a rejected promise: a rejection is a fault.
+refusal is an answer, never a rejected promise: a rejection is a fault. One
+envelope carries it, `src-tauri/src/answer.rs` in the shell and
+`src/shell-answer.ts` in the page, and a command that can fail only by a fault
+answers its value bare.
 
 ## The origin pin is the whole security surface
 

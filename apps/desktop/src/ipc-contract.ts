@@ -5,21 +5,17 @@
 // at the parse. A refusal is an answer, never a rejection: a rejected command is a fault.
 
 import { z } from "zod";
+import { diagnosticsChoiceSchema, diagnosticsStateSchema } from "./diagnostics-state";
 import {
-  diagnosticsAnswerSchema,
-  diagnosticsChoiceSchema,
-  diagnosticsStateSchema,
-} from "./diagnostics-state";
-import {
-  firstRunAnswerSchema,
   firstRunChoiceSchema,
   firstRunStateSchema,
   pickFolderAnswerSchema,
   pickParentAnswerSchema,
 } from "./first-run-state";
-import { pathActionRequestSchema, pathActionResultSchema } from "./path-action";
+import { pathActionRequestSchema } from "./path-action";
+import { answerSchema, doneAnswerSchema } from "./shell-answer";
 import { updateStateSchema } from "./update-state";
-import { vaultPathSchema, vaultsStateSchema, vaultSwitchAnswerSchema } from "./vaults-state";
+import { vaultPathSchema, vaultsStateSchema } from "./vaults-state";
 
 // the page asks, the shell answers
 export interface CommandRoute<Args extends z.ZodType, Answer extends z.ZodType> {
@@ -44,21 +40,26 @@ const route = <Args extends z.ZodType, Answer extends z.ZodType>(
 const noArgs = z.undefined();
 const vaultArgs = z.strictObject({ path: vaultPathSchema });
 
+const diagnosticsAnswerSchema = answerSchema(diagnosticsStateSchema);
+// a switch replaces the window before any answer lands, so an `ok` the page sees moved nothing (a
+// cancelled picker)
+const vaultSwitchAnswerSchema = answerSchema(vaultsStateSchema);
+
 export const APP_COMMANDS = {
   diagnostics: {
     getState: route("diagnostics_get_state", noArgs, diagnosticsStateSchema),
     // the OS takes the folder or says why not, like Reveal/Open
-    openDataFolder: route("diagnostics_open_data_folder", noArgs, pathActionResultSchema),
+    openDataFolder: route("diagnostics_open_data_folder", noArgs, doneAnswerSchema),
     restart: route("diagnostics_restart", noArgs, diagnosticsAnswerSchema),
     setDebug: route("diagnostics_set_debug", diagnosticsChoiceSchema, diagnosticsAnswerSchema),
-    showLog: route("diagnostics_show_log", noArgs, pathActionResultSchema),
+    showLog: route("diagnostics_show_log", noArgs, doneAnswerSchema),
   },
   paths: {
-    open: route("paths_open", pathActionRequestSchema, pathActionResultSchema),
-    reveal: route("paths_reveal", pathActionRequestSchema, pathActionResultSchema),
+    open: route("paths_open", pathActionRequestSchema, doneAnswerSchema),
+    reveal: route("paths_reveal", pathActionRequestSchema, doneAnswerSchema),
   },
   // WKWebView answers no `window.print()`, so the shell prints the window
-  print: route("print_page", noArgs, pathActionResultSchema),
+  print: route("print_page", noArgs, doneAnswerSchema),
   updates: {
     check: route("updates_check", noArgs, updateStateSchema),
     download: route("updates_download", noArgs, updateStateSchema),
@@ -77,10 +78,12 @@ export const APP_COMMANDS = {
 // the first-run window's own commands, granted by its own capability: it has no server, so it asks
 // for nothing the app window asks for, and the app window for none of these
 export const FIRST_RUN_COMMANDS = {
+  // a vault that opens replaces the page before any answer lands, so what the page sees is a
+  // refusal in the shell's words, or the boot's own failure
   finish: route(
     "first_run_finish",
     z.strictObject({ choice: firstRunChoiceSchema }),
-    firstRunAnswerSchema,
+    doneAnswerSchema,
   ),
   getState: route("first_run_get_state", noArgs, firstRunStateSchema),
   pickFolder: route("first_run_pick_folder", noArgs, pickFolderAnswerSchema),

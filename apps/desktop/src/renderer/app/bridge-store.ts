@@ -4,15 +4,13 @@
 // subscriber, never at import.
 
 import { useSyncExternalStore } from "react";
+import type { BridgeAnswer } from "../../shell-answer";
 import { underShell } from "../shell-commands";
 
 type BridgeSnapshot<TState> =
   | { kind: "loading" }
   | { kind: "no-bridge" }
   | { kind: "state"; state: TState };
-
-// a refusal crosses as a value; a rejected command is a fault
-type BridgeAnswer<TState> = { ok: true; state: TState } | { ok: false; reason: string };
 
 export interface BridgeStoreArgs<TState> {
   // the first read; one that throws is warned under the label and leaves the store loading

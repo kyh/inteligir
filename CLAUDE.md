@@ -2175,12 +2175,15 @@ to the END of its group.
   `apps/desktop/src-tauri/src/launch.rs` reads the fields of a zod schema
   typed against the door's `DoorAnswers`
   (`apps/cli/src/desktop/__tests__/door-answers.ts`), which also parses the
-  fixtures the cargo tests read. A refusal crosses as a value
-  (`{ ok: false, reason }`), never a rejection, which the page reads as a
-  fault. Residual: the page holds the per-boot cookie (HttpOnly,
-  SameSite=Strict, dead with the boot), and Tauri's IPC from the server's
-  origin falls back to `postMessage` under its CSP, at the cost of one console
-  line.
+  fixtures the cargo tests read. A refusal crosses as a value, never a
+  rejection, which the page reads as a fault: one envelope on both sides,
+  `{ ok: true, state? }` or `{ ok: false, reason }`
+  (`apps/desktop/src-tauri/src/answer.rs`, `apps/desktop/src/shell-answer.ts`).
+  A command that can fail only by a fault (a read, a forget, a first run's
+  pick) answers its value bare as a `Result`, whose `Err` rejects. Residual:
+  the page holds the per-boot cookie (HttpOnly, SameSite=Strict, dead with the
+  boot), and Tauri's IPC from the server's origin falls back to `postMessage`
+  under its CSP, at the cost of one console line.
 
 - **UPDATES ARE TAURI'S UPDATER OVER THE GITHUB RELEASE, and nothing moves
   without a click** (reversing "no update feed").
