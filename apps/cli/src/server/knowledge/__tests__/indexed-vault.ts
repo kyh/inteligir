@@ -3,7 +3,6 @@
 
 import { mkdirSync } from "node:fs";
 import nodePath from "node:path";
-import { noopNotifier } from "@repo/domain/notifier";
 import { onTestFinished } from "vitest";
 import { identityLock } from "../../__tests__/identity-lock";
 import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
@@ -57,7 +56,6 @@ export const bootIndexedVault = (
   const service = createVaultService({
     ignore: ignoreFromDisk(dirs.root),
     lock: identityLock,
-    notifier: noopNotifier,
     onMutated: (mutations) =>
       sink?.noteVaultChange({ kind: "paths", paths: mutations.map((mutation) => mutation.path) }),
     root: dirs.root,

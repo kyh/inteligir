@@ -1,6 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { noopNotifier } from "@repo/domain/notifier";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService } from "../../vault/vault-service";
@@ -31,7 +30,6 @@ describe("a 300-file vault", () => {
     const service = createVaultService({
       ignore: ignoreFromDisk(root),
       lock: identityLock,
-      notifier: noopNotifier,
       root,
     });
     // the real worker: the one suite that runs a whole reconcile across batches through it

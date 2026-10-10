@@ -23,8 +23,8 @@ import { mintNoteId } from "@repo/notes/markdown/frontmatter";
 import { snapshotDocs } from "../../knowledge/snapshot-docs";
 import { BACKGROUND_READ_SLOTS, READ_SLOTS } from "../read-slots";
 import { slowReadStall } from "../slow-reads";
+import type { VaultMutation } from "../vault-changes";
 import { createVaultService, sweepStaleTmpFiles, VaultServiceError } from "../vault-service";
-import { createNotifierRecorder } from "./notifier-recorder";
 import { bootTestApp } from "../../__tests__/boot-app";
 import { identityLock } from "../../__tests__/identity-lock";
 import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
@@ -35,18 +35,21 @@ const anyNumber: unknown = expect.any(Number);
 
 const bootService = () => {
   const root = makeTempDir("inteligir-vault-test-");
-  const notifier = createNotifierRecorder();
-  let mutations = 0;
+  const reports: (readonly VaultMutation[])[] = [];
   const service = createVaultService({
     ignore: ignoreFromDisk(root),
     lock: identityLock,
-    notifier,
-    onMutated: () => {
-      mutations += 1;
+    onMutated: (mutations) => {
+      reports.push(mutations);
     },
     root,
   });
-  return { mutationCount: () => mutations, notifier, root, service };
+  // what each report said moved, by path, without the fingerprints a test cannot predict.
+  const reported = () =>
+    reports.map((mutations) =>
+      mutations.map(({ kind, path: changed }) => ({ kind, path: changed })),
+    );
+  return { reported, reports, root, service };
 };
 
 describe("what the vault is CALLED", () => {
@@ -59,13 +62,9 @@ describe("what the vault is CALLED", () => {
 
 describe("vault CRUD", () => {
   it("round-trips write → list → read → rename → delete", async () => {
-    const { notifier, service, mutationCount } = bootService();
+    const { reports, service } = bootService();
 
     await service.write("notes/today.md", "# Today\n");
-    expect(notifier.docChanges).toEqual([
-      { changes: ["content-changed"], docId: "notes/today.md" },
-    ]);
-    expect(notifier.vaultChanges).toEqual([["files-changed"]]);
 
     const tree = await service.listTree();
     expect(tree.entries).toEqual([
@@ -84,7 +83,7 @@ describe("vault CRUD", () => {
 
     await service.remove("notes/renamed.md");
     await expect(service.read("notes/renamed.md")).rejects.toThrow(VaultServiceError);
-    expect(mutationCount()).toBe(3);
+    expect(reports).toHaveLength(3);
   });
 
   it("creates directories, and deletes them recursively", async () => {
@@ -154,7 +153,6 @@ describe("vault CRUD", () => {
     const service = createVaultService({
       ignore: ignoreFromDisk(root),
       lock,
-      notifier: createNotifierRecorder(),
       root,
     });
 
@@ -172,26 +170,56 @@ describe("vault CRUD", () => {
   });
 });
 
-describe("what a write announces", () => {
-  it("says content-changed alone when only the bytes moved", async () => {
-    const { notifier, service } = bootService();
+describe("what a mutation reports", () => {
+  it("reports a write over an existing note as content, its row unmoved", async () => {
+    const { reported, service } = bootService();
     await service.write("note.md", "one");
-    notifier.reset();
-
     await service.write("note.md", "two");
+    await service.writeIfUnchanged("note.md", "two", "three");
+    await service.writeGuarded("note.md", "four", {
+      hash: await contentHashHex("three"),
+      kind: "expected",
+    });
 
-    expect(notifier.docChanges).toEqual([{ changes: ["content-changed"], docId: "note.md" }]);
-    expect(notifier.vaultChanges).toEqual([]);
+    expect(reported().slice(1)).toEqual([
+      [{ kind: "content", path: "note.md" }],
+      [{ kind: "content", path: "note.md" }],
+      [{ kind: "content", path: "note.md" }],
+    ]);
   });
 
-  it("still says files-changed when the write CREATES the file", async () => {
-    const { notifier, service } = bootService();
+  it("reports a create, a folder, a rename's two ends and a delete as entries", async () => {
+    const { reported, service } = bootService();
     await service.write("fresh.md", "one");
-    expect(notifier.vaultChanges).toEqual([["files-changed"]]);
-
-    notifier.reset();
     await service.writeGuarded("guarded.md", "one", { kind: "absent" });
-    expect(notifier.vaultChanges).toEqual([["files-changed"]]);
+    await service.writeAsset("assets", "shot.png", new Uint8Array([1]));
+    await service.createDir("folder");
+    await service.rename("fresh.md", "folder/moved.md");
+    await service.remove("guarded.md");
+    await service.removeIfUnchanged("folder/moved.md", "one");
+
+    expect(reported()).toEqual([
+      [{ kind: "entry", path: "fresh.md" }],
+      [{ kind: "entry", path: "guarded.md" }],
+      [{ kind: "entry", path: "assets/shot.png" }],
+      [{ kind: "entry", path: "folder" }],
+      [
+        { kind: "entry", path: "fresh.md" },
+        { kind: "entry", path: "folder/moved.md" },
+      ],
+      [{ kind: "entry", path: "guarded.md" }],
+      [{ kind: "entry", path: "folder/moved.md" }],
+    ]);
+  });
+
+  it("reports nothing for a guarded write it refused", async () => {
+    const { reported, service } = bootService();
+    await service.write("note.md", "one");
+    await service.writeIfUnchanged("note.md", "stale", "two");
+    await service.writeGuarded("note.md", "two", { kind: "absent" });
+    await service.removeIfUnchanged("note.md", "stale");
+
+    expect(reported()).toEqual([[{ kind: "entry", path: "note.md" }]]);
   });
 
   it("leaves the listing structure identical across a content edit", async () => {
@@ -383,7 +411,6 @@ describe("what the filesystem throws at the vault", () => {
       const service = createVaultService({
         ignore: ignoreFromDisk(root),
         lock: identityLock,
-        notifier: createNotifierRecorder(),
         onUnreadableFolder: (relPath, code) => {
           reported.push(`${relPath}: ${code}`);
         },
@@ -484,7 +511,6 @@ describe("a read stall", () => {
     const service = createVaultService({
       ignore: ignoreFromDisk(root),
       lock: identityLock,
-      notifier: createNotifierRecorder(),
       root,
       stallRead: slowReadStall({ delayMs: STALL_MS, path: "slow" }),
     });
@@ -621,7 +647,6 @@ describe("the read budget", () => {
     const service = createVaultService({
       ignore: ignoreFromDisk(root),
       lock: identityLock,
-      notifier: createNotifierRecorder(),
       root,
       stallRead: async (relPath) => {
         if (relPath === "fast.md") {

@@ -17,7 +17,6 @@ import {
   unlink,
 } from "node:fs/promises";
 import path from "node:path";
-import type { DbNotifier } from "@repo/domain/notifier";
 import type { VaultIgnore } from "@repo/notes/knowledge/vault-ignore";
 import { freeAssetPath } from "@repo/notes/knowledge/asset-name";
 import {
@@ -205,12 +204,13 @@ const moveFileByLink = async (from: string, to: string, toRelPath: string): Prom
 
 export interface VaultServiceArgs {
   root: string;
-  notifier: DbNotifier;
   // required, not defaulted: a forgotten arg silently dropped the serialization the cas guard needs.
   lock: <T>(work: () => Promise<T>) => Promise<T>;
   // required for the same reason: a composition that forgot it would list every build output
   // the vault's .gitignore names.
   ignore: () => Promise<VaultIgnore>;
+  // the service's one report of what it changed, under the lock; what each kind announces is
+  // the runtime's call.
   onMutated?: (mutations: readonly VaultMutation[]) => void;
   // told on every walk that meets the folder; deduplicating is the sink's call.
   onUnreadableFolder?: UnreadableFolderSink;
@@ -338,18 +338,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
     }
   };
 
-  // files-changed makes every client re-walk the vault, so only a mutation that moved a row says it.
-  const announceMutation = (mutations: readonly VaultMutation[]): void => {
-    args.notifier.notifyVault(
-      ["files-changed"],
-      mutations.map((mutation) => mutation.path),
-    );
-    args.onMutated?.(mutations);
-  };
-
-  // a content-only write says content-changed alone: saying files-changed too costs the open
-  // note two reads and the workspace a re-walk per autosave. `replacing` is the entry this write
-  // replaces, null for a create.
+  // `replacing` is the entry this write replaces, null for a create, whose row is new.
   const performAtomicWrite = async (
     relPath: string,
     absPath: string,
@@ -387,11 +376,9 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
       throw error;
     }
     await fsyncDirBestEffort(path.dirname(absPath));
-    args.notifier.notifyDoc(relPath, ["content-changed"]);
-    if (replacing === null) {
-      args.notifier.notifyVault(["files-changed"], [relPath]);
-    }
-    args.onMutated?.([{ fingerprint, path: relPath }]);
+    args.onMutated?.([
+      { fingerprint, kind: replacing === null ? "entry" : "content", path: relPath },
+    ]);
   };
 
   const resolveAsset = async (requestedPath: string) => {
@@ -421,7 +408,9 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
           throw new VaultServiceError("conflict", `A file already exists at ${relPath}`);
         }
         await ensureDir(absPath, relPath);
-        announceMutation([{ fingerprint: await entryFingerprintAt(absPath), path: relPath }]);
+        args.onMutated?.([
+          { fingerprint: await entryFingerprintAt(absPath), kind: "entry", path: relPath },
+        ]);
         return { path: relPath };
       });
     },
@@ -504,7 +493,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
         }
         await rm(absPath, { recursive: true });
         await fsyncDirBestEffort(path.dirname(absPath));
-        announceMutation([{ fingerprint: ABSENT_ENTRY, path: relPath }]);
+        args.onMutated?.([{ fingerprint: ABSENT_ENTRY, kind: "entry", path: relPath }]);
       });
     },
 
@@ -525,7 +514,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
         }
         await rm(absPath);
         await fsyncDirBestEffort(path.dirname(absPath));
-        announceMutation([{ fingerprint: ABSENT_ENTRY, path: relPath }]);
+        args.onMutated?.([{ fingerprint: ABSENT_ENTRY, kind: "entry", path: relPath }]);
         return { applied: true, path: relPath };
       });
     },
@@ -565,10 +554,10 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
           await fsyncDirBestEffort(path.dirname(source.absPath));
         }
         const moved = await entryFingerprintAt(target.absPath);
-        announceMutation([
+        args.onMutated?.([
           // a case-only retitle leaves the old spelling answering for the same entry.
-          { fingerprint: sameEntry ? moved : ABSENT_ENTRY, path: source.relPath },
-          { fingerprint: moved, path: target.relPath },
+          { fingerprint: sameEntry ? moved : ABSENT_ENTRY, kind: "entry", path: source.relPath },
+          { fingerprint: moved, kind: "entry", path: target.relPath },
         ]);
         return { path: target.relPath };
       });

@@ -1,7 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { setImmediate as nextTurn } from "node:timers/promises";
-import { noopNotifier } from "@repo/domain/notifier";
 import { createVaultIgnore } from "@repo/notes/knowledge/vault-ignore";
 import type { VaultIgnore } from "@repo/notes/knowledge/vault-ignore";
 import { describe, expect, it } from "vitest";
@@ -74,7 +73,6 @@ describe("the listing against git's own reading of the same .gitignore files", (
       const service = createVaultService({
         ignore: async () => await loadVaultIgnore(root, { ignoreCase }),
         lock: identityLock,
-        notifier: noopNotifier,
         root,
       });
 
@@ -113,7 +111,6 @@ describe("the vault service over the rules", () => {
     const service = createVaultService({
       ignore: async () => await loadVaultIgnore(root, { ignoreCase: false }),
       lock: identityLock,
-      notifier: noopNotifier,
       root,
     });
 
@@ -134,7 +131,6 @@ describe("the vault service over the rules", () => {
     const service = createVaultService({
       ignore: async () => await loadVaultIgnore(root, { ignoreCase: false }),
       lock: identityLock,
-      notifier: noopNotifier,
       root,
     });
 

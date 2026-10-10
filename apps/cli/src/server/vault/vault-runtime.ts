@@ -46,6 +46,13 @@ export interface VaultRuntimeArgs {
   debugLog?: DebugLog | undefined;
 }
 
+// a watched batch is what the watcher saw outside a pass, less this server's echoes; a pulled
+// change is a pass's drain, the batches it held included, naming no paths once any could not.
+type VaultDelivery =
+  | { source: "self"; mutations: readonly VaultMutation[] }
+  | { source: "watched"; paths: readonly string[] }
+  | { source: "pulled"; change: VaultFilesChange };
+
 export interface VaultRuntime {
   readonly service: VaultService;
   readonly git: GitEngine;
@@ -110,53 +117,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     }
   };
 
-  // the engine's own status callback reads it back, so it lands in a slot the args close over.
-  let engine: GitEngine | null = null;
-  const gitIsSyncing = () => engine?.isSyncing() ?? false;
-
-  const gitArgs: GitEngineArgs = {
-    deviceName: args.deviceName,
-    git: args.git,
-    onError: (message) => {
-      console.error(`vault git: ${message}`);
-    },
-    onNotice: (message) => {
-      console.log(`vault git: ${message}`);
-    },
-    // mid-sync: held with the watcher's batches for the consolidated notification.
-    onFilesChanged: holdDuringSync,
-    onStatusChanged: () => {
-      args.notifier.notifyVault(["sync-status-changed"]);
-      const held = heldDuringSync;
-      if (engine === null || engine.isSyncing() || held === null) {
-        return;
-      }
-      heldDuringSync = null;
-      args.debugLog?.(
-        held === "unknown"
-          ? "the vault sync ended: releasing a change that names no paths"
-          : `the vault sync ended: releasing ${[...held].join(", ")}`,
-      );
-      if (held === "unknown") {
-        args.notifier.notifyVault(["files-changed"]);
-        noteFilesChanged({ kind: "unknown" });
-      } else {
-        const paths = [...held].toSorted();
-        args.notifier.notifyVault(["files-changed"], paths);
-        noteFilesChanged({ kind: "paths", paths });
-      }
-      engine.scheduleCommit();
-    },
-    remote: args.remote,
-    root,
-  };
-  if (args.externalSync !== undefined) {
-    gitArgs.externalSync = args.externalSync;
-  }
-  const git = createGitEngine(gitArgs);
-  engine = git;
-
-  // the mutation already notified directly, so its watcher echo would only double-invalidate.
+  // the mutation already announced itself, so its watcher echo would only double-invalidate.
   // an event is that echo only while the entry is still the one the mutation left, never by path
   // alone: a foreign write behind a save (an agent editing the open note) must still land.
   // recursive dir ops may still echo once through their children; not worth tracking a subtree.
@@ -192,17 +153,105 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     });
   };
 
+  // the engine's own status callback reads it back, so it lands in a slot the args close over.
+  let engine: GitEngine | null = null;
+  const gitIsSyncing = () => engine?.isSyncing() ?? false;
+
+  // every change reaches the bus, the index and the commit scheduler here alone. files-changed
+  // makes every client re-walk the vault, so of this server's own writes only one that moved a
+  // row says it; a save behind a row that stays says content-changed for its note alone, since
+  // files-changed too would cost the open note two reads and the workspace a re-walk per autosave.
+  // the engine's drain calls it, so it commits through the slot, set before the service or the
+  // watcher exists to deliver anything.
+  const deliver = (delivery: VaultDelivery): void => {
+    switch (delivery.source) {
+      case "self": {
+        const moved: string[] = [];
+        for (const mutation of delivery.mutations) {
+          if (mutation.kind === "content") {
+            args.notifier.notifyDoc(mutation.path, ["content-changed"]);
+          } else {
+            moved.push(mutation.path);
+          }
+        }
+        if (moved.length > 0) {
+          args.notifier.notifyVault(["files-changed"], moved);
+        }
+        noteSelfWrites(delivery.mutations);
+        const paths = delivery.mutations.map((mutation) => mutation.path);
+        noteFilesChanged({ kind: "paths", paths });
+        engine?.scheduleCommit(paths);
+        return;
+      }
+      case "watched": {
+        args.notifier.notifyVault(["files-changed"], delivery.paths);
+        noteFilesChanged({ kind: "paths", paths: delivery.paths });
+        engine?.scheduleCommit(delivery.paths);
+        return;
+      }
+      case "pulled": {
+        const { change } = delivery;
+        if (change.kind === "unknown") {
+          args.notifier.notifyVault(["files-changed"]);
+        } else {
+          args.notifier.notifyVault(["files-changed"], change.paths);
+        }
+        noteFilesChanged(change);
+        engine?.scheduleCommit();
+        return;
+      }
+      default: {
+        const exhaustive: never = delivery;
+        return exhaustive;
+      }
+    }
+  };
+
+  const gitArgs: GitEngineArgs = {
+    deviceName: args.deviceName,
+    git: args.git,
+    onError: (message) => {
+      console.error(`vault git: ${message}`);
+    },
+    onNotice: (message) => {
+      console.log(`vault git: ${message}`);
+    },
+    // mid-sync: held with the watcher's batches for the consolidated notification.
+    onFilesChanged: holdDuringSync,
+    onStatusChanged: () => {
+      args.notifier.notifyVault(["sync-status-changed"]);
+      const held = heldDuringSync;
+      if (engine === null || engine.isSyncing() || held === null) {
+        return;
+      }
+      heldDuringSync = null;
+      args.debugLog?.(
+        held === "unknown"
+          ? "the vault sync ended: releasing a change that names no paths"
+          : `the vault sync ended: releasing ${[...held].join(", ")}`,
+      );
+      deliver({
+        change:
+          held === "unknown" ? { kind: "unknown" } : { kind: "paths", paths: [...held].toSorted() },
+        source: "pulled",
+      });
+    },
+    remote: args.remote,
+    root,
+  };
+  if (args.externalSync !== undefined) {
+    gitArgs.externalSync = args.externalSync;
+  }
+  const git = createGitEngine(gitArgs);
+  engine = git;
+
   // once per folder: every client re-walks the vault on each files-changed.
   const reportedUnreadable = new Set<string>();
   const serviceArgs: VaultServiceArgs = {
     ignore: ignore.current,
     lock: async (work) => await git.runExclusive(work),
-    notifier: args.notifier,
     onMutated: (mutations) => {
-      noteSelfWrites(mutations);
-      const paths = mutations.map((mutation) => mutation.path);
-      noteFilesChanged({ kind: "paths", paths });
-      git.scheduleCommit(paths);
+      deliver({ mutations, source: "self" });
     },
     onUnreadableFolder: (relPath, code) => {
       if (reportedUnreadable.has(relPath)) {
@@ -232,9 +281,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
       return;
     }
     args.debugLog?.(`delivered: ${external.join(", ")}`);
-    args.notifier.notifyVault(["files-changed"], external);
-    noteFilesChanged({ kind: "paths", paths: external });
-    git.scheduleCommit(external);
+    deliver({ paths: external, source: "watched" });
   };
 
   let watcher: VaultWatcher | null = null;

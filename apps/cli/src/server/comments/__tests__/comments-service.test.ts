@@ -1,6 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import nodePath from "node:path";
-import { noopNotifier } from "@repo/domain/notifier";
 import { describe, expect, it } from "vitest";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { createVaultService } from "../../vault/vault-service";
@@ -29,7 +28,6 @@ const boot = () => {
   const vault = createVaultService({
     ignore: ignoreFromDisk(root),
     lock: identityLock,
-    notifier: noopNotifier,
     root,
   });
   let tick = 0;

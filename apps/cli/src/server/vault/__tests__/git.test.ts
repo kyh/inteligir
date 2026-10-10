@@ -1203,7 +1203,6 @@ describe("a pass waiting on the network", { timeout: 30_000 }, () => {
     const service = createVaultService({
       ignore: ignoreFromDisk(root),
       lock: engine.runExclusive,
-      notifier: createNotifierRecorder(),
       root,
     });
 

@@ -905,7 +905,11 @@ to the END of its group.
   and a window alone, a foreign write landing behind a save (an agent editing
   the open note) would be dropped with the echo. A pass whose rebase moved HEAD
   reports the diff's paths, because a pass that names nothing makes every push
-  from another device re-read the whole vault.
+  from another device re-read the whole vault. Every change, the service's own,
+  a watched batch and a pass's drain, reaches the bus, the index and the commit
+  scheduler through the runtime's one `deliver`; the service holds no notifier
+  and only reports a typed mutation, `content` or `entry` (the listing row
+  moved), so what a change announces is decided in one layer.
   `apps/cli/src/server/vault/vault-changes.ts`,
   `apps/cli/src/server/vault/vault-runtime.ts`.
 
