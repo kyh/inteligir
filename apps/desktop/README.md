@@ -100,10 +100,13 @@ store's localStorage.
 
 The page reaches the shell through Tauri's commands, one row each in
 `src/ipc-contract.ts` (its name beside its argument and answer schemas), over
-`src/renderer/shell-commands.ts`, which parses every answer and every event.
-`window.desktopBridge` is installed before the first render only when the page
-runs inside the shell; a browser tab on the same server has none, and every
-surface that needs it draws nothing. The commands are granted when the shell
+`src/renderer/shell-commands.ts`, the page's one door: a call per row, typed
+from the row, parsing every answer and every event against it. Its
+`underShell()` says whether the page runs inside the shell; a browser tab on
+the same server does not, and every surface that needs the shell draws
+nothing there. The suites answer those calls through Tauri's own IPC mock
+(`src/renderer/__tests__/mock-shell.ts`), so they run the real command names
+and the answer parse. The commands are granted when the shell
 opens the window, to that window and the server's exact origin alone
 (`grant_app_window` in `src-tauri/src/window.rs`), since the port is the
 server's to choose; `src-tauri/capabilities/app-window.json` grants nothing,

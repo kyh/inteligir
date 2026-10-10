@@ -10,10 +10,11 @@ import {
   renderWithQueries,
   stubPaletteFetch,
 } from "../palette/__tests__/palette-harness";
-import type { DesktopBridge } from "../../../types";
+import { APP_COMMANDS } from "../../../ipc-contract";
+import type { PathActionResult } from "../../../path-action";
+import { clearShell, mockShell, reply } from "../../__tests__/mock-shell";
 import { exportNoteAsPdf, installLightPrints } from "../note/export-pdf";
 import type { PaletteNote } from "../palette/command-palette";
-import { inertBridge } from "./inert-bridge";
 
 afterEach(() => {
   cleanup();
@@ -51,9 +52,7 @@ describe("a print", () => {
 });
 
 describe("exportNoteAsPdf", () => {
-  afterEach(() => {
-    delete window.desktopBridge;
-  });
+  afterEach(clearShell);
 
   it("prints under the note title in a browser, and restores it", async () => {
     document.title = "inteligir";
@@ -70,8 +69,8 @@ describe("exportNoteAsPdf", () => {
 
   it("asks the shell to print, keeping the title until the sheet is done", async () => {
     document.title = "inteligir";
-    const print = vi.fn<DesktopBridge["print"]>(async () => ({ ok: true }));
-    window.desktopBridge = { ...inertBridge(), print };
+    const print = vi.fn<() => PathActionResult>(() => ({ ok: true }));
+    mockShell(reply(APP_COMMANDS.print)(print));
     await exportNoteAsPdf("Weekly Plan");
     expect(print).toHaveBeenCalledOnce();
     expect(document.title).toBe("Weekly Plan");
@@ -81,10 +80,7 @@ describe("exportNoteAsPdf", () => {
 
   it("restores the title at once when the shell will not print", async () => {
     document.title = "inteligir";
-    window.desktopBridge = {
-      ...inertBridge(),
-      print: async () => ({ ok: false, reason: "No window to print." }),
-    };
+    mockShell(reply(APP_COMMANDS.print)(() => ({ ok: false, reason: "No window to print." })));
     await exportNoteAsPdf("Weekly Plan");
     expect(document.title).toBe("inteligir");
   });

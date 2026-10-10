@@ -20,6 +20,16 @@ import type { WebDriverSession } from "./webdriver";
 export const SHELL_FIRST_RUN_URL = "tauri://localhost/first-run.html";
 // what the shell notes in a vault's server log as each app window loads (src-tauri/src/window.rs)
 export const WINDOW_LOADED = "[desktop] window loaded";
+// the app window's page has drawn under the shell, whose runtime marks every page it hosts
+export const PAGE_UNDER_SHELL =
+  'window.isTauri && document.querySelector("#root")?.firstElementChild != null';
+// a page expression asking the shell one command, by the name its row in
+// apps/desktop/src/ipc-contract.ts gives it, over the IPC the page's own calls ride
+export const askShell = (
+  command: string,
+  args: Readonly<Record<string, string | boolean>> = {},
+): string =>
+  `window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)}, ${JSON.stringify(args)})`;
 const SERVER_LOG = path.join("logs", "server.log");
 
 // a cold boot starts the driver, the shell, its server, migrates, indexes and paints the window

@@ -3,9 +3,10 @@
 // shell there is no bridge and no such row.
 
 import { toast } from "@repo/ui/components/sonner";
-import type { DesktopPathsBridge } from "../../types";
+import { shellPaths, underShell } from "../shell-commands";
 
-export const desktopPaths = (): DesktopPathsBridge | undefined => window.desktopBridge?.paths;
+export const desktopPaths = (): typeof shellPaths | undefined =>
+  underShell() ? shellPaths : undefined;
 
 // a refusal is the shell's, in its words; a broken bridge is one sentence, never a stack
 const settlePathAction = async (

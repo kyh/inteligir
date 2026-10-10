@@ -30,4 +30,3 @@ export const vaultSwitchAnswerSchema = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(true), state: vaultsStateSchema }).strict(),
   z.object({ ok: z.literal(false), reason: z.string().min(1) }).strict(),
 ]);
-export type VaultSwitchAnswer = z.infer<typeof vaultSwitchAnswerSchema>;

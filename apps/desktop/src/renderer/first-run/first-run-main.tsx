@@ -1,6 +1,6 @@
 // The first-run window's page: no router, no query client and no socket, because no server exists
-// yet. It asks the shell for the vault choice over its own bridge, and the shell replaces it with
-// the app window once that vault's server is up.
+// yet. It asks the shell for the vault choice through its own commands, and the shell replaces it
+// with the app window once that vault's server is up.
 
 import { MotionPolicy } from "@repo/ui/lib/motion-policy";
 import { RadiusProvider } from "@repo/ui/lib/radius-context";
@@ -10,29 +10,28 @@ import type { Theme } from "@repo/ui/lib/theme";
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { FirstRunState } from "../../first-run-state";
-import type { FirstRunBridge } from "../../types";
+import { shellFirstRun, underShell } from "../shell-commands";
 import "../styles/globals.css";
-import { firstRunBridge } from "./first-run-bridge";
 import { VaultStep } from "./vault-step";
 import { WelcomeStep } from "./welcome-step";
 
 type Loaded = { kind: "loading" } | { kind: "failed" } | { kind: "state"; state: FirstRunState };
 
-const FirstRun = ({ bridge }: { bridge: FirstRunBridge }) => {
+const FirstRun = () => {
   const [step, setStep] = useState<"welcome" | "vault">("welcome");
   const [loaded, setLoaded] = useState<Loaded>({ kind: "loading" });
 
   useEffect(() => {
     const load = async (): Promise<void> => {
       try {
-        setLoaded({ kind: "state", state: await bridge.getState() });
+        setLoaded({ kind: "state", state: await shellFirstRun.getState() });
       } catch (error) {
         console.warn("[first-run] the shell did not answer", error);
         setLoaded({ kind: "failed" });
       }
     };
     void load();
-  }, [bridge]);
+  }, []);
 
   if (step === "welcome") {
     return (
@@ -53,7 +52,7 @@ const FirstRun = ({ bridge }: { bridge: FirstRunBridge }) => {
       );
     }
     case "state": {
-      return <VaultStep bridge={bridge} proposal={loaded.state.newVault} />;
+      return <VaultStep proposal={loaded.state.newVault} />;
     }
     default: {
       const exhaustive: never = loaded;
@@ -62,8 +61,8 @@ const FirstRun = ({ bridge }: { bridge: FirstRunBridge }) => {
   }
 };
 
-// a browser that reaches this page has no bridge: nothing here is a tab's to choose
-const FirstRunPage = ({ bridge }: { bridge: FirstRunBridge | undefined }) => {
+// a browser that reaches this page has no shell: nothing here is a tab's to choose
+const FirstRunPage = () => {
   const [theme, setTheme] = useState<Theme>("system");
   return (
     <ThemeProvider theme={theme} setTheme={setTheme}>
@@ -71,12 +70,12 @@ const FirstRunPage = ({ bridge }: { bridge: FirstRunBridge | undefined }) => {
         <RadiusProvider radius="rounded">
           <SizeProvider size="compact">
             <main className="flex min-h-dvh items-center justify-center bg-surface p-8 text-ink">
-              {bridge === undefined ? (
+              {underShell() ? (
+                <FirstRun />
+              ) : (
                 <p className="text-body text-muted-foreground">
                   Open the Inteligir app to set up your notes.
                 </p>
-              ) : (
-                <FirstRun bridge={bridge} />
               )}
             </main>
           </SizeProvider>
@@ -93,6 +92,6 @@ if (container === null) {
 
 createRoot(container).render(
   <StrictMode>
-    <FirstRunPage bridge={firstRunBridge()} />
+    <FirstRunPage />
   </StrictMode>,
 );

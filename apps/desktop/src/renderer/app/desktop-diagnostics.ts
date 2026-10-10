@@ -2,39 +2,30 @@
 // folder are the shell's; the page mirrors its answer. A browser tab did not start the server: no
 // bridge, no row.
 
-import type { DesktopDiagnosticsBridge } from "../../types";
 import type { DiagnosticsState } from "../../diagnostics-state";
+import { shellDiagnostics } from "../shell-commands";
 import { createBridgeStore } from "./bridge-store";
 import { runPathAction } from "./desktop-paths";
 
-const diagnosticsBridge = (): DesktopDiagnosticsBridge | undefined =>
-  window.desktopBridge?.diagnostics;
-
-const store = createBridgeStore<DesktopDiagnosticsBridge, DiagnosticsState>({
-  bridge: diagnosticsBridge,
+const store = createBridgeStore<DiagnosticsState>({
   label: "diagnostics",
-  read: async (diagnostics) => await diagnostics.getState(),
+  read: shellDiagnostics.getState,
 });
 
 export const useDesktopDiagnostics = store.use;
 
 export const setDebugLogging = async (debug: boolean): Promise<string | null> =>
-  await store.settle(async (diagnostics) => await diagnostics.setDebug(debug));
+  await store.settle(async () => await shellDiagnostics.setDebug({ debug }));
 
 // the window closes once the shell quits, so an answer that lands is a refusal or the last state
 export const restartApp = async (): Promise<string | null> =>
-  await store.settle(async (diagnostics) => await diagnostics.restart());
+  await store.settle(shellDiagnostics.restart);
 
+// drawn only once the store holds the shell's state, so only under the shell
 export const openDataFolder = (): void => {
-  const diagnostics = diagnosticsBridge();
-  if (diagnostics !== undefined) {
-    runPathAction(diagnostics.openDataFolder, "The data folder did not open.");
-  }
+  runPathAction(shellDiagnostics.openDataFolder, "The data folder did not open.");
 };
 
 export const showServerLog = (): void => {
-  const diagnostics = diagnosticsBridge();
-  if (diagnostics !== undefined) {
-    runPathAction(diagnostics.showLog, "The log did not open.");
-  }
+  runPathAction(shellDiagnostics.showLog, "The log did not open.");
 };

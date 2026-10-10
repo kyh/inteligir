@@ -2,14 +2,13 @@
 // new window replaces this one. A browser tab did not start the server: no bridge, no row.
 
 import { useState } from "react";
-import type { DesktopVaultsBridge } from "../../types";
 import type { VaultRef, VaultsState } from "../../vaults-state";
+import { shellVaults } from "../shell-commands";
 import { createBridgeStore } from "./bridge-store";
 
-const store = createBridgeStore<DesktopVaultsBridge, VaultsState>({
-  bridge: () => window.desktopBridge?.vaults,
+const store = createBridgeStore<VaultsState>({
   label: "vaults",
-  read: async (vaults) => await vaults.getState(),
+  read: shellVaults.getState,
 });
 
 export const useDesktopVaults = store.use;
@@ -19,15 +18,14 @@ type VaultRefusal = string | null;
 
 // each answers only when nothing moved: a cancelled picker, a forgotten row, or a refusal;
 // a switch replaces the window before any answer could land
-export const pickVault = async (): Promise<VaultRefusal> =>
-  await store.settle(async (vaults) => await vaults.pick());
+export const pickVault = async (): Promise<VaultRefusal> => await store.settle(shellVaults.pick);
 
 export const openRecentVault = async (path: string): Promise<VaultRefusal> =>
-  await store.settle(async (vaults) => await vaults.open(path));
+  await store.settle(async () => await shellVaults.open({ path }));
 
 // a row is forgotten whatever the list held, so there is nothing to refuse
 export const forgetRecentVault = async (path: string): Promise<null> => {
-  await store.run(async (vaults) => await vaults.forget(path));
+  await store.run(async () => await shellVaults.forget({ path }));
   return null;
 };
 

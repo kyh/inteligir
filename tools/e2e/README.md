@@ -189,7 +189,7 @@ what each one is FOR.
 | desktop-diagnostics        | the shell's debug-logging choice, seeded in its own folder, reaches the   |
 |                            | server it starts, whose output always lands in the data dir's             |
 |                            | `logs/server.log`: off, the boot line and no trace; on, an external write |
-|                            | traced there, the bridge reports the choice, and turning it off asks for  |
+|                            | traced there, the shell reports the choice, and turning it off asks for   |
 |                            | a restart                                                                 |
 | desktop-onboarding         | the built shell on a fresh home opens only its first-run page and boots   |
 |                            | nothing; Create with the defaults boots the default vault, and the app    |

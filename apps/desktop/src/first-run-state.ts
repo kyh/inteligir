@@ -40,7 +40,6 @@ export const pickFolderAnswerSchema = z.discriminatedUnion("kind", [
     .object({ facts: folderFactsSchema, kind: z.literal("picked"), path: folderPathSchema })
     .strict(),
 ]);
-export type PickFolderAnswer = z.infer<typeof pickFolderAnswerSchema>;
 
 export const firstRunChoiceSchema = z.discriminatedUnion("kind", [
   // the name as typed: the CLI trims and judges it, as the page did before it asked

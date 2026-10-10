@@ -51,10 +51,10 @@ export const useTreeOps = ({ actions, createNote, setPinned }: TreeOpsDeps): Tre
         ? {}
         : {
             openEntry: (path) => {
-              runPathAction(async () => await paths.open(path), `Could not open ${path}.`);
+              runPathAction(async () => await paths.open({ path }), `Could not open ${path}.`);
             },
             revealEntry: (path) => {
-              runPathAction(async () => await paths.reveal(path), `Could not reveal ${path}.`);
+              runPathAction(async () => await paths.reveal({ path }), `Could not reveal ${path}.`);
             },
           };
     const renameEntry: TreeOps["renameEntry"] = (fromPath, toPath) => {
