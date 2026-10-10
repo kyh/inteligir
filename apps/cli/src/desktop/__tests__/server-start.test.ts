@@ -127,6 +127,7 @@ const serverRow = (dataDir: string, port: number, pid: number = process.pid): Se
   port,
   token: TOKEN,
   vaultDir: path.join(dataDir, "vault"),
+  version: VERSION,
 });
 
 // this process's own pid by default, so the row's owner is alive and the probe dials it.

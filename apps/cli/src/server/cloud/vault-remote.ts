@@ -38,7 +38,8 @@ export const hostedVaultRemoteUrl = (cloudUrl: string): string =>
   endpointUrl(cloudUrl, VAULT_GIT_PATH);
 
 // the url of an origin the user set, or null when there is none or it is the app's own: the
-// marker, or the hosted url itself, which covers a vault that synced before the marker existed.
+// marker, or the hosted url itself, since an origin set to it by hand is still the account's vault,
+// which only the account's credential reaches.
 export const ownOriginUrl = (origin: OriginConfig, hostedUrl: string): string | null =>
   origin.url === null || origin.markedAccount || origin.url === hostedUrl ? null : origin.url;
 

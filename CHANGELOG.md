@@ -27,6 +27,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ### On the command line
 
+- **`inteligir serve` no longer warns about settings it does not read.** `INTELIGIR_AGENT_MODEL` and the `agentModel` and `vaultRemote` keys in `config.json` are ignored silently, like any other setting the app does not read.
 - **`inteligir interactions answer` takes only a decision.** The answer is `allow_once`, `allow_for_session` or `deny`, spelled exactly; the JSON form (`{"decision":…}`) is gone, and any other word is refused before the server is asked. With `--json`, an interaction reports its `decision` in place of `resolution`.
 
 ## 0.6.0 — 2026-09-27

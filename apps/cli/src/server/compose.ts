@@ -20,7 +20,6 @@ import type { CloudRuntimeArgs, CloudTransport } from "./cloud/sync-runtime";
 import { createVaultRemoteProvider } from "./cloud/vault-remote";
 import type { AppConfig } from "./config";
 import { createConnectorsService, createVendorMcpConfigs } from "./connectors/connectors-service";
-import { removeRetiredConnectorsFile } from "./connectors/retired-connectors-file";
 import type { VendorMcpConfigs } from "./connectors/vendor-mcp-config";
 import { debugLog } from "./debug-log";
 import { deviceNameReader, readMachineName } from "./device-name";
@@ -177,11 +176,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     vaultDir: config.vaultDir,
   });
   const agentPrefs = new AgentPrefsStore(config.dataDir);
-  try {
-    removeRetiredConnectorsFile(config.dataDir);
-  } catch (error) {
-    console.warn(`[connectors] the retired registry was left in place: ${messageOf(error)}`);
-  }
   const connectors = createConnectorsService({
     configs: ports.connectors ?? createVendorMcpConfigs({ cwd: config.dataDir, env: process.env }),
     defaultHarness: () => defaultHarnessId(agentPrefs.read().defaultHarness ?? null),
@@ -257,9 +251,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   // failure costs only the bindings it did not reach, which the next boot retries.
   void (async () => {
     try {
-      await threads.backfillOriginNoteIds();
+      await threads.repairPathOnlyOrigins();
     } catch (error) {
-      console.warn(`[threads] origin backfill skipped: ${messageOf(error)}`);
+      console.warn(`[threads] origin repair skipped: ${messageOf(error)}`);
     }
   })();
 

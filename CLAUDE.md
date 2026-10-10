@@ -976,7 +976,7 @@ to the END of its group.
   off, while an origin of the user's own still syncs. Rejected: a stored
   per-vault sync choice, a second record a user's own `git remote set-url`
   would contradict, and config.json's `vaultRemote`, which pinned one remote
-  for every vault and is now a boot warning. `inspectVaultFolder` answers the
+  for every vault. `inspectVaultFolder` answers the
   same facts before a folder is a vault, so a picker and a boot agree. ONE
   WRITE PATH EDITS THAT ORIGIN: `vault.setRemote`, which Settings › Advanced
   (`apps/desktop/src/renderer/app/settings/sync-remote-row.tsx`) and
@@ -1279,10 +1279,11 @@ to the END of its group.
   never written by the app; unset, claude, whatever PATH holds (reversing "the
   first harness on PATH": both runtimes ship in the app, so PATH says nothing
   about which one can run). A thread keeps the harness it started on. A model
-  is per harness, because a model id is vendor-specific; a one-model spelling
-  (`INTELIGIR_AGENT_MODEL`, config.json's `agentModel`) is named in a boot
-  warning, never refused, since config a build does not act on must not brick
-  it (`legacyModelWarnings` in `apps/cli/src/server/config.ts`).
+  is per harness, because a model id is vendor-specific (`MODEL_ENV_VARS` and
+  config.json's `agentModels` in `apps/cli/src/server/config.ts`). The read
+  strips a config.json key it does not name rather than refusing it: the
+  window cannot edit that file, so a refusal is a boot nothing in the app
+  repairs.
   `apps/cli/src/server/agents/agent-prefs-store.ts`, `defaultHarnessId` in
   `agent-driver.ts`, `harnessReadiness` in
   `@repo/contract/local/agents/agents-schema`.
@@ -1306,8 +1307,7 @@ to the END of its group.
   the last read for ten seconds, because reading codex's spawns it and runs
   OAuth discovery against every URL row, which that poll would do every 1.5s;
   every edit and every sign-in's end reads again (`connectors-service.ts`).
-  The retired registry is deleted at boot, never
-  imported (`retired-connectors-file.ts`). A booted suite runs the vendors over
+  A booted suite runs the vendors over
   stores under its own temp dir (`apps/cli/src/server/__tests__/boot-app.ts`).
   `apps/cli/src/server/connectors/vendor-mcp-config.ts`.
 
@@ -1388,8 +1388,10 @@ to the END of its group.
   agent's `mv` and a pull never reach that route. The create stores the note's
   frontmatter `id` (`threads.origin_note_id`) beside the path, minting one
   through the comment store's guarded step
-  (`apps/cli/src/server/vault/ensure-note-id.ts`); threads recorded by path
-  alone are backfilled once after boot (`compose.ts`). A read resolves the id
+  (`apps/cli/src/server/vault/ensure-note-id.ts`). A phone's request reads the
+  id and never mints one, so over a note with none its thread is bound by path
+  alone, and every such path takes its note's id after each boot
+  (`repairPathOnlyOrigins`, run from `compose.ts`). A read resolves the id
   through the index (`pathForNoteId`), preferring the stored path while it
   still carries the id, so a byte copy never takes the binding. The composer
   mints the open note's id through the live editor, because a server mint under
@@ -1545,10 +1547,8 @@ to the END of its group.
   request (`on_permission_request` in `apps/desktop/src-tauri/src/window.rs`),
   which `tools/e2e/src/scenarios/desktop-shell.ts` reads back as a denied
   location and notification request, since a runner has no microphone to ask
-  for; the model folder an install already holds is removed after listen
-  (`apps/cli/src/server/retired-model-dir.ts`). A Mac's ⌘K composer says "fn
-  fn to dictate" beside Send, the app's one hint
-  (`apps/desktop/src/renderer/app/actions/action-composer.tsx`). A dictated
+  for. A Mac's ⌘K composer says "fn fn to dictate" beside Send, the app's one
+  hint (`apps/desktop/src/renderer/app/actions/action-composer.tsx`). A dictated
   phrase lands as one IME-style commit; the composer's field carries no caret
   repair (the editor's combobox keeps `reconcileInsertionCaret`,
   `packages/editor/src/combobox-input.ts`) while
@@ -1735,9 +1735,9 @@ to the END of its group.
   cursor moves inside that transaction, which makes the apply exactly-once. A
   synced row carries its origin `(device, position)` under a unique index,
   since signing in again resets the cursor, and the planner skips every device
-  id the install has signed in as (`sync_own_devices`), because each sign-in
-  mints a new id and its own rows carry no origin (`@repo/db/own-synced-copies`
-  removes copies an older install pulled back). Lifecycle projects over what
+  id the install has signed in as (`sync_own_devices`, recorded at every
+  session open), because each sign-in mints a new id and its own rows carry no
+  origin. Lifecycle projects over what
   landed, never what arrived. `apps/cli/src/server/cloud/sync-pass.ts`.
 
 - **Only the process that owns a provider may declare it dead.** Crash recovery
