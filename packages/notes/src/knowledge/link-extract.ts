@@ -579,13 +579,17 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
       case "blockquote":
       case "break":
       case "code":
+      case "column":
+      case "columnGroup":
       case "commentMarker":
+      case "date":
       case "delete":
       case "emphasis":
       case "footnoteDefinition":
       case "footnoteReference":
       case "formulaPill":
       case "html":
+      case "htmlElement":
       case "imageReference":
       case "inlineCode":
       case "inlineMath":
@@ -593,12 +597,6 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
       case "list":
       case "listItem":
       case "math":
-      case "mdxFlowExpression":
-      case "mdxJsxFlowElement":
-      case "mdxJsxTextElement":
-      case "mdxTextExpression":
-      case "mdxjsEsm":
-      case "opaqueBlock":
       case "opaqueInline":
       case "paragraph":
       case "root":
@@ -609,6 +607,8 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
       case "tableCell":
       case "tableRow":
       case "thematicBreak":
+      case "toggle":
+      case "underline":
       case "yaml": {
         break;
       }

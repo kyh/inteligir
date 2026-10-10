@@ -104,7 +104,8 @@ const INLINE_LEAVES: ((rng: Rng) => string)[] = [
       rng,
       MATH_BODIES.map((b) => b.split(" ")[0] ?? b),
     )}$$`,
-  (rng) => `<date value="2026-07-0${1 + int(rng, 9)}" />`,
+  (rng) => `@2026-07-0${1 + int(rng, 9)}`,
+  (rng) => `<u>${words(rng, 1)}</u>`,
 ];
 
 const inlineText = (rng: Rng, minWords = 3, maxWords = 10): string => {
@@ -181,14 +182,11 @@ const image = (rng: Rng): string => {
   return chance(rng, 0.5) ? `![${alt}](https://example.com/${file})` : `![${alt}](assets/${file})`;
 };
 
-const toggle = (rng: Rng): string => `<toggle>\n  ${inlineText(rng, 3, 8)}\n</toggle>`;
+const toggle = (rng: Rng): string => `:::toggle\n${inlineText(rng, 3, 8)}\n:::`;
 
 const columns = (rng: Rng): string => {
-  const cols = Array.from(
-    { length: 2 },
-    () => `  <column>\n    ${inlineText(rng, 2, 6)}\n  </column>`,
-  );
-  return `<column_group>\n${cols.join("\n\n")}\n</column_group>`;
+  const cols = Array.from({ length: 2 }, () => `:::column\n${inlineText(rng, 2, 6)}\n:::`);
+  return `:::columns\n${cols.join("\n\n")}\n:::`;
 };
 
 const BLOCK_GENERATORS: ((rng: Rng) => string)[] = [

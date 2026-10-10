@@ -1,4 +1,4 @@
-// Inserts never write align/width/isUpload: the bare src-only form is the canonical bytes.
+// An embed saves as `![](url)`, so its url is all of it that reaches the file.
 
 import { ElementApi, KEYS, NodeApi, PathApi } from "platejs";
 import type { TElement } from "platejs";
@@ -15,25 +15,12 @@ import { FilePlugin, MediaEmbedPlugin, VideoPlugin } from "@platejs/media/react"
 import { isImeComposing } from "@repo/ui/lib/ime";
 
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
-import { isPdfUrl } from "@repo/editor/lib/wire";
+import { embedTypeForUrl } from "@repo/editor/lib/embed-url";
 
 import { FileElement } from "@repo/editor/nodes/pdf-node";
 import { remoteMediaElement } from "@repo/editor/nodes/remote-media-node";
 
 export const EmbedBaseKit = [BaseVideoPlugin, BaseMediaEmbedPlugin, BaseFilePlugin];
-
-const embedTypeForUrl = (url: string): string => {
-  if (parseVideoUrl(url) !== undefined) {
-    return KEYS.video;
-  }
-  if (parseTwitterUrl(url) !== undefined) {
-    return KEYS.mediaEmbed;
-  }
-  if (isPdfUrl(url)) {
-    return KEYS.file;
-  }
-  return KEYS.mediaEmbed;
-};
 
 const embedNodeForUrl = (url: string): TElement => ({
   children: [{ text: "" }],

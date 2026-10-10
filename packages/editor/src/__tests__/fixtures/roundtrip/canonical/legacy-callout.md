@@ -7,10 +7,4 @@ const x = 1;
 ```
 ````
 
-<callout variant="info">
-  some text
-
-  ```js
-  const x = 1;
-  ```
-</callout>
+<callout variant="info">some text</callout>

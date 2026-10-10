@@ -8,50 +8,52 @@ export const SAMPLE_NOTES = {
 
 One of each vocabulary block, exercisable in the harness.
 
-<toggle>
-  Toggle summary line.
+:::toggle
+Toggle summary line.
 
-  Toggle body with a [[wiki link]] and **bold**.
+Toggle body with a [[wiki link]] and **bold**.
 
-  - nested bullet
-  - another
-</toggle>
+- nested bullet
+- another
 
-<toggle />
+:::
 
-<column_group>
-  <column>
-    Left column text.
-  </column>
+:::toggle
+:::
 
-  <column>
-    Right column text.
-  </column>
-</column_group>
+:::columns
+:::column
+Left column text.
+:::
 
-<column_group>
-  <column width="33.33%">
-    one
-  </column>
+:::column
+Right column text.
+:::
+:::
 
-  <column width="33.33%">
-    two
-  </column>
+:::columns
+:::column 33.33%
+one
+:::
 
-  <column width="33.34%">
-    three
-  </column>
-</column_group>
+:::column 33.33%
+two
+:::
 
-Due <date value="2026-07-04" /> and reviewed on <date value="2026-07-01" />.
+:::column 33.34%
+three
+:::
+:::
 
-<video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+Due @2026-07-04 and reviewed on @2026-07-01, with an <u>underlined</u> word.
 
-<video src="https://vimeo.com/76979871" />
+![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
 
-<media_embed src="https://twitter.com/jack/status/20" />
+![](https://vimeo.com/76979871)
 
-<file src="https://pdfobject.com/pdf/sample.pdf" />
+![](https://twitter.com/jack/status/20)
+
+![](https://pdfobject.com/pdf/sample.pdf)
 
 > [!TIP]
 > Product callouts stay GitHub-alert blockquotes.

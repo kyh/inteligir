@@ -49,6 +49,8 @@ never invent, copy, or reassign one.
 | Something set apart — context, caution, priority  | Callout                             | Bold prose                                   |
 | A numeric shape or trend                          | Chart                               | A table nobody will read as a shape          |
 | Peer views read one at a time                     | Tabs                                | Five headings the reader must scroll         |
+| Detail most readers can skip                      | Toggle                              | A section the reader must scroll past        |
+| Short blocks read side by side                    | Columns                             | A table holding paragraphs                   |
 | Source, logs, literal text, ASCII diagrams        | Fenced code                         | An image of text                             |
 | Rough spatial sketch with position and connectors | Canvas                              | Canvas for a generic diagram — use ASCII     |
 | Real interaction that must be clicked             | HTML block                          | Rebuilding tables, tabs, or callouts in HTML |
@@ -150,11 +152,49 @@ The first thing inside `:::tabs` must be a `=== Label` line; content before it
 keeps the whole block as plain text. Panels hold ordinary markdown. Reach for a
 table instead when the reader needs to see all panels at once.
 
+### Toggles
+
+```markdown
+:::toggle
+The summary, shown while folded.
+
+What opens under it: any markdown.
+:::
+```
+
+The first block is the summary; everything after it folds under it.
+
+### Columns
+
+```markdown
+:::columns
+:::column
+The left column.
+:::
+
+:::column 40%
+The right column, resized.
+:::
+:::
+```
+
+Only `:::column` blocks sit inside `:::columns`. A width appears only after
+someone resizes a column; never invent one.
+
+### How `:::` Blocks Close
+
+Tabs, toggles and columns nest inside each other, a callout, a quote or a list,
+and each `:::` closes the innermost one still open. A block that never closes,
+or holds something its kind does not allow, stays plain text. Leave a blank
+line before a `:::` that follows a list, a quote or a table, which would
+otherwise read the marker as one of its own lines.
+
 ### Inline
 
 | Form         | Syntax                                  |
 | ------------ | --------------------------------------- |
 | Wiki link    | `[[Note Title]]`                        |
+| Date         | `@2026-08-22`                           |
 | Highlight    | `<mark data-color="yellow">text</mark>` |
 | Underline    | `<u>text</u>`                           |
 | Tag          | `#tag`                                  |

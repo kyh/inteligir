@@ -8,8 +8,6 @@ import {
   convertChildrenDeserialize,
   convertNodesSerialize,
   defaultRules,
-  parseAttributes,
-  propsToAttributes,
   serializeMd,
 } from "@platejs/markdown";
 import type {
@@ -19,8 +17,6 @@ import type {
   MdDelete,
   MdEmphasis,
   MdStrong,
-  MdMdxJsxFlowElement,
-  MdMdxJsxTextElement,
   MdRules,
   MdCode,
   MdInlineMath,
@@ -33,10 +29,23 @@ import type {
 import { z } from "zod";
 
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
-import type { OpaqueBlock, OpaqueInline } from "@repo/notes/markdown/remark-opaque";
+import { isContainerContent } from "@repo/notes/markdown/remark-containers";
+import type {
+  Column,
+  ColumnGroup,
+  ContainerContent,
+  TabGroup,
+  TabPanel,
+  Toggle,
+} from "@repo/notes/markdown/remark-containers";
+import type { OpaqueInline } from "@repo/notes/markdown/remark-opaque";
 import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
-import type { CommentMarker, FormulaPill } from "@repo/notes/markdown/remark-inline-constructs";
-import type { TabPanel, TabGroup } from "@repo/notes/markdown/remark-tabs";
+import type {
+  CommentMarker,
+  DateChip,
+  FormulaPill,
+} from "@repo/notes/markdown/remark-inline-constructs";
+import type { Underline } from "@repo/notes/markdown/remark-inline-html";
 import {
   CANVAS_LANG,
   CHART_LANG,
@@ -52,20 +61,16 @@ import {
   FORMULA_PILL_KEY,
   FRONTMATTER_KEY,
   HTML_BLOCK_KEY,
-  OPAQUE_BLOCK_KEY,
   OPAQUE_INLINE_KEY,
   TAB_GROUP_KEY,
   TAB_PANEL_KEY,
   WIKI_EMBED_KEY,
   WIKI_LINK_KEY,
 } from "@repo/editor/dialect-node-keys";
+import { embedTypeForUrl } from "@repo/editor/lib/embed-url";
+import { isHttpUrl } from "@repo/editor/lib/wire";
 import { leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
 import { stringProp } from "@repo/editor/node-props";
-
-const isPanelContent = (
-  node: TabPanel["children"][number] | { type: string },
-): node is TabPanel["children"][number] =>
-  node.type !== "yaml" && node.type !== "tabGroup" && node.type !== "tabPanel";
 
 const ensureBlocks = (children: Descendant[]): Descendant[] =>
   children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }];
@@ -93,10 +98,6 @@ const defaultLinkSerialize = defaultRules.a?.serialize;
 if (!defaultLinkSerialize) {
   throw new Error("@platejs/markdown defaultRules.a is missing — pipeline cannot start");
 }
-const defaultDateDeserialize = defaultRules.date?.deserialize;
-if (!defaultDateDeserialize) {
-  throw new Error("@platejs/markdown defaultRules.date is missing — pipeline cannot start");
-}
 const defaultParagraph = defaultRules.p;
 const defaultParagraphDeserialize = defaultParagraph?.deserialize;
 const defaultParagraphSerialize = defaultParagraph?.serialize;
@@ -109,37 +110,61 @@ if (!defaultParagraphDeserialize || !defaultParagraphSerialize) {
 // index signature's wide rule instead of casting.
 type WideMdRule = NonNullable<MdRules[string]>;
 
-// NodeIdPlugin is a core default (off only under NODE_ENV=test), so every live block carries an
-// `id`; Plate's media rules spread it into user files as `id="…"`. The node's key
-// order is the emitted attribute order.
-interface JsxFlowOverrides {
-  name?: string;
-  children?: ReturnType<typeof convertNodesSerialize>;
-}
-
-const jsxFlowSerialize = (
-  node: TElement,
-  options: SerializeMdOptions,
-  overrides: JsxFlowOverrides,
-) => {
-  const { id, children, type, ...rest } = node;
-  void id;
-  return {
-    attributes: propsToAttributes(rest),
-    children: overrides.children ?? convertNodesSerialize(children, options),
-    name: overrides.name ?? type,
-    type: "mdxJsxFlowElement",
-  };
+const isEmptyParagraph = (node: Descendant | undefined): boolean => {
+  if (node === undefined || !ElementApi.isElement(node) || node.type !== "p") {
+    return false;
+  }
+  const [only, ...rest] = node.children;
+  return rest.length === 0 && only !== undefined && TextApi.isText(only) && only.text === "";
 };
 
-// A url-less node must omit src: spreading `src: undefined` emits a bare `src` attribute, which
-// the next parse turns opaque. `src` goes at the end of the prop order, where propsToAttributes reads it.
-const mediaSerializeWithoutId = (node: TElement, options: SerializeMdOptions) => {
-  const { url, ...withoutUrl } = node;
-  void url;
-  const src = stringProp(node, "url");
-  const media: TElement = src === undefined ? withoutUrl : { ...withoutUrl, src };
-  return jsxFlowSerialize(media, options, {});
+// a container's blocks; one holding only an empty paragraph writes none, since Plate's p rule
+// would spell that paragraph as a line holding a lone ZWSP
+const containerFlow = (children: Descendant[], options: SerializeMdOptions): ContainerContent[] => {
+  const [only, ...rest] = children;
+  if (rest.length === 0 && isEmptyParagraph(only)) {
+    return [];
+  }
+  return convertNodesSerialize(children, options).flatMap((child) =>
+    isContainerContent(child) ? [child] : [],
+  );
+};
+
+const columnOf = (column: TElement, options: SerializeMdOptions): Column => ({
+  children: containerFlow(column.children, options),
+  type: "column",
+  width: stringProp(column, "width") ?? null,
+});
+
+// an embed is `![](url)`, the image syntax every markdown reader embeds a url with
+const embedRule: WideMdRule = {
+  serialize: (node: TElement): MdParagraph => ({
+    children: [{ type: "image", url: stringProp(node, "url") ?? "" }],
+    type: "paragraph",
+  }),
+};
+
+const captionText = (node: TElement): string => {
+  const { caption } = node;
+  return Array.isArray(caption)
+    ? caption.map((part) => (NodeApi.isNode(part) ? NodeApi.string(part) : "")).join("")
+    : "";
+};
+
+// an image on the web with no alt and no title reads back as the embed that wrote it; an alt or a
+// title keeps it an image, so neither is ever dropped, and a vault image is always one
+const embedFromImage = (block: TElement): TElement => {
+  const url = stringProp(block, "url");
+  if (
+    block.type !== KEYS.img ||
+    url === undefined ||
+    !isHttpUrl(url) ||
+    block.title !== undefined ||
+    captionText(block) !== ""
+  ) {
+    return block;
+  }
+  return { children: [{ text: "" }], type: embedTypeForUrl(url), url };
 };
 
 const BARE_AUTOLINK_PROTOCOL_RE = /^https?:\/\//iu;
@@ -229,9 +254,10 @@ const withoutEdgeBreak = (children: Descendant[], edge: "first" | "last"): Desce
 };
 
 // Plate's p rule lifts an image out of its paragraph into a block of its own, answering several
-// blocks where its type says one. A line break beside the image then sits at the edge of a
-// paragraph around it, where it would save as a stray `\` line; the block boundary already ends
-// the line, and a paragraph that held only that break goes.
+// blocks where its type says one, and a lifted image an embed wrote reads back as that embed. A
+// line break beside the image then sits at the edge of a paragraph around it, where it would save
+// as a stray `\` line; the block boundary already ends the line, and a paragraph that held only
+// that break goes.
 const paragraphRule: WideMdRule = {
   deserialize: (
     node: MdParagraph,
@@ -240,11 +266,11 @@ const paragraphRule: WideMdRule = {
   ): TElement | TElement[] => {
     const converted: TElement | TElement[] = defaultParagraphDeserialize(node, deco, options);
     if (!Array.isArray(converted)) {
-      return converted;
+      return embedFromImage(converted);
     }
     return converted.flatMap((block, i): TElement[] => {
       if (block.type !== "p") {
-        return [block];
+        return [embedFromImage(block)];
       }
       const afterImage = i > 0 ? withoutEdgeBreak(block.children, "first") : block.children;
       const children = i < converted.length - 1 ? withoutEdgeBreak(afterImage, "last") : afterImage;
@@ -360,27 +386,40 @@ export const MD_RULES: MdRules = {
     },
   },
 
-  // An empty column must emit self-closed `<column />`: the default emits expanded blank content
-  // that re-parses to zero children and re-emits self-closed — a non-idempotent first pass that
-  // knocks the file to Raw on autosave.
+  columnGroup: {
+    deserialize: (node: ColumnGroup, deco, options): TElement => ({
+      children: node.children.map((column): TElement => {
+        const element: TElement = {
+          children: ensureBlocks(convertChildrenDeserialize(column.children, deco, options)),
+          type: KEYS.column,
+        };
+        if (column.width !== null) {
+          element.width = column.width;
+        }
+        return element;
+      }),
+      type: KEYS.columnGroup,
+    }),
+  },
+
+  // a column the editor holds outside a group saves as a group of one: a column has no spelling
+  // of its own, and Plate's default would answer jsx
   column: {
-    serialize: (node: TElement, options: SerializeMdOptions) => {
-      const { children } = node;
-      const only = children.length === 1 ? children[0] : undefined;
-      const onlyText =
-        only !== undefined &&
-        ElementApi.isElement(only) &&
-        only.type === "p" &&
-        only.children.length === 1
-          ? only.children[0]
-          : undefined;
-      const isEmpty = onlyText !== undefined && TextApi.isText(onlyText) && onlyText.text === "";
-      const overrides: JsxFlowOverrides = { name: "column" };
-      if (isEmpty) {
-        overrides.children = [];
-      }
-      return jsxFlowSerialize(node, options, overrides);
-    },
+    serialize: (node: TElement, options: SerializeMdOptions): ColumnGroup => ({
+      children: [columnOf(node, options)],
+      type: "columnGroup",
+    }),
+  },
+
+  [KEYS.columnGroup]: {
+    serialize: (node: TElement, options: SerializeMdOptions): ColumnGroup => ({
+      children: node.children.flatMap((column): Column[] =>
+        ElementApi.isElement(column) && column.type === KEYS.column
+          ? [columnOf(column, options)]
+          : [],
+      ),
+      type: "columnGroup",
+    }),
   },
 
   [COMMENT_MARKER_KEY]: {
@@ -397,25 +436,19 @@ export const MD_RULES: MdRules = {
     }),
   },
 
-  // A paragraph holding only a date chip serializes to `<date value="…" />` alone on its line,
-  // which micromark re-parses as a flow element; wrapping it back into a paragraph restores the
-  // shape that produced the bytes.
   date: {
-    deserialize: (
-      node: MdMdxJsxFlowElement | MdMdxJsxTextElement,
-      deco: MdDecoration,
-      options: DeserializeMdOptions,
-    ): TElement => {
-      const chip: TElement = defaultDateDeserialize(node, deco, options);
-      if (node.type !== "mdxJsxFlowElement") {
-        return chip;
-      }
-      // the padding mirrors Slate's inline-void shape; the p rule prunes it on serialize.
-      return { children: [{ text: "" }, chip, { text: "" }], type: "p" };
-    },
+    deserialize: (node: DateChip): TElement => ({
+      children: [{ text: "" }],
+      date: node.value,
+      type: KEYS.date,
+    }),
+    serialize: (node: TElement): DateChip => ({
+      type: "date",
+      value: stringProp(node, "date") ?? "",
+    }),
   },
 
-  file: { serialize: mediaSerializeWithoutId },
+  file: embedRule,
 
   [FORMULA_PILL_KEY]: {
     deserialize: (node: FormulaPill): TElement => ({
@@ -449,19 +482,7 @@ export const MD_RULES: MdRules = {
 
   inline_equation: inlineEquationRule,
 
-  media_embed: { serialize: mediaSerializeWithoutId },
-
-  [OPAQUE_BLOCK_KEY]: {
-    deserialize: (node: OpaqueBlock): TElement => ({
-      children: [{ text: "" }],
-      type: OPAQUE_BLOCK_KEY,
-      value: node.value,
-    }),
-    serialize: (node: TElement): OpaqueBlock => ({
-      type: "opaqueBlock",
-      value: stringProp(node, "value") ?? "",
-    }),
-  },
+  media_embed: embedRule,
 
   [OPAQUE_INLINE_KEY]: {
     deserialize: (node: OpaqueInline): TElement => ({
@@ -494,12 +515,9 @@ export const MD_RULES: MdRules = {
         if (!ElementApi.isElement(panel) || panel.type !== TAB_PANEL_KEY) {
           return [];
         }
-        const panelChildren = convertNodesSerialize(panel.children, options).flatMap(
-          (child): TabPanel["children"] => (isPanelContent(child) ? [child] : []),
-        );
         return [
           {
-            children: panelChildren,
+            children: containerFlow(panel.children, options),
             label: stringProp(panel, "label") ?? "Tab",
             type: "tabPanel",
           },
@@ -556,20 +574,24 @@ export const MD_RULES: MdRules = {
 
   // Plate maps `toggle` in its type table but ships no rule; without this a toggle silently drops on serialize.
   [KEYS.toggle]: {
-    deserialize: (
-      node: MdMdxJsxFlowElement,
-      deco: MdDecoration,
-      options: DeserializeMdOptions,
-    ) => ({
+    deserialize: (node: Toggle, deco: MdDecoration, options: DeserializeMdOptions): TElement => ({
       children: convertChildrenDeserialize(node.children, deco, options),
       type: KEYS.toggle,
-      ...parseAttributes(node.attributes),
     }),
-    serialize: (node: TElement, options: SerializeMdOptions) =>
-      jsxFlowSerialize(node, options, { name: "toggle" }),
+    serialize: (node: TElement, options: SerializeMdOptions): Toggle => ({
+      children: containerFlow(node.children, options),
+      type: "toggle",
+    }),
   },
 
-  video: { serialize: mediaSerializeWithoutId },
+  // Plate's own rule answers jsx, which the grammar never reads; the pair of tags it reads is this
+  // node, whose children the mark serializer fills
+  underline: {
+    mark: true,
+    serialize: (): Underline => ({ children: [], type: "underline" }),
+  },
+
+  video: embedRule,
 
   [WIKI_EMBED_KEY]: {
     deserialize: (node: WikiEmbed): TElement => ({

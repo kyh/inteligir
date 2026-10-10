@@ -35,7 +35,7 @@ describe("canonical fixtures (byte-stable)", () => {
 
 // their round-trip drops letters (a `$$latex` meta line, entity decoding, the
 // "mailto" spelling), so they open Raw as roundtrip-loss
-const CHURN_NOT_RICH_SAFE = new Set(["math-meta", "entities", "jsx-attr-forms", "mailto-resource"]);
+const CHURN_NOT_RICH_SAFE = new Set(["math-meta", "entities", "mailto-resource"]);
 
 describe("churn fixtures (idempotent normalization)", () => {
   const stems = list("churn")
@@ -61,7 +61,8 @@ describe("a callout in an older spelling", () => {
     const parsed = parseMarkdown(read("canonical", "legacy-callout.md"));
     expect(parsed.ok).toBe(true);
     if (parsed.ok) {
-      expect(parsed.value.map((node) => node.type)).toEqual(["code_block", "opaqueBlock"]);
+      expect(parsed.value.map((node) => node.type)).toEqual(["code_block", "p"]);
+      expect(JSON.stringify(parsed.value[1])).toContain('"type":"opaqueInline"');
     }
   });
 });

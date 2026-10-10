@@ -1,20 +1,20 @@
 // plugin order is load-bearing: frontmatter first so `---` is claimed before thematic-break;
-// math before gfm/mdx; opaque last, over the finished tree and the complete set of stringify
+// math before gfm; opaque last, over the finished tree and the complete set of stringify
 // extensions.
 
 import type { Break, ListItem, Nodes, ThematicBreak } from "mdast";
 import type { Handle, Options as ToMarkdownOptions } from "mdast-util-to-markdown";
-import type { Plugin } from "unified";
+import type { Plugin, Processor } from "unified";
 import { gfmTaskListItemToMarkdown } from "mdast-util-gfm-task-list-item";
 import { defaultHandlers } from "mdast-util-to-markdown";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 
-import { remarkMdxAgnostic } from "./remark-mdx-agnostic";
-import { remarkOpaque } from "./remark-opaque";
+import { remarkContainers } from "./remark-containers";
 import { remarkInlineConstructs } from "./remark-inline-constructs";
-import { remarkTabs } from "./remark-tabs";
+import { remarkInlineHtml } from "./remark-inline-html";
+import { remarkOpaque } from "./remark-opaque";
 import { remarkWikiLink } from "./remark-wiki-link";
 
 // a thematic break at byte 0 would emit `---`, which the next parse claims as a frontmatter
@@ -112,15 +112,20 @@ const remarkOpaqueCanonical: Plugin = function remarkOpaqueCanonical() {
   return remarkOpaque.call(this, MD_STRINGIFY);
 };
 
+// a 4-space-indented `- [ ]` must read as a task, never as code
+const remarkNoIndentedCode: Plugin = function remarkNoIndentedCode(this: Processor): undefined {
+  (this.data().micromarkExtensions ??= []).push({ disable: { null: ["codeIndented"] } });
+};
+
 export const MD_REMARK_PLUGINS: Plugin[] = [
   // the ['yaml'] default must pair with md-rules' yaml/frontmatter rules
   remarkFrontmatter,
   remarkMathNoSingleDollar,
   remarkGfm,
-  // not Plate's remarkMdx (acorn)
-  remarkMdxAgnostic,
+  remarkNoIndentedCode,
+  remarkInlineHtml,
   remarkWikiLink,
   remarkInlineConstructs,
-  remarkTabs,
+  remarkContainers,
   remarkOpaqueCanonical,
 ];

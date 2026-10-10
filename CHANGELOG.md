@@ -7,6 +7,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 ### Before you update
 
 - **Inteligir needs macOS 13.5 or later.** The app now runs on the Mac's own web engine instead of carrying a browser of its own, and what it brings in its place needs macOS 13.5. On an older Mac, the version you have keeps working and is not offered this update.
+- **Toggles, columns, dates and embeds are saved in a new, readable form.** A toggle is now written as `:::toggle` … `:::`, columns as `:::columns` with a `:::column` for each, a date as `@2026-08-22`, and a video, post, PDF or page as `![](its link)`, so each reads plainly in any other notes app. Ones saved by an earlier version open as the tags they were written with around their text, which no longer fold, sit side by side or open a calendar; to get the block back, insert it again from the `/` menu and move the text in.
 - **Your window settings start over once.** The theme, the text appearance, the sidebar and panel widths, which list the sidebar shows, and the spell check switch go back to their defaults the first time this version opens; set them again in Settings. A message about a note two devices changed that you already saw can show once more. Your notes, vaults, sign-ins and agents are untouched. On macOS 13, every vault now shares one set of these settings.
 
 ### New
@@ -20,6 +21,9 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ### Fixed
 
+- **Underlined text stays underlined.** Text you underlined with ⌘U came back as uneditable gray text the next time the note opened; it now opens underlined.
+- **Tabs work inside toggles, columns, callouts, quotes and lists, and a tab can end with a list or a table.** Tabs anywhere but the top of a note, and a tab whose last block was a list or a table, opened as plain text after a save; they now stay tabs.
+- **`<` before a number stays as you typed it.** A line like "under <50ms" was saved as `under \<50ms`; it is now saved as written.
 - **A stray brace or tag no longer opens a note in Raw.** A note holding a lone `{`, a tag that is never closed (such as `<br>`), or a closing tag with nothing to close opened in Raw, without rich editing. It now opens with rich editing, and those characters stay exactly as you wrote them. Text in braces, like `{count}`, is now ordinary text you can edit.
 - **Renaming a tag reaches every line of a callout, a quote or a list item.** A tag on the second line or later of a callout, a quote or a list item kept its old name when you renamed the tag; it now changes with the rest.
 - **Notes open on iPhones with iOS 16.4 to 17.3.** On those versions the editor stopped before it could show a note; it now opens on every iPhone the app installs on.

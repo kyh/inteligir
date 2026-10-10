@@ -1,12 +1,13 @@
-<toggle>
-  outer paragraph
+:::toggle
+outer paragraph
 
-  - a list item
-  - another
+- a list item
+- another
 
-  <toggle>
-    inner toggle content
-  </toggle>
-</toggle>
+:::toggle
+inner toggle content
+:::
+:::
 
-<toggle />
+:::toggle
+:::

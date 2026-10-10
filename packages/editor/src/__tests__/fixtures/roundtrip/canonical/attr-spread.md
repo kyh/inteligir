@@ -1,3 +1,0 @@
-<toggle {...props}>
-  x
-</toggle>

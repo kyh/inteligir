@@ -1,6 +1,7 @@
 // not Plate's `deserializeMd`: its regex `htmlToJsx` pre-pass corrupts code fences and it
 // swallows parse errors into silently-degraded models. The grammar is total
-// (./remark-mdx-agnostic), so every input yields a tree and no note opens raw for its bytes.
+// (no expressions, no jsx, and a tag nothing closes stays html), so every input yields a tree and no
+// note opens raw for its bytes.
 
 import type { Root } from "mdast";
 import remarkParse from "remark-parse";

@@ -56,9 +56,9 @@ describe("a tag that cannot pair is kept as its own bytes", () => {
     expect(inline(parseBare(md))).toEqual(expected);
   });
 
-  it("unwraps an opener the document never closes, keeping its children in place", () => {
-    const root = parseBare("<Foo>\n\nnever closed\n");
-    expect(root.children.map((node) => node.type)).toEqual(["paragraph", "paragraph"]);
+  it("pairs nothing across a blank line: each paragraph keeps its own tag", () => {
+    const root = parseBare("<Foo>\n\nnever closed\n\n</Foo>\n");
+    expect(root.children.map((node) => node.type)).toEqual(["paragraph", "paragraph", "paragraph"]);
     expect(inline(root)).toEqual([["html", "<Foo>"]]);
   });
 
@@ -66,26 +66,61 @@ describe("a tag that cannot pair is kept as its own bytes", () => {
     ["a label", "[a <br> b](x)\n"],
     ["an atx heading", "# a <br> b #\n"],
     ["a setext heading", "a <br> b\n===\n"],
-  ])("unwraps an opener still open where %s ends", (_name, md) => {
+  ])("keeps an opener %s never closes as html", (_name, md) => {
     const [block] = parseBare(md).children;
     expect(JSON.stringify(block)).toContain('"value":"<br>"');
-    expect(JSON.stringify(block)).not.toContain("mdxJsxTextElement");
-  });
-
-  it("keeps an element that pairs", () => {
-    const [block] = parseBare("<toggle>\n  body\n</toggle>\n").children;
-    expect(block?.type).toBe("mdxJsxFlowElement");
+    expect(JSON.stringify(block)).not.toContain("htmlElement");
   });
 });
 
-describe("a tag the tokenizer cannot finish declines to what else reads `<`", () => {
+describe("a tag and its closer fold into one node", () => {
+  it.each([
+    ["a bare <u>, as the underline mark", "a <u>key</u> b\n", "underline"],
+    ["any other tag, as an element", "a <kbd>K</kbd> b\n", "htmlElement"],
+    ["a <u> with attributes, as an element", 'a <u class="x">key</u> b\n', "htmlElement"],
+    [
+      "a block-level name, which flow html cannot claim",
+      '<div align="center">x</div>\n',
+      "htmlElement",
+    ],
+  ])("%s", (_name, md, type) => {
+    expect(inline(parseBare(md)).map(([kind]) => kind)).toContain(type);
+  });
+
+  it("pairs a closer with the innermost opener of its name, passing others over as html", () => {
+    const [block] = parseBare("<a><b>x</a> and <u><kbd>K</kbd></u>\n").children;
+    expect(block?.type).toBe("paragraph");
+    const children = block?.type === "paragraph" ? block.children : [];
+    const [outer, , underline] = children;
+    expect(outer?.type).toBe("htmlElement");
+    expect(outer?.type === "htmlElement" ? outer.children.map((child) => child.type) : []).toEqual([
+      "html",
+      "text",
+    ]);
+    expect(underline?.type).toBe("underline");
+    expect(
+      underline?.type === "underline" ? underline.children.map((child) => child.type) : [],
+    ).toEqual(["htmlElement"]);
+  });
+
+  it("spans an element from its opener to its closer", () => {
+    const src = "see <kbd>K\nL</kbd> here\n";
+    const [block] = parseBare(src).children;
+    const element = block?.type === "paragraph" ? block.children[1] : undefined;
+    const start = element?.position?.start.offset;
+    const end = element?.position?.end.offset;
+    expect(src.slice(start, end)).toBe("<kbd>K\nL</kbd>");
+  });
+});
+
+describe("`<` that opens no tag reads as what else reads it", () => {
   it.each([
     ["an autolink", "<https://x.y>\n", "link"],
     ["an email autolink", "<a@b.com>\n", "link"],
     ["an html comment", "<!-- c -->\n", "html"],
     ["text, past an unclosed tag", "an unclosed <Foo\n", "text"],
     ["text, past attributes on a closer", "</Foo bar>\n", "text"],
-    ["text, past an unclosed attribute expression", "<Foo bar={x\n", "text"],
+    ["text, past a braced attribute", "<Foo bar={x\n", "text"],
   ])("%s", (_name, md, type) => {
     expect(inline(parseBare(md)).map(([kind]) => kind)).toContain(type);
   });
@@ -124,11 +159,17 @@ const PIECES = [
   "<>",
   "</>",
   "<br>",
-  "<toggle>",
-  "</toggle>",
+  "<u>",
+  "</u>",
   "<x/>",
   "<y {...p}>",
   "<z w={1}>",
+  ":::toggle\n",
+  ":::tabs\n",
+  "=== A\n",
+  ":::columns\n",
+  ":::column\n",
+  ":::\n",
   "$$",
   "{{1|2}}",
   "[[x]]",

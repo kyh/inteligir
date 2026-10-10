@@ -63,7 +63,7 @@ const opaqueValues = (md: string): string[] => {
     if (!ElementApi.isElement(node)) {
       return;
     }
-    if (node.type === "opaqueBlock" || node.type === "opaqueInline") {
+    if (node.type === "opaqueInline") {
       values.push(stringProp(node, "value") ?? "");
       return;
     }
@@ -84,9 +84,13 @@ const expectOpaque = (md: string, values: string[]): void => {
 };
 
 describe("opaque nodes (constructs with no editor node)", () => {
-  it("carries unknown components verbatim", () => {
+  it("carries an unknown tag and what it encloses verbatim", () => {
     expectOpaque('<Foo bar="1">text body</Foo>\n', ['<Foo bar="1">text body</Foo>']);
-    expectOpaque("<Steps>\n  step body\n</Steps>\n", ["<Steps>\n  step body\n</Steps>"]);
+    expectOpaque("<Steps>\nstep body\n</Steps>\n", ["<Steps>\nstep body\n</Steps>"]);
+  });
+
+  it("carries each tag alone where a blank line parts it from its closer", () => {
+    expectOpaque("<Steps>\n\nstep body\n\n</Steps>\n", ["<Steps>", "</Steps>"]);
   });
 
   it("carries lowercase HTML-ish tags verbatim", () => {
@@ -94,8 +98,8 @@ describe("opaque nodes (constructs with no editor node)", () => {
     expectOpaque("press <kbd>K</kbd> now\n", ["<kbd>K</kbd>"]);
   });
 
-  it("carries fragments verbatim", () => {
-    expectOpaque("<>\n  fragment\n</>\n", ["<>\n  fragment\n</>"]);
+  it("reads a fragment as text: `<>` opens no tag", () => {
+    expect(opaqueValues("<>fragment</>\n")).toEqual([]);
   });
 
   it("carries HTML comments, both flow and inline", () => {
@@ -109,60 +113,70 @@ describe("opaque nodes (constructs with no editor node)", () => {
     expectOpaque("text </Bar> and <br> more\n", ["</Bar>", "<br>"]);
   });
 
-  it("carries an allowed tag whose attributes are not plain strings", () => {
-    expectOpaque("<toggle draft>\n  x\n</toggle>\n", ["<toggle draft>\n  x\n</toggle>"]);
-    expectOpaque("<toggle {...props}>\n  x\n</toggle>\n", ["<toggle {...props}>\n  x\n</toggle>"]);
-    expectOpaque("<column_group>\n  <column width={50}>\n    x\n  </column>\n</column_group>\n", [
-      "<column width={50}>\n  x\n</column>",
-    ]);
-  });
-
   it("carries a `<callout>` verbatim: the callout is the alert", () => {
-    expectOpaque('<callout variant="info">\n  x\n</callout>\n', [
-      '<callout variant="info">\n  x\n</callout>',
-    ]);
+    expectOpaque('<callout variant="info">x</callout>\n', ['<callout variant="info">x</callout>']);
   });
 
-  it("carries unknown attr names on <date> (Plate's rule keeps only `value`)", () => {
-    expectOpaque('Meet <date value="2026-07-01" foo="x" /> ok\n', [
-      '<date value="2026-07-01" foo="x" />',
-    ]);
+  it("carries the jsx the dialect once spelled its own blocks with as the tags it is", () => {
+    expectOpaque('Meet <date value="2026-07-01" /> ok\n', ['<date value="2026-07-01" />']);
+    expectOpaque("<toggle>x</toggle>\n", ["<toggle>x</toggle>"]);
   });
 
-  it("leaves the app's own components modelled, never opaque", () => {
+  it("reads a date no calendar has as text", () => {
+    const md = "Meet @2026-02-30 ok\n";
+    expect(opaqueValues(md)).toEqual([]);
+    expect(JSON.stringify(parseMarkdown(md))).not.toContain('"type":"date"');
+    expect(roundTrip(md)).toBe(md);
+  });
+
+  it("leaves the app's own blocks modelled, never opaque", () => {
     const md = [
-      "<toggle>",
-      "  y",
-      "</toggle>",
+      ":::toggle",
+      "y",
+      ":::",
       "",
-      "<column_group>",
-      "  <column>",
-      "    z",
-      "  </column>",
+      ":::columns",
+      ":::column",
+      "z",
+      ":::",
       "",
-      "  <column>",
-      "    w",
-      "  </column>",
-      "</column_group>",
+      ":::column 50%",
+      "w",
+      ":::",
+      ":::",
       "",
-      '<video src="https://youtube.com/watch?v=1" />',
+      "![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)",
       "",
-      '<media_embed src="https://twitter.com/x/status/1" />',
+      "![](https://twitter.com/x/status/1)",
       "",
-      '<file src="https://example.com/a.pdf" />',
+      "![](https://example.com/a.pdf)",
       "",
-      'Meet on <date value="2026-07-01" /> at noon.',
+      "![](https://example.com/page)",
+      "",
+      "Meet on @2026-07-01 at noon, <u>underlined</u>.",
       "",
     ].join("\n");
     expect(opaqueValues(md)).toEqual([]);
     expect(analyzeMarkdown(md).kind).toBe("canonical");
+    const parsed = parseMarkdown(md);
+    const types = parsed.ok ? parsed.value.map((node) => node.type) : [];
+    expect(types).toEqual([
+      "toggle",
+      "column_group",
+      "video",
+      "media_embed",
+      "file",
+      "media_embed",
+      "p",
+    ]);
+    const json = JSON.stringify(parsed.ok ? parsed.value : []);
+    expect(json).toContain('"type":"date"');
+    expect(json).toContain('"underline":true');
   });
 
-  it("keeps an opaque block inside a container prefix-correct", () => {
-    expectOpaque("> <Steps>\n>   quoted\n> </Steps>\n", ["<Steps>\n  quoted\n</Steps>"]);
-    expectOpaque("<toggle>\n  <Steps>\n    nested\n  </Steps>\n</toggle>\n", [
-      "<Steps>\n  nested\n</Steps>",
-    ]);
+  it("keeps an element inside a container prefix-correct", () => {
+    expectOpaque("> <Steps>\n> quoted\n> </Steps>\n", ["<Steps>\nquoted\n</Steps>"]);
+    expectOpaque(":::toggle\n<Steps>nested</Steps>\n:::\n", ["<Steps>nested</Steps>"]);
   });
 
   it("keeps html-ish bytes out of fenced code (opaque never runs inside a fence)", () => {
@@ -261,20 +275,18 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
         { children: [{ text: "after" }], type: "p" },
       ],
     });
-    expect(out).toContain("<toggle>");
-    expect(out).toContain("hidden");
-    expect(out).toContain("after");
+    expect(out).toBe(":::toggle\nhidden\n:::\n\nafter\n");
   });
 
-  it("serializes a collapsed/expanded toggle with zero attributes", () => {
+  it("serializes a collapsed/expanded toggle as its markers alone", () => {
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
       value: [{ children: [{ children: [{ text: "x" }], type: "p" }], type: "toggle" }],
     });
-    expect(out).toBe("<toggle>\n  x\n</toggle>\n");
+    expect(out).toBe(":::toggle\nx\n:::\n");
   });
 
-  it("serializes date nodes in the value-attribute form (never rawDate)", () => {
+  it("serializes date nodes as `@` and the date", () => {
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
       value: [
@@ -288,7 +300,7 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
         },
       ],
     });
-    expect(out).toBe('Meet <date value="2026-07-01" /> ok\n');
+    expect(out).toBe("Meet @2026-07-01 ok\n");
   });
 
   it("emits alert blockquotes verbatim with marks preserved (probe5 fidelity)", () => {
@@ -296,7 +308,7 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
     expect(roundTrip(md)).toBe(md);
   });
 
-  it("never serializes node ids into vocabulary attributes", () => {
+  it("never serializes node ids", () => {
     // NodeIdPlugin is off under NODE_ENV=test, so ids are injected by hand
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
@@ -311,10 +323,9 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
         },
       ],
     });
-    expect(out).not.toContain("id=");
-    expect(out).toContain('<video src="https://y.tb/1" />');
-    expect(out).toContain('<file src="https://e.com/a.pdf" />');
-    expect(out).toContain("<toggle>");
+    expect(out).toBe(
+      "![](https://y.tb/1)\n\n![](https://t.co/1)\n\n![](https://e.com/a.pdf)\n\n:::toggle\nt\n:::\n",
+    );
   });
 
   it("emits bare emails as literal bytes, never <angle> autolinks (V2)", () => {
@@ -344,14 +355,14 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
     expect(roundTrip(fm)).toBe(fm);
   });
 
-  it("omits src from url-less media (V3 — a bare attr fails the vocabulary scan)", () => {
-    expect(roundTrip("<video />\n")).toBe("<video />\n");
-    expect(analyzeMarkdown("<video />\n").kind).toBe("canonical");
+  it("writes url-less media as an empty image, which reads back as one", () => {
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
       value: [{ children: [{ text: "" }], type: "file" }],
     });
-    expect(out).toBe("<file />\n");
+    expect(out).toBe("![]()\n");
+    expect(roundTrip(out)).toBe(out);
+    expect(analyzeMarkdown(out).kind).toBe("canonical");
   });
 
   it("pads ragged tables into a pass-1 fixpoint (V4)", () => {

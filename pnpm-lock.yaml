@@ -1059,18 +1059,9 @@ importers:
       mdast-util-gfm-task-list-item:
         specifier: ^2.0.0
         version: 2.0.0(supports-color@10.2.2)
-      mdast-util-mdx:
-        specifier: ^3.0.0
-        version: 3.0.0(supports-color@10.2.2)
-      mdast-util-mdx-jsx:
-        specifier: ^3.2.0
-        version: 3.2.0(supports-color@10.2.2)
       mdast-util-to-markdown:
         specifier: ^2.2.0
         version: 2.2.0
-      micromark-extension-mdx-jsx:
-        specifier: ^3.0.2
-        version: 3.0.2
       micromark-util-types:
         specifier: ^2.0.3
         version: 2.0.3

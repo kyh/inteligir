@@ -127,11 +127,12 @@ src/
   halves for the headless serializer; `kit-parity.test.ts` fails when the two
   compositions disagree, so a node that renders but does not serialize is
   impossible, and `touch-kit.test.ts` holds the touch kit to the same.
-- **Rich is the default surface.** The parse is total
-  (`@repo/notes/markdown/remark-mdx-agnostic`), so every file opens Rich and
-  normalizes on the first real edit. Constructs with no editor node — unknown
-  JSX, a tag that cannot pair, raw HTML — are opaque nodes
-  (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
+- **Rich is the default surface.** The parse is total: no jsx and no
+  expressions, and every tag is html, folded with its closer
+  (`@repo/notes/markdown/remark-inline-html`), so every file opens Rich and
+  normalizes on the first real edit. Constructs with no editor node — a tag
+  that cannot pair, any pair but a bare `<u>`, raw HTML — are opaque inline
+  nodes (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
   written back byte-for-byte, and `{` is prose. Only one of the editor's own
   limits — nesting deeper than the conversion holds, a conversion that leaves
   text outside any block, a round trip that never settles, or one that would

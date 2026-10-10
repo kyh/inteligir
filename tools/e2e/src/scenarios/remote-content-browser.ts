@@ -15,7 +15,7 @@ const RUN_DEADLINE_MS = 15_000;
 // the block proves it ran by messaging the page: its frame's origin is opaque, so no probe reads in.
 const DOC = `# Remote
 
-<video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
 
 ![shot](https://example.com/shot.png)
 

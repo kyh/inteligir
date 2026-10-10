@@ -50,9 +50,9 @@ const escapePill = (raw: string): string => {
 
 const overlaps = (a: Range, b: Range): boolean => a.start < b.end && b.start < a.end;
 
-// bytes the grammar holds as a literal string, which this pass must leave as written. a jsx
-// element is not one: its children are markdown, where the escape is what keeps a pill in one
-// cell. each of its attributes is.
+// bytes the grammar holds as a literal string, which this pass must leave as written. an element of
+// tags is not one: its children are markdown, where the escape is what keeps a pill in one cell.
+// each of its tags is.
 const isLiteral = (node: Nodes): boolean =>
   node.type === "code" ||
   node.type === "inlineCode" ||
@@ -74,10 +74,9 @@ const collectLiteral = (node: Nodes, out: Range[]): void => {
     pushRange(node, out);
     return;
   }
-  if (node.type === "mdxJsxFlowElement" || node.type === "mdxJsxTextElement") {
-    for (const attribute of node.attributes) {
-      pushRange(attribute, out);
-    }
+  if (node.type === "htmlElement") {
+    pushRange(node.open, out);
+    pushRange(node.close, out);
   }
   if ("children" in node) {
     for (const child of node.children) {

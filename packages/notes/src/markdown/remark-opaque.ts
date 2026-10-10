@@ -1,170 +1,109 @@
-// a construct the slate model has no node for is held as a string and serialized back
-// verbatim; without one, unknown jsx deserializes to escaped text and the first save mangles
-// `<Foo>` into `\<Foo>`. the value is re-serialized, not sliced from source: a slice inside a
+// a construct the slate model has no node for is held as a string and serialized back verbatim;
+// without one, a tag deserializes to escaped text and the first save mangles `<Foo>` into
+// `\<Foo>`. With htmlFlow disabled every such construct is phrasing, so the string is inline. An
+// element's value is re-serialized, not sliced from source: a slice spanning lines inside a
 // blockquote would capture the `> ` markers and the stringifier would add a second set.
 
 import type { Node, Nodes } from "mdast";
-import type {
-  MdxJsxAttribute,
-  MdxJsxExpressionAttribute,
-  MdxJsxFlowElement,
-  MdxJsxTextElement,
-} from "mdast-util-mdx";
 import type { Options as ToMarkdownOptions } from "mdast-util-to-markdown";
 import type { Plugin, Processor } from "unified";
 import { toMarkdown } from "mdast-util-to-markdown";
 
-import { isLiteralAttribute, isMdastRoot } from "./mdast-nodes";
+import { isMdastRoot } from "./mdast-nodes";
 
-export interface OpaqueBlock extends Node {
-  type: "opaqueBlock";
-  value: string;
-}
 export interface OpaqueInline extends Node {
   type: "opaqueInline";
   value: string;
 }
 
 declare module "mdast" {
-  interface BlockContentMap {
-    opaqueBlock: OpaqueBlock;
-  }
   interface PhrasingContentMap {
     opaqueInline: OpaqueInline;
   }
   interface RootContentMap {
-    opaqueBlock: OpaqueBlock;
     opaqueInline: OpaqueInline;
   }
 }
 
-// the jsx elements the editor models; any other tag is carried verbatim. `date` is the only inline
-// element but is admitted in flow too: a paragraph holding only a date chip serializes to
-// `<date value="…" />` alone on its line, which micromark re-reads as flow.
-export const MODELED_JSX_FLOW_TAGS: ReadonlySet<string> = new Set([
-  "toggle",
-  "column_group",
-  "column",
-  "video",
-  "media_embed",
-  "file",
-  "date",
-]);
-const COMPONENT_TEXT_TAGS = new Set(["date"]);
+// Plate's types declare mdx's nodes on mdast, and this file is compiled inside the editor's program
+// as well as this package's, where they do not exist; the grammar never produces one.
+type PlateDeclaredType =
+  | "mdxFlowExpression"
+  | "mdxJsxFlowElement"
+  | "mdxJsxTextElement"
+  | "mdxTextExpression"
+  | "mdxjsEsm";
 
-// Plate's `date` rule keeps only `value` and drops every other attribute.
-const DATE_ATTRS = new Set(["value"]);
+type GrammarNodeType = Exclude<Nodes["type"], PlateDeclaredType>;
 
-// Plate's `parseAttributes` spreads attributes over the element last, so `type` retitles the
-// node to one no serialize rule answers for and `children` replaces the parsed subtree; `id`
-// survives the parse and is stripped on the way out.
-const RESERVED_ATTRS = new Set(["type", "children", "id"]);
-
-// bare booleans (`<toggle draft>`) come back from Plate as `draft="null"`, and braced
-// expressions and spreads do not survive parseAttributes/propsToAttributes.
-const isModellableAttribute = (
-  tag: string,
-  attribute: MdxJsxAttribute | MdxJsxExpressionAttribute,
-): boolean => {
-  if (!isLiteralAttribute(attribute)) {
-    return false;
-  }
-  if (RESERVED_ATTRS.has(attribute.name)) {
-    return false;
-  }
-  return tag !== "date" || DATE_ATTRS.has(attribute.name);
+// the `Record` is the exhaustiveness check: a node type this pipeline gains has no entry, so tsc
+// rejects the table until someone decides whether the editor holds it as source.
+const HELD_AS_SOURCE: Record<GrammarNodeType, boolean> = {
+  blockquote: false,
+  break: false,
+  code: false,
+  column: false,
+  columnGroup: false,
+  commentMarker: false,
+  date: false,
+  definition: false,
+  delete: false,
+  emphasis: false,
+  footnoteDefinition: false,
+  footnoteReference: false,
+  formulaPill: false,
+  heading: false,
+  // a tag nothing pairs
+  html: true,
+  // a pair of tags the editor has no mark for
+  htmlElement: true,
+  image: false,
+  imageReference: false,
+  inlineCode: false,
+  inlineMath: false,
+  link: false,
+  linkReference: false,
+  list: false,
+  listItem: false,
+  math: false,
+  opaqueInline: false,
+  paragraph: false,
+  root: false,
+  strong: false,
+  tabGroup: false,
+  tabPanel: false,
+  table: false,
+  tableCell: false,
+  tableRow: false,
+  text: false,
+  thematicBreak: false,
+  toggle: false,
+  underline: false,
+  wikiEmbed: false,
+  wikiLink: false,
+  yaml: false,
 };
 
-const isComponent = (node: MdxJsxFlowElement | MdxJsxTextElement): boolean => {
-  const tag = node.name;
-  // `<>` fragment
-  if (tag === null) {
-    return false;
-  }
-  const tags = node.type === "mdxJsxFlowElement" ? MODELED_JSX_FLOW_TAGS : COMPONENT_TEXT_TAGS;
-  if (!tags.has(tag)) {
-    return false;
-  }
-  return node.attributes.every((attribute) => isModellableAttribute(tag, attribute));
-};
+const isGrammarNodeType = (type: string): type is GrammarNodeType =>
+  Object.hasOwn(HELD_AS_SOURCE, type);
+
+// exported for the knowledge scan, which reads this grammar's bare tree: a link inside one of these
+// is the editor's string, not its link, so rename byte-surgery must not splice into it.
+export const isOpaqueSource = (node: Nodes): boolean =>
+  isGrammarNodeType(node.type) && HELD_AS_SOURCE[node.type];
 
 // toMarkdown always terminates with one newline; the opaque value is a fragment.
 const render = (node: Nodes, options: ToMarkdownOptions): string =>
   toMarkdown(node, options).replace(/\n$/u, "");
 
-// the `Record` is the exhaustiveness check: a node type this pipeline gains has no entry, so tsc
-// rejects the table until someone decides its position. `null` means it is never held as source:
-// the slate model has a node for it, or (mdx expressions and esm, which Plate's mdast types
-// declare) this grammar never produces it.
-const OPAQUE_POSITION: Record<Nodes["type"], "block" | "inline" | null> = {
-  blockquote: null,
-  break: null,
-  code: null,
-  commentMarker: null,
-  definition: null,
-  delete: null,
-  emphasis: null,
-  footnoteDefinition: null,
-  footnoteReference: null,
-  formulaPill: null,
-  heading: null,
-  // htmlFlow is disabled, so every `html` node comes from htmlText and sits in phrasing position.
-  html: "inline",
-  image: null,
-  imageReference: null,
-  inlineCode: null,
-  inlineMath: null,
-  link: null,
-  linkReference: null,
-  list: null,
-  listItem: null,
-  math: null,
-  mdxFlowExpression: null,
-  mdxJsxFlowElement: "block",
-  mdxJsxTextElement: "inline",
-  mdxTextExpression: null,
-  mdxjsEsm: null,
-  opaqueBlock: null,
-  opaqueInline: null,
-  paragraph: null,
-  root: null,
-  strong: null,
-  tabGroup: null,
-  tabPanel: null,
-  table: null,
-  tableCell: null,
-  tableRow: null,
-  text: null,
-  thematicBreak: null,
-  wikiEmbed: null,
-  wikiLink: null,
-  yaml: null,
-};
-
-// exported for the knowledge scan, which reads this grammar's bare tree: a link inside one of these
-// is the editor's string, not its link, so rename byte-surgery must not splice into it.
-export const isOpaqueSource = (node: Nodes): boolean => {
-  if (OPAQUE_POSITION[node.type] === null) {
-    return false;
-  }
-  if (node.type === "mdxJsxFlowElement" || node.type === "mdxJsxTextElement") {
-    return !isComponent(node);
-  }
-  return true;
-};
-
-const toOpaque = (node: Nodes, options: ToMarkdownOptions): OpaqueBlock | OpaqueInline | null => {
-  const position = OPAQUE_POSITION[node.type];
-  if (position === null || !isOpaqueSource(node)) {
+const toOpaque = (node: Nodes, options: ToMarkdownOptions): OpaqueInline | null => {
+  if (!isOpaqueSource(node)) {
     return null;
   }
-  // `html` is held verbatim; everything else is re-serialized from its subtree.
-  const value = node.type === "html" ? node.value : render(node, options);
-  return position === "block" ? { type: "opaqueBlock", value } : { type: "opaqueInline", value };
+  return { type: "opaqueInline", value: node.type === "html" ? node.value : render(node, options) };
 };
 
-// top-down: an opaque node is rendered from its original subtree and not descended into; a
-// component's children are still visited, so a `<Steps>` inside a `<toggle>` goes opaque alone.
+// top-down: an opaque node is rendered from its original subtree and not descended into.
 const makeOpaque = (node: Nodes, options: ToMarkdownOptions): void => {
   if (!("children" in node)) {
     return;
@@ -182,7 +121,6 @@ const makeOpaque = (node: Nodes, options: ToMarkdownOptions): void => {
 
 const opaqueToMarkdown: ToMarkdownOptions = {
   handlers: {
-    opaqueBlock: (node: OpaqueBlock) => node.value,
     opaqueInline: Object.assign((node: OpaqueInline) => node.value, { peek: () => "<" }),
   },
 };

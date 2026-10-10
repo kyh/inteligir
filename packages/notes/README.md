@@ -53,11 +53,16 @@ src/
                        # the body's one parse, one writer and one display
                        # label (`wikiLinkLabel`), which every chip, preview
                        # and snippet on desktop and phone draws
-    remark-mdx-agnostic.ts  # jsx without expressions, TOTAL: a tag it cannot
-                       # finish declines, a tag that cannot pair stays its
-                       # own bytes, so no input throws
-    remark-inline-constructs.ts, remark-opaque.ts, remark-tabs.ts,
-    table-pipes.ts, line-scan.ts
+    remark-inline-html.ts  # every tag is inline html (flow html is off),
+                       # folded with its closer as the tree compiles: a bare
+                       # `<u>` the underline mark, any other pair one element
+                       # the editor holds as source; a tag nothing closes
+                       # stays its own bytes
+    remark-containers.ts   # the `:::` line grammar (tabs, toggles, columns),
+                       # nesting in every flow container; an opener whose
+                       # container cannot be read whole stays prose
+    remark-inline-constructs.ts, remark-opaque.ts, table-pipes.ts,
+    line-scan.ts
                        # the rest of the dialect's own remark plugins
     md-plugins.ts      # the EDITOR's plugin list, owned here so the scan
                        # reads the same grammar

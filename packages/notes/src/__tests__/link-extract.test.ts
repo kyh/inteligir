@@ -346,7 +346,7 @@ describe("verbatim regions (indexed, never rewritten)", () => {
 
   const cases: [string, string][] = [
     ["raw html", "<div>[[Alpha]]</div>\n"],
-    ["a tag the editor cannot model", "<Steps>\n\n[[Alpha]]\n\n</Steps>\n"],
+    ["a tag the editor cannot model", "<Steps>\n[[Alpha]]\n</Steps>\n"],
   ];
 
   it.each(cases)("indexes a wiki link inside %s with no span", (_name, source) => {
@@ -368,11 +368,17 @@ describe("verbatim regions (indexed, never rewritten)", () => {
     expect(sliceTarget(source)).toBeNull();
   });
 
-  it("keeps the span inside a modelled component — only unmodellable tags go verbatim", () => {
-    const src = '<toggle kind="note">\n\n[[Alpha]]\n\n</toggle>\n';
-    only(src);
-    expect(sliceTarget(src)).toBe("Alpha");
-  });
+  it.each([
+    ["a toggle", ":::toggle\n[[Alpha]]\n:::\n"],
+    ["an underline", "<u>[[Alpha]]</u>\n"],
+    ["tags a blank line parts, which pair with nothing", "<Steps>\n\n[[Alpha]]\n\n</Steps>\n"],
+  ])(
+    "keeps the span inside %s — only what the editor holds as source goes verbatim",
+    (_name, src) => {
+      only(src);
+      expect(sliceTarget(src)).toBe("Alpha");
+    },
+  );
 
   it.each([
     ["a malformed tag, which reads as text", "<mal <tag [[Alpha]]\n"],

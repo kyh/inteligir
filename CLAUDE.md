@@ -397,9 +397,21 @@ to the END of its group.
 - **NOTES SPEAK THE INTELIGIR DIALECT**: `[[Title]]` / `[[Title#H]]` /
   `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe starts the
   alias), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%` comment
-  anchors, GitHub alerts (`> [!NOTE]` through `> [!CAUTION]`) as THE callout,
-  and `inteligir-chart` / `inteligir-canvas` / `inteligir-html` / `:::tabs`
-  blocks, all valid markdown, all round-tripping. The alert is the ONLY
+  anchors, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub alerts
+  (`> [!NOTE]` through `> [!CAUTION]`) as THE callout, `inteligir-chart` /
+  `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
+  `:::columns` containers, and `![](url)` embeds, all valid markdown, all
+  round-tripping. THE DIALECT HAS NO JSX: its blocks are one `:::` line grammar
+  that nests in any flow container, a `:::` closing the innermost
+  (`@repo/notes/markdown/remark-containers`), and every tag is html, the
+  editor's own only where it is a bare `<u>`
+  (`@repo/notes/markdown/remark-inline-html`). Rejected: jsx tags for the
+  toggle, columns, dates and embeds, which kept an MDX tokenizer and its guards
+  in the grammar and a jsx writer in the serializer, and wrote tags other
+  markdown tools draw as raw html; and a date as a `[[YYYY-MM-DD]]` link,
+  which costs the chip and its calendar. An embed's
+  kind is its url's (`@repo/editor/lib/embed-url`), and alt text or a title
+  keeps a web image an image. The alert is the ONLY
   callout (owner decision): an `inteligir-callout` fence is a plain code block
   and a `<callout>` tag is carried as its source, both saved byte-exact.
   Rejected: reading either as a callout, a second grammar with its own node
@@ -1036,12 +1048,12 @@ to the END of its group.
   TOTAL.** The knowledge scan walks the editor's plugin list as a bare parse
   (`@repo/notes/markdown/bare-parse`), so the index reads as prose exactly what
   the editor draws as prose: no indented code, no flow html, and math is latex,
-  never a link. No input throws (`@repo/notes/markdown/remark-mdx-agnostic`): a
-  tag the tokenizer cannot finish declines to an autolink, html or text; a tag
-  that cannot pair (a closer with no opener, a mismatched closer, an opener
-  never closed) is kept as an `html` literal, its children left in place; and
-  `{` is prose, since the dialect has no expressions. So a stray `{` or `<br>`
-  costs a note neither its rich editing nor its index row. Rejected: a second,
+  never a link. No input throws: the grammar has no jsx and no expressions, so
+  `<` opens an html tag, an autolink or text and `{` is prose; a tag folds with
+  its closer while the tree compiles (`@repo/notes/markdown/remark-inline-html`),
+  so the index pairs tags exactly as the editor does, and a tag nothing closes
+  stays an `html` literal. So a stray `{` or `<br>` costs a note neither its
+  rich editing nor its index row. Rejected: a second,
   plain-markdown grammar for the scan, kept total beside an editor grammar that
   threw, which needed a bridge to say where the two disagreed. A rename's span
   is a licence to rewrite bytes, so the scan withholds spans inside a construct

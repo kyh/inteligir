@@ -37,17 +37,17 @@ describe("a parse's offsets index the string it was handed, past a leading BOM",
   it.each([
     ["no BOM", ""],
     ["a BOM", "\uFEFF"],
-  ])("%s: the bare parse's math and jsx, attributes included", (_, bom) => {
-    const src = `${bom}$$[[old]]$$ and <Card title="[[old]]" />\n`;
+  ])("%s: the bare parse's math and an element of tags, its tags included", (_, bom) => {
+    const src = `${bom}$$[[old]]$$ and <Card title="[[old]]">x</Card>\n`;
     const root = parseBare(src);
     expect(nodeText(src, root, "inlineMath")).toEqual(["$$[[old]]$$"]);
-    expect(nodeText(src, root, "mdxJsxTextElement")).toEqual(['<Card title="[[old]]" />']);
+    expect(nodeText(src, root, "htmlElement")).toEqual(['<Card title="[[old]]">x</Card>']);
     const [paragraph] = root.children;
     const card = paragraph?.type === "paragraph" ? paragraph.children.at(-1) : undefined;
-    const attribute = card?.type === "mdxJsxTextElement" ? card.attributes[0] : undefined;
-    const start = attribute?.position?.start.offset;
-    const end = attribute?.position?.end.offset;
-    expect(src.slice(start, end)).toBe('title="[[old]]"');
+    const open = card?.type === "htmlElement" ? card.open : undefined;
+    const start = open?.position?.start.offset;
+    const end = open?.position?.end.offset;
+    expect(src.slice(start, end)).toBe('<Card title="[[old]]">');
   });
 
   it.each([

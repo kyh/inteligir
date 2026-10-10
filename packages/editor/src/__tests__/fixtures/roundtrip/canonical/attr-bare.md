@@ -1,3 +1,0 @@
-<toggle draft>
-  x
-</toggle>

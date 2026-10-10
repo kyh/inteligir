@@ -1,6 +1,6 @@
 // Autoformat rides each plugin's `inputRules`; @platejs/autoformat is an inert stub.
 // Underline has no GFM form, so no input rule applies it; ⌘U and the touch toolbar do, and a save
-// writes it as `<u>`.
+// writes it as `<u>…</u>`.
 
 import {
   BaseBoldPlugin,
