@@ -204,8 +204,9 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   second; New note opens with its title focused and the keyboard up; a
   `[[link]]` pushes its note and back returns; an external link opens Safari
   and the page never navigates; a chart and tabs refuse edits; dark mode
-  follows the system; typing and then backgrounding and killing the app keeps
-  what was typed.
+  follows the system, with no light edge behind a pushed screen or the
+  keyboard, even after switching it with the app open; typing and then
+  backgrounding and killing the app keeps what was typed.
 - **Offline.** Sync once, turn on airplane mode, kill the app and open it.
   Passing: the notes list, any note and every thread open. Edit a note and add
   a photo while still offline, kill the app, open it, turn airplane mode off.

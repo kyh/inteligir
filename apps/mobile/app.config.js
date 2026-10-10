@@ -39,13 +39,6 @@ const accessedApiTypes = [
 const appConfig = ({ config }) => ({
   ...config,
   ...easFields,
-  android: {
-    adaptiveIcon: {
-      backgroundColor: "#171717",
-      foregroundImage: "./assets/icon-light.png",
-    },
-    package: "com.inteligir.mobile",
-  },
   experiments: {
     reactCompiler: true,
     typedRoutes: true,
@@ -67,6 +60,7 @@ const appConfig = ({ config }) => ({
   },
   name: "Inteligir",
   orientation: "portrait",
+  platforms: ["ios"],
   plugins: [
     "expo-router",
     "./plugins/with-editor-page",

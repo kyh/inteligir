@@ -11,7 +11,6 @@
   },
   "scripts": {
     "dev": "expo start",
-    "android": "expo run:android",
     "build": "expo export --platform ios --output-dir dist",
     "editor-page": "pnpm --filter @repo/mobile-editor build",
     "eas-build-post-install": "pnpm run editor-page",
@@ -39,7 +38,6 @@
     "expo-splash-screen": "catalog:",
     "expo-sqlite": "catalog:",
     "expo-status-bar": "catalog:",
-    "expo-system-ui": "catalog:",
     "expo-updates": "catalog:",
     "react": "catalog:expo",
     "react-native": "catalog:",

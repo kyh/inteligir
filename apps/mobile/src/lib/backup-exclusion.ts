@@ -5,15 +5,11 @@
 // iPhone only.
 
 import { requireNativeModule } from "expo";
-import { Platform } from "react-native";
 
 interface BackupExclusionModule {
   excludeFromBackup: (directory: string) => Promise<void>;
 }
 
 export const excludeFromBackup = async (directory: string): Promise<void> => {
-  if (Platform.OS !== "ios") {
-    return;
-  }
   await requireNativeModule<BackupExclusionModule>("BackupExclusion").excludeFromBackup(directory);
 };
