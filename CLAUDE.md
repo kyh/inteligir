@@ -197,8 +197,9 @@ apps/
                  @repo/editor, @repo/notes and @repo/ui only.
 packages/
   domain/        @repo/domain — zod-only leaf vocabulary (view context,
-                 provider events, the thread-title rule), vendored-from-bb
-                 shapes; every package may reach it, it reaches nothing.
+                 provider events, the thread-title rule, the harness ids),
+                 vendored-from-bb shapes; every package may reach it, it
+                 reaches nothing.
   contract/      @repo/contract — ONE contract package, TWO entry points (#611),
                  named as in kyh/init's contract-first layout but with no
                  service package, since `apps/cli/src/server` implements /local.
@@ -1446,7 +1447,11 @@ to the END of its group.
   harness's `envOmit`, a deadline that kills the process group), and the answer
   is shared and kept 10s (`vendor-accounts.ts`), built in `serve.ts` so
   `compose.ts` spawns nothing. A send is refused up front only when the
-  thread's own runtime is missing from the install; a signed-out vendor is not
+  thread's own runtime is missing from the install, or when the thread names a
+  harness this build does not ship: the wire and the runtime take a
+  `HarnessId` (`@repo/domain/harness`), but a thread's row and its log keep
+  the id open, since another device's newer build may name one, and the turn's
+  start narrows it with `parseHarnessId`. A signed-out vendor is not
   pre-gated, because the adapter's `authRequired` is the refusal and it names
   the vendor. `packages/agent-runtime/src/acp/harness-registry.ts`.
 

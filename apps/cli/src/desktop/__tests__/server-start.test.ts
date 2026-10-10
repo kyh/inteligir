@@ -146,7 +146,7 @@ const dataDirWithServer = (port: number | null, pid: number = process.pid): stri
 const exitedPid = (): number => spawnSync(process.execPath, ["-e", ""]).pid;
 
 const systemStatus = (dataDir: string, version: string): SystemStatusResponse => ({
-  agent: { detail: null, mode: "off", runtime: "off" },
+  agent: { mode: "off" },
   dataDir,
   dataDirScope: "root",
   schemaVersion: 1,

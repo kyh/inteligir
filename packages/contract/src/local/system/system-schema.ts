@@ -1,19 +1,34 @@
 import { z } from "zod";
 
 // the runtime shape, never which harness: a thread carries its own providerId
-export const agentModeValues = ["auto", "scripted", "off"] as const;
+export const agentModeValues = ["acp", "scripted", "off"] as const;
 export const agentModeSchema = z.enum(agentModeValues);
 export type AgentMode = z.infer<typeof agentModeSchema>;
 
-// mode is the configuration; runtime is what actually serves turns
-export const agentStatusSchema = z
-  .object({
-    detail: z.string().nullable(),
-    mode: agentModeSchema,
-    runtime: z.enum(["acp", "scripted", "unavailable", "off"]),
-  })
-  .strict();
+// mode is the configuration. Only the ACP runtime can be configured and not serve turns: the harness
+// a new thread starts on is missing from this copy of the app, which detail says in the person's
+// words.
+export const agentStatusSchema = z.discriminatedUnion("mode", [
+  z.discriminatedUnion("runtime", [
+    z.object({ mode: z.literal("acp"), runtime: z.literal("ready") }).strict(),
+    z
+      .object({
+        detail: z.string().min(1),
+        mode: z.literal("acp"),
+        runtime: z.literal("unavailable"),
+      })
+      .strict(),
+  ]),
+  z.object({ mode: z.literal("scripted") }).strict(),
+  z.object({ mode: z.literal("off") }).strict(),
+]);
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
+
+// the status in configuration words, for the server's boot line and `inteligir status`
+export const agentStatusLine = (agent: AgentStatus): string =>
+  agent.mode === "acp" && agent.runtime === "unavailable"
+    ? `acp, unavailable — ${agent.detail}`
+    : agent.mode;
 
 export const guideResponseSchema = z.object({ markdown: z.string().min(1) }).strict();
 export type GuideResponse = z.infer<typeof guideResponseSchema>;

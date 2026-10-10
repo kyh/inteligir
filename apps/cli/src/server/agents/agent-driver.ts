@@ -8,8 +8,8 @@ import type { AgentStatus } from "@repo/contract/local/system/system-schema";
 import type { CreateTurnDriver } from "../threads/turn-driver";
 import { createUnavailableTurnDriver } from "../threads/turn-driver";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
-import { HARNESSES, isHarnessId } from "@repo/agent-runtime/acp/harness-registry";
-import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessId } from "@repo/domain/harness";
+import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import type { AppConfig } from "../config";
 import type { DebugLog } from "../debug-log";
 import type { VaultRuntime } from "../vault/vault-runtime";
@@ -59,12 +59,8 @@ const recordNothing: RecordAgentWrites = () => {
 
 export const defaultHarnessId = (preferred: HarnessId | null): HarnessId => preferred ?? "claude";
 
-// a provider this build does not know is left to the runtime, whose refusal names it.
-const missingRuntime = (providerId: string, env: NodeJS.ProcessEnv): string | null => {
-  if (!isHarnessId(providerId)) {
-    return null;
-  }
-  const harness = HARNESSES[providerId];
+const missingRuntime = (id: HarnessId, env: NodeJS.ProcessEnv): string | null => {
+  const harness = HARNESSES[id];
   return harness.vendorExecutable(env) === null ? missingRuntimeDetail(harness) : null;
 };
 
@@ -76,7 +72,7 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
       createTurnDriver: () => createUnavailableTurnDriver(detail),
       dispose: noDispose,
       recordAgentWrites: recordNothing,
-      status: () => ({ detail, mode, runtime: "off" }),
+      status: () => ({ mode }),
     };
   }
   const onDebug = createBoundedAgentLog();
@@ -91,7 +87,7 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
       createTurnDriver: createScriptedTurnDriverFactory(scripted),
       dispose: noDispose,
       recordAgentWrites: recordNothing,
-      status: () => ({ detail: null, mode, runtime: "scripted" }),
+      status: () => ({ mode }),
     };
   }
 
@@ -107,7 +103,7 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
     notifier: args.notifier,
     onDebug,
     sessionFacts: args.sessionFacts,
-    unavailableReason: (providerId) => missingRuntime(providerId, env),
+    unavailableReason: (id) => missingRuntime(id, env),
     vaultDir: args.config.vaultDir,
   };
   if (args.spawnAdapter !== undefined) {
@@ -124,7 +120,7 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
     status: () => {
       const detail = missingRuntime(defaultProviderId(), env);
       return detail === null
-        ? { detail: null, mode, runtime: "acp" }
+        ? { mode, runtime: "ready" }
         : { detail, mode, runtime: "unavailable" };
     },
   };

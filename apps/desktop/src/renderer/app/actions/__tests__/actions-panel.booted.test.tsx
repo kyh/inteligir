@@ -182,7 +182,7 @@ describe("the action list", () => {
   });
 });
 
-const ACP: AgentStatus = { detail: null, mode: "auto", runtime: "acp" };
+const ACP: AgentStatus = { mode: "acp", runtime: "ready" };
 
 const bootSignedOut = async (harness: "claude" | "codex"): Promise<ThreadHarness> => {
   const booted = await bootThreadHarness(

@@ -7,12 +7,8 @@
 import { createHash } from "node:crypto";
 import { createAcpAgentRuntime } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
-import { HARNESSES, isHarnessId } from "@repo/agent-runtime/acp/harness-registry";
-import type {
-  HarnessDefinition,
-  HarnessId,
-  HarnessModels,
-} from "@repo/agent-runtime/acp/harness-registry";
+import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessModels } from "@repo/agent-runtime/acp/harness-registry";
 import { describeProviderError, readProviderError } from "@repo/agent-runtime/acp/provider-error";
 import type { AgentRuntime } from "@repo/agent-runtime/types";
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
@@ -21,6 +17,8 @@ import type {
   PendingInteractionResolution,
 } from "@repo/domain/pending-interactions";
 import type { DbConnection } from "@repo/db/connection";
+import { parseHarnessId } from "@repo/domain/harness";
+import type { HarnessId, ThreadHarness } from "@repo/domain/harness";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { interruptOpenPendingInteractions } from "@repo/db/pending-interactions";
 import { getThread, setThreadProviderSession } from "@repo/db/threads";
@@ -53,6 +51,9 @@ import { turnPromptInput } from "./view-context-prompt";
 
 const instructionsHash = (instructions: string): string =>
   createHash("sha256").update(instructions).digest("hex");
+
+const unshippedHarnessDetail = (id: string): string =>
+  `This action runs on an agent this copy of inteligir does not have ("${id}") — update inteligir to continue it`;
 
 type FileChangeProviderItem = Extract<
   Extract<ProviderEvent, { type: "item/started" }>["item"],
@@ -89,9 +90,9 @@ export interface AcpRuntimeManagerDeps {
   hostEnv: NodeJS.ProcessEnv;
   // a getter: the stored default can change between two thread starts
   defaultProviderId: () => HarnessId;
-  // read per send with the thread's own provider: non-null refuses the turn with it before
+  // read per send with the thread's own harness: non-null refuses the turn with it before
   // anything is spawned. absent, every send is attempted.
-  unavailableReason?: (providerId: string) => string | null;
+  unavailableReason?: (harness: HarnessId) => string | null;
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
   createRuntime?: typeof createAcpAgentRuntime;
   // null disables.
@@ -120,6 +121,7 @@ type TurnPhase =
 // in the map from startTurn until the turn settles, so membership is the unsettled test.
 interface ActiveTurn {
   ourTurnId: string;
+  harness: HarnessId;
   phase: TurnPhase;
   writes: AgentTurnWrites;
   lastEventAt: number;
@@ -229,9 +231,11 @@ class AcpTurnDriver implements TurnDriver {
     if (this.disposed) {
       throw new Error("The agent runtime manager is disposed");
     }
-    const unavailable =
-      this.deps.unavailableReason?.(this.providerIdOf(getThread(this.deps.db, args.threadId))) ??
-      null;
+    const harness = this.harnessOf(getThread(this.deps.db, args.threadId));
+    if (harness.kind === "unknown") {
+      throw new TurnDriverUnavailableError(unshippedHarnessDetail(harness.id));
+    }
+    const unavailable = this.deps.unavailableReason?.(harness.id) ?? null;
     if (unavailable !== null) {
       throw new TurnDriverUnavailableError(unavailable);
     }
@@ -239,6 +243,7 @@ class AcpTurnDriver implements TurnDriver {
       throw new Error(`Thread ${args.threadId} already has a running turn`);
     }
     this.turnsByThreadId.set(args.threadId, {
+      harness: harness.id,
       lastEventAt: Date.now(),
       ourTurnId: args.turnId,
       phase: { kind: "dispatched" },
@@ -252,12 +257,12 @@ class AcpTurnDriver implements TurnDriver {
         turnId: args.turnId,
       }),
     });
-    void this.runDispatch(args);
+    void this.runDispatch(args, harness.id);
   }
 
-  private async runDispatch(args: TurnDriverStartArgs): Promise<void> {
+  private async runDispatch(args: TurnDriverStartArgs, harness: HarnessId): Promise<void> {
     try {
-      await this.dispatchTurn(args);
+      await this.dispatchTurn(args, harness);
     } catch (error) {
       // a disposed manager leaves its turns to the next boot's recovery; a turn the watchdog settled
       // mid-dispatch is already failed, and failing it here would fail the turn that replaced it.
@@ -338,7 +343,7 @@ class AcpTurnDriver implements TurnDriver {
     }
   }
 
-  private async dispatchTurn(args: TurnDriverStartArgs): Promise<void> {
+  private async dispatchTurn(args: TurnDriverStartArgs, harness: HarnessId): Promise<void> {
     // the hold blocks new sync passes; this waits out one already mid-flight, so the provider
     // never writes into a rebase's checkout window.
     await this.turnsByThreadId.get(args.threadId)?.writes.ready;
@@ -347,7 +352,7 @@ class AcpTurnDriver implements TurnDriver {
     // acp's session/new carries no instructions field, so a turn's prompt is the only channel.
     const instructions = runtime.hasThread(args.threadId)
       ? undefined
-      : await this.openThreadSession(runtime, args);
+      : await this.openThreadSession(runtime, args, harness);
     this.assertDispatching(args);
     await runtime.runTurn({
       input: turnPromptInput(args, instructions),
@@ -378,11 +383,10 @@ class AcpTurnDriver implements TurnDriver {
   private async openThreadSession(
     runtime: AgentRuntime,
     args: TurnDriverStartArgs,
+    providerId: HarnessId,
   ): Promise<string | undefined> {
     const { threadId } = args;
-    const row = getThread(this.deps.db, threadId);
-    const persisted = row?.providerThreadId ?? null;
-    const providerId = this.providerIdOf(row);
+    const persisted = getThread(this.deps.db, threadId)?.providerThreadId ?? null;
     if (persisted !== null) {
       try {
         const resumed = await runtime.resumeThread({
@@ -414,13 +418,12 @@ class AcpTurnDriver implements TurnDriver {
     return this.instructionsFor(threadId, false);
   }
 
-  private providerIdOf(row: ThreadRow | null): string {
-    return row?.providerId ?? this.deps.defaultProviderId();
-  }
-
-  private harnessOf(threadId: string): HarnessDefinition | undefined {
-    const providerId = this.providerIdOf(getThread(this.deps.db, threadId));
-    return isHarnessId(providerId) ? HARNESSES[providerId] : undefined;
+  // a thread with no harness yet starts on the default; one it already has is kept, known or not.
+  private harnessOf(row: ThreadRow | null): ThreadHarness {
+    const stored = row?.providerId ?? null;
+    return stored === null
+      ? { id: this.deps.defaultProviderId(), kind: "known" }
+      : parseHarnessId(stored);
   }
 
   interruptTurn(threadId: string): TurnInterrupt {
@@ -615,8 +618,11 @@ class AcpTurnDriver implements TurnDriver {
   // turn-scoped and classed like a refused prompt's: the settle finds the class on the turn's own
   // rows, so a session open refused for a sign-in holds the queue too.
   private failTurn(threadId: string, cause: unknown): void {
-    const reading = readProviderError(cause, this.harnessOf(threadId));
     const state = this.turnsByThreadId.get(threadId);
+    const reading = readProviderError(
+      cause,
+      state === undefined ? undefined : HARNESSES[state.harness],
+    );
     if (state === undefined) {
       this.debug(
         `dispatch failure for thread ${threadId} after its turn settled: ${reading.message}`,

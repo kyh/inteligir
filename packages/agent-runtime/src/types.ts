@@ -2,6 +2,7 @@
 // AgentRuntime carries only what the host calls: a method kept for a re-vendor is a stub every test
 // double must write.
 
+import type { HarnessId } from "@repo/domain/harness";
 import type {
   PendingInteractionCreate,
   PendingInteractionResolution,
@@ -33,7 +34,7 @@ export interface AgentRuntimeOptions {
 
 export interface StartThreadArgs {
   threadId: string;
-  providerId: string;
+  providerId: HarnessId;
 }
 
 export interface StartThreadResult {
@@ -43,7 +44,7 @@ export interface StartThreadResult {
 export interface ResumeThreadArgs {
   threadId: string;
   providerThreadId?: string;
-  providerId: string;
+  providerId: HarnessId;
 }
 
 export interface ResumeThreadResult {
@@ -67,7 +68,7 @@ export interface ReapIdleProviderSessionsArgs {
 
 export interface ReapedIdleProviderSession {
   idleForMs: number;
-  providerId: string;
+  providerId: HarnessId;
   providerThreadId: string;
   threadId: string;
 }

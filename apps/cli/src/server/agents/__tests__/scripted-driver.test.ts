@@ -37,7 +37,7 @@ const gitLogHead = (vaultDir: string): string =>
 
 const bootScripted = async (): Promise<BootedTestApp> =>
   await bootTestApp({
-    agent: { detail: null, mode: "scripted", runtime: "scripted" },
+    agent: { mode: "scripted" },
     makeDriver: ({ db, bus, vault, vaultDir }) => {
       const resolved = resolveAgentDriver({
         config: {
@@ -50,7 +50,7 @@ const bootScripted = async (): Promise<BootedTestApp> =>
         sessionFacts: () => fakeSessionFacts(),
         vault,
       });
-      expect(resolved.status()).toEqual({ detail: null, mode: "scripted", runtime: "scripted" });
+      expect(resolved.status()).toEqual({ mode: "scripted" });
       return { createTurnDriver: resolved.createTurnDriver, dispose: resolved.dispose };
     },
   });

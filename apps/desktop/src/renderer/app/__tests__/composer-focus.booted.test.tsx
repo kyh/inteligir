@@ -93,7 +93,7 @@ describe("the ⌘K composer", () => {
     collectUnobserved = true;
     const harness = await bootThreadHarness(
       { mode: "manual" },
-      { agent: { detail: null, mode: "auto", runtime: "acp" } },
+      { agent: { mode: "acp", runtime: "ready" } },
     );
     // an action on the list, so the panel draws no sign-in offer of its own
     await harness.client.threads.create({ title: "Tidy the intro" });

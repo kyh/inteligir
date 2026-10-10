@@ -94,10 +94,13 @@ scripts/
   adapter merges into every session) and the env keys to omit — the claude SDK
   refuses to run when it believes it is nested inside another claude session,
   so the nesting sentinel must not leak through from whatever launched this
-  app. `HARNESS_IDS` is the id set, claude first, and `harnessIdSchema`
-  and `isHarnessId` are the only ways in: an own-key check, since `in` admits
-  every `Object.prototype` name. `requireHarness` is the one gate from a
-  `providerId` to a row. A model is per harness (`models`, a `HarnessModels`),
+  app. The id set and the names a person reads (`HARNESS_IDS`,
+  `harnessIdSchema`, `HARNESS_NAMES`) are `@repo/domain/harness`'s, so the
+  wire and every runtime call take a `HarnessId` and `HARNESSES` is indexed by
+  one, never by a string. A thread's own provider id stays open in its row and
+  its log, since another device's newer build may name a harness this one does
+  not ship, and the host narrows it with `parseHarnessId` where a turn starts.
+  A model is per harness (`models`, a `HarnessModels`),
   because a model id is vendor-specific: one string for every adapter would
   hand codex a claude model.
 - **A resume says whether the agent kept its history.** `resumeThread`

@@ -11,11 +11,11 @@ import { PassThrough } from "node:stream";
 import { adapterSpawnEnv } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
 import { runAgentSignIn } from "@repo/agent-runtime/acp/acp-sign-in";
+import type { HarnessId } from "@repo/domain/harness";
 import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import type {
   AgentSignIn,
   HarnessDefinition,
-  HarnessId,
   SignInMethod,
   TerminalSignIn,
   VendorAccount,

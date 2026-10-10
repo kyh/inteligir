@@ -27,6 +27,7 @@ import {
   mentionNames,
 } from "@repo/notes/knowledge/unlinked-mentions";
 import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
+import type { AgentsStatusResponse } from "@repo/contract/local/agents/agents-schema";
 import { RPC_PREFIX } from "@repo/contract/local/routes";
 import type { AgentStatus, SystemStatusResponse } from "@repo/contract/local/system/system-schema";
 import type { ThreadTimeline } from "@repo/contract/local/thread-timeline";
@@ -141,7 +142,7 @@ export const makeRevision = (
 });
 
 export const makeFixtureState = (): FixtureState => ({
-  agent: { detail: null, mode: "auto", runtime: "acp" },
+  agent: { mode: "acp", runtime: "ready" },
   backlinks: [],
   cloud: { cloudUrl: FIXTURE_CLOUD_URL, revokeError: null, state: "signed-out" },
   comments: new Map(),
@@ -197,7 +198,11 @@ const commentsBody = (state: FixtureState, path: string) => {
 
 const base = implement(localContract).$context<FixtureState>();
 
-const FIXTURE_AGENTS = { defaultId: "claude", harnesses: [], signingIn: null };
+const FIXTURE_AGENTS: AgentsStatusResponse = {
+  defaultId: "claude",
+  harnesses: [],
+  signingIn: null,
+};
 
 // no verb signs an agent in or out; the contract asks every server to answer those rows
 const agentsRouter = {

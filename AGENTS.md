@@ -46,11 +46,12 @@ Requirements: **Node 24** and **pnpm 12** (`corepack enable` reads the
 root `packageManager`).
 (`.codex/environments/environment.toml` runs `pnpm i` for cloud runners.)
 
-The agent RUNTIME is selected by `INTELIGIR_AGENT` (`auto` · `scripted` ·
-`off`; default `auto` — the ACP runtime, which runs the vendor binaries bundled
+The agent RUNTIME is selected by `INTELIGIR_AGENT` (`acp` · `scripted` ·
+`off`; default `acp` — the ACP runtime, which runs the vendor binaries bundled
 beside its adapters and never looks at PATH; it refuses a send only when the
 thread's runtime is missing from the install, with the reason `system.status`
-states under `agent`, and a signed-out vendor refuses the session itself). WHICH
+states under `agent`, or when the thread names a harness this build does not
+ship, and a signed-out vendor refuses the session itself). WHICH
 harness runs is a thread's own `providerId`, never this variable; unset, a new
 thread starts on claude. `inteligir agents list` asks each bundled vendor for
 its sign-in over its shared store (`~/.claude`, `~/.codex`), so a machine

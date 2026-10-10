@@ -6,6 +6,7 @@ import {
   SIGN_IN_CODE_MAX_LENGTH,
 } from "@repo/contract/local/agents/agents-schema";
 import type { HarnessStatus } from "@repo/contract/local/agents/agents-schema";
+import type { HarnessId } from "@repo/domain/harness";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
@@ -129,7 +130,7 @@ const Waiting = ({ flow, waiting }: { flow: AgentSignInFlow; waiting: SignInWait
 
 export interface AgentSignInProps {
   // one agent's sign-in alone; absent, the default agent first and the rest under Other
-  harness?: string;
+  harness?: HarnessId;
 }
 
 export const AgentSignIn = ({ harness }: AgentSignInProps) => {

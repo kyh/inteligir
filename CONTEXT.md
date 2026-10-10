@@ -232,6 +232,6 @@ vendor's own login, run by the server through the bundled binary or adapter
 vendor's shared store (`~/.claude`, `~/.codex`), and drawn everywhere by one
 `AgentSignIn` (`apps/desktop/src/renderer/app/agents/agent-sign-in.tsx`).
 "Claude" is the `claude` harness and "ChatGPT" the `codex` one (their
-`displayName` in `@repo/agent-runtime`'s harness rows); since the store is
+`displayName` in `HARNESS_NAMES`, `@repo/domain/harness`); since the store is
 shared, signing out here signs the vendor's own app (`vendorApp`) out too. Not
 an inteligir **Account**.

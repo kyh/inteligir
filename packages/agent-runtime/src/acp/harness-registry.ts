@@ -1,14 +1,11 @@
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { HARNESS_NAMES } from "@repo/domain/harness";
+import type { HarnessId } from "@repo/domain/harness";
 import { z } from "zod";
 
 const require = createRequire(import.meta.url);
-
-// claude first: every list of harnesses reads in this order.
-export const HARNESS_IDS = ["claude", "codex"] as const;
-export type HarnessId = (typeof HARNESS_IDS)[number];
-export const harnessIdSchema = z.enum(HARNESS_IDS);
 
 // a model id is vendor-specific, so each harness carries its own; null runs the vendor's default.
 export type HarnessModels = Readonly<Record<HarnessId, string | null>>;
@@ -61,6 +58,9 @@ interface HarnessSessionMeta {
 export interface HarnessDefinition {
   id: HarnessId;
   displayName: string;
+  // the vendor's own app on this Mac, which keeps its sign-in in that same store: signing out
+  // here signs it out too.
+  vendorApp: string;
   adapterEntry: string;
   // set on the adapter's env unless the host's env already names it
   adapterEnv: Readonly<Record<string, string>>;
@@ -71,9 +71,6 @@ export interface HarnessDefinition {
   signIn: SignInMethod;
   // the vendor binary's own sign-out, over the same shared store its sign-in wrote.
   signOutArgs: readonly string[];
-  // the vendor's own app on this Mac, which keeps its sign-in in that same store: signing out
-  // here signs it out too.
-  vendorApp: string;
   applyModel: (model: string, env: Record<string, string>) => void;
   // the claude SDK refuses to run when it believes it is nested inside another claude session, so
   // the nesting sentinel must not leak through from whatever launched this app.
@@ -272,6 +269,7 @@ const codexAdapterEnv = (): Record<string, string> =>
 
 export const HARNESSES = {
   claude: {
+    ...HARNESS_NAMES.claude,
     accountProbe: { args: ["auth", "status", "--json"], read: readClaudeAccount },
     adapterEntry: CLAUDE_ADAPTER_ENTRY,
     // the adapter spawns the SDK's native claude binary, never a node script.
@@ -279,7 +277,6 @@ export const HARNESSES = {
     applyModel: (model: string, env: Record<string, string>) => {
       env.ANTHROPIC_MODEL = model;
     },
-    displayName: "Claude",
     envOmit: ["CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"],
     id: "claude",
     // the vault is synced content: the `project` and `local` sources would load its .claude
@@ -295,11 +292,11 @@ export const HARNESSES = {
     },
     signOutArgs: ["auth", "logout"],
     typedFailures: false,
-    vendorApp: "Claude Code",
     vendorExecutable: (env: NodeJS.ProcessEnv) =>
       overriddenOrBundled(env.CLAUDE_CODE_EXECUTABLE, BUNDLED_CLAUDE),
   },
   codex: {
+    ...HARNESS_NAMES.codex,
     accountProbe: { args: ["login", "status"], read: readCodexAccount },
     adapterEntry: CODEX_ADAPTER_ENTRY,
     adapterEnv: codexAdapterEnv(),
@@ -307,7 +304,6 @@ export const HARNESSES = {
     applyModel: (model: string, env: Record<string, string>) => {
       env.CODEX_CONFIG = JSON.stringify({ model });
     },
-    displayName: "ChatGPT",
     envOmit: [],
     id: "codex",
     // codex-acp takes no per-session option: the adapter patch pnpm-workspace.yaml names marks the
@@ -319,24 +315,10 @@ export const HARNESSES = {
     signIn: { kind: "agent", methodId: "chat-gpt" },
     signOutArgs: ["logout"],
     typedFailures: true,
-    vendorApp: "Codex",
     vendorExecutable: (env: NodeJS.ProcessEnv) =>
       overriddenOrBundled(env.CODEX_PATH, BUNDLED_CODEX),
   },
 } satisfies Record<HarnessId, HarnessDefinition>;
-
-// not `in HARNESSES`, which admits every Object.prototype key: "constructor" would be a harness.
-export const isHarnessId = (value: string): value is HarnessId =>
-  HARNESS_IDS.some((id) => id === value);
-
-export const requireHarness = (providerId: string): HarnessDefinition => {
-  if (!isHarnessId(providerId)) {
-    throw new Error(
-      `Unknown provider "${providerId}". Available providers: ${HARNESS_IDS.join(", ")}`,
-    );
-  }
-  return HARNESSES[providerId];
-};
 
 // what the host's env hands anything this harness spawns, its adapter or its vendor binary: every
 // set value, less the harness's envOmit.

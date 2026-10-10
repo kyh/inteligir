@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AgentsStatusResponse } from "@repo/contract/local/agents/agents-schema";
+import { RPC_PREFIX } from "@repo/contract/local/routes";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 import { bootTestApp, makeTempDir } from "../../__tests__/boot-app";
@@ -361,11 +362,26 @@ describe("signing codex in", () => {
 });
 
 describe("a sign-in the server cannot run", () => {
-  it("is refused NOT_FOUND for a harness that does not exist", async () => {
-    const booted = await bootTestApp();
-    const [refusal] = await safe(booted.client.agents.signIn({ id: "gemini" }));
-    expect(isDefinedError(refusal) && refusal.code).toBe("NOT_FOUND");
-  });
+  // the typed client cannot name one, so the request is the wire's own.
+  it.each<[string, Record<string, string>]>([
+    ["signIn", { id: "gemini" }],
+    ["signOut", { id: "gemini" }],
+    ["setDefault", { id: "gemini" }],
+    ["cancelSignIn", { id: "gemini" }],
+    ["submitSignInCode", { code: PAGE_CODE, id: "gemini" }],
+  ])(
+    "is refused BAD_REQUEST at parse on %s for a harness that does not exist",
+    async (procedure, input) => {
+      const booted = await bootTestApp();
+      const response = await booted.request(`${RPC_PREFIX}/agents/${procedure}`, {
+        body: JSON.stringify({ json: input }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ json: { code: "BAD_REQUEST" } });
+    },
+  );
 
   it("is refused CONFLICT while another runs", async () => {
     const booted = await bootTestApp();

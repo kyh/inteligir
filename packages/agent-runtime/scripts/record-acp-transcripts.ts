@@ -18,10 +18,12 @@ import {
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
+import { HARNESS_IDS, parseHarnessId } from "@repo/domain/harness";
+import type { HarnessId } from "@repo/domain/harness";
 import { z } from "zod";
 import { createAcpAgentRuntime } from "../src/acp/acp-runtime.js";
-import { HARNESS_IDS, isHarnessId, requireHarness } from "../src/acp/harness-registry.js";
-import type { HarnessDefinition, HarnessId } from "../src/acp/harness-registry.js";
+import { HARNESSES } from "../src/acp/harness-registry.js";
+import type { HarnessDefinition } from "../src/acp/harness-registry.js";
 
 const FIXTURES_DIR = path.resolve(import.meta.dirname, "..", "src", "acp", "__tests__", "fixtures");
 const TURN_TIMEOUT_MS = 5 * 60_000;
@@ -278,17 +280,23 @@ const record = async (harnessId: HarnessId, scenario: Scenario): Promise<string[
 
 const requested = process.argv.slice(2);
 const scenarioNames = new Set(SCENARIOS.map((scenario) => scenario.name));
-const unknown = requested.filter((arg) => !isHarnessId(arg) && !scenarioNames.has(arg));
+const requestedHarnesses = requested.flatMap((arg) => {
+  const harness = parseHarnessId(arg);
+  return harness.kind === "known" ? [harness.id] : [];
+});
+const unknown = requested.filter(
+  (arg) => parseHarnessId(arg).kind === "unknown" && !scenarioNames.has(arg),
+);
 if (unknown.length > 0) {
   throw new Error(
     `Unknown harness or scenario ${unknown.join(", ")}; harnesses: ${HARNESS_IDS.join(", ")}; scenarios: ${[...scenarioNames].join(", ")}`,
   );
 }
 const named = requested.filter((arg) => scenarioNames.has(arg));
-const harnessIds = requested.some(isHarnessId) ? requested.filter(isHarnessId) : HARNESS_IDS;
+const harnessIds = requestedHarnesses.length > 0 ? requestedHarnesses : HARNESS_IDS;
 
 for (const harnessId of harnessIds) {
-  const label = adapterLabel(requireHarness(harnessId));
+  const label = adapterLabel(HARNESSES[harnessId]);
   // a whole recording replaces the old version's, which would otherwise still be replayed; a named
   // scenario rewrites its own file alone.
   if (named.length === 0) {

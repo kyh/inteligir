@@ -1,5 +1,8 @@
 import { defineCommand } from "citty";
 import type { HarnessStatus } from "@repo/contract/local/agents/agents-schema";
+import { HARNESS_IDS, parseHarnessId } from "@repo/domain/harness";
+import type { HarnessId } from "@repo/domain/harness";
+import { invalidUsage } from "../cli-error";
 import { apiFor } from "../context";
 import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
@@ -23,6 +26,16 @@ const statusLine = (status: HarnessStatus): string => {
   }
 };
 
+const harnessArg = (id: string): HarnessId => {
+  const harness = parseHarnessId(id.trim());
+  if (harness.kind === "unknown") {
+    throw invalidUsage(
+      `No harness is called "${harness.id}"; pass one of ${HARNESS_IDS.join(", ")}.`,
+    );
+  }
+  return harness.id;
+};
+
 export const agentsCommand = (deps: CliDeps) =>
   defineCommand({
     meta: {
@@ -41,8 +54,9 @@ export const agentsCommand = (deps: CliDeps) =>
         },
         meta: { description: "Choose the harness a new action starts on", name: "default" },
         run: async ({ args }) => {
+          const id = harnessArg(args.id);
           const api = apiFor(deps);
-          const body = await api.agents.setDefault({ id: args.id });
+          const body = await api.agents.setDefault({ id });
           if (outputJson(args, body)) {
             return;
           }

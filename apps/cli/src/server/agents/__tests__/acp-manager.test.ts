@@ -14,7 +14,7 @@ import type { ThreadEventItemStatus } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { listStoredThreadEvents } from "@repo/db/events";
 import { listQueuedThreadMessages } from "@repo/db/queued-messages";
-import { getThread } from "@repo/db/threads";
+import { getThread, setThreadProviderSession } from "@repo/db/threads";
 import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { isDefinedError, safe } from "@orpc/client";
@@ -108,7 +108,7 @@ const bootWithManager = async (
 ): Promise<ManagerHarness> => {
   const wired: { manager: AcpRuntimeManager; driver: TurnDriver }[] = [];
   const booted = await bootTestApp({
-    agent: { detail: null, mode: "auto", runtime: "acp" },
+    agent: { mode: "acp", runtime: "ready" },
     makeDriver: ({ db, bus, vault, vaultDir }) => {
       const deps: AcpRuntimeManagerDeps = {
         db,
@@ -312,6 +312,25 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     expect(
       rows.find((row) => row.kind === "conversation" && row.role === "assistant"),
     ).toMatchObject({ text: "hello from the fake agent", turnId });
+  });
+
+  it("refuses a send on a thread started on a harness this build does not ship, spawning nothing", async () => {
+    const checkedProviders: string[] = [];
+    const spawnedEnvs: Record<string, string>[] = [];
+    const harness = await bootWithManager("message", { checkedProviders, spawnedEnvs });
+    const threadId = await createThread(harness.client);
+    // as another device's newer build would have stated it on the thread's log.
+    setThreadProviderSession(harness.db, {
+      providerId: "gemini",
+      providerThreadId: "pt_gemini",
+      threadId,
+    });
+    const [refusal] = await safe(harness.client.threads.send({ text: "hello", threadId }));
+    expect(isDefinedError(refusal) && refusal.code).toBe("PROVIDER_UNAVAILABLE");
+    expect(refusal?.message).toContain('"gemini"');
+    expect(checkedProviders).toEqual([]);
+    expect(spawnedEnvs).toEqual([]);
+    expect(getThread(harness.db, threadId)?.providerId).toBe("gemini");
   });
 
   it("reads the session facts at every session open: a folder added after the first turn reaches the next session's env AND prompt", async () => {
@@ -812,7 +831,7 @@ const bootWithScriptedRuntime = async (
   let runtimeOptions: AcpAgentRuntimeOptions | null = null;
   const prompted: string[] = [];
   const booted = await bootTestApp({
-    agent: { detail: null, mode: "auto", runtime: "acp" },
+    agent: { mode: "acp", runtime: "ready" },
     makeDriver: ({ db, bus, vault, vaultDir }) => {
       const manager = createAcpRuntimeManager({
         ...options,

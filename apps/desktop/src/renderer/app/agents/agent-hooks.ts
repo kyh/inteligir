@@ -7,6 +7,7 @@ import type {
   AgentsStatusResponse,
   HarnessStatus,
 } from "@repo/contract/local/agents/agents-schema";
+import type { HarnessId } from "@repo/domain/harness";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { failed, orpc, refusalMessage } from "../api";
@@ -41,7 +42,8 @@ export const useSignInNeed = (id: string | null): SignInNeed => {
   if (system.data === undefined) {
     return { kind: system.isError ? "none" : "unknown" };
   }
-  if (system.data.agent.runtime !== "acp") {
+  const { agent } = system.data;
+  if (agent.mode !== "acp" || agent.runtime !== "ready") {
     return { kind: "none" };
   }
   if (agents.data === undefined) {
@@ -69,7 +71,7 @@ export interface SignInWaiting {
 }
 
 interface SignInFailure {
-  id: string;
+  id: HarnessId;
   detail: string;
 }
 
@@ -81,7 +83,7 @@ export interface AgentSignInFlow {
   waiting: SignInWaiting | null;
   // the last sign-in this surface started, when it did not end signed in
   failure: SignInFailure | null;
-  start: (id: string) => void;
+  start: (id: HarnessId) => void;
   cancel: () => void;
   submitCode: (code: string) => void;
   code: { pending: boolean; answer: SignInCodeAnswer | null; refusal: string | null };

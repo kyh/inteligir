@@ -22,6 +22,7 @@ import type {
   SessionNotification,
   Stream,
 } from "@agentclientprotocol/sdk";
+import type { HarnessId } from "@repo/domain/harness";
 import type { PendingInteractionResolution } from "@repo/domain/pending-interactions";
 import type {
   AgentRuntime,
@@ -41,7 +42,7 @@ import { AcpTurnMapper } from "./acp-event-mapping.js";
 import { toApprovalPayload, toPermissionOutcome } from "./acp-permission-mapping.js";
 import { traceFrames } from "./frame-trace.js";
 import { buildThreadShellEnvironment } from "../thread-shell-environment.js";
-import { VaultConfigRefusedError, harnessHostEnv, requireHarness } from "./harness-registry.js";
+import { HARNESSES, VaultConfigRefusedError, harnessHostEnv } from "./harness-registry.js";
 import type { HarnessDefinition, HarnessModels } from "./harness-registry.js";
 import {
   TYPED_FAILURES_META,
@@ -169,7 +170,6 @@ export const terminateAdapter = async (
 // request still pending rejects naming the harness, the exit status and the last stderr lines.
 interface AcpAdapter {
   threadId: string;
-  providerId: string;
   harness: HarnessDefinition;
   child: ChildProcessWithoutNullStreams;
   connection: ClientConnection;
@@ -443,8 +443,8 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     await closeAdapter(threadId);
   };
 
-  const openAdapter = async (threadId: string, providerId: string): Promise<AcpAdapter> => {
-    const harness = requireHarness(providerId);
+  const openAdapter = async (threadId: string, providerId: HarnessId): Promise<AcpAdapter> => {
+    const harness = HARNESSES[providerId];
     const generation = closeGeneration(threadId);
     // a thread has one child: whatever it still holds goes first, so two adapters never write one
     // provider session's files.
@@ -469,7 +469,6 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       connection,
       gone: channel.gone,
       harness,
-      providerId,
       threadId,
     };
     child.once("exit", () => {
@@ -527,7 +526,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
   // send after a sign-in opens a new adapter rather than prompting a session that never existed.
   const startSession = async (
     threadId: string,
-    providerId: string,
+    providerId: HarnessId,
     open: (
       adapter: AcpAdapter,
       capabilities: AgentCapabilities | undefined,
@@ -629,7 +628,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
         await destroyAdapter(session.adapter);
         reaped.push({
           idleForMs,
-          providerId: session.adapter.providerId,
+          providerId: session.adapter.harness.id,
           providerThreadId: session.providerThreadId,
           threadId: session.adapter.threadId,
         });

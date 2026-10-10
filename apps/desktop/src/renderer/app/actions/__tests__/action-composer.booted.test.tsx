@@ -18,8 +18,8 @@ const noViewContext = async () => null;
 
 const noteColumn = { current: document.body };
 
-const ACP: AgentStatus = { detail: null, mode: "auto", runtime: "acp" };
-const SCRIPTED: AgentStatus = { detail: null, mode: "scripted", runtime: "scripted" };
+const ACP: AgentStatus = { mode: "acp", runtime: "ready" };
+const SCRIPTED: AgentStatus = { mode: "scripted" };
 const AUTH_URL = "https://claude.test/oauth/authorize?code=true";
 // longer than the vendors take to answer the agents' status
 const SETTLE_MS = 2000;
