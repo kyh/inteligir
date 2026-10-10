@@ -12,6 +12,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { PROTOCOL_VERSION, client, ndJsonStream } from "@agentclientprotocol/sdk";
 import type {
   AgentCapabilities,
+  ClientCapabilities,
   ClientConnection,
   ContentBlock,
   NewSessionRequest,
@@ -41,7 +42,12 @@ import { traceFrames } from "./frame-trace.js";
 import { buildThreadShellEnvironment } from "../thread-shell-environment.js";
 import { VaultConfigRefusedError, harnessHostEnv, requireHarness } from "./harness-registry.js";
 import type { HarnessDefinition, HarnessModels } from "./harness-registry.js";
-import { describeProviderError, readProviderError } from "./provider-error.js";
+import {
+  TYPED_FAILURES_META,
+  describeProviderError,
+  readProviderError,
+  readSessionFailure,
+} from "./provider-error.js";
 
 const SESSION_SHUTDOWN_GRACE_MS = 1000;
 
@@ -534,8 +540,14 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
   ): Promise<ResumeThreadResult> => {
     const adapter = await openAdapter(threadId, providerId);
     try {
+      const clientCapabilities: ClientCapabilities = {
+        fs: { readTextFile: false, writeTextFile: false },
+      };
+      if (adapter.harness.typedFailures) {
+        clientCapabilities._meta = TYPED_FAILURES_META;
+      }
       const initialized = await adapter.connection.agent.request("initialize", {
-        clientCapabilities: { fs: { readTextFile: false, writeTextFile: false } },
+        clientCapabilities,
         protocolVersion: PROTOCOL_VERSION,
       });
       const opened = await open(adapter, initialized.agentCapabilities);
@@ -577,7 +589,12 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
         prompt: promptBlocks(input),
         sessionId: session.providerThreadId,
       });
-      settle(mapper.completed(response.stopReason));
+      const failure = readSessionFailure(response._meta, session.adapter.harness);
+      settle(
+        failure === null
+          ? mapper.completed(response.stopReason)
+          : mapper.failed(failure.message, failure.failure),
+      );
     } catch (error) {
       const reading = readProviderError(error, session.adapter.harness);
       settle(mapper.failed(reading.message, reading.failure));

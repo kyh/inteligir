@@ -1346,7 +1346,10 @@ to the END of its group.
   since a kind nothing produces is a branch every consumer carries. The mapper
   is tested against turns the pinned adapters really sent
   (`packages/agent-runtime/src/acp/__tests__/fixtures/<adapter>@<version>/`),
-  because a fake agent encodes what the adapters were believed to send. The
+  because a fake agent encodes what the adapters were believed to send. A
+  failure no prompt causes on demand is staged: codex is pointed at a local
+  model endpoint answering as the API does (a scenario's `staged`), so the
+  adapter and the vendor binary are still the pinned ones. The
   adapter and SDK pins are exact and move together, and a bump re-records
   (`packages/agent-runtime/scripts/record-acp-transcripts.ts`).
 
@@ -1505,9 +1508,16 @@ to the END of its group.
   that died are each read once, into words and a class
   (`auth | usage-limit | overloaded | context | other`, `providerFailureSchema`
   in `@repo/domain/provider-event`), from what the adapter attaches: claude's
-  `errorKind`, codex's `codexErrorInfo`, the reserved -32000, and claude's own
-  limit text when no kind came with it (`readProviderError` in
-  `packages/agent-runtime/src/acp/provider-error.ts`). `authentication_failed`
+  `errorKind`, the reserved -32000, and claude's own limit text when no kind
+  came with it (`readProviderError` in
+  `packages/agent-runtime/src/acp/provider-error.ts`). A codex turn fails by
+  the typed session failure its prompt's answer carries, whose category and
+  actions are the class (`readSessionFailure`), because the runtime declares
+  typed failures on initialize for codex alone (the row's `typedFailures`):
+  undeclared, codex speaks every failure but a usage limit or a sign-in as the
+  agent's text and ends the turn `end_turn`, so an overflowed context read as
+  a finished reply; declared, claude would stop rejecting a limited turn with
+  the `errorKind` read above. `authentication_failed`
   reads as signed out whatever its code, so the panel says so rather than the
   adapter's text. Anything else, a vault holding the vendor's settings
   included, reads as `other`. The class rides the failed turn's own

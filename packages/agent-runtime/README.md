@@ -42,15 +42,17 @@ src/
     harness-registry.ts  # HARNESSES — claude and codex as rows: adapter entry,
                        # bundled vendor executable, account probe, sign-in
                        # method and sign-out args, model application, env
-                       # keys to omit, and what keeps the vault's own config
-                       # out of a session (sessionMeta, refusedVaultEntries)
+                       # keys to omit, what keeps the vault's own config
+                       # out of a session (sessionMeta, refusedVaultEntries),
+                       # and whether it declares typed failures
     acp-event-mapping.ts  # AcpTurnMapper: one session's notifications → the
                        # provider-event grammar, with the turn's item ids
     acp-permission-mapping.ts  # requestPermission ↔ @repo/domain's approval
                        # payload and resolution
     provider-error.ts  # readProviderError: a refusal's class and words —
                        # the signed-out or usage-limit sentence, else the
-                       # adapter's message
+                       # adapter's message; readSessionFailure: the same for
+                       # a typed failure on a prompt's answer
   vocabulary/
     provider-event.ts  # ProviderEvent — the runtime's EMITTED grammar
   thread-shell-environment.ts  # stamps INTELIGIR_THREAD_ID onto a spawn's env
@@ -153,6 +155,16 @@ scripts/
   says that harness is signed out, and a usage-limit refusal, which says the
   plan's limit is reached. Either class, refusing the prompt or the session
   open, leaves the thread's queued messages waiting for the next send.
+- **A codex turn fails by its typed failure, never by its stop reason.** A
+  row with `typedFailures` (codex alone) declares codex-acp's typed session
+  failures on `initialize`, and a prompt answered with one fails its turn
+  through `readSessionFailure`, its category and actions read into the same
+  classes: access is signed out, a limit only a new session clears the
+  context, any other limit the plan's. Undeclared, codex speaks every failure
+  but a usage limit or a sign-in as the agent's own text and answers
+  `end_turn`, so an overflowed context read as a finished reply. Claude stays
+  undeclared: declared, it would stop rejecting a limited turn with the
+  `errorKind` its refusal is classed by.
 - **A session is registered only once the agent names it.** A refused or
   failed `initialize`, `session/new` or `session/load` registers nothing and
   takes its child with it, so the send after a sign-in opens a new adapter
@@ -232,23 +244,32 @@ replaced rather than appended, a failed tool, codex's shell commands as
 `provider/notice`, cancellation interrupting open items, every non-`end_turn`
 stop but a cancel failing the turn, a prompt rejection failing through the
 grammar) and permission requests onto the pending-interaction contract;
-`provider-error.test.ts` pins how a refused prompt is classed and worded (signed
-out, the plan's usage limit, overload, context, other).
+`provider-error.test.ts` pins how a refused prompt and a typed failure are
+classed and worded (signed out, the plan's usage limit, overload, context,
+other).
 
 `src/acp/__tests__/acp-transcripts.test.ts` replays what the pinned adapters
 REALLY sent — `fixtures/<adapter>@<version>/*.ndjson`, one live turn per
 scenario (a reply, a plan request, a new file and an edit, a command, a failed
-command) — through the SDK's own client and the mapper, snapshots the event
+command, and for codex a context overflow) — through the SDK's own client and
+the mapper, settling each answer as the runtime does, snapshots the event
 stream and the approval payloads, and asserts the write set an edit turn
-reports, the output each command item carries, and that no adapter warning
-reaches the message. The fake agent encodes beliefs about the adapters; these
-encode the adapters. Bumping an adapter pin re-records them, which spends real
-model calls and needs both vendors signed in:
+reports, the output each command item carries, that no adapter warning
+reaches the message, and that codex's overflow fails its turn as `context`
+rather than speaking the error. The fake agent encodes beliefs about the
+adapters; these encode the adapters. Bumping an adapter pin re-records them,
+which spends real model calls and needs both vendors signed in:
 
 ```bash
-pnpm --filter @repo/agent-runtime record:transcripts   # or: … claude | codex
+pnpm --filter @repo/agent-runtime record:transcripts   # or: … claude | codex [scenario…]
 pnpm --filter @repo/agent-runtime test -u              # after reading the snapshot diff
 ```
+
+A failure no prompt causes on demand is a `staged` scenario: codex runs over a
+scratch `CODEX_HOME` whose one model provider is a local endpoint streaming
+what the API streams for that failure, so it needs no sign-in and spends
+nothing, and the adapter and vendor binary are still the pinned ones. Naming
+scenarios rewrites only their files.
 
 The recorder scrubs the vault path, the home dir, the session id and emails,
 empties the vendor's command list (the user's installed skills) and drops the

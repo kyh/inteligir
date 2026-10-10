@@ -610,6 +610,29 @@ b.md
 }
 `;
 
+exports[`codex-acp@1.13.0 > replays context-overflow onto the provider grammar 1`] = `
+{
+  "approvals": [],
+  "events": [
+    {
+      "type": "turn/started",
+    },
+    {
+      "failure": "context",
+      "message": "Codex ran out of room in the model's context window. Start a new thread or clear earlier history before retrying.",
+      "type": "provider/error",
+    },
+    {
+      "error": {
+        "message": "Codex ran out of room in the model's context window. Start a new thread or clear earlier history before retrying.",
+      },
+      "status": "failed",
+      "type": "turn/completed",
+    },
+  ],
+}
+`;
+
 exports[`codex-acp@1.13.0 > replays edit onto the provider grammar 1`] = `
 {
   "approvals": [],

@@ -84,6 +84,10 @@ export interface HarnessDefinition {
   // vault entries the vendor would load as its own configuration when no session option can stop
   // it; a session never opens on a vault that holds one.
   refusedVaultEntries: readonly string[];
+  // declares the adapter's typed session failures on initialize. undeclared, codex-acp speaks a
+  // failed turn as agent text and still ends it `end_turn`; declared, claude-agent-acp would stop
+  // rejecting a limited turn with the `errorKind` its refusal is classed by.
+  typedFailures: boolean;
 }
 
 const resolveAdapterEntry = (specifier: string): string => require.resolve(specifier);
@@ -290,6 +294,7 @@ export const HARNESSES = {
       methodId: "claude-ai-login",
     },
     signOutArgs: ["auth", "logout"],
+    typedFailures: false,
     vendorApp: "Claude Code",
     vendorExecutable: (env: NodeJS.ProcessEnv) =>
       overriddenOrBundled(env.CLAUDE_CODE_EXECUTABLE, BUNDLED_CLAUDE),
@@ -313,6 +318,7 @@ export const HARNESSES = {
     refusedVaultEntries: [".codex"],
     signIn: { kind: "agent", methodId: "chat-gpt" },
     signOutArgs: ["logout"],
+    typedFailures: true,
     vendorApp: "Codex",
     vendorExecutable: (env: NodeJS.ProcessEnv) =>
       overriddenOrBundled(env.CODEX_PATH, BUNDLED_CODEX),

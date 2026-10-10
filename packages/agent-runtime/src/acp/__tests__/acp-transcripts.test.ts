@@ -11,6 +11,7 @@ import { z } from "zod";
 import type { ProviderEvent } from "../../vocabulary/provider-event";
 import { AcpTurnMapper } from "../acp-event-mapping";
 import { toApprovalPayload, toPermissionOutcome } from "../acp-permission-mapping";
+import { readSessionFailure } from "../provider-error";
 
 const FIXTURES = path.join(import.meta.dirname, "fixtures");
 const CTX = { providerThreadId: "session_recorded", threadId: "thr_replay", turnId: "turn_replay" };
@@ -59,8 +60,14 @@ const replay = async (lines: readonly string[]): Promise<Replayed> => {
     const frame = response.success ? JSON.stringify({ ...response.data, id: 0 }) : line;
     await writer.write(encoder.encode(`${frame}\n`));
   }
-  const { stopReason } = await prompt;
-  replayed.events.push(...mapper.completed(stopReason));
+  // as the runtime settles a prompt's answer: a typed failure fails the turn whatever its stop.
+  const { _meta: meta, stopReason } = await prompt;
+  const failure = readSessionFailure(meta);
+  replayed.events.push(
+    ...(failure === null
+      ? mapper.completed(stopReason)
+      : mapper.failed(failure.message, failure.failure)),
+  );
   connection.close();
   return replayed;
 };
@@ -123,11 +130,13 @@ const messages = (events: readonly ProviderEvent[]) =>
 
 const adapters = readdirSync(FIXTURES);
 
+const readFixture = (adapter: string, scenario: string): string[] =>
+  readFileSync(path.join(FIXTURES, adapter, `${scenario}.ndjson`), "utf-8")
+    .split("\n")
+    .filter((line) => line.trim() !== "");
+
 describe.each(adapters)("%s", (adapter) => {
-  const read = (scenario: string): string[] =>
-    readFileSync(path.join(FIXTURES, adapter, `${scenario}.ndjson`), "utf-8")
-      .split("\n")
-      .filter((line) => line.trim() !== "");
+  const read = (scenario: string): string[] => readFixture(adapter, scenario);
 
   const scenarios = readdirSync(path.join(FIXTURES, adapter)).map((file) =>
     path.basename(file, ".ndjson"),
@@ -203,5 +212,24 @@ describe.each(adapters)("%s", (adapter) => {
     for (const text of messages(events)) {
       expect(text).not.toMatch(/^Warning: /mu);
     }
+  });
+});
+
+describe("a turn codex ended on a typed failure", () => {
+  it("fails a context overflow as context, never speaking the error as the agent", async () => {
+    const codex = adapters.find((adapter) => adapter.startsWith("codex-acp@"));
+    if (codex === undefined) {
+      throw new Error("no codex-acp recording under fixtures/");
+    }
+    const { events } = await replay(readFixture(codex, "context-overflow"));
+    expect(events.filter((event) => event.type === "provider/error")).toEqual([
+      expect.objectContaining({
+        failure: "context",
+        message: expect.stringContaining("context window"),
+      }),
+    ]);
+    expect(events.at(-1)).toMatchObject({ status: "failed", type: "turn/completed" });
+    expect(events.some((event) => event.type === "item/agentMessage/delta")).toBe(false);
+    expect(messages(events)).toEqual([]);
   });
 });
