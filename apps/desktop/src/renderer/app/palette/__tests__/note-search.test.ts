@@ -7,7 +7,7 @@ const FILES = ["Welcome.md", "notes/ideas.md", "notes/daily/2026-08-16.md", "pro
 describe("the palette's note paths", () => {
   it("names the notes the rail lists, and nothing else the tree carries", () => {
     const entries: readonly VaultEntry[] = [
-      { kind: "file", path: "notes/plans.comments.json" },
+      { kind: "file", path: "notes/plans.json" },
       { kind: "file", path: "notes/plans.md" },
       { kind: "dir", path: "notes" },
       { kind: "file", path: "assets/diagram.png" },

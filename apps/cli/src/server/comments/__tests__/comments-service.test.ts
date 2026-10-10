@@ -7,7 +7,6 @@ import { createVaultService } from "../../vault/vault-service";
 import type { VaultService } from "../../vault/vault-service";
 import {
   commentsStorePath,
-  legacyCommentsSidecarPath,
   parseSidecar,
   serializeSidecar,
 } from "@repo/notes/comments/sidecar-schema";
@@ -110,7 +109,7 @@ describe("comments service", () => {
 
     await comments.add({ id: "c1", path: "plan.md", text: "Should this ship?" });
     await comments.reply({ id: "c1-r1", parentId: "c1", path: "plan.md", text: "Yes." });
-    const { answer: listed } = await comments.list("plan.md");
+    const listed = await comments.list("plan.md");
 
     expect(listed.total).toBe(1);
     const [thread] = listed.threads;
@@ -140,7 +139,6 @@ describe("comments service", () => {
     await comments.add({ id: "c2", path: "plan.md", text: "second" });
     expect(readFileSync(nodePath.join(root, "plan.md"), "utf-8")).toBe(afterFirst);
     expect(Object.keys(storeOnDisk(root, "plan.md")).toSorted()).toEqual(["c1", "c2"]);
-    expect(existsSync(nodePath.join(root, legacyCommentsSidecarPath("plan.md")))).toBe(false);
   });
 
   it("keeps the id a note already carries", async () => {
@@ -154,7 +152,7 @@ describe("comments service", () => {
   it("a read mints nothing: a note without an id lists empty and stays as written", async () => {
     const { root, comments } = boot();
     writeFileSync(nodePath.join(root, "plan.md"), "plain\n");
-    const { answer: listed } = await comments.list("plan.md");
+    const listed = await comments.list("plan.md");
     expect(listed.total).toBe(0);
     expect(readFileSync(nodePath.join(root, "plan.md"), "utf-8")).toBe("plain\n");
     expect(existsSync(nodePath.join(root, ".inteligir"))).toBe(false);
@@ -184,7 +182,7 @@ describe("comments service", () => {
     writeFileSync(nodePath.join(root, "plan.md"), "%%i:c1:start%%x%%i:c1:end%%\n");
     await comments.add({ id: "c1", path: "plan.md", text: "root" });
     await vault.rename("plan.md", "renamed.md");
-    const { answer: listed } = await comments.list("renamed.md");
+    const listed = await comments.list("renamed.md");
     expect(listed.total).toBe(1);
     expect(listed.threads[0]?.anchored).toBe(true);
   });
@@ -196,7 +194,7 @@ describe("comments service", () => {
       "A %%i:ghost:start%%range%%i:ghost:end%% here.\n",
     );
     await comments.add({ id: "unanchored", path: "plan.md", text: "floating" });
-    const { answer: listed } = await comments.list("plan.md");
+    const listed = await comments.list("plan.md");
     expect(listed.threads[0]?.anchored).toBe(false);
     expect(listed.orphanMarkers).toEqual(["ghost"]);
   });
@@ -215,7 +213,7 @@ describe("comments service", () => {
   it("add against a missing note refuses; list still answers", async () => {
     const { comments } = boot();
     await expect(comments.add({ id: "c1", path: "absent.md", text: "x" })).rejects.toThrow();
-    const { answer: listed } = await comments.list("absent.md");
+    const listed = await comments.list("absent.md");
     expect(listed.total).toBe(0);
   });
 
@@ -255,85 +253,35 @@ describe("what a call wrote", () => {
 
     const replied = await comments.reply({ id: "r1", parentId: "c1", path: "plan.md", text: "so" });
     expect(replied.wrote).toEqual([storePath]);
-    const listed = await comments.list("plan.md");
-    expect(listed.wrote).toEqual([]);
   });
 });
 
-describe("the legacy sidecar beside the note", () => {
-  const LEGACY: CommentSidecar = {
-    m1: { createdAt: AT, source: "agent", text: "written by an older build", updatedAt: AT },
-  };
-
-  it("folds into the store on first touch and is removed, unknown fields kept", async () => {
+describe("an unparseable store", () => {
+  it("is reported by its own name and left, and the edit is refused", async () => {
     const { root, comments } = boot();
     writeFileSync(nodePath.join(root, "plan.md"), WITH_ID);
-    writeFileSync(
-      nodePath.join(root, legacyCommentsSidecarPath("plan.md")),
-      `${JSON.stringify(
-        { m1: { createdAt: AT, inteligirOnly: true, text: "inteligir wrote this", updatedAt: AT } },
-        null,
-        2,
-      )}\n`,
-    );
-
-    const { answer: listed } = await comments.list("plan.md");
-
-    expect(listed.threads.map((thread) => thread.rootId)).toEqual(["m1"]);
-    expect(storeRaw(root, "plan.md")).toContain('"inteligirOnly": true');
-    expect(existsSync(nodePath.join(root, legacyCommentsSidecarPath("plan.md")))).toBe(false);
-  });
-
-  it("mints the note's id when the legacy file has entries and the note has none", async () => {
-    const { root, comments } = boot();
-    writeFileSync(nodePath.join(root, "plan.md"), "note\n");
-    writeFileSync(
-      nodePath.join(root, legacyCommentsSidecarPath("plan.md")),
-      serializeSidecar(LEGACY),
-    );
-
-    const { wrote } = await comments.list("plan.md");
-
-    expect(frontmatterId(readFileSync(nodePath.join(root, "plan.md"), "utf-8"))).not.toBeNull();
-    expect(Object.keys(storeOnDisk(root, "plan.md"))).toEqual(["m1"]);
-    expect(wrote.toSorted()).toEqual(
-      [storePathOf(root, "plan.md"), "plan.md", legacyCommentsSidecarPath("plan.md")].toSorted(),
-    );
-  });
-
-  it("merges under the store's own entries when both hold an id", async () => {
-    const { root, comments } = boot();
-    writeFileSync(nodePath.join(root, "plan.md"), WITH_ID);
-    await comments.add({ id: "m1", path: "plan.md", text: "the store's" });
-    writeFileSync(
-      nodePath.join(root, legacyCommentsSidecarPath("plan.md")),
-      serializeSidecar(LEGACY),
-    );
-
-    await comments.list("plan.md");
-
-    expect(storeOnDisk(root, "plan.md").m1?.text).toBe("the store's");
-  });
-
-  it("an unparseable one is reported by its own name and left, and the edit is refused", async () => {
-    const { root, comments } = boot();
-    writeFileSync(nodePath.join(root, "plan.md"), WITH_ID);
-    writeFileSync(nodePath.join(root, legacyCommentsSidecarPath("plan.md")), "{broken");
+    const store = nodePath.join(root, commentsStorePath(NOTE_ID));
+    mkdirSync(nodePath.dirname(store), { recursive: true });
+    writeFileSync(store, "{broken");
     await expect(comments.add({ id: "c1", path: "plan.md", text: "x" })).rejects.toThrow(
       SidecarInvalidError,
     );
-    await expect(comments.list("plan.md")).rejects.toThrow(/plan\.md\.comments\.json/u);
-    expect(readFileSync(nodePath.join(root, legacyCommentsSidecarPath("plan.md")), "utf-8")).toBe(
-      "{broken",
-    );
+    await expect(comments.list("plan.md")).rejects.toThrow(commentsStorePath(NOTE_ID));
+    expect(readFileSync(store, "utf-8")).toBe("{broken");
   });
+});
 
-  it("an empty one is simply removed, and nothing is minted for it", async () => {
+describe("a file beside the note named like a comment store", () => {
+  it("is the user's own: a list reads nothing from it and leaves it as found", async () => {
     const { root, comments } = boot();
     writeFileSync(nodePath.join(root, "plan.md"), "note\n");
-    writeFileSync(nodePath.join(root, legacyCommentsSidecarPath("plan.md")), "{}\n");
-    await comments.list("plan.md");
-    expect(existsSync(nodePath.join(root, legacyCommentsSidecarPath("plan.md")))).toBe(false);
+    const beside = nodePath.join(root, "plan.md.comments.json");
+    writeFileSync(beside, serializeSidecar({ m1: { createdAt: AT, text: "mine", updatedAt: AT } }));
+
+    const listed = await comments.list("plan.md");
+
+    expect(listed.total).toBe(0);
+    expect(existsSync(beside)).toBe(true);
     expect(readFileSync(nodePath.join(root, "plan.md"), "utf-8")).toBe("note\n");
   });
 });

@@ -20,8 +20,6 @@ import { revertCommentEntries } from "@repo/notes/comments/revert-entries";
 import {
   commentsStoreNoteId,
   commentsStorePath,
-  isLegacyCommentsSidecarPath,
-  legacySidecarNotePath,
   parseSidecar,
   serializeSidecar,
 } from "@repo/notes/comments/sidecar-schema";
@@ -132,21 +130,6 @@ const turnSpans = (commits: readonly TurnCommit[], turnId: string): PathSpan[] =
     }
   }
   return [...spans.values()];
-};
-
-// a comment store is json, which a line merge can leave unparseable, so it is taken back entry by
-// entry instead, against the note it anchors in: a store names that note by id, a legacy sidecar
-// by path.
-type StoreNote = { kind: "id"; noteId: string } | { kind: "path"; notePath: string };
-
-const storeNoteOf = (path: string): StoreNote | null => {
-  const noteId = commentsStoreNoteId(path);
-  if (noteId !== null) {
-    return { kind: "id", noteId };
-  }
-  return isLegacyCommentsSidecarPath(path)
-    ? { kind: "path", notePath: legacySidecarNotePath(path) }
-    : null;
 };
 
 type ReadSide = { readable: true; text: string | null } | { readable: false };
@@ -394,11 +377,13 @@ const revertNote = async (pass: UndoPass, span: PathSpan): Promise<void> => {
   }
 };
 
+// a comment store is json, which a line merge can leave unparseable, so it is taken back entry by
+// entry instead, against the notes that carry the id it is keyed by.
 const revertStore = async (
   pass: UndoPass,
   knowledge: Pick<KnowledgeRuntime, "noteIdOwners">,
   span: PathSpan,
-  note: StoreNote,
+  noteId: string,
 ): Promise<void> => {
   const sides = await sidesToRevert(pass, span);
   if (sides === null) {
@@ -418,13 +403,11 @@ const revertStore = async (
     pass.kept.push({ path: span.path, reason: "unreadable" });
     return;
   }
-  const notePaths =
-    note.kind === "id" ? await knowledge.noteIdOwners(note.noteId) : [note.notePath];
   const entries = revertCommentEntries({
     after: after.sidecar,
     before: before.sidecar,
     current: current.sidecar,
-    markerIds: await markerIdsIn(pass.service, notePaths),
+    markerIds: await markerIdsIn(pass.service, await knowledge.noteIdOwners(noteId)),
   });
   const verdict = entries.kind === "reverted" ? storeVerdict(sides.current, entries.sidecar) : null;
   if (verdict !== null) {
@@ -510,17 +493,17 @@ export const undoTurnChanges = async (args: UndoTurnArgs): Promise<UndoTurnOutco
       service,
       written: new Set(),
     };
-    const stores: { span: PathSpan; note: StoreNote }[] = [];
+    const stores: { span: PathSpan; noteId: string }[] = [];
     for (const span of turnSpans(commits, turnId)) {
-      const note = storeNoteOf(span.path);
-      if (note === null) {
+      const noteId = commentsStoreNoteId(span.path);
+      if (noteId === null) {
         await revertNote(pass, span);
       } else {
-        stores.push({ note, span });
+        stores.push({ noteId, span });
       }
     }
-    for (const { span, note } of stores) {
-      await revertStore(pass, args.knowledge, span, note);
+    for (const { span, noteId } of stores) {
+      await revertStore(pass, args.knowledge, span, noteId);
     }
     await refileMintedIds(pass);
 

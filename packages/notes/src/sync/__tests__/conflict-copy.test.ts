@@ -83,10 +83,9 @@ describe("deviceLabel", () => {
     expect(deviceLabel("x".repeat(200))).toBe("x".repeat(40));
   });
 
-  it("names an unknown device plainly, including the committer older commits carry", () => {
+  it("names an unknown device plainly", () => {
     expect(deviceLabel("")).toBe("another device");
     expect(deviceLabel("?*|")).toBe("another device");
-    expect(deviceLabel("inteligir")).toBe("another device");
   });
 });
 
@@ -94,7 +93,6 @@ describe("parseConflictCopyPath", () => {
   it.each([
     "Plan.md",
     "Plan (conflict, a:b).md",
-    "Plan (conflict, inteligir).md",
     "Plan (conflict, ).md",
     "Plan (conflict, MacBook) 1.md",
     "Plan (conflict, MacBook) 02.md",

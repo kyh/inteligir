@@ -28,8 +28,7 @@ const attributed = <T>(context: AppContext, written: CommentsWrite<T>): T => {
 };
 
 const list = base.comments.list.handler(
-  async ({ context, input }) =>
-    await refusing(async () => attributed(context, await context.comments.list(input.path))),
+  async ({ context, input }) => await refusing(async () => await context.comments.list(input.path)),
 );
 
 const add = base.comments.add.handler(

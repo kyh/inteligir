@@ -29,10 +29,9 @@ describe("what counts as a doc", () => {
 });
 
 describe("what a listing hides", () => {
-  it("hides the comment sidecar and every dot-entry, at any depth", () => {
+  it("hides every dot-entry, the comment store included, at any depth", () => {
     for (const path of [
-      "Welcome.md.comments.json",
-      "notes/a.md.comments.json",
+      ".inteligir/comments/7d1c.json",
       ".obsidian/app.json",
       "notes/.DS_Store",
       ".trash",
@@ -41,8 +40,15 @@ describe("what a listing hides", () => {
     }
   });
 
-  it("shows notes, folders and attachments", () => {
-    for (const path of ["Welcome.md", "notes", "notes/comments.json", "assets/logo.png"]) {
+  it("shows notes, folders, attachments and the user's own json, whatever its name", () => {
+    for (const path of [
+      "Welcome.md",
+      "notes",
+      "notes/comments.json",
+      "assets/logo.png",
+      "Welcome.md.comments.json",
+      "notes/meeting.comments.json",
+    ]) {
       expect(isVaultMetadataPath(path)).toBe(false);
     }
   });

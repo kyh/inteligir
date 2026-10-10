@@ -8,9 +8,6 @@ import { basenamePath, dirnamePath, extnamePath, joinPath } from "../knowledge/v
 
 const MAX_DEVICE_LABEL_LENGTH = 40;
 
-// the committer older engine commits carry, which names no device
-const LEGACY_ENGINE_COMMITTER = "inteligir";
-
 const UNKNOWN_DEVICE = "another device";
 
 // the label lands in a file name and in any [[link]] to it: what a path or the OS refuses goes,
@@ -26,7 +23,7 @@ export const deviceLabel = (raw: string): string => {
     .replace(WHITESPACE_RE, " ")
     .trim();
   const label = [...cleaned].slice(0, MAX_DEVICE_LABEL_LENGTH).join("").trimEnd();
-  return label === "" || label === LEGACY_ENGINE_COMMITTER ? UNKNOWN_DEVICE : label;
+  return label === "" ? UNKNOWN_DEVICE : label;
 };
 
 const COPY_MARKER = " (conflict, ";
@@ -56,7 +53,7 @@ export interface ConflictCopyName {
 const COPY_TAIL_RE = /^(?<device>.+)\)(?: (?:[2-9]|[1-9]\d+))?(?<extension>\.[^.]*)?$/u;
 
 // Only a name `conflictCopyPath` could have written parses: a label that is not already a label
-// (`a:b`, `inteligir`, empty) is a near-miss, not a copy.
+// (`a:b`, empty) is a near-miss, not a copy.
 export const parseConflictCopyPath = (copyPath: string): ConflictCopyName | null => {
   const name = basenamePath(copyPath);
   const marker = name.lastIndexOf(COPY_MARKER);

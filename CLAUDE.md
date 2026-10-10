@@ -1241,10 +1241,8 @@ to the END of its group.
   `apps/cli/src/commands/comment.ts`). The comment-id grammar has one spelling,
   `COMMENT_ID_PATTERN` in `@repo/notes/comments/sidecar-schema`. A comment on a
   note without an id mints one (`withFrontmatterId`) through a guarded note
-  write; a read mints nothing, and an `id` that is not text is refused, never
-  overwritten. A legacy `<note>.comments.json` is folded in on first touch and
-  over the whole tree once the server listens (`comments-migration.ts`, kicked
-  from `serve.ts`, so it neither delays nor fails the boot). A deleted note's
+  write; a read writes nothing, and an `id` that is not text is refused, never
+  overwritten. A deleted note's
   store goes with it unless a byte copy still carries that id, one rule
   (`@repo/notes/comments/store-removal`) the server's delete
   (`remove-with-comments.ts`) and the phone's both ask, and a restore brings

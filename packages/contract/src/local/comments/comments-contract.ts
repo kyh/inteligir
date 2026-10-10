@@ -20,8 +20,8 @@ export const commentsContract = {
     .output(commentsResponseSchema)
     .errors({ ...VAULT_REFUSAL_ERRORS, BAD_REQUEST: {} }),
 
-  // a list against a missing note still answers its sidecar, so no NOT_FOUND here. BAD_REQUEST:
-  // folding a legacy sidecar mints an id, refused when the note's `id` is not text
+  // a list against a missing note answers empty, so no NOT_FOUND here. BAD_REQUEST: the note's
+  // `id` cannot name a store file; CONFLICT: the store it names is not a store
   list: oc
     .input(commentsListRequestSchema)
     .output(commentsResponseSchema)

@@ -17,7 +17,6 @@ import { createApp } from "./app";
 import { bootReport } from "./boot-report";
 import type { BootPhases } from "./boot-report";
 import type { VaultRemoteSpec } from "./cloud/vault-remote";
-import { migrateLegacyCommentSidecars } from "./comments/comments-migration";
 import { composeRuntime, registerListener, registerLockRelease } from "./compose";
 import type { ComposeRuntimeArgs } from "./compose";
 import { resolveAppConfig } from "./config";
@@ -247,24 +246,8 @@ const boot = async (
     };
     console.log(bootReport(phases, reconcile));
   })();
-  // after listen too, and guarded: a whole-vault walk ahead of the bind delays the readiness the
-  // shell waits on, and a sweep that throws must not fail the boot. a note opened meanwhile folds
-  // its own sidecar on first touch, through the same CAS writes.
-  void (async () => {
-    try {
-      await migrateLegacyCommentSidecars({
-        comments: runtime.context.comments,
-        vault: runtime.context.vault.service,
-        warn: (message) => {
-          console.warn(`[comments] ${message}`);
-        },
-      });
-    } catch (error) {
-      console.warn(`[comments] boot sweep skipped: ${messageOf(error)}`);
-    }
-  })();
-  // after listen and guarded for the same reasons: removing a folder no build reads must neither
-  // delay the readiness the shell waits on nor fail a boot.
+  // after listen too, and guarded: removing a folder no build reads must neither delay the
+  // readiness the shell waits on nor fail a boot.
   void (async () => {
     try {
       await removeRetiredModelDir(config);

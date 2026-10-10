@@ -246,6 +246,8 @@ describe("naming a new note", () => {
 });
 
 const LISTING: VaultEntry[] = [
+  { kind: "dir", path: ".inteligir" },
+  { kind: "file", path: ".inteligir/comments/7d1c.json" },
   { kind: "dir", path: ".obsidian" },
   { kind: "file", path: ".obsidian/app.json" },
   { kind: "dir", path: "notes" },
@@ -263,6 +265,7 @@ describe("what a listing shows", () => {
       "notes/daily",
       "notes/daily/2026-08-16.md",
       "notes/ideas.md",
+      "notes/ideas.md.comments.json",
       "Welcome.md",
     ]);
   });

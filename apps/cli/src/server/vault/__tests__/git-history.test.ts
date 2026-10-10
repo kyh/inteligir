@@ -324,12 +324,12 @@ describe("readDeletedNotes", () => {
   it("lists a committed deletion under the parent whose tree still holds the bytes, docs only", async () => {
     const { root, run, commit } = await makeVault();
     await writeFile(nodePath.join(root, "Gone.md"), "bytes\n", "utf-8");
-    await writeFile(nodePath.join(root, "Gone.md.comments.json"), "{}", "utf-8");
+    await writeFile(nodePath.join(root, "Gone.json"), "{}", "utf-8");
     await writeFile(nodePath.join(root, "Kept.md"), "kept\n", "utf-8");
     await commit("vault: create");
     const [created] = await readNoteHistory(run, "Gone.md", { limit: 1, skip: 0 });
     await rm(nodePath.join(root, "Gone.md"));
-    await rm(nodePath.join(root, "Gone.md.comments.json"));
+    await rm(nodePath.join(root, "Gone.json"));
     await commit("vault: delete");
 
     const entries = await readDeleted(run, root);

@@ -1,10 +1,10 @@
 import { realpathSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDefinedError, safe, toORPCError } from "@orpc/client";
 import { vaultChangedMessageSchema } from "@repo/contract/local/notifications";
-import { legacyCommentsSidecarPath } from "@repo/notes/comments/sidecar-schema";
+import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { VAULT_ASSET_PATH, vaultAssetUrl } from "@repo/contract/local/routes";
 import { knowledgeSearchResponseSchema } from "@repo/contract/local/knowledge/knowledge-schema";
 import { giveNoteOwnId } from "@repo/contract/local/vault/give-note-own-id";
@@ -130,11 +130,11 @@ describe("the vault routes", () => {
     await client.vault.write({
       content: "{}",
       guard: { kind: "overwrite" },
-      path: "notes/gone.md.comments.json",
+      path: "notes/gone.json",
     });
     await vault.git.commitNow();
     await client.vault.remove({ path: "notes/gone.md" });
-    await client.vault.remove({ path: "notes/gone.md.comments.json" });
+    await client.vault.remove({ path: "notes/gone.json" });
 
     // the auto-commit is session-shaped: a note deleted seconds ago is in no commit yet.
     const unflushed = await client.vault.deleted();
@@ -719,16 +719,24 @@ describe("choosing where the vault syncs", { timeout: 30_000 }, () => {
 });
 
 describe("the comments routes", () => {
-  it("answers a legacy fold that would replace a non-text id with the declared BAD_REQUEST", async () => {
+  it("answers a list of a note whose id cannot name a store with the declared BAD_REQUEST", async () => {
     const { client, vaultDir } = await bootTestApp();
-    await writeFile(path.join(vaultDir, "plan.md"), "---\nid: 42\n---\nnote\n");
-    await writeFile(
-      path.join(vaultDir, legacyCommentsSidecarPath("plan.md")),
-      '{\n  "c1": { "text": "kept", "createdAt": 1, "updatedAt": 1 }\n}\n',
-    );
+    await writeFile(path.join(vaultDir, "plan.md"), "---\nid: ../escape\n---\nnote\n");
 
     const [refused] = await safe(client.comments.list({ path: "plan.md" }));
 
     expect(isDefinedError(refused) && refused.code).toBe("BAD_REQUEST");
+  });
+
+  it("answers a list over an unparseable store with the declared CONFLICT", async () => {
+    const { client, vaultDir } = await bootTestApp();
+    await writeFile(path.join(vaultDir, "plan.md"), "---\nid: 7d1c\n---\nnote\n");
+    const store = path.join(vaultDir, commentsStorePath("7d1c"));
+    await mkdir(path.dirname(store), { recursive: true });
+    await writeFile(store, "{broken");
+
+    const [refused] = await safe(client.comments.list({ path: "plan.md" }));
+
+    expect(isDefinedError(refused) && refused.code).toBe("CONFLICT");
   });
 });
