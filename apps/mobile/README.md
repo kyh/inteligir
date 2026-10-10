@@ -248,7 +248,8 @@ from comparing bearers inside the store. Every await re-checks the session,
 and a wipe bumps a generation every write re-checks inside its transaction,
 so a batch that started before the wipe never lands. The database has ONE
 `user_version` (`lib/phone-db.ts`): a table another module adds is a step
-appended there.
+there. Until the first build EAS makes, the schema is one step edited in
+place; from that build on, a step is appended, never edited.
 
 ## Unsent edits
 
@@ -508,19 +509,16 @@ pnpm hotfix:mobile       # eas update to the production channel: a JS-only fix
    `pnpm --filter @repo/mobile exec eas init`. EAS cannot write a dynamic
    config, so commit the owner and project id it prints into `easProject` in
    `app.config.js`; that one value also points EAS Update at the project.
-2. If `apps/mobile/ios` exists from an earlier `expo run:ios`, run
-   `npx expo prebuild --clean` in `apps/mobile`: it was generated for the old
-   bundle id.
-3. The first `pnpm testflight:mobile` logs into the Apple team that signs the
+2. The first `pnpm testflight:mobile` logs into the Apple team that signs the
    desktop app and lets EAS create and keep the certificate, the profile and an
    App Store Connect API key. Its submit creates the App Store Connect record
    for `com.inteligir.mobile`.
-4. Commit that record's id as `submit.production.ios.ascAppId` in `eas.json`,
+3. Commit that record's id as `submit.production.ios.ascAppId` in `eas.json`,
    so later submits ask nothing.
-5. In App Store Connect › TestFlight, create the internal group `Owner` and add
+4. In App Store Connect › TestFlight, create the internal group `Owner` and add
    yourself, and the external group `Cohort`. Every build reaches `Owner`
    first, and `Cohort` only once it has passed there (Per release, below).
-6. Fill TestFlight's Test Information once: a beta description, a feedback
+5. Fill TestFlight's Test Information once: a beta description, a feedback
    email you read, `https://inteligir.com/privacy` as the privacy policy, and
    the Beta App Review sign-in below.
 

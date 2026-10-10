@@ -267,11 +267,10 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   reloads with its text.
 - **The database upgrades.** Every step appended to `MIGRATIONS` in
   `apps/mobile/src/lib/phone-db.ts` since the build testers hold: install that
-  build (for this release, a development build from the last commit whose
-  `MIGRATIONS` held three steps), sign in, sync, leave an edit unsent, then
-  install this build over it. Passing: it opens with no error, the unsent edit
-  still waits, and after one sync, turning on airplane mode and a cold launch
-  shows the threads.
+  build, sign in, sync, leave an edit unsent, then install this build over it.
+  Passing: it opens with no error, the unsent edit still waits, and after one
+  sync, turning on airplane mode and a cold launch shows the threads. The
+  first TestFlight build has no build before it, so it skips this.
 
 ## 6. Publish
 

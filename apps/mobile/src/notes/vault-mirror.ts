@@ -177,15 +177,6 @@ const movedRowSchema = z.object({
   size: z.number(),
 });
 
-const parseAliases = (raw: string): readonly string[] => {
-  try {
-    const parsed = aliasesSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : [];
-  } catch {
-    return [];
-  }
-};
-
 // what the resolver reads off a note: its frontmatter id and aliases
 export const noteFactsOf = (content: string): NoteFacts => {
   const yaml = frontmatterYaml(content);
@@ -642,7 +633,7 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
       const rows = listed.map((raw) => {
         const row = snapshotRowSchema.parse(raw);
         return {
-          aliases: parseAliases(row.aliases),
+          aliases: aliasesSchema.parse(JSON.parse(row.aliases)),
           noteId: row.note_id,
           oid: row.oid,
           path: row.path,

@@ -1909,8 +1909,12 @@ to the END of its group.
   offline launch, loses every body to any commit, and holds no frontmatter. A
   sign-in, a sign-out and a revocation wipe the rows and the attachments; the
   boot restore keeps them. The phone's database has ONE `user_version`, so a
-  table another module adds is a step appended to
-  `apps/mobile/src/lib/phone-db.ts`. `apps/mobile/src/notes/vault-mirror.ts`,
+  table another module adds is a step in `apps/mobile/src/lib/phone-db.ts`.
+  Until the first build EAS makes (`easProject` in `apps/mobile/app.config.js`),
+  no phone holds a file worth upgrading, so the schema is ONE step edited in
+  place and a stored row's parser defaults no field for an older row; from
+  that build on, a step is appended, never edited.
+  `apps/mobile/src/notes/vault-mirror.ts`,
   `apps/mobile/src/notes/notes-store.ts`.
 
 - **A PHONE EDIT IS A QUEUED WRITE WITH ITS BASE, AND THE PHONE SETTLES ITS OWN
