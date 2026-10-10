@@ -45,9 +45,14 @@ src/
                       # id, resolved by the server on read), the keyset-paged
                       # listing, the lifecycle CAS,
                       # setThreadProviderSession
-  queued-messages.ts  # FIFO per thread under claim tokens, released whole at boot
+  queued-messages.ts  # FIFO per thread under claim tokens, released whole at boot;
+                      # a message's attachments in and out as paths
   pending-interactions.ts
-                      # provider prompts, idempotent on (thread, requestKey)
+                      # provider prompts, idempotent on (thread, requestKey); the
+                      # payload in and out as the approval grammar, the answer
+                      # as its decision enum
+  json-column.ts      # readJsonColumn: a json column through its schema, null
+                      # for bytes it refuses
   sync-outbox.ts      # the frozen-body outbox, the device_seq high-water, the pull
                       # cursor and its skipped-row marker, the count of rows
                       # dropped unsent, the applied-capture ledger, the own
@@ -111,7 +116,8 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   and the fix.
 - **A column pair that only means something together is held by a CHECK.** A
   synced event's device and position, a claim's time and token, and the
-  skipped-row marker's row and build are each both set or both null. A provider
+  skipped-row marker's row and build are each both set or both null, and an
+  approval carries a decision exactly when it is resolved. A provider
   session's id needs its harness and an origin's note id its path, while either
   first half stands alone: a synced `thread/meta` binds the harness before this
   device opens a session, and a note with no id is bound by its path. The
@@ -136,6 +142,11 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   through `onSkipped`; the timeline projector
   (`apps/cli/src/server/threads/timeline-projection.ts`) warns once and reads
   past it.
+- **Every json column is parsed here, never by a caller.** Writers take the
+  typed value and readers hand it back through its schema
+  (`readJsonColumn`): an approval's payload the grammar refuses reads as
+  null, which still leaves the card its Deny, and a queued message's
+  attachments as none, which still leaves the message.
 - **The outbox stores the bytes it will send, once, at enqueue.** The log
   calls a position replayed with a different body `sync-conflict`, so
   re-serializing at push time is not a retry. `device_seq` is its own counter
@@ -231,6 +242,8 @@ INSERT, a stored row the grammar refuses left out and reported; the lifecycle
 happy path and its typed no-ops, `listThreads` walking a thousand threads a
 page at a time, each exactly once across millisecond ties and into the archived
 segment, every page answered from its partial index with no temp b-tree; FIFO
-claims across connections and same-millisecond bursts; interaction idempotency.
+claims across connections and same-millisecond bursts, a queued message's
+attachments read back as paths and unreadable ones as none; interaction
+idempotency, an unreadable payload read as null beside its whole neighbours.
 `schema-agreement.test.ts` spawns `drizzle-kit`, so
 it carries its own 30s budget.

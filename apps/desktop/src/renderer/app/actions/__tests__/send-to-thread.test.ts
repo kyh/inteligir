@@ -135,7 +135,7 @@ describe("the inline approval card's answer", () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });
     const { thread } = await client.threads.create({});
     const interaction = createPendingInteraction(db, noopNotifier, {
-      payload: JSON.stringify({
+      payload: {
         availableDecisions: ["allow_once"],
         kind: "approval",
         reason: null,
@@ -145,7 +145,7 @@ describe("the inline approval card's answer", () => {
           itemId: "item_1",
           kind: "command",
         },
-      }),
+      },
       requestKey: "req-card",
       threadId: thread.id,
     });
@@ -155,16 +155,16 @@ describe("the inline approval card's answer", () => {
 
     const [unoffered] = await safe(
       client.threads.answerInteraction({
+        decision: "allow_for_session",
         interactionId: interaction.id,
-        resolution: "allow_for_session",
         threadId: thread.id,
       }),
     );
     expect(isDefinedError(unoffered) && unoffered.code).toBe("INVALID_RESOLUTION");
 
     await client.threads.answerInteraction({
+      decision: "allow_once",
       interactionId: interaction.id,
-      resolution: "allow_once",
       threadId: thread.id,
     });
 

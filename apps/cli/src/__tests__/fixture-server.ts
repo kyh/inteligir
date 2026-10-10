@@ -117,9 +117,9 @@ export const makeInteraction = (
   overrides: Partial<PendingInteraction> & Pick<PendingInteraction, "id" | "threadId">,
 ): PendingInteraction => ({
   createdAt: 1_700_000_000_000,
+  decision: null,
   payload: null,
   requestKey: `req_${overrides.id}`,
-  resolution: null,
   resolvedAt: null,
   status: "pending",
   turnId: "turn_1",
@@ -434,7 +434,7 @@ const threadsRouter = {
     }
     const resolved: PendingInteraction = {
       ...interaction,
-      resolution: input.resolution,
+      decision: input.decision,
       resolvedAt: 1_700_000_002_000,
       status: "resolved",
     };

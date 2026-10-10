@@ -1,4 +1,9 @@
-import { answerableDecisions, parseApprovalResolution } from "@repo/domain/pending-interactions";
+import {
+  pendingInteractionApprovalDecisionSchema,
+  pendingInteractionApprovalDecisionValues,
+  unanswerableReason,
+} from "@repo/domain/pending-interactions";
+import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
 import { defineCommand } from "citty";
 import { CliExitError, invalidUsage } from "../cli-error";
@@ -7,18 +12,25 @@ import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 import { describeInteraction } from "./describe-interaction";
 
-// a null payload is not a refusal: the host answers 400 itself, and refusing here would strand a grammar the server accepts.
-const assertResolutionValid = (interaction: PendingInteraction, resolution: string): void => {
-  const { payload } = interaction;
-  if (payload === null) {
-    return;
-  }
-  const parsed = parseApprovalResolution(resolution, payload);
-  if (!parsed.ok) {
+const parseDecision = (raw: string): PendingInteractionApprovalDecision => {
+  const parsed = pendingInteractionApprovalDecisionSchema.safeParse(raw);
+  if (!parsed.success) {
     throw invalidUsage(
-      `${parsed.reason}. Pass a bare decision verb (${answerableDecisions(payload).join(", ")}) ` +
-        `or the resolution JSON.`,
+      `"${raw}" is not a decision. Pass ${pendingInteractionApprovalDecisionValues.join(", ")}.`,
     );
+  }
+  return parsed.data;
+};
+
+// a null payload is not a refusal: the host answers 400 itself, and refusing here would strand a decision the server accepts.
+const assertAnswerable = (
+  interaction: PendingInteraction,
+  decision: PendingInteractionApprovalDecision,
+): void => {
+  const { payload } = interaction;
+  const reason = payload === null ? null : unanswerableReason(payload, decision);
+  if (reason !== null) {
+    throw invalidUsage(`${reason}.`);
   }
 };
 
@@ -29,7 +41,11 @@ export const interactionsCommand = (deps: CliDeps) =>
       answer: defineCommand({
         args: {
           id: { description: "The interaction id", required: true, type: "positional" },
-          resolution: { description: "The decision", required: true, type: "positional" },
+          decision: {
+            description: "allow_once, allow_for_session, or deny",
+            required: true,
+            type: "positional",
+          },
           thread: {
             description: "The owning thread; looked up from the listing when omitted",
             type: "string",
@@ -41,6 +57,7 @@ export const interactionsCommand = (deps: CliDeps) =>
           name: "answer",
         },
         run: async ({ args }) => {
+          const decision = parseDecision(args.decision);
           const api = apiFor(deps);
           const listed = await api.threads.listInteractions(
             args.thread === undefined ? {} : { threadId: args.thread },
@@ -54,10 +71,10 @@ export const interactionsCommand = (deps: CliDeps) =>
               { code: "NOT_FOUND" },
             );
           }
-          assertResolutionValid(interaction, args.resolution);
+          assertAnswerable(interaction, decision);
           const body = await api.threads.answerInteraction({
+            decision,
             interactionId: args.id,
-            resolution: args.resolution,
             threadId: interaction.threadId,
           });
           if (outputJson(args, body)) {

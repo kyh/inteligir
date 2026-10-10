@@ -1,4 +1,5 @@
 import { noopNotifier } from "@repo/domain/notifier";
+import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
@@ -22,6 +23,13 @@ import { createThread, ensureThreadInTransaction, getThread } from "../threads";
 import { openTempDb } from "./open-temp-db";
 
 const DISPATCH = "a".repeat(32);
+
+const APPROVAL: ApprovalPendingInteractionPayload = {
+  availableDecisions: ["allow_once"],
+  kind: "approval",
+  reason: null,
+  subject: { command: "ls", cwd: null, itemId: "item_1", kind: "command" },
+};
 
 const append = (db: DbConnection, events: readonly ThreadEvent[]): void => {
   writeTransaction(db, (tx) => appendEventsInTransaction(tx, events));
@@ -124,13 +132,13 @@ describe("an approval's relay", () => {
     const db = openTempDb();
     const thread = createThread(db, noopNotifier, {});
     const onTurn = createPendingInteraction(db, noopNotifier, {
-      payload: "{}",
+      payload: APPROVAL,
       requestKey: "req_turn",
       threadId: thread.id,
       turnId: "turn_1",
     });
     createPendingInteraction(db, noopNotifier, {
-      payload: "{}",
+      payload: APPROVAL,
       requestKey: "req_turnless",
       threadId: thread.id,
     });

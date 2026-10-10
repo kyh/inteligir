@@ -2,11 +2,16 @@
 
 import { z } from "zod";
 
-export const pendingInteractionApprovalDecisionSchema = z.enum([
+// the drizzle column takes the tuple and the wire schema the enum; one list so a decision cannot
+// exist on only one side.
+export const pendingInteractionApprovalDecisionValues = [
   "allow_once",
   "allow_for_session",
   "deny",
-]);
+] as const;
+export const pendingInteractionApprovalDecisionSchema = z.enum(
+  pendingInteractionApprovalDecisionValues,
+);
 export type PendingInteractionApprovalDecision = z.infer<
   typeof pendingInteractionApprovalDecisionSchema
 >;
@@ -44,20 +49,9 @@ export type ApprovalPendingInteractionPayload = z.infer<
 
 export type PendingInteractionPayload = z.infer<typeof approvalPendingInteractionPayloadSchema>;
 
-export const approvalPendingInteractionResolutionSchema = z.object({
-  decision: pendingInteractionApprovalDecisionSchema,
-});
-export type ApprovalPendingInteractionResolution = z.infer<
-  typeof approvalPendingInteractionResolutionSchema
->;
-
-export type PendingInteractionResolution = z.infer<
-  typeof approvalPendingInteractionResolutionSchema
->;
-
-export type ApprovalResolutionParse =
-  | { ok: true; resolution: ApprovalPendingInteractionResolution }
-  | { ok: false; reason: string };
+export interface PendingInteractionResolution {
+  decision: PendingInteractionApprovalDecision;
+}
 
 // deny is always accepted (every cancel path answers with it)
 export const answerableDecisions = (
@@ -67,42 +61,16 @@ export const answerableDecisions = (
   "deny",
 ];
 
-// one parser for the answer route's 400 gate and the runtime: the decision must be answerable.
-export const parseApprovalResolution = (
-  raw: string,
+// the answer route's 400 gate and the runtime both run this, so an answer the route takes is never
+// denied downstream. null when the request takes the decision.
+export const unanswerableReason = (
   payload: ApprovalPendingInteractionPayload,
-): ApprovalResolutionParse => {
-  const trimmed = raw.trim();
-  let parsed: ApprovalPendingInteractionResolution;
-  const bare = pendingInteractionApprovalDecisionSchema.safeParse(trimmed);
-  if (bare.success) {
-    parsed = { decision: bare.data };
-  } else {
-    let json: unknown;
-    try {
-      json = JSON.parse(trimmed);
-    } catch {
-      return { ok: false, reason: "The resolution names no known decision" };
-    }
-    const result = approvalPendingInteractionResolutionSchema.safeParse(json);
-    if (!result.success) {
-      return {
-        ok: false,
-        reason: `The resolution does not match the approval grammar: ${
-          result.error.issues[0]?.message ?? "invalid shape"
-        }`,
-      };
-    }
-    parsed = result.data;
-  }
+  decision: PendingInteractionApprovalDecision,
+): string | null => {
   const answerable = answerableDecisions(payload);
-  if (!answerable.includes(parsed.decision)) {
-    return {
-      ok: false,
-      reason: `The request offers ${answerable.join(", ")}; "${parsed.decision}" is not among them`,
-    };
-  }
-  return { ok: true, resolution: parsed };
+  return answerable.includes(decision)
+    ? null
+    : `The request offers ${answerable.join(", ")}; "${decision}" is not among them`;
 };
 
 export interface PendingInteractionCreate {

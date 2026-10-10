@@ -4,11 +4,7 @@
 // synchronously and a transaction cannot nest, so a dispatch failure is folded
 // back in its own.
 
-import {
-  approvalPendingInteractionPayloadSchema,
-  parseApprovalResolution,
-} from "@repo/domain/pending-interactions";
-import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
+import { unanswerableReason } from "@repo/domain/pending-interactions";
 import { writeTransaction } from "@repo/db/connection";
 import type { DbConnection, DbExecutor, DbTransaction } from "@repo/db/connection";
 import {
@@ -82,7 +78,6 @@ import {
   THREADS_LIST_DEFAULT_LIMIT,
 } from "@repo/contract/local/threads/threads-schema";
 import { computeTimelineDelta } from "@repo/contract/local/thread-timeline";
-import { z } from "zod";
 import { mapWithConcurrency } from "../concurrency";
 import { messageOf } from "../error-message";
 import { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
@@ -214,44 +209,17 @@ const toWireThread = (
   updatedAt: row.updatedAt,
 });
 
-// null for unparseable bytes: deny is always answerable, so it costs one card's detail rather than the thread.
-const parseStoredApprovalPayload = (
-  payloadJson: string,
-): ApprovalPendingInteractionPayload | null => {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(payloadJson);
-  } catch {
-    return null;
-  }
-  const parsed = approvalPendingInteractionPayloadSchema.safeParse(raw);
-  return parsed.success ? parsed.data : null;
-};
-
-const toWirePendingInteraction = (row: PendingInteractionRow): PendingInteraction => {
-  const payload = parseStoredApprovalPayload(row.payload);
-  return {
-    createdAt: row.createdAt,
-    id: row.id,
-    payload,
-    requestKey: row.requestKey,
-    resolution: row.resolution,
-    resolvedAt: row.resolvedAt,
-    status: row.status,
-    threadId: row.threadId,
-    turnId: row.turnId,
-  };
-};
-
-// the same parse the runtime's answer path runs, so a resolution this passes is never silently denied downstream.
-const invalidResolutionMessage = (payloadJson: string, resolution: string): string | null => {
-  const payload = parseStoredApprovalPayload(payloadJson);
-  if (payload === null) {
-    return null;
-  }
-  const parsed = parseApprovalResolution(resolution, payload);
-  return parsed.ok ? null : parsed.reason;
-};
+const toWirePendingInteraction = (row: PendingInteractionRow): PendingInteraction => ({
+  createdAt: row.createdAt,
+  decision: row.decision,
+  id: row.id,
+  payload: row.payload,
+  requestKey: row.requestKey,
+  resolvedAt: row.resolvedAt,
+  status: row.status,
+  threadId: row.threadId,
+  turnId: row.turnId,
+});
 
 const lifecycleEventFor = (event: ThreadEvent): ThreadLifecycleEvent | null => {
   switch (event.type) {
@@ -293,7 +261,7 @@ const queueInTransaction = (
   buffer: NotificationBuffer,
 ): QueuedSendOutcome => {
   const queued = createQueuedThreadMessageInTransaction(tx, {
-    contextPaths: turn.contextPaths === undefined ? null : JSON.stringify(turn.contextPaths),
+    contextPaths: turn.contextPaths ?? null,
     dispatchId: turn.dispatchId ?? null,
     text: turn.text,
     threadId,
@@ -302,29 +270,10 @@ const queueInTransaction = (
   return { kind: "queued", queuedMessageId: queued.id };
 };
 
-const storedContextPathsSchema = z.array(z.string().min(1)).min(1);
-
-// only this process writes the column, from a parsed request; bytes that no longer parse cost the
-// message its attachments, never the message.
-const storedContextPaths = (stored: string | null): string[] | undefined => {
-  if (stored === null) {
-    return undefined;
-  }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(stored);
-  } catch {
-    return undefined;
-  }
-  const parsed = storedContextPathsSchema.safeParse(raw);
-  return parsed.success ? parsed.data : undefined;
-};
-
 const queuedTurn = (claimed: ClaimedQueuedThreadMessageRow): TurnRequest => {
   const turn: TurnRequest = { text: claimed.text };
-  const contextPaths = storedContextPaths(claimed.contextPaths);
-  if (contextPaths !== undefined) {
-    turn.contextPaths = contextPaths;
+  if (claimed.contextPaths !== null) {
+    turn.contextPaths = claimed.contextPaths;
   }
   if (claimed.dispatchId !== null) {
     turn.dispatchId = claimed.dispatchId;
@@ -1005,13 +954,16 @@ export class ThreadService implements ProviderEventSink {
     if (existing === null || existing.threadId !== request.threadId) {
       return { kind: "not-found" };
     }
-    const invalid = invalidResolutionMessage(existing.payload, request.resolution);
+    // the runtime's answer path runs the same check, so a decision this takes is never denied
+    // downstream; an unreadable payload leaves it to the waiter's own copy.
+    const invalid =
+      existing.payload === null ? null : unanswerableReason(existing.payload, request.decision);
     if (invalid !== null) {
       return { kind: "invalid-resolution", message: invalid };
     }
     const outcome = resolvePendingInteraction(this.db, this.notifier, {
+      decision: request.decision,
       id: request.interactionId,
-      resolution: request.resolution,
       threadId: request.threadId,
     });
     switch (outcome.kind) {

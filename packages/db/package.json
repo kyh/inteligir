@@ -25,7 +25,8 @@
     "@repo/domain": "workspace:*",
     "better-sqlite3": "catalog:",
     "drizzle-orm": "catalog:",
-    "nanoid": "catalog:"
+    "nanoid": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/better-sqlite3": "catalog:",

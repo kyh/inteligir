@@ -3,16 +3,33 @@
 import { and, asc, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import type { DbConnection } from "./connection";
 import { createPendingInteractionId } from "./ids";
+import { readJsonColumn } from "./json-column";
 import type { DbNotifier } from "@repo/domain/notifier";
+import { approvalPendingInteractionPayloadSchema } from "@repo/domain/pending-interactions";
+import type {
+  ApprovalPendingInteractionPayload,
+  PendingInteractionApprovalDecision,
+} from "@repo/domain/pending-interactions";
 import { pendingInteractions } from "./schema";
 
-export type PendingInteractionRow = typeof pendingInteractions.$inferSelect;
+type StoredPendingInteraction = typeof pendingInteractions.$inferSelect;
+
+export interface PendingInteractionRow extends Omit<StoredPendingInteraction, "payload"> {
+  // null for bytes this grammar refuses: deny is always answerable, so one bad row costs its card's
+  // detail rather than the thread.
+  payload: ApprovalPendingInteractionPayload | null;
+}
+
+const readRow = (stored: StoredPendingInteraction): PendingInteractionRow => ({
+  ...stored,
+  payload: readJsonColumn(stored.payload, approvalPendingInteractionPayloadSchema),
+});
 
 export interface CreatePendingInteractionInput {
   threadId: string;
   turnId?: string;
   requestKey: string;
-  payload: string;
+  payload: ApprovalPendingInteractionPayload;
 }
 
 // idempotent on (threadId, requestKey): a provider retrying a request gets its row back, not a
@@ -27,10 +44,10 @@ export const createPendingInteraction = (
     .insert(pendingInteractions)
     .values({
       createdAt: now,
+      decision: null,
       id: createPendingInteractionId(),
-      payload: input.payload,
+      payload: JSON.stringify(input.payload),
       requestKey: input.requestKey,
-      resolution: null,
       resolvedAt: null,
       status: "pending",
       threadId: input.threadId,
@@ -42,7 +59,7 @@ export const createPendingInteraction = (
     .get();
   if (inserted !== undefined) {
     notifier.notifyThread(input.threadId, ["interactions-changed"]);
-    return inserted;
+    return readRow(inserted);
   }
   const existing = db
     .select()
@@ -57,11 +74,16 @@ export const createPendingInteraction = (
   if (!existing) {
     throw new Error("pending interaction conflicted but no existing row was found");
   }
-  return existing;
+  return readRow(existing);
 };
 
-export const getPendingInteraction = (db: DbConnection, id: string): PendingInteractionRow | null =>
-  db.select().from(pendingInteractions).where(eq(pendingInteractions.id, id)).get() ?? null;
+export const getPendingInteraction = (
+  db: DbConnection,
+  id: string,
+): PendingInteractionRow | null => {
+  const stored = db.select().from(pendingInteractions).where(eq(pendingInteractions.id, id)).get();
+  return stored === undefined ? null : readRow(stored);
+};
 
 export const listOpenPendingInteractions = (
   db: DbConnection,
@@ -74,7 +96,8 @@ export const listOpenPendingInteractions = (
       and(eq(pendingInteractions.threadId, threadId), eq(pendingInteractions.status, "pending")),
     )
     .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
-    .all();
+    .all()
+    .map(readRow);
 
 // settled ones included: an answer delivered twice finds the row its first delivery resolved
 export const listThreadPendingInteractions = (
@@ -86,7 +109,8 @@ export const listThreadPendingInteractions = (
     .from(pendingInteractions)
     .where(eq(pendingInteractions.threadId, threadId))
     .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
-    .all();
+    .all()
+    .map(readRow);
 
 export const listAllOpenPendingInteractions = (db: DbConnection): PendingInteractionRow[] =>
   db
@@ -94,7 +118,8 @@ export const listAllOpenPendingInteractions = (db: DbConnection): PendingInterac
     .from(pendingInteractions)
     .where(eq(pendingInteractions.status, "pending"))
     .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
-    .all();
+    .all()
+    .map(readRow);
 
 export const interruptPendingInteraction = (
   db: DbConnection,
@@ -149,7 +174,7 @@ export type ResolvePendingInteractionOutcome =
 export interface ResolvePendingInteractionArgs {
   id: string;
   threadId: string;
-  resolution: string;
+  decision: PendingInteractionApprovalDecision;
 }
 
 export const resolvePendingInteraction = (
@@ -160,7 +185,7 @@ export const resolvePendingInteraction = (
   const now = Date.now();
   const updated = db
     .update(pendingInteractions)
-    .set({ resolution: args.resolution, resolvedAt: now, status: "resolved", updatedAt: now })
+    .set({ decision: args.decision, resolvedAt: now, status: "resolved", updatedAt: now })
     .where(
       and(
         eq(pendingInteractions.id, args.id),
@@ -172,7 +197,7 @@ export const resolvePendingInteraction = (
     .get();
   if (updated !== undefined) {
     notifier.notifyThread(args.threadId, ["interactions-changed"]);
-    return { interaction: updated, kind: "resolved" };
+    return { interaction: readRow(updated), kind: "resolved" };
   }
   const existing = getPendingInteraction(db, args.id);
   if (existing === null || existing.threadId !== args.threadId) {
@@ -197,7 +222,8 @@ export const listUnrelayedOpenInteractions = (db: DbConnection): PendingInteract
       ),
     )
     .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
-    .all();
+    .all()
+    .map(readRow);
 
 // offered to the phone and settled here since, however it settled: each is closed there.
 export const listSettledRelayedInteractions = (db: DbConnection): PendingInteractionRow[] =>
@@ -206,7 +232,8 @@ export const listSettledRelayedInteractions = (db: DbConnection): PendingInterac
     .from(pendingInteractions)
     .where(and(eq(pendingInteractions.relay, "opened"), ne(pendingInteractions.status, "pending")))
     .orderBy(asc(pendingInteractions.createdAt), asc(pendingInteractions.id))
-    .all();
+    .all()
+    .map(readRow);
 
 export const setInteractionRelay = (db: DbConnection, id: string, relay: ApprovalRelay): void => {
   db.update(pendingInteractions).set({ relay }).where(eq(pendingInteractions.id, id)).run();

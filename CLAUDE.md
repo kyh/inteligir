@@ -1516,6 +1516,21 @@ to the END of its group.
   failure, which spends every queued message on the same refusal and leaves
   nothing for after the limit resets or the sign-in.
 
+- **AN APPROVAL'S ANSWER IS ITS DECISION, AN ENUM ON THE WIRE AND IN THE ROW**
+  (reversing #788's decline). `pending_interactions.decision` takes
+  `@repo/domain`'s decision tuple and is set exactly when the row is resolved
+  (a CHECK); `answerInteraction` takes the enum, so a word the grammar does not
+  name is the wire's 400, and `inteligir interactions answer` parses its argv
+  into it. What the wire cannot know, whether the request offered that
+  decision, is `unanswerableReason`, which the route's gate and the waiter both
+  run. Every json column (an approval's payload, a queued message's
+  attachments, an event) is parsed inside `@repo/db` and handed back typed,
+  null for bytes the grammar refuses, so one bad row costs that row. Rejected:
+  a string the row replayed verbatim, re-parsed at four sites in two
+  spellings, when its only field is the decision and the phone's answer
+  already wrote the bare enum. `packages/db/src/pending-interactions.ts`,
+  `packages/domain/src/pending-interactions.ts`.
+
 ### Dictation
 
 - **DICTATION IS THE OPERATING SYSTEM'S** (owner decision, reversing streaming

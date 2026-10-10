@@ -65,11 +65,12 @@ src/
                          # about, quoted the one way the Mac's composer and
                          # the phone's both start with
   pending-interactions.ts  # the provider-neutral approval grammar — subjects
-                         # (command | file_change), decisions, payload,
-                         # resolution — and `parseApprovalResolution`, the ONE
-                         # parser the answer route's 400 gate and the runtime
-                         # share (deny is always accepted; anything else must
-                         # be a decision the request offered)
+                         # (command | file_change), the decision enum (its
+                         # tuple feeds the column), payload — and
+                         # `unanswerableReason`, the ONE check the answer
+                         # route's 400 gate and the runtime share (deny is
+                         # always accepted; anything else must be a decision
+                         # the request offered)
   pending-interaction-status.ts  # pending|resolved|interrupted, the
                          # same tuple-feeds-both-sides shape as thread-status
   change-kinds.ts        # the invalidation vocabulary: vault, doc and thread

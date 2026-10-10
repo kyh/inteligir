@@ -125,12 +125,12 @@ describe("the action detail's approval card", () => {
     const harness = await bootPanel();
     const { thread } = await harness.client.threads.create({});
     createPendingInteraction(harness.db, noopNotifier, {
-      payload: JSON.stringify({
+      payload: {
         availableDecisions: ["allow_once"],
         kind: "approval",
         reason: null,
         subject: { command: "rm -rf dist", cwd: null, itemId: "item_1", kind: "command" },
-      }),
+      },
       requestKey: "req-card",
       threadId: thread.id,
     });

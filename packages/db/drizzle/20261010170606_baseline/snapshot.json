@@ -246,7 +246,7 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "resolution",
+      "name": "decision",
       "entityType": "columns",
       "table": "pending_interactions"
     },
@@ -935,6 +935,12 @@
       "name": "events_origin_shape_check",
       "entityType": "checks",
       "table": "events"
+    },
+    {
+      "value": "(\"status\" = 'resolved') = (\"decision\" IS NOT NULL)",
+      "name": "pending_interactions_decision_shape_check",
+      "entityType": "checks",
+      "table": "pending_interactions"
     },
     {
       "value": "(\"claimed_at\" IS NULL) = (\"claim_token\" IS NULL)",

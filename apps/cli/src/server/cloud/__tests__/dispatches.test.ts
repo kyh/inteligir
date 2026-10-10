@@ -1,7 +1,10 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import type { CloudClient, CloudFetch } from "@repo/contract/cloud/client";
-import { DISPATCH_API_PATHS } from "@repo/contract/cloud/dispatch/dispatch-schema";
+import {
+  APPROVAL_MAX_BYTES,
+  DISPATCH_API_PATHS,
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { SYNC_API_PATHS } from "@repo/contract/cloud/sync/sync-schema";
 import { MAX_PULL_PAGES_PER_PASS } from "@repo/contract/cloud/sync/sync-session";
 import type { SocketListener } from "@repo/contract/cloud/sync/sync-ws";
@@ -324,13 +327,17 @@ describe("the Mac's socket", () => {
 
 // the agent runtime raises the row; the fake driver has none, so the test raises it as the
 // runtime would, on the turn the phone started
-const raiseApproval = (mac: ThreadHarness, threadId: string): PendingInteractionRow => {
+const raiseApproval = (
+  mac: ThreadHarness,
+  threadId: string,
+  payload: ApprovalPendingInteractionPayload = APPROVAL,
+): PendingInteractionRow => {
   const turn = mac.driver.startedTurns.at(-1);
   if (turn === undefined) {
     throw new Error("expected a started turn to raise an approval on");
   }
   return createPendingInteraction(mac.db, noopNotifier, {
-    payload: JSON.stringify(APPROVAL),
+    payload,
     requestKey: `req_${turn.turnId}`,
     threadId,
     turnId: turn.turnId,
@@ -366,8 +373,8 @@ describe("a phone-started turn's approval", () => {
     await mac.client.cloud.syncNow();
 
     expect(getPendingInteraction(mac.db, asked.id)).toMatchObject({
+      decision: "allow_once",
       relay: "closed",
-      resolution: "allow_once",
       status: "resolved",
     });
     expect(cloud.dispatchStatus(ANSWER).state).toBe("delivered");
@@ -385,8 +392,8 @@ describe("a phone-started turn's approval", () => {
     expect(cloud.openApprovals()).toHaveLength(1);
 
     await mac.client.threads.answerInteraction({
+      decision: "deny",
       interactionId: asked.id,
-      resolution: "deny",
       threadId: "thr_phone",
     });
     await mac.client.cloud.syncNow();
@@ -482,5 +489,30 @@ describe("a phone-started turn's approval", () => {
     expect(cloud.openApprovals()).toEqual([]);
     expect(cloud.requests).not.toContain(`POST ${DISPATCH_API_PATHS.approval}`);
     expect(getPendingInteraction(mac.db, asked.id)?.relay).toBeNull();
+  });
+
+  it("is left to this Mac's card when the inbox would refuse its size", async () => {
+    const cloud = new FakeCloud();
+    const mac = await bootMac(cloud);
+    const phone = await signInPhone(cloud);
+    await askFromPhone(phone, "thr_phone");
+    await signInMac(mac);
+    const asked = raiseApproval(mac, "thr_phone", {
+      ...APPROVAL,
+      subject: {
+        command: "x".repeat(APPROVAL_MAX_BYTES),
+        cwd: null,
+        itemId: "item_1",
+        kind: "command",
+      },
+    });
+
+    await mac.client.cloud.syncNow();
+
+    expect(cloud.openApprovals()).toEqual([]);
+    expect(getPendingInteraction(mac.db, asked.id)).toMatchObject({
+      relay: null,
+      status: "pending",
+    });
   });
 });

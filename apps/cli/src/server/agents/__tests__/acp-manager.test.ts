@@ -8,8 +8,6 @@ import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime
 import type { AgentRuntime, AgentRuntimeShellEnvironment } from "@repo/agent-runtime/types";
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
 import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
-import { parseApprovalResolution } from "@repo/domain/pending-interactions";
-import type { PendingInteractionPayload } from "@repo/domain/pending-interactions";
 import type { ThreadEventItemStatus } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { listStoredThreadEvents } from "@repo/db/events";
@@ -169,33 +167,6 @@ const headCommit = (vaultDir: string) => {
   const [author = "", email = "", ...rest] = stdout.split("\n");
   return { author, email, files: rest.filter((line) => line.length > 0) };
 };
-
-describe("parseApprovalResolution", () => {
-  const commandPayload: PendingInteractionPayload = {
-    availableDecisions: ["allow_once", "deny"],
-    kind: "approval",
-    reason: null,
-    subject: {
-      command: "ls",
-      cwd: null,
-      itemId: "cmd_1",
-      kind: "command",
-    },
-  };
-
-  it("accepts bare verbs and refuses out-of-set decisions", () => {
-    expect(parseApprovalResolution("deny", commandPayload)).toEqual({
-      ok: true,
-      resolution: { decision: "deny" },
-    });
-    expect(parseApprovalResolution("allow_once", commandPayload)).toEqual({
-      ok: true,
-      resolution: { decision: "allow_once" },
-    });
-    expect(parseApprovalResolution("allow_for_session", commandPayload).ok).toBe(false);
-    expect(parseApprovalResolution("approve!!", commandPayload).ok).toBe(false);
-  });
-});
 
 // every case spawns node children that import the ACP sdk, a few hundred ms each before a first frame.
 describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
@@ -378,8 +349,8 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     });
 
     await harness.client.threads.answerInteraction({
+      decision: "allow_once",
       interactionId: interaction.id,
-      resolution: "allow_once",
       threadId,
     });
     await awaitThreadStatus(harness.client, threadId, "idle");
@@ -419,8 +390,8 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     await agentApi.comments.add({ id: "c1", path: "plan.md", text: "from the agent" });
 
     await harness.client.threads.answerInteraction({
+      decision: "allow_once",
       interactionId: interaction.id,
-      resolution: "allow_once",
       threadId,
     });
     await awaitThreadStatus(harness.client, threadId, "idle");
@@ -454,16 +425,16 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     // the fake offers allow_once and reject_once only.
     const [outOfSet] = await safe(
       harness.client.threads.answerInteraction({
+        decision: "allow_for_session",
         interactionId: interaction.id,
-        resolution: "allow_for_session",
         threadId,
       }),
     );
     expect(isDefinedError(outOfSet) && outOfSet.code).toBe("INVALID_RESOLUTION");
 
     await harness.client.threads.answerInteraction({
+      decision: "allow_once",
       interactionId: interaction.id,
-      resolution: "allow_once",
       threadId,
     });
 
@@ -492,8 +463,8 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     expect(queued.kind).toBe("queued");
 
     await harness.client.threads.answerInteraction({
+      decision: "allow_once",
       interactionId: interaction.id,
-      resolution: "allow_once",
       threadId,
     });
 

@@ -32,12 +32,13 @@ CREATE TABLE `pending_interactions` (
 	`request_key` text NOT NULL,
 	`status` text NOT NULL,
 	`payload` text NOT NULL,
-	`resolution` text,
+	`decision` text,
 	`relay` text,
 	`created_at` integer NOT NULL,
 	`resolved_at` integer,
 	`updated_at` integer NOT NULL,
-	CONSTRAINT `fk_pending_interactions_thread_id_threads_id_fk` FOREIGN KEY (`thread_id`) REFERENCES `threads`(`id`) ON DELETE CASCADE
+	CONSTRAINT `fk_pending_interactions_thread_id_threads_id_fk` FOREIGN KEY (`thread_id`) REFERENCES `threads`(`id`) ON DELETE CASCADE,
+	CONSTRAINT "pending_interactions_decision_shape_check" CHECK(("status" = 'resolved') = ("decision" IS NOT NULL))
 );
 --> statement-breakpoint
 CREATE TABLE `queued_thread_messages` (

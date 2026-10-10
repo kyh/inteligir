@@ -58,8 +58,8 @@ const answerApproval = (
   }
   if (asked.status === "pending") {
     const outcome = sink.answerInteraction({
+      decision: answer.decision,
       interactionId: asked.id,
-      resolution: answer.decision,
       threadId: answer.threadId,
     });
     switch (outcome.kind) {
@@ -77,7 +77,7 @@ const answerApproval = (
     }
   }
   if (asked.status === "resolved") {
-    return asked.resolution === answer.decision
+    return asked.decision === answer.decision
       ? { id: answer.id, outcome: "delivered" }
       : refused(answer.id, ANSWERED_HERE);
   }
@@ -105,14 +105,8 @@ export const applyDispatch = async (
   }
 };
 
-const parseStoredPayload = (row: PendingInteractionRow): OpenApprovalRequest["payload"] | null => {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(row.payload);
-  } catch {
-    return null;
-  }
-  const parsed = approvalPayloadSchema.safeParse(raw);
+const relayablePayload = (row: PendingInteractionRow): OpenApprovalRequest["payload"] | null => {
+  const parsed = approvalPayloadSchema.safeParse(row.payload);
   return parsed.success ? parsed.data : null;
 };
 
@@ -129,7 +123,7 @@ export const approvalsToOpen = (db: DbConnection): ApprovalToOpen[] =>
     if (turnId === null || turnDispatchId(db, { threadId: row.threadId, turnId }) === null) {
       return [];
     }
-    const payload = parseStoredPayload(row);
+    const payload = relayablePayload(row);
     return payload === null
       ? []
       : [

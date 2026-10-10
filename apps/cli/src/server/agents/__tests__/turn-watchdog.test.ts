@@ -248,10 +248,10 @@ describe("the silent-turn watchdog", () => {
     }
     harness.driver.onInteractionResolved?.({
       createdAt: 0,
+      decision: "allow_once",
       id: row.id,
       payload: null,
       requestKey: row.requestKey,
-      resolution: "allow_once",
       resolvedAt: 0,
       status: "resolved",
       threadId: harness.threadId,

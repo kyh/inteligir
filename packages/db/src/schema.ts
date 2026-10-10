@@ -1,4 +1,5 @@
 import { pendingInteractionStatusValues } from "@repo/domain/pending-interaction-status";
+import { pendingInteractionApprovalDecisionValues } from "@repo/domain/pending-interactions";
 import type { ThreadEventItemType, ThreadEventType } from "@repo/domain/provider-event";
 import type { ThreadEventScopeKind } from "@repo/domain/thread-event-scope";
 import { threadStatusValues } from "@repo/domain/thread-status";
@@ -150,7 +151,7 @@ export const pendingInteractions = sqliteTable(
     requestKey: text("request_key").notNull(),
     status: text("status", { enum: pendingInteractionStatusValues }).notNull(),
     payload: text("payload").notNull(),
-    resolution: text("resolution"),
+    decision: text("decision", { enum: pendingInteractionApprovalDecisionValues }),
     // a phone-started turn's approval as the account's dispatch inbox holds it: null, never
     // opened there; opened, the phone may answer it; closed, it settled here and was closed there
     relay: text("relay", { enum: approvalRelayValues }),
@@ -164,6 +165,10 @@ export const pendingInteractions = sqliteTable(
       table.threadId,
       table.status,
       table.createdAt,
+    ),
+    check(
+      "pending_interactions_decision_shape_check",
+      sql`(${table.status} = 'resolved') = (${table.decision} IS NOT NULL)`,
     ),
   ],
 );

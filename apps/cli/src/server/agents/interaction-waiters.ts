@@ -7,7 +7,7 @@ import type { CreatePendingInteractionInput } from "@repo/db/pending-interaction
 import type { DbNotifier } from "@repo/domain/notifier";
 import {
   approvalPendingInteractionPayloadSchema,
-  parseApprovalResolution,
+  unanswerableReason,
 } from "@repo/domain/pending-interactions";
 import type {
   PendingInteractionCreate,
@@ -70,7 +70,7 @@ export const createInteractionWaiters = (deps: InteractionWaitersDeps): Interact
     async park(create, hostTurnId) {
       const payload = approvalPendingInteractionPayloadSchema.parse(create.payload);
       const pending: CreatePendingInteractionInput = {
-        payload: JSON.stringify(payload),
+        payload,
         requestKey: create.providerRequestId,
         threadId: create.threadId,
       };
@@ -78,9 +78,10 @@ export const createInteractionWaiters = (deps: InteractionWaitersDeps): Interact
         pending.turnId = hostTurnId;
       }
       const row = createPendingInteraction(deps.db, deps.notifier, pending);
-      if (row.status === "resolved" && row.resolution !== null) {
-        const parsed = parseApprovalResolution(row.resolution, payload);
-        return parsed.ok ? parsed.resolution : { decision: "deny" };
+      if (row.status === "resolved" && row.decision !== null) {
+        return unanswerableReason(payload, row.decision) === null
+          ? { decision: row.decision }
+          : { decision: "deny" };
       }
       if (row.status === "interrupted") {
         return { decision: "deny" };
@@ -124,18 +125,15 @@ export const createInteractionWaiters = (deps: InteractionWaitersDeps): Interact
         return;
       }
       waitersByInteractionId.delete(interaction.id);
-      const parsed =
-        interaction.resolution === null
-          ? null
-          : parseApprovalResolution(interaction.resolution, waiter.payload);
-      if (parsed === null || !parsed.ok) {
+      const { decision } = interaction;
+      if (decision === null || unanswerableReason(waiter.payload, decision) !== null) {
         deps.debug(
-          `interaction ${interaction.id} resolved with an unparseable resolution; denying the provider`,
+          `interaction ${interaction.id} resolved with a decision the request did not offer; denying the provider`,
         );
         waiter.resolve({ decision: "deny" });
         return;
       }
-      waiter.resolve(parsed.resolution);
+      waiter.resolve({ decision });
     },
   };
 };

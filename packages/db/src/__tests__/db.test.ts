@@ -138,6 +138,11 @@ describe("the paired columns", () => {
     ["a synced device without its position", "UPDATE events SET origin_device_id = 'dev'"],
     ["a claim time without its token", "UPDATE queued_thread_messages SET claimed_at = 1"],
     ["a skipped row without its build", "UPDATE sync_state SET skipped_from_seq = 4"],
+    [
+      "an answered approval without its decision",
+      "UPDATE pending_interactions SET status = 'resolved'",
+    ],
+    ["a decision on an approval still open", "UPDATE pending_interactions SET decision = 'deny'"],
   ] as const;
 
   it.each(halves)("refuses %s", (_, statement) => {
@@ -148,7 +153,10 @@ describe("the paired columns", () => {
        INSERT INTO events (id, thread_id, scope_kind, sequence, type, created_at)
          VALUES ('evt_1', 'thr_1', 'thread', 1, 'client/turn/requested', 1);
        INSERT INTO queued_thread_messages (id, thread_id, sort_key, text, created_at, updated_at)
-         VALUES ('qmsg_1', 'thr_1', 'a', 'queued', 1, 1);`,
+         VALUES ('qmsg_1', 'thr_1', 'a', 'queued', 1, 1);
+       INSERT INTO pending_interactions
+         (id, thread_id, request_key, status, payload, created_at, updated_at)
+         VALUES ('pint_1', 'thr_1', 'req_1', 'pending', '{}', 1, 1);`,
     );
     expect(() => db.$client.exec(statement)).toThrow(/CHECK constraint failed/u);
   });

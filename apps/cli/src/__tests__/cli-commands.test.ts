@@ -982,10 +982,10 @@ describe("interactions commands", () => {
       pendingInteractions: [
         {
           createdAt: 1_700_000_000_000,
+          decision: null,
           id: "int_1",
           payload: null,
           requestKey: "req_1",
-          resolution: null,
           resolvedAt: null,
           status: "pending",
           threadId: "thr_1",
@@ -1557,7 +1557,7 @@ describe("action new never orphans a thread silently", () => {
   });
 });
 
-describe("interactions answer validates the resolution locally", () => {
+describe("interactions answer validates the decision locally", () => {
   it("refuses a decision the request never offered, naming the ones it did", async () => {
     const state = seededState();
     state.threads.push({
@@ -1576,8 +1576,8 @@ describe("interactions answer validates the resolution locally", () => {
               kind: "command",
             },
           },
+          decision: null,
           requestKey: "req_a",
-          resolution: null,
           resolvedAt: null,
           status: "pending",
           threadId: "thr_a",
@@ -1595,6 +1595,16 @@ describe("interactions answer validates the resolution locally", () => {
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("allow_once, deny");
     expect(state.threads.at(-1)?.pendingInteractions[0]?.status).toBe("pending");
+  });
+
+  it("refuses a word that names no decision, before asking the server", async () => {
+    const result = await runCliForTest({
+      argv: ["interactions", "answer", "int_a", "allow_always", "--json"],
+      baseUrl: null,
+    });
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+    expect(result.stderr).toContain("allow_once, allow_for_session, deny");
   });
 });
 
