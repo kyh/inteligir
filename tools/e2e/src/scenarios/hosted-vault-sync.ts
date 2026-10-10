@@ -54,7 +54,7 @@ export const hostedVaultSync: Scenario = {
     const worker = await ctx.cloudWorker();
 
     ctx.log("creating the account through the invite gate");
-    const { bearer, userId } = await signUp(worker.origin);
+    const { cookie, userId } = await signUp(worker.origin);
 
     ctx.log("A boots accountless, then signs in through the production route");
     const a = await ctx.boot({ extraEnv: hostedVaultEnv(worker.origin), name: "a" });
@@ -185,7 +185,7 @@ export const hostedVaultSync: Scenario = {
     await expectNoTokenInGitConfig(b.vaultDir, b.dataDir, "B");
 
     ctx.log("revoking B: the next sync must read unauthorized, not offline");
-    await revokeDevice(worker.origin, bearer, deviceB.deviceId);
+    await revokeDevice(worker.origin, cookie, deviceB.deviceId);
     await b.api.vault.write({
       content: "# Stranded\n",
       guard: { kind: "overwrite" },

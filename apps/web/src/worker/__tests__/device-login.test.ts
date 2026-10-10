@@ -55,8 +55,8 @@ const expectInvalidCredentials = async (response: Response): Promise<void> => {
 describe("device login", () => {
   it("mints a credential that reaches the sync surface, and leaves no session behind", async () => {
     const email = "login-ok@example.test";
-    const { bearer } = await signUpUser(email);
-    const userId = await userIdOf(bearer);
+    const { cookie } = await signUpUser(email);
+    const userId = await userIdOf(cookie);
     const sessionsBefore = await sessionCount(userId);
 
     const response = await postLogin({ deviceName: "Test Laptop", email, password: PASSWORD });
@@ -82,7 +82,7 @@ describe("device login", () => {
   });
 
   it("finds the account however the address is cased or padded", async () => {
-    const { bearer } = await signUpUser("login-case@example.test");
+    const { cookie } = await signUpUser("login-case@example.test");
     const response = await postLogin({
       deviceName: "Laptop",
       email: "  Login-Case@Example.TEST ",
@@ -90,7 +90,7 @@ describe("device login", () => {
     });
     expect(response.status).toBe(200);
     const listed = await SELF.fetch(`${ORIGIN}/v1/device/list`, {
-      headers: sessionHeaders(bearer),
+      headers: sessionHeaders(cookie),
     });
     const { devices } = emitted(listDevicesResponseSchema, await listed.text());
     expect(devices.map((row) => row.name)).toEqual(["Laptop"]);
@@ -98,8 +98,8 @@ describe("device login", () => {
 
   it("refuses a wrong password without a device row", async () => {
     const email = "login-wrong@example.test";
-    const { bearer } = await signUpUser(email);
-    const userId = await userIdOf(bearer);
+    const { cookie } = await signUpUser(email);
+    const userId = await userIdOf(cookie);
 
     await expectInvalidCredentials(
       await postLogin({ deviceName: "Laptop", email, password: "not-the-password" }),
@@ -151,8 +151,8 @@ describe("device login", () => {
 
   it("refuses to create a twenty-first active device", async () => {
     const email = "login-cap@example.test";
-    const { bearer } = await signUpUser(email);
-    const userId = await userIdOf(bearer);
+    const { cookie } = await signUpUser(email);
+    const userId = await userIdOf(cookie);
     const db = createDb(env.DB);
     for (let index = 0; index < 20; index += 1) {
       await db.insert(device).values({
@@ -171,7 +171,7 @@ describe("device login", () => {
 
     await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
       body: JSON.stringify({ deviceId: "cap-device-0" }),
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
       method: "POST",
     });
     const reopened = await postLogin({ deviceName: "Now There's Room", email, password: PASSWORD });
@@ -181,8 +181,8 @@ describe("device login", () => {
   // which login wins is not asserted: this runtime may serialize the pair, while a deployment lands them on different isolates
   it("cannot be raced past the cap by two logins landing together", async () => {
     const email = "login-cap-race@example.test";
-    const { bearer } = await signUpUser(email);
-    const userId = await userIdOf(bearer);
+    const { cookie } = await signUpUser(email);
+    const userId = await userIdOf(cookie);
     const db = createDb(env.DB);
     for (let index = 0; index < 19; index += 1) {
       await db.insert(device).values({
@@ -204,14 +204,14 @@ describe("device login", () => {
   });
 
   it("revocation bites on the very next request", async () => {
-    const { bearer } = await signUpUser("login-revoke@example.test");
-    const { deviceId, credential } = await loginDevice(bearer, "Doomed Laptop");
+    const { cookie } = await signUpUser("login-revoke@example.test");
+    const { deviceId, credential } = await loginDevice(cookie, "Doomed Laptop");
     const pulled = await pull(credential);
     expect(pulled.status).toBe(200);
 
     const revoke = await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
       body: JSON.stringify({ deviceId }),
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
       method: "POST",
     });
     expect(revoke.status).toBe(200);
@@ -221,8 +221,8 @@ describe("device login", () => {
   });
 
   it("writes last seen once per resolution window, and still refuses a revoked credential", async () => {
-    const { bearer } = await signUpUser("login-last-seen@example.test");
-    const { deviceId, credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("login-last-seen@example.test");
+    const { deviceId, credential } = await loginDevice(cookie, "Laptop");
     const db = createDb(env.DB);
     const lastSeen = async (): Promise<number | null> => {
       const row = await db
@@ -258,24 +258,24 @@ describe("device login", () => {
 
     await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
       body: JSON.stringify({ deviceId }),
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
       method: "POST",
     });
     expect(await pullStatus()).toBe(401);
   });
 
   it("lists the account's devices, revoked ones included", async () => {
-    const { bearer } = await signUpUser("login-list@example.test");
-    const first = await loginDevice(bearer, "Laptop");
-    await loginDevice(bearer, "Desktop");
+    const { cookie } = await signUpUser("login-list@example.test");
+    const first = await loginDevice(cookie, "Laptop");
+    await loginDevice(cookie, "Desktop");
     await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
       body: JSON.stringify({ deviceId: first.deviceId }),
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
       method: "POST",
     });
 
     const response = await SELF.fetch(`${ORIGIN}/v1/device/list`, {
-      headers: sessionHeaders(bearer),
+      headers: sessionHeaders(cookie),
     });
     const { devices } = emitted(listDevicesResponseSchema, await response.text());
     expect(devices.map((d) => d.name)).toEqual(["Laptop", "Desktop"]);
@@ -286,11 +286,11 @@ describe("device login", () => {
   it("never lets one account revoke another's device", async () => {
     const alice = await signUpUser("login-alice@example.test");
     const mallory = await signUpUser("login-mallory@example.test");
-    const { deviceId, credential } = await loginDevice(alice.bearer, "Alice's Laptop");
+    const { deviceId, credential } = await loginDevice(alice.cookie, "Alice's Laptop");
 
     const response = await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
       body: JSON.stringify({ deviceId }),
-      headers: { ...sessionHeaders(mallory.bearer), "content-type": "application/json" },
+      headers: { ...sessionHeaders(mallory.cookie), "content-type": "application/json" },
       method: "POST",
     });
     expect(response.status).toBe(404);
@@ -299,9 +299,9 @@ describe("device login", () => {
   });
 
   it("refuses the sync surface without a device credential", async () => {
-    const { bearer } = await signUpUser("login-nodevice@example.test");
+    const { cookie } = await signUpUser("login-nodevice@example.test");
     const response = await SELF.fetch(`${ORIGIN}/v1/sync/pull?afterSeq=0`, {
-      headers: sessionHeaders(bearer),
+      headers: sessionHeaders(cookie),
     });
     expect(response.status).toBe(401);
   });
@@ -309,9 +309,9 @@ describe("device login", () => {
 
 describe("device sign-out", () => {
   it("revokes the credential it was asked with: its next request is refused, a second sign-out too", async () => {
-    const { bearer } = await signUpUser("signout-revoke@example.test");
-    const { credential } = await loginDevice(bearer, "Leaving Laptop");
-    const other = await loginDevice(bearer, "Staying Laptop");
+    const { cookie } = await signUpUser("signout-revoke@example.test");
+    const { credential } = await loginDevice(cookie, "Leaving Laptop");
+    const other = await loginDevice(cookie, "Staying Laptop");
 
     const signedOut = await postSignOut(deviceHeaders(credential));
     expect(signedOut.status).toBe(200);
@@ -323,7 +323,7 @@ describe("device sign-out", () => {
     expect(again.status).toBe(401);
     expect(emitted(cloudErrorSchema, await again.text()).error.code).toBe("unauthorized");
 
-    const active = await activeDevices(await userIdOf(bearer));
+    const active = await activeDevices(await userIdOf(cookie));
     expect(active.map((row) => row.id)).toEqual([other.deviceId]);
     const staying = await pull(other.credential);
     expect(staying.status).toBe(200);
@@ -334,21 +334,21 @@ describe("device sign-out", () => {
     "gives the slot back: twenty-one sign-in and sign-out cycles never meet the cap",
     { timeout: 60_000 },
     async () => {
-      const { bearer } = await signUpUser("signout-cycles@example.test");
+      const { cookie } = await signUpUser("signout-cycles@example.test");
       for (let cycle = 0; cycle < 21; cycle += 1) {
-        const { credential } = await loginDevice(bearer, `Laptop ${cycle}`);
+        const { credential } = await loginDevice(cookie, `Laptop ${cycle}`);
         const signedOut = await postSignOut(deviceHeaders(credential));
         expect(signedOut.status).toBe(200);
       }
-      expect(await activeDevices(await userIdOf(bearer))).toEqual([]);
+      expect(await activeDevices(await userIdOf(cookie))).toEqual([]);
     },
   );
 
   it("answers only a device credential — a session cannot sign a device out", async () => {
-    const { bearer } = await signUpUser("signout-session@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("signout-session@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
 
-    const refused = await postSignOut(sessionHeaders(bearer));
+    const refused = await postSignOut(sessionHeaders(cookie));
     expect(refused.status).toBe(401);
     const pulled = await pull(credential);
     expect(pulled.status).toBe(200);

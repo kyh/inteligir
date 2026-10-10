@@ -2,6 +2,7 @@ import { DEVICE_CREDENTIAL_PREFIX } from "@repo/contract/cloud/device/device-sch
 import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
 import { hexFromBytes, sha256Hex } from "@repo/contract/cloud/bytes";
 import { APIError } from "better-auth/api";
+import { applySetCookies } from "better-auth/cookies";
 import { eq } from "drizzle-orm";
 import type { createAuth } from "../auth/auth";
 import type { Db } from "../db/client";
@@ -84,9 +85,11 @@ export const mintDeviceCredential = async (
 };
 
 interface SignedIn {
-  // the session the sign-in minted: whoever asked deletes it, or the account holds a bearer nobody sees
+  // the session the sign-in minted: whoever asked deletes it, or the account holds a session nobody sees
   token: string;
   user: { id: string };
+  // request headers carrying that session's cookie, for a Better Auth call that must run under it
+  sessionCookie: Headers;
 }
 
 // null is a wrong password or an unknown address, one answer for both
@@ -96,7 +99,13 @@ export const signInWithPassword = async (
   password: string,
 ): Promise<SignedIn | null> => {
   try {
-    return await auth.api.signInEmail({ body: { email, password } });
+    const { headers, response } = await auth.api.signInEmail({
+      body: { email, password },
+      returnHeaders: true,
+    });
+    const sessionCookie = new Headers();
+    applySetCookies(sessionCookie, headers.getSetCookie());
+    return { sessionCookie, token: response.token, user: response.user };
   } catch (error) {
     // 401 is INVALID_EMAIL_OR_PASSWORD, which is also what a user with no credential account and no
     // password gets; anything else is a fault, not a refusal

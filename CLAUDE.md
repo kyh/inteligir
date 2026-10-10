@@ -306,8 +306,9 @@ tools/
 - **Web**: TanStack Start + React 19 + Tailwind CSS 4 on a Cloudflare Worker
 - **Phone**: Expo + expo-router (React Native), shipped to TestFlight by EAS;
   the editor runs in a WebView as a Vite page
-- **Auth**: Better Auth on D1 via Drizzle — email+password, bearer tokens,
-  invite-gated sign-up from the site or the app; no social providers
+- **Auth**: Better Auth on D1 via Drizzle — email+password, a session cookie
+  for the site and a device credential for the apps, invite-gated sign-up from
+  the site or the app; no social providers
 
 ## Commands and gates
 
@@ -1611,7 +1612,11 @@ to the END of its group.
   so `POST /v1/account/delete` takes the credential, spends a per-device
   window, checks the password through `signInEmail` and runs `deleteUser` under
   the session that sign-in minted: its `beforeDelete` order and tombstone stay
-  the ONE purge path, where a second purge beside it would drift. The
+  the ONE purge path, where a second purge beside it would drift. Better
+  Auth's own `/delete-user` routes are shut (`disabledPaths`, beside every
+  other route no client calls), since they settle for a fresh session where
+  this door asks the password; Better Auth
+  carries no bearer plugin, so a browser's session is its cookie alone. The
   credential alone deletes nothing, since whoever holds a stolen one could end
   the account. The local server asks on a client of its own, because the purge
   revokes this very credential first; success forgets the sign-in as a sign-out
@@ -2036,7 +2041,7 @@ to the END of its group.
 
 - **A PR PREVIEW IS A WORKER PREVIEW DRIVEN BY ACTIONS, not Workers Builds**, and
   it binds preview-only resources. Workers Builds would deploy on push and could
-  not wait for CI or keep Deploy's environment gate, so previews ride
+  not wait for CI, so previews ride
   `workflow_run` after CI like Deploy does (which also keeps them out of the
   CI-parity sweep), limited to this repo's branches because that trigger holds
   secrets. A preview inherits no binding, so `apps/web/cloudflare.config.ts` binds
