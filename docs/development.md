@@ -30,7 +30,7 @@ pnpm dev:mobile         # apps/mobile: expo start
 pnpm cli serve          # The server ALONE, from source, no window; a shell adopts it
 pnpm cli <verb>         # Every other verb, against this checkout's instance
 pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort)
-pnpm dev:gallery        # The @repo/ui gallery alone, at localhost:5175/gallery (never deployed)
+pnpm dev:gallery        # tools/ui-gallery: the @repo/ui gallery alone, at localhost:5175 (never deployed)
 pnpm package:cli        # The npm artifact (apps/cli) — `npx inteligir serve`
 pnpm package:desktop    # The macOS arm64 .app and dmg, signed + notarized when the keys are present
 pnpm smoke:cli          # Pack, install into a scratch prefix, boot, probe, stop
@@ -133,7 +133,7 @@ miniflare's Durable Objects. Sign-up is invite-only and there is no seeded accou
 | The desktop's own folder (recent vaults,      | `~/Library/Application Support/Inteligir`; a      |
 | the debug choice, each vault's web store)     | development shell's is `Inteligir (Dev)`          |
 | Site + cloud Worker (`pnpm dev:web`)          | 5174 (pinned — `strictPort`)                      |
-| UI gallery (`pnpm dev:gallery`)               | 5175 (pinned — `strictPort`), at `/gallery`       |
+| UI gallery (`pnpm dev:gallery`)               | 5175 (pinned — `strictPort`)                      |
 | Accounts, sessions, devices, invites          | D1 (local file under `apps/web/.wrangler`)        |
 | Thread log, captures, hosted vault            | Durable Objects (same `.wrangler` dir)            |
 

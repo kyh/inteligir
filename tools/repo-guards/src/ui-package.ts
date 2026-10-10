@@ -8,7 +8,7 @@ export const UI_PACKAGE = "@repo/ui";
 
 // a gallery proves a component renders, not that the product needs it, so the orphan guard does not
 // count it as a consumer.
-export const GALLERY_DIR = "apps/web/src/components/gallery";
+export const GALLERY_DIR = "tools/ui-gallery";
 
 // held whole by owner decision, listed per file so an unlisted unwired component still fails; a
 // held file is not a consumer, and it keeps its own type sizes until a surface draws it.

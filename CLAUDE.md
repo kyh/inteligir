@@ -140,9 +140,7 @@ apps/
                  and the desktop renderer's bundle as dist/ui, which
                  `serve --open` answers over plain HTTP.
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
-                 marketing site, the auth pages, the @repo/ui gallery
-                 (src/components/gallery: `pnpm dev:gallery`, a dev-only
-                 page the Worker never ships), Better Auth on D1
+                 marketing site, the auth pages, Better Auth on D1
                  (invite-gated sign-up), and the v3 cloud (issue #554):
                  device login (POST /v1/device/login mints the device
                  credential from email + password, POST /v1/device/sign-up
@@ -298,6 +296,10 @@ tools/
                  instances and drives them over the wire, which is why it sits
                  outside `verify` (every unit passes while the composition
                  fails).
+  ui-gallery/    @repo/ui-gallery — the @repo/ui gallery, `pnpm dev:gallery`:
+                 a Vite page over @repo/ui alone, never built or deployed, and
+                 no workspace's DECLARED_EDGES row names it, so nothing that
+                 ships can import it.
 ```
 
 ## Tech Stack

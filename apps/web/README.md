@@ -19,8 +19,6 @@ src/
                      /app/reset-password and /app/devices (the last two
                      client-only)
   components/        The site's own components (auth card, header, theme, orb)
-    gallery/         The @repo/ui gallery: gallery-main.tsx mounts it under
-                     gallery.html for `pnpm dev:gallery`, never a route
   lib/               Better Auth client, session guard, site config (the
                      Download button's fixed dmg link among it), page markdown
   worker/            The Worker's API half — its OWN tsconfig program (no DOM)
@@ -258,12 +256,6 @@ Tests run in a real in-process Workers runtime (`@cloudflare/vitest-pool-workers
 against the bindings `cloudflare.config.ts` declares, restated in
 `vitest.config.ts` because the pool reads only wrangler's config format; the
 schema DDL is derived from `src/worker/db/schema.ts` at config load.
-
-The @repo/ui gallery is its own dev server, `pnpm dev:gallery` on :5175
-(`vite.gallery.config.ts`, at `/gallery`): React and Tailwind over
-`gallery.html`, with no Worker and no router, so the deployed site has no page
-for it and ships none of its code. TanStack Start has no dev-only route, and
-any route file emits its chunk into the build.
 
 ## Build & deploy (owner-only)
 

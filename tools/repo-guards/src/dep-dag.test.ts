@@ -56,6 +56,8 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/notes": [],
     "@repo/repo-guards": [],
     "@repo/ui": [],
+    // a dev page no row names, so an import of it from a shipped workspace fails here.
+    "@repo/ui-gallery": ["@repo/ui"],
     "@repo/web": ["@repo/contract", "@repo/ui"],
     // the server reaches no page: no @repo/ui, no @repo/editor, no react.
     inteligir: ["@repo/agent-runtime", "@repo/contract", "@repo/db", "@repo/domain", "@repo/notes"],
