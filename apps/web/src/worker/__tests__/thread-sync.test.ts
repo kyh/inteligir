@@ -105,6 +105,52 @@ describe("thread sync log", () => {
     expect(page.hasMore).toBe(false);
   });
 
+  it("stores each body as one text that parses back, and serves that text verbatim", async () => {
+    const { bearer } = await signUpUser("sync-verbatim@example.test");
+    const { credential } = await loginDevice(bearer, "Laptop");
+    const bodies: PushRequest["events"][number]["event"][] = [
+      { nested: [1, "x", null, { deep: [true, false] }], type: "test" },
+      'a bare string: "quoted", \\ a backslash, a \u2028 separator and a </script>',
+      "あ😀 and a lone \uD800 half",
+      0.1,
+      1e21,
+      null,
+      false,
+      [],
+      {},
+    ];
+    await push(credential, {
+      events: bodies.map((body, index) => ({
+        createdAt: index,
+        deviceSeq: index + 1,
+        event: body,
+        threadId: "th_1",
+      })),
+    });
+
+    const stub = threadSyncStub(env, await userIdOf(bearer));
+    const stored = await runInDurableObject(stub, (_instance, state) =>
+      state.storage.sql
+        .exec<{ event: string }>("SELECT event FROM sync_events ORDER BY seq")
+        .toArray()
+        .map((row) => row.event),
+    );
+    expect(stored).toEqual(bodies.map((body) => JSON.stringify(body)));
+    for (const [index, text] of stored.entries()) {
+      expect(JSON.parse(text)).toEqual(bodies[index]);
+    }
+
+    const response = await SELF.fetch(`${ORIGIN}/v1/sync/pull?afterSeq=0`, {
+      headers: deviceHeaders(credential),
+    });
+    expect(response.headers.get("content-type")).toBe("application/json");
+    const text = await response.text();
+    for (const body of stored) {
+      expect(text).toContain(`"event":${body}`);
+    }
+    expect(emitted(pullResponseSchema, text).events.map((row) => row.event)).toEqual(bodies);
+  });
+
   it("accepts a retry that appends to a partially-stored batch", async () => {
     const { bearer } = await signUpUser("sync-partial@example.test");
     const { credential } = await loginDevice(bearer, "Laptop");

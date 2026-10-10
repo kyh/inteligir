@@ -74,8 +74,9 @@ export interface SyncRefusal {
 
 export type SyncResult<T> = { readonly ok: true; readonly value: T } | SyncRefusal;
 
-// an event body crosses as the JSON text the log stores and compares, never as a parsed tree:
-// the Worker owns the wire's shape, and a tree would be cloned across only to be stringified
+// an event body crosses as the JSON text the push parse serialized, never as a parsed tree: the
+// log stores and compares that text and a pull splices it into its page verbatim, so a text that
+// is not json would break every page after it
 export interface StoredEvent {
   readonly createdAt: number;
   readonly deviceSeq: number;

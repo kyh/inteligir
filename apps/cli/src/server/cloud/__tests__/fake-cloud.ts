@@ -706,10 +706,9 @@ export class FakeCloud {
     let accepted = 0;
     let duplicates = 0;
     for (const event of events) {
-      const serialized = JSON.stringify(event.event);
       const stored = mine.find((row) => row.deviceSeq === event.deviceSeq);
       if (stored !== undefined) {
-        if (stored.body !== serialized) {
+        if (stored.body !== event.event) {
           return refuse(
             "sync-conflict",
             "That outbox position is already stored with a different body.",
@@ -728,7 +727,7 @@ export class FakeCloud {
       }
       this.nextSeq += 1;
       this.log.push({
-        body: serialized,
+        body: event.event,
         createdAt: event.createdAt,
         deviceId,
         deviceSeq: event.deviceSeq,

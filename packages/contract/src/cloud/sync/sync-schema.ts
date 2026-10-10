@@ -18,24 +18,36 @@ export const EVENT_MAX_BYTES = 64 * 1024;
 
 export const threadIdSchema = z.string().min(1).max(128);
 
+type Json = z.infer<ReturnType<typeof z.json>>;
+
+// a body reaches this parse through JSON.parse, so it is json already and is never walked: it is
+// serialized once, into the text the log stores, compares and serves verbatim, and the ceiling is
+// measured on that text
+const eventTextSchema = z
+  .custom<Json>((event) => event !== undefined, "event body is not JSON")
+  .transform((event, ctx) => {
+    const text = JSON.stringify(event);
+    if (exceedsUtf8Bytes(text, EVENT_MAX_BYTES)) {
+      ctx.addIssue({ code: "custom", message: `event body exceeds ${EVENT_MAX_BYTES} bytes` });
+      return z.NEVER;
+    }
+    return text;
+  });
+
 export const syncEventInputSchema = z
   .object({
     createdAt: z.number().int().nonnegative(),
     deviceSeq: z.number().int().nonnegative(),
-    event: z.json(),
+    event: eventTextSchema,
     threadId: threadIdSchema,
   })
-  .strict()
-  .refine((value) => !exceedsUtf8Bytes(JSON.stringify(value.event), EVENT_MAX_BYTES), {
-    message: `event body exceeds ${EVENT_MAX_BYTES} bytes`,
-    path: ["event"],
-  });
-export type SyncEventInput = z.infer<typeof syncEventInputSchema>;
+  .strict();
+export type SyncEventInput = z.input<typeof syncEventInputSchema>;
 
 export const pushRequestSchema = z
   .object({ events: z.array(syncEventInputSchema).max(PUSH_MAX_EVENTS) })
   .strict();
-export type PushRequest = z.infer<typeof pushRequestSchema>;
+export type PushRequest = z.input<typeof pushRequestSchema>;
 
 export const pushResponseSchema = z.object({
   accepted: z.number().int().nonnegative(),

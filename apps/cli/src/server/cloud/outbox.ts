@@ -53,24 +53,26 @@ export const takePushBatch = (db: DbConnection): PushBatch | null => {
   let throughDeviceSeq: number | null = null;
   for (const row of rows) {
     throughDeviceSeq = row.deviceSeq;
-    let body: unknown;
+    // JSON.parse answers json or throws, so its any is exactly this type
+    let body: SyncEventInput["event"];
     try {
       body = JSON.parse(row.body);
     } catch {
       rejected.push({ deviceSeq: row.deviceSeq, reason: "the stored body is not JSON" });
       continue;
     }
-    const parsed = syncEventInputSchema.safeParse({
+    const event: SyncEventInput = {
       createdAt: row.createdAt,
       deviceSeq: row.deviceSeq,
       event: body,
       threadId: row.threadId,
-    });
+    };
+    const parsed = syncEventInputSchema.safeParse(event);
     if (!parsed.success) {
       rejected.push({ deviceSeq: row.deviceSeq, reason: parsed.error.issues[0]?.message ?? "" });
       continue;
     }
-    events.push(parsed.data);
+    events.push(event);
   }
   if (throughDeviceSeq === null) {
     return null;

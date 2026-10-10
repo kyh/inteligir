@@ -635,18 +635,12 @@ describe("invite sign-up request", () => {
 });
 
 describe("push request", () => {
-  it("accepts an opaque JSON event body", () => {
+  it("accepts an opaque JSON event body and answers the one text the log stores", () => {
+    const event = { nested: [1, "x", null], type: "turn/started" };
     const result = pushRequestSchema.safeParse({
-      events: [
-        {
-          createdAt: 1,
-          deviceSeq: 1,
-          event: { nested: [1, "x", null], type: "turn/started" },
-          threadId: "th_1",
-        },
-      ],
+      events: [{ createdAt: 1, deviceSeq: 1, event, threadId: "th_1" }],
     });
-    expect(result.success).toBe(true);
+    expect(result.data?.events[0]?.event).toBe(JSON.stringify(event));
   });
 
   it("refuses a key beside the events, a thread list among them", () => {
