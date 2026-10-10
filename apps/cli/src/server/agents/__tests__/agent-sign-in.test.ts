@@ -102,17 +102,17 @@ const bootSignIn = async (login = "wait", signInCeilingMs?: number): Promise<Sig
   };
   // codex signs in through its adapter, which the fake agent stands in for, writing the marker
   // the fake vendor's `login status` reads.
-  const spawnAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (_harness, adapterEnv, cwd) => ({
-    child: spawn(process.execPath, [FAKE_AGENT], {
+  const spawnAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (_harness, adapterEnv, cwd) =>
+    spawn(process.execPath, [FAKE_AGENT], {
       cwd,
+      detached: true,
       env: {
         ...adapterEnv,
         FAKE_ACP_AUTH_FILE: path.join(store, "codex"),
         FAKE_ACP_MODE: "signIn",
       },
       stdio: ["pipe", "pipe", "pipe"],
-    }),
-  });
+    });
   const accounts = createAgentAccounts({ cwd: dataDir, env, signInCeilingMs, spawnAdapter });
   const booted = await bootTestApp({ accounts });
   return { ...booted, accounts, prefs: new AgentPrefsStore(booted.dataDir), store };

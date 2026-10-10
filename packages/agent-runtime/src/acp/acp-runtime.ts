@@ -3,6 +3,7 @@
 // and a mid-turn message waits in the host's queue.
 
 import { spawn } from "node:child_process";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { once } from "node:events";
@@ -49,39 +50,29 @@ import {
   readSessionFailure,
 } from "./provider-error.js";
 
-const SESSION_SHUTDOWN_GRACE_MS = 1000;
+// how long an adapter gets to stop itself once its stdin ends, and a cancelled prompt to settle:
+// both pinned adapters give their own child 2s after their stdin closes before they signal it.
+const ADAPTER_STOP_GRACE_MS = 3000;
+const SIGTERM_GRACE_MS = 2000;
+// a caller must not hang on an exit that never arrives, even after a SIGKILL.
+const SIGKILL_WAIT_MS = 1000;
+
+// the longest `terminateAdapter` takes, so a host's shutdown budget can hold it whole.
+export const ADAPTER_TEARDOWN_MS = ADAPTER_STOP_GRACE_MS + SIGTERM_GRACE_MS + SIGKILL_WAIT_MS;
 
 // 'exit' can arrive before the child's last stderr chunk, and that chunk is usually what names the crash.
 const STDERR_DRAIN_MS = 200;
 const STDERR_TAIL_LINES = 20;
 
-// the slice of a child process the runtime drives: node's own ChildProcess, or a host's stand-in
-// for a process it cannot start with child_process (the desktop shell's utility-process adapters).
-
-export interface AdapterProcess {
-  readonly stdin: Writable | null;
-  readonly stdout: Readable | null;
-  readonly stderr: Readable | null;
-  readonly exitCode: number | null;
-  readonly signalCode: NodeJS.Signals | null;
-  kill: (signal: NodeJS.Signals) => boolean;
-  once: (
-    event: "exit",
-    listener: (code: number | null, signal: NodeJS.Signals | null) => void,
-  ) => void;
-}
-
-export interface AcpSpawnedAdapter {
-  child: AdapterProcess;
-}
-
 export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
   models?: HarnessModels;
+  // spawned detached, as `spawnNodeAdapter` does: the teardown kills the adapter's process group,
+  // and only a group of its own holds what the adapter starts and nothing of the host's.
   spawnAdapter?: (
     harness: HarnessDefinition,
     env: Record<string, string>,
     cwd: string,
-  ) => AcpSpawnedAdapter;
+  ) => ChildProcessWithoutNullStreams;
   // every frame traded with an adapter, as `traceFrames` redacts it; absent, nothing is tapped.
   debugLog?: ((line: string) => void) | undefined;
 }
@@ -129,37 +120,49 @@ export const spawnNodeAdapter = (
   harness: HarnessDefinition,
   env: Record<string, string>,
   cwd: string,
-): AcpSpawnedAdapter => ({
-  child: spawn(process.execPath, [harness.adapterEntry], {
+): ChildProcessWithoutNullStreams =>
+  spawn(process.execPath, [harness.adapterEntry], {
     cwd,
+    detached: true,
     env,
     stdio: ["pipe", "pipe", "pipe"],
-  }),
-});
+  });
 
-const exitedWithin = async (gone: Promise<unknown>): Promise<boolean> =>
+const exitedWithin = async (gone: Promise<unknown>, ms: number): Promise<boolean> =>
   await Promise.race([
     (async () => {
       await gone;
       return true;
     })(),
-    delay(SESSION_SHUTDOWN_GRACE_MS, false, { ref: false }),
+    delay(ms, false, { ref: false }),
   ]);
 
-// SIGTERM, then SIGKILL once the grace passes. the wait after SIGKILL is bounded too: a brokered
-// child's exit crosses a port, and a lost one must not hold its caller forever.
-export const terminateAdapter = async (
-  child: AdapterProcess,
-  gone: Promise<unknown>,
-): Promise<void> => {
-  if (child.exitCode !== null || child.signalCode !== null) {
+// the whole group, even once the adapter itself has exited: codex-acp exits on SIGTERM without
+// stopping its app-server, and a child of the adapter's outlives it in the group.
+const killGroup = (child: ChildProcessWithoutNullStreams): void => {
+  if (child.pid === undefined) {
     return;
   }
-  child.kill("SIGTERM");
-  if (!(await exitedWithin(gone))) {
-    child.kill("SIGKILL");
-    await exitedWithin(gone);
+  try {
+    process.kill(-child.pid, "SIGKILL");
+  } catch {
+    // the group is already gone.
   }
+};
+
+// stdin's end first, on which both pinned adapters stop their own child and exit, where codex-acp's
+// SIGTERM skips that. SIGTERM once the grace passes, then SIGKILL to the group.
+export const terminateAdapter = async (
+  child: ChildProcessWithoutNullStreams,
+  gone: Promise<unknown>,
+): Promise<void> => {
+  child.stdin.end();
+  if (!(await exitedWithin(gone, ADAPTER_STOP_GRACE_MS))) {
+    child.kill("SIGTERM");
+    await exitedWithin(gone, SIGTERM_GRACE_MS);
+  }
+  killGroup(child);
+  await exitedWithin(gone, SIGKILL_WAIT_MS);
 };
 
 // one spawned child, from spawn to exit. the connection closes with the child's exit, so every
@@ -168,7 +171,7 @@ interface AcpAdapter {
   threadId: string;
   providerId: string;
   harness: HarnessDefinition;
-  child: AdapterProcess;
+  child: ChildProcessWithoutNullStreams;
   connection: ClientConnection;
   gone: Promise<AdapterExit>;
   // set once the runtime ends the child itself: a session/new answering during the kill registers
@@ -224,27 +227,23 @@ export interface AdapterChannel {
 
 export const openAdapterChannel = (
   harness: HarnessDefinition,
-  child: AdapterProcess,
+  child: ChildProcessWithoutNullStreams,
   onStderrLine?: (line: string) => void,
 ): AdapterChannel => {
-  const { stdin, stdout } = child;
-  if (stdin === null || stdout === null) {
-    throw new Error(`The ${harness.displayName} adapter spawned without stdio pipes`);
-  }
-  const stdinWeb: WritableStream<Uint8Array> = Writable.toWeb(stdin);
+  const stdinWeb: WritableStream<Uint8Array> = Writable.toWeb(child.stdin);
   // Readable.toWeb types its stream any; the identity TransformStream stamps the chunk type
   // without an assertion. stdout's end does not close it: an ended stream closes the connection
   // with a bare "connection closed" before the exit can name the crash.
   const identity = new TransformStream<Uint8Array, Uint8Array>();
   void (async () => {
     try {
-      await Readable.toWeb(stdout).pipeTo(identity.writable, { preventClose: true });
+      await Readable.toWeb(child.stdout).pipeTo(identity.writable, { preventClose: true });
     } catch {
       // a destroyed stdout is the child's exit path, which `exited` reports.
     }
   })();
   const stderrTail: string[] = [];
-  child.stderr?.on("data", (chunk: Buffer) => {
+  child.stderr.on("data", (chunk: Buffer) => {
     for (const line of chunk.toString("utf-8").split("\n")) {
       if (line.trim() !== "") {
         stderrTail.push(line);
@@ -263,9 +262,7 @@ export const openAdapterChannel = (
   });
   const exited = (async () => {
     const exit = await gone;
-    if (child.stderr !== null) {
-      await Promise.race([drained(child.stderr), delay(STDERR_DRAIN_MS, null, { ref: false })]);
-    }
+    await Promise.race([drained(child.stderr), delay(STDERR_DRAIN_MS, null, { ref: false })]);
     return adapterExitError(harness, exit, stderrTail);
   })();
   return { exited, gone, stream: ndJsonStream(stdinWeb, identity.readable) };
@@ -304,12 +301,18 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     }
   };
 
-  const sessionOf = (threadId: string, child: AdapterProcess): AcpSession | undefined => {
+  const sessionOf = (
+    threadId: string,
+    child: ChildProcessWithoutNullStreams,
+  ): AcpSession | undefined => {
     const session = sessions.get(threadId);
     return session?.adapter.child === child ? session : undefined;
   };
 
-  const spawnAdapter = (harness: HarnessDefinition, threadId: string): AcpSpawnedAdapter => {
+  const spawnAdapter = (
+    harness: HarnessDefinition,
+    threadId: string,
+  ): ChildProcessWithoutNullStreams => {
     const env = adapterSpawnEnv(harness, {
       hostEnv: process.env,
       model: options.models?.[harness.id] ?? null,
@@ -415,19 +418,19 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     detach(adapter);
     const turn = session?.turn ?? null;
     if (session !== undefined && turn !== null) {
-      // a cancel first, so the agent can stop the tools it started; the kill below is the backstop
-      // for an agent that will not answer it.
+      // a cancel first, so the agent can stop the tools it started; the teardown below is the
+      // backstop for an agent that will not answer it.
       await Promise.race([
         (async () => {
           try {
             await cancelPrompt(session, turn);
             await turn.settled;
           } catch {
-            // an adapter that cannot take the cancel meets the kill below.
+            // an adapter that cannot take the cancel meets the teardown below.
           }
         })(),
         adapter.gone,
-        delay(SESSION_SHUTDOWN_GRACE_MS, null, { ref: false }),
+        delay(ADAPTER_STOP_GRACE_MS, null, { ref: false }),
       ]);
     }
     await kill(adapter);
@@ -452,7 +455,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     if (closeGeneration(threadId) !== generation) {
       throw new ThreadClosedError(threadId);
     }
-    const { child } = spawnAdapter(harness, threadId);
+    const child = spawnAdapter(harness, threadId);
     const channel = openAdapterChannel(harness, child, (line) => {
       options.onStderr?.(line, threadId);
     });

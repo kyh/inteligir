@@ -184,9 +184,23 @@ scripts/
 - **A child the runtime ends itself emits nothing more.** `closeThread` (the
   host abandoning a turn), a reap and `shutdown` unregister the session first,
   and the turn it was running is the host's to settle. `closeThread` sends
-  `session/cancel` so the agent can stop its own tools, then SIGTERM once the
-  prompt settles or `SESSION_SHUTDOWN_GRACE_MS` passes, then SIGKILL after the
-  same grace.
+  `session/cancel` so the agent can stop its own tools, and ends the child once
+  the prompt settles or `ADAPTER_STOP_GRACE_MS` passes.
+- **An adapter is ended the way it ends itself, and its process group goes
+  with it.** Every adapter is spawned detached, so it leads a group of its own.
+  `terminateAdapter` ends its stdin first, on which both pinned adapters stop
+  their own child (codex-acp its app-server, claude-agent-acp its CLI, each
+  given 2s) and exit, where codex-acp exits on a SIGTERM without stopping its
+  app-server. SIGTERM follows once `ADAPTER_STOP_GRACE_MS` passes, and after
+  `SIGTERM_GRACE_MS` SIGKILL goes to the whole group, whether or not the
+  adapter has exited, since a child of the adapter's can outlive it there. The
+  wait after the SIGKILL is bounded too, so no caller hangs on an exit that
+  never arrives. The server's own death needs nothing more: its adapters sit
+  outside its group, and its death closes their stdin. `ADAPTER_TEARDOWN_MS` is
+  the whole sequence, which the server's agent shutdown budget holds twice (a
+  sign-in's, then the sessions'). Rejected: a SIGTERM with a SIGKILL a second
+  behind it, which cut both adapters' own shutdown short and left codex's
+  app-server running.
 - **A cancel is an ask, and the turn still ends through its prompt.**
   `cancelTurn` sends `session/cancel` and returns; the agent answers the prompt
   `cancelled`, which the mapper turns into interrupted items and an interrupted
@@ -203,8 +217,7 @@ scripts/
   (`adapterSpawnEnv`, so the two cannot disagree), initializes with
   `auth.terminal` so every method is advertised, refuses a method it does not
   find before asking for it, sends `authenticate`, and ends the child the way a
-  close does (SIGTERM, then SIGKILL after the grace) once it settles or its
-  signal aborts. `src/acp/__tests__/acp-sign-in.test.ts` runs the fake agent
+  close does (`terminateAdapter`) once it settles or its signal aborts. `src/acp/__tests__/acp-sign-in.test.ts` runs the fake agent
   through it and asks the pinned adapters what they advertise.
 - **Nothing here remembers.** Claude Code and Codex carry their own memory; the
   repo's decision record retired a third beside them.
@@ -217,17 +230,19 @@ scripts/
   getters above.
 - `AcpAgentRuntimeOptions.spawnAdapter` (`acp/acp-runtime.ts`) — the one
   injection point for how an adapter starts, handed the harness, its env and
-  the workspace to run in, and answering an `AdapterProcess`: node's own
-  `ChildProcess` or a host's stand-in. The server's suites spawn
-  `test-support/fake-acp-agent.mjs` through it, and the desktop shell's server
-  has main fork each adapter as a utility process through it. A harness row's
-  `adapterEnv` rides every spawn unless the host's env names it already.
+  the workspace to run in, and answering the `ChildProcessWithoutNullStreams`
+  it spawned, detached as `spawnNodeAdapter` spawns one, since the teardown
+  kills its process group. Absent, `spawnNodeAdapter` runs the harness's
+  adapter entry on this node. The server's suites spawn
+  `test-support/fake-acp-agent.mjs` through it, and the transcript recorder
+  taps the pinned adapters' stdout through it. A harness row's `adapterEnv`
+  rides every spawn unless the host's env names it already.
 - `HARNESSES` — read by the server for "is the runtime bundled", "what
   does the vendor say of its sign-in" and "how does it sign in and out"; the
   server runs the account probe, a terminal sign-in and a sign-out through its
   one vendor spawn policy (`apps/cli/src/server/agents/vendor-process.ts`), and
-  an agent sign-in through `runAgentSignIn` on the same `spawnAdapter` its
-  sessions use. The prompt and env are the host's own projections of its
+  an agent sign-in through `runAgentSignIn`, which starts and ends its adapter
+  as a session does. The prompt and env are the host's own projections of its
   session facts.
 
 ## Testing
@@ -281,4 +296,7 @@ at boot or mid-prompt, an adapter refusing for auth as a session opens or at
 the prompt — is exercised by the server's
 `apps/cli/src/server/agents/__tests__/acp-manager.test.ts` against the fake
 agent, because the assertions there are about what the host does with the
-events.
+events. How an adapter is ended (one that stops at its stdin's end, one wedged,
+one that exits leaving its child behind) is
+`src/acp/__tests__/adapter-teardown.test.ts`'s, which reads the adapter's
+process group back.

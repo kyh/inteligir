@@ -12,11 +12,12 @@ describe("closing a thread", () => {
     const children: ChildProcess[] = [];
     const spawnAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (_harness, env) => {
       const child = spawn(process.execPath, [FAKE_AGENT], {
+        detached: true,
         env,
         stdio: ["pipe", "pipe", "pipe"],
       });
       children.push(child);
-      return { child };
+      return child;
     };
     const runtime = createAcpAgentRuntime({
       onEvent: () => {

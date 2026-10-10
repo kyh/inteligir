@@ -64,12 +64,12 @@ describe("the ACP runtime's frame trace", { timeout: 20_000 }, () => {
       onEvent: (event) => {
         events.push(event);
       },
-      spawnAdapter: (_harness, env) => ({
-        child: spawn(process.execPath, [FAKE_AGENT], {
+      spawnAdapter: (_harness, env) =>
+        spawn(process.execPath, [FAKE_AGENT], {
+          detached: true,
           env: { ...env, FAKE_ACP_MODE: "promptEcho" },
           stdio: ["pipe", "pipe", "pipe"],
         }),
-      }),
       workspacePath: process.cwd(),
     });
     onTestFinished(async () => {

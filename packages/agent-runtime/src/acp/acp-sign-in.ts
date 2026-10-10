@@ -55,7 +55,7 @@ const withAdapter = async <T>(
   args: AdapterSignInArgs,
   work: (connection: ClientConnection) => Promise<T>,
 ): Promise<T> => {
-  const { child } = (args.spawnAdapter ?? spawnNodeAdapter)(args.harness, args.env, args.cwd);
+  const child = (args.spawnAdapter ?? spawnNodeAdapter)(args.harness, args.env, args.cwd);
   const channel = openAdapterChannel(args.harness, child);
   const connection = client({ name: "inteligir" }).connect(channel.stream);
   void (async () => {

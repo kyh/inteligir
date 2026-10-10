@@ -233,6 +233,7 @@ const record = async (harnessId: HarnessId, scenario: Scenario): Promise<string[
     spawnAdapter: (spawned, env) => {
       const child = spawn(process.execPath, [spawned.adapterEntry], {
         cwd: dir,
+        detached: true,
         env: staged === null ? env : { ...env, CODEX_HOME: staged.codexHome },
         stdio: ["pipe", "pipe", "pipe"],
       });
@@ -250,7 +251,7 @@ const record = async (harnessId: HarnessId, scenario: Scenario): Promise<string[
           }
         }
       });
-      return { child };
+      return child;
     },
     workspacePath: dir,
   });

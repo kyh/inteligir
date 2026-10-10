@@ -94,11 +94,12 @@ const fakeSpawn =
       childEnv.FAKE_ACP_GATE = options.gateFile;
     }
     const child = spawn(process.execPath, [FAKE_AGENT], {
+      detached: true,
       env: childEnv,
       stdio: ["pipe", "pipe", "pipe"],
     });
     options.children?.push(child);
-    return { child };
+    return child;
   };
 
 const bootWithManager = async (

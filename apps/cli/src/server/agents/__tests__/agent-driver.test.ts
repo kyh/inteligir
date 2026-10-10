@@ -22,12 +22,12 @@ const FAKE_AGENT = require.resolve("@repo/agent-runtime/test-support/fake-acp-ag
 const NO_MODELS = { claude: null, codex: null };
 
 // the fake stands in for the adapter, so no turn here reaches a vendor or spends a model call.
-const spawnFakeAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (_harness, env) => ({
-  child: spawn(process.execPath, [FAKE_AGENT], {
+const spawnFakeAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (_harness, env) =>
+  spawn(process.execPath, [FAKE_AGENT], {
+    detached: true,
     env: { ...env, FAKE_ACP_MODE: "message" },
     stdio: ["pipe", "pipe", "pipe"],
-  }),
-});
+  });
 
 const bootAuto = async (env: NodeJS.ProcessEnv) =>
   await bootTestApp({

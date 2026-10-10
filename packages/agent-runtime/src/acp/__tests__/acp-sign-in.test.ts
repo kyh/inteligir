@@ -40,6 +40,7 @@ const fakeSignIn = (mode: string, signal: AbortSignal = new AbortController().si
   const spawnAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (_harness, env, cwd) => {
     const child = spawn(process.execPath, [FAKE_AGENT], {
       cwd,
+      detached: true,
       env: {
         ...env,
         FAKE_ACP_AUTH_FILE: authFile,
@@ -49,7 +50,7 @@ const fakeSignIn = (mode: string, signal: AbortSignal = new AbortController().si
       stdio: ["pipe", "pipe", "pipe"],
     });
     children.push(child);
-    return { child };
+    return child;
   };
   const harness = HARNESSES.codex;
   const fake: FakeSignIn = {
@@ -96,14 +97,14 @@ describe("an agent sign-in", () => {
     expect(existsSync(fake.authFile)).toBe(false);
   });
 
-  it("is cancelled by its signal, and a child ignoring SIGTERM is killed before it returns", async () => {
+  it("is cancelled by its signal, and its child is gone before it returns", async () => {
     const cancel = new AbortController();
     const fake = fakeSignIn("signInHang", cancel.signal);
     const pending = runAgentSignIn({ ...fake.args, method: HARNESSES.codex.signIn });
     await expect.poll(fake.recorded, { timeout: ADAPTER_TIMEOUT_MS }).toEqual(["authenticate"]);
     cancel.abort();
     expect(await pending).toEqual({ outcome: "cancelled" });
-    expect(fake.children.map((child) => child.signalCode)).toEqual(["SIGKILL"]);
+    expect(fake.children.every(gone)).toBe(true);
   });
 
   it("refuses a method the adapter does not offer before asking for it", async () => {
@@ -126,12 +127,12 @@ describe("an agent sign-in", () => {
       onEvent: () => {
         /* empty */
       },
-      spawnAdapter: (_harness, env) => ({
-        child: spawn(process.execPath, [FAKE_AGENT], {
+      spawnAdapter: (_harness, env) =>
+        spawn(process.execPath, [FAKE_AGENT], {
+          detached: true,
           env: { ...env, FAKE_ACP_AUTH_FILE: fake.authFile, FAKE_ACP_MODE: "authOnSessionOpen" },
           stdio: ["pipe", "pipe", "pipe"],
         }),
-      }),
       workspacePath: fake.args.cwd,
     });
     onTestFinished(async () => {

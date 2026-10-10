@@ -16,11 +16,10 @@ const spawnedEnvs = async (
   const envs = new Map<HarnessId, Record<string, string>>();
   const spawnAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (harness, env) => {
     envs.set(harness.id, env);
-    return {
-      child: spawn(process.execPath, ["-e", "process.exit(0)"], {
-        stdio: ["pipe", "pipe", "pipe"],
-      }),
-    };
+    return spawn(process.execPath, ["-e", "process.exit(0)"], {
+      detached: true,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
   };
   const runtime = createAcpAgentRuntime({
     models,
