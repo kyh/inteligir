@@ -1,10 +1,10 @@
-<callout type="info">
+<toggle type="info">
   info
-</callout>
+</toggle>
 
-<callout children="boom">
+<toggle children="boom">
   kept
-</callout>
+</toggle>
 
 <toggle id="leaked">
   held

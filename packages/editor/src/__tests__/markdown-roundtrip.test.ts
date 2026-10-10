@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   RoundTripError,
   analyzeMarkdown,
+  parseMarkdown,
   roundTrip,
   toCanonical,
 } from "@repo/editor/markdown/markdown-doc";
@@ -33,14 +34,8 @@ describe("canonical fixtures (byte-stable)", () => {
 });
 
 // their round-trip drops letters (a `$$latex` meta line, entity decoding, the
-// "mailto" and "variant" spellings), so they open Raw as roundtrip-loss
-const CHURN_NOT_RICH_SAFE = new Set([
-  "math-meta",
-  "entities",
-  "jsx-attr-forms",
-  "jsx-callout",
-  "mailto-resource",
-]);
+// "mailto" spelling), so they open Raw as roundtrip-loss
+const CHURN_NOT_RICH_SAFE = new Set(["math-meta", "entities", "jsx-attr-forms", "mailto-resource"]);
 
 describe("churn fixtures (idempotent normalization)", () => {
   const stems = list("churn")
@@ -59,6 +54,16 @@ describe("churn fixtures (idempotent normalization)", () => {
       expect(analyzeMarkdown(toCanonical(input)).kind).toBe("canonical");
     });
   }
+});
+
+describe("a callout in an older spelling", () => {
+  it("opens as the code block or the tag it is written as", () => {
+    const parsed = parseMarkdown(read("canonical", "legacy-callout.md"));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.value.map((node) => node.type)).toEqual(["code_block", "opaqueBlock"]);
+    }
+  });
 });
 
 describe("analyzeMarkdown", () => {

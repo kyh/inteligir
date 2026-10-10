@@ -49,14 +49,12 @@ describe("scanDoc — inline tag extraction", () => {
     expect(tagsOf("café notes #café and #日本語\n")).toEqual(["café", "日本語"]);
   });
 
-  it("reads a callout's body as the markdown the editor renders", () => {
+  it("reads an alert's body as the markdown the editor renders", () => {
     const src = [
       "Before #outer.",
       "",
-      "```inteligir-callout",
-      "note",
-      "Inside #inner and `#code`, [a #label](x.md).",
-      "```",
+      "> [!NOTE]",
+      "> Inside #inner and `#code`, [a #label](x.md).",
       "",
       "```js",
       "#not-a-callout",

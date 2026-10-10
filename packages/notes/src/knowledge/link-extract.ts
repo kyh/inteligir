@@ -8,8 +8,6 @@
 import type { Nodes } from "mdast";
 
 import { parseBare } from "../markdown/bare-parse";
-import { parseCalloutPayload } from "../markdown/callout-payload";
-import { isCalloutLang } from "../markdown/fence-langs";
 import {
   noteIdOfProperties,
   parseProperties,
@@ -62,7 +60,6 @@ interface ExtractedTag {
   span?: Span;
 }
 
-// what a body holds; a callout's body is scanned as one and folded into the body around it
 interface BodyScan {
   title: string | null;
   headings: string[];
@@ -432,14 +429,45 @@ const frontmatterPinned = (parsed: ParsedProperties | null): boolean => {
   return prop !== undefined && prop.type === "checkbox" && prop.value;
 };
 
+interface ValueLine {
+  valueStart: number;
+  // null where the line's bytes do not re-derive it
+  sourceStart: number | null;
+}
+
+// a text node's later lines sit past their container's prefix (an alert's `> `, a list item's
+// indent), which its value drops, so each is found where its own bytes start in that source line
+const valueLines = (value: string, offset: number, source: string): ValueLine[] => {
+  const [first = "", ...rest] = value.split("\n");
+  const lines: ValueLine[] = [{ sourceStart: offset, valueStart: 0 }];
+  let valueStart = first.length + 1;
+  let lineEnd = source.indexOf("\n", offset);
+  for (const line of rest) {
+    const lineStart = lineEnd === -1 ? -1 : lineEnd + 1;
+    lineEnd = lineStart === -1 ? -1 : source.indexOf("\n", lineStart);
+    const at = lineStart === -1 ? -1 : source.indexOf(line, lineStart);
+    const inLine = at !== -1 && (lineEnd === -1 || at + line.length <= lineEnd);
+    lines.push({ sourceStart: inLine ? at : null, valueStart });
+    valueStart += line.length + 1;
+  }
+  return lines;
+};
+
 // a span is kept where the raw bytes spell the tag (a text node's value can differ from its
 // source through an escape), on the link policy's terms
 const collectTextTags = (node: Extract<Nodes, { type: "text" }>, ctx: ScanContext): void => {
   const offset = node.position?.start.offset;
-  for (const { end, start, tag } of inlineTagSpans(node.value)) {
+  const tags = inlineTagSpans(node.value);
+  const lines =
+    offset === undefined || !ctx.spans || tags.length === 0
+      ? []
+      : valueLines(node.value, offset, ctx.source);
+  for (const { end, start, tag } of tags) {
     const extracted: ExtractedTag = { tag };
-    if (offset !== undefined && ctx.spans) {
-      const span: Span = { end: offset + end, start: offset + start };
+    const line = lines.findLast(({ valueStart }) => valueStart <= start);
+    if (line !== undefined && line.sourceStart !== null) {
+      const shift = line.sourceStart - line.valueStart;
+      const span: Span = { end: end + shift, start: start + shift };
       if (ctx.source.slice(span.start, span.end) === `#${tag}`) {
         extracted.span = span;
       }
@@ -510,62 +538,6 @@ const collectDefinition = (
   }
 };
 
-// A callout body is markdown the editor renders, so its links and tags are indexed
-// with spans shifted into the outer source. Only a column-0 fence qualifies: an
-// indented fence prefixes every body line, so a flat offset shift names wrong bytes.
-const calloutBodySlice = (
-  source: string,
-  node: Extract<Nodes, { type: "code" }>,
-): { body: string; bodyStart: number } | null => {
-  const pos = node.position;
-  if (pos?.start.offset === undefined || pos.start.column !== 1) {
-    return null;
-  }
-  const openLineEnd = source.indexOf("\n", pos.start.offset);
-  if (openLineEnd === -1) {
-    return null;
-  }
-  // an unknown kind renders as a plain code block, where a wiki spelling is not a link
-  const payload = parseCalloutPayload(node.value);
-  if (payload === null) {
-    return null;
-  }
-  const lines = node.value.split("\n");
-  const { headerLines } = payload;
-  let bodyStart = openLineEnd + 1;
-  for (let skipped = 0; skipped < headerLines; skipped += 1) {
-    const nl = source.indexOf("\n", bodyStart);
-    if (nl === -1) {
-      return null;
-    }
-    bodyStart = nl + 1;
-  }
-  const body = lines.slice(headerLines).join("\n");
-  if (source.slice(bodyStart, bodyStart + body.length) !== body) {
-    return null;
-  }
-  return { body, bodyStart };
-};
-
-// a callout's links and tags, moved to where its body sits in the outer source
-const pushShifted = (body: BodyScan, bodyStart: number, ctx: ScanContext): void => {
-  const lineShift = ctx.source.slice(0, bodyStart).split("\n").length - 1;
-  const shift = (span: Span): Span => ({
-    end: span.end + bodyStart,
-    start: span.start + bodyStart,
-  });
-  for (const link of body.links) {
-    const shifted: ScannedLink = { ...link, line: link.line + lineShift };
-    if (link.targetSpan !== undefined) {
-      shifted.targetSpan = shift(link.targetSpan);
-    }
-    ctx.scan.links.push(shifted);
-  }
-  for (const { span, tag } of body.tags) {
-    ctx.scan.tags.push(span === undefined ? { tag } : { span: shift(span), tag });
-  }
-};
-
 // `index` reads what a doc holds; `rewrite` also verifies the spans a rename may splice
 type ScanMode = "index" | "rewrite";
 
@@ -604,20 +576,9 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
         collectDefinition(node, ctx);
         break;
       }
-      case "code": {
-        const slice = isCalloutLang(node.lang) ? calloutBodySlice(source, node) : null;
-        if (slice) {
-          const calloutMode = ctx.spans ? "rewrite" : "index";
-          pushShifted(
-            scanBody(slice.body, parseBare(slice.body), calloutMode),
-            slice.bodyStart,
-            ctx,
-          );
-        }
-        break;
-      }
       case "blockquote":
       case "break":
+      case "code":
       case "commentMarker":
       case "delete":
       case "emphasis":
@@ -676,7 +637,7 @@ export const scanDoc = (source: string): DocScan => {
   };
 };
 
-// the links a rename may splice: the index's own walk, callout bodies included
+// the links a rename may splice: the index's own walk
 export const documentLinkSpans = (source: string): RewritableLink[] =>
   scanBody(source, parseBare(source), "rewrite").links.flatMap((link) =>
     link.targetSpan === undefined ? [] : [{ ...link, targetSpan: link.targetSpan }],

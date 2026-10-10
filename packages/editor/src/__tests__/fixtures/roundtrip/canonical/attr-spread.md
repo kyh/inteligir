@@ -1,3 +1,3 @@
-<callout {...props}>
+<toggle {...props}>
   x
-</callout>
+</toggle>

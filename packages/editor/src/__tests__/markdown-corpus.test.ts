@@ -58,8 +58,7 @@ const EXPECTED = {
   "frontmatter-note.md": "canonical",
   "private-note.md": "canonical",
   "tagged.md": "canonical",
-  // legacy <callout> jsx converts to the fence and the attribute-name letters go with it.
-  "components-playground.md": "letters-diverge",
+  "components-playground.md": "canonical",
   "math-and-diagrams.md": "canonical",
   "wiki/hub.md": "canonical",
   "wiki/target note.md": "canonical",

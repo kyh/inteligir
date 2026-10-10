@@ -46,7 +46,6 @@
     "./knowledge/vault-ignore": "./src/knowledge/vault-ignore.ts",
     "./knowledge/vault-path": "./src/knowledge/vault-path.ts",
     "./knowledge/vault-search": "./src/knowledge/vault-search.ts",
-    "./markdown/callout-payload": "./src/markdown/callout-payload.ts",
     "./markdown/fence-langs": "./src/markdown/fence-langs.ts",
     "./markdown/frontmatter": "./src/markdown/frontmatter.ts",
     "./markdown/md-plugins": "./src/markdown/md-plugins.ts",

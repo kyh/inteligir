@@ -1,10 +1,10 @@
-<callout variant='info'>
+<toggle variant='info'>
   single quotes
-</callout>
+</toggle>
 
-<callout title="a &amp; b">
+<toggle title="a &amp; b">
   entity attr
-</callout>
+</toggle>
 
 <toggle></toggle>
 
@@ -18,8 +18,8 @@
     </column>
 </column_group>
 
-<callout
+<toggle
   variant="info"
 >
   attrs on lines
-</callout>
+</toggle>

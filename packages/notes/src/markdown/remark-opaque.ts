@@ -42,7 +42,6 @@ declare module "mdast" {
 // element but is admitted in flow too: a paragraph holding only a date chip serializes to
 // `<date value="…" />` alone on its line, which micromark re-reads as flow.
 export const MODELED_JSX_FLOW_TAGS: ReadonlySet<string> = new Set([
-  "callout",
   "toggle",
   "column_group",
   "column",
@@ -61,7 +60,7 @@ const DATE_ATTRS = new Set(["value"]);
 // survives the parse and is stripped on the way out.
 const RESERVED_ATTRS = new Set(["type", "children", "id"]);
 
-// bare booleans (`<callout draft>`) come back from Plate as `draft="null"`, and braced
+// bare booleans (`<toggle draft>`) come back from Plate as `draft="null"`, and braced
 // expressions and spreads do not survive parseAttributes/propsToAttributes.
 const isModellableAttribute = (
   tag: string,
@@ -165,7 +164,7 @@ const toOpaque = (node: Nodes, options: ToMarkdownOptions): OpaqueBlock | Opaque
 };
 
 // top-down: an opaque node is rendered from its original subtree and not descended into; a
-// component's children are still visited, so a `<Steps>` inside a `<callout>` goes opaque alone.
+// component's children are still visited, so a `<Steps>` inside a `<toggle>` goes opaque alone.
 const makeOpaque = (node: Nodes, options: ToMarkdownOptions): void => {
   if (!("children" in node)) {
     return;

@@ -15,11 +15,13 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ### Changed
 
+- **Callouts in the older form now show as written.** A callout from before the five kinds in the `/` menu now shows as its plain text, saved exactly as it was, and the links and tags inside it no longer count as links and tags. To give it a callout's look again, make it a Note, Tip, Important, Warning or Caution callout from the `/` menu.
 - **The privacy policy is reorganized.** inteligir.com/privacy now follows the sections privacy law asks for, with an index at the top, and says how to ask us for a copy of your information, a correction or a deletion, including under U.S. state and European law. What the app sends, what never leaves your Mac and how your account is deleted are the same as before, and every address the app talks to is still listed at the end.
 
 ### Fixed
 
 - **A stray brace or tag no longer opens a note in Raw.** A note holding a lone `{`, a tag that is never closed (such as `<br>`), or a closing tag with nothing to close opened in Raw, without rich editing. It now opens with rich editing, and those characters stay exactly as you wrote them. Text in braces, like `{count}`, is now ordinary text you can edit.
+- **Renaming a tag reaches every line of a callout, a quote or a list item.** A tag on the second line or later of a callout, a quote or a list item kept its old name when you renamed the tag; it now changes with the rest.
 - **Notes open on iPhones with iOS 16.4 to 17.3.** On those versions the editor stopped before it could show a note; it now opens on every iPhone the app installs on.
 - **The agent's own Inteligir commands work on every Mac.** The agent drives the app by typing `inteligir` commands; on a Mac without Node.js installed those failed, and now they run on what the app carries.
 - **Messages you queued wait when your plan's usage limit is reached.** If Claude or ChatGPT stops an action because you've reached your plan's usage limit, or because you're signed out, the action now says so in plain words, and the messages you queued behind it stay queued instead of each failing the same way. Send again once the limit resets or you've signed in, and the oldest queued message goes first.

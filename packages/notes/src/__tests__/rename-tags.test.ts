@@ -120,10 +120,13 @@ describe("renaming a tag in one doc", () => {
     );
   });
 
-  it("renames a tag inside a callout's body, which the index lists", () => {
-    const src = "```inteligir-callout\nnote\nSee #project/alpha here.\n```\n";
+  it.each([
+    ["an alert's body", "> [!NOTE]\n> See #project/alpha here.\n"],
+    ["a list item's later line", "- first\n  then #project/alpha here\n"],
+    ["a CRLF quote's later line", "> first\r\n> then #project/alpha here\r\n"],
+  ])("renames a tag on %s, past its container's prefix", (_name, src) => {
     const out = renameTagsInDoc(src, "project", "work");
-    expect(out).toBe("```inteligir-callout\nnote\nSee #work/alpha here.\n```\n");
+    expect(out).toBe(src.replace("#project/alpha", "#work/alpha"));
     expect(scanDoc(out).tags).toEqual(["work/alpha"]);
   });
 

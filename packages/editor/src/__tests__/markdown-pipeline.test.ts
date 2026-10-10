@@ -110,12 +110,16 @@ describe("opaque nodes (constructs with no editor node)", () => {
   });
 
   it("carries an allowed tag whose attributes are not plain strings", () => {
-    expectOpaque("<callout draft>\n  x\n</callout>\n", ["<callout draft>\n  x\n</callout>"]);
-    expectOpaque("<callout {...props}>\n  x\n</callout>\n", [
-      "<callout {...props}>\n  x\n</callout>",
-    ]);
+    expectOpaque("<toggle draft>\n  x\n</toggle>\n", ["<toggle draft>\n  x\n</toggle>"]);
+    expectOpaque("<toggle {...props}>\n  x\n</toggle>\n", ["<toggle {...props}>\n  x\n</toggle>"]);
     expectOpaque("<column_group>\n  <column width={50}>\n    x\n  </column>\n</column_group>\n", [
       "<column width={50}>\n  x\n</column>",
+    ]);
+  });
+
+  it("carries a `<callout>` verbatim: the callout is the alert", () => {
+    expectOpaque('<callout variant="info">\n  x\n</callout>\n', [
+      '<callout variant="info">\n  x\n</callout>',
     ]);
   });
 
@@ -127,11 +131,6 @@ describe("opaque nodes (constructs with no editor node)", () => {
 
   it("leaves the app's own components modelled, never opaque", () => {
     const md = [
-      "```inteligir-callout",
-      "info",
-      "x",
-      "```",
-      "",
       "<toggle>",
       "  y",
       "</toggle>",
@@ -161,7 +160,7 @@ describe("opaque nodes (constructs with no editor node)", () => {
 
   it("keeps an opaque block inside a container prefix-correct", () => {
     expectOpaque("> <Steps>\n>   quoted\n> </Steps>\n", ["<Steps>\n  quoted\n</Steps>"]);
-    expectOpaque("```inteligir-callout\ninfo\n<Steps>\n  nested\n</Steps>\n```\n", [
+    expectOpaque("<toggle>\n  <Steps>\n    nested\n  </Steps>\n</toggle>\n", [
       "<Steps>\n  nested\n</Steps>",
     ]);
   });
@@ -302,12 +301,6 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
       value: [
-        {
-          children: [{ children: [{ text: "x" }], id: "p1", type: "p" }],
-          id: "c1",
-          type: "callout",
-          variant: "info",
-        },
         { children: [{ text: "" }], id: "v1", type: "video", url: "https://y.tb/1" },
         { children: [{ text: "" }], id: "m1", type: "media_embed", url: "https://t.co/1" },
         { children: [{ text: "" }], id: "f1", type: "file", url: "https://e.com/a.pdf" },
@@ -319,7 +312,6 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
       ],
     });
     expect(out).not.toContain("id=");
-    expect(out).toContain("```inteligir-callout");
     expect(out).toContain('<video src="https://y.tb/1" />');
     expect(out).toContain('<file src="https://e.com/a.pdf" />');
     expect(out).toContain("<toggle>");
@@ -439,44 +431,5 @@ describe("gate API", () => {
     for (const reason of limits) {
       expect(describeGateReason(reason), reason.kind).not.toMatch(/parse error/iu);
     }
-  });
-});
-
-const variantsOf = (md: string): string => {
-  const parsed = parseMarkdown(md);
-  expect(parsed.ok).toBe(true);
-  if (!parsed.ok) {
-    return "";
-  }
-  return JSON.stringify(parsed.value);
-};
-
-describe("callout payload forms (prefixed `type:`/`level:` + unknown kinds)", () => {
-  it("round-trips the prefixed spellings byte-exact", () => {
-    for (const md of [
-      "```inteligir-callout\ntype: warning\nCareful.\n```\n",
-      "```inteligir-callout\ntype: priority\nlevel: high\nShip it.\n```\n",
-    ]) {
-      expect(roundTrip(md)).toBe(md);
-    }
-  });
-
-  it("prefixed and bare forms parse to the same callout variant", () => {
-    const bare = variantsOf("```inteligir-callout\nwarning\nCareful.\n```\n");
-    const prefixed = variantsOf("```inteligir-callout\ntype: warning\nCareful.\n```\n");
-    expect(bare).toContain('"variant":"warning"');
-    expect(prefixed).toContain('"variant":"warning"');
-  });
-
-  it("an unknown kind stays a plain code block, byte-stable", () => {
-    const md = "```inteligir-callout\nshiny\nbody\n```\n";
-    expect(roundTrip(md)).toBe(md);
-    expect(variantsOf(md)).not.toContain('"type":"callout"');
-  });
-
-  it("a priority level line under a non-priority kind is body text", () => {
-    expect(roundTrip("```inteligir-callout\ntype: info\nlevel: high\n```\n")).toBe(
-      "```inteligir-callout\ntype: info\nlevel: high\n```\n",
-    );
   });
 });

@@ -1,12 +1,10 @@
-```inteligir-callout
-info
-single quotes
-```
+<toggle variant="info">
+  single quotes
+</toggle>
 
-```inteligir-callout
-info
-entity attr
-```
+<toggle title="a & b">
+  entity attr
+</toggle>
 
 <toggle />
 
@@ -20,7 +18,6 @@ entity attr
   </column>
 </column_group>
 
-```inteligir-callout
-info
-attrs on lines
-```
+<toggle variant="info">
+  attrs on lines
+</toggle>

@@ -319,29 +319,16 @@ describe("scanDoc — task-bearing docs", () => {
   });
 });
 
-describe("callout fence bodies (editor ⊆ vault)", () => {
-  it("indexes wiki links inside a callout body with outer-source spans", () => {
-    const source = "# T\n\n```inteligir-callout\ninfo\nSee [[Target Note]] here.\n```\n";
+describe("alert bodies (editor ⊆ vault)", () => {
+  it.each([
+    ["at the top level", "# T\n\n> [!NOTE]\n> See [[Target Note]] here.\n"],
+    ["inside a list item", "- item\n\n  > [!WARNING]\n  > See [[Target Note]] here.\n"],
+  ])("indexes a wiki link inside an alert %s with its span", (_name, source) => {
     const link = documentLinkSpans(source).find((row) => row.target === "Target Note");
     if (link === undefined) {
       throw new Error("no span");
     }
     expect(source.slice(link.targetSpan.start, link.targetSpan.end)).toBe("Target Note");
-  });
-
-  it("skips the priority level header line in span math", () => {
-    const source = "```inteligir-callout\npriority\nhigh\n[[Deep Link]]\n```\n";
-    const link = documentLinkSpans(source).find((row) => row.target === "Deep Link");
-    if (link === undefined) {
-      throw new Error("no span");
-    }
-    expect(source.slice(link.targetSpan.start, link.targetSpan.end)).toBe("Deep Link");
-  });
-
-  it("refuses an indented fence rather than mis-indexing it", () => {
-    const source = "- item\n\n  ```inteligir-callout\n  info\n  [[Hidden]]\n  ```\n";
-    const scan = scanDoc(source);
-    expect(scan.links.find((row) => row.target === "Hidden")).toBeUndefined();
   });
 
   it("plain code fences stay unindexed", () => {
@@ -382,7 +369,7 @@ describe("verbatim regions (indexed, never rewritten)", () => {
   });
 
   it("keeps the span inside a modelled component — only unmodellable tags go verbatim", () => {
-    const src = '<callout kind="note">\n\n[[Alpha]]\n\n</callout>\n';
+    const src = '<toggle kind="note">\n\n[[Alpha]]\n\n</toggle>\n';
     only(src);
     expect(sliceTarget(src)).toBe("Alpha");
   });

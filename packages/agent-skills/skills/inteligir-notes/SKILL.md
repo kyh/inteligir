@@ -116,9 +116,7 @@ Pick the marker by what the reader must do with it:
 | `[!WARNING]`   | A risk that needs attention now               |
 | `[!CAUTION]`   | An action whose consequences are hard to undo |
 
-Only these five markers make an alert. An `inteligir-callout` fence in an
-existing note is an older spelling the app still renders: leave it exactly as
-found, and never write a new one.
+Only these five markers make an alert.
 
 ### Charts
 
@@ -181,8 +179,7 @@ belongs in an `inteligir-html` fence.
 ## Before You Finish
 
 - Frontmatter (if any) opens the file, one H1 follows, then the body.
-- Every construct is spelled exactly as above — a new callout is an alert,
-  never an `inteligir-callout` fence.
+- Every construct is spelled exactly as above — a callout is an alert.
 - Frontmatter, comment markers, and formula identities you did not come to
   change are byte-identical to what you found.
 - Nothing outside the vault's `.md` files and `assets/` was created.

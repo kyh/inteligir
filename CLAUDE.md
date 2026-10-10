@@ -399,15 +399,15 @@ to the END of its group.
   alias), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%` comment
   anchors, GitHub alerts (`> [!NOTE]` through `> [!CAUTION]`) as THE callout,
   and `inteligir-chart` / `inteligir-canvas` / `inteligir-html` / `:::tabs`
-  blocks, all valid markdown, all round-tripping. The `inteligir-callout` fence
-  is READ-COMPAT (`COMPAT_CALLOUT_LANG`): round-tripped byte-exact, never
-  inserted, taught or seeded (`tools/repo-guards/src/agent-skills.test.ts`
-  holds the skills and `apps/cli/seed/`). Migrating it to an alert on save is
-  rejected: it carries kinds the five-variant alert grammar cannot spell, and
-  the rewrite would make a canonical construct churn. Every spelling lives in
-  one place (`@repo/notes/markdown/fence-langs`,
-  `@repo/editor/nodes/canvas-header`, `@repo/editor/dialect-node-keys`)
-  because the rule table and the knowledge scan both read it. Plain nested
+  blocks, all valid markdown, all round-tripping. The alert is the ONLY
+  callout (owner decision): an `inteligir-callout` fence is a plain code block
+  and a `<callout>` tag is carried as its source, both saved byte-exact.
+  Rejected: reading either as a callout, a second grammar with its own node
+  and index pass for kinds the five alerts cannot spell. Every spelling lives
+  in one place (`@repo/notes/markdown/fence-langs`,
+  `@repo/editor/nodes/canvas-header`, `@repo/editor/dialect-node-keys`), and
+  `tools/repo-guards/src/agent-skills.test.ts` holds the skills and
+  `apps/cli/seed/` to it. Plain nested
   `.md`: no bundles, no meta.json. FRONTMATTER IS THE ONLY PROPERTY STORE: no
   metadata table, a note's UUID is its `id:`, and YAML the typing rules cannot
   represent is preserved byte-exactly.

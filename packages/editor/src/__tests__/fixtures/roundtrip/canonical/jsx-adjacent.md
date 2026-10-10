@@ -1,12 +1,8 @@
-```inteligir-callout
-info
-first callout
-```
+> [!NOTE]
+> first callout
 
-```inteligir-callout
-warning
-second callout
-```
+> [!WARNING]
+> second callout
 
 <column_group>
   <column>

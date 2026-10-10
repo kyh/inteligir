@@ -33,8 +33,6 @@ import type {
 import { z } from "zod";
 
 import { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
-import { parseCalloutPayload } from "@repo/notes/markdown/callout-payload";
-import { parseMdast } from "@repo/notes/markdown/parse";
 import type { OpaqueBlock, OpaqueInline } from "@repo/notes/markdown/remark-opaque";
 import { parseFormulaRaw } from "@repo/notes/markdown/remark-inline-constructs";
 import type { CommentMarker, FormulaPill } from "@repo/notes/markdown/remark-inline-constructs";
@@ -42,9 +40,7 @@ import type { TabPanel, TabGroup } from "@repo/notes/markdown/remark-tabs";
 import {
   CANVAS_LANG,
   CHART_LANG,
-  COMPAT_CALLOUT_LANG,
   HTML_LANG,
-  isCalloutLang,
   RICH_FENCE_LANGS,
 } from "@repo/notes/markdown/fence-langs";
 import type { WikiEmbed, WikiLink } from "@repo/notes/markdown/remark-wiki-link";
@@ -114,7 +110,7 @@ if (!defaultParagraphDeserialize || !defaultParagraphSerialize) {
 type WideMdRule = NonNullable<MdRules[string]>;
 
 // NodeIdPlugin is a core default (off only under NODE_ENV=test), so every live block carries an
-// `id`; Plate's callout and media rules spread it into user files as `id="…"`. The node's key
+// `id`; Plate's media rules spread it into user files as `id="…"`. The node's key
 // order is the emitted attribute order.
 interface JsxFlowOverrides {
   name?: string;
@@ -338,33 +334,6 @@ export const MD_RULES: MdRules = {
   // `> \[!NOTE]`; alerts emit as a raw `html` node with self-managed `> ` prefixes.
   blockquote: blockquoteRule,
 
-  // the body round-trips through the same pipeline so inline constructs inside survive byte-exact.
-  [KEYS.callout]: {
-    serialize: (node: TElement, options: SerializeMdOptions): MdCode => {
-      const { editor } = options;
-      const variant = stringProp(node, "variant") ?? "info";
-      const typeLine = node.typePrefixed === true ? `type: ${variant}` : variant;
-      const levelValue = stringProp(node, "level") ?? "";
-      const level =
-        levelValue === ""
-          ? []
-          : [node.levelPrefixed === true ? `level: ${levelValue}` : levelValue];
-      const children: Descendant[] = node.children;
-      const body =
-        editor === undefined
-          ? ""
-          : serializeMd(editor, {
-              remarkStringifyOptions: MD_STRINGIFY,
-              value: children,
-            }).replace(/\n$/u, "");
-      return {
-        lang: COMPAT_CALLOUT_LANG,
-        type: "code",
-        value: [typeLine, ...level, ...(body === "" ? [] : [body])].join("\n"),
-      };
-    },
-  },
-
   [CANVAS_BLOCK_KEY]: {
     serialize: (node: TElement): MdCode => ({
       lang: CANVAS_LANG,
@@ -383,36 +352,8 @@ export const MD_RULES: MdRules = {
 
   code_block: {
     deserialize: (node: MdCode, deco, options): TElement => {
-      if (isCalloutLang(node.lang)) {
-        const payload = parseCalloutPayload(node.value);
-        if (payload === null) {
-          return defaultCodeBlockDeserialize(node, deco, options);
-        }
-        const children: Descendant[] = convertChildrenDeserialize(
-          parseMdast(payload.body).root.children,
-          deco,
-          options,
-        );
-        // a prefix prop is set only when the note wrote one; a false prop would replay a spelling it never had.
-        const callout: TElement = {
-          children: children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }],
-          type: KEYS.callout,
-          variant: payload.kind,
-        };
-        if (payload.typePrefixed) {
-          callout.typePrefixed = true;
-        }
-        if (payload.level !== undefined) {
-          callout.level = payload.level;
-          if (payload.levelPrefixed) {
-            callout.levelPrefixed = true;
-          }
-        }
-        return callout;
-      }
       const richBlock = RICH_FENCE_LANGS.get(node.lang ?? "");
       if (richBlock !== undefined) {
-        // a legacy spelling lands on the same node and re-emits as ours, canonicalizing on first save.
         return { children: [{ text: "" }], type: richBlock, value: node.value };
       }
       return defaultCodeBlockDeserialize(node, deco, options);

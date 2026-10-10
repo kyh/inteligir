@@ -53,10 +53,6 @@ Due <date value="2026-07-04" /> and reviewed on <date value="2026-07-01" />.
 
 <file src="https://pdfobject.com/pdf/sample.pdf" />
 
-<callout variant="info">
-  A compat callout with **bold** body text.
-</callout>
-
 > [!TIP]
 > Product callouts stay GitHub-alert blockquotes.
 

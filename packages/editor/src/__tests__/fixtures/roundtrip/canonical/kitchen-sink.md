@@ -2,10 +2,8 @@
 
 Intro paragraph with [[Some Note]] and an alias [[Other|friendly]] plus ![[embed.png]] inline.
 
-```inteligir-callout
-info
-Callout body with **bold** and $$E=mc^2$$ inline.
-```
+> [!TIP]
+> Callout body with **bold** and $$E=mc^2$$ inline.
 
 <toggle>
   Hidden content line.

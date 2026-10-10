@@ -69,11 +69,9 @@ src/
                        # offset on a BOM note cuts one byte early
     mdast-nodes.ts     # the mdast NARROWING boundary: a walk asks it what a
                        # node is, never discriminates structurally
-    fence-langs.ts, callout-payload.ts  # ONE spelling of every dialect fence
-                       # and ONE callout-payload grammar — the rule table and
-                       # the scan both read them; a COMPAT_* spelling (the
-                       # inteligir-callout fence) is read and round-tripped,
-                       # never written new or taught
+    fence-langs.ts     # ONE spelling of every dialect fence — the rule table
+                       # reads it, and the skills guard holds the skills and
+                       # the seed to it
     frontmatter.ts     # the ONE header fence every reader cuts at (BOM and
                        # CRLF aware), split/recombine (ONE
                        # `replaceFrontmatterYaml`, which
