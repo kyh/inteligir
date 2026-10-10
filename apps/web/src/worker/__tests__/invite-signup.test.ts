@@ -15,6 +15,29 @@ import { cookieHeaderOf } from "./cloud-helpers";
 const ORIGIN = "https://inteligir-web.workers.dev";
 const PASSWORD = "test-password-1234";
 
+const UNUSED_AUTH_ROUTES = [
+  ["GET", "/account-info"],
+  ["POST", "/change-email"],
+  ["POST", "/change-password"],
+  ["POST", "/delete-user"],
+  ["GET", "/delete-user/callback"],
+  ["POST", "/get-access-token"],
+  ["POST", "/link-social"],
+  ["GET", "/list-accounts"],
+  ["GET", "/list-sessions"],
+  ["POST", "/refresh-token"],
+  ["POST", "/revoke-other-sessions"],
+  ["POST", "/revoke-session"],
+  ["POST", "/revoke-sessions"],
+  ["POST", "/send-verification-email"],
+  ["POST", "/sign-in/social"],
+  ["POST", "/unlink-account"],
+  ["POST", "/update-session"],
+  ["POST", "/update-user"],
+  ["GET", "/verify-email"],
+  ["POST", "/verify-password"],
+] as const;
+
 const signInBodySchema = z.looseObject({ token: z.string() });
 const sessionSchema = z.looseObject({ user: z.looseObject({ email: z.string() }) });
 
@@ -152,6 +175,27 @@ describe("invite-gated sign-up", () => {
       method: "POST",
     });
     expect(signIn.status).not.toBe(200);
+  });
+
+  it("answers 404 on each Better Auth route no client calls, even to a signed-in browser", async () => {
+    await mintCode("INVITE-SURFACE");
+    const signedUp = await signUp({
+      email: "surface@example.test",
+      inviteCode: "INVITE-SURFACE",
+      name: "Surface",
+      password: PASSWORD,
+    });
+    expect(signedUp.status).toBe(200);
+    const headers = { cookie: cookieHeaderOf(signedUp), origin: ORIGIN };
+
+    for (const [method, path] of UNUSED_AUTH_ROUTES) {
+      const response = await SELF.fetch(`${ORIGIN}/api/auth${path}`, {
+        body: method === "POST" ? "{}" : null,
+        headers: { ...headers, "content-type": "application/json" },
+        method,
+      });
+      expect(response.status, `${method} ${path}`).toBe(404);
+    }
   });
 
   it("signs an invited account back in through Better Auth, into a cookie and nothing else", async () => {

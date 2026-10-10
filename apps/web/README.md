@@ -118,9 +118,11 @@ answers the same query as a GET's search params, the form older installs send
   `baseURL` is the request origin, so localhost/preview/prod all work with no
   config). No plugins: a browser holds Better Auth's session cookie and
   nothing else, and the apps hold the `igd_…` device credential, which never
-  reaches Better Auth. `disabledPaths` shuts Better Auth's own
-  `/delete-user` routes, so `POST /v1/account/delete` is the one way to delete
-  an account; `auth.api.deleteUser` behind it is unaffected. Better Auth reads
+  reaches Better Auth. `disabledPaths` shuts every Better Auth route no client
+  calls (the site uses sign-in, `get-session`, the reset pair and, through the
+  invite gate, sign-up). That includes its own `/delete-user`, so
+  `POST /v1/account/delete` is the one way to delete an account;
+  `auth.api.deleteUser` behind it is unaffected, as the list gates only HTTP. Better Auth reads
   `BETTER_AUTH_TRUSTED_ORIGINS` itself, should an origin other than the
   request's ever need trusting.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**

@@ -18,10 +18,33 @@ import { sendResetEmail } from "./reset-email";
 // Built per request: D1 is a runtime binding, not a module singleton. No baseURL config —
 // it is derived from the request origin, so localhost, preview and prod need none.
 
-// the HTTP router's alone: auth.api.deleteUser still runs. The one door is /v1/account/delete
-// (../device/account.ts), which asks the password again, where Better Auth's own route settles
-// for a fresh session.
-const DISABLED_PATHS = ["/delete-user", "/delete-user/callback"];
+// The HTTP router's alone: auth.api still calls each. The site calls sign-in, get-session and the
+// reset pair, and the invite gate forwards sign-up; a route no client calls is surface with no
+// user. Sign-out stays, since ending a session is never a risk. Deletion's one door is
+// /v1/account/delete (../device/account.ts), which asks the password again, where Better Auth's
+// own route settles for a fresh session.
+const DISABLED_PATHS = [
+  "/account-info",
+  "/change-email",
+  "/change-password",
+  "/delete-user",
+  "/delete-user/callback",
+  "/get-access-token",
+  "/link-social",
+  "/list-accounts",
+  "/list-sessions",
+  "/refresh-token",
+  "/revoke-other-sessions",
+  "/revoke-session",
+  "/revoke-sessions",
+  "/send-verification-email",
+  "/sign-in/social",
+  "/unlink-account",
+  "/update-session",
+  "/update-user",
+  "/verify-email",
+  "/verify-password",
+];
 
 // redeemed_at stays set: clearing it would hand a working sign-up to whoever still holds the
 // code. Case-insensitive because the gate stores the address as typed and Better Auth lowercases it.

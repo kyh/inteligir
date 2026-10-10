@@ -1613,8 +1613,9 @@ to the END of its group.
   window, checks the password through `signInEmail` and runs `deleteUser` under
   the session that sign-in minted: its `beforeDelete` order and tombstone stay
   the ONE purge path, where a second purge beside it would drift. Better
-  Auth's own `/delete-user` routes are shut (`disabledPaths`), since they
-  settle for a fresh session where this door asks the password; Better Auth
+  Auth's own `/delete-user` routes are shut (`disabledPaths`, beside every
+  other route no client calls), since they settle for a fresh session where
+  this door asks the password; Better Auth
   carries no bearer plugin, so a browser's session is its cookie alone. The
   credential alone deletes nothing, since whoever holds a stolen one could end
   the account. The local server asks on a client of its own, because the purge
