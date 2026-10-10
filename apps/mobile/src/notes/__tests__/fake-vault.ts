@@ -4,8 +4,8 @@
 // what the head holds and who wrote it). `requests` logs each call as "tree <body>", "file
 // <body>", "files <paths joined by ,> @<ref>", "asset <body>" or "commit <changes joined by ,>",
 // a body the JSON the phone posted and a change spelled "put <path>@<base>", "delete
-// <path>@<base>" or "move <from>><to>@<base>". A read's query in the URL, the GET form a stale
-// install sends, is refused, so a suite passes only while the phone keeps paths out of the URL.
+// <path>@<base>" or "move <from>><to>@<base>". A read that is not a POST, or carries a query
+// string, is refused, so a suite passes only while the phone keeps paths out of the URL.
 
 import { createHash } from "node:crypto";
 import { createCloudClient } from "@repo/contract/cloud/client";
@@ -44,13 +44,12 @@ const commitSha = (n: number): string => n.toString(16).padStart(40, "0");
 const notFound = (message: string): Response =>
   Response.json({ error: { code: "not-found", message } }, { status: 404 });
 
-const getFormRefused = (): Response =>
+const readRefused = (): Response =>
   Response.json(
-    { error: { code: "bad-request", message: "Post the read's query as the body." } },
+    { error: { code: "bad-request", message: "Send the read as a POST with a JSON body." } },
     { status: 400 },
   );
 
-// a read answered from the query the phone posted; anything else is the GET form
 const answerPosted = <TSchema extends z.ZodType>(
   schema: TSchema,
   url: URL,
@@ -59,10 +58,10 @@ const answerPosted = <TSchema extends z.ZodType>(
 ): Response => {
   const body = z.string().safeParse(init?.body);
   if (init?.method !== "POST" || url.search !== "" || !body.success) {
-    return getFormRefused();
+    return readRefused();
   }
   const query = schema.safeParse(JSON.parse(body.data));
-  return query.success ? answer(query.data, body.data) : getFormRefused();
+  return query.success ? answer(query.data, body.data) : readRefused();
 };
 
 // the device every phone commit is authored as
@@ -335,9 +334,10 @@ export const createFakeVault = (
         });
       }
       case VAULT_API_PATHS.files: {
-        const request = vaultFilesRequestSchema.parse(JSON.parse(z.string().parse(init?.body)));
-        requests.push(`files ${request.paths.join(",")} @${request.ref}`);
-        return filesAnswer(at(request.ref), request.ref, request.paths);
+        return answerPosted(vaultFilesRequestSchema, url, init, ({ paths, ref }) => {
+          requests.push(`files ${paths.join(",")} @${ref}`);
+          return filesAnswer(at(ref), ref, paths);
+        });
       }
       case VAULT_API_PATHS.commit: {
         const request = vaultCommitRequestSchema.parse(JSON.parse(z.string().parse(init?.body)));

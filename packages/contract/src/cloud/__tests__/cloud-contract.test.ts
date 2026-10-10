@@ -649,16 +649,14 @@ describe("push request", () => {
     expect(result.success).toBe(true);
   });
 
-  it("still reads a 0.4.0 push, whose threads half carries each thread's lane", () => {
-    const stale = {
-      events: [{ createdAt: 1, deviceSeq: 1, event: { type: "thread/meta" }, threadId: "th_1" }],
-      threads: [
-        { lane: "desktop", threadId: "th_1", title: "Fix the build", updatedAt: 1 },
-        { lane: "any", threadId: "th_2", updatedAt: 2 },
-      ],
-    };
-    expect(pushRequestSchema.safeParse(stale).success).toBe(true);
-    expect(pushRequestSchema.safeParse({ ...stale, lanes: [] }).success).toBe(false);
+  it("refuses a key beside the events, a thread list among them", () => {
+    const events = [
+      { createdAt: 1, deviceSeq: 1, event: { type: "thread/meta" }, threadId: "th_1" },
+    ];
+    expect(pushRequestSchema.safeParse({ events }).success).toBe(true);
+    for (const extra of [{ threads: [] }, { threads: [{ threadId: "th_1" }] }, { lanes: [] }]) {
+      expect(pushRequestSchema.safeParse({ events, ...extra }).success).toBe(false);
+    }
   });
 
   it("refuses an event body over the byte ceiling", () => {
@@ -889,14 +887,6 @@ describe("ws ping frames", () => {
   });
 });
 
-// the vault routes' own decode: the search params whole, then the row's schema
-const paramsOf = (uri: string | undefined): Record<string, string> => {
-  if (uri === undefined) {
-    throw new Error("the client sent no request");
-  }
-  return Object.fromEntries(new URL(uri).searchParams);
-};
-
 describe("vault read rows", () => {
   it("parses the tree page and the file", () => {
     const tree = vaultTreeResponseSchema.parse({
@@ -987,20 +977,10 @@ describe("vault read rows", () => {
     expect(posted(VAULT_API_PATHS.asset, vaultAssetQuerySchema)).toEqual(asset);
   });
 
-  it("decodes the GET form a stale install sends from its search params", () => {
-    const query: VaultTreeQuery = { after: "notes/α β&c=d+e.md", limit: 500, ref: COMMIT };
-    const url = new URL(`https://cloud.test${VAULT_API_PATHS.tree}`);
-    url.search = new URLSearchParams({
-      after: "notes/α β&c=d+e.md",
-      limit: "500",
-      ref: COMMIT,
-    }).toString();
-    expect(vaultTreeQuerySchema.parse(paramsOf(url.toString()))).toEqual(query);
-  });
-
   it("refuses a tree limit that is not a whole number in range", () => {
-    for (const limit of ["", "0", "501", "1.5", "ten"]) {
-      expect(vaultTreeQuerySchema.safeParse({ limit }).success).toBe(false);
+    expect(vaultTreeQuerySchema.safeParse({ limit: 500 }).success).toBe(true);
+    for (const limit of [0, 501, 1.5, "7", "", "ten"]) {
+      expect(vaultTreeQuerySchema.safeParse({ limit }).success, String(limit)).toBe(false);
     }
   });
 

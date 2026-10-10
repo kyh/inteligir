@@ -153,9 +153,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
       );
     `);
     this.ctx.storage.sql.exec(DISPATCH_TABLES);
-    // an object older than the dispatch inbox still holds each thread's lane and title, which
-    // nothing reads: dropped on wake, or it would sit in the account's storage for good
-    this.ctx.storage.sql.exec("DROP TABLE IF EXISTS thread_meta");
   }
 
   // the tombstone refuses a call that verified its credential just before the account was

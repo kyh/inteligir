@@ -63,7 +63,7 @@ const answer = <T>(result: SyncResult<T>): Response =>
   result.ok ? Response.json(result.value) : refusal(result);
 
 // the log compares a replayed body byte for byte, so each is serialized once, here, and the
-// object stores and compares that text. a stale install's `threads` goes no further than the parse.
+// object stores and compares that text
 const storedEvents = (request: PushRequest): StoredEvent[] =>
   request.events.map(({ createdAt, deviceSeq, event, threadId }) => ({
     createdAt,

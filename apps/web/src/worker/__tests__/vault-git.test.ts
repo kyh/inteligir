@@ -12,6 +12,7 @@ import {
   loginDevice,
   openSocket,
   ORIGIN,
+  postVaultRead,
   sessionHeaders,
   signUpUser,
   userIdOf,
@@ -361,9 +362,7 @@ describe("account deletion's vault half", () => {
     const repo = vaultRepoName(userId);
 
     const listingPrefix = treeListingPrefix(repo);
-    const listed = await SELF.fetch(`${ORIGIN}${VAULT_API_PATHS.tree}`, {
-      headers: deviceHeaders(credential),
-    });
+    const listed = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(credential), {});
     expect(listed.status).toBe(200);
     const kept = await env.PACK_CACHE.list({ prefix: listingPrefix });
     expect(kept.objects).toHaveLength(1);

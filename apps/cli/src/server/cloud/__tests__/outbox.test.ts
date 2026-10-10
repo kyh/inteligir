@@ -125,7 +125,7 @@ describe("the outbox", () => {
     closeConnection(db);
   });
 
-  it("sends a titled thread's facts as events alone, with no threads half beside them", () => {
+  it("sends a titled thread's facts as events alone, in a batch the Worker parses", () => {
     const dataDir = makeTempDir("inteligir-outbox-");
     const db = openStore(dataDir);
     const named = Array.from({ length: PUSH_MAX_EVENTS }, (_, index): ThreadEvent => ({
@@ -137,7 +137,6 @@ describe("the outbox", () => {
     enqueue(db, named);
     const batch = takePushBatch(db);
     expect(batch?.request.events).toHaveLength(PUSH_MAX_EVENTS);
-    expect(batch?.request).not.toHaveProperty("threads");
     expect(pushRequestSchema.safeParse(batch?.request).success).toBe(true);
     closeConnection(db);
   });

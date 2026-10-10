@@ -63,8 +63,7 @@ export const SYNC_OUTBOX_CODES: ReadonlySet<CloudErrorCode> = new Set([
 ]);
 
 // a code this build does not know is a newer worker's: `internal` retries it and keeps the
-// worker's message, where refusing the envelope would read it as a body this build cannot read.
-// 0.4.0 and older still refuse the whole envelope, so to them a new code is no refusal at all.
+// worker's message, where refusing the envelope would read it as a body this build cannot read
 const errorCodeSchema = z
   .string()
   .transform(

@@ -116,10 +116,9 @@ same-origin` passes, since the site's own pages ship in this deploy. The floor
 is how `/v1` retires a shape: raise it past every build that reads the shape,
 then delete the shape.
 
-The tree, file and asset reads take their query as a JSON body, so no vault
-path reaches a URL, which the Worker's request log and traces keep; each still
-answers the same query as a GET's search params, the form older installs send
-(`src/worker/vault/read-routes.ts`).
+The tree, file, files and asset reads take their query as a JSON body, so no
+vault path reaches a URL, which the Worker's request log and traces keep; any
+other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
 
 ## Auth
 

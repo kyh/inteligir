@@ -26,18 +26,7 @@ import {
   userIdOf,
 } from "./cloud-helpers";
 
-// what 0.4.0 sends beside its events: each titled thread's lane and title
-interface StaleThreadMeta {
-  lane: "any" | "desktop";
-  threadId: string;
-  title?: string;
-  updatedAt: number;
-}
-
-const push = async (
-  credential: string,
-  body: PushRequest & { threads?: readonly StaleThreadMeta[] },
-): Promise<Response> =>
+const push = async (credential: string, body: PushRequest): Promise<Response> =>
   await SELF.fetch(`${ORIGIN}/v1/sync/push`, {
     body: JSON.stringify(body),
     headers: { ...deviceHeaders(credential), "content-type": "application/json" },
@@ -170,6 +159,21 @@ describe("thread sync log", () => {
     expect(page.events).toEqual([]);
   });
 
+  it("refuses a batch carrying a key beside its events, storing none of it", async () => {
+    const { bearer } = await signUpUser("sync-undeclared@example.test");
+    const { credential } = await loginDevice(bearer, "Laptop");
+
+    const withThreads = {
+      events: [event("th_1", 1, "a")],
+      threads: [{ threadId: "th_1", title: "Fix the build" }],
+    };
+    const response = await push(credential, withThreads);
+    expect(response.status).toBe(400);
+    expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("bad-request");
+    const page = await pull(credential, 0);
+    expect(page.events).toEqual([]);
+  });
+
   it("merges devices into one log and pages by the global seq", async () => {
     const { bearer } = await signUpUser("sync-merge@example.test");
     const laptop = await loginDevice(bearer, "Laptop");
@@ -223,40 +227,6 @@ describe("thread sync log", () => {
     desktopWs.socket.close();
     tabletWs.socket.close();
     phoneWs.socket.close();
-  });
-
-  it("accepts a stale install's desktop lane and dispatches nothing for it", async () => {
-    const { bearer } = await signUpUser("sync-stale-lane@example.test");
-    const desktop = await loginDevice(bearer, "Desktop");
-    const stale = await loginDevice(bearer, "Old Laptop");
-    const desktopWs = await openSocket(desktop.credential, "desktop");
-
-    const pushed = await push(stale.credential, {
-      events: [event("th_lane", 1, "run this")],
-      threads: [{ lane: "desktop", threadId: "th_lane", title: "Do the thing", updatedAt: 1000 }],
-    });
-    expect(emitted(pushResponseSchema, await pushed.text())).toEqual({
-      accepted: 1,
-      duplicates: 0,
-      lastSeq: 1,
-    });
-    const metaOnly = await push(stale.credential, {
-      events: [],
-      threads: [{ lane: "desktop", threadId: "th_later", updatedAt: 2000 }],
-    });
-    expect(emitted(pushResponseSchema, await metaOnly.text())).toEqual({
-      accepted: 0,
-      duplicates: 0,
-      lastSeq: 1,
-    });
-    await push(stale.credential, { events: [event("th_lane", 2, "and this")] });
-
-    // frames arrive in order, so a dispatch for either push would sit before the second sync
-    await awaitFrames(desktopWs, [
-      { seq: 1, type: "sync" },
-      { seq: 2, type: "sync" },
-    ]);
-    desktopWs.socket.close();
   });
 
   it("keeps its socket identity in the hibernation tags, not in instance memory", async () => {

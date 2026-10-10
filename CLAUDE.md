@@ -1737,11 +1737,9 @@ to the END of its group.
   `@repo/domain/provider-event`); a fact about a thread that never made a
   request stays local, since alone it would arrive as an empty action. A stale
   install skips a type it cannot read, so a new event type needs no new route.
-  The Worker keeps no per-thread row beside the log (owner decision): the
-  push's `threads` half and the `thread_meta` lane it filled are gone, the
-  dispatch inbox carrying what the lane was for, and a 0.4.0 install's
-  `threads` is still accepted and dropped, since refusing the key would refuse
-  its every push. `apps/cli/src/server/threads/service.ts`,
+  The Worker keeps no per-thread row beside the log (owner decision): a push
+  is its events alone, and the dispatch inbox carries what a per-thread lane
+  would. `apps/cli/src/server/threads/service.ts`,
   `packages/contract/src/cloud/sync/sync-schema.ts`.
 
 - **A pulled event lands through the SAME ingest, marked with its origin**
@@ -2019,7 +2017,7 @@ to the END of its group.
   The phone never pushes to the log, so a request cannot ride it: a `turn` row
   waits beside the captures in the account's `ThreadSyncDO`, any Mac may claim
   it and the first claim wins, and it pings the sockets of the Macs that take a
-  phone's requests with the `dispatch` frame 0.4.0 already parses. Delivery is
+  phone's requests with a `dispatch` frame. Delivery is
   at-least-once to a claimant and a Mac's apply exactly-once on the dispatch
   id, which the phone mints so a resend is one row
   (`packages/contract/src/cloud/dispatch/dispatch-schema.ts`,
@@ -2055,14 +2053,16 @@ to the END of its group.
   keeps each request's URL in the Worker's request log and in its sampled
   traces for up to seven days, and a vault path names a user's file, so the
   tree, file and asset reads POST their query to the routes they always had
-  (`packages/contract/src/cloud/cloud-client.ts`); the Worker parses the body, or a
-  GET's search params for the installs that still send those, with one schema
-  per read (`parseRead` in `apps/web/src/worker/vault/read-routes.ts`).
-  Rejected: turning the invocation log off, which leaves the traces' URLs and
-  takes the operator's one view of a failing route, and reads addressed by
-  blob oid, which the asset route cannot type or size-gate without the path.
-  `docs/privacy.md` says what the log keeps; the phone's fake vault refuses the
-  GET form (`apps/mobile/src/notes/__tests__/fake-vault.ts`).
+  (`packages/contract/src/cloud/cloud-client.ts`); the Worker refuses any
+  other method `bad-request` before it reads the credential and parses the
+  body alone, with one schema per read (`parseRead` in
+  `apps/web/src/worker/vault/read-routes.ts`). Rejected: turning the
+  invocation log off, which leaves the traces' URLs and takes the operator's
+  one view of a failing route, and reads addressed by blob oid, which the
+  asset route cannot type or size-gate without the path. `docs/privacy.md`
+  says what the log keeps; the phone's fake vault refuses a read that is not a
+  POST or carries a query string
+  (`apps/mobile/src/notes/__tests__/fake-vault.ts`).
 
 - **A PR PREVIEW IS A WORKER PREVIEW DRIVEN BY ACTIONS, not Workers Builds**, and
   it binds preview-only resources. Workers Builds would deploy on push and could
