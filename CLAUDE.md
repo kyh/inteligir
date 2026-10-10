@@ -1650,10 +1650,7 @@ to the END of its group.
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
   files.** One deployer and an additive schema; `apps/web/vitest.config.ts`
   derives the test DDL by `drizzle-kit export`. A second deployer or a
-  destructive column change is the trigger for migrations. Never flip the
-  timestamp mode in place: both modes read the same INTEGER column, so a
-  redeploy without `UPDATE <table> SET <col> = <col> * 1000` reads every date as
-  1970 and expires every session.
+  destructive column change is the trigger for migrations.
 
 - **Declare D1 uniques as named unique indexes, never `.unique()`**
   (`apps/web/src/worker/db/schema.ts`). Production D1 was pushed by drizzle-kit

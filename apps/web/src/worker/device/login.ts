@@ -60,8 +60,6 @@ export const mintDeviceCredential = async (
 
   const credential = generateDeviceCredential();
   const deviceId = crypto.randomUUID();
-  // epoch seconds: the schema's mode "timestamp" is what every other reader of these columns expects
-  const nowSeconds = Math.floor(Date.now() / 1000);
   // the cap subquery inside the insert is the guard: two logins racing the twentieth slot both
   // count before either lands, and only the statement itself sees the other's row
   const inserted = await d1
@@ -75,7 +73,7 @@ export const mintDeviceCredential = async (
       args.userId,
       args.deviceName,
       await sha256Hex(credential),
-      nowSeconds,
+      Date.now(),
       args.userId,
       MAX_DEVICES_PER_ACCOUNT,
     )
