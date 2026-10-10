@@ -86,7 +86,7 @@ describe("AcpTurnMapper", () => {
   });
 
   it("carries a refusal's class on the error, and none when it has none", () => {
-    const [error] = mapper().failed("Claude is signed out on this Mac.", "auth");
+    const [error] = mapper().failed("Authentication required", "auth");
     expect(error).toMatchObject({ failure: "auth", type: "provider/error" });
     const [plain] = mapper().failed("adapter died");
     expect(plain).not.toHaveProperty("failure");

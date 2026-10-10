@@ -67,7 +67,7 @@ const replay = async (lines: readonly string[]): Promise<Replayed> => {
   replayed.events.push(
     ...(failure === null
       ? mapper.completed(stopReason)
-      : mapper.failed(failure.message, failure.failure)),
+      : mapper.failed(failure.adapterMessage, failure.failure)),
   );
   connection.close();
   return replayed;

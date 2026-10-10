@@ -1510,11 +1510,11 @@ to the END of its group.
 
 - **A TURN THE VENDOR REFUSED FOR THE PLAN'S USAGE LIMIT OR A SIGN-IN LEAVES THE
   QUEUE WHERE IT IS.** A refused prompt, a refused session open and an adapter
-  that died are each read once, into words and a class
+  that died are each read once, into a class
   (`auth | usage-limit | overloaded | context | other`, `providerFailureSchema`
-  in `@repo/domain/provider-event`), from what the adapter attaches: claude's
-  `errorKind`, the reserved -32000, and claude's own limit text when no kind
-  came with it (`readProviderError` in
+  in `@repo/domain/provider-event`) beside the adapter's own words, from what
+  the adapter attaches: claude's `errorKind`, the reserved -32000, and claude's
+  own limit text when no kind came with it (`readProviderError` in
   `packages/agent-runtime/src/acp/provider-error.ts`). A codex turn fails by
   the typed session failure its prompt's answer carries, whose category and
   actions are the class (`readSessionFailure`), because the runtime declares
@@ -1531,7 +1531,11 @@ to the END of its group.
   a log written before it parses without and a stale install strips. A
   settle whose turn failed `usage-limit` or `auth` does not drain
   (`failureHoldsQueue` in `apps/cli/src/server/threads/service.ts`): the next
-  send starts the oldest queued message first. Rejected: draining as for any
+  send starts the oldest queued message first. The words a person reads of
+  either are the host's, written beside that rule because they promise it
+  (`providerFailureMessage` in `apps/cli/src/server/threads/provider-failure.ts`),
+  into the one persisted `message` every client shows; the runtime carries
+  the adapter's words alone. Rejected: draining as for any
   failure, which spends every queued message on the same refusal and leaves
   nothing for after the limit resets or the sign-in.
 

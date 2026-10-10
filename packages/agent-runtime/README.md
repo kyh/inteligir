@@ -49,10 +49,9 @@ src/
                        # provider-event grammar, with the turn's item ids
     acp-permission-mapping.ts  # requestPermission ↔ @repo/domain's approval
                        # payload and resolution
-    provider-error.ts  # readProviderError: a refusal's class and words —
-                       # the signed-out or usage-limit sentence, else the
-                       # adapter's message; readSessionFailure: the same for
-                       # a typed failure on a prompt's answer
+    provider-error.ts  # readProviderError: a refusal's class and the
+                       # adapter's own message; readSessionFailure: the same
+                       # for a typed failure on a prompt's answer
   vocabulary/
     provider-event.ts  # ProviderEvent — the runtime's EMITTED grammar
   thread-shell-environment.ts  # stamps INTELIGIR_THREAD_ID onto a spawn's env
@@ -151,13 +150,14 @@ scripts/
   first, then the same allow/reject family; no offered option answers
   `cancelled`. An unrecognised tool kind falls back to the command subject,
   because the contract has no "other".
-- **What a user reads of a refusal is `readProviderError`.** The SDK
-  rejects a refused request with a `RequestError` (an Error carrying the
-  JSON-RPC `code`); the adapter's message is shown, except, with a harness in
-  hand, an auth refusal (`-32000`, or an `errorKind` naming a sign-in), which
-  says that harness is signed out, and a usage-limit refusal, which says the
-  plan's limit is reached. Either class, refusing the prompt or the session
-  open, leaves the thread's queued messages waiting for the next send.
+- **A refusal is read into a class and the adapter's own words, and the host
+  words it.** The SDK rejects a refused request with a `RequestError` (an
+  Error carrying the JSON-RPC `code`); `readProviderError` classes it (an auth
+  refusal is `-32000` or an `errorKind` naming a sign-in) and keeps the
+  adapter's message beside the class. What a person reads of an auth or a
+  usage-limit refusal, and that the queue waits behind one, is the host's
+  policy, so the host writes those words
+  (`apps/cli/src/server/threads/provider-failure.ts`), never this package.
 - **A codex turn fails by its typed failure, never by its stop reason.** A
   row with `typedFailures` (codex alone) declares codex-acp's typed session
   failures on `initialize`, and a prompt answered with one fails its turn
@@ -263,8 +263,7 @@ replaced rather than appended, a failed tool, codex's shell commands as
 stop but a cancel failing the turn, a prompt rejection failing through the
 grammar) and permission requests onto the pending-interaction contract;
 `provider-error.test.ts` pins how a refused prompt and a typed failure are
-classed and worded (signed out, the plan's usage limit, overload, context,
-other).
+classed (signed out, the plan's usage limit, overload, context, other).
 
 `src/acp/__tests__/acp-transcripts.test.ts` replays what the pinned adapters
 REALLY sent — `fixtures/<adapter>@<version>/*.ndjson`, one live turn per

@@ -583,15 +583,15 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
         prompt: promptBlocks(input),
         sessionId: session.providerThreadId,
       });
-      const failure = readSessionFailure(response._meta, session.adapter.harness);
+      const failure = readSessionFailure(response._meta);
       settle(
         failure === null
           ? mapper.completed(response.stopReason)
-          : mapper.failed(failure.message, failure.failure),
+          : mapper.failed(failure.adapterMessage, failure.failure),
       );
     } catch (error) {
-      const reading = readProviderError(error, session.adapter.harness);
-      settle(mapper.failed(reading.message, reading.failure));
+      const reading = readProviderError(error);
+      settle(mapper.failed(reading.adapterMessage, reading.failure));
     }
   };
 
@@ -650,7 +650,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
           return { loaded: true, providerThreadId };
         } catch (error) {
           options.onStderr?.(
-            `session/load failed for thread "${args.threadId}" (${describeProviderError(error, adapter.harness)}); starting fresh`,
+            `session/load failed for thread "${args.threadId}" (${describeProviderError(error)}); starting fresh`,
             args.threadId,
           );
           return await newSession(adapter);

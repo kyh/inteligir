@@ -7,7 +7,6 @@
 import { createHash } from "node:crypto";
 import { createAcpAgentRuntime } from "@repo/agent-runtime/acp/acp-runtime";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
-import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import type { HarnessModels } from "@repo/agent-runtime/acp/harness-registry";
 import { describeProviderError, readProviderError } from "@repo/agent-runtime/acp/provider-error";
 import type { AgentRuntime } from "@repo/agent-runtime/types";
@@ -29,6 +28,7 @@ import type { PendingInteraction } from "@repo/contract/local/threads/threads-sc
 import type { DebugLog } from "../debug-log";
 import { messageOf } from "../error-message";
 import { setMostRecent } from "../evict-oldest";
+import { providerFailureMessage } from "../threads/provider-failure";
 import { TurnDriverUnavailableError } from "../threads/turn-driver";
 import type {
   CreateTurnDriver,
@@ -54,6 +54,13 @@ const instructionsHash = (instructions: string): string =>
 
 const unshippedHarnessDetail = (id: string): string =>
   `This action runs on an agent this copy of inteligir does not have ("${id}") — update inteligir to continue it`;
+
+// the runtime reports a refusal in its adapter's words and the host words it for the person, so
+// the one persisted message names the harness this turn ran on.
+const wordFailure = (event: ProviderEvent, harness: HarnessId): ProviderEvent =>
+  event.type === "provider/error" && event.failure !== undefined
+    ? { ...event, message: providerFailureMessage(event.failure, harness, event.message) }
+    : event;
 
 type FileChangeProviderItem = Extract<
   Extract<ProviderEvent, { type: "item/started" }>["item"],
@@ -526,7 +533,7 @@ class AcpTurnDriver implements TurnDriver {
       state.writes.settle(this.vaultPathsOf(event.item.changes), event.item.status);
     }
 
-    const mapped = mapProviderEvent(event);
+    const mapped = mapProviderEvent(wordFailure(event, state.harness));
     if (mapped.kind === "dropped") {
       this.debug(`dropped provider event for thread ${threadId}: ${mapped.reason}`);
       return;
@@ -619,13 +626,10 @@ class AcpTurnDriver implements TurnDriver {
   // rows, so a session open refused for a sign-in holds the queue too.
   private failTurn(threadId: string, cause: unknown): void {
     const state = this.turnsByThreadId.get(threadId);
-    const reading = readProviderError(
-      cause,
-      state === undefined ? undefined : HARNESSES[state.harness],
-    );
+    const reading = readProviderError(cause);
     if (state === undefined) {
       this.debug(
-        `dispatch failure for thread ${threadId} after its turn settled: ${reading.message}`,
+        `dispatch failure for thread ${threadId} after its turn settled: ${reading.adapterMessage}`,
       );
       return;
     }
@@ -637,13 +641,13 @@ class AcpTurnDriver implements TurnDriver {
     events.push(
       {
         failure: reading.failure,
-        message: reading.message,
+        message: providerFailureMessage(reading.failure, state.harness, reading.adapterMessage),
         scope,
         threadId,
         type: "provider/error",
       },
       {
-        error: { message: reading.message },
+        error: { message: reading.adapterMessage },
         scope,
         status: "failed",
         threadId,

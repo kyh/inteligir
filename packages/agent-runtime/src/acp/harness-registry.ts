@@ -58,8 +58,8 @@ interface HarnessSessionMeta {
 export interface HarnessDefinition {
   id: HarnessId;
   displayName: string;
-  // the vendor's own app on this Mac, which keeps its sign-in in that same store: signing out
-  // here signs it out too.
+  // the vendor's own app, which keeps its sign-in in that same store: signing out here signs it
+  // out too.
   vendorApp: string;
   adapterEntry: string;
   // set on the adapter's env unless the host's env already names it

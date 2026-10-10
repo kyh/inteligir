@@ -6,18 +6,12 @@ import { describeProviderError, readProviderError, readSessionFailure } from "..
 const WIRE_AUTH_REQUIRED = { code: -32_000, message: "Authentication required" };
 
 describe("describeProviderError", () => {
-  it("names the harness for an auth refusal", () => {
-    expect(describeProviderError(RequestError.authRequired(), HARNESSES.claude)).toBe(
-      "Claude is signed out on this Mac.",
-    );
-  });
-
-  it("reads the adapter's own message without a harness, or for any other code", () => {
+  it("reads the adapter's own message, whatever the code", () => {
     expect(describeProviderError(RequestError.authRequired())).toBe("Authentication required");
     expect(describeProviderError(WIRE_AUTH_REQUIRED)).toBe("Authentication required");
-    expect(
-      describeProviderError(RequestError.internalError({ details: "boom" }), HARNESSES.codex),
-    ).toBe("Internal error");
+    expect(describeProviderError(RequestError.internalError({ details: "boom" }))).toBe(
+      "Internal error",
+    );
   });
 
   it("never prints an object as [object Object]", () => {
@@ -29,19 +23,18 @@ describe("describeProviderError", () => {
 describe("readProviderError", () => {
   it("reads claude's authentication_failed as signed out, whatever the code", () => {
     const refused = RequestError.internalError({ errorKind: "authentication_failed" }, "401");
-    expect(readProviderError(refused, HARNESSES.claude)).toEqual({
+    expect(readProviderError(refused)).toEqual({
+      adapterMessage: "Internal error: 401",
       failure: "auth",
-      message: "Claude is signed out on this Mac.",
     });
-    expect(readProviderError(RequestError.authRequired(), HARNESSES.claude).failure).toBe("auth");
+    expect(readProviderError(RequestError.authRequired()).failure).toBe("auth");
   });
 
-  it("reads claude's plan usage limit in the person's words", () => {
+  it("reads claude's plan usage limit by its errorKind", () => {
     const refused = RequestError.internalError({ errorKind: "rate_limit" });
-    expect(readProviderError(refused, HARNESSES.claude)).toEqual({
+    expect(readProviderError(refused)).toEqual({
+      adapterMessage: "Internal error",
       failure: "usage-limit",
-      message:
-        "Claude says you've reached your plan's usage limit. Your queued messages will wait until you send again.",
     });
   });
 
@@ -52,12 +45,12 @@ describe("readProviderError", () => {
 
   it("classes overload and context, and keeps the adapter's words for them", () => {
     const overloaded = RequestError.internalError({ errorKind: "overloaded" }, "Overloaded");
-    expect(readProviderError(overloaded, HARNESSES.claude)).toEqual({
+    expect(readProviderError(overloaded)).toEqual({
+      adapterMessage: "Internal error: Overloaded",
       failure: "overloaded",
-      message: "Internal error: Overloaded",
     });
     const context = RequestError.internalError({ errorKind: "max_output_tokens" }, "Too long");
-    expect(readProviderError(context, HARNESSES.claude).failure).toBe("context");
+    expect(readProviderError(context).failure).toBe("context");
   });
 
   it("reads anything it does not know as other, never a throw", () => {
@@ -66,16 +59,16 @@ describe("readProviderError", () => {
     );
     expect(readProviderError(RequestError.internalError("not an object")).failure).toBe("other");
     expect(readProviderError(new Error("stdout closed"))).toEqual({
+      adapterMessage: "stdout closed",
       failure: "other",
-      message: "stdout closed",
     });
   });
 
   it("reads a vault holding the vendor's settings as other, so the queue behind it drains", () => {
     const refused = new VaultConfigRefusedError(HARNESSES.codex, ".codex");
-    expect(readProviderError(refused, HARNESSES.codex)).toEqual({
+    expect(readProviderError(refused)).toEqual({
+      adapterMessage: refused.message,
       failure: "other",
-      message: refused.message,
     });
   });
 });
@@ -94,31 +87,24 @@ const answerMeta = (category: string, actions: readonly string[], severity = "er
 
 describe("readSessionFailure", () => {
   it("reads codex's access failure as signed out", () => {
-    expect(readSessionFailure(answerMeta("access", ["login"]), HARNESSES.codex)).toEqual({
+    expect(readSessionFailure(answerMeta("access", ["login"]))).toEqual({
+      adapterMessage: "Said",
       failure: "auth",
-      message: "ChatGPT is signed out on this Mac.",
     });
   });
 
   it("reads a limit a new session clears as the context, any other as the plan's", () => {
-    expect(readSessionFailure(answerMeta("limit", ["new_session"]), HARNESSES.codex)).toEqual({
-      failure: "context",
-      message: "Said",
-    });
+    expect(readSessionFailure(answerMeta("limit", ["new_session"]))?.failure).toBe("context");
     for (const actions of [[], ["retry"]]) {
-      expect(readSessionFailure(answerMeta("limit", actions), HARNESSES.codex)).toEqual({
-        failure: "usage-limit",
-        message:
-          "ChatGPT says you've reached your plan's usage limit. Your queued messages will wait until you send again.",
-      });
+      expect(readSessionFailure(answerMeta("limit", actions))?.failure).toBe("usage-limit");
     }
   });
 
   it("reads a service or connection failure as other, in codex's words", () => {
     for (const category of ["service", "connection", "request"]) {
-      expect(readSessionFailure(answerMeta(category, ["retry"]), HARNESSES.codex)).toEqual({
+      expect(readSessionFailure(answerMeta(category, ["retry"]))).toEqual({
+        adapterMessage: "Said",
         failure: "other",
-        message: "Said",
       });
     }
   });
