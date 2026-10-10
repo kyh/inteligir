@@ -28,21 +28,18 @@ import {
   VAULT_TMP_PREFIX,
 } from "@repo/notes/knowledge/vault-path";
 import {
-  contentHashHex,
   VAULT_ASSET_MAX_BYTES,
   VAULT_MAX_CONTENT_LENGTH,
 } from "@repo/contract/local/vault/vault-schema";
-import type {
-  VaultEntry,
-  VaultTreeResponse,
-  VaultWriteGuard,
-} from "@repo/contract/local/vault/vault-schema";
+import type { VaultEntry, VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import { errnoCode } from "../errno";
 import { pathContains } from "../path-containment";
 import { ABSENT_ENTRY, entryFingerprintAt, fingerprintOf } from "./vault-changes";
 import type { EntryFingerprint, VaultMutation } from "./vault-changes";
 import type { ReadStall } from "./slow-reads";
 import { resolveVaultPath } from "./vault-paths";
+import { judgeGuard } from "./write-guard";
+import type { GuardedWriteGuard, GuardedWriteResult } from "./write-guard";
 
 // VAULT_REFUSALS is total over this union, so a code added here without a wire class fails to
 // compile there.
@@ -219,18 +216,6 @@ export interface VaultServiceArgs {
 type ConditionalWriteResult =
   | { applied: true; path: string }
   | { applied: false; reason: "changed" | "not_found" };
-
-// the wire's guards less `overwrite`, which is `write`.
-type GuardedWriteGuard = Exclude<VaultWriteGuard, { kind: "overwrite" }>;
-
-type GuardedWriteResult =
-  | { applied: true; path: string }
-  | {
-      applied: false;
-      reason: "hash_mismatch";
-      current: { content: string; hash: string } | null;
-    }
-  | { applied: false; reason: "exists" };
 
 export interface VaultService {
   listTree: () => Promise<VaultTreeResponse>;
@@ -634,25 +619,12 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
         if (existing?.isDirectory() === true) {
           throw new VaultServiceError("conflict", `A folder already exists at ${relPath}`);
         }
-        if (guard.kind === "absent") {
-          if (existing !== null) {
-            return { applied: false, reason: "exists" };
-          }
-          await performAtomicWrite(relPath, absPath, content, null);
-          return { applied: true, path: relPath };
-        }
-        const current = existing === null ? null : await readTextOrNull(absPath);
-        if (current === null) {
-          // the base the client hashed no longer exists.
-          return { applied: false, current: null, reason: "hash_mismatch" };
-        }
-        const currentHash = await contentHashHex(current);
-        if (currentHash !== guard.hash) {
-          return {
-            applied: false,
-            current: { content: current, hash: currentHash },
-            reason: "hash_mismatch",
-          };
+        const refusal = await judgeGuard(
+          guard,
+          existing === null ? null : async () => await readTextOrNull(absPath),
+        );
+        if (refusal !== null) {
+          return refusal;
         }
         await performAtomicWrite(relPath, absPath, content, existing);
         return { applied: true, path: relPath };

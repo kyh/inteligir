@@ -37,10 +37,7 @@ import type {
   TurnChanges,
   UndoTurnResponse,
 } from "@repo/contract/local/threads/threads-schema";
-import {
-  DEFAULT_ATTACHMENT_LOCATION,
-  contentHashHex,
-} from "@repo/contract/local/vault/vault-schema";
+import { DEFAULT_ATTACHMENT_LOCATION } from "@repo/contract/local/vault/vault-schema";
 import type {
   VaultEntry,
   VaultPrefsResponse,
@@ -49,6 +46,7 @@ import type {
 } from "@repo/contract/local/vault/vault-schema";
 import type { ThreadStatus } from "@repo/domain/thread-status";
 import { boundAddressSchema } from "../server/__tests__/bound-address";
+import { guardRefusalError, judgeGuard } from "../server/vault/write-guard";
 
 // required so a command that reaches the wire without the bearer fails rather than passes.
 export const FIXTURE_SERVER_TOKEN = "fixture-server-token";
@@ -326,6 +324,19 @@ const foldersRouter = {
   }),
 };
 
+// the real index over the fixture vault, so a leaf sees the rows and the grammar the server's do
+const indexOf = (vault: Map<string, string>): KnowledgeIndex => {
+  const index = new KnowledgeIndex();
+  for (const [path, body] of vault) {
+    if (isDocPath(path)) {
+      index.setDoc(path, body);
+    } else {
+      index.setOther(path);
+    }
+  }
+  return index;
+};
+
 const knowledgeRouter = {
   backlinks: base.knowledge.backlinks.handler(({ context, input }) => ({
     backlinks: context.backlinks,
@@ -341,21 +352,12 @@ const knowledgeRouter = {
       input.limit ?? KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
     ),
   ),
-  // the real collector over an in-memory index of the fixture vault, so a leaf sees real rows
-  problems: base.knowledge.problems.handler(({ context, input }) => {
-    const index = new KnowledgeIndex();
-    for (const [path, body] of context.vault) {
-      if (isDocPath(path)) {
-        index.setDoc(path, body);
-      } else {
-        index.setOther(path);
-      }
-    }
-    return index.problems({
+  problems: base.knowledge.problems.handler(({ context, input }) =>
+    indexOf(context.vault).problems({
       includeConventionFolders: input.includeConventionFolders ?? false,
       limit: input.limit ?? KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
-    });
-  }),
+    }),
+  ),
   related: base.knowledge.related.handler(({ context, input }) => ({
     path: input.path,
     related: context.related.slice(0, input.limit),
@@ -369,13 +371,8 @@ const knowledgeRouter = {
   search: base.knowledge.search.handler(({ context, input }) => ({
     results: input.q.length === 0 ? [] : context.searchResults,
   })),
-  // the fixture vault's own bytes, the family by prefix: a tag is `[\w/-]`, so anything else ends it
   tagNotes: base.knowledge.tagNotes.handler(({ context, input }) => {
-    const family = new RegExp(`(^|\\s)#${input.tag}(?:/[\\w-]+)*(?![\\w/-])`, "iu");
-    const all = [...context.vault.entries()]
-      .filter(([, content]) => family.test(content))
-      .map(([path]) => path)
-      .toSorted();
+    const all = indexOf(context.vault).notesInTagFamily(input.tag);
     const offset = input.offset ?? 0;
     return {
       paths: all.slice(offset, offset + (input.limit ?? KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT)),
@@ -629,24 +626,19 @@ const vaultRouter = {
     name: "vault",
     root: "/fixture/vault",
   })),
-  // the real route's refusals, spelled as it spells them.
   write: base.vault.write.handler(async ({ context, input, errors }) => {
-    const current = context.vault.get(input.path);
-    const { guard } = input;
-    if (guard.kind === "absent" && current !== undefined) {
-      throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
-    }
     if (parentFolders(input.path).some((folder) => context.vault.has(folder))) {
       throw errors.CONFLICT({ message: `A file shadows a parent folder of ${input.path}` });
     }
-    if (guard.kind === "expected") {
-      const message = `${input.path} changed since the base this write was derived from`;
-      if (current === undefined) {
-        throw errors.CAS_MISMATCH({ data: {}, message });
-      }
-      const hash = await contentHashHex(current);
-      if (hash !== guard.hash) {
-        throw errors.CAS_MISMATCH({ data: { current: { content: current, hash } }, message });
+    const { guard } = input;
+    if (guard.kind !== "overwrite") {
+      const current = context.vault.get(input.path);
+      const refusal = await judgeGuard(
+        guard,
+        current === undefined ? null : async () => await Promise.resolve(current),
+      );
+      if (refusal !== null) {
+        throw guardRefusalError(errors, input.path, refusal);
       }
     }
     context.vault.set(input.path, input.content);
