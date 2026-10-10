@@ -13,11 +13,6 @@ import type {
 } from "@repo/domain/provider-event";
 import type { TurnScope } from "@repo/domain/thread-event-scope";
 
-export interface ProviderEventPlanStep {
-  step: string;
-  status: "pending" | "active" | "completed";
-}
-
 interface ProviderEventCommandExecutionItem {
   type: "commandExecution";
   id: string;
@@ -50,7 +45,7 @@ export type ProviderEventItem =
   | ProviderEventCommandExecutionItem
   | ProviderEventFileChangeItem
   | ProviderEventToolCallItem
-  | { type: "reasoning"; id: string; summary: string[]; content: string[] };
+  | { type: "reasoning"; id: string; text: string };
 
 interface ProviderTurnEventData {
   scope: TurnScope;
@@ -66,17 +61,6 @@ interface ProviderTurnCompletedEvent extends ProviderTurnEventData {
   type: "turn/completed";
   status: ThreadEventTurnStatus;
   error?: { message: string };
-}
-
-interface ProviderToolCallProgressEvent extends ProviderTurnEventData {
-  type: "item/toolCall/progress";
-  itemId: string;
-  message: string;
-}
-
-interface ProviderTurnPlanUpdatedEvent extends ProviderTurnEventData {
-  type: "turn/plan/updated";
-  plan: ProviderEventPlanStep[];
 }
 
 interface ProviderErrorEvent extends ProviderTurnEventData {
@@ -99,7 +83,5 @@ export type ProviderEvent =
   | ({ type: "item/completed"; item: ProviderEventItem } & ProviderTurnEventData)
   | ({ type: "item/agentMessage/delta" } & ItemDeltaEventData)
   | ({ type: "item/reasoning/textDelta" } & ItemDeltaEventData)
-  | ProviderToolCallProgressEvent
-  | ProviderTurnPlanUpdatedEvent
   | ProviderErrorEvent
   | ProviderNoticeEvent;

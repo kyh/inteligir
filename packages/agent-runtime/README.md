@@ -78,10 +78,11 @@ scripts/
   parsed.** Types only, and no wider than the mapper: a kind or field no code
   here produces is a branch every consumer would carry for nothing. The server
   narrows it onto `ThreadEvent` in `@repo/domain` in
-  `apps/cli/src/server/agents/event-mapping.ts`, and a kind with no persisted
-  counterpart (a plan update, a tool's progress, a notice) is dropped with a
-  reason, never re-shaped. `CONTEXT.md` "event means four things" holds the four
-  layers apart.
+  `apps/cli/src/server/agents/event-mapping.ts`, every kind but a notice, which
+  only the agent log reads. An update the grammar carries nothing of (a plan, a
+  tool call still running, a usage count) maps to no event, and `onActivity`
+  tells the host the session spoke, so its idle clock still hears a long tool
+  call. `CONTEXT.md` "event means four things" holds the four layers apart.
 - **A harness is a data row.** `HARNESSES` names the adapter entry resolved
   through `require.resolve`, the vendor executable (`vendorExecutable(env)`:
   the override the adapter honours, `CLAUDE_CODE_EXECUTABLE` or `CODEX_PATH`,
@@ -144,8 +145,7 @@ scripts/
   falls back to for its own warnings when the client advertises no notices:
   `Warning: …` with no `messageId`, which every chunk the model writes carries.
   A warning the model wrote itself stays in its message. The server has no row
-  for a notice yet, so it drops it with the notice's text as the reason, into
-  the agent log.
+  for a notice yet, so it writes the notice's text to the agent log alone.
 - **A permission answer is one of the agent's own option ids.** The exact kind
   first, then the same allow/reject family; no offered option answers
   `cancelled`. An unrecognised tool kind falls back to the command subject,
@@ -256,7 +256,8 @@ pnpm --filter @repo/agent-runtime test
 
 `src/acp/__tests__/acp-mapping.test.ts` pins the pure halves: session
 notifications onto the provider-event grammar (a message or a reasoning item
-per spoken run, split where the messageId changes or a tool call opens, plans, edit-kind calls as `fileChange`, content
+per spoken run, split where the messageId changes or a tool call opens, a plan
+mapping to nothing, edit-kind calls as `fileChange`, content
 replaced rather than appended, a failed tool, codex's shell commands as
 `commandExecution` with their raw output, notices and codex's warning chunk as
 `provider/notice`, cancellation interrupting open items, every non-`end_turn`

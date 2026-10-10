@@ -1,11 +1,54 @@
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
+import type { ProviderEvent } from "../../vocabulary/provider-event";
 import { createAcpAgentRuntime, ThreadClosedError } from "../acp-runtime";
 import type { AcpAgentRuntimeOptions } from "../acp-runtime";
 
 const FAKE_AGENT = fileURLToPath(new URL("../../test-support/fake-acp-agent.mjs", import.meta.url));
+
+describe("a running turn's session", () => {
+  it("tells the host of every update it sends, one that maps to no event included", async () => {
+    const events: ProviderEvent[] = [];
+    const activity: string[] = [];
+    const runtime = createAcpAgentRuntime({
+      onActivity: (threadId) => {
+        activity.push(threadId);
+      },
+      onEvent: (event) => {
+        events.push(event);
+      },
+      spawnAdapter: (_harness, env) =>
+        spawn(process.execPath, [FAKE_AGENT], {
+          detached: true,
+          env: { ...env, FAKE_ACP_MODE: "toolProgress" },
+          stdio: ["pipe", "pipe", "pipe"],
+        }),
+      workspacePath: process.cwd(),
+    });
+    onTestFinished(async () => {
+      await runtime.shutdown();
+    });
+    await runtime.startThread({ providerId: "codex", threadId: "thr_1" });
+    await runtime.runTurn({
+      input: [{ text: "find it", type: "text" }],
+      threadId: "thr_1",
+      turnId: "turn_1",
+    });
+    await vi.waitFor(() => {
+      expect(events.at(-1)?.type).toBe("turn/completed");
+    });
+
+    expect(activity).toEqual(["thr_1", "thr_1", "thr_1"]);
+    expect(events.map((event) => event.type)).toEqual([
+      "turn/started",
+      "item/started",
+      "item/completed",
+      "turn/completed",
+    ]);
+  });
+});
 
 describe("closing a thread", () => {
   it("while an open awaits the previous child's close, leaves no child spawned", async () => {

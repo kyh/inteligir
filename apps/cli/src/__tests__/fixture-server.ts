@@ -99,7 +99,7 @@ export interface FixtureState {
   nextCreatedThreadId: string;
 }
 
-export const EMPTY_TIMELINE: ThreadTimeline = { maxSequence: 0, rows: [], tokenUsage: null };
+export const EMPTY_TIMELINE: ThreadTimeline = { maxSequence: 0, rows: [] };
 
 export const makeThread = (overrides: Partial<Thread> & Pick<Thread, "id">): Thread => ({
   activeTurnId: null,

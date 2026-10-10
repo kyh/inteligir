@@ -10,9 +10,11 @@ import type { ThreadDisplayItem } from "./thread-projection";
 // the rows a running turn draws before they settle, shaped as the settled rows they become
 export type LiveItem = Extract<ThreadDisplayItem, { kind: "agent" | "reasoning" }>;
 
-type Streaming =
-  | { kind: "agent"; turnId: string; text: string }
-  | { kind: "reasoning"; turnId: string; summary: string; content: string };
+interface Streaming {
+  kind: LiveItem["kind"];
+  turnId: string;
+  text: string;
+}
 
 export interface LiveTurns {
   // rows in log order, as a page landed them
@@ -25,13 +27,10 @@ export interface LiveTurns {
 
 const NONE: readonly LiveItem[] = [];
 
-// the settled reasoning row shows the summary when there is one, so the live row does too
+// the settled reasoning row is trimmed, so the live one is too
 const liveItem = (id: string, item: Streaming): LiveItem | null => {
-  if (item.kind === "agent") {
-    return item.text === "" ? null : { id, kind: "agent", text: item.text };
-  }
-  const text = (item.summary === "" ? item.content : item.summary).trim();
-  return text === "" ? null : { id, kind: "reasoning", text };
+  const text = item.kind === "reasoning" ? item.text.trim() : item.text;
+  return text === "" ? null : { id, kind: item.kind, text };
 };
 
 const started = (event: Extract<ThreadEvent, { type: "item/started" }>): Streaming | null => {
@@ -41,35 +40,19 @@ const started = (event: Extract<ThreadEvent, { type: "item/started" }>): Streami
     return { kind: "agent", text: item.text, turnId };
   }
   if (item.type === "reasoning") {
-    return {
-      content: item.content.join("\n\n"),
-      kind: "reasoning",
-      summary: item.summary.join("\n\n"),
-      turnId,
-    };
+    return { kind: "reasoning", text: item.text, turnId };
   }
   return null;
 };
 
+const DELTA_KIND = {
+  "item/agentMessage/delta": "agent",
+  "item/reasoning/textDelta": "reasoning",
+} satisfies Record<ThreadEventDelta["type"], LiveItem["kind"]>;
+
 // the next state of one item for one delta, or null when the delta is not this item's to fold
-const folded = (item: Streaming, event: ThreadEventDelta): Streaming | null => {
-  switch (event.type) {
-    case "item/agentMessage/delta": {
-      return item.kind === "agent" ? { ...item, text: item.text + event.delta } : null;
-    }
-    case "item/reasoning/summaryTextDelta": {
-      return item.kind === "reasoning" ? { ...item, summary: item.summary + event.delta } : null;
-    }
-    case "item/reasoning/textDelta": {
-      return item.kind === "reasoning" ? { ...item, content: item.content + event.delta } : null;
-    }
-    case "item/commandExecution/outputDelta":
-    case "item/plan/delta": {
-      return null;
-    }
-    // no default
-  }
-};
+const folded = (item: Streaming, event: ThreadEventDelta): Streaming | null =>
+  DELTA_KIND[event.type] === item.kind ? { ...item, text: item.text + event.delta } : null;
 
 export const createLiveTurns = (): LiveTurns => {
   // per thread, per item id, in the order the items started

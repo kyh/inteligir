@@ -25,6 +25,10 @@ export interface AgentRuntimeOptions {
 
   onEvent: (event: ProviderEvent) => void;
 
+  // every update the running turn's session sends, one that maps to no event included: a tool call
+  // still running speaks only so, and the host's idle clock must hear it.
+  onActivity?: (threadId: string) => void;
+
   onInteractiveRequest?: (
     request: PendingInteractionCreate,
   ) => Promise<PendingInteractionResolution>;

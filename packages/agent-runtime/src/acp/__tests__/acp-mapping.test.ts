@@ -106,12 +106,7 @@ describe("AcpTurnMapper", () => {
     expect(thought("options").map((event) => event.type)).toEqual(["item/reasoning/textDelta"]);
     expect(m.completed("end_turn")).toContainEqual(
       expect.objectContaining({
-        item: {
-          content: ["weigh options"],
-          id: "turn_1:reasoning:1",
-          summary: [],
-          type: "reasoning",
-        },
+        item: { id: "turn_1:reasoning:1", text: "weigh options", type: "reasoning" },
         type: "item/completed",
       }),
     );
@@ -220,7 +215,7 @@ describe("AcpTurnMapper", () => {
       "item/completed",
       "item/started",
     ]);
-    expect(opened[0]).toMatchObject({ item: { content: ["hmm"], id: "turn_1:reasoning:1" } });
+    expect(opened[0]).toMatchObject({ item: { id: "turn_1:reasoning:1", text: "hmm" } });
     expect(opened[1]).toMatchObject({ item: { id: "turn_1:message:1", text: "Reading." } });
     m.update({
       sessionId: "sess_1",
@@ -245,25 +240,47 @@ describe("AcpTurnMapper", () => {
     );
   });
 
-  it("maps a plan's entries onto steps, in_progress as active", () => {
-    const [event] = mapper().update({
+  it("maps a plan to nothing", () => {
+    const events = mapper().update({
       sessionId: "sess_1",
       update: {
-        entries: [
-          { content: "read note.md", priority: "high", status: "completed" },
-          { content: "summarize it", priority: "medium", status: "in_progress" },
-          { content: "report back", priority: "low", status: "pending" },
-        ],
+        entries: [{ content: "read note.md", priority: "high", status: "in_progress" }],
         sessionUpdate: "plan",
       },
     });
-    expect(event).toMatchObject({
-      plan: [
-        { status: "completed", step: "read note.md" },
-        { status: "active", step: "summarize it" },
-        { status: "pending", step: "report back" },
-      ],
-      type: "turn/plan/updated",
+    expect(events).toEqual([]);
+  });
+
+  it("emits nothing for a call still running, and lands its update on the item it completes as", () => {
+    const m = mapper();
+    m.update({
+      sessionId: "sess_1",
+      update: {
+        kind: "search",
+        sessionUpdate: "tool_call",
+        status: "pending",
+        title: "Search",
+        toolCallId: "call_1",
+      },
+    });
+    const running = m.update({
+      sessionId: "sess_1",
+      update: {
+        rawInput: { query: "inbox" },
+        sessionUpdate: "tool_call_update",
+        status: "in_progress",
+        title: "Search for inbox",
+        toolCallId: "call_1",
+      },
+    });
+    expect(running).toEqual([]);
+    const [settled] = m.update({
+      sessionId: "sess_1",
+      update: { sessionUpdate: "tool_call_update", status: "completed", toolCallId: "call_1" },
+    });
+    expect(settled).toMatchObject({
+      item: { arguments: { query: "inbox" }, tool: "Search for inbox", type: "toolCall" },
+      type: "item/completed",
     });
   });
 

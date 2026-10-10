@@ -1,5 +1,6 @@
 // FAKE_ACP_MODE: message | fileChange (writes FAKE_ACP_FILE) | approval | promptEcho | silent |
 // slow (a command left running until session/cancel, then the cancelled stop the real ones answer) |
+// toolProgress (a tool call that reports itself running before it completes) |
 // authOnSessionOpen | authOnPrompt (a signed-out vendor, refusing at the step the real ones do;
 // authOnSessionOpen lets a session open once FAKE_ACP_AUTH_FILE exists) | signIn (authenticate
 // writes FAKE_ACP_AUTH_FILE) | signInRefused (authenticate refuses, as a login the user abandoned) |
@@ -136,6 +137,26 @@ const prompt = async (client, params) => {
         sessionUpdate: "agent_message_chunk",
       });
     }
+    return { stopReason: "end_turn" };
+  }
+  if (mode === "toolProgress") {
+    await update({
+      kind: "search",
+      sessionUpdate: "tool_call",
+      status: "pending",
+      title: "Search",
+      toolCallId: "call_search",
+    });
+    await update({
+      sessionUpdate: "tool_call_update",
+      status: "in_progress",
+      toolCallId: "call_search",
+    });
+    await update({
+      sessionUpdate: "tool_call_update",
+      status: "completed",
+      toolCallId: "call_search",
+    });
     return { stopReason: "end_turn" };
   }
   if (mode === "fileChange" && filePath !== null) {

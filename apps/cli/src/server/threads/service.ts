@@ -268,16 +268,12 @@ const lifecycleEventFor = (event: ThreadEvent): ThreadLifecycleEvent | null => {
     }
     case "client/turn/requested":
     case "item/agentMessage/delta":
-    case "item/commandExecution/outputDelta":
     case "item/completed":
-    case "item/plan/delta":
-    case "item/reasoning/summaryTextDelta":
     case "item/reasoning/textDelta":
     case "item/started":
     case "provider/error":
     case "thread/archived":
-    case "thread/meta":
-    case "thread/tokenUsage/updated": {
+    case "thread/meta": {
       return null;
     }
     // no default

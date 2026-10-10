@@ -358,6 +358,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
 
   const sessionUpdate = (current: AcpSession | undefined, params: SessionNotification): void => {
     if (current?.providerThreadId === params.sessionId && current.turn !== null) {
+      options.onActivity?.(current.adapter.threadId);
       emit(current.turn.mapper.update(params));
     }
   };

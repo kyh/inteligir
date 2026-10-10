@@ -19,21 +19,6 @@ exports[`claude-agent-acp@0.81.0 > replays command onto the provider grammar 1`]
       "type": "item/started",
     },
     {
-      "itemId": "toolu_01Tw6PjYTKL7fSDEzn2kx8tH",
-      "message": "ls",
-      "type": "item/toolCall/progress",
-    },
-    {
-      "itemId": "toolu_01Tw6PjYTKL7fSDEzn2kx8tH",
-      "message": "ls",
-      "type": "item/toolCall/progress",
-    },
-    {
-      "itemId": "toolu_01Tw6PjYTKL7fSDEzn2kx8tH",
-      "message": "ls",
-      "type": "item/toolCall/progress",
-    },
-    {
       "item": {
         "aggregatedOutput": "\`\`\`console
 a.md
@@ -125,16 +110,6 @@ exports[`claude-agent-acp@0.81.0 > replays edit onto the provider grammar 1`] = 
       "type": "item/started",
     },
     {
-      "itemId": "toolu_01Tu3swHLfdNedtbMYueiE8r",
-      "message": "Write /vault/hello.md",
-      "type": "item/toolCall/progress",
-    },
-    {
-      "itemId": "toolu_01Tu3swHLfdNedtbMYueiE8r",
-      "message": "Write /vault/hello.md",
-      "type": "item/toolCall/progress",
-    },
-    {
       "item": {
         "arguments": {},
         "id": "toolu_014E4egGfTaAc2Px2YDYiJUh",
@@ -143,11 +118,6 @@ exports[`claude-agent-acp@0.81.0 > replays edit onto the provider grammar 1`] = 
         "type": "toolCall",
       },
       "type": "item/started",
-    },
-    {
-      "itemId": "toolu_01Tu3swHLfdNedtbMYueiE8r",
-      "message": "Write /vault/hello.md",
-      "type": "item/toolCall/progress",
     },
     {
       "item": {
@@ -163,16 +133,6 @@ exports[`claude-agent-acp@0.81.0 > replays edit onto the provider grammar 1`] = 
         "type": "fileChange",
       },
       "type": "item/completed",
-    },
-    {
-      "itemId": "toolu_014E4egGfTaAc2Px2YDYiJUh",
-      "message": "Read /vault/note.md",
-      "type": "item/toolCall/progress",
-    },
-    {
-      "itemId": "toolu_014E4egGfTaAc2Px2YDYiJUh",
-      "message": "Read /vault/note.md",
-      "type": "item/toolCall/progress",
     },
     {
       "item": {
@@ -200,26 +160,6 @@ exports[`claude-agent-acp@0.81.0 > replays edit onto the provider grammar 1`] = 
         "type": "fileChange",
       },
       "type": "item/started",
-    },
-    {
-      "itemId": "toolu_01RZagn7HdyiZPaFa2psPQN8",
-      "message": "Edit /vault/note.md",
-      "type": "item/toolCall/progress",
-    },
-    {
-      "itemId": "toolu_01RZagn7HdyiZPaFa2psPQN8",
-      "message": "Edit /vault/note.md",
-      "type": "item/toolCall/progress",
-    },
-    {
-      "itemId": "toolu_01RZagn7HdyiZPaFa2psPQN8",
-      "message": "Edit /vault/note.md",
-      "type": "item/toolCall/progress",
-    },
-    {
-      "itemId": "toolu_01RZagn7HdyiZPaFa2psPQN8",
-      "message": "Edit /vault/note.md",
-      "type": "item/toolCall/progress",
     },
     {
       "item": {
@@ -297,16 +237,6 @@ exports[`claude-agent-acp@0.81.0 > replays failed-command onto the provider gram
       "type": "item/started",
     },
     {
-      "itemId": "toolu_01XUDYcwND6ZkzDDCtot2mGe",
-      "message": "cat missing-file.md",
-      "type": "item/toolCall/progress",
-    },
-    {
-      "itemId": "toolu_01XUDYcwND6ZkzDDCtot2mGe",
-      "message": "cat missing-file.md",
-      "type": "item/toolCall/progress",
-    },
-    {
       "item": {
         "aggregatedOutput": "\`\`\`
 Exit code 1
@@ -377,21 +307,6 @@ exports[`claude-agent-acp@0.81.0 > replays plan onto the provider grammar 1`] = 
       "type": "item/started",
     },
     {
-      "itemId": "toolu_01AqCHfey3TGN1WybhnMXSBX",
-      "message": "ToolSearch",
-      "type": "item/toolCall/progress",
-    },
-    {
-      "itemId": "toolu_01AqCHfey3TGN1WybhnMXSBX",
-      "message": "ToolSearch",
-      "type": "item/toolCall/progress",
-    },
-    {
-      "itemId": "toolu_01AqCHfey3TGN1WybhnMXSBX",
-      "message": "ToolSearch",
-      "type": "item/toolCall/progress",
-    },
-    {
       "item": {
         "arguments": {
           "max_results": 5,
@@ -414,16 +329,6 @@ exports[`claude-agent-acp@0.81.0 > replays plan onto the provider grammar 1`] = 
         "type": "toolCall",
       },
       "type": "item/started",
-    },
-    {
-      "itemId": "toolu_01DJMy4KWzxbEEurpBcAJsnm",
-      "message": "Read /vault/note.md",
-      "type": "item/toolCall/progress",
-    },
-    {
-      "itemId": "toolu_01DJMy4KWzxbEEurpBcAJsnm",
-      "message": "Read /vault/note.md",
-      "type": "item/toolCall/progress",
     },
     {
       "item": {
@@ -669,9 +574,8 @@ exports[`codex-acp@1.13.0 > replays edit onto the provider grammar 1`] = `
     },
     {
       "item": {
-        "content": [],
         "id": "turn_replay:reasoning:1",
-        "summary": [],
+        "text": "",
         "type": "reasoning",
       },
       "type": "item/started",
@@ -686,13 +590,10 @@ exports[`codex-acp@1.13.0 > replays edit onto the provider grammar 1`] = `
     },
     {
       "item": {
-        "content": [
-          "
+        "id": "turn_replay:reasoning:1",
+        "text": "
 
 **Reading draft note**",
-        ],
-        "id": "turn_replay:reasoning:1",
-        "summary": [],
         "type": "reasoning",
       },
       "type": "item/completed",
@@ -729,9 +630,8 @@ exports[`codex-acp@1.13.0 > replays edit onto the provider grammar 1`] = `
     },
     {
       "item": {
-        "content": [],
         "id": "turn_replay:reasoning:2",
-        "summary": [],
+        "text": "",
         "type": "reasoning",
       },
       "type": "item/started",
@@ -746,13 +646,10 @@ exports[`codex-acp@1.13.0 > replays edit onto the provider grammar 1`] = `
     },
     {
       "item": {
-        "content": [
-          "
+        "id": "turn_replay:reasoning:2",
+        "text": "
 
 **Awaiting file contents**",
-        ],
-        "id": "turn_replay:reasoning:2",
-        "summary": [],
         "type": "reasoning",
       },
       "type": "item/completed",
@@ -1123,9 +1020,8 @@ exports[`codex-acp@1.13.0 > replays plan onto the provider grammar 1`] = `
     },
     {
       "item": {
-        "content": [],
         "id": "turn_replay:reasoning:1",
-        "summary": [],
+        "text": "",
         "type": "reasoning",
       },
       "type": "item/started",
@@ -1140,22 +1036,18 @@ exports[`codex-acp@1.13.0 > replays plan onto the provider grammar 1`] = `
     },
     {
       "item": {
-        "content": [
-          "
+        "id": "turn_replay:reasoning:1",
+        "text": "
 
 **Checking planning options first.**",
-        ],
-        "id": "turn_replay:reasoning:1",
-        "summary": [],
         "type": "reasoning",
       },
       "type": "item/completed",
     },
     {
       "item": {
-        "content": [],
         "id": "turn_replay:reasoning:2",
-        "summary": [],
+        "text": "",
         "type": "reasoning",
       },
       "type": "item/started",
@@ -1170,13 +1062,10 @@ exports[`codex-acp@1.13.0 > replays plan onto the provider grammar 1`] = `
     },
     {
       "item": {
-        "content": [
-          "
+        "id": "turn_replay:reasoning:2",
+        "text": "
 
 **Reading the note**",
-        ],
-        "id": "turn_replay:reasoning:2",
-        "summary": [],
         "type": "reasoning",
       },
       "type": "item/completed",

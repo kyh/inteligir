@@ -38,18 +38,16 @@ src/
                          # status, not a side field, and `stopping` has no
                          # run.started cell: a queued turn cannot reactivate it
   provider-event.ts      # the PERSISTED ThreadEvent grammar, despite the name:
-                         # seven item kinds, fourteen event types, each with its
-                         # own scope. `client/turn/requested` carries the
+                         # five item kinds, ten event types, each with its own
+                         # scope, and nothing the mapper or the host does not
+                         # produce. `client/turn/requested` carries the
                          # optional viewContext and contextPaths beside bb's
                          # `text`, which stays exactly what the user typed.
                          # `thread/meta` (title, origin note, harness) and
                          # `thread/archived` are local: the thread's own facts,
                          # riding its log to every device
                          # `mergeAdjacentDeltas` stores one item's adjacent
-                         # deltas as one row, a reset opening a new run and a
-                         # caller's cap bounding each. `settledReasoningText`
-                         # is the one reading of a settled thought both the
-                         # desktop's fold and the phone's run
+                         # deltas as one row, a caller's cap bounding each
   thread-event-scope.ts  # thread | turn scope, each its own schema so an
                          # event type names the one it takes (anything looser
                          # than turn scope states why beside its member)

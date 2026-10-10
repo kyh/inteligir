@@ -15,17 +15,19 @@ const started = (threadId: string, turnId: string, id: string): ThreadEvent => (
 });
 
 const thinking = (threadId: string, turnId: string, id: string): ThreadEvent => ({
-  item: { content: [], id, summary: [], type: "reasoning" },
+  item: { id, text: "", type: "reasoning" },
   scope: turnScope(turnId),
   threadId,
   type: "item/started",
 });
 
-const thought = (
-  type: "item/reasoning/summaryTextDelta" | "item/reasoning/textDelta",
-  itemId: string,
-  delta: string,
-): ThreadEvent => ({ delta, itemId, scope: turnScope("t1"), threadId: "thr_x", type });
+const thought = (itemId: string, delta: string): ThreadEvent => ({
+  delta,
+  itemId,
+  scope: turnScope("t1"),
+  threadId: "thr_x",
+  type: "item/reasoning/textDelta",
+});
 
 const turnCompleted = (threadId: string, turnId: string): ThreadEvent => ({
   scope: turnScope(turnId),
@@ -44,20 +46,17 @@ describe("a running turn's live rows", () => {
     expect(live.snapshot("thr_x")).toEqual([{ id: "m1", kind: "agent", text: "Hello" }]);
   });
 
-  it("show the reasoning summary as the settled row does, else the thought itself", () => {
+  it("show a thought trimmed, as the settled row does, and fold only its own kind of delta", () => {
     const live = createLiveTurns();
     live.apply([
       thinking("thr_x", "t1", "r1"),
-      thought("item/reasoning/textDelta", "r1", "weighing it"),
+      thought("r1", "weighing it\n"),
+      agentDelta("thr_x", "t1", "r1", "not a thought"),
       thinking("thr_x", "t1", "r2"),
-      thought("item/reasoning/textDelta", "r2", "raw"),
-      thought("item/reasoning/summaryTextDelta", "r2", "Summary"),
+      thought("r2", "  "),
     ]);
 
-    expect(live.snapshot("thr_x")).toEqual([
-      { id: "r1", kind: "reasoning", text: "weighing it" },
-      { id: "r2", kind: "reasoning", text: "Summary" },
-    ]);
+    expect(live.snapshot("thr_x")).toEqual([{ id: "r1", kind: "reasoning", text: "weighing it" }]);
   });
 
   it("give an item up to its item/completed, and ignore a delta for it after", () => {

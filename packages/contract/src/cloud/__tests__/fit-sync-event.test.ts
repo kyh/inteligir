@@ -51,12 +51,6 @@ const overCap = {
     threadId: THREAD_ID,
     type: "item/completed",
   },
-  "a plan's text": {
-    item: { id: "item_p", text: big(10_000), type: "plan" },
-    scope,
-    threadId: THREAD_ID,
-    type: "item/started",
-  },
   "a provider error": {
     detail: big(8000),
     message: big(3000),
@@ -64,24 +58,18 @@ const overCap = {
     threadId: THREAD_ID,
     type: "provider/error",
   },
-  "a reasoning's parts": {
-    item: {
-      content: [big(3000), big(3000), big(3000)],
-      id: "item_r",
-      summary: [big(2000)],
-      type: "reasoning",
-    },
+  "a reasoning's text": {
+    item: { id: "item_r", text: big(10_000), type: "reasoning" },
     scope,
     threadId: THREAD_ID,
-    type: "item/completed",
+    type: "item/started",
   },
   "a streamed delta": {
     delta: big(10_000),
-    itemId: "item_c",
-    reset: true,
+    itemId: "item_r",
     scope,
     threadId: THREAD_ID,
-    type: "item/commandExecution/outputDelta",
+    type: "item/reasoning/textDelta",
   },
   "a tool call's arguments and structured result": {
     item: {
@@ -114,13 +102,11 @@ const overCap = {
 const PAYLOAD_KEYS = new Set([
   "aggregatedOutput",
   "arguments",
-  "content",
   "delta",
   "detail",
   "diff",
   "message",
   "result",
-  "summary",
   "text",
 ]);
 

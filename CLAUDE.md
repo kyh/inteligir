@@ -1344,7 +1344,12 @@ to the END of its group.
 - **THE PROVIDER GRAMMAR IS WHAT THE ACP MAPPER EMITS, AND THE MAPPER IS PINNED
   TO THE ADAPTERS' REAL WIRE** (owner decision, reversing the kept-wide bb
   vocabulary). `ProviderEvent` carries exactly what `AcpTurnMapper` constructs,
-  since a kind nothing produces is a branch every consumer carries. The mapper
+  since a kind nothing produces is a branch every consumer carries. The rule
+  holds for the persisted `ThreadEvent` too: it carries what the mapper emits
+  as the host narrows it, plus the host's own facts, so an update no adapter
+  sends (a plan) or one the timeline would only drop (a tool call still
+  running) maps to nothing, and the runtime's `onActivity` keeps the idle
+  watchdog hearing it. The mapper
   is tested against turns the pinned adapters really sent
   (`packages/agent-runtime/src/acp/__tests__/fixtures/<adapter>@<version>/`),
   because a fake agent encodes what the adapters were believed to send. A

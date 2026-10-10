@@ -145,8 +145,9 @@ state.
   grammars are near-twins with the same file name and are not the same set —
   the runtime constructs its events and never parses them, and
   `apps/cli/src/server/agents/event-mapping.ts` is the one place that narrows onto
-  the persisted grammar. A provider event with no persisted counterpart is
-  logged and dropped, never invented into a divergent shape.
+  the persisted grammar. The one provider event with no persisted counterpart,
+  an adapter's notice, is written to the agent log alone, never invented into
+  a divergent shape.
 - **sync event** — the cloud's unit of transfer
   (`@repo/contract/cloud/sync/sync-schema`, `syncEventInputSchema`). Its body is
   `z.json()` on purpose: the Worker merges, dedupes and orders these WITHOUT

@@ -126,7 +126,6 @@ const SHOW_TIMELINE: ThreadTimeline = {
       viewContext: null,
     },
   ],
-  tokenUsage: null,
 };
 
 const COMMAND_APPROVAL: ApprovalPendingInteractionPayload = {

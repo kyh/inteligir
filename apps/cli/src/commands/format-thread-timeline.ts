@@ -41,9 +41,6 @@ const formatWorkRow = (row: TimelineWorkRow): string[] => {
     case "reasoning": {
       return row.text.length === 0 ? [] : [`thinking: ${snippet(row.text)}`];
     }
-    case "plan": {
-      return row.text.length === 0 ? [] : [`plan: ${snippet(row.text)}`];
-    }
     // no default
   }
 };
@@ -70,13 +67,8 @@ const formatRow = (row: TimelineRow): string[] => {
   }
 };
 
-export const formatThreadTimeline = (timeline: ThreadTimeline): string => {
-  const blocks = timeline.rows.map((row) => formatRow(row).join("\n"));
-  if (timeline.tokenUsage !== null) {
-    const { total } = timeline.tokenUsage;
-    blocks.push(
-      `tokens: ${total.totalTokens} total (${total.inputTokens} in, ${total.outputTokens} out)`,
-    );
-  }
-  return blocks.filter((block) => block.length > 0).join("\n\n");
-};
+export const formatThreadTimeline = (timeline: ThreadTimeline): string =>
+  timeline.rows
+    .map((row) => formatRow(row).join("\n"))
+    .filter((block) => block.length > 0)
+    .join("\n\n");

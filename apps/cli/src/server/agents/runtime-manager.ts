@@ -45,6 +45,7 @@ import { toShellEnv } from "./agent-shell-env";
 import type { AgentSessionFacts } from "./agent-shell-env";
 import { ProviderEventCoalescer } from "./event-coalescer";
 import { mapProviderEvent } from "./event-mapping";
+import type { PersistedProviderEvent } from "./event-mapping";
 import { createInteractionWaiters } from "./interaction-waiters";
 import type { InteractionWaiters } from "./interaction-waiters";
 import { turnPromptInput } from "./view-context-prompt";
@@ -57,7 +58,7 @@ const unshippedHarnessDetail = (id: string): string =>
 
 // the runtime reports a refusal in its adapter's words and the host words it for the person, so
 // the one persisted message names the harness this turn ran on.
-const wordFailure = (event: ProviderEvent, harness: HarnessId): ProviderEvent =>
+const wordFailure = (event: PersistedProviderEvent, harness: HarnessId): PersistedProviderEvent =>
   event.type === "provider/error" && event.failure !== undefined
     ? { ...event, message: providerFailureMessage(event.failure, harness, event.message) }
     : event;
@@ -192,6 +193,9 @@ class AcpTurnDriver implements TurnDriver {
     const createRuntime = this.deps.createRuntime ?? createAcpAgentRuntime;
     const runtimeOptions: AcpAgentRuntimeOptions = {
       debugLog: this.deps.debugLog,
+      onActivity: (threadId) => {
+        this.noteTurnActivity(threadId);
+      },
       onEvent: (event) => {
         this.onRuntimeEvent(event);
       },
@@ -533,19 +537,20 @@ class AcpTurnDriver implements TurnDriver {
       state.writes.settle(this.vaultPathsOf(event.item.changes), event.item.status);
     }
 
-    const mapped = mapProviderEvent(wordFailure(event, state.harness));
-    if (mapped.kind === "dropped") {
-      this.debug(`dropped provider event for thread ${threadId}: ${mapped.reason}`);
+    // the agent log is the one place a notice is read until one earns a renderer.
+    if (event.type === "provider/notice") {
+      this.debug(`adapter notice for thread ${threadId}: ${event.severity}: ${event.message}`);
       return;
     }
+    const mapped = mapProviderEvent(wordFailure(event, state.harness));
     if (event.type === "turn/completed") {
       // settle before ingest: the ingest transaction drains the queue and can synchronously
       // dispatch the next turn through startTurn, which must find this one released.
       this.settleTurn(threadId);
-      this.sink.ingestProviderEvents(threadId, [mapped.event]);
+      this.sink.ingestProviderEvents(threadId, [mapped]);
       return;
     }
-    this.events.push(threadId, mapped.event);
+    this.events.push(threadId, mapped);
   }
 
   private onTurnStarted(
@@ -560,10 +565,7 @@ class AcpTurnDriver implements TurnDriver {
       return;
     }
     state.phase = { kind: "started", stopDeadline: null };
-    const mapped = mapProviderEvent(event);
-    if (mapped.kind === "mapped") {
-      this.events.push(threadId, mapped.event);
-    }
+    this.events.push(threadId, mapProviderEvent(event));
   }
 
   private vaultPathsOf(changes: FileChangeProviderItem["changes"]): string[] {
