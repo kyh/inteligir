@@ -207,6 +207,17 @@ export const packExceeds = async (
   return false;
 };
 
+// the one seam every vault git goes through, so a suite runs all of it over a hermetic config by
+// handing the server one value rather than threading an env through each layer.
+export interface GitRunner {
+  run: RunGit;
+  readBlob: typeof readGitBlob;
+  packExceeds: typeof packExceeds;
+}
+
+// the git this process's PATH names, over its own environment.
+export const processGit: GitRunner = { packExceeds, readBlob: readGitBlob, run: runGit };
+
 // never `<root>/.git/…`: in a linked worktree or a submodule `.git` is a file naming the real
 // dir, and a worktree keeps its rebase state apart from the info/ its checkouts share.
 export const gitPath = async (run: RunGitCommand, root: string, rel: string): Promise<string> => {

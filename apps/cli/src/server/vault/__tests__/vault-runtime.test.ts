@@ -4,7 +4,7 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import type { VaultFilesChange } from "../vault-changes";
 import { createVaultRuntime } from "../vault-runtime";
 import { makeTempDir } from "../../__tests__/temp-dir";
-import { hermeticGitEnv } from "./git-test-env";
+import { hermeticGit } from "./git-test-env";
 import { createNotifierRecorder } from "./notifier-recorder";
 import { scriptedWatcher } from "./scripted-watcher";
 
@@ -22,7 +22,7 @@ const bootRuntime = async () => {
       traced.push(line);
     },
     deviceName: () => "Test Mac",
-    gitEnv: hermeticGitEnv(),
+    git: hermeticGit(),
     notifier: createNotifierRecorder(),
     onFilesChanged: (change) => {
       changes.push(change);

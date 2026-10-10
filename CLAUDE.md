@@ -754,7 +754,13 @@ to the END of its group.
   a pass that fails with no verdict (a merge that fails outright, a save the
   engine could not record, an unclassified failure) says it stalled, which the
   rail shows as "Sync paused" and hands to Settings › Advanced, never `clean`
-  or `dirty`.
+  or `dirty`. Each verdict carries its own message, so `lastError` is the
+  verdict's (a failed auto-commit's ahead of it) and the two cannot drift; a
+  fetch that answers starts the verdict over, and a push that lost a race to
+  another device's reports no error, since the tree already says unpushed and
+  the next pass rebases. Every git the vault runs goes through one injected
+  `GitRunner` (`processGit` in `git-run.ts`), which a suite builds over a
+  hermetic config (`hermeticGit`), never an env threaded through each layer.
 
 - **A MOVE IS A RENAME THAT KEEPS THE NAME, and `planMove` is its one verdict.**
   The tree's drop and the palette's "Move note to folder…" both ask `planMove`
@@ -825,7 +831,8 @@ to the END of its group.
   timeout. The price is that the world moves during the fetch, so the
   integration step re-checks first. Only a merge that fails outright is
   remembered, by the two tips it failed between, so a pass where neither moved
-  skips it rather than failing the same way every minute. Network git gives up
+  skips it, and says the merge's own words again, rather than failing the same
+  way every minute. Network git gives up
   under 1KB/s for 30s, or an ssh connect past 20s
   (`apps/cli/src/server/vault/git-run.ts`). The split is
   `apps/cli/src/server/vault/git-engine.ts`.

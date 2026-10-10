@@ -36,12 +36,9 @@ import {
   identityEnv,
   isMissingRemoteRef,
   NETWORK_GIT_TIMEOUT_MS,
-  packExceeds,
-  readGitBlob,
   redactRemoteUrl,
-  runGit,
 } from "./git-run";
-import type { CommitAuthor, NetworkFailure, RunGitOptions } from "./git-run";
+import type { CommitAuthor, GitRunner, NetworkFailure, RunGitOptions } from "./git-run";
 import type { VaultFilesChange } from "./vault-changes";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 
@@ -58,6 +55,7 @@ const ORIGIN_PUSH_URL_KEY = "remote.origin.pushurl";
 
 export interface GitEngineArgs {
   root: string;
+  git: GitRunner;
   // asked every pass, over the vault's origin read then, so a sign-in, a sign-out or a remote the
   // user sets in the vault takes effect without a restart.
   remote: VaultRemoteProvider;
@@ -79,7 +77,6 @@ export interface GitEngineArgs {
   onNotice?: (message: string) => void;
   quietMs?: number;
   maxWaitMs?: number;
-  env?: Record<string, string>;
   // the account remote's push cap; unset, the hosted vault's own.
   maxPushBytes?: number;
 }
@@ -174,33 +171,37 @@ const refusedPushMessage = (
     : "The git remote refused the push as too large.";
 };
 
-// what the latest pass to reach a verdict concluded; a pass that ends before one (a pending
-// account, a hold taken during its fetch, a dispose) leaves the last one standing. "none" leaves
-// the report to the tree. "broken" is final: no pass runs after it. "account-mismatch" runs no
-// network step, since a push would upload this vault into an account that never held it.
-// "unreachable" outranks the tree because a failed fetch leaves the tracking ref stale, so
-// "unpushed" would read clean. "stalled" is a pass that failed short of any other verdict: left
-// to the tree, it would read clean or dirty and say nothing of the failure.
+// what the latest pass to reach a verdict concluded, with the words the status reports for it, so
+// a verdict and its message can never disagree. a pass that ends before its fetch answers (a
+// pending account) leaves the last one standing; one whose fetch answers starts over from "none",
+// which leaves the report to the tree, even when a hold or a dispose then ends it before its push.
+// "broken" is final: no pass runs after it. "account-mismatch" runs no network step, since a push
+// would upload this vault into an account that never held it. "unreachable" outranks the tree
+// because a failed fetch leaves the tracking ref stale, so "unpushed" would read clean. "stalled"
+// is a pass that failed short of any other verdict: left to the tree, it would read clean or dirty
+// and say nothing of the failure.
 type SyncOutcome =
-  | { kind: "none" }
-  | { kind: "broken" }
-  | { kind: "account-mismatch" }
-  | { kind: "detached" }
-  | { kind: "stalled" }
-  | { kind: "unreachable"; failure: NetworkFailure };
+  | { kind: "none"; message: null }
+  | { kind: "broken"; message: string }
+  | { kind: "account-mismatch"; message: string }
+  | { kind: "detached"; message: string }
+  | { kind: "stalled"; message: string }
+  | { kind: "unreachable"; failure: NetworkFailure; message: string };
+
+const NO_OUTCOME = { kind: "none", message: null } as const satisfies SyncOutcome;
 
 export const createGitEngine = (args: GitEngineArgs): GitEngine => {
-  const { root } = args;
-  const extraEnv = args.env ?? {};
+  const { git, root } = args;
   const maxPushBytes = args.maxPushBytes ?? VAULT_GIT_MAX_PUSH_BYTES;
   const externalSync = args.externalSync ?? null;
 
   let lastSyncAt: number | null = null;
-  let lastError: string | null = null;
-  // reported ahead of lastError until a flush or a whole-tree commit lands: a tree the
+  // reported ahead of the outcome's message until a flush or a whole-tree commit lands: a tree the
   // auto-commit left dirty says why nowhere else, and a vault with no remote runs no pass.
   let flushError: string | null = null;
-  let lastOutcome: SyncOutcome = { kind: "none" };
+  let outcome: SyncOutcome = NO_OUTCOME;
+  // memos, not verdicts: each outlives the passes that go offline meanwhile, so the pass skips a
+  // push or a merge that could only fail the same way again.
   let refusedPush: RefusedPush | null = null;
   let failedMerge: IntegrationTips | null = null;
   // newest first, since boot
@@ -229,7 +230,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   };
 
   const run = async (gitArgs: readonly string[], options: RunGitOptions = {}) =>
-    await runGit(root, gitArgs, { ...options, env: { ...extraEnv, ...options.env } });
+    await git.run(root, gitArgs, options);
 
   const deletionLog = cachedDeletionLog(run);
 
@@ -257,11 +258,18 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return await run(gitArgs, options);
   };
 
-  // a lost race leaves the tree to say "unpushed".
-  const recordNetworkFailure = (failure: NetworkFailure | "lost-race"): void => {
-    if (failure !== "lost-race") {
-      lastOutcome = { failure, kind: "unreachable" };
-    }
+  // a failure the pass met on the network and could name, said once to the log. a lost race is no
+  // failure of the remote: the tree says "unpushed", and the next pass rebases onto the push that
+  // won, so it reports no error.
+  const recordNetworkFailure = (failure: NetworkFailure | "lost-race", message: string): void => {
+    args.onError?.(message);
+    outcome = failure === "lost-race" ? NO_OUTCOME : { failure, kind: "unreachable", message };
+  };
+
+  const recordRefusedPush = (remote: VaultRemoteSpec, refused: RefusedPush["failure"]): void => {
+    const message = refusedPushMessage(remote, refused, maxPushBytes);
+    args.onError?.(message);
+    outcome = { failure: refused, kind: "unreachable", message };
   };
 
   const porcelain = async (paths: readonly string[] = []): Promise<PorcelainEntry[]> =>
@@ -296,11 +304,11 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       });
     }
     if ((await mergeInProgress({ run })) || (await rebaseInProgress())) {
-      lastOutcome = { kind: "broken" };
-      lastError =
+      const message =
         `an interrupted merge or rebase could not be aborted; manual recovery needed: run ` +
         `\`git merge --abort\` or \`git rebase --abort\` in ${root}, then restart inteligir`;
-      throw new Error(lastError);
+      outcome = { kind: "broken", message };
+      throw new Error(message);
     }
     mayBeMidIntegration = false;
   };
@@ -565,20 +573,19 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
     // what a pass concluded about the old remote says nothing of the new one; a repo left
     // mid-integration is broken whichever remote it syncs with.
-    if (lastOutcome.kind !== "broken") {
-      lastOutcome = { kind: "none" };
-      lastError = null;
+    if (outcome.kind !== "broken") {
+      outcome = NO_OUTCOME;
     }
     failedMerge = null;
     return "set";
   };
 
   const setOrigin = async (choice: VaultSetRemoteRequest): Promise<SetOriginOutcome> => {
-    const outcome = await withRepoLock(async () => await writeOrigin(choice));
-    if (outcome === "set") {
+    const written = await withRepoLock(async () => await writeOrigin(choice));
+    if (written === "set") {
       args.onStatusChanged?.();
     }
-    return outcome;
+    return written;
   };
 
   const revListCount = async (range: string): Promise<number> => {
@@ -624,8 +631,11 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (refused.failure === "too-large" && !(await isAncestor(refused.head, tips.head))) {
       return false;
     }
-    lastOutcome = { failure: refused.failure, kind: "unreachable" };
-    lastError = refusedPushMessage(remote, refused.failure, maxPushBytes);
+    outcome = {
+      failure: refused.failure,
+      kind: "unreachable",
+      message: refusedPushMessage(remote, refused.failure, maxPushBytes),
+    };
     return true;
   };
 
@@ -644,8 +654,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       if (Number(stdout.trim()) < maxPushBytes / 2) {
         return null;
       }
-      const over = await packExceeds(root, revisions, maxPushBytes, {
-        env: extraEnv,
+      const over = await git.packExceeds(root, revisions, maxPushBytes, {
         timeoutMs: NETWORK_GIT_TIMEOUT_MS,
       });
       return over ? tips : null;
@@ -692,11 +701,13 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   // a tree left mid-rebase or mid-merge is no diff between two commits. a clean abort needs no
   // report: it puts back the tree the pass started from.
   const markBroken = (step: "merge" | "rebase"): void => {
-    lastOutcome = { kind: "broken" };
+    outcome = {
+      kind: "broken",
+      message:
+        `a failed ${step} could not be aborted; manual recovery needed: ` +
+        `run \`git ${step} --abort\` in ${root}, then restart inteligir`,
+    };
     mayBeMidIntegration = true;
-    lastError =
-      `a failed ${step} could not be aborted; manual recovery needed: ` +
-      `run \`git ${step} --abort\` in ${root}, then restart inteligir`;
     args.onFilesChanged?.({ kind: "unknown" });
   };
 
@@ -811,7 +822,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
     try {
       return await mergeFetched(
-        { readBlob: async (oid) => await readGitBlob(root, oid, { env: extraEnv }), run },
+        { readBlob: async (oid) => await git.readBlob(root, oid), run },
         { device: args.deviceName(), reconcile: args.reconcile ?? reconcileFile, remoteRef },
       );
     } catch (error) {
@@ -820,8 +831,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
         return null;
       }
       failedMerge = tips;
-      lastOutcome = { kind: "stalled" };
-      lastError = MERGE_FAILED_MESSAGE;
+      outcome = { kind: "stalled", message: MERGE_FAILED_MESSAGE };
       args.onError?.(`${MERGE_FAILED_MESSAGE} (${messageOf(error)})`);
       return null;
     }
@@ -840,10 +850,12 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       // here anyway, the set-url below would push the user's repo into the hosted vault.
       const own = ownOriginUrl(origin, remote.url);
       if (own !== null) {
-        lastOutcome = { kind: "stalled" };
-        lastError =
-          `origin is ${redactRemoteUrl(own)}, a remote of the vault's own; this pass left it ` +
-          "alone and did not sync with the account's hosted vault";
+        outcome = {
+          kind: "stalled",
+          message:
+            `origin is ${redactRemoteUrl(own)}, a remote of the vault's own; this pass left it ` +
+            "alone and did not sync with the account's hosted vault",
+        };
         return null;
       }
       if (remote.account.state === "pending") {
@@ -854,10 +866,12 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       }
       const marker = await readAccountMarker();
       if (marker !== null && marker !== remote.account.id) {
-        lastOutcome = { kind: "account-mismatch" };
-        lastError =
-          "This vault last synced with a different account. Sign out, or move this vault aside " +
-          "and restart to pull the new account's vault.";
+        outcome = {
+          kind: "account-mismatch",
+          message:
+            "This vault last synced with a different account. Sign out, or move this vault " +
+            "aside and restart to pull the new account's vault.",
+        };
         return null;
       }
     }
@@ -865,18 +879,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     await ensureOriginRemote(remote, origin);
     const branch = await currentBranch();
     if (branch === null) {
-      lastOutcome = { kind: "detached" };
-      lastError = "vault HEAD is detached; sync needs a branch";
+      outcome = { kind: "detached", message: "vault HEAD is detached; sync needs a branch" };
       return null;
-    }
-    // past the fence and on a branch: none of this step's own verdicts holds any more, and a stall
-    // an integration left is the integration's to say again.
-    if (
-      lastOutcome.kind === "account-mismatch" ||
-      lastOutcome.kind === "detached" ||
-      lastOutcome.kind === "stalled"
-    ) {
-      lastOutcome = { kind: "none" };
     }
     return { branch, remote };
   };
@@ -956,11 +960,10 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return true;
     }
     if (await yieldSeededHistory(remote, branch, remoteRef, tips)) {
-      lastOutcome = { kind: "none" };
       return true;
     }
     if (failedMerge?.head === tips.head && failedMerge.remote === tips.remote) {
-      lastOutcome = { kind: "stalled" };
+      outcome = { kind: "stalled", message: MERGE_FAILED_MESSAGE };
       return false;
     }
     failedMerge = null;
@@ -968,8 +971,6 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (settled === null) {
       return false;
     }
-    // the push decides what this pass reports.
-    lastOutcome = { kind: "none" };
     const head = await revParse("HEAD");
     if (head !== tips.head) {
       await reportMovedTree(tips.head, head);
@@ -992,13 +993,14 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       await runNetwork(["fetch", "origin", branch], remote.env);
     } catch (error) {
       if (!isMissingRemoteRef(error)) {
-        recordNetworkFailure(classifyNetworkFailure(error));
-        throw error;
+        recordNetworkFailure(classifyNetworkFailure(error), messageOf(error));
+        return;
       }
       // a fresh remote: the push below creates the branch.
-      lastOutcome = { kind: "none" };
       remoteHasBranch = false;
     }
+    // the remote answered, so nothing an earlier pass concluded holds any more.
+    outcome = NO_OUTCOME;
 
     const pushing = await withRepoLock(
       async () =>
@@ -1012,9 +1014,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (remote.source === "account") {
       const overCap = await measuredOverCap(branch, remoteHasBranch);
       if (overCap !== null) {
-        recordNetworkFailure("too-large");
         refusedPush = { failure: "too-large", url: remote.url, ...overCap };
-        throw new Error(refusedPushMessage(remote, "too-large", maxPushBytes));
+        recordRefusedPush(remote, "too-large");
+        return;
       }
     }
 
@@ -1022,9 +1024,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       await runNetwork(["push", "origin", branch], remote.env);
     } catch (error) {
       const failure = classifyNetworkFailure(error);
-      recordNetworkFailure(failure);
       if (failure !== "too-large" && failure !== "full") {
-        throw error;
+        recordNetworkFailure(failure, messageOf(error));
+        return;
       }
       // read after the refusal: the branch only grows past what the push sent, and a head that
       // holds the refused one is as large.
@@ -1033,7 +1035,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
         failure === "full"
           ? { failure, remote: tips.remote, url: remote.url }
           : { failure, url: remote.url, ...tips };
-      throw new Error(refusedPushMessage(remote, failure, maxPushBytes), { cause: error });
+      recordRefusedPush(remote, failure);
+      return;
     }
     refusedPush = null;
     if (remote.source === "account" && remote.account.state === "known") {
@@ -1044,9 +1047,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
         }
       });
     }
-    lastOutcome = { kind: "none" };
     lastSyncAt = Date.now();
-    lastError = null;
   };
 
   // behind the repo lock so a status never reports a sync's half-way tree.
@@ -1068,11 +1069,13 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
 
   const statusSnapshot = async (): Promise<VaultStatusResponse> => {
     const remote = await currentRemote();
+    // one read, so the state and its message are the same verdict's.
+    const verdict = outcome;
     const statusFields = {
       conflicts,
       device: args.deviceName(),
       externalSync,
-      lastError: flushError ?? lastError,
+      lastError: flushError ?? verdict.message,
       lastSyncAt,
     };
     if (remote === null) {
@@ -1087,16 +1090,15 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (syncing) {
       return { ...fields, state: "syncing" };
     }
-    const outcome = lastOutcome;
     // a verdict about the repo outranks a hold, and a hold outranks the rest: under a hold or
     // after a failed fetch, clean/dirty would be a claim about the remote this engine cannot make.
-    if (outcome.kind === "broken") {
+    if (verdict.kind === "broken") {
       return { ...fields, state: "broken" };
     }
     if (liveHolds.size > 0) {
       return { ...fields, state: "held" };
     }
-    switch (outcome.kind) {
+    switch (verdict.kind) {
       case "account-mismatch": {
         return { ...fields, state: "account-mismatch" };
       }
@@ -1107,30 +1109,31 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
         return { ...fields, state: "stalled" };
       }
       case "unreachable": {
-        return { ...fields, state: outcome.failure };
+        return { ...fields, state: verdict.failure };
       }
       case "none": {
         // a failed flush leaves the tree dirty, which alone reads as edits on their way
         return { ...fields, state: flushError === null ? await treeState() : "stalled" };
       }
       default: {
-        const exhaustive: never = outcome;
+        const exhaustive: never = verdict;
         return exhaustive;
       }
     }
   };
 
+  // every verdict a pass can name it records where it meets it; what throws is a failure short of
+  // one (a save the engine could not record, an unclassified step), unless the repo was found
+  // mid-integration, which already said broken.
   const runSyncPass = async (): Promise<void> => {
     try {
       await doSync();
     } catch (error) {
-      lastError = error instanceof Error ? error.message : "sync failed";
-      // a lost race is the one failure the tree already tells right, as unpushed: the next pass
-      // rebases onto the push that won.
-      if (lastOutcome.kind === "none" && classifyNetworkFailure(error) !== "lost-race") {
-        lastOutcome = { kind: "stalled" };
+      const message = messageOf(error);
+      if (outcome.kind !== "broken") {
+        outcome = { kind: "stalled", message };
       }
-      args.onError?.(lastError);
+      args.onError?.(message);
     }
   };
 
@@ -1151,7 +1154,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
           // a pass starts by committing the dirty tree, which a hold exists to prevent; the
           // snapshot says "held" rather than reporting clean as if a pass ran.
           const remote = await currentRemote();
-          if (remote === null || lastOutcome.kind === "broken" || liveHolds.size > 0) {
+          if (remote === null || outcome.kind === "broken" || liveHolds.size > 0) {
             return await statusSnapshot();
           }
           syncing = true;

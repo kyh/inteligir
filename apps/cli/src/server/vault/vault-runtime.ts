@@ -1,16 +1,15 @@
 import path from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { createVaultIgnore, isGitignorePath } from "@repo/notes/knowledge/vault-ignore";
-import type { ExternalSync, VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
+import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { NO_ORIGIN } from "../cloud/vault-remote";
 import type { VaultRemoteProvider } from "../cloud/vault-remote";
 import type { DebugLog } from "../debug-log";
 import { assertVaultAndDataDirDisjoint } from "../path-containment";
 import { ensureVaultRepo } from "./git-bootstrap";
-import type { EnsureVaultRepoArgs } from "./git-bootstrap";
 import { createGitEngine } from "./git-engine";
 import type { GitEngine, GitEngineArgs } from "./git-engine";
-import { runGit } from "./git-run";
+import type { GitRunner } from "./git-run";
 import { seedVault } from "./seed-vault";
 import type { ReadStall } from "./slow-reads";
 import { entryFingerprintAt, sameEntryFingerprint } from "./vault-changes";
@@ -40,7 +39,7 @@ export interface VaultRuntimeArgs {
   onFilesChanged?: (change: VaultFilesChange) => void;
   watch?: boolean;
   syncIntervalMs?: number | null;
-  gitEnv?: Record<string, string>;
+  git: GitRunner;
   watcherBackend?: ParcelWatcherBackend;
   stallRead?: ReadStall;
   // the watcher's trace: its verdict per event, then what this runtime strips, holds or delivers.
@@ -50,8 +49,6 @@ export interface VaultRuntimeArgs {
 export interface VaultRuntime {
   readonly service: VaultService;
   readonly git: GitEngine;
-  status: () => Promise<VaultStatusResponse>;
-  syncNow: () => Promise<VaultStatusResponse>;
   dispose: () => Promise<void>;
 }
 
@@ -69,24 +66,19 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   // config refuses this earlier; re-asserted so a directly composed runtime cannot skip it.
   assertVaultAndDataDirDisjoint(root, path.resolve(args.dataDir));
 
-  const ensureArgs: EnsureVaultRepoArgs = {
+  await ensureVaultRepo({
     deviceName: args.deviceName(),
+    git: args.git,
     // the clone is the one reader, and a folder not created yet has no origin to read.
     remote: args.remote(NO_ORIGIN),
     root,
     seed: async (vaultRoot) => {
       await seedVault(vaultRoot);
     },
-  };
-  if (args.gitEnv) {
-    ensureArgs.env = args.gitEnv;
-  }
-  await ensureVaultRepo(ensureArgs);
+  });
   void sweepStaleTmpFilesInBackground(root);
 
-  const ignoreCase = await readIgnoreCase(
-    async (gitArgs) => await runGit(root, gitArgs, args.gitEnv ? { env: args.gitEnv } : {}),
-  );
+  const ignoreCase = await readIgnoreCase(async (gitArgs) => await args.git.run(root, gitArgs));
   // loaded off the listen's path: a listing awaits the load, so the first one waits, not the boot.
   const ignore = createVaultIgnoreHolder(
     async () => await loadVaultIgnore(root, { ignoreCase }),
@@ -124,6 +116,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
 
   const gitArgs: GitEngineArgs = {
     deviceName: args.deviceName,
+    git: args.git,
     onError: (message) => {
       console.error(`vault git: ${message}`);
     },
@@ -157,9 +150,6 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     remote: args.remote,
     root,
   };
-  if (args.gitEnv) {
-    gitArgs.env = args.gitEnv;
-  }
   if (args.externalSync !== undefined) {
     gitArgs.externalSync = args.externalSync;
   }
@@ -285,7 +275,5 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     },
     git,
     service,
-    status: async () => await git.status(),
-    syncNow: async () => await git.syncNow(),
   };
 };

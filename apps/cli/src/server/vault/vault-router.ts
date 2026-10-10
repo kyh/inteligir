@@ -115,9 +115,11 @@ const commitNow = base.vault.commitNow.handler(async ({ context, input }) => {
   return { files: committed?.files ?? 0 };
 });
 
-const status = base.vault.status.handler(async ({ context }) => await context.vault.status());
+const status = base.vault.status.handler(async ({ context }) => await context.vault.git.status());
 
-const syncNow = base.vault.syncNow.handler(async ({ context }) => await context.vault.syncNow());
+const syncNow = base.vault.syncNow.handler(
+  async ({ context }) => await context.vault.git.syncNow(),
+);
 
 // the new remote's first pass is kicked, never awaited: the answer is the choice, and the pass
 // announces its own progress on the bus.
@@ -127,8 +129,8 @@ const setRemote = base.vault.setRemote.handler(async ({ context, input, errors }
       message: `${VAULT_REMOTE_PIN_ENV_VAR} pins this vault's remote; unset it to choose another`,
     });
   }
-  void context.vault.syncNow();
-  return await context.vault.status();
+  void context.vault.git.syncNow();
+  return await context.vault.git.status();
 });
 
 const prefs = base.vault.prefs.handler(({ context }) => ({

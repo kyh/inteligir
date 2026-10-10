@@ -42,6 +42,7 @@ import type { ShutdownStep, TeardownStepName } from "./shutdown";
 import { ThreadService } from "./threads/service";
 import { createThreadOrigins } from "./threads/thread-origins";
 import { folderExternalSync } from "./vault/folder-facts";
+import { processGit } from "./vault/git-run";
 import { slowReadStall } from "./vault/slow-reads";
 import { createVaultRuntime } from "./vault/vault-runtime";
 import type { VaultRuntime, VaultRuntimeArgs } from "./vault/vault-runtime";
@@ -74,7 +75,7 @@ export interface ComposePorts {
   connectors?: VendorMcpConfigs;
   // what this device is called before any sign-in names it; unset, the machine's own name.
   machineName?: string;
-  vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote">>;
+  vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "git" | "remote">>;
 }
 
 export interface ComposeRuntimeArgs {
@@ -137,6 +138,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     debugLog: debugLog(config.debug, "watcher"),
     deviceName: deviceNameReader(config.dataDir, machineName),
     externalSync,
+    git: ports.vault?.git ?? processGit,
     notifier: bus,
     onFilesChanged: (change) => {
       knowledgeRef?.noteVaultChange(change);
@@ -149,9 +151,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   }
   if (ports.vault?.watch !== undefined) {
     vaultArgs.watch = ports.vault.watch;
-  }
-  if (ports.vault?.gitEnv !== undefined) {
-    vaultArgs.gitEnv = ports.vault.gitEnv;
   }
   if (config.slowReads !== null) {
     vaultArgs.stallRead = slowReadStall(config.slowReads);
@@ -226,7 +225,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     },
     // the rebase's own files-changed notification carries the applied changes to the renderer.
     onVaultPing: () => {
-      void vault.syncNow();
+      void vault.git.syncNow();
     },
     phoneRequests: () => cloudPrefs.phoneRequests(),
     vault: vault.service,

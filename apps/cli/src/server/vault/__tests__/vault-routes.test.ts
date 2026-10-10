@@ -23,7 +23,7 @@ import { WsBus } from "../../ws-bus";
 import type { BusSocket } from "../../ws-bus";
 import { runGit } from "../git-run";
 import { createVaultRuntime } from "../vault-runtime";
-import { hermeticGitEnv } from "./git-test-env";
+import { hermeticGit, hermeticGitEnv } from "./git-test-env";
 
 // vitest types its asymmetric matchers `any`; naming one keeps the assertion typed.
 const anyNumber: unknown = expect.any(Number);
@@ -227,7 +227,7 @@ describe("the vault routes", () => {
       createVaultRuntime({
         dataDir: instanceDir,
         deviceName: () => "Test Mac",
-        gitEnv: hermeticGitEnv(),
+        git: hermeticGit(),
         notifier: new WsBus(),
         remote: () => null,
         syncIntervalMs: null,

@@ -1,6 +1,6 @@
 import { once } from "node:events";
 import { existsSync } from "node:fs";
-import { appendFile, chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -16,7 +16,6 @@ import {
   serializeSidecar,
 } from "@repo/notes/comments/sidecar-schema";
 import type { CommentEntry } from "@repo/notes/comments/sidecar-schema";
-import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
 import { removeFrontmatterId } from "@repo/notes/markdown/frontmatter";
 import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { CAPTURE_INBOX_PATH, reconcileFile } from "@repo/notes/sync/reconcile-file";
@@ -27,153 +26,44 @@ import { writeDeviceCredential } from "../../cloud/credential-store";
 import { createVaultRemoteProvider, hostedVaultRemoteUrl } from "../../cloud/vault-remote";
 import type { VaultRemoteSpec } from "../../cloud/vault-remote";
 import { REMOTE_MARKER_KEY } from "../folder-facts";
-import { ensureVaultRepo, SEED_COMMIT_KEY } from "../git-bootstrap";
-import type { EnsureVaultRepoArgs } from "../git-bootstrap";
 import { createGitEngine } from "../git-engine";
 import type { GitEngine, GitEngineArgs } from "../git-engine";
 import { mergeFetched } from "../git-merge";
 import type { Reconcile } from "../git-merge";
-import { classifyNetworkFailure, GitError, gitPath, identityEnv, runGit } from "../git-run";
-import type { RunGitCommand } from "../git-run";
 import type { VaultFilesChange } from "../vault-changes";
 import { createVaultRuntime } from "../vault-runtime";
 import { createVaultService } from "../vault-service";
 import { boundAddressSchema } from "../../__tests__/bound-address";
 import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
-import { hermeticGitEnv } from "./git-test-env";
+import {
+  asDevice,
+  commitCount,
+  expectCleanRepo,
+  git,
+  gitDirPath,
+  initVault,
+  lastMessage,
+  makeBareRemote,
+  makeEngine,
+  makeWorktreeVault,
+  refusingHook,
+  scratchDir,
+  seedMarker,
+  syncState,
+  TEST_DEVICE,
+  trackedFiles,
+} from "./git-fixtures";
+import type { AutoCommitTiming } from "./git-fixtures";
+import { hermeticGit } from "./git-test-env";
 import { createNotifierRecorder } from "./notifier-recorder";
 import { scriptedWatcher } from "./scripted-watcher";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
-const env = hermeticGitEnv();
-
-const scratchDir = (prefix: string): string => {
-  const dir = makeTempDir(prefix);
-  return dir;
-};
-
-const makeBareRemote = async (): Promise<string> => {
-  const dir = scratchDir("inteligir-git-remote-");
-  await runGit(dir, ["init", "--bare", "-b", "main"], { env });
-  return dir;
-};
-
-interface AutoCommitTiming {
-  quietMs: number;
-  maxWaitMs: number;
-}
-
 const FAST_COMMIT: AutoCommitTiming = { maxWaitMs: 500, quietMs: 50 };
-
-const TEST_DEVICE = "Test Device";
-
-const makeEngine = async (args: {
-  remoteUrl: string | null;
-  timing?: AutoCommitTiming;
-  env?: Record<string, string>;
-  root?: string;
-  // also the bootstrap's committer, so two devices' first commits are two histories
-  device?: string;
-  reconcile?: Reconcile;
-  // given, the vault is a folder the bootstrap creates and seeds, unless `root` already exists
-  seed?: EnsureVaultRepoArgs["seed"];
-}): Promise<{
-  root: string;
-  engine: GitEngine;
-  statusChanges: () => number;
-  filesChanges: () => VaultFilesChange[];
-  notices: () => string[];
-}> => {
-  const root =
-    args.root ??
-    (args.seed === undefined
-      ? scratchDir("inteligir-git-vault-")
-      : path.join(scratchDir("inteligir-git-seeded-"), "vault"));
-  const device = args.device ?? TEST_DEVICE;
-  const bootstrap: EnsureVaultRepoArgs = { deviceName: device, env, root };
-  if (args.seed !== undefined) {
-    bootstrap.seed = args.seed;
-  }
-  await ensureVaultRepo(bootstrap);
-  let statusChanges = 0;
-  const filesChanges: VaultFilesChange[] = [];
-  const notices: string[] = [];
-  const engineArgs: GitEngineArgs = {
-    deviceName: () => device,
-    env: { ...env, ...args.env },
-    onFilesChanged: (change) => {
-      filesChanges.push(change);
-    },
-    onNotice: (message) => {
-      notices.push(message);
-    },
-    onStatusChanged: () => {
-      statusChanges += 1;
-    },
-    remote: () => (args.remoteUrl === null ? null : { source: "explicit", url: args.remoteUrl }),
-    root,
-    ...args.timing,
-  };
-  if (args.reconcile !== undefined) {
-    engineArgs.reconcile = args.reconcile;
-  }
-  const engine = createGitEngine(engineArgs);
-  onTestFinished(async () => {
-    await engine.dispose();
-  });
-  return {
-    engine,
-    filesChanges: () => [...filesChanges],
-    notices: () => [...notices],
-    root,
-    statusChanges: () => statusChanges,
-  };
-};
-
-const syncState = async (engine: GitEngine): Promise<VaultStatusResponse["state"]> => {
-  const status = await engine.syncNow();
-  return status.state;
-};
 
 const reportedState = async (engine: GitEngine): Promise<VaultStatusResponse["state"]> => {
   const status = await engine.status();
   return status.state;
-};
-
-const commitCount = async (root: string): Promise<number> => {
-  const { stdout } = await runGit(root, ["rev-list", "--count", "HEAD"], { env });
-  return Math.trunc(Number(stdout.trim()));
-};
-
-const lastMessage = async (root: string): Promise<string> => {
-  const { stdout } = await runGit(root, ["log", "-1", "--format=%s"], { env });
-  return stdout.trim();
-};
-
-const gitIn =
-  (root: string): RunGitCommand =>
-  async (gitArgs) =>
-    await runGit(root, gitArgs, { env });
-
-const expectCleanRepo = async (root: string): Promise<void> => {
-  const git = gitIn(root);
-  const { stdout } = await git(["status", "--porcelain"]);
-  expect(stdout).toBe("");
-  expect(existsSync(await gitPath(git, root, "rebase-merge"))).toBe(false);
-  expect(existsSync(await gitPath(git, root, "rebase-apply"))).toBe(false);
-  await git(["fsck", "--no-progress"]);
-};
-
-const trackedFiles = async (root: string): Promise<string[]> => {
-  const { stdout } = await runGit(root, ["ls-tree", "-r", "--name-only", "HEAD"], { env });
-  return stdout.split("\n").filter((line) => line.length > 0);
-};
-
-const refusingHook = async (hooksDir: string, name: string): Promise<void> => {
-  await mkdir(hooksDir, { recursive: true });
-  const hook = path.join(hooksDir, name);
-  await writeFile(hook, "#!/bin/sh\nexit 1\n", "utf-8");
-  await chmod(hook, 0o755);
 };
 
 // a hook that runs and succeeds, leaving the named file behind as its trace.
@@ -182,17 +72,6 @@ const markingHook = async (hooksDir: string, name: string, marker: string): Prom
   const hook = path.join(hooksDir, name);
   await writeFile(hook, `#!/bin/sh\ntouch '${marker}'\n`, "utf-8");
   await chmod(hook, 0o755);
-};
-
-// a vault that is a linked worktree: its `.git` is a file, and its rebase state lives under the
-// main checkout's git dir. main parks on another branch so the worktree can take `main`.
-const makeWorktreeVault = async (): Promise<string> => {
-  const main = scratchDir("inteligir-git-main-");
-  await ensureVaultRepo({ env, root: main });
-  await runGit(main, ["switch", "-q", "-c", "parked"], { env });
-  const root = path.join(scratchDir("inteligir-git-worktree-"), "vault");
-  await runGit(main, ["worktree", "add", "-q", root, "main"], { env });
-  return root;
 };
 
 const awaitCommitCount = async (root: string, count: number): Promise<void> => {
@@ -260,13 +139,13 @@ const readVault = async (side: Side, relPath: string): Promise<string> =>
   await readFile(path.join(side.root, relPath), "utf-8");
 
 const treeOf = async (root: string): Promise<string> => {
-  const { stdout } = await runGit(root, ["rev-parse", "HEAD^{tree}"], { env });
+  const { stdout } = await git.run(root, ["rev-parse", "HEAD^{tree}"]);
   return stdout.trim();
 };
 
 const mergeHeadLeft = async (root: string): Promise<boolean> => {
   try {
-    await runGit(root, ["rev-parse", "-q", "--verify", "MERGE_HEAD"], { env });
+    await git.run(root, ["rev-parse", "-q", "--verify", "MERGE_HEAD"]);
     return true;
   } catch {
     return false;
@@ -274,7 +153,7 @@ const mergeHeadLeft = async (root: string): Promise<boolean> => {
 };
 
 const parentCount = async (root: string, rev: string): Promise<number> => {
-  const { stdout } = await runGit(root, ["rev-list", "--parents", "-n", "1", rev], { env });
+  const { stdout } = await git.run(root, ["rev-list", "--parents", "-n", "1", rev]);
   return stdout.trim().split(" ").length - 1;
 };
 
@@ -284,100 +163,18 @@ const conflictCopies = async (root: string): Promise<string[]> => {
 };
 
 const rootCommitOf = async (root: string): Promise<string> => {
-  const { stdout } = await runGit(root, ["rev-list", "--max-parents=0", "HEAD"], { env });
+  const { stdout } = await git.run(root, ["rev-list", "--max-parents=0", "HEAD"]);
   return stdout.trim();
 };
 
 const tipOf = async (dir: string, ref: string): Promise<string> => {
-  const { stdout } = await runGit(dir, ["rev-parse", ref], { env });
+  const { stdout } = await git.run(dir, ["rev-parse", ref]);
   return stdout.trim();
 };
 
 // bytes no UTF-8 decoder reads as text
 const photoBytes = (fill: number): Uint8Array =>
   new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, fill, 0x00]);
-
-describe("ensureVaultRepo", () => {
-  it("creates, inits and seeds a missing vault, and leaves HEAD born", async () => {
-    const parent = scratchDir("inteligir-git-boot-");
-    const root = path.join(parent, "vault");
-    const { created } = await ensureVaultRepo({
-      env,
-      root,
-      seed: async (dir) => {
-        await writeFile(path.join(dir, "Welcome.md"), "hello\n", "utf-8");
-      },
-    });
-    expect(created).toBe(true);
-    expect(await readFile(path.join(root, "Welcome.md"), "utf-8")).toBe("hello\n");
-    expect(await commitCount(root)).toBe(1);
-
-    const again = await ensureVaultRepo({ env, root });
-    expect(again.created).toBe(false);
-    expect(await commitCount(root)).toBe(1);
-  });
-
-  it("stages nothing before the listen: a folder of notes gets an empty HEAD, and the sweep commits them", async () => {
-    const root = scratchDir("inteligir-git-folder-");
-    await writeFile(path.join(root, "existing.md"), "already here\n", "utf-8");
-    await ensureVaultRepo({ env, root });
-    expect(await commitCount(root)).toBe(1);
-    expect(await trackedFiles(root)).toEqual([]);
-
-    const engine = createGitEngine({
-      deviceName: () => TEST_DEVICE,
-      env,
-      remote: () => null,
-      root,
-    });
-    onTestFinished(async () => {
-      await engine.dispose();
-    });
-    expect(await engine.commitNow()).toEqual({ files: 1 });
-    expect(await trackedFiles(root)).toEqual(["existing.md"]);
-  });
-
-  it("boots a repo a hooks-only template made, past a hook that refuses every commit", async () => {
-    const template = scratchDir("inteligir-git-template-");
-    await refusingHook(path.join(template, "hooks"), "commit-msg");
-    const root = path.join(scratchDir("inteligir-git-templated-"), "vault");
-    await ensureVaultRepo({ env: { ...env, GIT_TEMPLATE_DIR: template }, root });
-
-    expect(await commitCount(root)).toBe(1);
-    const exclude = await readFile(await gitPath(gitIn(root), root, "info/exclude"), "utf-8");
-    expect(exclude.split("\n")).toContain(`${VAULT_TMP_PREFIX}*`);
-  });
-
-  it("boots a linked worktree, whose .git is a file, and excludes in the info/ it shares", async () => {
-    const root = await makeWorktreeVault();
-    await ensureVaultRepo({ env, root });
-    await ensureVaultRepo({ env, root });
-
-    const exclude = await readFile(await gitPath(gitIn(root), root, "info/exclude"), "utf-8");
-    expect(exclude.split("\n").filter((line) => line === `${VAULT_TMP_PREFIX}*`)).toHaveLength(1);
-    await writeFile(path.join(root, `${VAULT_TMP_PREFIX}staged`), "mid-write\n", "utf-8");
-    await expectCleanRepo(root);
-  });
-
-  it("marks the root capture inbox, and only it, merge=union, once however many boots", async () => {
-    const root = scratchDir("inteligir-git-inbox-attr-");
-    await ensureVaultRepo({ env, root });
-    await ensureVaultRepo({ env, root });
-
-    const line = `/${CAPTURE_INBOX_PATH} merge=union`;
-    const attributes = await readFile(await gitPath(gitIn(root), root, "info/attributes"), "utf-8");
-    expect(attributes.split("\n").filter((entry) => entry === line)).toHaveLength(1);
-    const nested = path.join("notes", CAPTURE_INBOX_PATH);
-    const { stdout } = await runGit(
-      root,
-      ["check-attr", "merge", "--", CAPTURE_INBOX_PATH, nested],
-      {
-        env,
-      },
-    );
-    expect(stdout).toBe(`${CAPTURE_INBOX_PATH}: merge: union\n${nested}: merge: unspecified\n`);
-  });
-});
 
 describe("what a scheduled commit costs", () => {
   it("stages the union of the paths it was told about, and nothing else", async () => {
@@ -391,7 +188,7 @@ describe("what a scheduled commit costs", () => {
     await writeFile(path.join(root, "untold.md"), "c\n", "utf-8");
 
     await awaitCommitCount(root, before + 1);
-    const { stdout } = await runGit(root, ["show", "--name-only", "--format=", "HEAD"], { env });
+    const { stdout } = await git.run(root, ["show", "--name-only", "--format=", "HEAD"]);
     expect(stdout.trim().split("\n").toSorted()).toEqual(["told-a.md", "told-b.md"]);
     expect(await engine.commitNow()).toEqual({ files: 1 });
   });
@@ -408,7 +205,7 @@ describe("what a scheduled commit costs", () => {
     await writeFile(path.join(root, "a.md"), "user edit\n", "utf-8");
 
     await awaitCommitCount(root, before + 1);
-    const { stdout } = await runGit(root, ["show", "--name-status", "--format=", "HEAD"], { env });
+    const { stdout } = await git.run(root, ["show", "--name-status", "--format=", "HEAD"]);
     expect(stdout.trim()).toBe("M\t[a].md");
     expect(await lastMessage(root)).toBe("vault: update [a].md");
     expect(await engine.commitNow()).toEqual({ files: 1 });
@@ -504,7 +301,7 @@ describe("auto-commit", { timeout: 30_000 }, () => {
     const hooks = scratchDir("inteligir-git-hooks-");
     await refusingHook(hooks, "pre-commit");
     await refusingHook(hooks, "commit-msg");
-    await runGit(root, ["config", "core.hooksPath", hooks], { env });
+    await git.run(root, ["config", "core.hooksPath", hooks]);
 
     await writeFile(path.join(root, "swept.md"), "a\n", "utf-8");
     expect(await engine.commitNow()).toEqual({ files: 1 });
@@ -521,7 +318,7 @@ describe("auto-commit", { timeout: 30_000 }, () => {
 
   it("sees a new note in a vault whose config hides untracked files from status", async () => {
     const { root, engine } = await makeEngine({ remoteUrl: null });
-    await runGit(root, ["config", "status.showUntrackedFiles", "no"], { env });
+    await git.run(root, ["config", "status.showUntrackedFiles", "no"]);
     await writeFile(path.join(root, "fresh.md"), "new\n", "utf-8");
     expect(await engine.commitNow()).toEqual({ files: 1 });
     expect(await trackedFiles(root)).toEqual(["fresh.md"]);
@@ -588,9 +385,9 @@ describe("auto-commit", { timeout: 30_000 }, () => {
     await writeFile(path.join(root, "mid-turn.md"), "the turn's own write\n", "utf-8");
 
     expect(await engine.commitNow(["restored.md"])).toEqual({ files: 1 });
-    const head = await runGit(root, ["log", "-1", "--format=%an <%ae>|%s"], { env });
+    const head = await git.run(root, ["log", "-1", "--format=%an <%ae>|%s"]);
     expect(head.stdout.trim()).toBe("inteligir <vault@inteligir.local>|vault: update restored.md");
-    const { stdout } = await runGit(root, ["status", "--porcelain"], { env });
+    const { stdout } = await git.run(root, ["status", "--porcelain"]);
     expect(stdout).toBe("?? mid-turn.md\n");
   });
 
@@ -600,7 +397,7 @@ describe("auto-commit", { timeout: 30_000 }, () => {
 
     await writeFile(path.join(root, "note.md"), "a user edit\n", "utf-8");
     expect(await engine.commitNow()).toEqual({ files: 1 });
-    const { stdout } = await runGit(root, ["log", "-1", "--format=%an <%ae>|%cn"], { env });
+    const { stdout } = await git.run(root, ["log", "-1", "--format=%an <%ae>|%cn"]);
     expect(stdout.trim()).toBe(`inteligir <vault@inteligir.local>|${TEST_DEVICE}`);
   });
 
@@ -622,7 +419,7 @@ describe("auto-commit", { timeout: 30_000 }, () => {
     );
     expect(committedA).toEqual({ files: 1 });
     holdA.release();
-    let shown = await runGit(root, ["show", "--name-only", "--format=%an", "HEAD"], { env });
+    let shown = await git.run(root, ["show", "--name-only", "--format=%an", "HEAD"]);
     expect(shown.stdout).toContain("agent-a");
     expect(shown.stdout).toContain("a.md");
     expect(shown.stdout).not.toContain("b.md");
@@ -635,13 +432,13 @@ describe("auto-commit", { timeout: 30_000 }, () => {
     );
     expect(committedB).toEqual({ files: 1 });
     holdB.release();
-    shown = await runGit(root, ["show", "--name-only", "--format=%an", "HEAD"], { env });
+    shown = await git.run(root, ["show", "--name-only", "--format=%an", "HEAD"]);
     expect(shown.stdout).toContain("agent-b");
     expect(shown.stdout).toContain("b.md");
     expect(shown.stdout).not.toContain("user.md");
 
     await awaitCommitCount(root, before + 3);
-    shown = await runGit(root, ["show", "--name-only", "--format=%an", "HEAD"], { env });
+    shown = await git.run(root, ["show", "--name-only", "--format=%an", "HEAD"]);
     expect(shown.stdout).toContain("inteligir");
     expect(shown.stdout).toContain("user.md");
     await expectCleanRepo(root);
@@ -672,11 +469,9 @@ describe("auto-commit", { timeout: 30_000 }, () => {
     await debounceSettled(FAST_COMMIT);
     expect(await commitCount(root)).toBe(before + 1);
     expect(await lastMessage(root)).toBe("agent: vault update");
-    const identity = await runGit(root, ["log", "-1", "--format=%an <%ae>|%cn"], { env });
+    const identity = await git.run(root, ["log", "-1", "--format=%an <%ae>|%cn"]);
     expect(identity.stdout.trim()).toBe(`inteligir-agent <agent@inteligir.local>|${TEST_DEVICE}`);
-    const { stdout } = await runGit(root, ["log", "-1", "--format=%(trailers:key=Thread)"], {
-      env,
-    });
+    const { stdout } = await git.run(root, ["log", "-1", "--format=%(trailers:key=Thread)"]);
     expect(stdout.trim()).toBe("Thread: thr_test");
     await expectCleanRepo(root);
   });
@@ -695,18 +490,18 @@ describe("auto-commit", { timeout: 30_000 }, () => {
       turnId: "turn_1",
     });
     await turn.ready;
-    const checkpoint = await runGit(root, ["log", "-1", "--format=%an|%s"], { env });
+    const checkpoint = await git.run(root, ["log", "-1", "--format=%an|%s"]);
     expect(checkpoint.stdout.trim()).toBe("inteligir|vault: update note.md");
-    const checkpointed = await runGit(root, ["show", "HEAD:note.md"], { env });
+    const checkpointed = await git.run(root, ["show", "HEAD:note.md"]);
     expect(checkpointed.stdout).toBe("typed just before the agent was asked\n");
 
     await writeFile(path.join(root, "note.md"), "the agent's rewrite\n", "utf-8");
     turn.recordPaths(["note.md"]);
     await turn.finish();
-    const agent = await runGit(root, ["log", "-1", "--format=%H|%an"], { env });
+    const agent = await git.run(root, ["log", "-1", "--format=%H|%an"]);
     const [agentSha, agentName] = agent.stdout.trim().split("|");
     expect(agentName).toBe("inteligir-agent");
-    const parentBytes = await runGit(root, ["show", `${agentSha ?? ""}^:note.md`], { env });
+    const parentBytes = await git.run(root, ["show", `${agentSha ?? ""}^:note.md`]);
     expect(parentBytes.stdout).toBe("typed just before the agent was asked\n");
     await expectCleanRepo(root);
   });
@@ -726,13 +521,13 @@ describe("auto-commit", { timeout: 30_000 }, () => {
     expect(engine.claimedPaths()).toEqual(["[a].md", "gone.md"]);
 
     expect(await engine.checkpointUnclaimed()).toEqual({ files: 2 });
-    const shown = await runGit(root, ["show", "--name-only", "--format=%an", "HEAD"], { env });
+    const shown = await git.run(root, ["show", "--name-only", "--format=%an", "HEAD"]);
     expect(shown.stdout.split("\n").filter((line) => line.length > 0)).toEqual([
       "inteligir",
       "a.md",
       "user.md",
     ]);
-    const { stdout } = await runGit(root, ["status", "--porcelain"], { env });
+    const { stdout } = await git.run(root, ["status", "--porcelain"]);
     expect(stdout).toBe(" D gone.md\n?? [a].md\n");
 
     holdA.release();
@@ -835,7 +630,7 @@ describe("sync", { timeout: 30_000 }, () => {
     const { engine } = await makeEngine({ remoteUrl: remote });
     expect(await syncState(engine)).toBe("offline");
 
-    await runGit(parent, ["init", "--bare", "-b", "main", "late.git"], { env });
+    await git.run(parent, ["init", "--bare", "-b", "main", "late.git"]);
     const recovered = await engine.syncNow();
     expect(recovered.state).toBe("clean");
     expect(recovered.lastError).toBeNull();
@@ -846,11 +641,11 @@ describe("sync", { timeout: 30_000 }, () => {
     const { root, engine } = await makeEngine({ remoteUrl: remote });
     expect(await syncState(engine)).toBe("clean");
 
-    await runGit(root, ["switch", "-q", "--detach"], { env });
+    await git.run(root, ["switch", "-q", "--detach"]);
     expect(await syncState(engine)).toBe("detached");
     expect(await reportedState(engine)).toBe("detached");
 
-    await runGit(root, ["switch", "-q", "main"], { env });
+    await git.run(root, ["switch", "-q", "main"]);
     expect(await syncState(engine)).toBe("clean");
   });
 
@@ -921,12 +716,18 @@ const onlyConflict = (status: VaultStatusResponse): VaultSyncConflict => {
   return report;
 };
 
-const asDevice = (device: string) => ({ env: { ...env, ...identityEnv(device) } });
-
 // a person's own git in the vault, whose refusal to finish is the point
 const leaveStopped = async (root: string, gitArgs: readonly string[]): Promise<void> => {
-  await runGit(root, ["fetch", "-q", "origin"], { env });
-  await expect(runGit(root, gitArgs, asDevice(DEVICE_B))).rejects.toThrow();
+  await git.run(root, ["fetch", "-q", "origin"]);
+  await expect(git.run(root, gitArgs, asDevice(DEVICE_B))).rejects.toThrow();
+};
+
+// a verdict that throws on the note both devices edit, so a merge of it fails outright
+const failsOnShared: Reconcile = (input) => {
+  if (input.path === "shared.md") {
+    throw new Error("injected reconcile failure");
+  }
+  return reconcileFile(input);
 };
 
 // the same note edited on two devices between syncs: every pass ends pushed, and a path whose two
@@ -1055,7 +856,7 @@ describe("a pass that meets another device's edit", { timeout: 30_000 }, () => {
 
   it("settles a version past the read cap by its blob, never reading it", async () => {
     const { b } = await divergedPair();
-    await runGit(b.root, ["fetch", "-q", "origin", "main"], { env });
+    await git.run(b.root, ["fetch", "-q", "origin", "main"]);
     const asked: ReconcileInput[] = [];
     const reports = await mergeFetched(
       {
@@ -1063,7 +864,7 @@ describe("a pass that meets another device's edit", { timeout: 30_000 }, () => {
         run: async (gitArgs, options) =>
           gitArgs[0] === "cat-file" && gitArgs[1] === "-s"
             ? { stdout: `${String(VAULT_MAX_CONTENT_LENGTH + 1)}\n` }
-            : await runGit(b.root, gitArgs, { ...options, env: { ...env, ...options?.env } }),
+            : await git.run(b.root, gitArgs, options),
       },
       {
         device: DEVICE_B,
@@ -1157,7 +958,7 @@ describe("a pass that meets another device's edit", { timeout: 30_000 }, () => {
     expect(await syncState(a.engine)).toBe("clean");
 
     expect(await syncState(b.engine)).toBe("clean");
-    await runGit(b.root, ["merge-base", "--is-ancestor", unpushed, "HEAD"], { env });
+    await git.run(b.root, ["merge-base", "--is-ancestor", unpushed, "HEAD"]);
     expect(await parentCount(b.root, "HEAD")).toBe(2);
     expect(await readVault(b, "shared.md")).toBe(SHARED_B);
     expect(await readVault(b, COPY_OF_A)).toBe(removeFrontmatterId(SHARED_A));
@@ -1211,6 +1012,25 @@ describe("a pass that meets another device's edit", { timeout: 30_000 }, () => {
     expect(await readVault(b, COPY_OF_A)).toBe(removeFrontmatterId(SHARED_A));
   });
 
+  it("says why it stalled again when a pass that went offline in between meets the same tips", async () => {
+    const { b, remote } = await divergedPair({ reconcile: failsOnShared });
+    const failed = await b.engine.syncNow();
+    expect(failed.state).toBe("stalled");
+    expect(failed.lastError).toMatch(/could not be combined/u);
+
+    const away = `${remote}-away`;
+    await rename(remote, away);
+    const offline = await b.engine.syncNow();
+    expect(offline.state).toBe("offline");
+    expect(offline.lastError).not.toBe(failed.lastError);
+    await rename(away, remote);
+
+    expect(await b.engine.syncNow()).toMatchObject({
+      lastError: failed.lastError,
+      state: "stalled",
+    });
+  });
+
   it("clears a merge a crash left behind before its first commit", async () => {
     const { b } = await divergedPair();
     await leaveStopped(b.root, ["merge", "--no-commit", "refs/remotes/origin/main"]);
@@ -1228,13 +1048,13 @@ describe("a pass that meets another device's edit", { timeout: 30_000 }, () => {
   it("clears a rebase a crash left behind before its first commit", async () => {
     const { b } = await divergedPair();
     await leaveStopped(b.root, ["rebase", "refs/remotes/origin/main"]);
-    const rebaseDir = await gitPath(gitIn(b.root), b.root, "rebase-merge");
+    const rebaseDir = await gitDirPath(b.root, "rebase-merge");
     expect(existsSync(rebaseDir)).toBe(true);
 
     const restarted = await makeEngine({ device: DEVICE_B, remoteUrl: null, root: b.root });
     await commitFile(restarted, "after-crash.md", "written after the crash\n");
     expect(existsSync(rebaseDir)).toBe(false);
-    const branch = await runGit(b.root, ["symbolic-ref", "--short", "HEAD"], { env });
+    const branch = await git.run(b.root, ["symbolic-ref", "--short", "HEAD"]);
     expect(branch.stdout.trim()).toBe("main");
     expect(await lastMessage(b.root)).toBe("vault: update after-crash.md");
     expect(await readVault(b, "shared.md")).toBe(SHARED_B);
@@ -1243,15 +1063,15 @@ describe("a pass that meets another device's edit", { timeout: 30_000 }, () => {
 
   it("lands its verdict where the vault's own rerere recorded another resolution", async () => {
     const { b } = await divergedPair();
-    await runGit(b.root, ["config", "rerere.enabled", "true"], { env });
+    await git.run(b.root, ["config", "rerere.enabled", "true"]);
     // the person's own git records it; runGit turns rerere off for every call that names it not
     const rerere = ["-c", "rerere.enabled=true"];
     await leaveStopped(b.root, [...rerere, "merge", "refs/remotes/origin/main"]);
     await writeFile(path.join(b.root, "shared.md"), "what rerere recorded\n", "utf-8");
-    await runGit(b.root, ["add", "shared.md"], asDevice(DEVICE_B));
-    await runGit(b.root, [...rerere, "commit", "-q", "--no-edit"], asDevice(DEVICE_B));
-    await runGit(b.root, ["reset", "-q", "--hard", "HEAD~1"], asDevice(DEVICE_B));
-    expect(existsSync(await gitPath(gitIn(b.root), b.root, "rr-cache"))).toBe(true);
+    await git.run(b.root, ["add", "shared.md"], asDevice(DEVICE_B));
+    await git.run(b.root, [...rerere, "commit", "-q", "--no-edit"], asDevice(DEVICE_B));
+    await git.run(b.root, ["reset", "-q", "--hard", "HEAD~1"], asDevice(DEVICE_B));
+    expect(existsSync(await gitDirPath(b.root, "rr-cache"))).toBe(true);
 
     expect(await syncState(b.engine)).toBe("clean");
     expect(await readVault(b, "shared.md")).toBe(SHARED_B);
@@ -1284,7 +1104,7 @@ describe("a pass that meets another device's edit", { timeout: 30_000 }, () => {
     const { a, b } = await divergedPair();
     expect(await syncState(b.engine)).toBe("clean");
     expect(await syncState(a.engine)).toBe("clean");
-    const { stdout } = await runGit(a.root, ["log", "--format=%cn%x09%s"], { env });
+    const { stdout } = await git.run(a.root, ["log", "--format=%cn%x09%s"]);
     const rows = stdout
       .trim()
       .split("\n")
@@ -1415,7 +1235,7 @@ describe("a pass waiting on the network", { timeout: 30_000 }, () => {
     await writeFile(path.join(a.root, "from-a.md"), "pushed by A\n", "utf-8");
     await a.engine.commitNow();
     await a.engine.syncNow();
-    const headBefore = await runGit(b.root, ["rev-parse", "HEAD"], { env });
+    const headBefore = await git.run(b.root, ["rev-parse", "HEAD"]);
 
     const pass = b.engine.syncNow();
     await gate.reached();
@@ -1438,7 +1258,7 @@ describe("a pass waiting on the network", { timeout: 30_000 }, () => {
     }
 
     await expect(pass).resolves.toMatchObject({ state: "held" });
-    const headAfter = await runGit(b.root, ["rev-parse", "HEAD"], { env });
+    const headAfter = await git.run(b.root, ["rev-parse", "HEAD"]);
     expect(headAfter.stdout).toBe(headBefore.stdout);
     expect(existsSync(path.join(b.root, "from-a.md"))).toBe(false);
 
@@ -1448,7 +1268,40 @@ describe("a pass waiting on the network", { timeout: 30_000 }, () => {
     expect(await readFile(path.join(b.root, "from-a.md"), "utf-8")).toBe("pushed by A\n");
   });
 
-  it("says dirty, not rejected, when its push loses a race to another device's", async () => {
+  it("leaves no offline standing once a held pass's fetch reached the remote", async () => {
+    const remote = await makeBareRemote();
+    const gate = await makeGatedService("upload-pack");
+    const { engine, root } = await makeEngine({ env: gate.env, remoteUrl: remote });
+    await gate.open();
+    expect(await syncState(engine)).toBe("clean");
+    const away = `${remote}-away`;
+    await rename(remote, away);
+    expect(await syncState(engine)).toBe("offline");
+    await rename(away, remote);
+    await gate.close();
+
+    const pass = engine.syncNow();
+    await gate.reached();
+    const turn = beginAgentTurnWrites({
+      git: engine,
+      notifier: createNotifierRecorder(),
+      threadId: "thr_held",
+      turnId: "turn_held",
+    });
+    try {
+      await turn.ready;
+      await writeFile(path.join(root, "agent.md"), "agent writing\n", "utf-8");
+      turn.recordPaths(["agent.md"]);
+    } finally {
+      await gate.open();
+    }
+
+    await expect(pass).resolves.toMatchObject({ lastError: null, state: "held" });
+    await turn.finish();
+    expect(await engine.status()).toMatchObject({ lastError: null, state: "dirty" });
+  });
+
+  it("says dirty with no error, never rejected, when its push loses a race to another device's", async () => {
     const remote = await makeBareRemote();
     const a = await makeEngine({ remoteUrl: remote });
     const gate = await makeGatedService("receive-pack");
@@ -1472,7 +1325,7 @@ describe("a pass waiting on the network", { timeout: 30_000 }, () => {
 
     const raced = await pass;
     expect(raced.state).toBe("dirty");
-    expect(raced.lastError).toMatch(/fetch first/u);
+    expect(raced.lastError).toBeNull();
     expect(await syncState(b.engine)).toBe("clean");
     expect(await readFile(path.join(b.root, "from-a.md"), "utf-8")).toBe("pushed by A\n");
   });
@@ -1515,7 +1368,7 @@ describe("a pass waiting on the network", { timeout: 30_000 }, () => {
     const runtime = await createVaultRuntime({
       dataDir: scratchDir("inteligir-git-echo-data-"),
       deviceName: () => TEST_DEVICE,
-      gitEnv: env,
+      git,
       notifier: createNotifierRecorder(),
       onFilesChanged: (change) => {
         changes.push(change);
@@ -1529,7 +1382,7 @@ describe("a pass waiting on the network", { timeout: 30_000 }, () => {
       await runtime.dispose();
     });
 
-    const pass = runtime.syncNow();
+    const pass = runtime.git.syncNow();
     try {
       await remote.requested;
       await runtime.service.write("saved.md", "mid-fetch\n");
@@ -1575,7 +1428,7 @@ describe("a pass that pulls", { timeout: 30_000 }, () => {
     const runtime = await createVaultRuntime({
       dataDir: scratchDir("inteligir-git-pull-data-"),
       deviceName: () => TEST_DEVICE,
-      gitEnv: env,
+      git,
       notifier: createNotifierRecorder(),
       onFilesChanged: (change) => {
         changes.push(change);
@@ -1594,7 +1447,7 @@ describe("a pass that pulls", { timeout: 30_000 }, () => {
     await a.engine.commitNow();
     await a.engine.syncNow();
 
-    await expect(runtime.syncNow()).resolves.toMatchObject({ state: "clean" });
+    await expect(runtime.git.syncNow()).resolves.toMatchObject({ state: "clean" });
     expect(changes).toEqual([{ kind: "paths", paths: ["one.md", "two.md"] }]);
   });
 });
@@ -1605,15 +1458,6 @@ const WELCOME_ON_A = "# Welcome\n\nRewritten on A.\n";
 const seedStarters = async (dir: string): Promise<void> => {
   await writeFile(path.join(dir, "Welcome.md"), STARTER_WELCOME, "utf-8");
   await writeFile(path.join(dir, "Tour.md"), "# Tour\n\nA second starter.\n", "utf-8");
-};
-
-const seedMarker = async (root: string): Promise<string | null> => {
-  try {
-    const { stdout } = await runGit(root, ["config", "--get", SEED_COMMIT_KEY], { env });
-    return stdout.trim();
-  } catch {
-    return null;
-  }
 };
 
 // A seeded, rewrote one starter, deleted the other, wrote a note of its own and pushed it all.
@@ -1713,195 +1557,15 @@ describe("a starter vault meeting a remote with history", { timeout: 30_000 }, (
   });
 });
 
-const gitEnvValue = async (root: string, name: string): Promise<string> => {
-  const { stdout } = await runGit(
-    root,
-    ["-c", `alias.dumpenv=!printenv ${name} || true`, "dumpenv"],
-    { env },
-  );
-  return stdout.trim();
-};
-
-describe("runGit", () => {
-  it("never lets git ask this process a question", async () => {
-    // nobody can answer a git prompt, so it only holds the invocation until the timeout.
-    const root = scratchDir("inteligir-git-env-");
-    await ensureVaultRepo({ env, root });
-    expect(await gitEnvValue(root, "GIT_TERMINAL_PROMPT")).toBe("0");
-    expect(await gitEnvValue(root, "GIT_SSH_COMMAND")).toBe(
-      "ssh -o BatchMode=yes -o ConnectTimeout=20",
-    );
-  });
-
-  it("gives up on a stalled transfer long before the network timeout", async () => {
-    const root = scratchDir("inteligir-git-stall-");
-    await ensureVaultRepo({ env, root });
-    expect(await gitEnvValue(root, "GIT_HTTP_LOW_SPEED_LIMIT")).toBe("1000");
-    expect(await gitEnvValue(root, "GIT_HTTP_LOW_SPEED_TIME")).toBe("30");
-  });
-
-  it("passes every pathspec literally — the builder carries the flag, not each caller", async () => {
-    const { root, engine } = await makeEngine({ remoteUrl: null });
-    await writeFile(path.join(root, "a.md"), "plain\n", "utf-8");
-    await writeFile(path.join(root, "[a].md"), "bracketed\n", "utf-8");
-    await engine.commitNow();
-
-    // tracked files: the glob reaches through the index, where an untracked walk only matches by name.
-    await writeFile(path.join(root, "a.md"), "plain edit\n", "utf-8");
-    await writeFile(path.join(root, "[a].md"), "bracketed edit\n", "utf-8");
-    await runGit(root, ["add", "-A", "--", "[a].md"], { env });
-    const { stdout } = await runGit(root, ["diff", "--cached", "--name-only"], { env });
-    expect(stdout.trim()).toBe("[a].md");
-  });
-
-  it("signs nothing whatever the vault's own policy — the builder carries it, not each caller", async () => {
-    const root = scratchDir("inteligir-git-signing-");
-    await ensureVaultRepo({ env, root });
-    await runGit(root, ["config", "commit.gpgsign", "true"], { env });
-    await runGit(root, ["config", "gpg.program", "false"], { env });
-    await runGit(root, ["commit", "--allow-empty", "-q", "-m", "unsigned"], {
-      env: { ...env, ...identityEnv(TEST_DEVICE) },
-    });
-    expect(await lastMessage(root)).toBe("unsigned");
-  });
-
-  it("leaves a caller's own GIT_SSH_COMMAND alone", async () => {
-    const root = scratchDir("inteligir-git-ssh-");
-    await ensureVaultRepo({ env, root });
-    const { stdout } = await runGit(
-      root,
-      ["-c", "alias.dumpenv=!printenv GIT_SSH_COMMAND || true", "dumpenv"],
-      { env: { ...env, GIT_SSH_COMMAND: "ssh -F /custom/config" } },
-    );
-    expect(stdout.trim()).toBe("ssh -F /custom/config");
-  });
-});
-
-const failedPush = (stderr: string, signal: string | null = null) =>
-  new GitError("git push failed", stderr, signal);
-
-describe("classifyNetworkFailure", () => {
-  it.each([
-    ["fatal: Authentication failed for 'https://cloud.test/v1/git/me/'", "unauthorized"],
-    [
-      "fatal: unable to access 'https://cloud.test/': Could not resolve host: cloud.test",
-      "offline",
-    ],
-    [
-      "ssh: connect to host h port 22: Connection refused\nfatal: Could not read from remote repository.",
-      "offline",
-    ],
-    ["error: RPC failed; curl 28 Operation too slow\nfatal: early EOF", "offline"],
-    [
-      "fatal: unable to access 'https://cloud.test/': The requested URL returned error: 503",
-      "offline",
-    ],
-    [
-      "fatal: unable to access 'https://cloud.test/': The requested URL returned error: 429",
-      "offline",
-    ],
-    [
-      "error: RPC failed; HTTP 413 curl 22 The requested URL returned error: 413\nfatal: the remote end hung up unexpectedly",
-      "too-large",
-    ],
-    [
-      "error: RPC failed; HTTP 413 curl 22 The requested URL returned error: 413 Request Entity Too Large",
-      "too-large",
-    ],
-    [
-      "error: RPC failed; HTTP 507 curl 22 The requested URL returned error: 507\nsend-pack: unexpected disconnect while reading sideband packet\nfatal: the remote end hung up unexpectedly",
-      "full",
-    ],
-    [
-      " ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs",
-      "rejected",
-    ],
-    [
-      " ! [rejected]        main -> main (fetch first)\nerror: failed to push some refs",
-      "lost-race",
-    ],
-    [" ! [rejected]        main -> main (non-fast-forward)", "lost-race"],
-  ])("%s → %s", (stderr, expected) => {
-    expect(classifyNetworkFailure(failedPush(stderr))).toBe(expected);
-  });
-
-  it("calls a git the timeout killed offline, whatever it had printed", () => {
-    expect(classifyNetworkFailure(failedPush("", "SIGTERM"))).toBe("offline");
-  });
-});
-
-describe("the clone path", () => {
-  it("clones a populated remote instead of init+seed — a second device joins the vault", async () => {
-    const remote = await makeBareRemote();
-    const a = await makeEngine({ remoteUrl: remote });
-    await writeFile(path.join(a.root, "note.md"), "# from A\n");
-    await a.engine.commitNow();
-    expect(await syncState(a.engine)).toBe("clean");
-
-    const bRoot = path.join(scratchDir("inteligir-git-clone-"), "vault");
-    let seeded = false;
-    const { created, cloned } = await ensureVaultRepo({
-      env,
-      remote: { source: "explicit", url: remote },
-      root: bRoot,
-      seed: () => {
-        seeded = true;
-      },
-    });
-    expect(created).toBe(true);
-    expect(cloned).toBe(true);
-    expect(seeded).toBe(false);
-    expect(await readFile(path.join(bRoot, "note.md"), "utf-8")).toBe("# from A\n");
-  });
-
-  it("seeds only the HOSTED missing-repo miss; an explicit remote's miss boots empty", async () => {
-    // GitHub-style hosts answer 404 for a private repo the credential cannot see.
-    const bRoot = path.join(scratchDir("inteligir-git-clone-miss-"), "vault");
-    let seeded = false;
-    const { created, cloned } = await ensureVaultRepo({
-      env,
-      remote: {
-        source: "explicit",
-        url: path.join(scratchDir("inteligir-git-nowhere-"), "gone.git"),
-      },
-      root: bRoot,
-      seed: () => {
-        seeded = true;
-      },
-    });
-    expect(created).toBe(true);
-    expect(cloned).toBe(false);
-    expect(seeded).toBe(false);
-    expect(existsSync(path.join(bRoot, ".git"))).toBe(true);
-
-    const accountRoot = path.join(scratchDir("inteligir-git-clone-miss-account-"), "vault");
-    let accountSeeded = false;
-    const viaAccount = await ensureVaultRepo({
-      env,
-      remote: {
-        account: { id: "user-a", state: "known" },
-        source: "account",
-        url: path.join(scratchDir("inteligir-git-nowhere-2-"), "gone.git"),
-      },
-      root: accountRoot,
-      seed: () => {
-        accountSeeded = true;
-      },
-    });
-    expect(viaAccount.cloned).toBe(false);
-    expect(accountSeeded).toBe(true);
-  });
-});
-
 describe("the cross-account fence", { timeout: 30_000 }, () => {
   it("refuses a pass when the vault last synced with a different account", async () => {
     const remote = await makeBareRemote();
     const root = scratchDir("inteligir-git-fence-");
-    await ensureVaultRepo({ env, root });
+    await initVault(root);
     let account = "user-a";
     const engine = createGitEngine({
       deviceName: () => TEST_DEVICE,
-      env,
+      git,
       remote: () => ({ account: { id: account, state: "known" }, source: "account", url: remote }),
       root,
     });
@@ -1912,15 +1576,15 @@ describe("the cross-account fence", { timeout: 30_000 }, () => {
     await writeFile(path.join(root, "note.md"), "# a\n");
     await engine.commitNow();
     expect(await syncState(engine)).toBe("clean");
-    const marker = await runGit(root, ["config", "--get", "inteligir.account"], { env });
+    const marker = await git.run(root, ["config", "--get", "inteligir.account"]);
     expect(marker.stdout.trim()).toBe("user-a");
 
-    const pushed = await runGit(remote, ["rev-list", "--count", "main"], { env });
+    const pushed = await git.run(remote, ["rev-list", "--count", "main"]);
     const pushedCount = Number(pushed.stdout.trim());
     account = "user-b";
     const status = await engine.syncNow();
     expect(status.state).toBe("account-mismatch");
-    const afterRefusal = await runGit(remote, ["rev-list", "--count", "main"], { env });
+    const afterRefusal = await git.run(remote, ["rev-list", "--count", "main"]);
     expect(Number(afterRefusal.stdout.trim())).toBe(pushedCount);
 
     account = "user-a";
@@ -1931,11 +1595,11 @@ describe("the cross-account fence", { timeout: 30_000 }, () => {
     const remote = await makeBareRemote();
     const a = await makeEngine({ remoteUrl: remote });
     const root = scratchDir("inteligir-git-fence-conflict-");
-    await ensureVaultRepo({ env, root });
+    await initVault(root);
     let account = "user-a";
     const engine = createGitEngine({
       deviceName: () => TEST_DEVICE,
-      env,
+      git,
       remote: () => ({ account: { id: account, state: "known" }, source: "account", url: remote }),
       root,
     });
@@ -2047,12 +1711,12 @@ describe("a push too large for the remote", { timeout: 30_000 }, () => {
   it("pushes again once the branch no longer holds the refused head", async () => {
     const remote = await makeTooLargeRemote();
     const { engine, root } = await makeEngine({ remoteUrl: remote.url });
-    const initialized = await runGit(root, ["rev-parse", "HEAD"], { env });
+    const initialized = await git.run(root, ["rev-parse", "HEAD"]);
     await writeFile(path.join(root, "scan.md"), "a history over the cap\n", "utf-8");
     await engine.commitNow();
     expect(await syncState(engine)).toBe("too-large");
 
-    await runGit(root, ["reset", "-q", "--hard", initialized.stdout.trim()], { env });
+    await git.run(root, ["reset", "-q", "--hard", initialized.stdout.trim()]);
     await writeFile(path.join(root, "small.md"), "a rewritten history\n", "utf-8");
     await engine.commitNow();
     expect(await syncState(engine)).toBe("too-large");
@@ -2062,10 +1726,10 @@ describe("a push too large for the remote", { timeout: 30_000 }, () => {
   it("names the hosted vault's stated cap on the account remote", async () => {
     const remote = await makeTooLargeRemote();
     const root = scratchDir("inteligir-git-too-large-");
-    await ensureVaultRepo({ env, root });
+    await initVault(root);
     const engine = createGitEngine({
       deviceName: () => TEST_DEVICE,
-      env,
+      git,
       remote: () => ({
         account: { id: "user-a", state: "known" },
         source: "account",
@@ -2090,10 +1754,10 @@ describe("a push too large for the remote", { timeout: 30_000 }, () => {
   it("measures a push to the account remote first, and uploads nothing over the cap", async () => {
     const remote = await makeTooLargeRemote();
     const root = scratchDir("inteligir-git-over-cap-");
-    await ensureVaultRepo({ env, root });
+    await initVault(root);
     const engine = createGitEngine({
       deviceName: () => TEST_DEVICE,
-      env,
+      git,
       maxPushBytes: 64,
       remote: () => ({
         account: { id: "user-a", state: "known" },
@@ -2183,10 +1847,10 @@ describe("a remote with no room left", { timeout: 30_000 }, () => {
   it("names the account's cloud vault on the account remote", async () => {
     const remote = await makeFullRemote();
     const root = scratchDir("inteligir-git-full-account-");
-    await ensureVaultRepo({ env, root });
+    await initVault(root);
     const engine = createGitEngine({
       deviceName: () => TEST_DEVICE,
-      env: { ...env, ...remote.env },
+      git: hermeticGit(remote.env),
       remote: () => ({
         account: { id: "user-a", state: "known" },
         source: "account",
@@ -2204,164 +1868,13 @@ describe("a remote with no room left", { timeout: 30_000 }, () => {
   });
 });
 
-describe("clone failure classes", () => {
-  it("an unreachable remote boots EMPTY — the seed waits for a remote that answered", async () => {
-    // an empty init commit is dropped by the eventual rebase's --empty=drop, so the vault heals into a clean join.
-    const server = createServer((_request, response) => {
-      response.writeHead(401, { "www-authenticate": 'Basic realm="test"' });
-      response.end("auth required\n");
-    });
-    server.listen(0, "127.0.0.1");
-    await once(server, "listening");
-    onTestFinished(async () => {
-      server.close();
-      await once(server, "close");
-    });
-    const { port } = boundAddressSchema.parse(server.address());
-
-    const root = path.join(scratchDir("inteligir-git-clone-fail-"), "vault");
-    let seeded = false;
-    const { created, cloned } = await ensureVaultRepo({
-      env,
-      remote: {
-        account: { state: "pending" },
-        source: "account",
-        url: `http://127.0.0.1:${String(port)}/vault.git`,
-      },
-      root,
-      seed: () => {
-        seeded = true;
-      },
-    });
-    expect(created).toBe(true);
-    expect(cloned).toBe(false);
-    expect(seeded).toBe(false);
-    const count = await runGit(root, ["rev-list", "--count", "HEAD"], { env });
-    expect(count.stdout.trim()).toBe("1");
-  });
-});
-
-describe("the bootstrap port", () => {
-  interface Invocation {
-    cwd: string;
-    args: string[];
-    timeoutMs: number | undefined;
-    env: Record<string, string> | undefined;
-  }
-
-  const FAKE_HEAD = "f".repeat(40);
-
-  // answers --git-path as a plain repo would, and HEAD once a commit ran; the bootstrap makes the
-  // dir it appends in.
-  const fakeGit = (clone: "missing" | "failed") => {
-    const calls: Invocation[] = [];
-    let born = false;
-    const run = async (
-      cwd: string,
-      args: readonly string[],
-      options: { timeoutMs?: number; env?: Record<string, string> } = {},
-    ): Promise<{ stdout: string }> => {
-      calls.push({ args: [...args], cwd, env: options.env, timeoutMs: options.timeoutMs });
-      born ||= args.includes("commit");
-      switch (args[0]) {
-        case "clone": {
-          throw new GitError(
-            "git clone failed",
-            clone === "missing"
-              ? "fatal: repository 'https://cloud.test/v1/git/me/' not found"
-              : "fatal: unable to access 'https://cloud.test/v1/git/me/': could not resolve host",
-          );
-        }
-        case "rev-parse": {
-          if (args[1] === "--git-path") {
-            return { stdout: `.git/${args[2] ?? ""}\n` };
-          }
-          if (born) {
-            return { stdout: `${FAKE_HEAD}\n` };
-          }
-          throw new GitError("git rev-parse failed", "");
-        }
-        case undefined: {
-          throw new Error("Not implemented yet: undefined case");
-        }
-        default: {
-          return { stdout: "" };
-        }
-      }
-    };
-    return { calls, run };
-  };
-
-  it("drives clone-miss → init → seed → the seed's own first commit through the injected run, and records it", async () => {
-    const root = path.join(scratchDir("inteligir-git-port-"), "vault");
-    const fake = fakeGit("missing");
-    let seeded = false;
-    const args: EnsureVaultRepoArgs = {
-      remote: {
-        account: { id: "user-x", state: "known" },
-        source: "account",
-        url: "https://cloud.test/v1/git/me/",
-      },
-      root,
-      run: fake.run,
-      seed: () => {
-        seeded = true;
-      },
-    };
-    const { created, cloned } = await ensureVaultRepo(args);
-
-    expect(created).toBe(true);
-    expect(cloned).toBe(false);
-    expect(seeded).toBe(true);
-    expect(fake.calls.map((call) => call.args.slice(0, 2).join(" "))).toEqual([
-      "clone --",
-      "init -b",
-      "rev-parse --git-path",
-      "rev-parse --git-path",
-      "rev-parse --verify",
-      "add -A",
-      "commit --allow-empty",
-      "rev-parse --verify",
-      `config ${SEED_COMMIT_KEY}`,
-    ]);
-    const [clone] = fake.calls;
-    expect(clone?.cwd).not.toBe(root);
-    expect(clone?.timeoutMs).toBe(120_000);
-    const commit = fake.calls.find((call) => call.args.includes("commit"));
-    expect(commit?.args).toContain("vault: initialize");
-    expect(commit?.env?.GIT_AUTHOR_NAME).toBe("inteligir");
-    expect(fake.calls.at(-1)?.args).toEqual(["config", SEED_COMMIT_KEY, FAKE_HEAD]);
-  });
-
-  it("boots EMPTY on a clone failure that is not a missing repo", async () => {
-    const root = path.join(scratchDir("inteligir-git-port-fail-"), "vault");
-    const fake = fakeGit("failed");
-    let seeded = false;
-    await ensureVaultRepo({
-      remote: {
-        account: { id: "user-x", state: "known" },
-        source: "account",
-        url: "https://cloud.test/v1/git/me/",
-      },
-      root,
-      run: fake.run,
-      seed: () => {
-        seeded = true;
-      },
-    });
-    expect(seeded).toBe(false);
-    expect(fake.calls.at(-1)?.args).toContain("vault: initialize");
-    expect(fake.calls.some((call) => call.args.includes("add"))).toBe(false);
-  });
-});
-
 describe("dispose", () => {
   it("surfaces a failed shutdown flush instead of swallowing it", async () => {
     const root = scratchDir("inteligir-git-dispose-");
-    await ensureVaultRepo({ env, root });
+    await initVault(root);
     const engine = createGitEngine({
       deviceName: () => TEST_DEVICE,
-      env,
+      git,
       remote: () => null,
       root,
     });
@@ -2375,11 +1888,11 @@ describe("dispose", () => {
 describe("a live remote provider", () => {
   it("an armed tick with no remote invokes no network git — no origin is ever written", async () => {
     const root = scratchDir("inteligir-git-idle-");
-    await ensureVaultRepo({ env, root });
+    await initVault(root);
     let reads = 0;
     const engine = createGitEngine({
       deviceName: () => TEST_DEVICE,
-      env,
+      git,
       remote: () => {
         reads += 1;
         return null;
@@ -2394,17 +1907,17 @@ describe("a live remote provider", () => {
       expect(reads).toBeGreaterThanOrEqual(2);
     });
     // a pass that ran would have persisted origin into .git/config.
-    await expect(runGit(root, ["remote", "get-url", "origin"], { env })).rejects.toThrow();
+    await expect(git.run(root, ["remote", "get-url", "origin"])).rejects.toThrow();
   });
 
   it("turns sync on mid-life — the sign-in flip needs no engine restart", async () => {
     const remote = await makeBareRemote();
     const root = scratchDir("inteligir-git-live-");
-    await ensureVaultRepo({ env, root });
+    await initVault(root);
     let current: VaultRemoteSpec | null = null;
     const engine = createGitEngine({
       deviceName: () => TEST_DEVICE,
-      env,
+      git,
       remote: () => current,
       root,
     });
@@ -2446,18 +1959,18 @@ const composedProvider = (signedIn: boolean) => {
 
 const repoWithOrigin = async (origin: string): Promise<string> => {
   const root = scratchDir("inteligir-git-own-origin-");
-  await ensureVaultRepo({ env, root });
-  await runGit(root, ["remote", "add", "origin", origin], { env });
+  await initVault(root);
+  await git.run(root, ["remote", "add", "origin", origin]);
   return root;
 };
 
 const originOf = async (root: string): Promise<string> => {
-  const { stdout } = await runGit(root, ["config", "--get", "remote.origin.url"], { env });
+  const { stdout } = await git.run(root, ["config", "--get", "remote.origin.url"]);
   return stdout.trim();
 };
 
 const engineOn = (root: string, remote: GitEngineArgs["remote"]): GitEngine => {
-  const engine = createGitEngine({ deviceName: () => TEST_DEVICE, env, remote, root });
+  const engine = createGitEngine({ deviceName: () => TEST_DEVICE, git, remote, root });
   onTestFinished(async () => {
     await engine.dispose();
   });
@@ -2480,7 +1993,7 @@ describe("the vault's own origin", { timeout: 30_000 }, () => {
     });
     expect(await originOf(root)).toBe(foreign);
     expect(await tipOf(bare, "main")).toBe(await tipOf(root, "HEAD"));
-    await expect(runGit(root, ["config", "--get", REMOTE_MARKER_KEY], { env })).rejects.toThrow();
+    await expect(git.run(root, ["config", "--get", REMOTE_MARKER_KEY])).rejects.toThrow();
   });
 
   it("an origin changed outside the app is the next pass's, with no restart", async () => {
@@ -2494,7 +2007,7 @@ describe("the vault's own origin", { timeout: 30_000 }, () => {
     expect(await syncState(engine)).toBe("clean");
     expect(await tipOf(first, "main")).toBe(await tipOf(root, "HEAD"));
 
-    await runGit(root, ["remote", "set-url", "origin", `file://${second}`], { env });
+    await git.run(root, ["remote", "set-url", "origin", `file://${second}`]);
     await writeFile(path.join(root, "note.md"), "# two\n", "utf-8");
     await engine.commitNow();
     expect(await engine.syncNow()).toMatchObject({
@@ -2536,7 +2049,7 @@ describe("the vault's own origin", { timeout: 30_000 }, () => {
     expect(status.lastError).toMatch(/origin/u);
     expect(await originOf(root)).toBe(`file://${own}`);
     for (const remote of [own, hosted]) {
-      await expect(runGit(remote, ["rev-parse", "--verify", "main"], { env })).rejects.toThrow();
+      await expect(git.run(remote, ["rev-parse", "--verify", "main"])).rejects.toThrow();
     }
   });
 
@@ -2544,7 +2057,7 @@ describe("the vault's own origin", { timeout: 30_000 }, () => {
     const hosted = await makeBareRemote();
     const pinned = await makeBareRemote();
     const root = scratchDir("inteligir-git-marked-");
-    await ensureVaultRepo({ env, root });
+    await initVault(root);
     let current: VaultRemoteSpec = {
       account: { id: "user-a", state: "known" },
       source: "account",
@@ -2556,13 +2069,13 @@ describe("the vault's own origin", { timeout: 30_000 }, () => {
     await engine.commitNow();
     expect(await syncState(engine)).toBe("clean");
     expect(await originOf(root)).toBe(hosted);
-    const marker = await runGit(root, ["config", "--get", REMOTE_MARKER_KEY], { env });
+    const marker = await git.run(root, ["config", "--get", REMOTE_MARKER_KEY]);
     expect(marker.stdout.trim()).toBe("account");
 
     current = { source: "explicit", url: pinned };
     expect(await syncState(engine)).toBe("clean");
     expect(await originOf(root)).toBe(pinned);
-    await expect(runGit(root, ["config", "--get", REMOTE_MARKER_KEY], { env })).rejects.toThrow();
+    await expect(git.run(root, ["config", "--get", REMOTE_MARKER_KEY])).rejects.toThrow();
   });
 });
 
@@ -2598,7 +2111,7 @@ describe("a remote the person chooses", { timeout: 30_000 }, () => {
     await engine.commitNow();
     expect(await syncState(engine)).toBe("clean");
     // a symref, as a clone leaves: forgetting it must not delete the branch it names twice
-    await runGit(root, ["remote", "set-head", "origin", "main"], { env });
+    await git.run(root, ["remote", "set-head", "origin", "main"]);
 
     const second = await makeBareRemote();
     await engine.setOrigin({ kind: "remote", url: `file://${second}` });
@@ -2610,7 +2123,7 @@ describe("a remote the person chooses", { timeout: 30_000 }, () => {
   it("drops a hand-set pushurl, so the next push reaches the remote chosen", async () => {
     const first = await makeBareRemote();
     const root = await repoWithOrigin(`file://${first}`);
-    await runGit(root, ["config", "remote.origin.pushurl", `file://${first}`], { env });
+    await git.run(root, ["config", "remote.origin.pushurl", `file://${first}`]);
     const engine = engineOn(root, composedProvider(false));
     await writeFile(path.join(root, "note.md"), "# mine\n", "utf-8");
     await engine.commitNow();
@@ -2619,10 +2132,8 @@ describe("a remote the person chooses", { timeout: 30_000 }, () => {
     await engine.setOrigin({ kind: "remote", url: `file://${second}` });
     expect(await syncState(engine)).toBe("clean");
     expect(await tipOf(second, "main")).toBe(await tipOf(root, "HEAD"));
-    await expect(runGit(first, ["rev-parse", "--verify", "main"], { env })).rejects.toThrow();
-    await expect(
-      runGit(root, ["config", "--get", "remote.origin.pushurl"], { env }),
-    ).rejects.toThrow();
+    await expect(git.run(first, ["rev-parse", "--verify", "main"])).rejects.toThrow();
+    await expect(git.run(root, ["config", "--get", "remote.origin.pushurl"])).rejects.toThrow();
   });
 
   it("forgets the old remote's tips and pushurl when a pass moves the origin itself", async () => {
@@ -2633,17 +2144,15 @@ describe("a remote the person chooses", { timeout: 30_000 }, () => {
     await writeFile(path.join(root, "note.md"), "# mine\n", "utf-8");
     await engine.commitNow();
     expect(await syncState(engine)).toBe("clean");
-    await runGit(root, ["config", "remote.origin.pushurl", `file://${first}`], { env });
+    await git.run(root, ["config", "remote.origin.pushurl", `file://${first}`]);
 
     const pinned = path.join(scratchDir("inteligir-git-pinned-"), "not-yet.git");
     current = { source: "pinned", url: pinned };
     expect(await syncState(engine)).toBe("offline");
     expect(await originOf(root)).toBe(pinned);
-    const tips = await runGit(root, ["for-each-ref", "refs/remotes/origin"], { env });
+    const tips = await git.run(root, ["for-each-ref", "refs/remotes/origin"]);
     expect(tips.stdout.trim()).toBe("");
-    await expect(
-      runGit(root, ["config", "--get", "remote.origin.pushurl"], { env }),
-    ).rejects.toThrow();
+    await expect(git.run(root, ["config", "--get", "remote.origin.pushurl"])).rejects.toThrow();
   });
 
   it("says pinned and changes nothing while INTELIGIR_VAULT_REMOTE decides", async () => {
@@ -2652,7 +2161,7 @@ describe("a remote the person chooses", { timeout: 30_000 }, () => {
     const statusChanges: string[] = [];
     const engine = createGitEngine({
       deviceName: () => TEST_DEVICE,
-      env,
+      git,
       onStatusChanged: () => {
         statusChanges.push("changed");
       },
@@ -2670,7 +2179,7 @@ describe("a remote the person chooses", { timeout: 30_000 }, () => {
 
     expect(await engine.setOrigin({ kind: "account" })).toBe("pinned");
     expect(await originOf(root)).toBe(`file://${pinned}`);
-    await expect(runGit(root, ["config", "--get", REMOTE_MARKER_KEY], { env })).rejects.toThrow();
+    await expect(git.run(root, ["config", "--get", REMOTE_MARKER_KEY])).rejects.toThrow();
     expect(statusChanges).toEqual([]);
   });
 });
