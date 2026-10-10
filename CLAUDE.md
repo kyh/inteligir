@@ -2555,7 +2555,12 @@ to the END of its group.
   (`apps/cli/turbo.json`), which the same guard holds for a bundled import
   (`/privacy` renders `docs/privacy.md`); a followed file is a named output
   (`apps/web/turbo.json`), and `NODE_ENV` is hashed, not passed through: vite
-  emits React's dev build under `development`.
+  emits React's dev build under `development`. The same inputs decide whether
+  the Worker deploys: `futureFlags.affectedUsingTaskInputs` (`turbo.json`)
+  counts a changed file for every task whose inputs name it, and Deploy asks
+  `turbo query affected`, which honours the flag where `turbo ls` does not
+  (`.github/workflows/deploy.yml`), so an edit to the legal texts alone
+  deploys.
 
 - **A DESKTOP TEST THAT LOGS A console.error FAILS.** React reports a setState
   during another component's render, a missing key or an update outside `act`

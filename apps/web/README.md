@@ -293,13 +293,14 @@ pnpm -F @repo/web exec wrangler tail inteligir-web
 ```
 
 The GitHub `Deploy` workflow runs the same command on push to main, gated on
-CI. It does NOT apply the schema: the schema reaches production only from a
-local machine (step 3), so push it BEFORE merging a change that needs it — the
-schema is additive, so an old Worker against a new database ignores what it
-does not know, while a new Worker against an old database 500s on every
-request touching a table that isn't there. The workflow's one secret is
-`CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, plus Workers Routes: Edit on
-the inteligir.com zone).
+CI, when anything the build reads changed since the `deployed/web` tag
+(`docs/privacy.md` and `docs/terms.md` included). It does NOT apply the
+schema: the schema reaches production only from a local machine (step 3), so
+push it BEFORE merging a change that needs it — the schema is additive, so an
+old Worker against a new database ignores what it does not know, while a new
+Worker against an old database 500s on every request touching a table that
+isn't there. The workflow's one secret is `CLOUDFLARE_API_TOKEN` (Workers
+Scripts: Edit, plus Workers Routes: Edit on the inteligir.com zone).
 
 ## Previews
 

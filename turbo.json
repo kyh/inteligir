@@ -17,6 +17,13 @@
   // costs the build nothing.
   "cacheMaxSize": "10GB",
   "cacheMaxAge": "14d",
+  // Deploy asks `turbo query affected` whether the Worker changed. Without this flag a changed
+  // file counts only for the package that holds it, and a file in no workspace is the root's,
+  // which nothing depends on: an edit to docs/privacy.md alone would deploy nothing. With it, a
+  // file counts for every task whose `inputs` name it (apps/web/turbo.json names the legal texts).
+  "futureFlags": {
+    "affectedUsingTaskInputs": true
+  },
   "tasks": {
     "topo": {
       "dependsOn": ["^topo"]
