@@ -80,7 +80,7 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
     return await handleVaultReadRoutes(request, env, url);
   }
 
-  if (url.pathname === ACCOUNT_API_PATHS.account || url.pathname === ACCOUNT_API_PATHS.delete) {
+  if (url.pathname === ACCOUNT_API_PATHS.delete) {
     return await handleAccountRoute(request, env, url);
   }
 

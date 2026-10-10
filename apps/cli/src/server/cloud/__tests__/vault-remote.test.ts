@@ -18,9 +18,17 @@ const own = (url: string): OriginConfig => ({ markedAccount: false, url });
 
 const makeDataDir = (): string => makeTempDir("inteligir-vault-remote-");
 
+const SIGNED_IN = {
+  credential: CREDENTIAL,
+  deviceId: "dev_1",
+  deviceName: "Laptop",
+  email: "owner@example.test",
+  userId: "usr_1",
+};
+
 const signedInDataDir = (): string => {
   const dataDir = makeDataDir();
-  writeDeviceCredential(dataDir, { credential: CREDENTIAL, deviceId: "dev_1", userId: "usr_1" });
+  writeDeviceCredential(dataDir, SIGNED_IN);
   return dataDir;
 };
 
@@ -57,14 +65,9 @@ describe("createVaultRemoteProvider", () => {
     });
   });
 
-  it("says the account is pending until the credential names it, then carries its id", () => {
-    const dataDir = makeDataDir();
-    const derive = provider({ dataDir });
-    writeDeviceCredential(dataDir, { credential: CREDENTIAL, deviceId: "dev_1" });
-    expect(derive(NO_ORIGIN)).toMatchObject({ account: { state: "pending" }, source: "account" });
-    writeDeviceCredential(dataDir, { credential: CREDENTIAL, deviceId: "dev_1", userId: "usr_1" });
-    expect(derive(NO_ORIGIN)).toMatchObject({
-      account: { id: "usr_1", state: "known" },
+  it("carries the account the sign-in named", () => {
+    expect(provider({ dataDir: signedInDataDir() })(NO_ORIGIN)).toMatchObject({
+      accountId: "usr_1",
       source: "account",
     });
   });
@@ -73,7 +76,7 @@ describe("createVaultRemoteProvider", () => {
     const dataDir = makeDataDir();
     const derive = provider({ dataDir });
     expect(derive(NO_ORIGIN)).toBeNull();
-    writeDeviceCredential(dataDir, { credential: CREDENTIAL, deviceId: "dev_1" });
+    writeDeviceCredential(dataDir, SIGNED_IN);
     expect(derive(NO_ORIGIN)?.source).toBe("account");
     clearDeviceCredential(dataDir);
     expect(derive(NO_ORIGIN)).toBeNull();

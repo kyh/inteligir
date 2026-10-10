@@ -348,6 +348,8 @@ describe("the vault routes", () => {
     writeDeviceCredential(dataDir, {
       credential: `igd_${"a".repeat(64)}`,
       deviceId: "dev_1",
+      deviceName: TEST_MACHINE_NAME,
+      email: "owner@example.test",
       userId: "usr_1",
     });
     await client.vault.write({ content: "# mine\n", guard: { kind: "overwrite" }, path: "a.md" });

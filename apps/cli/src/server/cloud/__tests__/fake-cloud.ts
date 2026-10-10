@@ -292,9 +292,6 @@ export class FakeCloud {
     if (route === `POST ${CAPTURE_API_PATHS.ack}`) {
       return this.ack(body);
     }
-    if (route === `GET ${ACCOUNT_API_PATHS.account}`) {
-      return this.account(device);
-    }
     if (route === `POST ${ACCOUNT_API_PATHS.delete}`) {
       return this.deleteAccount(device, body);
     }
@@ -547,13 +544,6 @@ export class FakeCloud {
     );
   }
 
-  private account(device: FakeDevice): Response {
-    const account = this.accounts.get(device.email);
-    return account === undefined
-      ? refuse("unauthorized", "No valid device credential.")
-      : Response.json({ email: device.email, id: account.id });
-  }
-
   // the worker's order: the window, the password asked again, then the account and every device row
   private deleteAccount(caller: FakeDevice, body: RequestBody): Response {
     if (this.deleteWindowShut) {
@@ -640,13 +630,14 @@ export class FakeCloud {
       return refuse("bad-request", "Send { email, password, deviceName }.");
     }
     // mirrors the worker: an unknown address and a wrong password are one answer.
-    if (this.accounts.get(parsed.data.email)?.password !== parsed.data.password) {
+    const account = this.accounts.get(parsed.data.email);
+    if (account?.password !== parsed.data.password) {
       return refuse("invalid-credentials", "Wrong email or password.");
     }
     if (this.activeDeviceCount() >= this.maxDevices) {
       return refuse("device-limit", "This account has too many active devices — revoke one first.");
     }
-    return this.mint(parsed.data.email, parsed.data.deviceName);
+    return this.mint(parsed.data.email, account.id, parsed.data.deviceName);
   }
 
   // the worker's order: the claim, then the account, and a refused account leaves the code unspent.
@@ -669,11 +660,12 @@ export class FakeCloud {
       );
     }
     this.inviteCodes.delete(inviteCode);
-    this.accounts.set(email, { id: `user_${this.accounts.size + 1}`, password });
-    return this.mint(email, parsed.data.deviceName);
+    const userId = `user_${this.accounts.size + 1}`;
+    this.accounts.set(email, { id: userId, password });
+    return this.mint(email, userId, parsed.data.deviceName);
   }
 
-  private mint(email: string, name: string): Response {
+  private mint(email: string, userId: string, name: string): Response {
     this.nextDevice += 1;
     const deviceId = `dev_${this.nextDevice}`;
     // random like the worker's, never derived from the per-cloud device counter: two fake clouds
@@ -686,7 +678,7 @@ export class FakeCloud {
       name,
       revokedAt: null,
     });
-    const response: DeviceLoginResponse = { credential, deviceId };
+    const response: DeviceLoginResponse = { credential, deviceId, email, userId };
     return Response.json(response);
   }
 

@@ -1,8 +1,4 @@
-import {
-  ACCOUNT_API_PATHS,
-  accountResponseSchema,
-  AUTH_PAGE_PATHS,
-} from "@repo/contract/cloud/account/account-schema";
+import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
 import type { DeviceSignUpRequest } from "@repo/contract/cloud/account/account-schema";
 import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import {
@@ -17,7 +13,6 @@ import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   buildHeaders,
-  deviceHeaders,
   emitted,
   ORIGIN,
   OWN_PAGE_HEADERS,
@@ -79,20 +74,20 @@ describe("device sign-up", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("set-auth-token")).toBeNull();
     const signedUp = emitted(deviceLoginResponseSchema, await response.text());
-
-    const account = await SELF.fetch(`${ORIGIN}${ACCOUNT_API_PATHS.account}`, {
-      headers: deviceHeaders(signedUp.credential),
-    });
-    expect(account.status).toBe(200);
-    const answered = emitted(accountResponseSchema, await account.text());
-    expect(answered.email).toBe("app-ok@example.test");
+    expect(signedUp.email).toBe("app-ok@example.test");
+    const account = await userByEmail("app-ok@example.test");
+    expect(account?.id).toBe(signedUp.userId);
 
     const db = createDb(env.DB);
-    const sessions = await db.select().from(session).where(eq(session.userId, answered.id)).all();
+    const sessions = await db
+      .select()
+      .from(session)
+      .where(eq(session.userId, signedUp.userId))
+      .all();
     expect(sessions).toEqual([]);
     const row = await db.select().from(device).where(eq(device.id, signedUp.deviceId)).get();
     expect(row?.name).toBe("Test Laptop");
-    expect(row?.userId).toBe(answered.id);
+    expect(row?.userId).toBe(signedUp.userId);
 
     const code = await readCode("APP-INVITE-OK");
     expect(code?.redeemedAt).not.toBeNull();

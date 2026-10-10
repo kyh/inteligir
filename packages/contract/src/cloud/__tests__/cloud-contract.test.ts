@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   ACCOUNT_API_PATHS,
-  accountResponseSchema,
   DELETE_ACCOUNT_REFUSALS,
   deleteAccountRequestSchema,
   deleteAccountResponseSchema,
@@ -134,7 +133,7 @@ const failureFor = async (response: Response): Promise<CloudFailure | null> => {
     build: TEST_BUILD,
     credential: `igd_${"a".repeat(64)}`,
     fetch: async () => response,
-  }).account();
+  }).listDevices();
   return result.ok ? null : result.failure;
 };
 
@@ -183,7 +182,7 @@ describe("a failure the cloud did not word", () => {
   it("reads a request that never left as unreachable, for a reader with no client", async () => {
     const result = await readCloudCall(async () => {
       throw new TypeError("Failed to fetch");
-    }, accountResponseSchema);
+    }, listDevicesResponseSchema);
     expect(result).toStrictEqual({
       failure: { kind: "unreachable", message: "Failed to fetch" },
       ok: false,
@@ -229,7 +228,6 @@ const APPROVAL_PAYLOAD = {
 } satisfies OpenApprovalRequest["payload"];
 
 const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
-  ["the account", accountResponseSchema, { email: "owner@example.test", id: "user_1" }],
   ["a capture", captureResponseSchema, { createdAt: 1, duplicate: false, id: "cap_1" }],
   [
     "a claim",
@@ -244,7 +242,12 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
   [
     "a login",
     deviceLoginResponseSchema,
-    { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" },
+    {
+      credential: `igd_${"a".repeat(64)}`,
+      deviceId: "dev_1",
+      email: "owner@example.test",
+      userId: "user_1",
+    },
   ],
   [
     "the device list",
@@ -433,12 +436,9 @@ describe("a worker newer than this build", () => {
       baseUrl: "https://cloud.test",
       build: TEST_BUILD,
       credential: `igd_${"a".repeat(64)}`,
-      fetch: async () => Response.json({ email: "owner@example.test", id: "user_1", plan: "pro" }),
-    }).account();
-    expect(result).toStrictEqual({
-      ok: true,
-      value: { email: "owner@example.test", id: "user_1" },
-    });
+      fetch: async () => Response.json({ devices: [], plan: "pro" }),
+    }).listDevices();
+    expect(result).toStrictEqual({ ok: true, value: { devices: [] } });
   });
 });
 
@@ -501,9 +501,16 @@ describe("device login", () => {
     expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(64)}`)).toBe(true);
     expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(63)}`)).toBe(false);
     expect(DEVICE_CREDENTIAL_PATTERN.test("not-a-credential")).toBe(false);
-    const answer = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
+    const answer = {
+      credential: `igd_${"a".repeat(64)}`,
+      deviceId: "dev_1",
+      email: "owner@example.test",
+      userId: "user_1",
+    };
     expect(deviceLoginResponseSchema.parse(answer)).toEqual(answer);
     expect(deviceLoginResponseSchema.parse({ ...answer, token: "x" })).toStrictEqual(answer);
+    const accountless = { credential: answer.credential, deviceId: answer.deviceId };
+    expect(deviceLoginResponseSchema.safeParse(accountless).success).toBe(false);
   });
 
   it("signs a device out with its own credential, and nothing else", async () => {

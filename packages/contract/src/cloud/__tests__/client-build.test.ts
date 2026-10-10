@@ -82,7 +82,6 @@ const recorder = () => {
 describe("every request an install sends names its build", () => {
   // keyed by the client's own methods, so a call it grows fails to compile until it is listed here
   const CALLS: Record<keyof CloudClient, (client: CloudClient) => Promise<{ ok: boolean }>> = {
-    account: async (client) => await client.account(),
     ackCaptures: async (client) => await client.ackCaptures({ claimToken: "tok", ids: ["c1"] }),
     ackDispatches: async (client) =>
       await client.ackDispatches({

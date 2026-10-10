@@ -27,6 +27,8 @@ import type { SqlDriver } from "../sql-driver";
 
 const CRED = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_self" };
 const OTHER_CRED = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_other" };
+// what the cloud answers a sign-in with: the credential, and the account it names
+const OTHER_LOGIN = { ...OTHER_CRED, email: "me@example.test", userId: "user_other" };
 
 // the shape the dispatch contract holds an id to: 32 lowercase hex characters
 const mintedId = (n: number): string => n.toString(16).padStart(32, "0");
@@ -398,17 +400,18 @@ describe("the phone's note mirror across sign-ins", () => {
     });
   });
 
-  it("wipes the mirror and the attachments on signing in", async () => {
+  it("wipes the mirror and the attachments on signing in, and keeps the bearer alone", async () => {
     const storage = phoneStorage();
     const cloud = vaultCloud();
-    const rt = runtimeOver(cloud, keychain(CRED).store, storage);
+    const credentials = keychain(CRED).store;
+    const rt = runtimeOver(cloud, credentials, storage);
     await mirrorOnce(rt);
     // the new sign-in's own mirror would refill the rows; this one cannot reach its vault
     cloud.client.vaultTree = async () => ({
       failure: { kind: "unreachable", message: "offline" },
       ok: false,
     });
-    vi.stubGlobal("fetch", async () => Response.json(OTHER_CRED));
+    vi.stubGlobal("fetch", async () => Response.json(OTHER_LOGIN));
     try {
       await rt.login.login({
         deviceName: "phone",
@@ -420,6 +423,7 @@ describe("the phone's note mirror across sign-ins", () => {
     }
 
     expect(rt.login.get()).toStrictEqual({ kind: "idle" });
+    expect(await credentials.read()).toStrictEqual(OTHER_CRED);
     expect(rt.sync.get()).toMatchObject({ deviceId: OTHER_CRED.deviceId });
     await vi.waitFor(async () => {
       expect(await heldRows(storage.db)).toBe(0);
@@ -460,7 +464,7 @@ describe("the phone's threads across sign-ins", () => {
     const storage = phoneStorage();
     const rt = runtimeOver(threadCloud(), keychain(CRED).store, storage);
     await pulledOnce(rt);
-    vi.stubGlobal("fetch", async () => Response.json(OTHER_CRED));
+    vi.stubGlobal("fetch", async () => Response.json(OTHER_LOGIN));
     try {
       await rt.login.login({
         deviceName: "phone",

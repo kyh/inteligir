@@ -26,7 +26,8 @@ src/
     server.ts        The deployed entry: path-splits API vs site SSR
     index.ts         The API route table (also the test suite's entry)
     auth/            Better Auth factory, invite gate, reset email + page
-    device/          Device login, credential verification, /v1/account
+    device/          Device login and sign-up, credential verification,
+                     account deletion
     sync/            ThreadSyncDO + the device-authed route chokepoint + the
                      dispatch inbox's SQL (dispatch-inbox.ts)
     vault/           The hosted vault git remote (durable-git behind the
@@ -63,7 +64,7 @@ its own `tsconfig.json`.
 | `/api/auth/*`                           | —                 | Better Auth (email+password, bearer)                                |
 | `/auth/reset`                           | —                 | The ONE reset page — Worker-served, static, `no-store`              |
 | `/v1/auth/sign-up`                      | —                 | The invite gate in front of Better Auth's sign-up                   |
-| `POST /v1/device/login`                 | —                 | Email + password in, the durable device credential out              |
+| `POST /v1/device/login`                 | —                 | Email + password in, the device credential and its account out      |
 | `POST /v1/device/sign-up`               | —                 | Sign-up from the app: account + device credential out               |
 | `GET /v1/device/list`                   | session or device | The device table (revoked rows included)                            |
 | `POST /v1/device/revoke`                | session or device | Cut a device off — bites on its next request                        |
@@ -88,7 +89,6 @@ its own `tsconfig.json`.
 | `POST /v1/vault/files`                  | device            | Up to 40 notes at a pinned commit — 4 MiB, rest deferred            |
 | `POST /v1/vault/asset`                  | device            | One embedded binary at that commit                                  |
 | `POST /v1/vault/commit`                 | device            | A change set, each change CAS'd on its blob — one commit            |
-| `GET /v1/account`                       | device            | Whose account this device credential syncs as                       |
 | `POST /v1/account/delete`               | device + password | Delete the account through Better Auth's `deleteUser`               |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
@@ -100,7 +100,7 @@ reaches: the sync and capture routes fan out to that user's own
 `ThreadSyncDO` by RPC (the Worker parses each body and hands the object the
 verified deviceId; only the socket upgrade is a forwarded request), the git
 remote and the `/v1/vault/*` reads and commits to that user's own durable-git
-`RepoCell`, and `/v1/account` reads D1 directly. A commit is authored by the
+`RepoCell`, and the account deletion reads D1 directly. A commit is authored by the
 verified device row's name, and a stale base answers 409 `vault-conflict` with
 what the head holds beside the envelope; the Worker never merges. Every `/v1` refusal, an unknown route and
 an unhandled fault included, is the JSON error envelope; the git mount alone
@@ -166,7 +166,9 @@ answers the same query as a GET's search params, the form older installs send
   verifies the email and password through `auth.api.signInEmail`, mints the `igd_…` credential
   under the twenty-device cap, and DELETES the browser session that sign-in
   created — the device holds its credential and nothing else, and a session
-  nobody sees is a bearer nobody revokes. A wrong password and an unknown
+  nobody sees is a bearer nobody revokes. The answer names the account beside
+  the credential (`{ credential, deviceId, userId, email }`), so a device knows
+  whose vault it syncs from its first request. A wrong password and an unknown
   address answer one `invalid-credentials`, throttled
   per address. A credential is revoked from `/app/devices` or from any
   signed-in Mac's Settings › Account: `GET /v1/device/list` and

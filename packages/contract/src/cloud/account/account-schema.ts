@@ -6,18 +6,9 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "../device/device-schema";
 
-// its own route, not a field on the login response: 0.4.0 and older parse that response
-// strictly, and a field they refuse fails their sign-in.
 export const ACCOUNT_API_PATHS = {
-  account: "/v1/account",
   delete: "/v1/account/delete",
 } as const;
-
-export const accountResponseSchema = z.object({
-  email: z.string().min(1),
-  id: z.string().min(1),
-});
-export type AccountResponse = z.infer<typeof accountResponseSchema>;
 
 // asked with a device credential, which alone would let whoever holds a stolen one end the
 // account: the password is asked again

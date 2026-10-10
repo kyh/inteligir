@@ -853,19 +853,13 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
           "alone and did not sync with the account's hosted vault";
         return null;
       }
-      if (remote.account.state === "pending") {
-        // fail closed: a pass now would skip the marker check, the window a new sign-in pushes
-        // the old vault through. the thread sync retries the account fetch and pings this
-        // engine when it lands.
-        return null;
-      }
       // the cloud refused this build, and only another build, which is another process, gets past
       // its floor: a retry here would be refused the same way every interval
       if (lastOutcome.kind === "unreachable" && lastOutcome.failure === "outdated") {
         return null;
       }
       const marker = await readAccountMarker();
-      if (marker !== null && marker !== remote.account.id) {
+      if (marker !== null && marker !== remote.accountId) {
         lastOutcome = { kind: "account-mismatch" };
         lastError =
           "This vault last synced with a different account. Sign out, or move this vault aside " +
@@ -1048,8 +1042,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       throw new Error(refusedPushMessage(remote, failure, maxPushBytes), { cause: error });
     }
     refusedPush = null;
-    if (remote.source === "account" && remote.account.state === "known") {
-      const accountId = remote.account.id;
+    if (remote.source === "account") {
+      const { accountId } = remote;
       await withRepoLock(async () => {
         if ((await readAccountMarker()) === null) {
           await run(["config", ACCOUNT_MARKER_KEY, accountId]);

@@ -62,8 +62,8 @@ src/
   credential/   the device credential at rest
     credential-codec.ts        parse/serialize + the wire pattern
     secure-store-credential.ts expo-secure-store adapter (Keychain/Keystore)
-                               behind the contract's DeviceCredentialStore port
-                               (@repo/contract/cloud/device/login-flow)
+                               behind the composition root's CredentialStore,
+                               which keeps the login's bearer alone
   login/        signing this phone in to an account
     login-store.ts      the screen's state machine (idle | signing-in | failed)
                         over the contract's login flow

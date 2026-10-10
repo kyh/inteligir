@@ -98,7 +98,7 @@ export const hostedVaultSync: Scenario = {
       // through the harness hook: a path rebuilt here would send B down the init+seed path instead
       // of the clone.
       seedData: (dataDir) => {
-        writeDeviceCredential(dataDir, { ...deviceB, deviceName: "E2E Device B", userId });
+        writeDeviceCredential(dataDir, { ...deviceB, deviceName: "E2E Device B" });
       },
     });
 

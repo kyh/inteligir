@@ -82,8 +82,8 @@ export interface CloudRuntimeArgs {
   transport?: CloudTransport;
   /** the vault ping's handler; also kicked once after a login so the derived remote syncs now. */
   onVaultPing?: () => void;
-  /** what status() answers moved: a sign-in or out, a revocation, the identity, the socket, a
-   *  pass's end. never per enqueue: the queued count rides the drain pass that follows it. */
+  /** what status() answers moved: a sign-in or out, a revocation, the socket, a pass's end. never
+   *  per enqueue: the queued count rides the drain pass that follows it. */
   onStatusChanged?: () => void;
   onDebug?: (message: string) => void;
   /** INTELIGIR_DEBUG's sync trace, beside onDebug's always-on warnings. */
@@ -152,10 +152,6 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
   let revokeError: string | null = null;
   let disposed = false;
   const flight = createSingleFlight();
-  // best-effort; a failure costs the label, never the sync.
-  let accountEmail: string | null = null;
-  // keyed by session: joining the previous login's fetch answers about an account this device left.
-  let learningIdentity: { sessionId: number; pass: Promise<void> } | null = null;
 
   const notifyStatus = (): void => {
     args.onStatusChanged?.();
@@ -220,57 +216,9 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
 
   const fenced = (context: PassContext): boolean => sessionAlive(context.sessionId);
 
-  // retried at the top of every pass while missing: the credential is written
-  // once, so a single dropped answer would leave the vault's fail-closed fence
-  // shut for the process's whole life.
-  const learnAccountIdentity = async (): Promise<void> => {
-    const current = session.current();
-    if (current.kind !== "live") {
-      return;
-    }
-    const { client, credential } = current;
-    const sessionId = current.id;
-    if (learningIdentity?.sessionId === sessionId) {
-      await learningIdentity.pass;
-      return;
-    }
-    const pass = (async () => {
-      try {
-        const result = await client.account();
-        // a re-login mid-flight must not label the new session with the old account.
-        if (!sessionAlive(sessionId)) {
-          return;
-        }
-        accountEmail = result.ok ? result.value.email : null;
-        notifyStatus();
-        if (result.ok && credential.userId !== result.value.id) {
-          const updated = { ...credential, userId: result.value.id };
-          writeDeviceCredential(args.dataDir, updated);
-          session.replaceCredential(sessionId, updated);
-          args.onVaultPing?.();
-        }
-      } finally {
-        if (learningIdentity?.sessionId === sessionId) {
-          learningIdentity = null;
-        }
-      }
-    })();
-    learningIdentity = { pass, sessionId };
-    await pass;
-  };
-
-  const learnAccountIdentityBestEffort = async (): Promise<void> => {
-    try {
-      await learnAccountIdentity();
-    } catch {
-      // the next pass retries; the label is the only thing lost.
-    }
-  };
-
   // at boot as well as at sign-in: a database migrated under a live credential never saw that
   // sign-in happen, and a pull under it would re-apply everything this install pushed.
   const openSession = (credential: DeviceCredential): void => {
-    accountEmail = null;
     recordOwnDevice(args.db, credential.deviceId);
     const replayFrom = takeRewindIfBuildChanged(args.db, args.build);
     if (replayFrom !== null) {
@@ -280,7 +228,6 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     }
     session.open(credential);
     notifyStatus();
-    void learnAccountIdentityBestEffort();
   };
 
   const stored = readDeviceCredential(args.dataDir);
@@ -431,13 +378,6 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       ownDeviceIds: ownDeviceIds(args.db),
       sessionId: current.id,
     };
-    if (current.credential.userId === undefined) {
-      // a no-op once learned; the poll is the retry cadence for this one fetch.
-      await learnAccountIdentity();
-      if (!fenced(context)) {
-        return "fenced";
-      }
-    }
     const outcome = await runSyncPass(passDeps, context);
     args.debugLog?.(`session ${context.sessionId} pass: ${outcome}`);
     notifyStatus();
@@ -468,7 +408,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       case "live": {
         const state = readSyncState(args.db);
         return {
-          accountEmail,
+          accountEmail: current.credential.email,
           cloudUrl: args.cloudUrl,
           connected: link.isConnected(),
           cursor: state.cursor,
@@ -637,8 +577,8 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     const deviceName = normalizeDeviceName(requestedName ?? args.machineName);
     const outcome = await join(
       {
-        write: async (credential) => {
-          await adoptCredential({ ...credential, deviceName });
+        write: async (login) => {
+          await adoptCredential({ ...login, deviceName });
         },
       },
       deviceName,

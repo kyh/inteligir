@@ -3,13 +3,8 @@
 // verdict on the credential; `malformed` is a body this build cannot read (an intercepting proxy).
 
 import type { z } from "zod";
-import {
-  ACCOUNT_API_PATHS,
-  accountResponseSchema,
-  deleteAccountResponseSchema,
-} from "./account/account-schema";
+import { ACCOUNT_API_PATHS, deleteAccountResponseSchema } from "./account/account-schema";
 import type {
-  AccountResponse,
   DeleteAccountRequest,
   DeleteAccountResponse,
   DeviceSignUpRequest,
@@ -365,7 +360,6 @@ export interface CloudClient {
   openApproval: (request: OpenApprovalRequest) => Promise<CloudResult<OpenApprovalResponse>>;
   closeApproval: (id: string) => Promise<CloudResult<CloseApprovalResponse>>;
   listApprovals: () => Promise<CloudResult<ListApprovalsResponse>>;
-  account: () => Promise<CloudResult<AccountResponse>>;
   // ends the account the credential belongs to, every device's credential with it, once the
   // password checks out again
   deleteAccount: (password: string) => Promise<CloudResult<DeleteAccountResponse>>;
@@ -421,7 +415,6 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
     );
 
   return {
-    account: async () => await send(ACCOUNT_API_PATHS.account, undefined, accountResponseSchema),
     ackCaptures: async (request) =>
       await send(CAPTURE_API_PATHS.ack, request, ackCapturesResponseSchema),
     ackDispatches: async (request) =>

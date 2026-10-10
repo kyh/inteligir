@@ -4,6 +4,7 @@ import type { SignUpRequest } from "@repo/contract/cloud/account/account-schema"
 import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import { deviceLoginResponseSchema } from "@repo/contract/cloud/device/device-schema";
+import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
 import { z } from "zod";
 import { expect } from "./assert";
 import { E2E_INVITE_CODE } from "./cloud-worker";
@@ -51,7 +52,7 @@ export const signUp = async (origin: string): Promise<{ bearer: string; userId: 
 export const loginDevice = async (
   origin: string,
   deviceName: string,
-): Promise<{ deviceId: string; credential: string }> => {
+): Promise<DeviceLoginResponse> => {
   const response = await fetch(`${origin}/v1/device/login`, {
     body: JSON.stringify({ ...OWNER, deviceName }),
     headers: { ...clientBuildHeaders(PHONE_BUILD), "content-type": "application/json", origin },

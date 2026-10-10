@@ -4,7 +4,10 @@ import {
   DEVICE_API_PATHS,
   deviceLoginResponseSchema,
 } from "@repo/contract/cloud/device/device-schema";
-import type { DeviceLoginRequest } from "@repo/contract/cloud/device/device-schema";
+import type {
+  DeviceLoginRequest,
+  DeviceLoginResponse,
+} from "@repo/contract/cloud/device/device-schema";
 import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import { syncPingSchema } from "@repo/contract/cloud/sync/sync-ws";
 import type { SyncPing } from "@repo/contract/cloud/sync/sync-ws";
@@ -96,7 +99,7 @@ export const postLogin = async (body: DeviceLoginRequest): Promise<Response> =>
 export const loginDevice = async (
   bearer: string,
   deviceName: string,
-): Promise<{ deviceId: string; credential: string }> => {
+): Promise<DeviceLoginResponse> => {
   const { email } = await sessionUser(bearer);
   const response = await postLogin({ deviceName, email, password: PASSWORD });
   expect(response.status).toBe(200);

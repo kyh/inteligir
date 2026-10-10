@@ -8,6 +8,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 - **Inteligir needs macOS 13.5 or later.** The app now runs on the Mac's own web engine instead of carrying a browser of its own, and what it brings in its place needs macOS 13.5. On an older Mac, the version you have keeps working and is not offered this update.
 - **Update every Mac and iPhone you sync.** Earlier versions stop syncing with your account once this one is out. They keep your notes on the device, and pick up where they left off as soon as you update them. From now on, a version too old to sync says so and asks you to update, instead of failing without a reason.
+- **Sign in again on each Mac.** The first time this version opens, a Mac that was signed in to your account is signed out; sign in again in Settings › Account. Your notes stay as they are, and the iPhone stays signed in. The earlier sign-in still appears in that section's list of devices, where you can remove it.
 - **Your window settings start over once.** The theme, the text appearance, the sidebar and panel widths, which list the sidebar shows, and the spell check switch go back to their defaults the first time this version opens; set them again in Settings. A message about a note two devices changed that you already saw can show once more. Your notes, vaults, sign-ins and agents are untouched. On macOS 13, every vault now shares one set of these settings.
 
 ### New
@@ -16,6 +17,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ### Changed
 
+- **Your account's email shows as soon as you sign in.** The sync menu in the sidebar and Settings › Account name your account right away, where they showed the cloud's address until the app had asked who you are.
 - **The app says which version it is when it syncs.** Each request the Mac app or the phone sends your account names its version, so a version too old to sync is told to update rather than answered wrongly. inteligir.com/privacy lists it.
 - **The privacy policy is reorganized.** inteligir.com/privacy now follows the sections privacy law asks for, with an index at the top, and says how to ask us for a copy of your information, a correction or a deletion, including under U.S. state and European law. What the app sends, what never leaves your Mac and how your account is deleted are the same as before, and every address the app talks to is still listed at the end.
 

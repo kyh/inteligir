@@ -319,7 +319,7 @@ export const SyncRow = ({
               {cloud?.state === "signed-in" ? (
                 <>
                   <DropdownMenuLabel className="max-w-64 truncate">
-                    {cloud.accountEmail ?? new URL(cloud.cloudUrl).host}
+                    {cloud.accountEmail}
                   </DropdownMenuLabel>
                   <DropdownMenuItem disabled={session.pending} onClick={handleSignOut}>
                     <LogOutIcon />

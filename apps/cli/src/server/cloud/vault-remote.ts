@@ -9,9 +9,6 @@ import { readDeviceCredential } from "./credential-store";
 // credential rides per-invocation env, never the url: the engine persists the
 // remote url into <vault>/.git/config, which users back up and copy.
 
-// pending: signed in, but the /v1/account fetch that names the account has not landed yet.
-type VaultRemoteAccount = { state: "pending" } | { state: "known"; id: string };
-
 interface VaultRemoteBase {
   url: string;
   /** for the network git invocations (fetch/push/clone) only. */
@@ -22,7 +19,7 @@ interface VaultRemoteBase {
 // environment changes.
 export type VaultRemoteSpec =
   | (VaultRemoteBase & { source: "explicit" | "pinned" })
-  | (VaultRemoteBase & { source: "account"; account: VaultRemoteAccount });
+  | (VaultRemoteBase & { source: "account"; accountId: string });
 
 // the vault repo's own record of where it syncs, as its config states it: the origin's url, and
 // whether the app marked that origin as the account's (`inteligir.remote=account`).
@@ -76,10 +73,7 @@ export const createVaultRemoteProvider = (
       return null;
     }
     return {
-      account:
-        credential.userId === undefined
-          ? { state: "pending" }
-          : { id: credential.userId, state: "known" },
+      accountId: credential.userId,
       // one extraHeader row per header: git sends every value the key holds
       env: {
         GIT_CONFIG_COUNT: "2",

@@ -50,7 +50,7 @@ describe("a body cut off mid-transfer", () => {
   it("reads as unreachable on a refusal whose envelope never arrived", async () => {
     const client = clientAnswering(() => abortedMidBody(403));
 
-    const refused = await client.account();
+    const refused = await client.listApprovals();
     expect(refused.ok || refused.failure.kind).toBe("unreachable");
   });
 

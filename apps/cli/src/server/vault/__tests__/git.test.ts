@@ -25,10 +25,14 @@ import type { ReconcileInput } from "@repo/notes/sync/reconcile-file";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { beginAgentTurnWrites } from "../../agents/agent-commits";
 import { writeDeviceCredential } from "../../cloud/credential-store";
-import { createVaultRemoteProvider, hostedVaultRemoteUrl } from "../../cloud/vault-remote";
+import {
+  createVaultRemoteProvider,
+  hostedVaultRemoteUrl,
+  NO_ORIGIN,
+} from "../../cloud/vault-remote";
 import type { VaultRemoteSpec } from "../../cloud/vault-remote";
 import { REMOTE_MARKER_KEY } from "../folder-facts";
-import { ensureVaultRepo, SEED_COMMIT_KEY } from "../git-bootstrap";
+import { ACCOUNT_MARKER_KEY, ensureVaultRepo, SEED_COMMIT_KEY } from "../git-bootstrap";
 import type { EnsureVaultRepoArgs } from "../git-bootstrap";
 import { createGitEngine } from "../git-engine";
 import type { GitEngine, GitEngineArgs } from "../git-engine";
@@ -1884,7 +1888,7 @@ describe("the clone path", () => {
     const viaAccount = await ensureVaultRepo({
       env,
       remote: {
-        account: { id: "user-a", state: "known" },
+        accountId: "user-a",
         source: "account",
         url: path.join(scratchDir("inteligir-git-nowhere-2-"), "gone.git"),
       },
@@ -1907,7 +1911,7 @@ describe("the cross-account fence", { timeout: 30_000 }, () => {
     const engine = createGitEngine({
       deviceName: () => TEST_DEVICE,
       env,
-      remote: () => ({ account: { id: account, state: "known" }, source: "account", url: remote }),
+      remote: () => ({ accountId: account, source: "account", url: remote }),
       root,
     });
     onTestFinished(async () => {
@@ -1941,7 +1945,7 @@ describe("the cross-account fence", { timeout: 30_000 }, () => {
     const engine = createGitEngine({
       deviceName: () => TEST_DEVICE,
       env,
-      remote: () => ({ account: { id: account, state: "known" }, source: "account", url: remote }),
+      remote: () => ({ accountId: account, source: "account", url: remote }),
       root,
     });
     onTestFinished(async () => {
@@ -2012,7 +2016,7 @@ describe("a build below the cloud's floor", () => {
     const hosted = createGitEngine({
       deviceName: () => TEST_DEVICE,
       env,
-      remote: () => ({ account: { id: "user-a", state: "known" }, source: "account", url }),
+      remote: () => ({ accountId: "user-a", source: "account", url }),
       root,
     });
     onTestFinished(async () => {
@@ -2113,7 +2117,7 @@ describe("a push too large for the remote", { timeout: 30_000 }, () => {
       deviceName: () => TEST_DEVICE,
       env,
       remote: () => ({
-        account: { id: "user-a", state: "known" },
+        accountId: "user-a",
         source: "account",
         url: remote.url,
       }),
@@ -2142,7 +2146,7 @@ describe("a push too large for the remote", { timeout: 30_000 }, () => {
       env,
       maxPushBytes: 64,
       remote: () => ({
-        account: { id: "user-a", state: "known" },
+        accountId: "user-a",
         source: "account",
         url: remote.url,
       }),
@@ -2234,7 +2238,7 @@ describe("a remote with no room left", { timeout: 30_000 }, () => {
       deviceName: () => TEST_DEVICE,
       env: { ...env, ...remote.env },
       remote: () => ({
-        account: { id: "user-a", state: "known" },
+        accountId: "user-a",
         source: "account",
         url: remote.bare,
       }),
@@ -2270,7 +2274,7 @@ describe("clone failure classes", () => {
     const { created, cloned } = await ensureVaultRepo({
       env,
       remote: {
-        account: { state: "pending" },
+        accountId: "user-a",
         source: "account",
         url: `http://127.0.0.1:${String(port)}/vault.git`,
       },
@@ -2344,7 +2348,7 @@ describe("the bootstrap port", () => {
     let seeded = false;
     const args: EnsureVaultRepoArgs = {
       remote: {
-        account: { id: "user-x", state: "known" },
+        accountId: "user-x",
         source: "account",
         url: "https://cloud.test/v1/git/me/",
       },
@@ -2385,7 +2389,7 @@ describe("the bootstrap port", () => {
     let seeded = false;
     await ensureVaultRepo({
       remote: {
-        account: { id: "user-x", state: "known" },
+        accountId: "user-x",
         source: "account",
         url: "https://cloud.test/v1/git/me/",
       },
@@ -2460,7 +2464,7 @@ describe("a live remote provider", () => {
 
     expect(await reportedState(engine)).toBe("no-remote");
 
-    current = { account: { id: "user-live", state: "known" }, source: "account", url: remote };
+    current = { accountId: "user-live", source: "account", url: remote };
     await writeFile(path.join(root, "note.md"), "# signed in\n");
     await engine.commitNow();
     expect(await syncState(engine)).toBe("clean");
@@ -2479,6 +2483,8 @@ const composedProvider = (signedIn: boolean) => {
     writeDeviceCredential(dataDir, {
       credential: `igd_${"a".repeat(64)}`,
       deviceId: "dev_1",
+      deviceName: TEST_DEVICE,
+      email: "owner@example.test",
       userId: "user-a",
     });
   }
@@ -2502,6 +2508,26 @@ const originOf = async (root: string): Promise<string> => {
   const { stdout } = await runGit(root, ["config", "--get", "remote.origin.url"], { env });
   return stdout.trim();
 };
+
+describe("a clone after sign-in", () => {
+  it("pins the account it came from at once, before any pass", async () => {
+    const remote = await makeBareRemote();
+    const a = await makeEngine({ remoteUrl: remote });
+    await writeFile(path.join(a.root, "note.md"), "# from A\n");
+    await a.engine.commitNow();
+    expect(await syncState(a.engine)).toBe("clean");
+
+    const signedIn = composedProvider(true)(NO_ORIGIN);
+    if (signedIn?.source !== "account") {
+      throw new Error("a signed-in provider answers the account's remote");
+    }
+    const root = path.join(scratchDir("inteligir-git-clone-account-"), "vault");
+    const { cloned } = await ensureVaultRepo({ env, remote: { ...signedIn, url: remote }, root });
+    expect(cloned).toBe(true);
+    const marker = await runGit(root, ["config", "--get", ACCOUNT_MARKER_KEY], { env });
+    expect(marker.stdout.trim()).toBe("user-a");
+  });
+});
 
 const engineOn = (root: string, remote: GitEngineArgs["remote"]): GitEngine => {
   const engine = createGitEngine({ deviceName: () => TEST_DEVICE, env, remote, root });
@@ -2571,7 +2597,7 @@ describe("the vault's own origin", { timeout: 30_000 }, () => {
     const root = await repoWithOrigin(`file://${own}`);
     // a provider that hands out the account remote past the origin, as none the server composes does
     const engine = engineOn(root, () => ({
-      account: { id: "user-a", state: "known" },
+      accountId: "user-a",
       source: "account",
       url: hosted,
     }));
@@ -2593,7 +2619,7 @@ describe("the vault's own origin", { timeout: 30_000 }, () => {
     const root = scratchDir("inteligir-git-marked-");
     await ensureVaultRepo({ env, root });
     let current: VaultRemoteSpec = {
-      account: { id: "user-a", state: "known" },
+      accountId: "user-a",
       source: "account",
       url: hosted,
     };

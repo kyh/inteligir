@@ -65,6 +65,8 @@ describe("device login", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     const logged = emitted(deviceLoginResponseSchema, await response.text());
     expect(logged.credential.startsWith("igd_")).toBe(true);
+    expect(logged.userId).toBe(userId);
+    expect(logged.email).toBe(email);
 
     const pulled = await pull(logged.credential);
     expect(pulled.status).toBe(200);

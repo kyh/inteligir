@@ -4,7 +4,6 @@
 
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
-import type { DeviceCredentialStore } from "@repo/contract/cloud/device/login-flow";
 import { createCaptureSender } from "../capture/capture-sender";
 import type { CaptureSender } from "../capture/capture-sender";
 import { createDispatchRuntime } from "../dispatch/dispatch-runtime";
@@ -29,8 +28,9 @@ import type { SyncStore } from "../sync/sync-store";
 import { messageOf } from "./error-message";
 import type { SqlDriver } from "./sql-driver";
 
-export interface CredentialStore extends DeviceCredentialStore {
+export interface CredentialStore {
   read: () => Promise<DeviceCredential | null>;
+  write: (credential: DeviceCredential) => Promise<void>;
   clear: () => Promise<void>;
 }
 
@@ -160,7 +160,12 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   const login = createLoginStore({
     client: { baseUrl: args.cloudUrl, build: args.build },
     store: {
-      write: async (credential) => {
+      // the bearer alone: nothing the phone runs asks whose account it is
+      write: async (answer) => {
+        const credential: DeviceCredential = {
+          credential: answer.credential,
+          deviceId: answer.deviceId,
+        };
         await args.credentials.write(credential);
         await activate(credential, "signed-in");
       },

@@ -85,31 +85,6 @@ describe("the session union", () => {
     expect(signals[0]?.aborted).toBe(true);
     expect(session.current()).toBe(live);
   });
-
-  it("replaces the live credential in place, and refuses a stale session id", () => {
-    const { session } = harness();
-    session.open({ deviceId: "dev_1" });
-    const live = session.current();
-    if (live.kind !== "live") {
-      throw new Error("expected live");
-    }
-    session.replaceCredential(live.id, { deviceId: "dev_1+identity" });
-    const swapped = session.current();
-    if (swapped.kind !== "live") {
-      throw new Error("expected live");
-    }
-    expect(swapped.id).toBe(live.id);
-    expect(swapped.client).toBe(live.client);
-    expect(swapped.credential.deviceId).toBe("dev_1+identity");
-
-    session.open({ deviceId: "dev_2" });
-    session.replaceCredential(live.id, { deviceId: "stale" });
-    const after = session.current();
-    if (after.kind !== "live") {
-      throw new Error("expected live");
-    }
-    expect(after.credential.deviceId).toBe("dev_2");
-  });
 });
 
 describe("recordFailure", () => {

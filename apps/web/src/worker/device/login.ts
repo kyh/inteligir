@@ -36,10 +36,16 @@ export interface LoginArgs {
   deviceName: string;
 }
 
+// the user row Better Auth's sign-in or sign-up just answered with
+interface AccountUser {
+  id: string;
+  email: string;
+}
+
 export interface MintArgs {
   // what Better Auth's sign-in or sign-up just minted; null when it minted none
   sessionToken: string | null;
-  userId: string;
+  user: AccountUser;
   deviceName: string;
 }
 
@@ -72,21 +78,23 @@ export const mintDeviceCredential = async (
     )
     .bind(
       deviceId,
-      args.userId,
+      args.user.id,
       args.deviceName,
       await sha256Hex(credential),
       nowSeconds,
-      args.userId,
+      args.user.id,
       MAX_DEVICES_PER_ACCOUNT,
     )
     .run();
-  return inserted.meta.changes === 0 ? null : { credential, deviceId };
+  return inserted.meta.changes === 0
+    ? null
+    : { credential, deviceId, email: args.user.email, userId: args.user.id };
 };
 
 interface SignedIn {
   // the session the sign-in minted: whoever asked deletes it, or the account holds a bearer nobody sees
   token: string;
-  user: { id: string };
+  user: AccountUser;
 }
 
 // null is a wrong password or an unknown address, one answer for both
@@ -120,7 +128,7 @@ export const loginDevice = async (
   const minted = await mintDeviceCredential(db, d1, {
     deviceName: args.deviceName,
     sessionToken: signedIn.token,
-    userId: signedIn.user.id,
+    user: signedIn.user,
   });
   return minted === null ? refuseLogin("device-limit") : { loggedIn: true, response: minted };
 };

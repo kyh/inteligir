@@ -61,7 +61,7 @@ export const phoneRuntime = async (
   dir: string,
   network: { online: boolean },
 ): Promise<AppRuntime> => {
-  const credential = await loginDevice(origin, PHONE_NAME);
+  const login = await loginDevice(origin, PHONE_NAME);
   await mkdir(dir, { recursive: true });
   const fetch: CloudFetch = async (input, init) => {
     if (!network.online) {
@@ -74,7 +74,7 @@ export const phoneRuntime = async (
     attachments: memoryFiles(),
     build: PHONE_BUILD,
     cloudUrl: origin,
-    credentials: heldCredential(credential),
+    credentials: heldCredential({ credential: login.credential, deviceId: login.deviceId }),
     db: openNodeSqlDriver(path.join(dir, "inteligir.db")),
     deviceName: PHONE_NAME,
     mintId: () => randomBytes(16).toString("hex"),

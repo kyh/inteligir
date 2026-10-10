@@ -80,7 +80,6 @@ export const createFakeCloud = (vault: Partial<CloudClient> = {}): FakeCloud => 
     captures: [],
     claims: 0,
     client: fakeCloudClient({
-      account: async () => ok({ email: "signed-in@example.test", id: "user_fake" }),
       ackCaptures: async (request: AckCapturesRequest) =>
         ok({ results: request.ids.map((id) => ({ id, outcome: "deleted" as const })) }),
       claimCaptures: async () => {

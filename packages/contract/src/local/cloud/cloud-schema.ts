@@ -24,8 +24,7 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
     .strict(),
   z
     .object({
-      // null until the best-effort fetch lands, or against a stale cloud with no account route
-      accountEmail: z.string().nullable(),
+      accountEmail: z.string().min(1),
       cloudUrl: z.url(),
       // latency, not correctness: the timer still pulls without the socket
       connected: z.boolean(),

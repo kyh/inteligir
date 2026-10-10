@@ -1,11 +1,16 @@
 import type { CloudFetch } from "@repo/contract/cloud/client";
-import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
+import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
 import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createLoginStore } from "../login-store";
 
-const LOGGED_IN = { credential: `igd_${"c".repeat(64)}`, deviceId: "dev_x" };
+const LOGGED_IN: DeviceLoginResponse = {
+  credential: `igd_${"c".repeat(64)}`,
+  deviceId: "dev_x",
+  email: "owner@example.test",
+  userId: "user_x",
+};
 const REQUEST = {
   deviceName: "Phone",
   email: "owner@example.test",
@@ -55,16 +60,16 @@ const heldLogin = () => {
 
 const harness = (args: {
   fetch: CloudFetch;
-  write?: (credential: DeviceCredential) => Promise<void>;
+  write?: (login: DeviceLoginResponse) => Promise<void>;
 }) => {
-  const written: DeviceCredential[] = [];
+  const written: DeviceLoginResponse[] = [];
   const store = createLoginStore({
     client: { baseUrl: "https://cloud.test", build: TEST_BUILD, fetch: args.fetch },
     store: {
       write:
         args.write ??
-        (async (credential) => {
-          written.push(credential);
+        (async (login) => {
+          written.push(login);
         }),
     },
   });

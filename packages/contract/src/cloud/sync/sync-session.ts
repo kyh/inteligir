@@ -32,8 +32,6 @@ export interface SyncSessionHandle<TCredential> {
   // no transition: a disposing runtime's pass must observe cancellation, not be waited out.
   abort: () => void;
   fenced: (sessionId: number) => boolean;
-  // the id and client stand: only what is known about the same sign-in changed.
-  replaceCredential: (sessionId: number, credential: TCredential) => void;
   recordFailure: (failure: CloudFailure) => "continue" | "ended";
 }
 
@@ -103,13 +101,6 @@ export const createSyncSession = <TCredential>(
       end(failure);
       args.onEnded?.(failure);
       return "ended";
-    },
-
-    replaceCredential(sessionId, credential) {
-      if (session.kind !== "live" || session.id !== sessionId) {
-        return;
-      }
-      session = { client: session.client, credential, id: sessionId, kind: "live" };
     },
   };
 };

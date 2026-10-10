@@ -264,9 +264,7 @@ export const AccountSection = () => {
       <div className="space-y-2">
         <dl className="space-y-1.5">
           <Row label="Account">
-            <span className="block truncate text-body">
-              {status.accountEmail ?? new URL(status.cloudUrl).host}
-            </span>
+            <span className="block truncate text-body">{status.accountEmail}</span>
           </Row>
           <AccountDevices
             thisMacName={vaultStatus?.device}
