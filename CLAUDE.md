@@ -1100,9 +1100,9 @@ to the END of its group.
   bytes the row showed.** `knowledge.unlinkedMentions` (`inteligir unlinked`)
   runs the literal matcher over the target's names as whole words, longest
   first; one row per note, excluding notes already linking here. A hit inside
-  code, math, a link, a url, frontmatter, an html tag or a comment marker is
-  withheld by the scan's own line regexes as well as the editor's verbatim
-  ranges (math, and what it carries as source). Not the H1:
+  code, math, a link, a url, frontmatter, an html tag, a comment marker or a
+  `:::` marker line is withheld by the scan's own line regexes as well as the
+  editor's verbatim ranges (math, and what it carries as source). Not the H1:
   `[[H1 text]]` resolves to nothing. Link wraps exactly that site through a
   guarded write, targeting the route's `linkTarget`, because the bare stem may
   be another note's. `@repo/notes/knowledge/unlinked-mentions.ts`,

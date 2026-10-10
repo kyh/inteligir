@@ -108,6 +108,9 @@ const markerFor = (line: string): Marker | null => {
   }
 };
 
+// a line this grammar may read as a marker, which a rewrite of its words would unmake
+export const isMarkerLine = (line: string): boolean => markerFor(line) !== null;
+
 interface Line {
   nodes: PhrasingContent[];
   // what ended it: the terminator split off its text, or nothing after a hard break or at the end

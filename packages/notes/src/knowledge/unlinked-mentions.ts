@@ -1,13 +1,14 @@
 // A plain-text mention is a name the wiki grammar would resolve, written without the brackets:
 // the doc's link name or one of its aliases, as a whole word, any case. Not its H1: `[[H1 text]]`
 // resolves to nothing unless that text is also the link name or an alias. Bytes the editor treats as
-// verbatim, code, links, urls, frontmatter and comment markers are withheld, because a "mention"
-// there is not prose and a Link would rewrite something that is not a sentence.
+// verbatim, code, links, urls, frontmatter, comment markers and `:::` marker lines are withheld,
+// because a "mention" there is not prose and a Link would rewrite something that is not a sentence.
 
 import type { Nodes } from "mdast";
 
 import { parseBare } from "../markdown/bare-parse";
 import { frontmatterEnd } from "../markdown/frontmatter";
+import { isMarkerLine } from "../markdown/remark-containers";
 import { COMMENT_MARKER_STRIP_RE } from "../markdown/remark-inline-constructs";
 import { isOpaqueSource } from "../markdown/remark-opaque";
 import { serializeWikiBody } from "../markdown/remark-wiki-link";
@@ -94,6 +95,9 @@ const INLINE_WITHHELD = [
   HTML_TAG,
 ];
 
+// a quote's or a list item's own markers ahead of a line's text
+const LINE_PREFIX = /^(?:[ \t]*>)*[ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?/u;
+
 interface Span {
   start: number;
   end: number;
@@ -149,9 +153,13 @@ const withheldSpansOf = (body: string, parts: readonly string[]): Span[] => {
           fenceStart = null;
         }
       } else if (fenceStart === null) {
-        for (const pattern of INLINE_WITHHELD) {
-          for (const hit of part.matchAll(pattern)) {
-            spans.push({ end: offset + hit.index + hit[0].length, start: offset + hit.index });
+        if (isMarkerLine(part.replace(LINE_PREFIX, "").trimEnd())) {
+          spans.push({ end: offset + part.length, start: offset });
+        } else {
+          for (const pattern of INLINE_WITHHELD) {
+            for (const hit of part.matchAll(pattern)) {
+              spans.push({ end: offset + hit.index + hit[0].length, start: offset + hit.index });
+            }
           }
         }
       }
