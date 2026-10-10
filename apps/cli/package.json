@@ -47,17 +47,17 @@
     "./server/testing": "./src/server/__tests__/boot-app.ts",
     "./server/ui-dev-server": "./src/server/ui-dev-server.ts",
     "./server/vault/seed-vault": "./src/server/vault/seed-vault.ts",
-    "./scripts/smoke-lib.mjs": "./scripts/smoke-lib.mjs"
+    "./scripts/smoke-lib": "./scripts/smoke-lib.ts"
   },
   "publishConfig": {
     "exports": {},
     "access": "public"
   },
   "scripts": {
-    "build": "node scripts/build.mjs",
+    "build": "node scripts/build.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "smoke": "node scripts/smoke.mjs"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts",
+    "smoke": "node scripts/smoke.ts"
   },
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "catalog:",

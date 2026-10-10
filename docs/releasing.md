@@ -81,7 +81,7 @@ only on the Mac that built it, and one with no updater key ships an app that
 never updates. Package only through `pnpm smoke:desktop` or
 `pnpm package:desktop`: turbo's strict env mode strips `APPLE_API_*` exported
 in a shell (so they live in `.release/`), and the Tauri CLI run directly packs
-none of the resources (`apps/desktop/scripts/package.mjs` names them) and
+none of the resources (`apps/desktop/scripts/package.ts` names them) and
 signs none of the binaries inside them.
 
 Commit as `release: <version>`, push, and wait for CI on that commit to go
@@ -285,14 +285,14 @@ refuses a server of another version, so npm and the Mac app ship as one.
 1. **The Mac app.** Tag and publish. The site's Download button links
    `releases/latest/download/Inteligir-arm64.dmg`, so the release must carry
    the dmg under that fixed name (`DMG_NAME` in
-   `apps/desktop/scripts/package.mjs`), and every installed app reads
+   `apps/desktop/scripts/package.ts`), and every installed app reads
    `latest.json` and the signed `Inteligir.app.tar.gz` it names. The notes are
-   the changelog's top section, which `apps/desktop/scripts/release-notes.mjs`
+   the changelog's top section, which `apps/desktop/scripts/release-notes.ts`
    prints only once it is titled for this version, so a refusal stops the
    chain before the tag:
 
    ```sh
-   node apps/desktop/scripts/release-notes.mjs > .release/notes.md &&
+   node apps/desktop/scripts/release-notes.ts > .release/notes.md &&
      git tag v<version> && git push origin v<version> &&
      gh release create v<version> --notes-file .release/notes.md \
        apps/desktop/.output/bin/Inteligir-arm64.dmg \

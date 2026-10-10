@@ -1,29 +1,26 @@
 // The git the packaged app runs on a Mac without the developer tools
-// (apps/cli/src/desktop/bundled-git.ts), staged into resources/git, which scripts/package.mjs maps to
+// (apps/cli/src/desktop/bundled-git.ts), staged into resources/git, which scripts/package.ts maps to
 // Contents/Resources/git beside the CLI. A file fetch pinned by sha-256 rather than the dugite npm
 // package, whose JS API nothing here calls and whose postinstall would download the same tarball
 // on every install.
 
-import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { createReadStream, createWriteStream, existsSync } from "node:fs";
 import { copyFile, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
+import { fetchPinned, untar } from "./pinned-fetch.ts";
+import type { PinnedFile } from "./pinned-fetch.ts";
 
 const DUGITE_NATIVE_TAG = "v2.53.0-4";
 const GIT_TAG = "v2.53.0";
 
 // script/embedded-git.json in dugite 3.2.3, darwin-arm64
 const TARBALL_NAME = "dugite-native-v2.53.0-4098283-macOS-arm64.tar.gz";
-const TARBALL = {
+const TARBALL: PinnedFile = {
   name: TARBALL_NAME,
   sha256: "f9dc64635a5b62fbd7ad95db73268bbb8912255ac516d65d37bf7af22fcb8ffe",
   url: `https://github.com/desktop/dugite-native/releases/download/${DUGITE_NATIVE_TAG}/${TARBALL_NAME}`,
 };
 // the tarball carries no licence text; git's own, at the commit dugite-native built
-const COPYING = {
+const COPYING: PinnedFile = {
   name: `git-${GIT_TAG}-COPYING`,
   sha256: "5b2198d1645f767585e8a88ac0499b04472164c0d2da22e75ecf97ef443ab32e",
   url: `https://raw.githubusercontent.com/git/git/${GIT_TAG}/COPYING`,
@@ -47,8 +44,9 @@ const stagingDir = `${payloadDir}.partial`;
 // what dugite-native ships beside git: Git Credential Manager (a .NET app, its runtime and its
 // locales) and Git LFS. neither the app nor dugite-native's gitconfig names either, and together
 // they are two more licences to carry and a hundred-odd MB of binaries to sign
-const isThirdParty = (name) => name.startsWith("git-credential-manager") || name === "git-lfs";
-const isGitsOwn = (name) =>
+const isThirdParty = (name: string): boolean =>
+  name.startsWith("git-credential-manager") || name === "git-lfs";
+const isGitsOwn = (name: string): boolean =>
   (name === "git" || name.startsWith("git-") || name === "scalar" || name === "mergetools") &&
   !isThirdParty(name);
 
@@ -64,47 +62,11 @@ const KEPT_LINKS = new Set([
   "git-upload-pack",
 ]);
 
-const log = (line) => {
+const log = (line: string): void => {
   process.stdout.write(`fetch-git: ${line}\n`);
 };
 
-const sha256Of = async (file) => {
-  const hash = createHash("sha256");
-  await pipeline(createReadStream(file), hash);
-  return hash.digest("hex");
-};
-
-// cached by name and verified on every run, so a truncated or altered copy is fetched again
-const fetchPinned = async ({ name, sha256, url }) => {
-  const file = path.join(cacheDir, name);
-  if (existsSync(file) && (await sha256Of(file)) === sha256) {
-    return file;
-  }
-  log(`downloading ${url}`);
-  const response = await fetch(url);
-  if (!response.ok || response.body === null) {
-    throw new Error(`${url} answered ${response.status}`);
-  }
-  const partial = `${file}.partial`;
-  await mkdir(cacheDir, { recursive: true });
-  await pipeline(Readable.fromWeb(response.body), createWriteStream(partial));
-  const actual = await sha256Of(partial);
-  if (actual !== sha256) {
-    await rm(partial, { force: true });
-    throw new Error(`${url} hashed ${actual}, not the pinned ${sha256}`);
-  }
-  await rename(partial, file);
-  return file;
-};
-
-const unpack = (tarball, into) => {
-  const result = spawnSync("tar", ["-xzf", tarball, "-C", into], { stdio: "inherit" });
-  if (result.status !== 0) {
-    throw new Error(`tar -xzf ${tarball} exited ${result.status ?? result.signal}`);
-  }
-};
-
-const pruneExecDir = async (root) => {
+const pruneExecDir = async (root: string): Promise<number> => {
   const execDir = path.join(root, "libexec", "git-core");
   const entries = await readdir(execDir, { withFileTypes: true });
   const pruned = entries
@@ -121,12 +83,12 @@ const pruneExecDir = async (root) => {
 };
 
 try {
-  const tarball = await fetchPinned(TARBALL);
-  const copying = await fetchPinned(COPYING);
+  const tarball = await fetchPinned(TARBALL, { cacheDir, log });
+  const copying = await fetchPinned(COPYING, { cacheDir, log });
   // staged beside the payload and swapped in whole, so an interrupted run never leaves a half tree
   await rm(stagingDir, { force: true, recursive: true });
   await mkdir(stagingDir, { recursive: true });
-  unpack(tarball, stagingDir);
+  untar(tarball, stagingDir);
   const pruned = await pruneExecDir(stagingDir);
   await copyFile(copying, path.join(stagingDir, "COPYING"));
   await writeFile(path.join(stagingDir, "SOURCE"), SOURCE_NOTE);

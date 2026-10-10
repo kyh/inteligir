@@ -20,7 +20,7 @@ const MACH_O_MAGIC = new Set([
   0xca_fe_ba_bf, 0xbf_ba_fe_ca,
 ]);
 
-const isMachO = async (file) => {
+const isMachO = async (file: string): Promise<boolean> => {
   const handle = await open(file, "r");
   try {
     const { buffer, bytesRead } = await handle.read(Buffer.alloc(4), 0, 4, 0);
@@ -30,8 +30,8 @@ const isMachO = async (file) => {
   }
 };
 
-const machOsUnder = async (dir) => {
-  const found = [];
+const machOsUnder = async (dir: string): Promise<string[]> => {
+  const found: string[] = [];
   for (const entry of await readdir(dir, { recursive: true, withFileTypes: true })) {
     if (entry.isFile()) {
       const file = path.join(entry.parentPath, entry.name);
@@ -43,12 +43,21 @@ const machOsUnder = async (dir) => {
   return found;
 };
 
+interface ResourceTrees {
+  readonly jit: readonly string[];
+  readonly plain: readonly string[];
+}
+
 // `jit`: trees whose binaries may run a JavaScript engine, signed with the app's entitlements;
 // `plain`: trees of native tools, signed with none. `-` signs ad-hoc: what an unsigned pack runs
 // on, since Apple silicon runs nothing unsigned. An ad-hoc pack carries no team, so it takes no
 // hardened runtime, whose library validation would refuse its own addons, and no timestamp, which
 // only a Developer ID can get
-export const signResources = async ({ jit, plain }, identity, hardened) => {
+export const signResources = async (
+  { jit, plain }: ResourceTrees,
+  identity: string,
+  hardened: boolean,
+): Promise<number> => {
   const options = hardened ? ["--options", "runtime", "--timestamp"] : [];
   const trees = [
     ...jit.map((dir) => ({ dir, entitlements: ["--entitlements", ENTITLEMENTS] })),

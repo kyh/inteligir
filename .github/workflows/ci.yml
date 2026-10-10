@@ -141,7 +141,7 @@ jobs:
 
       - name: Smoke desktop
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # ad-hoc whatever the runner's keychain holds; it reaches scripts/package.mjs only because
+        # ad-hoc whatever the runner's keychain holds; it reaches scripts/package.ts only because
         # apps/desktop/turbo.json passes it through turbo's strict env
         env:
           INTELIGIR_PACK_UNSIGNED: 1

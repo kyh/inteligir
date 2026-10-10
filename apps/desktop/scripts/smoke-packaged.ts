@@ -4,6 +4,7 @@
 // it on an ad-hoc pack.
 
 import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { accessSync, constants, existsSync, readdirSync, readFileSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -13,8 +14,20 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 // the workspace's links, not the packaged copies: `files` does not ship scripts, and the route
 // constants are the contract's own source, which node strips of its types
-import { HEALTH_PATH, RPC_PREFIX } from "@repo/contract/local/routes";
-import { proveWatcherAlive } from "inteligir/scripts/smoke-lib.mjs";
+import { HEALTH_PATH } from "@repo/contract/local/routes";
+import {
+  exitOf,
+  fail,
+  log,
+  proveWatcherAlive,
+  readServerToken,
+  rpcClient,
+  run,
+  unreadAnswer,
+  waitForUrl,
+} from "inteligir/scripts/smoke-lib";
+import type { Exit, Rpc } from "inteligir/scripts/smoke-lib";
+import { z } from "zod";
 
 const CLI_BIN_NAME = "inteligir";
 const TEST_DIR_NAME = "__tests__";
@@ -34,10 +47,10 @@ const appBinary = path.join(appDir, "Contents", "MacOS", "Inteligir");
 const bundledNode = path.join(appDir, "Contents", "MacOS", "node");
 const runtimeRoot = path.join(appDir, "Contents", "Resources", "server");
 const serverEntry = path.join(runtimeRoot, "dist", "desktop.js");
-// scripts/package.mjs's resources, which the CLI's bundled-git.ts resolves beside itself
+// scripts/package.ts's resources, which the CLI's bundled-git.ts resolves beside itself
 const bundledGitRoot = path.join(appDir, "Contents", "Resources", "git");
 const bundledNodeNotices = path.join(appDir, "Contents", "Resources", "notices", "node");
-// scripts/rust-notices.mjs's, for the crates the shell's own binary links
+// scripts/rust-notices.ts's, for the crates the shell's own binary links
 const bundledRustNotices = path.join(appDir, "Contents", "Resources", "notices");
 // the plugin's machine-wide socket (tauri-plugin-single-instance): an installed Inteligir that
 // answers on it would take this launch over, and the smoke would watch the wrong app
@@ -74,55 +87,31 @@ const HOST_AGENT_ENV = new Set([
   "INTELIGIR_AGENT",
 ]);
 
-/**
- * @param {string} message what went wrong, for stderr and the thrown error
- * @returns {never} the exit code is already set; the throw unwinds to the cleanup
- */
-const fail = (message) => {
-  process.stderr.write(`smoke: ${message}\n`);
-  process.exitCode = 1;
-  throw new Error(message);
-};
-
-const log = (line) => {
-  process.stdout.write(`smoke: ${line}\n`);
-};
-
-const waitForUrl = async (url, deadlineMs) => {
-  const deadline = Date.now() + deadlineMs;
-  for (;;) {
-    try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(2000) });
-      if (response.ok) {
-        return response;
-      }
-    } catch {
-      // not up yet
-    }
-    if (Date.now() > deadline) {
-      return null;
-    }
-    await delay(250);
-  }
-};
-
-const run = async (file, argv, options = {}) => {
-  const child = spawn(file, argv, { stdio: ["ignore", "pipe", "pipe"], ...options });
-  let stdout = "";
-  let stderr = "";
-  child.stdout?.on("data", (chunk) => {
-    stdout += chunk;
-  });
-  child.stderr?.on("data", (chunk) => {
-    stderr += chunk;
-  });
-  // `once` rejects on "error", as the close listener never fires for a spawn that failed
-  const [code] = await once(child, "close");
-  if (code !== 0) {
-    throw new Error(`${file} ${argv.join(" ")} exited ${code}\n${stdout}\n${stderr}`);
-  }
-  return stdout;
-};
+// the fields of each answer this reads, parsed here: most of the contract's own schemas reach
+// modules whose imports name no extension, which node's type stripping cannot load
+const cliManifestSchema = z.object({ files: z.array(z.string()) });
+const vaultTreeSchema = z.object({ entries: z.array(z.unknown()), root: z.string() });
+const agentsStatusSchema = z.object({
+  harnesses: z.array(
+    z.looseObject({
+      account: z.object({ state: z.string() }).optional(),
+      id: z.string(),
+      runtime: z.string(),
+    }),
+  ),
+});
+const threadCreatedSchema = z.object({ thread: z.object({ id: z.string() }) });
+const timelineSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("full"),
+    timeline: z.object({
+      rows: z.array(z.looseObject({ kind: z.string(), status: z.string().optional() })),
+    }),
+  }),
+  z.object({ kind: z.literal("delta") }),
+]);
+const historySchema = z.object({ revisions: z.array(z.object({ sha: z.string() })) });
+const systemStatusSchema = z.object({ dataDir: z.string(), vaultDir: z.string() });
 
 if (!existsSync(appBinary)) {
   fail(`no packaged app at ${appDir} — run \`pnpm package:desktop\` first`);
@@ -151,7 +140,9 @@ try {
 
 // the staged CLI is the package as npm would publish it, so the allowed names come from the
 // manifest's own `files`, with the README npm always adds and the dependencies it installed
-const cliManifest = JSON.parse(readFileSync(path.join(runtimeRoot, "package.json"), "utf-8"));
+const cliManifest = cliManifestSchema.parse(
+  JSON.parse(readFileSync(path.join(runtimeRoot, "package.json"), "utf-8")),
+);
 const shippedNames = new Set([
   "README.md",
   "node_modules",
@@ -164,7 +155,7 @@ const strays = readdirSync(runtimeRoot).filter((name) => !shippedNames.has(name)
 if (strays.length > 0) {
   fail(`the packaged CLI carries what its \`files\` does not ship: ${strays.join(", ")}`);
 }
-const testDirs = readdirSync(runtimeRoot, { recursive: true }).filter(
+const testDirs = readdirSync(runtimeRoot, { encoding: "utf-8", recursive: true }).filter(
   (entry) => path.basename(entry) === TEST_DIR_NAME && !entry.startsWith("node_modules"),
 );
 if (testDirs.length > 0) {
@@ -180,13 +171,13 @@ for (const [root, name] of [
   [bundledNodeNotices, "LICENSE"],
   [bundledNodeNotices, "SOURCE"],
   [bundledRustNotices, "rust-crates.txt"],
-]) {
+] as const) {
   if (!existsSync(path.join(root, name))) {
     fail(`the packaged app carries no ${name} at ${root}`);
   }
 }
 
-const answers = async (socket) => {
+const answers = async (socket: string): Promise<boolean> => {
   const probe = createConnection(socket);
   try {
     await once(probe, "connect");
@@ -225,11 +216,14 @@ await mkdir(pinnedHome, { recursive: true });
 const hostBinDir = path.join(scratch, "host-bin");
 const hostGitCalls = path.join(scratch, "host-git-calls.log");
 const loginShell = path.join(scratch, "login-shell");
+// an undefined value unsets the variable
+type LaunchEnv = Record<string, string | undefined>;
+
 const POISONED_HOST_ENV = {
   DEVELOPER_DIR: path.join(scratch, "no-developer-tools"),
   PATH: `${hostBinDir}:${process.env.PATH ?? ""}`,
   SHELL: loginShell,
-};
+} satisfies LaunchEnv;
 await mkdir(hostBinDir, { recursive: true });
 await writeFile(
   path.join(hostBinDir, "git"),
@@ -242,8 +236,7 @@ await writeFile(
 await chmod(path.join(hostBinDir, "git"), 0o755);
 await chmod(loginShell, 0o755);
 
-// an undefined value unsets the variable
-const appEnv = (env) =>
+const appEnv = (env: LaunchEnv): NodeJS.ProcessEnv =>
   Object.fromEntries(
     Object.entries({
       ...process.env,
@@ -254,15 +247,20 @@ const appEnv = (env) =>
     }).filter(([name, value]) => value !== undefined && !HOST_AGENT_ENV.has(name)),
   );
 
-const launchApp = (env) => {
+interface Launched {
+  app: ChildProcess;
+  output: () => string;
+}
+
+const launchApp = (env: LaunchEnv): Launched => {
   const app = spawn(appBinary, [], {
     detached: true,
     env: appEnv(env),
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
-  const record = (chunk) => {
-    output += chunk;
+  const record = (chunk: Buffer): void => {
+    output += chunk.toString();
     process.stdout.write(chunk);
   };
   app.stdout.on("data", record);
@@ -270,7 +268,7 @@ const launchApp = (env) => {
   return { app, output: () => output };
 };
 
-const waitHealthy = async (url) => {
+const waitHealthy = async (url: string): Promise<void> => {
   const health = await waitForUrl(`${url}${HEALTH_PATH}`, BOOT_TIMEOUT_MS);
   if (health === null) {
     fail(`no health answer within ${BOOT_TIMEOUT_MS}ms — see the output above`);
@@ -279,7 +277,10 @@ const waitHealthy = async (url) => {
 };
 
 // a healthy server is not a loaded window: the pin and the handoff decide what the page loads
-const waitPageLoaded = async (launched, { loaded, page }) => {
+const waitPageLoaded = async (
+  launched: Launched,
+  { loaded, page }: { loaded: string; page: string },
+): Promise<void> => {
   const deadline = Date.now() + BOOT_TIMEOUT_MS;
   for (;;) {
     const output = launched.output();
@@ -294,34 +295,12 @@ const waitPageLoaded = async (launched, { loaded, page }) => {
   }
 };
 
-const waitWindowLoaded = async (launched) => {
+const waitWindowLoaded = async (launched: Launched): Promise<void> => {
   await waitPageLoaded(launched, { loaded: WINDOW_LOADED, page: "window" });
 };
 
-// hand-rolled: the typed client needs a bundler this script does not have
-const rpcClient = (url, forDataDir) => {
-  const row = JSON.parse(readFileSync(path.join(forDataDir, "server.json"), "utf-8"));
-  return async (procedure, input) => {
-    const response = await fetch(`${url}${RPC_PREFIX}/${procedure}`, {
-      body: input === undefined ? "{}" : JSON.stringify({ json: input }),
-      headers: { authorization: `Bearer ${row.token}`, "content-type": "application/json" },
-      method: "POST",
-    });
-    if (!response.ok) {
-      fail(`${procedure} answered ${response.status}`);
-    }
-    const body = await response.json();
-    return body.json;
-  };
-};
-
-const exitOf = async (child) => {
-  const [code, signal] = await once(child, "close");
-  return { code, signal };
-};
-
 // the shell alone, which quits on SIGTERM as on Quit
-const quitApp = async (launched) => {
+const quitApp = async (launched: Launched): Promise<Exit> => {
   const { pid } = launched.app;
   if (pid === undefined) {
     fail("the packaged app has no pid — it never spawned");
@@ -329,16 +308,13 @@ const quitApp = async (launched) => {
   log(`SIGTERM ${pid} (the shell)`);
   process.kill(pid, "SIGTERM");
   const exit = await Promise.race([exitOf(launched.app), delay(EXIT_TIMEOUT_MS, null)]);
-  if (exit === null) {
-    fail(`the packaged app did not exit within ${EXIT_TIMEOUT_MS}ms of SIGTERM`);
-  }
-  return exit;
+  return exit ?? fail(`the packaged app did not exit within ${EXIT_TIMEOUT_MS}ms of SIGTERM`);
 };
 
 // the quit stops the server first, which is the ordered shutdown under test; the shell notes how
 // its child ended in the server's log. Looked for in this launch's part of the log rather than at
 // its end: the child's last buffered lines may still land after the note
-const stopApp = async (launched, forDataDir) => {
+const stopApp = async (launched: Launched, forDataDir: string): Promise<void> => {
   const exit = await quitApp(launched);
   const serverLog = readFileSync(path.join(forDataDir, SERVER_LOG), "utf-8");
   const thisLaunch = serverLog.slice(Math.max(serverLog.lastIndexOf(SERVER_STARTING), 0));
@@ -352,7 +328,7 @@ const stopApp = async (launched, forDataDir) => {
 };
 
 // a first run has no server to stop, so its quit is the shell's alone
-const quitFirstRun = async (launched) => {
+const quitFirstRun = async (launched: Launched): Promise<void> => {
   const exit = await quitApp(launched);
   if (exit.code !== 0) {
     fail(
@@ -362,7 +338,7 @@ const quitFirstRun = async (launched) => {
   log("the first run quit and the app exited 0");
 };
 
-const killGroup = (launched) => {
+const killGroup = (launched: Launched | null): void => {
   if (launched?.app.pid !== undefined) {
     try {
       process.kill(-launched.app.pid, "SIGKILL");
@@ -374,14 +350,14 @@ const killGroup = (launched) => {
 
 // the server runs each vendor's bundled binary itself and asks it for the sign-in: both must be
 // there in the pack, and over an empty store both must answer signed out, never unknown.
-const proveVendorsBundled = async (rpc) => {
-  const { harnesses } = await rpc("agents/status");
+const proveVendorsBundled = async (rpc: Rpc): Promise<void> => {
+  const { harnesses } = await rpc("agents/status", agentsStatusSchema);
   for (const id of ["claude", "codex"]) {
     const harness = harnesses.find((row) => row.id === id);
     if (harness?.runtime !== "bundled") {
       fail(`the packaged app does not carry the ${id} runtime: ${JSON.stringify(harness)}`);
     }
-    if (harness.account.state !== "signed-out") {
+    if (harness.account?.state !== "signed-out") {
       fail(`${id} over an empty store did not answer signed out: ${JSON.stringify(harness)}`);
     }
   }
@@ -392,16 +368,16 @@ const proveVendorsBundled = async (rpc) => {
 // codex, and the ACP handshake runs; with no sign-in the vendor then refuses the session. only a
 // live adapter can say that: one the server could not start, or a codex it could not run, fails
 // the turn differently.
-const proveAgentTurn = async (rpc) => {
-  await rpc("agents/setDefault", { id: "codex" });
-  const { thread } = await rpc("threads/create", {});
-  await rpc("threads/send", { text: "smoke", threadId: thread.id });
+const proveAgentTurn = async (rpc: Rpc): Promise<void> => {
+  await rpc("agents/setDefault", unreadAnswer, { id: "codex" });
+  const { thread } = await rpc("threads/create", threadCreatedSchema, {});
+  await rpc("threads/send", unreadAnswer, { text: "smoke", threadId: thread.id });
   const deadline = Date.now() + AGENT_TIMEOUT_MS;
   for (;;) {
-    const answer = await rpc("threads/timeline", { threadId: thread.id });
+    const answer = await rpc("threads/timeline", timelineSchema, { threadId: thread.id });
     const rows = answer.kind === "full" ? answer.timeline.rows : [];
     const turn = rows.find((row) => row.kind === "turn");
-    if (turn !== undefined && turn.status !== "pending") {
+    if (turn?.status !== undefined && turn.status !== "pending") {
       const said = JSON.stringify(rows);
       if (!said.includes(CODEX_SIGNED_OUT)) {
         fail(`the agent turn ended ${turn.status} without reaching codex: ${said}`);
@@ -418,30 +394,31 @@ const proveAgentTurn = async (rpc) => {
 
 // the boot's init and first commit ran before the server listened, so a healthy server already
 // proves those; an API write committing proves the engine's later runs.
-const proveBundledGitCommits = async (rpc) => {
+const proveBundledGitCommits = async (rpc: Rpc): Promise<void> => {
   const note = "Smoke Bundled Git.md";
-  await rpc("vault/write", {
+  await rpc("vault/write", unreadAnswer, {
     content: "# Smoke Bundled Git\n",
     guard: { kind: "absent" },
     path: note,
   });
-  await rpc("vault/commitNow", { paths: [note] });
-  const { revisions } = await rpc("vault/history", { path: note });
-  if (revisions.length === 0) {
+  await rpc("vault/commitNow", unreadAnswer, { paths: [note] });
+  const { revisions } = await rpc("vault/history", historySchema, { path: note });
+  const [latest] = revisions;
+  if (latest === undefined) {
     fail(`a write to ${note} was never committed`);
   }
-  log(`bundled git -> ${note} committed as ${revisions[0].sha.slice(0, 7)}`);
+  log(`bundled git -> ${note} committed as ${latest.sha.slice(0, 7)}`);
 };
 
 // read once the app has quit, so the engine's shutdown flush and the agent's turn are counted too
-const proveHostGitUntouched = () => {
+const proveHostGitUntouched = (): void => {
   if (existsSync(hostGitCalls)) {
     fail(`the host's git ran instead of the bundled one:\n${readFileSync(hostGitCalls, "utf-8")}`);
   }
   log("the host's git never ran");
 };
 
-let launched = null;
+let launched: Launched | null = null;
 
 try {
   log(`launching the packaged app on ${baseUrl}, as a Mac without the developer tools`);
@@ -454,10 +431,10 @@ try {
   });
   await waitHealthy(baseUrl);
   await waitWindowLoaded(launched);
-  const rpc = rpcClient(baseUrl, dataDir);
+  const token = readServerToken(dataDir);
+  const rpc = rpcClient(baseUrl, token);
 
   // with the bearer: a request carrying no credential gets the signed-out page instead
-  const { token } = JSON.parse(readFileSync(path.join(dataDir, "server.json"), "utf-8"));
   const shell = await fetch(baseUrl, {
     headers: { accept: "text/html", authorization: `Bearer ${token}` },
   });
@@ -468,9 +445,9 @@ try {
   log(`SPA shell -> ${shell.status} ${html.length} bytes`);
 
   // exercises better-sqlite3, @parcel/watcher and git init, the first to fail on an ABI mismatch
-  const tree = await rpc("vault/tree");
+  const tree = await rpc("vault/tree", vaultTreeSchema);
   log(`vault tree -> ${tree.entries.length} entries under ${tree.root}`);
-  await proveWatcherAlive({ fail, log, rpc, vaultDir });
+  await proveWatcherAlive(rpc, vaultDir);
 
   await proveVendorsBundled(rpc);
   await proveAgentTurn(rpc);
@@ -479,7 +456,7 @@ try {
   // an agent's `inteligir` is the launcher the server wrote into its data dir, which runs the
   // bundled node on the bundled CLI, so a PATH holding no node still reaches the server
   const agentCli = path.join(dataDir, "bin", CLI_BIN_NAME);
-  const status = await run(agentCli, ["status", "--json"], {
+  const { stdout: status } = await run(agentCli, ["status", "--json"], {
     env: { HOME: pinnedHome, INTELIGIR_DATA_DIR: dataDir, PATH: "/usr/bin:/bin" },
   });
   if (!status.includes(baseUrl)) {
@@ -532,7 +509,10 @@ try {
   log(`launching under a scratch home on ${selectorUrl}: the default vault`);
   launched = launchApp(selectorEnv);
   await waitHealthy(selectorUrl);
-  const defaultStatus = await rpcClient(selectorUrl, rootDataDir)("system/status");
+  const defaultStatus = await rpcClient(selectorUrl, readServerToken(rootDataDir))(
+    "system/status",
+    systemStatusSchema,
+  );
   if (
     defaultStatus.dataDir !== rootDataDir ||
     defaultStatus.vaultDir !== path.join(home, PROD_VAULT_DIR_NAME)
@@ -553,13 +533,17 @@ try {
   launched = launchApp(selectorEnv);
   await waitHealthy(selectorUrl);
   const vaultDirs = readdirSync(path.join(rootDataDir, VAULTS_DIR_NAME));
-  if (vaultDirs.length !== 1) {
+  const [secondVaultDir] = vaultDirs;
+  if (secondVaultDir === undefined || vaultDirs.length > 1) {
     fail(
       `expected one per-vault data dir under ${VAULTS_DIR_NAME}/, found ${vaultDirs.join(", ")}`,
     );
   }
-  const secondDataDir = path.join(rootDataDir, VAULTS_DIR_NAME, vaultDirs[0]);
-  const secondStatus = await rpcClient(selectorUrl, secondDataDir)("system/status");
+  const secondDataDir = path.join(rootDataDir, VAULTS_DIR_NAME, secondVaultDir);
+  const secondStatus = await rpcClient(selectorUrl, readServerToken(secondDataDir))(
+    "system/status",
+    systemStatusSchema,
+  );
   if (secondStatus.dataDir !== secondDataDir || secondStatus.vaultDir !== secondVault) {
     fail(
       `the selector's vault did not get its own data dir: ${JSON.stringify({ dataDir: secondStatus.dataDir, vaultDir: secondStatus.vaultDir })}`,

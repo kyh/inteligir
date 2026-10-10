@@ -17,7 +17,7 @@ const STAGED_SERVER_DIR = path.join(packageRoot, ".output", "server");
 // runtime reads either, and a link in Resources is one more thing the signature has to explain
 const PRUNED = ["pnpm-lock.yaml", "pnpm-workspace.yaml", "node_modules/.pnpm", "node_modules/.bin"];
 
-const log = (line) => {
+const log = (line: string): void => {
   process.stdout.write(`stage-server: ${line}\n`);
 };
 

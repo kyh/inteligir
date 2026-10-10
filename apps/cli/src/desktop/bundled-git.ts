@@ -15,7 +15,7 @@ import { mergePath } from "./login-shell-path";
 const execFileAsync = promisify(execFile);
 
 const PROBE_TIMEOUT_MS = 5000;
-// where the bundle's Resources hold apps/desktop/scripts/fetch-git.mjs's payload, beside the CLI
+// where the bundle's Resources hold apps/desktop/scripts/fetch-git.ts's payload, beside the CLI
 const BUNDLED_GIT_DIR_NAME = "git";
 
 // git 2.45 stopped setting its own Transfer-Encoding header on a streamed POST, which libcurl 8.7.0

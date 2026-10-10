@@ -8,18 +8,20 @@
 // a checkout that never packaged would fail its typecheck for want of them.
 
 import { spawnSync } from "node:child_process";
+import type { SpawnSyncOptions } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { copyFile, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { writeRustNotices } from "./rust-notices.mjs";
-import { signResources } from "./sign-resources.mjs";
+import manifest from "../package.json" with { type: "json" };
+import { writeRustNotices } from "./rust-notices.ts";
+import { signResources } from "./sign-resources.ts";
 
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(packageRoot, "..", "..");
 const releaseDir = path.join(repoRoot, ".release");
 const outDir = path.join(packageRoot, ".output", "bin");
 const bundleDir = path.join(packageRoot, "src-tauri", "target", "release", "bundle");
-const { version } = JSON.parse(readFileSync(path.join(packageRoot, "package.json"), "utf-8"));
+const { version } = manifest;
 
 // every installed app reads its update from the release this tag names
 const RELEASES = "https://github.com/kyh/inteligir/releases";
@@ -30,59 +32,65 @@ const UPDATER_ARCHIVE = "Inteligir.app.tar.gz";
 // node 24's own floor (its binary's LC_BUILD_VERSION)
 const MINIMUM_MACOS = "13.5";
 
-const log = (line) => {
+const log = (line: string): void => {
   process.stdout.write(`package: ${line}\n`);
 };
 
-const run = (file, args, options = {}) => {
+const run = (file: string, args: readonly string[], options: SpawnSyncOptions = {}): void => {
   const result = spawnSync(file, args, { stdio: "inherit", ...options });
   if (result.status !== 0) {
     throw new Error(`${file} ${args.join(" ")} exited ${result.status ?? result.signal}`);
   }
 };
 
-const readRelease = (name) => {
+const readRelease = (name: string): string | null => {
   const file = path.join(releaseDir, name);
   return existsSync(file) ? readFileSync(file, "utf-8").trim() : null;
 };
 
 // notary.env's App Store Connect key, under the names Tauri reads: the issuer, the key's id and the
 // .p8's path, relative to .release
-const NOTARY_VARIABLES = ["APPLE_API_ISSUER", "APPLE_API_KEY", "APPLE_API_KEY_PATH"];
+const NOTARY_VARIABLES = ["APPLE_API_ISSUER", "APPLE_API_KEY", "APPLE_API_KEY_PATH"] as const;
 // Tauri notarizes with an Apple ID too; only .release names a notary, so neither set exported in
 // the shell reaches a pack
-const INHERITED_NOTARY_VARIABLES = new Set([
+const INHERITED_NOTARY_VARIABLES = new Set<string>([
   ...NOTARY_VARIABLES,
   "APPLE_ID",
   "APPLE_PASSWORD",
   "APPLE_TEAM_ID",
 ]);
 
-const notaryEnv = () => {
+type NotaryEnv = Record<(typeof NOTARY_VARIABLES)[number], string>;
+
+const notaryEnv = (): NotaryEnv | null => {
   const text = readRelease("notary.env");
   if (text === null) {
     return null;
   }
-  const values = {};
+  const values = new Map<string, string>();
   for (const line of text.split("\n")) {
-    const match = /^(?<name>APPLE_[A-Z_]+)=(?<value>.+)$/u.exec(line.trim());
-    if (match?.groups !== undefined) {
-      values[match.groups.name] = match.groups.value;
+    const { name, value } =
+      /^(?<name>APPLE_[A-Z_]+)=(?<value>.+)$/u.exec(line.trim())?.groups ?? {};
+    if (name !== undefined && value !== undefined) {
+      values.set(name, value);
     }
   }
-  const missing = NOTARY_VARIABLES.filter((name) => values[name] === undefined);
-  if (missing.length > 0) {
+  const issuer = values.get("APPLE_API_ISSUER");
+  const key = values.get("APPLE_API_KEY");
+  const keyPath = values.get("APPLE_API_KEY_PATH");
+  if (issuer === undefined || key === undefined || keyPath === undefined) {
+    const missing = NOTARY_VARIABLES.filter((name) => !values.has(name));
     throw new Error(`.release/notary.env has no ${missing.join(", ")} (docs/releasing.md)`);
   }
   return {
-    APPLE_API_ISSUER: values.APPLE_API_ISSUER,
-    APPLE_API_KEY: values.APPLE_API_KEY,
-    APPLE_API_KEY_PATH: path.resolve(releaseDir, values.APPLE_API_KEY_PATH),
+    APPLE_API_ISSUER: issuer,
+    APPLE_API_KEY: key,
+    APPLE_API_KEY_PATH: path.resolve(releaseDir, keyPath),
   };
 };
 
 // the Developer ID the keychain holds, or `-` for an ad-hoc pack, which opens on the Mac that built it
-const signingIdentity = () => {
+const signingIdentity = (): string => {
   if (process.env.INTELIGIR_PACK_UNSIGNED === "1") {
     return "-";
   }
@@ -96,13 +104,14 @@ const signingIdentity = () => {
   return match?.groups?.identity ?? "-";
 };
 
-const findOne = async (dir, suffix) => {
+const findOne = async (dir: string, suffix: string): Promise<string> => {
   const entries = await readdir(dir);
-  const names = entries.filter((name) => name.endsWith(suffix));
-  if (names.length !== 1) {
+  const names = entries.filter((entry) => entry.endsWith(suffix));
+  const [name] = names;
+  if (name === undefined || names.length > 1) {
     throw new Error(`expected one *${suffix} in ${dir}, found ${names.length}`);
   }
-  return path.join(dir, names[0]);
+  return path.join(dir, name);
 };
 
 if (process.platform !== "darwin") {
@@ -125,7 +134,7 @@ log(
 );
 log(updaterKey === null ? "no updater key: the app will not update itself" : "signing the update");
 
-run("node", [path.join(packageRoot, "scripts", "stage-server.mjs")]);
+run("node", [path.join(packageRoot, "scripts", "stage-server.ts")]);
 const resourceCount = await signResources(
   {
     jit: [path.join(packageRoot, ".output", "server")],
@@ -141,7 +150,24 @@ const crateCount = await writeRustNotices(
 );
 log(`noted the licences of the ${crateCount} Rust crates the shell links`);
 
-const config = {
+// the fields of Tauri's config this pack sets over tauri.conf.json
+interface PackageConfig {
+  bundle: {
+    createUpdaterArtifacts: boolean;
+    externalBin: string[];
+    macOS: {
+      entitlements: string;
+      hardenedRuntime: boolean;
+      minimumSystemVersion: string;
+      signingIdentity: string;
+    };
+    resources: Record<string, string>;
+    targets: string[];
+  };
+  plugins?: { updater: { endpoints: string[]; pubkey: string } };
+}
+
+const config: PackageConfig = {
   bundle: {
     createUpdaterArtifacts: updaterKey !== null,
     externalBin: ["binaries/node"],
@@ -170,7 +196,7 @@ if (updaterPubkey !== null) {
 const configFile = path.join(packageRoot, ".output", "tauri.package.conf.json");
 await writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`);
 
-const env = {
+const env: NodeJS.ProcessEnv = {
   ...Object.fromEntries(
     Object.entries(process.env).filter(([name]) => !INHERITED_NOTARY_VARIABLES.has(name)),
   ),

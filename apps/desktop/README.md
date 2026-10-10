@@ -194,7 +194,7 @@ can move it: an app launched with another `PATH` or `open --env` must not run
 another program inside a process the OS counts as this one. Inside
 `Inteligir.app/Contents/MacOS` the bundle carries both halves: the official
 node build beside the shell (`bundle.externalBin`, fetched and pinned by
-`scripts/fetch-node.mjs`) and the CLI with its production dependencies as
+`scripts/fetch-node.ts`) and the CLI with its production dependencies as
 `Contents/Resources/server`; a missing one is a broken install, said as one. A
 shell outside a bundle (`tauri dev`, the scenario suite's build) runs the
 checkout's CLI on the developer's own node, as `pnpm cli serve` does. Every
@@ -294,13 +294,17 @@ pnpm package:desktop      # → src-tauri/target/release/bundle/macos/Inteligir.
 pnpm smoke:desktop        # package, boot it, drive its server, quit
 ```
 
-`scripts/package.mjs` runs on a Mac and does it in order:
+Every script is TypeScript that node runs as it stands, stripping the types,
+and `scripts/tsconfig.json` checks it as node resolves it, so `pnpm typecheck`
+refuses an import node could not load.
 
-1. `scripts/fetch-git.mjs` and `scripts/fetch-node.mjs` stage the git the app
+`scripts/package.ts` runs on a Mac and does it in order:
+
+1. `scripts/fetch-git.ts` and `scripts/fetch-node.ts` stage the git the app
    ships into `resources/git` and the node into `src-tauri/binaries` with its
    licence in `resources/node`, shipped as `notices/node` (all gitignored),
    each a file fetch pinned by
-   sha-256 and cached under `.cache/`. git is dugite-native's macOS arm64
+   sha-256 and cached under `.cache/` (`scripts/pinned-fetch.ts`). git is dugite-native's macOS arm64
    build less the Git Credential Manager and Git LFS it adds beside git (no
    config names either, and they were most of the payload and of what had to
    be signed) and less the dashed built-ins' links but the transports' (Tauri
@@ -308,17 +312,17 @@ pnpm smoke:desktop        # package, boot it, drive its server, quit
    with git's own `COPYING` and a `SOURCE` note; node is the
    official darwin-arm64 build. A version bump is the tag and the hashes at
    the top of each script.
-2. `scripts/stage-server.mjs` stages the CLI as `.output/server`: the package
+2. `scripts/stage-server.ts` stages the CLI as `.output/server`: the package
    as npm would publish it (its `files`) and its production dependencies,
    through `pnpm deploy` with a hoisted linker, so the lockfile's versions and
    the workspace's patches ship (codex-acp's among them, which npm itself would
    drop) and no symlink rides into the bundle.
-3. `scripts/sign-resources.mjs` signs every Mach-O those resources carry (the
+3. `scripts/sign-resources.ts` signs every Mach-O those resources carry (the
    git, the native addons, the vendors' own binaries) with the hardened runtime,
    the server's tree with `resources/entitlements.mac.plist` and the git, which
    runs no JIT, with none: Tauri signs the shell, the node and the bundle, but
    notarization refuses any binary inside that is not itself signed.
-4. `scripts/rust-notices.mjs` writes `.output/notices/rust-crates.txt`: every
+4. `scripts/rust-notices.ts` writes `.output/notices/rust-crates.txt`: every
    crate the shell's binary links on the Mac, read from cargo's own resolve,
    with its version, licence and source, and each licence text the crates ship,
    once, since their licences ask that the notices travel with the binary.

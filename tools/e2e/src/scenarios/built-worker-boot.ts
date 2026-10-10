@@ -14,7 +14,7 @@ const DOC_PAGES = [
 const LANDING_CTA = "Download for Mac";
 const LANDING_REQUIREMENTS = ["Apple silicon", "a paid Claude plan or any ChatGPT plan"];
 
-const PACKAGE_SCRIPT = path.join("apps", "desktop", "scripts", "package.mjs");
+const PACKAGE_SCRIPT = path.join("apps", "desktop", "scripts", "package.ts");
 const LATEST_DOWNLOAD = "https://github.com/kyh/inteligir/releases/latest/download/";
 
 // the dmg's name as the package step writes it into the release, read from that script so a rename

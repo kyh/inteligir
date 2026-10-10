@@ -30,7 +30,7 @@
       // signing key that has since appeared.
       "cache": false,
       // the signing identity and the updater's key: strict env mode strips anything unnamed before
-      // the Tauri CLI reads it. The notary's key is .release's alone (scripts/package.mjs)
+      // the Tauri CLI reads it. The notary's key is .release's alone (scripts/package.ts)
       "passThroughEnv": [
         "APPLE_SIGNING_IDENTITY",
         "INTELIGIR_PACK_UNSIGNED",

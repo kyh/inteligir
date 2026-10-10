@@ -220,7 +220,7 @@ subpath after the name is not resolved) or a path anchored on a workspace group
   contract from `config.ts`. `DECLARED_EDGES` is the one hand-written list
   because it is the pin.
 - **A self-check per sweep.** Each guard asserts it found the thing it is held
-  against (`ci.yml`, the `inteligir` workspace, `apps/cli/scripts/smoke.mjs`, a
+  against (`ci.yml`, the `inteligir` workspace, `apps/cli/scripts/smoke.ts`, a
   `dial()` row), so an empty population fails as "the sweep is broken, not
   the tree" rather than passing over nothing.
 - **Shipped and test are split.** `workspaceFiles` classes `__tests__/`,
