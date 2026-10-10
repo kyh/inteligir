@@ -149,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn round_trips_the_file_the_electron_shell_wrote() -> std::io::Result<()> {
+    fn round_trips_the_recent_file() -> std::io::Result<()> {
         let dir = tempfile::tempdir()?;
         let path = dir.path().join(RECENT_VAULTS_FILE_NAME);
         fs::write(

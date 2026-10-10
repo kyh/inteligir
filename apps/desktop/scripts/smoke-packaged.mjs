@@ -208,8 +208,8 @@ const port = 4900 + Math.floor(Math.random() * 90);
 const baseUrl = `http://127.0.0.1:${port}`;
 const dataDir = path.join(scratch, "data");
 const vaultDir = path.join(scratch, "vault");
-// a home of its own, so the shell's folder (its recent vaults, its debug choice, its web stores)
-// lands in the scratch rather than beside an installed Inteligir's
+// a home of its own, so whatever the app and its children keep under a home lands in the scratch
+// rather than beside an installed Inteligir's
 const pinnedHome = path.join(scratch, "pinned-home");
 // no sign-in lives in either, so each vendor answers signed out and the turn stops at its refusal
 const claudeConfigDir = path.join(scratch, "claude-config");

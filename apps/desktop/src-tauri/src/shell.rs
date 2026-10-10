@@ -23,6 +23,7 @@ use crate::vaults::{self, VaultsState};
 use crate::window::{self, AppWindow};
 
 const ADOPTED_SWITCH_REASON: &str = "This server was started outside the app, so the app cannot restart it on another vault. Stop it and reopen Inteligir to switch.";
+const OWN_DIR_NAME: &str = "desktop";
 
 /// The first run's handed-out folders: every folder the page names back is one the shell gave it.
 pub struct FirstRun {
@@ -31,9 +32,30 @@ pub struct FirstRun {
     pub folders: HashSet<String>,
 }
 
+/// What a launch settles for the life of the app.
+#[derive(Clone)]
+struct Launched {
+    door: Door,
+    /// The recent list, the debug choice and WebKitGTK's stores, under the root data dir the launch
+    /// resolved: a development shell's is its checkout's, so two checkouts share none of them.
+    own_dir: PathBuf,
+}
+
+impl Launched {
+    fn recent_path(&self) -> PathBuf {
+        self.own_dir.join(vaults::RECENT_VAULTS_FILE_NAME)
+    }
+
+    fn webview_dir(&self, data_dir: &str) -> PathBuf {
+        self.own_dir
+            .join("webview")
+            .join(hex16(&window::data_store_id(data_dir)))
+    }
+}
+
 #[derive(Default)]
 struct State {
-    door: Option<Door>,
+    launched: Option<Launched>,
     target: Option<Target>,
     live: Option<Live>,
     owned: Option<Arc<OwnedServer>>,
@@ -46,9 +68,6 @@ struct State {
 }
 
 pub struct Shell {
-    /// The shell's own folder (the recent list, the debug choice): Electron's userData, kept so an
-    /// upgrade keeps both.
-    pub own_dir: PathBuf,
     pub bundled: bool,
     state: Mutex<State>,
 }
@@ -62,9 +81,8 @@ pub enum Outcome {
 }
 
 impl Shell {
-    pub fn new(own_dir: PathBuf, bundled: bool) -> Self {
+    pub fn new(bundled: bool) -> Self {
         Self {
-            own_dir,
             bundled,
             state: Mutex::new(State::default()),
         }
@@ -74,11 +92,15 @@ impl Shell {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn door(&self) -> Result<Door, String> {
+    fn launched(&self) -> Result<Launched, String> {
         self.lock()
-            .door
+            .launched
             .clone()
             .ok_or_else(|| "the app is still starting".to_owned())
+    }
+
+    fn door(&self) -> Result<Door, String> {
+        self.launched().map(|launched| launched.door)
     }
 
     pub fn target(&self) -> Option<Target> {
@@ -95,10 +117,6 @@ impl Shell {
 
     pub fn with_first_run<T>(&self, read: impl FnOnce(&mut FirstRun) -> T) -> Option<T> {
         self.lock().first_run.as_mut().map(read)
-    }
-
-    fn recent_path(&self) -> PathBuf {
-        self.own_dir.join(vaults::RECENT_VAULTS_FILE_NAME)
     }
 }
 
@@ -172,13 +190,17 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
             .map(|(name, value)| (name.into(), value.into())),
     );
     {
+        let launched = Launched {
+            door,
+            own_dir: Path::new(&launch.target.root_data_dir).join(OWN_DIR_NAME),
+        };
         let mut state = shell.lock();
-        state.door = Some(door);
-        state.recent = vaults::read_recent(&shell.recent_path());
+        state.recent = vaults::read_recent(&launched.recent_path());
         state.diagnostics = Some(Diagnostics::new(
-            shell.own_dir.join(diagnostics::DIAGNOSTICS_FILE_NAME),
+            launched.own_dir.join(diagnostics::DIAGNOSTICS_FILE_NAME),
             shell.bundled,
         ));
+        state.launched = Some(launched);
     }
     crate::menu::rebuild(app);
     crate::updater::start(app);
@@ -212,7 +234,8 @@ pub fn boot_vault<R: Runtime>(
     path: &str,
 ) -> Result<(), String> {
     let shell = app.state::<Shell>();
-    let door = shell.door()?;
+    let launched = shell.launched()?;
+    let door = &launched.door;
     let debug = shell
         .with_diagnostics(|diagnostics| diagnostics.debug())
         .unwrap_or(false);
@@ -276,10 +299,6 @@ pub fn boot_vault<R: Runtime>(
         state.windows_made += 1;
         format!("vault-{}", state.windows_made)
     };
-    let webview_dir = shell
-        .own_dir
-        .join("webview")
-        .join(hex16(&window::data_store_id(&target.data_dir)));
     let made = window::create_app_window(
         app,
         &AppWindow {
@@ -288,7 +307,7 @@ pub fn boot_vault<R: Runtime>(
             handoff_url: &live.handoff_url,
             path,
             data_dir: &target.data_dir,
-            webview_dir,
+            webview_dir: launched.webview_dir(&target.data_dir),
             log,
         },
     );
@@ -301,7 +320,7 @@ pub fn boot_vault<R: Runtime>(
     {
         let mut state = shell.lock();
         state.recent = vaults::remember(&state.recent, &target.vault_dir);
-        if let Err(error) = vaults::write_recent(&shell.recent_path(), &state.recent) {
+        if let Err(error) = vaults::write_recent(&launched.recent_path(), &state.recent) {
             eprintln!("[desktop] could not write the recent-vaults list: {error}");
         }
         if let Some(diagnostics) = state.diagnostics.as_mut() {
@@ -386,7 +405,9 @@ pub fn forget_vault<R: Runtime>(app: &AppHandle<R>, path: &str) {
     {
         let mut state = shell.lock();
         state.recent = vaults::forget(&state.recent, path);
-        if let Err(error) = vaults::write_recent(&shell.recent_path(), &state.recent) {
+        if let Some(launched) = &state.launched
+            && let Err(error) = vaults::write_recent(&launched.recent_path(), &state.recent)
+        {
             eprintln!("[desktop] could not write the recent-vaults list: {error}");
         }
     }
@@ -438,7 +459,13 @@ pub fn switch_vault<R: Runtime>(app: &AppHandle<R>, vault_dir: &str, confirm: bo
     let shell = app.state::<Shell>();
     let (door, previous, owns, previous_window) = {
         let state = shell.lock();
-        let (Some(door), Some(previous)) = (state.door.clone(), state.target.clone()) else {
+        let (Some(door), Some(previous)) = (
+            state
+                .launched
+                .as_ref()
+                .map(|launched| launched.door.clone()),
+            state.target.clone(),
+        ) else {
             return Outcome::Refused("No vault is open yet.".to_owned());
         };
         (door, previous, state.owned.is_some(), state.window.clone())

@@ -2178,7 +2178,7 @@ to the END of its group.
   the cost of one console line.
 
 - **UPDATES ARE TAURI'S UPDATER OVER THE GITHUB RELEASE, and nothing moves
-  without a click** (reversing "no update feed"; electron-updater until #889).
+  without a click** (reversing "no update feed").
   The release carries the dmg, `Inteligir.app.tar.gz` with its minisign
   signature and `latest.json`, written by the pack
   (`apps/desktop/scripts/package.mjs`) and uploaded by the owner's release step
@@ -2186,12 +2186,6 @@ to the END of its group.
   pack without it makes no feed. A check 15s after launch and every 4 minutes,
   the download and the restart each a click. Install stops the server child
   first, so the vault's pending commit flushes before the bundle is replaced.
-  The same release still carries electron-updater's zip and `latest-mac.yml`,
-  so an Electron install updates into the Tauri app, which keeps the bundle id
-  and the Developer ID that Squirrel's designated-requirement check needs; the
-  manifest names node 24's floor, macOS 13.5, as the Darwin release
-  electron-updater compares, so an older Mac is offered nothing it cannot
-  open. Drop the pair once no supported install runs Electron.
   `apps/desktop/src-tauri/src/updater.rs` (the policy) over `update_state.rs`
   (a union by status, which `apps/desktop/src/update-state.ts` parses from the
   `update-state` event).
@@ -2259,7 +2253,7 @@ to the END of its group.
   (`apps/cli/src/server/debug-log.ts`, `tools/e2e/src/scenarios/debug-log.ts`).
   A Finder-launched app has no env and drops the shell's stdout, so debug
   logging is Settings › Advanced's switch, kept as `diagnostics.json` in the
-  shell's own folder (Electron's userData, kept so an upgrade keeps the choice)
+  shell's own folder (`desktop/` beside config.json, one per dev checkout)
   because the shell reads it before the start it changes (the page's prefs load
   after that start, and config.json is the app's to read, never to write); on,
   the next child traces every namespace, since a report cannot know which

@@ -105,13 +105,7 @@ pub fn run() {
         ])
         .on_menu_event(|app, event| menu::on_event(app, &event))
         .setup(move |app| {
-            // the Electron shell's userData, so an upgrade keeps the recent list and the debug choice
-            let own_dir = app.path().data_dir()?.join(if bundled {
-                "Inteligir"
-            } else {
-                "Inteligir (Dev)"
-            });
-            app.manage(Shell::new(own_dir, bundled));
+            app.manage(Shell::new(bundled));
             #[cfg(unix)]
             quit_on_signals(app.handle());
             let launching = app.handle().clone();

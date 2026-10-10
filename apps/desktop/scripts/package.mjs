@@ -8,8 +8,7 @@
 // a checkout that never packaged would fail its typecheck for want of them.
 
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { copyFile, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { writeRustNotices } from "./rust-notices.mjs";
@@ -28,14 +27,8 @@ const UPDATER_ENDPOINT = `${RELEASES}/latest/download/latest.json`;
 // fixed, so the site links releases/latest/download/Inteligir-arm64.dmg with no lookup
 const DMG_NAME = "Inteligir-arm64.dmg";
 const UPDATER_ARCHIVE = "Inteligir.app.tar.gz";
-// the zip and manifest the Electron builds' updater reads, so an install from before the move to
-// Tauri updates onto it: same bundle id and team, so Squirrel accepts the new app
-const ELECTRON_ZIP = `Inteligir-${version}-arm64.zip`;
-// node 24's own floor (its binary's LC_BUILD_VERSION), which the Electron builds ran below
+// node 24's own floor (its binary's LC_BUILD_VERSION)
 const MINIMUM_MACOS = "13.5";
-// the same floor as the Darwin release electron-updater compares (`os.release()`): macOS 13.5 is
-// Darwin 22.6, so an Electron install on an older Mac is offered nothing it cannot open
-const MINIMUM_DARWIN = "22.6.0";
 
 const log = (line) => {
   process.stdout.write(`package: ${line}\n`);
@@ -53,7 +46,18 @@ const readRelease = (name) => {
   return existsSync(file) ? readFileSync(file, "utf-8").trim() : null;
 };
 
-// electron-builder's names in notary.env, which Tauri reads under its own
+// notary.env's App Store Connect key, under the names Tauri reads: the issuer, the key's id and the
+// .p8's path, relative to .release
+const NOTARY_VARIABLES = ["APPLE_API_ISSUER", "APPLE_API_KEY", "APPLE_API_KEY_PATH"];
+// Tauri notarizes with an Apple ID too; only .release names a notary, so neither set exported in
+// the shell reaches a pack
+const INHERITED_NOTARY_VARIABLES = new Set([
+  ...NOTARY_VARIABLES,
+  "APPLE_ID",
+  "APPLE_PASSWORD",
+  "APPLE_TEAM_ID",
+]);
+
 const notaryEnv = () => {
   const text = readRelease("notary.env");
   if (text === null) {
@@ -66,10 +70,14 @@ const notaryEnv = () => {
       values[match.groups.name] = match.groups.value;
     }
   }
+  const missing = NOTARY_VARIABLES.filter((name) => values[name] === undefined);
+  if (missing.length > 0) {
+    throw new Error(`.release/notary.env has no ${missing.join(", ")} (docs/releasing.md)`);
+  }
   return {
     APPLE_API_ISSUER: values.APPLE_API_ISSUER,
-    APPLE_API_KEY: values.APPLE_API_KEY_ID,
-    APPLE_API_KEY_PATH: path.resolve(releaseDir, values.APPLE_API_KEY ?? ""),
+    APPLE_API_KEY: values.APPLE_API_KEY,
+    APPLE_API_KEY_PATH: path.resolve(releaseDir, values.APPLE_API_KEY_PATH),
   };
 };
 
@@ -87,8 +95,6 @@ const signingIdentity = () => {
   const match = /"(?<identity>Developer ID Application: [^"]+)"/u.exec(listed.stdout ?? "");
   return match?.groups?.identity ?? "-";
 };
-
-const sha512Base64 = (file) => createHash("sha512").update(readFileSync(file)).digest("base64");
 
 const findOne = async (dir, suffix) => {
   const entries = await readdir(dir);
@@ -164,7 +170,12 @@ if (updaterPubkey !== null) {
 const configFile = path.join(packageRoot, ".output", "tauri.package.conf.json");
 await writeFile(configFile, `${JSON.stringify(config, null, 2)}\n`);
 
-const env = { ...process.env, ...notary };
+const env = {
+  ...Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => !INHERITED_NOTARY_VARIABLES.has(name)),
+  ),
+  ...notary,
+};
 if (updaterKey !== null) {
   env.TAURI_SIGNING_PRIVATE_KEY = updaterKey;
   env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD = readRelease("updater.key.password") ?? "";
@@ -193,22 +204,6 @@ if (updaterKey !== null) {
     version,
   };
   await writeFile(path.join(outDir, "latest.json"), `${JSON.stringify(latest, null, 2)}\n`);
-
-  const zip = path.join(outDir, ELECTRON_ZIP);
-  run("ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", app, zip]);
-  const manifest = [
-    `version: ${version}`,
-    "files:",
-    `  - url: ${ELECTRON_ZIP}`,
-    `    sha512: ${sha512Base64(zip)}`,
-    `    size: ${String(statSync(zip).size)}`,
-    `path: ${ELECTRON_ZIP}`,
-    `sha512: ${sha512Base64(zip)}`,
-    `minimumSystemVersion: ${MINIMUM_DARWIN}`,
-    `releaseDate: '${new Date().toISOString()}'`,
-    "",
-  ].join("\n");
-  await writeFile(path.join(outDir, "latest-mac.yml"), manifest);
 }
 
 log(

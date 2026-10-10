@@ -130,8 +130,8 @@ miniflare's Durable Objects. Sign-up is invite-only and there is no seeded accou
 | Folders, agent, vault and phone-request prefs | JSON files beside them (the app writes these)     |
 | Connectors                                    | the agent's own: `~/.claude.json`, `~/.codex`     |
 | The desktop's server log                      | `<data dir>/logs/server.log` (+ one `.1`)         |
-| The desktop's own folder (recent vaults,      | `~/Library/Application Support/Inteligir`; a      |
-| the debug choice, each vault's web store)     | development shell's is `Inteligir (Dev)`          |
+| The desktop's own folder (recent vaults,      | `desktop/` beside config.json                     |
+| the debug choice, Linux's web stores)         |                                                   |
 | Site + cloud Worker (`pnpm dev:web`)          | 5174 (pinned — `strictPort`)                      |
 | UI gallery (`pnpm dev:gallery`)               | 5175 (pinned — `strictPort`), at `/gallery`       |
 | Accounts, sessions, devices, invites          | D1 (local file under `apps/web/.wrangler`)        |

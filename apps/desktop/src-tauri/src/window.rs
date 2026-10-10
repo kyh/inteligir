@@ -112,7 +112,7 @@ fn hide_on_close<R: Runtime>(window: &WebviewWindow<R>) {
 }
 
 /// The page prefs (localStorage) are the origin's, and every vault's server answers on one port,
-/// so each data dir gets a data store of its own, as Electron's per-vault partitions were.
+/// so each data dir gets a data store of its own.
 pub fn data_store_id(data_dir: &str) -> [u8; 16] {
     let digest = Sha256::digest(data_dir.as_bytes());
     let mut id = [0_u8; 16];

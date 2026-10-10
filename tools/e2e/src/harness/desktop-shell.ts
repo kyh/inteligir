@@ -164,21 +164,19 @@ export const launchDesktopShell = async (args: LaunchDesktopShellArgs): Promise<
   const desktopDir = path.join(args.repoRoot, "apps", "desktop");
   const shellDir = path.join(args.scratchDir, "shell");
   const homeDir = path.join(shellDir, "home");
-  // Tauri's app data dir under that home (src-tauri/src/lib.rs names the folder)
-  const ownDir = path.join(homeDir, ".local", "share", "Inteligir (Dev)");
-  await mkdir(ownDir, { recursive: true });
   const dirs: ShellDirs = { ...(await makeVendorDirs(shellDir)), homeDir };
   const checkoutPath = resolveCheckoutRoot(desktopDir);
   // an unbundled shell's door resolves in development mode, for the checkout it belongs to; the
   // rest of the env it hands the resolution moves neither dir
+  const config = () =>
+    resolveAppConfig({ checkoutPath, env: { NODE_ENV: "development" }, homeDir });
   const target = (): ShellTarget => {
-    const { dataDir, vaultDir } = resolveAppConfig({
-      checkoutPath,
-      env: { NODE_ENV: "development" },
-      homeDir,
-    });
+    const { dataDir, vaultDir } = config();
     return { dataDir, vaultDir };
   };
+  // beside config.json (src-tauri/src/shell.rs names the folder)
+  const ownDir = path.join(config().rootDataDir, "desktop");
+  await mkdir(ownDir, { recursive: true });
 
   // the default vault already there is what a launch before first run left, so the shell boots it
   if (args.firstRun !== true) {

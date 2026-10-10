@@ -59,8 +59,7 @@ describe("bytes already in storage", () => {
     ["inteligir.theme", "sepia", PREFS.theme, "system"],
     ["inteligir.last-open-note", "Notes/a.md", PREFS.lastOpenNote, "Notes/a.md"],
     ["inteligir.spellcheck", "false", PREFS.spellcheck, false],
-    // the shape an Electron build kept, in a store no window of this build opens, reads as never chosen
-    ["inteligir.spellcheck", '{"enabled":false,"languages":["de-DE"]}', PREFS.spellcheck, true],
+    ["inteligir.spellcheck", '{"enabled":false}', PREFS.spellcheck, true],
     [
       "inteligir.sync-conflict-seen-at",
       "1790000000000",

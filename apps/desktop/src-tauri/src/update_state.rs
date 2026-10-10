@@ -1,6 +1,6 @@
 //! The updater's one state, reduced here and parsed off the bridge by the page against
-//! `apps/desktop/src/update-state.ts`, the same union the Electron shell sent. Each status carries
-//! exactly what it knows, so no surface reads a version that status cannot have.
+//! `apps/desktop/src/update-state.ts`. Each status carries exactly what it knows, so no surface
+//! reads a version that status cannot have.
 
 use serde::Serialize;
 

@@ -6,8 +6,9 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ### Before you update
 
-- **Inteligir needs macOS 13.5 or later.** The app now runs on the Mac's own web engine instead of carrying a browser of its own, and what it brings in its place needs macOS 13.5. On an older Mac, the version you have keeps working and is not offered this update.
-- **Your window settings start over once.** The theme, the text appearance, the sidebar and panel widths, which list the sidebar shows, and the spell check switch go back to their defaults the first time this version opens; set them again in Settings. A message about a note two devices changed that you already saw can show once more. Your notes, vaults, sign-ins and agents are untouched. On macOS 13, every vault now shares one set of these settings.
+- **Download this version from inteligir.com.** The version you have cannot update itself to this one: download Inteligir from inteligir.com and drag it into Applications over the one there. Later updates install from the app again.
+- **Inteligir needs macOS 13.5 or later.** The app now runs on the Mac's own web engine instead of carrying a browser of its own, and what it brings in its place needs macOS 13.5. On an older Mac, keep the version you have: it keeps working.
+- **Your window settings start over once.** The theme, the text appearance, the sidebar and panel widths, which list the sidebar shows, and the spell check switch go back to their defaults the first time this version opens; set them again in Settings. File › Open Recent Vault starts empty, and Debug logging in Settings › Advanced starts off. A message about a note two devices changed that you already saw can show once more. Your notes, vaults, sign-ins and agents are untouched. On macOS 13, every vault now shares one set of these settings.
 
 ### New
 
