@@ -1801,14 +1801,18 @@ to the END of its group.
   rows behind it must still land; the pass records the lowest such row with the
   running build, and a session opened under a different build rewinds to it
   (`takeRewindIfBuildChanged` in `packages/db/src/sync-outbox.ts`, from
-  `apps/cli/src/server/cloud/sync-runtime.ts`). Rejected: `meta.schema_version`
-  as the trigger, which counts migrations while a new event type ships without
-  one, and a table of raw skipped rows, a second store beside the log. The
-  phone keeps its threads in its database with the digest of the event grammar
-  that parsed them, and a build whose grammar differs pulls from 0, since its
-  held events lost what the old grammar did not name; each pulled page is one
-  transaction with the cursor, so a cold launch lists the threads offline and
-  pulls on from its cursor (`apps/mobile/src/sync/sqlite-sync-store.ts`).
+  `apps/cli/src/server/cloud/sync-runtime.ts`). A row filed under one thread
+  whose event names another is skipped too, never recorded, since no build
+  reads it differently. Rejected: `meta.schema_version` as the trigger, which
+  counts migrations while a new event type ships without one; a table of raw
+  skipped rows, a second store beside the log; and refusing a mismatched row
+  at each client's apply, a second answer the phone, keying by the envelope,
+  would not give. The phone keeps its threads in its database with the digest
+  of the event grammar that parsed them, and a build whose grammar differs
+  pulls from 0, since its held events lost what the old grammar did not name;
+  each pulled page is one transaction with the cursor, so a cold launch lists
+  the threads offline and pulls on from its cursor
+  (`apps/mobile/src/sync/sqlite-sync-store.ts`).
 
 - **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
   `SyncRuntime`, the login flow and the dispatch runtime publish stores the

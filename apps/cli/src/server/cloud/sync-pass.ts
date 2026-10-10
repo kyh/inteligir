@@ -29,7 +29,6 @@ import {
 } from "@repo/db/sync-outbox";
 import type { DebugLog } from "../debug-log";
 import { messageOf } from "../error-message";
-import { ThreadEventThreadIdMismatchError } from "../threads/thread-event-mismatch-error";
 import { appendToInbox, APPLIED_CAPTURE_RETENTION_MS } from "./captures";
 import type { CaptureVault } from "./captures";
 import {
@@ -160,13 +159,10 @@ const applyStep = (deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "apply
     try {
       target.applySyncedEvents({ cursor: row.seq, rows: [row], threadId: step.threadId });
     } catch (error) {
-      // only the log's own refusals of a row are skipped. anything else is this build's fault, and
+      // only the log's own refusal of a row is skipped. anything else is this build's fault, and
       // moving the cursor past it would lose the row for good: it fails the pass instead, with the
       // cursor where the last commit left it and the error in the status.
-      if (
-        !(error instanceof MissingTurnStartedError) &&
-        !(error instanceof ThreadEventThreadIdMismatchError)
-      ) {
+      if (!(error instanceof MissingTurnStartedError)) {
         throw error;
       }
       deps.debug(`skipping a synced ${row.event.type}: ${messageOf(error)}`);

@@ -142,7 +142,10 @@ src/
   the single-flight pass here rather than in each client: a security
   discipline with two spellings is two to audit. A skip step names the lowest
   foreign row it moves past unread (`firstUnparsed`), so a client that keeps
-  its cursor can pull that row again under a build that reads it.
+  its cursor can pull that row again under a build that reads it. A row filed
+  under one thread whose event names another is skipped here too, never
+  recorded for a pull again, since no build reads it differently: a client
+  applying it would file it under whichever id it keyed by.
 - **The cloud client never throws a refusal.** `CloudResult` carries
   `refused` (a code this build names, `internal` for one it does not),
   `unreachable` (no verdict on the credential) or `malformed` (a body this
