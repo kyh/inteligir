@@ -3,12 +3,9 @@
 // vendor account probe are injected (`cloudTransport`, `driver`, `accounts`) rather than imported,
 // and serve.ts supplies the real ones.
 
-import { closeConnection, createConnection } from "@repo/db/connection";
+import { closeConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
-import { getSchemaVersion } from "@repo/db/meta";
-import { runMigrations } from "@repo/db/migrate";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
-import { resolveMigrationsFolder } from "../paths";
 import { defaultHarnessId } from "./agents/agent-driver";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
@@ -36,6 +33,7 @@ import type { KnowledgeRuntime, KnowledgeRuntimeArgs } from "./knowledge/knowled
 import { createProjectionWorker } from "./knowledge/projector";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { renameTagAcrossVault } from "./knowledge/rename-tag";
+import { openDatabase } from "./open-database";
 import type { AppServices } from "./orpc";
 import { teardownStep } from "./shutdown";
 import type { ShutdownStep, TeardownStepName } from "./shutdown";
@@ -111,11 +109,10 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     teardown.unshift(teardownStep(name, run));
   };
 
-  const db = createConnection(config.databasePath);
+  const { db, schemaVersion } = openDatabase(config);
   register("db", () => {
     closeConnection(db);
   });
-  const schemaVersion = getSchemaVersion(db, runMigrations(db, resolveMigrationsFolder()));
 
   const bus = new WsBus();
   // late-bound: the knowledge runtime needs the vault service; changes before it exists

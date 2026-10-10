@@ -2342,6 +2342,23 @@ to the END of its group.
   `apps/cli/src/desktop/bundled-git.ts`; the smoke's first launch plays such a
   Mac and proves the host's git never ran.
 
+- **THE LOCAL DATABASE MOVES BY COMMITTED MIGRATIONS, AND A FILE ON A HISTORY
+  THIS BUILD LACKS IS REPLACED AT BOOT.** `inteligir.db` lives on the user's
+  disk and the app ships no drizzle-kit, so its schema changes only through the
+  SQL in `packages/db/drizzle`, applied on boot: the exception to the
+  push-based rule the D1 auth schema follows (in the Cloud group) and the
+  `sync-conventions` skill applies, which must not delete that folder. While
+  nobody but the owner runs the app, the history is one baseline rather than
+  every generation, so the CHECKs `ALTER TABLE` cannot add are declared and
+  the columns sit in order (`packages/db/src/schema.ts`). A file whose ledger
+  names a migration this build does not carry is refused before the migrator
+  runs (`UnknownMigrationHistoryError` in `packages/db/src/migrate.ts`), and
+  the server replaces it and signs the install out, because the cloud log
+  holds the positions a fresh file would hand out again; the next sign-in
+  pulls the account's threads back (`apps/cli/src/server/open-database.ts`).
+  Once anyone else holds a database, squashing is the loss of their threads,
+  and a migration is appended instead.
+
 ### Desktop workspace surfaces
 
 - **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`

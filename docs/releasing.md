@@ -183,6 +183,12 @@ app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
   then type. Passing: the words land once, at the caret; typing carries on
   after them; Enter while dictation is live does not send; the Edit menu shows
   Start Dictation…; and dictating into a note behaves the same.
+- **An earlier install's database starts over once.** With 0.6.0 installed,
+  signed in and holding an action that has synced, install this build over it
+  and open it from Finder. Passing: the app opens signed out with no actions,
+  `~/.inteligir/logs/server.log` has the `[db]` line saying the database was
+  replaced, and once you sign in again in Settings › Account the action comes
+  back, with the Mac's earlier sign-in listed beside its new one.
 
 ### The iPhone app, on the internal build
 

@@ -31,9 +31,11 @@ src/
                       # pending_interactions, sync_outbox, sync_state,
                       # sync_applied_captures, sync_own_devices — each constraint
                       # says why beside itself
-  migrate.ts          # runMigrations: drizzle's migrator over drizzle/, foreign keys
-                      # OFF around it and foreign_key_check after; returns the
-                      # migration-folder count, which IS the schema version
+  migrate.ts          # runMigrations: refuses a file migrated through generations
+                      # this build does not carry, then drizzle's migrator over
+                      # drizzle/, foreign keys OFF around it and foreign_key_check
+                      # after; returns the migration-folder count, which IS the
+                      # schema version
   meta.ts             # getSchemaVersion — refuses a file a NEWER build upgraded
   ids.ts              # createPrefixedId + the minters (thr_, evt_, turn_, qmsg_,
                       # pint_, obx_) over a 32-letter alphabet minus the look-alikes
@@ -55,10 +57,10 @@ src/
                       # a replay pulled back under a device id it never recorded
   __tests__/          # real files under a temp dir; schema-agreement.test.ts is
                       # the migration↔schema pin (reading sqlite_master through
-                      # json-source.ts), legacy-migrations-table.test.ts the
-                      # pre-1.0 __drizzle_migrations upgrade
+                      # json-source.ts)
 drizzle/              # the committed SQL migrations, one folder per generation:
-                      # <yyyymmddhhmmss>_<name>/migration.sql + drizzle-kit's snapshot.json
+                      # <yyyymmddhhmmss>_<name>/migration.sql + drizzle-kit's snapshot.json;
+                      # the first is the baseline, which also seeds meta and sync_state
 drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
 ```
 
@@ -77,30 +79,43 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   high-water and inserts under the caller's, which is what makes the unique
   index a backstop rather than the mechanism.
 - **Migrations are committed SQL, applied on boot, and every generation bumps
-  `meta.schema_version` to its own index.** The migration-folder count IS the
-  version: `getSchemaVersion` refuses a file above it, because an older build
-  opening a newer database applies nothing and would otherwise read a schema it
-  does not know. Foreign keys are OFF around the migrator — the pragma is a
-  silent no-op inside the transaction drizzle wraps each migration in, and a
-  table rebuild's DROP would cascade-wipe the children — and
+  `meta.schema_version` to its own index.** One baseline, written by
+  `drizzle-kit generate`, seeds `meta.schema_version = '1'` and the one
+  `sync_state` row by hand-appended inserts; every later generation is
+  appended by `db:generate` and bumps the version. The migration-folder count
+  IS the version: `getSchemaVersion` refuses a file above it, because an older
+  build opening a newer database applies nothing and would otherwise read a
+  schema it does not know. Foreign keys are OFF around the migrator — the
+  pragma is a silent no-op inside the transaction drizzle wraps each migration
+  in, and a table rebuild's DROP would cascade-wipe the children — and
   `foreign_key_check` refuses the boot afterwards. The folder is a
   PARAMETER: the CLI resolves the source tree first and the staged
   `dist/drizzle` only where `@repo/db` cannot be resolved (`apps/cli/src/paths.ts`);
   this package never probes another package's layout. Never hand-edit a
-  migration that shipped; `drizzle/20260822060000_repair_schema_version/migration.sql`
-  is the one no-schema generation and says why it exists. The migrator keys the
-  applied set on the folder name; a file the pre-1.0 migrator wrote (a
-  `__drizzle_migrations` with no `name` column) is upgraded in place on the
-  first boot, each row matched to its folder by created_at, and
-  `legacy-migrations-table.test.ts` boots exactly such a file.
+  migration that shipped.
+- **A file migrated through a generation this build does not carry is refused,
+  never migrated.** The migrator keys the applied set on the folder name, so a
+  ledger naming a migration missing here that sorts before the newest one
+  here (a file on a history this build lacks, a row with no name at all)
+  would have the baseline laid over its tables; `runMigrations` throws
+  `UnknownMigrationHistoryError` first, whose message says to wipe the file
+  and restart. The server's boot does exactly that
+  (`apps/cli/src/server/open-database.ts`). A name sorting after the newest is
+  a newer build's, which the ceiling above refuses.
 - **The migrations and `src/schema.ts` agree, and neither checks the other.**
   `schema-agreement.test.ts` migrates a scratch file, builds a second from
   `drizzle-kit export`'s DDL, and diffs `sqlite_master` with normalized SQL —
-  table members sorted, index columns not, because column order inside an
-  index is the index, and drizzle-kit 1.0's spelling of a primary key, a
-  foreign key and a CHECK folded to the one the shipped migrations carry,
-  which its own `generate` reads as no change. A drift names the object and
-  the fix.
+  table members sorted, because `ALTER TABLE … ADD COLUMN` appends where a
+  fresh `CREATE TABLE` places the column as declared, and index columns not,
+  because column order inside an index is the index. A drift names the object
+  and the fix.
+- **A column pair that only means something together is held by a CHECK.** A
+  synced event's device and position, a claim's time and token, and the
+  skipped-row marker's row and build are each both set or both null. A provider
+  session's id needs its harness and an origin's note id its path, while either
+  first half stands alone: a synced `thread/meta` binds the harness before this
+  device opens a session, and a note with no id is bound by its path. The
+  readers still narrow, since drizzle types each column alone.
 - **An event's scope is enforced twice.** `threadEventSchema.parse` at the
   write applies the per-type scope policy, and `events_scope_shape_check`
   backstops it in SQL: turn scope ⇒ `turn_id` set, thread scope ⇒ null. Turn
@@ -132,11 +147,13 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   The row the contract refuses is left out of the push but stays inside that
   high-water, in `apps/cli/src/server/cloud/outbox.ts`, which reads this queue.
 - **A sign-out forgets the positions, never the device ids.** `resetSyncState`
-  clears the outbox, both positions and the capture ledger in one transaction,
-  and keeps `sync_own_devices`: the log still holds rows under every id this
-  install signed in as, and the install holds those events locally with a
-  null origin, which `events_origin_idx` cannot match. A pull skips a row under
-  any of those ids; forgetting one doubles everything written under it.
+  clears the outbox and the capture ledger and puts the `sync_state` row back
+  as the baseline seeded it, every column at its declared default, in one
+  transaction, and keeps `sync_own_devices`: the log still holds rows under
+  every id this install signed in as, and the install holds those events
+  locally with a null origin, which `events_origin_idx` cannot match. A pull
+  skips a row under any of those ids; forgetting one doubles everything written
+  under it.
 - **An id held before that table existed is learned once, with its copies
   removed.** Signing in again before the planner skipped every id landed this
   install's own rows a second time, under an id `sync_own_devices` never saw.
@@ -200,10 +217,12 @@ id)`, which the cursor's row-value comparison seeks with no temp b-tree. Crash
 
 `pnpm --filter @repo/db test` — vitest over real files in a temp dir
 (`__tests__/open-temp-db.ts`, disposed with the test). Pinned: boot migrates
-and bumps the version, upgrades a POPULATED v2 file in place with its child
-rows and foreign keys intact, refuses a newer build's file, opens with WAL and
-`synchronous=NORMAL`, hands a deleted row's pages back on close; the
-skipped-row marker keeps the lowest row and rewinds once per build change;
+and bumps the version, refuses a newer build's file, refuses a file migrated
+through generations this build lacks with the wipe message and before
+touching it, opens with WAL and `synchronous=NORMAL`, hands a deleted row's
+pages back on close, refuses half of every paired column; the skipped-row
+marker keeps the lowest row and rewinds once per build change; a sign-out
+leaves the sync state row exactly as the baseline seeded it;
 the own-copy removal keeps the originals and another device's rows, learns
 the earlier id and runs once;
 contiguous sequences under interleaved writers, the turn/started gate, the
