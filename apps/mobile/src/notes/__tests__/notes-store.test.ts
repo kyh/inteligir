@@ -96,11 +96,7 @@ describe("the notes store", () => {
     const vault = fakeVault();
     const { store } = notesOver(vault.fetch);
     await store.refresh();
-    expect(await store.readNote("a.md")).toEqual({
-      message: "Not signed in.",
-      notFound: false,
-      ok: false,
-    });
+    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
     expect(vault.requests).toEqual([]);
     expect(store.tree.get()).toEqual({ state: "idle" });
   });
@@ -354,11 +350,7 @@ describe("the notes store", () => {
     signOut();
     expect(store.tree.get()).toEqual({ state: "idle" });
     expect(store.heldFiles()).toEqual([]);
-    expect(await store.readNote("a.md")).toEqual({
-      message: "Not signed in.",
-      notFound: false,
-      ok: false,
-    });
+    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
   });
 
   it("downloads an attachment once, named by its blob, and serves the file after", async () => {
@@ -397,7 +389,7 @@ describe("the notes store under the sync session", () => {
 
     const read = await store.readNote("not-yet-mirrored.md");
 
-    expect(read).toEqual({ message: "This device was signed out.", notFound: false, ok: false });
+    expect(read).toEqual({ message: "This device was signed out.", ok: false });
     expect(sync.get()).toMatchObject({ deviceId: CREDENTIAL.deviceId, state: "unauthorized" });
   });
 
@@ -415,11 +407,7 @@ describe("the notes store under the sync session", () => {
     await sync.syncNow();
 
     expect(sync.get().state).toBe("unauthorized");
-    expect(await store.readNote("a.md")).toEqual({
-      message: "Not signed in.",
-      notFound: false,
-      ok: false,
-    });
+    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
     expect(await store.attachmentFile("media/a.png")).toStrictEqual({
       message: "Not signed in.",
       ok: false,

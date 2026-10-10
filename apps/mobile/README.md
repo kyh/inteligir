@@ -76,10 +76,10 @@ src/
                         one policy for what the WebView may load, the bounded
                         flush (pure, unit-tested)
     editor-ports.ts     what the page asks, answered over the notes store and
-                        the file verbs: the guarded write compared with the
-                        text the phone holds, attachments on demand, the
-                        change feed, and where a page event leads (platform-
-                        free, unit-tested against the fake vault)
+                        the file verbs: the guarded write handed to the
+                        store, attachments on demand, the change feed, and
+                        where a page event leads (platform-free, unit-tested
+                        against the fake vault)
     page-source.ts      the page in the app bundle (page-folder.ts: the
                         folder's name, which plugins/with-editor-page.js puts
                         it under)
@@ -88,9 +88,9 @@ src/
                         the changed texts fetched in pinned batches (pure over
                         the SQL port, unit-tested against node:sqlite)
     notes-store.ts      the listing, reads and the write surface
-                        (shaped like @repo/editor's VaultIO, plus rename and
-                        putAsset) over the mirror and the outbox, under the
-                        sync runtime's session (pure, unit-tested)
+                        (shaped like @repo/editor's GuardedVaultPort, plus
+                        rename and putAsset) over the mirror and the outbox,
+                        under the sync runtime's session (pure, unit-tested)
     vault-outbox.ts     the phone's unsent edits, durable in SQLite and sent
                         oldest first as change sets (outbox-ops.ts: what a row
                         holds; outbox-reconcile.ts: a stale set settled with
@@ -264,11 +264,13 @@ when expo-network says the phone is back online, and on a backoff after a
 failure, one pass at a time (`createSingleFlight` from
 `@repo/contract/cloud/sync/sync-session`).
 
-- **A write carries the blob it was computed from.** A read records the base
-  the caller's next write is guarded by, and a write the caller never read
-  throws, as the desktop's guarded io does. Three saves of one note before it
-  is sent are ONE row: a write to a path whose last row writes it replaces the
-  text and keeps the first base.
+- **A write carries the text it was computed from.** The store compares it
+  with the text the phone holds, under the lock every change on the phone
+  takes, and a mismatch hands back what the phone holds for the editor page's
+  own merge: the page runs the desktop's write policy, so the phone runs no
+  second one. Three saves of one note before it is sent are ONE row: a write
+  to a path whose last row writes it replaces the text and keeps the first
+  base.
 - **A stale write is reconciled here, with the desktop's own verdict.** The
   Worker never merges: its 409 carries what the head holds and who wrote it,
   and `notes/outbox-reconcile.ts` runs `reconcileFile` from

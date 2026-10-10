@@ -651,8 +651,9 @@ to the END of its group.
   frames it makes, hands a followed web link to Safari and refuses the rest,
   and its origin list admits every address, because the library hands whatever
   that list refuses to the OS before the policy runs. A write's base is
-  compared with the text the phone holds, so a change a sync landed since comes
-  back for the page's own merge (`apps/mobile/src/editor/editor-ports.ts`).
+  compared with the text the phone holds, under the store's write lock, so a
+  change a sync landed since comes back for the page's own merge
+  (`apps/mobile/src/notes/notes-store.ts`).
   `apps/mobile/src/editor/__tests__/`, and
   `tools/e2e/src/scenarios/phone-editor-page.ts` loads the built page from
   `file://` against a scripted phone.
@@ -1916,12 +1917,15 @@ to the END of its group.
   CONFLICTS.** A write is durable in the phone's `outbox` table before it
   resolves, and reads, the listing and the resolver see it from then on; the
   rows go to `POST /v1/vault/commit` oldest first, one change set per row, on
-  every write, resume, reconnect and a backoff. A write carries the blob the
-  caller read and one with none throws, as the desktop's guarded io does; a
-  write to a path whose last row writes it replaces the text and KEEPS THE
-  FIRST BASE, so three offline saves are one write. A 409 is settled on the
-  phone by `reconcileFile` (`@repo/notes/sync/reconcile-file`), the desktop's
-  own verdict, and the result and its copy land as ONE set, kept on the row
+  every write, resume, reconnect and a backoff. A write carries the text it
+  was computed from, the editor's `expected` guard, compared with the text the
+  phone holds under the store's write lock; a mismatch answers what the phone
+  holds for the page's own merge, never a merge in the store, which would be a
+  second write policy beside the editor's. A write to a path whose last row
+  writes it replaces the text and KEEPS THE FIRST BASE, so three offline saves
+  are one write. A 409 is settled on the phone by `reconcileFile`
+  (`@repo/notes/sync/reconcile-file`), the desktop's own verdict, and the
+  result and its copy land as ONE set, kept on the row
   before it is sent, so an answer lost after the vault applied it is resent
   unchanged and answered as already held. A landing moves the mirror in the
   transaction that retires the row and stamps what it moved, and a refresh

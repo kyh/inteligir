@@ -200,7 +200,7 @@ describe("a comment made on the phone", () => {
     const vault = createFakeVault({ "plan.md": PLAN });
     const { comments, store } = await phoneOver(vault);
     await readText(store, "plan.md");
-    await store.write("plan.md", `${PLAN}line 4\n`);
+    await store.write("plan.md", `${PLAN}line 4\n`, { base: PLAN, kind: "expected" });
 
     expect(
       await comments.add({
