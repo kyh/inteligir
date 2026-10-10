@@ -124,6 +124,8 @@ miniflare's Durable Objects. Sign-up is invite-only and there is no seeded accou
 | What                                          | Where                                             |
 | --------------------------------------------- | ------------------------------------------------- |
 | The product (`pnpm dev`)                      | derived port 21000–28999 (hash of checkout root)  |
+| The server in an agent's preview (`server` in | 5176 (pinned — `INTELIGIR_PORT`, never probed)    |
+| `.claude/launch.json`, `pnpm cli serve`)      |                                                   |
 | The page's vite dev server                    | 31000 (pinned — `strictPort`; `tauri dev` waits)  |
 | The product's SQLite + config.json            | `~/.inteligir-dev/<hash>/` (prod: `~/.inteligir`) |
 | A vault other than the default                | `<that dir>/vaults/<hash of the vault path>/`     |

@@ -1,3 +1,7 @@
 {
-  "recommendations": ["yoavbls.pretty-ts-errors", "bradlc.vscode-tailwindcss"]
+  "recommendations": [
+    "TypeScriptTeam.native-preview",
+    "yoavbls.pretty-ts-errors",
+    "bradlc.vscode-tailwindcss"
+  ]
 }

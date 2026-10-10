@@ -25,6 +25,5 @@
     // Not implied by `strict`; the switch-statement sibling above already is on.
     "noImplicitReturns": true,
     "exactOptionalPropertyTypes": true
-  },
-  "exclude": ["node_modules", "build", "dist", ".output"]
+  }
 }
