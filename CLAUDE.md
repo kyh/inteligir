@@ -2062,6 +2062,21 @@ to the END of its group.
   because a job's `environment:` under `workflow_run` records the default
   branch. `.github/workflows/preview.yml`, `apps/web/README.md` § Previews.
 
+- **THE INBOXES' RULES ARE ONE TABLE, AND THE CLI'S FAKE CLOUD AND THE WORKER
+  BOTH ANSWER IT.** The local server's suites run against a fake cloud over
+  Maps (`apps/cli/src/server/cloud/__tests__/fake-cloud.ts`), so a refusal or
+  ordering rule of the dispatch and capture inboxes it spelled its own way
+  would pass there and fail deployed. `INBOX_SCENARIOS`
+  (`@repo/contract/cloud/test-support/inbox-scenarios`) drives each rule
+  through the real cloud client and observes ids, states and texts, never a
+  clock or a token; the CLI runs it against the fake and the Worker's
+  pool-workers suite against the object
+  (`apps/web/src/worker/__tests__/inbox-scenarios.test.ts`), holding every
+  answer to its declared shape. A rule both sides answer goes in the table,
+  not in one side's suite. Rejected for now: running `dispatch-inbox.ts`
+  itself in the fake over a shared `SqlStorage` port, a package of its own,
+  whose trigger is the table catching drift more than once.
+
 ### Server process and the desktop shell
 
 - **ONE BINARY, TWO MODES: `inteligir serve` IS the server, and `npx` is a verb**
