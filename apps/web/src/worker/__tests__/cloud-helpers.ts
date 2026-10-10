@@ -1,4 +1,4 @@
-import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
+import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import {
   DEVICE_API_PATHS,
   deviceLoginResponseSchema,
@@ -22,7 +22,7 @@ let inviteCounter = 0;
 export const signUpUser = async (email: string): Promise<{ bearer: string; password: string }> => {
   const code = `CLOUD-TEST-${(inviteCounter += 1)}`;
   await createDb(env.DB).insert(inviteCode).values({ code });
-  const response = await SELF.fetch(`${ORIGIN}${AUTH_PAGE_PATHS.signUp}`, {
+  const response = await SELF.fetch(`${ORIGIN}${AUTH_API_PATHS.signUp}`, {
     body: JSON.stringify({ email, inviteCode: code, name: "Cloud Tester", password: PASSWORD }),
     headers: { "content-type": "application/json", origin: ORIGIN },
     method: "POST",

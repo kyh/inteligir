@@ -15,6 +15,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ### Changed
 
+- **Choosing a new password looks like the rest of the website.** The page a password-reset email opens now matches the sign-in page, and when its link has expired or was already used, it takes you straight to the page that sends a new one.
 - **The privacy policy is reorganized.** inteligir.com/privacy now follows the sections privacy law asks for, with an index at the top, and says how to ask us for a copy of your information, a correction or a deletion, including under U.S. state and European law. What the app sends, what never leaves your Mac and how your account is deleted are the same as before, and every address the app talks to is still listed at the end.
 
 ### Fixed

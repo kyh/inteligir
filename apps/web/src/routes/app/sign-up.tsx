@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
+import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import type { SignUpRequest } from "@repo/contract/cloud/account/account-schema";
 import {
   PASSWORD_MAX_LENGTH,
@@ -37,7 +37,7 @@ const SignUpPage = () => {
       password: fieldValue(form, "password"),
     };
     // not the Better Auth client: the invite gate forwards Better Auth's response, cookie included
-    const response = await fetch(AUTH_PAGE_PATHS.signUp, {
+    const response = await fetch(AUTH_API_PATHS.signUp, {
       body: JSON.stringify(request),
       headers: { "content-type": "application/json" },
       method: "POST",

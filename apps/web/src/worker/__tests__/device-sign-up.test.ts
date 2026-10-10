@@ -1,7 +1,7 @@
 import {
   ACCOUNT_API_PATHS,
   accountResponseSchema,
-  AUTH_PAGE_PATHS,
+  AUTH_API_PATHS,
 } from "@repo/contract/cloud/account/account-schema";
 import type { DeviceSignUpRequest } from "@repo/contract/cloud/account/account-schema";
 import { cloudErrorSchema } from "@repo/contract/cloud/errors";
@@ -55,7 +55,7 @@ const postSiteSignUp = async (
   code: string,
   headers: Record<string, string> = {},
 ): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}${AUTH_PAGE_PATHS.signUp}`, {
+  await SELF.fetch(`${ORIGIN}${AUTH_API_PATHS.signUp}`, {
     body: JSON.stringify({ email, inviteCode: code, name: "Site Signup", password: PASSWORD }),
     headers: { ...headers, "content-type": "application/json", origin: ORIGIN },
     method: "POST",

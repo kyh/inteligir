@@ -1,4 +1,4 @@
-import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
+import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
@@ -18,7 +18,7 @@ const mintCode = async (code: string): Promise<void> => {
 };
 
 const signUp = async (body: Record<string, string>): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}${AUTH_PAGE_PATHS.signUp}`, {
+  await SELF.fetch(`${ORIGIN}${AUTH_API_PATHS.signUp}`, {
     body: JSON.stringify(body),
     headers: { "content-type": "application/json", origin: ORIGIN },
     method: "POST",
