@@ -258,7 +258,11 @@ const record = async (harnessId: HarnessId, scenario: Scenario): Promise<string[
   try {
     const { providerThreadId } = await runtime.startThread({ providerId: harnessId, threadId });
     recording = true;
-    await runtime.runTurn({ input: [{ text: scenario.prompt, type: "text" }], threadId });
+    await runtime.runTurn({
+      input: [{ text: scenario.prompt, type: "text" }],
+      threadId,
+      turnId: `${threadId}_turn`,
+    });
     await answered;
     return frames.flatMap((line) => scrub(line, dir, providerThreadId) ?? []);
   } catch (error) {

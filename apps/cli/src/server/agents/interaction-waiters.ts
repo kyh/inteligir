@@ -3,7 +3,6 @@ import {
   createPendingInteraction,
   interruptPendingInteraction,
 } from "@repo/db/pending-interactions";
-import type { CreatePendingInteractionInput } from "@repo/db/pending-interactions";
 import type { DbNotifier } from "@repo/domain/notifier";
 import {
   approvalPendingInteractionPayloadSchema,
@@ -33,10 +32,7 @@ export interface InteractionWaitersDeps {
 }
 
 export interface InteractionWaiters {
-  park: (
-    create: PendingInteractionCreate,
-    hostTurnId: string | null,
-  ) => Promise<PendingInteractionResolution>;
+  park: (create: PendingInteractionCreate) => Promise<PendingInteractionResolution>;
   resolve: (interaction: PendingInteraction) => void;
   cancel: (threadId?: string) => void;
   hasParked: (threadId: string) => boolean;
@@ -67,17 +63,14 @@ export const createInteractionWaiters = (deps: InteractionWaitersDeps): Interact
       return false;
     },
 
-    async park(create, hostTurnId) {
+    async park(create) {
       const payload = approvalPendingInteractionPayloadSchema.parse(create.payload);
-      const pending: CreatePendingInteractionInput = {
+      const row = createPendingInteraction(deps.db, deps.notifier, {
         payload: JSON.stringify(payload),
         requestKey: create.providerRequestId,
         threadId: create.threadId,
-      };
-      if (hostTurnId !== null) {
-        pending.turnId = hostTurnId;
-      }
-      const row = createPendingInteraction(deps.db, deps.notifier, pending);
+        turnId: create.turnId,
+      });
       if (row.status === "resolved" && row.resolution !== null) {
         const parsed = parseApprovalResolution(row.resolution, payload);
         return parsed.ok ? parsed.resolution : { decision: "deny" };

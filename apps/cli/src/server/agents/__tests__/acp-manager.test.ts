@@ -779,12 +779,12 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
 interface ScriptedRuntimeHarness extends BootedTestApp {
   // resolves once the manager has put the turn's prompt on the wire, so a turn/started lands on a
   // dispatched turn.
-  prompted: Promise<void>;
+  prompted: (turnId: string) => Promise<void>;
   // what the provider reports, as the runtime would hand it to the manager.
   emit: (event: ProviderEvent) => void;
 }
 
-const idleRuntime = (prompted: () => void): AgentRuntime => ({
+const idleRuntime = (prompted: string[]): AgentRuntime => ({
   cancelTurn: async () => {
     await Promise.resolve();
   },
@@ -794,8 +794,8 @@ const idleRuntime = (prompted: () => void): AgentRuntime => ({
   hasThread: () => false,
   reapIdleProviderSessions: async () => await Promise.resolve({ reapedSessions: [] }),
   resumeThread: async () => await Promise.resolve({ loaded: false, providerThreadId: "pt_1" }),
-  runTurn: async () => {
-    prompted();
+  runTurn: async ({ turnId }) => {
+    prompted.push(turnId);
     await Promise.resolve();
   },
   shutdown: async () => {
@@ -805,16 +805,19 @@ const idleRuntime = (prompted: () => void): AgentRuntime => ({
 });
 
 // the manager over the composed server's own engine, with the provider's reports the test's.
-const bootWithScriptedRuntime = async (): Promise<ScriptedRuntimeHarness> => {
-  let options: AcpAgentRuntimeOptions | null = null;
-  const prompted: PromiseWithResolvers<void> = Promise.withResolvers();
+const bootWithScriptedRuntime = async (
+  options: Pick<AcpRuntimeManagerDeps, "stopGraceMs"> = {},
+): Promise<ScriptedRuntimeHarness> => {
+  let runtimeOptions: AcpAgentRuntimeOptions | null = null;
+  const prompted: string[] = [];
   const booted = await bootTestApp({
     agent: { detail: null, mode: "auto", runtime: "acp" },
     makeDriver: ({ db, bus, vault, vaultDir }) => {
       const manager = createAcpRuntimeManager({
+        ...options,
         createRuntime: (captured) => {
-          options = captured;
-          return idleRuntime(prompted.resolve);
+          runtimeOptions = captured;
+          return idleRuntime(prompted);
         },
         db,
         defaultProviderId: () => "codex",
@@ -838,12 +841,16 @@ const bootWithScriptedRuntime = async (): Promise<ScriptedRuntimeHarness> => {
   return {
     ...booted,
     emit: (event) => {
-      if (options === null) {
+      if (runtimeOptions === null) {
         throw new Error("no turn was dispatched, so no runtime was built");
       }
-      options.onEvent(event);
+      runtimeOptions.onEvent(event);
     },
-    prompted: prompted.promise,
+    prompted: async (turnId) => {
+      await vi.waitFor(() => {
+        expect(prompted).toContain(turnId);
+      }, PROVIDER_WAIT);
+    },
   };
 };
 
@@ -852,9 +859,9 @@ describe("a write the provider reports", { timeout: 20_000 }, () => {
     const harness = await bootWithScriptedRuntime();
     const threadId = await createThread(harness.client);
     const turnId = await sendMessage(harness.client, threadId, "tidy my notes");
-    await harness.prompted;
+    await harness.prompted(turnId);
 
-    const reported = { providerThreadId: "pt_1", scope: turnScope("pturn_1"), threadId };
+    const reported = { scope: turnScope(turnId), threadId };
     const fileChange = (id: string, file: string, status: ThreadEventItemStatus) => ({
       approvalStatus: null,
       changes: [{ kind: "update" as const, path: path.join(harness.vaultDir, file) }],
@@ -901,5 +908,44 @@ describe("a write the provider reports", { timeout: 20_000 }, () => {
     expect(await harness.client.threads.turnChanges({ threadId })).toEqual({
       turns: [{ paths: ["agent.md"], state: "applied", turnId }],
     });
+  });
+});
+
+describe("a report from a turn the host already settled", { timeout: 20_000 }, () => {
+  it("settles nothing: a late turn/completed from a stopped turn leaves the next turn running", async () => {
+    const harness = await bootWithScriptedRuntime({ stopGraceMs: 50 });
+    const threadId = await createThread(harness.client);
+    const stoppedTurnId = await sendMessage(harness.client, threadId, "ignore the stop");
+    await harness.prompted(stoppedTurnId);
+    const stopped = { scope: turnScope(stoppedTurnId), threadId };
+    harness.emit({ ...stopped, type: "turn/started" });
+    await harness.client.threads.interrupt({ threadId });
+    await awaitThreadStatus(harness.client, threadId, "idle");
+
+    const nextTurnId = await sendMessage(harness.client, threadId, "the next one");
+    await harness.prompted(nextTurnId);
+    const next = { scope: turnScope(nextTurnId), threadId };
+    harness.emit({ ...next, type: "turn/started" });
+    await awaitThreadStatus(harness.client, threadId, "active");
+    harness.emit({ ...stopped, status: "completed", type: "turn/completed" });
+    expect(getThread(harness.db, threadId)).toMatchObject({
+      activeTurnId: nextTurnId,
+      status: "active",
+    });
+
+    const reply = { id: "msg_1", text: "still the next turn's", type: "agentMessage" as const };
+    harness.emit({ ...next, item: reply, type: "item/started" });
+    harness.emit({ ...next, item: reply, type: "item/completed" });
+    harness.emit({ ...next, status: "completed", type: "turn/completed" });
+    await awaitThreadStatus(harness.client, threadId, "idle");
+
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    expect(rows.filter((row) => row.kind === "turn")).toEqual([
+      expect.objectContaining({ status: "interrupted", turnId: stoppedTurnId }),
+      expect.objectContaining({ status: "completed", turnId: nextTurnId }),
+    ]);
+    expect(
+      rows.find((row) => row.kind === "conversation" && row.role === "assistant"),
+    ).toMatchObject({ text: reply.text, turnId: nextTurnId });
   });
 });

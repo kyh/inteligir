@@ -14,7 +14,8 @@ import { toApprovalPayload, toPermissionOutcome } from "../acp-permission-mappin
 import { readSessionFailure } from "../provider-error";
 
 const FIXTURES = path.join(import.meta.dirname, "fixtures");
-const CTX = { providerThreadId: "session_recorded", threadId: "thr_replay", turnId: "turn_replay" };
+const SESSION_ID = "session_recorded";
+const CTX = { threadId: "thr_replay", turnId: "turn_replay" };
 
 const promptResponseSchema = z.looseObject({
   id: z.union([z.number(), z.string()]),
@@ -50,7 +51,7 @@ const replay = async (lines: readonly string[]): Promise<Replayed> => {
     .connect(ndJsonStream(new WritableStream<Uint8Array>(), fromAgent.readable));
   const prompt = connection.agent.request("session/prompt", {
     prompt: [],
-    sessionId: CTX.providerThreadId,
+    sessionId: SESSION_ID,
   });
   const writer = fromAgent.writable.getWriter();
   const encoder = new TextEncoder();
@@ -73,7 +74,7 @@ const replay = async (lines: readonly string[]): Promise<Replayed> => {
 };
 
 type WithoutEnvelope<Event> = Event extends ProviderEvent
-  ? Omit<Event, "providerThreadId" | "scope" | "threadId">
+  ? Omit<Event, "scope" | "threadId">
   : never;
 
 interface DeltaRun {
@@ -90,7 +91,7 @@ const compact = (
 ): (WithoutEnvelope<ProviderEvent> | DeltaRun)[] => {
   const rows: (WithoutEnvelope<ProviderEvent> | DeltaRun)[] = [];
   for (const event of events) {
-    const { providerThreadId: _thread, scope: _scope, threadId: _id, ...rest } = event;
+    const { scope: _scope, threadId: _id, ...rest } = event;
     if (event.type === "item/agentMessage/delta" || event.type === "item/reasoning/textDelta") {
       const last = rows.at(-1);
       if (
@@ -147,7 +148,6 @@ describe.each(adapters)("%s", (adapter) => {
 
     for (const event of events) {
       expect(event).toMatchObject({
-        providerThreadId: CTX.providerThreadId,
         scope: { kind: "turn", turnId: CTX.turnId },
         threadId: CTX.threadId,
       });

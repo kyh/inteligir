@@ -1,7 +1,8 @@
-// the first turn/started binds the provider's turn id to the host's; a turn-scoped event naming
-// any other provider turn (a resume replay) is dropped. a turn holds the vault's commit hold, which
-// defers auto-commit and blocks sync, so a provider that hangs rather than exiting is bounded by
-// the watchdog rather than trusted.
+// the runtime scopes every event by the host's turn id, and one naming any turn but the running one
+// is dropped: a session the host gave up on closes asynchronously, while the settle that gave up on
+// it can already dispatch the next turn. a turn holds the vault's commit hold, which defers
+// auto-commit and blocks sync, so a provider that hangs rather than exiting is bounded by the
+// watchdog rather than trusted.
 
 import { createHash } from "node:crypto";
 import { createAcpAgentRuntime } from "@repo/agent-runtime/acp/acp-runtime";
@@ -111,15 +112,10 @@ export interface AcpRuntimeManager {
   dispose: () => Promise<void>;
 }
 
-// the first turn/started binds the provider's turn id (null when it names none) to the host's.
 // a started turn the user stopped carries the timer that closes its session if it never ends.
 type TurnPhase =
   | { kind: "dispatched" }
-  | {
-      kind: "started";
-      providerTurnId: string | null;
-      stopDeadline: ReturnType<typeof setTimeout> | null;
-    };
+  | { kind: "started"; stopDeadline: ReturnType<typeof setTimeout> | null };
 
 // in the map from startTurn until the turn settles, so membership is the unsettled test.
 interface ActiveTurn {
@@ -356,6 +352,7 @@ class AcpTurnDriver implements TurnDriver {
     await runtime.runTurn({
       input: turnPromptInput(args, instructions),
       threadId: args.threadId,
+      turnId: args.turnId,
     });
     // recorded once the prompt is on the wire: a dispatch that failed first handed the session nothing.
     if (instructions !== undefined) {
@@ -512,29 +509,21 @@ class AcpTurnDriver implements TurnDriver {
       return;
     }
 
-    let hostTurnId: string | null = null;
-    if (event.scope.kind === "turn") {
-      if (state?.phase.kind !== "started" || state.phase.providerTurnId !== event.scope.turnId) {
-        this.debug(
-          `dropped ${event.type} for thread ${threadId}: provider turn ${event.scope.turnId} is not the bound one`,
-        );
-        return;
-      }
-      hostTurnId = state.ourTurnId;
+    if (state?.phase.kind !== "started" || state.ourTurnId !== event.scope.turnId) {
+      this.debug(
+        `dropped ${event.type} for thread ${threadId}: turn ${event.scope.turnId} is not the running one`,
+      );
+      return;
     }
 
-    if (state !== undefined && event.type === "item/started" && event.item.type === "fileChange") {
+    if (event.type === "item/started" && event.item.type === "fileChange") {
       state.writes.claim(this.vaultPathsOf(event.item.changes));
     }
-    if (
-      state !== undefined &&
-      event.type === "item/completed" &&
-      event.item.type === "fileChange"
-    ) {
+    if (event.type === "item/completed" && event.item.type === "fileChange") {
       state.writes.settle(this.vaultPathsOf(event.item.changes), event.item.status);
     }
 
-    const mapped = mapProviderEvent(event, hostTurnId);
+    const mapped = mapProviderEvent(event);
     if (mapped.kind === "dropped") {
       this.debug(`dropped provider event for thread ${threadId}: ${mapped.reason}`);
       return;
@@ -554,16 +543,14 @@ class AcpTurnDriver implements TurnDriver {
     state: ActiveTurn | undefined,
   ): void {
     const { threadId } = event;
-    if (state?.phase.kind !== "dispatched") {
-      this.debug(`dropped ${event.type} for thread ${threadId}: no dispatched turn awaits it`);
+    if (state?.phase.kind !== "dispatched" || state.ourTurnId !== event.scope.turnId) {
+      this.debug(
+        `dropped ${event.type} for thread ${threadId}: turn ${event.scope.turnId} is not the dispatched one`,
+      );
       return;
     }
-    state.phase = {
-      kind: "started",
-      providerTurnId: event.scope.kind === "turn" ? event.scope.turnId : null,
-      stopDeadline: null,
-    };
-    const mapped = mapProviderEvent(event, state.ourTurnId);
+    state.phase = { kind: "started", stopDeadline: null };
+    const mapped = mapProviderEvent(event);
     if (mapped.kind === "mapped") {
       this.events.push(threadId, mapped.event);
     }
@@ -586,15 +573,19 @@ class AcpTurnDriver implements TurnDriver {
     return vaultPaths;
   }
 
+  // denied, not parked, when it names a turn that is not the running one: that turn's settle has
+  // already cleared its cards, so nothing would ever clear this one.
   private async onInteractiveRequest(
     create: PendingInteractionCreate,
   ): Promise<PendingInteractionResolution> {
     const state = this.turnsByThreadId.get(create.threadId);
-    const hostTurnId =
-      state?.phase.kind === "started" && state.phase.providerTurnId === create.turnId
-        ? state.ourTurnId
-        : null;
-    return await this.waiters.park(create, hostTurnId);
+    if (state?.phase.kind !== "started" || state.ourTurnId !== create.turnId) {
+      this.debug(
+        `denied an approval for thread ${create.threadId}: turn ${create.turnId} is not the running one`,
+      );
+      return { decision: "deny" };
+    }
+    return await this.waiters.park(create);
   }
 
   private settleTurn(threadId: string): void {

@@ -72,7 +72,12 @@ reopen lives here.
 **turn** — one request-to-settle exchange inside a thread. It names no table:
 a turn exists only as the SCOPE its events share (`@repo/db/ids`, id `turn_…`),
 and `threads.activeTurnId` is the one the current status describes — bound by
-`run.started`, unbound by every settle.
+`run.started`, unbound by every settle. The id is the host's alone: ACP names
+no turns, so the runtime scopes every event and permission request of a prompt
+by the id `runTurn` was handed, and
+`apps/cli/src/server/agents/runtime-manager.ts` drops one naming any turn but
+the running one, because a session the host gave up on closes asynchronously
+while the next turn can already be dispatched.
 
 **session** — the PROVIDER's own conversation, `{ providerId, providerThreadId }`
 (`setThreadProviderSession` in `@repo/db/threads`, the one writer), cached on
@@ -83,15 +88,6 @@ the provider process, while the thread and its events do not. Only its
 harness, never the session id, and opens a session of its own. Not to be
 confused with the auth **session** in `apps/web` — a signed-in user's row in
 D1 — which shares only the word.
-
-**host turn id vs provider turn id** — TWO id spaces for one turn, and the
-distinction is load-bearing. The service mints the host id (`turn_…`) and hands
-it to `startTurn`; the harness mints its own and puts it in its events. The
-first `turn/started` BINDS the two, and
-`apps/cli/src/server/agents/runtime-manager.ts` rewrites every turn-scoped event
-through that binding — so an event naming any other provider turn (a resume
-replay) is dropped rather than persisted. Everything stored, subscribed to or
-shown is the HOST id; the provider id is only ever spoken to the provider.
 
 **scope** — how far up an event's meaning reaches: `{ kind: "thread" }` or
 `{ kind: "turn", turnId }` (`@repo/domain/thread-event-scope`). Turn scope is

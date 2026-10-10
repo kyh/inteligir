@@ -3,7 +3,6 @@
 
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 
 export type MapProviderEventResult =
   | { kind: "mapped"; event: ThreadEvent }
@@ -33,11 +32,10 @@ type TurnProviderEvent = Exclude<
 
 const mapProviderError = (
   event: Extract<ProviderEvent, { type: "provider/error" }>,
-  turnId: string | null,
 ): MapProviderEventResult => {
   const error: Extract<ThreadEvent, { type: "provider/error" }> = {
     message: event.message,
-    scope: turnId === null ? threadScope() : turnScope(turnId),
+    scope: event.scope,
     threadId: event.threadId,
     type: "provider/error",
   };
@@ -47,17 +45,17 @@ const mapProviderError = (
   return { event: error, kind: "mapped" };
 };
 
-const mapTurnEvent = (event: TurnProviderEvent, turnId: string): MapProviderEventResult => {
+const mapTurnEvent = (event: TurnProviderEvent): MapProviderEventResult => {
   switch (event.type) {
     case "turn/started": {
       return {
-        event: { scope: turnScope(turnId), threadId: event.threadId, type: "turn/started" },
+        event: { scope: event.scope, threadId: event.threadId, type: "turn/started" },
         kind: "mapped",
       };
     }
     case "turn/completed": {
       const completed: Extract<ThreadEvent, { type: "turn/completed" }> = {
-        scope: turnScope(turnId),
+        scope: event.scope,
         status: event.status,
         threadId: event.threadId,
         type: "turn/completed",
@@ -72,7 +70,7 @@ const mapTurnEvent = (event: TurnProviderEvent, turnId: string): MapProviderEven
       return {
         event: {
           item: event.item,
-          scope: turnScope(turnId),
+          scope: event.scope,
           threadId: event.threadId,
           type: event.type,
         },
@@ -85,7 +83,7 @@ const mapTurnEvent = (event: TurnProviderEvent, turnId: string): MapProviderEven
         event: {
           delta: event.delta,
           itemId: event.itemId,
-          scope: turnScope(turnId),
+          scope: event.scope,
           threadId: event.threadId,
           type: event.type,
         },
@@ -99,10 +97,7 @@ const mapTurnEvent = (event: TurnProviderEvent, turnId: string): MapProviderEven
   }
 };
 
-export const mapProviderEvent = (
-  event: ProviderEvent,
-  turnId: string | null,
-): MapProviderEventResult => {
+export const mapProviderEvent = (event: ProviderEvent): MapProviderEventResult => {
   if (isUnmapped(event)) {
     return dropped(`${event.type} has no persisted mapping`);
   }
@@ -112,10 +107,7 @@ export const mapProviderEvent = (
     return dropped(`${event.type} has no persisted mapping: ${event.severity}: ${event.message}`);
   }
   if (event.type === "provider/error") {
-    return mapProviderError(event, turnId);
+    return mapProviderError(event);
   }
-  if (turnId === null) {
-    return dropped(`${event.type} with no host turn bound`);
-  }
-  return mapTurnEvent(event, turnId);
+  return mapTurnEvent(event);
 };

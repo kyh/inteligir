@@ -67,14 +67,14 @@ scripts/
 
 ## Invariants
 
-- **ACP has no turn ids and no steering, so the runtime mints the turn.** A
-  prompt's response is the turn's end and a prompt owns its session until it
-  settles; `runTurn` mints an id, opens an `AcpTurnMapper` bound to it, emits
-  `turn/started`, and resolves once the prompt is on the wire rather than when
-  it settles, because the send must return while the turn streams. A mid-turn
-  message waits in the host's queue. The host binds this provider turn id to its
-  own on the first `turn/started` and drops any turn-scoped event naming another
-  (a resume replay) — `CONTEXT.md` "host turn id vs provider turn id".
+- **ACP has no turn ids and no steering, so a turn is the host's id over one
+  prompt.** A prompt's response is the turn's end and a prompt owns its session
+  until it settles; `runTurn` takes the host's `turnId`, opens an
+  `AcpTurnMapper` on it, emits `turn/started`, and resolves once the prompt is
+  on the wire rather than when it settles, because the send must return while
+  the turn streams. Every event and permission request the prompt raises
+  carries that id, so a turn has one id space (`CONTEXT.md` "turn"). A
+  mid-turn message waits in the host's queue.
 - **`ProviderEvent` is exactly what `AcpTurnMapper` constructs, and is never
   parsed.** Types only, and no wider than the mapper: a kind or field no code
   here produces is a branch every consumer would carry for nothing. The server

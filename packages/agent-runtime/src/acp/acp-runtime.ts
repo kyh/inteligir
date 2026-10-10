@@ -1,6 +1,6 @@
 // one adapter child per thread. ACP has no turn ids (a prompt's response is the turn's end) and no
-// steering (a prompt owns its session until it settles), so turn ids are minted here and a mid-turn
-// message waits in the host's queue.
+// steering (a prompt owns its session until it settles), so a turn is the host's id over one prompt
+// and a mid-turn message waits in the host's queue.
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -192,12 +192,6 @@ interface AcpSession {
   idleSinceMs: number;
 }
 
-let turnCounter = 0;
-const mintTurnId = (): string => {
-  turnCounter += 1;
-  return `acpturn_${String(Date.now())}_${String(turnCounter)}`;
-};
-
 const promptBlocks = (input: PromptInput[]): ContentBlock[] =>
   input.map(({ text }) => ({ text, type: "text" }));
 
@@ -344,9 +338,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       resolution = await Promise.race([
         handler({
           payload: toApprovalPayload(params),
-          providerId: current.adapter.providerId,
           providerRequestId: params.toolCall.toolCallId,
-          providerThreadId: current.providerThreadId,
           threadId: current.adapter.threadId,
           turnId: turn.mapper.turnId,
         }),
@@ -669,11 +661,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       if (session.turn !== null) {
         throw new Error(`Thread "${args.threadId}" already has an active turn`);
       }
-      const mapper = new AcpTurnMapper({
-        providerThreadId: session.providerThreadId,
-        threadId: args.threadId,
-        turnId: mintTurnId(),
-      });
+      const mapper = new AcpTurnMapper({ threadId: args.threadId, turnId: args.turnId });
       emit(mapper.started());
       session.turn = {
         cancel: new AbortController(),

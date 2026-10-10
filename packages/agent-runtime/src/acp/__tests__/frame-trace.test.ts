@@ -80,6 +80,7 @@ describe("the ACP runtime's frame trace", { timeout: 20_000 }, () => {
     await runtime.runTurn({
       input: [{ text: PROMPT_SECRET, type: "text" }],
       threadId: "thr_trace",
+      turnId: "turn_trace",
     });
     await vi.waitFor(
       () => {

@@ -11,7 +11,7 @@ import type {
   ThreadEventItemStatus,
   ThreadEventTurnStatus,
 } from "@repo/domain/provider-event";
-import type { ThreadEventScope } from "@repo/domain/thread-event-scope";
+import type { TurnScope } from "@repo/domain/thread-event-scope";
 
 export interface ProviderEventPlanStep {
   step: string;
@@ -52,52 +52,51 @@ export type ProviderEventItem =
   | ProviderEventToolCallItem
   | { type: "reasoning"; id: string; summary: string[]; content: string[] };
 
-interface ProviderThreadEventData {
-  scope: ThreadEventScope;
+interface ProviderTurnEventData {
+  scope: TurnScope;
   threadId: string;
-  providerThreadId: string;
 }
 
-interface ItemDeltaEventData extends ProviderThreadEventData {
+interface ItemDeltaEventData extends ProviderTurnEventData {
   itemId: string;
   delta: string;
 }
 
-interface ProviderTurnCompletedEvent extends ProviderThreadEventData {
+interface ProviderTurnCompletedEvent extends ProviderTurnEventData {
   type: "turn/completed";
   status: ThreadEventTurnStatus;
   error?: { message: string };
 }
 
-interface ProviderToolCallProgressEvent extends ProviderThreadEventData {
+interface ProviderToolCallProgressEvent extends ProviderTurnEventData {
   type: "item/toolCall/progress";
   itemId: string;
   message: string;
 }
 
-interface ProviderTurnPlanUpdatedEvent extends ProviderThreadEventData {
+interface ProviderTurnPlanUpdatedEvent extends ProviderTurnEventData {
   type: "turn/plan/updated";
   plan: ProviderEventPlanStep[];
 }
 
-interface ProviderErrorEvent extends ProviderThreadEventData {
+interface ProviderErrorEvent extends ProviderTurnEventData {
   type: "provider/error";
   message: string;
   failure?: ProviderFailure;
 }
 
 // the adapter speaking for itself, never the model, so it is no part of the assistant's message.
-interface ProviderNoticeEvent extends ProviderThreadEventData {
+interface ProviderNoticeEvent extends ProviderTurnEventData {
   type: "provider/notice";
   severity: string;
   message: string;
 }
 
 export type ProviderEvent =
-  | ({ type: "turn/started" } & ProviderThreadEventData)
+  | ({ type: "turn/started" } & ProviderTurnEventData)
   | ProviderTurnCompletedEvent
-  | ({ type: "item/started"; item: ProviderEventItem } & ProviderThreadEventData)
-  | ({ type: "item/completed"; item: ProviderEventItem } & ProviderThreadEventData)
+  | ({ type: "item/started"; item: ProviderEventItem } & ProviderTurnEventData)
+  | ({ type: "item/completed"; item: ProviderEventItem } & ProviderTurnEventData)
   | ({ type: "item/agentMessage/delta" } & ItemDeltaEventData)
   | ({ type: "item/reasoning/textDelta" } & ItemDeltaEventData)
   | ProviderToolCallProgressEvent

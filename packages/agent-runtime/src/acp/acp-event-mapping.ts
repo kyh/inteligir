@@ -9,7 +9,7 @@ import type {
   ThreadEventFileChange,
   ThreadEventItemStatus,
 } from "@repo/domain/provider-event";
-import type { ThreadEventScope } from "@repo/domain/thread-event-scope";
+import type { TurnScope } from "@repo/domain/thread-event-scope";
 import type {
   ContentBlock,
   ContentChunk,
@@ -38,7 +38,6 @@ type SessionUpdateOf<Kind extends SessionUpdate["sessionUpdate"]> = Extract<
 
 export interface AcpTurnContext {
   threadId: string;
-  providerThreadId: string;
   turnId: string;
 }
 
@@ -255,13 +254,12 @@ export class AcpTurnMapper {
     return this.#ctx.turnId;
   }
 
-  #scope(): ThreadEventScope {
+  #scope(): TurnScope {
     return { kind: "turn", turnId: this.#ctx.turnId };
   }
 
   #threadData() {
     return {
-      providerThreadId: this.#ctx.providerThreadId,
       scope: this.#scope(),
       threadId: this.#ctx.threadId,
     };

@@ -55,6 +55,8 @@ export interface ResumeThreadResult {
 
 export interface RunTurnArgs {
   threadId: string;
+  // the host's id: ACP names no turns, so it scopes every event and request the prompt raises.
+  turnId: string;
   input: PromptInput[];
 }
 

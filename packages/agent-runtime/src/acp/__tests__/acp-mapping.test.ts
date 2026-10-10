@@ -6,7 +6,7 @@ import type { RequestPermissionRequest } from "@agentclientprotocol/sdk";
 import { AcpTurnMapper } from "../acp-event-mapping";
 import { toApprovalPayload, toPermissionOutcome } from "../acp-permission-mapping";
 
-const CTX = { providerThreadId: "sess_1", threadId: "thr_1", turnId: "turn_1" };
+const CTX = { threadId: "thr_1", turnId: "turn_1" };
 
 const mapper = (): AcpTurnMapper => new AcpTurnMapper({ ...CTX });
 
