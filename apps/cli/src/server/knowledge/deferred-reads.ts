@@ -1,15 +1,17 @@
 // a read that has not answered by its deadline is left running rather than awaited: the pass that
-// asked moves on, and what the read answers lands later. a read left running still counts against
-// the limit, because a stalled open holds one of node's four fs threads until the storage answers,
-// and the fourth stalls every fs call in the process. once every slot is held by a read nobody
-// awaits, the rest of the batch is queued, never opened, and the queue is read as reads land.
+// asked moves on, and what the read answers lands later. the fs budget is the vault service's, and
+// the deadline runs from the call, so a read still waiting there for a slot is deferred like one
+// whose open stalled. a read left running still counts against the limit, and once every one out
+// is a read nobody awaits, the rest of the batch is queued here, never handed to the service, and
+// the queue is read as reads land.
 
 import { setTimeout as delay } from "node:timers/promises";
 
 export interface DeferredReadsArgs<T> {
   // answers every outcome of the read as a value; a rejection fails the pass that awaited it
   read: (path: string) => Promise<T>;
-  // reads out at once, awaited or not
+  // reads out at once, awaited or not: the service's share for this lane, so what waits does so
+  // here, where the latest path is read first and a forgotten one is never opened
   limit: number;
   deadlineMs: number;
   // something landed: the caller runs a pass to take it

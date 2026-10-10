@@ -4,6 +4,7 @@ import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 
 import { mapWithConcurrency } from "../concurrency";
 import type { KnowledgeRuntime } from "../knowledge/knowledge-runtime";
+import { BACKGROUND_READ_SLOTS } from "../vault/read-slots";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
 
@@ -16,14 +17,12 @@ const docsUnder = async (service: VaultService, path: string): Promise<string[]>
   return kind === "file" && isDocPath(path) ? [path] : [];
 };
 
-const ID_READ_CONCURRENCY = 8;
-
 // the id lookup never refuses the delete. a doc gone mid-scan has no store to take; one past the
 // read cap has none either, since the comments service reads through the same cap and so never
 // minted an id into it, but an id written by hand strands its store, so that one is named.
 const readForId = async (service: VaultService, doc: string): Promise<string | null> => {
   try {
-    const { content } = await service.read(doc);
+    const { content } = await service.read(doc, "background");
     return content;
   } catch (error) {
     if (error instanceof VaultServiceError && error.code === "not_found") {
@@ -47,7 +46,7 @@ export const removeEntryWithComments = async (
   knowledge: Pick<KnowledgeRuntime, "noteIdOwners">,
 ): Promise<string[]> => {
   const docs = await docsUnder(service, path);
-  const removedDocs = await mapWithConcurrency(docs, ID_READ_CONCURRENCY, async (doc) => {
+  const removedDocs = await mapWithConcurrency(docs, BACKGROUND_READ_SLOTS, async (doc) => {
     const content = await readForId(service, doc);
     return { noteId: content === null ? null : frontmatterId(content), path: doc };
   });

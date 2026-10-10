@@ -1167,22 +1167,35 @@ to the END of its group.
   (`apps/desktop/src/renderer/app/note-topbar.tsx`). Pinned by the round trip
   in `packages/notes/src/__tests__/link-resolve.test.ts`.
 
-- **A DOC WHOSE READ HAS NOT ANSWERED IN 2S IS DEFERRED, NOT AWAITED, AND READS
-  OUT STAY BELOW NODE'S FS POOL.** On storage that fetches or wakes (an
-  on-demand placeholder, a sleeping disk, a network mount) one open can block
-  for minutes, and every query settles the pass first. So the pass moves on,
-  the doc answers from its last entry, and the read lands in a later pass. A
-  read left running still holds a slot of `READ_CONCURRENCY` (3): a stalled
-  open holds one of node's four fs threads, and a fourth stalls every fs call
-  in the process, saves included, which no deadline can free. Rejected:
-  re-reading every path once its late read lands, which loops on storage that
-  is always slow, and a wider cap, which the pool cannot afford. No provider
-  path, bundle id or mount type appears anywhere; the scenario suite stalls a
-  path through `INTELIGIR_SLOW_READS` (`apps/cli/src/server/vault/slow-reads.ts`),
-  and the boot's timing line (`apps/cli/src/server/boot-report.ts`) counts what
-  was deferred. Residual: the listing's walk has no deadline, and a rename run
-  before a deferred doc lands misses a link the doc gained offline.
-  `apps/cli/src/server/knowledge/deferred-reads.ts`,
+- **A DOC WHOSE READ HAS NOT ANSWERED IN 2S IS DEFERRED, NOT AWAITED, AND
+  EVERY VAULT READ OPENS INSIDE THE VAULT SERVICE'S BUDGET.** On storage that
+  fetches or wakes (an on-demand placeholder, a sleeping disk, a network mount)
+  one open can block for minutes, and every query settles the pass first. So
+  the pass moves on, the doc answers from its last entry, and the read lands in
+  a later pass; the deadline runs from the call, so a read still waiting for a
+  slot is deferred too. The budget is the vault service's own, around the open
+  of a file's bytes in `read` and `readBytes`
+  (`apps/cli/src/server/vault/read-slots.ts`): 3 at once, whoever asked,
+  because a stalled open holds one of node's four fs threads and a fourth
+  stalls every fs call in the process, saves included, which no deadline can
+  free; a read left running keeps its slot. A BACKGROUND READ, one of many a
+  job makes (the index pass, a rename's snapshot, a delete's id scan, the
+  boot's origin backfill), never takes the third, so a read the window waits on
+  opens beside two that hang; each such job runs no more at once than that
+  share, so what waits does so in the job, where the index reads the latest
+  path first. The lstat and ancestry checks before the open stay outside it,
+  and so does a write's read of the bytes it replaces, so a save never waits
+  behind a stalled read. Rejected: a foreground deadline answering
+  "unavailable", which refuses a note that is on disk; re-reading every path
+  once its late read lands, which loops on storage that is always slow; and a
+  wider cap, which the pool cannot afford. No provider path, bundle id or mount
+  type appears anywhere; the scenario suite stalls a path through
+  `INTELIGIR_SLOW_READS` (`apps/cli/src/server/vault/slow-reads.ts`), inside
+  the read's slot, and the boot's timing line
+  (`apps/cli/src/server/boot-report.ts`) counts what was deferred. Residual:
+  the listing's walk has no deadline, a stat or a write's own read can still
+  stall on such storage, and a rename run before a deferred doc lands misses a
+  link the doc gained offline. `apps/cli/src/server/knowledge/deferred-reads.ts`,
   `tools/e2e/src/scenarios/slow-storage.ts`.
 
 ### Agents and threads

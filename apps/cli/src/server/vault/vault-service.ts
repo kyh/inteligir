@@ -41,6 +41,8 @@ import { errnoCode } from "../errno";
 import { pathContains } from "../path-containment";
 import { ABSENT_ENTRY, entryFingerprintAt, fingerprintOf } from "./vault-changes";
 import type { EntryFingerprint, VaultMutation } from "./vault-changes";
+import { createReadSlots } from "./read-slots";
+import type { ReadLane } from "./read-slots";
 import type { ReadStall } from "./slow-reads";
 import { resolveVaultPath } from "./vault-paths";
 
@@ -212,7 +214,8 @@ export interface VaultServiceArgs {
   onMutated?: (mutations: readonly VaultMutation[]) => void;
   // told on every walk that meets the folder; deduplicating is the sink's call.
   onUnreadableFolder?: UnreadableFolderSink;
-  // awaited before a file's bytes are opened
+  // awaited inside the read's slot, before the file's bytes are opened, so a stalled stand-in holds
+  // the slot a stalled open would
   stallRead?: ReadStall;
 }
 
@@ -236,10 +239,13 @@ export interface VaultService {
   listTree: () => Promise<VaultTreeResponse>;
   statEntry: (path: string) => Promise<"file" | "dir" | null>;
   listFilesUnder: (path: string) => Promise<string[]>;
-  read: (path: string) => Promise<{ path: string; content: string }>;
+  // a read takes a slot of the process's fs budget (read-slots.ts) while the bytes are opened;
+  // absent, its lane is foreground, and a job reading many docs says background.
+  read: (path: string, lane?: ReadLane) => Promise<{ path: string; content: string }>;
   statAsset: (path: string) => Promise<{ path: string; etag: string }>;
   readBytes: (
     path: string,
+    lane?: ReadLane,
   ) => Promise<{ path: string; bytes: Uint8Array<ArrayBuffer>; etag: string }>;
   writeAsset: (dir: string, baseName: string, bytes: Uint8Array) => Promise<{ path: string }>;
   write: (path: string, content: string) => Promise<{ path: string }>;
@@ -310,6 +316,9 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
   // realpath, not resolve: the root may be spelled through a symlink (macos /var → /private/var).
   const rootReal = realpathSync(path.resolve(args.root));
   const { lock } = args;
+  // a server composes one vault service, so these are the process's. a write's own read of the
+  // bytes it replaces takes none, so a save never waits behind a stalled read.
+  const readSlots = createReadSlots();
   const onUnreadableFolder: UnreadableFolderSink =
     args.onUnreadableFolder ??
     (() => {
@@ -452,7 +461,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
       return { entries, name: path.basename(rootReal) || rootReal, root: rootReal };
     },
 
-    async read(requestedPath) {
+    async read(requestedPath, lane = "foreground") {
       const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
       await assertAncestryInsideVault(absPath);
       const stats = await lstatRefusingSymlink(absPath, relPath);
@@ -465,15 +474,19 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
           `${relPath} is ${stats.size} bytes; the read cap is ${VAULT_MAX_CONTENT_LENGTH}`,
         );
       }
-      await args.stallRead?.(relPath);
-      const content = await readOrNotFound(relPath, async () => await readFile(absPath, "utf-8"));
+      const content = await readSlots.hold(lane, async () => {
+        await args.stallRead?.(relPath);
+        return await readOrNotFound(relPath, async () => await readFile(absPath, "utf-8"));
+      });
       return { content, path: relPath };
     },
 
-    async readBytes(requestedPath) {
+    async readBytes(requestedPath, lane = "foreground") {
       const { relPath, absPath, etag } = await resolveAsset(requestedPath);
-      await args.stallRead?.(relPath);
-      const buffer = await readOrNotFound(relPath, async () => await readFile(absPath));
+      const buffer = await readSlots.hold(lane, async () => {
+        await args.stallRead?.(relPath);
+        return await readOrNotFound(relPath, async () => await readFile(absPath));
+      });
       // a copy, not the read's Buffer: its backing store is node's shared pool, which a
       // Response body will not take.
       const bytes = new Uint8Array(buffer.byteLength);

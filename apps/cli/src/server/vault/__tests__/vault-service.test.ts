@@ -1,3 +1,5 @@
+import { execFile, execFileSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import fsPromises, {
   chmod,
   mkdir,
@@ -10,13 +12,20 @@ import fsPromises, {
 import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { promisify } from "node:util";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { createThread, getThread } from "@repo/db/threads";
+import { noopNotifier } from "@repo/domain/notifier";
 import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import { VaultPathError, VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
+import { mintNoteId } from "@repo/notes/markdown/frontmatter";
+import { snapshotDocs } from "../../knowledge/snapshot-docs";
+import { BACKGROUND_READ_SLOTS, READ_SLOTS } from "../read-slots";
 import { slowReadStall } from "../slow-reads";
 import { createVaultService, sweepStaleTmpFiles, VaultServiceError } from "../vault-service";
 import { createNotifierRecorder } from "./notifier-recorder";
+import { bootTestApp } from "../../__tests__/boot-app";
 import { identityLock } from "../../__tests__/identity-lock";
 import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
 import { makeTempDir } from "../../__tests__/temp-dir";
@@ -504,5 +513,162 @@ describe("a read stall", () => {
     ]);
     expect(answered.slice(0, 2).toSorted()).toEqual(["slow.md", "slower/c.md"]);
     expect(answered.slice(2).toSorted()).toEqual(["slow/a.md", "slow/b.md"]);
+  });
+});
+
+const execFileAsync = promisify(execFile);
+
+// longer than the open a local disk answers, so a read inside it still holds its slot when the
+// next one is asked for
+const OPEN_MS = 60;
+
+// a save on a local disk lands in milliseconds; past this it is waiting on a thread
+const SAVE_DEADLINE_MS = 2000;
+
+// every open of these vault paths answers OPEN_MS late, and the most out at once is counted, all
+// of them and the background's alone
+const stallOpens = (root: string, lanes: { background: readonly string[]; window: string }) => {
+  const rootReal = realpathSync(root);
+  // keyed by what readFile is handed, which may be a handle or a url as well as a path
+  const lanesByPath = new Map<unknown, "background" | "window">([
+    ...lanes.background.map((relPath) => [path.join(rootReal, relPath), "background"] as const),
+    [path.join(rootReal, lanes.window), "window"],
+  ]);
+  const open = { background: 0, window: 0 };
+  const peak = { all: 0, background: 0, backgroundBesideWindow: 0 };
+  const actualReadFile = fsPromises.readFile;
+  const spy = vi.spyOn(fsPromises, "readFile").mockImplementation(async (file, options) => {
+    const lane = lanesByPath.get(file);
+    if (lane === undefined) {
+      return await actualReadFile(file, options);
+    }
+    open[lane] += 1;
+    peak.all = Math.max(peak.all, open.background + open.window);
+    peak.background = Math.max(peak.background, open.background);
+    if (open.window > 0) {
+      peak.backgroundBesideWindow = Math.max(peak.backgroundBesideWindow, open.background);
+    }
+    try {
+      await delay(OPEN_MS);
+      return await actualReadFile(file, options);
+    } finally {
+      open[lane] -= 1;
+    }
+  });
+  syncBuiltinESMExports();
+  onTestFinished(() => {
+    spy.mockRestore();
+    syncBuiltinESMExports();
+  });
+  return { open, peak };
+};
+
+describe("the read budget", () => {
+  it("holds a rename's snapshot, the origin backfill and an index pass to the background share, and lets the window's read in beside them", async () => {
+    const app = await bootTestApp();
+    const notes = Array.from({ length: 8 }, (_, index) => `notes/n${String(index)}.md`);
+    const ids = new Map(notes.map((note) => [note, mintNoteId()]));
+    const threads = new Map<string, string>();
+    for (const [note, id] of ids) {
+      await app.client.vault.write({
+        content: `---\nid: ${id}\n---\n# ${note}\n`,
+        guard: { kind: "overwrite" },
+        path: note,
+      });
+      threads.set(
+        note,
+        createThread(app.db, noopNotifier, { origin: { noteId: null, path: note } }).id,
+      );
+    }
+    const picture = "window.png";
+    await writeFile(path.join(app.vaultDir, picture), "png bytes");
+    const { knowledge } = app.composed.context;
+    await knowledge.settle();
+    const opens = stallOpens(app.vaultDir, { background: notes, window: picture });
+
+    knowledge.noteVaultChange({ kind: "unknown" });
+    const sweeps = Promise.all([
+      snapshotDocs(app.vault.service, notes),
+      app.composed.context.threads.backfillOriginNoteIds(),
+      knowledge.settle(),
+    ]);
+    await vi.waitFor(
+      () => {
+        expect(opens.open.background).toBe(BACKGROUND_READ_SLOTS);
+      },
+      { interval: 1, timeout: OPEN_MS * 4 },
+    );
+    const windowRead = await app.vault.service.readBytes(picture);
+    expect(windowRead.path).toBe(picture);
+    const [snapshot] = await sweeps;
+
+    expect(opens.peak).toEqual({
+      all: READ_SLOTS,
+      background: BACKGROUND_READ_SLOTS,
+      backgroundBesideWindow: BACKGROUND_READ_SLOTS,
+    });
+    expect([...snapshot.docs.keys()]).toEqual(notes);
+    for (const [note, threadId] of threads) {
+      expect(getThread(app.db, threadId)?.originNoteId).toBe(ids.get(note));
+    }
+    expect(knowledge.lastReconcile?.deferred).toBe(0);
+  });
+
+  it("holds a slot through the stand-in's stall, as a stalled open would", async () => {
+    const root = makeTempDir("inteligir-vault-test-");
+    const stalled = Array.from({ length: READ_SLOTS }, (_, index) => `slow/${String(index)}.md`);
+    const stalls = { begun: 0, ended: 0, endedWhenFastBegan: -1 };
+    const service = createVaultService({
+      ignore: ignoreFromDisk(root),
+      lock: identityLock,
+      notifier: createNotifierRecorder(),
+      root,
+      stallRead: async (relPath) => {
+        if (relPath === "fast.md") {
+          stalls.endedWhenFastBegan = stalls.ended;
+          return;
+        }
+        stalls.begun += 1;
+        await delay(STALL_MS);
+        stalls.ended += 1;
+      },
+    });
+    for (const file of [...stalled, "fast.md"]) {
+      await service.write(file, `# ${file}\n`);
+    }
+
+    const slow = Promise.all(stalled.map(async (file) => await service.read(file)));
+    await vi.waitFor(() => {
+      expect(stalls.begun).toBe(READ_SLOTS);
+    });
+    await service.read("fast.md");
+    await slow;
+
+    expect(stalls.endedWhenFastBegan).toBeGreaterThan(0);
+  });
+
+  it("leaves node a thread for a save while every slot is held by an open that never answers", async () => {
+    const { root, service } = bootService();
+    // a pipe with no writer blocks its reader inside open(), holding one of node's fs threads,
+    // which is what an open of a placeholder the storage has not fetched does
+    const pipes = Array.from({ length: READ_SLOTS + 1 }, (_, index) => `pipe-${String(index)}.md`);
+    for (const pipe of pipes) {
+      execFileSync("mkfifo", [path.join(root, pipe)]);
+    }
+    const reads = pipes.map(async (pipe) => await service.read(pipe));
+    try {
+      await delay(OPEN_MS);
+      const saved = await Promise.race([
+        service.write("note.md", "saved"),
+        delay(SAVE_DEADLINE_MS, "stalled"),
+      ]);
+      expect(saved).toEqual({ path: "note.md" });
+    } finally {
+      // the writers are a shell's, since node's own fs is what may be stalled
+      const writers = pipes.map((pipe) => `: > '${pipe}' &`).join(" ");
+      await execFileAsync("sh", ["-c", `${writers} wait`], { cwd: root });
+    }
+    expect(await Promise.all(reads)).toEqual(pipes.map((pipe) => ({ content: "", path: pipe })));
+    expect(await readFile(path.join(root, "note.md"), "utf-8")).toBe("saved");
   });
 });

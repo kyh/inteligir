@@ -85,6 +85,7 @@ import { computeTimelineDelta } from "@repo/contract/local/thread-timeline";
 import { z } from "zod";
 import { mapWithConcurrency } from "../concurrency";
 import { messageOf } from "../error-message";
+import { BACKGROUND_READ_SLOTS } from "../vault/read-slots";
 import { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
 import type { ThreadOrigins } from "./thread-origins";
 import { ThreadTimelineProjector } from "./timeline-projection";
@@ -130,9 +131,6 @@ interface SendTarget {
   expectedTurnId?: string | undefined;
   turn: TurnRequest;
 }
-
-// each path is a note read and maybe a write; a vault of old actions is not opened all at once.
-const ORIGIN_BACKFILL_CONCURRENCY = 4;
 
 type SendDecision =
   | {
@@ -527,11 +525,11 @@ export class ThreadService implements ProviderEventSink {
   async backfillOriginNoteIds(): Promise<void> {
     await mapWithConcurrency(
       listPathOnlyOriginPaths(this.db),
-      ORIGIN_BACKFILL_CONCURRENCY,
+      BACKGROUND_READ_SLOTS,
       async (path) => {
         let noteId: string | null;
         try {
-          noteId = await this.origins.noteIdAt(path);
+          noteId = await this.origins.noteIdAt(path, "background");
         } catch (error) {
           // one note's fault costs its threads the id until the next boot, never the sweep.
           console.warn(`thread origins: ${path} stays bound by path: ${messageOf(error)}`);
