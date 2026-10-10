@@ -12,7 +12,7 @@ import type {
   HarnessId,
   HarnessModels,
 } from "@repo/agent-runtime/acp/harness-registry";
-import { describeProviderError } from "@repo/agent-runtime/acp/provider-error";
+import { describeProviderError, readProviderError } from "@repo/agent-runtime/acp/provider-error";
 import type { AgentRuntime } from "@repo/agent-runtime/types";
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
 import type {
@@ -25,7 +25,7 @@ import { interruptOpenPendingInteractions } from "@repo/db/pending-interactions"
 import { getThread, setThreadProviderSession } from "@repo/db/threads";
 import type { ThreadRow } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
+import { turnScope } from "@repo/domain/thread-event-scope";
 import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
 import type { DebugLog } from "../debug-log";
 import { messageOf } from "../error-message";
@@ -621,11 +621,15 @@ class AcpTurnDriver implements TurnDriver {
     }
   }
 
+  // turn-scoped and classed like a refused prompt's: the settle finds the class on the turn's own
+  // rows, so a session open refused for a sign-in holds the queue too.
   private failTurn(threadId: string, cause: unknown): void {
-    const detail = describeProviderError(cause, this.harnessOf(threadId));
+    const reading = readProviderError(cause, this.harnessOf(threadId));
     const state = this.turnsByThreadId.get(threadId);
     if (state === undefined) {
-      this.debug(`dispatch failure for thread ${threadId} after its turn settled: ${detail}`);
+      this.debug(
+        `dispatch failure for thread ${threadId} after its turn settled: ${reading.message}`,
+      );
       return;
     }
     const scope = turnScope(state.ourTurnId);
@@ -635,13 +639,19 @@ class AcpTurnDriver implements TurnDriver {
     }
     events.push(
       {
-        detail,
-        message: "The agent provider failed",
-        scope: threadScope(),
+        failure: reading.failure,
+        message: reading.message,
+        scope,
         threadId,
         type: "provider/error",
       },
-      { scope, status: "failed", threadId, type: "turn/completed" },
+      {
+        error: { message: reading.message },
+        scope,
+        status: "failed",
+        threadId,
+        type: "turn/completed",
+      },
     );
     this.settleTurn(threadId);
     this.sink.ingestProviderEvents(threadId, events);

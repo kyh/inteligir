@@ -1,6 +1,6 @@
 import { RequestError } from "@agentclientprotocol/sdk";
 import { describe, expect, it } from "vitest";
-import { HARNESSES } from "../harness-registry";
+import { HARNESSES, VaultConfigRefusedError } from "../harness-registry";
 import { describeProviderError, readProviderError } from "../provider-error";
 
 const WIRE_AUTH_REQUIRED = { code: -32_000, message: "Authentication required" };
@@ -81,6 +81,14 @@ describe("readProviderError", () => {
     expect(readProviderError(new Error("stdout closed"))).toEqual({
       failure: "other",
       message: "stdout closed",
+    });
+  });
+
+  it("reads a vault holding the vendor's settings as other, so the queue behind it drains", () => {
+    const refused = new VaultConfigRefusedError(HARNESSES.codex, ".codex");
+    expect(readProviderError(refused, HARNESSES.codex)).toEqual({
+      failure: "other",
+      message: refused.message,
     });
   });
 });

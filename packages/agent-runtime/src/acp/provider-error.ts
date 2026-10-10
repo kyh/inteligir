@@ -116,7 +116,8 @@ const sentenceFor = (
   }
 };
 
-// a refused prompt as the panel words it, with the class a settle decides the queue by.
+// a refused prompt or session open, or a dead adapter, as the panel words it, with the class a
+// settle decides the queue by.
 export const readProviderError = (
   cause: unknown,
   harness?: HarnessDefinition,

@@ -8,19 +8,32 @@
 // Every mode advertises one agent sign-in method, SIGN_IN_METHOD_ID.
 // FAKE_ACP_RECORD names a file each session/new, session/load and authenticate appends its params
 // to, one json line each. session ids carry the pid, so two adapters never mint the same one.
+// FAKE_ACP_GATE names a file session/new and session/load wait for before answering, so a test can
+// act while a session is still opening.
 
 import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import { Readable, Writable } from "node:stream";
+import { setTimeout } from "node:timers/promises";
 import { PROTOCOL_VERSION, RequestError, agent, ndJsonStream } from "@agentclientprotocol/sdk";
 
 const mode = process.env.FAKE_ACP_MODE ?? "message";
 const filePath = process.env.FAKE_ACP_FILE ?? null;
 const recordPath = process.env.FAKE_ACP_RECORD ?? null;
 const authFile = process.env.FAKE_ACP_AUTH_FILE ?? null;
+const gateFile = process.env.FAKE_ACP_GATE ?? null;
 
 const SIGN_IN_METHOD_ID = "chat-gpt";
 
 const signedIn = () => authFile !== null && existsSync(authFile);
+
+const gateOpened = async () => {
+  if (gateFile === null) {
+    return;
+  }
+  while (!existsSync(gateFile)) {
+    await setTimeout(10);
+  }
+};
 
 const record = (method, params) => {
   if (recordPath !== null) {
@@ -176,16 +189,18 @@ if (mode === "crashOnBoot") {
       record("authenticate", params);
       return await authenticate();
     })
-    .onRequest("session/new", ({ params }) => {
+    .onRequest("session/new", async ({ params }) => {
       record("session/new", params);
+      await gateOpened();
       if (mode === "authOnSessionOpen" && !signedIn()) {
         throw RequestError.authRequired();
       }
       sessionCounter += 1;
       return { sessionId: `fakeacp_${String(process.pid)}_${String(sessionCounter)}` };
     })
-    .onRequest("session/load", ({ params }) => {
+    .onRequest("session/load", async ({ params }) => {
       record("session/load", params);
+      await gateOpened();
       if (mode === "authOnSessionOpen" && !signedIn()) {
         throw RequestError.authRequired();
       }

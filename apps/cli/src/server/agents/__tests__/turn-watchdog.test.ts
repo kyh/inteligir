@@ -184,7 +184,8 @@ describe("the silent-turn watchdog", () => {
     const completed = harness.ingested.find((event) => event.type === "turn/completed");
     expect(completed).toMatchObject({ scope: { kind: "turn", turnId: "turn_1" } });
     const failure = harness.ingested.find((event) => event.type === "provider/error");
-    expect(failure?.type === "provider/error" ? failure.detail : "").toContain(
+    expect(failure).toMatchObject({ failure: "other", scope: { kind: "turn", turnId: "turn_1" } });
+    expect(failure?.type === "provider/error" ? failure.message : "").toContain(
       `produced nothing for ${BUDGET_MS}ms`,
     );
   });

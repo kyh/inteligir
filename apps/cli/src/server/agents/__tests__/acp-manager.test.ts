@@ -13,6 +13,7 @@ import type { PendingInteractionPayload } from "@repo/domain/pending-interaction
 import type { ThreadEventItemStatus } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { listStoredThreadEvents } from "@repo/db/events";
+import { listQueuedThreadMessages } from "@repo/db/queued-messages";
 import { getThread } from "@repo/db/threads";
 import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
@@ -65,6 +66,8 @@ interface ManagerOptions {
   children?: ChildProcess[];
   // mutable on purpose: a sign-in between two sends, read at the next session open.
   mode?: FakeAcpMode;
+  // a file the fake's session open waits for, so a send can queue behind a session still opening.
+  gateFile?: string;
   // mutable on purpose: a runtime restored between two sends, read at the next send.
   unavailableReason?: string | null;
   // the provider each send's refusal check was asked about.
@@ -86,6 +89,9 @@ const fakeSpawn =
     };
     if (options.filePath !== undefined) {
       childEnv.FAKE_ACP_FILE = options.filePath;
+    }
+    if (options.gateFile !== undefined) {
+      childEnv.FAKE_ACP_GATE = options.gateFile;
     }
     const child = spawn(process.execPath, [FAKE_AGENT], {
       env: childEnv,
@@ -507,18 +513,55 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     await awaitThreadStatus(harness.client, threadId, "idle");
   });
 
-  it("names the harness when session/new is refused for auth", async () => {
+  it("fails the turn whose session/new was refused for auth with the signed-out sentence", async () => {
     const harness = await bootWithManager("authOnSessionOpen");
     const threadId = await createThread(harness.client);
-    await sendMessage(harness.client, threadId, "hello agent");
+    const turnId = await sendMessage(harness.client, threadId, "hello agent");
 
     await awaitThreadStatus(harness.client, threadId, "error");
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     expect(rows.find((row) => row.kind === "error")).toMatchObject({
-      detail: "ChatGPT is signed out on this Mac.",
-      message: "The agent provider failed",
+      detail: null,
+      message: "ChatGPT is signed out on this Mac.",
+      turnId,
     });
+  });
+
+  it("leaves a message queued behind a session/new refused for auth for the next send to start first", async () => {
+    const children: ChildProcess[] = [];
+    const managerOptions: ManagerOptions = { children };
+    const harness = await bootWithManager("authOnSessionOpen", managerOptions);
+    const gateFile = path.join(harness.dataDir, "session-gate");
+    managerOptions.gateFile = gateFile;
+    const threadId = await createThread(harness.client);
+    const userTexts = async () =>
+      flattenTimelineRows(await fetchTimelineRows(harness.client, threadId)).flatMap((row) =>
+        row.kind === "conversation" && row.role === "user" ? [row.text] : [],
+      );
+    await sendMessage(harness.client, threadId, "first");
+    const queued = await harness.client.threads.send({ text: "second", threadId });
+    expect(queued.kind).toBe("queued");
+
+    writeFileSync(gateFile, "");
+    await awaitThreadStatus(harness.client, threadId, "error");
+    await awaitExited(children);
+    expect(listQueuedThreadMessages(harness.db, threadId).map((row) => row.text)).toEqual([
+      "second",
+    ]);
+    expect(await userTexts()).toEqual(["first"]);
+
+    managerOptions.mode = "message";
+    const later = await harness.client.threads.send({ text: "third", threadId });
+    expect(later.kind).toBe("queued");
+    await vi.waitFor(async () => {
+      const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+      const completed = rows.filter((row) => row.kind === "turn" && row.status === "completed");
+      expect(completed).toHaveLength(2);
+    }, PROVIDER_WAIT);
+    await awaitThreadStatus(harness.client, threadId, "idle");
+    expect(await userTexts()).toEqual(["first", "second", "third"]);
+    expect(listQueuedThreadMessages(harness.db, threadId)).toEqual([]);
   });
 
   it("fails a prompt refused for auth with the signed-out sentence", async () => {
@@ -578,14 +621,15 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
   it("fails a turn whose adapter dies before the handshake, naming what it said on stderr", async () => {
     const harness = await bootWithManager("crashOnBoot");
     const threadId = await createThread(harness.client);
-    await sendMessage(harness.client, threadId, "hello agent");
+    const turnId = await sendMessage(harness.client, threadId, "hello agent");
 
     await awaitThreadStatus(harness.client, threadId, "error");
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     expect(rows.find((row) => row.kind === "error")).toMatchObject({
-      detail: "The ChatGPT adapter exited (code 3): fake agent: cannot start",
-      message: "The agent provider failed",
+      detail: null,
+      message: "The ChatGPT adapter exited (code 3): fake agent: cannot start",
+      turnId,
     });
   });
 

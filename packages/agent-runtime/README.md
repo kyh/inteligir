@@ -151,8 +151,8 @@ scripts/
   JSON-RPC `code`); the adapter's message is shown, except, with a harness in
   hand, an auth refusal (`-32000`, or an `errorKind` naming a sign-in), which
   says that harness is signed out, and a usage-limit refusal, which says the
-  plan's limit is reached. Either class leaves the thread's queued messages
-  waiting for the next send.
+  plan's limit is reached. Either class, refusing the prompt or the session
+  open, leaves the thread's queued messages waiting for the next send.
 - **A session is registered only once the agent names it.** A refused or
   failed `initialize`, `session/new` or `session/load` registers nothing and
   takes its child with it, so the send after a sign-in opens a new adapter
