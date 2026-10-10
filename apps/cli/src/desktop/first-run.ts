@@ -63,6 +63,30 @@ export type FirstRunPlan =
   // `selector` is what config.json is pointed at, or null for the default vault
   | { kind: "open"; vaultDir: string; selector: string | null };
 
+// a volume folds case when a dir spelled in another case realpaths back to it, as a Mac's does by
+// default and linux's does not
+const foldsCase = (dir: string): boolean => {
+  const respelled = dir.toUpperCase() === dir ? dir.toLowerCase() : dir.toUpperCase();
+  return respelled !== dir && physicalVaultDir(respelled) === dir;
+};
+
+// what a launch with no selector opens, however the choice spells it. a leaf not made yet keeps
+// the case it was given, which a volume that folds case does not tell apart: kept apart, the
+// default's name in another case would write a selector naming the default
+const isDefaultVault = (vaultDir: string, defaultVaultDir: string): boolean => {
+  const chosen = physicalVaultDir(vaultDir);
+  const fallback = physicalVaultDir(defaultVaultDir);
+  if (chosen === fallback) {
+    return true;
+  }
+  const parent = path.dirname(chosen);
+  return (
+    parent === path.dirname(fallback) &&
+    chosen.toLowerCase() === fallback.toLowerCase() &&
+    foldsCase(parent)
+  );
+};
+
 const openPlan = (context: FirstRunChoiceContext, vaultDir: string): FirstRunPlan => {
   // said here in the page's words: the resolver's own refusal is worded for whoever pinned a launch
   const nesting = appDataNesting(vaultDir, context.rootDataDir);
@@ -74,17 +98,10 @@ const openPlan = (context: FirstRunChoiceContext, vaultDir: string): FirstRunPla
     return { kind: "refused", reason: candidate.error };
   }
   const chosen = candidate.target.vaultDir;
-  const isDefault = physicalVaultDir(chosen) === physicalVaultDir(context.defaultVaultDir);
-  return { kind: "open", selector: isDefault ? null : chosen, vaultDir: chosen };
+  return isDefaultVault(chosen, context.defaultVaultDir)
+    ? { kind: "open", selector: null, vaultDir: context.defaultVaultDir }
+    : { kind: "open", selector: chosen, vaultDir: chosen };
 };
-
-// the default's name in another case is the default on a volume that folds case, as a Mac's does,
-// before the folder exists for a realpath to say so; kept apart, it would boot on a data dir of its
-// own that the default's next boot never reads
-const namesDefault = (context: FirstRunChoiceContext, vaultDir: string): boolean =>
-  physicalVaultDir(path.dirname(vaultDir)) ===
-    physicalVaultDir(path.dirname(context.defaultVaultDir)) &&
-  path.basename(vaultDir).toLowerCase() === path.basename(context.defaultVaultDir).toLowerCase();
 
 export const planFirstRunChoice = (
   choice: FirstRunChoice,
@@ -107,9 +124,6 @@ export const planFirstRunChoice = (
       kind: "refused",
       reason: `There is already a folder named ${name} there. Pick another name, or open that folder instead.`,
     };
-  }
-  if (namesDefault(context, vaultDir)) {
-    return { kind: "open", selector: null, vaultDir: context.defaultVaultDir };
   }
   return openPlan(context, vaultDir);
 };

@@ -40,7 +40,8 @@ account, no login. The port and the data dir are derived per CHECKOUT (hash of
 the checkout root, walked up to from wherever the command started), so parallel
 worktrees never collide and every command in one checkout names one instance;
 `INTELIGIR_PORT` and `INTELIGIR_DATA_DIR` override. SQLite lives at
-`<data-dir>/inteligir.db` (dev default: `~/.inteligir-dev/<hash>/`).
+`<data-dir>/inteligir.db`, and every vault has a data dir of its own (dev
+default: `~/.inteligir-dev/<hash>/data/vaults/<vault hash>/`).
 
 Requirements: **Node 24** and **pnpm 12** (`corepack enable` reads the
 root `packageManager`).

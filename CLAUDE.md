@@ -782,28 +782,35 @@ to the END of its group.
   `DEFAULT_ATTACHMENTS_FOLDER` in `@repo/notes/templates/placeholders`, since
   `vault-prefs.json` never reaches the phone.
 
-- **A SECOND VAULT GETS ITS OWN DATA DIR, AND A SWITCH IS A NEW CHILD, A NEW
-  SESSION AND A NEW WINDOW.** The default vault keeps the root data dir; any
-  other lives in `<root>/vaults/<sha256(path)[:16]>/`, derived once in
-  `config.ts`, and the root's `config.json` is the selector the shell and
-  `inteligir serve` both read. A folder is ONE vault however it is spelled: a
-  selection stores its physical spelling (`physicalVaultDir`) unless the given
-  spelling alone already keys a data dir (`resolveVaultCandidate`), and
-  "already open" and "is the default" compare physically, so a symlinked
-  spelling never mints a signed-out twin; the hash stays over the stored
-  spelling, since re-deriving it would move every selector written. Cost
-  accepted: the credential and the agent default live in the data dir, so a
-  second vault starts signed out, which also keeps it off the account's hosted
-  remote; connectors belong to the agent, so every vault shares them. The shell
-  switches only a child it started and opens a new window, since a webview's
-  data store is fixed at creation and each vault has its own; any failure puts
-  the previous vault back, and a rollback that cannot write the selector back
-  quits rather than leave `config.json` naming the vault that failed
-  (`switch_vault` in `apps/desktop/src-tauri/src/shell.rs`). A first run writes
-  the selector before the first child exists unless it chose the default, and a
-  failed first boot removes it (the door's `select --default`, which is
-  `writeManagedVaultDir(root, null)`), so the next launch asks again. The
-  folder is picked in the shell, so the page never names a path it was not
+- **EVERY VAULT GETS ITS OWN DATA DIR, AND A SWITCH IS A NEW CHILD, A NEW
+  SESSION AND A NEW WINDOW.** Every vault, the default included, lives in
+  `<root>/vaults/<sha256(physical path)[:16]>/`, derived once in `config.ts`
+  unless `INTELIGIR_DATA_DIR` pins one; the root holds only `config.json`, the
+  selector the shell and `inteligir serve` both read. A folder is ONE vault
+  however it is spelled, because the key is `physicalVaultDir`: every symlink
+  followed through the nearest existing ancestor, so a vault not made yet keys
+  the dir it keeps once it is, and "is the default", "already open", "inside
+  the app's data" and "synced by another service" judge that one spelling. A
+  selection stores it too (`resolveVaultCandidate`). Only case escapes it: a
+  name not made yet keeps the case it was typed in, so where the volume folds
+  case the default's name in another case is the default (`isDefaultVault` in
+  `apps/cli/src/desktop/first-run.ts`). Rejected: the default keeping the root
+  and the rest keyed by the stored spelling, which took a second resolve, a
+  scope the page branched on, and still let one folder key two dirs. The vault
+  service's containment guard stays its own (CONTAINMENT IS PHYSICAL): it is
+  async and compares against its own non-native root. Cost accepted: the
+  credential and the agent default live in the data dir, so every vault starts
+  signed out, which also keeps it off the account's hosted remote until it
+  signs in; connectors belong to the agent, so every vault shares them. The
+  shell switches only a child it started and opens a new window, since a
+  webview's data store is fixed at creation and each vault has its own; any
+  failure puts the previous vault back, and a rollback that cannot write the
+  selector back quits rather than leave `config.json` naming the vault that
+  failed (`switch_vault` in `apps/desktop/src-tauri/src/shell.rs`). A first
+  run writes the selector before the first child exists unless it chose the
+  default, and a failed first boot removes it (the door's `select --default`,
+  which is `writeManagedVaultDir(root, null)`), so the next launch asks again.
+  The folder is picked in the shell, so the page never names a path it was not
   handed, and a picked switch to a folder another service syncs asks first, in
   the first run's words. Every rule of that plan is the CLI's, asked through
   the desktop door (`apps/cli/src/desktop/desktop-door.ts` over

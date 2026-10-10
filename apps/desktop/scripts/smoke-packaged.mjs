@@ -502,18 +502,18 @@ try {
     INTELIGIR_VAULT_DIR: undefined,
   });
   await waitPageLoaded(launched, { loaded: FIRST_RUN_LOADED, page: "first run" });
-  const firstRunServerFile = path.join(firstRunHome, PROD_DATA_DIR_NAME, "server.json");
-  if (existsSync(firstRunServerFile)) {
-    fail(`the first run started a server before any vault was chosen (${firstRunServerFile})`);
+  const firstRunVaultDirs = path.join(firstRunHome, PROD_DATA_DIR_NAME, VAULTS_DIR_NAME);
+  if (existsSync(firstRunVaultDirs)) {
+    fail(`the first run started a server before any vault was chosen (${firstRunVaultDirs})`);
   }
   await quitFirstRun(launched);
   launched = null;
 
   // the shell's vault switch is a rewrite of the root config.json's vaultDir and a restart of
   // its child; the switch itself is a click in the window, so this proves what the app boots
-  // under a scratch home: the default vault keeps the root data dir, the selector boots the
-  // server on a data dir of that vault's own, and each quit stops it cleanly. these two launches
-  // run on the host as it is: its own login shell, and its own git where it has the tools.
+  // under a scratch home: each vault, the default and the selector's, boots the server on a data
+  // dir of its own beneath the root, and each quit stops it cleanly. these two launches run on
+  // the host as it is: its own login shell, and its own git where it has the tools.
   const home = path.join(scratch, "home");
   const rootDataDir = path.join(home, PROD_DATA_DIR_NAME);
   const secondVault = path.join(scratch, "second-vault");
@@ -529,20 +529,29 @@ try {
     INTELIGIR_VAULT_DIR: undefined,
   };
 
+  const vaultDataDirs = () => readdirSync(path.join(rootDataDir, VAULTS_DIR_NAME));
+
   log(`launching under a scratch home on ${selectorUrl}: the default vault`);
   launched = launchApp(selectorEnv);
   await waitHealthy(selectorUrl);
-  const defaultStatus = await rpcClient(selectorUrl, rootDataDir)("system/status");
+  const [defaultDir, ...strayDirs] = vaultDataDirs();
+  if (defaultDir === undefined || strayDirs.length > 0) {
+    fail(
+      `expected the default vault's data dir alone under ${VAULTS_DIR_NAME}/, found ${vaultDataDirs().join(", ")}`,
+    );
+  }
+  const defaultDataDir = path.join(rootDataDir, VAULTS_DIR_NAME, defaultDir);
+  const defaultStatus = await rpcClient(selectorUrl, defaultDataDir)("system/status");
   if (
-    defaultStatus.dataDir !== rootDataDir ||
+    defaultStatus.dataDir !== defaultDataDir ||
     defaultStatus.vaultDir !== path.join(home, PROD_VAULT_DIR_NAME)
   ) {
     fail(
-      `the default vault did not keep the root data dir: ${JSON.stringify({ dataDir: defaultStatus.dataDir, vaultDir: defaultStatus.vaultDir })}`,
+      `the default vault did not get its own data dir: ${JSON.stringify({ dataDir: defaultStatus.dataDir, vaultDir: defaultStatus.vaultDir })}`,
     );
   }
   log(`default vault -> ${defaultStatus.vaultDir} on ${defaultStatus.dataDir}`);
-  await stopApp(launched, rootDataDir);
+  await stopApp(launched, defaultDataDir);
   launched = null;
 
   await writeFile(
@@ -552,13 +561,13 @@ try {
   log(`launching on the selector's vault ${secondVault}`);
   launched = launchApp(selectorEnv);
   await waitHealthy(selectorUrl);
-  const vaultDirs = readdirSync(path.join(rootDataDir, VAULTS_DIR_NAME));
-  if (vaultDirs.length !== 1) {
+  const [secondDir, ...moreDirs] = vaultDataDirs().filter((dir) => dir !== defaultDir);
+  if (secondDir === undefined || moreDirs.length > 0) {
     fail(
-      `expected one per-vault data dir under ${VAULTS_DIR_NAME}/, found ${vaultDirs.join(", ")}`,
+      `expected one more per-vault data dir under ${VAULTS_DIR_NAME}/, found ${vaultDataDirs().join(", ")}`,
     );
   }
-  const secondDataDir = path.join(rootDataDir, VAULTS_DIR_NAME, vaultDirs[0]);
+  const secondDataDir = path.join(rootDataDir, VAULTS_DIR_NAME, secondDir);
   const secondStatus = await rpcClient(selectorUrl, secondDataDir)("system/status");
   if (secondStatus.dataDir !== secondDataDir || secondStatus.vaultDir !== secondVault) {
     fail(
@@ -566,7 +575,7 @@ try {
     );
   }
   if (
-    !existsSync(path.join(rootDataDir, "inteligir.db")) ||
+    !existsSync(path.join(defaultDataDir, "inteligir.db")) ||
     !existsSync(path.join(secondDataDir, "inteligir.db"))
   ) {
     fail("the two vaults do not each hold a database of their own");

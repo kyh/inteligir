@@ -14,10 +14,10 @@ import { AccountForm } from "../account-form";
 import { failed, orpc, refusalMessage } from "../api";
 import { useCloudSession } from "../cloud-session";
 import { relativeTimeLabel, useNow } from "../relative-time";
-import { useDataDirScope, useVaultStatus } from "../vault-hooks";
+import { useVaultStatus } from "../vault-hooks";
 import { DeleteAccountDialog } from "./delete-account-dialog";
 import { PhoneRequestsRow } from "./phone-requests-row";
-import { Row, SecondVaultNote, SectionHeading } from "./settings-chrome";
+import { Row, SectionHeading } from "./settings-chrome";
 
 export const RevokeFailedNotice = ({ cloudUrl }: { cloudUrl: string }) => {
   const devicesUrl = cloudDevicesPageUrl(cloudUrl);
@@ -165,7 +165,6 @@ export const AccountDevices = ({ thisMacName, lastSyncedAt, ...others }: Account
 export const AccountSection = () => {
   const session = useCloudSession();
   const { status, pending, signOut } = session;
-  const scope = useDataDirScope();
   const vaultStatus = useVaultStatus().data;
   const nowMs = useNow();
   const queryClient = useQueryClient();
@@ -220,9 +219,11 @@ export const AccountSection = () => {
     if (status.state === "signed-out") {
       return (
         <div className="space-y-2">
-          <SecondVaultNote scope={scope} />
           {status.revokeError === null ? null : <RevokeFailedNotice cloudUrl={status.cloudUrl} />}
           {accountForm(status.cloudUrl)}
+          <p className="text-body text-muted-foreground">
+            Each vault on this Mac signs in on its own.
+          </p>
         </div>
       );
     }

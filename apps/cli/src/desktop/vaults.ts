@@ -3,8 +3,6 @@
 // selection rules themselves are `../server/vault-switch`, shared with `inteligir vault open`; this
 // adds what only the app refuses.
 
-import { existsSync } from "node:fs";
-import path from "node:path";
 import { physicalVaultDir } from "../server/config";
 import { pathContains } from "../server/path-containment";
 import { planVaultSelection, selectionRefusalMessage } from "../server/vault-switch";
@@ -15,20 +13,12 @@ type AppDataNesting = "holds-app-data" | "inside-app-data";
 
 export type VaultSwitchRefusal = AppDataNesting | VaultSelectionRefusal;
 
-// a folder not made yet is judged where it will land, through its nearest existing ancestor
-const landingSpelling = (dir: string): string => {
-  const resolved = path.resolve(dir);
-  const parent = path.dirname(resolved);
-  return existsSync(resolved) || parent === resolved
-    ? physicalVaultDir(resolved)
-    : path.join(landingSpelling(parent), path.basename(resolved));
-};
-
 // a boot refuses this too, but in words for whoever pinned the launch, so the app asks first. the
-// data folder itself counts as inside, since a folder within it is no better
+// data folder itself counts as inside, since a folder within it is no better. a folder not made
+// yet is judged where it will land
 export const appDataNesting = (vaultDir: string, rootDataDir: string): AppDataNesting | null => {
-  const vault = landingSpelling(vaultDir);
-  const appData = landingSpelling(rootDataDir);
+  const vault = physicalVaultDir(vaultDir);
+  const appData = physicalVaultDir(rootDataDir);
   if (pathContains(appData, vault)) {
     return "inside-app-data";
   }

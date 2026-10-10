@@ -288,7 +288,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     system: {
       agent: agentDriver.status,
       dataDir: config.dataDir,
-      dataDirScope: config.dataDir === config.rootDataDir ? "root" : "vault",
       schemaVersion,
       servesUi: args.servesUi,
       startedAt: Date.now(),

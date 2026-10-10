@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { CONFIG_FILE_NAME, DEV_DATA_ROOT_DIR } from "inteligir/server/config";
+import { CONFIG_FILE_NAME, DEV_DATA_ROOT_DIR, physicalVaultDir } from "inteligir/server/config";
 import { pathContains } from "inteligir/server/path-containment";
 import { makeTempDir } from "inteligir/server/testing";
 import { selectionRefusalMessage } from "inteligir/server/vault-switch";
@@ -75,7 +75,9 @@ describe("the launch", () => {
 describe("the selector", () => {
   it("points the next launch at a created vault, and is taken back out", async () => {
     const context = scratch();
-    const work = path.join(context.homeDir, "Work");
+    // a folder not made yet keeps the physical spelling of where it will land, which macOS's
+    // tmpdir, behind a symlink (/tmp is /private/tmp), shows
+    const work = physicalVaultDir(path.join(context.homeDir, "Work"));
     const planned = answered(
       openingAnswer,
       await answerDoor(context, "plan-create", [context.homeDir, " Work "]),

@@ -12,8 +12,8 @@ import {
   useReplaceAgentsStatus,
 } from "../agents/agent-hooks";
 import { AgentSignIn } from "../agents/agent-sign-in";
-import { useDataDirScope, useSystemStatus } from "../vault-hooks";
-import { SecondVaultNote, SectionHeading } from "./settings-chrome";
+import { useSystemStatus } from "../vault-hooks";
+import { SectionHeading } from "./settings-chrome";
 
 const accountSentence = (harness: HarnessStatus): string => {
   if (harness.runtime === "missing") {
@@ -104,7 +104,6 @@ export const AgentsSection = () => {
   const queryClient = useQueryClient();
   const status = useAgentsStatus().data;
   const agent = useSystemStatus().data?.agent;
-  const scope = useDataDirScope();
   const replaceStatus = useReplaceAgentsStatus();
 
   const setDefault = useMutation(
@@ -178,10 +177,10 @@ export const AgentsSection = () => {
           <div className="divide-y divide-line">{others.map(card)}</div>
         </div>
       )}
-      <SecondVaultNote scope={scope}>
-        This vault keeps its own choice of agent for new actions. Signing in to Claude or ChatGPT
+      <p className="text-body text-muted-foreground">
+        Each vault keeps its own choice of agent for new actions. Signing in to Claude or ChatGPT
         counts for every vault on this Mac.
-      </SecondVaultNote>
+      </p>
     </section>
   );
 };
