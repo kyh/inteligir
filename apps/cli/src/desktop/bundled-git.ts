@@ -9,6 +9,7 @@ import { execFile } from "node:child_process";
 import { accessSync, constants, statSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
+import type { RuntimeMode } from "../server/config";
 import { mergePath } from "./login-shell-path";
 
 const execFileAsync = promisify(execFile);
@@ -34,7 +35,7 @@ export type GitResolution =
 
 export interface ResolveGitArgs {
   // a dev launch runs the developer's own git, like its terminal does
-  isPackaged: boolean;
+  mode: RuntimeMode;
   resourcesPath: string;
   // the active developer directory, or a rejection when none is selected
   printDeveloperDir: () => Promise<string>;
@@ -73,7 +74,7 @@ const olderThanKnownGood = ({ major, minor }: { major: number; minor: number }):
 // a selection is not an install: Xcode deleted from under its selection leaves one naming nothing.
 // a version this cannot read is left to run: only a known-bad one is traded for the Keychain helper
 export const resolveGit = async (args: ResolveGitArgs): Promise<GitResolution> => {
-  if (!args.isPackaged) {
+  if (args.mode === "dev") {
     return { source: "host" };
   }
   const bundled = (why: BundledGitReason): GitResolution => ({

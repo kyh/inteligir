@@ -29,7 +29,8 @@ export type ServerTargetResult =
   | { kind: "refused"; error: string };
 
 export interface ResolveServerTargetArgs {
-  isPackaged: boolean;
+  // its NODE_ENV is the mode, which the shell states: production for a packaged app whatever its
+  // launch environment says
   env: NodeJS.ProcessEnv;
   homeDir?: string;
   // a candidate for a switch: resolved and refused exactly as a boot would, before anything moves
@@ -37,13 +38,7 @@ export interface ResolveServerTargetArgs {
 }
 
 const resolveConfigFor = (args: ResolveServerTargetArgs): AppConfig => {
-  // `isPackaged` decides the mode, never the ambient NODE_ENV: a checkout run as
-  // production would drive the developer's real ~/.inteligir and ~/Inteligir.
-  const env: NodeJS.ProcessEnv = {
-    ...args.env,
-    NODE_ENV: args.isPackaged ? "production" : "development",
-  };
-  const configArgs: ResolveAppConfigArgs = { checkoutPath: resolveCheckoutRoot(), env };
+  const configArgs: ResolveAppConfigArgs = { checkoutPath: resolveCheckoutRoot(), env: args.env };
   if (args.homeDir !== undefined) {
     configArgs.homeDir = args.homeDir;
   }

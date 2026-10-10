@@ -249,7 +249,7 @@ describe("createGracefulShutdown", () => {
 describe("the exported ceiling", () => {
   it("covers every step budget the process can register", () => {
     const declared = Object.values(TEARDOWN_BUDGETS_MS).reduce((total, ms) => total + ms, 0);
-    // the supervisor's SIGKILL grace derives from this; a ceiling under the sum kills the process mid-step.
+    // the desktop shell's SIGKILL grace derives from this; a ceiling under the sum kills the process mid-step.
     expect(SHUTDOWN_TIMEOUT_MS).toBeGreaterThan(declared);
   });
 });

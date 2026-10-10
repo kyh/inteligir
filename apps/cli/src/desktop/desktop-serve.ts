@@ -9,8 +9,9 @@
 // take before the shell kills it, which is the server's own budget and never spelled in the shell.
 
 import { readCliVersion, packageFile } from "../paths";
+import { runtimeModeOf } from "../server/config";
 import { DEBUG_NAMESPACES } from "../server/debug-log";
-import type { RunServeOptions } from "../server/serve";
+import type { RunServeOptions, ServeOverrides } from "../server/serve";
 import { SHUTDOWN_TIMEOUT_MS } from "../server/shutdown";
 import { writeAgentLauncher } from "./agent-launcher";
 import { adoptServer, planServerStart, resolveServerTarget, verifyServer } from "./server-start";
@@ -43,10 +44,6 @@ export const desktopServe = async (
   resolveArgs: ResolveServerTargetArgs,
   debug: boolean,
 ): Promise<void> => {
-  if (debug) {
-    // a report cannot know in advance which decision went wrong, so every namespace
-    process.env.INTELIGIR_DEBUG = DEBUG_NAMESPACES.join(",");
-  }
   const version = readCliVersion();
   const resolved = resolveServerTarget(resolveArgs);
   if (resolved.kind === "refused") {
@@ -73,20 +70,23 @@ export const desktopServe = async (
     process.exit(0);
   }
   // the shell holds stdin's other end and never writes it, so it ends only when the shell is gone
-  const options: RunServeOptions = resolveArgs.isPackaged
-    ? {
-        cliBinDir: writeAgentLauncher({
-          cliEntry: packageFile("dist/index.js"),
-          dataDir,
-          node: process.execPath,
-          nodeEnv: "production",
-        }),
-        lifeline: process.stdin,
-      }
-    : { lifeline: process.stdin };
+  const options: RunServeOptions =
+    runtimeModeOf(resolveArgs.env) === "prod"
+      ? {
+          cliBinDir: writeAgentLauncher({
+            cliEntry: packageFile("dist/index.js"),
+            dataDir,
+            node: process.execPath,
+            nodeEnv: "production",
+          }),
+          lifeline: process.stdin,
+        }
+      : { lifeline: process.stdin };
   // dynamic: the shell's other questions load no server
   const { runServe } = await import("../server/serve");
-  const { serverUrl, uiUrl } = await runServe(version, {}, options);
+  // a report cannot know in advance which decision went wrong, so every namespace
+  const overrides: ServeOverrides = debug ? { INTELIGIR_DEBUG: DEBUG_NAMESPACES.join(",") } : {};
+  const { serverUrl, uiUrl } = await runServe(version, overrides, options);
   if (uiUrl === null) {
     await announce({
       kind: "refused",

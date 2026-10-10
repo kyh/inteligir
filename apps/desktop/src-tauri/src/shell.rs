@@ -25,6 +25,12 @@ use crate::window::{self, AppWindow};
 const ADOPTED_SWITCH_REASON: &str = "This server was started outside the app, so the app cannot restart it on another vault. Stop it and reopen Inteligir to switch.";
 const OWN_DIR_NAME: &str = "desktop";
 
+// the CLI's names for what the shell pins on a child (`apps/cli/src/server/config.ts`,
+// `ui-dev-server.ts`), held equal by `tools/repo-guards/src/desktop-shell-wire.test.ts`
+const DATA_DIR_ENV_VAR: &str = "INTELIGIR_DATA_DIR";
+const VAULT_DIR_ENV_VAR: &str = "INTELIGIR_VAULT_DIR";
+const UI_DEV_URL_ENV_VAR: &str = "INTELIGIR_UI_DEV_URL";
+
 /// The first run's handed-out folders: every folder the page names back is one the shell gave it.
 pub struct FirstRun {
     pub proposal: Proposal,
@@ -240,17 +246,14 @@ pub fn boot_vault<R: Runtime>(
         .with_diagnostics(|diagnostics| diagnostics.debug())
         .unwrap_or(false);
     let mut env = door.env.clone();
-    env.insert("INTELIGIR_DATA_DIR".into(), target.data_dir.clone().into());
-    env.insert(
-        "INTELIGIR_VAULT_DIR".into(),
-        target.vault_dir.clone().into(),
-    );
+    env.insert(DATA_DIR_ENV_VAR.into(), target.data_dir.clone().into());
+    env.insert(VAULT_DIR_ENV_VAR.into(), target.vault_dir.clone().into());
     // under `tauri dev` the server answers the page's files from Vite, so an edit reloads in place
     // while the window keeps its server's origin (apps/cli/src/server/ui-dev-server.ts)
     if tauri::is_dev()
         && let Some(dev_url) = &app.config().build.dev_url
     {
-        env.insert("INTELIGIR_UI_DEV_URL".into(), dev_url.to_string().into());
+        env.insert(UI_DEV_URL_ENV_VAR.into(), dev_url.to_string().into());
     }
     let mut args = vec!["serve"];
     if debug {
@@ -661,7 +664,7 @@ pub fn open_in_browser<R: Runtime>(app: &AppHandle<R>) {
     let handoff = shell.door().and_then(|door| {
         let mut door = door;
         door.env
-            .insert("INTELIGIR_DATA_DIR".into(), target.data_dir.into());
+            .insert(DATA_DIR_ENV_VAR.into(), target.data_dir.into());
         ask::<Handoff>(&door, &["handoff"])
     });
     let opened = handoff.and_then(|handoff| {

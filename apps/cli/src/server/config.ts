@@ -18,10 +18,11 @@ import { assertVaultAndDataDirDisjoint } from "./path-containment";
 import { stagedWriteFileSync } from "./staged-write";
 import type { SlowReads } from "./vault/slow-reads";
 
-type RuntimeMode = "dev" | "prod";
+export type RuntimeMode = "dev" | "prod";
 
 export const PROD_DATA_DIR_NAME = ".inteligir";
 export const DATA_DIR_ENV_VAR = "INTELIGIR_DATA_DIR";
+export const VAULT_DIR_ENV_VAR = "INTELIGIR_VAULT_DIR";
 export const DEV_DATA_ROOT_DIR = ".inteligir-dev";
 const PROD_VAULT_DIR_NAME = "Inteligir";
 // siblings, not nested: the vault is a git repo the sync loop pushes, and a nested data dir
@@ -188,7 +189,7 @@ const ENV_VARS = {
   vaultDir: defineEnvVar({
     description:
       "Absolute (or ~-relative) vault directory override; replaces both the prod (~/Inteligir) and dev (<dataDir>/vault) defaults.",
-    name: "INTELIGIR_VAULT_DIR",
+    name: VAULT_DIR_ENV_VAR,
     parse: ({ homeDir, name, value }) => parseDataDirValue(name, value, homeDir),
   }),
   vaultRemote: defineEnvVar({

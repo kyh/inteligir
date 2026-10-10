@@ -320,7 +320,7 @@ describe("the device token", () => {
     expect(crossPort.status).toBe(403);
   });
 
-  it("leaves /health outside the gate — it is a spawn probe", async () => {
+  it("leaves /health outside the gate — it is the harnesses' boot probe", async () => {
     const { bareRequest } = await bootTestApp();
     const response = await bareRequest(HEALTH_PATH);
     expect(response.status).toBe(200);

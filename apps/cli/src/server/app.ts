@@ -120,9 +120,9 @@ export const createApp = (args: CreateAppArgs) => {
   };
 
   // one gate at the http boundary: two of the three surfaces it protects are not procedures.
-  // /health stays outside (a supervisor's spawn probe holds no credential yet). a cookie is ambient
-  // and loopback "site" ignores the port, so a co-resident page on another 127.0.0.1 port carries
-  // it: a cookie-authed request must also prove same-origin.
+  // /health stays outside (the smokes and the e2e harness wait on it before they read a
+  // credential). a cookie is ambient and loopback "site" ignores the port, so a co-resident page on
+  // another 127.0.0.1 port carries it: a cookie-authed request must also prove same-origin.
   const requireServerToken: MiddlewareHandler = async (c, next): Promise<Response | undefined> => {
     const credential = acceptedCredential(c);
     if (credential === null) {

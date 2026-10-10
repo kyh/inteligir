@@ -32,7 +32,9 @@ a choice exactly as a boot would, before anything moves; `select` writes
 the server itself. A question costs a node start, about 0.2s, paid once a
 launch and once a pick. The wire breaks freely, since both ends ship in one
 bundle, and `tools/repo-guards/src/desktop-shell-wire.test.ts` holds the
-words the two languages share.
+words the two languages share: each answer's serde type in
+`src-tauri/src/launch.rs` against the door's typed zod schema, which also
+parses the `src-tauri/fixtures/` the cargo tests read.
 
 The shell's own folder is `desktop/` under the root data dir `launch`
 resolves, beside `config.json`: the recent-vaults list, the debug choice and,

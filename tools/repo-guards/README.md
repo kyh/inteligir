@@ -103,11 +103,15 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | would cycle; a `WITHOUT_DEPENDENCY_EDGE` row carries its reason. And a    |
 |                                | relative import that leaves every workspace (`/privacy`'s                 |
 |                                | `docs/privacy.md`) is named in its build's `inputs` as `$TURBO_ROOT$/…`.  |
-| `desktop-shell-wire.test.ts`   | The words the Rust shell shares with the TypeScript page and CLI, read as |
-|                                | text from both sides: every command a page asks is named once in          |
-|                                | `build.rs`, handled in `lib.rs`, and granted by its window's capability   |
-|                                | (the app window's at runtime, `APP_WINDOW_COMMANDS`); the update event,   |
-|                                | the server's ready marker and the CLI entry the shell runs match.         |
+| `desktop-shell-wire.test.ts`   | The words the Rust shell shares with the TypeScript page and CLI, read    |
+|                                | from both sides: every command a page asks is named once in `build.rs`,   |
+|                                | handled in `lib.rs`, and granted by its window's capability (the app      |
+|                                | window's at runtime, `APP_WINDOW_COMMANDS` and                            |
+|                                | `APP_WINDOW_CORE_PERMISSIONS`); the update event, the server's ready      |
+|                                | marker, the CLI entry the shell runs and the env names it pins on a child |
+|                                | match; and each serde type in `launch.rs` reads the fields of its door    |
+|                                | answer's zod schema (`inteligir/desktop/door-answers`), which parses the  |
+|                                | `apps/desktop/src-tauri/fixtures/` the cargo tests read.                  |
 | `ui-orphan-exports.test.ts`    | PER EXPORT under `@repo/ui`'s wildcard-exported roots: a consumer outside |
 |                                | the gallery, an `AWAITING_CONSUMER` file (held whole, and not itself a    |
 |                                | consumer) or an `ALLOWED_EXPORTS` row with its reason. `export *` is      |

@@ -49,6 +49,7 @@ export interface ServeOverrides {
   INTELIGIR_PORT?: string;
   INTELIGIR_DATA_DIR?: string;
   INTELIGIR_VAULT_DIR?: string;
+  INTELIGIR_DEBUG?: string;
 }
 
 export interface ServeResult {

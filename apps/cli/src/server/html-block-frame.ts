@@ -4,7 +4,7 @@
 // opaque origin that reaches nothing: no fetch, no remote image, no storage, no form, and the
 // page's `frame-src 'self'` refuses it a navigation away. The page posts the block's bytes once;
 // only the window that framed it can, and the write replaces the listener with the document.
-// Both stampers answer it: this server for a browser tab, the desktop protocol handler for the app.
+// This server answers it for a browser tab and the desktop window alike.
 
 export const HTML_FRAME_DOCUMENT = `<!doctype html>
 <meta charset="utf-8">
