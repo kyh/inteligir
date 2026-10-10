@@ -128,7 +128,7 @@ export const FormulaAutocompleteKit = [
     options: {
       createComboboxInput: () => ({ children: [{ text: "" }], type: FORMULA_INPUT_KEY }),
       trigger: "{",
-      // only a `{` right before the typed `{` opens the picker; a lone brace stays literal and MDX expressions stay MDX's
+      // only a `{` right before the typed `{` opens the picker; a lone brace stays literal
       triggerPreviousCharPattern: /^\{$/u,
       triggerQuery: (editor) =>
         !editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } }),

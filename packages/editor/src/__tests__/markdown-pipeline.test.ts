@@ -20,25 +20,16 @@ import { parseMdast } from "@repo/notes/markdown/parse";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 describe("owned parse (probe1/2/3 translations)", () => {
-  it("throws real errors instead of deserializeMd's silent degradation", () => {
-    const parseErrors = [
+  it("keeps a tag that cannot pair as its own bytes, where MDX would refuse the file", () => {
+    const unpaired = [
       "<Foo>\n\nnever closed\n",
       "<Foo>broken</Bar>\n",
       "text </Bar> more\n",
       "{unclosed brace\n",
     ];
-    for (const md of parseErrors) {
-      const result = parseMdast(md);
-      expect(result.ok, md).toBe(false);
-      if (result.ok) {
-        continue;
-      }
-      expect(result.failure.message.length).toBeGreaterThan(0);
-    }
-    const positioned = parseMdast("first\n\n<Foo>broken</Bar>\n");
-    expect(positioned.ok).toBe(false);
-    if (!positioned.ok) {
-      expect(positioned.failure.line).toBe(3);
+    for (const md of unpaired) {
+      expect(analyzeMarkdown(md).kind, md).toBe("canonical");
+      expect(roundTrip(md), md).toBe(md);
     }
   });
 
@@ -48,7 +39,7 @@ describe("owned parse (probe1/2/3 translations)", () => {
     expect(analyzeMarkdown(md).kind).toBe("canonical");
   });
 
-  it("parses expressions under agnostic MDX instead of crashing (acorn difference)", () => {
+  it("reads braces as prose: the dialect has no expressions", () => {
     const md = "config { noServer: true } here\n";
     expect(roundTrip(md)).toBe(md);
     expect(analyzeMarkdown(md).kind).toBe("canonical");
@@ -112,9 +103,10 @@ describe("opaque nodes (constructs with no editor node)", () => {
     expectOpaque("before <!-- inline comment --> after\n", ["<!-- inline comment -->"]);
   });
 
-  it("carries processing instructions and expressions", () => {
+  it("carries processing instructions, and a tag that cannot pair", () => {
     expectOpaque('<?xml version="1.0"?>\n', ['<?xml version="1.0"?>']);
-    expectOpaque("value is {count} here\n", ["{count}"]);
+    expectOpaque("value is {count} here\n", []);
+    expectOpaque("text </Bar> and <br> more\n", ["</Bar>", "<br>"]);
   });
 
   it("carries an allowed tag whose attributes are not plain strings", () => {
@@ -190,10 +182,6 @@ describe("wiki links (probe4 translations)", () => {
       "![alt](https://example.com/i.png)\n",
     );
     const parsed = parseMdast("[x](https://example.com/y) and ![alt](https://example.com/i.png)\n");
-    expect(parsed.ok).toBe(true);
-    if (!parsed.ok) {
-      return;
-    }
     const json = JSON.stringify(parsed.root);
     expect(json).toContain('"type":"link"');
     expect(json).toContain('"type":"image"');
@@ -414,23 +402,23 @@ describe("gate API", () => {
   });
 
   it("parseMarkdown surfaces the raw reason instead of a degraded value", () => {
-    const parsed = parseMarkdown("<Steps>x</Step>\n");
+    const parsed = parseMarkdown(`${"> ".repeat(3000)}x\n`);
     expect(parsed.ok).toBe(false);
     if (parsed.ok) {
       return;
     }
-    expect(parsed.reason.kind).toBe("parse-error");
+    expect(parsed.reason.kind).toBe("too-deep");
   });
 
   it("roundTrip throws typed errors carrying the reason", () => {
     try {
-      roundTrip("<Foo>broken</Bar>\n");
-      expect.unreachable("roundTrip must throw on parse failure");
+      roundTrip(`${"> ".repeat(3000)}x\n`);
+      expect.unreachable("roundTrip must throw where the editor cannot hold the note");
     } catch (error) {
       expect(error).toBeInstanceOf(RoundTripError);
       if (error instanceof RoundTripError) {
-        expect(error.reason.kind).toBe("parse-error");
-        expect(describeGateReason(error.reason)).toMatch(/^Parse error at line 1/u);
+        expect(error.reason.kind).toBe("too-deep");
+        expect(describeGateReason(error.reason)).toMatch(/nests deeper/u);
       }
     }
   });
@@ -441,16 +429,7 @@ describe("gate API", () => {
     expect(() => roundTrip(deep)).toThrow(RoundTripError);
   });
 
-  it("describes the reason for the mode badge, with and without a line", () => {
-    expect(
-      describeGateReason({ kind: "parse-error", line: 4, message: "Unexpected closing tag" }),
-    ).toBe("Parse error at line 4: Unexpected closing tag");
-    expect(describeGateReason({ kind: "parse-error", line: null, message: "Nope" })).toBe(
-      "Parse error: Nope",
-    );
-  });
-
-  it("words the editor's own limits as the editor's, never as the file's parse error", () => {
+  it("words every reason as the editor's own limit, never as an error in the file", () => {
     const limits: GateReason[] = [
       { kind: "too-deep" },
       { kind: "unstable" },

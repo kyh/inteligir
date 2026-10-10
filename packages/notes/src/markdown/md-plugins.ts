@@ -89,7 +89,7 @@ const listItemEmptyTodoPlaceholder: Handle = (node: Nodes, parent, state, info) 
 };
 
 // `-` bullets match Obsidian (remark's default is `*`). `resourceLink: true` bans the `<url>`
-// autolink form: under MDX a serialized `<mailto:…>` re-parses as broken JSX.
+// autolink form, so a link has one spelling: its bare literal (md-rules) or `[text](url)`.
 export const MD_STRINGIFY = {
   bullet: "-",
   handlers: {

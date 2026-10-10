@@ -1,12 +1,13 @@
-// The scan grammar (../markdown/scan-parse) is plain markdown and the editor's
-// is not, so a `targetSpan` or a tag's span is emitted only where the raw bytes
-// re-derive what was parsed and lie outside ../markdown/verbatim-spans; a link or
-// a tag failing either is indexed but never rewritten. Only a rename asks for
-// spans: those ranges are a second parse under the editor's grammar, and the
-// index, which projects every doc on every save, never reads them.
+// The scan walks the editor's own grammar (../markdown/bare-parse), so the index reads as prose
+// exactly what the editor draws as prose. A `targetSpan` or a tag's span is emitted only where the
+// raw bytes re-derive what was parsed and the editor does not hold them verbatim (inside a tag it
+// cannot model, which it carries as a string); a link or a tag failing either is indexed but never
+// rewritten. Only a rename asks for spans; the index, which projects every doc on every save,
+// never verifies them.
 
 import type { Nodes } from "mdast";
 
+import { parseBare } from "../markdown/bare-parse";
 import { parseCalloutPayload } from "../markdown/callout-payload";
 import { isCalloutLang } from "../markdown/fence-langs";
 import {
@@ -17,10 +18,8 @@ import {
   yamlStringEntries,
 } from "../markdown/frontmatter";
 import type { ParsedProperties, YamlStringEntry } from "../markdown/frontmatter";
+import { isOpaqueSource } from "../markdown/remark-opaque";
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
-import { parseScan } from "../markdown/scan-parse";
-import { insideVerbatim, verbatimSpans } from "../markdown/verbatim-spans";
-import type { VerbatimSpan } from "../markdown/verbatim-spans";
 import type { LinkKind } from "./link-kinds";
 import { inlineTagSpans, isTagName } from "./tag-grammar";
 import type { InlineTagSpan } from "./tag-grammar";
@@ -76,16 +75,13 @@ interface NodePosition {
   line: number;
 }
 
-// the source, the ranges a span may not land in, and the scan every collector appends to.
-// `verbatim` is null on the index path, which emits no span at all
+// the source, whether a span may be emitted here (never on the index path, never inside bytes the
+// editor holds verbatim), and the scan every collector appends to
 interface ScanContext {
   source: string;
-  verbatim: readonly VerbatimSpan[] | null;
+  spans: boolean;
   scan: BodyScan;
 }
-
-const spannable = (ctx: ScanContext, span: Span): boolean =>
-  ctx.verbatim !== null && !insideVerbatim(ctx.verbatim, span.start, span.end);
 
 // anything with a scheme (`https:`, `mailto:`, `C:\…` alike) or protocol-relative `//` is external
 const SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
@@ -102,16 +98,24 @@ const position = (node: Nodes): NodePosition | null => {
   return { line: start.line, span: { end: end.offset, start: start.offset } };
 };
 
-const walk = (
-  node: Nodes,
-  visitor: (node: Nodes, inLink: boolean) => void,
-  inLink = false,
-): void => {
-  visitor(node, inLink);
+interface Visit {
+  inLink: boolean;
+  // inside a node the editor carries as its source string
+  verbatim: boolean;
+}
+
+const AT_ROOT: Visit = { inLink: false, verbatim: false };
+
+const walk = (node: Nodes, visitor: (node: Nodes, at: Visit) => void, at = AT_ROOT): void => {
+  const here: Visit = { inLink: at.inLink, verbatim: at.verbatim || isOpaqueSource(node) };
+  visitor(node, here);
   if ("children" in node) {
-    const childrenInLink = inLink || LINK_LIKE.has(node.type);
+    const below: Visit = {
+      inLink: here.inLink || LINK_LIKE.has(node.type),
+      verbatim: here.verbatim,
+    };
     for (const child of node.children) {
-      walk(child, visitor, childrenInLink);
+      walk(child, visitor, below);
     }
   }
 };
@@ -300,7 +304,7 @@ const wikiToLink = (
   // the span may hold `\#` escapes the target does not: a rename writes its target back through
   // serializeWikiBody, which escapes what the parse would otherwise split
   const verified =
-    spannable(ctx, targetSpan) &&
+    ctx.spans &&
     ctx.source.slice(pos.span.start, pos.span.end) === `${embed ? "!" : ""}[[${body}]]`;
   const link: ScannedLink = {
     embed,
@@ -335,13 +339,10 @@ const mdToLink = (
   }
   const { anchor, target, written } = parsed;
   let targetSpan: Span | undefined;
-  const dest = ctx.verbatim === null ? null : locate();
+  const dest = ctx.spans ? locate() : null;
   if (dest) {
     const pathSpan = splitRawFragment(ctx.source, dest);
-    if (
-      spannable(ctx, pathSpan) &&
-      decodeMdEscapes(ctx.source.slice(pathSpan.start, pathSpan.end)) === written
-    ) {
+    if (decodeMdEscapes(ctx.source.slice(pathSpan.start, pathSpan.end)) === written) {
       targetSpan = pathSpan;
     }
   }
@@ -432,14 +433,14 @@ const frontmatterPinned = (parsed: ParsedProperties | null): boolean => {
 };
 
 // a span is kept where the raw bytes spell the tag (a text node's value can differ from its
-// source through an escape) outside the verbatim ranges, on the link policy's terms
+// source through an escape), on the link policy's terms
 const collectTextTags = (node: Extract<Nodes, { type: "text" }>, ctx: ScanContext): void => {
   const offset = node.position?.start.offset;
   for (const { end, start, tag } of inlineTagSpans(node.value)) {
     const extracted: ExtractedTag = { tag };
-    if (offset !== undefined) {
+    if (offset !== undefined && ctx.spans) {
       const span: Span = { end: offset + end, start: offset + start };
-      if (spannable(ctx, span) && ctx.source.slice(span.start, span.end) === `#${tag}`) {
+      if (ctx.source.slice(span.start, span.end) === `#${tag}`) {
         extracted.span = span;
       }
     }
@@ -570,16 +571,14 @@ type ScanMode = "index" | "rewrite";
 
 const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
   const scan: BodyScan = { headings: [], links: [], tags: [], title: null };
-  const ctx: ScanContext = {
-    scan,
-    source,
-    verbatim: mode === "rewrite" ? verbatimSpans(source) : null,
-  };
+  const doc: ScanContext = { scan, source, spans: mode === "rewrite" };
+  const verbatim: ScanContext = { scan, source, spans: false };
   // oxlint-disable-next-line complexity -- the count is the node-type enumeration switch-exhaustiveness-check requires, not branching: every arm delegates
-  walk(tree, (node, inLink) => {
+  walk(tree, (node, at) => {
+    const ctx = at.verbatim ? verbatim : doc;
     switch (node.type) {
       case "text": {
-        if (!inLink) {
+        if (!at.inLink) {
           collectTextTags(node, ctx);
         }
         break;
@@ -608,7 +607,12 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
       case "code": {
         const slice = isCalloutLang(node.lang) ? calloutBodySlice(source, node) : null;
         if (slice) {
-          pushShifted(scanBody(slice.body, parseScan(slice.body), mode), slice.bodyStart, ctx);
+          const calloutMode = ctx.spans ? "rewrite" : "index";
+          pushShifted(
+            scanBody(slice.body, parseBare(slice.body), calloutMode),
+            slice.bodyStart,
+            ctx,
+          );
         }
         break;
       }
@@ -654,7 +658,7 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
 };
 
 export const scanDoc = (source: string): DocScan => {
-  const tree = parseScan(source);
+  const tree = parseBare(source);
   const yaml = frontmatterText(tree);
   const frontmatter = yaml === null ? null : parseProperties(yaml);
   const body = scanBody(source, tree, "index");
@@ -674,12 +678,12 @@ export const scanDoc = (source: string): DocScan => {
 
 // the links a rename may splice: the index's own walk, callout bodies included
 export const documentLinkSpans = (source: string): RewritableLink[] =>
-  scanBody(source, parseScan(source), "rewrite").links.flatMap((link) =>
+  scanBody(source, parseBare(source), "rewrite").links.flatMap((link) =>
     link.targetSpan === undefined ? [] : [{ ...link, targetSpan: link.targetSpan }],
   );
 
 // the inline tags a rename may splice, on the same terms
 export const documentTagSpans = (source: string): InlineTagSpan[] =>
-  scanBody(source, parseScan(source), "rewrite").tags.flatMap(({ span, tag }) =>
+  scanBody(source, parseBare(source), "rewrite").tags.flatMap(({ span, tag }) =>
     span === undefined ? [] : [{ end: span.end, start: span.start, tag }],
   );

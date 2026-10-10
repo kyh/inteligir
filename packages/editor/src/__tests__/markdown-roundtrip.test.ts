@@ -9,16 +9,16 @@ import {
   toCanonical,
 } from "@repo/editor/markdown/markdown-doc";
 
-// raw/ holds only documents that do not parse; constructs with no editor node are
-// opaque and belong in canonical/. A serializer change that reshapes a canonical
-// fixture is a regression: fix the serializer, never re-pin.
+// Every document parses, so there is no raw/ set: a construct with no editor node is
+// opaque and belongs in canonical/, a tag that cannot pair included. A serializer
+// change that reshapes a canonical fixture is a regression: fix the serializer, never
+// re-pin.
 
 const FIXTURES = fileURLToPath(new URL("fixtures/roundtrip/", import.meta.url));
 
-const read = (dir: "canonical" | "raw" | "churn", name: string): string =>
+const read = (dir: "canonical" | "churn", name: string): string =>
   readFileSync(`${FIXTURES}${dir}/${name}`, "utf-8");
-const list = (dir: "canonical" | "raw" | "churn"): string[] =>
-  readdirSync(`${FIXTURES}${dir}`).toSorted();
+const list = (dir: "canonical" | "churn"): string[] => readdirSync(`${FIXTURES}${dir}`).toSorted();
 
 describe("canonical fixtures (byte-stable)", () => {
   for (const name of list("canonical")) {
@@ -28,18 +28,6 @@ describe("canonical fixtures (byte-stable)", () => {
       expect(out.trimEnd()).toBe(src.trimEnd());
       expect(roundTrip(out)).toBe(out);
       expect(analyzeMarkdown(src)).toEqual({ kind: "canonical" });
-    });
-  }
-});
-
-describe("raw fixtures (throw-or-Raw, never mangled)", () => {
-  for (const name of list("raw")) {
-    // the expected kind is the filename's second-to-last segment
-    const kind = name.split(".").at(-2);
-    it(`${name} → ${kind}`, () => {
-      const src = read("raw", name);
-      expect(analyzeMarkdown(src).kind).toBe(kind);
-      expect(() => roundTrip(src)).toThrow(RoundTripError);
     });
   }
 });
@@ -107,12 +95,16 @@ describe("toCanonical", () => {
   });
 
   it("throws RoundTripError when there is nothing safe to format to", () => {
-    expect(() => toCanonical("<Foo>x</Bar>\n")).toThrow(RoundTripError);
-    expect(() => toCanonical("{unclosed brace\n")).toThrow(RoundTripError);
+    expect(() => toCanonical(`${"> ".repeat(3000)}x\n`)).toThrow(RoundTripError);
   });
 
   it("formats a document whose constructs it cannot model", () => {
-    for (const md of ["returns in <50ms\n", "<Steps>x</Steps>\n", "<!-- c -->\n"]) {
+    for (const md of [
+      "returns in <50ms\n",
+      "<Steps>x</Steps>\n",
+      "<!-- c -->\n",
+      "<Foo>x</Bar>\n",
+    ]) {
       expect(analyzeMarkdown(toCanonical(md)).kind, md).toBe("canonical");
     }
   });

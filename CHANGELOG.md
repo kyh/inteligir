@@ -19,6 +19,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 ### Fixed
 
+- **A stray brace or tag no longer opens a note in Raw.** A note holding a lone `{`, a tag that is never closed (such as `<br>`), or a closing tag with nothing to close opened in Raw, without rich editing. It now opens with rich editing, and those characters stay exactly as you wrote them. Text in braces, like `{count}`, is now ordinary text you can edit.
 - **Notes open on iPhones with iOS 16.4 to 17.3.** On those versions the editor stopped before it could show a note; it now opens on every iPhone the app installs on.
 - **The agent's own Inteligir commands work on every Mac.** The agent drives the app by typing `inteligir` commands; on a Mac without Node.js installed those failed, and now they run on what the app carries.
 - **Messages you queued wait when your plan's usage limit is reached.** If Claude or ChatGPT stops an action because you've reached your plan's usage limit, or because you're signed out, the action now says so in plain words, and the messages you queued behind it stay queued instead of each failing the same way. Send again once the limit resets or you've signed in, and the oldest queued message goes first.

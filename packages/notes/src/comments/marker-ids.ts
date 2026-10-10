@@ -14,12 +14,8 @@ const walk = (node: Nodes, visitor: (node: Nodes) => void): void => {
   }
 };
 
-// null when the doc does not parse: answering "none" would let a cleanup pass delete every thread
-export const markerRootIds = (source: string): Set<string> | null => {
+export const markerRootIds = (source: string): Set<string> => {
   const parsed = parseMdast(source);
-  if (!parsed.ok) {
-    return null;
-  }
   const ids = new Set<string>();
   walk(parsed.root, (node) => {
     if (node.type !== "commentMarker") {

@@ -287,9 +287,9 @@ const autolinkLiteral = (node: { type: string }, url: string): MDPhrasingContent
 };
 
 // Plate's default lets mailto links reach mdast-util-to-markdown, whose formatLinkAsAutolink emits
-// `<a@b.cd>` — unparseable under MDX. A link a re-parse would read from its literal bytes emits
-// them; every other link stays `[text](url)` under MD_STRINGIFY's resourceLink, which alone would
-// also force bare https into resource form, and a note holding one would open Raw.
+// `<a@b.cd>`, the angle form MD_STRINGIFY's resourceLink bans. A link a re-parse would read from
+// its literal bytes emits them; every other link stays `[text](url)` under resourceLink, which
+// alone would also force bare https into resource form, and a note holding one would open Raw.
 // The literal is an opaque inline, not `html`: mdast-util-to-markdown turns the line break before
 // an html node into a space, since html opening a line could read as a flow block, and that joins
 // a url on its own line to the line above.
@@ -388,10 +388,11 @@ export const MD_RULES: MdRules = {
         if (payload === null) {
           return defaultCodeBlockDeserialize(node, deco, options);
         }
-        const parsed = parseMdast(payload.body);
-        const children: Descendant[] = parsed.ok
-          ? convertChildrenDeserialize(parsed.root.children, deco, options)
-          : [{ children: [{ text: payload.body }], type: "p" }];
+        const children: Descendant[] = convertChildrenDeserialize(
+          parseMdast(payload.body).root.children,
+          deco,
+          options,
+        );
         // a prefix prop is set only when the note wrote one; a false prop would replay a spelling it never had.
         const callout: TElement = {
           children: children.length > 0 ? children : [{ children: [{ text: "" }], type: "p" }],

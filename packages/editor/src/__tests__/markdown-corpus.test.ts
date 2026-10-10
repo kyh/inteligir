@@ -53,7 +53,8 @@ const EXPECTED = {
   "notes/archive/2025-recap.md": "canonical",
   "journal.md": "canonical",
   "kitchen-sink.md": "canonical",
-  "legacy-web-clip.md": "raw:parse-error",
+  // the angle autolink saves bare and `<50ms` as `\<50ms`; the stray `{` and the html stay
+  "legacy-web-clip.md": "formattable",
   "frontmatter-note.md": "canonical",
   "private-note.md": "canonical",
   "tagged.md": "canonical",

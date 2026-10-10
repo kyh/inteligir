@@ -282,9 +282,6 @@ describe("scanDoc — frontmatter aliases", () => {
 
 const editorWikiBodies = (source: string): string[] => {
   const parsed = parseMdast(source);
-  if (!parsed.ok) {
-    throw new Error(`the editor's grammar refused the fixture: ${parsed.failure.message}`);
-  }
   const bodies: string[] = [];
   const walk = (node: Nodes): void => {
     if (node.type === "wikiLink") {
@@ -300,8 +297,8 @@ const editorWikiBodies = (source: string): string[] => {
   return bodies;
 };
 
-// CommonMark's indented code and flow html would split the two grammars here, each hiding from
-// the index prose the editor draws, links and tags included
+// CommonMark's indented code and flow html would each hide prose the editor draws, links and tags
+// included, so the grammar both read turns both off
 describe("the scan reads as prose what the editor draws as prose", () => {
   it.each([
     ["a 4-space-indented line", "Notes\n\n    [[Alpha]] and #indented\n"],
@@ -354,7 +351,7 @@ describe("callout fence bodies (editor ⊆ vault)", () => {
 });
 
 describe("verbatim regions (indexed, never rewritten)", () => {
-  it("emits no span on the index path, which never reads the verbatim ranges", () => {
+  it("emits no span on the index path, which never verifies one", () => {
     const [link] = scanDoc("[[Alpha]] and [b](b.md)\n").links;
     expect(link).toBeDefined();
     expect(link).not.toHaveProperty("targetSpan");
@@ -362,15 +359,20 @@ describe("verbatim regions (indexed, never rewritten)", () => {
 
   const cases: [string, string][] = [
     ["raw html", "<div>[[Alpha]]</div>\n"],
-    ["inline math", "cost $$[[Alpha]]$$ here\n"],
-    ["display math", "$$\n[[Alpha]]\n$$\n"],
-    ["an mdx expression", "{foo [[Alpha]] bar}\n"],
+    ["a tag the editor cannot model", "<Steps>\n\n[[Alpha]]\n\n</Steps>\n"],
   ];
 
   it.each(cases)("indexes a wiki link inside %s with no span", (_name, source) => {
     const link = only(source);
     expect(link.target).toBe("Alpha");
     expect(sliceTarget(source)).toBeNull();
+  });
+
+  it.each([
+    ["inline math", "cost $$[[Alpha]]$$ here\n"],
+    ["display math", "$$\n[[Alpha]]\n$$\n"],
+  ])("reads no link inside %s, which the editor draws as latex", (_name, source) => {
+    expect(links(source)).toEqual([]);
   });
 
   it("suppresses an md link's span inside raw html too", () => {
@@ -385,8 +387,12 @@ describe("verbatim regions (indexed, never rewritten)", () => {
     expect(sliceTarget(src)).toBe("Alpha");
   });
 
-  it("keeps the span when the editor's grammar refuses the doc (it opens Raw)", () => {
-    const src = "<mal <tag [[Alpha]]\n";
+  it.each([
+    ["a malformed tag, which reads as text", "<mal <tag [[Alpha]]\n"],
+    ["a brace, which is prose", "{foo [[Alpha]] bar}\n"],
+    ["a closer with no opener", "text </Bar> [[Alpha]]\n"],
+    ["an opener never closed", "<Foo> [[Alpha]]\n"],
+  ])("keeps the span beside %s", (_name, src) => {
     only(src);
     expect(sliceTarget(src)).toBe("Alpha");
   });

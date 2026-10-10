@@ -2,9 +2,11 @@
 // are escaped to `\|` ahead of micromark; idempotent over canonical output. not applied to the
 // knowledge scan: its tree positions drive rename byte-surgery and this pass shifts columns.
 
+import type { Nodes } from "mdast";
+
+import { parseBare } from "./bare-parse";
 import { codeSpanRanges, inAnyRange, isEscapedAt } from "./line-scan";
 import type { Range } from "./line-scan";
-import { literalRanges } from "./verbatim-spans";
 
 const FORMULA_SPAN_RE = /\{\{[^{}\n]*\}\}/gu;
 
@@ -48,6 +50,42 @@ const escapePill = (raw: string): string => {
 
 const overlaps = (a: Range, b: Range): boolean => a.start < b.end && b.start < a.end;
 
+// bytes the grammar holds as a literal string, which this pass must leave as written. a jsx
+// element is not one: its children are markdown, where the escape is what keeps a pill in one
+// cell. each of its attributes is.
+const isLiteral = (node: Nodes): boolean =>
+  node.type === "code" ||
+  node.type === "inlineCode" ||
+  node.type === "math" ||
+  node.type === "inlineMath" ||
+  node.type === "yaml" ||
+  node.type === "html";
+
+const pushRange = (node: Pick<Nodes, "position">, out: Range[]): void => {
+  const start = node.position?.start.offset;
+  const end = node.position?.end.offset;
+  if (start !== undefined && end !== undefined) {
+    out.push({ end, start });
+  }
+};
+
+const collectLiteral = (node: Nodes, out: Range[]): void => {
+  if (isLiteral(node)) {
+    pushRange(node, out);
+    return;
+  }
+  if (node.type === "mdxJsxFlowElement" || node.type === "mdxJsxTextElement") {
+    for (const attribute of node.attributes) {
+      pushRange(attribute, out);
+    }
+  }
+  if ("children" in node) {
+    for (const child of node.children) {
+      collectLiteral(child, out);
+    }
+  }
+};
+
 // a line cannot tell a blockquoted fence, a nested one or a `$$` block from a table row, so the
 // grammar is asked where the literal bytes are, and only when there is an edit to veto.
 export const escapePillPipesInTables = (md: string): string => {
@@ -65,10 +103,8 @@ export const escapePillPipesInTables = (md: string): string => {
   if (pending.length === 0) {
     return md;
   }
-  const literal = literalRanges(md);
-  if (literal === null) {
-    return md;
-  }
+  const literal: Range[] = [];
+  collectLiteral(parseBare(md), literal);
   const edits = pending.filter((pill) => !literal.some((range) => overlaps(pill, range)));
   if (edits.length === 0) {
     return md;

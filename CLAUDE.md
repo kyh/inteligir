@@ -239,10 +239,10 @@ packages/
                  the literal text scan behind matches and unlinked mentions,
                  the resolver's problems report, tags and tag families,
                  the rename and tag-rename byte-surgery) over ONE markdown scan
-                 (scan-parse + wiki-links), frontmatter (the pin and id line
-                 cuts included), `templates/` (the three placeholders and the
-                 convention folders), the dialect's own modules
-                 (markdown/remark-*, comments/, formulas/),
+                 (the editor's own grammar, `markdown/bare-parse`), frontmatter
+                 (the pin and id line cuts included), `templates/` (the three
+                 placeholders and the convention folders), the dialect's own
+                 modules (markdown/remark-*, comments/, formulas/),
                  `text/` — ONE Myers diff under diff3 — and `sync/`, the one
                  verdict a path two writers changed gets and the conflict
                  copy's name and words. No node/react/ui
@@ -410,8 +410,7 @@ to the END of its group.
   because the rule table and the knowledge scan both read it. Plain nested
   `.md`: no bundles, no meta.json. FRONTMATTER IS THE ONLY PROPERTY STORE: no
   metadata table, a note's UUID is its `id:`, and YAML the typing rules cannot
-  represent is preserved byte-exactly. `{{` is reserved from MDX expressions by
-  a tokenizer guard on both braces.
+  represent is preserved byte-exactly.
 
 - **AN ICON BESIDE A LABEL IS A SIBLING OF THE LABEL, NEVER INSIDE IT.**
   `Button` trims its text with `text-box`, which only a block container
@@ -1033,17 +1032,23 @@ to the END of its group.
   `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts` walks the
   renderer for either shape.
 
-- **THE SCAN READS AS PROSE WHAT THE EDITOR DRAWS AS PROSE, BUT ITS GRAMMAR IS
-  NOT THE EDITOR'S, and `verbatim-spans` is the one bridge.** The scan disables
-  `codeIndented` and `htmlFlow` (`@repo/notes/markdown/scan-parse`) because the
-  editor's plugin list does, pinned in
-  `packages/notes/src/__tests__/link-extract.test.ts`. The scan is total, so a
-  malformed tag cannot cost a note its index row, where the editor's MDX
-  tokenizer throws; unifying the grammars is rejected for exactly that. A
-  rename's span is a licence to rewrite bytes, so a rename's scan runs the
-  editor's plugin list as a bare parse (`@repo/notes/markdown/verbatim-spans`)
-  and withholds spans inside those ranges (`@repo/notes/knowledge/link-extract`);
-  the index path emits no spans and never pays for that parse on every save.
+- **THE SCAN READS A NOTE IN THE EDITOR'S OWN GRAMMAR, AND THAT GRAMMAR IS
+  TOTAL.** The knowledge scan walks the editor's plugin list as a bare parse
+  (`@repo/notes/markdown/bare-parse`), so the index reads as prose exactly what
+  the editor draws as prose: no indented code, no flow html, and math is latex,
+  never a link. No input throws (`@repo/notes/markdown/remark-mdx-agnostic`): a
+  tag the tokenizer cannot finish declines to an autolink, html or text; a tag
+  that cannot pair (a closer with no opener, a mismatched closer, an opener
+  never closed) is kept as an `html` literal, its children left in place; and
+  `{` is prose, since the dialect has no expressions. So a stray `{` or `<br>`
+  costs a note neither its rich editing nor its index row. Rejected: a second,
+  plain-markdown grammar for the scan, kept total beside an editor grammar that
+  threw, which needed a bridge to say where the two disagreed. A rename's span
+  is a licence to rewrite bytes, so the scan withholds spans inside a construct
+  the editor carries as its source (`isOpaqueSource` in
+  `@repo/notes/markdown/remark-opaque`, walked by
+  `@repo/notes/knowledge/link-extract`); the index path emits no spans.
+  `packages/notes/src/markdown/__tests__/total-grammar.test.ts`.
 
 - **A TAG IS A SCOPE ON THE RECENT LIST, NOT A VIEW; ITS NOTES ARE A LISTING,
   NOT A SEARCH; AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** No tag browser
@@ -1084,8 +1089,8 @@ to the END of its group.
   runs the literal matcher over the target's names as whole words, longest
   first; one row per note, excluding notes already linking here. A hit inside
   code, math, a link, a url, frontmatter, an html tag or a comment marker is
-  withheld by the scan's own regexes as well as the editor's verbatim ranges,
-  because those come back empty for a doc the editor refuses. Not the H1:
+  withheld by the scan's own line regexes as well as the editor's verbatim
+  ranges (math, and what it carries as source). Not the H1:
   `[[H1 text]]` resolves to nothing. Link wraps exactly that site through a
   guarded write, targeting the route's `linkTarget`, because the bare stem may
   be another note's. `@repo/notes/knowledge/unlinked-mentions.ts`,

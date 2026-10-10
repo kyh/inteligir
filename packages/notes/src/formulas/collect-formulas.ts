@@ -16,12 +16,8 @@ export interface CollectedFormula {
   expression: ExpressionNode | null;
 }
 
-// [] for an unparseable doc: a false "none" here only yields stale marks, never data loss
 export const collectFormulas = (markdown: string): CollectedFormula[] => {
   const parsed = parseMdast(markdown);
-  if (!parsed.ok) {
-    return [];
-  }
   const collected: CollectedFormula[] = [];
   const walk = (node: Nodes): void => {
     if (node.type === "formulaPill") {

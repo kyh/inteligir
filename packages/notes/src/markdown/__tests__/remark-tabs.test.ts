@@ -11,11 +11,7 @@ const textOf = (node: RootContent): string => {
 };
 
 const panelsOf = (md: string): { label: string; text: string }[] => {
-  const parsed = parseMdast(md);
-  if (!parsed.ok) {
-    throw new Error(parsed.failure.message);
-  }
-  const [group] = parsed.root.children;
+  const [group] = parseMdast(md).root.children;
   if (group?.type !== "tabGroup") {
     throw new Error(`expected a tab group, got ${group?.type ?? "nothing"}`);
   }

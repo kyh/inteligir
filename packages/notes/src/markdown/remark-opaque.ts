@@ -93,9 +93,10 @@ const isComponent = (node: MdxJsxFlowElement | MdxJsxTextElement): boolean => {
 const render = (node: Nodes, options: ToMarkdownOptions): string =>
   toMarkdown(node, options).replace(/\n$/u, "");
 
-// the `Record` is the exhaustiveness check the removed `switch` used to be: a node type this
-// pipeline gains has no entry, so tsc rejects the table until someone decides its position.
-// `null` means the slate model has a node for it, so it is never held as source.
+// the `Record` is the exhaustiveness check: a node type this pipeline gains has no entry, so tsc
+// rejects the table until someone decides its position. `null` means it is never held as source:
+// the slate model has a node for it, or (mdx expressions and esm, which Plate's mdast types
+// declare) this grammar never produces it.
 const OPAQUE_POSITION: Record<Nodes["type"], "block" | "inline" | null> = {
   blockquote: null,
   break: null,
@@ -119,10 +120,10 @@ const OPAQUE_POSITION: Record<Nodes["type"], "block" | "inline" | null> = {
   list: null,
   listItem: null,
   math: null,
-  mdxFlowExpression: "block",
+  mdxFlowExpression: null,
   mdxJsxFlowElement: "block",
   mdxJsxTextElement: "inline",
-  mdxTextExpression: "inline",
+  mdxTextExpression: null,
   mdxjsEsm: null,
   opaqueBlock: null,
   opaqueInline: null,
@@ -141,8 +142,8 @@ const OPAQUE_POSITION: Record<Nodes["type"], "block" | "inline" | null> = {
   yaml: null,
 };
 
-// exported for the knowledge scan, whose plain-markdown grammar sees ordinary constructs inside
-// these regions; rename byte-surgery must not splice into bytes this pipeline returns unchanged.
+// exported for the knowledge scan, which reads this grammar's bare tree: a link inside one of these
+// is the editor's string, not its link, so rename byte-surgery must not splice into it.
 export const isOpaqueSource = (node: Nodes): boolean => {
   if (OPAQUE_POSITION[node.type] === null) {
     return false;
