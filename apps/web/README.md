@@ -106,6 +106,16 @@ what the head holds beside the envelope; the Worker never merges. Every `/v1` re
 an unhandled fault included, is the JSON error envelope; the git mount alone
 answers git clients in plain text.
 
+Every `/v1` request an install sends names its build in
+`x-inteligir-build: <semver>+<platform>` (`@repo/contract/cloud/client-build`),
+and before any route reads it `src/worker/client-floor.ts` refuses one that
+names none, or a version below `MIN_CLIENT_BUILD` (`cloudflare.config.ts`):
+426 `client-outdated`, in plain text on the git mount. The platform is
+telemetry and never compared. A request a browser marks `Sec-Fetch-Site:
+same-origin` passes, since the site's own pages ship in this deploy. The floor
+is how `/v1` retires a shape: raise it past every build that reads the shape,
+then delete the shape.
+
 The tree, file and asset reads take their query as a JSON body, so no vault
 path reaches a URL, which the Worker's request log and traces keep; each still
 answers the same query as a GET's search params, the form older installs send

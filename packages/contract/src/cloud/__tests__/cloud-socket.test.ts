@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { clientBuildHeaders } from "../client-build";
 import { createCloudSocketOpener } from "../sync/cloud-socket";
 import type { DialledSocket, OpenCloudSocketArgs } from "../sync/cloud-socket";
 import {
@@ -7,6 +8,7 @@ import {
   SYNC_WS_REVOKED_CLOSE_CODE,
 } from "../sync/sync-ws";
 import type { SocketListener, SyncPing } from "../sync/sync-ws";
+import { TEST_BUILD } from "../test-support/fake-cloud-client";
 
 const TEN_MINUTES_MS = 10 * 60_000;
 
@@ -77,6 +79,7 @@ const dial = (listener: SocketListener = TAKES_PHONE_REQUESTS) => {
   });
   const args: OpenCloudSocketArgs = {
     baseUrl: "https://cloud.test",
+    build: TEST_BUILD,
     credential: "igd_test",
     listener,
     onClose: (code) => {
@@ -107,14 +110,17 @@ const answerPings = (socket: StubSocket, forMs: number): void => {
 };
 
 describe("the cloud socket's dial", () => {
-  it("carries the bearer as a header and says what listens on the upgrade", () => {
+  it("carries the bearer and the build as headers and says what listens on the upgrade", () => {
     const { socket } = dial();
     const url = new URL(socket.url);
 
     expect(`${url.protocol}//${url.host}${url.pathname}`).toBe("wss://cloud.test/v1/sync/ws");
     expect(url.searchParams.get("platform")).toBe("desktop");
     expect(url.searchParams.get("phoneRequests")).toBe("on");
-    expect(socket.headers).toEqual({ authorization: "Bearer igd_test" });
+    expect(socket.headers).toEqual({
+      authorization: "Bearer igd_test",
+      ...clientBuildHeaders(TEST_BUILD),
+    });
   });
 
   it("says nothing of phone requests for a Mac that takes none, or for the phone", () => {

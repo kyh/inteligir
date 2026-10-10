@@ -11,6 +11,7 @@ import type { DeviceCredential } from "../device/device-schema";
 import { deviceSignUpRequestSchema } from "../account/account-schema";
 import { loginDevice, signUpDevice } from "../device/login-flow";
 import type { DeviceCredentialStore, LoginOutcome } from "../device/login-flow";
+import { TEST_BUILD } from "../test-support/fake-cloud-client";
 
 const CLOUD_URL = "https://cloud.test";
 const LOGGED_IN = { credential: `igd_${"c".repeat(64)}`, deviceId: "dev_x" };
@@ -59,7 +60,7 @@ const memoryStore = () => {
 
 const login = async (fetch: CloudFetch, store: DeviceCredentialStore): Promise<LoginOutcome> =>
   await loginDevice({
-    client: { baseUrl: CLOUD_URL, fetch },
+    client: { baseUrl: CLOUD_URL, build: TEST_BUILD, fetch },
     deviceName: " Test Laptop ",
     email: "owner@example.test",
     password: "correct horse battery",
@@ -158,7 +159,7 @@ const inviteRefused: CloudFetch = async () =>
 
 const signUp = async (fetch: CloudFetch, store: DeviceCredentialStore): Promise<LoginOutcome> =>
   await signUpDevice({
-    client: { baseUrl: CLOUD_URL, fetch },
+    client: { baseUrl: CLOUD_URL, build: TEST_BUILD, fetch },
     deviceName: " Test Laptop ",
     email: "owner@example.test",
     inviteCode: "INVITE-1",

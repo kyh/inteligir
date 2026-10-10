@@ -6,6 +6,7 @@ import type {
   OpenCloudSocketArgs,
 } from "@repo/contract/cloud/sync/cloud-socket";
 import type { PullResponse } from "@repo/contract/cloud/sync/sync-schema";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { clientOver, createFakeVault } from "../../notes/__tests__/fake-vault";
@@ -32,6 +33,11 @@ const mintedId = (n: number): string => n.toString(16).padStart(32, "0");
 
 const UNAUTHORIZED: CloudResult<PullResponse> = {
   failure: { code: "unauthorized", deviceSeq: null, kind: "refused", message: "unauthorized" },
+  ok: false,
+};
+
+const OUTDATED: CloudResult<PullResponse> = {
+  failure: { code: "client-outdated", deviceSeq: null, kind: "refused", message: "update" },
   ok: false,
 };
 
@@ -123,6 +129,7 @@ const runtimeOver = (
   let minted = 0;
   return composeRuntime({
     attachments: storage.attachments,
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     credentials,
     db: storage.db,
@@ -231,6 +238,24 @@ describe("the composed runtime", () => {
       expect(await heldRows(storage.db)).toBe(0);
       expect(storage.attachments.names()).toEqual([]);
     });
+    expect(credentials.calls).not.toContain("clear");
+  });
+
+  it("keeps the mirror and the credential when the cloud refuses this build", async () => {
+    const cloud = vaultCloud();
+    const credentials = keychain(CRED);
+    const storage = phoneStorage();
+    const rt = runtimeOver(cloud, credentials.store, storage);
+    await mirrorOnce(rt);
+    await until(rt.sync, (status) => status.state === "signed-in" && status.lastSyncedAt !== null);
+    const held = await heldRows(storage.db);
+
+    cloud.pullResults.push(OUTDATED);
+    await rt.sync.syncNow();
+
+    expect(rt.sync.get()).toStrictEqual({ deviceId: CRED.deviceId, state: "outdated" });
+    expect(await heldRows(storage.db)).toBe(held);
+    expect(held).toBeGreaterThan(0);
     expect(credentials.calls).not.toContain("clear");
   });
 

@@ -50,6 +50,15 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
       state: z.literal("unauthorized"),
     })
     .strict(),
+  // the cloud refused this build, not the credential: the fix is an update, which signs in as the
+  // same device. nothing runs here either
+  z
+    .object({
+      cloudUrl: z.url(),
+      deviceId: z.string().min(1),
+      state: z.literal("outdated"),
+    })
+    .strict(),
 ]);
 export type CloudStatusResponse = z.infer<typeof cloudStatusResponseSchema>;
 

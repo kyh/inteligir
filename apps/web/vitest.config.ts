@@ -37,6 +37,9 @@ export default defineConfig({
         },
         bindings: {
           BETTER_AUTH_SECRET: TEST_BETTER_AUTH_SECRET,
+          // not the deployed floor, so a test that passes reads the binding: every test client sends
+          // this version (buildHeaders in cloud-helpers.ts), and client-floor.test.ts goes under it
+          MIN_CLIENT_BUILD: "1.2.0",
           // every test shares one ip; vault-rate-limit.test.ts flips this per test.
           RATE_LIMIT_DISABLED: "true",
           TEST_SCHEMA,

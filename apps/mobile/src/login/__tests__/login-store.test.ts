@@ -1,5 +1,6 @@
 import type { CloudFetch } from "@repo/contract/cloud/client";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createLoginStore } from "../login-store";
@@ -58,7 +59,7 @@ const harness = (args: {
 }) => {
   const written: DeviceCredential[] = [];
   const store = createLoginStore({
-    client: { baseUrl: "https://cloud.test", fetch: args.fetch },
+    client: { baseUrl: "https://cloud.test", build: TEST_BUILD, fetch: args.fetch },
     store: {
       write:
         args.write ??

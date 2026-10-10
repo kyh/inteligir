@@ -223,14 +223,16 @@ packages/
                  one bundle and may break freely (a CLI installed apart refuses
                  another release's server as `SERVER_VERSION_MISMATCH`),
                  /cloud is a deployed Worker answering installs that may be
-                 months stale and may never break. A dep-dag table
-                 (`CLOUD_ONLY_CLIENTS`) pins apps/web and apps/mobile to /cloud
-                 alone, and a dep-dag row refuses a third bucket in src/, since
-                 the cloud-never-reaches-local guard populates itself from
-                 src/cloud. /cloud stays zod + REST paths (NOT oRPC, diverging
-                 from #611 phase 6 deliberately): oRPC addresses procedures by
-                 router position, so moving the deployed wire to it would break
-                 exactly the stale installs /cloud may never break.
+                 months stale, so it breaks only behind the client build floor
+                 (A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, below). A
+                 dep-dag table (`CLOUD_ONLY_CLIENTS`) pins apps/web and
+                 apps/mobile to /cloud alone, and a dep-dag row refuses a third
+                 bucket in src/, since the cloud-never-reaches-local guard
+                 populates itself from src/cloud. /cloud stays zod + REST paths
+                 (NOT oRPC, diverging from #611 phase 6 deliberately): oRPC
+                 addresses procedures by router position, so moving the
+                 deployed wire to it would break every install above the floor
+                 at once.
   db/            @repo/db — drizzle + better-sqlite3 (WAL, sync=NORMAL),
                  committed SQL migrations applied on boot, the DbNotifier
                  seam, prefixed-nanoid ids.
@@ -750,7 +752,9 @@ to the END of its group.
   there outran the shell's readiness wait. A pass concludes one `SyncOutcome`,
   and a path two devices changed is never one of them: a detached HEAD says
   `detached`, never `clean`; a refused push says `rejected` (a 413
-  `too-large`, a 507 `full`), never `offline` (`classifyNetworkFailure`); and
+  `too-large`, a 507 `full`, the hosted vault's 426 `outdated`, which runs no
+  network step again in that process), never `offline`
+  (`classifyNetworkFailure`); and
   a pass that fails with no verdict (a merge that fails outright, a save the
   engine could not record, an unclassified failure) says it stalled, which the
   rail shows as "Sync paused" and hands to Settings › Advanced, never `clean`
@@ -1679,21 +1683,39 @@ to the END of its group.
   `id` the wiki-targets rows carry, and on the phone through the id and aliases
   its mirror reads from each note's frontmatter.
 
-- **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, and the Worker is held to
-  exactly what it declares** (owner decision, reversing "final at birth").
-  Every response schema under `@repo/contract/cloud` strips an undeclared field, and
-  an unknown refusal code reads as `internal`, a fault to retry, never a
-  verdict on the credential. Strict readers made every additive change a new
-  route and turned a stale client's `unauthorized` into `malformed`, so a
-  revoked device kept retrying; for the same reason a 5xx, 408 or 429 with no
-  error envelope reads as `unreachable`. Requests stay `.strict()`, since only
-  the always-newest Worker parses them, and the Worker's tests parse every
-  answer through `emitted` (`apps/web/src/worker/__tests__/cloud-helpers.ts`),
-  because a stripping client would let a leaked column through. Two things
-  still close the wire: 0.4.0 and older parse strictly, and a field that
-  changes what a row MEANS reaches only a client whose request declares it.
+- **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, the Worker is held to
+  exactly what it declares, and the wire breaks only behind the client build
+  floor** (owner decision, reversing "final at birth" and "/cloud may never
+  break"). Every response schema under `@repo/contract/cloud` strips an
+  undeclared field, and an unknown refusal code reads as `internal`, a fault to
+  retry, never a verdict on the credential. Strict readers made every additive
+  change a new route and turned a stale client's `unauthorized` into
+  `malformed`, so a revoked device kept retrying; for the same reason a 5xx,
+  408 or 429 with no error envelope reads as `unreachable`. Requests stay
+  `.strict()`, since only the always-newest Worker parses them, and the
+  Worker's tests parse every answer through `emitted`
+  (`apps/web/src/worker/__tests__/cloud-helpers.ts`), because a stripping
+  client would let a leaked column through. The tolerant reader is forward
+  negotiation only, so every request an install makes names its build
+  (`x-inteligir-build: <semver>+<platform>`: the REST calls, the two that ask
+  for a credential, the socket's upgrade and the hosted vault's git
+  `extraHeader`), and the Worker refuses an absent or older one before it
+  routes, below `MIN_CLIENT_BUILD` (`apps/web/cloudflare.config.ts`): 426
+  `client-outdated` in the envelope, plain text on the git mount, which the
+  engine reads as `outdated`. Semver alone is compared; the platform is
+  telemetry. A page the Worker served needs no build, since it ships in the
+  same deploy and a browser marks its requests same-origin. The refusal is
+  terminal and leaves the credential live: the session ends `outdated`, the
+  CLI and the phone ask for an update and retry nothing, and the next build
+  resumes as the same device. A shape retires by raising the floor past every
+  build that reads it, never while one of them can still reach the wire.
+  Rejected: per-route versions, which keep every old shape a route ever
+  served. Still closed above the floor: a field that changes what a row MEANS
+  reaches only a client whose request declares it.
+  `packages/contract/src/cloud/client-build.ts`,
   `packages/contract/src/cloud/cloud-client.ts`,
-  `packages/contract/src/cloud/cloud-errors.ts`.
+  `packages/contract/src/cloud/cloud-errors.ts`,
+  `apps/web/src/worker/client-floor.ts`.
 
 - **Say the delivery guarantee you implement.** Captures are at-least-once
   delivery with exactly-once deletion by the owning claim, so the apply must be

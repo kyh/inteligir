@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/contract/cloud/vault/vault-git";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/contract/local/vault/vault-schema";
 import type {
   VaultStatusResponse,
@@ -1813,6 +1814,10 @@ describe("classifyNetworkFailure", () => {
       "full",
     ],
     [
+      "remote: this version of inteligir is older than the hosted vault accepts; update it\nfatal: unable to access 'https://cloud.test/v1/git/vault.git/': The requested URL returned error: 426",
+      "outdated",
+    ],
+    [
       " ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs",
       "rejected",
     ],
@@ -1982,6 +1987,47 @@ describe("a refused credential", () => {
     });
     const status = await engine.syncNow();
     expect(status.state).toBe("unauthorized");
+  });
+});
+
+describe("a build below the cloud's floor", () => {
+  it("surfaces as `outdated` on the hosted vault, and as `rejected` on a remote of the user's own", async () => {
+    let requests = 0;
+    const server = createServer((_request, response) => {
+      requests += 1;
+      response.writeHead(426, { "content-type": "text/plain" });
+      response.end("this version of inteligir is older than the hosted vault accepts; update it\n");
+    });
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    onTestFinished(async () => {
+      server.close();
+      await once(server, "close");
+    });
+    const { port } = boundAddressSchema.parse(server.address());
+    const url = `http://127.0.0.1:${String(port)}/vault.git`;
+
+    const root = scratchDir("inteligir-git-outdated-");
+    await ensureVaultRepo({ deviceName: TEST_DEVICE, env, root });
+    const hosted = createGitEngine({
+      deviceName: () => TEST_DEVICE,
+      env,
+      remote: () => ({ account: { id: "user-a", state: "known" }, source: "account", url }),
+      root,
+    });
+    onTestFinished(async () => {
+      await hosted.dispose();
+    });
+    const hostedStatus = await hosted.syncNow();
+    expect(hostedStatus.state).toBe("outdated");
+    const asked = requests;
+    const again = await hosted.syncNow();
+    expect(again.state).toBe("outdated");
+    expect(requests).toBe(asked);
+
+    const { engine: own } = await makeEngine({ remoteUrl: url });
+    const ownStatus = await own.syncNow();
+    expect(ownStatus.state).toBe("rejected");
   });
 });
 
@@ -2437,6 +2483,7 @@ const composedProvider = (signedIn: boolean) => {
     });
   }
   return createVaultRemoteProvider({
+    build: TEST_BUILD,
     cloudUrl: OWN_ORIGIN_CLOUD_URL,
     dataDir,
     externalSync: null,
@@ -2657,6 +2704,7 @@ describe("a remote the person chooses", { timeout: 30_000 }, () => {
         statusChanges.push("changed");
       },
       remote: createVaultRemoteProvider({
+        build: TEST_BUILD,
         cloudUrl: OWN_ORIGIN_CLOUD_URL,
         dataDir: scratchDir("inteligir-git-pinned-data-"),
         externalSync: null,

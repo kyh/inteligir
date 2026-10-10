@@ -12,6 +12,7 @@ import { deviceRateKey } from "../rate-limit";
 import { threadSyncStub } from "../sync/routes";
 import { vaultRepoName, vaultRegistry } from "../vault/git-remote";
 import {
+  buildHeaders,
   deviceHeaders,
   emitted,
   loginDevice,
@@ -152,7 +153,7 @@ describe("deleting the account from a device", () => {
     const callers = [
       { caller: "a browser session", headers: sessionHeaders(bearer) },
       { caller: "a revoked credential", headers: deviceHeaders(revoked.credential) },
-      { caller: "no credential", headers: {} },
+      { caller: "no credential", headers: buildHeaders() },
     ];
     for (const { caller, headers } of callers) {
       const refused = await postDelete(headers, PASSWORD);

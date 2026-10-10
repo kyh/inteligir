@@ -240,7 +240,13 @@ const isAuthRefusal = (cause: unknown): boolean => {
   );
 };
 
-export type NetworkFailure = "offline" | "unauthorized" | "rejected" | "too-large" | "full";
+export type NetworkFailure =
+  | "offline"
+  | "unauthorized"
+  | "outdated"
+  | "rejected"
+  | "too-large"
+  | "full";
 
 // curl's own failures, and an ssh or local transport that never reached a git on the far end.
 const TRANSPORT_FAILURE =
@@ -258,14 +264,17 @@ const BODY_TOO_LARGE = /returned error: 413/u;
 // retry forever.
 const STORAGE_FULL = /returned error: 507/u;
 
+// the cloud's client build floor: this build is older than the hosted vault answers.
+const CLIENT_OUTDATED = /returned error: 426/u;
+
 // the client's refusal, not the remote's: another device pushed after this pass fetched.
 const LOST_PUSH_RACE = /\[rejected\][^\n]*\((?:fetch first|non-fast-forward)\)/u;
 
-// offline heals on its own, unauthorized waits on a sign-in, and rejected is a remote that
-// answered and refused (a hook, a protected branch), which no retry changes; too-large is a
-// refusal of the history itself, which no retry changes until that history does, and full a
-// refusal of any push at all. a lost race is no failure of the remote at all: the next pass
-// rebases onto the tip that won.
+// offline heals on its own, unauthorized waits on a sign-in, outdated on an update, and rejected
+// is a remote that answered and refused (a hook, a protected branch), which no retry changes;
+// too-large is a refusal of the history itself, which no retry changes until that history does,
+// and full a refusal of any push at all. a lost race is no failure of the remote at all: the next
+// pass rebases onto the tip that won.
 export const classifyNetworkFailure = (cause: unknown): NetworkFailure | "lost-race" => {
   if (isAuthRefusal(cause)) {
     return "unauthorized";
@@ -278,6 +287,9 @@ export const classifyNetworkFailure = (cause: unknown): NetworkFailure | "lost-r
   }
   if (STORAGE_FULL.test(cause.stderr)) {
     return "full";
+  }
+  if (CLIENT_OUTDATED.test(cause.stderr)) {
+    return "outdated";
   }
   if (TRANSPORT_FAILURE.test(cause.stderr) && !HTTP_REFUSAL.test(cause.stderr)) {
     return "offline";

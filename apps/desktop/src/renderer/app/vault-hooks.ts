@@ -59,6 +59,9 @@ export const useDataDirScope = (): DataDirScope | undefined => useSystemStatus()
 const SYNC_PAUSED = "Sync paused";
 const DETAILS_IN_ADVANCED = "Details in Settings › Advanced.";
 const STUCK = `Sync can't continue on its own. ${DETAILS_IN_ADVANCED}`;
+// the vault's and the account's, which the cloud refuses together
+export const UPDATE_TO_SYNC =
+  "This version of Inteligir can't sync anymore. Update it in Settings › About.";
 
 export const syncStateLabel = (status: VaultStatusResponse): string => {
   switch (status.state) {
@@ -84,6 +87,9 @@ export const syncStateLabel = (status: VaultStatusResponse): string => {
     }
     case "unauthorized": {
       return status.remoteSource === "account" ? "Signed out of sync" : SYNC_PAUSED;
+    }
+    case "outdated": {
+      return "Update Inteligir to sync";
     }
     case "too-large": {
       return status.remoteSource === "account" ? "Too large to sync" : SYNC_PAUSED;
@@ -130,6 +136,7 @@ export const syncStateDotClass = (status: VaultStatusResponse): string => {
       return "bg-muted-foreground/60";
     }
     case "unauthorized":
+    case "outdated":
     case "rejected":
     case "too-large":
     case "full":
@@ -162,6 +169,7 @@ export const canSyncNow = (status: VaultStatusResponse | undefined): boolean => 
     case "dirty":
     case "offline":
     case "unauthorized":
+    case "outdated":
     case "rejected":
     case "too-large":
     case "full":
@@ -216,6 +224,9 @@ export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null
             : `Your sync server refused this Mac. ${DETAILS_IN_ADVANCED}`,
         tone: "error",
       };
+    }
+    case "outdated": {
+      return { message: UPDATE_TO_SYNC, tone: "error" };
     }
     case "too-large": {
       return {

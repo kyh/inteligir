@@ -21,8 +21,10 @@ The Worker is not one of them: `.github/workflows/deploy.yml` deploys it after
 every green CI on main and moves the `deployed/web` tag to what it deployed.
 **The order is the rule**: the D1 schema, then the Worker, then any build that
 calls a route the Worker just gained. An app ahead of its Worker fails every
-such call; a Worker ahead of its apps costs nothing, because `/v1` never
-breaks a stale install.
+such call; a Worker ahead of its apps costs nothing, because `/v1` breaks a
+build only once `MIN_CLIENT_BUILD` (`apps/web/cloudflare.config.ts`) is raised
+past it, which retires a wire shape on purpose and is never part of a release
+by default.
 
 The owner publishes once, when every step and every check below has passed.
 
@@ -107,7 +109,8 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    git fetch origin --tags --force
    gh run list --workflow Deploy --limit 3                  # the run after step 2's CI succeeded
    pnpm turbo ls --filter="@repo/web...[deployed/web]"      # names no package
-   curl -s -X POST https://inteligir.com/v1/vault/commit    # an "unauthorized" error, never "not-found"
+   curl -s -X POST -H 'x-inteligir-build: <version>+desktop' \
+     https://inteligir.com/v1/vault/commit                  # an "unauthorized" error, never "not-found"
    ```
 
    A package named means the Worker at this commit is not deployed yet: wait

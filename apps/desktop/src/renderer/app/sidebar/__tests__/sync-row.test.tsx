@@ -7,6 +7,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { orpc } from "../../api";
+import { UPDATE_TO_SYNC } from "../../vault-hooks";
 import { createWorkspaceQueryClient } from "../../workspace-context";
 import { SyncRow } from "../sidebar";
 import { stubRpc } from "../../__tests__/rpc-stub";
@@ -131,10 +132,20 @@ const REMOTE_FIELDS = {
   remoteSource: "explicit",
 } satisfies Omit<Extract<VaultStatusResponse, { state: "offline" }>, "state">;
 
-const openRow = async (vault: VaultStatusResponse, onOpenSyncDetails = () => {}) => {
+const OUTDATED: CloudStatusResponse = {
+  cloudUrl: "https://cloud.test",
+  deviceId: "dev_1",
+  state: "outdated",
+};
+
+const openRow = async (
+  vault: VaultStatusResponse,
+  onOpenSyncDetails = () => {},
+  cloud: CloudStatusResponse = SIGNED_IN,
+) => {
   stubRpc({ "threads/list": () => ({ nextCursor: null, threads: [] }) });
   const queryClient = createWorkspaceQueryClient();
-  queryClient.setQueryData(orpc.cloud.status.queryKey(), SIGNED_IN);
+  queryClient.setQueryData(orpc.cloud.status.queryKey(), cloud);
   queryClient.setQueryData(orpc.vault.status.queryKey(), vault);
   render(
     <QueryClientProvider client={queryClient}>
@@ -160,6 +171,22 @@ describe("the rail's sync row", () => {
     expect(screen.getByText("Sign out")).toBeDefined();
     expect(screen.queryByText("Sync threads now")).toBeNull();
     expect(screen.queryByText("Sync details…")).toBeNull();
+  });
+
+  it("asks for an update, not a sign-in, once the cloud refuses this version", async () => {
+    await openRow({ state: "clean", ...REMOTE_FIELDS, lastError: null }, () => {}, OUTDATED);
+
+    expect(screen.getByText(UPDATE_TO_SYNC)).toBeDefined();
+    expect(screen.queryByText("Sign in…")).toBeNull();
+    cleanup();
+    await openRow(
+      { state: "outdated", ...REMOTE_FIELDS, remoteSource: "account" },
+      () => {},
+      OUTDATED,
+    );
+
+    expect(screen.getAllByText(UPDATE_TO_SYNC)).toHaveLength(1);
+    expect(screen.getByText("Update Inteligir to sync")).toBeDefined();
   });
 
   it("opens the details in Settings when sync cannot continue on its own", async () => {

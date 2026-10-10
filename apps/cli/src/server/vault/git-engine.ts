@@ -174,6 +174,13 @@ const refusedPushMessage = (
     : "The git remote refused the push as too large.";
 };
 
+// the build floor is the cloud's: a 426 from a remote of the user's own is that server refusing
+const failureFrom = (
+  remote: VaultRemoteSpec,
+  failure: NetworkFailure | "lost-race",
+): NetworkFailure | "lost-race" =>
+  failure === "outdated" && remote.source !== "account" ? "rejected" : failure;
+
 // what the latest pass to reach a verdict concluded; a pass that ends before one (a pending
 // account, a hold taken during its fetch, a dispose) leaves the last one standing. "none" leaves
 // the report to the tree. "broken" is final: no pass runs after it. "account-mismatch" runs no
@@ -852,6 +859,11 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
         // engine when it lands.
         return null;
       }
+      // the cloud refused this build, and only another build, which is another process, gets past
+      // its floor: a retry here would be refused the same way every interval
+      if (lastOutcome.kind === "unreachable" && lastOutcome.failure === "outdated") {
+        return null;
+      }
       const marker = await readAccountMarker();
       if (marker !== null && marker !== remote.account.id) {
         lastOutcome = { kind: "account-mismatch" };
@@ -992,7 +1004,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       await runNetwork(["fetch", "origin", branch], remote.env);
     } catch (error) {
       if (!isMissingRemoteRef(error)) {
-        recordNetworkFailure(classifyNetworkFailure(error));
+        recordNetworkFailure(failureFrom(remote, classifyNetworkFailure(error)));
         throw error;
       }
       // a fresh remote: the push below creates the branch.
@@ -1021,7 +1033,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     try {
       await runNetwork(["push", "origin", branch], remote.env);
     } catch (error) {
-      const failure = classifyNetworkFailure(error);
+      const failure = failureFrom(remote, classifyNetworkFailure(error));
       recordNetworkFailure(failure);
       if (failure !== "too-large" && failure !== "full") {
         throw error;

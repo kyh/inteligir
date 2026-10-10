@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createCloudClient } from "@repo/contract/cloud/client";
 import type { CloudFetch } from "@repo/contract/cloud/client";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { onTestFinished } from "vitest";
 import { openNodeSqlDriver } from "../../lib/node-sql-driver";
 import type { SqlDriver } from "../../lib/sql-driver";
@@ -108,10 +109,12 @@ export const launchPhone = (
   ports: ReturnType<typeof phonePorts> = phonePorts(),
 ): NotesStore => {
   const sync = createSyncRuntime({
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     createClient: (credential) =>
       createCloudClient({
         baseUrl: "https://cloud.test",
+        build: TEST_BUILD,
         credential: credential.credential,
         fetch,
       }),

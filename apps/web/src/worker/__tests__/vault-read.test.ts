@@ -14,10 +14,11 @@ import { describe, expect, it } from "vitest";
 import { vaultRepoName } from "../vault/git-remote";
 import { treeListingPrefix, treeListingSlot } from "../vault/tree-listing";
 import {
+  buildHeaders,
   deviceHeaders,
   emitted,
-  ORIGIN,
   loginDevice,
+  ORIGIN,
   postVaultRead,
   refusalCodeOf,
   signUpUser,
@@ -89,7 +90,7 @@ const MANY_FOLDERS = [
 
 describe("vault read rows", () => {
   it("refuses the wire without a credential", async () => {
-    const tree = await postVaultRead(VAULT_API_PATHS.tree, {}, {});
+    const tree = await postVaultRead(VAULT_API_PATHS.tree, buildHeaders(), {});
     expect(tree.status).toBe(401);
     expect(await refusalCodeOf(tree)).toBe("unauthorized");
   });
@@ -406,7 +407,7 @@ describe("the vault batch route", () => {
   });
 
   it("refuses the wire without a credential", async () => {
-    const response = await postFiles({}, { paths: ["a.md"], ref: "c".repeat(40) });
+    const response = await postFiles(buildHeaders(), { paths: ["a.md"], ref: "c".repeat(40) });
     expect(response.status).toBe(401);
     expect(await refusalCodeOf(response)).toBe("unauthorized");
   });
@@ -442,11 +443,10 @@ describe("the vault asset route", () => {
   });
 
   it("refuses the wire without a credential", async () => {
-    const response = await postVaultRead(
-      VAULT_API_PATHS.asset,
-      {},
-      { path: "a.png", ref: "c".repeat(40) },
-    );
+    const response = await postVaultRead(VAULT_API_PATHS.asset, buildHeaders(), {
+      path: "a.png",
+      ref: "c".repeat(40),
+    });
     expect(response.status).toBe(401);
     expect(await refusalCodeOf(response)).toBe("unauthorized");
   });
@@ -545,7 +545,7 @@ describe("the GET form a stale install still sends", () => {
   });
 
   it("refuses what the body form refuses: no credential, no vault, a query it cannot read", async () => {
-    const anonymous = await SELF.fetch(`${TREE}?limit=1`);
+    const anonymous = await SELF.fetch(`${TREE}?limit=1`, { headers: buildHeaders() });
     expect(anonymous.status).toBe(401);
     expect(await refusalCodeOf(anonymous)).toBe("unauthorized");
 

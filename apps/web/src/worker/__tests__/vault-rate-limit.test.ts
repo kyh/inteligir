@@ -10,10 +10,11 @@ import { createDb } from "../db/client";
 import { rateLimit } from "../db/schema";
 import { deviceRateKey } from "../rate-limit";
 import {
+  buildHeaders,
   deviceHeaders,
   emitted,
-  ORIGIN,
   loginDevice,
+  ORIGIN,
   postSignOut,
   sessionHeaders,
   signUpUser,
@@ -102,7 +103,7 @@ describe("the hosted vault's per-device budgets", () => {
 
   it("spends nothing for a credential that never verified", async () => {
     const unauthorized = await SELF.fetch(TREE, {
-      headers: { authorization: "Bearer igd_not-a-real-credential" },
+      headers: { ...buildHeaders(), authorization: "Bearer igd_not-a-real-credential" },
     });
     expect(unauthorized.status).toBe(401);
   });

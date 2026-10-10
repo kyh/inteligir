@@ -65,6 +65,7 @@ import {
 } from "../device/device-schema";
 import { createCloudClient, readCloudCall } from "../cloud-client";
 import type { CloudFailure, CloudFetch } from "../cloud-client";
+import { TEST_BUILD } from "../test-support/fake-cloud-client";
 import {
   EVENT_MAX_BYTES,
   pullQuerySchema,
@@ -130,6 +131,7 @@ describe("error envelope", () => {
 const failureFor = async (response: Response): Promise<CloudFailure | null> => {
   const result = await createCloudClient({
     baseUrl: "https://cloud.test",
+    build: TEST_BUILD,
     credential: `igd_${"a".repeat(64)}`,
     fetch: async () => response,
   }).account();
@@ -429,6 +431,7 @@ describe("a worker newer than this build", () => {
   it("hands the caller a grown answer stripped to the declared shape", async () => {
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: `igd_${"a".repeat(64)}`,
       fetch: async () => Response.json({ email: "owner@example.test", id: "user_1", plan: "pro" }),
     }).account();
@@ -508,6 +511,7 @@ describe("device login", () => {
     const credential = `igd_${"a".repeat(64)}`;
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential,
       fetch: async (input, init) => {
         seen.push({
@@ -530,6 +534,7 @@ describe("device login", () => {
     const password = " the password, spaces kept ";
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential,
       fetch: async (input, init) => {
         seen.push({
@@ -808,6 +813,7 @@ describe("the dispatch inbox", () => {
     const seen: { body: unknown; method: string; path: string }[] = [];
     const client = createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: `igd_${"a".repeat(64)}`,
       fetch: async (input, init) => {
         seen.push({
@@ -934,6 +940,7 @@ describe("vault read rows", () => {
     const sent: { body: unknown; method: string; url: URL }[] = [];
     const client = createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: `igd_${"a".repeat(64)}`,
       fetch: async (input, init) => {
         sent.push({
@@ -1015,6 +1022,7 @@ describe("vault read rows", () => {
     const seen: { authorization: string | null; body: unknown; method: string; url: URL }[] = [];
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential,
       fetch: async (input, init) => {
         seen.push({
@@ -1044,8 +1052,8 @@ describe("vault read rows", () => {
     expect(assetMediaType("no-extension")).toBeNull();
   });
 
-  it("pins the asset allowlist WHOLE — growth is additive, removal never happens", () => {
-    // hand-listed on purpose: removing an entry 400s every stale phone whose notes embed it
+  it("pins the asset allowlist WHOLE — growth is additive, removal waits on the build floor", () => {
+    // hand-listed on purpose: removing an entry 400s every phone above the floor whose notes embed it
     expect(Object.fromEntries(VAULT_ASSET_MEDIA_TYPES)).toEqual({
       ".apng": "image/apng",
       ".avif": "image/avif",
@@ -1069,6 +1077,7 @@ describe("an attachment's bytes", () => {
   const assetOver = async (fetch: CloudFetch) =>
     await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: CREDENTIAL,
       fetch,
     }).vaultAsset(QUERY);
@@ -1239,6 +1248,7 @@ describe("a vault change set", () => {
     const request: VaultCommitRequest = { authoredAt: 1, changes: [put("notes/α β&c.md")] };
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: CREDENTIAL,
       fetch: async (input, init) => {
         seen.push({

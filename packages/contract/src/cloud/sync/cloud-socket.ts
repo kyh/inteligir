@@ -1,8 +1,10 @@
 // the frame parse and the keepalive are one spelling for both clients. the dial is the one platform
-// part: node's WebSocket takes the bearer as `{ headers }` and React Native's as a third argument,
-// and neither is the DOM's, which takes no headers at all.
+// part: node's WebSocket takes the bearer and the build as `{ headers }` and React Native's as a
+// third argument, and neither is the DOM's, which takes no headers at all.
 
 import { z } from "zod";
+import { clientBuildHeaders } from "../client-build";
+import type { ClientBuild } from "../client-build";
 import {
   SYNC_WS_KEEPALIVE_PING,
   SYNC_WS_PATH,
@@ -20,6 +22,7 @@ export interface CloudSocket {
 
 export interface OpenCloudSocketArgs {
   baseUrl: string;
+  build: ClientBuild;
   credential: string;
   listener: SocketListener;
   onOpen: () => void;
@@ -64,7 +67,10 @@ export const createCloudSocketOpener =
       url.searchParams.set(SYNC_WS_PHONE_REQUESTS_PARAM, SYNC_WS_PHONE_REQUESTS_ON);
     }
 
-    const socket = dial(url.toString(), { authorization: `Bearer ${args.credential}` });
+    const socket = dial(url.toString(), {
+      ...clientBuildHeaders(args.build),
+      authorization: `Bearer ${args.credential}`,
+    });
     let keepalive: ReturnType<typeof setInterval> | null = null;
     let finished = false;
     let lastFrameAt = 0;

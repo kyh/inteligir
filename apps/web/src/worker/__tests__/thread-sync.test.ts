@@ -14,11 +14,12 @@ import { threadSyncStub } from "../sync/routes";
 import { SOCKET_IDENTITY_HEADERS } from "../sync/thread-sync-do";
 import {
   awaitFrames,
+  buildHeaders,
   deviceHeaders,
   emitted,
+  loginDevice,
   openSocket,
   ORIGIN,
-  loginDevice,
   postSignOut,
   sessionHeaders,
   signUpUser,
@@ -313,7 +314,7 @@ describe("thread sync log", () => {
 
   it("refuses the socket without a device credential", async () => {
     const response = await SELF.fetch(`${ORIGIN}/v1/sync/ws`, {
-      headers: { upgrade: "websocket" },
+      headers: { ...buildHeaders(), upgrade: "websocket" },
     });
     expect(response.status).toBe(401);
   });

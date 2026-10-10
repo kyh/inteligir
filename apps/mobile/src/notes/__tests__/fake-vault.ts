@@ -28,6 +28,7 @@ import {
   vaultTreeQuerySchema,
 } from "@repo/contract/cloud/vault/vault-schema";
 import type { VaultFilesResponse } from "@repo/contract/cloud/vault/vault-schema";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { z } from "zod";
 
 export const blobOid = (content: string): string => {
@@ -380,7 +381,12 @@ export const createFakeVault = (
 };
 
 export const clientOver = (fetch: CloudFetch): CloudClient =>
-  createCloudClient({ baseUrl: "https://cloud.test", credential: `igd_${"a".repeat(64)}`, fetch });
+  createCloudClient({
+    baseUrl: "https://cloud.test",
+    build: TEST_BUILD,
+    credential: `igd_${"a".repeat(64)}`,
+    fetch,
+  });
 
 // the network between the phone and the vault: off, or on and losing the answer to every set
 // the vault applied, once

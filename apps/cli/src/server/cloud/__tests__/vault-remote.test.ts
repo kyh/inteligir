@@ -1,3 +1,5 @@
+import { CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
+import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import { describe, expect, it } from "vitest";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { makeTempDir } from "../../__tests__/temp-dir";
@@ -22,8 +24,11 @@ const signedInDataDir = (): string => {
   return dataDir;
 };
 
+const BUILD: ClientBuild = { platform: "desktop", version: "0.7.0" };
+
 const provider = (args: Partial<CreateVaultRemoteProviderArgs> & { dataDir: string }) =>
   createVaultRemoteProvider({
+    build: BUILD,
     cloudUrl: CLOUD_URL,
     externalSync: null,
     pinnedRemote: null,
@@ -44,9 +49,11 @@ describe("createVaultRemoteProvider", () => {
     expect(remote.url).toBe(HOSTED_URL);
     expect(remote.source).toBe("account");
     expect(remote.env).toEqual({
-      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_COUNT: "2",
       GIT_CONFIG_KEY_0: `http.${remote.url}.extraHeader`,
+      GIT_CONFIG_KEY_1: `http.${remote.url}.extraHeader`,
       GIT_CONFIG_VALUE_0: `Authorization: Bearer ${CREDENTIAL}`,
+      GIT_CONFIG_VALUE_1: `${CLIENT_BUILD_HEADER}: 0.7.0+desktop`,
     });
   });
 

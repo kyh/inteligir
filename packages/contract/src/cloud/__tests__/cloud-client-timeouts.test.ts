@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createCloudClient } from "../cloud-client";
 import type { CloudClient, CloudFetch } from "../cloud-client";
+import { TEST_BUILD } from "../test-support/fake-cloud-client";
 
 // what the call's deadline does to a body still arriving: the stream errors with the signal's reason
 const abortedMidBody = (status: number): Response =>
@@ -16,7 +17,12 @@ const abortedMidBody = (status: number): Response =>
 
 const clientAnswering = (answer: () => Response): CloudClient => {
   const fetch: CloudFetch = async () => await Promise.resolve(answer());
-  return createCloudClient({ baseUrl: "https://cloud.test", credential: "igd_test", fetch });
+  return createCloudClient({
+    baseUrl: "https://cloud.test",
+    build: TEST_BUILD,
+    credential: "igd_test",
+    fetch,
+  });
 };
 
 describe("a body cut off mid-transfer", () => {

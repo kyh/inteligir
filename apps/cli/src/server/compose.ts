@@ -126,6 +126,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   const vaultRemote =
     ports.vault?.remote ??
     createVaultRemoteProvider({
+      build: { platform: "desktop", version: args.version },
       cloudUrl: config.cloudUrl,
       dataDir: config.dataDir,
       externalSync,

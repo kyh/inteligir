@@ -27,6 +27,8 @@ import type {
   CaptureResponse,
   ClaimCapturesResponse,
 } from "./captures/captures-schema";
+import { clientBuildHeaders } from "./client-build";
+import type { ClientBuild } from "./client-build";
 import { cloudErrorSchema } from "./cloud-errors";
 import type { CloudError, CloudErrorCode } from "./cloud-errors";
 import {
@@ -298,6 +300,9 @@ type JsonBody =
 
 export interface CloudEndpoint {
   baseUrl: string;
+  // rides every request, the two that ask for a credential included: the Worker refuses a build
+  // below its floor before it reads anything else
+  build: ClientBuild;
   fetch?: CloudFetch;
   // composed with the per-request timeout, not replacing it: a shutdown must not wait out
   // a hung request, and a hung request must not wait for a shutdown
@@ -326,7 +331,7 @@ const postForCredential = async (
     async () =>
       await call(endpointUrl(endpoint.baseUrl, path), {
         body: JSON.stringify(request),
-        headers: { "content-type": "application/json" },
+        headers: { ...clientBuildHeaders(endpoint.build), "content-type": "application/json" },
         method: "POST",
         signal: callSignal(endpoint.signal),
       }),
@@ -390,15 +395,15 @@ export interface CreateCloudClientArgs extends CloudEndpoint {
 
 export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
   const call = args.fetch ?? fetch;
-  const authorization = `Bearer ${args.credential}`;
+  const headers = { ...clientBuildHeaders(args.build), authorization: `Bearer ${args.credential}` };
 
   const requestInit = (json: JsonBody, timeoutMs?: number): RequestInit => {
     const signal = callSignal(args.signal, timeoutMs);
     return json === undefined
-      ? { headers: { authorization }, method: "GET", signal }
+      ? { headers, method: "GET", signal }
       : {
           body: JSON.stringify(json),
-          headers: { authorization, "content-type": "application/json" },
+          headers: { ...headers, "content-type": "application/json" },
           method: "POST",
           signal,
         };

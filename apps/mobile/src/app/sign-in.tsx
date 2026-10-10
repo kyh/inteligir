@@ -31,6 +31,23 @@ const styles = StyleSheet.create({
   title: { fontSize: 30, fontWeight: "700" },
 });
 
+// the sign-in stands and what the phone holds is kept: the update picks up where it left off
+const UpdateNeeded = () => {
+  const theme = useTheme();
+  return (
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]}>
+      <Stack.Screen options={{ title: "inteligir" }} />
+      <View style={styles.body}>
+        <Text style={[styles.title, { color: theme.foreground }]}>Update Inteligir</Text>
+        <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>
+          This version can&apos;t sync with your account anymore. Update the app to pick up where
+          you left off.
+        </Text>
+      </View>
+    </SafeAreaView>
+  );
+};
+
 const SignInScreen = () => {
   const theme = useTheme();
   const status = useSyncStatus();
@@ -48,6 +65,9 @@ const SignInScreen = () => {
     styles.input,
     { backgroundColor: theme.card, borderColor: theme.input, color: theme.foreground },
   ];
+  if (status.state === "outdated") {
+    return <UpdateNeeded />;
+  }
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]}>

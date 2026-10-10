@@ -1,4 +1,5 @@
 import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
+import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
 import {
   DEVICE_API_PATHS,
   deviceLoginResponseSchema,
@@ -17,6 +18,13 @@ import { inviteCode } from "../db/schema";
 export const ORIGIN = "https://inteligir-web.workers.dev";
 export const PASSWORD = "test-password-1234";
 
+// what every install's request carries: a build at the floor, which the Worker admits
+export const buildHeaders = (): Record<string, string> =>
+  clientBuildHeaders({ platform: "desktop", version: env.MIN_CLIENT_BUILD });
+
+// a browser on one of this Worker's own pages, which ships in the same deploy and names no build
+export const OWN_PAGE_HEADERS = { origin: ORIGIN, "sec-fetch-site": "same-origin" } as const;
+
 let inviteCounter = 0;
 
 export const signUpUser = async (email: string): Promise<{ bearer: string; password: string }> => {
@@ -24,7 +32,7 @@ export const signUpUser = async (email: string): Promise<{ bearer: string; passw
   await createDb(env.DB).insert(inviteCode).values({ code });
   const response = await SELF.fetch(`${ORIGIN}${AUTH_PAGE_PATHS.signUp}`, {
     body: JSON.stringify({ email, inviteCode: code, name: "Cloud Tester", password: PASSWORD }),
-    headers: { "content-type": "application/json", origin: ORIGIN },
+    headers: { ...OWN_PAGE_HEADERS, "content-type": "application/json" },
     method: "POST",
   });
   expect(response.status).toBe(200);
@@ -49,8 +57,8 @@ export const refusalCodeOf = async (response: Response): Promise<string> =>
   emitted(cloudErrorSchema, await response.text()).error.code;
 
 export const sessionHeaders = (bearer: string) => ({
+  ...OWN_PAGE_HEADERS,
   authorization: `Bearer ${bearer}`,
-  origin: ORIGIN,
 });
 
 // binary frames carry no ping, so anything but text is skipped
@@ -80,7 +88,7 @@ export const userIdOf = async (bearer: string): Promise<string> => {
 export const postLogin = async (body: DeviceLoginRequest): Promise<Response> =>
   await SELF.fetch(`${ORIGIN}/v1/device/login`, {
     body: JSON.stringify(body),
-    headers: { "content-type": "application/json" },
+    headers: { ...buildHeaders(), "content-type": "application/json" },
     method: "POST",
   });
 
@@ -95,7 +103,10 @@ export const loginDevice = async (
   return emitted(deviceLoginResponseSchema, await response.text());
 };
 
-export const deviceHeaders = (credential: string) => ({ authorization: `Bearer ${credential}` });
+export const deviceHeaders = (credential: string) => ({
+  ...buildHeaders(),
+  authorization: `Bearer ${credential}`,
+});
 
 // loose on purpose: a refusal test posts what the contract refuses
 export type VaultReadBody = Readonly<

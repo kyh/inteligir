@@ -11,13 +11,14 @@ Two entries rather than one router because their compatibility obligations are
 OPPOSITE. `/local`'s two ends ship in one bundle, so it may break freely on any
 commit; a CLI installed apart from the app is refused by the release the
 server's `server.json` names, not kept compatible. `/cloud` is a deployed
-Worker answering installs that may be months stale, so it may never break: the
-Worker may grow an answer, and a client ignores what it does not know (the
-first invariant below). That is also
+Worker answering installs that may be months stale, so it breaks only behind
+the client build floor: the Worker may grow an answer, a client ignores what it
+does not know (the first invariant below), and a shape retires once the floor
+is past every build that reads it. That is also
 why `/cloud` is zod + REST paths and NOT oRPC, diverging from the decision
 record (#611 phase 6) deliberately: oRPC addresses a procedure by its position
-in the router, so moving the deployed wire onto it would break exactly the
-installs `/cloud` exists to keep.
+in the router, so moving the deployed wire onto it would break every install
+above the floor at once.
 
 The package is platform-neutral by construction (`lib: ["ES2023",
 "WebWorker"]`, `types: []`): it loads in the desktop page, on node, on workerd
@@ -48,7 +49,10 @@ src/
     build-thread-timeline.ts  # the pure fold from stored events into rows —
                        # deterministic, ids included, because the server diffs
                        # two projections into one delta
-  cloud/               the never-break wire, plus the client runtime core
+  cloud/               the wire that breaks behind a floor, plus the client
+                       # runtime core
+    client-build.ts    # the build header every request carries, and the floor
+                       # compare the Worker refuses an older build by
     cloud-errors.ts    # CLOUD_ERROR_CODES, the ONE code→status map, and which
                        # codes end a session vs. condemn an outbox position
     cloud-client.ts    # fetch over the paths: a refusal is a VALUE (CloudResult),
@@ -112,11 +116,16 @@ src/
   Requests stay `.strict()`: only the always-newest Worker parses them. The
   Worker's tests hold every answer to exactly the declared shape (`emitted` in
   `apps/web/src/worker/__tests__/cloud-helpers.ts`), since a stripping client
-  would let a leaked column through. Two things stay closed: 0.4.0 and older
-  parse every response strictly, so a field they must read rides a new route;
-  and a field that changes what a row MEANS (a new capture kind) reaches only
-  a client whose request declares it, because stripped, the row reads as the
-  old kind.
+  would let a leaked column through. A field that changes what a row MEANS (a
+  new capture kind) still reaches only a client whose request declares it,
+  because stripped, the row reads as the old kind.
+- **Every request names its build, and the Worker refuses one below its
+  floor.** `x-inteligir-build` rides the REST calls, the two that ask for a
+  credential, the socket's upgrade and the hosted vault's git `extraHeader`
+  (`client-build.ts`; `__tests__/client-build.test.ts` walks every
+  `CloudClient` method). `client-outdated` ends a session as `outdated`, not
+  `unauthorized`: the credential stands, and only an update moves past it
+  (`sync/sync-session.ts`).
 - **`src/` holds exactly two buckets.** The cloud-never-reaches-local guard
   populates itself from `src/cloud`, so a file outside both halves is one no
   guard reads; `dep-dag.test.ts` refuses a third. The sanctioned crossing is

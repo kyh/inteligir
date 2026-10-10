@@ -8,7 +8,7 @@ import {
   writeDeviceCredential,
 } from "inteligir/server/cloud/credential-store";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, revokeDevice, signUp } from "../harness/cloud-account";
+import { loginDevice, PHONE_BUILD, revokeDevice, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { gitIn } from "../harness/exec";
 import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
@@ -70,7 +70,11 @@ export const hostedVaultSync: Scenario = {
 
     ctx.log("a phone lists A's note under git's own blob id, and reads it in one batch");
     const phone = await loginDevice(worker.origin, PHONE_NAME);
-    const phoneClient = createCloudClient({ baseUrl: worker.origin, credential: phone.credential });
+    const phoneClient = createCloudClient({
+      baseUrl: worker.origin,
+      build: PHONE_BUILD,
+      credential: phone.credential,
+    });
     const tree = await phoneClient.vaultTree({});
     expect(tree.ok, `the phone's tree read: ${tree.ok ? "" : describeCloudFailure(tree.failure)}`);
     const listed = tree.value.entries.find((entry) => entry.path === SHARED_PATH);

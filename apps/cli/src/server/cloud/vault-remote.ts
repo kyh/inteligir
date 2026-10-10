@@ -1,5 +1,7 @@
 import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
 import { endpointUrl } from "@repo/contract/cloud/client";
+import { CLIENT_BUILD_HEADER, clientBuildValue } from "@repo/contract/cloud/client-build";
+import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { readDeviceCredential } from "./credential-store";
 
@@ -46,6 +48,8 @@ export interface CreateVaultRemoteProviderArgs {
   // INTELIGIR_VAULT_REMOTE, over whatever the vault's own origin says.
   pinnedRemote: string | null;
   cloudUrl: string;
+  // named to the hosted vault alone, as every request to the cloud names it
+  build: ClientBuild;
   dataDir: string;
   // judged once at boot: a folder another service syncs never takes the hosted vault.
   externalSync: ExternalSync | null;
@@ -76,10 +80,13 @@ export const createVaultRemoteProvider = (
         credential.userId === undefined
           ? { state: "pending" }
           : { id: credential.userId, state: "known" },
+      // one extraHeader row per header: git sends every value the key holds
       env: {
-        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_COUNT: "2",
         GIT_CONFIG_KEY_0: `http.${url}.extraHeader`,
+        GIT_CONFIG_KEY_1: `http.${url}.extraHeader`,
         GIT_CONFIG_VALUE_0: `Authorization: Bearer ${credential.credential}`,
+        GIT_CONFIG_VALUE_1: `${CLIENT_BUILD_HEADER}: ${clientBuildValue(args.build)}`,
       },
       source: "account",
       url,

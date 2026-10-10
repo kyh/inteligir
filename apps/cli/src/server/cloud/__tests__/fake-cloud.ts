@@ -66,6 +66,13 @@ import type {
 } from "@repo/contract/cloud/sync/sync-schema";
 import { createCloudClient, postDeviceLogin } from "@repo/contract/cloud/client";
 import type { CloudClient, CloudFetch } from "@repo/contract/cloud/client";
+import {
+  CLIENT_BUILD_HEADER,
+  meetsBuildFloor,
+  parseClientBuildHeader,
+  parseReleaseVersion,
+} from "@repo/contract/cloud/client-build";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
@@ -170,10 +177,12 @@ export class FakeCloud {
   deleteWindowShut = false;
   /** event types served as a newer build writes them: renamed, so this build's grammar refuses them. */
   readonly unreadableTypes = new Set<string>();
+  /** the oldest build it answers, as the worker's floor does; null answers every build. */
+  buildFloor: string | null = null;
 
   /** another device joining the account on its own, speaking the wire as the app does. */
   async signInDevice(deviceName: string): Promise<{ client: CloudClient; deviceId: string }> {
-    const endpoint = { baseUrl: FAKE_CLOUD_URL, fetch: this.fetch };
+    const endpoint = { baseUrl: FAKE_CLOUD_URL, build: TEST_BUILD, fetch: this.fetch };
     const login = await postDeviceLogin(endpoint, { ...FAKE_ACCOUNT, deviceName });
     if (!login.ok) {
       throw new Error(`${deviceName} could not sign in: ${JSON.stringify(login.failure)}`);
@@ -236,10 +245,22 @@ export class FakeCloud {
   readonly fetch: CloudFetch = async (input, init) =>
     await Promise.resolve(this.route(input, init));
 
+  private belowFloor(init?: RequestInit): boolean {
+    if (this.buildFloor === null) {
+      return false;
+    }
+    const floor = parseReleaseVersion(this.buildFloor);
+    const build = parseClientBuildHeader(new Headers(init?.headers).get(CLIENT_BUILD_HEADER));
+    return floor === null || build === null || !meetsBuildFloor(build, floor);
+  }
+
   private route(input: string, init?: RequestInit): Response {
     const url = new URL(input);
     const route = `${init?.method ?? "GET"} ${url.pathname}`;
     this.requests.push(route);
+    if (this.belowFloor(init)) {
+      return refuse("client-outdated", "This version of Inteligir can't sync anymore.");
+    }
     const text = z.string().safeParse(init?.body);
     const body: RequestBody = text.success ? parseJson(text.data) : null;
 

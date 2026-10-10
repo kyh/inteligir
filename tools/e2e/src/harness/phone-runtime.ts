@@ -13,7 +13,7 @@ import { openNodeSqlDriver } from "@repo/mobile/lib/node-sql-driver";
 import type { AttachmentFiles } from "@repo/mobile/notes/attachment-files";
 import type { OutboxFiles } from "@repo/mobile/notes/outbox-files";
 import { expect, expectEq } from "./assert";
-import { loginDevice } from "./cloud-account";
+import { loginDevice, PHONE_BUILD } from "./cloud-account";
 import { pollUntil } from "./poll";
 
 export const PHONE_NAME = "E2E Phone";
@@ -72,6 +72,7 @@ export const phoneRuntime = async (
   // two maps, as the app keeps two folders, so neither store finds or clears the other's files.
   return composeRuntime({
     attachments: memoryFiles(),
+    build: PHONE_BUILD,
     cloudUrl: origin,
     credentials: heldCredential(credential),
     db: openNodeSqlDriver(path.join(dir, "inteligir.db")),
@@ -84,7 +85,12 @@ export const phoneRuntime = async (
     sha1: (bytes) => Promise.resolve(createHash("sha1").update(bytes).digest()),
     sync: {
       createClient: (signedIn) =>
-        createCloudClient({ baseUrl: origin, credential: signedIn.credential, fetch }),
+        createCloudClient({
+          baseUrl: origin,
+          build: PHONE_BUILD,
+          credential: signedIn.credential,
+          fetch,
+        }),
       pollIntervalMs: null,
     },
   });

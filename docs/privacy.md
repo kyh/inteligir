@@ -177,6 +177,11 @@ as:
     signed in, a device's reads and writes of the hosted vault, and its attempts
     to delete the account, are counted the same way under the device's id, never
     an address.
+  - **The app's version, on every request to our cloud.** The Mac app and the
+    phone app say which version they are, and which of the two, on each request
+    they send our cloud, so it can stop answering a version too old to sync with
+    it rather than answer it wrongly. Our cloud reads it to decide whether to
+    answer, and keeps no record of it.
   - **The update check — to GitHub.** The packaged desktop app asks GitHub's
     release feed whether a newer version exists 15 seconds after launch and
     every 4 minutes after that. GitHub sees your IP address, nothing about your

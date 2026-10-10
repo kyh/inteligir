@@ -16,9 +16,11 @@ import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  buildHeaders,
   deviceHeaders,
   emitted,
   ORIGIN,
+  OWN_PAGE_HEADERS,
   PASSWORD,
   refusalCodeOf,
   signUpUser,
@@ -46,7 +48,7 @@ const postSignUp = async (
 ): Promise<Response> =>
   await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.signUp}`, {
     body: JSON.stringify(body),
-    headers: { ...headers, "content-type": "application/json" },
+    headers: { ...buildHeaders(), ...headers, "content-type": "application/json" },
     method: "POST",
   });
 
@@ -57,7 +59,7 @@ const postSiteSignUp = async (
 ): Promise<Response> =>
   await SELF.fetch(`${ORIGIN}${AUTH_PAGE_PATHS.signUp}`, {
     body: JSON.stringify({ email, inviteCode: code, name: "Site Signup", password: PASSWORD }),
-    headers: { ...headers, "content-type": "application/json", origin: ORIGIN },
+    headers: { ...OWN_PAGE_HEADERS, ...headers, "content-type": "application/json" },
     method: "POST",
   });
 

@@ -1,3 +1,4 @@
+import type { ClientBuild } from "../client-build";
 import type { CloudClient, CloudResult } from "../cloud-client";
 
 export const ok = <T>(value: T): CloudResult<T> => ({ ok: true, value });
@@ -33,3 +34,6 @@ export const fakeCloudClient = (answers: Partial<CloudClient> = {}): CloudClient
   vaultTree: unreachable,
   ...answers,
 });
+
+// what a test client says it is; only the Worker reads it, and a test of the floor names its own
+export const TEST_BUILD: ClientBuild = { platform: "desktop", version: "0.0.0" };
