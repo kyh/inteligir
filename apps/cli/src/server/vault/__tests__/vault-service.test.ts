@@ -259,7 +259,7 @@ describe("atomic writes and crash artifacts", () => {
     expect(written.content).toBe("the real write");
 
     // cutoff in the future: fs mtime granularity is coarse on ci tmpfs.
-    await sweepStaleTmpFiles(root, Date.now() + 60_000);
+    await sweepStaleTmpFiles(root, Date.now() + 60_000, await ignoreFromDisk(root)());
     const names = await readdir(root);
     expect(names.filter((name) => name.startsWith(VAULT_TMP_PREFIX))).toEqual([]);
   });
@@ -270,11 +270,35 @@ describe("atomic writes and crash artifacts", () => {
     const before = Date.now() - 60_000;
     await writeFile(path.join(root, `${VAULT_TMP_PREFIX}inflight`), "half a note");
 
-    await sweepStaleTmpFiles(root, before);
+    await sweepStaleTmpFiles(root, before, await ignoreFromDisk(root)());
     const remaining = await readdir(root);
     expect(remaining.filter((name) => name.startsWith(VAULT_TMP_PREFIX))).toEqual([
       `${VAULT_TMP_PREFIX}inflight`,
     ]);
+  });
+
+  it("never enters a folder the vault ignores, so a staging file under one stays", async () => {
+    const { root } = bootService();
+    await writeFile(path.join(root, ".gitignore"), "node_modules/\n");
+    const ignored = path.resolve(root, "node_modules");
+    await mkdir(path.join(ignored, "pkg"), { recursive: true });
+    await writeFile(path.join(ignored, "pkg", `${VAULT_TMP_PREFIX}stale`), "half a package");
+    await writeFile(path.join(root, `${VAULT_TMP_PREFIX}stale`), "half a note");
+    const ignore = await ignoreFromDisk(root)();
+    const readdirSpy = vi.spyOn(fsPromises, "readdir");
+    syncBuiltinESMExports();
+    onTestFinished(() => {
+      readdirSpy.mockRestore();
+      syncBuiltinESMExports();
+    });
+
+    await sweepStaleTmpFiles(root, Date.now() + 60_000, ignore);
+
+    const walked = readdirSpy.mock.calls.map(([dir]) => String(dir));
+    expect(walked).toContain(path.resolve(root));
+    expect(walked.filter((dir) => dir.startsWith(ignored))).toEqual([]);
+    expect(await readdir(root)).not.toContain(`${VAULT_TMP_PREFIX}stale`);
+    expect(await readdir(path.join(ignored, "pkg"))).toEqual([`${VAULT_TMP_PREFIX}stale`]);
   });
 
   it("an overwrite lands the staged content exactly, shorter than the original included", async () => {
@@ -296,6 +320,7 @@ describe("physical containment (symlinks)", () => {
     await symlink(path.join(outside, "id_ed25519"), path.join(root, "notes.md"));
 
     await expect(service.read("notes.md")).rejects.toThrow(VaultPathError);
+    await expect(service.readBytes("notes.md")).rejects.toThrow(VaultPathError);
     await expect(service.write("notes.md", "overwrite")).rejects.toThrow(VaultPathError);
     await expect(service.remove("notes.md")).rejects.toThrow(VaultPathError);
     await expect(service.rename("notes.md", "elsewhere.md")).rejects.toThrow(VaultPathError);
@@ -312,10 +337,25 @@ describe("physical containment (symlinks)", () => {
     await expect(service.write("evil/deep/x.md", "escape")).rejects.toThrow(VaultPathError);
     await expect(service.createDir("evil/newdir")).rejects.toThrow(VaultPathError);
     await expect(service.read("evil/readable.txt")).rejects.toThrow(VaultPathError);
+    await expect(service.statAsset("evil/readable.txt")).rejects.toThrow(VaultPathError);
     await expect(service.rename("evil/readable.txt", "stolen.md")).rejects.toThrow(VaultPathError);
 
     expect(await readdir(outside)).toEqual(["readable.txt"]);
     expect(await readFile(path.join(outside, "readable.txt"), "utf-8")).toBe("outside content");
+  });
+
+  it("answers a symlinked folder and every path through it as no entry, its names unread", async () => {
+    const { root, service } = bootService();
+    const outside = makeTempDir("inteligir-outside-");
+    await mkdir(path.join(outside, "sub"));
+    await writeFile(path.join(outside, "secret.md"), "s");
+    await writeFile(path.join(outside, "sub", "deeper.md"), "s");
+    await symlink(outside, path.join(root, "link"), "dir");
+
+    for (const through of ["link", "link/sub", "link/secret.md", "link/sub/deeper.md"]) {
+      expect(await service.statEntry(through)).toBeNull();
+      expect(await service.listFilesUnder(through)).toEqual([]);
+    }
   });
 
   it("keeps symlinks out of the listing entirely", async () => {

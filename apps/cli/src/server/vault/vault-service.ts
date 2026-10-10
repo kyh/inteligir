@@ -21,7 +21,6 @@ import type { VaultIgnore } from "@repo/notes/knowledge/vault-ignore";
 import { freeAssetPath } from "@repo/notes/knowledge/asset-name";
 import {
   dirnamePath,
-  isIgnoredEntryName,
   joinPath,
   VaultPathError,
   VAULT_TMP_PREFIX,
@@ -381,10 +380,31 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
     ]);
   };
 
-  const resolveAsset = async (requestedPath: string) => {
+  // every surface that takes a path starts here, the stat and the listing included, so none of
+  // them answers through a symlinked folder the rest refuse. throws VaultPathError.
+  const contained = async (requestedPath: string) => {
     const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
     await assertAncestryInsideVault(absPath);
     const stats = await lstatRefusingSymlink(absPath, relPath);
+    return { absPath, relPath, stats };
+  };
+
+  // the stat and the listing answer a refused path, or one whose folder went mid-check, as an
+  // absent one: either way no vault entry stands there.
+  const containedEntry = async (requestedPath: string) => {
+    try {
+      const { absPath, relPath, stats } = await contained(requestedPath);
+      return stats === null ? null : { absPath, relPath, stats };
+    } catch (error) {
+      if (error instanceof VaultPathError || isGone(error)) {
+        return null;
+      }
+      throw error;
+    }
+  };
+
+  const resolveAsset = async (requestedPath: string) => {
+    const { relPath, absPath, stats } = await contained(requestedPath);
     if (stats === null || stats.isDirectory()) {
       throw notFound(relPath);
     }
@@ -401,9 +421,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
   return {
     async createDir(requestedPath) {
       return await lock(async () => {
-        const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-        await assertAncestryInsideVault(absPath);
-        const existing = await lstatRefusingSymlink(absPath, relPath);
+        const { relPath, absPath, stats: existing } = await contained(requestedPath);
         if (existing !== null && !existing.isDirectory()) {
           throw new VaultServiceError("conflict", `A file already exists at ${relPath}`);
         }
@@ -416,13 +434,11 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
     },
 
     async listFilesUnder(requestedPath) {
-      let relPath: string;
-      let absPath: string;
-      try {
-        ({ relPath, absPath } = resolveVaultPath(rootReal, requestedPath));
-      } catch {
+      const folder = await containedEntry(requestedPath);
+      if (folder === null || !folder.stats.isDirectory()) {
         return [];
       }
+      const { relPath, absPath } = folder;
       const ignore = await args.ignore();
       if (ignore.ignores(relPath, "dir")) {
         return [];
@@ -436,7 +452,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
           onUnreadable: onUnreadableFolder,
         });
       } catch {
-        // Gone or not a directory: nothing under it to index.
+        // Gone or swapped for a file since the stat: nothing under it to index.
       }
       return entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
     },
@@ -451,9 +467,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
     },
 
     async read(requestedPath, lane = "foreground") {
-      const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-      await assertAncestryInsideVault(absPath);
-      const stats = await lstatRefusingSymlink(absPath, relPath);
+      const { relPath, absPath, stats } = await contained(requestedPath);
       if (stats === null || stats.isDirectory()) {
         throw notFound(relPath);
       }
@@ -485,9 +499,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 
     async remove(requestedPath) {
       await lock(async () => {
-        const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-        await assertAncestryInsideVault(absPath);
-        const stats = await lstatRefusingSymlink(absPath, relPath);
+        const { relPath, absPath, stats } = await contained(requestedPath);
         if (stats === null) {
           throw notFound(relPath);
         }
@@ -499,9 +511,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 
     async removeIfUnchanged(requestedPath, expected) {
       return await lock(async (): Promise<ConditionalWriteResult> => {
-        const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-        await assertAncestryInsideVault(absPath);
-        const stats = await lstatRefusingSymlink(absPath, relPath);
+        const { relPath, absPath, stats } = await contained(requestedPath);
         if (stats === null || stats.isDirectory()) {
           return { applied: false, reason: "not_found" };
         }
@@ -521,15 +531,13 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 
     async rename(from, to) {
       return await lock(async () => {
-        const source = resolveVaultPath(rootReal, from);
-        const target = resolveVaultPath(rootReal, to);
-        await assertAncestryInsideVault(source.absPath);
-        await assertAncestryInsideVault(target.absPath);
-        const sourceStats = await lstatRefusingSymlink(source.absPath, source.relPath);
+        const source = await contained(from);
+        const target = await contained(to);
+        const { stats: sourceStats } = source;
         if (sourceStats === null) {
           throw notFound(source.relPath);
         }
-        const targetStats = await lstatRefusingSymlink(target.absPath, target.relPath);
+        const { stats: targetStats } = target;
         // a case-only rename on a case-insensitive filesystem finds itself at the target; the
         // inode check keeps that legal.
         const sameEntry =
@@ -569,17 +577,11 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
     },
 
     async statEntry(requestedPath) {
-      let relPath: string;
-      let absPath: string;
-      try {
-        ({ relPath, absPath } = resolveVaultPath(rootReal, requestedPath));
-      } catch {
+      const entry = await containedEntry(requestedPath);
+      if (entry === null) {
         return null;
       }
-      const stats = await lstat(absPath).catch(() => null);
-      if (stats === null || stats.isSymbolicLink()) {
-        return null;
-      }
+      const { relPath, stats } = entry;
       // the listing leaves out what the vault ignores; a stat must agree.
       const ignore = await args.ignore();
       if (stats.isDirectory()) {
@@ -590,9 +592,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 
     async write(requestedPath, content) {
       return await lock(async () => {
-        const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-        await assertAncestryInsideVault(absPath);
-        const existing = await lstatRefusingSymlink(absPath, relPath);
+        const { relPath, absPath, stats: existing } = await contained(requestedPath);
         if (existing?.isDirectory() === true) {
           throw new VaultServiceError("conflict", `A folder already exists at ${relPath}`);
         }
@@ -605,7 +605,8 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
       return await lock(async () => {
         const taken: string[] = [];
         const first = resolveVaultPath(rootReal, freeAssetPath(dir, baseName, taken));
-        // every candidate shares this folder, so its ancestry is checked once, before the read.
+        // not `contained` per candidate: every candidate shares this folder, so its ancestry is
+        // checked once, before the read, and each name only for a symlink.
         await assertAncestryInsideVault(first.absPath);
         // one read of the folder, not a stat per name: a folder holding a thousand pastes of one
         // name would otherwise probe a thousand paths under the lock.
@@ -630,9 +631,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 
     async writeGuarded(requestedPath, content, guard) {
       return await lock(async (): Promise<GuardedWriteResult> => {
-        const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-        await assertAncestryInsideVault(absPath);
-        const existing = await lstatRefusingSymlink(absPath, relPath);
+        const { relPath, absPath, stats: existing } = await contained(requestedPath);
         if (existing?.isDirectory() === true) {
           throw new VaultServiceError("conflict", `A folder already exists at ${relPath}`);
         }
@@ -663,9 +662,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 
     async writeIfUnchanged(requestedPath, expected, content) {
       return await lock(async (): Promise<ConditionalWriteResult> => {
-        const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-        await assertAncestryInsideVault(absPath);
-        const existing = await lstatRefusingSymlink(absPath, relPath);
+        const { relPath, absPath, stats: existing } = await contained(requestedPath);
         if (existing === null || existing.isDirectory()) {
           return { applied: false, reason: "not_found" };
         }
@@ -684,10 +681,16 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 };
 
 // housekeeping nothing waits on: git add never stages one (info/exclude) and the listing and
-// watcher filter the name. a candidate younger than olderThan is somebody's in-flight write.
-export const sweepStaleTmpFiles = async (root: string, olderThan: number): Promise<void> => {
+// watcher filter the name. a candidate younger than olderThan is somebody's in-flight write. a
+// folder the vault ignores is never entered, so a gitignored node_modules costs the walk nothing,
+// and a staging file left under one stays as invisible as it was.
+export const sweepStaleTmpFiles = async (
+  root: string,
+  olderThan: number,
+  ignore: VaultIgnore,
+): Promise<void> => {
   const resolvedRoot = path.resolve(root);
-  const sweep = async (absDir: string): Promise<void> => {
+  const sweep = async (absDir: string, relDir: string): Promise<void> => {
     let dirents;
     try {
       dirents = await readdir(absDir, { withFileTypes: true });
@@ -696,6 +699,7 @@ export const sweepStaleTmpFiles = async (root: string, olderThan: number): Promi
     }
     for (const dirent of dirents) {
       const absPath = path.join(absDir, dirent.name);
+      const relPath = relDir === "" ? dirent.name : `${relDir}/${dirent.name}`;
       if (dirent.name.startsWith(VAULT_TMP_PREFIX) && dirent.isFile()) {
         const stats = await lstat(absPath).catch(() => null);
         if (stats !== null && stats.mtimeMs < olderThan) {
@@ -705,10 +709,11 @@ export const sweepStaleTmpFiles = async (root: string, olderThan: number): Promi
         }
         continue;
       }
-      if (dirent.isDirectory() && !isIgnoredEntryName(dirent.name)) {
-        await sweep(absPath);
+      // the rules carry the floor too, so `.git` is never entered either.
+      if (dirent.isDirectory() && !ignore.ignores(relPath, "dir")) {
+        await sweep(absPath, relPath);
       }
     }
   };
-  await sweep(resolvedRoot);
+  await sweep(resolvedRoot, "");
 };

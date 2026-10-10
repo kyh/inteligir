@@ -1,6 +1,7 @@
 import path from "node:path";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { createVaultIgnore, isGitignorePath } from "@repo/notes/knowledge/vault-ignore";
+import type { VaultIgnore } from "@repo/notes/knowledge/vault-ignore";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { NO_ORIGIN } from "../cloud/vault-remote";
 import type { VaultRemoteProvider } from "../cloud/vault-remote";
@@ -59,16 +60,22 @@ export interface VaultRuntime {
   dispose: () => Promise<void>;
 }
 
-// a full recursive walk nothing waits on: boot must not hold the listener behind it.
-const sweepStaleTmpFilesInBackground = async (root: string): Promise<void> => {
+// a recursive walk nothing waits on: boot must not hold the listener behind it. it waits for the
+// ignore rules, so the cutoff is the boot's, not the walk's start, which a save may already beat.
+const sweepStaleTmpFilesInBackground = async (
+  root: string,
+  bootedAt: number,
+  ignore: () => Promise<VaultIgnore>,
+): Promise<void> => {
   try {
-    await sweepStaleTmpFiles(root, Date.now());
+    await sweepStaleTmpFiles(root, bootedAt, await ignore());
   } catch (error) {
     console.error(`vault: stale staging sweep failed: ${String(error)}`);
   }
 };
 
 export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultRuntime> => {
+  const bootedAt = Date.now();
   const root = path.resolve(args.vaultDir);
   // config refuses this earlier; re-asserted so a directly composed runtime cannot skip it.
   assertVaultAndDataDirDisjoint(root, path.resolve(args.dataDir));
@@ -83,7 +90,6 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
       await seedVault(vaultRoot);
     },
   });
-  void sweepStaleTmpFilesInBackground(root);
 
   const ignoreCase = await readIgnoreCase(async (gitArgs) => await args.git.run(root, gitArgs));
   // loaded off the listen's path: a listing awaits the load, so the first one waits, not the boot.
@@ -91,6 +97,10 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     async () => await loadVaultIgnore(root, { ignoreCase }),
     createVaultIgnore([], { ignoreCase }),
   );
+  // beside the load, never inside it: the load runs again on every reload, and a sweep cut off
+  // then could take a live write's staging file.
+  void sweepStaleTmpFilesInBackground(root, bootedAt, ignore.current);
+
   // a change naming a .gitignore, or naming nothing, may move what the vault ignores. the rules
   // reload at once, so every listing from here waits on them, and the index is told to re-diff:
   // what they hid or revealed is exactly what no path in the change names.

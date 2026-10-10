@@ -715,8 +715,10 @@ to the END of its group.
 
 - **CONTAINMENT IS PHYSICAL, NOT LEXICAL, IN THE SERVER AND IN THE SHELL.**
   The vault realpaths the deepest existing ancestor and refuses symlinked
-  leaves; a lexical check passes a `notes.md` that is a symlink to a private
-  key, and a `git pull` from a hostile remote can plant one
+  leaves, in the one `contained` step every surface that takes a path runs,
+  the stat and the listing included, which answer a refused path as absent; a
+  lexical check passes a `notes.md` that is a symlink to a private key, and a
+  `git pull` from a hostile remote can plant one
   (`apps/cli/src/server/vault/vault-service.ts` over `path-containment.ts`).
   The vault dir and the data dir must be disjoint, refused at boot: a data dir
   inside the vault gets committed and pushed. The OS sees a vault entry through
@@ -931,9 +933,10 @@ to the END of its group.
   read failing for any reason but absence is a fault, never "the file is
   gone". `apps/cli/src/server/vault/vault-service.ts`.
 
-- **THE VAULT LISTS WHAT GIT WOULD KEEP.** The listing, the stat and the
-  watcher honour every `.gitignore` in the vault, so a docs repo's
-  `node_modules/` and build output take no tree row, no index row and no wake.
+- **THE VAULT LISTS WHAT GIT WOULD KEEP.** The listing, the stat, the
+  watcher and the boot's staging sweep honour every `.gitignore` in the vault,
+  so a docs repo's `node_modules/` and build output take no tree row, no index
+  row, no wake and no walk.
   One matcher per file, scoped to its own folder and asked deepest-first
   (`@repo/notes/knowledge/vault-ignore`), because one rooted at the vault
   re-scopes a nested `*` to `**/*` and hides the whole tree; `.git` and the
