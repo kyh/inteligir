@@ -60,7 +60,7 @@ its own `tsconfig.json`.
 | `/app/sign-up`                          | —                 | Sign-up form; submits to the invite gate                            |
 | `/app/forgot-password`                  | —                 | Requests the reset link                                             |
 | `/app/devices`                          | session           | The device table: list and revoke                                   |
-| `/api/auth/*`                           | —                 | Better Auth (email+password, bearer)                                |
+| `/api/auth/*`                           | —                 | Better Auth (email+password, session cookie)                        |
 | `/auth/reset`                           | —                 | The ONE reset page — Worker-served, static, `no-store`              |
 | `/v1/auth/sign-up`                      | —                 | The invite gate in front of Better Auth's sign-up                   |
 | `POST /v1/device/login`                 | —                 | Email + password in, the durable device credential out              |
@@ -116,9 +116,13 @@ answers the same query as a GET's search params, the form older installs send
 - `src/worker/auth/auth.ts::createAuth(env, baseURL)` builds a **per-request**
   Better Auth instance (D1 is a runtime binding, not a module singleton;
   `baseURL` is the request origin, so localhost/preview/prod all work with no
-  config). Plugin: **bearer** — clients may authenticate with
-  `Authorization: Bearer <token>`; the token comes back in the `set-auth-token`
-  header on sign-in/up.
+  config). No plugins: a browser holds Better Auth's session cookie and
+  nothing else, and the apps hold the `igd_…` device credential, which never
+  reaches Better Auth. `disabledPaths` shuts Better Auth's own
+  `/delete-user` routes, so `POST /v1/account/delete` is the one way to delete
+  an account; `auth.api.deleteUser` behind it is unaffected. Better Auth reads
+  `BETTER_AUTH_TRUSTED_ORIGINS` itself, should an origin other than the
+  request's ever need trusting.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
   (`src/worker/auth/invite.ts`). `POST /v1/auth/sign-up` parses its body with
   `signUpRequestSchema` (`@repo/contract/cloud/account/account-schema`, which the
@@ -126,8 +130,8 @@ answers the same query as a GET's search params, the form older installs send
   password outside `PASSWORD_MIN_LENGTH`–`PASSWORD_MAX_LENGTH` before touching
   the code. It then claims the code in one atomic
   `UPDATE … WHERE redeemed_at IS NULL` and forwards into the one instance built
-  with sign-up enabled — so the response (cookie, `set-auth-token`, Better
-  Auth's own refusals) is Better Auth's, untouched. Better Auth is configured
+  with sign-up enabled — so the response (cookie, Better Auth's own refusals)
+  is Better Auth's, untouched. Better Auth is configured
   with those same two bounds (`src/worker/auth/auth.ts`), which the reset page
   and device login hold too. Every other caller's instance carries
   `disableSignUp`, which shuts
@@ -214,7 +218,7 @@ answers the same query as a GET's search params, the form older installs send
   The app asks it at `POST /v1/account/delete` (`src/worker/device/account.ts`),
   holding a device credential and no session: the credential, a per-device
   window of 5 a minute, the password checked again through `signInEmail`, then
-  `auth.api.deleteUser` under the session that sign-in minted, so this hook
+  `auth.api.deleteUser` under the cookie of the session that sign-in minted, so this hook
   stays the one purge path. The credential alone deletes nothing: whoever held a
   stolen one could end the account. `docs/privacy.md` is the user-facing
   statement of all of it.

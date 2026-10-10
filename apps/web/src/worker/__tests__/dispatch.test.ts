@@ -33,6 +33,7 @@ import {
   loginDevice,
   openSocket,
   ORIGIN,
+  postAccountDelete,
   sessionHeaders,
   signUpUser,
   userIdOf,
@@ -148,10 +149,10 @@ const approvalOn = (threadId: string): OpenApprovalRequest => ({
   turnId: "turn_1",
 });
 
-const revoke = async (bearer: string, deviceId: string): Promise<void> => {
+const revoke = async (cookie: string, deviceId: string): Promise<void> => {
   const response = await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
     body: JSON.stringify({ deviceId }),
-    headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+    headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
     method: "POST",
   });
   expect(response.status).toBe(200);
@@ -159,12 +160,12 @@ const revoke = async (bearer: string, deviceId: string): Promise<void> => {
 
 // a phone, the Mac it asks, and a second Mac that may race it, on one account
 const account = async (email: string) => {
-  const { bearer, password } = await signUpUser(email);
-  const phone = await loginDevice(bearer, "Phone");
-  const mac = await loginDevice(bearer, "Mac");
-  const otherMac = await loginDevice(bearer, "Other Mac");
-  const stub = threadSyncStub(env, await userIdOf(bearer));
-  return { bearer, mac, otherMac, password, phone, stub };
+  const { cookie, password } = await signUpUser(email);
+  const phone = await loginDevice(cookie, "Phone");
+  const mac = await loginDevice(cookie, "Mac");
+  const otherMac = await loginDevice(cookie, "Other Mac");
+  const stub = threadSyncStub(env, await userIdOf(cookie));
+  return { cookie, mac, otherMac, password, phone, stub };
 };
 
 describe("a phone's turn", () => {
@@ -255,8 +256,8 @@ describe("a phone's turn", () => {
   });
 
   it("pings the Macs that take a phone's requests alone, never the phone's own or another kind", async () => {
-    const { bearer, mac, otherMac, phone } = await account("dispatch-audience@example.test");
-    const tablet = await loginDevice(bearer, "Tablet");
+    const { cookie, mac, otherMac, phone } = await account("dispatch-audience@example.test");
+    const tablet = await loginDevice(cookie, "Tablet");
     const macWs = await openSocket(mac.credential, "desktop", TAKES_PHONE_REQUESTS);
     const quietMacWs = await openSocket(otherMac.credential, "desktop");
     const tabletWs = await openSocket(tablet.credential, "other", TAKES_PHONE_REQUESTS);
@@ -378,14 +379,14 @@ describe("a phone's turn", () => {
   });
 
   it("drops a revoked phone's waiting turns, and leaves the one a Mac already holds", async () => {
-    const { bearer, mac, phone } = await account("dispatch-revoke@example.test");
+    const { cookie, mac, phone } = await account("dispatch-revoke@example.test");
     const held = turn("thr_held", "already on its way");
     await create(phone.credential, held);
     await claim(mac.credential);
     const waiting = turn("thr_lost", "from a lost phone");
     await create(phone.credential, waiting);
 
-    await revoke(bearer, phone.deviceId);
+    await revoke(cookie, phone.deviceId);
 
     expect(await statesOf(mac.credential, [held.id, waiting.id])).toEqual([
       { id: held.id, state: "claimed" },
@@ -618,7 +619,7 @@ describe("an approval asked on the phone", () => {
   });
 
   it("closes a revoked Mac's approvals and refuses the answers waiting for it", async () => {
-    const { bearer, mac, phone } = await account("approval-revoke@example.test");
+    const { cookie, mac, phone } = await account("approval-revoke@example.test");
     const approval = approvalOn("thr_gone");
     await openApproval(mac.credential, approval);
     const answer: CreateDispatchRequest = {
@@ -629,7 +630,7 @@ describe("an approval asked on the phone", () => {
     };
     await create(phone.credential, answer);
 
-    await revoke(bearer, mac.deviceId);
+    await revoke(cookie, mac.deviceId);
 
     expect(await listApprovals(phone.credential)).toEqual({ approvals: [] });
     expect(await statesOf(phone.credential, [answer.id])).toEqual([
@@ -659,16 +660,12 @@ describe("an approval asked on the phone", () => {
 
 describe("a deleted account's dispatch inbox", () => {
   it("refuses every route with account-deleted", async () => {
-    const { password, bearer, mac, phone, stub } = await account("dispatch-deleted@example.test");
+    const { password, mac, phone, stub } = await account("dispatch-deleted@example.test");
     const approval = approvalOn("thr_doomed");
     await openApproval(mac.credential, approval);
     await create(phone.credential, turn("thr_doomed", "never runs"));
 
-    const deletion = await SELF.fetch(`${ORIGIN}/api/auth/delete-user`, {
-      body: JSON.stringify({ password }),
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
-      method: "POST",
-    });
+    const deletion = await postAccountDelete(deviceHeaders(mac.credential), password);
     expect(deletion.status).toBe(200);
 
     // replays calls whose credential check passed before the purge, as the Worker would have made them

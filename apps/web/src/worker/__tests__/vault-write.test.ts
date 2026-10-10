@@ -83,9 +83,9 @@ let accounts = 0;
 // the laptop's push creates the hosted vault; the phone writes into it
 const openVault = async (files: readonly PushFile[]): Promise<Vault> => {
   accounts += 1;
-  const { bearer } = await signUpUser(`vault-write-${String(accounts)}@example.test`);
-  const laptop = await loginDevice(bearer, "Laptop");
-  const phone = await loginDevice(bearer, "Phone");
+  const { cookie } = await signUpUser(`vault-write-${String(accounts)}@example.test`);
+  const laptop = await loginDevice(cookie, "Laptop");
+  const phone = await loginDevice(cookie, "Phone");
   const pushed = await pushVaultFiles(laptop.credential, "vault: initialize", files, ZERO_OID);
   expect(pushed.response.status).toBe(200);
   await pushed.response.arrayBuffer();
@@ -93,7 +93,7 @@ const openVault = async (files: readonly PushFile[]): Promise<Vault> => {
     initial: pushed.commit,
     laptop: laptop.credential,
     phone: phone.credential,
-    repo: vaultRepoName(await userIdOf(bearer)),
+    repo: vaultRepoName(await userIdOf(cookie)),
   };
 };
 
@@ -347,22 +347,22 @@ describe("a phone's change set against the hosted vault", () => {
   });
 
   it("answers not-found for an account with no hosted vault, and creates none", async () => {
-    const { bearer } = await signUpUser("vault-write-none@example.test");
-    const phone = await loginDevice(bearer, "Phone");
+    const { cookie } = await signUpUser("vault-write-none@example.test");
+    const phone = await loginDevice(cookie, "Phone");
 
     const response = await sendChanges(phone.credential, [put("a.md", null, "# a\n")]);
 
     expect(response.status).toBe(404);
     expect(await refusalCodeOf(response)).toBe("not-found");
-    expect(await vaultRegistry(env).get(vaultRepoName(await userIdOf(bearer)))).toBeNull();
+    expect(await vaultRegistry(env).get(vaultRepoName(await userIdOf(cookie)))).toBeNull();
   });
 
   it("refuses a revoked device", async () => {
-    const { bearer } = await signUpUser("vault-write-revoked@example.test");
-    const phone = await loginDevice(bearer, "Phone");
+    const { cookie } = await signUpUser("vault-write-revoked@example.test");
+    const phone = await loginDevice(cookie, "Phone");
     const revoked = await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.revoke}`, {
       body: JSON.stringify({ deviceId: phone.deviceId }),
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
       method: "POST",
     });
     expect(revoked.status).toBe(200);

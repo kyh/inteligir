@@ -75,7 +75,7 @@ describe("device sign-up", () => {
     const response = await postSignUp(request("  App-OK@Example.TEST ", "APP-INVITE-OK"));
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(response.headers.get("set-auth-token")).toBeNull();
+    expect(response.headers.getSetCookie()).toEqual([]);
     const signedUp = emitted(deviceLoginResponseSchema, await response.text());
 
     const account = await SELF.fetch(`${ORIGIN}${ACCOUNT_API_PATHS.account}`, {

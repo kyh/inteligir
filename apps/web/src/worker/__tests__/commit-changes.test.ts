@@ -41,11 +41,11 @@ let accounts = 0;
 
 const openVault = async (files: readonly PushFile[]): Promise<Vault> => {
   accounts += 1;
-  const { bearer } = await signUpUser(`commit-changes-${String(accounts)}@example.test`);
-  const { credential, deviceId } = await loginDevice(bearer, "Phone");
+  const { cookie } = await signUpUser(`commit-changes-${String(accounts)}@example.test`);
+  const { credential, deviceId } = await loginDevice(cookie, "Phone");
   const pushed = await pushVaultFiles(credential, "vault: initialize", files, ZERO_OID);
   expect(await reportOf(pushed.response)).toContain("unpack ok");
-  const userId = await userIdOf(bearer);
+  const userId = await userIdOf(cookie);
   return { credential, deviceId, initial: pushed.commit, repo: vaultRepoName(userId), userId };
 };
 

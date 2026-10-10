@@ -19,6 +19,7 @@ import {
   openSocket,
   ORIGIN,
   loginDevice,
+  postAccountDelete,
   postSignOut,
   sessionHeaders,
   signUpUser,
@@ -97,8 +98,8 @@ const ack = async (credential: string, claimToken: string, ids: string[]) => {
 
 describe("thread sync log", () => {
   it("pushes, pulls, and ignores a replayed outbox batch", async () => {
-    const { bearer } = await signUpUser("sync-idem@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("sync-idem@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
 
     const batch: PushRequest = { events: [event("th_1", 1, "a"), event("th_1", 2, "b")] };
     const pushed = await push(credential, batch);
@@ -116,8 +117,8 @@ describe("thread sync log", () => {
   });
 
   it("accepts a retry that appends to a partially-stored batch", async () => {
-    const { bearer } = await signUpUser("sync-partial@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("sync-partial@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
 
     await push(credential, { events: [event("th_1", 1, "a")] });
     const retried = await push(credential, {
@@ -128,8 +129,8 @@ describe("thread sync log", () => {
   });
 
   it("refuses a stored position replayed with a DIFFERENT body, naming it", async () => {
-    const { bearer } = await signUpUser("sync-conflict@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("sync-conflict@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
     await push(credential, { events: [event("th_1", 1, "a"), event("th_1", 2, "b")] });
 
     const response = await push(credential, { events: [event("th_1", 2, "DIFFERENT")] });
@@ -143,8 +144,8 @@ describe("thread sync log", () => {
   });
 
   it("refuses a NEW position at or below the high-water mark", async () => {
-    const { bearer } = await signUpUser("sync-reverse@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("sync-reverse@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
     await push(credential, { events: [event("th_1", 5, "five")] });
 
     const response = await push(credential, { events: [event("th_1", 3, "three")] });
@@ -157,8 +158,8 @@ describe("thread sync log", () => {
   });
 
   it("refuses a batch that is not sorted, before storing any of it", async () => {
-    const { bearer } = await signUpUser("sync-unsorted@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("sync-unsorted@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
 
     const response = await push(credential, {
       events: [event("th_1", 1, "a"), event("th_1", 3, "c"), event("th_1", 2, "b")],
@@ -170,9 +171,9 @@ describe("thread sync log", () => {
   });
 
   it("merges devices into one log and pages by the global seq", async () => {
-    const { bearer } = await signUpUser("sync-merge@example.test");
-    const laptop = await loginDevice(bearer, "Laptop");
-    const phone = await loginDevice(bearer, "Phone");
+    const { cookie } = await signUpUser("sync-merge@example.test");
+    const laptop = await loginDevice(cookie, "Laptop");
+    const phone = await loginDevice(cookie, "Phone");
 
     await push(laptop.credential, { events: [event("th_1", 1, "l1"), event("th_1", 2, "l2")] });
     await push(phone.credential, { events: [event("th_2", 1, "p1")] });
@@ -193,8 +194,8 @@ describe("thread sync log", () => {
   it("keeps accounts apart: another user's log is empty", async () => {
     const alice = await signUpUser("sync-alice@example.test");
     const bob = await signUpUser("sync-bob@example.test");
-    const aliceDevice = await loginDevice(alice.bearer, "Alice's Laptop");
-    const bobDevice = await loginDevice(bob.bearer, "Bob's Laptop");
+    const aliceDevice = await loginDevice(alice.cookie, "Alice's Laptop");
+    const bobDevice = await loginDevice(bob.cookie, "Bob's Laptop");
 
     await push(aliceDevice.credential, { events: [event("th_a", 1, "secret")] });
 
@@ -204,10 +205,10 @@ describe("thread sync log", () => {
   });
 
   it("pings every other device on push, and never the pusher", async () => {
-    const { bearer } = await signUpUser("sync-ping@example.test");
-    const desktop = await loginDevice(bearer, "Desktop");
-    const phone = await loginDevice(bearer, "Phone");
-    const tablet = await loginDevice(bearer, "Tablet");
+    const { cookie } = await signUpUser("sync-ping@example.test");
+    const desktop = await loginDevice(cookie, "Desktop");
+    const phone = await loginDevice(cookie, "Phone");
+    const tablet = await loginDevice(cookie, "Tablet");
 
     const desktopWs = await openSocket(desktop.credential, "desktop");
     const tabletWs = await openSocket(tablet.credential, "other");
@@ -225,9 +226,9 @@ describe("thread sync log", () => {
   });
 
   it("accepts a stale install's desktop lane and dispatches nothing for it", async () => {
-    const { bearer } = await signUpUser("sync-stale-lane@example.test");
-    const desktop = await loginDevice(bearer, "Desktop");
-    const stale = await loginDevice(bearer, "Old Laptop");
+    const { cookie } = await signUpUser("sync-stale-lane@example.test");
+    const desktop = await loginDevice(cookie, "Desktop");
+    const stale = await loginDevice(cookie, "Old Laptop");
     const desktopWs = await openSocket(desktop.credential, "desktop");
 
     const pushed = await push(stale.credential, {
@@ -259,11 +260,11 @@ describe("thread sync log", () => {
   });
 
   it("keeps its socket identity in the hibernation tags, not in instance memory", async () => {
-    const { bearer } = await signUpUser("sync-hibernate@example.test");
-    const desktop = await loginDevice(bearer, "Desktop");
-    const phone = await loginDevice(bearer, "Phone");
+    const { cookie } = await signUpUser("sync-hibernate@example.test");
+    const desktop = await loginDevice(cookie, "Desktop");
+    const phone = await loginDevice(cookie, "Phone");
     const desktopWs = await openSocket(desktop.credential, "desktop");
-    const stub = threadSyncStub(env, await userIdOf(bearer));
+    const stub = threadSyncStub(env, await userIdOf(cookie));
 
     const tags = await runInDurableObject(stub, (_instance, state) =>
       state.getWebSockets().map((ws) => state.getTags(ws)),
@@ -276,8 +277,8 @@ describe("thread sync log", () => {
   });
 
   it("severs a revoked device's live socket", async () => {
-    const { bearer } = await signUpUser("sync-sever@example.test");
-    const doomed = await loginDevice(bearer, "Doomed Laptop");
+    const { cookie } = await signUpUser("sync-sever@example.test");
+    const doomed = await loginDevice(cookie, "Doomed Laptop");
     const socket = await openSocket(doomed.credential, "desktop");
     // oxlint-disable-next-line promise/avoid-new -- the close code arrives as a socket event, which only a promise can hand to an await
     const closed = new Promise<number>((resolve) => {
@@ -288,7 +289,7 @@ describe("thread sync log", () => {
 
     await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
       body: JSON.stringify({ deviceId: doomed.deviceId }),
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
       method: "POST",
     });
 
@@ -296,8 +297,8 @@ describe("thread sync log", () => {
   });
 
   it("severs a signed-out device's live socket", async () => {
-    const { bearer } = await signUpUser("sync-sever-signout@example.test");
-    const leaving = await loginDevice(bearer, "Leaving Laptop");
+    const { cookie } = await signUpUser("sync-sever-signout@example.test");
+    const leaving = await loginDevice(cookie, "Leaving Laptop");
     const socket = await openSocket(leaving.credential, "desktop");
     // oxlint-disable-next-line promise/avoid-new -- the close code arrives as a socket event, which only a promise can hand to an await
     const closed = new Promise<number>((resolve) => {
@@ -321,9 +322,9 @@ describe("thread sync log", () => {
 
 describe("capture inbox", () => {
   it("hands a capture to exactly one claimer, and deletes it once", async () => {
-    const { bearer } = await signUpUser("capture-once@example.test");
-    const phone = await loginDevice(bearer, "Phone");
-    const laptop = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("capture-once@example.test");
+    const phone = await loginDevice(cookie, "Phone");
+    const laptop = await loginDevice(cookie, "Laptop");
 
     const captured = await capture(phone.credential, "buy oat milk", "key-oat-milk-1");
     const posted = emitted(captureResponseSchema, await captured.text());
@@ -349,16 +350,16 @@ describe("capture inbox", () => {
   });
 
   it("tells a lapsed claimer its rows were reclaimed rather than deleting them", async () => {
-    const { bearer } = await signUpUser("capture-lapsed@example.test");
-    const phone = await loginDevice(bearer, "Phone");
-    const laptop = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("capture-lapsed@example.test");
+    const phone = await loginDevice(cookie, "Phone");
+    const laptop = await loginDevice(cookie, "Laptop");
     const captured = await capture(phone.credential, "remember", "key-remember-1");
     const posted = emitted(captureResponseSchema, await captured.text());
 
     const stale = await claim(laptop.credential);
     expect(stale.captures).toHaveLength(1);
 
-    const userId = await userIdOf(bearer);
+    const userId = await userIdOf(cookie);
     const stub = threadSyncStub(env, userId);
     await runInDurableObject(stub, (_instance, state) => {
       state.storage.sql.exec("UPDATE captures SET claimed_at = 0");
@@ -375,8 +376,8 @@ describe("capture inbox", () => {
   });
 
   it("dedupes a retried capture on its idempotency key", async () => {
-    const { bearer } = await signUpUser("capture-idem@example.test");
-    const phone = await loginDevice(bearer, "Phone");
+    const { cookie } = await signUpUser("capture-idem@example.test");
+    const phone = await loginDevice(cookie, "Phone");
 
     const captured = await capture(phone.credential, "one thought", "key-shared");
     const first = emitted(captureResponseSchema, await captured.text());
@@ -390,9 +391,9 @@ describe("capture inbox", () => {
   });
 
   it("pings every socket when a capture lands", async () => {
-    const { bearer } = await signUpUser("capture-ping@example.test");
-    const phone = await loginDevice(bearer, "Phone");
-    const laptop = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("capture-ping@example.test");
+    const phone = await loginDevice(cookie, "Phone");
+    const laptop = await loginDevice(cookie, "Laptop");
     const laptopWs = await openSocket(laptop.credential, "desktop");
 
     await capture(phone.credential, "remember the thing", "key-ping-1");
@@ -402,8 +403,8 @@ describe("capture inbox", () => {
   });
 
   it("refuses an empty capture", async () => {
-    const { bearer } = await signUpUser("capture-empty@example.test");
-    const phone = await loginDevice(bearer, "Phone");
+    const { cookie } = await signUpUser("capture-empty@example.test");
+    const phone = await loginDevice(cookie, "Phone");
     const response = await capture(phone.credential, "   ", "key-empty-1");
     expect(response.status).toBe(400);
   });
@@ -411,19 +412,15 @@ describe("capture inbox", () => {
 
 describe("account deletion", () => {
   it("purges the thread-sync object and every device row", async () => {
-    const { bearer, password } = await signUpUser("delete-me@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie, password } = await signUpUser("delete-me@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
     await push(credential, { events: [event("th_1", 1, "to be purged")] });
     await capture(credential, "to be purged too", "key-purge-1");
     const page = await pull(credential, 0);
     expect(page.lastSeq).toBe(1);
 
-    const userId = await userIdOf(bearer);
-    const deletion = await SELF.fetch(`${ORIGIN}/api/auth/delete-user`, {
-      body: JSON.stringify({ password }),
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
-      method: "POST",
-    });
+    const userId = await userIdOf(cookie);
+    const deletion = await postAccountDelete(deviceHeaders(credential), password);
     expect(deletion.status).toBe(200);
 
     const after = await SELF.fetch(`${ORIGIN}/v1/sync/pull?afterSeq=0`, {
@@ -442,16 +439,13 @@ describe("account deletion", () => {
   });
 
   it("refuses a request that verified just before the account died", async () => {
-    const { bearer, password } = await signUpUser("delete-race@example.test");
-    const { deviceId, credential } = await loginDevice(bearer, "Laptop");
-    const userId = await userIdOf(bearer);
+    const { cookie, password } = await signUpUser("delete-race@example.test");
+    const { deviceId, credential } = await loginDevice(cookie, "Laptop");
+    const userId = await userIdOf(cookie);
     await push(credential, { events: [event("th_1", 1, "before")] });
 
-    await SELF.fetch(`${ORIGIN}/api/auth/delete-user`, {
-      body: JSON.stringify({ password }),
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
-      method: "POST",
-    });
+    const deletion = await postAccountDelete(deviceHeaders(credential), password);
+    expect(deletion.status).toBe(200);
 
     // replays calls whose credential check passed before the purge, as the Worker would have made them
     const stub = threadSyncStub(env, userId);
