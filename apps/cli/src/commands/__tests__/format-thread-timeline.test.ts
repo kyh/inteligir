@@ -47,7 +47,6 @@ describe("formatThreadTimeline", () => {
             approvalStatus: null,
             command: "ls vault",
             cwd: "/vault",
-            exitCode: 0,
             kind: "work",
             outputHead: ["a.md"],
             outputLineCount: 1,
@@ -84,7 +83,7 @@ describe("formatThreadTimeline", () => {
         "",
         "── turn (completed) ──",
         "  thinking: Plan it",
-        "  $ ls vault (exit 0)",
+        "  $ ls vault",
         "  ~ add notes/a.md",
         "",
         "── agent ──",
@@ -100,7 +99,6 @@ describe("formatThreadTimeline", () => {
         children: [
           {
             ...base(),
-            error: "index unavailable",
             kind: "work",
             result: null,
             status: "error",
@@ -140,7 +138,7 @@ describe("formatThreadTimeline", () => {
     expect(formatted).toBe(
       [
         "── turn (error) ──",
-        "  tool search_vault [error] — index unavailable",
+        "  tool search_vault [error]",
         "  ── error ──",
         "  provider failed",
         "  boom",

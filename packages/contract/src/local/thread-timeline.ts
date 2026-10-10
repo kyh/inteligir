@@ -49,7 +49,6 @@ export const timelineCommandWorkRowSchema = timelineWorkRowBaseSchema.extend({
   approvalStatus: threadEventItemApprovalStatusSchema,
   command: z.string(),
   cwd: z.string().nullable(),
-  exitCode: z.number().nullable(),
   outputHead: z.array(z.string().max(COMMAND_OUTPUT_LINE_CHARS)).max(COMMAND_OUTPUT_LINES),
   outputLineCount: z.number().int().nonnegative(),
   workKind: z.literal("command"),
@@ -57,7 +56,6 @@ export const timelineCommandWorkRowSchema = timelineWorkRowBaseSchema.extend({
 export type TimelineCommandWorkRow = z.infer<typeof timelineCommandWorkRowSchema>;
 
 export const timelineToolWorkRowSchema = timelineWorkRowBaseSchema.extend({
-  error: z.string().nullable(),
   result: z.string().nullable(),
   toolArgs: z.record(z.string(), z.unknown()).nullable(),
   toolName: z.string(),

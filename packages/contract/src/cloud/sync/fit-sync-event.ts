@@ -93,13 +93,6 @@ const itemPayload = (item: ThreadEventItem): PayloadText[] => {
     }
     case "toolCall": {
       const texts: PayloadText[] = [];
-      if (item.error !== undefined) {
-        texts.push(
-          payloadText(item.error, (clipped) => {
-            item.error = clipped;
-          }),
-        );
-      }
       if (item.result !== undefined) {
         texts.push(
           payloadText(item.result, (clipped) => {

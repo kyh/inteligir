@@ -99,7 +99,6 @@ describe("the outbox", () => {
           approvalStatus: null,
           command: "make",
           cwd: "/vault",
-          exitCode: 0,
           id: "item_c",
           status: "completed",
           type: "commandExecution",

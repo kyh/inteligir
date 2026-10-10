@@ -84,7 +84,6 @@ const streamedTurnEvents = (): ThreadEvent[] => {
         approvalStatus: null,
         command: "git log --oneline -3",
         cwd: "/vault",
-        exitCode: 0,
         id: "item_c",
         status: "completed",
         type: "commandExecution",
@@ -187,7 +186,6 @@ describe("buildThreadTimeline", () => {
     expect(reasoning.text).toBe("scanned");
     expect(command.outputHead).toEqual(["abc123 fix", "def456 feat"]);
     expect(command.outputLineCount).toBe(2);
-    expect(command.exitCode).toBe(0);
     expect(command.status).toBe("completed");
   });
 
@@ -376,7 +374,6 @@ const longTurnEvents = (commands: number): ThreadEvent[] => {
         approvalStatus: null,
         command: `make step-${index}`,
         cwd: "/vault",
-        exitCode: 0,
         id: `item_c${index}`,
         status: "completed",
         type: "commandExecution",
@@ -555,7 +552,6 @@ const commandRow = (output: string) => {
           approvalStatus: null,
           command: "make",
           cwd: "/vault",
-          exitCode: 0,
           id: "item_c",
           status: "completed",
           type: "commandExecution",
@@ -689,7 +685,6 @@ describe("a log clipped for sync", () => {
           approvalStatus: null,
           command: "make",
           cwd: "/vault",
-          exitCode: 2,
           id: "item_c",
           status: "failed",
           type: "commandExecution",

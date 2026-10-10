@@ -200,7 +200,6 @@ const completedItem = (item: OpenItem): ThreadEventItem => {
         approvalStatus: null,
         command: "ls",
         cwd: "/vault",
-        exitCode: 0,
         id: item.id,
         status: "completed",
         type: "commandExecution",

@@ -70,7 +70,7 @@ const ThoughtRowContent = ({ row }: { row: TimelineWorkRow }): ReactNode => {
 const ActionChipContent = ({ row }: { row: TimelineWorkRow }): ReactNode => {
   switch (row.workKind) {
     case "command": {
-      const failed = row.exitCode !== null && row.exitCode !== 0;
+      const failed = row.status === "error";
       const lines = row.outputHead.map((line, index) => (
         <ToolChipDetail key={`${row.id}:${String(index)}`}>{line}</ToolChipDetail>
       ));
@@ -85,8 +85,9 @@ const ActionChipContent = ({ row }: { row: TimelineWorkRow }): ReactNode => {
       return (
         <ToolChip
           icon="run"
-          label={failed ? `Ran a command — exit ${String(row.exitCode)}` : "Ran a command"}
+          label={failed ? "Command failed" : "Ran a command"}
           chip={firstLine(row.command)}
+          failed={failed}
           mono
           detailMono
         >
@@ -119,15 +120,14 @@ const ActionChipContent = ({ row }: { row: TimelineWorkRow }): ReactNode => {
       );
     }
     case "tool": {
+      const failed = row.status === "error";
       return (
         <ToolChip
-          icon={row.error === null ? "think" : "read"}
-          label={row.error === null ? "Called a tool" : "Tool failed"}
+          label={failed ? "Tool failed" : "Called a tool"}
           chip={row.toolName}
+          failed={failed}
           mono
-        >
-          {row.error === null ? null : <ToolChipDetail>{row.error}</ToolChipDetail>}
-        </ToolChip>
+        />
       );
     }
     case "reasoning":

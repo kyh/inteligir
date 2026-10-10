@@ -25,12 +25,10 @@ const statusSuffix = (status: TimelineRowStatus): string =>
 const formatWorkRow = (row: TimelineWorkRow): string[] => {
   switch (row.workKind) {
     case "command": {
-      const exit = row.exitCode === null ? "" : ` (exit ${row.exitCode})`;
-      return [`$ ${snippet(row.command)}${exit}${statusSuffix(row.status)}`];
+      return [`$ ${snippet(row.command)}${statusSuffix(row.status)}`];
     }
     case "tool": {
-      const failure = row.error === null ? "" : ` — ${snippet(row.error)}`;
-      return [`tool ${row.toolName}${statusSuffix(row.status)}${failure}`];
+      return [`tool ${row.toolName}${statusSuffix(row.status)}`];
     }
     case "file-change": {
       return row.changes.map((change) => {

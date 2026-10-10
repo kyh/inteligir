@@ -210,7 +210,6 @@ const projectItem = (
     case "toolCall": {
       const row: TimelineWorkRow = {
         ...base,
-        error: snapshot.error ?? null,
         kind: "work",
         result: snapshot.result === undefined ? null : JSON.stringify(snapshot.result),
         status: itemStatusToRowStatus(snapshot.status),
@@ -227,7 +226,6 @@ const projectItem = (
         approvalStatus: snapshot.approvalStatus,
         command: snapshot.command,
         cwd: snapshot.cwd,
-        exitCode: snapshot.exitCode ?? null,
         kind: "work",
         status: itemStatusToRowStatus(snapshot.status),
         workKind: "command",
