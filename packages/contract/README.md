@@ -14,11 +14,12 @@ server's `server.json` names, not kept compatible. `/cloud` is a deployed
 Worker answering installs that may be months stale, so it breaks only behind
 the client build floor: the Worker may grow an answer, a client ignores what it
 does not know (the first invariant below), and a shape retires once the floor
-is past every build that reads it. That is also
-why `/cloud` is zod + REST paths and NOT oRPC, diverging from the decision
-record (#611 phase 6) deliberately: oRPC addresses a procedure by its position
-in the router, so moving the deployed wire onto it would break every install
-above the floor at once.
+is past every build that reads it, which costs nothing while nobody but the
+owner holds an install (`CLAUDE.md` § Project Overview). That is also why
+`/cloud` is zod + REST paths and NOT oRPC, diverging from the decision record
+(#611 phase 6) deliberately: oRPC addresses a procedure by its position in the
+router, so moving the deployed wire onto it would break every install above
+the floor at once.
 
 The package is platform-neutral by construction (`lib: ["ES2023",
 "WebWorker"]`, `types: []`): it loads in the desktop page, on node, on workerd

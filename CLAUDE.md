@@ -3,8 +3,8 @@
 ## Project Overview
 
 **inteligir** is Obsidian where an agent edits your notes with you. It is for
-general knowledge workers, not developers: a small invited cohort, on macOS
-Apple silicon only. The vault is a folder of markdown files on the user's own
+general knowledge workers, not developers, on macOS Apple silicon only, and
+nobody uses it yet. The vault is a folder of markdown files on the user's own
 disk; one local Node process owns that vault, indexes it, answers one API, and
 drives the agent that edits those same files. The only hosted piece is a
 Cloudflare Worker carrying the marketing site, accounts, cross-device sync, the
@@ -39,6 +39,19 @@ The premises every change builds from, each with its reason:
 - **An account is optional, and offered.** Without one the app is a local notes
   app that makes no cloud request; with one it syncs, and the hosted vault is
   free up to about 1 GB.
+- **No users yet, so every format may change.** Nobody but the owner holds an
+  install, and a shim kept for nobody is code every later change steps
+  around. So change any wire, file or database format freely, and write no
+  migration, no reader for an older build's shape, no retired-path sweep and
+  no legacy-name warning: what an older build wrote is replaced, never read.
+  `/local` and `/cloud` may both break, a `/cloud` break raising the client
+  build floor in the same change. Until the premise ends, a Decisions bullet
+  or a note issue's decline that keeps a shape for an older install yields to
+  it. The one exception is the phone's database, which appends a step once
+  EAS has built the app, since it cannot yet replace a file it cannot read
+  (THE PHONE HOLDS EVERY NOTE'S TEXT IN SQLITE, in the Cloud group). The first
+  outside tester ends the premise: strike this bullet before their first
+  build, and from then on a format change migrates.
 
 **TWO PROGRAMS.** `apps/desktop` is the shipped product — the window around
 the SPA `apps/workspace` builds — and the user installs it as the signed dmg.
@@ -234,7 +247,8 @@ packages/
                  another release's server as `SERVER_VERSION_MISMATCH`),
                  /cloud is a deployed Worker answering installs that may be
                  months stale, so it breaks only behind the client build floor
-                 (A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, below). A
+                 (A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, below), which
+                 costs nothing while nobody else holds an install. A
                  dep-dag table (`CLOUD_ONLY_CLIENTS`) pins apps/web and
                  apps/mobile to /cloud alone, and a dep-dag row refuses a third
                  bucket in src/, since the cloud-never-reaches-local guard
@@ -364,7 +378,9 @@ local loop and the owner-only deploy. `AGENTS.md` is the runnable quickstart;
 Each bullet is the decision, what it rejected and why, and the file that
 carries the mechanism. The mechanism itself is the code's and its tests' to
 state; a bullet names where it lives. The dangling-reference guard keeps the
-pointers honest.
+pointers honest. Until the first outside tester (no users yet, in Project
+Overview), a format change replaces the format and never migrates it, so a
+bullet states the format and never the way from an older one.
 
 The list is grouped by the part of the system a decision governs; append a new bullet
 to the END of its group.
@@ -1603,7 +1619,7 @@ to the END of its group.
   included, reads as `other`. The class rides the failed turn's own
   `provider/error` (`failTurn` in `apps/cli/src/server/agents/runtime-manager.ts`
   for a dispatch that never reached a prompt) as an optional field, which
-  a log written before it parses without and a stale install strips. A
+  a log written before it parses without and an older build strips. A
   settle whose turn failed `usage-limit` or `auth` does not drain
   (`failureHoldsQueue` in `apps/cli/src/server/threads/service.ts`): the next
   send starts the oldest queued message first. The words a person reads of
@@ -1803,14 +1819,14 @@ to the END of its group.
 
 - **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, the Worker is held to
   exactly what it declares, and the wire breaks only behind the client build
-  floor** (owner decision, reversing "final at birth" and "/cloud may never
-  break"). Every response schema under `@repo/contract/cloud` strips an
-  undeclared field, and an unknown refusal code reads as `internal`, a fault to
-  retry, never a verdict on the credential. Strict readers made every additive
-  change a new route and turned a stale client's `unauthorized` into
-  `malformed`, so a revoked device kept retrying; for the same reason a 5xx,
-  408 or 429 with no error envelope reads as `unreachable`. Requests stay
-  `.strict()`, since only the always-newest Worker parses them, and the
+  floor** (owner decision). Every response schema under `@repo/contract/cloud`
+  strips an undeclared field, and an unknown refusal code reads as `internal`,
+  a fault to retry, never a verdict on the credential. Strict readers made
+  every additive change a new route and turned a stale client's
+  `unauthorized` into `malformed`, so a revoked device kept retrying; for the
+  same reason a 5xx, 408 or 429 with no error envelope reads as
+  `unreachable`. Requests stay `.strict()`, since only the always-newest
+  Worker parses them, and the
   Worker's tests parse every answer through `emitted`
   (`apps/web/src/worker/__tests__/cloud-helpers.ts`), because a stripping
   client would let a leaked column through. The tolerant reader is forward
@@ -1827,9 +1843,10 @@ to the END of its group.
   CLI and the phone ask for an update and retry nothing, and the next build
   resumes as the same device. A shape retires by raising the floor past every
   build that reads it, never while one of them can still reach the wire.
-  Rejected: per-route versions, which keep every old shape a route ever
-  served. Still closed above the floor: a field that changes what a row MEANS
-  reaches only a client whose request declares it.
+  Rejected: a wire final at birth behind strict readers, and per-route
+  versions, which keep every old shape a route ever served. Still closed
+  above the floor: a field that changes what a row MEANS reaches only a
+  client whose request declares it.
   `packages/contract/src/cloud/client-build.ts`,
   `packages/contract/src/cloud/cloud-client.ts`,
   `packages/contract/src/cloud/cloud-errors.ts`,
@@ -2861,6 +2878,18 @@ to the END of its group.
   task graph. `pnpm dev:workspace` (`apps/workspace/scripts/dev.ts`) is the
   page's loop with no Rust.
 
+- **THE SHELL'S PLUMBING IS COPIED BETWEEN REPOS AND DIVERGES ON PURPOSE.**
+  The shell's log (`apps/desktop/src-tauri/src/server_log.rs`), its origin pin
+  (`apps/desktop/src-tauri/src/navigation.rs`), its runtime
+  (`apps/desktop/src-tauri/src/runtime.rs`) and the packaging scripts in
+  `apps/desktop/scripts` are copied from or to kyh/idlebiz, and the origin pin
+  from or to kyh/init too. Each copy is its own repo's code, shaped to the
+  child it runs and the product it ships, so there is no shared package and a
+  fix is ported by hand. The Rust toolchain
+  (`apps/desktop/rust-toolchain.toml`) and the bundled node (`VERSION` in
+  `apps/desktop/scripts/fetch-node.ts`) are the same in every repo that
+  carries them, and move together.
+
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The `note` issues are
@@ -2869,4 +2898,7 @@ review's refuted findings), #788 (the 2026-09-22 architecture review's refuted
 findings), #645 (the 2026-09-01 review), #674
 (the 2026-09-05 simplify pass), #603 (Moss parity) and #705 (the CodeMirror
 trade); the older ones (#446, #453, #472, #474) catalogue findings declined
-against the hosted Durable-Object architecture this rewrite replaced.
+against the hosted Durable-Object architecture this rewrite replaced. A
+decline that weighs a migration's cost or an older install, such as #788's
+comment-sidecar sweep or #674's lean search table, yields to the no-users
+premise.

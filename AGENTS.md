@@ -1,11 +1,11 @@
 # AGENTS.md
 
 **inteligir** is Obsidian where an agent edits your notes with you: a Mac app
-for general knowledge workers, not developers, shipped to a small invited
-cohort on Apple silicon. The agent runs on the user's own Claude or ChatGPT
-plan, on their Mac; git versions and syncs the vault underneath, and the user
-never meets it. `CLAUDE.md` § Project Overview holds the premises every change
-builds from, and where older prose assumes a developer, the overview wins.
+for general knowledge workers, not developers, on Apple silicon, that nobody
+uses yet. The agent runs on the user's own Claude or ChatGPT plan, on their
+Mac; git versions and syncs the vault underneath, and the user never meets
+it. `CLAUDE.md` § Project Overview holds the premises every change builds
+from, and where older prose assumes a developer, the overview wins.
 
 There are TWO programs. `apps/desktop` is THE SHIPPED PRODUCT, installed as the
 signed dmg: a Tauri window on the local server, which it runs as its one child
@@ -157,6 +157,11 @@ rather than moving the app somewhere the docs don't name.
 
 ## Rules that matter
 
+- **No users yet.** Change any wire, file or database format freely. Write no
+  migration, no reader for an older build's shape, no retired-path sweep and
+  no legacy-name warning. `/local` and `/cloud` may both break. The first
+  outside tester ends this; `CLAUDE.md` § Project Overview holds the premise
+  and its one exception.
 - **`pnpm format:fix` before the gates, commit after.** Never the other way.
 - **A change a user can notice updates `CHANGELOG.md` in the same task**, under
   `## Unreleased`, written for someone who takes notes: a release's notes are

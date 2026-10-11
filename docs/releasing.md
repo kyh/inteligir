@@ -26,6 +26,11 @@ build only once `MIN_CLIENT_BUILD` (`apps/web/cloudflare.config.ts`) is raised
 past it, which retires a wire shape on purpose and is never part of a release
 by default.
 
+**The first outside tester ends the no-users premise** (`CLAUDE.md` § Project
+Overview). Before anyone outside the team gets a build, through the `Cohort`
+group or an invite code, strike that premise from `CLAUDE.md` and `AGENTS.md`:
+from that build on, a format change migrates.
+
 The owner publishes once, when every step and every check below has passed.
 
 ## Once per machine
@@ -286,11 +291,12 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   `com.apple.WebKit.WebContent` process in Activity Monitor. Passing: the note
   reloads with its text.
 - **The database upgrades.** Every step appended to `MIGRATIONS` in
-  `apps/mobile/src/lib/phone-db.ts` since the build testers hold: install that
-  build, sign in, sync, leave an edit unsent, then install this build over it.
-  Passing: it opens with no error, the unsent edit still waits, and after one
-  sync, turning on airplane mode and a cold launch shows the threads. The
-  first TestFlight build has no build before it, so it skips this.
+  `apps/mobile/src/lib/phone-db.ts` since the build TestFlight last served:
+  install that build, sign in, sync, leave an edit unsent, then install this
+  build over it. Passing: it opens with no error, the unsent edit still waits,
+  and after one sync, turning on airplane mode and a cold launch shows the
+  threads. The first TestFlight build has no build before it, so it skips
+  this.
 
 ## 6. Publish
 
@@ -352,8 +358,8 @@ refuses a server of another version, so npm and the Mac app ship as one.
 
 - **The phone, JavaScript alone**: an EAS Update, never a new build
   (`apps/mobile/README.md` § Hotfixes has the mechanics). Branch from the tag
-  of the build testers hold, apply the fix, and run `pnpm hotfix:mobile` there.
-  An update reaches only builds whose fingerprint matches, and the fingerprint
+  of the build TestFlight serves, apply the fix, and run `pnpm hotfix:mobile`
+  there. An update reaches only builds whose fingerprint matches, and the fingerprint
   covers the app config, `version` included, so one bundled after a version
   bump reaches nobody; `pnpm --filter @repo/mobile exec eas fingerprint:compare --build-id <id>`
   names what differs. The editor page is part of the fingerprint too, so a
@@ -366,4 +372,4 @@ refuses a server of another version, so npm and the Mac app ship as one.
   a branch off the tag, then `apps/mobile/README.md` § Per release from step 3.
 - **The Mac app or the CLI**: a patch version through this whole runbook. All
   three manifests move with it, but the phone's build may stay behind; its
-  JavaScript hotfixes then branch from the tag of the build testers hold.
+  JavaScript hotfixes then branch from the tag of the build TestFlight serves.

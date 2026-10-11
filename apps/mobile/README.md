@@ -625,4 +625,4 @@ a page change needs `pnpm testflight:mobile`, since the bridge between the
 page and the JavaScript breaks freely between releases. The fingerprint also
 covers the app config, `version` included, so an update bundled after a
 version bump reaches nobody either: a hotfix is published from a branch off
-the tag of the build testers hold (`docs/releasing.md` § Hotfixes).
+the tag of the build TestFlight serves (`docs/releasing.md` § Hotfixes).
