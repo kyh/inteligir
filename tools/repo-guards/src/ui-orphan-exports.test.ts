@@ -15,7 +15,7 @@ const NON_CONSUMER_DIRS = [GALLERY_DIR];
 const ALLOWED_EXPORTS = new Map<string, string>([
   [
     "packages/ui/src/ai/thinking.tsx#ThinkingStep",
-    "The trace vocabulary's step row — Reasoning is wired; held with the Beautiful UI set for a step the provider grammar carries, which no adapter sends today.",
+    "The trace vocabulary's step row — Reasoning is wired; held with the Beautiful UI set, though the provider grammar carries no step: no pinned adapter sends a plan.",
   ],
   [
     "packages/ui/src/ai/thinking.tsx#ThinkingTool",
