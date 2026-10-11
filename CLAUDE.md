@@ -197,8 +197,9 @@ apps/
                  @repo/editor, @repo/notes and @repo/ui only.
 packages/
   domain/        @repo/domain — zod-only leaf vocabulary (view context,
-                 provider events, the thread-title rule), vendored-from-bb
-                 shapes; every package may reach it, it reaches nothing.
+                 provider events, the thread-title rule, the harness ids),
+                 vendored-from-bb shapes; every package may reach it, it
+                 reaches nothing.
   contract/      @repo/contract — ONE contract package, TWO entry points (#611),
                  named as in kyh/init's contract-first layout but with no
                  service package, since `apps/cli/src/server` implements /local.
@@ -1392,10 +1393,18 @@ to the END of its group.
 - **THE PROVIDER GRAMMAR IS WHAT THE ACP MAPPER EMITS, AND THE MAPPER IS PINNED
   TO THE ADAPTERS' REAL WIRE** (owner decision, reversing the kept-wide bb
   vocabulary). `ProviderEvent` carries exactly what `AcpTurnMapper` constructs,
-  since a kind nothing produces is a branch every consumer carries. The mapper
+  since a kind nothing produces is a branch every consumer carries. The rule
+  holds for the persisted `ThreadEvent` too: it carries what the mapper emits
+  as the host narrows it, plus the host's own facts, so an update no adapter
+  sends (a plan) or one the timeline would only drop (a tool call still
+  running) maps to nothing, and the runtime's `onActivity` keeps the idle
+  watchdog hearing it. The mapper
   is tested against turns the pinned adapters really sent
   (`packages/agent-runtime/src/acp/__tests__/fixtures/<adapter>@<version>/`),
-  because a fake agent encodes what the adapters were believed to send. The
+  because a fake agent encodes what the adapters were believed to send. A
+  failure no prompt causes on demand is staged: codex is pointed at a local
+  model endpoint answering as the API does (a scenario's `staged`), so the
+  adapter and the vendor binary are still the pinned ones. The
   adapter and SDK pins are exact and move together, and a bump re-records
   (`packages/agent-runtime/scripts/record-acp-transcripts.ts`).
 
@@ -1494,7 +1503,11 @@ to the END of its group.
   harness's `envOmit`, a deadline that kills the process group), and the answer
   is shared and kept 10s (`vendor-accounts.ts`), built in `serve.ts` so
   `compose.ts` spawns nothing. A send is refused up front only when the
-  thread's own runtime is missing from the install; a signed-out vendor is not
+  thread's own runtime is missing from the install, or when the thread names a
+  harness this build does not ship: the wire and the runtime take a
+  `HarnessId` (`@repo/domain/harness`), but a thread's row and its log keep
+  the id open, since another device's newer build may name one, and the turn's
+  start narrows it with `parseHarnessId`. A signed-out vendor is not
   pre-gated, because the adapter's `authRequired` is the refusal and it names
   the vendor. `packages/agent-runtime/src/acp/harness-registry.ts`.
 
@@ -1552,18 +1565,33 @@ to the END of its group.
   shared).
 
 - **A TURN THE VENDOR REFUSED FOR THE PLAN'S USAGE LIMIT OR A SIGN-IN LEAVES THE
-  QUEUE WHERE IT IS.** A refused prompt is read once, into its words and a class
+  QUEUE WHERE IT IS.** A refused prompt, a refused session open and an adapter
+  that died are each read once, into a class
   (`auth | usage-limit | overloaded | context | other`, `providerFailureSchema`
-  in `@repo/domain/provider-event`), from what the adapter attaches: claude's
-  `errorKind`, codex's `codexErrorInfo`, the reserved -32000, and claude's own
-  limit text when no kind came with it (`readProviderError` in
-  `packages/agent-runtime/src/acp/provider-error.ts`). `authentication_failed`
+  in `@repo/domain/provider-event`) beside the adapter's own words, from what
+  the adapter attaches: claude's `errorKind`, the reserved -32000, and claude's
+  own limit text when no kind came with it (`readProviderError` in
+  `packages/agent-runtime/src/acp/provider-error.ts`). A codex turn fails by
+  the typed session failure its prompt's answer carries, whose category and
+  actions are the class (`readSessionFailure`), because the runtime declares
+  typed failures on initialize for codex alone (the row's `typedFailures`):
+  undeclared, codex speaks every failure but a usage limit or a sign-in as the
+  agent's text and ends the turn `end_turn`, so an overflowed context read as
+  a finished reply; declared, claude would stop rejecting a limited turn with
+  the `errorKind` read above. `authentication_failed`
   reads as signed out whatever its code, so the panel says so rather than the
-  adapter's text. The class rides `provider/error` as an optional field, which
+  adapter's text. Anything else, a vault holding the vendor's settings
+  included, reads as `other`. The class rides the failed turn's own
+  `provider/error` (`failTurn` in `apps/cli/src/server/agents/runtime-manager.ts`
+  for a dispatch that never reached a prompt) as an optional field, which
   a log written before it parses without and a stale install strips. A
   settle whose turn failed `usage-limit` or `auth` does not drain
   (`failureHoldsQueue` in `apps/cli/src/server/threads/service.ts`): the next
-  send starts the oldest queued message first. Rejected: draining as for any
+  send starts the oldest queued message first. The words a person reads of
+  either are the host's, written beside that rule because they promise it
+  (`providerFailureMessage` in `apps/cli/src/server/threads/provider-failure.ts`),
+  into the one persisted `message` every client shows; the runtime carries
+  the adapter's words alone. Rejected: draining as for any
   failure, which spends every queued message on the same refusal and leaves
   nothing for after the limit resets or the sign-in.
 

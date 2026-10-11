@@ -38,25 +38,26 @@ const accountSentence = (harness: HarnessStatus): string => {
 
 // Only the ACP runtime runs a signed-in agent; the others say so in a sentence, never by the
 // configuration's own names.
-const RUNTIME_SENTENCES = {
-  acp: null,
-  off: "Actions are turned off on this Mac.",
-  scripted: "Actions run on a stand-in agent here, not on your Claude or ChatGPT plan.",
-  unavailable: "Actions can't start on this Mac right now.",
-} satisfies Record<AgentStatus["runtime"], string | null>;
+const runtimeSentence = (agent: AgentStatus): string | null => {
+  switch (agent.mode) {
+    case "acp": {
+      return agent.runtime === "ready"
+        ? null
+        : `Actions can't start on this Mac right now. ${agent.detail}`;
+    }
+    case "off": {
+      return "Actions are turned off on this Mac.";
+    }
+    case "scripted": {
+      return "Actions run on a stand-in agent here, not on your Claude or ChatGPT plan.";
+    }
+    // no default
+  }
+};
 
 const RuntimeNote = ({ agent }: { agent: AgentStatus | undefined }) => {
-  const sentence = agent === undefined ? null : RUNTIME_SENTENCES[agent.runtime];
-  if (agent === undefined || sentence === null) {
-    return null;
-  }
-  // only an unavailable runtime's detail is written for the person; the others name configuration
-  const detail = agent.runtime === "unavailable" ? agent.detail : null;
-  return (
-    <p className="text-body text-muted-foreground">
-      {detail === null ? sentence : `${sentence} ${detail}`}
-    </p>
-  );
+  const sentence = agent === undefined ? null : runtimeSentence(agent);
+  return sentence === null ? null : <p className="text-body text-muted-foreground">{sentence}</p>;
 };
 
 const HarnessCard = ({

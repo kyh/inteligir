@@ -50,8 +50,8 @@ const PROD_DATA_DIR_NAME = ".inteligir";
 const PROD_VAULT_DIR_NAME = "Inteligir";
 const VAULTS_DIR_NAME = "vaults";
 const CONFIG_FILE_NAME = "config.json";
-// what the runtime reports when the vendor refuses for want of a sign-in
-// (packages/agent-runtime/src/acp/provider-error.ts)
+// what the server says when the vendor refuses for want of a sign-in
+// (apps/cli/src/server/threads/provider-failure.ts)
 const CODEX_SIGNED_OUT = "ChatGPT is signed out on this Mac";
 // the shell's notes in the server's log as it starts a child and once that child has stopped
 // (src-tauri/src/server.rs)

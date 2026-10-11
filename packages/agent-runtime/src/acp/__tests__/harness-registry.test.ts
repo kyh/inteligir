@@ -2,7 +2,8 @@ import { accessSync, constants, mkdtempSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { HARNESS_IDS, HARNESSES } from "../harness-registry";
+import { HARNESS_IDS } from "@repo/domain/harness";
+import { HARNESSES } from "../harness-registry";
 
 const dirs: string[] = [];
 

@@ -285,10 +285,10 @@ describe("the vault dir and remote", () => {
 });
 
 describe("the agent selection", () => {
-  it("defaults to auto and validates INTELIGIR_AGENT values", () => {
+  it("defaults to acp and validates INTELIGIR_AGENT values", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const defaulted = resolveAppConfig({ checkoutPath: "/checkout/a", env: {}, homeDir });
-    expect(defaulted.agent).toBe("auto");
+    expect(defaulted.agent).toBe("acp");
     expect(defaulted.agentModels).toEqual({ claude: null, codex: null });
 
     const withEnv = resolveAppConfig({

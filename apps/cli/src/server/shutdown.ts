@@ -13,7 +13,9 @@ export const TEARDOWN_BUDGETS_MS = {
   listener: DEFAULT_STEP_TIMEOUT_MS,
   // cloud sync writes the db and the vault, so it stops above both.
   cloud: DEFAULT_STEP_TIMEOUT_MS,
-  agent: DEFAULT_STEP_TIMEOUT_MS,
+  // a running sign-in's adapter is ended, then every session's at once, each given its own
+  // shutdown before the kill (`terminateAdapter` in @repo/agent-runtime/acp/acp-runtime).
+  agent: 12_000,
   // each running connector sign-in's vendor process is killed and its close awaited.
   connectors: 2000,
   knowledge: DEFAULT_STEP_TIMEOUT_MS,

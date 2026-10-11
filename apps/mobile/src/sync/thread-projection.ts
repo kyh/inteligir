@@ -1,7 +1,6 @@
 // renders completed items only: each carries the final text of the deltas the store never holds.
 
 import type { StoredThread, StoredThreadEvent } from "./sync-store";
-import { settledReasoningText } from "@repo/domain/provider-event";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { deriveThreadTitle, firstVisibleLine } from "@repo/domain/thread-title";
 
@@ -41,9 +40,7 @@ const toolLabel = (event: Extract<ThreadEvent, { type: "item/completed" }>): str
       return paths.length > 1 ? `${head} +${paths.length - 1}` : head;
     }
     case "agentMessage":
-    case "plan":
-    case "reasoning":
-    case "userMessage": {
+    case "reasoning": {
       return null;
     }
     // no default
@@ -68,18 +65,12 @@ const itemFrom = (event: StoredThreadEvent, index: number): ThreadDisplayItem | 
     }
     case "item/completed": {
       const { item } = event;
-      if (item.type === "userMessage") {
-        return { id: item.id, kind: "user", text: item.text };
-      }
       if (item.type === "agentMessage") {
         return { id: item.id, kind: "agent", text: item.text };
       }
       if (item.type === "reasoning") {
-        const text = settledReasoningText(item).trim();
+        const text = item.text.trim();
         return text === "" ? null : { id: item.id, kind: "reasoning", text };
-      }
-      if (item.type === "plan") {
-        return { id: item.id, kind: "agent", text: item.text };
       }
       const label = toolLabel(event);
       return label === null
@@ -89,7 +80,6 @@ const itemFrom = (event: StoredThreadEvent, index: number): ThreadDisplayItem | 
     case "item/started":
     case "thread/archived":
     case "thread/meta":
-    case "thread/tokenUsage/updated":
     case "turn/completed":
     case "turn/started": {
       return null;

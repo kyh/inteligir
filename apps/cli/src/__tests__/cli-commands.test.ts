@@ -126,7 +126,6 @@ const SHOW_TIMELINE: ThreadTimeline = {
       viewContext: null,
     },
   ],
-  tokenUsage: null,
 };
 
 const COMMAND_APPROVAL: ApprovalPendingInteractionPayload = {
@@ -1055,7 +1054,7 @@ describe("status, guide and help", () => {
       "Data dir: /fixture/data",
       "Vault: /fixture/vault",
       "Schema: v3 — uptime 65s",
-      "Agent: acp (mode auto)",
+      "Agent: acp",
       "Thread context: thr_ctx",
     ]);
   });
@@ -1300,6 +1299,20 @@ describe("argv the CLI refuses", () => {
     expect(JSON.parse(result.stderr)).toEqual({
       error: "INVALID_USAGE",
       message: "unexpected argument: b — quote a value that contains spaces",
+    });
+  });
+
+  it("refuses a harness id no harness has, naming the ones there are", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["agents", "default", "gemini", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: "INVALID_USAGE",
+      message: 'No harness is called "gemini"; pass one of claude, codex.',
     });
   });
 

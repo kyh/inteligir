@@ -76,8 +76,6 @@ export const unanswerableReason = (
 export interface PendingInteractionCreate {
   threadId: string;
   turnId: string;
-  providerId: string;
-  providerThreadId: string;
   providerRequestId: string;
   payload: ApprovalPendingInteractionPayload;
 }

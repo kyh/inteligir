@@ -22,19 +22,19 @@ const FAKE_AGENT = require.resolve("@repo/agent-runtime/test-support/fake-acp-ag
 const NO_MODELS = { claude: null, codex: null };
 
 // the fake stands in for the adapter, so no turn here reaches a vendor or spends a model call.
-const spawnFakeAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (_harness, env) => ({
-  child: spawn(process.execPath, [FAKE_AGENT], {
+const spawnFakeAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (_harness, env) =>
+  spawn(process.execPath, [FAKE_AGENT], {
+    detached: true,
     env: { ...env, FAKE_ACP_MODE: "message" },
     stdio: ["pipe", "pipe", "pipe"],
-  }),
-});
+  });
 
-const bootAuto = async (env: NodeJS.ProcessEnv) =>
+const bootAcp = async (env: NodeJS.ProcessEnv) =>
   await bootTestApp({
-    agent: { detail: "placeholder", mode: "auto", runtime: "unavailable" },
+    agent: { detail: "placeholder", mode: "acp", runtime: "unavailable" },
     makeDriver: ({ db, bus, vault, vaultDir }) =>
       resolveAgentDriver({
-        config: { agent: "auto", agentModels: NO_MODELS, vaultDir },
+        config: { agent: "acp", agentModels: NO_MODELS, vaultDir },
         db,
         env,
         notifier: bus,
@@ -46,9 +46,9 @@ const bootAuto = async (env: NodeJS.ProcessEnv) =>
 
 describe("agent driver resolution", () => {
   it("runs on the bundled runtime with nothing on PATH, and a send is not refused", async () => {
-    const harness = await bootAuto({ PATH: "/nonexistent-dir" });
+    const harness = await bootAcp({ PATH: "/nonexistent-dir" });
     const status = systemStatusResponseSchema.parse(await harness.client.system.status());
-    expect(status.agent).toEqual({ detail: null, mode: "auto", runtime: "acp" });
+    expect(status.agent).toEqual({ mode: "acp", runtime: "ready" });
 
     const threadId = await createThread(harness.client);
     const turnId = await sendMessage(harness.client, threadId, "hello");
@@ -61,10 +61,10 @@ describe("agent driver resolution", () => {
 
   it("refuses a send when the runtime the thread runs on is missing, and says to reinstall", async () => {
     const missing = path.join(makeTempDir("inteligir-agent-runtime-"), "claude");
-    const harness = await bootAuto({ CLAUDE_CODE_EXECUTABLE: missing });
+    const harness = await bootAcp({ CLAUDE_CODE_EXECUTABLE: missing });
     const reinstall = "This copy of inteligir is missing its Claude runtime — reinstall it";
     const status = systemStatusResponseSchema.parse(await harness.client.system.status());
-    expect(status.agent).toEqual({ detail: reinstall, mode: "auto", runtime: "unavailable" });
+    expect(status.agent).toEqual({ detail: reinstall, mode: "acp", runtime: "unavailable" });
 
     const threadId = await createThread(harness.client);
     const [refusal] = await safe(harness.client.threads.send({ text: "hello", threadId }));
@@ -79,7 +79,7 @@ describe("agent driver resolution", () => {
 
   it("the off mode reads as off on /system/status", async () => {
     const harness = await bootTestApp({
-      agent: { detail: "The agent is disabled (INTELIGIR_AGENT=off)", mode: "off", runtime: "off" },
+      agent: { mode: "off" },
       makeDriver: ({ db, bus, vault, vaultDir }) =>
         resolveAgentDriver({
           config: { agent: "off", agentModels: NO_MODELS, vaultDir },
@@ -90,10 +90,6 @@ describe("agent driver resolution", () => {
         }),
     });
     const status = systemStatusResponseSchema.parse(await harness.client.system.status());
-    expect(status.agent).toEqual({
-      detail: "The agent is disabled (INTELIGIR_AGENT=off)",
-      mode: "off",
-      runtime: "off",
-    });
+    expect(status.agent).toEqual({ mode: "off" });
   });
 });

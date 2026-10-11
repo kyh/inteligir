@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { harnessIdSchema } from "@repo/agent-runtime/acp/harness-registry";
+import { harnessIdSchema } from "@repo/domain/harness";
 import { JsonFileStore } from "../json-file-store";
 
 const agentPrefsSchema = z.object({ defaultHarness: harnessIdSchema.optional() }).strict();

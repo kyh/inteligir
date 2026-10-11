@@ -198,7 +198,7 @@ describe("the thread sync, raw", () => {
 });
 
 const SYSTEM: SystemStatusResponse = {
-  agent: { detail: null, mode: "auto", runtime: "acp" },
+  agent: { mode: "acp", runtime: "ready" },
   dataDir: "/home/me/.inteligir",
   schemaVersion: 7,
   uptimeMs: 42_000,

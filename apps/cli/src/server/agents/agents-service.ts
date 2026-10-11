@@ -5,17 +5,18 @@ import type {
   AgentsStatusResponse,
   HarnessStatus,
 } from "@repo/contract/local/agents/agents-schema";
-import { HARNESS_IDS, HARNESSES, harnessIdSchema } from "@repo/agent-runtime/acp/harness-registry";
-import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
+import { HARNESS_IDS } from "@repo/domain/harness";
+import type { HarnessId } from "@repo/domain/harness";
+import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 
 import { defaultHarnessId } from "./agent-driver";
 import type { AgentPrefsStore } from "./agent-prefs-store";
 import type { AgentAccounts } from "./agent-sign-in";
 import { missingRuntimeDetail } from "./vendor-process";
 
-// what is refused before any vendor runs: a harness no row names, one this copy of the app did not
-// ship, or a sign-in code no running sign-in of that harness is waiting for.
-type HarnessRefusal = "not-found" | "unavailable" | "no-code-wanted";
+// what is refused before any vendor runs: a harness this copy of the app did not ship, or a sign-in
+// code no running sign-in of that harness is waiting for.
+type HarnessRefusal = "unavailable" | "no-code-wanted";
 
 export class HarnessRefusedError extends Error {
   readonly kind: HarnessRefusal;
@@ -27,21 +28,13 @@ export class HarnessRefusedError extends Error {
   }
 }
 
-const knownHarness = (id: string): HarnessId => {
-  const parsed = harnessIdSchema.safeParse(id);
-  if (!parsed.success) {
-    throw new HarnessRefusedError("not-found", `no harness is called "${id}"`);
-  }
-  return parsed.data;
-};
-
 export interface AgentsService {
   status: () => Promise<AgentsStatusResponse>;
-  setDefault: (id: string) => Promise<AgentsStatusResponse>;
-  signIn: (id: string) => Promise<AgentsSignInResponse>;
-  cancelSignIn: (id: string) => Promise<AgentsStatusResponse>;
-  signOut: (id: string) => Promise<AgentsSignOutResponse>;
-  submitSignInCode: (id: string, code: string) => AgentsSignInCodeResponse;
+  setDefault: (id: HarnessId) => Promise<AgentsStatusResponse>;
+  signIn: (id: HarnessId) => Promise<AgentsSignInResponse>;
+  cancelSignIn: (id: HarnessId) => Promise<AgentsStatusResponse>;
+  signOut: (id: HarnessId) => Promise<AgentsSignOutResponse>;
+  submitSignInCode: (id: HarnessId, code: string) => AgentsSignInCodeResponse;
 }
 
 export interface CreateAgentsServiceArgs {
@@ -72,13 +65,12 @@ export const createAgentsService = (args: CreateAgentsServiceArgs): AgentsServic
     signingIn: args.accounts.signingIn(),
   });
 
-  const bundledHarness = (id: string): HarnessId => {
-    const known = knownHarness(id);
-    const harness = HARNESSES[known];
+  const bundledHarness = (id: HarnessId): HarnessId => {
+    const harness = HARNESSES[id];
     if (harness.vendorExecutable(args.env) === null) {
       throw new HarnessRefusedError("unavailable", missingRuntimeDetail(harness));
     }
-    return known;
+    return id;
   };
 
   // a harness just signed in takes the default only from one a new thread could not run on, so a
@@ -97,19 +89,17 @@ export const createAgentsService = (args: CreateAgentsServiceArgs): AgentsServic
 
   return {
     async cancelSignIn(id) {
-      await args.accounts.cancel(knownHarness(id));
+      await args.accounts.cancel(id);
       return await status();
     },
     async setDefault(id) {
-      const known = knownHarness(id);
-      args.store.write({ ...args.store.read(), defaultHarness: known });
+      args.store.write({ ...args.store.read(), defaultHarness: id });
       return await status();
     },
     async signIn(id) {
-      const known = bundledHarness(id);
-      const outcome = await args.accounts.signIn(known);
+      const outcome = await args.accounts.signIn(bundledHarness(id));
       if (outcome.outcome === "signed-in") {
-        await adoptDefault(known);
+        await adoptDefault(id);
       }
       return { ...outcome, status: await status() };
     },
@@ -119,12 +109,11 @@ export const createAgentsService = (args: CreateAgentsServiceArgs): AgentsServic
     },
     status,
     submitSignInCode(id, code) {
-      const known = knownHarness(id);
-      const outcome = args.accounts.submitCode(known, code);
+      const outcome = args.accounts.submitCode(id, code);
       if (outcome === "not-waiting") {
         throw new HarnessRefusedError(
           "no-code-wanted",
-          `${HARNESSES[known].displayName} is not waiting for a sign-in code; start signing in first.`,
+          `${HARNESSES[id].displayName} is not waiting for a sign-in code; start signing in first.`,
         );
       }
       return { outcome };

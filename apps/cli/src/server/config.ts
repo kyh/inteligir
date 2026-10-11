@@ -5,7 +5,8 @@ import { readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
-import type { HarnessId, HarnessModels } from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessId } from "@repo/domain/harness";
+import type { HarnessModels } from "@repo/agent-runtime/acp/harness-registry";
 import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
 import { agentModeSchema, agentModeValues } from "@repo/contract/local/system/system-schema";
 import type { AgentMode } from "@repo/contract/local/system/system-schema";
@@ -179,7 +180,7 @@ const parseSyncIntervalValue = (name: string, rawValue: string): number => {
 const ENV_VARS = {
   agent: defineEnvVar({
     description:
-      "Agent runtime selection: auto (the ACP runtime, over the vendor binaries bundled with the adapters; PATH is never consulted), scripted (in-process fake for e2e), or off. WHICH harness runs is a thread's own providerId, never this.",
+      "Agent runtime selection: acp (the ACP runtime, over the vendor binaries bundled with the adapters; PATH is never consulted), scripted (in-process fake for e2e), or off. WHICH harness runs is a thread's own providerId, never this.",
     name: "INTELIGIR_AGENT",
     parse: ({ name, value }) => parseAgentModeValue(name, value),
   }),
@@ -466,7 +467,7 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
   const vaultRemote = readEnvVar(ENV_VARS.vaultRemote, args.env, homeDir) ?? null;
   const envSyncIntervalMs = readEnvVar(ENV_VARS.vaultSyncIntervalMs, args.env, homeDir);
   const slowReads = readEnvVar(ENV_VARS.slowReads, args.env, homeDir) ?? null;
-  const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
+  const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "acp";
   const agentModels = resolveAgentModels(args, homeDir, managed);
   const cloudUrl = resolveCloudUrl(args, homeDir, managed);
   const debug = readEnvVar(ENV_VARS.debug, args.env, homeDir) ?? new Set();

@@ -150,7 +150,7 @@ it("names the lines a command's head leaves out", () => {
   expect(view.container.textContent).toContain("9960 more lines");
 });
 
-const userMessage = (
+const userRow = (
   viewContext: TimelineConversationRow["viewContext"],
   contextPaths: string[] = [],
 ): TimelineRow => ({
@@ -170,7 +170,7 @@ it("attributes a user message to what the sender was looking at", () => {
   const view = render(
     <List
       rows={[
-        userMessage({
+        userRow({
           resource: "Notes/Plans.md",
           revision: "a".repeat(64),
           surface: "doc",
@@ -185,12 +185,12 @@ it("attributes a user message to what the sender was looking at", () => {
 });
 
 it("renders a message with no context as the bubble alone", () => {
-  const view = render(<List rows={[userMessage(null)]} />);
+  const view = render(<List rows={[userRow(null)]} />);
   expect(view.container.textContent).toBe("make this shorter");
 });
 
 it("draws the notes a message attached under its bubble, apart from the text", () => {
-  const view = render(<List rows={[userMessage(null, ["Notes/Plans.md", "Notes/Goals.md"])]} />);
+  const view = render(<List rows={[userRow(null, ["Notes/Plans.md", "Notes/Goals.md"])]} />);
   const bubble = view.getByText("make this shorter");
   expect(bubble.textContent).toBe("make this shorter");
   expect(view.getByText("Notes/Plans.md")).toBeTruthy();
@@ -276,7 +276,7 @@ describe("a turn's changes footer", () => {
 
   it("follows the turn's reply, not the turn's own row", () => {
     const settled: TimelineTurnRow = { ...pendingTurn, status: "completed" };
-    const slots = turnFooterSlots([userMessage(null), settled, assistant("Done.", 6)]);
+    const slots = turnFooterSlots([userRow(null), settled, assistant("Done.", 6)]);
 
     expect([...slots]).toEqual([["item:turn_1:item_a", settled]]);
   });

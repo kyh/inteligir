@@ -10,7 +10,7 @@ import type {
 import type { TurnChanges } from "@repo/contract/local/threads/threads-schema";
 import { LoadingState } from "@repo/ui/ai/loading-state";
 import { StreamingText } from "@repo/ui/ai/streaming-text";
-import { Thinking, ThinkingReasoning, ThinkingStep } from "@repo/ui/ai/thinking";
+import { Thinking, ThinkingReasoning } from "@repo/ui/ai/thinking";
 import { ToolChip, ToolChipDetail, ToolChipList } from "@repo/ui/ai/tool-chips";
 import { Button } from "@repo/ui/components/button";
 import { cn } from "@repo/ui/lib/cn";
@@ -45,27 +45,16 @@ const ContextPathChips = ({ paths }: { paths: readonly string[] }) => (
 );
 
 const isThought = (row: TimelineRow): boolean =>
-  row.kind === "work" && (row.workKind === "reasoning" || row.workKind === "plan");
+  row.kind === "work" && row.workKind === "reasoning";
 
 const isAction = (row: TimelineRow): boolean =>
   row.kind === "work" &&
   (row.workKind === "command" || row.workKind === "file-change" || row.workKind === "tool");
 
-const ThoughtRowContent = ({ row }: { row: TimelineWorkRow }): ReactNode => {
-  if (row.workKind === "reasoning") {
-    return row.text.trim() === "" ? null : (
-      <ThinkingReasoning pending={row.status === "pending"}>
-        {firstLine(row.text)}
-      </ThinkingReasoning>
-    );
-  }
-  if (row.workKind === "plan") {
-    return row.text.trim() === "" ? null : (
-      <ThinkingStep pending={row.status === "pending"}>Plan: {firstLine(row.text)}</ThinkingStep>
-    );
-  }
-  return null;
-};
+const ThoughtRowContent = ({ row }: { row: TimelineWorkRow }): ReactNode =>
+  row.workKind !== "reasoning" || row.text.trim() === "" ? null : (
+    <ThinkingReasoning pending={row.status === "pending"}>{firstLine(row.text)}</ThinkingReasoning>
+  );
 
 const ActionChipContent = ({ row }: { row: TimelineWorkRow }): ReactNode => {
   switch (row.workKind) {
@@ -130,8 +119,7 @@ const ActionChipContent = ({ row }: { row: TimelineWorkRow }): ReactNode => {
         </ToolChip>
       );
     }
-    case "reasoning":
-    case "plan": {
+    case "reasoning": {
       return null;
     }
     default: {

@@ -1,3 +1,4 @@
+import { harnessIdSchema } from "@repo/domain/harness";
 import { z } from "zod";
 
 // the vendor's own answer about the sign-in in its shared store; unknown is a vendor that did not
@@ -18,7 +19,7 @@ export type VendorAccount = z.infer<typeof vendorAccountSchema>;
 // vendorApp: the vendor's own app on this Mac that shares the sign-in, so a sign-out here is its too.
 const harnessNames = {
   displayName: z.string().min(1),
-  id: z.string().min(1),
+  id: harnessIdSchema,
   vendorApp: z.string().min(1),
 };
 
@@ -57,21 +58,21 @@ export const harnessReadiness = (status: HarnessStatus): HarnessReadiness => {
 // that did not open, null until it prints one (and always, for a vendor that prints none).
 // acceptsCode: the sign-in also takes the code that address's page shows, through submitSignInCode.
 export const signingInSchema = z
-  .object({ acceptsCode: z.boolean(), authUrl: z.url().nullable(), id: z.string().min(1) })
+  .object({ acceptsCode: z.boolean(), authUrl: z.url().nullable(), id: harnessIdSchema })
   .strict();
 export type SigningIn = z.infer<typeof signingInSchema>;
 
 export const agentsStatusResponseSchema = z
   .object({
     // the harness a new thread starts on: the stored choice, else claude
-    defaultId: z.string().min(1),
+    defaultId: harnessIdSchema,
     harnesses: z.array(harnessStatusSchema),
     signingIn: signingInSchema.nullable(),
   })
   .strict();
 export type AgentsStatusResponse = z.infer<typeof agentsStatusResponseSchema>;
 
-export const agentsHarnessRequestSchema = z.object({ id: z.string().min(1) }).strict();
+export const agentsHarnessRequestSchema = z.object({ id: harnessIdSchema }).strict();
 
 // one line with no space in it: the vendor reads its stdin a line at a time, so a line break inside
 // a code would hand it a second one.
@@ -79,7 +80,7 @@ export const SIGN_IN_CODE_MAX_LENGTH = 2048;
 export const agentsSignInCodeRequestSchema = z
   .object({
     code: z.string().trim().min(1).max(SIGN_IN_CODE_MAX_LENGTH).regex(/^\S+$/u),
-    id: z.string().min(1),
+    id: harnessIdSchema,
   })
   .strict();
 

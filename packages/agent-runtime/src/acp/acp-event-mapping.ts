@@ -9,11 +9,10 @@ import type {
   ThreadEventFileChange,
   ThreadEventItemStatus,
 } from "@repo/domain/provider-event";
-import type { ThreadEventScope } from "@repo/domain/thread-event-scope";
+import type { TurnScope } from "@repo/domain/thread-event-scope";
 import type {
   ContentBlock,
   ContentChunk,
-  PlanEntry,
   PromptResponse,
   SessionNotification,
   ToolCallContent,
@@ -21,11 +20,7 @@ import type {
   ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
 import { z } from "zod";
-import type {
-  ProviderEvent,
-  ProviderEventItem,
-  ProviderEventPlanStep,
-} from "../vocabulary/provider-event.js";
+import type { ProviderEvent, ProviderEventItem } from "../vocabulary/provider-event.js";
 
 type StopReason = PromptResponse["stopReason"];
 
@@ -38,7 +33,6 @@ type SessionUpdateOf<Kind extends SessionUpdate["sessionUpdate"]> = Extract<
 
 export interface AcpTurnContext {
   threadId: string;
-  providerThreadId: string;
   turnId: string;
 }
 
@@ -104,17 +98,6 @@ const mapStopReason = (stopReason: StopReason): "completed" | "failed" | "interr
     // no default
   }
 };
-
-const PLAN_STEP_STATUS = {
-  completed: "completed",
-  in_progress: "active",
-  pending: "pending",
-} satisfies Record<PlanEntry["status"], ProviderEventPlanStep["status"]>;
-
-const mapPlanEntry = (entry: PlanEntry): ProviderEventPlanStep => ({
-  status: PLAN_STEP_STATUS[entry.status],
-  step: entry.content,
-});
 
 // a content collection replaces the one before it (the protocol's rule): claude sends a Bash call's
 // description as content, then its output, and appending ran the two together.
@@ -255,13 +238,12 @@ export class AcpTurnMapper {
     return this.#ctx.turnId;
   }
 
-  #scope(): ThreadEventScope {
+  #scope(): TurnScope {
     return { kind: "turn", turnId: this.#ctx.turnId };
   }
 
   #threadData() {
     return {
-      providerThreadId: this.#ctx.providerThreadId,
       scope: this.#scope(),
       threadId: this.#ctx.threadId,
     };
@@ -289,21 +271,14 @@ export class AcpTurnMapper {
       case "tool_call_update": {
         return this.#updateToolCall(update);
       }
-      case "plan": {
-        return [
-          {
-            plan: update.entries.map(mapPlanEntry),
-            type: "turn/plan/updated",
-            ...this.#threadData(),
-          },
-        ];
-      }
       case "notice": {
         const { description, severity, title } = update;
         const message =
           description === undefined || description === null ? title : `${title}: ${description}`;
         return [this.#notice(severity, message)];
       }
+      // no pinned adapter sends a plan, even asked for a todo list, so the grammar carries none.
+      case "plan":
       case "user_message_chunk":
       case "available_commands_update":
       case "current_mode_update":
@@ -368,7 +343,7 @@ export class AcpTurnMapper {
       open = { id: `${this.#ctx.turnId}:reasoning:${this.#reasoningCount}`, messageId, text: "" };
       this.#reasoning = open;
       events.push({
-        item: { content: [], id: open.id, summary: [], type: "reasoning" },
+        item: { id: open.id, text: "", type: "reasoning" },
         type: "item/started",
         ...this.#threadData(),
       });
@@ -407,7 +382,7 @@ export class AcpTurnMapper {
     this.#reasoning = null;
     return [
       {
-        item: { content: [open.text], id: open.id, summary: [], type: "reasoning" },
+        item: { id: open.id, text: open.text, type: "reasoning" },
         type: "item/completed",
         ...this.#threadData(),
       },
@@ -446,21 +421,15 @@ export class AcpTurnMapper {
       return [];
     }
     applyToolCallUpdate(open, update);
-    if (open.status === "completed" || open.status === "failed") {
-      this.#toolCalls.delete(update.toolCallId);
-      return [
-        {
-          item: toolItem(update.toolCallId, open),
-          type: "item/completed",
-          ...this.#threadData(),
-        },
-      ];
+    // a running call's update lands with the item it completes as: nothing draws it before.
+    if (open.status !== "completed" && open.status !== "failed") {
+      return [];
     }
+    this.#toolCalls.delete(update.toolCallId);
     return [
       {
-        itemId: update.toolCallId,
-        message: open.title,
-        type: "item/toolCall/progress",
+        item: toolItem(update.toolCallId, open),
+        type: "item/completed",
         ...this.#threadData(),
       },
     ];

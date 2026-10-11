@@ -153,14 +153,14 @@ describe("Settings › Agent", () => {
   });
 
   it.each<[string, AgentStatus]>([
-    ["ready", { detail: null, mode: "auto", runtime: "acp" }],
-    ["off", { detail: "The agent is disabled (INTELIGIR_AGENT=off)", mode: "off", runtime: "off" }],
-    ["scripted", { detail: null, mode: "scripted", runtime: "scripted" }],
+    ["ready", { mode: "acp", runtime: "ready" }],
+    ["off", { mode: "off" }],
+    ["scripted", { mode: "scripted" }],
     [
       "unavailable",
       {
         detail: "This copy of inteligir is missing its ChatGPT runtime — reinstall it",
-        mode: "auto",
+        mode: "acp",
         runtime: "unavailable",
       },
     ],

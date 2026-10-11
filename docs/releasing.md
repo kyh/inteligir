@@ -179,6 +179,11 @@ app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
   for any stdio server. Passing: Settings › Connectors lists it, and a new
   action asked which tools it has lists that server's, with nothing set in the
   app.
+- **A quit leaves no agent running.** Start an action on ChatGPT that runs a
+  long command (ask it to run `sleep 600` in a shell), and Quit while it runs.
+  Passing: within 15 seconds of the window closing, `pgrep -fl Inteligir.app/`
+  and `pgrep -fl 'sleep 600'` print nothing. Make Claude the default in Settings ›
+  Agent and repeat: the same.
 - **Dictation is the Mac's.** Press fn twice in the ⌘K composer and speak,
   then type. Passing: the words land once, at the caret; typing carries on
   after them; Enter while dictation is live does not send; the Edit menu shows

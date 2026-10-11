@@ -1,12 +1,10 @@
 // the row grammar is bb's (github.com/get-bb/bb, MIT); the fold is this repo's own
 
-import { settledReasoningText } from "@repo/domain/provider-event";
 import type {
   ThreadEvent,
   ThreadEventFileChange,
   ThreadEventItem,
   ThreadEventItemStatus,
-  ThreadEventTokenUsage,
   ThreadEventTurnStatus,
 } from "@repo/domain/provider-event";
 import { assertUnreachable } from "./assert-unreachable";
@@ -75,8 +73,6 @@ interface ItemAccumulator {
   started: ThreadEventItem | null;
   completed: ThreadEventItem | null;
   textBuffer: string;
-  reasoningBuffer: string;
-  outputBuffer: string;
   sourceSeqStart: number;
   sourceSeqEnd: number;
   createdAt: number;
@@ -98,15 +94,6 @@ interface SequencedRow<Row extends TimelineRow> {
   seq: number;
   row: Row;
 }
-
-const reasoningRowText = (
-  snapshot: Extract<ThreadEventItem, { type: "reasoning" }>,
-  settled: boolean,
-  buffer: string,
-): string => {
-  const completedText = settledReasoningText(snapshot);
-  return settled && completedText.length > 0 ? completedText : buffer;
-};
 
 // a cut between a surrogate pair's halves would leave the first half alone
 const LONE_HIGH_SURROGATE_AT_END = /[\uD800-\uDBFF]$/u;
@@ -161,28 +148,18 @@ const projectItem = (
     turnId: accumulator.turnId,
   };
   const settled = accumulator.completed !== null;
-  const settledStatus: TimelineRowStatus = settled ? "completed" : "pending";
+  // a settled item carries its whole text; a streaming one, what its deltas have added so far.
+  const itemText = (snapshotText: string): string =>
+    settled ? snapshotText : snapshotText + accumulator.textBuffer;
 
   switch (snapshot.type) {
-    case "userMessage": {
-      const row: TimelineConversationRow = {
-        ...base,
-        // a provider's echo of the user's message: the context belongs to the send that recorded it
-        contextPaths: [],
-        kind: "conversation",
-        role: "user",
-        text: snapshot.text,
-        viewContext: null,
-      };
-      return row;
-    }
     case "agentMessage": {
       const row: TimelineConversationRow = {
         ...base,
         contextPaths: [],
         kind: "conversation",
         role: "assistant",
-        text: settled ? snapshot.text : snapshot.text + accumulator.textBuffer,
+        text: itemText(snapshot.text),
         viewContext: null,
       };
       return row;
@@ -191,19 +168,9 @@ const projectItem = (
       const row: TimelineWorkRow = {
         ...base,
         kind: "work",
-        status: settledStatus,
-        text: reasoningRowText(snapshot, settled, accumulator.reasoningBuffer),
+        status: settled ? "completed" : "pending",
+        text: itemText(snapshot.text),
         workKind: "reasoning",
-      };
-      return row;
-    }
-    case "plan": {
-      const row: TimelineWorkRow = {
-        ...base,
-        kind: "work",
-        status: settledStatus,
-        text: settled ? snapshot.text : snapshot.text + accumulator.textBuffer,
-        workKind: "plan",
       };
       return row;
     }
@@ -223,7 +190,7 @@ const projectItem = (
     case "commandExecution": {
       const row: TimelineWorkRow = {
         ...base,
-        ...commandOutput(snapshot.aggregatedOutput ?? accumulator.outputBuffer),
+        ...commandOutput(snapshot.aggregatedOutput ?? ""),
         approvalStatus: snapshot.approvalStatus,
         command: snapshot.command,
         cwd: snapshot.cwd,
@@ -259,7 +226,6 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
   const turnsByTurnId = new Map<string, TurnAccumulator>();
   const turnChildren = new Map<string, SequencedRow<TimelineTurnChild>[]>();
   const itemsByKey = new Map<string, ItemAccumulator>();
-  let tokenUsage: ThreadEventTokenUsage | null = null;
   let maxSequence = 0;
 
   // a row joins a turn only once that turn has started; anything else stays top-level
@@ -288,8 +254,6 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
       completed: null,
       createdAt: entry.createdAt,
       itemId,
-      outputBuffer: "",
-      reasoningBuffer: "",
       sourceSeqEnd: entry.sequence,
       sourceSeqStart: entry.sequence,
       started: null,
@@ -349,21 +313,8 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
     turnId: string,
     itemId: string,
     delta: string,
-    buffer: "reasoningBuffer" | "textBuffer",
   ): void => {
-    const accumulator = itemAccumulator(entry, turnId, itemId);
-    accumulator[buffer] += delta;
-  };
-
-  const appendCommandOutput = (
-    entry: ThreadTimelineEvent,
-    turnId: string,
-    itemId: string,
-    delta: string,
-    reset: boolean,
-  ): void => {
-    const accumulator = itemAccumulator(entry, turnId, itemId);
-    accumulator.outputBuffer = reset ? delta : accumulator.outputBuffer + delta;
+    itemAccumulator(entry, turnId, itemId).textBuffer += delta;
   };
 
   const applyEvent = (entry: ThreadTimelineEvent): void => {
@@ -401,23 +352,8 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
         break;
       }
       case "item/agentMessage/delta":
-      case "item/plan/delta": {
-        appendItemDelta(entry, event.scope.turnId, event.itemId, event.delta, "textBuffer");
-        break;
-      }
-      case "item/reasoning/summaryTextDelta":
       case "item/reasoning/textDelta": {
-        appendItemDelta(entry, event.scope.turnId, event.itemId, event.delta, "reasoningBuffer");
-        break;
-      }
-      case "item/commandExecution/outputDelta": {
-        appendCommandOutput(
-          entry,
-          event.scope.turnId,
-          event.itemId,
-          event.delta,
-          event.reset === true,
-        );
+        appendItemDelta(entry, event.scope.turnId, event.itemId, event.delta);
         break;
       }
       case "provider/error": {
@@ -434,10 +370,6 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
           turnId: scopeTurnId,
         };
         place(row, entry.sequence, scopeTurnId);
-        break;
-      }
-      case "thread/tokenUsage/updated": {
-        ({ tokenUsage } = event);
         break;
       }
       // the thread row carries these; the transcript draws what was said and done.
@@ -497,6 +429,5 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
   return {
     maxSequence,
     rows: orderedTopLevel.map((entry) => entry.row),
-    tokenUsage,
   };
 };

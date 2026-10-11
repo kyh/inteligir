@@ -63,11 +63,9 @@ const makeHarness = (): Harness => {
 
 const requestFor = (threadId: string, requestKey = "req-1"): PendingInteractionCreate => ({
   payload: APPROVAL_PAYLOAD,
-  providerId: "claude",
   providerRequestId: requestKey,
-  providerThreadId: "pt_1",
   threadId,
-  turnId: "pturn_1",
+  turnId: "turn_1",
 });
 
 const resolvedRow = (
@@ -89,10 +87,10 @@ const resolvedRow = (
 describe("createInteractionWaiters", () => {
   it("parks the provider on the row and answers it from the recorded decision", async () => {
     const { db, threadId, waiters, settledThreads } = makeHarness();
-    const parked = waiters.park(requestFor(threadId), "turn_host");
+    const parked = waiters.park(requestFor(threadId));
 
     const [row] = listOpenPendingInteractions(db, threadId);
-    expect(row).toMatchObject({ requestKey: "req-1", status: "pending", turnId: "turn_host" });
+    expect(row).toMatchObject({ requestKey: "req-1", status: "pending", turnId: "turn_1" });
     if (row === undefined) {
       throw new Error("expected the parked row");
     }
@@ -106,7 +104,7 @@ describe("createInteractionWaiters", () => {
 
   it("denies a decision the request did not offer rather than passing it through", async () => {
     const { db, threadId, waiters, debugLines } = makeHarness();
-    const parked = waiters.park(requestFor(threadId), null);
+    const parked = waiters.park(requestFor(threadId));
     const [row] = listOpenPendingInteractions(db, threadId);
     if (row === undefined) {
       throw new Error("expected the parked row");
@@ -120,7 +118,7 @@ describe("createInteractionWaiters", () => {
   it("times out onto a deny, interrupting the row and restarting the clock", async () => {
     vi.useFakeTimers();
     const { db, threadId, waiters, settledThreads } = makeHarness();
-    const parked = waiters.park(requestFor(threadId), null);
+    const parked = waiters.park(requestFor(threadId));
     const [row] = listOpenPendingInteractions(db, threadId);
     if (row === undefined) {
       throw new Error("expected the parked row");
@@ -134,7 +132,7 @@ describe("createInteractionWaiters", () => {
 
   it("answers a row the store already resolved without parking anything", async () => {
     const { db, threadId, waiters } = makeHarness();
-    const first = waiters.park(requestFor(threadId), null);
+    const first = waiters.park(requestFor(threadId));
     const [row] = listOpenPendingInteractions(db, threadId);
     if (row === undefined) {
       throw new Error("expected the parked row");
@@ -147,7 +145,7 @@ describe("createInteractionWaiters", () => {
       id: row.id,
       threadId,
     });
-    await expect(waiters.park(requestFor(threadId), null)).resolves.toEqual({
+    await expect(waiters.park(requestFor(threadId))).resolves.toEqual({
       decision: "allow_once",
     });
     expect(waiters.hasParked(threadId)).toBe(false);
@@ -156,8 +154,8 @@ describe("createInteractionWaiters", () => {
   it("cancel denies one thread's parked approvals and leaves the other's", async () => {
     const { db, threadId, waiters } = makeHarness();
     const otherThreadId = createThread(db, noopNotifier, {}).id;
-    const mine = waiters.park(requestFor(threadId), null);
-    const other = waiters.park(requestFor(otherThreadId, "req-2"), null);
+    const mine = waiters.park(requestFor(threadId));
+    const other = waiters.park(requestFor(otherThreadId, "req-2"));
 
     waiters.cancel(threadId);
     await expect(mine).resolves.toEqual({ decision: "deny" });

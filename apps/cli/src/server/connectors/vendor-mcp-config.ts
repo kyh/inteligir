@@ -4,7 +4,8 @@
 // never in the vault: a vendor reads project config from its cwd.
 
 import { PassThrough } from "node:stream";
-import type { HarnessDefinition, HarnessId } from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessId } from "@repo/domain/harness";
+import type { HarnessDefinition } from "@repo/agent-runtime/acp/harness-registry";
 import type {
   ConnectorAuth,
   ConnectorTarget,

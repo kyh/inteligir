@@ -37,7 +37,7 @@ describe("ACP runtime shell env wiring", () => {
   it("constructs the runtime with a shellEnv projected from the session facts", async () => {
     const recorded: RuntimeOptions[] = [];
     const harness = await bootTestApp({
-      agent: { detail: null, mode: "auto", runtime: "acp" },
+      agent: { mode: "acp", runtime: "ready" },
       makeDriver: ({ db, bus, vault, vaultDir }) => {
         const manager = createAcpRuntimeManager({
           createRuntime: recordingCreateRuntime(recorded),

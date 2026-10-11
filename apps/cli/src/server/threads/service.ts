@@ -52,7 +52,7 @@ import {
   nameUntitledThreadInTransaction,
 } from "@repo/db/threads";
 import type { CreateThreadInput, ThreadOriginInput, ThreadRow } from "@repo/db/threads";
-import type { ProviderFailure, ThreadEvent } from "@repo/domain/provider-event";
+import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { deriveThreadTitle } from "@repo/domain/thread-title";
 import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
@@ -79,6 +79,7 @@ import { computeTimelineDelta } from "@repo/contract/local/thread-timeline";
 import { mapWithConcurrency } from "../concurrency";
 import { messageOf } from "../error-message";
 import { BACKGROUND_READ_SLOTS } from "../vault/read-slots";
+import { QUEUE_HOLDING_FAILURES } from "./provider-failure";
 import { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
 import type { ThreadOrigins } from "./thread-origins";
 import { ThreadTimelineProjector } from "./timeline-projection";
@@ -231,16 +232,12 @@ const lifecycleEventFor = (event: ThreadEvent): ThreadLifecycleEvent | null => {
     }
     case "client/turn/requested":
     case "item/agentMessage/delta":
-    case "item/commandExecution/outputDelta":
     case "item/completed":
-    case "item/plan/delta":
-    case "item/reasoning/summaryTextDelta":
     case "item/reasoning/textDelta":
     case "item/started":
     case "provider/error":
     case "thread/archived":
-    case "thread/meta":
-    case "thread/tokenUsage/updated": {
+    case "thread/meta": {
       return null;
     }
     // no default
@@ -349,11 +346,6 @@ const threadIdentity = (row: ThreadRow): ThreadMetaEvent | null => {
   }
   return meta.title === undefined && meta.originDocPath === undefined ? null : meta;
 };
-
-// a turn the vendor refused for the plan's usage limit or a sign-in would refuse the next message
-// the same way, so a settle on one leaves the queue for the user's next send rather than draining
-// into the same failure: the send starts the oldest queued message first.
-const QUEUE_HOLDING_FAILURES: ReadonlySet<ProviderFailure> = new Set(["auth", "usage-limit"]);
 
 const failureHoldsQueue = (
   tx: DbTransaction,

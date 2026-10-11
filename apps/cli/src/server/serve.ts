@@ -6,6 +6,7 @@ import { mkdirSync } from "node:fs";
 import { inspect } from "node:util";
 import { createCloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
 import { browserHandoffUrl } from "@repo/contract/local/routes";
+import { agentStatusLine } from "@repo/contract/local/system/system-schema";
 import { externalSyncName } from "@repo/contract/local/vault/vault-schema";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { resolveUiDir } from "../paths";
@@ -250,7 +251,7 @@ const boot = async (
   console.log(
     `inteligir ${version} (${config.mode}) listening on ${serverUrl} — data: ${config.dataDir} — vault: ${config.vaultDir}${bootSyncNote(bootRemote, runtime.externalSync)}`,
   );
-  console.log(`agent: ${agent.runtime}${agent.detail === null ? "" : ` — ${agent.detail}`}`);
+  console.log(`agent: ${agentStatusLine(agent)}`);
   const uiUrl =
     clientDir === null && uiDev === null
       ? null

@@ -1,6 +1,7 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
-// trimmed to what has a producer here; re-vendor an event from bb rather than inventing a shape
-// bb already names.
+// the persisted grammar: what the ACP mapper emits as the host narrows it, plus the host's own
+// facts. a kind or field nothing produces has no place here, since every consumer would branch on
+// it; re-vendor an event from bb rather than inventing a shape bb already names.
 
 import { z } from "zod";
 import { threadEventScopeSchema, threadScopeSchema, turnScopeSchema } from "./thread-event-scope";
@@ -44,36 +45,15 @@ export const threadEventFileChangeSchema = z.object({
 });
 export type ThreadEventFileChange = z.infer<typeof threadEventFileChangeSchema>;
 
-export const threadEventTokenUsageBreakdownSchema = z.object({
-  cachedInputTokens: z.number(),
-  inputTokens: z.number(),
-  outputTokens: z.number(),
-  reasoningOutputTokens: z.number(),
-  totalTokens: z.number(),
-});
-
-export const threadEventTokenUsageSchema = z.object({
-  last: threadEventTokenUsageBreakdownSchema,
-  modelContextWindow: z.number().nullable(),
-  total: threadEventTokenUsageBreakdownSchema,
-});
-export type ThreadEventTokenUsage = z.infer<typeof threadEventTokenUsageSchema>;
-
 export const threadEventItemSchema = z.discriminatedUnion("type", [
-  z.object({
-    id: z.string(),
-    text: z.string(),
-    type: z.literal("userMessage"),
-  }),
   z.object({
     id: z.string(),
     text: z.string(),
     type: z.literal("agentMessage"),
   }),
   z.object({
-    content: z.array(z.string()),
     id: z.string(),
-    summary: z.array(z.string()),
+    text: z.string(),
     type: z.literal("reasoning"),
   }),
   z.object({
@@ -106,20 +86,9 @@ export const threadEventItemSchema = z.discriminatedUnion("type", [
     status: threadEventItemStatusSchema,
     type: z.literal("fileChange"),
   }),
-  z.object({
-    id: z.string(),
-    text: z.string(),
-    type: z.literal("plan"),
-  }),
 ]);
 export type ThreadEventItem = z.infer<typeof threadEventItemSchema>;
 export type ThreadEventItemType = ThreadEventItem["type"];
-
-// summary is the provider's visible thinking and content its raw chain of thought, which codex
-// leaves empty; one reading, so the phone and the desktop show a settled item the same text.
-export const settledReasoningText = (
-  item: Extract<ThreadEventItem, { type: "reasoning" }>,
-): string => (item.summary.length > 0 ? item.summary : item.content).join("\n\n");
 
 // anything looser than turn scope says why beside it.
 export const threadEventSchema = z.discriminatedUnion("type", [
@@ -157,40 +126,9 @@ export const threadEventSchema = z.discriminatedUnion("type", [
   z.object({
     delta: z.string(),
     itemId: z.string(),
-    // true replaces the accumulated output instead of appending.
-    reset: z.boolean().optional(),
-    scope: turnScopeSchema,
-    threadId: z.string(),
-    type: z.literal("item/commandExecution/outputDelta"),
-  }),
-  // codex streams visible thinking as summary deltas; content deltas carry raw chain-of-thought
-  // only for models that expose it. both fold into the one reasoning row.
-  z.object({
-    delta: z.string(),
-    itemId: z.string(),
-    scope: turnScopeSchema,
-    threadId: z.string(),
-    type: z.literal("item/reasoning/summaryTextDelta"),
-  }),
-  z.object({
-    delta: z.string(),
-    itemId: z.string(),
     scope: turnScopeSchema,
     threadId: z.string(),
     type: z.literal("item/reasoning/textDelta"),
-  }),
-  z.object({
-    delta: z.string(),
-    itemId: z.string(),
-    scope: turnScopeSchema,
-    threadId: z.string(),
-    type: z.literal("item/plan/delta"),
-  }),
-  z.object({
-    scope: turnScopeSchema,
-    threadId: z.string(),
-    tokenUsage: threadEventTokenUsageSchema,
-    type: z.literal("thread/tokenUsage/updated"),
   }),
   z.object({
     detail: z.string().optional(),
@@ -206,7 +144,6 @@ export const threadEventSchema = z.discriminatedUnion("type", [
     scope: threadEventScopeSchema,
     threadId: z.string(),
     type: z.literal("provider/error"),
-    willRetry: z.boolean().optional(),
   }),
   // contextPaths and viewContext are local additions to bb's shape, beside `text` rather than
   // folded into it, so `text` stays exactly what the user typed; no migration, since events.data
@@ -262,17 +199,13 @@ export const getThreadEventItemRef = (event: ThreadEvent): ThreadEventItemRef =>
       return { itemId: event.item.id, itemKind: event.item.type };
     }
     case "item/agentMessage/delta":
-    case "item/commandExecution/outputDelta":
-    case "item/reasoning/summaryTextDelta":
-    case "item/reasoning/textDelta":
-    case "item/plan/delta": {
+    case "item/reasoning/textDelta": {
       return { itemId: event.itemId, itemKind: null };
     }
     case "client/turn/requested":
     case "provider/error":
     case "thread/archived":
     case "thread/meta":
-    case "thread/tokenUsage/updated":
     case "turn/completed":
     case "turn/started": {
       return { itemId: null, itemKind: null };
@@ -286,9 +219,6 @@ export type ThreadEventDelta = Extract<ThreadEvent, { delta: string }>;
 export const isThreadEventDelta = (event: ThreadEvent): event is ThreadEventDelta => {
   switch (event.type) {
     case "item/agentMessage/delta":
-    case "item/commandExecution/outputDelta":
-    case "item/plan/delta":
-    case "item/reasoning/summaryTextDelta":
     case "item/reasoning/textDelta": {
       return true;
     }
@@ -298,7 +228,6 @@ export const isThreadEventDelta = (event: ThreadEvent): event is ThreadEventDelt
     case "provider/error":
     case "thread/archived":
     case "thread/meta":
-    case "thread/tokenUsage/updated":
     case "turn/completed":
     case "turn/started": {
       return false;
@@ -307,14 +236,11 @@ export const isThreadEventDelta = (event: ThreadEvent): event is ThreadEventDelt
   }
 };
 
-// a reset replaces what came before it, so it opens a run rather than joining one; the appends
-// after it join it and fold to the same text.
 const joinsRun = (run: ThreadEventDelta, next: ThreadEventDelta): boolean =>
   next.type === run.type &&
   next.itemId === run.itemId &&
   next.threadId === run.threadId &&
-  next.scope.turnId === run.scope.turnId &&
-  !(next.type === "item/commandExecution/outputDelta" && next.reset === true);
+  next.scope.turnId === run.scope.turnId;
 
 export interface DeltaRunLimit {
   maxBytes: number;

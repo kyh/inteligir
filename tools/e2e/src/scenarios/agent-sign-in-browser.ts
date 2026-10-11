@@ -68,7 +68,7 @@ export const agentSignInBrowser: Scenario = {
         ),
         FAKE_CLAUDE_CODE: PAGE_CODE,
         FAKE_CLAUDE_MARKER: path.join(ctx.scratchDir, "claude-signed-in"),
-        INTELIGIR_AGENT: "auto",
+        INTELIGIR_AGENT: "acp",
       },
       name: "solo",
     });
