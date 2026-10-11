@@ -3,7 +3,7 @@
 // service's alone — a resolveVaultPath middleware would be a second answer to it.
 
 import { localContract } from "@repo/contract/local";
-import type { AgentStatus, DataDirScope } from "@repo/contract/local/system/system-schema";
+import type { AgentStatus } from "@repo/contract/local/system/system-schema";
 import type { ORPCError } from "@orpc/server";
 import { implement } from "@orpc/server";
 import type { RecordAgentWrites } from "./agents/agent-driver";
@@ -25,7 +25,6 @@ import type { RenameNote } from "./vault/vault-router";
 interface SystemFacts {
   version: string;
   dataDir: string;
-  dataDirScope: DataDirScope;
   vaultDir: string;
   schemaVersion: number;
   startedAt: number;

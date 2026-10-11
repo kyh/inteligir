@@ -11,9 +11,8 @@ import {
   identityEnv,
   isMissingRemoteRepo,
   NETWORK_GIT_TIMEOUT_MS,
-  runGit,
 } from "./git-run";
-import type { RunGit, RunGitCommand } from "./git-run";
+import type { GitRunner, RunGit, RunGitCommand } from "./git-run";
 
 export const ACCOUNT_MARKER_KEY = "inteligir.account";
 // the first commit of a vault this bootstrap seeded: while HEAD is still it, the history holds
@@ -54,9 +53,8 @@ export interface EnsureVaultRepoArgs {
   remote?: VaultRemoteSpec | null;
   // the initial commit's committer, as every engine commit's; unset, the engine's own name.
   deviceName?: string;
-  env?: Record<string, string>;
-  // the full runGit, not RunGitCommand: the clone runs in the parent directory.
-  run?: RunGit;
+  // the full run, not a RunGitCommand: the clone runs in the parent directory.
+  git: Pick<GitRunner, "run">;
 }
 
 // the sync loop rebases, and a rebase needs a commit to stand on. a folder the bootstrap created
@@ -74,7 +72,7 @@ const commitInitial = async (
     await git(["add", "-A"]);
   }
   await run(args.root, ["commit", "--allow-empty", "-m", "vault: initialize"], {
-    env: { ...args.env, ...identityEnv(args.deviceName ?? ENGINE_IDENTITY.name) },
+    env: identityEnv(args.deviceName ?? ENGINE_IDENTITY.name),
   });
   if (seeded) {
     const { stdout } = await git(["rev-parse", "--verify", "HEAD"]);
@@ -94,7 +92,7 @@ const tryCloneVault = async (
   await mkdir(path.dirname(args.root), { recursive: true });
   try {
     await run(path.dirname(args.root), ["clone", "--", remote.url, args.root], {
-      env: { ...args.env, ...remote.env },
+      env: { ...remote.env },
       timeoutMs: NETWORK_GIT_TIMEOUT_MS,
     });
     return "cloned";
@@ -109,15 +107,14 @@ const tryCloneVault = async (
 export const ensureVaultRepo = async (
   args: EnsureVaultRepoArgs,
 ): Promise<{ created: boolean; cloned: boolean }> => {
-  const run = args.run ?? runGit;
+  const { run } = args.git;
   const created = !existsSync(args.root);
   const remote = args.remote ?? null;
   const outcome =
     created && remote !== null ? await tryCloneVault(run, args, remote) : ("missing" as const);
   const cloned = outcome === "cloned";
   await mkdir(args.root, { recursive: true });
-  const runOptions = args.env ? { env: args.env } : {};
-  const git: RunGitCommand = async (gitArgs) => await run(args.root, gitArgs, runOptions);
+  const git: RunGitCommand = async (gitArgs) => await run(args.root, gitArgs);
   // a file, not a dir, in a linked worktree or a submodule: either way the repo is there.
   if (!existsSync(path.join(args.root, ".git"))) {
     await git(["init", "-b", "main"]);

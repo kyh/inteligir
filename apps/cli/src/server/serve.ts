@@ -17,14 +17,12 @@ import { createApp } from "./app";
 import { bootReport } from "./boot-report";
 import type { BootPhases } from "./boot-report";
 import type { VaultRemoteSpec } from "./cloud/vault-remote";
-import { migrateLegacyCommentSidecars } from "./comments/comments-migration";
 import { composeRuntime, registerListener, registerLockRelease } from "./compose";
 import type { ComposeRuntimeArgs } from "./compose";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { debugLog } from "./debug-log";
 import { resolveCheckoutRoot } from "./dev-instance";
-import { messageOf } from "./error-message";
 import type { ReconcileStats } from "./knowledge/knowledge-runtime";
 import { closeServer, guardUpgradeSockets, listenWithRetry } from "./listen";
 import { LOOPBACK_HOST } from "./loopback-origin";
@@ -245,22 +243,6 @@ const boot = async (
       listenMs: listening - composed,
     };
     console.log(bootReport(phases, reconcile));
-  })();
-  // after listen too, and guarded: a whole-vault walk ahead of the bind delays the readiness the
-  // shell waits on, and a sweep that throws must not fail the boot. a note opened meanwhile folds
-  // its own sidecar on first touch, through the same CAS writes.
-  void (async () => {
-    try {
-      await migrateLegacyCommentSidecars({
-        comments: runtime.context.comments,
-        vault: runtime.context.vault.service,
-        warn: (message) => {
-          console.warn(`[comments] ${message}`);
-        },
-      });
-    } catch (error) {
-      console.warn(`[comments] boot sweep skipped: ${messageOf(error)}`);
-    }
   })();
   const bootRemote = await runtime.context.vault.git.currentRemote();
   const agent = runtime.context.system.agent();

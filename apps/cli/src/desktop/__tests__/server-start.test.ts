@@ -1,7 +1,12 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "inteligir/server/config";
+import {
+  DEV_DATA_ROOT_DIR,
+  physicalVaultDir,
+  PROD_DATA_DIR_NAME,
+  vaultDataDir,
+} from "inteligir/server/config";
 import { loopbackOrigin, SERVER_FILE_NAME } from "inteligir/server/server-file";
 import type { ServerFile } from "inteligir/server/server-file";
 import { silentOwnerSentence } from "inteligir/server/server-probe";
@@ -41,7 +46,10 @@ describe("resolveServerTarget", () => {
     expect(resolved).toEqual({
       kind: "resolved",
       target: {
-        dataDir: path.join(homeDir, PROD_DATA_DIR_NAME),
+        dataDir: vaultDataDir(
+          path.join(homeDir, PROD_DATA_DIR_NAME),
+          path.join(homeDir, "Inteligir"),
+        ),
         dataDirSource: "default",
         rootDataDir: path.join(homeDir, PROD_DATA_DIR_NAME),
         vaultDir: path.join(homeDir, "Inteligir"),
@@ -61,9 +69,8 @@ describe("resolveServerTarget", () => {
     });
     expect(resolved.kind === "resolved" && resolved.target.vaultDir).toBe(vaultDir);
     expect(resolved.kind === "resolved" && resolved.target.vaultDirSource).toBe("managed-config");
-    // not the root: a vault other than the default gets a dir of its own beneath it
-    expect(resolved.kind === "resolved" && resolved.target.dataDir).not.toBe(
-      path.join(homeDir, PROD_DATA_DIR_NAME),
+    expect(resolved.kind === "resolved" && resolved.target.dataDir).toBe(
+      vaultDataDir(path.join(homeDir, PROD_DATA_DIR_NAME), vaultDir),
     );
     expect(resolved.kind === "resolved" && resolved.target.rootDataDir).toBe(
       path.join(homeDir, PROD_DATA_DIR_NAME),
@@ -78,8 +85,9 @@ describe("resolveServerTarget", () => {
       isPackaged: true,
       vaultDir: path.join(homeDir, "Second"),
     });
+    // stored where it will land, which macOS's tmpdir, behind a symlink, shows
     expect(candidate.kind === "resolved" && candidate.target.vaultDir).toBe(
-      path.join(homeDir, "Second"),
+      physicalVaultDir(path.join(homeDir, "Second")),
     );
     expect(candidate.kind === "resolved" && candidate.target.vaultDirSource).toBe("env");
     const nested = resolveServerTarget({
@@ -149,7 +157,6 @@ const exitedPid = (): number => spawnSync(process.execPath, ["-e", ""]).pid;
 const systemStatus = (dataDir: string, version: string): SystemStatusResponse => ({
   agent: { detail: null, mode: "off", runtime: "off" },
   dataDir,
-  dataDirScope: "root",
   schemaVersion: 1,
   uptimeMs: 1,
   vaultDir: path.join(dataDir, "vault"),

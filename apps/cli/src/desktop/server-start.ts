@@ -17,7 +17,7 @@ import type { InspectVaultFolderContext } from "../server/vault/folder-facts";
 export interface ServerTarget {
   dataDir: string;
   vaultDir: string;
-  // where config.json lives; the data dir of any vault but the default sits beneath it
+  // where config.json lives; every vault's data dir sits beneath it
   rootDataDir: string;
   // env-pinned values are not the shell's to change, so a switch is refused while either is
   vaultDirSource: VaultDirSource;

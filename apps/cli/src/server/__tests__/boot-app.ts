@@ -31,7 +31,7 @@ import { authorizationHeader, loopbackOrigin } from "../server-file";
 import type { ShutdownStep } from "../shutdown";
 import { unavailableTurnDriver } from "../threads/turn-driver";
 import type { CreateTurnDriver } from "../threads/turn-driver";
-import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
+import { hermeticGit } from "../vault/__tests__/git-test-env";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import type { WsBus } from "../ws-bus";
 import { boundAddressSchema } from "./bound-address";
@@ -237,8 +237,8 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     machineName: TEST_MACHINE_NAME,
     vault:
       options.remote === "derived" || options.pinnedRemote !== undefined
-        ? { gitEnv: hermeticGitEnv(), watch: false }
-        : { gitEnv: hermeticGitEnv(), remote: options.remote ?? (() => null), watch: false },
+        ? { git: hermeticGit(), watch: false }
+        : { git: hermeticGit(), remote: options.remote ?? (() => null), watch: false },
   };
   const connectors =
     options.connectors ??

@@ -1,7 +1,12 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { DATA_DIR_ENV_VAR, DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "../server/config";
+import {
+  DATA_DIR_ENV_VAR,
+  DEV_DATA_ROOT_DIR,
+  PROD_DATA_DIR_NAME,
+  vaultDataDir,
+} from "../server/config";
 import { resolveDevInstanceId } from "../server/dev-instance";
 import { SERVER_FILE_NAME } from "../server/server-file";
 import type { ServerFile } from "../server/server-file";
@@ -39,8 +44,9 @@ describe("resolveDataDir", () => {
   it("is the per-checkout dev instance by default — the same one the app derives", () => {
     const homeDir = scratch();
     const dataDir = resolveDataDir({ checkoutPath: CHECKOUT, env: {}, homeDir });
+    const instanceDir = path.join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId(CHECKOUT));
     expect(dataDir).toBe(
-      path.join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId(CHECKOUT), "data"),
+      vaultDataDir(path.join(instanceDir, "data"), path.join(instanceDir, "vault")),
     );
   });
 
@@ -51,7 +57,9 @@ describe("resolveDataDir", () => {
       env: { NODE_ENV: "production" },
       homeDir,
     });
-    expect(dataDir).toBe(path.join(homeDir, PROD_DATA_DIR_NAME));
+    expect(dataDir).toBe(
+      vaultDataDir(path.join(homeDir, PROD_DATA_DIR_NAME), path.join(homeDir, "Inteligir")),
+    );
   });
 
   it("takes INTELIGIR_DATA_DIR verbatim — that is how an agent shell names its instance", () => {

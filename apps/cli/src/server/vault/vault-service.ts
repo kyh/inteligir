@@ -17,12 +17,10 @@ import {
   unlink,
 } from "node:fs/promises";
 import path from "node:path";
-import type { DbNotifier } from "@repo/domain/notifier";
 import type { VaultIgnore } from "@repo/notes/knowledge/vault-ignore";
 import { freeAssetPath } from "@repo/notes/knowledge/asset-name";
 import {
   dirnamePath,
-  isIgnoredEntryName,
   joinPath,
   VaultPathError,
   VAULT_TMP_PREFIX,
@@ -36,6 +34,8 @@ import { errnoCode } from "../errno";
 import { pathContains } from "../path-containment";
 import { ABSENT_ENTRY, entryFingerprintAt, fingerprintOf } from "./vault-changes";
 import type { EntryFingerprint, VaultMutation } from "./vault-changes";
+import { createReadSlots } from "./read-slots";
+import type { ReadLane } from "./read-slots";
 import type { ReadStall } from "./slow-reads";
 import { resolveVaultPath } from "./vault-paths";
 import { judgeGuard } from "./write-guard";
@@ -200,16 +200,18 @@ const moveFileByLink = async (from: string, to: string, toRelPath: string): Prom
 
 export interface VaultServiceArgs {
   root: string;
-  notifier: DbNotifier;
   // required, not defaulted: a forgotten arg silently dropped the serialization the cas guard needs.
   lock: <T>(work: () => Promise<T>) => Promise<T>;
   // required for the same reason: a composition that forgot it would list every build output
   // the vault's .gitignore names.
   ignore: () => Promise<VaultIgnore>;
+  // the service's one report of what it changed, under the lock; what each kind announces is
+  // the runtime's call.
   onMutated?: (mutations: readonly VaultMutation[]) => void;
   // told on every walk that meets the folder; deduplicating is the sink's call.
   onUnreadableFolder?: UnreadableFolderSink;
-  // awaited before a file's bytes are opened
+  // awaited inside the read's slot, before the file's bytes are opened, so a stalled stand-in holds
+  // the slot a stalled open would
   stallRead?: ReadStall;
 }
 
@@ -221,10 +223,13 @@ export interface VaultService {
   listTree: () => Promise<VaultTreeResponse>;
   statEntry: (path: string) => Promise<"file" | "dir" | null>;
   listFilesUnder: (path: string) => Promise<string[]>;
-  read: (path: string) => Promise<{ path: string; content: string }>;
+  // a read takes a slot of the process's fs budget (read-slots.ts) while the bytes are opened;
+  // absent, its lane is foreground, and a job reading many docs says background.
+  read: (path: string, lane?: ReadLane) => Promise<{ path: string; content: string }>;
   statAsset: (path: string) => Promise<{ path: string; etag: string }>;
   readBytes: (
     path: string,
+    lane?: ReadLane,
   ) => Promise<{ path: string; bytes: Uint8Array<ArrayBuffer>; etag: string }>;
   writeAsset: (dir: string, baseName: string, bytes: Uint8Array) => Promise<{ path: string }>;
   write: (path: string, content: string) => Promise<{ path: string }>;
@@ -295,6 +300,9 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
   // realpath, not resolve: the root may be spelled through a symlink (macos /var → /private/var).
   const rootReal = realpathSync(path.resolve(args.root));
   const { lock } = args;
+  // a server composes one vault service, so these are the process's. a write's own read of the
+  // bytes it replaces takes none, so a save never waits behind a stalled read.
+  const readSlots = createReadSlots();
   const onUnreadableFolder: UnreadableFolderSink =
     args.onUnreadableFolder ??
     (() => {
@@ -314,18 +322,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
     }
   };
 
-  // files-changed makes every client re-walk the vault, so only a mutation that moved a row says it.
-  const announceMutation = (mutations: readonly VaultMutation[]): void => {
-    args.notifier.notifyVault(
-      ["files-changed"],
-      mutations.map((mutation) => mutation.path),
-    );
-    args.onMutated?.(mutations);
-  };
-
-  // a content-only write says content-changed alone: saying files-changed too costs the open
-  // note two reads and the workspace a re-walk per autosave. `replacing` is the entry this write
-  // replaces, null for a create.
+  // `replacing` is the entry this write replaces, null for a create, whose row is new.
   const performAtomicWrite = async (
     relPath: string,
     absPath: string,
@@ -363,17 +360,36 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
       throw error;
     }
     await fsyncDirBestEffort(path.dirname(absPath));
-    args.notifier.notifyDoc(relPath, ["content-changed"]);
-    if (replacing === null) {
-      args.notifier.notifyVault(["files-changed"], [relPath]);
-    }
-    args.onMutated?.([{ fingerprint, path: relPath }]);
+    args.onMutated?.([
+      { fingerprint, kind: replacing === null ? "entry" : "content", path: relPath },
+    ]);
   };
 
-  const resolveAsset = async (requestedPath: string) => {
+  // every surface that takes a path starts here, the stat and the listing included, so none of
+  // them answers through a symlinked folder the rest refuse. throws VaultPathError.
+  const contained = async (requestedPath: string) => {
     const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
     await assertAncestryInsideVault(absPath);
     const stats = await lstatRefusingSymlink(absPath, relPath);
+    return { absPath, relPath, stats };
+  };
+
+  // the stat and the listing answer a refused path, or one whose folder went mid-check, as an
+  // absent one: either way no vault entry stands there.
+  const containedEntry = async (requestedPath: string) => {
+    try {
+      const { absPath, relPath, stats } = await contained(requestedPath);
+      return stats === null ? null : { absPath, relPath, stats };
+    } catch (error) {
+      if (error instanceof VaultPathError || isGone(error)) {
+        return null;
+      }
+      throw error;
+    }
+  };
+
+  const resolveAsset = async (requestedPath: string) => {
+    const { relPath, absPath, stats } = await contained(requestedPath);
     if (stats === null || stats.isDirectory()) {
       throw notFound(relPath);
     }
@@ -390,26 +406,24 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
   return {
     async createDir(requestedPath) {
       return await lock(async () => {
-        const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-        await assertAncestryInsideVault(absPath);
-        const existing = await lstatRefusingSymlink(absPath, relPath);
+        const { relPath, absPath, stats: existing } = await contained(requestedPath);
         if (existing !== null && !existing.isDirectory()) {
           throw new VaultServiceError("conflict", `A file already exists at ${relPath}`);
         }
         await ensureDir(absPath, relPath);
-        announceMutation([{ fingerprint: await entryFingerprintAt(absPath), path: relPath }]);
+        args.onMutated?.([
+          { fingerprint: await entryFingerprintAt(absPath), kind: "entry", path: relPath },
+        ]);
         return { path: relPath };
       });
     },
 
     async listFilesUnder(requestedPath) {
-      let relPath: string;
-      let absPath: string;
-      try {
-        ({ relPath, absPath } = resolveVaultPath(rootReal, requestedPath));
-      } catch {
+      const folder = await containedEntry(requestedPath);
+      if (folder === null || !folder.stats.isDirectory()) {
         return [];
       }
+      const { relPath, absPath } = folder;
       const ignore = await args.ignore();
       if (ignore.ignores(relPath, "dir")) {
         return [];
@@ -423,7 +437,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
           onUnreadable: onUnreadableFolder,
         });
       } catch {
-        // Gone or not a directory: nothing under it to index.
+        // Gone or swapped for a file since the stat: nothing under it to index.
       }
       return entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
     },
@@ -437,10 +451,8 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
       return { entries, name: path.basename(rootReal) || rootReal, root: rootReal };
     },
 
-    async read(requestedPath) {
-      const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-      await assertAncestryInsideVault(absPath);
-      const stats = await lstatRefusingSymlink(absPath, relPath);
+    async read(requestedPath, lane = "foreground") {
+      const { relPath, absPath, stats } = await contained(requestedPath);
       if (stats === null || stats.isDirectory()) {
         throw notFound(relPath);
       }
@@ -450,15 +462,19 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
           `${relPath} is ${stats.size} bytes; the read cap is ${VAULT_MAX_CONTENT_LENGTH}`,
         );
       }
-      await args.stallRead?.(relPath);
-      const content = await readOrNotFound(relPath, async () => await readFile(absPath, "utf-8"));
+      const content = await readSlots.hold(lane, async () => {
+        await args.stallRead?.(relPath);
+        return await readOrNotFound(relPath, async () => await readFile(absPath, "utf-8"));
+      });
       return { content, path: relPath };
     },
 
-    async readBytes(requestedPath) {
+    async readBytes(requestedPath, lane = "foreground") {
       const { relPath, absPath, etag } = await resolveAsset(requestedPath);
-      await args.stallRead?.(relPath);
-      const buffer = await readOrNotFound(relPath, async () => await readFile(absPath));
+      const buffer = await readSlots.hold(lane, async () => {
+        await args.stallRead?.(relPath);
+        return await readOrNotFound(relPath, async () => await readFile(absPath));
+      });
       // a copy, not the read's Buffer: its backing store is node's shared pool, which a
       // Response body will not take.
       const bytes = new Uint8Array(buffer.byteLength);
@@ -468,23 +484,19 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 
     async remove(requestedPath) {
       await lock(async () => {
-        const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-        await assertAncestryInsideVault(absPath);
-        const stats = await lstatRefusingSymlink(absPath, relPath);
+        const { relPath, absPath, stats } = await contained(requestedPath);
         if (stats === null) {
           throw notFound(relPath);
         }
         await rm(absPath, { recursive: true });
         await fsyncDirBestEffort(path.dirname(absPath));
-        announceMutation([{ fingerprint: ABSENT_ENTRY, path: relPath }]);
+        args.onMutated?.([{ fingerprint: ABSENT_ENTRY, kind: "entry", path: relPath }]);
       });
     },
 
     async removeIfUnchanged(requestedPath, expected) {
       return await lock(async (): Promise<ConditionalWriteResult> => {
-        const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-        await assertAncestryInsideVault(absPath);
-        const stats = await lstatRefusingSymlink(absPath, relPath);
+        const { relPath, absPath, stats } = await contained(requestedPath);
         if (stats === null || stats.isDirectory()) {
           return { applied: false, reason: "not_found" };
         }
@@ -497,22 +509,20 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
         }
         await rm(absPath);
         await fsyncDirBestEffort(path.dirname(absPath));
-        announceMutation([{ fingerprint: ABSENT_ENTRY, path: relPath }]);
+        args.onMutated?.([{ fingerprint: ABSENT_ENTRY, kind: "entry", path: relPath }]);
         return { applied: true, path: relPath };
       });
     },
 
     async rename(from, to) {
       return await lock(async () => {
-        const source = resolveVaultPath(rootReal, from);
-        const target = resolveVaultPath(rootReal, to);
-        await assertAncestryInsideVault(source.absPath);
-        await assertAncestryInsideVault(target.absPath);
-        const sourceStats = await lstatRefusingSymlink(source.absPath, source.relPath);
+        const source = await contained(from);
+        const target = await contained(to);
+        const { stats: sourceStats } = source;
         if (sourceStats === null) {
           throw notFound(source.relPath);
         }
-        const targetStats = await lstatRefusingSymlink(target.absPath, target.relPath);
+        const { stats: targetStats } = target;
         // a case-only rename on a case-insensitive filesystem finds itself at the target; the
         // inode check keeps that legal.
         const sameEntry =
@@ -537,10 +547,10 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
           await fsyncDirBestEffort(path.dirname(source.absPath));
         }
         const moved = await entryFingerprintAt(target.absPath);
-        announceMutation([
+        args.onMutated?.([
           // a case-only retitle leaves the old spelling answering for the same entry.
-          { fingerprint: sameEntry ? moved : ABSENT_ENTRY, path: source.relPath },
-          { fingerprint: moved, path: target.relPath },
+          { fingerprint: sameEntry ? moved : ABSENT_ENTRY, kind: "entry", path: source.relPath },
+          { fingerprint: moved, kind: "entry", path: target.relPath },
         ]);
         return { path: target.relPath };
       });
@@ -552,17 +562,11 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
     },
 
     async statEntry(requestedPath) {
-      let relPath: string;
-      let absPath: string;
-      try {
-        ({ relPath, absPath } = resolveVaultPath(rootReal, requestedPath));
-      } catch {
+      const entry = await containedEntry(requestedPath);
+      if (entry === null) {
         return null;
       }
-      const stats = await lstat(absPath).catch(() => null);
-      if (stats === null || stats.isSymbolicLink()) {
-        return null;
-      }
+      const { relPath, stats } = entry;
       // the listing leaves out what the vault ignores; a stat must agree.
       const ignore = await args.ignore();
       if (stats.isDirectory()) {
@@ -573,9 +577,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 
     async write(requestedPath, content) {
       return await lock(async () => {
-        const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-        await assertAncestryInsideVault(absPath);
-        const existing = await lstatRefusingSymlink(absPath, relPath);
+        const { relPath, absPath, stats: existing } = await contained(requestedPath);
         if (existing?.isDirectory() === true) {
           throw new VaultServiceError("conflict", `A folder already exists at ${relPath}`);
         }
@@ -588,7 +590,8 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
       return await lock(async () => {
         const taken: string[] = [];
         const first = resolveVaultPath(rootReal, freeAssetPath(dir, baseName, taken));
-        // every candidate shares this folder, so its ancestry is checked once, before the read.
+        // not `contained` per candidate: every candidate shares this folder, so its ancestry is
+        // checked once, before the read, and each name only for a symlink.
         await assertAncestryInsideVault(first.absPath);
         // one read of the folder, not a stat per name: a folder holding a thousand pastes of one
         // name would otherwise probe a thousand paths under the lock.
@@ -613,9 +616,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 
     async writeGuarded(requestedPath, content, guard) {
       return await lock(async (): Promise<GuardedWriteResult> => {
-        const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-        await assertAncestryInsideVault(absPath);
-        const existing = await lstatRefusingSymlink(absPath, relPath);
+        const { relPath, absPath, stats: existing } = await contained(requestedPath);
         if (existing?.isDirectory() === true) {
           throw new VaultServiceError("conflict", `A folder already exists at ${relPath}`);
         }
@@ -633,9 +634,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 
     async writeIfUnchanged(requestedPath, expected, content) {
       return await lock(async (): Promise<ConditionalWriteResult> => {
-        const { relPath, absPath } = resolveVaultPath(rootReal, requestedPath);
-        await assertAncestryInsideVault(absPath);
-        const existing = await lstatRefusingSymlink(absPath, relPath);
+        const { relPath, absPath, stats: existing } = await contained(requestedPath);
         if (existing === null || existing.isDirectory()) {
           return { applied: false, reason: "not_found" };
         }
@@ -654,10 +653,16 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
 };
 
 // housekeeping nothing waits on: git add never stages one (info/exclude) and the listing and
-// watcher filter the name. a candidate younger than olderThan is somebody's in-flight write.
-export const sweepStaleTmpFiles = async (root: string, olderThan: number): Promise<void> => {
+// watcher filter the name. a candidate younger than olderThan is somebody's in-flight write. a
+// folder the vault ignores is never entered, so a gitignored node_modules costs the walk nothing,
+// and a staging file left under one stays as invisible as it was.
+export const sweepStaleTmpFiles = async (
+  root: string,
+  olderThan: number,
+  ignore: VaultIgnore,
+): Promise<void> => {
   const resolvedRoot = path.resolve(root);
-  const sweep = async (absDir: string): Promise<void> => {
+  const sweep = async (absDir: string, relDir: string): Promise<void> => {
     let dirents;
     try {
       dirents = await readdir(absDir, { withFileTypes: true });
@@ -666,6 +671,7 @@ export const sweepStaleTmpFiles = async (root: string, olderThan: number): Promi
     }
     for (const dirent of dirents) {
       const absPath = path.join(absDir, dirent.name);
+      const relPath = relDir === "" ? dirent.name : `${relDir}/${dirent.name}`;
       if (dirent.name.startsWith(VAULT_TMP_PREFIX) && dirent.isFile()) {
         const stats = await lstat(absPath).catch(() => null);
         if (stats !== null && stats.mtimeMs < olderThan) {
@@ -675,10 +681,11 @@ export const sweepStaleTmpFiles = async (root: string, olderThan: number): Promi
         }
         continue;
       }
-      if (dirent.isDirectory() && !isIgnoredEntryName(dirent.name)) {
-        await sweep(absPath);
+      // the rules carry the floor too, so `.git` is never entered either.
+      if (dirent.isDirectory() && !ignore.ignores(relPath, "dir")) {
+        await sweep(absPath, relPath);
       }
     }
   };
-  await sweep(resolvedRoot);
+  await sweep(resolvedRoot, "");
 };

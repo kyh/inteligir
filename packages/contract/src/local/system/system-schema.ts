@@ -18,17 +18,10 @@ export type AgentStatus = z.infer<typeof agentStatusSchema>;
 export const guideResponseSchema = z.object({ markdown: z.string().min(1) }).strict();
 export type GuideResponse = z.infer<typeof guideResponseSchema>;
 
-// root: the default vault's data dir, the one every install has. vault: this vault's own dir
-// beneath it, where the credential and the agent default start empty. connectors belong to the
-// agent, so every vault shares them.
-export const dataDirScopeSchema = z.enum(["root", "vault"]);
-export type DataDirScope = z.infer<typeof dataDirScopeSchema>;
-
 export const systemStatusResponseSchema = z
   .object({
     agent: agentStatusSchema,
     dataDir: z.string().min(1),
-    dataDirScope: dataDirScopeSchema,
     schemaVersion: z.number().int().min(1),
     uptimeMs: z.number().min(0),
     vaultDir: z.string().min(1),

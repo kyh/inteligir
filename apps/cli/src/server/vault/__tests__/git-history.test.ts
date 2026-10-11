@@ -10,7 +10,7 @@ import {
 } from "@repo/contract/cloud/vault/vault-git";
 import { describe, expect, it } from "vitest";
 import { ensureVaultRepo } from "../git-bootstrap";
-import { ENGINE_IDENTITY, identityEnv, runGit } from "../git-run";
+import { ENGINE_IDENTITY, identityEnv } from "../git-run";
 import type { RunGitCommand } from "../git-run";
 import {
   cachedDeletionLog,
@@ -23,13 +23,13 @@ import {
 } from "../git-history";
 import { AGENT_COMMIT_AUTHOR, agentCommitMessage, undoCommitMessage } from "../turn-trailers";
 import { VaultServiceError } from "../vault-service";
-import { hermeticGitEnv } from "./git-test-env";
+import { hermeticGit } from "./git-test-env";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
 // vitest types its asymmetric matchers `any`; naming one keeps the assertion typed.
 const anIsoTimestamp: unknown = expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/u);
 
-const env = hermeticGitEnv();
+const git = hermeticGit();
 
 const IDENTITY = {
   GIT_AUTHOR_EMAIL: "a@b.c",
@@ -46,9 +46,9 @@ const makeVault = async (): Promise<{
   runAs: (args: readonly string[]) => Promise<{ stdout: string }>;
 }> => {
   const root = makeTempDir("inteligir-history-");
-  await ensureVaultRepo({ env, root });
+  await ensureVaultRepo({ git, root });
   const run = async (args: readonly string[], options?: { env?: Record<string, string> }) =>
-    await runGit(root, args, { env: { ...env, ...options?.env } });
+    await git.run(root, args, options);
   return {
     commit: async (subject, extraEnv) => {
       await run(["add", "-A"]);
@@ -203,9 +203,8 @@ describe("readNoteHistory", () => {
     const { root, run } = await makeVault();
     await writeFile(nodePath.join(root, "Note.md"), "from the phone\n", "utf-8");
     await run(["add", "-A"]);
-    await runGit(root, ["commit", "-m", vaultCommitSubject(["Note.md"])], {
+    await git.run(root, ["commit", "-m", vaultCommitSubject(["Note.md"])], {
       env: {
-        ...env,
         GIT_AUTHOR_EMAIL: deviceCommitEmail("dev_1"),
         GIT_AUTHOR_NAME: "Kai's iPhone",
         GIT_COMMITTER_EMAIL: WORKER_COMMITTER_EMAIL,
@@ -324,12 +323,12 @@ describe("readDeletedNotes", () => {
   it("lists a committed deletion under the parent whose tree still holds the bytes, docs only", async () => {
     const { root, run, commit } = await makeVault();
     await writeFile(nodePath.join(root, "Gone.md"), "bytes\n", "utf-8");
-    await writeFile(nodePath.join(root, "Gone.md.comments.json"), "{}", "utf-8");
+    await writeFile(nodePath.join(root, "Gone.json"), "{}", "utf-8");
     await writeFile(nodePath.join(root, "Kept.md"), "kept\n", "utf-8");
     await commit("vault: create");
     const [created] = await readNoteHistory(run, "Gone.md", { limit: 1, skip: 0 });
     await rm(nodePath.join(root, "Gone.md"));
-    await rm(nodePath.join(root, "Gone.md.comments.json"));
+    await rm(nodePath.join(root, "Gone.json"));
     await commit("vault: delete");
 
     const entries = await readDeleted(run, root);

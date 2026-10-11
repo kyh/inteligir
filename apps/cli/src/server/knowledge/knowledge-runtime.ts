@@ -40,6 +40,7 @@ import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import { createCoalescingTimer } from "../coalescing-timer";
 import { mapWithConcurrency } from "../concurrency";
 import type { DebugLog } from "../debug-log";
+import { BACKGROUND_READ_SLOTS } from "../vault/read-slots";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
 import type { VaultFilesChange } from "../vault/vault-changes";
@@ -61,11 +62,6 @@ const BATCH_DOCS = 200;
 // a latency bound on one uninterrupted run of row writes, not a throughput knob: a batch of
 // large docs commits and yields once a slice passes it.
 const WRITE_SLICE_MS = 16;
-
-// reads out at once, a pass's and the ones left running past their deadline together. node's fs
-// has four threads and a stalled open holds one until the storage answers, so a fourth would stall
-// every fs call in the process, the saves included; a local disk pays with a slower warm reconcile.
-const READ_CONCURRENCY = 3;
 
 // longer than any read a local disk answers, so a doc past it is on storage that fetches or wakes
 const READ_DEADLINE_MS = 2000;
@@ -361,7 +357,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   // total: a read left running has no pass to fail, so every outcome is an answer.
   const readDocFile = async (path: string): Promise<FileRead> => {
     try {
-      const { bytes } = await args.vault.readBytes(path);
+      const { bytes } = await args.vault.readBytes(path, "background");
       return { bytes, hash: await contentHashBytesHex(bytes), kind: "bytes" };
     } catch (error) {
       if (!(error instanceof VaultServiceError)) {
@@ -376,7 +372,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   let wakeForLanded: (() => void) | null = null;
   const docReads = createDeferredReads({
     deadlineMs: args.readDeadlineMs ?? READ_DEADLINE_MS,
-    limit: READ_CONCURRENCY,
+    limit: BACKGROUND_READ_SLOTS,
     onLanded: () => {
       wakeForLanded?.();
     },
@@ -538,7 +534,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   const applyChangedPaths = async (paths: readonly string[]): Promise<void> => {
     const kinds = await mapWithConcurrency(
       paths,
-      READ_CONCURRENCY,
+      BACKGROUND_READ_SLOTS,
       async (path) => await args.vault.statEntry(path),
     );
     // a set: a folder's expansion repeats the file events announced beside it.

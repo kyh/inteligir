@@ -1,3 +1,5 @@
+import { execFile, execFileSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import fsPromises, {
   chmod,
   mkdir,
@@ -10,13 +12,20 @@ import fsPromises, {
 import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { promisify } from "node:util";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { createThread, getThread } from "@repo/db/threads";
+import { noopNotifier } from "@repo/domain/notifier";
 import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import { VaultPathError, VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
+import { mintNoteId } from "@repo/notes/markdown/frontmatter";
+import { snapshotDocs } from "../../knowledge/snapshot-docs";
+import { BACKGROUND_READ_SLOTS, READ_SLOTS } from "../read-slots";
 import { slowReadStall } from "../slow-reads";
+import type { VaultMutation } from "../vault-changes";
 import { createVaultService, sweepStaleTmpFiles, VaultServiceError } from "../vault-service";
-import { createNotifierRecorder } from "./notifier-recorder";
+import { bootTestApp } from "../../__tests__/boot-app";
 import { identityLock } from "../../__tests__/identity-lock";
 import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
 import { makeTempDir } from "../../__tests__/temp-dir";
@@ -26,18 +35,21 @@ const anyNumber: unknown = expect.any(Number);
 
 const bootService = () => {
   const root = makeTempDir("inteligir-vault-test-");
-  const notifier = createNotifierRecorder();
-  let mutations = 0;
+  const reports: (readonly VaultMutation[])[] = [];
   const service = createVaultService({
     ignore: ignoreFromDisk(root),
     lock: identityLock,
-    notifier,
-    onMutated: () => {
-      mutations += 1;
+    onMutated: (mutations) => {
+      reports.push(mutations);
     },
     root,
   });
-  return { mutationCount: () => mutations, notifier, root, service };
+  // what each report said moved, by path, without the fingerprints a test cannot predict.
+  const reported = () =>
+    reports.map((mutations) =>
+      mutations.map(({ kind, path: changed }) => ({ kind, path: changed })),
+    );
+  return { reported, reports, root, service };
 };
 
 describe("what the vault is CALLED", () => {
@@ -50,13 +62,9 @@ describe("what the vault is CALLED", () => {
 
 describe("vault CRUD", () => {
   it("round-trips write → list → read → rename → delete", async () => {
-    const { notifier, service, mutationCount } = bootService();
+    const { reports, service } = bootService();
 
     await service.write("notes/today.md", "# Today\n");
-    expect(notifier.docChanges).toEqual([
-      { changes: ["content-changed"], docId: "notes/today.md" },
-    ]);
-    expect(notifier.vaultChanges).toEqual([["files-changed"]]);
 
     const tree = await service.listTree();
     expect(tree.entries).toEqual([
@@ -75,7 +83,7 @@ describe("vault CRUD", () => {
 
     await service.remove("notes/renamed.md");
     await expect(service.read("notes/renamed.md")).rejects.toThrow(VaultServiceError);
-    expect(mutationCount()).toBe(3);
+    expect(reports).toHaveLength(3);
   });
 
   it("creates directories, and deletes them recursively", async () => {
@@ -145,7 +153,6 @@ describe("vault CRUD", () => {
     const service = createVaultService({
       ignore: ignoreFromDisk(root),
       lock,
-      notifier: createNotifierRecorder(),
       root,
     });
 
@@ -163,26 +170,56 @@ describe("vault CRUD", () => {
   });
 });
 
-describe("what a write announces", () => {
-  it("says content-changed alone when only the bytes moved", async () => {
-    const { notifier, service } = bootService();
+describe("what a mutation reports", () => {
+  it("reports a write over an existing note as content, its row unmoved", async () => {
+    const { reported, service } = bootService();
     await service.write("note.md", "one");
-    notifier.reset();
-
     await service.write("note.md", "two");
+    await service.writeIfUnchanged("note.md", "two", "three");
+    await service.writeGuarded("note.md", "four", {
+      hash: await contentHashHex("three"),
+      kind: "expected",
+    });
 
-    expect(notifier.docChanges).toEqual([{ changes: ["content-changed"], docId: "note.md" }]);
-    expect(notifier.vaultChanges).toEqual([]);
+    expect(reported().slice(1)).toEqual([
+      [{ kind: "content", path: "note.md" }],
+      [{ kind: "content", path: "note.md" }],
+      [{ kind: "content", path: "note.md" }],
+    ]);
   });
 
-  it("still says files-changed when the write CREATES the file", async () => {
-    const { notifier, service } = bootService();
+  it("reports a create, a folder, a rename's two ends and a delete as entries", async () => {
+    const { reported, service } = bootService();
     await service.write("fresh.md", "one");
-    expect(notifier.vaultChanges).toEqual([["files-changed"]]);
-
-    notifier.reset();
     await service.writeGuarded("guarded.md", "one", { kind: "absent" });
-    expect(notifier.vaultChanges).toEqual([["files-changed"]]);
+    await service.writeAsset("assets", "shot.png", new Uint8Array([1]));
+    await service.createDir("folder");
+    await service.rename("fresh.md", "folder/moved.md");
+    await service.remove("guarded.md");
+    await service.removeIfUnchanged("folder/moved.md", "one");
+
+    expect(reported()).toEqual([
+      [{ kind: "entry", path: "fresh.md" }],
+      [{ kind: "entry", path: "guarded.md" }],
+      [{ kind: "entry", path: "assets/shot.png" }],
+      [{ kind: "entry", path: "folder" }],
+      [
+        { kind: "entry", path: "fresh.md" },
+        { kind: "entry", path: "folder/moved.md" },
+      ],
+      [{ kind: "entry", path: "guarded.md" }],
+      [{ kind: "entry", path: "folder/moved.md" }],
+    ]);
+  });
+
+  it("reports nothing for a guarded write it refused", async () => {
+    const { reported, service } = bootService();
+    await service.write("note.md", "one");
+    await service.writeIfUnchanged("note.md", "stale", "two");
+    await service.writeGuarded("note.md", "two", { kind: "absent" });
+    await service.removeIfUnchanged("note.md", "stale");
+
+    expect(reported()).toEqual([[{ kind: "entry", path: "note.md" }]]);
   });
 
   it("leaves the listing structure identical across a content edit", async () => {
@@ -222,7 +259,7 @@ describe("atomic writes and crash artifacts", () => {
     expect(written.content).toBe("the real write");
 
     // cutoff in the future: fs mtime granularity is coarse on ci tmpfs.
-    await sweepStaleTmpFiles(root, Date.now() + 60_000);
+    await sweepStaleTmpFiles(root, Date.now() + 60_000, await ignoreFromDisk(root)());
     const names = await readdir(root);
     expect(names.filter((name) => name.startsWith(VAULT_TMP_PREFIX))).toEqual([]);
   });
@@ -233,11 +270,35 @@ describe("atomic writes and crash artifacts", () => {
     const before = Date.now() - 60_000;
     await writeFile(path.join(root, `${VAULT_TMP_PREFIX}inflight`), "half a note");
 
-    await sweepStaleTmpFiles(root, before);
+    await sweepStaleTmpFiles(root, before, await ignoreFromDisk(root)());
     const remaining = await readdir(root);
     expect(remaining.filter((name) => name.startsWith(VAULT_TMP_PREFIX))).toEqual([
       `${VAULT_TMP_PREFIX}inflight`,
     ]);
+  });
+
+  it("never enters a folder the vault ignores, so a staging file under one stays", async () => {
+    const { root } = bootService();
+    await writeFile(path.join(root, ".gitignore"), "node_modules/\n");
+    const ignored = path.resolve(root, "node_modules");
+    await mkdir(path.join(ignored, "pkg"), { recursive: true });
+    await writeFile(path.join(ignored, "pkg", `${VAULT_TMP_PREFIX}stale`), "half a package");
+    await writeFile(path.join(root, `${VAULT_TMP_PREFIX}stale`), "half a note");
+    const ignore = await ignoreFromDisk(root)();
+    const readdirSpy = vi.spyOn(fsPromises, "readdir");
+    syncBuiltinESMExports();
+    onTestFinished(() => {
+      readdirSpy.mockRestore();
+      syncBuiltinESMExports();
+    });
+
+    await sweepStaleTmpFiles(root, Date.now() + 60_000, ignore);
+
+    const walked = readdirSpy.mock.calls.map(([dir]) => String(dir));
+    expect(walked).toContain(path.resolve(root));
+    expect(walked.filter((dir) => dir.startsWith(ignored))).toEqual([]);
+    expect(await readdir(root)).not.toContain(`${VAULT_TMP_PREFIX}stale`);
+    expect(await readdir(path.join(ignored, "pkg"))).toEqual([`${VAULT_TMP_PREFIX}stale`]);
   });
 
   it("an overwrite lands the staged content exactly, shorter than the original included", async () => {
@@ -259,6 +320,7 @@ describe("physical containment (symlinks)", () => {
     await symlink(path.join(outside, "id_ed25519"), path.join(root, "notes.md"));
 
     await expect(service.read("notes.md")).rejects.toThrow(VaultPathError);
+    await expect(service.readBytes("notes.md")).rejects.toThrow(VaultPathError);
     await expect(service.write("notes.md", "overwrite")).rejects.toThrow(VaultPathError);
     await expect(service.remove("notes.md")).rejects.toThrow(VaultPathError);
     await expect(service.rename("notes.md", "elsewhere.md")).rejects.toThrow(VaultPathError);
@@ -275,10 +337,25 @@ describe("physical containment (symlinks)", () => {
     await expect(service.write("evil/deep/x.md", "escape")).rejects.toThrow(VaultPathError);
     await expect(service.createDir("evil/newdir")).rejects.toThrow(VaultPathError);
     await expect(service.read("evil/readable.txt")).rejects.toThrow(VaultPathError);
+    await expect(service.statAsset("evil/readable.txt")).rejects.toThrow(VaultPathError);
     await expect(service.rename("evil/readable.txt", "stolen.md")).rejects.toThrow(VaultPathError);
 
     expect(await readdir(outside)).toEqual(["readable.txt"]);
     expect(await readFile(path.join(outside, "readable.txt"), "utf-8")).toBe("outside content");
+  });
+
+  it("answers a symlinked folder and every path through it as no entry, its names unread", async () => {
+    const { root, service } = bootService();
+    const outside = makeTempDir("inteligir-outside-");
+    await mkdir(path.join(outside, "sub"));
+    await writeFile(path.join(outside, "secret.md"), "s");
+    await writeFile(path.join(outside, "sub", "deeper.md"), "s");
+    await symlink(outside, path.join(root, "link"), "dir");
+
+    for (const through of ["link", "link/sub", "link/secret.md", "link/sub/deeper.md"]) {
+      expect(await service.statEntry(through)).toBeNull();
+      expect(await service.listFilesUnder(through)).toEqual([]);
+    }
   });
 
   it("keeps symlinks out of the listing entirely", async () => {
@@ -374,7 +451,6 @@ describe("what the filesystem throws at the vault", () => {
       const service = createVaultService({
         ignore: ignoreFromDisk(root),
         lock: identityLock,
-        notifier: createNotifierRecorder(),
         onUnreadableFolder: (relPath, code) => {
           reported.push(`${relPath}: ${code}`);
         },
@@ -475,7 +551,6 @@ describe("a read stall", () => {
     const service = createVaultService({
       ignore: ignoreFromDisk(root),
       lock: identityLock,
-      notifier: createNotifierRecorder(),
       root,
       stallRead: slowReadStall({ delayMs: STALL_MS, path: "slow" }),
     });
@@ -504,5 +579,161 @@ describe("a read stall", () => {
     ]);
     expect(answered.slice(0, 2).toSorted()).toEqual(["slow.md", "slower/c.md"]);
     expect(answered.slice(2).toSorted()).toEqual(["slow/a.md", "slow/b.md"]);
+  });
+});
+
+const execFileAsync = promisify(execFile);
+
+// longer than the open a local disk answers, so a read inside it still holds its slot when the
+// next one is asked for
+const OPEN_MS = 60;
+
+// a save on a local disk lands in milliseconds; past this it is waiting on a thread
+const SAVE_DEADLINE_MS = 2000;
+
+// every open of these vault paths answers OPEN_MS late, and the most out at once is counted, all
+// of them and the background's alone
+const stallOpens = (root: string, lanes: { background: readonly string[]; window: string }) => {
+  const rootReal = realpathSync(root);
+  // keyed by what readFile is handed, which may be a handle or a url as well as a path
+  const lanesByPath = new Map<unknown, "background" | "window">([
+    ...lanes.background.map((relPath) => [path.join(rootReal, relPath), "background"] as const),
+    [path.join(rootReal, lanes.window), "window"],
+  ]);
+  const open = { background: 0, window: 0 };
+  const peak = { all: 0, background: 0, backgroundBesideWindow: 0 };
+  const actualReadFile = fsPromises.readFile;
+  const spy = vi.spyOn(fsPromises, "readFile").mockImplementation(async (file, options) => {
+    const lane = lanesByPath.get(file);
+    if (lane === undefined) {
+      return await actualReadFile(file, options);
+    }
+    open[lane] += 1;
+    peak.all = Math.max(peak.all, open.background + open.window);
+    peak.background = Math.max(peak.background, open.background);
+    if (open.window > 0) {
+      peak.backgroundBesideWindow = Math.max(peak.backgroundBesideWindow, open.background);
+    }
+    try {
+      await delay(OPEN_MS);
+      return await actualReadFile(file, options);
+    } finally {
+      open[lane] -= 1;
+    }
+  });
+  syncBuiltinESMExports();
+  onTestFinished(() => {
+    spy.mockRestore();
+    syncBuiltinESMExports();
+  });
+  return { open, peak };
+};
+
+describe("the read budget", () => {
+  it("holds a rename's snapshot, the origin backfill and an index pass to the background share, and lets the window's read in beside them", async () => {
+    const app = await bootTestApp();
+    const notes = Array.from({ length: 8 }, (_, index) => `notes/n${String(index)}.md`);
+    const ids = new Map(notes.map((note) => [note, mintNoteId()]));
+    const threads = new Map<string, string>();
+    for (const [note, id] of ids) {
+      await app.client.vault.write({
+        content: `---\nid: ${id}\n---\n# ${note}\n`,
+        guard: { kind: "overwrite" },
+        path: note,
+      });
+      threads.set(
+        note,
+        createThread(app.db, noopNotifier, { origin: { noteId: null, path: note } }).id,
+      );
+    }
+    const picture = "window.png";
+    await writeFile(path.join(app.vaultDir, picture), "png bytes");
+    const { knowledge } = app.composed.context;
+    await knowledge.settle();
+    const opens = stallOpens(app.vaultDir, { background: notes, window: picture });
+
+    knowledge.noteVaultChange({ kind: "unknown" });
+    const sweeps = Promise.all([
+      snapshotDocs(app.vault.service, notes),
+      app.composed.context.threads.backfillOriginNoteIds(),
+      knowledge.settle(),
+    ]);
+    await vi.waitFor(
+      () => {
+        expect(opens.open.background).toBe(BACKGROUND_READ_SLOTS);
+      },
+      { interval: 1, timeout: OPEN_MS * 4 },
+    );
+    const windowRead = await app.vault.service.readBytes(picture);
+    expect(windowRead.path).toBe(picture);
+    const [snapshot] = await sweeps;
+
+    expect(opens.peak).toEqual({
+      all: READ_SLOTS,
+      background: BACKGROUND_READ_SLOTS,
+      backgroundBesideWindow: BACKGROUND_READ_SLOTS,
+    });
+    expect([...snapshot.docs.keys()]).toEqual(notes);
+    for (const [note, threadId] of threads) {
+      expect(getThread(app.db, threadId)?.originNoteId).toBe(ids.get(note));
+    }
+    expect(knowledge.lastReconcile?.deferred).toBe(0);
+  });
+
+  it("holds a slot through the stand-in's stall, as a stalled open would", async () => {
+    const root = makeTempDir("inteligir-vault-test-");
+    const stalled = Array.from({ length: READ_SLOTS }, (_, index) => `slow/${String(index)}.md`);
+    const stalls = { begun: 0, ended: 0, endedWhenFastBegan: -1 };
+    const service = createVaultService({
+      ignore: ignoreFromDisk(root),
+      lock: identityLock,
+      root,
+      stallRead: async (relPath) => {
+        if (relPath === "fast.md") {
+          stalls.endedWhenFastBegan = stalls.ended;
+          return;
+        }
+        stalls.begun += 1;
+        await delay(STALL_MS);
+        stalls.ended += 1;
+      },
+    });
+    for (const file of [...stalled, "fast.md"]) {
+      await service.write(file, `# ${file}\n`);
+    }
+
+    const slow = Promise.all(stalled.map(async (file) => await service.read(file)));
+    await vi.waitFor(() => {
+      expect(stalls.begun).toBe(READ_SLOTS);
+    });
+    await service.read("fast.md");
+    await slow;
+
+    expect(stalls.endedWhenFastBegan).toBeGreaterThan(0);
+  });
+
+  it("leaves node a thread for a save while every slot is held by an open that never answers", async () => {
+    const { root, service } = bootService();
+    // a pipe with no writer blocks its reader inside open(), holding one of node's fs threads,
+    // which is what an open of a placeholder the storage has not fetched does
+    const pipes = Array.from({ length: READ_SLOTS + 1 }, (_, index) => `pipe-${String(index)}.md`);
+    for (const pipe of pipes) {
+      execFileSync("mkfifo", [path.join(root, pipe)]);
+    }
+    const reads = pipes.map(async (pipe) => await service.read(pipe));
+    try {
+      await delay(OPEN_MS);
+      const saved = await Promise.race([
+        service.write("note.md", "saved"),
+        delay(SAVE_DEADLINE_MS, "stalled"),
+      ]);
+      expect(saved).toEqual({ path: "note.md" });
+    } finally {
+      // the writers are a shell's, since node's own fs is what may be stalled
+      const writers = pipes.map((pipe) => `: > '${pipe}' &`).join(" ");
+      await execFileAsync("sh", ["-c", `${writers} wait`], { cwd: root });
+    }
+    expect(await Promise.all(reads)).toEqual(pipes.map((pipe) => ({ content: "", path: pipe })));
+    expect(await readFile(path.join(root, "note.md"), "utf-8")).toBe("saved");
   });
 });

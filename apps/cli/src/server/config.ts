@@ -34,24 +34,43 @@ export const PROD_SERVER_PORT = 4664;
 export const VAULTS_DIR_NAME = "vaults";
 const VAULT_DATA_DIR_HASH_LENGTH = 16;
 
-// A folder's identity: every symlink followed, and the native realpath rather than the JS one,
-// because only it answers a case-insensitive volume's own case (`~/inteligir` is `~/Inteligir`).
-// A path with no physical spelling, one not there yet, keeps its resolved one.
-export const physicalVaultDir = (vaultDir: string): string => {
+// the native realpath, or null for a path that is not there
+export type Realpath = (target: string) => string | null;
+
+export const nativeRealpath: Realpath = (target) => {
   try {
-    return realpathSync.native(vaultDir);
+    return realpathSync.native(target);
   } catch {
-    return path.resolve(vaultDir);
+    return null;
   }
 };
 
-// The default vault keeps the root, as every install before a second vault did; any other
-// vault gets a dir of its own beneath it, so two vaults never share an index, a db or a
-// server.json. Keyed by the spelling the selector stores, which selection makes physical:
-// hashing the realpath here instead would move the dir of every vault already stored under a
-// symlinked spelling.
+// A folder's identity: every symlink followed, through the nearest ancestor that exists for a
+// folder not made yet, so a vault has one spelling before its first boot and after it. The native
+// realpath rather than the JS one, because only it answers a case-insensitive volume's own case
+// (`~/inteligir` is `~/Inteligir`); a tail not made yet keeps the case it was given.
+export const physicalVaultDir = (dir: string, realpath: Realpath = nativeRealpath): string => {
+  const missing: string[] = [];
+  let current = path.resolve(dir);
+  for (;;) {
+    const real = realpath(current);
+    if (real !== null) {
+      return path.join(real, ...missing.toReversed());
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return path.resolve(dir);
+    }
+    missing.push(path.basename(current));
+    current = parent;
+  }
+};
+
+// Every vault gets a dir of its own beneath the root, so two vaults never share an index, a db or
+// a server.json. Keyed by the folder's physical path, so every spelling the disk resolves to one
+// folder is one vault with one data dir.
 export const vaultDataDir = (rootDataDir: string, vaultDir: string): string => {
-  const digest = createHash("sha256").update(path.resolve(vaultDir)).digest("hex");
+  const digest = createHash("sha256").update(physicalVaultDir(vaultDir)).digest("hex");
   return path.join(rootDataDir, VAULTS_DIR_NAME, digest.slice(0, VAULT_DATA_DIR_HASH_LENGTH));
 };
 
@@ -318,7 +337,7 @@ export interface AppConfig {
   databasePath: string;
   dataDir: string;
   dataDirSource: "env" | "default";
-  // where config.json lives and where the default vault's data is; `dataDir` sits beneath it for any other vault
+  // where config.json lives; `dataDir` sits beneath it unless the env pins it
   rootDataDir: string;
   // what `~/` resolved against, and where the boot looks for a service syncing the vault's folder
   homeDir: string;
@@ -359,7 +378,6 @@ const configSource = <T>(envValue: T | undefined, managedValue: T | undefined): 
 interface ResolvedVaultDir {
   vaultDir: string;
   vaultDirSource: VaultDirSource;
-  defaultVaultDir: string;
 }
 
 const resolveVaultDir = (
@@ -379,7 +397,6 @@ const resolveVaultDir = (
       ? path.join(homeDir, PROD_VAULT_DIR_NAME)
       : path.join(devInstanceDir, DEV_INSTANCE_VAULT_DIR_NAME);
   return {
-    defaultVaultDir,
     vaultDir: envVaultDir ?? managedVaultDir ?? defaultVaultDir,
     vaultDirSource: configSource(envVaultDir, managedVaultDir),
   };
@@ -432,22 +449,19 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
     managed.port ??
     (mode === "prod" ? PROD_SERVER_PORT : resolveDevDefaultPort(args.checkoutPath));
 
-  const { vaultDir, vaultDirSource, defaultVaultDir } = resolveVaultDir(
+  const { vaultDir, vaultDirSource } = resolveVaultDir(
     args,
     homeDir,
     mode,
     devInstanceDir,
     managed,
   );
-  // an explicit data dir is taken as given: a harness or an operator pinned it and expects exactly it.
-  // the default reached by another case or through a symlink is still the default, and keeps the root
-  const dataDir =
-    envDataDir !== undefined || physicalVaultDir(vaultDir) === physicalVaultDir(defaultVaultDir)
-      ? rootDataDir
-      : vaultDataDir(rootDataDir, vaultDir);
-  // the root too: a vault under it would sit beside config.json and every other vault's db
+  // an explicit data dir is taken as given: a harness, an operator or the shell pinned it and
+  // expects exactly it
+  const dataDir = envDataDir ?? vaultDataDir(rootDataDir, vaultDir);
+  // the data dir is the root or beneath it, so this one check covers both: a vault under the root
+  // would sit beside config.json and every vault's db
   assertVaultAndDataDirDisjoint(path.resolve(vaultDir), path.resolve(rootDataDir));
-  assertVaultAndDataDirDisjoint(path.resolve(vaultDir), path.resolve(dataDir));
 
   const vaultRemote = readEnvVar(ENV_VARS.vaultRemote, args.env, homeDir) ?? null;
   const envSyncIntervalMs = readEnvVar(ENV_VARS.vaultSyncIntervalMs, args.env, homeDir);

@@ -6,21 +6,24 @@ import {
   PROD_DATA_DIR_NAME,
   PROD_SERVER_PORT,
   resolveAppConfig,
+  vaultDataDir,
 } from "../config";
 import { resolveDevDefaultPort, resolveDevInstanceId } from "../dev-instance";
 import { makeTempDir } from "./temp-dir";
 
 describe("data dir", () => {
-  it("prod defaults to ~/.inteligir", () => {
+  it("prod defaults to the default vault's dir beneath ~/.inteligir", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const config = resolveAppConfig({
       checkoutPath: "/checkout/a",
       env: { NODE_ENV: "production" },
       homeDir,
     });
+    const dataDir = vaultDataDir(path.join(homeDir, PROD_DATA_DIR_NAME), config.vaultDir);
     expect(config.mode).toBe("prod");
-    expect(config.dataDir).toBe(path.join(homeDir, PROD_DATA_DIR_NAME));
-    expect(config.databasePath).toBe(path.join(homeDir, PROD_DATA_DIR_NAME, "inteligir.db"));
+    expect(config.rootDataDir).toBe(path.join(homeDir, PROD_DATA_DIR_NAME));
+    expect(config.dataDir).toBe(dataDir);
+    expect(config.databasePath).toBe(path.join(dataDir, "inteligir.db"));
     expect(config.port).toBe(PROD_SERVER_PORT);
   });
 
@@ -30,8 +33,9 @@ describe("data dir", () => {
     const b = resolveAppConfig({ checkoutPath: "/checkout/b", env: {}, homeDir });
 
     const instanceDir = path.join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId("/checkout/a"));
-    expect(a.dataDir).toBe(path.join(instanceDir, "data"));
+    expect(a.rootDataDir).toBe(path.join(instanceDir, "data"));
     expect(a.vaultDir).toBe(path.join(instanceDir, "vault"));
+    expect(a.dataDir).toBe(vaultDataDir(a.rootDataDir, a.vaultDir));
     expect(a.dataDir).not.toBe(b.dataDir);
     expect(a.port).toBe(resolveDevDefaultPort("/checkout/a"));
     expect(a.port).not.toBe(b.port);

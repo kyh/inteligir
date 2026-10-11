@@ -2,7 +2,6 @@ import { chmodSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import nodePath from "node:path";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
-import { noopNotifier } from "@repo/domain/notifier";
 import { PROJECTION_VERSION } from "@repo/notes/knowledge/projection";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/contract/local/vault/vault-schema";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -132,7 +131,6 @@ describe("the knowledge runtime", () => {
     const service = createVaultService({
       ignore: ignoreFromDisk(dirs.root),
       lock: identityLock,
-      notifier: noopNotifier,
       root: dirs.root,
     });
     let listTreeCalls = 0;
@@ -707,7 +705,6 @@ describe("the knowledge runtime's debug trace", () => {
     const service = createVaultService({
       ignore: ignoreFromDisk(dirs.root),
       lock: identityLock,
-      notifier: noopNotifier,
       root: dirs.root,
     });
     const lines: string[] = [];

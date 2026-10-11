@@ -13,7 +13,7 @@ use serde_json::Value;
 pub struct Target {
     pub data_dir: String,
     pub vault_dir: String,
-    /// Where config.json lives; every vault's data dir but the default's sits beneath it.
+    /// Where config.json lives; every vault's data dir sits beneath it.
     pub root_data_dir: String,
     /// Why a switch is refused before any folder is picked (an env pin), in the CLI's words.
     pub switch_blocked: Option<String>,

@@ -1,4 +1,3 @@
-import { isLegacyCommentsSidecarPath } from "../comments/sidecar-schema";
 import { basenamePath, extnamePath, joinPath, vaultCollisionKey } from "./vault-path";
 
 const DOC_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt"]);
@@ -35,11 +34,11 @@ export const wikiLinkPath = (path: string): string =>
 // the name a bare `[[name]]` answers to; `docStem` is the title, which hides every doc extension
 export const wikiLinkName = (path: string): string => wikiLinkPath(basenamePath(path));
 
-// A listing shows what the user wrote. A comment sidecar is the product's, and a dot-entry
-// (another app's `.obsidian/`, the OS's `.DS_Store`) is nobody's to open here; the server's
-// listing stays complete because the CLI and the agent read it.
+// A listing shows what the user wrote. A dot-entry (the comment store's `.inteligir/`, another
+// app's `.obsidian/`, the OS's `.DS_Store`) is nobody's to open here; the server's listing stays
+// complete because the CLI and the agent read it.
 export const isVaultMetadataPath = (path: string): boolean =>
-  isLegacyCommentsSidecarPath(path) || path.split("/").some((segment) => segment.startsWith("."));
+  path.split("/").some((segment) => segment.startsWith("."));
 
 // Keyed on both sides because the disk may fold case and normalization; the server's `absent`
 // guard stays the real one.

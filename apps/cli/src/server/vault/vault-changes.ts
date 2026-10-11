@@ -10,9 +10,12 @@ export type EntryFingerprint =
   | { kind: "absent" }
   | { kind: "present"; ino: number; size: number; mtimeMs: number };
 
+// "entry": the listing row moved (a create, either end of a rename, a delete); "content": only the
+// bytes behind a row that stays.
 export interface VaultMutation {
   path: string;
   fingerprint: EntryFingerprint;
+  kind: "content" | "entry";
 }
 
 export const ABSENT_ENTRY: EntryFingerprint = { kind: "absent" };

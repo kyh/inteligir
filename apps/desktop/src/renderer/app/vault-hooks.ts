@@ -8,7 +8,6 @@ import type { RenameResult } from "@repo/editor/note/vault-session";
 import { toast } from "@repo/ui/components/sonner";
 import { freeDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import type { KnowledgeWikiTargetsResponse } from "@repo/contract/local/knowledge/knowledge-schema";
-import type { DataDirScope } from "@repo/contract/local/system/system-schema";
 import { externalSyncName } from "@repo/contract/local/vault/vault-schema";
 import type {
   VaultEntry,
@@ -50,9 +49,6 @@ export const useVaultStatus = () => useQuery(orpc.vault.status.queryOptions());
 // No change kind names this query, so it re-reads on every mount.
 export const useSystemStatus = () =>
   useQuery({ ...orpc.system.status.queryOptions(), staleTime: 0 });
-
-// undefined until the status answers; the sections say nothing rather than guess
-export const useDataDirScope = (): DataDirScope | undefined => useSystemStatus().data?.dataDirScope;
 
 // Every sentence here is the user's, never the engine's: its own error text names git's
 // machinery, so the rail and a toast never show it, and Settings › Advanced shows it raw.

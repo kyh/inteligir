@@ -28,7 +28,7 @@ export const statusCommand = (deps: CliDeps) =>
       out.box(
         [
           `inteligir ${body.version} — ${server.baseUrl}`,
-          `Data dir: ${body.dataDir}${body.dataDirScope === "vault" ? " (this vault's own)" : ""}`,
+          `Data dir: ${body.dataDir}`,
           `Vault: ${body.vaultDir}`,
           `Schema: v${body.schemaVersion} — uptime ${Math.round(body.uptimeMs / 1000)}s`,
           `Agent: ${body.agent.runtime} (mode ${body.agent.mode})${agentDetail}`,

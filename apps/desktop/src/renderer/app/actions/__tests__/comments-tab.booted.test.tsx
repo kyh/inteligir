@@ -1,5 +1,6 @@
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { bootTestApp } from "inteligir/server/testing";
@@ -30,15 +31,17 @@ describe("the comments tab under a refused read", () => {
   it("renders the refusal, never an eternal Loading…", async () => {
     const booted = await bootTestApp();
     routeRendererFetch(booted);
-    writeFileSync(path.join(booted.vaultDir, "note.md"), "note\n", "utf-8");
-    writeFileSync(path.join(booted.vaultDir, "note.md.comments.json"), "{not json", "utf-8");
+    writeFileSync(path.join(booted.vaultDir, "note.md"), "---\nid: 7d1c\n---\nnote\n", "utf-8");
+    const store = path.join(booted.vaultDir, commentsStorePath("7d1c"));
+    mkdirSync(path.dirname(store), { recursive: true });
+    writeFileSync(store, "{not json", "utf-8");
 
     mountTab("note.md");
     await waitFor(() => {
       expect(screen.getByText("The comments could not be read.")).toBeTruthy();
     });
     expect(screen.queryByText("Loading…")).toBeNull();
-    expect(screen.getByText(/note\.md\.comments\.json/u)).toBeTruthy();
+    expect(screen.getByText(/\.inteligir\/comments\/7d1c\.json/u)).toBeTruthy();
   });
 
   it("still tells a settled empty apart from a failure, spelling the chord for the keyboard", async () => {

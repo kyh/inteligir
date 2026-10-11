@@ -19,7 +19,10 @@
         "@agentclientprotocol/claude-agent-acp",
         "@agentclientprotocol/codex-acp",
         "tsx"
-      ]
+      ],
+      // the vault service's suite makes a named pipe with the system's own mkfifo, which no
+      // package provides
+      "ignoreBinaries": ["mkfifo"]
     },
     "apps/desktop": {
       // the first-run page is a build of its own (vite.config.ts), and first-run.html's script is

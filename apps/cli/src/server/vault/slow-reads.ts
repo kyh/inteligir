@@ -1,6 +1,6 @@
 // the scenario suite's stand-in for storage that answers an open late (a placeholder fetching its
-// bytes, a disk waking, a network mount), since no CI machine has any. it delays the answer, not a
-// thread: a real stall also holds one of node's fs threads while it waits.
+// bytes, a disk waking, a network mount), since no CI machine has any. it delays the answer inside
+// the read's slot, so it holds the budget a real stall holds, though not the fs thread itself.
 
 import { setTimeout as delay } from "node:timers/promises";
 

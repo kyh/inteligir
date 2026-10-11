@@ -1,21 +1,19 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { setImmediate as nextTurn } from "node:timers/promises";
-import { noopNotifier } from "@repo/domain/notifier";
 import { createVaultIgnore } from "@repo/notes/knowledge/vault-ignore";
 import type { VaultIgnore } from "@repo/notes/knowledge/vault-ignore";
 import { describe, expect, it } from "vitest";
 import { ensureVaultRepo } from "../git-bootstrap";
-import { runGit } from "../git-run";
 import type { RunGitCommand } from "../git-run";
 import { createVaultIgnoreHolder, loadVaultIgnore, readIgnoreCase } from "../vault-ignore-files";
 import { createVaultService } from "../vault-service";
 import type { VaultService } from "../vault-service";
 import { identityLock } from "../../__tests__/identity-lock";
 import { makeTempDir } from "../../__tests__/temp-dir";
-import { hermeticGitEnv } from "./git-test-env";
+import { hermeticGit } from "./git-test-env";
 
-const env = hermeticGitEnv();
+const gitRunner = hermeticGit();
 
 const writeTree = (root: string, files: Record<string, string>): void => {
   for (const [relPath, content] of Object.entries(files)) {
@@ -26,9 +24,9 @@ const writeTree = (root: string, files: Record<string, string>): void => {
 
 const bootRepo = async () => {
   const root = makeTempDir("inteligir-vault-ignore-", { realpath: true });
-  await ensureVaultRepo({ env, root });
-  const git: RunGitCommand = async (gitArgs) => await runGit(root, gitArgs, { env });
-  return { git, root };
+  await ensureVaultRepo({ git: gitRunner, root });
+  const run: RunGitCommand = async (gitArgs) => await gitRunner.run(root, gitArgs);
+  return { git: run, root };
 };
 
 const listedPaths = async (service: VaultService, kind?: "file"): Promise<string[]> => {
@@ -75,7 +73,6 @@ describe("the listing against git's own reading of the same .gitignore files", (
       const service = createVaultService({
         ignore: async () => await loadVaultIgnore(root, { ignoreCase }),
         lock: identityLock,
-        notifier: noopNotifier,
         root,
       });
 
@@ -114,7 +111,6 @@ describe("the vault service over the rules", () => {
     const service = createVaultService({
       ignore: async () => await loadVaultIgnore(root, { ignoreCase: false }),
       lock: identityLock,
-      notifier: noopNotifier,
       root,
     });
 
@@ -135,7 +131,6 @@ describe("the vault service over the rules", () => {
     const service = createVaultService({
       ignore: async () => await loadVaultIgnore(root, { ignoreCase: false }),
       lock: identityLock,
-      notifier: noopNotifier,
       root,
     });
 

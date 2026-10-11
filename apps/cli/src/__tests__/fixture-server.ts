@@ -412,7 +412,6 @@ const systemRouter = {
     const status: SystemStatusResponse = {
       agent: context.agent,
       dataDir: context.dataDir,
-      dataDirScope: "root",
       schemaVersion: 3,
       uptimeMs: 65_000,
       vaultDir: "/fixture/vault",

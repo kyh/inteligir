@@ -715,8 +715,10 @@ to the END of its group.
 
 - **CONTAINMENT IS PHYSICAL, NOT LEXICAL, IN THE SERVER AND IN THE SHELL.**
   The vault realpaths the deepest existing ancestor and refuses symlinked
-  leaves; a lexical check passes a `notes.md` that is a symlink to a private
-  key, and a `git pull` from a hostile remote can plant one
+  leaves, in the one `contained` step every surface that takes a path runs,
+  the stat and the listing included, which answer a refused path as absent; a
+  lexical check passes a `notes.md` that is a symlink to a private key, and a
+  `git pull` from a hostile remote can plant one
   (`apps/cli/src/server/vault/vault-service.ts` over `path-containment.ts`).
   The vault dir and the data dir must be disjoint, refused at boot: a data dir
   inside the vault gets committed and pushed. The OS sees a vault entry through
@@ -754,7 +756,13 @@ to the END of its group.
   a pass that fails with no verdict (a merge that fails outright, a save the
   engine could not record, an unclassified failure) says it stalled, which the
   rail shows as "Sync paused" and hands to Settings › Advanced, never `clean`
-  or `dirty`.
+  or `dirty`. Each verdict carries its own message, so `lastError` is the
+  verdict's (a failed auto-commit's ahead of it) and the two cannot drift; a
+  fetch that answers starts the verdict over, and a push that lost a race to
+  another device's reports no error, since the tree already says unpushed and
+  the next pass rebases. Every git the vault runs goes through one injected
+  `GitRunner` (`processGit` in `git-run.ts`), which a suite builds over a
+  hermetic config (`hermeticGit`), never an env threaded through each layer.
 
 - **A MOVE IS A RENAME THAT KEEPS THE NAME, and `planMove` is its one verdict.**
   The tree's drop and the palette's "Move note to folder…" both ask `planMove`
@@ -782,28 +790,35 @@ to the END of its group.
   `DEFAULT_ATTACHMENTS_FOLDER` in `@repo/notes/templates/placeholders`, since
   `vault-prefs.json` never reaches the phone.
 
-- **A SECOND VAULT GETS ITS OWN DATA DIR, AND A SWITCH IS A NEW CHILD, A NEW
-  SESSION AND A NEW WINDOW.** The default vault keeps the root data dir; any
-  other lives in `<root>/vaults/<sha256(path)[:16]>/`, derived once in
-  `config.ts`, and the root's `config.json` is the selector the shell and
-  `inteligir serve` both read. A folder is ONE vault however it is spelled: a
-  selection stores its physical spelling (`physicalVaultDir`) unless the given
-  spelling alone already keys a data dir (`resolveVaultCandidate`), and
-  "already open" and "is the default" compare physically, so a symlinked
-  spelling never mints a signed-out twin; the hash stays over the stored
-  spelling, since re-deriving it would move every selector written. Cost
-  accepted: the credential and the agent default live in the data dir, so a
-  second vault starts signed out, which also keeps it off the account's hosted
-  remote; connectors belong to the agent, so every vault shares them. The shell
-  switches only a child it started and opens a new window, since a webview's
-  data store is fixed at creation and each vault has its own; any failure puts
-  the previous vault back, and a rollback that cannot write the selector back
-  quits rather than leave `config.json` naming the vault that failed
-  (`switch_vault` in `apps/desktop/src-tauri/src/shell.rs`). A first run writes
-  the selector before the first child exists unless it chose the default, and a
-  failed first boot removes it (the door's `select --default`, which is
-  `writeManagedVaultDir(root, null)`), so the next launch asks again. The
-  folder is picked in the shell, so the page never names a path it was not
+- **EVERY VAULT GETS ITS OWN DATA DIR, AND A SWITCH IS A NEW CHILD, A NEW
+  SESSION AND A NEW WINDOW.** Every vault, the default included, lives in
+  `<root>/vaults/<sha256(physical path)[:16]>/`, derived once in `config.ts`
+  unless `INTELIGIR_DATA_DIR` pins one; the root holds only `config.json`, the
+  selector the shell and `inteligir serve` both read. A folder is ONE vault
+  however it is spelled, because the key is `physicalVaultDir`: every symlink
+  followed through the nearest existing ancestor, so a vault not made yet keys
+  the dir it keeps once it is, and "is the default", "already open", "inside
+  the app's data" and "synced by another service" judge that one spelling. A
+  selection stores it too (`resolveVaultCandidate`). Only case escapes it: a
+  name not made yet keeps the case it was typed in, so where the volume folds
+  case the default's name in another case is the default (`isDefaultVault` in
+  `apps/cli/src/desktop/first-run.ts`). Rejected: the default keeping the root
+  and the rest keyed by the stored spelling, which took a second resolve, a
+  scope the page branched on, and still let one folder key two dirs. The vault
+  service's containment guard stays its own (CONTAINMENT IS PHYSICAL): it is
+  async and compares against its own non-native root. Cost accepted: the
+  credential and the agent default live in the data dir, so every vault starts
+  signed out, which also keeps it off the account's hosted remote until it
+  signs in; connectors belong to the agent, so every vault shares them. The
+  shell switches only a child it started and opens a new window, since a
+  webview's data store is fixed at creation and each vault has its own; any
+  failure puts the previous vault back, and a rollback that cannot write the
+  selector back quits rather than leave `config.json` naming the vault that
+  failed (`switch_vault` in `apps/desktop/src-tauri/src/shell.rs`). A first
+  run writes the selector before the first child exists unless it chose the
+  default, and a failed first boot removes it (the door's `select --default`,
+  which is `writeManagedVaultDir(root, null)`), so the next launch asks again.
+  The folder is picked in the shell, so the page never names a path it was not
   handed, and a picked switch to a folder another service syncs asks first, in
   the first run's words. Every rule of that plan is the CLI's, asked through
   the desktop door (`apps/cli/src/desktop/desktop-door.ts` over
@@ -818,7 +833,8 @@ to the END of its group.
   timeout. The price is that the world moves during the fetch, so the
   integration step re-checks first. Only a merge that fails outright is
   remembered, by the two tips it failed between, so a pass where neither moved
-  skips it rather than failing the same way every minute. Network git gives up
+  skips it, and says the merge's own words again, rather than failing the same
+  way every minute. Network git gives up
   under 1KB/s for 30s, or an ssh connect past 20s
   (`apps/cli/src/server/vault/git-run.ts`). The split is
   `apps/cli/src/server/vault/git-engine.ts`.
@@ -891,7 +907,11 @@ to the END of its group.
   and a window alone, a foreign write landing behind a save (an agent editing
   the open note) would be dropped with the echo. A pass whose rebase moved HEAD
   reports the diff's paths, because a pass that names nothing makes every push
-  from another device re-read the whole vault.
+  from another device re-read the whole vault. Every change, the service's own,
+  a watched batch and a pass's drain, reaches the bus, the index and the commit
+  scheduler through the runtime's one `deliver`; the service holds no notifier
+  and only reports a typed mutation, `content` or `entry` (the listing row
+  moved), so what a change announces is decided in one layer.
   `apps/cli/src/server/vault/vault-changes.ts`,
   `apps/cli/src/server/vault/vault-runtime.ts`.
 
@@ -913,9 +933,10 @@ to the END of its group.
   read failing for any reason but absence is a fault, never "the file is
   gone". `apps/cli/src/server/vault/vault-service.ts`.
 
-- **THE VAULT LISTS WHAT GIT WOULD KEEP.** The listing, the stat and the
-  watcher honour every `.gitignore` in the vault, so a docs repo's
-  `node_modules/` and build output take no tree row, no index row and no wake.
+- **THE VAULT LISTS WHAT GIT WOULD KEEP.** The listing, the stat, the
+  watcher and the boot's staging sweep honour every `.gitignore` in the vault,
+  so a docs repo's `node_modules/` and build output take no tree row, no index
+  row, no wake and no walk.
   One matcher per file, scoped to its own folder and asked deepest-first
   (`@repo/notes/knowledge/vault-ignore`), because one rooted at the vault
   re-scopes a nested `*` to `**/*` and hides the whole tree; `.git` and the
@@ -1160,22 +1181,35 @@ to the END of its group.
   (`apps/desktop/src/renderer/app/note-topbar.tsx`). Pinned by the round trip
   in `packages/notes/src/__tests__/link-resolve.test.ts`.
 
-- **A DOC WHOSE READ HAS NOT ANSWERED IN 2S IS DEFERRED, NOT AWAITED, AND READS
-  OUT STAY BELOW NODE'S FS POOL.** On storage that fetches or wakes (an
-  on-demand placeholder, a sleeping disk, a network mount) one open can block
-  for minutes, and every query settles the pass first. So the pass moves on,
-  the doc answers from its last entry, and the read lands in a later pass. A
-  read left running still holds a slot of `READ_CONCURRENCY` (3): a stalled
-  open holds one of node's four fs threads, and a fourth stalls every fs call
-  in the process, saves included, which no deadline can free. Rejected:
-  re-reading every path once its late read lands, which loops on storage that
-  is always slow, and a wider cap, which the pool cannot afford. No provider
-  path, bundle id or mount type appears anywhere; the scenario suite stalls a
-  path through `INTELIGIR_SLOW_READS` (`apps/cli/src/server/vault/slow-reads.ts`),
-  and the boot's timing line (`apps/cli/src/server/boot-report.ts`) counts what
-  was deferred. Residual: the listing's walk has no deadline, and a rename run
-  before a deferred doc lands misses a link the doc gained offline.
-  `apps/cli/src/server/knowledge/deferred-reads.ts`,
+- **A DOC WHOSE READ HAS NOT ANSWERED IN 2S IS DEFERRED, NOT AWAITED, AND
+  EVERY VAULT READ OPENS INSIDE THE VAULT SERVICE'S BUDGET.** On storage that
+  fetches or wakes (an on-demand placeholder, a sleeping disk, a network mount)
+  one open can block for minutes, and every query settles the pass first. So
+  the pass moves on, the doc answers from its last entry, and the read lands in
+  a later pass; the deadline runs from the call, so a read still waiting for a
+  slot is deferred too. The budget is the vault service's own, around the open
+  of a file's bytes in `read` and `readBytes`
+  (`apps/cli/src/server/vault/read-slots.ts`): 3 at once, whoever asked,
+  because a stalled open holds one of node's four fs threads and a fourth
+  stalls every fs call in the process, saves included, which no deadline can
+  free; a read left running keeps its slot. A BACKGROUND READ, one of many a
+  job makes (the index pass, a rename's snapshot, a delete's id scan, the
+  boot's origin backfill), never takes the third, so a read the window waits on
+  opens beside two that hang; each such job runs no more at once than that
+  share, so what waits does so in the job, where the index reads the latest
+  path first. The lstat and ancestry checks before the open stay outside it,
+  and so does a write's read of the bytes it replaces, so a save never waits
+  behind a stalled read. Rejected: a foreground deadline answering
+  "unavailable", which refuses a note that is on disk; re-reading every path
+  once its late read lands, which loops on storage that is always slow; and a
+  wider cap, which the pool cannot afford. No provider path, bundle id or mount
+  type appears anywhere; the scenario suite stalls a path through
+  `INTELIGIR_SLOW_READS` (`apps/cli/src/server/vault/slow-reads.ts`), inside
+  the read's slot, and the boot's timing line
+  (`apps/cli/src/server/boot-report.ts`) counts what was deferred. Residual:
+  the listing's walk has no deadline, a stat or a write's own read can still
+  stall on such storage, and a rename run before a deferred doc lands misses a
+  link the doc gained offline. `apps/cli/src/server/knowledge/deferred-reads.ts`,
   `tools/e2e/src/scenarios/slow-storage.ts`.
 
 ### Agents and threads
@@ -1241,10 +1275,8 @@ to the END of its group.
   `apps/cli/src/commands/comment.ts`). The comment-id grammar has one spelling,
   `COMMENT_ID_PATTERN` in `@repo/notes/comments/sidecar-schema`. A comment on a
   note without an id mints one (`withFrontmatterId`) through a guarded note
-  write; a read mints nothing, and an `id` that is not text is refused, never
-  overwritten. A legacy `<note>.comments.json` is folded in on first touch and
-  over the whole tree once the server listens (`comments-migration.ts`, kicked
-  from `serve.ts`, so it neither delays nor fails the boot). A deleted note's
+  write; a read writes nothing, and an `id` that is not text is refused, never
+  overwritten. A deleted note's
   store goes with it unless a byte copy still carries that id, one rule
   (`@repo/notes/comments/store-removal`) the server's delete
   (`remove-with-comments.ts`) and the phone's both ask, and a restore brings
