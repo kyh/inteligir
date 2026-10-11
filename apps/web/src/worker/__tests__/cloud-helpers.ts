@@ -1,5 +1,6 @@
 import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
 import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
+import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import {
   DEVICE_API_PATHS,
   deviceLoginResponseSchema,
@@ -22,8 +23,12 @@ export const ORIGIN = "https://inteligir-web.workers.dev";
 export const PASSWORD = "test-password-1234";
 
 // what every install's request carries: a build at the floor, which the Worker admits
-export const buildHeaders = (): Record<string, string> =>
-  clientBuildHeaders({ platform: "desktop", version: env.MIN_CLIENT_BUILD });
+export const floorBuild = (): ClientBuild => ({
+  platform: "desktop",
+  version: env.MIN_CLIENT_BUILD,
+});
+
+export const buildHeaders = (): Record<string, string> => clientBuildHeaders(floorBuild());
 
 // a browser on one of this Worker's own pages, which ships in the same deploy and names no build
 export const OWN_PAGE_HEADERS = { origin: ORIGIN, "sec-fetch-site": "same-origin" } as const;

@@ -28,7 +28,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
 import { threadSyncStub } from "../sync/routes";
-import { emitted, loginDevice, ORIGIN, signUpUser, userIdOf } from "./cloud-helpers";
+import { emitted, floorBuild, loginDevice, ORIGIN, signUpUser, userIdOf } from "./cloud-helpers";
 
 // what each route the table calls declares it answers, so every answer is held to exactly that
 const DECLARED_ANSWERS = new Map<string, z.ZodType>([
@@ -93,7 +93,12 @@ describe("the Worker's inboxes", () => {
         signIn: async (name) => {
           const { credential, deviceId } = await loginDevice(bearer, name);
           return {
-            client: createCloudClient({ baseUrl: ORIGIN, credential, fetch: recorded }),
+            client: createCloudClient({
+              baseUrl: ORIGIN,
+              build: floorBuild(),
+              credential,
+              fetch: recorded,
+            }),
             deviceId,
           };
         },
