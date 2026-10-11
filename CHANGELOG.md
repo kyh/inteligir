@@ -44,9 +44,6 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 - **Every vault's data dir is its own.** The default vault's (`~/Inteligir`'s) now sits beneath `~/.inteligir/vaults/` like any other's, keyed by the folder's physical path, so a folder reached through a symlink or typed in another case is one vault with one data dir. `inteligir status` no longer marks a data dir as the vault's own, and its `--json` drops `dataDirScope`.
 - **`inteligir serve` no longer warns about settings it does not read.** `INTELIGIR_AGENT_MODEL` and the `agentModel` and `vaultRemote` keys in `config.json` are ignored silently, like any other setting the app does not read.
 - **`inteligir interactions answer` takes only a decision.** The answer is `allow_once`, `allow_for_session` or `deny`, spelled exactly; the JSON form (`{"decision":…}`) is gone, and any other word is refused before the server is asked. With `--json`, an interaction reports its `decision` in place of `resolution`.
-
-### On the command line
-
 - **`INTELIGIR_AGENT=acp` replaces `INTELIGIR_AGENT=auto`.** The mode that runs the agents the app carries is named for them, and `auto`, in the variable or as `config.json`'s `agent`, now stops the server at start-up. `inteligir status` says `Agent: acp`, `scripted` or `off`, with the reason when the agent can't start, and `inteligir agents default` names the harnesses there are when given one it doesn't know.
 
 ## 0.6.0 — 2026-09-27
