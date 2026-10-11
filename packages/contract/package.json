@@ -7,7 +7,6 @@
   "exports": {
     "./cloud/account/account-schema": "./src/cloud/account/account-schema.ts",
     "./cloud/bytes": "./src/cloud/bytes.ts",
-    "./cloud/captures/captures-schema": "./src/cloud/captures/captures-schema.ts",
     "./cloud/client": "./src/cloud/cloud-client.ts",
     "./cloud/client-build": "./src/cloud/client-build.ts",
     "./cloud/device/device-schema": "./src/cloud/device/device-schema.ts",

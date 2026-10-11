@@ -2,9 +2,10 @@
 
 One Cloudflare Worker serving the marketing site and the whole cloud from
 one origin: the TanStack Start pages, Better Auth on D1, device login, the
-per-user thread-sync Durable Object, the capture and dispatch inboxes and the
-hosted vault git remote. The wire contract is `@repo/contract/cloud` — the Worker
-implements it, the local app's sync client consumes it.
+per-user thread-sync Durable Object, the dispatch inbox (a phone's turns,
+answers and captures) and the hosted vault git remote. The wire contract is
+`@repo/contract/cloud` — the Worker implements it, the local app's sync client
+consumes it.
 
 ## Layout
 
@@ -71,11 +72,8 @@ its own `tsconfig.json`.
 | `POST /v1/sync/push`                    | device            | Outbox batch in — idempotent, conflict-aware                        |
 | `GET /v1/sync/pull`                     | device            | Page the merged log by global `seq`                                 |
 | `GET /v1/sync/ws`                       | device            | Invalidation socket (Bearer on the upgrade; hibernatable)           |
-| `POST /v1/capture`                      | device            | Quick capture in, deduped on an idempotency key                     |
-| `POST /v1/sync/captures/claim`          | device            | Take the inbox for a five-minute window                             |
-| `POST /v1/sync/captures/ack`            | device            | Delete what that claim owns — per-id outcomes                       |
-| `POST /v1/sync/dispatch`                | device            | A phone's turn or approval answer in, deduped on its id             |
-| `POST /v1/sync/dispatch/claim`          | device            | Take waiting turns, and answers meant for this Mac, for two minutes |
+| `POST /v1/sync/dispatch`                | device            | A phone's turn, approval answer or capture in, deduped on its id    |
+| `POST /v1/sync/dispatch/claim`          | device            | Take waiting rows of the kinds named, for two minutes               |
 | `POST /v1/sync/dispatch/ack`            | device            | Settle what that claim owns, delivered or refused — per-id outcomes |
 | `POST /v1/sync/dispatch/status`         | device            | Each dispatch's state, and how many desktops are listening          |
 | `POST /v1/sync/dispatch/cancel`         | device            | Withdraw a dispatch no Mac holds                                    |
@@ -95,7 +93,7 @@ hash compare against D1 — never cached, so revocation is immediate; its
 `last_seen_at` is written at most every five minutes
 (`LAST_SEEN_RESOLUTION_MS`), so a verify is one read. The
 VERIFIED credential's userId — never a path or a body — names the state it
-reaches: the sync and capture routes fan out to that user's own
+reaches: the sync and dispatch routes fan out to that user's own
 `ThreadSyncDO` by RPC (the Worker parses each body and hands the object the
 verified deviceId; only the socket upgrade is a forwarded request), the git
 remote and the `/v1/vault/*` reads and commits to that user's own durable-git

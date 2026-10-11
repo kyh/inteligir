@@ -11,15 +11,16 @@ import {
   APPROVAL_MAX_OPEN,
   DISPATCH_CLAIM_DEFAULT_LIMIT,
   DISPATCH_MAX_PENDING,
+  dispatchKindSchema,
 } from "../dispatch/dispatch-schema";
 import type {
   AckDispatchesRequest,
   ApprovalRow,
   ClaimedDispatch,
   CreateDispatchRequest,
+  DispatchKind,
   OpenApprovalRequest,
 } from "../dispatch/dispatch-schema";
-import { CLAIM_DEFAULT_LIMIT } from "../captures/captures-schema";
 
 export interface InboxDevice {
   client: CloudClient;
@@ -29,7 +30,7 @@ export interface InboxDevice {
 export interface InboxCloud {
   // another device signed in to the row's own fresh account
   signIn: (name: string) => Promise<InboxDevice>;
-  // every claim, a capture's and a dispatch's, as if its ttl ran out
+  // every claim, as if its ttl ran out
   lapseClaims: () => Promise<void>;
 }
 
@@ -90,6 +91,12 @@ const answer = (id: string, approvalId: string, decision: Decision): CreateDispa
   kind: "answer",
 });
 
+const capture = (id: string, text: string): CreateDispatchRequest => ({
+  id,
+  kind: "capture",
+  text,
+});
+
 const PAYLOAD: OpenApprovalRequest["payload"] = {
   availableDecisions: ["allow_once", "deny"],
   kind: "approval",
@@ -118,8 +125,12 @@ const listedOf = (rows: readonly ApprovalRow[]) =>
     turnId: row.turnId,
   }));
 
-const claimTurns = async (device: InboxDevice) =>
-  answered(await device.client.claimDispatches(DISPATCH_CLAIM_DEFAULT_LIMIT));
+const EVERY_KIND: DispatchKind[] = [...dispatchKindSchema.options];
+
+const claimKinds = async (device: InboxDevice, kinds: DispatchKind[]) =>
+  answered(await device.client.claimDispatches({ kinds, limit: DISPATCH_CLAIM_DEFAULT_LIMIT }));
+
+const claimTurns = async (device: InboxDevice) => await claimKinds(device, EVERY_KIND);
 
 const claimedIds = async (device: InboxDevice): Promise<string[]> => {
   const claimed = await claimTurns(device);
@@ -135,14 +146,6 @@ const approvalsOf = async (device: InboxDevice) =>
 const approvalStates = async (device: InboxDevice) => {
   const listed = await approvalsOf(device);
   return listed.map((row) => row.state);
-};
-
-const claimCaptures = async (device: InboxDevice) =>
-  answered(await device.client.claimCaptures(CLAIM_DEFAULT_LIMIT));
-
-const claimedTexts = async (device: InboxDevice): Promise<string[]> => {
-  const claimed = await claimCaptures(device);
-  return claimed.captures.map((row) => row.text);
 };
 
 const WEEK: TurnRequest = {
@@ -339,7 +342,7 @@ const TURN_SCENARIOS: readonly InboxScenario[] = [
       const resent = answered(
         await phone.client.createDispatch(turn(dispatchId(1), "thr_cap", "ask 1")),
       );
-      const claimed = answered(await mac.client.claimDispatches(1));
+      const claimed = answered(await mac.client.claimDispatches({ kinds: EVERY_KIND, limit: 1 }));
       answered(
         await mac.client.ackDispatches({
           claimToken: claimed.claimToken,
@@ -585,86 +588,52 @@ const APPROVAL_SCENARIOS: readonly InboxScenario[] = [
 
 const CAPTURE_SCENARIOS: readonly InboxScenario[] = [
   scenario(
-    "hands a capture to exactly one claimer, and deletes it once",
+    "hands a capture, as sent, only to a claim that names captures, and a turn only to one that names turns",
     async ({ signIn }) => {
       const phone = await signIn("Phone");
-      const laptop = await signIn("Laptop");
-      const posted = answered(
-        await phone.client.createCapture({
-          idempotencyKey: "key-oat-milk-1",
-          text: "buy oat milk",
+      const mac = await signIn("Mac");
+      const declining = await signIn("Declining Mac");
+      answered(await phone.client.createDispatch(turn(dispatchId(1), "thr_turn", "tidy this")));
+      const created = answered(
+        await phone.client.createDispatch(capture(dispatchId(2), "buy oat milk")),
+      );
+      const toDeclining = await claimKinds(declining, ["capture"]);
+      const toMac = await claimKinds(mac, ["turn", "answer"]);
+      answered(
+        await declining.client.ackDispatches({
+          claimToken: toDeclining.claimToken,
+          results: [{ id: dispatchId(2), outcome: "delivered" }],
         }),
       );
-      const laptopClaim = await claimCaptures(laptop);
-      const phoneClaim = await claimCaptures(phone);
-      const deleted = answered(
-        await laptop.client.ackCaptures({ claimToken: laptopClaim.claimToken, ids: [posted.id] }),
-      );
-      const late = answered(
-        await phone.client.ackCaptures({ claimToken: phoneClaim.claimToken, ids: [posted.id] }),
-      );
       return {
-        deleted: deleted.results.map((row) => row.outcome),
-        emptied: await claimedTexts(laptop),
-        handed: laptopClaim.captures.map((row) => ({
-          createdAt: row.createdAt === posted.createdAt,
-          id: row.id === posted.id,
-          text: row.text,
-        })),
-        late: late.results.map((row) => row.outcome),
-        posted: posted.duplicate,
-        toPhone: phoneClaim.captures.map((row) => row.text),
+        created,
+        settled: await statesOf(phone, [dispatchId(2)]),
+        toDeclining: toDeclining.dispatches.map(stamped),
+        toMac: ids(toMac.dispatches),
       };
     },
     {
-      deleted: ["deleted"],
-      emptied: [],
-      handed: [{ createdAt: true, id: true, text: "buy oat milk" }],
-      late: ["unknown"],
-      posted: false,
-      toPhone: [],
+      created: { dispatch: { id: dispatchId(2), state: "waiting" }, duplicate: false },
+      settled: [{ id: dispatchId(2), state: "delivered" }],
+      toDeclining: [{ createdAt: true, id: dispatchId(2), kind: "capture", text: "buy oat milk" }],
+      toMac: [dispatchId(1)],
     },
   ),
   scenario(
-    "tells a lapsed claimer its rows were reclaimed rather than deleting them",
-    async ({ lapseClaims, signIn }) => {
-      const phone = await signIn("Phone");
-      const laptop = await signIn("Laptop");
-      const posted = answered(
-        await phone.client.createCapture({ idempotencyKey: "key-remember-1", text: "remember" }),
-      );
-      const stale = await claimCaptures(laptop);
-      await lapseClaims();
-      const fresh = await claimCaptures(phone);
-      const late = answered(
-        await laptop.client.ackCaptures({ claimToken: stale.claimToken, ids: [posted.id] }),
-      );
-      const owned = answered(
-        await phone.client.ackCaptures({ claimToken: fresh.claimToken, ids: [posted.id] }),
-      );
-      return {
-        fresh: fresh.captures.map((row) => row.text),
-        late: late.results.map((row) => row.outcome),
-        owned: owned.results.map((row) => row.outcome),
-        stale: stale.captures.map((row) => row.text),
-      };
-    },
-    { fresh: ["remember"], late: ["reclaimed"], owned: ["deleted"], stale: ["remember"] },
-  ),
-  scenario(
-    "stores a retried capture once, on its idempotency key",
+    "stores a resent capture once, and refuses one with no words",
     async ({ signIn }) => {
       const phone = await signIn("Phone");
-      const request = { idempotencyKey: "key-shared", text: "one thought" };
-      const first = answered(await phone.client.createCapture(request));
-      const retry = answered(await phone.client.createCapture(request));
+      const mac = await signIn("Mac");
+      const request = capture(dispatchId(1), "one thought");
+      const first = answered(await phone.client.createDispatch(request));
+      const again = answered(await phone.client.createDispatch(request));
       return {
-        claimed: await claimedTexts(phone),
-        duplicates: [first.duplicate, retry.duplicate],
-        sameId: retry.id === first.id,
+        blank: verdictOf(await phone.client.createDispatch(capture(dispatchId(2), "   "))),
+        claimed: await claimedIds(mac),
+        duplicates: [first.duplicate, again.duplicate],
       };
     },
-    { claimed: ["one thought"], duplicates: [false, true], sameId: true },
+    { blank: "bad-request", claimed: [dispatchId(1)], duplicates: [false, true] },
   ),
 ];
 

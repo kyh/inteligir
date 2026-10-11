@@ -70,7 +70,11 @@ const create = async (credential: string, request: CreateDispatchRequest) =>
 const claim = async (credential: string) =>
   await answered(
     claimDispatchesResponseSchema,
-    await post(credential, DISPATCH_API_PATHS.claim, "{}"),
+    await post(
+      credential,
+      DISPATCH_API_PATHS.claim,
+      JSON.stringify({ kinds: ["turn", "answer", "capture"] }),
+    ),
   );
 
 const claimedRows = async (credential: string) => {
@@ -113,6 +117,8 @@ const turn = (threadId: string, text: string): CreateDispatchRequest => ({
   text,
   threadId,
 });
+
+const capture = (text: string): CreateDispatchRequest => ({ id: mintId(), kind: "capture", text });
 
 const approvalOn = (threadId: string): OpenApprovalRequest => ({
   id: mintId(),
@@ -296,6 +302,36 @@ describe("a phone's turn", () => {
   });
 });
 
+describe("a phone's capture", () => {
+  it("pings every Mac, phone requests on or off, and never a phone", async () => {
+    const { mac, otherMac, phone } = await account("capture-audience@example.test");
+    const macWs = await openSocket(mac.credential, "desktop", TAKES_PHONE_REQUESTS);
+    const quietMacWs = await openSocket(otherMac.credential, "desktop");
+    const phoneWs = await openSocket(phone.credential, "mobile");
+
+    await create(phone.credential, capture("remember the thing"));
+    await awaitFrames(macWs, [{ type: "dispatch" }]);
+    await awaitFrames(quietMacWs, [{ type: "dispatch" }]);
+
+    // a later turn's frame: the capture's, had the phone been sent one, would sit before it
+    await create(phone.credential, turn("thr_after", "and then this"));
+    await awaitFrames(macWs, [{ type: "dispatch" }, { threadId: "thr_after", type: "dispatch" }]);
+    expect(phoneWs.frames).toEqual([]);
+
+    macWs.socket.close();
+    quietMacWs.socket.close();
+    phoneWs.socket.close();
+  });
+
+  it("refuses a claim that names no kind", async () => {
+    const { mac } = await account("capture-kindless@example.test");
+    for (const body of ["{}", JSON.stringify({ kinds: [] })]) {
+      const response = await post(mac.credential, DISPATCH_API_PATHS.claim, body);
+      expect(await refusal(response)).toEqual({ code: "bad-request", status: 400 });
+    }
+  });
+});
+
 describe("an approval asked on the phone", () => {
   it("pings the phone once as it opens, and only the Mac that asked as it is answered", async () => {
     const { mac, otherMac, phone } = await account("approval-pings@example.test");
@@ -356,7 +392,7 @@ describe("a deleted account's dispatch inbox", () => {
     // replays calls whose credential check passed before the purge, as the Worker would have made them
     const late = [
       await stub.createDispatch(phone.deviceId, turn("thr_doomed", "after the purge")),
-      await stub.claimDispatches(mac.deviceId, { limit: 10 }),
+      await stub.claimDispatches(mac.deviceId, { kinds: ["turn"], limit: 10 }),
       await stub.ackDispatches({
         claimToken: "late-claim",
         results: [{ id: mintId(), outcome: "delivered" }],

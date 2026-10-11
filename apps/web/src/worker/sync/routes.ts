@@ -1,10 +1,4 @@
 import {
-  ackCapturesRequestSchema,
-  CAPTURE_API_PATHS,
-  captureRequestSchema,
-  claimCapturesRequestSchema,
-} from "@repo/contract/cloud/captures/captures-schema";
-import {
   ackDispatchesRequestSchema,
   cancelDispatchRequestSchema,
   claimDispatchesRequestSchema,
@@ -87,13 +81,9 @@ const withBody =
     schema: S,
     usage: string,
     run: (call: SyncCall, body: z.infer<S>) => Promise<Response>,
-    // an empty body is a request at its defaults, so a claim may send nothing for its limit
-    { emptyIsDefault = false } = {},
   ) =>
   async (call: SyncCall): Promise<Response> => {
-    const body = schema.safeParse(
-      await call.request.json().catch(() => (emptyIsDefault ? {} : null)),
-    );
+    const body = schema.safeParse(await call.request.json().catch(() => null));
     return body.success ? await run(call, body.data) : refuse("bad-request", usage);
   };
 
@@ -121,31 +111,10 @@ const SYNC_ROUTES = new Map<string, (call: SyncCall) => Promise<Response>>([
     },
   ],
   [
-    `POST ${CAPTURE_API_PATHS.capture}`,
-    withBody(captureRequestSchema, "Send { text, idempotencyKey }.", async ({ stub }, body) =>
-      answer(await stub.capture(body)),
-    ),
-  ],
-  [
-    `POST ${CAPTURE_API_PATHS.claim}`,
-    withBody(
-      claimCapturesRequestSchema,
-      "Send { limit? }.",
-      async ({ stub }, body) => answer(await stub.claimCaptures(body)),
-      { emptyIsDefault: true },
-    ),
-  ],
-  [
-    `POST ${CAPTURE_API_PATHS.ack}`,
-    withBody(ackCapturesRequestSchema, "Send { claimToken, ids }.", async ({ stub }, body) =>
-      answer(await stub.ackCaptures(body)),
-    ),
-  ],
-  [
     `POST ${DISPATCH_API_PATHS.dispatch}`,
     withBody(
       createDispatchRequestSchema,
-      'Send { kind: "turn", id, threadId, text } or { kind: "answer", id, approvalId, decision }.',
+      'Send { kind: "turn", id, threadId, text }, { kind: "answer", id, approvalId, decision } or { kind: "capture", id, text }.',
       async ({ device, stub }, body) => answer(await stub.createDispatch(device.deviceId, body)),
     ),
   ],
@@ -153,9 +122,8 @@ const SYNC_ROUTES = new Map<string, (call: SyncCall) => Promise<Response>>([
     `POST ${DISPATCH_API_PATHS.claim}`,
     withBody(
       claimDispatchesRequestSchema,
-      "Send { limit? }.",
+      "Send { kinds, limit? }.",
       async ({ device, stub }, body) => answer(await stub.claimDispatches(device.deviceId, body)),
-      { emptyIsDefault: true },
     ),
   ],
   [

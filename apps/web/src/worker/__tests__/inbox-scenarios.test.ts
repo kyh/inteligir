@@ -1,9 +1,3 @@
-import {
-  ackCapturesResponseSchema,
-  CAPTURE_API_PATHS,
-  captureResponseSchema,
-  claimCapturesResponseSchema,
-} from "@repo/contract/cloud/captures/captures-schema";
 import { createCloudClient } from "@repo/contract/cloud/client";
 import type { CloudFetch } from "@repo/contract/cloud/client";
 import {
@@ -32,9 +26,6 @@ import { emitted, floorBuild, loginDevice, ORIGIN, signUpUser, userIdOf } from "
 
 // what each route the table calls declares it answers, so every answer is held to exactly that
 const DECLARED_ANSWERS = new Map<string, z.ZodType>([
-  [CAPTURE_API_PATHS.ack, ackCapturesResponseSchema],
-  [CAPTURE_API_PATHS.capture, captureResponseSchema],
-  [CAPTURE_API_PATHS.claim, claimCapturesResponseSchema],
   [DEVICE_API_PATHS.revoke, revokeDeviceResponseSchema],
   [DISPATCH_API_PATHS.ack, ackDispatchesResponseSchema],
   [DISPATCH_API_PATHS.approval, openApprovalResponseSchema],
@@ -87,7 +78,6 @@ describe("the Worker's inboxes", () => {
         lapseClaims: async () => {
           await runInDurableObject(stub, (_instance, state) => {
             state.storage.sql.exec("UPDATE dispatches SET claimed_at = 0");
-            state.storage.sql.exec("UPDATE captures SET claimed_at = 0");
           });
         },
         signIn: async (name) => {
