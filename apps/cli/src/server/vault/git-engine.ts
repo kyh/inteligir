@@ -171,9 +171,16 @@ const refusedPushMessage = (
     : "The git remote refused the push as too large.";
 };
 
+// the build floor is the cloud's: a 426 from a remote of the user's own is that server refusing
+const failureFrom = (
+  remote: VaultRemoteSpec,
+  failure: NetworkFailure | "lost-race",
+): NetworkFailure | "lost-race" =>
+  failure === "outdated" && remote.source !== "account" ? "rejected" : failure;
+
 // what the latest pass to reach a verdict concluded, with the words the status reports for it, so
-// a verdict and its message can never disagree. a pass that ends before its fetch answers (a
-// pending account) leaves the last one standing; one whose fetch answers starts over from "none",
+// a verdict and its message can never disagree. a pass that ends before its fetch answers (a build
+// the cloud refused) leaves the last one standing; one whose fetch answers starts over from "none",
 // which leaves the report to the tree, even when a hold or a dispose then ends it before its push.
 // "broken" is final: no pass runs after it. "account-mismatch" runs no network step, since a push
 // would upload this vault into an account that never held it. "unreachable" outranks the tree
@@ -858,14 +865,13 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
         };
         return null;
       }
-      if (remote.account.state === "pending") {
-        // fail closed: a pass now would skip the marker check, the window a new sign-in pushes
-        // the old vault through. the thread sync retries the account fetch and pings this
-        // engine when it lands.
+      // the cloud refused this build, and only another build, which is another process, gets past
+      // its floor: a retry here would be refused the same way every interval
+      if (outcome.kind === "unreachable" && outcome.failure === "outdated") {
         return null;
       }
       const marker = await readAccountMarker();
-      if (marker !== null && marker !== remote.account.id) {
+      if (marker !== null && marker !== remote.accountId) {
         outcome = {
           kind: "account-mismatch",
           message:
@@ -993,7 +999,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       await runNetwork(["fetch", "origin", branch], remote.env);
     } catch (error) {
       if (!isMissingRemoteRef(error)) {
-        recordNetworkFailure(classifyNetworkFailure(error), messageOf(error));
+        recordNetworkFailure(failureFrom(remote, classifyNetworkFailure(error)), messageOf(error));
         return;
       }
       // a fresh remote: the push below creates the branch.
@@ -1023,7 +1029,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     try {
       await runNetwork(["push", "origin", branch], remote.env);
     } catch (error) {
-      const failure = classifyNetworkFailure(error);
+      const failure = failureFrom(remote, classifyNetworkFailure(error));
       if (failure !== "too-large" && failure !== "full") {
         recordNetworkFailure(failure, messageOf(error));
         return;
@@ -1039,8 +1045,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return;
     }
     refusedPush = null;
-    if (remote.source === "account" && remote.account.state === "known") {
-      const accountId = remote.account.id;
+    if (remote.source === "account") {
+      const { accountId } = remote;
       await withRepoLock(async () => {
         if ((await readAccountMarker()) === null) {
           await run(["config", ACCOUNT_MARKER_KEY, accountId]);

@@ -10,17 +10,18 @@ import { createDb } from "../db/client";
 import { rateLimit } from "../db/schema";
 import { deviceRateKey } from "../rate-limit";
 import {
+  buildHeaders,
   deviceHeaders,
   emitted,
-  ORIGIN,
   loginDevice,
+  ORIGIN,
   postSignOut,
+  postVaultRead,
   sessionHeaders,
   signUpUser,
 } from "./cloud-helpers";
 import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
-const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
 const FILES = `${ORIGIN}${VAULT_API_PATHS.files}`;
 const COMMIT = `${ORIGIN}${VAULT_API_PATHS.commit}`;
 const GIT_REFS = `${ORIGIN}${VAULT_GIT_PATH}/info/refs?service=git-upload-pack`;
@@ -51,11 +52,11 @@ describe("the hosted vault's per-device budgets", () => {
 
     await spendBudget(deviceRateKey("vaultRead", phone.deviceId));
 
-    const refused = await SELF.fetch(TREE, { headers: deviceHeaders(phone.credential) });
+    const refused = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(phone.credential), {});
     expect(refused.status).toBe(429);
     expect(emitted(cloudErrorSchema, await refused.text()).error.code).toBe("rate-limited");
 
-    const allowed = await SELF.fetch(TREE, { headers: deviceHeaders(laptop.credential) });
+    const allowed = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(laptop.credential), {});
     expect(allowed.status).not.toBe(429);
   });
 
@@ -101,9 +102,11 @@ describe("the hosted vault's per-device budgets", () => {
   });
 
   it("spends nothing for a credential that never verified", async () => {
-    const unauthorized = await SELF.fetch(TREE, {
-      headers: { authorization: "Bearer igd_not-a-real-credential" },
-    });
+    const unauthorized = await postVaultRead(
+      VAULT_API_PATHS.tree,
+      { ...buildHeaders(), authorization: "Bearer igd_not-a-real-credential" },
+      {},
+    );
     expect(unauthorized.status).toBe(401);
   });
 });
@@ -173,7 +176,7 @@ describe("a vault write's budget", () => {
       expect(refused.status).toBe(429);
       expect(emitted(cloudErrorSchema, await refused.text()).error.code).toBe("rate-limited");
 
-      const tree = await SELF.fetch(TREE, { headers: deviceHeaders(phone.credential) });
+      const tree = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(phone.credential), {});
       expect(tree.status).toBe(200);
       await tree.arrayBuffer();
       const git = await SELF.fetch(GIT_REFS, { headers: deviceHeaders(phone.credential) });

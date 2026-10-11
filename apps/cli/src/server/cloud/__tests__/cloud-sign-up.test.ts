@@ -18,7 +18,7 @@ describe("cloud.signUp over the router", () => {
     const app = await boot(cloud.fetch);
 
     const status = await app.client.cloud.signUp({ ...NEW_ACCOUNT, deviceName: "Laptop" });
-    expect(status.state).toBe("signed-in");
+    expect(status).toMatchObject({ accountEmail: NEW_ACCOUNT.email, state: "signed-in" });
     // oxlint-disable-next-line no-bitwise -- a file mode is a bit field; the mask reads the permission bits
     expect(statSync(deviceCredentialPath(app.dataDir)).mode & 0o777).toBe(0o600);
     expect(readDeviceCredential(app.dataDir)?.deviceId).toBe("dev_1");

@@ -3,6 +3,7 @@ import type { CloudFetch } from "@repo/contract/cloud/client";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
 import { SYNC_API_PATHS } from "@repo/contract/cloud/sync/sync-schema";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
 import { phoneDbReady } from "../../lib/phone-db";
@@ -61,10 +62,12 @@ const refusedAs = (code: string, message: string): Response =>
 // the store reads under the sync runtime's session, as the composition root wires it
 const notesOver = (fetch: CloudFetch, db: SqlDriver = openTempDb()) => {
   const sync = createSyncRuntime({
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     createClient: (credential) =>
       createCloudClient({
         baseUrl: "https://cloud.test",
+        build: TEST_BUILD,
         credential: credential.credential,
         fetch,
       }),

@@ -9,29 +9,19 @@ import { threadSyncStub } from "../sync/routes";
 import { SOCKET_IDENTITY_HEADERS } from "../sync/thread-sync-do";
 import {
   awaitFrames,
+  buildHeaders,
   deviceHeaders,
   emitted,
+  loginDevice,
   openSocket,
   ORIGIN,
-  loginDevice,
   postSignOut,
   sessionHeaders,
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
 
-// what 0.4.0 sends beside its events: each titled thread's lane and title
-interface StaleThreadMeta {
-  lane: "any" | "desktop";
-  threadId: string;
-  title?: string;
-  updatedAt: number;
-}
-
-const push = async (
-  credential: string,
-  body: PushRequest & { threads?: readonly StaleThreadMeta[] },
-): Promise<Response> =>
+const push = async (credential: string, body: PushRequest): Promise<Response> =>
   await SELF.fetch(`${ORIGIN}/v1/sync/push`, {
     body: JSON.stringify(body),
     headers: { ...deviceHeaders(credential), "content-type": "application/json" },
@@ -90,6 +80,52 @@ describe("thread sync log", () => {
     expect(page.hasMore).toBe(false);
   });
 
+  it("stores each body as one text that parses back, and serves that text verbatim", async () => {
+    const { bearer } = await signUpUser("sync-verbatim@example.test");
+    const { credential } = await loginDevice(bearer, "Laptop");
+    const bodies: PushRequest["events"][number]["event"][] = [
+      { nested: [1, "x", null, { deep: [true, false] }], type: "test" },
+      'a bare string: "quoted", \\ a backslash, a \u2028 separator and a </script>',
+      "あ😀 and a lone \uD800 half",
+      0.1,
+      1e21,
+      null,
+      false,
+      [],
+      {},
+    ];
+    await push(credential, {
+      events: bodies.map((body, index) => ({
+        createdAt: index,
+        deviceSeq: index + 1,
+        event: body,
+        threadId: "th_1",
+      })),
+    });
+
+    const stub = threadSyncStub(env, await userIdOf(bearer));
+    const stored = await runInDurableObject(stub, (_instance, state) =>
+      state.storage.sql
+        .exec<{ event: string }>("SELECT event FROM sync_events ORDER BY seq")
+        .toArray()
+        .map((row) => row.event),
+    );
+    expect(stored).toEqual(bodies.map((body) => JSON.stringify(body)));
+    for (const [index, text] of stored.entries()) {
+      expect(JSON.parse(text)).toEqual(bodies[index]);
+    }
+
+    const response = await SELF.fetch(`${ORIGIN}/v1/sync/pull?afterSeq=0`, {
+      headers: deviceHeaders(credential),
+    });
+    expect(response.headers.get("content-type")).toBe("application/json");
+    const text = await response.text();
+    for (const body of stored) {
+      expect(text).toContain(`"event":${body}`);
+    }
+    expect(emitted(pullResponseSchema, text).events.map((row) => row.event)).toEqual(bodies);
+  });
+
   it("accepts a retry that appends to a partially-stored batch", async () => {
     const { bearer } = await signUpUser("sync-partial@example.test");
     const { credential } = await loginDevice(bearer, "Laptop");
@@ -140,6 +176,21 @@ describe("thread sync log", () => {
     });
     expect(response.status).toBe(409);
     expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("sync-out-of-order");
+    const page = await pull(credential, 0);
+    expect(page.events).toEqual([]);
+  });
+
+  it("refuses a batch carrying a key beside its events, storing none of it", async () => {
+    const { bearer } = await signUpUser("sync-undeclared@example.test");
+    const { credential } = await loginDevice(bearer, "Laptop");
+
+    const withThreads = {
+      events: [event("th_1", 1, "a")],
+      threads: [{ threadId: "th_1", title: "Fix the build" }],
+    };
+    const response = await push(credential, withThreads);
+    expect(response.status).toBe(400);
+    expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("bad-request");
     const page = await pull(credential, 0);
     expect(page.events).toEqual([]);
   });
@@ -199,40 +250,6 @@ describe("thread sync log", () => {
     phoneWs.socket.close();
   });
 
-  it("accepts a stale install's desktop lane and dispatches nothing for it", async () => {
-    const { bearer } = await signUpUser("sync-stale-lane@example.test");
-    const desktop = await loginDevice(bearer, "Desktop");
-    const stale = await loginDevice(bearer, "Old Laptop");
-    const desktopWs = await openSocket(desktop.credential, "desktop");
-
-    const pushed = await push(stale.credential, {
-      events: [event("th_lane", 1, "run this")],
-      threads: [{ lane: "desktop", threadId: "th_lane", title: "Do the thing", updatedAt: 1000 }],
-    });
-    expect(emitted(pushResponseSchema, await pushed.text())).toEqual({
-      accepted: 1,
-      duplicates: 0,
-      lastSeq: 1,
-    });
-    const metaOnly = await push(stale.credential, {
-      events: [],
-      threads: [{ lane: "desktop", threadId: "th_later", updatedAt: 2000 }],
-    });
-    expect(emitted(pushResponseSchema, await metaOnly.text())).toEqual({
-      accepted: 0,
-      duplicates: 0,
-      lastSeq: 1,
-    });
-    await push(stale.credential, { events: [event("th_lane", 2, "and this")] });
-
-    // frames arrive in order, so a dispatch for either push would sit before the second sync
-    await awaitFrames(desktopWs, [
-      { seq: 1, type: "sync" },
-      { seq: 2, type: "sync" },
-    ]);
-    desktopWs.socket.close();
-  });
-
   it("keeps its socket identity in the hibernation tags, not in instance memory", async () => {
     const { bearer } = await signUpUser("sync-hibernate@example.test");
     const desktop = await loginDevice(bearer, "Desktop");
@@ -288,7 +305,7 @@ describe("thread sync log", () => {
 
   it("refuses the socket without a device credential", async () => {
     const response = await SELF.fetch(`${ORIGIN}/v1/sync/ws`, {
-      headers: { upgrade: "websocket" },
+      headers: { ...buildHeaders(), upgrade: "websocket" },
     });
     expect(response.status).toBe(401);
   });

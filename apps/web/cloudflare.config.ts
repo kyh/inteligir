@@ -28,6 +28,11 @@ const worker = defineWorker({
   },
 });
 
+// the oldest build /v1 answers (src/worker/client-floor.ts). 0.6.0 sends no build header, which the
+// floor refuses on its own, so this admits exactly the builds that send one, a checkout's included
+// until its release raises the version; raise it to retire a wire shape every older build reads
+const MIN_CLIENT_BUILD = "0.6.0";
+
 const durableObjects = {
   THREAD_SYNC: bindings.durableObject({ worker, exportName: "ThreadSyncDO" }),
   // REPO and REGISTRY are durable-git's own classes, re-exported through the entry
@@ -55,6 +60,7 @@ export default defineConfig(({ isPreview }) => ({
           DB: bindings.d1({ name: "inteligir-auth-preview" }),
           PACK_CACHE: bindings.r2({ name: "inteligir-vault-preview" }),
           VAULT_STORAGE_CAP_BYTES: bindings.text("1073741824"),
+          MIN_CLIENT_BUILD: bindings.text(MIN_CLIENT_BUILD),
         }
       : {
           ...durableObjects,
@@ -65,6 +71,7 @@ export default defineConfig(({ isPreview }) => ({
           PACK_CACHE: bindings.r2({ name: "inteligir-vault" }),
           // what one account's hosted vault may store, history included: 1 GiB
           VAULT_STORAGE_CAP_BYTES: bindings.text("1073741824"),
+          MIN_CLIENT_BUILD: bindings.text(MIN_CLIENT_BUILD),
           // password-reset transport; needs email sending enabled + DNS onboarding once
           EMAIL: bindings.sendEmail({}),
         },

@@ -7,13 +7,19 @@ import {
   deviceLoginRequestSchema,
   normalizeDeviceName,
 } from "../device/device-schema";
-import type { DeviceCredential } from "../device/device-schema";
+import type { DeviceLoginResponse } from "../device/device-schema";
 import { deviceSignUpRequestSchema } from "../account/account-schema";
 import { loginDevice, signUpDevice } from "../device/login-flow";
 import type { DeviceCredentialStore, LoginOutcome } from "../device/login-flow";
+import { TEST_BUILD } from "../test-support/fake-cloud-client";
 
 const CLOUD_URL = "https://cloud.test";
-const LOGGED_IN = { credential: `igd_${"c".repeat(64)}`, deviceId: "dev_x" };
+const LOGGED_IN: DeviceLoginResponse = {
+  credential: `igd_${"c".repeat(64)}`,
+  deviceId: "dev_x",
+  email: "owner@example.test",
+  userId: "user_x",
+};
 
 interface RecordedCall {
   url: string;
@@ -48,10 +54,10 @@ const loginUnreachable: CloudFetch = () => {
 };
 
 const memoryStore = () => {
-  const written: DeviceCredential[] = [];
+  const written: DeviceLoginResponse[] = [];
   const store: DeviceCredentialStore = {
-    write: async (credential) => {
-      written.push(credential);
+    write: async (answer) => {
+      written.push(answer);
     },
   };
   return { store, written };
@@ -59,7 +65,7 @@ const memoryStore = () => {
 
 const login = async (fetch: CloudFetch, store: DeviceCredentialStore): Promise<LoginOutcome> =>
   await loginDevice({
-    client: { baseUrl: CLOUD_URL, fetch },
+    client: { baseUrl: CLOUD_URL, build: TEST_BUILD, fetch },
     deviceName: " Test Laptop ",
     email: "owner@example.test",
     password: "correct horse battery",
@@ -79,7 +85,7 @@ describe("loginDevice", () => {
     const cloud = loginOk();
     const { store, written } = memoryStore();
     const outcome = await login(cloud.fetch, store);
-    expect(outcome).toStrictEqual({ credential: LOGGED_IN, kind: "logged-in" });
+    expect(outcome).toStrictEqual({ kind: "logged-in", login: LOGGED_IN });
     expect(written).toStrictEqual([LOGGED_IN]);
 
     expect(cloud.calls).toHaveLength(1);
@@ -158,7 +164,7 @@ const inviteRefused: CloudFetch = async () =>
 
 const signUp = async (fetch: CloudFetch, store: DeviceCredentialStore): Promise<LoginOutcome> =>
   await signUpDevice({
-    client: { baseUrl: CLOUD_URL, fetch },
+    client: { baseUrl: CLOUD_URL, build: TEST_BUILD, fetch },
     deviceName: " Test Laptop ",
     email: "owner@example.test",
     inviteCode: "INVITE-1",
@@ -172,8 +178,8 @@ describe("signUpDevice", () => {
     const cloud = loginOk();
     const { store, written } = memoryStore();
     expect(await signUp(cloud.fetch, store)).toStrictEqual({
-      credential: LOGGED_IN,
       kind: "logged-in",
+      login: LOGGED_IN,
     });
     expect(written).toStrictEqual([LOGGED_IN]);
 

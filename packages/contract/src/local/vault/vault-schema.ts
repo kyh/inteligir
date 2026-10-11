@@ -361,6 +361,9 @@ export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
   remoteState("offline"),
   // not `offline`: offline heals on its own, this fails the same way until the user signs in again.
   remoteState("unauthorized"),
+  // the hosted vault refused this build as older than the cloud's floor (a 426): not
+  // `unauthorized`, since the sign-in stands, and only an update moves past it.
+  remoteState("outdated"),
   // the remote answered and refused the push (a hook, a protected branch); `lastError` carries its
   // words. not `offline`: no retry changes the answer.
   remoteState("rejected"),

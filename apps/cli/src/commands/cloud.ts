@@ -34,6 +34,12 @@ const describe = (status: CloudStatusResponse): string[] => {
         status.detail,
       ];
     }
+    case "outdated": {
+      return [
+        `outdated  ${new URL(status.cloudUrl).host}  device ${status.deviceId}`,
+        "The cloud no longer syncs this version. Update inteligir (npm i -g inteligir@latest, or the app) and sync resumes as this device.",
+      ];
+    }
     case "signed-in": {
       const synced =
         status.lastSyncedAt === null ? "never" : new Date(status.lastSyncedAt).toISOString();

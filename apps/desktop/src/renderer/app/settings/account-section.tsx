@@ -47,6 +47,25 @@ export const SignedOutByAccount = ({ onSignInAgain }: { onSignInAgain: () => voi
   </div>
 );
 
+// the sign-in stands: the cloud refused this version, and the update signs back in as this Mac
+export const UpdateToSync = ({
+  onSignOut,
+  pending,
+}: {
+  onSignOut: () => void;
+  pending: boolean;
+}) => (
+  <div className="space-y-2">
+    <p className="text-body text-muted-foreground">
+      This version of Inteligir can&apos;t sync with your account anymore. Update it in Settings ›
+      About, and this Mac syncs again where it left off.
+    </p>
+    <Button size="compact" variant="ghost" onClick={onSignOut} disabled={pending}>
+      Sign out
+    </Button>
+  </div>
+);
+
 export type DeviceListState =
   | { kind: "loading" }
   | { kind: "failed"; retrying: boolean }
@@ -227,6 +246,9 @@ export const AccountSection = () => {
         </div>
       );
     }
+    if (status.state === "outdated") {
+      return <UpdateToSync onSignOut={signOut} pending={pending} />;
+    }
     if (status.state === "unauthorized") {
       // a sign-in replaces the refused credential directly: there is nothing left to sign out of
       return signInAgainFor === status.deviceId ? (
@@ -243,9 +265,7 @@ export const AccountSection = () => {
       <div className="space-y-2">
         <dl className="space-y-1.5">
           <Row label="Account">
-            <span className="block truncate text-body">
-              {status.accountEmail ?? new URL(status.cloudUrl).host}
-            </span>
+            <span className="block truncate text-body">{status.accountEmail}</span>
           </Row>
           <AccountDevices
             thisMacName={vaultStatus?.device}

@@ -1,6 +1,7 @@
 import type { CloudResult } from "@repo/contract/cloud/client";
 import { planPage } from "@repo/contract/cloud/sync/plan-page";
 import type { PullResponse } from "@repo/contract/cloud/sync/sync-schema";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { SqlDriver } from "../../lib/sql-driver";
@@ -39,6 +40,7 @@ const launch = (store: SyncStore, pages: CloudResult<PullResponse>[] = []) => {
     },
   });
   const runtime = createSyncRuntime({
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     createClient: () => cloud.client,
     pollIntervalMs: null,

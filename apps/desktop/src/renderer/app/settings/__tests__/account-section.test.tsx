@@ -4,7 +4,12 @@ import type { CloudDevice } from "@repo/contract/local/cloud/cloud-schema";
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AccountDevices, RevokeFailedNotice, SignedOutByAccount } from "../account-section";
+import {
+  AccountDevices,
+  RevokeFailedNotice,
+  SignedOutByAccount,
+  UpdateToSync,
+} from "../account-section";
 import type { AccountDevicesProps, DeviceListState } from "../account-section";
 
 afterEach(cleanup);
@@ -136,6 +141,18 @@ describe("a Mac the account signed out", () => {
     ]);
     fireEvent.click(screen.getByRole("button", { name: "Sign in again" }));
     expect(onSignInAgain).toHaveBeenCalledOnce();
+  });
+});
+
+describe("a version the cloud no longer syncs", () => {
+  it("asks for the update, keeps the sign-in, and still offers a sign-out", () => {
+    const onSignOut = vi.fn<() => void>();
+    render(<UpdateToSync onSignOut={onSignOut} pending={false} />);
+
+    expect(screen.getByText(/Update it in Settings › About/u)).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Sign in again" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    expect(onSignOut).toHaveBeenCalledOnce();
   });
 });
 

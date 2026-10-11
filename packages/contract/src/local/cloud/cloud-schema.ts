@@ -24,8 +24,7 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
     .strict(),
   z
     .object({
-      // null until the best-effort fetch lands, or against a stale cloud with no account route
-      accountEmail: z.string().nullable(),
+      accountEmail: z.string().min(1),
       cloudUrl: z.url(),
       // latency, not correctness: the timer still pulls without the socket
       connected: z.boolean(),
@@ -48,6 +47,15 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
       detail: z.string().min(1),
       deviceId: z.string().min(1),
       state: z.literal("unauthorized"),
+    })
+    .strict(),
+  // the cloud refused this build, not the credential: the fix is an update, which signs in as the
+  // same device. nothing runs here either
+  z
+    .object({
+      cloudUrl: z.url(),
+      deviceId: z.string().min(1),
+      state: z.literal("outdated"),
     })
     .strict(),
 ]);

@@ -1,5 +1,6 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
+import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
 import { File } from "expo-file-system";
 import { addNetworkStateListener } from "expo-network";
@@ -49,9 +50,14 @@ const devLog = (message: string): void => {
   }
 };
 
+// the version app.config.js read from the package. a build that carries none says 0.0.0, which
+// the cloud refuses as too old rather than letting a build it cannot place through
+const appVersion = (): string => Constants.expoConfig?.version ?? "0.0.0";
+
 const build = (): AppRuntime => {
   const rt = composeRuntime({
     attachments: createExpoAttachmentFiles(),
+    build: { platform: "mobile", version: appVersion() },
     cloudUrl: getCloudUrl(),
     credentials: createKeychainCredentials(SecureStore),
     db: createExpoSqlDriver("inteligir.db"),

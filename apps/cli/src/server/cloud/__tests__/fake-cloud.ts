@@ -75,6 +75,13 @@ import type {
 } from "@repo/contract/cloud/sync/sync-schema";
 import { createCloudClient, postDeviceLogin } from "@repo/contract/cloud/client";
 import type { CloudClient, CloudFetch } from "@repo/contract/cloud/client";
+import {
+  CLIENT_BUILD_HEADER,
+  meetsBuildFloor,
+  parseClientBuildHeader,
+  parseReleaseVersion,
+} from "@repo/contract/cloud/client-build";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
@@ -181,10 +188,12 @@ export class FakeCloud {
   deleteWindowShut = false;
   /** event types served as a newer build writes them: renamed, so this build's grammar refuses them. */
   readonly unreadableTypes = new Set<string>();
+  /** the oldest build it answers, as the worker's floor does; null answers every build. */
+  buildFloor: string | null = null;
 
   /** another device joining the account on its own, speaking the wire as the app does. */
   async signInDevice(deviceName: string): Promise<{ client: CloudClient; deviceId: string }> {
-    const endpoint = { baseUrl: FAKE_CLOUD_URL, fetch: this.fetch };
+    const endpoint = { baseUrl: FAKE_CLOUD_URL, build: TEST_BUILD, fetch: this.fetch };
     const login = await postDeviceLogin(endpoint, { ...FAKE_ACCOUNT, deviceName });
     if (!login.ok) {
       throw new Error(`${deviceName} could not sign in: ${JSON.stringify(login.failure)}`);
@@ -245,10 +254,22 @@ export class FakeCloud {
   readonly fetch: CloudFetch = async (input, init) =>
     await Promise.resolve(this.route(input, init));
 
+  private belowFloor(init?: RequestInit): boolean {
+    if (this.buildFloor === null) {
+      return false;
+    }
+    const floor = parseReleaseVersion(this.buildFloor);
+    const build = parseClientBuildHeader(new Headers(init?.headers).get(CLIENT_BUILD_HEADER));
+    return floor === null || build === null || !meetsBuildFloor(build, floor);
+  }
+
   private route(input: string, init?: RequestInit): Response {
     const url = new URL(input);
     const route = `${init?.method ?? "GET"} ${url.pathname}`;
     this.requests.push(route);
+    if (this.belowFloor(init)) {
+      return refuse("client-outdated", "This version of Inteligir can't sync anymore.");
+    }
     const text = z.string().safeParse(init?.body);
     const body: RequestBody = text.success ? parseJson(text.data) : null;
 
@@ -282,9 +303,6 @@ export class FakeCloud {
     }
     if (route === `POST ${CAPTURE_API_PATHS.ack}`) {
       return this.ack(body);
-    }
-    if (route === `GET ${ACCOUNT_API_PATHS.account}`) {
-      return this.account(device);
     }
     if (route === `POST ${ACCOUNT_API_PATHS.delete}`) {
       return this.deleteAccount(device, body);
@@ -620,13 +638,6 @@ export class FakeCloud {
     );
   }
 
-  private account(device: FakeDevice): Response {
-    const account = this.accounts.get(device.email);
-    return account === undefined
-      ? refuse("unauthorized", "No valid device credential.")
-      : Response.json({ email: device.email, id: account.id });
-  }
-
   // the worker's order: the window, the password asked again, then the account and every device row
   private deleteAccount(caller: FakeDevice, body: RequestBody): Response {
     if (this.deleteWindowShut) {
@@ -713,13 +724,14 @@ export class FakeCloud {
       return refuse("bad-request", "Send { email, password, deviceName }.");
     }
     // mirrors the worker: an unknown address and a wrong password are one answer.
-    if (this.accounts.get(parsed.data.email)?.password !== parsed.data.password) {
+    const account = this.accounts.get(parsed.data.email);
+    if (account?.password !== parsed.data.password) {
       return refuse("invalid-credentials", "Wrong email or password.");
     }
     if (this.activeDeviceCount() >= this.maxDevices) {
       return refuse("device-limit", "This account has too many active devices — revoke one first.");
     }
-    return this.mint(parsed.data.email, parsed.data.deviceName);
+    return this.mint(parsed.data.email, account.id, parsed.data.deviceName);
   }
 
   // the worker's order: the claim, then the account, and a refused account leaves the code unspent.
@@ -742,11 +754,12 @@ export class FakeCloud {
       );
     }
     this.inviteCodes.delete(inviteCode);
-    this.accounts.set(email, { id: `user_${this.accounts.size + 1}`, password });
-    return this.mint(email, parsed.data.deviceName);
+    const userId = `user_${this.accounts.size + 1}`;
+    this.accounts.set(email, { id: userId, password });
+    return this.mint(email, userId, parsed.data.deviceName);
   }
 
-  private mint(email: string, name: string): Response {
+  private mint(email: string, userId: string, name: string): Response {
     this.nextDevice += 1;
     const deviceId = `dev_${this.nextDevice}`;
     // random like the worker's, never derived from the per-cloud device counter: two fake clouds
@@ -759,7 +772,7 @@ export class FakeCloud {
       name,
       revokedAt: null,
     });
-    const response: DeviceLoginResponse = { credential, deviceId };
+    const response: DeviceLoginResponse = { credential, deviceId, email, userId };
     return Response.json(response);
   }
 
@@ -787,10 +800,9 @@ export class FakeCloud {
     let accepted = 0;
     let duplicates = 0;
     for (const event of events) {
-      const serialized = JSON.stringify(event.event);
       const stored = mine.find((row) => row.deviceSeq === event.deviceSeq);
       if (stored !== undefined) {
-        if (stored.body !== serialized) {
+        if (stored.body !== event.event) {
           return refuse(
             "sync-conflict",
             "That outbox position is already stored with a different body.",
@@ -809,7 +821,7 @@ export class FakeCloud {
       }
       this.nextSeq += 1;
       this.log.push({
-        body: serialized,
+        body: event.event,
         createdAt: event.createdAt,
         deviceId,
         deviceSeq: event.deviceSeq,

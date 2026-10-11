@@ -4,7 +4,7 @@ import { createCloudClient, describeCloudFailure } from "@repo/contract/cloud/cl
 import type { CloudResult, VaultCommitOutcome } from "@repo/contract/cloud/client";
 import type { VaultCommitRequest } from "@repo/contract/cloud/vault/vault-commit-schema";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, signUp } from "../harness/cloud-account";
+import { loginDevice, PHONE_BUILD, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { gitIn } from "../harness/exec";
 import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
@@ -62,7 +62,11 @@ export const hostedVaultPhoneWrite: Scenario = {
 
     ctx.log("a second login plays the phone: it reads the note and commits an edit on its blob");
     const phone = await loginDevice(worker.origin, PHONE_NAME);
-    const client = createCloudClient({ baseUrl: worker.origin, credential: phone.credential });
+    const client = createCloudClient({
+      baseUrl: worker.origin,
+      build: PHONE_BUILD,
+      credential: phone.credential,
+    });
     const read = await client.vaultFile({ path: NOTE });
     expect(read.ok, `the phone's read: ${read.ok ? "" : describeCloudFailure(read.failure)}`);
     expectEq(read.value.content, FROM_A, "the phone's read");

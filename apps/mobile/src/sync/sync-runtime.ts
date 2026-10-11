@@ -16,6 +16,7 @@ import {
 } from "@repo/contract/cloud/sync/sync-session";
 import type { SyncOutcome, SyncSessionHandle } from "@repo/contract/cloud/sync/sync-session";
 import { createCloudClient, describeCloudFailure } from "@repo/contract/cloud/client";
+import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import type { CloudClient, CloudFailure, CloudResult } from "@repo/contract/cloud/client";
 import type { CloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
 import { createExternalStore } from "../lib/external-store";
@@ -23,11 +24,13 @@ import type { ReadableStore } from "../lib/external-store";
 import type { SyncStore } from "./sync-store";
 
 // restoring: no credential has been handed over yet, because the boot read of the stored one is
-// in flight. a screen deciding between signed in and out has no answer until it ends.
+// in flight. a screen deciding between signed in and out has no answer until it ends. outdated:
+// the cloud refused this build, not the sign-in, which an update resumes.
 export type SyncStatus =
   | { state: "restoring" }
   | { state: "signed-out" }
   | { state: "unauthorized"; deviceId: string; detail: string }
+  | { state: "outdated"; deviceId: string }
   | {
       state: "signed-in";
       deviceId: string;
@@ -43,6 +46,8 @@ export interface SyncRuntimeArgs {
   // to say, and only a restore keeps what the store holds
   store: Pick<SyncStore, "applyPlan" | "readCursor">;
   cloudUrl: string;
+  // what every request says this app is: the cloud refuses a build below its floor
+  build: ClientBuild;
   createClient?: (credential: DeviceCredential) => CloudClient;
   pollIntervalMs?: number | null;
   // absent is poll-only; the app's is React Native's dial under the shared opener
@@ -105,6 +110,7 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
       }
       return createCloudClient({
         baseUrl: args.cloudUrl,
+        build: args.build,
         credential: credential.credential,
         signal,
       });
@@ -120,6 +126,7 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
 
   const link = createSocketLink({
     baseUrl: args.cloudUrl,
+    build: args.build,
     canConnect: () => foreground && session.current().kind === "live",
     credential: () => {
       const current = session.current();
@@ -161,7 +168,11 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
   const signOutBestEffort = async (credential: DeviceCredential): Promise<void> => {
     const client =
       args.createClient?.(credential) ??
-      createCloudClient({ baseUrl: args.cloudUrl, credential: credential.credential });
+      createCloudClient({
+        baseUrl: args.cloudUrl,
+        build: args.build,
+        credential: credential.credential,
+      });
     const result = await client.signOut();
     if (!result.ok) {
       debug(`sign-out did not revoke this device: ${describeCloudFailure(result.failure)}`);
@@ -181,6 +192,10 @@ export const createSyncRuntime = (args: SyncRuntimeArgs): SyncRuntime => {
           deviceId: current.credential.deviceId,
           state: "unauthorized",
         });
+        return;
+      }
+      case "outdated": {
+        status.set({ deviceId: current.credential.deviceId, state: "outdated" });
         return;
       }
       case "live": {

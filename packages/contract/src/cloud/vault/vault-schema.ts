@@ -51,12 +51,11 @@ export const vaultPathSchema = z.string().superRefine((value, ctx) => {
 });
 
 // a read's query rides a POST body: a vault path names a file, and a URL is what Cloudflare's
-// request log and traces keep. The GET form older installs still send carries the same fields in
-// the URL's search params, where every value arrives as a string.
+// request log and traces keep
 export const vaultTreeQuerySchema = z
   .object({
     after: vaultPathSchema.optional(),
-    limit: z.coerce.number().int().min(1).max(VAULT_TREE_MAX_ENTRIES).optional(),
+    limit: z.number().int().min(1).max(VAULT_TREE_MAX_ENTRIES).optional(),
     ref: commitShaSchema.optional(),
   })
   .strict();

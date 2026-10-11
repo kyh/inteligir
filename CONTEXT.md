@@ -150,8 +150,9 @@ state.
   a divergent shape.
 - **sync event** — the cloud's unit of transfer
   (`@repo/contract/cloud/sync/sync-schema`, `syncEventInputSchema`). Its body is
-  `z.json()` on purpose: the Worker merges, dedupes and orders these WITHOUT
-  parsing them. A sync event carries a thread event; it is not one.
+  any JSON on purpose, and the parse answers it as the one text the log stores,
+  compares and serves verbatim: the Worker merges, dedupes and orders these
+  WITHOUT reading them. A sync event carries a thread event; it is not one.
 - **filesystem event** — what the vault watcher reports
   (`apps/cli/src/server/vault/watcher`). Related but distinct: `fileChange` is a
   thread event ITEM type, the agent's own report of what it wrote, which is

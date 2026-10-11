@@ -1,6 +1,7 @@
 import type { CloudResult } from "@repo/contract/cloud/client";
 import type { CreateDispatchResponse } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { planPage } from "@repo/contract/cloud/sync/plan-page";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -43,6 +44,7 @@ const phoneOver = (
   const store = openSyncStore(db);
   const cloud = createFakeCloud(inbox.client);
   const sync = createSyncRuntime({
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     createClient: () => cloud.client,
     pollIntervalMs: null,
@@ -412,6 +414,7 @@ describe("the phone's requests to a Mac", () => {
     const store = openSyncStore();
     const cloud = createFakeCloud(inbox.client);
     const sync = createSyncRuntime({
+      build: TEST_BUILD,
       cloudUrl: "https://cloud.test",
       createClient: () => cloud.client,
       pollIntervalMs: null,

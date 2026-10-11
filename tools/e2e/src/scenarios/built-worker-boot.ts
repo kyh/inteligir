@@ -1,6 +1,9 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { clientBuildHeaders } from "@repo/contract/cloud/client-build";
+import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
 import { expect, expectEq } from "../harness/assert";
+import { PHONE_BUILD } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import type { Scenario } from "../harness/scenario";
 
@@ -87,8 +90,15 @@ export const builtWorkerBoot: Scenario = {
       headers: { origin: worker.origin },
     });
     expectEq(session.status, 200, "get-session against the built bundle");
-    const account = await fetch(`${worker.origin}/v1/account`);
-    expectEq(account.status, 401, "an unauthenticated device route against the built bundle");
+    const devices = `${worker.origin}${DEVICE_API_PATHS.list}`;
+    const outdated = await fetch(devices);
+    expectEq(outdated.status, 426, "a device route asked by no build against the built bundle");
+    const unauthenticated = await fetch(devices, { headers: clientBuildHeaders(PHONE_BUILD) });
+    expectEq(
+      unauthenticated.status,
+      401,
+      "an unauthenticated device route against the built bundle",
+    );
 
     for (const page of DOC_PAGES) {
       const { heading, sentence } = docLandmarks(

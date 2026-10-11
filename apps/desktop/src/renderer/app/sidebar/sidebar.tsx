@@ -28,6 +28,7 @@ import { Spinner } from "@repo/ui/components/spinner";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { useTheme } from "@repo/ui/lib/theme";
 import { cn } from "@repo/ui/lib/cn";
+import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schema";
 import type { VaultEntry, VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
 import {
   ChevronDownIcon,
@@ -67,6 +68,7 @@ import {
   syncStateDotClass,
   syncStateLabel,
   syncStateNote,
+  UPDATE_TO_SYNC,
   usePinnedPaths,
   useVaultStatus,
   useVaultTree,
@@ -219,6 +221,18 @@ const AccountDialog = ({
   </Dialog>
 );
 
+// a sign-in replaces a credential the cloud refused, or gives a device one; a build the cloud
+// refuses needs an update instead
+const offersSignIn = (cloud: CloudStatusResponse | undefined): boolean =>
+  cloud?.state === "signed-out" || cloud?.state === "unauthorized";
+
+// a vault of the user's own still syncs, so only the account says this build is refused
+const accountNote = (
+  cloud: CloudStatusResponse | undefined,
+  vault: VaultStatusResponse | undefined,
+): string | null =>
+  cloud?.state === "outdated" && vault?.state !== "outdated" ? UPDATE_TO_SYNC : null;
+
 // The rail's ambient row: the vault's sync state as the row, and behind it the verbs that change
 // it — a sync now, and the account this device does or does not have. Actions sync on their own,
 // so the row offers no second sync for them.
@@ -237,6 +251,7 @@ export const SyncRow = ({
   const canSync = canSyncNow(status);
   const note = status === undefined ? null : syncStateNote(status);
   const cloud = session.status;
+  const outdatedNote = accountNote(cloud, status);
   // a sign-in that landed closes its dialog, or a later sign-out would open it again
   if (cloud?.state === "signed-in" && signInOpen) {
     setSignInOpen(false);
@@ -276,6 +291,11 @@ export const SyncRow = ({
                   {note.message}
                 </DropdownMenuLabel>
               )}
+              {outdatedNote === null ? null : (
+                <DropdownMenuLabel className="max-w-64 whitespace-normal">
+                  {outdatedNote}
+                </DropdownMenuLabel>
+              )}
               <DropdownMenuItem disabled={!canSync} onClick={onSyncNow}>
                 <RefreshCwIcon />
                 Sync now
@@ -286,7 +306,7 @@ export const SyncRow = ({
                   Sync details…
                 </DropdownMenuItem>
               ) : null}
-              {cloud === undefined || cloud.state === "signed-in" ? null : (
+              {offersSignIn(cloud) ? (
                 <DropdownMenuItem
                   onClick={() => {
                     setSignInOpen(true);
@@ -295,11 +315,11 @@ export const SyncRow = ({
                   <LogInIcon />
                   Sign in…
                 </DropdownMenuItem>
-              )}
+              ) : null}
               {cloud?.state === "signed-in" ? (
                 <>
                   <DropdownMenuLabel className="max-w-64 truncate">
-                    {cloud.accountEmail ?? new URL(cloud.cloudUrl).host}
+                    {cloud.accountEmail}
                   </DropdownMenuLabel>
                   <DropdownMenuItem disabled={session.pending} onClick={handleSignOut}>
                     <LogOutIcon />

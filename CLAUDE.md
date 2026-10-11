@@ -224,14 +224,16 @@ packages/
                  one bundle and may break freely (a CLI installed apart refuses
                  another release's server as `SERVER_VERSION_MISMATCH`),
                  /cloud is a deployed Worker answering installs that may be
-                 months stale and may never break. A dep-dag table
-                 (`CLOUD_ONLY_CLIENTS`) pins apps/web and apps/mobile to /cloud
-                 alone, and a dep-dag row refuses a third bucket in src/, since
-                 the cloud-never-reaches-local guard populates itself from
-                 src/cloud. /cloud stays zod + REST paths (NOT oRPC, diverging
-                 from #611 phase 6 deliberately): oRPC addresses procedures by
-                 router position, so moving the deployed wire to it would break
-                 exactly the stale installs /cloud may never break.
+                 months stale, so it breaks only behind the client build floor
+                 (A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, below). A
+                 dep-dag table (`CLOUD_ONLY_CLIENTS`) pins apps/web and
+                 apps/mobile to /cloud alone, and a dep-dag row refuses a third
+                 bucket in src/, since the cloud-never-reaches-local guard
+                 populates itself from src/cloud. /cloud stays zod + REST paths
+                 (NOT oRPC, diverging from #611 phase 6 deliberately): oRPC
+                 addresses procedures by router position, so moving the
+                 deployed wire to it would break every install above the floor
+                 at once.
   db/            @repo/db — drizzle + better-sqlite3 (WAL, sync=NORMAL),
                  committed SQL migrations applied on boot, the DbNotifier
                  seam, prefixed-nanoid ids.
@@ -764,7 +766,9 @@ to the END of its group.
   there outran the shell's readiness wait. A pass concludes one `SyncOutcome`,
   and a path two devices changed is never one of them: a detached HEAD says
   `detached`, never `clean`; a refused push says `rejected` (a 413
-  `too-large`, a 507 `full`), never `offline` (`classifyNetworkFailure`); and
+  `too-large`, a 507 `full`, the hosted vault's 426 `outdated`, which runs no
+  network step again in that process), never `offline`
+  (`classifyNetworkFailure`); and
   a pass that fails with no verdict (a merge that fails outright, a save the
   engine could not record, an unclassified failure) says it stalled, which the
   rail shows as "Sync paused" and hands to Settings › Advanced, never `clean`
@@ -1657,8 +1661,16 @@ to the END of its group.
   device credential** (owner decision, the Obsidian model, reversing the
   browser-approved pairing line). `POST /v1/device/login` verifies the password
   through Better Auth, mints the device credential and deletes the session the
-  sign-in created, so a device holds exactly one secret. That secret also lists
-  and revokes the account's devices (`GET /v1/device/list` and
+  sign-in created, so a device holds exactly one secret. The answer names the
+  account beside it, `{ credential, deviceId, userId, email }`, as sign-up's
+  does, and the Mac keeps all four with the name it joined under: the vault's
+  cross-account fence (`inteligir.account`) and the account's label hold from
+  the first request, a fresh clone pins its account at once, and a stored
+  sign-in missing any of them reads as signed out. Rejected: a second call to
+  learn the account, which leaves a pending state every reader must fail
+  closed on. The phone keeps the bearer alone, since nothing it runs asks
+  whose account it is. The credential also lists and revokes the account's
+  devices (`GET /v1/device/list` and
   `POST /v1/device/revoke` take a session or a live device credential of the
   same account, the `igd_` prefix deciding which), so any signed-in Mac's
   Settings › Account removes a lost phone with no password asked, as a sign-out
@@ -1771,21 +1783,39 @@ to the END of its group.
   `id` the wiki-targets rows carry, and on the phone through the id and aliases
   its mirror reads from each note's frontmatter.
 
-- **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, and the Worker is held to
-  exactly what it declares** (owner decision, reversing "final at birth").
-  Every response schema under `@repo/contract/cloud` strips an undeclared field, and
-  an unknown refusal code reads as `internal`, a fault to retry, never a
-  verdict on the credential. Strict readers made every additive change a new
-  route and turned a stale client's `unauthorized` into `malformed`, so a
-  revoked device kept retrying; for the same reason a 5xx, 408 or 429 with no
-  error envelope reads as `unreachable`. Requests stay `.strict()`, since only
-  the always-newest Worker parses them, and the Worker's tests parse every
-  answer through `emitted` (`apps/web/src/worker/__tests__/cloud-helpers.ts`),
-  because a stripping client would let a leaked column through. Two things
-  still close the wire: 0.4.0 and older parse strictly, and a field that
-  changes what a row MEANS reaches only a client whose request declares it.
+- **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, the Worker is held to
+  exactly what it declares, and the wire breaks only behind the client build
+  floor** (owner decision, reversing "final at birth" and "/cloud may never
+  break"). Every response schema under `@repo/contract/cloud` strips an
+  undeclared field, and an unknown refusal code reads as `internal`, a fault to
+  retry, never a verdict on the credential. Strict readers made every additive
+  change a new route and turned a stale client's `unauthorized` into
+  `malformed`, so a revoked device kept retrying; for the same reason a 5xx,
+  408 or 429 with no error envelope reads as `unreachable`. Requests stay
+  `.strict()`, since only the always-newest Worker parses them, and the
+  Worker's tests parse every answer through `emitted`
+  (`apps/web/src/worker/__tests__/cloud-helpers.ts`), because a stripping
+  client would let a leaked column through. The tolerant reader is forward
+  negotiation only, so every request an install makes names its build
+  (`x-inteligir-build: <semver>+<platform>`: the REST calls, the two that ask
+  for a credential, the socket's upgrade and the hosted vault's git
+  `extraHeader`), and the Worker refuses an absent or older one before it
+  routes, below `MIN_CLIENT_BUILD` (`apps/web/cloudflare.config.ts`): 426
+  `client-outdated` in the envelope, plain text on the git mount, which the
+  engine reads as `outdated`. Semver alone is compared; the platform is
+  telemetry. A page the Worker served needs no build, since it ships in the
+  same deploy and a browser marks its requests same-origin. The refusal is
+  terminal and leaves the credential live: the session ends `outdated`, the
+  CLI and the phone ask for an update and retry nothing, and the next build
+  resumes as the same device. A shape retires by raising the floor past every
+  build that reads it, never while one of them can still reach the wire.
+  Rejected: per-route versions, which keep every old shape a route ever
+  served. Still closed above the floor: a field that changes what a row MEANS
+  reaches only a client whose request declares it.
+  `packages/contract/src/cloud/client-build.ts`,
   `packages/contract/src/cloud/cloud-client.ts`,
-  `packages/contract/src/cloud/cloud-errors.ts`.
+  `packages/contract/src/cloud/cloud-errors.ts`,
+  `apps/web/src/worker/client-floor.ts`.
 
 - **Say the delivery guarantee you implement.** Captures are at-least-once
   delivery with exactly-once deletion by the owning claim, so the apply must be
@@ -1799,11 +1829,9 @@ to the END of its group.
   `@repo/domain/provider-event`); a fact about a thread that never made a
   request stays local, since alone it would arrive as an empty action. A stale
   install skips a type it cannot read, so a new event type needs no new route.
-  The Worker keeps no per-thread row beside the log (owner decision): the
-  push's `threads` half and the `thread_meta` lane it filled are gone, the
-  dispatch inbox carrying what the lane was for, and a 0.4.0 install's
-  `threads` is still accepted and dropped, since refusing the key would refuse
-  its every push. `apps/cli/src/server/threads/service.ts`,
+  The Worker keeps no per-thread row beside the log (owner decision): a push
+  is its events alone, and the dispatch inbox carries what a per-thread lane
+  would. `apps/cli/src/server/threads/service.ts`,
   `packages/contract/src/cloud/sync/sync-schema.ts`.
 
 - **A pulled event lands through the SAME ingest, marked with its origin**
@@ -1865,14 +1893,18 @@ to the END of its group.
   rows behind it must still land; the pass records the lowest such row with the
   running build, and a session opened under a different build rewinds to it
   (`takeRewindIfBuildChanged` in `packages/db/src/sync-outbox.ts`, from
-  `apps/cli/src/server/cloud/sync-runtime.ts`). Rejected: `meta.schema_version`
-  as the trigger, which counts migrations while a new event type ships without
-  one, and a table of raw skipped rows, a second store beside the log. The
-  phone keeps its threads in its database with the digest of the event grammar
-  that parsed them, and a build whose grammar differs pulls from 0, since its
-  held events lost what the old grammar did not name; each pulled page is one
-  transaction with the cursor, so a cold launch lists the threads offline and
-  pulls on from its cursor (`apps/mobile/src/sync/sqlite-sync-store.ts`).
+  `apps/cli/src/server/cloud/sync-runtime.ts`). A row filed under one thread
+  whose event names another is skipped too, never recorded, since no build
+  reads it differently. Rejected: `meta.schema_version` as the trigger, which
+  counts migrations while a new event type ships without one; a table of raw
+  skipped rows, a second store beside the log; and refusing a mismatched row
+  at each client's apply, a second answer the phone, keying by the envelope,
+  would not give. The phone keeps its threads in its database with the digest
+  of the event grammar that parsed them, and a build whose grammar differs
+  pulls from 0, since its held events lost what the old grammar did not name;
+  each pulled page is one transaction with the cursor, so a cold launch lists
+  the threads offline and pulls on from its cursor
+  (`apps/mobile/src/sync/sqlite-sync-store.ts`).
 
 - **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
   `SyncRuntime`, the login flow and the dispatch runtime publish stores the
@@ -2081,7 +2113,7 @@ to the END of its group.
   The phone never pushes to the log, so a request cannot ride it: a `turn` row
   waits beside the captures in the account's `ThreadSyncDO`, any Mac may claim
   it and the first claim wins, and it pings the sockets of the Macs that take a
-  phone's requests with the `dispatch` frame 0.4.0 already parses. Delivery is
+  phone's requests with a `dispatch` frame. Delivery is
   at-least-once to a claimant and a Mac's apply exactly-once on the dispatch
   id, which the phone mints so a resend is one row
   (`packages/contract/src/cloud/dispatch/dispatch-schema.ts`,
@@ -2117,14 +2149,16 @@ to the END of its group.
   keeps each request's URL in the Worker's request log and in its sampled
   traces for up to seven days, and a vault path names a user's file, so the
   tree, file and asset reads POST their query to the routes they always had
-  (`packages/contract/src/cloud/cloud-client.ts`); the Worker parses the body, or a
-  GET's search params for the installs that still send those, with one schema
-  per read (`parseRead` in `apps/web/src/worker/vault/read-routes.ts`).
-  Rejected: turning the invocation log off, which leaves the traces' URLs and
-  takes the operator's one view of a failing route, and reads addressed by
-  blob oid, which the asset route cannot type or size-gate without the path.
-  `docs/privacy.md` says what the log keeps; the phone's fake vault refuses the
-  GET form (`apps/mobile/src/notes/__tests__/fake-vault.ts`).
+  (`packages/contract/src/cloud/cloud-client.ts`); the Worker refuses any
+  other method `bad-request` before it reads the credential and parses the
+  body alone, with one schema per read (`parseRead` in
+  `apps/web/src/worker/vault/read-routes.ts`). Rejected: turning the
+  invocation log off, which leaves the traces' URLs and takes the operator's
+  one view of a failing route, and reads addressed by blob oid, which the
+  asset route cannot type or size-gate without the path. `docs/privacy.md`
+  says what the log keeps; the phone's fake vault refuses a read that is not a
+  POST or carries a query string
+  (`apps/mobile/src/notes/__tests__/fake-vault.ts`).
 
 - **A PR PREVIEW IS A WORKER PREVIEW DRIVEN BY ACTIONS, not Workers Builds**, and
   it binds preview-only resources. Workers Builds would deploy on push and could

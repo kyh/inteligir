@@ -2,6 +2,7 @@ import {
   ACCOUNT_API_PATHS,
   deleteAccountResponseSchema,
 } from "@repo/contract/cloud/account/account-schema";
+import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { eq, sql } from "drizzle-orm";
@@ -12,6 +13,7 @@ import { deviceRateKey } from "../rate-limit";
 import { threadSyncStub } from "../sync/routes";
 import { vaultRepoName, vaultRegistry } from "../vault/git-remote";
 import {
+  buildHeaders,
   deviceHeaders,
   emitted,
   loginDevice,
@@ -26,7 +28,8 @@ import {
 import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
 const DELETE = `${ORIGIN}${ACCOUNT_API_PATHS.delete}`;
-const ACCOUNT = `${ORIGIN}${ACCOUNT_API_PATHS.account}`;
+// any route a live credential reaches, to tell a live one from a dead one
+const DEVICES = `${ORIGIN}${DEVICE_API_PATHS.list}`;
 
 const postDelete = async (
   authorization: Record<string, string>,
@@ -90,7 +93,7 @@ describe("deleting the account from a device", () => {
 
     expect(await userExists(userId)).toBe(false);
     for (const credential of [laptop.credential, phone.credential]) {
-      const refused = await SELF.fetch(ACCOUNT, { headers: deviceHeaders(credential) });
+      const refused = await SELF.fetch(DEVICES, { headers: deviceHeaders(credential) });
       expect(refused.status).toBe(401);
     }
     // the sign-in that checked the password minted a session; none outlives the account
@@ -130,7 +133,7 @@ describe("deleting the account from a device", () => {
     expect(await refusalCodeOf(refused)).toBe("invalid-credentials");
 
     expect(await userExists(userId)).toBe(true);
-    const account = await SELF.fetch(ACCOUNT, { headers: deviceHeaders(credential) });
+    const account = await SELF.fetch(DEVICES, { headers: deviceHeaders(credential) });
     expect(account.status).toBe(200);
     const sessions = await createDb(env.DB)
       .select()
@@ -152,7 +155,7 @@ describe("deleting the account from a device", () => {
     const callers = [
       { caller: "a browser session", headers: sessionHeaders(bearer) },
       { caller: "a revoked credential", headers: deviceHeaders(revoked.credential) },
-      { caller: "no credential", headers: {} },
+      { caller: "no credential", headers: buildHeaders() },
     ];
     for (const { caller, headers } of callers) {
       const refused = await postDelete(headers, PASSWORD);
@@ -161,7 +164,7 @@ describe("deleting the account from a device", () => {
     }
 
     expect(await userExists(userId)).toBe(true);
-    const account = await SELF.fetch(ACCOUNT, { headers: deviceHeaders(credential) });
+    const account = await SELF.fetch(DEVICES, { headers: deviceHeaders(credential) });
     expect(account.status).toBe(200);
   });
 });

@@ -150,6 +150,18 @@ export const ThreadSyncRows = ({ status, nowMs, pending, onSync }: ThreadSyncRow
         </dl>
       );
     }
+    case "outdated": {
+      return (
+        <dl className="space-y-1.5">
+          <Row label="State">
+            <Raw>{status.state}</Raw>
+          </Row>
+          <Row label="Device">
+            <Raw>{status.deviceId}</Raw>
+          </Row>
+        </dl>
+      );
+    }
     case "signed-in": {
       return (
         <div className="space-y-2">

@@ -19,29 +19,18 @@ import {
   pushRequestSchema,
   SYNC_API_PATHS,
 } from "@repo/contract/cloud/sync/sync-schema";
-import type {
-  PullResponse,
-  PushRequest,
-  SyncEventRow,
-} from "@repo/contract/cloud/sync/sync-schema";
 import {
   SYNC_WS_PATH,
   SYNC_WS_PHONE_REQUESTS_PARAM,
   SYNC_WS_PLATFORM_PARAM,
 } from "@repo/contract/cloud/sync/sync-ws";
-import { z } from "zod";
+import type { z } from "zod";
 import { refuse } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
 import type { VerifiedDevice } from "../device/device-auth";
 import { SOCKET_IDENTITY_HEADERS } from "./thread-sync-do";
-import type {
-  EventPage,
-  StoredEvent,
-  SyncRefusal,
-  SyncResult,
-  ThreadSyncDO,
-} from "./thread-sync-do";
+import type { EventPage, SyncRefusal, SyncResult, ThreadSyncDO } from "./thread-sync-do";
 
 // The object is named from the verified userId, never from a path or body, and every body is
 // parsed here, so the object is handed typed values and the verified deviceId as an argument.
@@ -62,35 +51,14 @@ const refusal = (refused: SyncRefusal): Response =>
 const answer = <T>(result: SyncResult<T>): Response =>
   result.ok ? Response.json(result.value) : refusal(result);
 
-// the log compares a replayed body byte for byte, so each is serialized once, here, and the
-// object stores and compares that text. a stale install's `threads` goes no further than the parse.
-const storedEvents = (request: PushRequest): StoredEvent[] =>
-  request.events.map(({ createdAt, deviceSeq, event, threadId }) => ({
-    createdAt,
-    deviceSeq,
-    event: JSON.stringify(event),
-    threadId,
-  }));
-
-// a parse failure is storage corruption; surface the raw string rather than 500 every pull forever
-const storedEventSchema = z.json();
-
-const parseStoredEvent = (stored: string): SyncEventRow["event"] => {
-  let source: unknown;
-  try {
-    source = JSON.parse(stored);
-  } catch {
-    return stored;
-  }
-  const event = storedEventSchema.safeParse(source);
-  return event.success ? event.data : stored;
+// every stored body is the one text the push parse serialized, so a page splices each in verbatim:
+// parsing it back only to serialize it again would spend the Worker's cpu on bytes it never reads
+const pullBody = ({ hasMore, lastSeq, rows }: EventPage): string => {
+  const events = rows.map(
+    ({ event, ...envelope }) => `${JSON.stringify(envelope).slice(0, -1)},"event":${event}}`,
+  );
+  return `{"events":[${events.join(",")}],"hasMore":${hasMore},"lastSeq":${lastSeq}}`;
 };
-
-const pullResponse = (page: EventPage): PullResponse => ({
-  events: page.rows.map((row) => ({ ...row, event: parseStoredEvent(row.event) })),
-  hasMore: page.hasMore,
-  lastSeq: page.lastSeq,
-});
 
 // the upgrade is forwarded whole for its handshake headers, with the identity stamped over any
 // inbound copy and the bearer dropped
@@ -135,7 +103,7 @@ const SYNC_ROUTES = new Map<string, (call: SyncCall) => Promise<Response>>([
     async ({ device, request, stub }) => {
       const body = pushRequestSchema.safeParse(await request.json().catch(() => null));
       return body.success
-        ? answer(await stub.push(device.deviceId, storedEvents(body.data)))
+        ? answer(await stub.push(device.deviceId, body.data.events))
         : refuse("bad-request", "Malformed push batch.");
     },
   ],
@@ -147,7 +115,9 @@ const SYNC_ROUTES = new Map<string, (call: SyncCall) => Promise<Response>>([
         return refuse("bad-request", "Malformed pull cursor.");
       }
       const page = await stub.pull(query.data);
-      return page.ok ? Response.json(pullResponse(page.value)) : refusal(page);
+      return page.ok
+        ? new Response(pullBody(page.value), { headers: { "content-type": "application/json" } })
+        : refusal(page);
     },
   ],
   [

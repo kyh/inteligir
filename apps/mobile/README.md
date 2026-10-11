@@ -62,8 +62,8 @@ src/
   credential/   the device credential at rest
     credential-codec.ts        parse/serialize + the wire pattern
     secure-store-credential.ts expo-secure-store adapter (Keychain/Keystore)
-                               behind the contract's DeviceCredentialStore port
-                               (@repo/contract/cloud/device/login-flow)
+                               behind the composition root's CredentialStore,
+                               which keeps the login's bearer alone
   login/        signing this phone in to an account
     login-store.ts      the screen's state machine (idle | signing-in | failed)
                         over the contract's login flow
@@ -392,7 +392,9 @@ session, so one fence covers every request a sign-in makes, and an
 `unauthorized` from a vault read, a capture or a pull ends the sign-in for all
 of them. The composition root then idles the tree and wipes the mirror and
 the threads, and keeps the credential, so the sign-in screen can say this device was
-signed out. Which screens exist is the ROUTE GUARD's answer
+signed out. A `client-outdated` ends the sign-in too, as `outdated`, but wipes
+nothing: the cloud refused this build, not the credential, so that screen asks
+for an update instead, and the next build resumes from what the phone holds. Which screens exist is the ROUTE GUARD's answer
 (`Stack.Protected` in `app/_layout.tsx`), never a per-screen branch: the
 signed-in screens and `app/sign-in.tsx` each sit behind one guard, and a
 revocation takes the signed-in history away with it. A cold launch is

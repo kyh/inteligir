@@ -4,6 +4,7 @@ import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { createAuth } from "./auth/auth";
 import { handleInviteSignUp } from "./auth/invite";
 import { handleResetPage } from "./auth/reset-page";
+import { refuseBelowFloor } from "./client-floor";
 import { refuse } from "./cloud-http";
 import { handleAccountRoute } from "./device/account";
 import { handleDeviceRoutes } from "./device/routes";
@@ -33,6 +34,14 @@ const speaksCloudEnvelope = (pathname: string): boolean =>
 
 const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
   const url = new URL(request.url);
+
+  // before any route reads the request, so a shape retired behind the floor is never parsed
+  const outdated = url.pathname.startsWith("/v1/")
+    ? refuseBelowFloor(request, env, speaksCloudEnvelope(url.pathname))
+    : null;
+  if (outdated !== null) {
+    return outdated;
+  }
 
   if (url.pathname.startsWith("/api/auth/")) {
     return await createAuth(env, url.origin).handler(request);
@@ -71,7 +80,7 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
     return await handleVaultReadRoutes(request, env, url);
   }
 
-  if (url.pathname === ACCOUNT_API_PATHS.account || url.pathname === ACCOUNT_API_PATHS.delete) {
+  if (url.pathname === ACCOUNT_API_PATHS.delete) {
     return await handleAccountRoute(request, env, url);
   }
 

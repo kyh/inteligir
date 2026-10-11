@@ -9,6 +9,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
+import { OWN_PAGE_HEADERS } from "./cloud-helpers";
 
 const ORIGIN = "https://inteligir-web.workers.dev";
 const PASSWORD = "test-password-1234";
@@ -20,7 +21,7 @@ const mintCode = async (code: string): Promise<void> => {
 const signUp = async (body: Record<string, string>): Promise<Response> =>
   await SELF.fetch(`${ORIGIN}${AUTH_PAGE_PATHS.signUp}`, {
     body: JSON.stringify(body),
-    headers: { "content-type": "application/json", origin: ORIGIN },
+    headers: { ...OWN_PAGE_HEADERS, "content-type": "application/json" },
     method: "POST",
   });
 

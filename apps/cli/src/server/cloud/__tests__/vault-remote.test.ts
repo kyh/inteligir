@@ -1,3 +1,5 @@
+import { CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
+import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import { describe, expect, it } from "vitest";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { makeTempDir } from "../../__tests__/temp-dir";
@@ -16,14 +18,25 @@ const own = (url: string): OriginConfig => ({ markedAccount: false, url });
 
 const makeDataDir = (): string => makeTempDir("inteligir-vault-remote-");
 
+const SIGNED_IN = {
+  credential: CREDENTIAL,
+  deviceId: "dev_1",
+  deviceName: "Laptop",
+  email: "owner@example.test",
+  userId: "usr_1",
+};
+
 const signedInDataDir = (): string => {
   const dataDir = makeDataDir();
-  writeDeviceCredential(dataDir, { credential: CREDENTIAL, deviceId: "dev_1", userId: "usr_1" });
+  writeDeviceCredential(dataDir, SIGNED_IN);
   return dataDir;
 };
 
+const BUILD: ClientBuild = { platform: "desktop", version: "0.7.0" };
+
 const provider = (args: Partial<CreateVaultRemoteProviderArgs> & { dataDir: string }) =>
   createVaultRemoteProvider({
+    build: BUILD,
     cloudUrl: CLOUD_URL,
     externalSync: null,
     pinnedRemote: null,
@@ -44,20 +57,17 @@ describe("createVaultRemoteProvider", () => {
     expect(remote.url).toBe(HOSTED_URL);
     expect(remote.source).toBe("account");
     expect(remote.env).toEqual({
-      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_COUNT: "2",
       GIT_CONFIG_KEY_0: `http.${remote.url}.extraHeader`,
+      GIT_CONFIG_KEY_1: `http.${remote.url}.extraHeader`,
       GIT_CONFIG_VALUE_0: `Authorization: Bearer ${CREDENTIAL}`,
+      GIT_CONFIG_VALUE_1: `${CLIENT_BUILD_HEADER}: 0.7.0+desktop`,
     });
   });
 
-  it("says the account is pending until the credential names it, then carries its id", () => {
-    const dataDir = makeDataDir();
-    const derive = provider({ dataDir });
-    writeDeviceCredential(dataDir, { credential: CREDENTIAL, deviceId: "dev_1" });
-    expect(derive(NO_ORIGIN)).toMatchObject({ account: { state: "pending" }, source: "account" });
-    writeDeviceCredential(dataDir, { credential: CREDENTIAL, deviceId: "dev_1", userId: "usr_1" });
-    expect(derive(NO_ORIGIN)).toMatchObject({
-      account: { id: "usr_1", state: "known" },
+  it("carries the account the sign-in named", () => {
+    expect(provider({ dataDir: signedInDataDir() })(NO_ORIGIN)).toMatchObject({
+      accountId: "usr_1",
       source: "account",
     });
   });
@@ -66,7 +76,7 @@ describe("createVaultRemoteProvider", () => {
     const dataDir = makeDataDir();
     const derive = provider({ dataDir });
     expect(derive(NO_ORIGIN)).toBeNull();
-    writeDeviceCredential(dataDir, { credential: CREDENTIAL, deviceId: "dev_1" });
+    writeDeviceCredential(dataDir, SIGNED_IN);
     expect(derive(NO_ORIGIN)?.source).toBe("account");
     clearDeviceCredential(dataDir);
     expect(derive(NO_ORIGIN)).toBeNull();

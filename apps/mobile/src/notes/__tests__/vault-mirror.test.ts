@@ -1,6 +1,7 @@
 import { createCloudClient } from "@repo/contract/cloud/client";
 import type { CloudFetch } from "@repo/contract/cloud/client";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { SqlDriver } from "../../lib/sql-driver";
@@ -28,10 +29,12 @@ const offline: CloudFetch = async () => {
 // one launch of the phone: a store over the database file, signed in as the boot restore does
 const launch = (fetch: CloudFetch, db: SqlDriver) => {
   const sync = createSyncRuntime({
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     createClient: (credential) =>
       createCloudClient({
         baseUrl: "https://cloud.test",
+        build: TEST_BUILD,
         credential: credential.credential,
         fetch,
       }),
