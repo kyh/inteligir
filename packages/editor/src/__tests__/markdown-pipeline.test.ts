@@ -20,25 +20,16 @@ import { parseMdast } from "@repo/notes/markdown/parse";
 import { parseWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 
 describe("owned parse (probe1/2/3 translations)", () => {
-  it("throws real errors instead of deserializeMd's silent degradation", () => {
-    const parseErrors = [
+  it("keeps a tag that cannot pair as its own bytes, where MDX would refuse the file", () => {
+    const unpaired = [
       "<Foo>\n\nnever closed\n",
       "<Foo>broken</Bar>\n",
       "text </Bar> more\n",
       "{unclosed brace\n",
     ];
-    for (const md of parseErrors) {
-      const result = parseMdast(md);
-      expect(result.ok, md).toBe(false);
-      if (result.ok) {
-        continue;
-      }
-      expect(result.failure.message.length).toBeGreaterThan(0);
-    }
-    const positioned = parseMdast("first\n\n<Foo>broken</Bar>\n");
-    expect(positioned.ok).toBe(false);
-    if (!positioned.ok) {
-      expect(positioned.failure.line).toBe(3);
+    for (const md of unpaired) {
+      expect(analyzeMarkdown(md).kind, md).toBe("canonical");
+      expect(roundTrip(md), md).toBe(md);
     }
   });
 
@@ -48,7 +39,7 @@ describe("owned parse (probe1/2/3 translations)", () => {
     expect(analyzeMarkdown(md).kind).toBe("canonical");
   });
 
-  it("parses expressions under agnostic MDX instead of crashing (acorn difference)", () => {
+  it("reads braces as prose: the dialect has no expressions", () => {
     const md = "config { noServer: true } here\n";
     expect(roundTrip(md)).toBe(md);
     expect(analyzeMarkdown(md).kind).toBe("canonical");
@@ -72,7 +63,7 @@ const opaqueValues = (md: string): string[] => {
     if (!ElementApi.isElement(node)) {
       return;
     }
-    if (node.type === "opaqueBlock" || node.type === "opaqueInline") {
+    if (node.type === "opaqueInline") {
       values.push(stringProp(node, "value") ?? "");
       return;
     }
@@ -93,9 +84,13 @@ const expectOpaque = (md: string, values: string[]): void => {
 };
 
 describe("opaque nodes (constructs with no editor node)", () => {
-  it("carries unknown components verbatim", () => {
+  it("carries an unknown tag and what it encloses verbatim", () => {
     expectOpaque('<Foo bar="1">text body</Foo>\n', ['<Foo bar="1">text body</Foo>']);
-    expectOpaque("<Steps>\n  step body\n</Steps>\n", ["<Steps>\n  step body\n</Steps>"]);
+    expectOpaque("<Steps>\nstep body\n</Steps>\n", ["<Steps>\nstep body\n</Steps>"]);
+  });
+
+  it("carries each tag alone where a blank line parts it from its closer", () => {
+    expectOpaque("<Steps>\n\nstep body\n\n</Steps>\n", ["<Steps>", "</Steps>"]);
   });
 
   it("carries lowercase HTML-ish tags verbatim", () => {
@@ -103,8 +98,8 @@ describe("opaque nodes (constructs with no editor node)", () => {
     expectOpaque("press <kbd>K</kbd> now\n", ["<kbd>K</kbd>"]);
   });
 
-  it("carries fragments verbatim", () => {
-    expectOpaque("<>\n  fragment\n</>\n", ["<>\n  fragment\n</>"]);
+  it("reads a fragment as text: `<>` opens no tag", () => {
+    expect(opaqueValues("<>fragment</>\n")).toEqual([]);
   });
 
   it("carries HTML comments, both flow and inline", () => {
@@ -112,66 +107,76 @@ describe("opaque nodes (constructs with no editor node)", () => {
     expectOpaque("before <!-- inline comment --> after\n", ["<!-- inline comment -->"]);
   });
 
-  it("carries processing instructions and expressions", () => {
+  it("carries processing instructions, and a tag that cannot pair", () => {
     expectOpaque('<?xml version="1.0"?>\n', ['<?xml version="1.0"?>']);
-    expectOpaque("value is {count} here\n", ["{count}"]);
+    expectOpaque("value is {count} here\n", []);
+    expectOpaque("text </Bar> and <br> more\n", ["</Bar>", "<br>"]);
   });
 
-  it("carries an allowed tag whose attributes are not plain strings", () => {
-    expectOpaque("<callout draft>\n  x\n</callout>\n", ["<callout draft>\n  x\n</callout>"]);
-    expectOpaque("<callout {...props}>\n  x\n</callout>\n", [
-      "<callout {...props}>\n  x\n</callout>",
-    ]);
-    expectOpaque("<column_group>\n  <column width={50}>\n    x\n  </column>\n</column_group>\n", [
-      "<column width={50}>\n  x\n</column>",
-    ]);
+  it("carries a `<callout>` verbatim: the callout is the alert", () => {
+    expectOpaque('<callout variant="info">x</callout>\n', ['<callout variant="info">x</callout>']);
   });
 
-  it("carries unknown attr names on <date> (Plate's rule keeps only `value`)", () => {
-    expectOpaque('Meet <date value="2026-07-01" foo="x" /> ok\n', [
-      '<date value="2026-07-01" foo="x" />',
-    ]);
+  it("carries the jsx the dialect once spelled its own blocks with as the tags it is", () => {
+    expectOpaque('Meet <date value="2026-07-01" /> ok\n', ['<date value="2026-07-01" />']);
+    expectOpaque("<toggle>x</toggle>\n", ["<toggle>x</toggle>"]);
   });
 
-  it("leaves the app's own components modelled, never opaque", () => {
+  it("reads a date no calendar has as text", () => {
+    const md = "Meet @2026-02-30 ok\n";
+    expect(opaqueValues(md)).toEqual([]);
+    expect(JSON.stringify(parseMarkdown(md))).not.toContain('"type":"date"');
+    expect(roundTrip(md)).toBe(md);
+  });
+
+  it("leaves the app's own blocks modelled, never opaque", () => {
     const md = [
-      "```inteligir-callout",
-      "info",
-      "x",
-      "```",
+      ":::toggle",
+      "y",
+      ":::",
       "",
-      "<toggle>",
-      "  y",
-      "</toggle>",
+      ":::columns",
+      ":::column",
+      "z",
+      ":::",
       "",
-      "<column_group>",
-      "  <column>",
-      "    z",
-      "  </column>",
+      ":::column 50%",
+      "w",
+      ":::",
+      ":::",
       "",
-      "  <column>",
-      "    w",
-      "  </column>",
-      "</column_group>",
+      "![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)",
       "",
-      '<video src="https://youtube.com/watch?v=1" />',
+      "![](https://twitter.com/x/status/1)",
       "",
-      '<media_embed src="https://twitter.com/x/status/1" />',
+      "![](https://example.com/a.pdf)",
       "",
-      '<file src="https://example.com/a.pdf" />',
+      "![](https://example.com/page)",
       "",
-      'Meet on <date value="2026-07-01" /> at noon.',
+      "Meet on @2026-07-01 at noon, <u>underlined</u>.",
       "",
     ].join("\n");
     expect(opaqueValues(md)).toEqual([]);
     expect(analyzeMarkdown(md).kind).toBe("canonical");
+    const parsed = parseMarkdown(md);
+    const types = parsed.ok ? parsed.value.map((node) => node.type) : [];
+    expect(types).toEqual([
+      "toggle",
+      "column_group",
+      "video",
+      "media_embed",
+      "file",
+      "media_embed",
+      "p",
+    ]);
+    const json = JSON.stringify(parsed.ok ? parsed.value : []);
+    expect(json).toContain('"type":"date"');
+    expect(json).toContain('"underline":true');
   });
 
-  it("keeps an opaque block inside a container prefix-correct", () => {
-    expectOpaque("> <Steps>\n>   quoted\n> </Steps>\n", ["<Steps>\n  quoted\n</Steps>"]);
-    expectOpaque("```inteligir-callout\ninfo\n<Steps>\n  nested\n</Steps>\n```\n", [
-      "<Steps>\n  nested\n</Steps>",
-    ]);
+  it("keeps an element inside a container prefix-correct", () => {
+    expectOpaque("> <Steps>\n> quoted\n> </Steps>\n", ["<Steps>\nquoted\n</Steps>"]);
+    expectOpaque(":::toggle\n<Steps>nested</Steps>\n:::\n", ["<Steps>nested</Steps>"]);
   });
 
   it("keeps html-ish bytes out of fenced code (opaque never runs inside a fence)", () => {
@@ -190,10 +195,6 @@ describe("wiki links (probe4 translations)", () => {
       "![alt](https://example.com/i.png)\n",
     );
     const parsed = parseMdast("[x](https://example.com/y) and ![alt](https://example.com/i.png)\n");
-    expect(parsed.ok).toBe(true);
-    if (!parsed.ok) {
-      return;
-    }
     const json = JSON.stringify(parsed.root);
     expect(json).toContain('"type":"link"');
     expect(json).toContain('"type":"image"');
@@ -274,20 +275,18 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
         { children: [{ text: "after" }], type: "p" },
       ],
     });
-    expect(out).toContain("<toggle>");
-    expect(out).toContain("hidden");
-    expect(out).toContain("after");
+    expect(out).toBe(":::toggle\nhidden\n:::\n\nafter\n");
   });
 
-  it("serializes a collapsed/expanded toggle with zero attributes", () => {
+  it("serializes a collapsed/expanded toggle as its markers alone", () => {
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
       value: [{ children: [{ children: [{ text: "x" }], type: "p" }], type: "toggle" }],
     });
-    expect(out).toBe("<toggle>\n  x\n</toggle>\n");
+    expect(out).toBe(":::toggle\nx\n:::\n");
   });
 
-  it("serializes date nodes in the value-attribute form (never rawDate)", () => {
+  it("serializes date nodes as `@` and the date", () => {
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
       value: [
@@ -301,7 +300,7 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
         },
       ],
     });
-    expect(out).toBe('Meet <date value="2026-07-01" /> ok\n');
+    expect(out).toBe("Meet @2026-07-01 ok\n");
   });
 
   it("emits alert blockquotes verbatim with marks preserved (probe5 fidelity)", () => {
@@ -309,17 +308,11 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
     expect(roundTrip(md)).toBe(md);
   });
 
-  it("never serializes node ids into vocabulary attributes", () => {
+  it("never serializes node ids", () => {
     // NodeIdPlugin is off under NODE_ENV=test, so ids are injected by hand
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
       value: [
-        {
-          children: [{ children: [{ text: "x" }], id: "p1", type: "p" }],
-          id: "c1",
-          type: "callout",
-          variant: "info",
-        },
         { children: [{ text: "" }], id: "v1", type: "video", url: "https://y.tb/1" },
         { children: [{ text: "" }], id: "m1", type: "media_embed", url: "https://t.co/1" },
         { children: [{ text: "" }], id: "f1", type: "file", url: "https://e.com/a.pdf" },
@@ -330,11 +323,9 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
         },
       ],
     });
-    expect(out).not.toContain("id=");
-    expect(out).toContain("```inteligir-callout");
-    expect(out).toContain('<video src="https://y.tb/1" />');
-    expect(out).toContain('<file src="https://e.com/a.pdf" />');
-    expect(out).toContain("<toggle>");
+    expect(out).toBe(
+      "![](https://y.tb/1)\n\n![](https://t.co/1)\n\n![](https://e.com/a.pdf)\n\n:::toggle\nt\n:::\n",
+    );
   });
 
   it("emits bare emails as literal bytes, never <angle> autolinks (V2)", () => {
@@ -364,14 +355,14 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
     expect(roundTrip(fm)).toBe(fm);
   });
 
-  it("omits src from url-less media (V3 — a bare attr fails the vocabulary scan)", () => {
-    expect(roundTrip("<video />\n")).toBe("<video />\n");
-    expect(analyzeMarkdown("<video />\n").kind).toBe("canonical");
+  it("writes url-less media as an empty image, which reads back as one", () => {
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
       value: [{ children: [{ text: "" }], type: "file" }],
     });
-    expect(out).toBe("<file />\n");
+    expect(out).toBe("![]()\n");
+    expect(roundTrip(out)).toBe(out);
+    expect(analyzeMarkdown(out).kind).toBe("canonical");
   });
 
   it("pads ragged tables into a pass-1 fixpoint (V4)", () => {
@@ -414,23 +405,23 @@ describe("gate API", () => {
   });
 
   it("parseMarkdown surfaces the raw reason instead of a degraded value", () => {
-    const parsed = parseMarkdown("<Steps>x</Step>\n");
+    const parsed = parseMarkdown(`${"> ".repeat(3000)}x\n`);
     expect(parsed.ok).toBe(false);
     if (parsed.ok) {
       return;
     }
-    expect(parsed.reason.kind).toBe("parse-error");
+    expect(parsed.reason.kind).toBe("too-deep");
   });
 
   it("roundTrip throws typed errors carrying the reason", () => {
     try {
-      roundTrip("<Foo>broken</Bar>\n");
-      expect.unreachable("roundTrip must throw on parse failure");
+      roundTrip(`${"> ".repeat(3000)}x\n`);
+      expect.unreachable("roundTrip must throw where the editor cannot hold the note");
     } catch (error) {
       expect(error).toBeInstanceOf(RoundTripError);
       if (error instanceof RoundTripError) {
-        expect(error.reason.kind).toBe("parse-error");
-        expect(describeGateReason(error.reason)).toMatch(/^Parse error at line 1/u);
+        expect(error.reason.kind).toBe("too-deep");
+        expect(describeGateReason(error.reason)).toMatch(/nests deeper/u);
       }
     }
   });
@@ -441,16 +432,7 @@ describe("gate API", () => {
     expect(() => roundTrip(deep)).toThrow(RoundTripError);
   });
 
-  it("describes the reason for the mode badge, with and without a line", () => {
-    expect(
-      describeGateReason({ kind: "parse-error", line: 4, message: "Unexpected closing tag" }),
-    ).toBe("Parse error at line 4: Unexpected closing tag");
-    expect(describeGateReason({ kind: "parse-error", line: null, message: "Nope" })).toBe(
-      "Parse error: Nope",
-    );
-  });
-
-  it("words the editor's own limits as the editor's, never as the file's parse error", () => {
+  it("words every reason as the editor's own limit, never as an error in the file", () => {
     const limits: GateReason[] = [
       { kind: "too-deep" },
       { kind: "unstable" },
@@ -460,44 +442,5 @@ describe("gate API", () => {
     for (const reason of limits) {
       expect(describeGateReason(reason), reason.kind).not.toMatch(/parse error/iu);
     }
-  });
-});
-
-const variantsOf = (md: string): string => {
-  const parsed = parseMarkdown(md);
-  expect(parsed.ok).toBe(true);
-  if (!parsed.ok) {
-    return "";
-  }
-  return JSON.stringify(parsed.value);
-};
-
-describe("callout payload forms (prefixed `type:`/`level:` + unknown kinds)", () => {
-  it("round-trips the prefixed spellings byte-exact", () => {
-    for (const md of [
-      "```inteligir-callout\ntype: warning\nCareful.\n```\n",
-      "```inteligir-callout\ntype: priority\nlevel: high\nShip it.\n```\n",
-    ]) {
-      expect(roundTrip(md)).toBe(md);
-    }
-  });
-
-  it("prefixed and bare forms parse to the same callout variant", () => {
-    const bare = variantsOf("```inteligir-callout\nwarning\nCareful.\n```\n");
-    const prefixed = variantsOf("```inteligir-callout\ntype: warning\nCareful.\n```\n");
-    expect(bare).toContain('"variant":"warning"');
-    expect(prefixed).toContain('"variant":"warning"');
-  });
-
-  it("an unknown kind stays a plain code block, byte-stable", () => {
-    const md = "```inteligir-callout\nshiny\nbody\n```\n";
-    expect(roundTrip(md)).toBe(md);
-    expect(variantsOf(md)).not.toContain('"type":"callout"');
-  });
-
-  it("a priority level line under a non-priority kind is body text", () => {
-    expect(roundTrip("```inteligir-callout\ntype: info\nlevel: high\n```\n")).toBe(
-      "```inteligir-callout\ntype: info\nlevel: high\n```\n",
-    );
   });
 });

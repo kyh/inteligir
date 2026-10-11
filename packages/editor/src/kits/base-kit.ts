@@ -3,7 +3,6 @@
 
 import { BasicBlocksBaseKit } from "@repo/editor/kits/basic-blocks-kit";
 import { BasicMarksBaseKit } from "@repo/editor/kits/basic-marks-kit";
-import { CalloutBaseKit } from "@repo/editor/kits/callout-kit";
 import { CodeBlockBaseKit } from "@repo/editor/kits/code-block-kit";
 import { ColumnBaseKit } from "@repo/editor/kits/column-kit";
 import { DateBaseKit } from "@repo/editor/kits/date-kit";
@@ -35,7 +34,6 @@ export const BASE_KIT = [
   ...ImageBaseKit,
   ...DateBaseKit,
   ...MathBaseKit,
-  ...CalloutBaseKit,
   ...OpaqueBaseKit,
   ...FrontmatterBaseKit,
   ...WikiLinkBaseKit,

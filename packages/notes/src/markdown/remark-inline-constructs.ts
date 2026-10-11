@@ -1,12 +1,13 @@
-// an mdast transform rather than a micromark tokenizer: neither construct nests, spans line
-// breaks or interacts with delimiter runs, so splitting finished text leaves is equivalent and
-// cannot disturb how micromark reads everything else. must run before remark-opaque.
+// an mdast transform rather than a micromark tokenizer: no construct here nests, spans line breaks
+// or interacts with delimiter runs, so splitting finished text leaves is equivalent and cannot
+// disturb how micromark reads everything else. must run before remark-opaque.
 
 import type { Node, Parent, Parents, PhrasingContent, Text } from "mdast";
 import type { Options as ToMarkdownExtension, State } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
 
 import { COMMENT_ID_PATTERN } from "../comments/sidecar-schema";
+import { parseIsoDate } from "../iso-date";
 import { isMdastRoot } from "./mdast-nodes";
 
 export interface FormulaPill extends Node {
@@ -23,13 +24,21 @@ export interface CommentMarker extends Node {
   edge: "start" | "end";
 }
 
+// `@2026-08-22`: the chip's own spelling, `value` a calendar date
+export interface DateChip extends Node {
+  type: "date";
+  value: string;
+}
+
 declare module "mdast" {
   interface PhrasingContentMap {
     commentMarker: CommentMarker;
+    date: DateChip;
     formulaPill: FormulaPill;
   }
   interface RootContentMap {
     commentMarker: CommentMarker;
+    date: DateChip;
     formulaPill: FormulaPill;
   }
 }
@@ -39,6 +48,9 @@ const MARKER_RE = new RegExp(
   `%%i:(?<ids>${COMMENT_ID_PATTERN}(?:,${COMMENT_ID_PATTERN})*):(?<edge>start|end)%%`,
   "gu",
 );
+// a chip reads back wherever the editor can put one, a word's edge included, so nothing bounds it
+// but a digit that would make its day a longer number
+const DATE_RE = /@(?<value>\d{4}-\d{2}-\d{2})(?!\d)/gu;
 
 // Looser than MARKER_RE on purpose, so a half-typed or malformed marker still leaves a preview or
 // a snippet. Shared and global: hand it to replace, replaceAll, match or matchAll only, never to
@@ -71,7 +83,7 @@ interface Splice {
   node: PhrasingContent;
 }
 
-const splitTextNode = (node: Text): PhrasingContent[] | null => {
+const splitTextNode = (node: Text, inLink: boolean): PhrasingContent[] | null => {
   const splices: Splice[] = [];
   for (const match of node.value.matchAll(FORMULA_RE)) {
     const raw = match[0].slice(2, -2);
@@ -93,6 +105,19 @@ const splitTextNode = (node: Text): PhrasingContent[] | null => {
         length: match[0].length,
         node: { edge, ids, type: "commentMarker" },
       });
+    }
+  }
+  // inside a link a chip would part a url its text spells from the url it links to
+  if (!inLink) {
+    for (const match of node.value.matchAll(DATE_RE)) {
+      const value = match.groups?.value;
+      if (value !== undefined && parseIsoDate(value) !== null) {
+        splices.push({
+          index: match.index,
+          length: match[0].length,
+          node: { type: "date", value },
+        });
+      }
     }
   }
   if (splices.length === 0) {
@@ -118,20 +143,22 @@ const splitTextNode = (node: Text): PhrasingContent[] | null => {
   return out;
 };
 
-const walk = (parent: Parent): void => {
+const LINK_LIKE: ReadonlySet<string> = new Set(["link", "linkReference"]);
+
+const walk = (parent: Parent, inLink: boolean): void => {
   for (let index = parent.children.length - 1; index >= 0; index -= 1) {
     const child = parent.children[index];
     if (child === undefined) {
       continue;
     }
     if ("children" in child) {
-      walk(child);
+      walk(child, inLink || LINK_LIKE.has(child.type));
       continue;
     }
     if (child.type !== "text") {
       continue;
     }
-    const replaced = splitTextNode(child);
+    const replaced = splitTextNode(child, inLink);
     if (replaced !== null) {
       parent.children.splice(index, 1, ...replaced);
     }
@@ -143,6 +170,7 @@ const inlineConstructsToMarkdown: ToMarkdownExtension = {
     commentMarker: Object.assign((node: CommentMarker) => `%%i:${node.ids}:${node.edge}%%`, {
       peek: () => "%",
     }),
+    date: Object.assign((node: DateChip) => `@${node.value}`, { peek: () => "@" }),
     // inside a gfm table cell the pill's pipes must leave as `\|` or the next parse reads them
     // as cell delimiters; gfm-table's fromMarkdown unescapes them before this transform sees text.
     formulaPill: Object.assign(
@@ -163,7 +191,7 @@ export const remarkInlineConstructs: Plugin = function remarkInlineConstructs(
   (data.toMarkdownExtensions ??= []).push(inlineConstructsToMarkdown);
   return (tree) => {
     if (isMdastRoot(tree)) {
-      walk(tree);
+      walk(tree, false);
     }
   };
 };

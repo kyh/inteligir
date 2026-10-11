@@ -239,10 +239,10 @@ packages/
                  the literal text scan behind matches and unlinked mentions,
                  the resolver's problems report, tags and tag families,
                  the rename and tag-rename byte-surgery) over ONE markdown scan
-                 (scan-parse + wiki-links), frontmatter (the pin and id line
-                 cuts included), `templates/` (the three placeholders and the
-                 convention folders), the dialect's own modules
-                 (markdown/remark-*, comments/, formulas/),
+                 (the editor's own grammar, `markdown/bare-parse`), frontmatter
+                 (the pin and id line cuts included), `templates/` (the three
+                 placeholders and the convention folders), the dialect's own
+                 modules (markdown/remark-*, comments/, formulas/),
                  `text/` — ONE Myers diff under diff3 — and `sync/`, the one
                  verdict a path two writers changed gets and the conflict
                  copy's name and words. No node/react/ui
@@ -397,21 +397,32 @@ to the END of its group.
 - **NOTES SPEAK THE INTELIGIR DIALECT**: `[[Title]]` / `[[Title#H]]` /
   `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe starts the
   alias), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%` comment
-  anchors, GitHub alerts (`> [!NOTE]` through `> [!CAUTION]`) as THE callout,
-  and `inteligir-chart` / `inteligir-canvas` / `inteligir-html` / `:::tabs`
-  blocks, all valid markdown, all round-tripping. The `inteligir-callout` fence
-  is READ-COMPAT (`COMPAT_CALLOUT_LANG`): round-tripped byte-exact, never
-  inserted, taught or seeded (`tools/repo-guards/src/agent-skills.test.ts`
-  holds the skills and `apps/cli/seed/`). Migrating it to an alert on save is
-  rejected: it carries kinds the five-variant alert grammar cannot spell, and
-  the rewrite would make a canonical construct churn. Every spelling lives in
-  one place (`@repo/notes/markdown/fence-langs`,
-  `@repo/editor/nodes/canvas-header`, `@repo/editor/dialect-node-keys`)
-  because the rule table and the knowledge scan both read it. Plain nested
+  anchors, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub alerts
+  (`> [!NOTE]` through `> [!CAUTION]`) as THE callout, `inteligir-chart` /
+  `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
+  `:::columns` containers, and `![](url)` embeds, all valid markdown, all
+  round-tripping. THE DIALECT HAS NO JSX: its blocks are one `:::` line grammar
+  that nests in any flow container, a `:::` closing the innermost
+  (`@repo/notes/markdown/remark-containers`), and every tag is html, the
+  editor's own only where it is a bare `<u>`
+  (`@repo/notes/markdown/remark-inline-html`). Rejected: jsx tags for the
+  toggle, columns, dates and embeds, which kept an MDX tokenizer and its guards
+  in the grammar and a jsx writer in the serializer, and wrote tags other
+  markdown tools draw as raw html; and a date as a `[[YYYY-MM-DD]]` link,
+  which costs the chip and its calendar. An embed's
+  kind is its url's (`@repo/editor/lib/embed-url`), and alt text or a title
+  keeps a web image an image. The alert is the ONLY
+  callout (owner decision): an `inteligir-callout` fence is a plain code block
+  and a `<callout>` tag is carried as its source, both saved byte-exact.
+  Rejected: reading either as a callout, a second grammar with its own node
+  and index pass for kinds the five alerts cannot spell. Every spelling lives
+  in one place (`@repo/notes/markdown/fence-langs`,
+  `@repo/editor/nodes/canvas-header`, `@repo/editor/dialect-node-keys`), and
+  `tools/repo-guards/src/agent-skills.test.ts` holds the skills and
+  `apps/cli/seed/` to it. Plain nested
   `.md`: no bundles, no meta.json. FRONTMATTER IS THE ONLY PROPERTY STORE: no
   metadata table, a note's UUID is its `id:`, and YAML the typing rules cannot
-  represent is preserved byte-exactly. `{{` is reserved from MDX expressions by
-  a tokenizer guard on both braces.
+  represent is preserved byte-exactly.
 
 - **AN ICON BESIDE A LABEL IS A SIBLING OF THE LABEL, NEVER INSIDE IT.**
   `Button` trims its text with `text-box`, which only a block container
@@ -1054,17 +1065,23 @@ to the END of its group.
   `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts` walks the
   renderer for either shape.
 
-- **THE SCAN READS AS PROSE WHAT THE EDITOR DRAWS AS PROSE, BUT ITS GRAMMAR IS
-  NOT THE EDITOR'S, and `verbatim-spans` is the one bridge.** The scan disables
-  `codeIndented` and `htmlFlow` (`@repo/notes/markdown/scan-parse`) because the
-  editor's plugin list does, pinned in
-  `packages/notes/src/__tests__/link-extract.test.ts`. The scan is total, so a
-  malformed tag cannot cost a note its index row, where the editor's MDX
-  tokenizer throws; unifying the grammars is rejected for exactly that. A
-  rename's span is a licence to rewrite bytes, so a rename's scan runs the
-  editor's plugin list as a bare parse (`@repo/notes/markdown/verbatim-spans`)
-  and withholds spans inside those ranges (`@repo/notes/knowledge/link-extract`);
-  the index path emits no spans and never pays for that parse on every save.
+- **THE SCAN READS A NOTE IN THE EDITOR'S OWN GRAMMAR, AND THAT GRAMMAR IS
+  TOTAL.** The knowledge scan walks the editor's plugin list as a bare parse
+  (`@repo/notes/markdown/bare-parse`), so the index reads as prose exactly what
+  the editor draws as prose: no indented code, no flow html, and math is latex,
+  never a link. No input throws: the grammar has no jsx and no expressions, so
+  `<` opens an html tag, an autolink or text and `{` is prose; a tag folds with
+  its closer while the tree compiles (`@repo/notes/markdown/remark-inline-html`),
+  so the index pairs tags exactly as the editor does, and a tag nothing closes
+  stays an `html` literal. So a stray `{` or `<br>` costs a note neither its
+  rich editing nor its index row. Rejected: a second,
+  plain-markdown grammar for the scan, kept total beside an editor grammar that
+  threw, which needed a bridge to say where the two disagreed. A rename's span
+  is a licence to rewrite bytes, so the scan withholds spans inside a construct
+  the editor carries as its source (`isOpaqueSource` in
+  `@repo/notes/markdown/remark-opaque`, walked by
+  `@repo/notes/knowledge/link-extract`); the index path emits no spans.
+  `packages/notes/src/markdown/__tests__/total-grammar.test.ts`.
 
 - **A TAG IS A SCOPE ON THE RECENT LIST, NOT A VIEW; ITS NOTES ARE A LISTING,
   NOT A SEARCH; AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** No tag browser
@@ -1104,9 +1121,9 @@ to the END of its group.
   bytes the row showed.** `knowledge.unlinkedMentions` (`inteligir unlinked`)
   runs the literal matcher over the target's names as whole words, longest
   first; one row per note, excluding notes already linking here. A hit inside
-  code, math, a link, a url, frontmatter, an html tag or a comment marker is
-  withheld by the scan's own regexes as well as the editor's verbatim ranges,
-  because those come back empty for a doc the editor refuses. Not the H1:
+  code, math, a link, a url, frontmatter, an html tag, a comment marker or a
+  `:::` marker line is withheld by the scan's own line regexes as well as the
+  editor's verbatim ranges (math, and what it carries as source). Not the H1:
   `[[H1 text]]` resolves to nothing. Link wraps exactly that site through a
   guarded write, targeting the route's `linkTarget`, because the bare stem may
   be another note's. `@repo/notes/knowledge/unlinked-mentions.ts`,

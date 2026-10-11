@@ -1,37 +1,19 @@
-// Both halves are void so no keystroke can produce a half-valid tag and the bytes leave as
-// they arrived; the inline half is inline so a mid-sentence `<!-- -->` does not split the paragraph.
+// Void so no keystroke can produce a half-valid tag and the bytes leave as they arrived; inline so a
+// mid-sentence `<!-- -->` does not split the paragraph.
 
 import { createSlatePlugin } from "platejs";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { OPAQUE_BLOCK_KEY, OPAQUE_INLINE_KEY } from "@repo/editor/dialect-node-keys";
+import { OPAQUE_INLINE_KEY } from "@repo/editor/dialect-node-keys";
 import { stringProp } from "@repo/editor/node-props";
-
-const opaqueBlockBasePlugin = createSlatePlugin({
-  key: OPAQUE_BLOCK_KEY,
-  node: { isElement: true, isVoid: true },
-});
 
 const opaqueInlineBasePlugin = createSlatePlugin({
   key: OPAQUE_INLINE_KEY,
   node: { isElement: true, isInline: true, isVoid: true },
 });
 
-export const OpaqueBaseKit = [opaqueBlockBasePlugin, opaqueInlineBasePlugin];
-
-const OpaqueBlockElement = (props: PlateElementProps) => (
-  <PlateElement {...props}>
-    <pre
-      contentEditable={false}
-      title="Not editable here — preserved byte-for-byte"
-      className="overflow-x-auto rounded-md border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-2 font-mono text-muted-foreground whitespace-pre select-none"
-    >
-      {stringProp(props.element, "value") ?? ""}
-    </pre>
-    {props.children}
-  </PlateElement>
-);
+export const OpaqueBaseKit = [opaqueInlineBasePlugin];
 
 const OpaqueInlineElement = (props: PlateElementProps) => (
   <PlateElement {...props} as="span">
@@ -46,7 +28,4 @@ const OpaqueInlineElement = (props: PlateElementProps) => (
   </PlateElement>
 );
 
-export const OpaqueKit = [
-  opaqueBlockBasePlugin.withComponent(OpaqueBlockElement),
-  opaqueInlineBasePlugin.withComponent(OpaqueInlineElement),
-];
+export const OpaqueKit = [opaqueInlineBasePlugin.withComponent(OpaqueInlineElement)];

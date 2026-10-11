@@ -1,7 +1,7 @@
-<date value="2026-07-01" /> kickoff meeting.
+@2026-07-01 kickoff meeting.
 
-Ends on <date value="2026-12-31" />
+Ends on @2026-12-31
 
-From <date value="2026-07-01" /> <date value="2026-07-02" /> range.
+From @2026-07-01 @2026-07-02 range.
 
-- meet <date value="2026-07-01" />
+- meet @2026-07-01

@@ -18,7 +18,6 @@ import {
   FORMULA_PILL_KEY,
   FRONTMATTER_KEY,
   HTML_BLOCK_KEY,
-  OPAQUE_BLOCK_KEY,
   OPAQUE_INLINE_KEY,
   WIKI_EMBED_KEY,
   WIKI_LINK_KEY,
@@ -205,15 +204,6 @@ const richBlockStatic = (label: string) =>
     );
   };
 
-const OpaqueBlockStatic = (props: SlateElementProps) => (
-  <SlateElement {...props} className="my-1">
-    <pre className="overflow-x-auto whitespace-pre text-muted-foreground">
-      {stringProp(props.element, "value") ?? ""}
-    </pre>
-    {props.children}
-  </SlateElement>
-);
-
 const OpaqueInlineStatic = (props: SlateElementProps) => (
   <SlateElement {...props} as="span">
     <code className="text-muted-foreground">{stringProp(props.element, "value") ?? ""}</code>
@@ -313,7 +303,6 @@ export const STATIC_COMPONENTS: ReadonlyMap<string, (props: SlateElementProps) =
     [CHART_BLOCK_KEY, richBlockStatic("chart")],
     [CANVAS_BLOCK_KEY, richBlockStatic("canvas")],
     [HTML_BLOCK_KEY, richBlockStatic("html")],
-    [OPAQUE_BLOCK_KEY, OpaqueBlockStatic],
     [OPAQUE_INLINE_KEY, OpaqueInlineStatic],
     [FRONTMATTER_KEY, FrontmatterStatic],
     ["table", TableStatic],

@@ -98,8 +98,10 @@ describe("markerRootIds", () => {
     expect(markerRootIds(source)).toEqual(new Set(["c1", "a", "b"]));
   });
 
-  it("answers null for an unparseable doc rather than claiming none", () => {
-    expect(markerRootIds("<Foo>broken</Bar>\n")).toBeNull();
+  it("reads the markers of a doc holding a tag that cannot pair", () => {
+    expect(markerRootIds("%%i:c1:start%%x%%i:c1:end%% <Foo>broken</Bar>\n")).toEqual(
+      new Set(["c1"]),
+    );
   });
 });
 
