@@ -44,8 +44,10 @@ const VOCABULARIES: Vocabulary[] = [
   {
     declaredIn: "packages/domain/src/thread-status.ts",
     dispatchedIn: {
-      "apps/cli/src/server/threads/service.ts":
+      "apps/cli/src/server/threads/thread-send.ts":
         "server POLICY — what a send does in each status (start, queue, refuse), which is a different question from what the status is called",
+      "apps/cli/src/server/threads/thread-stop.ts":
+        "server POLICY — what a stop does in each status (answer that nothing runs, or interrupt the turn unless another device runs it), a different question from what a send does there",
       "packages/domain/src/thread-lifecycle.ts":
         "the FSM — which transition each status permits, and the only table that may say so",
     },

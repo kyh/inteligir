@@ -30,11 +30,13 @@ export const createConnection = (dbPath: string) => {
   return drizzle({ client: sqlite, relations });
 };
 
-// a sync driver's transaction refuses an async callback at the type level, and this signature
-// carries the same refusal so the guard survives the wrapper (a promise returned here would
+// a sync driver's transaction refuses an async callback at the type level, and this type
+// carries the same refusal so the guard survives every wrapper (a promise returned here would
 // commit before its work ran).
 // oxlint-disable-next-line typescript/no-explicit-any -- drizzle spells its guard `Promise<any>`, and a conditional type only relates to one with the identical extends type
-type SyncWork<T> = (tx: DbTransaction) => T extends Promise<any> ? never : T;
+export type SyncResult<T> = T extends Promise<any> ? never : T;
+
+type SyncWork<T> = (tx: DbTransaction) => SyncResult<T>;
 
 // BEGIN IMMEDIATE takes the write lock up front, so a read-then-write cannot hit SQLITE_BUSY
 // upgrading midway.
