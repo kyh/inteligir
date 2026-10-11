@@ -40,6 +40,8 @@ export interface VaultRuntimeArgs {
   onFilesChanged?: (change: VaultFilesChange) => void;
   watch?: boolean;
   syncIntervalMs?: number | null;
+  // the account socket is up, so another device's push pings this one (GitEngineArgs').
+  accountPingsReach?: () => boolean;
   gitEnv?: Record<string, string>;
   watcherBackend?: ParcelWatcherBackend;
   stallRead?: ReadStall;
@@ -159,6 +161,9 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   };
   if (args.gitEnv) {
     gitArgs.env = args.gitEnv;
+  }
+  if (args.accountPingsReach !== undefined) {
+    gitArgs.accountPingsReach = args.accountPingsReach;
   }
   if (args.externalSync !== undefined) {
     gitArgs.externalSync = args.externalSync;
