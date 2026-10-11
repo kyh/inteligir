@@ -199,6 +199,7 @@ packages/agent-skills   @repo/agent-skills — the dialect spec, as files agents
 packages/ui             @repo/ui — the shared component vocabulary on Base UI
 tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself
 tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
+tools/ui-gallery        @repo/ui-gallery — the @repo/ui gallery `pnpm dev:gallery` serves, never deployed
 ```
 
 - `CLAUDE.md` — architecture and § Decisions.

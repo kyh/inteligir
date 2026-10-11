@@ -50,11 +50,9 @@
       "project": ["src/**/*.{ts,tsx,css}", "vite/**/*.ts"]
     },
     "apps/web": {
-      // gallery-main is gallery.html's script, which knip's vite plugin reads only from index.html
       "entry": [
         "cloudflare.config.ts",
         "src/routes/**/*.tsx",
-        "src/components/gallery/gallery-main.tsx",
         "src/worker/index.ts",
         "src/worker/__tests__/**/*.test.ts"
       ],
@@ -102,6 +100,10 @@
       // spawned by path from cloud-worker.ts
       "entry": ["src/harness/worker-host.ts"],
       "project": ["src/**/*.ts"]
+    },
+    "tools/ui-gallery": {
+      // the entry is index.html's script, which knip's vite plugin reads
+      "project": ["src/**/*.{tsx,css}"]
     },
     "tools/repo-guards": {
       "entry": ["src/**/*.test.ts"],

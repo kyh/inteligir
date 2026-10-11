@@ -54,7 +54,8 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
       // sessions only, not device credentials: most resets are the owner rotating a password,
       // and cutting every signed-in device would sign their own machines out; per-device revoke is the hatch
       revokeSessionsOnPasswordReset: true,
-      // the client requests with redirectTo AUTH_PAGE_PATHS.resetPage, so the URL's GET leg lands on ./reset-page.ts
+      // the forgot-password page requests with redirectTo /app/reset-password, so the URL's GET leg
+      // lands on the site's route (apps/web/src/routes/app/reset-password.tsx)
       sendResetPassword: async ({ user, url }) => {
         await sendResetEmail(env, user.email, url);
       },

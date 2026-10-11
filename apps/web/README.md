@@ -15,17 +15,16 @@ src/
     privacy.tsx      docs/privacy.md itself, rendered
     terms.tsx        docs/terms.md itself, rendered
     about, contact   lib/site-content.ts's markdown, rendered or answered as-is
-    app/             /app/sign-in, /app/sign-up, /app/forgot-password and
-                     /app/devices (the device table, client-only)
+    app/             /app/sign-in, /app/sign-up, /app/forgot-password,
+                     /app/reset-password and /app/devices (the last two
+                     client-only)
   components/        The site's own components (auth card, header, theme, orb)
-    gallery/         The @repo/ui gallery: gallery-main.tsx mounts it under
-                     gallery.html for `pnpm dev:gallery`, never a route
   lib/               Better Auth client, session guard, site config (the
                      Download button's fixed dmg link among it), page markdown
   worker/            The Worker's API half — its OWN tsconfig program (no DOM)
     server.ts        The deployed entry: path-splits API vs site SSR
     index.ts         The API route table (also the test suite's entry)
-    auth/            Better Auth factory, invite gate, reset email + page
+    auth/            Better Auth factory, invite gate, reset email
     device/          Device login and sign-up, credential verification,
                      account deletion
     sync/            ThreadSyncDO + the device-authed route chokepoint + the
@@ -60,9 +59,9 @@ its own `tsconfig.json`.
 | `/app/sign-in`                          | —                 | Sign-in (SSR when signed out — see `lib/session-guard.ts`)          |
 | `/app/sign-up`                          | —                 | Sign-up form; submits to the invite gate                            |
 | `/app/forgot-password`                  | —                 | Requests the reset link                                             |
+| `/app/reset-password`                   | —                 | Where the emailed link lands (client-only, `no-store`, no referrer) |
 | `/app/devices`                          | session           | The device table: list and revoke                                   |
 | `/api/auth/*`                           | —                 | Better Auth (email+password, bearer)                                |
-| `/auth/reset`                           | —                 | The ONE reset page — Worker-served, static, `no-store`              |
 | `/v1/auth/sign-up`                      | —                 | The invite gate in front of Better Auth's sign-up                   |
 | `POST /v1/device/login`                 | —                 | Email + password in, the device credential and its account out      |
 | `POST /v1/device/sign-up`               | —                 | Sign-up from the app: account + device credential out               |
@@ -131,15 +130,15 @@ other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
   (`src/worker/auth/invite.ts`). `POST /v1/auth/sign-up` parses its body with
   `signUpRequestSchema` (`@repo/contract/cloud/account/account-schema`, which the
-  page, the gate and the e2e harness share with `AUTH_PAGE_PATHS`) and refuses a
+  page, the gate and the e2e harness share with `AUTH_API_PATHS`) and refuses a
   password outside `PASSWORD_MIN_LENGTH`–`PASSWORD_MAX_LENGTH` before touching
   the code. It then claims the code in one atomic
   `UPDATE … WHERE redeemed_at IS NULL` and forwards into the one instance built
   with sign-up enabled — so the response (cookie, `set-auth-token`, Better
   Auth's own refusals) is Better Auth's, untouched. Better Auth is configured
-  with those same two bounds (`src/worker/auth/auth.ts`), which the reset page
-  and device login hold too. Every other caller's instance carries
-  `disableSignUp`, which shuts
+  with those same two bounds (`src/worker/auth/auth.ts`), which the
+  reset-password page and device login hold too. Every other caller's
+  instance carries `disableSignUp`, which shuts
   `/api/auth/sign-up/email` and `auth.api.signUpEmail` together. The gate
   has TWO front doors over that one claim (`claimInvite` / `releaseInvite`):
   this page's, which forwards so the browser keeps Better Auth's cookie, and
@@ -157,9 +156,17 @@ other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
   lands on `SIGNED_IN_HOME`, as sign-up and bare `/app` do. The list loads in
   the route's loader and every refusal reads the cloud error envelope through
   `readCloudCall` (`@repo/contract/cloud/client`), so a failure is the route's error
-  view with a retry, never a page stuck on Loading. The three auth forms submit
+  view with a retry, never a page stuck on Loading. The auth forms submit
   through one `useAuthSubmit` (`src/components/auth-shell.tsx`), which turns a
   request that never left into a message rather than a button stuck busy.
+- **The emailed reset link lands on a site page, not a Worker route.**
+  `/app/forgot-password` asks Better Auth for a link whose GET leg redirects
+  to `/app/reset-password?token=…` (or `?error=INVALID_TOKEN` for a spent or
+  expired one), and that page posts the new password through the Better Auth
+  client. Its URL carries a live single-use token, so the route is
+  `ssr: false`, answers `Cache-Control: no-store` and sets a `no-referrer`
+  meta (`src/routes/app/reset-password.tsx`). It works with no app installed,
+  since an email client opens a browser.
 - **A device signs in with the account's own email and password**
   (`src/worker/device/login.ts`, the Obsidian Sync model). `POST /v1/device/login`
   verifies the email and password through `auth.api.signInEmail`, mints the `igd_…` credential
@@ -265,12 +272,6 @@ inboxes' refusal and ordering rules are one table,
 `src/worker/__tests__/inbox-scenarios.test.ts` runs against the object and the
 CLI's suites run against their fake cloud.
 
-The @repo/ui gallery is its own dev server, `pnpm dev:gallery` on :5175
-(`vite.gallery.config.ts`, at `/gallery`): React and Tailwind over
-`gallery.html`, with no Worker and no router, so the deployed site has no page
-for it and ships none of its code. TanStack Start has no dev-only route, and
-any route file emits its chunk into the build.
-
 ## Build & deploy (owner-only)
 
 ```bash
@@ -307,13 +308,14 @@ pnpm -F @repo/web exec wrangler tail inteligir-web
 ```
 
 The GitHub `Deploy` workflow runs the same command on push to main, gated on
-CI. It does NOT apply the schema: the schema reaches production only from a
-local machine (step 3), so push it BEFORE merging a change that needs it — the
-schema is additive, so an old Worker against a new database ignores what it
-does not know, while a new Worker against an old database 500s on every
-request touching a table that isn't there. The workflow's one secret is
-`CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, plus Workers Routes: Edit on
-the inteligir.com zone).
+CI, when anything the build reads changed since the `deployed/web` tag
+(`docs/privacy.md` and `docs/terms.md` included). It does NOT apply the
+schema: the schema reaches production only from a local machine (step 3), so
+push it BEFORE merging a change that needs it — the schema is additive, so an
+old Worker against a new database ignores what it does not know, while a new
+Worker against an old database 500s on every request touching a table that
+isn't there. The workflow's one secret is `CLOUDFLARE_API_TOKEN` (Workers
+Scripts: Edit, plus Workers Routes: Edit on the inteligir.com zone).
 
 ## Previews
 

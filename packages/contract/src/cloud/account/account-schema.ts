@@ -30,10 +30,8 @@ export type DeleteAccountRefusal = (typeof DELETE_ACCOUNT_REFUSALS)[number];
 export const isDeleteAccountRefusal = (code: CloudErrorCode): code is DeleteAccountRefusal =>
   DELETE_ACCOUNT_REFUSALS.some((refusal) => refusal === code);
 
-// sign-up is the invite gate, not Better Auth's own route, and the emailed reset link lands on
-// a Worker-served page, because it must work with no app installed
-export const AUTH_PAGE_PATHS = {
-  resetPage: "/auth/reset",
+// sign-up is the invite gate, not Better Auth's own route
+export const AUTH_API_PATHS = {
   signUp: "/v1/auth/sign-up",
 } as const;
 

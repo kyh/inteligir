@@ -108,13 +108,14 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    ```sh
    git fetch origin --tags --force
    gh run list --workflow Deploy --limit 3                  # the run after step 2's CI succeeded
-   pnpm turbo ls --filter="@repo/web...[deployed/web]"      # names no package
+   pnpm turbo query affected --packages @repo/web --base deployed/web --head HEAD   # names no package
    curl -s -X POST -H 'x-inteligir-build: <version>+desktop' \
      https://inteligir.com/v1/vault/commit                  # an "unauthorized" error, never "not-found"
    ```
 
-   A package named means the Worker at this commit is not deployed yet: wait
-   for Deploy, or re-run it from the Actions tab.
+   The query is the one Deploy asks. A package named means the Worker at this
+   commit is not deployed yet: wait for Deploy, or re-run it from the Actions
+   tab.
 
 ## 4. The phone's internal build
 

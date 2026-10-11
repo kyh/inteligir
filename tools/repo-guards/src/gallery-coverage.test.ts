@@ -44,14 +44,12 @@ const componentNames = (dir: string): string[] => {
 };
 
 const gallerySource = (): string => {
-  const galleryWorkspace = workspaces().find((workspace) =>
-    GALLERY_DIR.startsWith(`${workspace.dir}/`),
-  );
+  const galleryWorkspace = workspaces().find((workspace) => workspace.dir === GALLERY_DIR);
   if (galleryWorkspace === undefined) {
-    throw new Error(`${GALLERY_DIR} is inside no workspace`);
+    throw new Error(`${GALLERY_DIR} is no workspace`);
   }
   return workspaceSourceFiles(galleryWorkspace)
-    .filter((file) => file.startsWith(`${GALLERY_DIR}/`) && !isTestFile(file))
+    .filter((file) => !isTestFile(file))
     .map((file) => sourceOf(file))
     .join("\n");
 };

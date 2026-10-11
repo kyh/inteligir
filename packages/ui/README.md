@@ -11,7 +11,9 @@ attribution header on each file.
 - `apps/desktop` — the product's renderer
 - `packages/editor` — note editor
 - `apps/mobile-editor` — the phone's editor page
-- `apps/web` — the site, the auth pages and the gallery (`pnpm dev:gallery`)
+- `apps/web` — the site and the auth pages
+- `tools/ui-gallery` — the gallery (`pnpm dev:gallery`), which the orphan guard
+  does not count as a consumer
 
 The package stays a leaf: no `@repo/*` runtime dependencies. Consumers import
 path exports such as `@repo/ui/components/button` and
