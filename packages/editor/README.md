@@ -184,8 +184,10 @@ src/
   resolves it from the note it is written in — the open note, or the one an
   embed shows — so an image or a link lands where the index says it does).
 - `note/vault-session.ts` — `VaultSessionPorts`, what the open note's ordering
-  is driven through: boot, list, rename, the `VaultIO` it reads and writes
-  notes with (`vault-editor.ts`: read/write/create/remove), the
+  is driven through: boot (whose note the host reads through `note`, since
+  that read is the base the first save is guarded by), list, rename, the
+  `VaultIO` it reads and writes notes with (`vault-editor.ts`:
+  read/write/create/remove), the
   publish/notify callbacks, and the one question it asks the user
   (`askVanished`). Drivable without React.
 - `guarded-vault-io.ts` — `GuardedVaultPort`, the host's store under that

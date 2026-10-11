@@ -18,6 +18,8 @@ import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
 export interface WorkspaceBoot {
   readonly entries: VaultEntry[];
+  // read through `VaultSessionPorts.note`: the session opens the note on these bytes and reads
+  // nothing itself, so bytes read around it leave the first save no base to guard it with
   readonly openNote: { readonly path: string; readonly content: string } | null;
 }
 
