@@ -630,7 +630,7 @@ const stallOpens = (root: string, lanes: { background: readonly string[]; window
 };
 
 describe("the read budget", () => {
-  it("holds a rename's snapshot, the origin backfill and an index pass to the background share, and lets the window's read in beside them", async () => {
+  it("holds a rename's snapshot, the origin repair and an index pass to the background share, and lets the window's read in beside them", async () => {
     const app = await bootTestApp();
     const notes = Array.from({ length: 8 }, (_, index) => `notes/n${String(index)}.md`);
     const ids = new Map(notes.map((note) => [note, mintNoteId()]));
@@ -655,7 +655,7 @@ describe("the read budget", () => {
     knowledge.noteVaultChange({ kind: "unknown" });
     const sweeps = Promise.all([
       snapshotDocs(app.vault.service, notes),
-      app.composed.context.threads.backfillOriginNoteIds(),
+      app.composed.context.threads.repairPathOnlyOrigins(),
       knowledge.settle(),
     ]);
     await vi.waitFor(

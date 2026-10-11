@@ -1194,7 +1194,7 @@ to the END of its group.
   stalls every fs call in the process, saves included, which no deadline can
   free; a read left running keeps its slot. A BACKGROUND READ, one of many a
   job makes (the index pass, a rename's snapshot, a delete's id scan, the
-  boot's origin backfill), never takes the third, so a read the window waits on
+  boot's origin repair), never takes the third, so a read the window waits on
   opens beside two that hang; each such job runs no more at once than that
   share, so what waits does so in the job, where the index reads the latest
   path first. The lstat and ancestry checks before the open stay outside it,

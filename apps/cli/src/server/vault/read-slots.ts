@@ -5,7 +5,7 @@
 export const READ_SLOTS = 3;
 
 // a background read is one of many a single job makes (an index pass, a rename's snapshot, a
-// delete's id scan, the boot's backfill), and on such storage every one of them may stall. it
+// delete's id scan, the boot's origin repair), and on such storage every one of them may stall. it
 // never takes the last slot, so a read the window waits on still opens while two of them hang,
 // rather than queueing behind them or answering that a note on disk is unavailable.
 export const BACKGROUND_READ_SLOTS = 2;
