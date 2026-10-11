@@ -139,6 +139,19 @@ export interface KnowledgeRuntime {
 
 const utf8 = new TextDecoder();
 
+// what the index holds for a path, beside its graph entry
+type IndexedEntry =
+  | { kind: "doc"; hash: string }
+  | { kind: "other" }
+  // a doc whose projection threw, indexed as an other carrying its bytes' hash, so an unchanged
+  // doc is not re-projected by every reconcile, nor after a restart
+  | { kind: "unprojectable"; hash: string };
+
+const OTHER_ENTRY: IndexedEntry = { kind: "other" };
+
+const entryHash = (entry: IndexedEntry | undefined): string | undefined =>
+  entry === undefined || entry.kind === "other" ? undefined : entry.hash;
+
 const assertUnhandledRead = (read: never): never => {
   throw new Error(`unhandled file read: ${JSON.stringify(read)}`);
 };
@@ -161,8 +174,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   }
   const { projector } = args;
   const graph = new LinkGraphIndex();
-  const hashes = new Map<string, string>();
-  const others = new Set<string>();
+  const indexed = new Map<string, IndexedEntry>();
 
   let hydrated = false;
   let needsReconcile = true;
@@ -174,9 +186,6 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   // a failed read is the vault's trouble, not the index's: the prior row stands and every pass
   // retries the path, since a permission fix announces nothing.
   const unreadable = new Set<string>();
-  // the hash of bytes whose projection threw, so an unchanged doc is not re-projected by every
-  // reconcile, nor after a restart: the path is indexed as an other carrying it.
-  const unprojectable = new Map<string, string>();
 
   // at most one pass runs and one is queued; later triggers fold into the queued one.
   let runningPass: Promise<void> | null = null;
@@ -194,11 +203,9 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       return;
     }
     graph.clear();
-    hashes.clear();
-    others.clear();
+    indexed.clear();
     pendingPaths.clear();
     unreadable.clear();
-    unprojectable.clear();
     try {
       store.nuke();
     } catch (error) {
@@ -220,15 +227,17 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       if (page.kind === "docs") {
         for (const row of page.docs) {
           graph.applyDoc(row.path, row.projection);
-          hashes.set(row.path, row.contentHash);
+          indexed.set(row.path, { hash: row.contentHash, kind: "doc" });
         }
       } else {
         for (const other of page.others) {
           graph.setOther(other.path);
-          others.add(other.path);
-          if (other.unprojectableHash !== null) {
-            unprojectable.set(other.path, other.unprojectableHash);
-          }
+          indexed.set(
+            other.path,
+            other.unprojectableHash === null
+              ? OTHER_ENTRY
+              : { hash: other.unprojectableHash, kind: "unprojectable" },
+          );
         }
       }
       await yieldTurn();
@@ -243,9 +252,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   }
 
   const removeIndexed = (path: string): boolean => {
-    unprojectable.delete(path);
-    const known = hashes.delete(path) || others.delete(path);
-    if (!known) {
+    if (!indexed.delete(path)) {
       return false;
     }
     store.remove(path);
@@ -254,20 +261,18 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
   };
 
   const indexOther = (path: string, unprojectableHash?: string): void => {
-    // a path can change class (an oversized doc degrades to other and back);
-    // a stale hash left behind would satisfy the reconcile diff forever.
-    const wasDoc = hashes.delete(path);
-    if (!wasDoc && others.has(path) && unprojectable.get(path) === unprojectableHash) {
+    const entry: IndexedEntry =
+      unprojectableHash === undefined
+        ? OTHER_ENTRY
+        : { hash: unprojectableHash, kind: "unprojectable" };
+    // every reconcile re-applies every other, so one already indexed writes nothing
+    const current = indexed.get(path);
+    if (current?.kind === entry.kind && entryHash(current) === entryHash(entry)) {
       return;
     }
     store.upsertOther(path, unprojectableHash);
     graph.setOther(path);
-    others.add(path);
-    if (unprojectableHash === undefined) {
-      unprojectable.delete(path);
-    } else {
-      unprojectable.set(path, unprojectableHash);
-    }
+    indexed.set(path, entry);
   };
 
   interface ProjectedUpdate {
@@ -295,9 +300,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     });
     for (const doc of docs.slice(0, written)) {
       graph.applyDoc(doc.path, doc.projection);
-      others.delete(doc.path);
-      hashes.set(doc.path, doc.hash);
-      unprojectable.delete(doc.path);
+      indexed.set(doc.path, { hash: doc.hash, kind: "doc" });
     }
     return written;
   };
@@ -389,7 +392,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     switch (read.kind) {
       case "bytes": {
         // decode only what moved; the common answer is unchanged.
-        if (hashes.get(path) === read.hash || unprojectable.get(path) === read.hash) {
+        if (entryHash(indexed.get(path)) === read.hash) {
           args.debugLog?.(`${path}: unchanged, skipped`);
           if (stats !== undefined) {
             stats.unchanged += 1;
@@ -485,8 +488,8 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     if (gone.length === 0) {
       return;
     }
-    // one snapshot, taken at the first folder: re-reading the live maps per path walks the whole index per deletion.
-    let indexed: string[] | undefined;
+    // one snapshot, taken at the first folder: re-reading the live map per path walks the whole index per deletion.
+    let snapshot: string[] | undefined;
     store.transaction(() => {
       for (const path of gone) {
         args.debugLog?.(`${path}: gone, removed with anything under it`);
@@ -496,9 +499,9 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
         if (removeIndexed(path)) {
           continue;
         }
-        indexed ??= [...hashes.keys(), ...others];
+        snapshot ??= [...indexed.keys()];
         const prefix = `${path}/`;
-        for (const candidate of indexed) {
+        for (const candidate of snapshot) {
           if (candidate.startsWith(prefix)) {
             removeIndexed(candidate);
           }
@@ -522,7 +525,7 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       unchanged: 0,
     };
 
-    const stale = [...hashes.keys(), ...others].filter((path) => !current.has(path));
+    const stale = [...indexed.keys()].filter((path) => !current.has(path));
     removeGone(stale);
     stats.removed = stale.length;
 
