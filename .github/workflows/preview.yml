@@ -49,14 +49,14 @@ jobs:
       GITHUB_TOKEN: ${{ github.token }}
       TURBO_TELEMETRY_DISABLED: 1
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Report building
         run: node .github/scripts/worker-preview.mjs report "$PROJECT" building
 
-      - uses: pnpm/setup@v2
+      - uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@24
           cache: true
@@ -130,9 +130,9 @@ jobs:
       GITHUB_TOKEN: ${{ github.token }}
     steps:
       # the base branch: pull_request_target must never run the PR's code
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: pnpm/setup@v2
+      - uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
         with:
           runtime: node@24
           cache: true
