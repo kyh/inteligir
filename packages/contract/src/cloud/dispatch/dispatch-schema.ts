@@ -14,8 +14,9 @@ import { vaultPathSchema } from "../vault/vault-schema";
 // for the vault's Inbox.md, which any Mac claims whether or not it takes the phone's turns. The
 // approvals themselves ride the other way, opened by that Mac and listed for the phone. Delivery
 // is at-least-once to a claimant and a row is settled only by the claim that holds it, so a Mac's
-// apply must be exactly-once on the dispatch id. An unclaimed row waits until a Mac claims it or
-// the phone cancels it.
+// apply of a turn or an answer must be exactly-once on the dispatch id; a capture, whose line
+// carries no id, lands again only when its ack never reached the inbox. An unclaimed row waits
+// until a Mac claims it or the phone cancels it.
 
 export { answerableDecisions } from "@repo/domain/pending-interactions";
 

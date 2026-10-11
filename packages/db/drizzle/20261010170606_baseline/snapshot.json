@@ -21,10 +21,6 @@
       "entityType": "tables"
     },
     {
-      "name": "sync_applied_captures",
-      "entityType": "tables"
-    },
-    {
       "name": "sync_outbox",
       "entityType": "tables"
     },
@@ -398,26 +394,6 @@
       "generated": null,
       "name": "id",
       "entityType": "columns",
-      "table": "sync_applied_captures"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "applied_at",
-      "entityType": "columns",
-      "table": "sync_applied_captures"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "id",
-      "entityType": "columns",
       "table": "sync_outbox"
     },
     {
@@ -709,13 +685,6 @@
       "nameExplicit": false,
       "name": "queued_thread_messages_pk",
       "table": "queued_thread_messages",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "sync_applied_captures_pk",
-      "table": "sync_applied_captures",
       "entityType": "pks"
     },
     {

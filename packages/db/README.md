@@ -29,8 +29,8 @@ src/
                       # back and checkpoints the -wal
   schema.ts           # the tables: meta, threads, events, queued_thread_messages,
                       # pending_interactions, sync_outbox, sync_state,
-                      # sync_applied_captures, sync_own_devices — each constraint
-                      # says why beside itself
+                      # sync_own_devices — each constraint says why beside
+                      # itself
   migrate.ts          # runMigrations: refuses a file migrated through generations
                       # this build does not carry, then drizzle's migrator over
                       # drizzle/, foreign keys OFF around it and foreign_key_check
@@ -55,8 +55,7 @@ src/
                       # for bytes it refuses
   sync-outbox.ts      # the frozen-body outbox, the device_seq high-water, the pull
                       # cursor and its skipped-row marker, the count of rows
-                      # dropped unsent, the applied-capture ledger, the own
-                      # device ids
+                      # dropped unsent, the own device ids
   __tests__/          # real files under a temp dir; schema-agreement.test.ts is
                       # the migration↔schema pin (reading sqlite_master through
                       # json-source.ts)
@@ -155,7 +154,7 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   The row the contract refuses is left out of the push but stays inside that
   high-water, in `apps/cli/src/server/cloud/outbox.ts`, which reads this queue.
 - **A sign-out forgets the positions, never the device ids.** `resetSyncState`
-  clears the outbox and the capture ledger and puts the `sync_state` row back
+  clears the outbox and puts the `sync_state` row back
   as the baseline seeded it, every column at its declared default, in one
   transaction, and keeps `sync_own_devices`: the log still holds rows under
   every id this install signed in as, and the install holds those events
