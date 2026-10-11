@@ -82,8 +82,8 @@ describe("thread sync log", () => {
   });
 
   it("stores each body as one text that parses back, and serves that text verbatim", async () => {
-    const { bearer } = await signUpUser("sync-verbatim@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("sync-verbatim@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
     const bodies: PushRequest["events"][number]["event"][] = [
       { nested: [1, "x", null, { deep: [true, false] }], type: "test" },
       'a bare string: "quoted", \\ a backslash, a \u2028 separator and a </script>',
@@ -104,7 +104,7 @@ describe("thread sync log", () => {
       })),
     });
 
-    const stub = threadSyncStub(env, await userIdOf(bearer));
+    const stub = threadSyncStub(env, await userIdOf(cookie));
     const stored = await runInDurableObject(stub, (_instance, state) =>
       state.storage.sql
         .exec<{ event: string }>("SELECT event FROM sync_events ORDER BY seq")
@@ -182,8 +182,8 @@ describe("thread sync log", () => {
   });
 
   it("refuses a batch carrying a key beside its events, storing none of it", async () => {
-    const { bearer } = await signUpUser("sync-undeclared@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("sync-undeclared@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
 
     const withThreads = {
       events: [event("th_1", 1, "a")],

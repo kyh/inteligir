@@ -57,8 +57,8 @@ describe("a device managing its account's devices", () => {
   // the sign-in's row is a raw insert beside drizzle's writes, so both must spell the same unit
   it("dates a sign-in and its first request in the instant each happened", async () => {
     const before = Date.now();
-    const { bearer } = await signUpUser("manage-dates@example.test");
-    const mac = await loginDevice(bearer, "Mac");
+    const { cookie } = await signUpUser("manage-dates@example.test");
+    const mac = await loginDevice(cookie, "Mac");
     const response = await listAs(mac.credential);
     const after = Date.now();
     const [row] = emitted(listDevicesResponseSchema, await response.text()).devices;

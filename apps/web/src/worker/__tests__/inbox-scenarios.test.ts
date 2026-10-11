@@ -70,8 +70,8 @@ describe("the Worker's inboxes", () => {
   it.each(INBOX_SCENARIOS)(
     "$name",
     async ({ expected, run }) => {
-      const { bearer } = await signUpUser(`inbox-scenario-${(accounts += 1)}@example.test`);
-      const stub = threadSyncStub(env, await userIdOf(bearer));
+      const { cookie } = await signUpUser(`inbox-scenario-${(accounts += 1)}@example.test`);
+      const stub = threadSyncStub(env, await userIdOf(cookie));
       const answers: Answer[] = [];
       // the client strips what it does not declare, so the answers are read again after the run
       const recorded: CloudFetch = async (input, init) => {
@@ -91,7 +91,7 @@ describe("the Worker's inboxes", () => {
           });
         },
         signIn: async (name) => {
-          const { credential, deviceId } = await loginDevice(bearer, name);
+          const { credential, deviceId } = await loginDevice(cookie, name);
           return {
             client: createCloudClient({
               baseUrl: ORIGIN,

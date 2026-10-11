@@ -25,10 +25,10 @@ const versionAround = (majorStep: number, minorStep: number): string => {
 };
 const below = (): string => versionAround(0, -1);
 
-const signedIn = async (email: string): Promise<{ bearer: string; credential: string }> => {
-  const { bearer } = await signUpUser(email);
-  const { credential } = await loginDevice(bearer, "Laptop");
-  return { bearer, credential };
+const signedIn = async (email: string): Promise<{ cookie: string; credential: string }> => {
+  const { cookie } = await signUpUser(email);
+  const { credential } = await loginDevice(cookie, "Laptop");
+  return { cookie, credential };
 };
 
 const asBuild = (credential: string, build: string | null) =>
@@ -99,13 +99,13 @@ describe("the client build floor", () => {
   });
 
   it("answers this Worker's own pages, which ship in the same deploy", async () => {
-    const { bearer } = await signedIn("floor-page@example.test");
+    const { cookie } = await signedIn("floor-page@example.test");
     const listed = await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.list}`, {
-      headers: sessionHeaders(bearer),
+      headers: sessionHeaders(cookie),
     });
     expect(listed.status).toBe(200);
     const crossSite = await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.list}`, {
-      headers: { ...sessionHeaders(bearer), "sec-fetch-site": "cross-site" },
+      headers: { ...sessionHeaders(cookie), "sec-fetch-site": "cross-site" },
     });
     expect(crossSite.status).toBe(426);
   });
