@@ -71,8 +71,7 @@ pub fn resolve(exe: &Path, resource_dir: &Path) -> Result<NodeRuntime, String> {
 
 /// What every node child starts from: the shell's own environment less anything that makes node
 /// load code or open a debugger. `NODE_OPTIONS` can `--require` a file or `--inspect` a port, so it
-/// and every other `NODE_*` but `NODE_ENV` go: that was the job of the Electron fuses that turned
-/// `NODE_OPTIONS` and the inspector arguments off.
+/// and every other `NODE_*` but `NODE_ENV` go.
 pub fn scrubbed_env<I>(inherited: I) -> BTreeMap<OsString, OsString>
 where
     I: IntoIterator<Item = (OsString, OsString)>,

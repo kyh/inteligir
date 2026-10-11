@@ -7,6 +7,7 @@
 // The shell's print is a sheet that outlives the call, so the title comes back on `afterprint`.
 
 import { toast } from "@repo/ui/components/sonner";
+import { shellPrint, underShell } from "../../shell-commands";
 
 export const installLightPrints = (): (() => void) => {
   const root = document.documentElement;
@@ -30,12 +31,11 @@ export const installLightPrints = (): (() => void) => {
 
 // WKWebView answers no `window.print()`, so under the shell the shell prints the window
 const printWindow = async (): Promise<string | null> => {
-  const bridge = window.desktopBridge;
-  if (bridge === undefined) {
+  if (!underShell()) {
     window.print();
     return null;
   }
-  const answer = await bridge.print();
+  const answer = await shellPrint();
   return answer.ok ? null : answer.reason;
 };
 

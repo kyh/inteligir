@@ -1,19 +1,23 @@
 // @vitest-environment jsdom
 
 import { act, cleanup, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { clearShell, mockShell } from "../../__tests__/mock-shell";
 import { createBridgeStore } from "../bridge-store";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  clearShell();
+});
 
-const fakeBridge = () => {
+const fakeStore = () => {
   const firstRead = Promise.withResolvers<number>();
+  const read = vi.fn<() => Promise<number>>(async () => await firstRead.promise);
   const pushes: ((state: number) => void)[] = [];
-  const store = createBridgeStore<object, number>({
-    bridge: () => ({}),
+  const store = createBridgeStore<number>({
     label: "test",
-    read: async () => await firstRead.promise,
-    subscribe: (_bridge, adopt) => {
+    read,
+    subscribe: (adopt) => {
       pushes.push(adopt);
     },
   });
@@ -22,12 +26,13 @@ const fakeBridge = () => {
       adopt(state);
     }
   };
-  return { answerRead: firstRead.resolve, push, store };
+  return { answerRead: firstRead.resolve, push, read, store };
 };
 
 describe("a bridge store", () => {
   it("adopts its first read", async () => {
-    const { answerRead, store } = fakeBridge();
+    mockShell();
+    const { answerRead, store } = fakeStore();
     const { result } = renderHook(store.use);
     expect(result.current).toEqual({ kind: "loading" });
     await act(async () => {
@@ -37,7 +42,8 @@ describe("a bridge store", () => {
   });
 
   it("keeps a pushed state over a first read that answers after it", async () => {
-    const { answerRead, push, store } = fakeBridge();
+    mockShell();
+    const { answerRead, push, store } = fakeStore();
     const { result } = renderHook(store.use);
     act(() => {
       push(2);
@@ -46,5 +52,12 @@ describe("a bridge store", () => {
       answerRead(1);
     });
     expect(result.current).toEqual({ kind: "state", state: 2 });
+  });
+
+  it("says there is no shell outside it, and asks nothing", () => {
+    const { read, store } = fakeStore();
+    const { result } = renderHook(store.use);
+    expect(result.current).toEqual({ kind: "no-bridge" });
+    expect(read).not.toHaveBeenCalled();
   });
 });

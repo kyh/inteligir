@@ -32,7 +32,14 @@ a choice exactly as a boot would, before anything moves; `select` writes
 the server itself. A question costs a node start, about 0.2s, paid once a
 launch and once a pick. The wire breaks freely, since both ends ship in one
 bundle, and `tools/repo-guards/src/desktop-shell-wire.test.ts` holds the
-words the two languages share.
+words the two languages share: each answer's serde type in
+`src-tauri/src/launch.rs` against the door's typed zod schema, which also
+parses the `src-tauri/fixtures/` the cargo tests read.
+
+The shell's own folder is `desktop/` under the root data dir `launch`
+resolves, beside `config.json`: the recent-vaults list, the debug choice and,
+on Linux, each vault's web store. A development shell's is its checkout's, so
+two checkouts never share a recent list.
 
 ## The first run is decided before any server exists
 
@@ -88,21 +95,26 @@ sign-in a release runs.
 
 Each vault's window gets **a web store of its own** (`data_store_identifier`
 from its data dir on the Mac, a `data_directory` on Linux), so two vaults never
-read each other's cookies or localStorage, as Electron's per-vault partitions
-kept them apart. The page's preferences are that store's localStorage, so the
-move from Electron started each vault's from its defaults once.
+read each other's cookies or localStorage. The page's preferences are that
+store's localStorage.
 
 The page reaches the shell through Tauri's commands, one row each in
 `src/ipc-contract.ts` (its name beside its argument and answer schemas), over
-`src/renderer/shell-commands.ts`, which parses every answer and every event.
-`window.desktopBridge` is installed before the first render only when the page
-runs inside the shell; a browser tab on the same server has none, and every
-surface that needs it draws nothing. The commands are granted when the shell
+`src/renderer/shell-commands.ts`, the page's one door: a call per row, typed
+from the row, parsing every answer and every event against it. Its
+`underShell()` says whether the page runs inside the shell; a browser tab on
+the same server does not, and every surface that needs the shell draws
+nothing there. The suites answer those calls through Tauri's own IPC mock
+(`src/renderer/__tests__/mock-shell.ts`), so they run the real command names
+and the answer parse. The commands are granted when the shell
 opens the window, to that window and the server's exact origin alone
 (`grant_app_window` in `src-tauri/src/window.rs`), since the port is the
 server's to choose; `src-tauri/capabilities/app-window.json` grants nothing,
 and lists them only so the build keeps them (`removeUnusedCommands`). A
-refusal is an answer, never a rejected promise: a rejection is a fault.
+refusal is an answer, never a rejected promise: a rejection is a fault. One
+envelope carries it, `src-tauri/src/answer.rs` in the shell and
+`src/shell-answer.ts` in the page, and a command that can fail only by a fault
+answers its value bare.
 
 ## The origin pin is the whole security surface
 
@@ -182,12 +194,12 @@ can move it: an app launched with another `PATH` or `open --env` must not run
 another program inside a process the OS counts as this one. Inside
 `Inteligir.app/Contents/MacOS` the bundle carries both halves: the official
 node build beside the shell (`bundle.externalBin`, fetched and pinned by
-`scripts/fetch-node.mjs`) and the CLI with its production dependencies as
+`scripts/fetch-node.ts`) and the CLI with its production dependencies as
 `Contents/Resources/server`; a missing one is a broken install, said as one. A
 shell outside a bundle (`tauri dev`, the scenario suite's build) runs the
 checkout's CLI on the developer's own node, as `pnpm cli serve` does. Every
 `NODE_*` variable but `NODE_ENV` is dropped from every child's environment, so
-no `NODE_OPTIONS` reaches the server, the role Electron's fuses played.
+no `NODE_OPTIONS` reaches the server.
 
 An agent drives the app by typing `inteligir …` in its shell, and the CLI's
 own bin finds node through `#!/usr/bin/env node`, which a Mac may not have. So
@@ -234,7 +246,7 @@ launch keeps the developer's own git, as `pnpm e2e` does.
 Spell check is the page's own: the `spellcheck` attribute on the document
 root, a page preference, which WebKit's checker honours and every field
 inherits unless it sets its own (`src/renderer/app/spellcheck.ts`). macOS
-picks the languages, as it always did under Electron on the Mac.
+picks the languages.
 
 WKWebView answers no `window.print()`, so Export as PDF asks the shell to run
 the print panel as a sheet over the window (`print_page`). A print is light
@@ -282,13 +294,17 @@ pnpm package:desktop      # → src-tauri/target/release/bundle/macos/Inteligir.
 pnpm smoke:desktop        # package, boot it, drive its server, quit
 ```
 
-`scripts/package.mjs` runs on a Mac and does it in order:
+Every script is TypeScript that node runs as it stands, stripping the types,
+and `scripts/tsconfig.json` checks it as node resolves it, so `pnpm typecheck`
+refuses an import node could not load.
 
-1. `scripts/fetch-git.mjs` and `scripts/fetch-node.mjs` stage the git the app
+`scripts/package.ts` runs on a Mac and does it in order:
+
+1. `scripts/fetch-git.ts` and `scripts/fetch-node.ts` stage the git the app
    ships into `resources/git` and the node into `src-tauri/binaries` with its
    licence in `resources/node`, shipped as `notices/node` (all gitignored),
    each a file fetch pinned by
-   sha-256 and cached under `.cache/`. git is dugite-native's macOS arm64
+   sha-256 and cached under `.cache/` (`scripts/pinned-fetch.ts`). git is dugite-native's macOS arm64
    build less the Git Credential Manager and Git LFS it adds beside git (no
    config names either, and they were most of the payload and of what had to
    be signed) and less the dashed built-ins' links but the transports' (Tauri
@@ -296,17 +312,17 @@ pnpm smoke:desktop        # package, boot it, drive its server, quit
    with git's own `COPYING` and a `SOURCE` note; node is the
    official darwin-arm64 build. A version bump is the tag and the hashes at
    the top of each script.
-2. `scripts/stage-server.mjs` stages the CLI as `.output/server`: the package
+2. `scripts/stage-server.ts` stages the CLI as `.output/server`: the package
    as npm would publish it (its `files`) and its production dependencies,
    through `pnpm deploy` with a hoisted linker, so the lockfile's versions and
    the workspace's patches ship (codex-acp's among them, which npm itself would
    drop) and no symlink rides into the bundle.
-3. `scripts/sign-resources.mjs` signs every Mach-O those resources carry (the
+3. `scripts/sign-resources.ts` signs every Mach-O those resources carry (the
    git, the native addons, the vendors' own binaries) with the hardened runtime,
    the server's tree with `resources/entitlements.mac.plist` and the git, which
    runs no JIT, with none: Tauri signs the shell, the node and the bundle, but
    notarization refuses any binary inside that is not itself signed.
-4. `scripts/rust-notices.mjs` writes `.output/notices/rust-crates.txt`: every
+4. `scripts/rust-notices.ts` writes `.output/notices/rust-crates.txt`: every
    crate the shell's binary links on the Mac, read from cargo's own resolve,
    with its version, licence and source, and each licence text the crates ship,
    once, since their licences ask that the notices travel with the binary.
@@ -321,11 +337,12 @@ The identity is the Developer ID the keychain holds; with none, or with
 hardened runtime, whose library validation would refuse the pack's own
 unsigned-by-a-team addons, and it opens only on the Mac that built it. It is
 notarized with the App Store Connect key in `<repo>/.release/` (gitignored):
-`notary.env` carries `APPLE_API_KEY` (the `.p8`'s filename, resolved against
-that directory), `APPLE_API_KEY_ID` and `APPLE_API_ISSUER`, which the script
-hands Tauri under its own names — inside the turbo task, because turbo's strict
-env mode strips an undeclared variable before the task begins. The minimum
-macOS is 13.5, node 24's own floor.
+`notary.env` carries Tauri's own names: `APPLE_API_ISSUER`, `APPLE_API_KEY`
+(the key's id) and `APPLE_API_KEY_PATH` (the `.p8`'s filename, resolved against
+that directory). The script reads it inside the task, since turbo's strict env
+mode strips an undeclared variable before the task begins, and drops every
+notary variable the task inherits, so a stale export in the shell never
+notarizes a pack. The minimum macOS is 13.5, node 24's own floor.
 
 There is no native-rebuild step, and that is a fact rather than an omission:
 the two native modules are Node-API addons shipping per-platform prebuilds,
@@ -376,19 +393,12 @@ The state is one plain value, a union by status in which each status carries
 only what it knows, reduced in the shell (`src-tauri/src/update_state.rs`) and
 parsed off the bridge by the page (`src/update-state.ts`).
 
-The Electron builds update through electron-updater, which reads the release's
-`latest-mac.yml` and zip, so the package step writes both too, around this
-app: same bundle id and team, so they move onto it. This app needs macOS 13.5,
-node 24's floor, where the Electron builds ran on older ones, so the manifest names
-that floor as the Darwin release electron-updater compares (22.6.0), and an
-older Mac is offered nothing it could not open.
-
 ## What is deliberately not here
 
-- **No custom scheme.** Electron's `inteligir://app` and the protocol handler
-  that carried the bearer in front of the server are gone: the window is the
-  server's own page, signed in like a tab. A cross-device link would need a
-  registered scheme, and there is nothing to receive yet.
+- **No custom scheme.** No protocol handler carries the bearer in front of the
+  server: the window is the server's own page, signed in like a tab. A
+  cross-device link would need a registered scheme, and there is nothing to
+  receive yet.
 - **No command for anything the server can answer.** The shell answers what
   the page cannot ask its server: the updater, because it replaces the app;
   the vault switch, because the shell starts and stops the server; Reveal/Open

@@ -30,9 +30,8 @@ The owner publishes once, when every step and every check below has passed.
 
 ## Once per machine
 
-- **`.release/`** (gitignored) at the repo root: `notary.env` (`APPLE_API_KEY`,
-  the `.p8`'s file name, beside it; `APPLE_API_KEY_ID`; `APPLE_API_ISSUER`)
-  and the `.p8`, with the Developer ID Application certificate in the login
+- **`.release/`** (gitignored) at the repo root: `notary.env` and the `.p8`
+  beside it, with the Developer ID Application certificate in the login
   keychain (`security find-identity -v -p codesigning` lists it); and the
   updater's key, which signs every update an installed app accepts:
   `pnpm --filter @repo/desktop tauri signer generate -w ../../.release/updater.key`
@@ -41,6 +40,11 @@ The owner publishes once, when every step and every check below has passed.
   goes in `updater.key.password`. Lose the key and no installed app can verify
   an update again, so it is backed up wherever the Developer ID's export is.
   `apps/desktop/README.md` § Packaging says how the package step reads them.
+  `notary.env` holds Tauri's own names, `APPLE_API_ISSUER`, `APPLE_API_KEY`
+  (the key's id) and `APPLE_API_KEY_PATH` (the `.p8`'s file name), and a pack
+  refuses one missing any: a file written for the earlier pack renames
+  `APPLE_API_KEY` to `APPLE_API_KEY_PATH`, then `APPLE_API_KEY_ID` to
+  `APPLE_API_KEY`.
 - **GitHub and npm**: `gh auth status` has push rights on the repo, and
   `npm whoami` names the account that owns `inteligir`.
 - **Cloudflare**: `pnpm --filter @repo/web exec cf auth whoami` is signed in,
@@ -79,7 +83,7 @@ only on the Mac that built it, and one with no updater key ships an app that
 never updates. Package only through `pnpm smoke:desktop` or
 `pnpm package:desktop`: turbo's strict env mode strips `APPLE_API_*` exported
 in a shell (so they live in `.release/`), and the Tauri CLI run directly packs
-none of the resources (`apps/desktop/scripts/package.mjs` names them) and
+none of the resources (`apps/desktop/scripts/package.ts` names them) and
 signs none of the binaries inside them.
 
 Commit as `release: <version>`, push, and wait for CI on that commit to go
@@ -296,33 +300,25 @@ refuses a server of another version, so npm and the Mac app ship as one.
 1. **The Mac app.** Tag and publish. The site's Download button links
    `releases/latest/download/Inteligir-arm64.dmg`, so the release must carry
    the dmg under that fixed name (`DMG_NAME` in
-   `apps/desktop/scripts/package.mjs`), and every installed app reads
+   `apps/desktop/scripts/package.ts`), and every installed app reads
    `latest.json` and the signed `Inteligir.app.tar.gz` it names. The notes are
-   the changelog's top section, which `apps/desktop/scripts/release-notes.mjs`
+   the changelog's top section, which `apps/desktop/scripts/release-notes.ts`
    prints only once it is titled for this version, so a refusal stops the
    chain before the tag:
 
    ```sh
-   node apps/desktop/scripts/release-notes.mjs > .release/notes.md &&
+   node apps/desktop/scripts/release-notes.ts > .release/notes.md &&
      git tag v<version> && git push origin v<version> &&
      gh release create v<version> --notes-file .release/notes.md \
        apps/desktop/.output/bin/Inteligir-arm64.dmg \
        apps/desktop/.output/bin/Inteligir.app.tar.gz \
        apps/desktop/.output/bin/Inteligir.app.tar.gz.sig \
-       apps/desktop/.output/bin/latest.json \
-       apps/desktop/.output/bin/Inteligir-<version>-arm64.zip \
-       apps/desktop/.output/bin/latest-mac.yml
+       apps/desktop/.output/bin/latest.json
    ```
 
    A release missing `latest.json` or the archive is one no installed app can
    update to, and one missing `Inteligir-arm64.dmg` leaves the Download button
-   a 404. The zip and `latest-mac.yml` are for the Electron builds (0.6.0 and
-   older), whose updater reads them: the zip holds this app, under the same
-   bundle id and team, so they update onto it. The manifest's
-   `minimumSystemVersion` is Darwin 22.6.0, which is macOS 13.5, node 24's
-   floor, since electron-updater compares Darwin releases: an Electron build
-   on an older Mac is offered nothing it cannot open and
-   stays on 0.6.0. Keep uploading both until no tester runs an Electron build.
+   a 404.
 
 2. **npm.** `pnpm --filter inteligir publish --otp <code>`, from the tagged
    commit on a clean main (pnpm refuses another branch or a dirty tree); it

@@ -12,7 +12,7 @@ import { readJsonFile, REPO_ROOT } from "./repo";
 
 const CHANGELOG = "CHANGELOG.md";
 const DESKTOP_MANIFEST = "apps/desktop/package.json";
-const RELEASE_NOTES_SCRIPT = "apps/desktop/scripts/release-notes.mjs";
+const RELEASE_NOTES_SCRIPT = "apps/desktop/scripts/release-notes.ts";
 
 const TITLE = "# Changelog";
 const UNRELEASED = "Unreleased";
@@ -111,7 +111,8 @@ const runStaged = (changelog: string, version: string): Run => {
   const script = path.join(root, RELEASE_NOTES_SCRIPT);
   fs.mkdirSync(path.dirname(script), { recursive: true });
   fs.copyFileSync(path.join(REPO_ROOT, RELEASE_NOTES_SCRIPT), script);
-  fs.writeFileSync(path.join(root, DESKTOP_MANIFEST), JSON.stringify({ version }));
+  // the real manifest's module type, without which node warns as it reparses the script as ESM
+  fs.writeFileSync(path.join(root, DESKTOP_MANIFEST), JSON.stringify({ type: "module", version }));
   fs.writeFileSync(path.join(root, CHANGELOG), changelog);
   return runScript(script);
 };

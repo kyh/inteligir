@@ -4,9 +4,3 @@
 import { z } from "zod";
 
 export const pathActionRequestSchema = z.object({ path: z.string().min(1) }).strict();
-
-export const pathActionResultSchema = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true) }).strict(),
-  z.object({ ok: z.literal(false), reason: z.string().min(1) }).strict(),
-]);
-export type PathActionResult = z.infer<typeof pathActionResultSchema>;

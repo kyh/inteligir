@@ -1,12 +1,24 @@
 // packs a real tarball so `files` is under test too. outside verify: builds, installs, binds a port.
 
 import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
-import { accessSync, constants, existsSync, readFileSync } from "node:fs";
+import { accessSync, constants, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import nodePath from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { proveWatcherAlive } from "./smoke-lib.mjs";
+import { HEALTH_PATH } from "@repo/contract/local/routes";
+import { z } from "zod";
+import {
+  exitOf,
+  fail,
+  log,
+  proveWatcherAlive,
+  readServerToken,
+  rpcClient,
+  run,
+  waitForUrl,
+} from "./smoke-lib.ts";
 
 const CLI_BIN_NAME = "inteligir";
 
@@ -15,57 +27,10 @@ const repoRoot = nodePath.resolve(packageRoot, "..", "..");
 const BOOT_TIMEOUT_MS = 60_000;
 const EXIT_TIMEOUT_MS = 20_000;
 
-/**
- * @param {string} message what the smoke run could not prove
- * @returns {never} nothing — it always throws, after marking the run failed
- */
-const fail = (message) => {
-  process.stderr.write(`smoke: ${message}\n`);
-  process.exitCode = 1;
-  throw new Error(message);
-};
+const vaultTreeSchema = z.object({ entries: z.array(z.unknown()) });
+const statusSchema = z.object({ dataDir: z.string() });
 
-const run = async (file, argv, options = {}) =>
-  // oxlint-disable-next-line promise/avoid-new -- bridges a child process's "close"/"error" events
-  await new Promise((resolve, reject) => {
-    const child = spawn(file, argv, { stdio: ["ignore", "pipe", "pipe"], ...options });
-    let stdout = "";
-    let stderr = "";
-    child.stdout?.on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr += chunk;
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) {
-        resolve({ stderr, stdout });
-        return;
-      }
-      reject(new Error(`${file} ${argv.join(" ")} exited ${code}\n${stdout}\n${stderr}`));
-    });
-  });
-
-const waitForUrl = async (url, deadlineMs) => {
-  const deadline = Date.now() + deadlineMs;
-  for (;;) {
-    try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(2000) });
-      if (response.ok) {
-        return response;
-      }
-    } catch {
-      // a refused connection or a timeout is just "not up yet"
-    }
-    if (Date.now() > deadline) {
-      return null;
-    }
-    await delay(250);
-  }
-};
-
-const processAlive = (pid) => {
+const processAlive = (pid: number): boolean => {
   try {
     process.kill(pid, 0);
     return true;
@@ -80,19 +45,19 @@ const dataDir = nodePath.join(scratch, "data");
 const vaultDir = nodePath.join(scratch, "vault");
 const port = 4500 + Math.floor(Math.random() * 400);
 const baseUrl = `http://127.0.0.1:${port}`;
-let server = null;
+let server: ChildProcess | null = null;
 
 try {
   // pnpm pack, not npm: only pnpm rewrites catalog: ranges on the way out
-  process.stdout.write(`smoke: packing ${packageRoot}\n`);
+  log(`packing ${packageRoot}`);
   const { stdout: packOutput } = await run("pnpm", ["pack", "--pack-destination", scratch], {
     cwd: packageRoot,
   });
   const tarball = packOutput.trim().split("\n").at(-1);
-  if (!existsSync(tarball)) {
+  if (tarball === undefined || !existsSync(tarball)) {
     fail(`pnpm pack did not name a tarball (got ${JSON.stringify(packOutput)})`);
   }
-  process.stdout.write(`smoke: installing ${tarball}\n`);
+  log(`installing ${tarball}`);
   await run("npm", ["install", "--prefix", installDir, "--no-audit", "--no-fund", tarball], {
     env: { ...process.env, npm_config_cache: nodePath.join(scratch, "npm-cache") },
   });
@@ -117,7 +82,7 @@ try {
     ],
     ["the workspace UI", nodePath.join(installRoot, "dist", "ui", "index.html")],
     ["the starter vault", nodePath.join(installRoot, "seed", "Welcome.md")],
-  ]) {
+  ] as const) {
     if (!existsSync(path)) {
       fail(`the packaged install carries no ${what} (${path})`);
     }
@@ -145,28 +110,10 @@ try {
   }
 
   const { stdout: cliVersion } = await run(bin, ["--version"]);
-  process.stdout.write(`smoke: packaged CLI --version -> ${cliVersion.trim()}\n`);
+  log(`packaged CLI --version -> ${cliVersion.trim()}`);
 
-  const authHeaders = () => ({
-    authorization: `Bearer ${JSON.parse(readFileSync(nodePath.join(dataDir, "server.json"), "utf-8")).token}`,
-  });
-
-  // hand-rolled: no bundler and no workspace link against a packed tarball
-  const rpc = async (procedure, input) => {
-    const response = await fetch(`${baseUrl}/rpc/${procedure}`, {
-      body: input === undefined ? "{}" : JSON.stringify({ json: input }),
-      headers: { ...authHeaders(), "content-type": "application/json" },
-      method: "POST",
-    });
-    if (!response.ok) {
-      fail(`${procedure} answered ${response.status}`);
-    }
-    const body = await response.json();
-    return body.json;
-  };
-
-  process.stdout.write(`smoke: booting on ${baseUrl}\n`);
-  server = spawn(
+  log(`booting on ${baseUrl}`);
+  const child = spawn(
     bin,
     ["serve", "--port", String(port), "--data-dir", dataDir, "--vault", vaultDir],
     {
@@ -175,76 +122,70 @@ try {
       stdio: ["ignore", "inherit", "inherit"],
     },
   );
+  server = child;
 
-  const health = await waitForUrl(`${baseUrl}/health`, BOOT_TIMEOUT_MS);
+  const health = await waitForUrl(`${baseUrl}${HEALTH_PATH}`, BOOT_TIMEOUT_MS);
   if (health === null) {
     fail(`no health answer on ${baseUrl} within ${BOOT_TIMEOUT_MS}ms`);
   }
-  process.stdout.write(`smoke: health -> ${await health.text()}\n`);
+  log(`health -> ${await health.text()}`);
+
+  // read once the server listens, which is when it publishes the file
+  const token = readServerToken(dataDir);
+  const rpc = rpcClient(baseUrl, token);
 
   // with the bearer: a request carrying no credential gets the signed-out page instead
-  const shell = await fetch(baseUrl, { headers: { ...authHeaders(), accept: "text/html" } });
+  const shell = await fetch(baseUrl, {
+    headers: { accept: "text/html", authorization: `Bearer ${token}` },
+  });
   const html = await shell.text();
   if (!shell.ok || !html.includes("<title>inteligir</title>")) {
     fail(`the SPA shell did not answer (${shell.status}, ${html.length} bytes)`);
   }
-  process.stdout.write(`smoke: SPA shell -> ${shell.status} ${html.length} bytes\n`);
+  log(`SPA shell -> ${shell.status} ${html.length} bytes`);
 
-  const vaultList = await rpc("vault/tree");
-  process.stdout.write(`smoke: vault tree -> ${vaultList.entries.length} entries\n`);
-  await proveWatcherAlive({
-    fail,
-    log: (line) => process.stdout.write(`smoke: ${line}\n`),
-    rpc,
-    vaultDir,
-  });
+  const vaultList = await rpc("vault/tree", vaultTreeSchema);
+  log(`vault tree -> ${vaultList.entries.length} entries`);
+  await proveWatcherAlive(rpc, vaultDir);
 
   // exercises the bundled client half the hand-rolled fetch above bypasses
   const { stdout: statusJson } = await run(bin, ["status", "--json"], {
     env: { ...process.env, INTELIGIR_DATA_DIR: dataDir },
   });
-  const status = JSON.parse(statusJson);
+  const status = statusSchema.parse(JSON.parse(statusJson));
   if (status.dataDir !== dataDir) {
     fail(`packed \`status --json\` reported dataDir ${status.dataDir}, expected ${dataDir}`);
   }
-  process.stdout.write(`smoke: packaged CLI status --json -> dataDir ${status.dataDir}\n`);
+  log(`packaged CLI status --json -> dataDir ${status.dataDir}`);
 
-  const { pid } = server;
+  const { pid } = child;
   if (pid === undefined) {
     fail("the server process has no pid — it never spawned");
   }
   // the leader only: kill(-pid) would take the forked watcher too and make the
   // orphan check below a tautology
-  process.stdout.write(`smoke: SIGTERM ${pid} (the server alone)\n`);
+  log(`SIGTERM ${pid} (the server alone)`);
   process.kill(pid, "SIGTERM");
-  const exit = await Promise.race([
-    // oxlint-disable-next-line promise/avoid-new -- bridges the server child's "close" event
-    new Promise((resolve) => {
-      server.on("close", (code, signal) => {
-        resolve({ code, signal });
-      });
-    }),
-    delay(EXIT_TIMEOUT_MS).then(() => null),
-  ]);
+  const exit = await Promise.race([exitOf(child), delay(EXIT_TIMEOUT_MS, null)]);
   if (exit === null) {
     fail(`the server did not exit within ${EXIT_TIMEOUT_MS}ms of SIGTERM`);
   }
   if (exit.code !== 0) {
     fail(`the server exited ${exit.code ?? exit.signal} — a graceful stop must exit 0`);
   }
-  process.stdout.write("smoke: exited 0\n");
+  log("exited 0");
 
   // POSIX: signal 0 against -pid asks whether the group still has members
   await delay(500);
   if (processAlive(-pid)) {
     fail(`process group ${pid} still has members — the watcher child was orphaned`);
   }
-  process.stdout.write("smoke: no orphan processes\n");
+  log("no orphan processes");
 
   const dataEntries = await readdir(dataDir);
-  process.stdout.write(`smoke: data dir -> ${dataEntries.toSorted().join(", ")}\n`);
+  log(`data dir -> ${dataEntries.toSorted().join(", ")}`);
   server = null;
-  process.stdout.write("smoke: PASS\n");
+  log("PASS");
 } finally {
   if (server?.pid !== undefined) {
     try {

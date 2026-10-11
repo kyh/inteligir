@@ -26,6 +26,9 @@ import type { LiveServer, ServerVerdict } from "../server-start";
 
 const scratchHome = (): string => makeTempDir("inteligir-shell-home-");
 
+// the mode a packaged shell states
+const PACKAGED: NodeJS.ProcessEnv = { NODE_ENV: "production" };
+
 interface ManagedConfig {
   vaultDir: string;
 }
@@ -38,11 +41,7 @@ const writeManagedConfig = (dataDir: string, config: ManagedConfig): void => {
 describe("resolveServerTarget", () => {
   it("takes the packaged defaults from the app's own resolution", () => {
     const homeDir = scratchHome();
-    const resolved = resolveServerTarget({
-      env: {},
-      homeDir,
-      isPackaged: true,
-    });
+    const resolved = resolveServerTarget({ env: PACKAGED, homeDir });
     expect(resolved).toEqual({
       kind: "resolved",
       target: {
@@ -62,11 +61,7 @@ describe("resolveServerTarget", () => {
     const homeDir = scratchHome();
     const vaultDir = path.join(homeDir, "Notes");
     writeManagedConfig(path.join(homeDir, PROD_DATA_DIR_NAME), { vaultDir });
-    const resolved = resolveServerTarget({
-      env: {},
-      homeDir,
-      isPackaged: true,
-    });
+    const resolved = resolveServerTarget({ env: PACKAGED, homeDir });
     expect(resolved.kind === "resolved" && resolved.target.vaultDir).toBe(vaultDir);
     expect(resolved.kind === "resolved" && resolved.target.vaultDirSource).toBe("managed-config");
     expect(resolved.kind === "resolved" && resolved.target.dataDir).toBe(
@@ -80,9 +75,8 @@ describe("resolveServerTarget", () => {
   it("resolves a switch candidate as a boot would, refusing a vault that nests the data dir", () => {
     const homeDir = scratchHome();
     const candidate = resolveServerTarget({
-      env: {},
+      env: PACKAGED,
       homeDir,
-      isPackaged: true,
       vaultDir: path.join(homeDir, "Second"),
     });
     // stored where it will land, which macOS's tmpdir, behind a symlink, shows
@@ -91,21 +85,16 @@ describe("resolveServerTarget", () => {
     );
     expect(candidate.kind === "resolved" && candidate.target.vaultDirSource).toBe("env");
     const nested = resolveServerTarget({
-      env: {},
+      env: PACKAGED,
       homeDir,
-      isPackaged: true,
       vaultDir: path.join(homeDir, PROD_DATA_DIR_NAME, "notes"),
     });
     expect(nested.kind).toBe("refused");
   });
 
-  it("a checkout resolves the per-checkout dev instance, whatever NODE_ENV says", () => {
+  it("resolves the checkout's own dev instance unless the shell states production", () => {
     const homeDir = scratchHome();
-    const resolved = resolveServerTarget({
-      env: { NODE_ENV: "production" },
-      homeDir,
-      isPackaged: false,
-    });
+    const resolved = resolveServerTarget({ env: {}, homeDir });
     expect(resolved.kind).toBe("resolved");
     if (resolved.kind !== "resolved") {
       return;
@@ -117,9 +106,8 @@ describe("resolveServerTarget", () => {
 
   it("surfaces the app's own refusal rather than falling back to a default", () => {
     const resolved = resolveServerTarget({
-      env: { INTELIGIR_PORT: "65536" },
+      env: { ...PACKAGED, INTELIGIR_PORT: "65536" },
       homeDir: scratchHome(),
-      isPackaged: true,
     });
     expect(resolved).toEqual({
       error: "INTELIGIR_PORT must be a valid TCP port",

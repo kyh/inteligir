@@ -7,8 +7,9 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { outsideSyncWarning } from "@repo/contract/local/vault/vault-folder";
+import type { FolderFacts } from "@repo/contract/local/vault/vault-folder";
 import { packageFile, readCliVersion } from "../paths";
-import { readManagedVaultDir, writeManagedVaultDir } from "../server/config";
+import { readManagedVaultDir, runtimeModeOf, writeManagedVaultDir } from "../server/config";
 import { selectionBlockedByEnv, selectionRefusalMessage } from "../server/vault-switch";
 import { folderExternalSync, inspectVaultFolder } from "../server/vault/folder-facts";
 import {
@@ -20,7 +21,7 @@ import {
   resolveGit,
 } from "./bundled-git";
 import { folderFactsOf, planFirstRunChoice, planLaunch, proposedNewVault } from "./first-run";
-import type { FirstRunChoice } from "./first-run";
+import type { FirstRunChoice, FirstRunPlan, LaunchPlan, ProposedVault } from "./first-run";
 import { isDirectory, resolveShellPath, runShell } from "./login-shell-path";
 import {
   browserSignInUrl,
@@ -32,23 +33,18 @@ import {
 import type { ResolveServerTargetArgs, ServerTarget } from "./server-start";
 import { planVaultSwitch, switchRefusalMessage } from "./vaults";
 
-export type DoorReply = { answer: unknown } | { reason: string };
+export type DoorReply<T> = { answer: T } | { reason: string };
 
 export interface DoorContext {
   env: NodeJS.ProcessEnv;
   homeDir: string;
 }
 
-// the shell states the mode: a packaged app is production whatever its launch environment says
 export const doorTargetArgs = (
   context: DoorContext,
   vaultDir?: string,
 ): ResolveServerTargetArgs => {
-  const args: ResolveServerTargetArgs = {
-    env: context.env,
-    homeDir: context.homeDir,
-    isPackaged: context.env.NODE_ENV === "production",
-  };
+  const args: ResolveServerTargetArgs = { env: context.env, homeDir: context.homeDir };
   if (vaultDir !== undefined) {
     args.vaultDir = vaultDir;
   }
@@ -65,17 +61,44 @@ const describeTarget = (target: ServerTarget) => {
   };
 };
 
+type DoorTarget = ReturnType<typeof describeTarget>;
+type DoorOpening = Omit<Extract<FirstRunPlan, { kind: "open" }>, "kind">;
+
+// what each question answers: the shell's serde types in launch.rs read these, held to them by the
+// door's test schemas (__tests__/door-answers.ts) and tools/repo-guards/src/desktop-shell-wire.test.ts
+export interface DoorAnswers {
+  launch: {
+    env: Record<string, string>;
+    notes: string[];
+    plan: LaunchPlan["kind"];
+    proposal: ProposedVault;
+    target: DoorTarget;
+  };
+  facts: FolderFacts;
+  sync: {
+    externalSync: ReturnType<typeof folderExternalSync>;
+    warning: ReturnType<typeof outsideSyncWarning> | null;
+  };
+  "plan-open": DoorOpening;
+  "plan-create": DoorOpening;
+  "plan-switch": DoorOpening;
+  select: DoorTarget;
+  handoff: { url: string };
+}
+
+export type DoorVerb = keyof DoorAnswers;
+
 // the login shell's PATH and the git the Mac should run, answered as what every node child the
 // shell starts after runs with, and the vault the launch boots or the first run that comes first
-const launch = async (context: DoorContext): Promise<DoorReply> => {
-  const { isPackaged } = doorTargetArgs(context);
+const launch = async (context: DoorContext): Promise<DoorReply<DoorAnswers["launch"]>> => {
+  const mode = runtimeModeOf(context.env);
   const notes: string[] = [];
   const env: Record<string, string> = {};
   const shellPath = await resolveShellPath({
     env: context.env,
     homeDir: context.homeDir,
     isDirectory,
-    isPackaged,
+    mode,
     platform: process.platform,
     run: runShell,
   });
@@ -90,7 +113,7 @@ const launch = async (context: DoorContext): Promise<DoorReply> => {
   const searchPath = env.PATH ?? context.env.PATH;
   const git = await resolveGit({
     isExecutableFile,
-    isPackaged,
+    mode,
     printDeveloperDir,
     // the git the server would run, found on the PATH it runs with
     printHostGitVersion: async () => await printHostGitVersion(searchPath),
@@ -117,13 +140,16 @@ const launch = async (context: DoorContext): Promise<DoorReply> => {
 };
 
 // what the first-run page shows of a picked folder
-const facts = async (context: DoorContext, dir: string): Promise<DoorReply> => ({
+const facts = async (
+  context: DoorContext,
+  dir: string,
+): Promise<DoorReply<DoorAnswers["facts"]>> => ({
   answer: folderFactsOf(await inspectVaultFolder(dir, folderFactsContext(doorTargetArgs(context)))),
 });
 
 // where the folder already syncs, and the sentences a confirmation says about it; neither counts
 // notes nor asks git, since the boot says whatever else is wrong with the folder
-const sync = (context: DoorContext, dir: string): DoorReply => {
+const sync = (context: DoorContext, dir: string): DoorReply<DoorAnswers["sync"]> => {
   const externalSync = folderExternalSync(dir, context.homeDir);
   return {
     answer: {
@@ -133,7 +159,7 @@ const sync = (context: DoorContext, dir: string): DoorReply => {
   };
 };
 
-const planChoice = (context: DoorContext, choice: FirstRunChoice): DoorReply => {
+const planChoice = (context: DoorContext, choice: FirstRunChoice): DoorReply<DoorOpening> => {
   const launched = resolveServerTarget(doorTargetArgs(context));
   if (launched.kind === "refused") {
     return { reason: launched.error };
@@ -150,7 +176,7 @@ const planChoice = (context: DoorContext, choice: FirstRunChoice): DoorReply => 
 };
 
 // refused and resolved exactly as a boot would, before anything moves
-const planSwitch = (context: DoorContext, dir: string): DoorReply => {
+const planSwitch = (context: DoorContext, dir: string): DoorReply<DoorOpening> => {
   const current = resolveServerTarget(doorTargetArgs(context));
   if (current.kind === "refused") {
     return { reason: current.error };
@@ -169,7 +195,7 @@ const planSwitch = (context: DoorContext, dir: string): DoorReply => {
 // the next boot resolves, re-read after the write as a boot would
 // a selection the boot's own resolution then refuses is taken back, so a refusal always leaves the
 // selector as it found it: the shell puts back a selector only after a boot that failed
-const select = (context: DoorContext, vaultDir: string | null): DoorReply => {
+const select = (context: DoorContext, vaultDir: string | null): DoorReply<DoorTarget> => {
   const current = resolveServerTarget(doorTargetArgs(context));
   if (current.kind === "refused") {
     return { reason: current.error };
@@ -186,7 +212,7 @@ const select = (context: DoorContext, vaultDir: string | null): DoorReply => {
 };
 
 // a browser holds no bearer, so "Open in Browser" signs one in through a handoff
-const handoff = async (context: DoorContext): Promise<DoorReply> => {
+const handoff = async (context: DoorContext): Promise<DoorReply<DoorAnswers["handoff"]>> => {
   const resolved = resolveServerTarget(doorTargetArgs(context));
   if (resolved.kind === "refused") {
     return { reason: resolved.error };
@@ -205,42 +231,43 @@ const required = (value: string | undefined, name: string): string => {
   return value;
 };
 
-export const answerDoor = async (
+type DoorQuestion<V extends DoorVerb> = (
   context: DoorContext,
-  verb: string | undefined,
   args: readonly string[],
-): Promise<DoorReply> => {
-  switch (verb) {
-    case "launch": {
-      return await launch(context);
-    }
-    case "facts": {
-      return await facts(context, required(args[0], "a folder"));
-    }
-    case "sync": {
-      return sync(context, required(args[0], "a folder"));
-    }
-    case "plan-open": {
-      return planChoice(context, { kind: "open", path: required(args[0], "a folder") });
-    }
-    case "plan-create": {
-      return planChoice(context, {
-        kind: "create",
-        name: args[1] ?? "",
-        parent: required(args[0], "a parent folder"),
-      });
-    }
-    case "plan-switch": {
-      return planSwitch(context, required(args[0], "a folder"));
-    }
-    case "select": {
-      return select(context, args[0] === "--default" ? null : required(args[0], "a folder"));
-    }
-    case "handoff": {
-      return await handoff(context);
-    }
-    default: {
-      throw new Error(`the desktop entry answers no "${String(verb)}"`);
-    }
-  }
+) => DoorReply<DoorAnswers[V]> | Promise<DoorReply<DoorAnswers[V]>>;
+
+// mapped, so a question looked up by a generic verb answers that verb's own type
+type DoorQuestions = { [V in DoorVerb]: DoorQuestion<V> };
+
+const QUESTIONS: DoorQuestions = {
+  facts: async (context, args) => await facts(context, required(args[0], "a folder")),
+  handoff: async (context) => await handoff(context),
+  launch: async (context) => await launch(context),
+  "plan-create": (context, args) =>
+    planChoice(context, {
+      kind: "create",
+      name: args[1] ?? "",
+      parent: required(args[0], "a parent folder"),
+    }),
+  "plan-open": (context, args) =>
+    planChoice(context, { kind: "open", path: required(args[0], "a folder") }),
+  "plan-switch": (context, args) => planSwitch(context, required(args[0], "a folder")),
+  select: (context, args) =>
+    select(context, args[0] === "--default" ? null : required(args[0], "a folder")),
+  sync: (context, args) => sync(context, required(args[0], "a folder")),
 };
+
+const isDoorVerb = (verb: string): verb is DoorVerb => Object.hasOwn(QUESTIONS, verb);
+
+export const parseDoorVerb = (verb: string | undefined): DoorVerb => {
+  if (verb === undefined || !isDoorVerb(verb)) {
+    throw new Error(`the desktop entry answers no "${String(verb)}"`);
+  }
+  return verb;
+};
+
+export const answerDoor = async <V extends DoorVerb>(
+  context: DoorContext,
+  verb: V,
+  args: readonly string[],
+): Promise<DoorReply<DoorAnswers[V]>> => await QUESTIONS[verb](context, args);

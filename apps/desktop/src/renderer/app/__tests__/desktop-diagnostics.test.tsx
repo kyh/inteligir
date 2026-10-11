@@ -3,10 +3,11 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { DiagnosticsState } from "../../../diagnostics-state";
-import type { DesktopDiagnosticsBridge } from "../../../types";
+import { APP_COMMANDS } from "../../../ipc-contract";
+import type { BridgeAnswer, DoneAnswer } from "../../../shell-answer";
+import { clearShell, mockShell, reply } from "../../__tests__/mock-shell";
 import { setDebugLogging } from "../desktop-diagnostics";
 import { DiagnosticsRows } from "../settings/advanced-section";
-import { inertBridge } from "./inert-bridge";
 
 const PENDING_RESTART: DiagnosticsState = {
   canRestart: true,
@@ -15,38 +16,29 @@ const PENDING_RESTART: DiagnosticsState = {
   server: "owned",
 };
 
-const openDataFolder = vi.fn<DesktopDiagnosticsBridge["openDataFolder"]>(async () => ({
-  ok: true,
-}));
-const restart = vi.fn<DesktopDiagnosticsBridge["restart"]>(async () => ({
+const openDataFolder = vi.fn<() => DoneAnswer>(() => ({ ok: true }));
+const restart = vi.fn<() => BridgeAnswer<DiagnosticsState>>(() => ({
   ok: true,
   state: PENDING_RESTART,
 }));
-const setDebug = vi.fn<DesktopDiagnosticsBridge["setDebug"]>(async () => ({
+const setDebug = vi.fn<(choice: { debug: boolean }) => BridgeAnswer<DiagnosticsState>>(() => ({
   ok: false,
   reason: "The choice could not be saved: EACCES",
 }));
 
-// before the first render: the store reads the bridge once, on its first subscriber
+// before the first render: the store asks the shell once, on its first subscriber
 beforeAll(() => {
-  const bridge = inertBridge();
-  window.desktopBridge = {
-    ...bridge,
-    diagnostics: {
-      ...bridge.diagnostics,
-      getState: async () => PENDING_RESTART,
-      openDataFolder,
-      restart,
-      setDebug,
-    },
-  };
+  mockShell(
+    reply(APP_COMMANDS.diagnostics.getState)(() => PENDING_RESTART),
+    reply(APP_COMMANDS.diagnostics.openDataFolder)(openDataFolder),
+    reply(APP_COMMANDS.diagnostics.restart)(restart),
+    reply(APP_COMMANDS.diagnostics.setDebug)(setDebug),
+  );
 });
 
 afterEach(cleanup);
 
-afterAll(() => {
-  delete window.desktopBridge;
-});
+afterAll(clearShell);
 
 describe("under the shell", () => {
   it("draws the choice, and the rows only the shell can answer", async () => {
@@ -70,6 +62,6 @@ describe("under the shell", () => {
 
   it("hands back the shell's refusal in its words", async () => {
     expect(await setDebugLogging(false)).toBe("The choice could not be saved: EACCES");
-    expect(setDebug).toHaveBeenCalledWith(false);
+    expect(setDebug).toHaveBeenCalledWith({ debug: false });
   });
 });

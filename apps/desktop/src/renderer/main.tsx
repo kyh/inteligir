@@ -2,15 +2,12 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { installDesktopBridge } from "./app/desktop-bridge";
 import { installLightPrints } from "./app/note/export-pdf";
 import { RenderCrash } from "./app/render-crash";
 import { applyStoredSpellcheck } from "./app/spellcheck";
 import { routeTree } from "./routeTree.gen";
 import "./styles/globals.css";
 
-// before the first render: every surface that asks the shell reads the bridge as it mounts
-installDesktopBridge();
 // before the first paint: a stored "off" must not flash red underlines
 applyStoredSpellcheck();
 installLightPrints();

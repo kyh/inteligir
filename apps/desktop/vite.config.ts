@@ -8,7 +8,7 @@ const here = import.meta.dirname;
 const renderer = path.resolve(here, "src/renderer");
 
 // Two pages, each its own build. The app page is what every vault's server answers: the CLI stages
-// it as its UI (apps/cli/scripts/build.mjs), and the shell's window loads it from that server's
+// it as its UI (apps/cli/scripts/build.ts), and the shell's window loads it from that server's
 // own origin. The first run opens before any server exists, so the shell embeds that page alone
 // (`frontendDist` in src-tauri/tauri.conf.json) rather than carrying the app page twice.
 const PAGES = {

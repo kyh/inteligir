@@ -14,15 +14,24 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::diagnostics::{self, Diagnostics, ServerRun};
-use crate::door::{Door, DoorError};
+use crate::door::Door;
 use crate::launch::{FolderSync, Handoff, Launch, Opening, Plan, Proposal, Target};
 use crate::runtime::{self, NodeRuntime};
-use crate::server::{self, Live, OwnedServer, ServerSpec, Started};
+use crate::server::{self, OwnedServer, ServerSpec, Started};
 use crate::server_log::{self, SERVER_LOG_MAX_BYTES, ServerLog};
 use crate::vaults::{self, VaultsState};
 use crate::window::{self, AppWindow};
 
+pub const NO_VAULT: &str = "No vault is open yet.";
 const ADOPTED_SWITCH_REASON: &str = "This server was started outside the app, so the app cannot restart it on another vault. Stop it and reopen Inteligir to switch.";
+const SWITCHING_REASON: &str = "Another vault is already opening.";
+const OWN_DIR_NAME: &str = "desktop";
+
+// the CLI's names for what the shell pins on a child (`apps/cli/src/server/config.ts`,
+// `ui-dev-server.ts`), held equal by `tools/repo-guards/src/desktop-shell-wire.test.ts`
+const DATA_DIR_ENV_VAR: &str = "INTELIGIR_DATA_DIR";
+const VAULT_DIR_ENV_VAR: &str = "INTELIGIR_VAULT_DIR";
+const UI_DEV_URL_ENV_VAR: &str = "INTELIGIR_UI_DEV_URL";
 
 /// The first run's handed-out folders: every folder the page names back is one the shell gave it.
 pub struct FirstRun {
@@ -31,24 +40,147 @@ pub struct FirstRun {
     pub folders: HashSet<String>,
 }
 
+/// What a launch settles for the life of the app.
+#[derive(Clone)]
+struct Launched {
+    door: Door,
+    /// The recent list, the debug choice and WebKitGTK's stores, under the root data dir the launch
+    /// resolved: a development shell's is its checkout's, so two checkouts share none of them.
+    own_dir: PathBuf,
+}
+
+impl Launched {
+    fn recent_path(&self) -> PathBuf {
+        self.own_dir.join(vaults::RECENT_VAULTS_FILE_NAME)
+    }
+
+    fn webview_dir(&self, data_dir: &str) -> PathBuf {
+        self.own_dir
+            .join("webview")
+            .join(hex16(&window::data_store_id(data_dir)))
+    }
+}
+
+/// Where the shell is, which says what its window shows and what may happen next.
+#[derive(Default)]
+enum Phase {
+    /// The launch has not settled on a vault or a first run yet.
+    #[default]
+    Starting,
+    /// No vault yet: the first run's window asks for one, and `booting` while its choice opens.
+    FirstRun {
+        first_run: FirstRun,
+        booting: bool,
+    },
+    /// The previous vault's server is stopped, and its window stays up until the next one opens.
+    Switching {
+        previous: Target,
+        window: String,
+    },
+    Open(Open),
+    /// The server is stopped for a quit or an install, and nothing opens after it.
+    Closing,
+}
+
+/// A vault on screen: its window, and the server behind it.
+struct Open {
+    target: Target,
+    server: Server,
+    window: String,
+}
+
+/// A server the shell started is the shell's to stop; one it adopted is nobody's and outlives it.
+enum Server {
+    Owned {
+        server: Arc<OwnedServer>,
+        /// The diagnostics choice it started with.
+        debug: bool,
+    },
+    Adopted,
+}
+
+impl Server {
+    const fn run(&self) -> ServerRun {
+        match self {
+            Self::Owned { debug, .. } => ServerRun::Owned { debug: *debug },
+            Self::Adopted => ServerRun::Adopted,
+        }
+    }
+}
+
+/// What a switch leaves: the vault on screen, its window, and the server the shell started for it.
+struct Leaving {
+    target: Target,
+    window: String,
+    server: Arc<OwnedServer>,
+}
+
+impl Phase {
+    /// The vault on screen: the open one, or the previous one while a switch is under way.
+    fn shown(&self) -> Option<(&Target, &str)> {
+        match self {
+            Self::Open(open) => Some((&open.target, &open.window)),
+            Self::Switching { previous, window } => Some((previous, window)),
+            Self::Starting | Self::FirstRun { .. } | Self::Closing => None,
+        }
+    }
+
+    /// A switch leaves only a vault whose server the shell started; anything else says why not.
+    fn leaving(&self) -> Result<Leaving, &'static str> {
+        match self {
+            Self::Open(Open {
+                target,
+                server: Server::Owned { server, .. },
+                window,
+            }) => Ok(Leaving {
+                target: target.clone(),
+                window: window.clone(),
+                server: Arc::clone(server),
+            }),
+            Self::Open(_) => Err(ADOPTED_SWITCH_REASON),
+            Self::Switching { .. } => Err(SWITCHING_REASON),
+            Self::Starting | Self::FirstRun { .. } | Self::Closing => Err(NO_VAULT),
+        }
+    }
+}
+
 #[derive(Default)]
 struct State {
-    door: Option<Door>,
-    target: Option<Target>,
-    live: Option<Live>,
-    owned: Option<Arc<OwnedServer>>,
-    window: Option<String>,
-    first_run: Option<FirstRun>,
+    launched: Option<Launched>,
+    phase: Phase,
     diagnostics: Option<Diagnostics>,
     recent: Vec<String>,
-    switching: bool,
     windows_made: u32,
 }
 
+impl State {
+    /// What the page and the menus offer: the vault on screen, the others remembered, and why a
+    /// switch would be refused, if it would.
+    fn vaults(&self, exists: impl Fn(&str) -> bool) -> Option<VaultsState> {
+        let (target, blocked) = match &self.phase {
+            Phase::Open(Open {
+                target,
+                server: Server::Owned { .. },
+                ..
+            }) => (target, target.switch_blocked.clone()),
+            Phase::Open(Open {
+                target,
+                server: Server::Adopted,
+                ..
+            }) => (target, Some(ADOPTED_SWITCH_REASON.to_owned())),
+            Phase::Switching { previous, .. } => (previous, Some(SWITCHING_REASON.to_owned())),
+            Phase::Starting | Phase::FirstRun { .. } | Phase::Closing => return None,
+        };
+        let recent = vaults::offered(&self.recent, Some(&target.vault_dir), exists);
+        Some(VaultsState {
+            blocked,
+            current: vaults::vault_ref(&target.vault_dir),
+            recent: recent.iter().map(|path| vaults::vault_ref(path)).collect(),
+        })
+    }
+}
+
 pub struct Shell {
-    /// The shell's own folder (the recent list, the debug choice): Electron's userData, kept so an
-    /// upgrade keeps both.
-    pub own_dir: PathBuf,
     pub bundled: bool,
     state: Mutex<State>,
 }
@@ -62,9 +194,8 @@ pub enum Outcome {
 }
 
 impl Shell {
-    pub fn new(own_dir: PathBuf, bundled: bool) -> Self {
+    pub fn new(bundled: bool) -> Self {
         Self {
-            own_dir,
             bundled,
             state: Mutex::new(State::default()),
         }
@@ -74,31 +205,53 @@ impl Shell {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn door(&self) -> Result<Door, String> {
+    fn launched(&self) -> Result<Launched, String> {
         self.lock()
-            .door
+            .launched
             .clone()
             .ok_or_else(|| "the app is still starting".to_owned())
     }
 
+    fn door(&self) -> Result<Door, String> {
+        self.launched().map(|launched| launched.door)
+    }
+
+    /// The vault on screen, the previous one while a switch is under way.
     pub fn target(&self) -> Option<Target> {
-        self.lock().target.clone()
+        self.lock().phase.shown().map(|(target, _)| target.clone())
     }
 
-    pub fn window_label(&self) -> Option<String> {
-        self.lock().window.clone()
+    /// The diagnostics beside the server behind the open vault's window; None while no vault is
+    /// open, since only that server says whether the choice reaches it.
+    pub fn with_diagnostics<T>(
+        &self,
+        read: impl FnOnce(&mut Diagnostics, ServerRun) -> T,
+    ) -> Option<T> {
+        let mut state = self.lock();
+        let State {
+            phase, diagnostics, ..
+        } = &mut *state;
+        let Phase::Open(open) = phase else {
+            return None;
+        };
+        diagnostics
+            .as_mut()
+            .map(|diagnostics| read(diagnostics, open.server.run()))
     }
 
-    pub fn with_diagnostics<T>(&self, read: impl FnOnce(&mut Diagnostics) -> T) -> Option<T> {
-        self.lock().diagnostics.as_mut().map(read)
+    /// The choice the next start of the server runs with.
+    fn debug_choice(&self) -> bool {
+        self.lock()
+            .diagnostics
+            .as_ref()
+            .is_some_and(Diagnostics::debug)
     }
 
     pub fn with_first_run<T>(&self, read: impl FnOnce(&mut FirstRun) -> T) -> Option<T> {
-        self.lock().first_run.as_mut().map(read)
-    }
-
-    fn recent_path(&self) -> PathBuf {
-        self.own_dir.join(vaults::RECENT_VAULTS_FILE_NAME)
+        match &mut self.lock().phase {
+            Phase::FirstRun { first_run, .. } => Some(read(first_run)),
+            _ => None,
+        }
     }
 }
 
@@ -159,7 +312,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
     };
     let launch: Launch = match door.ask(&["launch"]) {
         Ok(launch) => launch,
-        Err(error) => return fail_start(app, error.message()),
+        Err(reason) => return fail_start(app, &reason),
     };
     for note in &launch.notes {
         println!("[desktop] {note}");
@@ -172,26 +325,30 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
             .map(|(name, value)| (name.into(), value.into())),
     );
     {
+        let launched = Launched {
+            door,
+            own_dir: Path::new(&launch.target.root_data_dir).join(OWN_DIR_NAME),
+        };
         let mut state = shell.lock();
-        state.door = Some(door);
-        state.recent = vaults::read_recent(&shell.recent_path());
+        state.recent = vaults::read_recent(&launched.recent_path());
         state.diagnostics = Some(Diagnostics::new(
-            shell.own_dir.join(diagnostics::DIAGNOSTICS_FILE_NAME),
+            launched.own_dir.join(diagnostics::DIAGNOSTICS_FILE_NAME),
             shell.bundled,
         ));
+        state.launched = Some(launched);
     }
     crate::menu::rebuild(app);
     crate::updater::start(app);
     match launch.plan {
         Plan::FirstRun => {
-            {
-                let mut state = shell.lock();
-                state.first_run = Some(FirstRun {
+            shell.lock().phase = Phase::FirstRun {
+                first_run: FirstRun {
                     parents: HashSet::from([launch.proposal.parent.clone()]),
                     folders: HashSet::new(),
                     proposal: launch.proposal,
-                });
-            }
+                },
+                booting: false,
+            };
             if let Err(error) = window::create_first_run_window(app) {
                 fail_start(app, &error.to_string());
             }
@@ -212,22 +369,18 @@ pub fn boot_vault<R: Runtime>(
     path: &str,
 ) -> Result<(), String> {
     let shell = app.state::<Shell>();
-    let door = shell.door()?;
-    let debug = shell
-        .with_diagnostics(|diagnostics| diagnostics.debug())
-        .unwrap_or(false);
+    let launched = shell.launched()?;
+    let door = &launched.door;
+    let debug = shell.debug_choice();
     let mut env = door.env.clone();
-    env.insert("INTELIGIR_DATA_DIR".into(), target.data_dir.clone().into());
-    env.insert(
-        "INTELIGIR_VAULT_DIR".into(),
-        target.vault_dir.clone().into(),
-    );
+    env.insert(DATA_DIR_ENV_VAR.into(), target.data_dir.clone().into());
+    env.insert(VAULT_DIR_ENV_VAR.into(), target.vault_dir.clone().into());
     // under `tauri dev` the server answers the page's files from Vite, so an edit reloads in place
     // while the window keeps its server's origin (apps/cli/src/server/ui-dev-server.ts)
     if tauri::is_dev()
         && let Some(dev_url) = &app.config().build.dev_url
     {
-        env.insert("INTELIGIR_UI_DEV_URL".into(), dev_url.to_string().into());
+        env.insert(UI_DEV_URL_ENV_VAR.into(), dev_url.to_string().into());
     }
     let mut args = vec!["serve"];
     if debug {
@@ -259,16 +412,20 @@ pub fn boot_vault<R: Runtime>(
             .blocking_show();
         exiting.exit(1);
     })?;
-    let (live, owned, run) = match started {
-        Started::Owned { live, server } => {
-            (live, Some(Arc::new(server)), ServerRun::Owned { debug })
-        }
+    let (live, server) = match started {
+        Started::Owned { live, server } => (
+            live,
+            Server::Owned {
+                server: Arc::new(server),
+                debug,
+            },
+        ),
         Started::Adopted { live } => {
             println!(
                 "[desktop] adopting the server already serving {}",
                 target.data_dir
             );
-            (live, None, ServerRun::Adopted)
+            (live, Server::Adopted)
         }
     };
     let label = {
@@ -276,10 +433,6 @@ pub fn boot_vault<R: Runtime>(
         state.windows_made += 1;
         format!("vault-{}", state.windows_made)
     };
-    let webview_dir = shell
-        .own_dir
-        .join("webview")
-        .join(hex16(&window::data_store_id(&target.data_dir)));
     let made = window::create_app_window(
         app,
         &AppWindow {
@@ -288,12 +441,12 @@ pub fn boot_vault<R: Runtime>(
             handoff_url: &live.handoff_url,
             path,
             data_dir: &target.data_dir,
-            webview_dir,
+            webview_dir: launched.webview_dir(&target.data_dir),
             log,
         },
     );
     if let Err(error) = made {
-        if let Some(server) = owned {
+        if let Server::Owned { server, .. } = server {
             server.stop();
         }
         return Err(format!("the window could not open: {error}"));
@@ -301,16 +454,14 @@ pub fn boot_vault<R: Runtime>(
     {
         let mut state = shell.lock();
         state.recent = vaults::remember(&state.recent, &target.vault_dir);
-        if let Err(error) = vaults::write_recent(&shell.recent_path(), &state.recent) {
+        if let Err(error) = vaults::write_recent(&launched.recent_path(), &state.recent) {
             eprintln!("[desktop] could not write the recent-vaults list: {error}");
         }
-        if let Some(diagnostics) = state.diagnostics.as_mut() {
-            diagnostics.record_run(run);
-        }
-        state.target = Some(target);
-        state.live = Some(live);
-        state.owned = owned;
-        state.window = Some(label);
+        state.phase = Phase::Open(Open {
+            target,
+            server,
+            window: label,
+        });
     }
     crate::menu::rebuild(app);
     Ok(())
@@ -324,60 +475,45 @@ fn hex16(id: &[u8; 16]) -> String {
     })
 }
 
-/// The child's ordered shutdown flushes the vault's pending commit; nothing moves until it has.
-/// An adopted server is nobody's to stop and outlives the shell.
+/// The app is ending, for a quit or an install: the child's ordered shutdown flushes the vault's
+/// pending commit before anything moves on, and nothing opens after it. An adopted server is
+/// nobody's to stop and outlives the shell.
 pub fn stop_owned_server<R: Runtime>(app: &AppHandle<R>) {
-    let owned = {
-        let shell = app.state::<Shell>();
-        let mut state = shell.lock();
-        state.live = None;
-        state.owned.take()
-    };
-    if let Some(server) = owned {
+    let ended = std::mem::replace(&mut app.state::<Shell>().lock().phase, Phase::Closing);
+    if let Phase::Open(Open {
+        server: Server::Owned { server, .. },
+        ..
+    }) = ended
+    {
         server.stop();
     }
 }
 
-/// The window the app is on: the vault's once a server is live, the first run's before the first
-/// vault opens, and none while a boot is under way.
+/// The window the app is on: the vault's (the previous one's while a switch is under way), the
+/// first run's before the first vault opens, and none while the launch's boot is under way.
 pub fn show_current_window<R: Runtime>(app: &AppHandle<R>) {
-    let shell = app.state::<Shell>();
-    let label = shell.window_label();
+    let label = match &app.state::<Shell>().lock().phase {
+        Phase::FirstRun { .. } => Some(window::FIRST_RUN.to_owned()),
+        phase => phase.shown().map(|(_, window)| window.to_owned()),
+    };
     if let Some(label) = label {
         window::bring_forward(app, &label);
-        return;
-    }
-    if shell.with_first_run(|_| ()).is_some() {
-        window::bring_forward(app, window::FIRST_RUN);
     }
 }
 
 pub fn vaults_state<R: Runtime>(app: &AppHandle<R>) -> Option<VaultsState> {
-    let shell = app.state::<Shell>();
-    let state = shell.lock();
-    let target = state.target.as_ref()?;
-    let blocked = if state.owned.is_none() {
-        Some(ADOPTED_SWITCH_REASON.to_owned())
-    } else {
-        target.switch_blocked.clone()
-    };
-    let recent = vaults::offered(&state.recent, Some(&target.vault_dir), |path| {
-        Path::new(path).exists()
-    });
-    Some(VaultsState {
-        blocked,
-        current: vaults::vault_ref(&target.vault_dir),
-        recent: recent.iter().map(|path| vaults::vault_ref(path)).collect(),
-    })
+    app.state::<Shell>()
+        .lock()
+        .vaults(|path| Path::new(path).exists())
 }
 
 pub fn remember_list<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
     let shell = app.state::<Shell>();
     let state = shell.lock();
     let current = state
-        .target
-        .as_ref()
-        .map(|target| target.vault_dir.as_str());
+        .phase
+        .shown()
+        .map(|(target, _)| target.vault_dir.as_str());
     vaults::offered(&state.recent, current, |path| Path::new(path).exists())
 }
 
@@ -386,7 +522,9 @@ pub fn forget_vault<R: Runtime>(app: &AppHandle<R>, path: &str) {
     {
         let mut state = shell.lock();
         state.recent = vaults::forget(&state.recent, path);
-        if let Err(error) = vaults::write_recent(&shell.recent_path(), &state.recent) {
+        if let Some(launched) = &state.launched
+            && let Err(error) = vaults::write_recent(&launched.recent_path(), &state.recent)
+        {
             eprintln!("[desktop] could not write the recent-vaults list: {error}");
         }
     }
@@ -401,12 +539,6 @@ pub fn is_remembered<R: Runtime>(app: &AppHandle<R>, path: &str) -> bool {
         .any(|each| each == path)
 }
 
-fn ask<T: serde::de::DeserializeOwned>(door: &Door, args: &[&str]) -> Result<T, String> {
-    door.ask(args).map_err(|error| match error {
-        DoorError::Refused(reason) | DoorError::Fault(reason) => reason,
-    })
-}
-
 /// The folder's own service keeps syncing it and the app will not: a picked switch asks first, in
 /// the first run's words.
 pub fn confirm_outside_sync<R: Runtime>(
@@ -414,7 +546,7 @@ pub fn confirm_outside_sync<R: Runtime>(
     vault_dir: &str,
 ) -> Result<bool, String> {
     let door = app.state::<Shell>().door()?;
-    let sync: FolderSync = ask(&door, &["sync", vault_dir])?;
+    let sync: FolderSync = door.ask(&["sync", vault_dir])?;
     let Some(warning) = sync.warning else {
         return Ok(true);
     };
@@ -436,17 +568,14 @@ pub fn confirm_outside_sync<R: Runtime>(
 /// vault that failed.
 pub fn switch_vault<R: Runtime>(app: &AppHandle<R>, vault_dir: &str, confirm: bool) -> Outcome {
     let shell = app.state::<Shell>();
-    let (door, previous, owns, previous_window) = {
-        let state = shell.lock();
-        let (Some(door), Some(previous)) = (state.door.clone(), state.target.clone()) else {
-            return Outcome::Refused("No vault is open yet.".to_owned());
-        };
-        (door, previous, state.owned.is_some(), state.window.clone())
-    };
-    if !owns {
-        return Outcome::Refused(ADOPTED_SWITCH_REASON.to_owned());
+    if let Err(reason) = shell.lock().phase.leaving() {
+        return Outcome::Refused(reason.to_owned());
     }
-    let opening: Opening = match ask(&door, &["plan-switch", vault_dir]) {
+    let door = match shell.door() {
+        Ok(door) => door,
+        Err(reason) => return Outcome::Refused(reason),
+    };
+    let opening: Opening = match door.ask(&["plan-switch", vault_dir]) {
         Ok(opening) => opening,
         Err(reason) => return Outcome::Refused(reason),
     };
@@ -457,29 +586,33 @@ pub fn switch_vault<R: Runtime>(app: &AppHandle<R>, vault_dir: &str, confirm: bo
             Err(reason) => return Outcome::Refused(reason),
         }
     }
-    {
+    // asked again: another switch may have begun or ended while the plan and the question were out
+    let leaving = {
         let mut state = shell.lock();
-        if state.switching {
-            return Outcome::Refused("Another vault is already opening.".to_owned());
+        match state.phase.leaving() {
+            Ok(leaving) => {
+                state.phase = Phase::Switching {
+                    previous: leaving.target.clone(),
+                    window: leaving.window.clone(),
+                };
+                leaving
+            }
+            Err(reason) => return Outcome::Refused(reason.to_owned()),
         }
-        state.switching = true;
-    }
-    let outcome = run_switch(app, &door, &previous, &opening, previous_window.as_deref());
-    shell.lock().switching = false;
-    outcome
+    };
+    leaving.server.stop();
+    run_switch(app, &door, &leaving, &opening)
 }
 
+/// A failed boot left nothing running, so the way back is the previous vault's boot alone.
 fn run_switch<R: Runtime>(
     app: &AppHandle<R>,
     door: &Door,
-    previous: &Target,
+    leaving: &Leaving,
     opening: &Opening,
-    previous_window: Option<&str>,
 ) -> Outcome {
-    stop_owned_server(app);
     let close_previous = || {
-        if let Some(label) = previous_window
-            && let Some(window) = app.get_webview_window(label)
+        if let Some(window) = app.get_webview_window(&leaving.window)
             && let Err(error) = window.destroy()
         {
             eprintln!("[desktop] could not close the previous window: {error}");
@@ -499,14 +632,11 @@ fn run_switch<R: Runtime>(
     let (reason, selector_written) = failure;
     eprintln!("[desktop] the vault did not open; returning to the previous one: {reason}");
     let restored = if selector_written {
-        select(door, Some(&previous.vault_dir)).map(|_| ())
+        select(door, Some(&leaving.target.vault_dir)).map(|_| ())
     } else {
         Ok(())
     }
-    .and_then(|()| {
-        stop_owned_server(app);
-        boot_vault(app, previous.clone(), "/")
-    });
+    .and_then(|()| boot_vault(app, leaving.target.clone(), "/"));
     if let Err(reopen) = restored {
         let reason = format!("{reopen} Reopen Inteligir to continue.");
         app.dialog()
@@ -527,14 +657,13 @@ fn run_switch<R: Runtime>(
     Outcome::Reported(reason)
 }
 
-/// Writes config.json's selector (None clears it) and answers the vault the next boot resolves,
-/// re-read after the write as the CLI would.
-/// Points config.json at a vault (`None`: the default). The door takes back a selection its boot
-/// then refuses, so an `Err` here left the selector as it was and there is nothing to put back.
+/// Points config.json at a vault (`None`: the default) and answers the vault the next boot
+/// resolves. The door takes back a selection its boot then refuses, so an `Err` here left the
+/// selector as it was and there is nothing to put back.
 fn select(door: &Door, vault_dir: Option<&str>) -> Result<Target, String> {
     match vault_dir {
-        Some(vault_dir) => ask(door, &["select", vault_dir]),
-        None => ask(door, &["select", "--default"]),
+        Some(vault_dir) => door.ask(&["select", vault_dir]),
+        None => door.ask(&["select", "--default"]),
     }
 }
 
@@ -546,26 +675,24 @@ pub fn finish_first_run<R: Runtime>(app: &AppHandle<R>, plan_args: &[&str]) -> O
         Ok(door) => door,
         Err(reason) => return Outcome::Refused(reason),
     };
-    let opening: Opening = match ask(&door, plan_args) {
+    let opening: Opening = match door.ask(plan_args) {
         Ok(opening) => opening,
         Err(reason) => return Outcome::Refused(reason),
     };
-    {
-        let mut state = shell.lock();
-        if state.switching {
+    match &mut shell.lock().phase {
+        Phase::FirstRun { booting, .. } if !*booting => *booting = true,
+        Phase::FirstRun { .. } => {
             return Outcome::Refused("The vault is already opening.".to_owned());
         }
-        state.switching = true;
+        _ => return Outcome::Refused("The first run is over.".to_owned()),
     }
     let booted = select(&door, opening.selector.as_deref())
         .map_err(|reason| (reason, false))
         .and_then(|target| {
             boot_vault(app, target, window::WELCOME_PATH).map_err(|reason| (reason, true))
         });
-    shell.lock().switching = false;
     match booted {
         Ok(()) => {
-            shell.lock().first_run = None;
             if let Some(first_run) = app.get_webview_window(window::FIRST_RUN)
                 && let Err(error) = first_run.destroy()
             {
@@ -574,8 +701,9 @@ pub fn finish_first_run<R: Runtime>(app: &AppHandle<R>, plan_args: &[&str]) -> O
             Outcome::Done
         }
         Err((reason, selector_written)) => {
-            stop_owned_server(app);
-            shell.lock().target = None;
+            if let Phase::FirstRun { booting, .. } = &mut shell.lock().phase {
+                *booting = false;
+            }
             let residue = if selector_written && opening.selector.is_some() {
                 match select(&door, None) {
                     Ok(_) => String::new(),
@@ -596,15 +724,14 @@ pub fn ask_door<T: serde::de::DeserializeOwned, R: Runtime>(
     app: &AppHandle<R>,
     args: &[&str],
 ) -> Result<T, String> {
-    let door = app.state::<Shell>().door()?;
-    ask(&door, args)
+    app.state::<Shell>().door()?.ask(args)
 }
 
 pub fn open_data_folder<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let target = app
         .state::<Shell>()
         .target()
-        .ok_or_else(|| "No vault is open yet.".to_owned())?;
+        .ok_or_else(|| NO_VAULT.to_owned())?;
     app.opener()
         .open_path(&target.data_dir, None::<&str>)
         .map_err(|error| error.to_string())
@@ -615,7 +742,7 @@ pub fn show_server_log<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let target = app
         .state::<Shell>()
         .target()
-        .ok_or_else(|| "No vault is open yet.".to_owned())?;
+        .ok_or_else(|| NO_VAULT.to_owned())?;
     let log = server_log::server_log_path(Path::new(&target.data_dir));
     if !log.exists() {
         return Err("Nothing has been logged for this vault yet.".to_owned());
@@ -634,8 +761,8 @@ pub fn open_in_browser<R: Runtime>(app: &AppHandle<R>) {
     let handoff = shell.door().and_then(|door| {
         let mut door = door;
         door.env
-            .insert("INTELIGIR_DATA_DIR".into(), target.data_dir.into());
-        ask::<Handoff>(&door, &["handoff"])
+            .insert(DATA_DIR_ENV_VAR.into(), target.data_dir.into());
+        door.ask::<Handoff>(&["handoff"])
     });
     let opened = handoff.and_then(|handoff| {
         app.opener()
@@ -648,5 +775,110 @@ pub fn open_in_browser<R: Runtime>(app: &AppHandle<R>) {
             .title("Could not open Inteligir in the browser")
             .kind(MessageDialogKind::Error)
             .blocking_show();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn target(vault_dir: &str) -> Target {
+        Target {
+            data_dir: "/h/.inteligir".to_owned(),
+            vault_dir: vault_dir.to_owned(),
+            root_data_dir: "/h/.inteligir".to_owned(),
+            switch_blocked: None,
+        }
+    }
+
+    fn shell_in(phase: Phase) -> Shell {
+        let shell = Shell::new(true);
+        {
+            let mut state = shell.lock();
+            state.phase = phase;
+            state.recent = vec!["/h/Notes".to_owned(), "/h/Work".to_owned()];
+            state.diagnostics = Some(Diagnostics::new(
+                PathBuf::from("/nowhere/diagnostics.json"),
+                true,
+            ));
+        }
+        shell
+    }
+
+    fn adopted(vault_dir: &str) -> Phase {
+        Phase::Open(Open {
+            target: target(vault_dir),
+            server: Server::Adopted,
+            window: "vault-1".to_owned(),
+        })
+    }
+
+    #[test]
+    fn a_switch_under_way_blocks_another_in_its_own_words() {
+        let shell = shell_in(Phase::Switching {
+            previous: target("/h/Notes"),
+            window: "vault-1".to_owned(),
+        });
+        let state = shell.lock();
+        let vaults = state.vaults(|_| true);
+        assert_eq!(
+            vaults.as_ref().and_then(|vaults| vaults.blocked.as_deref()),
+            Some(SWITCHING_REASON)
+        );
+        assert_eq!(
+            vaults.map(|vaults| (vaults.current.path, vaults.recent.len())),
+            Some(("/h/Notes".to_owned(), 1))
+        );
+        assert_eq!(state.phase.leaving().err(), Some(SWITCHING_REASON));
+    }
+
+    #[test]
+    fn an_adopted_server_refuses_a_switch_and_says_so() {
+        let shell = shell_in(adopted("/h/Notes"));
+        let state = shell.lock();
+        assert_eq!(
+            state
+                .vaults(|_| true)
+                .and_then(|vaults| vaults.blocked)
+                .as_deref(),
+            Some(ADOPTED_SWITCH_REASON)
+        );
+        assert_eq!(state.phase.leaving().err(), Some(ADOPTED_SWITCH_REASON));
+    }
+
+    #[test]
+    fn the_diagnostics_read_the_server_behind_the_open_vault() {
+        let shell = shell_in(adopted("/h/Notes"));
+        assert!(matches!(
+            shell.with_diagnostics(|diagnostics, run| diagnostics.state(run)),
+            Some(diagnostics::State::Adopted { .. })
+        ));
+        shell.lock().phase = Phase::Switching {
+            previous: target("/h/Notes"),
+            window: "vault-1".to_owned(),
+        };
+        assert!(shell.with_diagnostics(|_, run| run).is_none());
+    }
+
+    #[test]
+    fn no_vault_on_screen_offers_no_vaults_and_no_switch() {
+        let first_run = Phase::FirstRun {
+            first_run: FirstRun {
+                proposal: Proposal {
+                    name: "Inteligir".to_owned(),
+                    parent: "/h".to_owned(),
+                },
+                parents: HashSet::new(),
+                folders: HashSet::new(),
+            },
+            booting: false,
+        };
+        for phase in [Phase::Starting, first_run, Phase::Closing] {
+            let shell = shell_in(phase);
+            let state = shell.lock();
+            assert!(state.vaults(|_| true).is_none());
+            assert_eq!(state.phase.leaving().err(), Some(NO_VAULT));
+            assert!(state.phase.shown().is_none());
+        }
     }
 }

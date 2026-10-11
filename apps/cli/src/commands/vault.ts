@@ -418,7 +418,7 @@ export const vaultCommand = (deps: CliDeps) =>
         run: async ({ args }) => {
           const api = apiFor(deps);
           // dynamic imports: both read frontmatter, and a static one would load yaml before every
-          // client verb reads argv (the build refuses that, scripts/build.mjs).
+          // client verb reads argv (the build refuses that, scripts/build.ts).
           const [{ frontmatterId }, { giveNoteOwnId }] = await Promise.all([
             import("@repo/notes/markdown/frontmatter"),
             import("@repo/contract/local/vault/give-note-own-id"),
@@ -608,7 +608,7 @@ export const vaultCommand = (deps: CliDeps) =>
           let comments: CommentStoreRestore = { kind: "none" };
           if (guard.kind === "absent") {
             // dynamic import: it reads frontmatter, and a static one would load yaml before every
-            // client verb reads argv (the build refuses that, scripts/build.mjs).
+            // client verb reads argv (the build refuses that, scripts/build.ts).
             const { restoreCommentStore } =
               await import("@repo/contract/local/vault/restore-comment-store");
             comments = await restoreCommentStore(api, revision.content, args.sha);

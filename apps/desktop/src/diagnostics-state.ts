@@ -28,9 +28,3 @@ export const diagnosticsStateSchema = z.discriminatedUnion("server", [
     .strict(),
 ]);
 export type DiagnosticsState = z.infer<typeof diagnosticsStateSchema>;
-
-export const diagnosticsAnswerSchema = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true), state: diagnosticsStateSchema }).strict(),
-  z.object({ ok: z.literal(false), reason: z.string().min(1) }).strict(),
-]);
-export type DiagnosticsAnswer = z.infer<typeof diagnosticsAnswerSchema>;

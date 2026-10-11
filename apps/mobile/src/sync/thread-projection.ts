@@ -29,7 +29,7 @@ const toolLabel = (event: Extract<ThreadEvent, { type: "item/completed" }>): str
   const { item } = event;
   switch (item.type) {
     case "toolCall": {
-      return item.server === undefined ? item.tool : `${item.server}/${item.tool}`;
+      return item.tool;
     }
     case "commandExecution": {
       return firstVisibleLine(item.command) ?? item.command;

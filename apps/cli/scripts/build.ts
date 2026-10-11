@@ -5,6 +5,7 @@ import { cp, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { build } from "esbuild";
+import type { BuildOptions, Metafile } from "esbuild";
 
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const distDir = path.join(packageRoot, "dist");
@@ -24,7 +25,7 @@ const NODE_ESM_REQUIRE_BANNER = [
 
 const NATIVE = ["better-sqlite3", "@parcel/watcher"];
 
-const shared = {
+const shared: BuildOptions = {
   // so the metafile names every input and output from here
   absWorkingDir: packageRoot,
   banner: { js: NODE_ESM_REQUIRE_BANNER },
@@ -44,29 +45,44 @@ await rm(distDir, { force: true, recursive: true });
 // frontmatter need, so they reach it through a dynamic import; a static one slips past every test
 // and every review, so the build refuses it.
 const LOADED_ON_EVERY_VERB_REFUSED = ["node_modules/.pnpm/yaml@"];
-const STATIC_IMPORT_KINDS = new Set(["import-statement", "require-call"]);
+const STATIC_IMPORT_KINDS = new Set<string>(["import-statement", "require-call"]);
 
-const staticClosure = (metafile, entryPoint) => {
-  const entry = Object.keys(metafile.outputs).find(
-    (output) => metafile.outputs[output].entryPoint === entryPoint,
-  );
-  const reached = new Set();
+type MetafileOutput = Metafile["outputs"][string];
+
+// a chunk a bundle imports is one of its outputs, so a miss is esbuild's metafile changing shape
+const outputOf = (metafile: Metafile, name: string): MetafileOutput => {
+  const output = metafile.outputs[name];
+  if (output === undefined) {
+    throw new Error(`esbuild's metafile imports ${name} and lists no such output`);
+  }
+  return output;
+};
+
+const staticClosure = (metafile: Metafile, entryPoint: string): Set<string> => {
+  const entry = Object.entries(metafile.outputs).find(
+    ([, output]) => output.entryPoint === entryPoint,
+  )?.[0];
+  const reached = new Set<string>();
   const pending = entry === undefined ? [] : [entry];
-  for (let output = pending.pop(); output !== undefined; output = pending.pop()) {
-    if (reached.has(output)) {
+  for (let name = pending.pop(); name !== undefined; name = pending.pop()) {
+    if (reached.has(name)) {
       continue;
     }
-    reached.add(output);
-    for (const imported of metafile.outputs[output].imports) {
+    reached.add(name);
+    for (const imported of outputOf(metafile, name).imports) {
       if (STATIC_IMPORT_KINDS.has(imported.kind) && imported.external !== true) {
         pending.push(imported.path);
       }
     }
   }
-  return new Set([...reached].flatMap((output) => Object.keys(metafile.outputs[output].inputs)));
+  return new Set([...reached].flatMap((name) => Object.keys(outputOf(metafile, name).inputs)));
 };
 
-const assertEntryLoadsNone = (metafile, entryPoint, refused) => {
+const assertEntryLoadsNone = (
+  metafile: Metafile,
+  entryPoint: string,
+  refused: readonly string[],
+): void => {
   const loaded = staticClosure(metafile, entryPoint);
   for (const marker of refused) {
     const importers = [...loaded].filter(

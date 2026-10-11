@@ -29,12 +29,9 @@
       // notarization ticket from Apple, and a cache hit would replay an unsigned artifact over a
       // signing key that has since appeared.
       "cache": false,
-      // the signing identity, the notary's key and the updater's: strict env mode strips anything
-      // unnamed before the Tauri CLI reads it (scripts/package.mjs says which it sets)
+      // the signing identity and the updater's key: strict env mode strips anything unnamed before
+      // the Tauri CLI reads it. The notary's key is .release's alone (scripts/package.ts)
       "passThroughEnv": [
-        "APPLE_API_ISSUER",
-        "APPLE_API_KEY",
-        "APPLE_API_KEY_PATH",
         "APPLE_SIGNING_IDENTITY",
         "INTELIGIR_PACK_UNSIGNED",
         "TAURI_SIGNING_PRIVATE_KEY",

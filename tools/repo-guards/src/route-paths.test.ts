@@ -32,12 +32,8 @@ const GUARDED = NAMESPACES.flatMap((namespace) =>
   namespace.paths.map((path) => ({ home: namespace.home, path, use: namespace.use })),
 ).toSorted((left, right) => right.path.length - left.path.length);
 
-const ELSEWHERE = new Map<string, string>([
-  [
-    "apps/cli/scripts/smoke.mjs",
-    "a plain .mjs script run by `node` against a PACKED tarball in a scratch prefix — it has no bundler, no TypeScript and no workspace link to import the contract through, and giving it one would mean shipping the contract inside the published artifact to satisfy a test",
-  ],
-]);
+// a caller that cannot import the contract, keyed by file, with why it cannot
+const ELSEWHERE = new Map<string, string>();
 
 interface Spelled {
   path: string;
@@ -83,7 +79,7 @@ describe("one spelling per non-procedure route path", () => {
     expect(
       files,
       "the sweep does not reach scripts/, which is where the smokes that spell paths live",
-    ).toContain("apps/cli/scripts/smoke.mjs");
+    ).toContain("apps/cli/scripts/smoke.ts");
     for (const namespace of NAMESPACES) {
       expect(files, `the sweep found no ${namespace.home} — it is broken, not the tree`).toContain(
         namespace.home,

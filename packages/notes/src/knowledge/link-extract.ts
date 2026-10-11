@@ -545,7 +545,7 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
   const scan: BodyScan = { headings: [], links: [], tags: [], title: null };
   const doc: ScanContext = { scan, source, spans: mode === "rewrite" };
   const verbatim: ScanContext = { scan, source, spans: false };
-  // oxlint-disable-next-line complexity -- the count is the node-type enumeration switch-exhaustiveness-check requires, not branching: every arm delegates
+  // oxlint-disable-next-line complexity -- the count is the node-type enumeration the `never` default holds total, not branching: every arm delegates
   walk(tree, (node, at) => {
     const ctx = at.verbatim ? verbatim : doc;
     switch (node.type) {
@@ -612,7 +612,10 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
       case "yaml": {
         break;
       }
-      // no default
+      default: {
+        const unscanned: never = node;
+        return unscanned;
+      }
     }
   });
   return scan;

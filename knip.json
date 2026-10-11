@@ -11,9 +11,9 @@
         "src/desktop/desktop-entry.ts",
         "src/server/vault/watcher/parcel-child-entry.ts",
         "src/server/knowledge/projection-worker.ts",
-        "scripts/*.mjs"
+        "scripts/*.ts"
       ],
-      "project": ["src/**/*.ts", "scripts/**/*.mjs"],
+      "project": ["src/**/*.ts", "scripts/**/*.ts"],
       // the ACP adapters are resolved with require from the running bundle, never imported
       "ignoreDependencies": [
         "@agentclientprotocol/claude-agent-acp",
@@ -28,12 +28,12 @@
       // the first-run page is a build of its own (vite.config.ts), and first-run.html's script is
       // read by knip's vite plugin only from index.html
       "entry": [
-        "scripts/*.mjs",
+        "scripts/*.ts",
         "src/renderer/first-run/first-run-main.tsx",
         "src/renderer/routes/**/*.tsx",
         "src/**/__tests__/**/*.test.{ts,tsx}"
       ],
-      "project": ["src/**/*.{ts,tsx,css}", "scripts/*.mjs"],
+      "project": ["src/**/*.{ts,tsx,css}", "scripts/*.ts"],
       "ignore": ["src/renderer/routeTree.gen.ts"],
       "ignoreDependencies": ["tailwindcss"]
     },

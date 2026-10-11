@@ -4,16 +4,16 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { FolderFacts } from "@repo/contract/local/vault/vault-folder";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type {
-  FirstRunAnswer,
-  FirstRunChoice,
-  PickFolderAnswer,
-  PickParentAnswer,
-} from "../../../first-run-state";
-import type { FirstRunBridge } from "../../../types";
+import type { FirstRunChoice, PickParentAnswer } from "../../../first-run-state";
+import { FIRST_RUN_COMMANDS } from "../../../ipc-contract";
+import type { DoneAnswer } from "../../../shell-answer";
+import { clearShell, mockShell, reply } from "../../__tests__/mock-shell";
 import { VaultStep } from "../vault-step";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  clearShell();
+});
 
 const HOME = "/Users/me";
 const FOLDER = "/Users/me/Documents/Notes";
@@ -27,23 +27,17 @@ const facts = (overrides: Partial<FolderFacts> = {}): FolderFacts => ({
 
 const PARENT_CANCELLED: PickParentAnswer = { kind: "cancelled" };
 
-const fakeBridge = (picked: FolderFacts = facts(), parent: PickParentAnswer = PARENT_CANCELLED) => {
-  const finish = vi.fn<(choice: FirstRunChoice) => Promise<FirstRunAnswer>>(
-    async () => await Promise.resolve({ ok: false, reason: "the shell said no" }),
+const renderStep = (picked: FolderFacts = facts(), parent: PickParentAnswer = PARENT_CANCELLED) => {
+  const finish = vi.fn<(choice: FirstRunChoice) => DoneAnswer>(() => ({
+    ok: false,
+    reason: "the shell said no",
+  }));
+  mockShell(
+    reply(FIRST_RUN_COMMANDS.finish)(({ choice }) => finish(choice)),
+    reply(FIRST_RUN_COMMANDS.pickFolder)(() => ({ facts: picked, kind: "picked", path: FOLDER })),
+    reply(FIRST_RUN_COMMANDS.pickParent)(() => parent),
   );
-  const bridge: FirstRunBridge = {
-    finish,
-    getState: async () => await Promise.resolve({ newVault: { name: "Inteligir", parent: HOME } }),
-    pickFolder: async (): Promise<PickFolderAnswer> =>
-      await Promise.resolve({ facts: picked, kind: "picked", path: FOLDER }),
-    pickParent: async () => await Promise.resolve(parent),
-  };
-  return { bridge, finish };
-};
-
-const renderStep = (picked?: FolderFacts, parent?: PickParentAnswer) => {
-  const { bridge, finish } = fakeBridge(picked, parent);
-  render(<VaultStep bridge={bridge} proposal={{ name: "Inteligir", parent: HOME }} />);
+  render(<VaultStep proposal={{ name: "Inteligir", parent: HOME }} />);
   return { finish };
 };
 

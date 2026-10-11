@@ -2324,27 +2324,29 @@ to the END of its group.
   run's own capability grants its four, and `removeUnusedCommands` drops every
   command no capability names. `tools/repo-guards/src/desktop-shell-wire.test.ts`
   holds the names equal across the two languages, which no compiler sees
-  together. A refusal crosses as a value (`{ ok: false, reason }`), never a
-  rejection, which the page reads as a fault. Residual: the page holds the
-  per-boot cookie (HttpOnly, SameSite=Strict, dead with the boot), and Tauri's
-  IPC from the server's origin falls back to `postMessage` under its CSP, at
-  the cost of one console line.
+  together, and the desktop door's answers too: each serde type in
+  `apps/desktop/src-tauri/src/launch.rs` reads the fields of a zod schema
+  typed against the door's `DoorAnswers`
+  (`apps/cli/src/desktop/__tests__/door-answers.ts`), which also parses the
+  fixtures the cargo tests read. A refusal crosses as a value, never a
+  rejection, which the page reads as a fault: one envelope on both sides,
+  `{ ok: true, state? }` or `{ ok: false, reason }`
+  (`apps/desktop/src-tauri/src/answer.rs`, `apps/desktop/src/shell-answer.ts`).
+  A command that can fail only by a fault (a read, a forget, a first run's
+  pick) answers its value bare as a `Result`, whose `Err` rejects. Residual:
+  the page holds the per-boot cookie (HttpOnly, SameSite=Strict, dead with the
+  boot), and Tauri's IPC from the server's origin falls back to `postMessage`
+  under its CSP, at the cost of one console line.
 
 - **UPDATES ARE TAURI'S UPDATER OVER THE GITHUB RELEASE, and nothing moves
-  without a click** (reversing "no update feed"; electron-updater until #889).
+  without a click** (reversing "no update feed").
   The release carries the dmg, `Inteligir.app.tar.gz` with its minisign
   signature and `latest.json`, written by the pack
-  (`apps/desktop/scripts/package.mjs`) and uploaded by the owner's release step
+  (`apps/desktop/scripts/package.ts`) and uploaded by the owner's release step
   (`docs/releasing.md`); the signing key is the owner's release secret, and a
   pack without it makes no feed. A check 15s after launch and every 4 minutes,
   the download and the restart each a click. Install stops the server child
   first, so the vault's pending commit flushes before the bundle is replaced.
-  The same release still carries electron-updater's zip and `latest-mac.yml`,
-  so an Electron install updates into the Tauri app, which keeps the bundle id
-  and the Developer ID that Squirrel's designated-requirement check needs; the
-  manifest names node 24's floor, macOS 13.5, as the Darwin release
-  electron-updater compares, so an older Mac is offered nothing it cannot
-  open. Drop the pair once no supported install runs Electron.
   `apps/desktop/src-tauri/src/updater.rs` (the policy) over `update_state.rs`
   (a union by status, which `apps/desktop/src/update-state.ts` parses from the
   `update-state` event).
@@ -2379,12 +2381,12 @@ to the END of its group.
   bundled node binary"). The Tauri binary runs no JavaScript, so the server,
   the watcher and each ACP adapter run on the official darwin-arm64 node, a
   `bundle.externalBin` sidecar fetched against a pinned sha-256
-  (`apps/desktop/scripts/fetch-node.mjs`), with the CLI and its production
-  `node_modules` as a resource (`apps/desktop/scripts/stage-server.mjs`); the
+  (`apps/desktop/scripts/fetch-node.ts`), with the CLI and its production
+  `node_modules` as a resource (`apps/desktop/scripts/stage-server.ts`); the
   server forks its children with `child_process`, as under `npx`. Every Mach-O
   in the resources is signed with the hardened runtime before bundling, the
   server's tree with the one entitlements file and the git, which runs no JIT,
-  with none (`apps/desktop/scripts/sign-resources.mjs`).
+  with none (`apps/desktop/scripts/sign-resources.ts`).
   The shell finds node and the CLI only where its bundle carries them, never
   through a variable, and starts every node child with `NODE_OPTIONS` and
   every other `NODE_*` but `NODE_ENV` removed (`scrubbed_env` in
@@ -2412,7 +2414,7 @@ to the END of its group.
   (`apps/cli/src/server/debug-log.ts`, `tools/e2e/src/scenarios/debug-log.ts`).
   A Finder-launched app has no env and drops the shell's stdout, so debug
   logging is Settings › Advanced's switch, kept as `diagnostics.json` in the
-  shell's own folder (Electron's userData, kept so an upgrade keeps the choice)
+  shell's own folder (`desktop/` beside config.json, one per dev checkout)
   because the shell reads it before the start it changes (the page's prefs load
   after that start, and config.json is the app's to read, never to write); on,
   the next child traces every namespace, since a report cannot know which
@@ -2431,7 +2433,7 @@ to the END of its group.
   release, the update it ships and the file say one thing. A list generated
   from commit subjects or issue titles was rejected: both are written for
   whoever builds the thing, and they describe an update as "something
-  changed". `apps/desktop/scripts/release-notes.mjs` prints the section as the
+  changed". `apps/desktop/scripts/release-notes.ts` prints the section as the
   release's notes (`docs/releasing.md`) and refuses one not titled for the
   package's version; `tools/repo-guards/src/changelog.test.ts` holds the file's
   shape. Settings › About links the file on main
@@ -2473,7 +2475,7 @@ to the END of its group.
   most people's, has only `/usr/bin/git`'s stub: it fails and offers the
   install, so the vault could not even initialize. The pack carries
   dugite-native's macOS arm64 build, fetched at package time against a pinned
-  sha-256 (`apps/desktop/scripts/fetch-git.mjs`) and signed and notarized with
+  sha-256 (`apps/desktop/scripts/fetch-git.ts`) and signed and notarized with
   the rest of the bundle. The desktop door's `launch` asks `xcode-select -p`
   once, before the first child: a developer dir holding `usr/bin/git` keeps the Mac's own git (owner
   decision: a user with the tools and an https remote of their own keeps the
@@ -2662,7 +2664,7 @@ to the END of its group.
   directory. The licences shipped elsewhere are the .app's own, since only the
   .app carries what they cover: the bundled git's and node's beside them, and
   the notices of every Rust crate the shell links, written at package time from
-  cargo's resolve (`apps/desktop/scripts/rust-notices.mjs`) and checked by the
+  cargo's resolve (`apps/desktop/scripts/rust-notices.ts`) and checked by the
   smoke. `packages/ui/components.json`
   declares `rsc: true` and it is inert: every consumer is a plain Vite build.
 
@@ -2789,7 +2791,7 @@ to the END of its group.
   parses before it reads argv is the entry's static closure; the server and
   the frontmatter parser (yaml, 72 modules) sit behind `await import()` in the
   verbs that need them. A static import that reaches yaml passes every test and
-  every review, so `apps/cli/scripts/build.mjs` walks the metafile's static
+  every review, so `apps/cli/scripts/build.ts` walks the metafile's static
   closure and fails naming the importer (`LOADED_ON_EVERY_VERB_REFUSED`).
 
 - **THE PHONE SHIPS THROUGH EAS TO TESTFLIGHT, AND AN UNSET CLOUD URL IS THE
@@ -2808,6 +2810,20 @@ to the END of its group.
   the origin, and a fallback to a dead host, which made a misconfigured build
   one that could only fail. `apps/mobile/src/__tests__/app-config.test.ts`
   holds the store config to what App Store Connect judges.
+
+- **A RELEASE SCRIPT IS TYPESCRIPT NODE RUNS AS IT STANDS, CHECKED AS NODE
+  RESOLVES IT.** `apps/desktop/scripts` and `apps/cli/scripts` are `.ts` files
+  node 24 strips of their types, each workspace's `typecheck` checking them as
+  a `scripts/tsconfig.json` program under `nodenext` and `erasableSyntaxOnly`,
+  so an extensionless import or an enum fails the typecheck rather than the
+  release; a relative import names its `.ts`, JSON a script reads is parsed by
+  zod, and its own manifest is a JSON import. Rejected: `checkJs` over `.mjs`,
+  whose JSDoc casts the type-assertion rule cannot see, and `tsx`, a loader for
+  what node already runs. A module whose imports name no extension (the
+  server's, most of the contract's) cannot load in a script, so a smoke parses
+  only the fields it reads (`apps/cli/scripts/smoke-lib.ts`).
+  `.github/scripts/worker-preview.mjs` stays JS: its first step runs before the
+  job sets up the repo's node.
 
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record

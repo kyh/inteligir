@@ -106,8 +106,7 @@ fn capped(mut text: String, max_bytes: u64) -> String {
     text
 }
 
-/// RFC 3339 in UTC to the millisecond, the stamp the Electron shell wrote, so a log spanning the
-/// move reads as one.
+/// RFC 3339 in UTC to the millisecond.
 pub fn utc_stamp(at: SystemTime) -> String {
     let since = at.duration_since(UNIX_EPOCH).unwrap_or_default();
     let millis = since.subsec_millis();

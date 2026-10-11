@@ -1,0 +1,6 @@
+{
+  "dataDir": "/h/.inteligir/vaults/0123456789abcdef",
+  "rootDataDir": "/h/.inteligir",
+  "switchBlocked": "INTELIGIR_VAULT_DIR chose the vault for this launch; unset it to switch from here.",
+  "vaultDir": "/h/Notes"
+}

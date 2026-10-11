@@ -11,7 +11,7 @@ import type { FolderFacts, OwnSync } from "@repo/contract/local/vault/vault-fold
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { useId, useState } from "react";
 import type { FirstRunChoice, FirstRunState } from "../../first-run-state";
-import type { FirstRunBridge } from "../../types";
+import { shellFirstRun } from "../shell-commands";
 
 type VaultMode = "create" | "open";
 
@@ -67,11 +67,10 @@ const FolderFactsView = ({ facts }: { facts: FolderFacts }) => (
 );
 
 export interface VaultStepProps {
-  bridge: FirstRunBridge;
   proposal: FirstRunState["newVault"];
 }
 
-export const VaultStep = ({ bridge, proposal }: VaultStepProps) => {
+export const VaultStep = ({ proposal }: VaultStepProps) => {
   const nameId = useId();
   const [mode, setMode] = useState<VaultMode>("create");
   const [name, setName] = useState(proposal.name);
@@ -98,7 +97,7 @@ export const VaultStep = ({ bridge, proposal }: VaultStepProps) => {
 
   // a vault that opens closes this window, so an answer that lands is a refusal
   const finish = async (choice: FirstRunChoice): Promise<void> => {
-    const answer = await bridge.finish(choice);
+    const answer = await shellFirstRun.finish({ choice });
     if (!answer.ok) {
       setRefusal(answer.reason);
     }
@@ -166,7 +165,7 @@ export const VaultStep = ({ bridge, proposal }: VaultStepProps) => {
               disabled={busy !== null}
               onClick={() => {
                 void ask("picking", async () => {
-                  const answer = await bridge.pickParent();
+                  const answer = await shellFirstRun.pickParent();
                   if (answer.kind === "picked") {
                     setParent(answer.path);
                     setParentSync(answer.externalSync);
@@ -205,7 +204,7 @@ export const VaultStep = ({ bridge, proposal }: VaultStepProps) => {
               disabled={busy !== null}
               onClick={() => {
                 void ask("picking", async () => {
-                  const answer = await bridge.pickFolder();
+                  const answer = await shellFirstRun.pickFolder();
                   if (answer.kind === "picked") {
                     setPicked({ facts: answer.facts, path: answer.path });
                   }
