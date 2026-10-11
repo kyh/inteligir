@@ -331,4 +331,15 @@ describe("the vault mirror", () => {
       { oid: blobOid("one\n"), path: "y.md" },
     ]);
   });
+
+  it("refuses a listing whose aliases are not the list it wrote", async () => {
+    const db = openTempDb();
+    const { store } = launch(createFakeVault(VAULT).fetch, db);
+    await store.refresh();
+    await db.exclusive(async (tx) => {
+      await tx.run("UPDATE mirror_entries SET aliases = ? WHERE path = ?", ['"Alias"', "a.md"]);
+    });
+
+    await expect(createVaultMirror(db).snapshot()).rejects.toThrow();
+  });
 });

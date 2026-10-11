@@ -6,7 +6,6 @@ expo-env.d.ts
 
 # Native builds
 /ios
-/android
 
 # Metro / caches
 .cache/

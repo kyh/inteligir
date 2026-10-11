@@ -26,15 +26,19 @@ and FAILS the build on a module script, a second script or chunk, a
 `crossorigin` tag or a modulepreload link. Every woff2 is inlined into the
 stylesheet. `index.html` carries a static CSP, `apps/cli/src/server/csp.ts`'s
 with `connect-src 'none'`: the page reaches nothing, the bridge is its only
-way out. There is no dev server: the CSP refuses the inline script a Vite dev
-page injects, and the page means nothing without a native end.
+way out. `tools/repo-guards/src/phone-page-csp.test.ts` holds the copy to the
+server's, so a directive added there fails until the page decides it. There is
+no dev server: the CSP refuses the inline script a Vite dev page injects, and
+the page means nothing without a native end.
 
 ## The bridge
 
 `src/bridge/protocol.ts` is the wire, exported as `./bridge-protocol` so the
 native end parses the same frames. Both ends ship in one binary, so it breaks
 freely: no version field. Every frame is the JSON text of one, parsed by the
-end that receives it.
+end that receives it. A path on it is refused unless it is already normal, by
+the cloud wire's own schema (`@repo/notes/knowledge/vault-path-schema`), since
+both ends address the same files.
 
 - Page to native: `ready` (the door is installed; it knows no nonce yet), then
   requests `{ id, nonce, kind, payload }` — `list`, `read`, `write` (under the

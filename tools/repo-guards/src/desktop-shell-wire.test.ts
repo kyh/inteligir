@@ -7,6 +7,7 @@
 import { buildContentSecurityPolicy } from "inteligir/server/csp";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { policyDirectives } from "./content-security-policy";
 import { readJsonFile, sourceOf } from "./repo";
 
 const CONTRACT = "apps/desktop/src/ipc-contract.ts";
@@ -52,15 +53,6 @@ const capabilitySchema = z.looseObject({ permissions: z.array(z.string()) });
 const tauriConfigSchema = z.looseObject({
   app: z.looseObject({ security: z.looseObject({ csp: z.record(z.string(), z.string()) }) }),
 });
-
-// `name value; name value` as a map from each directive to its sources
-const directives = (policy: string): Record<string, string> =>
-  Object.fromEntries(
-    policy.split("; ").map((entry) => {
-      const space = entry.indexOf(" ");
-      return [entry.slice(0, space), entry.slice(space + 1)];
-    }),
-  );
 
 const grantedBy = (file: string): string[] =>
   readJsonFile(file, capabilitySchema, "a capability with a permissions list").permissions.flatMap(
@@ -142,7 +134,7 @@ describe("the desktop shell's wire", () => {
   });
 
   it("holds the first run to the server's policy for a page with no socket", () => {
-    const served = directives(buildContentSecurityPolicy({ wsOrigin: null }));
+    const served = policyDirectives(buildContentSecurityPolicy({ wsOrigin: null }));
     const expected = {
       ...served,
       "connect-src": [served["connect-src"], ...TAURI_IPC_ORIGINS].join(" "),

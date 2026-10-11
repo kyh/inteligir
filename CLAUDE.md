@@ -667,8 +667,9 @@ to the END of its group.
   frames it makes, hands a followed web link to Safari and refuses the rest,
   and its origin list admits every address, because the library hands whatever
   that list refuses to the OS before the policy runs. A write's base is
-  compared with the text the phone holds, so a change a sync landed since comes
-  back for the page's own merge (`apps/mobile/src/editor/editor-ports.ts`).
+  compared with the text the phone holds, under the store's write lock, so a
+  change a sync landed since comes back for the page's own merge
+  (`apps/mobile/src/notes/notes-store.ts`).
   `apps/mobile/src/editor/__tests__/`, and
   `tools/e2e/src/scenarios/phone-editor-page.ts` loads the built page from
   `file://` against a scripted phone.
@@ -1777,7 +1778,9 @@ to the END of its group.
   keepalive and reconnect are one too. The core is what BOTH clients run, so
   the CLI-only browser opener sits beside its consumer
   (`apps/cli/src/server/browser-opener.ts`). The cloud vault-path grammar is
-  `parseVaultPath` with the parse required to be the identity. The
+  `parseVaultPath` with the parse required to be the identity, one schema
+  (`@repo/notes/knowledge/vault-path-schema`) the phone's editor page parses
+  its wire by too. The
   `[[Title|uuid]]` tier lives in `buildResolver` (tier 0), reached through the
   `id` the wiki-targets rows carry, and on the phone through the id and aliases
   its mirror reads from each note's frontmatter.
@@ -2031,20 +2034,27 @@ to the END of its group.
   offline launch, loses every body to any commit, and holds no frontmatter. A
   sign-in, a sign-out and a revocation wipe the rows and the attachments; the
   boot restore keeps them. The phone's database has ONE `user_version`, so a
-  table another module adds is a step appended to
-  `apps/mobile/src/lib/phone-db.ts`. `apps/mobile/src/notes/vault-mirror.ts`,
+  table another module adds is a step in `apps/mobile/src/lib/phone-db.ts`.
+  Until the first build EAS makes (`easProject` in `apps/mobile/app.config.js`),
+  no phone holds a file worth upgrading, so the schema is ONE step edited in
+  place and a stored row's parser defaults no field for an older row; from
+  that build on, a step is appended, never edited.
+  `apps/mobile/src/notes/vault-mirror.ts`,
   `apps/mobile/src/notes/notes-store.ts`.
 
 - **A PHONE EDIT IS A QUEUED WRITE WITH ITS BASE, AND THE PHONE SETTLES ITS OWN
   CONFLICTS.** A write is durable in the phone's `outbox` table before it
   resolves, and reads, the listing and the resolver see it from then on; the
   rows go to `POST /v1/vault/commit` oldest first, one change set per row, on
-  every write, resume, reconnect and a backoff. A write carries the blob the
-  caller read and one with none throws, as the desktop's guarded io does; a
-  write to a path whose last row writes it replaces the text and KEEPS THE
-  FIRST BASE, so three offline saves are one write. A 409 is settled on the
-  phone by `reconcileFile` (`@repo/notes/sync/reconcile-file`), the desktop's
-  own verdict, and the result and its copy land as ONE set, kept on the row
+  every write, resume, reconnect and a backoff. A write carries the text it
+  was computed from, the editor's `expected` guard, compared with the text the
+  phone holds under the store's write lock; a mismatch answers what the phone
+  holds for the page's own merge, never a merge in the store, which would be a
+  second write policy beside the editor's. A write to a path whose last row
+  writes it replaces the text and KEEPS THE FIRST BASE, so three offline saves
+  are one write. A 409 is settled on the phone by `reconcileFile`
+  (`@repo/notes/sync/reconcile-file`), the desktop's own verdict, and the
+  result and its copy land as ONE set, kept on the row
   before it is sent, so an answer lost after the vault applied it is resent
   unchanged and answered as already held. A landing moves the mirror in the
   transaction that retires the row and stamps what it moved, and a refresh
@@ -2275,7 +2285,10 @@ to the END of its group.
   vault (`apps/cli/src/server/csp.ts`). The first run is the shell's own page,
   so its policy is the shell's config (`apps/desktop/src-tauri/tauri.conf.json`),
   held to the server's for a page with no socket, plus Tauri's IPC origins, by
-  `tools/repo-guards/src/desktop-shell-wire.test.ts`. NOTHING REMOTE
+  `tools/repo-guards/src/desktop-shell-wire.test.ts`; the phone's editor page
+  loads from disk, so its policy is a meta tag held to the same one, each
+  departure (`connect-src 'none'`, no `frame-ancestors`) a reasoned row of
+  `tools/repo-guards/src/phone-page-csp.test.ts`. NOTHING REMOTE
   LOADS IN A NOTE: a remote embed is a beacon on every open, so it draws as a
   card (`packages/editor/src/nodes/remote-content-card.tsx`); widening the
   policy is a privacy decision. AN HTML BLOCK'S RUN IS A FRAME WITH A POLICY OF

@@ -503,7 +503,10 @@ describe("signing out with edits the vault has not taken", () => {
     const rt = runtimeOver(vaultCloud(), keychain(CRED).store, storage);
     await mirrorOnce(rt);
     expect(await rt.notes.readNote("note.md")).toMatchObject({ ok: true });
-    await rt.notes.write("note.md", "# note\n\nwritten offline\n");
+    await rt.notes.write("note.md", "# note\n\nwritten offline\n", {
+      base: "# note\n",
+      kind: "expected",
+    });
     await rt.notes.putAsset("media/new.png", new Uint8Array([1, 2, 3]));
 
     expect(await rt.logout()).toStrictEqual({ edits: 2, kind: "unsent", requests: 0 });

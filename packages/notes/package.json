@@ -45,6 +45,7 @@
     "./knowledge/unlinked-mentions": "./src/knowledge/unlinked-mentions.ts",
     "./knowledge/vault-ignore": "./src/knowledge/vault-ignore.ts",
     "./knowledge/vault-path": "./src/knowledge/vault-path.ts",
+    "./knowledge/vault-path-schema": "./src/knowledge/vault-path-schema.ts",
     "./knowledge/vault-search": "./src/knowledge/vault-search.ts",
     "./markdown/fence-langs": "./src/markdown/fence-langs.ts",
     "./markdown/frontmatter": "./src/markdown/frontmatter.ts",

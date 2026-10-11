@@ -219,8 +219,9 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   second; New note opens with its title focused and the keyboard up; a
   `[[link]]` pushes its note and back returns; an external link opens Safari
   and the page never navigates; a chart and tabs refuse edits; dark mode
-  follows the system; typing and then backgrounding and killing the app keeps
-  what was typed.
+  follows the system, with no light edge behind a pushed screen or the
+  keyboard, even after switching it with the app open; typing and then
+  backgrounding and killing the app keeps what was typed.
 - **Offline.** Sync once, turn on airplane mode, kill the app and open it.
   Passing: the notes list, any note and every thread open. Edit a note and add
   a photo while still offline, kill the app, open it, turn airplane mode off.
@@ -282,11 +283,10 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   reloads with its text.
 - **The database upgrades.** Every step appended to `MIGRATIONS` in
   `apps/mobile/src/lib/phone-db.ts` since the build testers hold: install that
-  build (for this release, a development build from the last commit whose
-  `MIGRATIONS` held three steps), sign in, sync, leave an edit unsent, then
-  install this build over it. Passing: it opens with no error, the unsent edit
-  still waits, and after one sync, turning on airplane mode and a cold launch
-  shows the threads.
+  build, sign in, sync, leave an edit unsent, then install this build over it.
+  Passing: it opens with no error, the unsent edit still waits, and after one
+  sync, turning on airplane mode and a cold launch shows the threads. The
+  first TestFlight build has no build before it, so it skips this.
 
 ## 6. Publish
 

@@ -41,10 +41,10 @@ export const vaultOpSchema = z.discriminatedUnion("op", [
   z.object({
     baseContent: z.string().nullable(),
     baseOid: gitOidSchema,
-    content: z.string().nullable().default(null),
+    content: z.string().nullable(),
     from: vaultPathSchema,
     op: z.literal("rename"),
-    rewrites: z.array(guardedTextSchema).default([]),
+    rewrites: z.array(guardedTextSchema),
     to: vaultPathSchema,
   }),
   z.object({
@@ -62,7 +62,7 @@ export const vaultOpSchema = z.discriminatedUnion("op", [
     baseOid: gitOidSchema,
     op: z.literal("remove"),
     path: vaultPathSchema,
-    stores: z.array(z.object({ baseOid: gitOidSchema, path: vaultPathSchema })).default([]),
+    stores: z.array(z.object({ baseOid: gitOidSchema, path: vaultPathSchema })),
   }),
   z.object({
     op: z.literal("putAsset"),
