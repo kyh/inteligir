@@ -34,9 +34,25 @@ import { COMMENTS_THREADS_MAX } from "@repo/contract/local/comments/comments-sch
 import { ensureNoteId } from "../vault/ensure-note-id";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
-import { CommentRefusedError } from "./comment-refused-error";
-import { SidecarConflictError } from "./sidecar-conflict-error";
-import { SidecarInvalidError } from "./sidecar-invalid-error";
+
+// COMMENTS_REFUSALS is total over this union, so a code added here without a wire class fails to
+// compile there.
+export type CommentsErrorCode =
+  | "refused"
+  | "conflict"
+  // a store that does not parse, not folded to `{}`: an empty fold lets the next write erase every
+  // thread an external writer left.
+  | "invalid";
+
+export class CommentsError extends Error {
+  readonly code: CommentsErrorCode;
+
+  constructor(code: CommentsErrorCode, message: string) {
+    super(message);
+    this.name = "CommentsError";
+    this.code = code;
+  }
+}
 
 // unix seconds, the store's unit.
 export type CommentsClock = () => number;
@@ -120,7 +136,10 @@ const DEFAULT_SOURCE: CommentSource = "user";
 // the key names a file, so an id that cannot is refused rather than escaping the store's folder
 const keyOf = (notePath: string, id: string): string => {
   if (!isNoteIdKey(id)) {
-    throw new CommentRefusedError(`${notePath}: its id ${JSON.stringify(id)} cannot name a file`);
+    throw new CommentsError(
+      "refused",
+      `${notePath}: its id ${JSON.stringify(id)} cannot name a file`,
+    );
   }
   return id;
 };
@@ -153,17 +172,20 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
         return keyOf(notePath, outcome.id);
       }
       case "invalid": {
-        throw new CommentRefusedError(
+        throw new CommentsError(
+          "refused",
           `${notePath}: the frontmatter is not valid YAML, so no id can be written into it`,
         );
       }
       case "foreign-id": {
-        throw new CommentRefusedError(
+        throw new CommentsError(
+          "refused",
           `${notePath}: its frontmatter id ${outcome.value} is not text, and a minted id would replace it`,
         );
       }
       case "changed": {
-        throw new SidecarConflictError(
+        throw new CommentsError(
+          "conflict",
           `${notePath} changed under the id write twice; nothing was written`,
         );
       }
@@ -184,7 +206,7 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
     }
     const parsed = parseSidecar(raw);
     if (!parsed.ok) {
-      throw new SidecarInvalidError(`${path}: ${parsed.error}`);
+      throw new CommentsError("invalid", `${path}: ${parsed.error}`);
     }
     return { raw, sidecar: parsed.sidecar };
   };
@@ -213,14 +235,15 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
       const base = await readStore(noteId);
       const edited = edit(base.sidecar);
       if (!edited.ok) {
-        throw new CommentRefusedError(edited.error);
+        throw new CommentsError("refused", edited.error);
       }
       if (await swapStore(noteId, base, edited.sidecar)) {
         wrote.add(commentsStorePath(noteId));
         return edited;
       }
     }
-    throw new SidecarConflictError(
+    throw new CommentsError(
+      "conflict",
       `${commentsStorePath(noteId)} changed under the edit twice; nothing was written`,
     );
   };
@@ -229,7 +252,7 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
   const keyOfCommented = async (notePath: string): Promise<{ note: NoteRead; key: string }> => {
     const note = await readNote(notePath);
     if (note.id === null) {
-      throw new CommentRefusedError(`${notePath} has no comments`);
+      throw new CommentsError("refused", `${notePath} has no comments`);
     }
     return { key: keyOf(notePath, note.id), note };
   };

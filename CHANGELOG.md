@@ -32,6 +32,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 - **`inteligir vault status` names the reason that still holds.** `lastError` is now always the current state's own message: a pass that reaches the remote clears an older one, a merge that still cannot be combined says so again, and a push that lost a race to another device's reports none.
 - **Every vault's data dir is its own.** The default vault's (`~/Inteligir`'s) now sits beneath `~/.inteligir/vaults/` like any other's, keyed by the folder's physical path, so a folder reached through a symlink or typed in another case is one vault with one data dir. `inteligir status` no longer marks a data dir as the vault's own, and its `--json` drops `dataDirScope`.
+- **A folder past the connected-folders limit is refused as the limit.** `inteligir folders add` answers `LIMIT_REACHED` once 32 folders are connected, where it answered `INVALID_PATH`, which now means only a path that cannot be connected.
 
 ## 0.6.0 — 2026-09-27
 

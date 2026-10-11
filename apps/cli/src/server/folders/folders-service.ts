@@ -8,15 +8,25 @@ import { CONNECTED_FOLDERS_MAX } from "@repo/contract/local/folders/folders-sche
 import { pathContains } from "../path-containment";
 import type { FoldersStore } from "./folders-store";
 
-export class FolderRefusedError extends Error {
-  readonly kind: "invalid-path" | "already-exists" | "not-found";
+// per operation, so each handler's switch covers only the codes its own call can raise
+export type FolderRefusal =
+  | { op: "add"; code: "invalid_path" | "already_exists" | "limit_reached" }
+  | { op: "remove"; code: "not_found" };
 
-  constructor(kind: "invalid-path" | "already-exists" | "not-found", message: string) {
+export class FolderRefusedError extends Error {
+  readonly refusal: FolderRefusal;
+
+  constructor(refusal: FolderRefusal, message: string) {
     super(message);
     this.name = "FolderRefusedError";
-    this.kind = kind;
+    this.refusal = refusal;
   }
 }
+
+const addRefused = (
+  code: Extract<FolderRefusal, { op: "add" }>["code"],
+  message: string,
+): FolderRefusedError => new FolderRefusedError({ code, op: "add" }, message);
 
 export interface FoldersService {
   list: () => string[];
@@ -37,8 +47,8 @@ export const createFoldersService = (args: CreateFoldersServiceArgs): FoldersSer
   const validate = (rawPath: string): string => {
     const trimmed = rawPath.trim();
     if (trimmed.length === 0 || !nodePath.isAbsolute(trimmed)) {
-      throw new FolderRefusedError(
-        "invalid-path",
+      throw addRefused(
+        "invalid_path",
         `connected folder must be an absolute path (got "${rawPath}")`,
       );
     }
@@ -47,26 +57,26 @@ export const createFoldersService = (args: CreateFoldersServiceArgs): FoldersSer
     try {
       real = realpathSync(nodePath.resolve(trimmed));
     } catch {
-      throw new FolderRefusedError("invalid-path", `"${trimmed}" does not exist`);
+      throw addRefused("invalid_path", `"${trimmed}" does not exist`);
     }
     let stats;
     try {
       stats = statSync(real);
     } catch {
-      throw new FolderRefusedError("invalid-path", `"${trimmed}" does not exist`);
+      throw addRefused("invalid_path", `"${trimmed}" does not exist`);
     }
     if (!stats.isDirectory()) {
-      throw new FolderRefusedError("invalid-path", `"${trimmed}" is not a directory`);
+      throw addRefused("invalid_path", `"${trimmed}" is not a directory`);
     }
     if (pathContains(vaultDir, real)) {
-      throw new FolderRefusedError(
-        "invalid-path",
+      throw addRefused(
+        "invalid_path",
         `"${real}" is inside the vault — the vault is already the agent's workspace`,
       );
     }
     if (pathContains(real, dataDir)) {
-      throw new FolderRefusedError(
-        "invalid-path",
+      throw addRefused(
+        "invalid_path",
         `"${real}" contains the app's data directory — connect a narrower folder`,
       );
     }
@@ -78,11 +88,11 @@ export const createFoldersService = (args: CreateFoldersServiceArgs): FoldersSer
       const real = validate(path);
       const folders = args.store.read();
       if (folders.includes(real)) {
-        throw new FolderRefusedError("already-exists", `"${real}" is already connected`);
+        throw addRefused("already_exists", `"${real}" is already connected`);
       }
       if (folders.length >= CONNECTED_FOLDERS_MAX) {
-        throw new FolderRefusedError(
-          "invalid-path",
+        throw addRefused(
+          "limit_reached",
           `at most ${CONNECTED_FOLDERS_MAX} folders can be connected`,
         );
       }
@@ -105,7 +115,10 @@ export const createFoldersService = (args: CreateFoldersServiceArgs): FoldersSer
           real = null;
         }
         if (real === null || !folders.includes(real)) {
-          throw new FolderRefusedError("not-found", `"${path}" is not a connected folder`);
+          throw new FolderRefusedError(
+            { code: "not_found", op: "remove" },
+            `"${path}" is not a connected folder`,
+          );
         }
         target = real;
       }
