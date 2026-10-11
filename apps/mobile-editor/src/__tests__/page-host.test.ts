@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { useAgentRequestActions } from "@repo/editor/agent-request";
 import { useCommentSurface } from "@repo/editor/comments/comment-store";
+import { getEditorHostActions } from "@repo/editor/host-io";
 import type { VaultChangedEvent } from "@repo/editor/host-io";
+import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 import { mergeConflictLine } from "@repo/editor/note/vanished-prompt";
 import { toast } from "@repo/ui/components/sonner";
@@ -239,6 +240,20 @@ describe("the open note", () => {
     expect(phone.requests("wikiTargets").length).toBe(targetsBefore + 1);
   });
 
+  it("writes an unsaved edit for a writer outside the note, and stops once the page is gone", async () => {
+    const { host, phone } = await openHost();
+    host.io.actions.editNote("Note.md", `${NOTE}Flushed.\n`);
+
+    expect(await flushOpenNote()).toBe(true);
+    expect(phone.files.get("Note.md")).toBe(`${NOTE}Flushed.\n`);
+
+    host.stop();
+    started = null;
+    const writes = phone.requests("write").length;
+    expect(await flushOpenNote()).toBe(true);
+    expect(phone.requests("write")).toHaveLength(writes);
+  });
+
   it("answers a flush once the edits are written", async () => {
     const { host, phone } = await openHost();
     host.io.actions.editNote("Note.md", `${NOTE}Unsaved.\n`);
@@ -283,9 +298,10 @@ describe("what the editor asks the shell for", () => {
   it("reaches the native end: Ask agent and a comment, never a tag", async () => {
     const { phone } = await openHost();
     const before = phone.sent.length;
-    useAgentRequestActions.getState().actions?.askAboutSelection("Hello there.");
-    useAgentRequestActions.getState().actions?.showTag("errands");
-    useCommentSurface.getState().actions?.open(["c1", "c2"]);
+    const { agent, comments } = getEditorHostActions();
+    agent.askAboutSelection("Hello there.");
+    agent.showTag("errands");
+    comments.open(["c1", "c2"]);
 
     expect(phone.sent.slice(before).map((frame) => frame.type)).toEqual([
       "askAgent",
@@ -335,8 +351,8 @@ describe("what the phone tells the page of its comments", () => {
 const ANCHORED = "# Note\n\n%%i:c3:start%%Hello%%i:c3:end%% there.\n";
 
 // what the editor's comment surface calls on Save
-const create = async (id: string, text: string): Promise<boolean | undefined> =>
-  await useCommentSurface.getState().actions?.create(id, text);
+const create = async (id: string, text: string): Promise<boolean> =>
+  await getEditorHostActions().comments.create(id, text);
 
 describe("a new comment", () => {
   it("rides the save that writes its markers, so the phone lands both as one change set", async () => {

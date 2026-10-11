@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { findCommentMarker } from "@repo/editor/comments/comment-markers";
 import {
   clearCommentMeta,
-  setCommentActions,
   setCommentMeta,
   setPendingCreate,
   useCommentSurface,
@@ -16,6 +15,7 @@ import {
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 import { EditorHarness } from "./editor-harness";
 
@@ -108,7 +108,7 @@ const ARMED_RECT = { bottom: 20, height: 0, left: 10, right: 10, top: 10, width:
 
 const deferredCreate = (): ((ok: boolean) => void) => {
   const answer = deferred<boolean>();
-  setCommentActions({ create: () => answer.promise, open: () => {} });
+  installFakeEditorHost({ comments: { create: () => answer.promise, open: () => {} } });
   return answer.resolve;
 };
 
@@ -122,10 +122,7 @@ describe("a comment create while its save is in flight", () => {
     setPendingCreate(null);
     clearCommentMeta(OPEN_PATH);
   });
-  afterEach(() => {
-    cleanup();
-    setCommentActions(null);
-  });
+  afterEach(cleanup);
 
   it("keeps its markers through a dismissal and clears the create once the save lands", async () => {
     const settle = deferredCreate();
@@ -171,14 +168,11 @@ describe("an Enter in the comment field", () => {
     setPendingCreate(null);
     clearCommentMeta(OPEN_PATH);
   });
-  afterEach(() => {
-    cleanup();
-    setCommentActions(null);
-  });
+  afterEach(cleanup);
 
   it("commits an IME candidate rather than saving the half-composed comment", async () => {
     const create = vi.fn<(id: string, text: string) => Promise<boolean>>(async () => true);
-    setCommentActions({ create, open: () => {} });
+    installFakeEditorHost({ comments: { create, open: () => {} } });
     setPendingCreate({ id: "abc", path: OPEN_PATH, rect: ARMED_RECT });
     const field = renderOpenNote().getByLabelText("Comment");
     fireEvent.change(field, { target: { value: "日本" } });

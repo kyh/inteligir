@@ -13,10 +13,12 @@ workspace above it consumes an editor rather than containing one.
 
 Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
 (the components). No node, and nothing of the desktop shell's. The host contract is this package's own
-`host-io.ts` (`EditorHostIo`), `note/vault-session.ts` (`VaultSessionPorts`)
-and `guarded-vault-io.ts` (`GuardedVaultPort`); a host implements all three,
-and everything above its store (the write policy, the link resolver, note
-formulas) is this package's, so a second host copies none of it. The package
+`host-io.ts` (`EditorHost`: its `EditorHostIo`, its `EditorHostActions` and
+the open note's store), `note/vault-session.ts` (`VaultSessionPorts`) and
+`guarded-vault-io.ts` (`GuardedVaultPort`); a host implements all three and
+comes in through one call, `installEditorHost`, and everything above its
+store (the write policy, the link resolver, note formulas) is this package's,
+so a second host copies none of it. The package
 also ships ONE stylesheet, `styles.css` (toggle collapse, the callout marker
 swap, the hljs theme, the prose scope the appearance dials feed and typeset's
 table rules), inert until the host `@import`s `@repo/editor/styles.css` —
@@ -80,8 +82,10 @@ src/
   properties/          # the typed frontmatter panel
   lib/                 # debounce, the dark-class hook, the wire helper
   host-io.ts, host.ts  # the injected host as a MODULE SINGLETON (vault actions,
-                       # the wiki resolver store, IO, change events) and the two
-                       # hooks React reads it through
+                       # the wiki resolver store, IO, change events, what the
+                       # editor asks the shell for), installed with the open
+                       # note's store in one call, and the hooks React reads
+                       # it through
   guarded-vault-io.ts  # the write policy every host runs over its own store:
                        # the base each note was read as, the diff3 retry, vanished
   link-resolver-store.ts
@@ -102,14 +106,12 @@ src/
                        # EDITOR_SHORTCUTS, the slash menu's GROUPS)
   wiki-*.ts(x)         # the `[[` picker, chips, insertion, key handling
   formula-*.ts(x)      # the `{{` picker and its insertion
-  agent-request.ts     # the action registry the app fills at mount (Ask agent,
-                       # a `#tag` chip's showTag), so a deep node reaches the
-                       # shell without the editor importing it; the comment
-                       # surface keeps its own (comments/comment-store.ts)
+  agent-request.ts     # Ask agent: the selection's text, handed to the host's
+                       # agent actions
   style-hooks.ts, styles.css
                        # the behaviour rules the host @imports, and the one
                        # spelling of every selector hook they read
-  test-support/        # the fake EditorHostIo, for any suite that mounts the
+  test-support/        # the fake editor host, for any suite that mounts the
                        # editor (the desktop's included)
   __tests__/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)
 ```
@@ -153,8 +155,9 @@ src/
 
 ## Seams
 
-- `host-io.ts` — the injected host, `EditorHostIo`, as a MODULE SINGLETON
-  because kit factories and paste handlers run outside React: the vault
+- `host-io.ts` — the injected host, `EditorHost`, as a MODULE SINGLETON
+  because kit factories, paste handlers and a deep node's click run outside
+  React or with no route to the shell. Its `EditorHostIo` carries the vault
   actions, the link resolver store (the knowledge index's own `buildResolver` over
   the listing, for wiki targets and md urls alike, and the wiki targets it was
   built over, which the `[[` picker and the slash menu's templates list —
@@ -164,8 +167,14 @@ src/
   a frame to run an html block in (`htmlFrameUrl`, null hides Run) and a
   native photo picker that writes what it picks (`pickImage`, null hides the
   touch toolbar's image button; a picked path lands through `insertVaultImage`,
-  as a paste does). The editor never reaches the
-  server for any of it; each host installs it once
+  as a paste does). Its `EditorHostActions` are what the editor asks the shell
+  for (Ask agent and a `#tag` chip's `showTag`, a comment's create and open),
+  every one required, so a host that leaves one out fails to typecheck rather
+  than drawing a button that does nothing. Its store is the open note's, which
+  the install registers under the host's own flush, so `flushOpenNote`
+  reaches the note on every host. The editor never reaches the
+  server for any of it; each host installs it once, through
+  `installEditorHost`, ahead of the first render
   (`apps/workspace/src/app/note/vault-provider.tsx`, and the phone's
   over its WebView bridge, `apps/mobile-editor/src/host/page-host.ts`),
   building the resolver store with `link-resolver-store.ts` and

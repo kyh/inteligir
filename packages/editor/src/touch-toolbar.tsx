@@ -40,17 +40,15 @@ import { Separator } from "@repo/ui/components/separator";
 import { toast } from "@repo/ui/components/sonner";
 import type { IconComponent } from "@repo/ui/lib/icon";
 
-import { askAgentAboutSelection, useAgentRequestActions } from "@repo/editor/agent-request";
+import { askAgentAboutSelection } from "@repo/editor/agent-request";
 import {
   ADD_COMMENT_SHORTCUT,
   anchorNewComment,
   selectionTakesComment,
 } from "@repo/editor/comments/comment-kit";
 import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
-import { useCommentSurface } from "@repo/editor/comments/comment-store";
-import type { CommentActions } from "@repo/editor/comments/comment-store";
 import { CODE_MARK_SHORTCUT, runEditorShortcut } from "@repo/editor/editor-shortcuts";
-import { getEditorHostIo } from "@repo/editor/host-io";
+import { getEditorHostActions, getEditorHostIo } from "@repo/editor/host-io";
 import type { PickImageResult } from "@repo/editor/host-io";
 import { insertVaultImage } from "@repo/editor/kits/image-kit";
 import { indentBlocks, outdentBlocks } from "@repo/editor/kits/list-kit";
@@ -195,33 +193,20 @@ const SelectionButtons = ({
   editor: PlateEditor;
   onComment: () => void;
 }) => {
-  const agent = useAgentRequestActions((state) => state.actions);
-  const comments = useCommentSurface((state) => state.actions);
   const expanded = useSelectionExpanded();
   const commentable = useEditorSelector(selectionTakesComment, []);
-  if (agent === null && comments === null) {
-    return null;
-  }
   return (
     <>
-      {agent === null ? null : (
-        <ActionButton
-          action="ask-agent"
-          disabled={!expanded}
-          onPress={() => {
-            askAgentAboutSelection(editor, agent);
-          }}
-        />
-      )}
-      {comments === null ? null : (
-        <ToolbarButton
-          label={ADD_COMMENT_SHORTCUT.label}
-          disabled={!commentable}
-          onPress={onComment}
-        >
-          <MessageSquarePlusIcon />
-        </ToolbarButton>
-      )}
+      <ActionButton
+        action="ask-agent"
+        disabled={!expanded}
+        onPress={() => {
+          askAgentAboutSelection(editor);
+        }}
+      />
+      <ToolbarButton label={ADD_COMMENT_SHORTCUT.label} disabled={!commentable} onPress={onComment}>
+        <MessageSquarePlusIcon />
+      </ToolbarButton>
       <Sep />
     </>
   );
@@ -229,19 +214,17 @@ const SelectionButtons = ({
 
 // A refused create strips the markers it went in with, as the desktop's popover does, and the host
 // says why.
-const commentOn = (
-  editor: PlateEditor,
-  actions: CommentActions,
-  at: TRange,
-  text: string,
-): void => {
+const commentOn = (editor: PlateEditor, at: TRange, text: string): void => {
   editor.tf.select(at);
   const id = anchorNewComment(editor);
   if (id === null) {
     return;
   }
   void (async () => {
-    if (!(await actions.create(id, text).catch(() => false))) {
+    const created = await getEditorHostActions()
+      .comments.create(id, text)
+      .catch(() => false);
+    if (!created) {
       removeCommentMarkers(editor, [id]);
     }
   })();
@@ -362,7 +345,6 @@ const TouchToolbar = () => {
   const [prompt, setPrompt] = useState<OpenPrompt | null>(null);
   // what a field held when its text went away under it, offered again when that field next opens
   const [draft, setDraft] = useState<{ kind: PromptKind; value: string } | null>(null);
-  const comments = useCommentSurface((state) => state.actions);
   const { pickImage } = getEditorHostIo();
 
   const openPrompt = (kind: PromptKind): void => {
@@ -384,8 +366,8 @@ const TouchToolbar = () => {
     } else if (kind === "link") {
       editor.tf.select(range);
       upsertLink(editor, { skipValidation: true, url: value });
-    } else if (comments !== null) {
-      commentOn(editor, comments, range, value);
+    } else {
+      commentOn(editor, range, value);
     }
   };
 

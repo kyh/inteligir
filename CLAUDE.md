@@ -281,13 +281,15 @@ packages/
                  runtime (vault-session/note-runtime/open-note-store) the app
                  drives through three seams, `VaultSessionPorts`
                  (note/vault-session.ts), the `GuardedVaultPort` its one write
-                 policy runs over (guarded-vault-io.ts) and the `EditorHostIo`
-                 singleton (host-io.ts, opened to React by host.ts; the link
-                 resolver store and note formulas it carries live here too, so
-                 no host writes its own), plus the note-level verbs the shell
-                 reaches by path and the action registry a deep node asks the
-                 shell through (`agent-request`; the comment surface keeps its
-                 own, `CommentActions`). A host picks the hand it draws for
+                 policy runs over (guarded-vault-io.ts) and the `EditorHost`
+                 singleton (host-io.ts, opened to React by host.ts): its
+                 `EditorHostIo` (the link resolver store and note formulas it
+                 carries live here too, so no host writes its own), the
+                 `EditorHostActions` a deep node asks the shell through (Ask
+                 agent, `showTag`, a comment's create and open, all required)
+                 and the open note's store, installed by one
+                 `installEditorHost` call per host; plus the note-level verbs
+                 the shell reaches by path. A host picks the hand it draws for
                  (`editor-profile.tsx`): the desktop none, the phone's page
                  `touch`, which mounts the touch kit, its locked rich blocks
                  and the keyboard toolbar.
@@ -1122,7 +1124,7 @@ to the END of its group.
 - **A TAG IS A SCOPE ON THE RECENT LIST, NOT A VIEW; ITS NOTES ARE A LISTING,
   NOT A SEARCH; AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** No tag browser
   (a Tags tab was built and removed by owner decision): a `#tag` chip asks the
-  shell through `showTag` (`packages/editor/src/agent-request.ts`), and the
+  shell through `showTag` (`EditorHostActions`, `packages/editor/src/host-io.ts`), and the
   rail answers with Recent scoped to the tag
   (`apps/workspace/src/app/sidebar/tagged-notes.tsx`).
   `knowledge.tagNotes` answers the tag's family with the whole count, paged,
@@ -1311,8 +1313,8 @@ to the END of its group.
   it last read (`apps/workspace/src/app/actions/turn-finish-toast.ts`).
   Both undos flush the open note first, so a line inside the autosave debounce
   is merged around rather than missed (`undo-turn.ts`). "Ask agent" seeds the
-  composer through `packages/editor/src/agent-request.ts`, so the editor never
-  imports the shell. `apps/workspace/src/app/actions/actions-panel.tsx`
+  composer through the editor host's agent actions
+  (`packages/editor/src/host-io.ts`), so the editor never imports the shell. `apps/workspace/src/app/actions/actions-panel.tsx`
   and `action-composer.tsx`.
 
 - **A COMMENT STORE IS ONE DOT-FOLDER KEYED BY THE NOTE'S ID, ITS WRITE IS A

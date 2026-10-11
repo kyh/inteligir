@@ -1,8 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
-import { setEditorHostIo } from "@repo/editor/host-io";
+import { installEditorHost } from "@repo/editor/host-io";
 import type {
+  EditorHostActions,
   EditorHostIo,
   LinkResolverStore,
   VaultActions,
@@ -12,7 +13,6 @@ import { createLinkResolverStore } from "@repo/editor/link-resolver-store";
 import { createNoteFormulas } from "@repo/editor/note-formulas";
 import type { NoteFormulas } from "@repo/editor/note-formulas";
 import { readVaultTree, readWikiTargets, renameVaultEntry, useWikiTargets } from "../vault-hooks";
-import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { confirmVanished, mergeConflictLine } from "@repo/editor/note/vanished-prompt";
@@ -66,6 +66,7 @@ export interface VaultProviderProps {
   onOpenPath: (path: string | null) => void;
   onShowHistory: (path: string) => void;
   actionsRef: RefObject<VaultActions | null>;
+  hostActions: EditorHostActions;
   store: OpenNoteStore;
 }
 
@@ -167,6 +168,7 @@ export const VaultProvider = ({
   onOpenPath,
   onShowHistory,
   actionsRef,
+  hostActions,
   store,
 }: VaultProviderProps) => {
   const { vaultChanges } = useWorkspace();
@@ -202,7 +204,9 @@ export const VaultProvider = ({
   }, [session, actionsRef]);
 
   // Installed ahead of start(): the note the boot publishes mounts hooks that
-  // read this singleton during render.
+  // read this singleton during render. No unload/pagehide flush: a `keepalive`
+  // write is best-effort, and a tab closed mid-debounce losing that window is
+  // the accepted trade.
   useEffect(() => {
     const io: EditorHostIo = {
       actions: session.actions,
@@ -234,8 +238,8 @@ export const VaultProvider = ({
         return await client.vault.assetWrite({ baseName, dir, file });
       },
     };
-    setEditorHostIo(io);
-  }, [vaultChanges, port, session, store]);
+    return installEditorHost({ actions: hostActions, io, store });
+  }, [vaultChanges, port, session, store, hostActions]);
 
   useEffect(() => {
     void session.start();
@@ -252,17 +256,6 @@ export const VaultProvider = ({
       }),
     [vaultChanges, port, session],
   );
-
-  // No unload/pagehide flush: a `keepalive` write is best-effort, and a tab
-  // closed mid-debounce losing that window is the accepted trade.
-  useEffect(() => {
-    store.setFlush(session.actions.flush);
-    const unregister = registerOpenNoteStore(store);
-    return () => {
-      store.setFlush(null);
-      unregister();
-    };
-  }, [session, store]);
 
   return <OpenNoteStoreProvider store={store}>{children}</OpenNoteStoreProvider>;
 };
