@@ -46,7 +46,7 @@ export default defineConfig({
         },
       },
       {
-        // Compiled like the shipped renderer, so a component the compiler memoizes wrongly fails
+        // Compiled like the shipped page, so a component the compiler memoizes wrongly fails
         // here rather than only in the built app. Test files stay uncompiled: a fixture hook
         // minted inside a factory is hoisted to module scope with no diagnostic.
         plugins: [react({ compiler: true, exclude: [/\/node_modules\//u, /\/__tests__\//u] })],

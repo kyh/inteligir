@@ -2,10 +2,7 @@ import {
   ACCOUNT_API_PATHS,
   deleteAccountRequestSchema,
 } from "@repo/contract/cloud/account/account-schema";
-import type {
-  AccountResponse,
-  DeleteAccountResponse,
-} from "@repo/contract/cloud/account/account-schema";
+import type { DeleteAccountResponse } from "@repo/contract/cloud/account/account-schema";
 import { eq } from "drizzle-orm";
 import { createAuth } from "../auth/auth";
 import { refuse } from "../cloud-http";
@@ -21,19 +18,10 @@ import { signInWithPassword } from "./login";
 const refuseDeleted = (): Response => refuse("account-deleted", "This account was deleted.");
 
 const accountRow = async (db: Db, userId: string) =>
-  await db.select({ email: user.email, id: user.id }).from(user).where(eq(user.id, userId)).get();
-
-const readAccount = async (db: Db, verified: VerifiedDevice): Promise<Response> => {
-  const row = await accountRow(db, verified.userId);
-  if (row === undefined) {
-    return refuseDeleted();
-  }
-  const response: AccountResponse = { email: row.email, id: row.id };
-  return Response.json(response);
-};
+  await db.select({ email: user.email }).from(user).where(eq(user.id, userId)).get();
 
 // the app holds a device credential and no browser session, which is all Better Auth's own
-// delete-user takes: the password mints one here, and deleteUser runs under it, so its
+// deleteUser takes: the password mints one here, and deleteUser runs under its cookie, so its
 // beforeDelete order and tombstone stay the one purge path
 const deleteAccount = async (
   request: Request,
@@ -60,12 +48,9 @@ const deleteAccount = async (
   }
   try {
     // no password in the body: the sign-in just checked it, and the session it minted is fresh
-    await auth.api.deleteUser({
-      body: {},
-      headers: new Headers({ authorization: `Bearer ${signedIn.token}` }),
-    });
+    await auth.api.deleteUser({ body: {}, headers: signedIn.sessionCookie });
   } finally {
-    // a deletion that aborted leaves the sign-in's session behind, a bearer nobody holds
+    // a deletion that aborted leaves the sign-in's session behind, a cookie nobody holds
     await db.delete(session).where(eq(session.token, signedIn.token));
   }
   const response: DeleteAccountResponse = { deleted: true };
@@ -77,9 +62,7 @@ export const handleAccountRoute = async (
   env: Env,
   url: URL,
 ): Promise<Response> => {
-  const route = `${request.method} ${url.pathname}`;
-  const reading = route === `GET ${ACCOUNT_API_PATHS.account}`;
-  if (!reading && route !== `POST ${ACCOUNT_API_PATHS.delete}`) {
+  if (request.method !== "POST" || url.pathname !== ACCOUNT_API_PATHS.delete) {
     return refuse("not-found", "No such route.");
   }
   const db = createDb(env.DB);
@@ -87,7 +70,5 @@ export const handleAccountRoute = async (
   if (verified === null) {
     return refuse("unauthorized", "No valid device credential.");
   }
-  return reading
-    ? await readAccount(db, verified)
-    : await deleteAccount(request, env, db, url.origin, verified);
+  return await deleteAccount(request, env, db, url.origin, verified);
 };

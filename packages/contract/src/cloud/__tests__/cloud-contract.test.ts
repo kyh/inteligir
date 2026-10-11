@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   ACCOUNT_API_PATHS,
-  accountResponseSchema,
   DELETE_ACCOUNT_REFUSALS,
   deleteAccountRequestSchema,
   deleteAccountResponseSchema,
@@ -65,6 +64,7 @@ import {
 } from "../device/device-schema";
 import { createCloudClient, readCloudCall } from "../cloud-client";
 import type { CloudFailure, CloudFetch } from "../cloud-client";
+import { TEST_BUILD } from "../test-support/fake-cloud-client";
 import {
   EVENT_MAX_BYTES,
   pullQuerySchema,
@@ -130,9 +130,10 @@ describe("error envelope", () => {
 const failureFor = async (response: Response): Promise<CloudFailure | null> => {
   const result = await createCloudClient({
     baseUrl: "https://cloud.test",
+    build: TEST_BUILD,
     credential: `igd_${"a".repeat(64)}`,
     fetch: async () => response,
-  }).account();
+  }).listDevices();
   return result.ok ? null : result.failure;
 };
 
@@ -181,7 +182,7 @@ describe("a failure the cloud did not word", () => {
   it("reads a request that never left as unreachable, for a reader with no client", async () => {
     const result = await readCloudCall(async () => {
       throw new TypeError("Failed to fetch");
-    }, accountResponseSchema);
+    }, listDevicesResponseSchema);
     expect(result).toStrictEqual({
       failure: { kind: "unreachable", message: "Failed to fetch" },
       ok: false,
@@ -227,7 +228,6 @@ const APPROVAL_PAYLOAD = {
 } satisfies OpenApprovalRequest["payload"];
 
 const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
-  ["the account", accountResponseSchema, { email: "owner@example.test", id: "user_1" }],
   ["a capture", captureResponseSchema, { createdAt: 1, duplicate: false, id: "cap_1" }],
   [
     "a claim",
@@ -242,7 +242,12 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
   [
     "a login",
     deviceLoginResponseSchema,
-    { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" },
+    {
+      credential: `igd_${"a".repeat(64)}`,
+      deviceId: "dev_1",
+      email: "owner@example.test",
+      userId: "user_1",
+    },
   ],
   [
     "the device list",
@@ -429,13 +434,11 @@ describe("a worker newer than this build", () => {
   it("hands the caller a grown answer stripped to the declared shape", async () => {
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: `igd_${"a".repeat(64)}`,
-      fetch: async () => Response.json({ email: "owner@example.test", id: "user_1", plan: "pro" }),
-    }).account();
-    expect(result).toStrictEqual({
-      ok: true,
-      value: { email: "owner@example.test", id: "user_1" },
-    });
+      fetch: async () => Response.json({ devices: [], plan: "pro" }),
+    }).listDevices();
+    expect(result).toStrictEqual({ ok: true, value: { devices: [] } });
   });
 });
 
@@ -498,9 +501,16 @@ describe("device login", () => {
     expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(64)}`)).toBe(true);
     expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(63)}`)).toBe(false);
     expect(DEVICE_CREDENTIAL_PATTERN.test("not-a-credential")).toBe(false);
-    const answer = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
+    const answer = {
+      credential: `igd_${"a".repeat(64)}`,
+      deviceId: "dev_1",
+      email: "owner@example.test",
+      userId: "user_1",
+    };
     expect(deviceLoginResponseSchema.parse(answer)).toEqual(answer);
     expect(deviceLoginResponseSchema.parse({ ...answer, token: "x" })).toStrictEqual(answer);
+    const accountless = { credential: answer.credential, deviceId: answer.deviceId };
+    expect(deviceLoginResponseSchema.safeParse(accountless).success).toBe(false);
   });
 
   it("signs a device out with its own credential, and nothing else", async () => {
@@ -508,6 +518,7 @@ describe("device login", () => {
     const credential = `igd_${"a".repeat(64)}`;
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential,
       fetch: async (input, init) => {
         seen.push({
@@ -530,6 +541,7 @@ describe("device login", () => {
     const password = " the password, spaces kept ";
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential,
       fetch: async (input, init) => {
         seen.push({
@@ -623,30 +635,22 @@ describe("invite sign-up request", () => {
 });
 
 describe("push request", () => {
-  it("accepts an opaque JSON event body", () => {
+  it("accepts an opaque JSON event body and answers the one text the log stores", () => {
+    const event = { nested: [1, "x", null], type: "turn/started" };
     const result = pushRequestSchema.safeParse({
-      events: [
-        {
-          createdAt: 1,
-          deviceSeq: 1,
-          event: { nested: [1, "x", null], type: "turn/started" },
-          threadId: "th_1",
-        },
-      ],
+      events: [{ createdAt: 1, deviceSeq: 1, event, threadId: "th_1" }],
     });
-    expect(result.success).toBe(true);
+    expect(result.data?.events[0]?.event).toBe(JSON.stringify(event));
   });
 
-  it("still reads a 0.4.0 push, whose threads half carries each thread's lane", () => {
-    const stale = {
-      events: [{ createdAt: 1, deviceSeq: 1, event: { type: "thread/meta" }, threadId: "th_1" }],
-      threads: [
-        { lane: "desktop", threadId: "th_1", title: "Fix the build", updatedAt: 1 },
-        { lane: "any", threadId: "th_2", updatedAt: 2 },
-      ],
-    };
-    expect(pushRequestSchema.safeParse(stale).success).toBe(true);
-    expect(pushRequestSchema.safeParse({ ...stale, lanes: [] }).success).toBe(false);
+  it("refuses a key beside the events, a thread list among them", () => {
+    const events = [
+      { createdAt: 1, deviceSeq: 1, event: { type: "thread/meta" }, threadId: "th_1" },
+    ];
+    expect(pushRequestSchema.safeParse({ events }).success).toBe(true);
+    for (const extra of [{ threads: [] }, { threads: [{ threadId: "th_1" }] }, { lanes: [] }]) {
+      expect(pushRequestSchema.safeParse({ events, ...extra }).success).toBe(false);
+    }
   });
 
   it("refuses an event body over the byte ceiling", () => {
@@ -808,6 +812,7 @@ describe("the dispatch inbox", () => {
     const seen: { body: unknown; method: string; path: string }[] = [];
     const client = createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: `igd_${"a".repeat(64)}`,
       fetch: async (input, init) => {
         seen.push({
@@ -876,14 +881,6 @@ describe("ws ping frames", () => {
   });
 });
 
-// the vault routes' own decode: the search params whole, then the row's schema
-const paramsOf = (uri: string | undefined): Record<string, string> => {
-  if (uri === undefined) {
-    throw new Error("the client sent no request");
-  }
-  return Object.fromEntries(new URL(uri).searchParams);
-};
-
 describe("vault read rows", () => {
   it("parses the tree page and the file", () => {
     const tree = vaultTreeResponseSchema.parse({
@@ -934,6 +931,7 @@ describe("vault read rows", () => {
     const sent: { body: unknown; method: string; url: URL }[] = [];
     const client = createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: `igd_${"a".repeat(64)}`,
       fetch: async (input, init) => {
         sent.push({
@@ -973,20 +971,10 @@ describe("vault read rows", () => {
     expect(posted(VAULT_API_PATHS.asset, vaultAssetQuerySchema)).toEqual(asset);
   });
 
-  it("decodes the GET form a stale install sends from its search params", () => {
-    const query: VaultTreeQuery = { after: "notes/α β&c=d+e.md", limit: 500, ref: COMMIT };
-    const url = new URL(`https://cloud.test${VAULT_API_PATHS.tree}`);
-    url.search = new URLSearchParams({
-      after: "notes/α β&c=d+e.md",
-      limit: "500",
-      ref: COMMIT,
-    }).toString();
-    expect(vaultTreeQuerySchema.parse(paramsOf(url.toString()))).toEqual(query);
-  });
-
   it("refuses a tree limit that is not a whole number in range", () => {
-    for (const limit of ["", "0", "501", "1.5", "ten"]) {
-      expect(vaultTreeQuerySchema.safeParse({ limit }).success).toBe(false);
+    expect(vaultTreeQuerySchema.safeParse({ limit: 500 }).success).toBe(true);
+    for (const limit of [0, 501, 1.5, "7", "", "ten"]) {
+      expect(vaultTreeQuerySchema.safeParse({ limit }).success, String(limit)).toBe(false);
     }
   });
 
@@ -1015,6 +1003,7 @@ describe("vault read rows", () => {
     const seen: { authorization: string | null; body: unknown; method: string; url: URL }[] = [];
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential,
       fetch: async (input, init) => {
         seen.push({
@@ -1044,8 +1033,8 @@ describe("vault read rows", () => {
     expect(assetMediaType("no-extension")).toBeNull();
   });
 
-  it("pins the asset allowlist WHOLE — growth is additive, removal never happens", () => {
-    // hand-listed on purpose: removing an entry 400s every stale phone whose notes embed it
+  it("pins the asset allowlist WHOLE — growth is additive, removal waits on the build floor", () => {
+    // hand-listed on purpose: removing an entry 400s every phone above the floor whose notes embed it
     expect(Object.fromEntries(VAULT_ASSET_MEDIA_TYPES)).toEqual({
       ".apng": "image/apng",
       ".avif": "image/avif",
@@ -1069,6 +1058,7 @@ describe("an attachment's bytes", () => {
   const assetOver = async (fetch: CloudFetch) =>
     await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: CREDENTIAL,
       fetch,
     }).vaultAsset(QUERY);
@@ -1239,6 +1229,7 @@ describe("a vault change set", () => {
     const request: VaultCommitRequest = { authoredAt: 1, changes: [put("notes/α β&c.md")] };
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: CREDENTIAL,
       fetch: async (input, init) => {
         seen.push({

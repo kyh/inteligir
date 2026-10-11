@@ -40,16 +40,13 @@ export const resolveDataDir = (args: ResolveDataDirArgs): string => {
 
 const versionMismatch = (
   dataDir: string,
-  serverVersion: string | undefined,
+  serverVersion: string,
   cliVersion: string,
 ): CliExitError =>
   new CliExitError(
-    serverVersion === undefined
-      ? `The inteligir server for ${dataDir} is older than this CLI (${cliVersion}): it names no release.` +
-          " Update the app, or restart `inteligir serve` from a matching install."
-      : `The inteligir server for ${dataDir} is ${serverVersion} (the desktop app or \`inteligir serve\`),` +
-          ` and this CLI is ${cliVersion}. Install the matching CLI (\`npm i -g inteligir@${serverVersion}\`)` +
-          " or update the app.",
+    `The inteligir server for ${dataDir} is ${serverVersion} (the desktop app or \`inteligir serve\`),` +
+      ` and this CLI is ${cliVersion}. Install the matching CLI (\`npm i -g inteligir@${serverVersion}\`)` +
+      " or update the app.",
     { code: "SERVER_VERSION_MISMATCH" },
   );
 

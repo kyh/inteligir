@@ -18,6 +18,7 @@ export const CLOUD_ERROR_CODES = [
   "file-too-large",
   "vault-conflict",
   "vault-full",
+  "client-outdated",
   "internal",
 ] as const;
 export type CloudErrorCode = (typeof CLOUD_ERROR_CODES)[number];
@@ -27,6 +28,7 @@ export const CLOUD_ERROR_STATUS = {
   "account-deleted": 410,
   "account-exists": 409,
   "bad-request": 400,
+  "client-outdated": 426,
   "device-limit": 409,
   "file-too-large": 413,
   internal: 500,
@@ -41,9 +43,17 @@ export const CLOUD_ERROR_STATUS = {
   "vault-full": 507,
 } as const satisfies Record<CloudErrorCode, number>;
 
-export const SYNC_TERMINAL_CODES: ReadonlySet<CloudErrorCode> = new Set([
+// the credential is dead: only a sign-in, which replaces it, comes back from these
+export const CREDENTIAL_REFUSED_CODES: ReadonlySet<CloudErrorCode> = new Set([
   "unauthorized",
   "account-deleted",
+]);
+
+// a session that hears one of these ends. client-outdated leaves the credential live: the build is
+// below the cloud's floor, and only an update moves past it, so a retry would be refused forever
+export const SYNC_TERMINAL_CODES: ReadonlySet<CloudErrorCode> = new Set([
+  ...CREDENTIAL_REFUSED_CODES,
+  "client-outdated",
 ]);
 
 // this device's own outbox is wrong at the named deviceSeq: drop those rows, a resend is refused forever
@@ -53,8 +63,7 @@ export const SYNC_OUTBOX_CODES: ReadonlySet<CloudErrorCode> = new Set([
 ]);
 
 // a code this build does not know is a newer worker's: `internal` retries it and keeps the
-// worker's message, where refusing the envelope would read it as a body this build cannot read.
-// 0.4.0 and older still refuse the whole envelope, so to them a new code is no refusal at all.
+// worker's message, where refusing the envelope would read it as a body this build cannot read
 const errorCodeSchema = z
   .string()
   .transform(

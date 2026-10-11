@@ -23,6 +23,16 @@ export interface LogPlan {
   skipped: readonly string[];
 }
 
+const skipThrough = (steps: LogPlanStep[], seq: number, unparsed: number | null): void => {
+  const last = steps.at(-1);
+  if (last?.kind === "skip") {
+    last.cursor = seq;
+    last.firstUnparsed ??= unparsed;
+    return;
+  }
+  steps.push({ cursor: seq, firstUnparsed: unparsed, kind: "skip" });
+};
+
 // every id the client has signed in as, not only the current one: signing in again mints a new
 // id, and the replayed log still carries the rows written under the old ones.
 export const planPage = (
@@ -32,21 +42,25 @@ export const planPage = (
   const steps: LogPlanStep[] = [];
   const skipped: string[] = [];
   for (const row of rows) {
-    const last = steps.at(-1);
     // this client already holds its own rows; re-appending would double them
-    const mine = ownDeviceIds.has(row.deviceId);
-    const parsed = mine ? null : threadEventSchema.safeParse(row.event);
-    if (parsed !== null && !parsed.success) {
-      skipped.push(`log row ${row.seq}: not a thread event this build understands`);
+    if (ownDeviceIds.has(row.deviceId)) {
+      skipThrough(steps, row.seq, null);
+      continue;
     }
-    if (parsed === null || !parsed.success) {
-      const unparsed = parsed === null ? null : row.seq;
-      if (last?.kind === "skip") {
-        last.cursor = row.seq;
-        last.firstUnparsed ??= unparsed;
-      } else {
-        steps.push({ cursor: row.seq, firstUnparsed: unparsed, kind: "skip" });
-      }
+    const parsed = threadEventSchema.safeParse(row.event);
+    if (!parsed.success) {
+      skipped.push(`log row ${row.seq}: not a thread event this build understands`);
+      skipThrough(steps, row.seq, row.seq);
+      continue;
+    }
+    // the cloud never reads a body, so the envelope can disagree with it, and an apply keyed by
+    // one would file the event under the other. no later grammar reads the row differently, so it
+    // is not recorded for a rewind.
+    if (parsed.data.threadId !== row.threadId) {
+      skipped.push(
+        `log row ${row.seq}: filed under thread ${row.threadId} but carries an event for ${parsed.data.threadId}`,
+      );
+      skipThrough(steps, row.seq, null);
       continue;
     }
     const planned: PlannedLogRow = {
@@ -54,6 +68,7 @@ export const planPage = (
       origin: { deviceId: row.deviceId, deviceSeq: row.deviceSeq },
       seq: row.seq,
     };
+    const last = steps.at(-1);
     if (last?.kind === "apply" && last.threadId === row.threadId) {
       last.rows.push(planned);
       continue;

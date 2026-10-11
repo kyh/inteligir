@@ -62,8 +62,8 @@ src/
   credential/   the device credential at rest
     credential-codec.ts        parse/serialize + the wire pattern
     secure-store-credential.ts expo-secure-store adapter (Keychain/Keystore)
-                               behind the contract's DeviceCredentialStore port
-                               (@repo/contract/cloud/device/login-flow)
+                               behind the composition root's CredentialStore,
+                               which keeps the login's bearer alone
   login/        signing this phone in to an account
     login-store.ts      the screen's state machine (idle | signing-in | failed)
                         over the contract's login flow
@@ -76,10 +76,10 @@ src/
                         one policy for what the WebView may load, the bounded
                         flush (pure, unit-tested)
     editor-ports.ts     what the page asks, answered over the notes store and
-                        the file verbs: the guarded write compared with the
-                        text the phone holds, attachments on demand, the
-                        change feed, and where a page event leads (platform-
-                        free, unit-tested against the fake vault)
+                        the file verbs: the guarded write handed to the
+                        store, attachments on demand, the change feed, and
+                        where a page event leads (platform-free, unit-tested
+                        against the fake vault)
     page-source.ts      the page in the app bundle (page-folder.ts: the
                         folder's name, which plugins/with-editor-page.js puts
                         it under)
@@ -88,9 +88,9 @@ src/
                         the changed texts fetched in pinned batches (pure over
                         the SQL port, unit-tested against node:sqlite)
     notes-store.ts      the listing, reads and the write surface
-                        (shaped like @repo/editor's VaultIO, plus rename and
-                        putAsset) over the mirror and the outbox, under the
-                        sync runtime's session (pure, unit-tested)
+                        (shaped like @repo/editor's GuardedVaultPort, plus
+                        rename and putAsset) over the mirror and the outbox,
+                        under the sync runtime's session (pure, unit-tested)
     vault-outbox.ts     the phone's unsent edits, durable in SQLite and sent
                         oldest first as change sets (outbox-ops.ts: what a row
                         holds; outbox-reconcile.ts: a stale set settled with
@@ -248,7 +248,8 @@ from comparing bearers inside the store. Every await re-checks the session,
 and a wipe bumps a generation every write re-checks inside its transaction,
 so a batch that started before the wipe never lands. The database has ONE
 `user_version` (`lib/phone-db.ts`): a table another module adds is a step
-appended there.
+there. Until the first build EAS makes, the schema is one step edited in
+place; from that build on, a step is appended, never edited.
 
 ## Unsent edits
 
@@ -264,11 +265,13 @@ when expo-network says the phone is back online, and on a backoff after a
 failure, one pass at a time (`createSingleFlight` from
 `@repo/contract/cloud/sync/sync-session`).
 
-- **A write carries the blob it was computed from.** A read records the base
-  the caller's next write is guarded by, and a write the caller never read
-  throws, as the desktop's guarded io does. Three saves of one note before it
-  is sent are ONE row: a write to a path whose last row writes it replaces the
-  text and keeps the first base.
+- **A write carries the text it was computed from.** The store compares it
+  with the text the phone holds, under the lock every change on the phone
+  takes, and a mismatch hands back what the phone holds for the editor page's
+  own merge: the page runs the desktop's write policy, so the phone runs no
+  second one. Three saves of one note before it is sent are ONE row: a write
+  to a path whose last row writes it replaces the text and keeps the first
+  base.
 - **A stale write is reconciled here, with the desktop's own verdict.** The
   Worker never merges: its 409 carries what the head holds and who wrote it,
   and `notes/outbox-reconcile.ts` runs `reconcileFile` from
@@ -392,7 +395,9 @@ session, so one fence covers every request a sign-in makes, and an
 `unauthorized` from a vault read, a capture or a pull ends the sign-in for all
 of them. The composition root then idles the tree and wipes the mirror and
 the threads, and keeps the credential, so the sign-in screen can say this device was
-signed out. Which screens exist is the ROUTE GUARD's answer
+signed out. A `client-outdated` ends the sign-in too, as `outdated`, but wipes
+nothing: the cloud refused this build, not the credential, so that screen asks
+for an update instead, and the next build resumes from what the phone holds. Which screens exist is the ROUTE GUARD's answer
 (`Stack.Protected` in `app/_layout.tsx`), never a per-screen branch: the
 signed-in screens and `app/sign-in.tsx` each sit behind one guard, and a
 revocation takes the signed-in history away with it. A cold launch is
@@ -506,19 +511,16 @@ pnpm hotfix:mobile       # eas update to the production channel: a JS-only fix
    `pnpm --filter @repo/mobile exec eas init`. EAS cannot write a dynamic
    config, so commit the owner and project id it prints into `easProject` in
    `app.config.js`; that one value also points EAS Update at the project.
-2. If `apps/mobile/ios` exists from an earlier `expo run:ios`, run
-   `npx expo prebuild --clean` in `apps/mobile`: it was generated for the old
-   bundle id.
-3. The first `pnpm testflight:mobile` logs into the Apple team that signs the
+2. The first `pnpm testflight:mobile` logs into the Apple team that signs the
    desktop app and lets EAS create and keep the certificate, the profile and an
    App Store Connect API key. Its submit creates the App Store Connect record
    for `com.inteligir.mobile`.
-4. Commit that record's id as `submit.production.ios.ascAppId` in `eas.json`,
+3. Commit that record's id as `submit.production.ios.ascAppId` in `eas.json`,
    so later submits ask nothing.
-5. In App Store Connect › TestFlight, create the internal group `Owner` and add
+4. In App Store Connect › TestFlight, create the internal group `Owner` and add
    yourself, and the external group `Cohort`. Every build reaches `Owner`
    first, and `Cohort` only once it has passed there (Per release, below).
-6. Fill TestFlight's Test Information once: a beta description, a feedback
+5. Fill TestFlight's Test Information once: a beta description, a feedback
    email you read, `https://inteligir.com/privacy` as the privacy policy, and
    the Beta App Review sign-in below.
 
@@ -623,4 +625,4 @@ a page change needs `pnpm testflight:mobile`, since the bridge between the
 page and the JavaScript breaks freely between releases. The fingerprint also
 covers the app config, `version` included, so an update bundled after a
 version bump reaches nobody either: a hotfix is published from a branch off
-the tag of the build testers hold (`docs/releasing.md` § Hotfixes).
+the tag of the build TestFlight serves (`docs/releasing.md` § Hotfixes).

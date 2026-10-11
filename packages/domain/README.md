@@ -1,14 +1,14 @@
 # @repo/domain
 
 The zod-only leaf: the thread grammar every wire in the product carries, and
-the vocabulary the write layer announces change through. The desktop renderer,
+the vocabulary the write layer announces change through. The workspace UI,
 the local server, the cloud page planner and the phone all parse the same
 event with it, so it holds schemas and pure tables and nothing else — no node,
 no db, no transport, no React.
 
 ## Why it exists
 
-A thread event is written by the local server, replayed by the renderer,
+A thread event is written by the local server, replayed by the page,
 pushed through the Worker's merged log and pulled back down by another device,
 and every one of those parses it at its own boundary. One grammar in one
 package with one runtime dependency is what makes that the same parse on every
@@ -20,7 +20,7 @@ every consumer — and by `tsconfig.json` (`ES2023`, `types: []`), so a node
 global is a type error before it is a lint error.
 
 Consumers: `@repo/db`, `@repo/contract`, `@repo/agent-runtime`, the CLI server,
-the desktop renderer, and `apps/mobile`, whose synced log is stored as this
+the workspace UI, and `apps/mobile`, whose synced log is stored as this
 package's `ThreadEvent`.
 
 ## Layout
@@ -38,18 +38,16 @@ src/
                          # status, not a side field, and `stopping` has no
                          # run.started cell: a queued turn cannot reactivate it
   provider-event.ts      # the PERSISTED ThreadEvent grammar, despite the name:
-                         # seven item kinds, fourteen event types, each with its
-                         # own scope. `client/turn/requested` carries the
+                         # five item kinds, ten event types, each with its own
+                         # scope, and nothing the mapper or the host does not
+                         # produce. `client/turn/requested` carries the
                          # optional viewContext and contextPaths beside bb's
                          # `text`, which stays exactly what the user typed.
                          # `thread/meta` (title, origin note, harness) and
                          # `thread/archived` are local: the thread's own facts,
                          # riding its log to every device
                          # `mergeAdjacentDeltas` stores one item's adjacent
-                         # deltas as one row, a reset opening a new run and a
-                         # caller's cap bounding each. `settledReasoningText`
-                         # is the one reading of a settled thought both the
-                         # desktop's fold and the phone's run
+                         # deltas as one row, a caller's cap bounding each
   thread-event-scope.ts  # thread | turn scope, each its own schema so an
                          # event type names the one it takes (anything looser
                          # than turn scope states why beside its member)
@@ -65,11 +63,12 @@ src/
                          # about, quoted the one way the Mac's composer and
                          # the phone's both start with
   pending-interactions.ts  # the provider-neutral approval grammar — subjects
-                         # (command | file_change), decisions, payload,
-                         # resolution — and `parseApprovalResolution`, the ONE
-                         # parser the answer route's 400 gate and the runtime
-                         # share (deny is always accepted; anything else must
-                         # be a decision the request offered)
+                         # (command | file_change), the decision enum (its
+                         # tuple feeds the column), payload — and
+                         # `unanswerableReason`, the ONE check the answer
+                         # route's 400 gate and the runtime share (deny is
+                         # always accepted; anything else must be a decision
+                         # the request offered)
   pending-interaction-status.ts  # pending|resolved|interrupted, the
                          # same tuple-feeds-both-sides shape as thread-status
   change-kinds.ts        # the invalidation vocabulary: vault, doc and thread
@@ -96,9 +95,8 @@ Every subpath is exported by name in `package.json`; there is no barrel.
   already names is re-vendored from bb, not invented.
 - **Scope is enforced twice, on purpose.** `threadEventSchema` refuses a
   turn-only event under thread scope, and a turn scope with no id, at parse;
-  the `events_scope_shape_check` CHECK in
-  `packages/db/drizzle/20260816084328_early_tana_nile/migration.sql` refuses the same row at
-  insert. A turn-scoped row with no turn id is a row no query can place.
+  the `events_scope_shape_check` CHECK in `packages/db/src/schema.ts` refuses
+  the same row at insert. A turn-scoped row with no turn id is a row no query can place.
 - **The lifecycle is a table, and the db applies it under a CAS.**
   `packages/db/src/threads.ts` evaluates the event here, then updates only
   where the status AND the active turn id still match what it read, so a

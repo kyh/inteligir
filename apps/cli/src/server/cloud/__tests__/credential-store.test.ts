@@ -10,7 +10,13 @@ import {
 } from "../credential-store";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
-const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
+const CREDENTIAL = {
+  credential: `igd_${"a".repeat(64)}`,
+  deviceId: "dev_1",
+  deviceName: "Laptop",
+  email: "owner@example.test",
+  userId: "user_1",
+};
 
 describe("the device credential at rest", () => {
   it("round-trips, and appears in no other file in the data dir", () => {
@@ -54,6 +60,19 @@ describe("the device credential at rest", () => {
       JSON.stringify({ credential: "nope", deviceId: "dev_1" }),
     );
     expect(readDeviceCredential(dataDir)).toBeNull();
+  });
+
+  it("reads a sign-in that cannot name its account or its device as SIGNED OUT", () => {
+    const dataDir = makeTempDir("inteligir-credential-");
+    for (const missing of ["deviceName", "email", "userId"]) {
+      writeFileSync(
+        deviceCredentialPath(dataDir),
+        JSON.stringify(
+          Object.fromEntries(Object.entries(CREDENTIAL).filter(([key]) => key !== missing)),
+        ),
+      );
+      expect(readDeviceCredential(dataDir), missing).toBeNull();
+    }
   });
 
   it("clears, and clearing a signed-out install is not an error", () => {

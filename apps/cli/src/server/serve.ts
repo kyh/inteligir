@@ -6,6 +6,7 @@ import { mkdirSync } from "node:fs";
 import { inspect } from "node:util";
 import { createCloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
 import { browserHandoffUrl } from "@repo/contract/local/routes";
+import { agentStatusLine } from "@repo/contract/local/system/system-schema";
 import { externalSyncName } from "@repo/contract/local/vault/vault-schema";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { resolveUiDir } from "../paths";
@@ -23,11 +24,9 @@ import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { debugLog } from "./debug-log";
 import { resolveCheckoutRoot } from "./dev-instance";
-import { messageOf } from "./error-message";
 import type { ReconcileStats } from "./knowledge/knowledge-runtime";
 import { closeServer, guardUpgradeSockets, listenWithRetry } from "./listen";
 import { LOOPBACK_HOST } from "./loopback-origin";
-import { removeRetiredModelDir } from "./retired-model-dir";
 import { acquireServeLock, serveLockPath } from "./serve-lock";
 import { loopbackOrigin, mintServerToken, removeServerFile, writeServerFile } from "./server-file";
 import { probeServerFile, processAlive, silentOwnerSentence } from "./server-probe";
@@ -48,6 +47,7 @@ export interface ServeOverrides {
   INTELIGIR_PORT?: string;
   INTELIGIR_DATA_DIR?: string;
   INTELIGIR_VAULT_DIR?: string;
+  INTELIGIR_DEBUG?: string;
 }
 
 export interface ServeResult {
@@ -167,7 +167,7 @@ const boot = async (
 
   const composeArgs: ComposeRuntimeArgs = {
     accounts: createAgentAccounts({ cwd: config.dataDir, env }),
-    // injected: the composed graph is also compiled under the browser tsconfig, where
+    // injected: the composed graph is also compiled under the workspace suites' DOM tsconfig, where
     // WebSocket's second argument is a protocol list, not node's `{ headers }`.
     cloudTransport: {
       openSocket: createCloudSocketOpener((url, headers) => new WebSocket(url, { headers })),
@@ -246,25 +246,13 @@ const boot = async (
     };
     console.log(bootReport(phases, reconcile));
   })();
-  // after listen too, and guarded: removing a folder no build reads must neither delay the
-  // readiness the shell waits on nor fail a boot.
-  void (async () => {
-    try {
-      await removeRetiredModelDir(config);
-    } catch (error) {
-      console.warn(`[models] retired model folder left in place: ${messageOf(error)}`);
-    }
-  })();
   const bootRemote = await runtime.context.vault.git.currentRemote();
   const agent = runtime.context.system.agent();
   const serverUrl = loopbackOrigin(port);
   console.log(
     `inteligir ${version} (${config.mode}) listening on ${serverUrl} — data: ${config.dataDir} — vault: ${config.vaultDir}${bootSyncNote(bootRemote, runtime.externalSync)}`,
   );
-  console.log(`agent: ${agent.runtime}${agent.detail === null ? "" : ` — ${agent.detail}`}`);
-  for (const warning of config.warnings) {
-    console.warn(`config: ${warning}`);
-  }
+  console.log(`agent: ${agentStatusLine(agent)}`);
   const uiUrl =
     clientDir === null && uiDev === null
       ? null

@@ -55,7 +55,7 @@ the agent runs against its own edit.
   exists FOR that resolve, and `inteligir-notes` is the probe file: renaming it
   silently drops the pointer in every checkout.
 - **In a published install** no workspace package resolves, so the same
-  function reads `dist/skills` — `apps/cli/scripts/build.mjs` copies this
+  function reads `dist/skills` — `apps/cli/scripts/build.ts` copies this
   directory there as CONTENT beside the migrations, the licences and the UI.
 - The path resolves ONCE at boot, in `apps/cli/src/server/serve.ts`'s driver
   factory, and rides `AgentSessionFacts`. `toShellEnv` names it
@@ -76,7 +76,7 @@ the agent runs against its own edit.
   `inteligir-notes` first".
 - **Adding a skill** is one directory, one `SKILL.md`, frontmatter `name` equal
   to the directory, and a row under the hub's "Focused Contracts" so the hub
-  names it; `build.mjs` stages the whole directory, so nothing else changes. A
+  names it; `build.ts` stages the whole directory, so nothing else changes. A
   new construct lands in the editor kit, the rule table, the scan and
   `fence-langs` FIRST, then the words.
 - The skills are ordinary tracked markdown: oxfmt formats them, and the
@@ -91,9 +91,8 @@ skill and no phantom, and the resolver's probe file exists, so renaming
 `inteligir-notes` fails CI rather than silently dropping the pointer. The same
 guard holds the fences to the parser: every `inteligir-*` fence an example
 opens is a `*_LANG` that `@repo/notes/markdown/fence-langs` exports, and every
-one it exports is taught — except a `COMPAT_*` spelling, which the app reads
-but never writes new, so no skill and no note under `apps/cli/seed/` may open
-one. `packages/editor/src/__tests__/skill-examples.test.ts`
+one it exports is taught; no note under `apps/cli/seed/` may open one it does
+not export. `packages/editor/src/__tests__/skill-examples.test.ts`
 holds the examples themselves: each `markdown` fence in a `SKILL.md` must open
 rich through the editor's gate and settle after one save. The
 rest of the pins are downstream:

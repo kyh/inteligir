@@ -27,11 +27,10 @@ const shiftPosition = (node: Positioned, shift: number): void => {
 
 const shiftTree = (node: Nodes, shift: number): void => {
   shiftPosition(node, shift);
-  // jsx attributes carry positions but are not children
-  if (node.type === "mdxJsxFlowElement" || node.type === "mdxJsxTextElement") {
-    for (const attribute of node.attributes) {
-      shiftPosition(attribute, shift);
-    }
+  // an element's tags carry positions but are not children
+  if (node.type === "htmlElement") {
+    shiftPosition(node.open, shift);
+    shiftPosition(node.close, shift);
   }
   if ("children" in node) {
     for (const child of node.children) {

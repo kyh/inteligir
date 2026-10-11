@@ -72,7 +72,13 @@ const deviceCredentialFields = {
 export const deviceCredentialSchema = z.object(deviceCredentialFields).strict();
 export type DeviceCredential = z.infer<typeof deviceCredentialSchema>;
 
-export const deviceLoginResponseSchema = z.object(deviceCredentialFields);
+// the account rides the answer that mints the credential, so a client knows whose vault it syncs
+// from its first request on; the stored credential stays the bearer alone
+export const deviceLoginResponseSchema = z.object({
+  ...deviceCredentialFields,
+  email: z.string().min(1),
+  userId: z.string().min(1),
+});
 export type DeviceLoginResponse = z.infer<typeof deviceLoginResponseSchema>;
 
 export const deviceSchema = z.object({

@@ -46,22 +46,26 @@ src/
     vault-ignore.ts    # the vault's .gitignore rules, one matcher per file
                        # scoped to its folder; the host reads the files
   markdown/            # the one scan, and what reads a doc's header
-    scan-parse.ts      # the grammar every knowledge scan reads; TOTAL, and
-                       # disabling codeIndented/htmlFlow is what keeps it
-                       # reading as prose what the editor draws as prose
-    verbatim-spans.ts  # the ranges the EDITOR holds verbatim (opaque nodes,
-                       # math) — what keeps rename byte-surgery out of them —
-                       # and the literal ranges (code, math, frontmatter, jsx
-                       # attributes) table-pipes' escape must not touch
+    bare-parse.ts      # the editor's grammar as a bare parse, no transformer
+                       # run: the tree every knowledge scan walks, so the
+                       # index reads as prose what the editor draws as prose
     remark-wiki-link.ts  # own [[wiki-link]] tokenizer, byte-exact both ways;
                        # the body's one parse, one writer and one display
                        # label (`wikiLinkLabel`), which every chip, preview
                        # and snippet on desktop and phone draws
-    remark-inline-constructs.ts, remark-opaque.ts, remark-tabs.ts,
-    remark-mdx-agnostic.ts, table-pipes.ts, line-scan.ts
+    remark-inline-html.ts  # every tag is inline html (flow html is off),
+                       # folded with its closer as the tree compiles: a bare
+                       # `<u>` the underline mark, any other pair one element
+                       # the editor holds as source; a tag nothing closes
+                       # stays its own bytes
+    remark-containers.ts   # the `:::` line grammar (tabs, toggles, columns),
+                       # nesting in every flow container; an opener whose
+                       # container cannot be read whole stays prose
+    remark-inline-constructs.ts, remark-opaque.ts, table-pipes.ts,
+    line-scan.ts
                        # the rest of the dialect's own remark plugins
-    md-plugins.ts      # the EDITOR's plugin list, owned here so verbatim-spans
-                       # can run it as a bare parse
+    md-plugins.ts      # the EDITOR's plugin list, owned here so the scan
+                       # reads the same grammar
     parse.ts           # the editor's parse (`parseMdast`, which its
                        # markdown→Slate conversion runs); it answers the
                        # escaped text its offsets index
@@ -70,11 +74,9 @@ src/
                        # offset on a BOM note cuts one byte early
     mdast-nodes.ts     # the mdast NARROWING boundary: a walk asks it what a
                        # node is, never discriminates structurally
-    fence-langs.ts, callout-payload.ts  # ONE spelling of every dialect fence
-                       # and ONE callout-payload grammar — the rule table and
-                       # the scan both read them; a COMPAT_* spelling (the
-                       # inteligir-callout fence) is read and round-tripped,
-                       # never written new or taught
+    fence-langs.ts     # ONE spelling of every dialect fence — the rule table
+                       # reads it, and the skills guard holds the skills and
+                       # the seed to it
     frontmatter.ts     # the ONE header fence every reader cuts at (BOM and
                        # CRLF aware), split/recombine (ONE
                        # `replaceFrontmatterYaml`, which
@@ -108,13 +110,11 @@ src/
   Nothing durable may ever live in it; it is rebuilt from the vault.
 - **Frontmatter is the ONLY property store** (repo Decisions). YAML the
   typing rules can't represent is preserved byte-exactly, never coerced.
-- **One SCAN per doc** (`projectDoc`), over one grammar (`scan-parse.ts`) —
-  which is NOT the editor's plugin list (`markdown/md-plugins.ts`, owned here
-  so the scan can borrow it), and cannot be: the mdx tokenizer
-  THROWS, and a malformed tag must not cost a note its place in the index.
-  Where the two disagree — the byte ranges the editor carries verbatim —
-  `verbatim-spans.ts` asks the editor's grammar rather than guessing, and a
-  link inside one is indexed with no rewritable span.
+- **One SCAN per doc** (`projectDoc`), over ONE grammar, the editor's own
+  (`markdown/md-plugins.ts` as `markdown/bare-parse.ts`), which never throws,
+  so a malformed tag cannot cost a note its place in the index. A link inside
+  a construct the editor carries as its source is indexed with no rewritable
+  span.
 - **There is no crawl to exclude anything from.** This package never reads a
   directory: the vault's `.gitignore` rules reach it as text the host read
   (`vault-ignore.ts`), and any other hiding is a VIEW filter a consumer

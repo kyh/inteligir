@@ -1,13 +1,12 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { isHarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { defaultHarnessId } from "../agent-driver";
 import { AgentPrefsStore } from "../agent-prefs-store";
 import { JsonFileStoreError } from "../../json-file-store";
-import { createAgentsService, HarnessRefusedError } from "../agents-service";
+import { createAgentsService } from "../agents-service";
 import type { AgentAccounts } from "../agent-sign-in";
 import { fakeAgentAccounts } from "../../__tests__/boot-app";
 
@@ -111,30 +110,5 @@ describe("the agents service", () => {
       { displayName: "ChatGPT", id: "codex", runtime: "missing", vendorApp: "Codex" },
     ]);
     expect(asked).toEqual(["claude"]);
-  });
-
-  it("refuses an unknown harness without writing", async () => {
-    const store = new AgentPrefsStore(scratch());
-    const agents = createAgentsService({
-      accounts: fakeAgentAccounts(),
-      env: NOTHING_ON_PATH,
-      store,
-    });
-    await expect(agents.setDefault("gemini")).rejects.toThrow(HarnessRefusedError);
-    expect(store.read()).toEqual({});
-  });
-
-  it("refuses a name every object answers to", async () => {
-    const store = new AgentPrefsStore(scratch());
-    const agents = createAgentsService({
-      accounts: fakeAgentAccounts(),
-      env: NOTHING_ON_PATH,
-      store,
-    });
-    for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
-      expect(isHarnessId(name)).toBe(false);
-      await expect(agents.setDefault(name)).rejects.toThrow(HarnessRefusedError);
-    }
-    expect(store.read()).toEqual({});
   });
 });

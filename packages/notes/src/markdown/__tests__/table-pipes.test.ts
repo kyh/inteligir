@@ -11,9 +11,6 @@ const isParent = (node: Node): node is Parent => "children" in node;
 
 const formulasIn = (md: string): { raw: string }[] => {
   const parsed = parseMdast(md);
-  if (!parsed.ok) {
-    throw new Error(parsed.failure.message);
-  }
   const out: { raw: string }[] = [];
   const walk = (node: Node): void => {
     const formula = formulaNodeSchema.safeParse(node);
@@ -102,16 +99,14 @@ describe("escapePillPipesInTables", () => {
     expect(escapePillPipesInTables("\uFEFF{{a|b}}`c` | x\n")).toBe("\uFEFF{{a\\|b}}`c` | x\n");
   });
 
-  it("rewrites nothing in a doc the grammar refuses", () => {
-    const refused = "| a | b |\n| - | - |\n| {{5|5}} | x |\n\n<x |\n";
-    expect(escapePillPipesInTables(refused)).toBe(refused);
+  it("escapes beside a malformed tag, which the grammar reads as text", () => {
+    expect(escapePillPipesInTables("| a | b |\n| - | - |\n| {{5|5}} | x |\n\n<x |\n")).toBe(
+      "| a | b |\n| - | - |\n| {{5\\|5}} | x |\n\n<x |\n",
+    );
   });
 
   it("hands back the escaped text the tree's offsets index", () => {
     const parsed = parseMdast(`${RAW_PILL_TABLE}\n$$\nx\n$$\n`);
-    if (!parsed.ok) {
-      throw new Error(parsed.failure.message);
-    }
     const math = parsed.root.children.find((node) => node.type === "math");
     const start = math?.position?.start.offset;
     const end = math?.position?.end.offset;

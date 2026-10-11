@@ -1,14 +1,13 @@
 import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
 import { endpointUrl } from "@repo/contract/cloud/client";
+import { CLIENT_BUILD_HEADER, clientBuildValue } from "@repo/contract/cloud/client-build";
+import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { readDeviceCredential } from "./credential-store";
 
 // resolved per pass, not at boot, so sign-in / sign-out flips vault sync live. the
 // credential rides per-invocation env, never the url: the engine persists the
 // remote url into <vault>/.git/config, which users back up and copy.
-
-// pending: signed in, but the /v1/account fetch that names the account has not landed yet.
-type VaultRemoteAccount = { state: "pending" } | { state: "known"; id: string };
 
 interface VaultRemoteBase {
   url: string;
@@ -20,7 +19,7 @@ interface VaultRemoteBase {
 // environment changes.
 export type VaultRemoteSpec =
   | (VaultRemoteBase & { source: "explicit" | "pinned" })
-  | (VaultRemoteBase & { source: "account"; account: VaultRemoteAccount });
+  | (VaultRemoteBase & { source: "account"; accountId: string });
 
 // the vault repo's own record of where it syncs, as its config states it: the origin's url, and
 // whether the app marked that origin as the account's (`inteligir.remote=account`).
@@ -38,7 +37,8 @@ export const hostedVaultRemoteUrl = (cloudUrl: string): string =>
   endpointUrl(cloudUrl, VAULT_GIT_PATH);
 
 // the url of an origin the user set, or null when there is none or it is the app's own: the
-// marker, or the hosted url itself, which covers a vault that synced before the marker existed.
+// marker, or the hosted url itself, since an origin set to it by hand is still the account's vault,
+// which only the account's credential reaches.
 export const ownOriginUrl = (origin: OriginConfig, hostedUrl: string): string | null =>
   origin.url === null || origin.markedAccount || origin.url === hostedUrl ? null : origin.url;
 
@@ -46,6 +46,8 @@ export interface CreateVaultRemoteProviderArgs {
   // INTELIGIR_VAULT_REMOTE, over whatever the vault's own origin says.
   pinnedRemote: string | null;
   cloudUrl: string;
+  // named to the hosted vault alone, as every request to the cloud names it
+  build: ClientBuild;
   dataDir: string;
   // judged once at boot: a folder another service syncs never takes the hosted vault.
   externalSync: ExternalSync | null;
@@ -72,14 +74,14 @@ export const createVaultRemoteProvider = (
       return null;
     }
     return {
-      account:
-        credential.userId === undefined
-          ? { state: "pending" }
-          : { id: credential.userId, state: "known" },
+      accountId: credential.userId,
+      // one extraHeader row per header: git sends every value the key holds
       env: {
-        GIT_CONFIG_COUNT: "1",
+        GIT_CONFIG_COUNT: "2",
         GIT_CONFIG_KEY_0: `http.${url}.extraHeader`,
+        GIT_CONFIG_KEY_1: `http.${url}.extraHeader`,
         GIT_CONFIG_VALUE_0: `Authorization: Bearer ${credential.credential}`,
+        GIT_CONFIG_VALUE_1: `${CLIENT_BUILD_HEADER}: ${clientBuildValue(args.build)}`,
       },
       source: "account",
       url,

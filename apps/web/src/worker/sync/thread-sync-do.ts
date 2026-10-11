@@ -74,8 +74,9 @@ export interface SyncRefusal {
 
 export type SyncResult<T> = { readonly ok: true; readonly value: T } | SyncRefusal;
 
-// an event body crosses as the JSON text the log stores and compares, never as a parsed tree:
-// the Worker owns the wire's shape, and a tree would be cloned across only to be stringified
+// an event body crosses as the JSON text the push parse serialized, never as a parsed tree: the
+// log stores and compares that text and a pull splices it into its page verbatim, so a text that
+// is not json would break every page after it
 export interface StoredEvent {
   readonly createdAt: number;
   readonly deviceSeq: number;
@@ -153,9 +154,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
       );
     `);
     this.ctx.storage.sql.exec(DISPATCH_TABLES);
-    // an object older than the dispatch inbox still holds each thread's lane and title, which
-    // nothing reads: dropped on wake, or it would sit in the account's storage for good
-    this.ctx.storage.sql.exec("DROP TABLE IF EXISTS thread_meta");
   }
 
   // the tombstone refuses a call that verified its credential just before the account was

@@ -24,7 +24,6 @@ const base = (): TimelineRowBase => {
 const timeline = (rows: TimelineRow[]): ThreadTimeline => ({
   maxSequence: nextSeq,
   rows,
-  tokenUsage: null,
 });
 
 describe("formatThreadTimeline", () => {
@@ -47,7 +46,6 @@ describe("formatThreadTimeline", () => {
             approvalStatus: null,
             command: "ls vault",
             cwd: "/vault",
-            exitCode: 0,
             kind: "work",
             outputHead: ["a.md"],
             outputLineCount: 1,
@@ -84,7 +82,7 @@ describe("formatThreadTimeline", () => {
         "",
         "── turn (completed) ──",
         "  thinking: Plan it",
-        "  $ ls vault (exit 0)",
+        "  $ ls vault",
         "  ~ add notes/a.md",
         "",
         "── agent ──",
@@ -93,14 +91,13 @@ describe("formatThreadTimeline", () => {
     );
   });
 
-  it("marks non-completed statuses, errors, tools and token usage", () => {
+  it("marks non-completed statuses, errors and tools", () => {
     const rows: TimelineRow[] = [
       {
         ...base(),
         children: [
           {
             ...base(),
-            error: "index unavailable",
             kind: "work",
             result: null,
             status: "error",
@@ -116,36 +113,13 @@ describe("formatThreadTimeline", () => {
         turnId: "turn_2",
       },
     ];
-    const formatted = formatThreadTimeline({
-      maxSequence: nextSeq,
-      rows,
-      tokenUsage: {
-        last: {
-          cachedInputTokens: 0,
-          inputTokens: 20,
-          outputTokens: 10,
-          reasoningOutputTokens: 0,
-          totalTokens: 30,
-        },
-        modelContextWindow: null,
-        total: {
-          cachedInputTokens: 0,
-          inputTokens: 20,
-          outputTokens: 10,
-          reasoningOutputTokens: 0,
-          totalTokens: 30,
-        },
-      },
-    });
-    expect(formatted).toBe(
+    expect(formatThreadTimeline(timeline(rows))).toBe(
       [
         "── turn (error) ──",
-        "  tool search_vault [error] — index unavailable",
+        "  tool search_vault [error]",
         "  ── error ──",
         "  provider failed",
         "  boom",
-        "",
-        "tokens: 30 total (20 in, 10 out)",
       ].join("\n"),
     );
   });
@@ -162,7 +136,7 @@ describe("formatThreadTimeline", () => {
             kind: "work",
             status: "pending",
             text: `${longLine}\nmore`,
-            workKind: "plan",
+            workKind: "reasoning",
           },
         ],
         completedAt: null,
@@ -172,8 +146,9 @@ describe("formatThreadTimeline", () => {
       },
     ];
     const formatted = formatThreadTimeline(timeline(rows));
-    expect(formatted).toContain(`plan: ${"x".repeat(100)}…`);
-    expect(formatted).not.toContain("thinking:");
+    expect(formatted.split("\n").filter((line) => line.includes("thinking:"))).toEqual([
+      `  thinking: ${"x".repeat(100)}…`,
+    ]);
     expect(formatted.split("\n")[0]).toBe("── turn (pending) ──");
   });
 });

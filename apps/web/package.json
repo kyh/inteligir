@@ -11,7 +11,6 @@
     "db:studio": "drizzle-kit studio --config drizzle.config.local.ts",
     "db:studio:remote": "dotenv -e ../../.env.production.local -- drizzle-kit studio",
     "dev": "cf dev",
-    "dev:gallery": "vite --config vite.gallery.config.ts",
     "start": "vite preview",
     "test": "vitest run",
     "typecheck": "cf workers types && tsc --noEmit && tsc --noEmit -p src/worker"

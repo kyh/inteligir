@@ -10,7 +10,6 @@ import { HarnessRefusedError } from "./agents-service";
 
 const HARNESS_REFUSALS = {
   "no-code-wanted": "CONFLICT",
-  "not-found": "NOT_FOUND",
   unavailable: "PROVIDER_UNAVAILABLE",
 } as const satisfies Record<HarnessRefusedError["kind"], string>;
 

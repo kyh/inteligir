@@ -14,8 +14,12 @@ const NON_CONSUMER_DIRS = [GALLERY_DIR];
 // keyed `<repo-relative file>#<export name>`; a row is a decision, not a backlog.
 const ALLOWED_EXPORTS = new Map<string, string>([
   [
+    "packages/ui/src/ai/thinking.tsx#ThinkingStep",
+    "The trace vocabulary's step row — Reasoning is wired; held with the Beautiful UI set for a step the provider grammar carries, which no adapter sends today.",
+  ],
+  [
     "packages/ui/src/ai/thinking.tsx#ThinkingTool",
-    "The trace vocabulary's tool row — Step and Reasoning are wired; the third kind is held with the Beautiful UI set for the timeline that renders tool calls.",
+    "The trace vocabulary's tool row — Reasoning is wired; held with the Beautiful UI set for the timeline that renders tool calls.",
   ],
   [
     "packages/ui/src/ai/task-rows.tsx#TaskItemDetails",

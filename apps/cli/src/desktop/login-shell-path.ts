@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { statSync } from "node:fs";
 import path from "node:path";
+import type { RuntimeMode } from "../server/config";
 import { messageOf } from "../server/error-message";
 
 const RESOLVE_TIMEOUT_MS = 5000;
@@ -27,7 +28,7 @@ export interface ShellPathArgs {
   homeDir: string;
   // a dev launch comes from a terminal whose PATH is already the user's, and may be ordered on
   // purpose; a packaged one goes through LaunchServices, `open` included, and gets launchd's
-  isPackaged: boolean;
+  mode: RuntimeMode;
   isDirectory: (dir: string) => boolean;
   platform: NodeJS.Platform;
   run: RunShell;
@@ -69,7 +70,7 @@ const loginShell = (env: NodeJS.ProcessEnv): string => {
 };
 
 export const resolveShellPath = async (args: ShellPathArgs): Promise<ShellPathResolution> => {
-  if (args.platform !== "darwin" || !args.isPackaged) {
+  if (args.platform !== "darwin" || args.mode === "dev") {
     return { source: "inherited" };
   }
   const shell = loginShell(args.env);

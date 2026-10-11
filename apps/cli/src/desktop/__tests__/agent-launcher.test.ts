@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { accessSync, constants, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { makeTempDir } from "inteligir/server/testing";
+import { makeTempDir } from "../../server/__tests__/boot-app";
 import { describe, expect, it } from "vitest";
 import { AGENT_BIN_DIR_NAME, writeAgentLauncher } from "../agent-launcher";
 

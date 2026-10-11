@@ -3,7 +3,6 @@
 import {
   threadEventFileChangeKindSchema,
   threadEventItemApprovalStatusSchema,
-  threadEventTokenUsageSchema,
 } from "@repo/domain/provider-event";
 import { viewContextSchema } from "@repo/domain/view-context";
 import { z } from "zod";
@@ -49,7 +48,6 @@ export const timelineCommandWorkRowSchema = timelineWorkRowBaseSchema.extend({
   approvalStatus: threadEventItemApprovalStatusSchema,
   command: z.string(),
   cwd: z.string().nullable(),
-  exitCode: z.number().nullable(),
   outputHead: z.array(z.string().max(COMMAND_OUTPUT_LINE_CHARS)).max(COMMAND_OUTPUT_LINES),
   outputLineCount: z.number().int().nonnegative(),
   workKind: z.literal("command"),
@@ -57,7 +55,6 @@ export const timelineCommandWorkRowSchema = timelineWorkRowBaseSchema.extend({
 export type TimelineCommandWorkRow = z.infer<typeof timelineCommandWorkRowSchema>;
 
 export const timelineToolWorkRowSchema = timelineWorkRowBaseSchema.extend({
-  error: z.string().nullable(),
   result: z.string().nullable(),
   toolArgs: z.record(z.string(), z.unknown()).nullable(),
   toolName: z.string(),
@@ -86,18 +83,11 @@ export const timelineReasoningWorkRowSchema = timelineWorkRowBaseSchema.extend({
 });
 export type TimelineReasoningWorkRow = z.infer<typeof timelineReasoningWorkRowSchema>;
 
-export const timelinePlanWorkRowSchema = timelineWorkRowBaseSchema.extend({
-  text: z.string(),
-  workKind: z.literal("plan"),
-});
-export type TimelinePlanWorkRow = z.infer<typeof timelinePlanWorkRowSchema>;
-
 export const timelineWorkRowSchema = z.discriminatedUnion("workKind", [
   timelineCommandWorkRowSchema,
   timelineToolWorkRowSchema,
   timelineFileChangeWorkRowSchema,
   timelineReasoningWorkRowSchema,
-  timelinePlanWorkRowSchema,
 ]);
 export type TimelineWorkRow = z.infer<typeof timelineWorkRowSchema>;
 
@@ -136,7 +126,6 @@ export type TimelineRow = z.infer<typeof timelineRowSchema>;
 export const threadTimelineSchema = z.object({
   maxSequence: z.number().int().nonnegative(),
   rows: z.array(timelineRowSchema),
-  tokenUsage: threadEventTokenUsageSchema.nullable(),
 });
 export type ThreadTimeline = z.infer<typeof threadTimelineSchema>;
 
@@ -171,17 +160,15 @@ export const timelineDeltaSchema = z.object({
   maxSequence: z.number().int().nonnegative(),
   rowOrder: z.array(z.string()).optional(),
   textAppends: z.array(timelineTextAppendSchema),
-  tokenUsage: threadEventTokenUsageSchema.nullable(),
   turnPatches: z.array(timelineTurnPatchSchema),
   upsertRows: z.array(timelineRowSchema),
 });
 export type TimelineDelta = z.infer<typeof timelineDeltaSchema>;
 
-type TimelineTextRow = TimelineConversationRow | TimelineReasoningWorkRow | TimelinePlanWorkRow;
+type TimelineTextRow = TimelineConversationRow | TimelineReasoningWorkRow;
 
 const isTextRow = (row: TimelineRow): row is TimelineTextRow =>
-  row.kind === "conversation" ||
-  (row.kind === "work" && (row.workKind === "reasoning" || row.workKind === "plan"));
+  row.kind === "conversation" || (row.kind === "work" && row.workKind === "reasoning");
 
 // what a text row is besides its text and how far its events reached; key order is the fold's, the
 // same for both sides of one delta.
@@ -300,7 +287,6 @@ export const computeTimelineDelta = (
     fromSequence: base.maxSequence,
     maxSequence: current.maxSequence,
     textAppends,
-    tokenUsage: current.tokenUsage,
     turnPatches,
     upsertRows: upserts,
   };
@@ -383,7 +369,5 @@ export const applyTimelineDelta = (
   }
   const merged = mergeRows(held.rows, [...patchedTurns, ...delta.upsertRows], delta.rowOrder);
   const rows = merged === null ? null : appendTexts(merged, delta.textAppends);
-  return rows === null
-    ? null
-    : { maxSequence: delta.maxSequence, rows, tokenUsage: delta.tokenUsage };
+  return rows === null ? null : { maxSequence: delta.maxSequence, rows };
 };

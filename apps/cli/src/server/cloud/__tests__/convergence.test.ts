@@ -308,7 +308,6 @@ describe("two installs against one account", () => {
           approvalStatus: null,
           command: "make",
           cwd: "/vault",
-          exitCode: 0,
           id: "item_build",
           status: "completed",
           type: "commandExecution",

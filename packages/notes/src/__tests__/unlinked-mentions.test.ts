@@ -122,6 +122,21 @@ describe("finding plain mentions", () => {
     );
   });
 
+  it("withholds a `:::` marker line, whose words a Link would unmake", () => {
+    const columns = ["Columns.md"];
+    const found = findUnlinkedMentions(
+      [
+        {
+          body: ":::columns\n:::column\nx\n:::\n:::\n\n> :::tabs\n> === Columns\n> y\n> :::\n",
+          path: "a.md",
+          title: "a.md",
+        },
+      ],
+      { exclude: new Set(columns), limit: 50, names: mentionNames("Columns.md", []) },
+    );
+    expect(found.total).toBe(0);
+  });
+
   it("counts every mentioning doc past the limit", () => {
     const found = mentions({ "a.md": "Roadmap\n", "b.md": "Roadmap\n", "c.md": "Roadmap\n" }, 2);
     expect(found.mentions).toHaveLength(2);

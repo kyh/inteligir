@@ -118,9 +118,8 @@ src/
 
 - **`roundTrip(raw) === raw` for every canonical file.** The fixture matrix
   under `src/__tests__/fixtures/roundtrip/` is the contract: `canonical/` must
-  survive untouched, `churn/` pins the one normalization each input gets
-  (`*.in.md` → `*.out.md`), and `raw/` pins the inputs that cannot be parsed at
-  all and so open in Raw mode, with the REASON in the filename.
+  survive untouched and `churn/` pins the one normalization each input gets
+  (`*.in.md` → `*.out.md`). There is no `raw/`: every input parses.
 - **Never hand-edit or format a fixture.** Their bytes are the assertion —
   trailing spaces, indentation, line endings. oxfmt ignores the directory;
   editors must too. Generate them through the `roundTrip` pipeline itself.
@@ -128,16 +127,18 @@ src/
   halves for the headless serializer; `kit-parity.test.ts` fails when the two
   compositions disagree, so a node that renders but does not serialize is
   impossible, and `touch-kit.test.ts` holds the touch kit to the same.
-- **Rich is the default surface.** Anything that PARSES opens Rich and
-  normalizes on the first real edit. Constructs with no editor node — unknown
-  JSX, `{…}` expressions, raw HTML — are opaque nodes
-  (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
-  written back byte-for-byte. Only a real parse failure (a mismatched tag, an
-  unbalanced brace), or one of the editor's own limits — nesting deeper than
-  the conversion holds, a conversion that leaves text outside any block, a
-  round trip that never settles, or one that would lose a letter or join two
-  lines (a rule or serializer bug) — opens Raw, byte-exact, and the gate's
-  reason says which (`GateReason` in `markdown/markdown-doc.ts`).
+- **Rich is the default surface.** The parse is total: no jsx and no
+  expressions, and every tag is html, folded with its closer
+  (`@repo/notes/markdown/remark-inline-html`), so every file opens Rich and
+  normalizes on the first real edit. Constructs with no editor node — a tag
+  that cannot pair, any pair but a bare `<u>`, raw HTML — are opaque inline
+  nodes (`@repo/notes/markdown/remark-opaque`): shown as inert literal text and
+  written back byte-for-byte, and `{` is prose. Only one of the editor's own
+  limits — nesting deeper than the conversion holds, a conversion that leaves
+  text outside any block, a round trip that never settles, or one that would
+  lose a letter or join two lines (a rule or serializer bug) — opens Raw,
+  byte-exact, and the gate's reason says which (`GateReason` in
+  `markdown/markdown-doc.ts`).
 - **Typing walks a long note only through its budget.**
   `__tests__/typing-budget.test.tsx` types into a generated 10k-line note
   (`generateLongNote`) and fails on a whole-note pass no row names, on a
@@ -165,7 +166,7 @@ src/
   touch toolbar's image button; a picked path lands through `insertVaultImage`,
   as a paste does). The editor never reaches the
   server for any of it; each host installs it once
-  (`apps/desktop/src/renderer/app/note/vault-provider.tsx`, and the phone's
+  (`apps/workspace/src/app/note/vault-provider.tsx`, and the phone's
   over its WebView bridge, `apps/mobile-editor/src/host/page-host.ts`),
   building the resolver store with `link-resolver-store.ts` and
   `readNoteFormulas` with `note-formulas.ts` over its own reads, and `host.ts` is
@@ -208,7 +209,7 @@ pnpm --filter @repo/editor test
 Two vitest projects: `editor` (node, `*.test.ts`) for the pipeline, the
 fixtures, the property/adversarial harnesses and the open-note store;
 `editor-dom` (jsdom, `*.test.tsx`) for the components. `editor-dom` runs the
-sources through the React Compiler as the shipped renderer does, so a
+sources through the React Compiler as the shipped page does, so a
 memoized read that goes stale fails here (`compiled-under-test.test.tsx`
 fails if the plugin goes). Component tests drive the DOM with `fireEvent` —
 `@testing-library/user-event` is deliberately not a dependency.

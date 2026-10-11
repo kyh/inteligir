@@ -2,6 +2,7 @@ import { DEVICE_CREDENTIAL_PREFIX } from "@repo/contract/cloud/device/device-sch
 import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
 import { hexFromBytes, sha256Hex } from "@repo/contract/cloud/bytes";
 import { APIError } from "better-auth/api";
+import { applySetCookies } from "better-auth/cookies";
 import { eq } from "drizzle-orm";
 import type { createAuth } from "../auth/auth";
 import type { Db } from "../db/client";
@@ -36,10 +37,16 @@ export interface LoginArgs {
   deviceName: string;
 }
 
+// the user row Better Auth's sign-in or sign-up just answered with
+interface AccountUser {
+  id: string;
+  email: string;
+}
+
 export interface MintArgs {
   // what Better Auth's sign-in or sign-up just minted; null when it minted none
   sessionToken: string | null;
-  userId: string;
+  user: AccountUser;
   deviceName: string;
 }
 
@@ -60,8 +67,6 @@ export const mintDeviceCredential = async (
 
   const credential = generateDeviceCredential();
   const deviceId = crypto.randomUUID();
-  // epoch seconds: the schema's mode "timestamp" is what every other reader of these columns expects
-  const nowSeconds = Math.floor(Date.now() / 1000);
   // the cap subquery inside the insert is the guard: two logins racing the twentieth slot both
   // count before either lands, and only the statement itself sees the other's row
   const inserted = await d1
@@ -72,21 +77,25 @@ export const mintDeviceCredential = async (
     )
     .bind(
       deviceId,
-      args.userId,
+      args.user.id,
       args.deviceName,
       await sha256Hex(credential),
-      nowSeconds,
-      args.userId,
+      Date.now(),
+      args.user.id,
       MAX_DEVICES_PER_ACCOUNT,
     )
     .run();
-  return inserted.meta.changes === 0 ? null : { credential, deviceId };
+  return inserted.meta.changes === 0
+    ? null
+    : { credential, deviceId, email: args.user.email, userId: args.user.id };
 };
 
 interface SignedIn {
-  // the session the sign-in minted: whoever asked deletes it, or the account holds a bearer nobody sees
+  // the session the sign-in minted: whoever asked deletes it, or the account holds a session nobody sees
   token: string;
-  user: { id: string };
+  user: AccountUser;
+  // request headers carrying that session's cookie, for a Better Auth call that must run under it
+  sessionCookie: Headers;
 }
 
 // null is a wrong password or an unknown address, one answer for both
@@ -96,7 +105,13 @@ export const signInWithPassword = async (
   password: string,
 ): Promise<SignedIn | null> => {
   try {
-    return await auth.api.signInEmail({ body: { email, password } });
+    const { headers, response } = await auth.api.signInEmail({
+      body: { email, password },
+      returnHeaders: true,
+    });
+    const sessionCookie = new Headers();
+    applySetCookies(sessionCookie, headers.getSetCookie());
+    return { sessionCookie, token: response.token, user: response.user };
   } catch (error) {
     // 401 is INVALID_EMAIL_OR_PASSWORD, which is also what a user with no credential account and no
     // password gets; anything else is a fault, not a refusal
@@ -120,7 +135,7 @@ export const loginDevice = async (
   const minted = await mintDeviceCredential(db, d1, {
     deviceName: args.deviceName,
     sessionToken: signedIn.token,
-    userId: signedIn.user.id,
+    user: signedIn.user,
   });
   return minted === null ? refuseLogin("device-limit") : { loggedIn: true, response: minted };
 };

@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 
-import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
 import { Button } from "@repo/ui/components/button";
 
 import {
@@ -14,11 +13,12 @@ import {
 import { authClient, authErrorMessage } from "@/lib/auth-client";
 
 const ForgotPasswordPage = () => {
+  const router = useRouter();
   const [sent, setSent] = useState(false);
   const { error, onSubmit, pending } = useAuthSubmit(async (form) => {
     const { error: failure } = await authClient.requestPasswordReset({
       email: fieldValue(form, "email"),
-      redirectTo: AUTH_PAGE_PATHS.resetPage,
+      redirectTo: router.buildLocation({ to: "/app/reset-password" }).href,
     });
     if (failure !== null) {
       return authErrorMessage(failure);

@@ -3,6 +3,7 @@ import type { CloudFetch } from "@repo/contract/cloud/client";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
 import { SYNC_API_PATHS } from "@repo/contract/cloud/sync/sync-schema";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
 import { phoneDbReady } from "../../lib/phone-db";
@@ -61,10 +62,12 @@ const refusedAs = (code: string, message: string): Response =>
 // the store reads under the sync runtime's session, as the composition root wires it
 const notesOver = (fetch: CloudFetch, db: SqlDriver = openTempDb()) => {
   const sync = createSyncRuntime({
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     createClient: (credential) =>
       createCloudClient({
         baseUrl: "https://cloud.test",
+        build: TEST_BUILD,
         credential: credential.credential,
         fetch,
       }),
@@ -96,11 +99,7 @@ describe("the notes store", () => {
     const vault = fakeVault();
     const { store } = notesOver(vault.fetch);
     await store.refresh();
-    expect(await store.readNote("a.md")).toEqual({
-      message: "Not signed in.",
-      notFound: false,
-      ok: false,
-    });
+    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
     expect(vault.requests).toEqual([]);
     expect(store.tree.get()).toEqual({ state: "idle" });
   });
@@ -354,11 +353,7 @@ describe("the notes store", () => {
     signOut();
     expect(store.tree.get()).toEqual({ state: "idle" });
     expect(store.heldFiles()).toEqual([]);
-    expect(await store.readNote("a.md")).toEqual({
-      message: "Not signed in.",
-      notFound: false,
-      ok: false,
-    });
+    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
   });
 
   it("downloads an attachment once, named by its blob, and serves the file after", async () => {
@@ -397,7 +392,7 @@ describe("the notes store under the sync session", () => {
 
     const read = await store.readNote("not-yet-mirrored.md");
 
-    expect(read).toEqual({ message: "This device was signed out.", notFound: false, ok: false });
+    expect(read).toEqual({ message: "This device was signed out.", ok: false });
     expect(sync.get()).toMatchObject({ deviceId: CREDENTIAL.deviceId, state: "unauthorized" });
   });
 
@@ -415,11 +410,7 @@ describe("the notes store under the sync session", () => {
     await sync.syncNow();
 
     expect(sync.get().state).toBe("unauthorized");
-    expect(await store.readNote("a.md")).toEqual({
-      message: "Not signed in.",
-      notFound: false,
-      ok: false,
-    });
+    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
     expect(await store.attachmentFile("media/a.png")).toStrictEqual({
       message: "Not signed in.",
       ok: false,

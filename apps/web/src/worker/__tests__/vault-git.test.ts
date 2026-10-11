@@ -7,11 +7,13 @@ import { packCachePrefixes, vaultRepoName } from "../vault/git-remote";
 import { vaultStorageCap } from "../vault/receive-pack";
 import { treeListingPrefix } from "../vault/tree-listing";
 import {
+  buildHeaders,
   deviceHeaders,
+  loginDevice,
   openSocket,
   ORIGIN,
-  loginDevice,
-  sessionHeaders,
+  postAccountDelete,
+  postVaultRead,
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
@@ -27,7 +29,9 @@ const REMOTE = `${ORIGIN}/v1/git/vault.git`;
 
 describe("vault git remote auth", () => {
   it("refuses the wire without a credential, with the Basic challenge", async () => {
-    const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`);
+    const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
+      headers: buildHeaders(),
+    });
     expect(response.status).toBe(401);
     expect(response.headers.get("www-authenticate")).toContain("Basic");
   });
@@ -35,18 +39,18 @@ describe("vault git remote auth", () => {
   it("refuses an unknown credential on both carriers", async () => {
     const fake = `igd_${"0".repeat(64)}`;
     const bearer = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
-      headers: { authorization: `Bearer ${fake}` },
+      headers: { ...buildHeaders(), authorization: `Bearer ${fake}` },
     });
     expect(bearer.status).toBe(401);
     const basic = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
-      headers: { authorization: `Basic ${btoa(`x:${fake}`)}` },
+      headers: { ...buildHeaders(), authorization: `Basic ${btoa(`x:${fake}`)}` },
     });
     expect(basic.status).toBe(401);
   });
 
   it("serves the receive-pack advertisement to a Bearer credential", async () => {
-    const { bearer } = await signUpUser("vault-git-bearer@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("vault-git-bearer@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
     const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
       headers: deviceHeaders(credential),
     });
@@ -57,17 +61,17 @@ describe("vault git remote auth", () => {
   });
 
   it("accepts the credential as a Basic password — stock git's carrier", async () => {
-    const { bearer } = await signUpUser("vault-git-basic@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("vault-git-basic@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
     const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
-      headers: { authorization: `Basic ${btoa(`x:${credential}`)}` },
+      headers: { ...buildHeaders(), authorization: `Basic ${btoa(`x:${credential}`)}` },
     });
     expect(response.status).toBe(200);
   });
 
   it("answers 404 on the fetch leg of a vault never pushed", async () => {
-    const { bearer } = await signUpUser("vault-git-empty@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("vault-git-empty@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
     const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {
       headers: deviceHeaders(credential),
     });
@@ -75,8 +79,8 @@ describe("vault git remote auth", () => {
   });
 
   it("refuses an upload-pack body that declares no length", async () => {
-    const { bearer } = await signUpUser("vault-git-chunked@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("vault-git-chunked@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(new TextEncoder().encode("0000"));
@@ -95,8 +99,8 @@ describe("vault git remote auth", () => {
   });
 
   it("keeps the JSON API and admin surface off the wire", async () => {
-    const { bearer } = await signUpUser("vault-git-surface@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("vault-git-surface@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
     const api = await SELF.fetch(`${REMOTE}/api/refs`, { headers: deviceHeaders(credential) });
     expect(api.status).toBe(404);
     const admin = await SELF.fetch(`${REMOTE}/`, {
@@ -109,9 +113,9 @@ describe("vault git remote auth", () => {
 
 describe("vault git remote round-trip", () => {
   it("pushes, advertises what was pushed, and pings every device but the pusher", async () => {
-    const { bearer } = await signUpUser("vault-git-push@example.test");
-    const pusher = await loginDevice(bearer, "Laptop");
-    const other = await loginDevice(bearer, "Phone");
+    const { cookie } = await signUpUser("vault-git-push@example.test");
+    const pusher = await loginDevice(cookie, "Laptop");
+    const other = await loginDevice(cookie, "Phone");
 
     const pusherSocket = await openSocket(pusher.credential, "desktop");
     const otherSocket = await openSocket(other.credential, "desktop");
@@ -149,9 +153,9 @@ describe("vault git remote round-trip", () => {
 
   it("keeps two users' vaults apart — the URL never names a repo", async () => {
     const alpha = await signUpUser("vault-git-alpha@example.test");
-    const alphaDevice = await loginDevice(alpha.bearer, "Laptop");
+    const alphaDevice = await loginDevice(alpha.cookie, "Laptop");
     const beta = await signUpUser("vault-git-beta@example.test");
-    const betaDevice = await loginDevice(beta.bearer, "Laptop");
+    const betaDevice = await loginDevice(beta.cookie, "Laptop");
 
     const pushed = await pushVaultFiles(
       alphaDevice.credential,
@@ -170,8 +174,8 @@ describe("vault git remote round-trip", () => {
 
 describe("the push cap", () => {
   it("refuses a push declaring more than the cap with a 413 before reading it, and takes the next push", async () => {
-    const { bearer } = await signUpUser("vault-git-cap@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("vault-git-cap@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
 
     const refused = await pushNothingDeclaring(credential, VAULT_GIT_MAX_PUSH_BYTES + 1);
     expect(refused.status).toBe(413);
@@ -214,8 +218,8 @@ const headOf = async (repo: string): Promise<string | undefined> => {
 const openVault = async (
   email: string,
 ): Promise<{ credential: string; repo: string; head: string }> => {
-  const { bearer } = await signUpUser(email);
-  const { credential } = await loginDevice(bearer, "Laptop");
+  const { cookie } = await signUpUser(email);
+  const { credential } = await loginDevice(cookie, "Laptop");
   const pushed = await pushVaultFiles(
     credential,
     "vault: initialize",
@@ -224,7 +228,7 @@ const openVault = async (
   );
   expect(pushed.response.status).toBe(200);
   await pushed.response.arrayBuffer();
-  return { credential, head: pushed.commit, repo: vaultRepoName(await userIdOf(bearer)) };
+  return { credential, head: pushed.commit, repo: vaultRepoName(await userIdOf(cookie)) };
 };
 
 // pushes that each fit the room left, until none is: how many that takes is the cell's to say,
@@ -340,8 +344,8 @@ describe("the storage cap", () => {
 
 describe("account deletion's vault half", () => {
   it("wipes the repo cell, its R2 bytes and the registry row with the account", async () => {
-    const { bearer, password } = await signUpUser("vault-git-delete@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie, password } = await signUpUser("vault-git-delete@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
     const pushed = await pushVaultFiles(
       credential,
       "vault: initialize",
@@ -354,13 +358,11 @@ describe("account deletion's vault half", () => {
     const cloned = await cloneVault(credential, pushed.commit);
     expect(cloned.status).toBe(200);
     await cloned.arrayBuffer();
-    const userId = await userIdOf(bearer);
+    const userId = await userIdOf(cookie);
     const repo = vaultRepoName(userId);
 
     const listingPrefix = treeListingPrefix(repo);
-    const listed = await SELF.fetch(`${ORIGIN}${VAULT_API_PATHS.tree}`, {
-      headers: deviceHeaders(credential),
-    });
+    const listed = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(credential), {});
     expect(listed.status).toBe(200);
     const kept = await env.PACK_CACHE.list({ prefix: listingPrefix });
     expect(kept.objects).toHaveLength(1);
@@ -370,11 +372,7 @@ describe("account deletion's vault half", () => {
       expect(packs.objects.length, prefix).toBeGreaterThan(0);
     }
 
-    const deletion = await SELF.fetch(`${ORIGIN}/api/auth/delete-user`, {
-      body: JSON.stringify({ password }),
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
-      method: "POST",
-    });
+    const deletion = await postAccountDelete(deviceHeaders(credential), password);
     expect(deletion.status).toBe(200);
 
     const refused = await SELF.fetch(`${REMOTE}/info/refs?service=git-upload-pack`, {

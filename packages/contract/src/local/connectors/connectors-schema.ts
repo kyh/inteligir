@@ -1,6 +1,7 @@
 // a connector is a row of the default agent's own MCP config, read and written through the
 // vendor's bundled binary: the list is what the vendor holds, so it names the agent it belongs to.
 
+import { harnessIdSchema } from "@repo/domain/harness";
 import { z } from "zod";
 
 // what this app adds is a name no vendor flag can start with; a row the vendor already holds may
@@ -98,7 +99,7 @@ export const connectorTargetText = (target: ConnectorTarget): string => {
 // the harness a new thread starts on, whose config every row is.
 export const connectorsResponseSchema = z
   .object({
-    agent: z.object({ displayName: z.string().min(1), id: z.string().min(1) }).strict(),
+    agent: z.object({ displayName: z.string().min(1), id: harnessIdSchema }).strict(),
     servers: z.array(connectorViewSchema),
   })
   .strict();

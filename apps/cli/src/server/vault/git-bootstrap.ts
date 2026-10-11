@@ -134,10 +134,8 @@ export const ensureVaultRepo = async (
     // the clone's origin is the hosted vault, marked as the app's so no pass adopts it as the
     // user's own.
     await git(["config", REMOTE_MARKER_KEY, REMOTE_MARKER_ACCOUNT]);
-    if (remote.account.state === "known") {
-      // so a later sign-in to a different account refuses rather than pushing these notes into it.
-      await git(["config", ACCOUNT_MARKER_KEY, remote.account.id]);
-    }
+    // so a later sign-in to a different account refuses rather than pushing these notes into it.
+    await git(["config", ACCOUNT_MARKER_KEY, remote.accountId]);
   }
   // the hosted worker says "no repository" only for a truly absent repo (auth precedes it);
   // github answers 404 for a private repo the credential cannot see, so a byo not-found boots empty.

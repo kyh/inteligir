@@ -72,8 +72,8 @@ describe("the phone's outbox", () => {
     await readText(first, "b.md");
 
     net.online = false;
-    await first.write("a.md", "# a\n\nfrom the train\n");
-    await first.write("b.md", "# b\n\nfrom the train\n");
+    await first.write("a.md", "# a\n\nfrom the train\n", { base: "# a\n", kind: "expected" });
+    await first.write("b.md", "# b\n\nfrom the train\n", { base: "# b\n", kind: "expected" });
     expect(await first.create("c.md", "# c\n")).toStrictEqual({ kind: "created" });
     await first.drain();
     expect(first.outbox.status.get()).toMatchObject({ unsent: 3 });
@@ -101,9 +101,12 @@ describe("the phone's outbox", () => {
     const { net, store } = await phone(vault);
     await readText(store, "a.md");
     net.online = false;
-    await store.write("a.md", "# a\none\n");
-    await store.write("a.md", "# a\none\ntwo\n");
-    await store.write("a.md", "# a\none\ntwo\nthree\n");
+    await store.write("a.md", "# a\none\n", { base: "# a\n", kind: "expected" });
+    await store.write("a.md", "# a\none\ntwo\n", { base: "# a\none\n", kind: "expected" });
+    await store.write("a.md", "# a\none\ntwo\nthree\n", {
+      base: "# a\none\ntwo\n",
+      kind: "expected",
+    });
     expect(store.outbox.status.get()).toMatchObject({ unsent: 1 });
 
     net.online = true;
@@ -112,11 +115,19 @@ describe("the phone's outbox", () => {
     expect(vault.files()["a.md"]).toBe("# a\none\ntwo\nthree\n");
   });
 
-  it("refuses a write the caller never read: an inferred base lets a concurrent edit win", async () => {
+  it("hands back what the phone holds for a write whose base it no longer holds, compared under its write lock", async () => {
     const vault = createFakeVault({ "a.md": "# a\n" });
-    const { store } = await phone(vault);
-    await expect(store.write("a.md", "# a\nblind\n")).rejects.toThrow(/no base was read/u);
-    expect(store.outbox.status.get()).toMatchObject({ unsent: 0 });
+    const { net, store } = await phone(vault);
+    net.online = false;
+    // both computed from the same text: the second is compared only once the first is queued
+    const [first, second] = await Promise.all([
+      store.write("a.md", "# a\nfirst\n", { base: "# a\n", kind: "expected" }),
+      store.write("a.md", "# a\nsecond\n", { base: "# a\n", kind: "expected" }),
+    ]);
+    expect(first).toStrictEqual({ kind: "written" });
+    expect(second).toStrictEqual({ current: "# a\nfirst\n", kind: "changed" });
+    expect(await readText(store, "a.md")).toBe("# a\nfirst\n");
+    expect(store.outbox.status.get()).toMatchObject({ unsent: 1 });
   });
 
   it("merges an edit another device made far from the phone's, and tells the note's watcher", async () => {
@@ -124,7 +135,7 @@ describe("the phone's outbox", () => {
     const { net, store } = await phone(vault);
     await readText(store, "a.md");
     net.online = false;
-    await store.write("a.md", note({ 1: "phone 1" }));
+    await store.write("a.md", note({ 1: "phone 1" }), { base: note(), kind: "expected" });
     vault.change({ "a.md": note({ 10: "mac 10" }) });
     let told = 0;
     store.watchPath("a.md", () => {
@@ -152,7 +163,7 @@ describe("the phone's outbox", () => {
     net.online = false;
     const mine = note({ 5: "phone 5" });
     const theirs = note({ 5: "mac 5" });
-    await store.write("a.md", mine);
+    await store.write("a.md", mine, { base: note(), kind: "expected" });
     vault.change({ "a.md": theirs });
 
     net.online = true;
@@ -196,7 +207,7 @@ describe("the phone's outbox", () => {
     const { net, store } = await phone(vault);
     await readText(store, "a.md");
     net.online = false;
-    await store.write("a.md", "# a\nkept\n");
+    await store.write("a.md", "# a\nkept\n", { base: "# a\n", kind: "expected" });
     vault.change({ "a.md": null });
 
     net.online = true;
@@ -234,7 +245,7 @@ describe("the phone's outbox", () => {
     await readText(store, "a.md");
     await readText(store, "b.md");
     net.online = false;
-    await store.write("a.md", note({ 5: "phone 5" }));
+    await store.write("a.md", note({ 5: "phone 5" }), { base: note(), kind: "expected" });
     await store.create("c.md", "# c\n");
     // the mac takes the name meanwhile, so the rename settles as a set with a copy too
     expect(await store.rename("b.md", "e.md")).toStrictEqual({ kind: "renamed", skipped: [] });
@@ -281,12 +292,12 @@ describe("the phone's outbox", () => {
     await readText(store, "a.md");
     const sent = "# a\none\ntwo\n";
     net.loseApplied = true;
-    await store.write("a.md", sent);
+    await store.write("a.md", sent, { base: "# a\n", kind: "expected" });
     await store.drain();
     expect(vault.files()["a.md"]).toBe(sent);
     expect(net.online).toBe(false);
 
-    await store.write("a.md", "# a\none\n");
+    await store.write("a.md", "# a\none\n", { base: sent, kind: "expected" });
     net.online = true;
     await store.drain();
 
@@ -322,8 +333,8 @@ describe("the phone's outbox", () => {
     await readText(store, "b.md");
     net.online = false;
     const huge = `# a\n${"x".repeat(VAULT_FILE_MAX_BYTES)}\n`;
-    await store.write("a.md", huge);
-    await store.write("b.md", "# b\nsent\n");
+    await store.write("a.md", huge, { base: "# a\n", kind: "expected" });
+    await store.write("b.md", "# b\nsent\n", { base: "# b\n", kind: "expected" });
 
     net.online = true;
     await store.drain();
@@ -335,7 +346,7 @@ describe("the phone's outbox", () => {
     expect(await readText(store, "a.md")).toBe(huge);
 
     // a later edit to the parked note waits behind it and never overtakes it
-    await store.write("b.md", "# b\nsent\nagain\n");
+    await store.write("b.md", "# b\nsent\nagain\n", { base: "# b\nsent\n", kind: "expected" });
     await store.drain();
     expect(vault.files()["b.md"]).toBe("# b\nsent\nagain\n");
 
@@ -373,7 +384,7 @@ describe("the phone's outbox", () => {
     held.tree = true;
     const refreshing = store.refresh();
     await asked.wait;
-    await store.write("a.md", "# a\nfrom the phone\n");
+    await store.write("a.md", "# a\nfrom the phone\n", { base: "# a\n", kind: "expected" });
     await store.drain();
     expect(vault.files()["a.md"]).toBe("# a\nfrom the phone\n");
 
@@ -406,7 +417,7 @@ describe("the phone's outbox", () => {
     held.tree = true;
     const refreshing = store.refresh();
     await asked.wait;
-    await store.write("a.md", "# a\nfrom the phone\n");
+    await store.write("a.md", "# a\nfrom the phone\n", { base: "# a\n", kind: "expected" });
     await store.drain();
     vault.change({ "a.md": "# a\nfrom the mac\n" });
     released.open();

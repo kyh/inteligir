@@ -1,14 +1,11 @@
-// reachable from the renderer's suites through `inteligir/server/testing`, so everything imported
-// here compiles under the browser tsconfig: the cloud socket opener, the acp agent runtime and the
+// reachable from the workspace UI's suites (src/workspace/__tests__), so everything imported here
+// compiles under their DOM tsconfig: the cloud socket opener, the acp agent runtime and the
 // vendor account probe are injected (`cloudTransport`, `driver`, `accounts`) rather than imported,
 // and serve.ts supplies the real ones.
 
-import { closeConnection, createConnection } from "@repo/db/connection";
+import { closeConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
-import { getSchemaVersion } from "@repo/db/meta";
-import { runMigrations } from "@repo/db/migrate";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
-import { resolveMigrationsFolder } from "../paths";
 import { defaultHarnessId } from "./agents/agent-driver";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
@@ -23,7 +20,6 @@ import type { CloudRuntimeArgs, CloudTransport } from "./cloud/sync-runtime";
 import { createVaultRemoteProvider } from "./cloud/vault-remote";
 import type { AppConfig } from "./config";
 import { createConnectorsService, createVendorMcpConfigs } from "./connectors/connectors-service";
-import { removeRetiredConnectorsFile } from "./connectors/retired-connectors-file";
 import type { VendorMcpConfigs } from "./connectors/vendor-mcp-config";
 import { debugLog } from "./debug-log";
 import { deviceNameReader, readMachineName } from "./device-name";
@@ -36,6 +32,7 @@ import type { KnowledgeRuntime, KnowledgeRuntimeArgs } from "./knowledge/knowled
 import { createProjectionWorker } from "./knowledge/projector";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { renameTagAcrossVault } from "./knowledge/rename-tag";
+import { openDatabase } from "./open-database";
 import type { AppServices } from "./orpc";
 import { teardownStep } from "./shutdown";
 import type { ShutdownStep, TeardownStepName } from "./shutdown";
@@ -112,11 +109,10 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     teardown.unshift(teardownStep(name, run));
   };
 
-  const db = createConnection(config.databasePath);
+  const { db, schemaVersion } = openDatabase(config);
   register("db", () => {
     closeConnection(db);
   });
-  const schemaVersion = getSchemaVersion(db, runMigrations(db, resolveMigrationsFolder()));
 
   const bus = new WsBus();
   // late-bound: the knowledge runtime needs the vault service; changes before it exists
@@ -127,6 +123,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   const vaultRemote =
     ports.vault?.remote ??
     createVaultRemoteProvider({
+      build: { platform: "desktop", version: args.version },
       cloudUrl: config.cloudUrl,
       dataDir: config.dataDir,
       externalSync,
@@ -179,11 +176,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     vaultDir: config.vaultDir,
   });
   const agentPrefs = new AgentPrefsStore(config.dataDir);
-  try {
-    removeRetiredConnectorsFile(config.dataDir);
-  } catch (error) {
-    console.warn(`[connectors] the retired registry was left in place: ${messageOf(error)}`);
-  }
   const connectors = createConnectorsService({
     configs: ports.connectors ?? createVendorMcpConfigs({ cwd: config.dataDir, env: process.env }),
     defaultHarness: () => defaultHarnessId(agentPrefs.read().defaultHarness ?? null),
@@ -223,7 +215,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     onStatusChanged: () => {
       bus.notifyVault(["sync-status-changed"]);
     },
-    // the rebase's own files-changed notification carries the applied changes to the renderer.
+    // the rebase's own files-changed notification carries the applied changes to the page.
     onVaultPing: () => {
       void vault.git.syncNow();
     },
@@ -259,9 +251,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   // failure costs only the bindings it did not reach, which the next boot retries.
   void (async () => {
     try {
-      await threads.backfillOriginNoteIds();
+      await threads.repairPathOnlyOrigins();
     } catch (error) {
-      console.warn(`[threads] origin backfill skipped: ${messageOf(error)}`);
+      console.warn(`[threads] origin repair skipped: ${messageOf(error)}`);
     }
   })();
 

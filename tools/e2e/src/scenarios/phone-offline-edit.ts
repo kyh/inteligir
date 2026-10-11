@@ -40,7 +40,14 @@ export const phoneOfflineEdit: Scenario = {
 
     ctx.log("offline, the phone edits line 1 while A edits line 10 and syncs");
     network.online = false;
-    await phone.notes.write(NOTE, plan({ 1: "the phone's line 1" }));
+    expectEq(
+      await phone.notes.write(NOTE, plan({ 1: "the phone's line 1" }), {
+        base: plan(),
+        kind: "expected",
+      }),
+      { kind: "written" },
+      "the phone's far edit",
+    );
     await a.api.vault.write({
       content: plan({ 10: "A's line 10" }),
       guard: { kind: "overwrite" },
@@ -61,7 +68,11 @@ export const phoneOfflineEdit: Scenario = {
     network.online = false;
     const fromPhone = plan({ 1: "the phone's line 1", 5: "the phone's line 5", 10: "A's line 10" });
     const fromA = plan({ 1: "the phone's line 1", 5: "A's line 5", 10: "A's line 10" });
-    await phone.notes.write(NOTE, fromPhone);
+    expectEq(
+      await phone.notes.write(NOTE, fromPhone, { base: both, kind: "expected" }),
+      { kind: "written" },
+      "the phone's same-line edit",
+    );
     await a.api.vault.write({ content: fromA, guard: { kind: "overwrite" }, path: NOTE });
     await syncUntil(a.api, "A after its same-line edit", "clean");
 

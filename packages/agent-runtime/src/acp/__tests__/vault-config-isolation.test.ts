@@ -90,12 +90,13 @@ describe("a session open", () => {
   it("carries the harness's session meta and no MCP server on session/new and session/load alike", async () => {
     const dir = scratchDir();
     const recordOf = (id: string): string => path.join(dir, `${id}.ndjson`);
-    const runtime = runtimeFor(dir, (harness, env) => ({
-      child: spawn(process.execPath, [FAKE_AGENT], {
+    const runtime = runtimeFor(dir, (harness, env) =>
+      spawn(process.execPath, [FAKE_AGENT], {
+        detached: true,
         env: { ...env, FAKE_ACP_RECORD: recordOf(harness.id) },
         stdio: ["pipe", "pipe", "pipe"],
       }),
-    }));
+    );
 
     for (const id of ["claude", "codex"] as const) {
       await runtime.startThread({ providerId: id, threadId: `thr_${id}_new` });
@@ -227,9 +228,11 @@ describe("a vault that holds a vendor's own configuration", () => {
     const spawned: string[] = [];
     const runtime = runtimeFor(vault, (harness, env) => {
       spawned.push(harness.id);
-      return {
-        child: spawn(process.execPath, [FAKE_AGENT], { env, stdio: ["pipe", "pipe", "pipe"] }),
-      };
+      return spawn(process.execPath, [FAKE_AGENT], {
+        detached: true,
+        env,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
     });
 
     await expect(

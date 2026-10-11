@@ -1,4 +1,3 @@
-import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
 import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
@@ -7,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { createExecutionContext, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import worker from "../index";
+import worker, { ownsPath } from "../index";
 import { sendResetEmail } from "../auth/reset-email";
 import { createDb } from "../db/client";
 import { verification } from "../db/schema";
@@ -16,6 +15,10 @@ import { ORIGIN, signUpUser } from "./cloud-helpers";
 // email delivery cannot run here (it needs the owner's sending domain), so requests that
 // must observe the send go through `worker.fetch` with a recording EMAIL binding
 const NEW_PASSWORD = "new-password-5678";
+
+// the site's /app/reset-password route, which the forgot-password page names as its redirectTo;
+// the route tree is the site program's, which this one cannot import
+const RESET_PAGE_PATH = "/app/reset-password";
 
 type RecordedEmail = EmailMessageBuilder;
 
@@ -44,7 +47,7 @@ const envWith = (EMAIL: SendEmail): Env => ({ ...env, EMAIL });
 const requestReset = async (email: string, testEnv: Env): Promise<Response> =>
   await worker.fetch(
     new Request(`${ORIGIN}/api/auth/request-password-reset`, {
-      body: JSON.stringify({ email, redirectTo: AUTH_PAGE_PATHS.resetPage }),
+      body: JSON.stringify({ email, redirectTo: RESET_PAGE_PATH }),
       headers: { "content-type": "application/json", origin: ORIGIN },
       method: "POST",
     }),
@@ -116,7 +119,7 @@ describe("password reset", () => {
     expect(message.subject).toBe("Reset your inteligir password");
     const link = extractResetLink(message);
     expect(link).toContain(`${ORIGIN}/api/auth/reset-password/`);
-    expect(link).toContain("callbackURL=%2Fauth%2Freset");
+    expect(link).toContain(`callbackURL=${encodeURIComponent(RESET_PAGE_PATH)}`);
     expect(message.html).toContain(link);
   });
 
@@ -135,22 +138,17 @@ describe("password reset", () => {
     expect(sent).toHaveLength(1);
   });
 
-  it("the emailed link's GET leg lands on /auth/reset with the token; the page serves no-store", async () => {
+  it("the emailed link's GET leg lands on the site's reset page with the token", async () => {
     await signUpUser("page@example.com");
     const { EMAIL, sent } = recordingEmail();
     await requestReset("page@example.com", envWith(EMAIL));
 
     const landing = await followGetLeg(extractResetLink(firstEmail(sent)));
-    expect(landing.pathname).toBe(AUTH_PAGE_PATHS.resetPage);
+    expect(landing.origin).toBe(ORIGIN);
+    expect(landing.pathname).toBe(RESET_PAGE_PATH);
     expect(landing.searchParams.get("token")).toMatch(/^[A-Za-z0-9]+$/u);
-
-    const page = await SELF.fetch(landing.toString());
-    expect(page.status).toBe(200);
-    expect(page.headers.get("cache-control")).toBe("no-store");
-    const html = await page.text();
-    expect(html).toContain('id="reset-form"');
-    expect(html).toContain("/api/auth/reset-password");
-    expect(html).toContain(`minlength="${PASSWORD_MIN_LENGTH}" maxlength="${PASSWORD_MAX_LENGTH}"`);
+    // the server entry hands every path the API does not own to the site's Start handler
+    expect(ownsPath(landing.pathname)).toBe(false);
   });
 
   it("refuses a new password outside the contract's bounds, which Better Auth is configured with", async () => {
@@ -231,7 +229,7 @@ describe("password reset", () => {
     });
     expect(expired.status).toBe(400);
     const landing = await followGetLeg(link);
-    expect(landing.pathname).toBe(AUTH_PAGE_PATHS.resetPage);
+    expect(landing.pathname).toBe(RESET_PAGE_PATH);
     expect(landing.searchParams.get("error")).toBe("INVALID_TOKEN");
     expect(landing.searchParams.get("token")).toBeNull();
 

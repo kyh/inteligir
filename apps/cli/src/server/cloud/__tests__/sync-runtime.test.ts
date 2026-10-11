@@ -1,4 +1,3 @@
-import { ACCOUNT_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import { CAPTURE_API_PATHS } from "@repo/contract/cloud/captures/captures-schema";
 import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
 import { DISPATCH_API_PATHS } from "@repo/contract/cloud/dispatch/dispatch-schema";
@@ -267,35 +266,31 @@ describe("signing in", () => {
       credential: stored?.credential,
       deviceId,
       deviceName: "Laptop",
+      email: FAKE_ACCOUNT.email,
       userId: "user_fake",
     });
-    const status = harness.runtime.status();
-    expect(status.state).toBe("signed-in");
+    expect(harness.runtime.status()).toMatchObject({
+      accountEmail: FAKE_ACCOUNT.email,
+      state: "signed-in",
+    });
   });
 
-  it("retries the account identity on the next pass rather than losing vault sync for good", async () => {
-    const cloud = new FakeCloud();
-    let refusals = 1;
-    const harness = makeHarness({
-      cloud,
-      fetch: async (input, init) => {
-        if (new URL(input).pathname === ACCOUNT_API_PATHS.account && refusals > 0) {
-          refusals -= 1;
-          throw new Error("network is down");
-        }
-        return await cloud.fetch(input, init);
-      },
-      pollIntervalMs: null,
+  it("names the account from the stored sign-in at boot, before any request", async () => {
+    const first = makeHarness({ pollIntervalMs: null });
+    await signIn(first);
+    const stored = readDeviceCredential(first.dataDir);
+    if (stored === null) {
+      throw new Error("the sign-in kept no credential");
+    }
+    await first.runtime.dispose();
+
+    const harness = makeHarness({ cloud: first.cloud, credential: stored, pollIntervalMs: null });
+    const requestsBefore = first.cloud.requests.length;
+    expect(harness.runtime.status()).toMatchObject({
+      accountEmail: FAKE_ACCOUNT.email,
+      state: "signed-in",
     });
-
-    await signIn(harness);
-    expect(readDeviceCredential(harness.dataDir)?.userId).toBeUndefined();
-    const pingsWhileBlind = harness.vaultPings();
-
-    await harness.runtime.syncNow();
-
-    expect(readDeviceCredential(harness.dataDir)?.userId).toBe("user_fake");
-    expect(harness.vaultPings()).toBe(pingsWhileBlind + 1);
+    expect(first.cloud.requests.slice(requestsBefore)).toEqual([]);
   });
 
   it("reports the cloud's own refusal for a wrong password, and keeps nothing", async () => {
@@ -490,6 +485,44 @@ describe("a revoked device", () => {
   });
 });
 
+describe("a build below the cloud's floor", () => {
+  it("stops syncing as outdated, keeps the sign-in, and retries nothing", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    const deviceId = await signIn(harness);
+
+    harness.cloud.buildFloor = "1.0.0";
+    append(harness, [message("thr_1", "after the floor rose")]);
+    await harness.runtime.syncNow();
+
+    expect(harness.runtime.status()).toStrictEqual({
+      cloudUrl: CLOUD_URL,
+      deviceId,
+      state: "outdated",
+    });
+    expect(readDeviceCredential(harness.dataDir)?.deviceId).toBe(deviceId);
+    const requestsAtRefusal = harness.cloud.requests.length;
+    await harness.runtime.syncNow();
+    await harness.runtime.syncNow();
+    expect(harness.cloud.requests).toHaveLength(requestsAtRefusal);
+    expect(await harness.runtime.devices()).toMatchObject({ kind: "not-live" });
+    expect(harness.cloud.requests).toHaveLength(requestsAtRefusal);
+  });
+
+  it("asks the account to drop this device on a sign-out, and says the cloud refused it", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await signIn(harness);
+    harness.cloud.buildFloor = "1.0.0";
+    await harness.runtime.syncNow();
+
+    expect(harness.runtime.logout()).toMatchObject({ revokeError: null, state: "signed-out" });
+    await harness.runtime.dispose();
+    expect(harness.runtime.status()).toMatchObject({
+      revokeError: expect.stringContaining("can't sync"),
+      state: "signed-out",
+    });
+  });
+});
+
 type Json = z.infer<ReturnType<typeof z.json>>;
 
 const jsonArraySchema = z.array(z.json());
@@ -641,12 +674,12 @@ describe("the invalidation socket", () => {
     if (dial === undefined) {
       throw new Error("expected a socket dial");
     }
-    // one from the login, one from the account-identity learner.
-    expect(harness.vaultPings()).toBe(2);
+    // the login's own, so the remote it derived syncs now
+    expect(harness.vaultPings()).toBe(1);
     const quiet = harness.cloud.requests.length;
 
     dial.onPing({ type: "vault" });
-    expect(harness.vaultPings()).toBe(3);
+    expect(harness.vaultPings()).toBe(2);
     expect(harness.cloud.requests).toHaveLength(quiet);
   });
 

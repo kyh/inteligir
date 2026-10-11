@@ -1,7 +1,10 @@
-import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
+import { normalVaultPathSchema as vaultPathSchema } from "@repo/notes/knowledge/vault-path-schema";
 import { z } from "zod";
 
+// a git push can place git's machinery and staging files in the hosted tree; the read routes
+// must hide what the local engine would never list
 export { isIgnoredEntryName } from "@repo/notes/knowledge/vault-path";
+export { normalVaultPathSchema as vaultPathSchema } from "@repo/notes/knowledge/vault-path-schema";
 export { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "./vault-asset-media-types";
 
 export const VAULT_API_PATHS = {
@@ -31,32 +34,12 @@ export const VAULT_ASSET_MAX_BYTES = 10 * 1024 * 1024;
 export const gitOidSchema = z.string().regex(/^[0-9a-f]{40}$/u, "must be a full lowercase git oid");
 const commitShaSchema = gitOidSchema;
 
-// a git push can place git's machinery and staging files in the hosted tree; the read routes
-// must hide what the local engine would never list
-
-// the parse must be the identity: these values address git trees verbatim, so a path the
-// grammar would normalize is refused rather than silently renamed
-export const vaultPathSchema = z.string().superRefine((value, ctx) => {
-  const parsed = parseVaultPath(value);
-  if (!parsed.ok) {
-    ctx.addIssue({ code: "custom", message: parsed.message });
-    return;
-  }
-  if (parsed.path !== value) {
-    ctx.addIssue({
-      code: "custom",
-      message: "path must be already normal — no empty segments or trailing slash",
-    });
-  }
-});
-
 // a read's query rides a POST body: a vault path names a file, and a URL is what Cloudflare's
-// request log and traces keep. The GET form older installs still send carries the same fields in
-// the URL's search params, where every value arrives as a string.
+// request log and traces keep
 export const vaultTreeQuerySchema = z
   .object({
     after: vaultPathSchema.optional(),
-    limit: z.coerce.number().int().min(1).max(VAULT_TREE_MAX_ENTRIES).optional(),
+    limit: z.number().int().min(1).max(VAULT_TREE_MAX_ENTRIES).optional(),
     ref: commitShaSchema.optional(),
   })
   .strict();

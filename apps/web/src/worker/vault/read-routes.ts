@@ -251,12 +251,8 @@ type VaultRead =
 
 type ParsedRead = { ok: true; read: VaultRead } | { ok: false; message: string };
 
-// a POST's JSON body, or the search params of the GET form older installs send
 const parseRead = async (request: Request, url: URL): Promise<ParsedRead | null> => {
-  const input: unknown =
-    request.method === "POST"
-      ? await request.json().catch(() => null)
-      : Object.fromEntries(url.searchParams);
+  const input: unknown = await request.json().catch(() => null);
   switch (url.pathname) {
     case VAULT_API_PATHS.tree: {
       const query = vaultTreeQuerySchema.safeParse(input);
@@ -302,11 +298,8 @@ export const handleVaultReadRoutes = async (
   env: Env,
   url: URL,
 ): Promise<Response> => {
-  if (url.pathname === VAULT_API_PATHS.files && request.method !== "POST") {
-    return refuse("bad-request", "Send the batch as a POST with a JSON body.");
-  }
-  if (request.method !== "POST" && request.method !== "GET") {
-    return refuse("not-found", "No such route.");
+  if (request.method !== "POST") {
+    return refuse("bad-request", "Send the read as a POST with a JSON body.");
   }
 
   const db = createDb(env.DB);

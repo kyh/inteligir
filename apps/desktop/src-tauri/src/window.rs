@@ -112,7 +112,7 @@ fn hide_on_close<R: Runtime>(window: &WebviewWindow<R>) {
 }
 
 /// The page prefs (localStorage) are the origin's, and every vault's server answers on one port,
-/// so each data dir gets a data store of its own, as Electron's per-vault partitions were.
+/// so each data dir gets a data store of its own.
 pub fn data_store_id(data_dir: &str) -> [u8; 16] {
     let digest = Sha256::digest(data_dir.as_bytes());
     let mut id = [0_u8; 16];
@@ -135,6 +135,16 @@ pub struct AppWindow<'a> {
     pub log: Arc<Mutex<ServerLog>>,
 }
 
+/// Tauri's own permissions the app window takes beside its commands: the update event, and the
+/// title bar's drag and double-click. `capabilities/app-window.json` lists them too, so the build
+/// keeps them, held equal by `tools/repo-guards/src/desktop-shell-wire.test.ts`.
+const APP_WINDOW_CORE_PERMISSIONS: &[&str] = &[
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-start-dragging",
+];
+
 /// The app window's commands are granted for this window and the server's exact origin alone.
 fn grant_app_window<R: Runtime>(
     app: &AppHandle<R>,
@@ -149,13 +159,9 @@ fn grant_app_window<R: Runtime>(
         .iter()
         .map(|command| format!("allow-{}", command.replace('_', "-")))
         .chain(
-            [
-                "core:event:allow-listen",
-                "core:event:allow-unlisten",
-                "core:window:allow-start-dragging",
-                "core:window:allow-internal-toggle-maximize",
-            ]
-            .map(str::to_owned),
+            APP_WINDOW_CORE_PERMISSIONS
+                .iter()
+                .map(|&permission| permission.to_owned()),
         )
     {
         capability = capability.permission(permission);
@@ -200,7 +206,7 @@ pub fn create_app_window<R: Runtime>(
     Ok(window)
 }
 
-/// The first run's page is the bundle's own: under `tauri dev` the renderer's dev server, else
+/// The first run's page is the bundle's own: under `tauri dev` the page's dev server, else
 /// Tauri's embedded assets.
 fn first_run_origin<R: Runtime>(app: &AppHandle<R>) -> String {
     let dev_url = app

@@ -73,7 +73,8 @@ One line per workspace; [`CLAUDE.md`](./CLAUDE.md) § Workspace Structure is
 the owned description of each.
 
 ```
-apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the window and the SPA in it
+apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the Tauri window around the SPA
+apps/workspace          @repo/workspace — the SPA: the page every vault's server answers, and the first run
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
 apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, dispatch, hosted vault
 apps/mobile             @repo/mobile — the iPhone app: the editor offline over the hosted vault, captures, asks a Mac

@@ -1,15 +1,16 @@
 # AGENTS.md
 
 **inteligir** is Obsidian where an agent edits your notes with you: a Mac app
-for general knowledge workers, not developers, shipped to a small invited
-cohort on Apple silicon. The agent runs on the user's own Claude or ChatGPT
-plan, on their Mac; git versions and syncs the vault underneath, and the user
-never meets it. `CLAUDE.md` § Project Overview holds the premises every change
-builds from, and where older prose assumes a developer, the overview wins.
+for general knowledge workers, not developers, on Apple silicon, that nobody
+uses yet. The agent runs on the user's own Claude or ChatGPT plan, on their
+Mac; git versions and syncs the vault underneath, and the user never meets
+it. `CLAUDE.md` § Project Overview holds the premises every change builds
+from, and where older prose assumes a developer, the overview wins.
 
 There are TWO programs. `apps/desktop` is THE SHIPPED PRODUCT, installed as the
 signed dmg: a Tauri window on the local server, which it runs as its one child
-on the node the .app carries, showing the SPA that server serves. `apps/cli` is the `inteligir` binary: `serve` runs the whole
+on the node the .app carries, showing the SPA that server serves, which
+`apps/workspace` builds. `apps/cli` is the `inteligir` binary: `serve` runs the whole
 local server (the markdown vault, its index, the agent runtime and one oRPC API
 over SQLite), and every other verb but `vault open` is a client of a running
 one. The CLI is the agent's door and the developer's, which is how an agent
@@ -33,6 +34,8 @@ pnpm dev             # → THE PRODUCT: the shell over its own server, e.g.
 pnpm cli serve       # → the server ALONE, from source, no window. A shell
                      #   started afterwards ADOPTS it, so this is the loop for
                      #   iterating on server code.
+pnpm dev:workspace   # → the page alone in a browser tab, live-reloading, on
+                     #   that same server: the loop for UI work, no Rust.
 ```
 
 That's the whole product setup — no bootstrap script, no Docker, no cloud
@@ -47,11 +50,12 @@ Requirements: **Node 24** and **pnpm 12** (`corepack enable` reads the
 root `packageManager`).
 (`.codex/environments/environment.toml` runs `pnpm i` for cloud runners.)
 
-The agent RUNTIME is selected by `INTELIGIR_AGENT` (`auto` · `scripted` ·
-`off`; default `auto` — the ACP runtime, which runs the vendor binaries bundled
+The agent RUNTIME is selected by `INTELIGIR_AGENT` (`acp` · `scripted` ·
+`off`; default `acp` — the ACP runtime, which runs the vendor binaries bundled
 beside its adapters and never looks at PATH; it refuses a send only when the
 thread's runtime is missing from the install, with the reason `system.status`
-states under `agent`, and a signed-out vendor refuses the session itself). WHICH
+states under `agent`, or when the thread names a harness this build does not
+ship, and a signed-out vendor refuses the session itself). WHICH
 harness runs is a thread's own `providerId`, never this variable; unset, a new
 thread starts on claude. `inteligir agents list` asks each bundled vendor for
 its sign-in over its shared store (`~/.claude`, `~/.codex`), so a machine
@@ -61,8 +65,7 @@ through the vendor's own login.
 deterministic driver over the REAL ingest/timeline/vault/commit paths — send an
 action message, watch the turn stream, find the note in the vault with an
 agent-attributed commit. `INTELIGIR_CLAUDE_MODEL` and `INTELIGIR_CODEX_MODEL`
-each pass a model to their own harness; the one-model `INTELIGIR_AGENT_MODEL` is
-ignored with a boot warning.
+each pass a model to their own harness.
 
 **The `inteligir` CLI drives a running instance from the shell** — often
 faster than the browser for vault/search/action checks:
@@ -106,12 +109,12 @@ pnpm --filter @repo/web db:push
 pnpm --filter @repo/web db:studio
 ```
 
-Then `/app/sign-up` takes the invite code. Signing up returns 200 with a
-`set-auth-token` header — that bearer is what a NON-browser client carries; a
-browser carries the session cookie instead. The app takes the same code: start
-it with `INTELIGIR_CLOUD_URL=http://localhost:5174`, open Settings › Account (or
-Sign in… in the rail's sync menu), choose Create an account, and the account is
-created and that instance signed in to it in one step
+Then `/app/sign-up` takes the invite code. Signing up returns 200 and sets
+Better Auth's session cookie, the one credential a browser holds; a script
+sends that cookie back. The app takes the same code and holds a device
+credential instead: start it with `INTELIGIR_CLOUD_URL=http://localhost:5174`,
+open Settings › Account (or Sign in… in the rail's sync menu), choose Create an
+account, and the account is created and that instance signed in to it in one step
 (`POST /v1/device/sign-up`). A code is spent by either door, so mint one per
 account.
 
@@ -154,6 +157,11 @@ rather than moving the app somewhere the docs don't name.
 
 ## Rules that matter
 
+- **No users yet.** Change any wire, file or database format freely. Write no
+  migration, no reader for an older build's shape, no retired-path sweep and
+  no legacy-name warning. `/local` and `/cloud` may both break. The first
+  outside tester ends this; `CLAUDE.md` § Project Overview holds the premise
+  and its one exception.
 - **`pnpm format:fix` before the gates, commit after.** Never the other way.
 - **A change a user can notice updates `CHANGELOG.md` in the same task**, under
   `## Unreleased`, written for someone who takes notes: a release's notes are
@@ -184,7 +192,8 @@ One line per workspace; `CLAUDE.md` § Workspace Structure is the owned
 description of each.
 
 ```
-apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the window and the SPA in it
+apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the Tauri window around the SPA
+apps/workspace          @repo/workspace — the SPA: the page every vault's server answers, and the first run
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
 apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, dispatch, hosted vault
 apps/mobile             @repo/mobile — the iPhone app: notes in the editor page, offline, and asking a Mac's agent
@@ -199,6 +208,7 @@ packages/agent-skills   @repo/agent-skills — the dialect spec, as files agents
 packages/ui             @repo/ui — the shared component vocabulary on Base UI
 tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself
 tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
+tools/ui-gallery        @repo/ui-gallery — the @repo/ui gallery `pnpm dev:gallery` serves, never deployed
 ```
 
 - `CLAUDE.md` — architecture and § Decisions.
@@ -207,6 +217,7 @@ tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
 - `docs/development.md` — the dev loop in one page.
 - `apps/cli/README.md` — the binary's two modes and every verb.
 - `apps/desktop/README.md` — the shell, its commands, the packaged app.
+- `apps/workspace/README.md` — the page, its dev loop and where its suites run.
 - `docs/privacy.md` — what leaves the machine, what never does, what the phone
   keeps, how it dies.
 - `docs/releasing.md` — the release runbook and every owner-only check.

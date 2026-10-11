@@ -107,6 +107,10 @@ describe("classifyNetworkFailure", () => {
       "full",
     ],
     [
+      "remote: this version of inteligir is older than the hosted vault accepts; update it\nfatal: unable to access 'https://cloud.test/v1/git/vault.git/': The requested URL returned error: 426",
+      "outdated",
+    ],
+    [
       " ! [remote rejected] main -> main (pre-receive hook declined)\nerror: failed to push some refs",
       "rejected",
     ],

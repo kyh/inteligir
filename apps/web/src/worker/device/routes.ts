@@ -146,7 +146,7 @@ export const handleDeviceRoutes = async (
       .select()
       .from(device)
       .where(eq(device.userId, userId))
-      // created_at is whole seconds, so two sign-ins in one second tie; rowid is their arrival order
+      // two sign-ins within one millisecond share a created_at; rowid is their arrival order
       .orderBy(device.createdAt, sql`rowid`)
       .all();
     const body: ListDevicesResponse = {

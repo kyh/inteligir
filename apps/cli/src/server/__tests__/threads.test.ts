@@ -1,6 +1,7 @@
 import { isDefinedError, ORPCError, safe } from "@orpc/client";
 import { noopNotifier } from "@repo/domain/notifier";
 import type { DbNotifier } from "@repo/domain/notifier";
+import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { writeTransaction } from "@repo/db/connection";
@@ -803,7 +804,12 @@ describe("turn identity and crash recovery", () => {
     expect(await getThreadStatus(client, threadId)).toBe("active");
     // an approval the dead provider raised and nobody answered.
     const orphan = createPendingInteraction(db, noopNotifier, {
-      payload: "{}",
+      payload: {
+        availableDecisions: ["allow_once"],
+        kind: "approval",
+        reason: null,
+        subject: { command: "ls", cwd: null, itemId: "item_1", kind: "command" },
+      },
       requestKey: "req-orphaned",
       threadId,
     });
@@ -975,7 +981,7 @@ describe("pending interactions over the API", () => {
   it("lists open interactions on the thread and answers them exactly once", async () => {
     const { bus, client, db } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
-    const payload = {
+    const payload: ApprovalPendingInteractionPayload = {
       availableDecisions: ["allow_once", "deny"],
       kind: "approval",
       reason: null,
@@ -987,7 +993,7 @@ describe("pending interactions over the API", () => {
       },
     };
     const interaction = createPendingInteraction(db, bus, {
-      payload: JSON.stringify(payload),
+      payload,
       requestKey: "req-1",
       threadId,
     });
@@ -997,16 +1003,20 @@ describe("pending interactions over the API", () => {
     expect(detail.pendingInteractions[0]?.payload).toEqual(payload);
 
     const answered = await client.threads.answerInteraction({
+      decision: "allow_once",
       interactionId: interaction.id,
-      resolution: "allow_once",
       threadId,
     });
-    expect(answered.interaction.id).toBe(interaction.id);
+    expect(answered.interaction).toMatchObject({
+      decision: "allow_once",
+      id: interaction.id,
+      status: "resolved",
+    });
 
     const [again] = await safe(
       client.threads.answerInteraction({
+        decision: "deny",
         interactionId: interaction.id,
-        resolution: "deny",
         threadId,
       }),
     );
@@ -1014,8 +1024,8 @@ describe("pending interactions over the API", () => {
 
     const [unknown] = await safe(
       client.threads.answerInteraction({
+        decision: "deny",
         interactionId: "pint_missing",
-        resolution: "allow",
         threadId,
       }),
     );

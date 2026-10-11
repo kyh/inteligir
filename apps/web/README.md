@@ -15,18 +15,18 @@ src/
     privacy.tsx      docs/privacy.md itself, rendered
     terms.tsx        docs/terms.md itself, rendered
     about, contact   lib/site-content.ts's markdown, rendered or answered as-is
-    app/             /app/sign-in, /app/sign-up, /app/forgot-password and
-                     /app/devices (the device table, client-only)
+    app/             /app/sign-in, /app/sign-up, /app/forgot-password,
+                     /app/reset-password and /app/devices (the last two
+                     client-only)
   components/        The site's own components (auth card, header, theme, orb)
-    gallery/         The @repo/ui gallery: gallery-main.tsx mounts it under
-                     gallery.html for `pnpm dev:gallery`, never a route
   lib/               Better Auth client, session guard, site config (the
                      Download button's fixed dmg link among it), page markdown
   worker/            The Worker's API half — its OWN tsconfig program (no DOM)
     server.ts        The deployed entry: path-splits API vs site SSR
     index.ts         The API route table (also the test suite's entry)
-    auth/            Better Auth factory, invite gate, reset email + page
-    device/          Device login, credential verification, /v1/account
+    auth/            Better Auth factory, invite gate, reset email
+    device/          Device login and sign-up, credential verification,
+                     account deletion
     sync/            ThreadSyncDO + the device-authed route chokepoint + the
                      dispatch inbox's SQL (dispatch-inbox.ts)
     vault/           The hosted vault git remote (durable-git behind the
@@ -59,11 +59,11 @@ its own `tsconfig.json`.
 | `/app/sign-in`                          | —                 | Sign-in (SSR when signed out — see `lib/session-guard.ts`)          |
 | `/app/sign-up`                          | —                 | Sign-up form; submits to the invite gate                            |
 | `/app/forgot-password`                  | —                 | Requests the reset link                                             |
+| `/app/reset-password`                   | —                 | Where the emailed link lands (client-only, `no-store`, no referrer) |
 | `/app/devices`                          | session           | The device table: list and revoke                                   |
-| `/api/auth/*`                           | —                 | Better Auth (email+password, bearer)                                |
-| `/auth/reset`                           | —                 | The ONE reset page — Worker-served, static, `no-store`              |
+| `/api/auth/*`                           | —                 | Better Auth (email+password, session cookie)                        |
 | `/v1/auth/sign-up`                      | —                 | The invite gate in front of Better Auth's sign-up                   |
-| `POST /v1/device/login`                 | —                 | Email + password in, the durable device credential out              |
+| `POST /v1/device/login`                 | —                 | Email + password in, the device credential and its account out      |
 | `POST /v1/device/sign-up`               | —                 | Sign-up from the app: account + device credential out               |
 | `GET /v1/device/list`                   | session or device | The device table (revoked rows included)                            |
 | `POST /v1/device/revoke`                | session or device | Cut a device off — bites on its next request                        |
@@ -88,7 +88,6 @@ its own `tsconfig.json`.
 | `POST /v1/vault/files`                  | device            | Up to 40 notes at a pinned commit — 4 MiB, rest deferred            |
 | `POST /v1/vault/asset`                  | device            | One embedded binary at that commit                                  |
 | `POST /v1/vault/commit`                 | device            | A change set, each change CAS'd on its blob — one commit            |
-| `GET /v1/account`                       | device            | Whose account this device credential syncs as                       |
 | `POST /v1/account/delete`               | device + password | Delete the account through Better Auth's `deleteUser`               |
 
 "device" auth is the `igd_…` credential a login minted, verified per request by
@@ -100,37 +99,52 @@ reaches: the sync and capture routes fan out to that user's own
 `ThreadSyncDO` by RPC (the Worker parses each body and hands the object the
 verified deviceId; only the socket upgrade is a forwarded request), the git
 remote and the `/v1/vault/*` reads and commits to that user's own durable-git
-`RepoCell`, and `/v1/account` reads D1 directly. A commit is authored by the
+`RepoCell`, and the account deletion reads D1 directly. A commit is authored by the
 verified device row's name, and a stale base answers 409 `vault-conflict` with
 what the head holds beside the envelope; the Worker never merges. Every `/v1` refusal, an unknown route and
 an unhandled fault included, is the JSON error envelope; the git mount alone
 answers git clients in plain text.
 
-The tree, file and asset reads take their query as a JSON body, so no vault
-path reaches a URL, which the Worker's request log and traces keep; each still
-answers the same query as a GET's search params, the form older installs send
-(`src/worker/vault/read-routes.ts`).
+Every `/v1` request an install sends names its build in
+`x-inteligir-build: <semver>+<platform>` (`@repo/contract/cloud/client-build`),
+and before any route reads it `src/worker/client-floor.ts` refuses one that
+names none, or a version below `MIN_CLIENT_BUILD` (`cloudflare.config.ts`):
+426 `client-outdated`, in plain text on the git mount. The platform is
+telemetry and never compared. A request a browser marks `Sec-Fetch-Site:
+same-origin` passes, since the site's own pages ship in this deploy. The floor
+is how `/v1` retires a shape: raise it past every build that reads the shape,
+then delete the shape.
+
+The tree, file, files and asset reads take their query as a JSON body, so no
+vault path reaches a URL, which the Worker's request log and traces keep; any
+other method is refused `bad-request` (`src/worker/vault/read-routes.ts`).
 
 ## Auth
 
 - `src/worker/auth/auth.ts::createAuth(env, baseURL)` builds a **per-request**
   Better Auth instance (D1 is a runtime binding, not a module singleton;
   `baseURL` is the request origin, so localhost/preview/prod all work with no
-  config). Plugin: **bearer** — clients may authenticate with
-  `Authorization: Bearer <token>`; the token comes back in the `set-auth-token`
-  header on sign-in/up.
+  config). No plugins: a browser holds Better Auth's session cookie and
+  nothing else, and the apps hold the `igd_…` device credential, which never
+  reaches Better Auth. `disabledPaths` shuts every Better Auth route no client
+  calls (the site uses sign-in, `get-session`, the reset pair and, through the
+  invite gate, sign-up). That includes its own `/delete-user`, so
+  `POST /v1/account/delete` is the one way to delete an account;
+  `auth.api.deleteUser` behind it is unaffected, as the list gates only HTTP. Better Auth reads
+  `BETTER_AUTH_TRUSTED_ORIGINS` itself, should an origin other than the
+  request's ever need trusting.
 - **Sign-up is invite-gated by a Worker route in front of Better Auth**
   (`src/worker/auth/invite.ts`). `POST /v1/auth/sign-up` parses its body with
   `signUpRequestSchema` (`@repo/contract/cloud/account/account-schema`, which the
-  page, the gate and the e2e harness share with `AUTH_PAGE_PATHS`) and refuses a
+  page, the gate and the e2e harness share with `AUTH_API_PATHS`) and refuses a
   password outside `PASSWORD_MIN_LENGTH`–`PASSWORD_MAX_LENGTH` before touching
   the code. It then claims the code in one atomic
   `UPDATE … WHERE redeemed_at IS NULL` and forwards into the one instance built
-  with sign-up enabled — so the response (cookie, `set-auth-token`, Better
-  Auth's own refusals) is Better Auth's, untouched. Better Auth is configured
-  with those same two bounds (`src/worker/auth/auth.ts`), which the reset page
-  and device login hold too. Every other caller's instance carries
-  `disableSignUp`, which shuts
+  with sign-up enabled — so the response (cookie, Better Auth's own refusals)
+  is Better Auth's, untouched. Better Auth is configured with those same two
+  bounds (`src/worker/auth/auth.ts`), which the reset-password page and device
+  login hold too. Every other caller's instance carries `disableSignUp`, which
+  shuts
   `/api/auth/sign-up/email` and `auth.api.signUpEmail` together. The gate
   has TWO front doors over that one claim (`claimInvite` / `releaseInvite`):
   this page's, which forwards so the browser keeps Better Auth's cookie, and
@@ -148,15 +162,25 @@ answers the same query as a GET's search params, the form older installs send
   lands on `SIGNED_IN_HOME`, as sign-up and bare `/app` do. The list loads in
   the route's loader and every refusal reads the cloud error envelope through
   `readCloudCall` (`@repo/contract/cloud/client`), so a failure is the route's error
-  view with a retry, never a page stuck on Loading. The three auth forms submit
+  view with a retry, never a page stuck on Loading. The auth forms submit
   through one `useAuthSubmit` (`src/components/auth-shell.tsx`), which turns a
   request that never left into a message rather than a button stuck busy.
+- **The emailed reset link lands on a site page, not a Worker route.**
+  `/app/forgot-password` asks Better Auth for a link whose GET leg redirects
+  to `/app/reset-password?token=…` (or `?error=INVALID_TOKEN` for a spent or
+  expired one), and that page posts the new password through the Better Auth
+  client. Its URL carries a live single-use token, so the route is
+  `ssr: false`, answers `Cache-Control: no-store` and sets a `no-referrer`
+  meta (`src/routes/app/reset-password.tsx`). It works with no app installed,
+  since an email client opens a browser.
 - **A device signs in with the account's own email and password**
   (`src/worker/device/login.ts`, the Obsidian Sync model). `POST /v1/device/login`
   verifies the email and password through `auth.api.signInEmail`, mints the `igd_…` credential
   under the twenty-device cap, and DELETES the browser session that sign-in
   created — the device holds its credential and nothing else, and a session
-  nobody sees is a bearer nobody revokes. A wrong password and an unknown
+  nobody sees is a bearer nobody revokes. The answer names the account beside
+  the credential (`{ credential, deviceId, userId, email }`), so a device knows
+  whose vault it syncs from its first request. A wrong password and an unknown
   address answer one `invalid-credentials`, throttled
   per address. A credential is revoked from `/app/devices` or from any
   signed-in Mac's Settings › Account: `GET /v1/device/list` and
@@ -214,7 +238,7 @@ answers the same query as a GET's search params, the form older installs send
   The app asks it at `POST /v1/account/delete` (`src/worker/device/account.ts`),
   holding a device credential and no session: the credential, a per-device
   window of 5 a minute, the password checked again through `signInEmail`, then
-  `auth.api.deleteUser` under the session that sign-in minted, so this hook
+  `auth.api.deleteUser` under the cookie of the session that sign-in minted, so this hook
   stays the one purge path. The credential alone deletes nothing: whoever held a
   stolen one could end the account. `docs/privacy.md` is the user-facing
   statement of all of it.
@@ -248,13 +272,11 @@ pnpm --filter @repo/web db:push
 Tests run in a real in-process Workers runtime (`@cloudflare/vitest-pool-workers`)
 against the bindings `cloudflare.config.ts` declares, restated in
 `vitest.config.ts` because the pool reads only wrangler's config format; the
-schema DDL is derived from `src/worker/db/schema.ts` at config load.
-
-The @repo/ui gallery is its own dev server, `pnpm dev:gallery` on :5175
-(`vite.gallery.config.ts`, at `/gallery`): React and Tailwind over
-`gallery.html`, with no Worker and no router, so the deployed site has no page
-for it and ships none of its code. TanStack Start has no dev-only route, and
-any route file emits its chunk into the build.
+schema DDL is derived from `src/worker/db/schema.ts` at config load. The
+inboxes' refusal and ordering rules are one table,
+`@repo/contract/cloud/test-support/inbox-scenarios`, which
+`src/worker/__tests__/inbox-scenarios.test.ts` runs against the object and the
+CLI's suites run against their fake cloud.
 
 ## Build & deploy (owner-only)
 
@@ -292,13 +314,14 @@ pnpm -F @repo/web exec wrangler tail inteligir-web
 ```
 
 The GitHub `Deploy` workflow runs the same command on push to main, gated on
-CI. It does NOT apply the schema: the schema reaches production only from a
-local machine (step 3), so push it BEFORE merging a change that needs it — the
-schema is additive, so an old Worker against a new database ignores what it
-does not know, while a new Worker against an old database 500s on every
-request touching a table that isn't there. The workflow's one secret is
-`CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, plus Workers Routes: Edit on
-the inteligir.com zone).
+CI, when anything the build reads changed since the `deployed/web` tag
+(`docs/privacy.md` and `docs/terms.md` included). It does NOT apply the
+schema: the schema reaches production only from a local machine (step 3), so
+push it BEFORE merging a change that needs it — the schema is additive, so an
+old Worker against a new database ignores what it does not know, while a new
+Worker against an old database 500s on every request touching a table that
+isn't there. The workflow's one secret is `CLOUDFLARE_API_TOKEN` (Workers
+Scripts: Edit, plus Workers Routes: Edit on the inteligir.com zone).
 
 ## Previews
 

@@ -5,6 +5,7 @@ import { isDefinedError, safe } from "@orpc/client";
 import { ACCOUNT_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
 import type { CloudFetch } from "@repo/contract/cloud/client";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { describe, expect, it } from "vitest";
 import type { BootedTestApp } from "../../__tests__/boot-app";
 import { deviceCredentialPath, readDeviceCredential } from "../credential-store";
@@ -30,6 +31,7 @@ const lostFirstDeletion = (cloud: FakeCloud): CloudFetch => {
 // the account's hosted vault, as the vault engine derives it from the data dir each pass
 const accountRemote = (app: BootedTestApp) =>
   createVaultRemoteProvider({
+    build: TEST_BUILD,
     cloudUrl: app.config.cloudUrl,
     dataDir: app.dataDir,
     externalSync: null,

@@ -1,6 +1,6 @@
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { makeTempDir } from "inteligir/server/testing";
+import { makeTempDir } from "../../server/__tests__/boot-app";
 import { describe, expect, it, vi } from "vitest";
 import { bundledGitEnv, isExecutableFile, parseGitVersion, resolveGit } from "../bundled-git";
 import type { BundledGitReason, GitResolution, ResolveGitArgs } from "../bundled-git";
@@ -12,7 +12,7 @@ const COMMAND_LINE_TOOLS = "/Library/Developer/CommandLineTools";
 
 const gitArgs = (overrides: Partial<ResolveGitArgs> = {}): ResolveGitArgs => ({
   isExecutableFile: () => false,
-  isPackaged: true,
+  mode: "prod",
   printDeveloperDir: async () => await Promise.resolve(`${COMMAND_LINE_TOOLS}\n`),
   printHostGitVersion: async () => await Promise.resolve("git version 2.50.1 (Apple Git-155)\n"),
   resourcesPath: RESOURCES,
@@ -100,7 +100,7 @@ describe("resolveGit", () => {
     const printDeveloperDir = vi.fn<() => Promise<string>>();
     const printHostGitVersion = vi.fn<() => Promise<string>>();
     await expect(
-      resolveGit(gitArgs({ isPackaged: false, printDeveloperDir, printHostGitVersion })),
+      resolveGit(gitArgs({ mode: "dev", printDeveloperDir, printHostGitVersion })),
     ).resolves.toEqual({ source: "host" });
     expect(printDeveloperDir).not.toHaveBeenCalled();
     expect(printHostGitVersion).not.toHaveBeenCalled();

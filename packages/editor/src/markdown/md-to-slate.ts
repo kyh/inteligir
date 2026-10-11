@@ -7,24 +7,19 @@ import type { Descendant, SlateEditor } from "platejs";
 
 import { parseMdast } from "@repo/notes/markdown/parse";
 
-export type ConvertFailure =
-  | { kind: "parse-error"; line: number | null; message: string }
-  | { kind: "too-deep" };
+// the parse is total, so nesting is the one thing a conversion can refuse
+export interface ConvertFailure {
+  kind: "too-deep";
+}
 
 type MdToSlate = { ok: true; nodes: Descendant[] } | { ok: false; reason: ConvertFailure };
 
 // mdast→Slate overflows the stack around nesting depth ~1250 (micromark survives to ~6-8k); a
 // RangeError is a depth failure, anything else is a real bug and rethrows.
 export const mdToSlate = (editor: SlateEditor, md: string): MdToSlate => {
-  const parsed = parseMdast(md);
-  if (!parsed.ok) {
-    return {
-      ok: false,
-      reason: { kind: "parse-error", line: parsed.failure.line, message: parsed.failure.message },
-    };
-  }
   try {
-    return { nodes: mdastToSlate(parsed.root, getMergedOptionsDeserialize(editor)), ok: true };
+    const { root } = parseMdast(md);
+    return { nodes: mdastToSlate(root, getMergedOptionsDeserialize(editor)), ok: true };
   } catch (error) {
     if (error instanceof RangeError) {
       return { ok: false, reason: { kind: "too-deep" } };

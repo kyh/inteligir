@@ -86,6 +86,9 @@ export const settingsBrowser: Scenario = {
         writeDeviceCredential(dataDir, {
           credential: `${DEVICE_CREDENTIAL_PREFIX}${"0".repeat(64)}`,
           deviceId: "dev_settings_e2e",
+          deviceName: "E2E Settings",
+          email: "e2e-settings@inteligir.local",
+          userId: "user_settings_e2e",
         });
       },
     });

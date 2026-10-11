@@ -13,7 +13,9 @@ export const TEARDOWN_BUDGETS_MS = {
   listener: DEFAULT_STEP_TIMEOUT_MS,
   // cloud sync writes the db and the vault, so it stops above both.
   cloud: DEFAULT_STEP_TIMEOUT_MS,
-  agent: DEFAULT_STEP_TIMEOUT_MS,
+  // a running sign-in's adapter is ended, then every session's at once, each given its own
+  // shutdown before the kill (`terminateAdapter` in @repo/agent-runtime/acp/acp-runtime).
+  agent: 12_000,
   // each running connector sign-in's vendor process is killed and its close awaited.
   connectors: 2000,
   knowledge: DEFAULT_STEP_TIMEOUT_MS,
@@ -38,7 +40,8 @@ const DEADLINE_SLACK_MS = 1000;
 const deadlineFor = (budgets: readonly number[]): number =>
   budgets.reduce((total, budget) => total + budget, 0) + DEADLINE_SLACK_MS;
 
-// the supervisor derives its SIGKILL grace from this; a shorter grace lands the kill mid-flush.
+// the desktop shell's SIGKILL grace is this plus headroom (desktop-serve.ts announces it); a shorter
+// grace lands the kill mid-flush.
 export const SHUTDOWN_TIMEOUT_MS = deadlineFor(Object.values(TEARDOWN_BUDGETS_MS));
 
 export interface ShutdownStep {
@@ -193,7 +196,8 @@ export interface InstallFatalErrorHandlersArgs {
 }
 
 // node's default exits immediately, skipping the sqlite close that checkpoints
-// the WAL and the vault's pending commit; exit 1 so a supervisor can tell a crash from a quit.
+// the WAL and the vault's pending commit; exit 1 so whatever started the server can tell a crash
+// from a quit.
 export const installFatalErrorHandlers = (args: InstallFatalErrorHandlersArgs): void => {
   for (const event of FATAL_EVENTS) {
     args.target.on(event, (cause) => {

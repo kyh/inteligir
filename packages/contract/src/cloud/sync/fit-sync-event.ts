@@ -70,36 +70,18 @@ const elideMiddle = (text: string, budget: number): string => {
   return `${head}${elisionMarker(elided)}${tail}`;
 };
 
-const partTexts = (parts: string[]): PayloadText[] =>
-  parts.map((part, index) =>
-    payloadText(part, (clipped) => {
-      parts[index] = clipped;
-    }),
-  );
-
 const itemPayload = (item: ThreadEventItem): PayloadText[] => {
   switch (item.type) {
-    case "userMessage":
     case "agentMessage":
-    case "plan": {
+    case "reasoning": {
       return [
         payloadText(item.text, (clipped) => {
           item.text = clipped;
         }),
       ];
     }
-    case "reasoning": {
-      return [...partTexts(item.content), ...partTexts(item.summary)];
-    }
     case "toolCall": {
       const texts: PayloadText[] = [];
-      if (item.error !== undefined) {
-        texts.push(
-          payloadText(item.error, (clipped) => {
-            item.error = clipped;
-          }),
-        );
-      }
       if (item.result !== undefined) {
         texts.push(
           payloadText(item.result, (clipped) => {
@@ -162,9 +144,6 @@ const eventPayload = (event: ThreadEvent): PayloadText[] => {
       return itemPayload(event.item);
     }
     case "item/agentMessage/delta":
-    case "item/commandExecution/outputDelta":
-    case "item/plan/delta":
-    case "item/reasoning/summaryTextDelta":
     case "item/reasoning/textDelta": {
       return [
         payloadText(event.delta, (clipped) => {
@@ -200,7 +179,6 @@ const eventPayload = (event: ThreadEvent): PayloadText[] => {
     // a thread's facts are names, not payload: a cut origin would point at another note.
     case "thread/archived":
     case "thread/meta":
-    case "thread/tokenUsage/updated":
     case "turn/started": {
       return [];
     }

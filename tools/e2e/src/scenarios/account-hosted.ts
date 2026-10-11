@@ -4,7 +4,7 @@ import { deviceCredentialPath } from "inteligir/server/cloud/credential-store";
 import { expect, expectEq } from "../harness/assert";
 import { OWNER } from "../harness/cloud-account";
 import { E2E_INVITE_CODE, WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
-import { hostedVaultEnv, untilIdentityKnown } from "../harness/hosted-vault";
+import { hostedVaultEnv } from "../harness/hosted-vault";
 import type { AppInstance } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
@@ -37,8 +37,10 @@ export const accountHosted: Scenario = {
       inviteCode: E2E_INVITE_CODE,
       name: "E2E Owner",
     });
-    expect(created.state === "signed-in", `A's sign-up answered ${created.state}`);
-    await untilIdentityKnown(a.api, "A");
+    expect(
+      created.state === "signed-in" && created.accountEmail === OWNER.email,
+      `A's sign-up answered ${JSON.stringify(created)}`,
+    );
 
     ctx.log("the invite is spent: B cannot create another account with it");
     const [refusal] = await safe(
@@ -59,8 +61,10 @@ export const accountHosted: Scenario = {
 
     ctx.log("B signs in to the account A created, with its email and password");
     const joined = await b.api.cloud.login({ ...OWNER, deviceName: "E2E Device B" });
-    expect(joined.state === "signed-in", `B's login answered ${joined.state}`);
-    await untilIdentityKnown(b.api, "B");
+    expect(
+      joined.state === "signed-in" && joined.accountEmail === OWNER.email,
+      `B's login answered ${JSON.stringify(joined)}`,
+    );
 
     ctx.log("A lists the account's devices with its own credential: itself, marked, and B");
     const listed = await a.api.cloud.devices();

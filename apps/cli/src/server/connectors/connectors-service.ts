@@ -5,8 +5,8 @@
 // seconds: reading codex's spawns it and runs OAuth discovery against every URL row, and Settings
 // asks every 1.5s while a sign-in waits. Every edit, and every sign-in's end, reads again.
 
+import type { HarnessId } from "@repo/domain/harness";
 import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
-import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
 import type {
   ConnectorAddRequest,
   ConnectorsResponse,

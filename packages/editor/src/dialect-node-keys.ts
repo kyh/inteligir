@@ -15,7 +15,6 @@ export const FORMULA_PILL_KEY = "formulaPill";
 export const COMMENT_MARKER_KEY = "commentMarker";
 export const TAB_GROUP_KEY = "tab_group";
 export const TAB_PANEL_KEY = "tab_panel";
-export const OPAQUE_BLOCK_KEY = "opaqueBlock";
 export const OPAQUE_INLINE_KEY = "opaqueInline";
 export const CHART_BLOCK_KEY = "chart_block" satisfies RichFenceBlockKey;
 export const CANVAS_BLOCK_KEY = "canvas_block" satisfies RichFenceBlockKey;

@@ -17,6 +17,13 @@
   // costs the build nothing.
   "cacheMaxSize": "10GB",
   "cacheMaxAge": "14d",
+  // Deploy asks `turbo query affected` whether the Worker changed. Without this flag a changed
+  // file counts only for the package that holds it, and a file in no workspace is the root's,
+  // which nothing depends on: an edit to docs/privacy.md alone would deploy nothing. With it, a
+  // file counts for every task whose `inputs` name it (apps/web/turbo.json names the legal texts).
+  "futureFlags": {
+    "affectedUsingTaskInputs": true
+  },
   "tasks": {
     "topo": {
       "dependsOn": ["^topo"]
@@ -41,8 +48,8 @@
       // tsc runs incremental (tsconfig.base.json `tsBuildInfoFile`), so the
       // incremental state IS this task's output — cache it or every restore
       // re-checks from cold. A glob, because a workspace with several programs
-      // writes one file each (the desktop's tsbuildinfo.config.json,
-      // tsbuildinfo.renderer.json and tsbuildinfo.page.json).
+      // writes one file each (the workspace's tsbuildinfo.config.json,
+      // tsbuildinfo.suites.json and tsbuildinfo.page.json).
       "outputs": [".cache/tsbuildinfo*.json"]
     },
     // the shell's Rust is the one workspace with a formatter of its own (oxfmt has the rest), and

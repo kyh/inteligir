@@ -12,7 +12,7 @@ import { parseMarkdown, roundTrip, serializeNote } from "@repo/editor/markdown/m
 import { GROUPS } from "@repo/editor/slash-menu";
 import type { SlashItem } from "@repo/editor/slash-menu";
 
-const OPAQUE_TYPES = new Set(["opaqueBlock", "opaqueInline"]);
+const OPAQUE_TYPES = new Set(["opaqueInline"]);
 
 const typesIn = (nodes: readonly Descendant[], wanted: ReadonlySet<string>): string[] =>
   nodes.flatMap((node) => {

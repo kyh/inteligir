@@ -1,5 +1,5 @@
-// the paths outside the rpc handler, none of which may acquire a typed client: /health is an
-// unauthenticated supervisor probe, /vault/asset answers bytes with an etag, a 304 and a
+// the paths outside the rpc handler, none of which may acquire a typed client: /health is the
+// harnesses' unauthenticated boot probe, /vault/asset answers bytes with an etag, a 304 and a
 // sandbox csp, /html-frame is the document a note's html block runs in under its own sandbox
 // csp, and the /ws socket carries frames.
 

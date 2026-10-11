@@ -24,8 +24,11 @@ describe("what the notes screens show of the phone's unsent edits", () => {
     await store.readNote("Plan.md");
     await store.readNote("Trip.md");
     net.online = false;
-    await store.write("Plan.md", `# Plan\n${"x".repeat(VAULT_FILE_MAX_BYTES)}\n`);
-    await store.write("Trip.md", "# Trip\nkept\n");
+    await store.write("Plan.md", `# Plan\n${"x".repeat(VAULT_FILE_MAX_BYTES)}\n`, {
+      base: "# Plan\n",
+      kind: "expected",
+    });
+    await store.write("Trip.md", "# Trip\nkept\n", { base: "# Trip\n", kind: "expected" });
     vault.change({ "Trip.md": null });
 
     net.online = true;

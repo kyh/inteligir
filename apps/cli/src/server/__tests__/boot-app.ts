@@ -9,8 +9,10 @@ import { RPC_PREFIX } from "@repo/contract/local/routes";
 import type { AgentStatus } from "@repo/contract/local/system/system-schema";
 import { createRouterClient } from "@orpc/server";
 import type { RouterClient } from "@orpc/server";
-import { HARNESS_IDS, HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
-import type { HarnessId, VendorAccount } from "@repo/agent-runtime/acp/harness-registry";
+import { HARNESS_IDS } from "@repo/domain/harness";
+import type { HarnessId } from "@repo/domain/harness";
+import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
+import type { VendorAccount } from "@repo/agent-runtime/acp/harness-registry";
 import { onTestFinished } from "vitest";
 import { createApp } from "../app";
 import type { CloudTransport } from "../cloud/sync-runtime";
@@ -210,7 +212,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
   }
   mkdirSync(dataDir, { recursive: true });
 
-  const agent = options.agent ?? { detail: null, mode: "off", runtime: "off" };
+  const agent = options.agent ?? { mode: "off" };
   const config: AppConfig = {
     agent: agent.mode,
     agentModels: { claude: null, codex: null },
@@ -230,7 +232,6 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     vaultRemote: options.pinnedRemote ?? null,
     // tests drive syncNow directly; a timer would race the assertions.
     vaultSyncIntervalMs: null,
-    warnings: [],
   };
 
   const ports: ComposePorts = {

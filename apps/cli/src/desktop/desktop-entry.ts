@@ -7,7 +7,7 @@
 
 import { homedir } from "node:os";
 import { messageOf } from "../server/error-message";
-import { answerDoor, doorTargetArgs } from "./desktop-door";
+import { answerDoor, doorTargetArgs, parseDoorVerb } from "./desktop-door";
 import type { DoorContext } from "./desktop-door";
 import { desktopServe } from "./desktop-serve";
 
@@ -17,7 +17,8 @@ try {
   if (verb === "serve") {
     await desktopServe(doorTargetArgs(context), args.includes("--debug"));
   } else {
-    process.stdout.write(`${JSON.stringify(await answerDoor(context, verb, args))}\n`);
+    const reply = await answerDoor(context, parseDoorVerb(verb), args);
+    process.stdout.write(`${JSON.stringify(reply)}\n`);
   }
 } catch (error) {
   process.stderr.write(`${messageOf(error)}\n`);

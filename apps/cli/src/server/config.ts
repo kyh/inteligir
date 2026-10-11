@@ -5,7 +5,8 @@ import { readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
-import type { HarnessId, HarnessModels } from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessId } from "@repo/domain/harness";
+import type { HarnessModels } from "@repo/agent-runtime/acp/harness-registry";
 import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
 import { agentModeSchema, agentModeValues } from "@repo/contract/local/system/system-schema";
 import type { AgentMode } from "@repo/contract/local/system/system-schema";
@@ -18,10 +19,11 @@ import { assertVaultAndDataDirDisjoint } from "./path-containment";
 import { stagedWriteFileSync } from "./staged-write";
 import type { SlowReads } from "./vault/slow-reads";
 
-type RuntimeMode = "dev" | "prod";
+export type RuntimeMode = "dev" | "prod";
 
 export const PROD_DATA_DIR_NAME = ".inteligir";
 export const DATA_DIR_ENV_VAR = "INTELIGIR_DATA_DIR";
+export const VAULT_DIR_ENV_VAR = "INTELIGIR_VAULT_DIR";
 export const DEV_DATA_ROOT_DIR = ".inteligir-dev";
 const PROD_VAULT_DIR_NAME = "Inteligir";
 // siblings, not nested: the vault is a git repo the sync loop pushes, and a nested data dir
@@ -179,7 +181,7 @@ const parseSyncIntervalValue = (name: string, rawValue: string): number => {
 const ENV_VARS = {
   agent: defineEnvVar({
     description:
-      "Agent runtime selection: auto (the ACP runtime, over the vendor binaries bundled with the adapters; PATH is never consulted), scripted (in-process fake for e2e), or off. WHICH harness runs is a thread's own providerId, never this.",
+      "Agent runtime selection: acp (the ACP runtime, over the vendor binaries bundled with the adapters; PATH is never consulted), scripted (in-process fake for e2e), or off. WHICH harness runs is a thread's own providerId, never this.",
     name: "INTELIGIR_AGENT",
     parse: ({ name, value }) => parseAgentModeValue(name, value),
   }),
@@ -207,7 +209,7 @@ const ENV_VARS = {
   vaultDir: defineEnvVar({
     description:
       "Absolute (or ~-relative) vault directory override; replaces both the prod (~/Inteligir) and dev (<dataDir>/vault) defaults.",
-    name: "INTELIGIR_VAULT_DIR",
+    name: VAULT_DIR_ENV_VAR,
     parse: ({ homeDir, name, value }) => parseDataDirValue(name, value, homeDir),
   }),
   vaultRemote: defineEnvVar({
@@ -267,7 +269,8 @@ const readEnvVar = <TValue>(
   return definition.parse({ homeDir, name: definition.name, value: rawValue });
 };
 
-// lenient: unknown keys from a newer build must not brick an older one.
+// unknown keys are stripped, not refused: the window edits nothing here but the vault selector, so
+// a refused key would be a boot nothing in the app repairs.
 const managedConfigSchema = z.object({
   agent: agentModeSchema.optional(),
   agentModels: z
@@ -311,48 +314,6 @@ const readManagedConfigFile = (dataDir: string): z.infer<typeof managedConfigFil
 };
 
 type ManagedConfig = z.infer<typeof managedConfigSchema>;
-
-// one model for every harness, a spelling nothing reads: a model id is vendor-specific. named in a
-// boot warning, never refused, since config the build does not act on must not brick the boot.
-const LEGACY_MODEL_ENV_VAR = "INTELIGIR_AGENT_MODEL";
-const LEGACY_MODEL_CONFIG_KEY = "agentModel";
-
-const legacyModelWarnings = (
-  env: NodeJS.ProcessEnv,
-  managedFile: z.infer<typeof managedConfigFileSchema>,
-  rootDataDir: string,
-): string[] => {
-  const warnings: string[] = [];
-  if (env[LEGACY_MODEL_ENV_VAR] !== undefined) {
-    warnings.push(
-      `${LEGACY_MODEL_ENV_VAR} is ignored: a model is per harness, so set ` +
-        `${MODEL_ENV_VARS.claude.name} or ${MODEL_ENV_VARS.codex.name}.`,
-    );
-  }
-  if (managedFile[LEGACY_MODEL_CONFIG_KEY] !== undefined) {
-    warnings.push(
-      `${path.join(rootDataDir, CONFIG_FILE_NAME)}'s ${LEGACY_MODEL_CONFIG_KEY} is ignored: a ` +
-        "model is per harness, so set agentModels.claude or agentModels.codex.",
-    );
-  }
-  return warnings;
-};
-
-// one remote for every vault the root selects, where a vault's record of where it syncs is its
-// own repo's origin. warned, never refused, for the same reason as the model keys.
-const RETIRED_VAULT_REMOTE_CONFIG_KEY = "vaultRemote";
-
-const retiredVaultRemoteWarnings = (
-  managedFile: z.infer<typeof managedConfigFileSchema>,
-  rootDataDir: string,
-): string[] =>
-  managedFile[RETIRED_VAULT_REMOTE_CONFIG_KEY] === undefined
-    ? []
-    : [
-        `${path.join(rootDataDir, CONFIG_FILE_NAME)}'s ${RETIRED_VAULT_REMOTE_CONFIG_KEY} is ` +
-          "ignored: a vault syncs with its own git origin, so run `inteligir vault remote <url>`, " +
-          `or pin one with ${ENV_VARS.vaultRemote.name}.`,
-      ];
 
 // the selector as config.json holds it, unparsed, so writing it back restores exactly it
 export const readManagedVaultDir = (rootDataDir: string): string | null =>
@@ -398,8 +359,6 @@ export interface AppConfig {
   agentModels: HarnessModels;
   cloudUrl: string;
   debug: ReadonlySet<DebugNamespace>;
-  // what the resolve found and will not act on, for the boot to say.
-  warnings: readonly string[];
 }
 
 export interface ResolveAppConfigArgs {
@@ -484,8 +443,7 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
       ? path.join(homeDir, PROD_DATA_DIR_NAME)
       : path.join(devInstanceDir, DEV_INSTANCE_DATA_DIR_NAME));
 
-  const managedFile = readManagedConfigFile(rootDataDir);
-  const managed = managedConfigSchema.parse(managedFile);
+  const managed = managedConfigSchema.parse(readManagedConfigFile(rootDataDir));
 
   const envPort = readEnvVar(ENV_VARS.port, args.env, homeDir);
   const port =
@@ -510,7 +468,7 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
   const vaultRemote = readEnvVar(ENV_VARS.vaultRemote, args.env, homeDir) ?? null;
   const envSyncIntervalMs = readEnvVar(ENV_VARS.vaultSyncIntervalMs, args.env, homeDir);
   const slowReads = readEnvVar(ENV_VARS.slowReads, args.env, homeDir) ?? null;
-  const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
+  const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "acp";
   const agentModels = resolveAgentModels(args, homeDir, managed);
   const cloudUrl = resolveCloudUrl(args, homeDir, managed);
   const debug = readEnvVar(ENV_VARS.debug, args.env, homeDir) ?? new Set();
@@ -532,10 +490,6 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
     vaultDir,
     vaultDirSource,
     vaultRemote,
-    warnings: [
-      ...legacyModelWarnings(args.env, managedFile, rootDataDir),
-      ...retiredVaultRemoteWarnings(managedFile, rootDataDir),
-    ],
   };
   if (envSyncIntervalMs !== undefined) {
     config.vaultSyncIntervalMs = envSyncIntervalMs === 0 ? null : envSyncIntervalMs;

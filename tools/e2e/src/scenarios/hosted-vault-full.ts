@@ -31,7 +31,7 @@ export const hostedVaultFull: Scenario = {
     const worker = await ctx.cloudWorker({
       vars: { VAULT_STORAGE_CAP_BYTES: String(CAP_BYTES) },
     });
-    const { userId } = await signUp(worker.origin);
+    await signUp(worker.origin);
 
     const a = await ctx.boot({ extraEnv: hostedVaultEnv(worker.origin), name: "a" });
     await signInOwner(a, "A", "E2E Device A");
@@ -81,7 +81,7 @@ export const hostedVaultFull: Scenario = {
       extraEnv: hostedVaultEnv(worker.origin),
       name: "b",
       seedData: (dataDir) => {
-        writeDeviceCredential(dataDir, { ...deviceB, deviceName: "E2E Device B", userId });
+        writeDeviceCredential(dataDir, { ...deviceB, deviceName: "E2E Device B" });
       },
     });
     expect(existsSync(path.join(b.vaultDir, FIRST_PATH)), "B's clone holds A's first note");

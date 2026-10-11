@@ -56,7 +56,7 @@ export const signUpDevice = async (
   if (!(await claimInvite(db, args.inviteCode, args.email))) {
     return refuseSignUp("invite-refused", INVITE_REFUSED);
   }
-  let signedUp: { token: string | null; user: { id: string } };
+  let signedUp: { token: string | null; user: { id: string; email: string } };
   try {
     signedUp = await auth.api.signUpEmail({
       body: { email: args.email, name: args.name, password: args.password },
@@ -73,7 +73,7 @@ export const signUpDevice = async (
   const minted = await mintDeviceCredential(db, d1, {
     deviceName: args.deviceName,
     sessionToken: signedUp.token,
-    userId: signedUp.user.id,
+    user: signedUp.user,
   });
   if (minted === null) {
     // unreachable while the cap is above zero: an account made a moment ago holds no device

@@ -74,6 +74,7 @@ interface ToolChipProps extends HTMLAttributes<HTMLDivElement> {
   icon?: ToolIcon;
   label: string;
   chip: string;
+  failed?: boolean;
   mono?: boolean;
   detailMono?: boolean;
 }
@@ -82,6 +83,7 @@ const ToolChip = ({
   icon = "think",
   label,
   chip,
+  failed = false,
   mono = false,
   detailMono = false,
   className,
@@ -130,7 +132,11 @@ const ToolChip = ({
             />
           ) : null}
         </span>
-        <span className="shrink-0 text-body font-medium text-ink">{label}</span>
+        <span
+          className={cn("shrink-0 text-body font-medium", failed ? "text-destructive" : "text-ink")}
+        >
+          {label}
+        </span>
         <span
           className={cn(
             "inline-flex h-5.5 min-w-0 flex-1 items-center truncate rounded-md bg-muted px-1.5 text-caption text-ink-2",

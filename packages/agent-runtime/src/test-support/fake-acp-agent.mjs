@@ -1,26 +1,40 @@
 // FAKE_ACP_MODE: message | fileChange (writes FAKE_ACP_FILE) | approval | promptEcho | silent |
 // slow (a command left running until session/cancel, then the cancelled stop the real ones answer) |
+// toolProgress (a tool call that reports itself running before it completes) |
 // authOnSessionOpen | authOnPrompt (a signed-out vendor, refusing at the step the real ones do;
 // authOnSessionOpen lets a session open once FAKE_ACP_AUTH_FILE exists) | signIn (authenticate
 // writes FAKE_ACP_AUTH_FILE) | signInRefused (authenticate refuses, as a login the user abandoned) |
-// signInHang (authenticate never answers, and SIGTERM is ignored, so only a SIGKILL ends it) |
+// signInHang (authenticate never answers) |
 // crashOnBoot (exits before the handshake, saying why on stderr, as a missing module would).
 // Every mode advertises one agent sign-in method, SIGN_IN_METHOD_ID.
 // FAKE_ACP_RECORD names a file each session/new, session/load and authenticate appends its params
 // to, one json line each. session ids carry the pid, so two adapters never mint the same one.
+// FAKE_ACP_GATE names a file session/new and session/load wait for before answering, so a test can
+// act while a session is still opening.
 
 import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import { Readable, Writable } from "node:stream";
+import { setTimeout } from "node:timers/promises";
 import { PROTOCOL_VERSION, RequestError, agent, ndJsonStream } from "@agentclientprotocol/sdk";
 
 const mode = process.env.FAKE_ACP_MODE ?? "message";
 const filePath = process.env.FAKE_ACP_FILE ?? null;
 const recordPath = process.env.FAKE_ACP_RECORD ?? null;
 const authFile = process.env.FAKE_ACP_AUTH_FILE ?? null;
+const gateFile = process.env.FAKE_ACP_GATE ?? null;
 
 const SIGN_IN_METHOD_ID = "chat-gpt";
 
 const signedIn = () => authFile !== null && existsSync(authFile);
+
+const gateOpened = async () => {
+  if (gateFile === null) {
+    return;
+  }
+  while (!existsSync(gateFile)) {
+    await setTimeout(10);
+  }
+};
 
 const record = (method, params) => {
   if (recordPath !== null) {
@@ -125,6 +139,26 @@ const prompt = async (client, params) => {
     }
     return { stopReason: "end_turn" };
   }
+  if (mode === "toolProgress") {
+    await update({
+      kind: "search",
+      sessionUpdate: "tool_call",
+      status: "pending",
+      title: "Search",
+      toolCallId: "call_search",
+    });
+    await update({
+      sessionUpdate: "tool_call_update",
+      status: "in_progress",
+      toolCallId: "call_search",
+    });
+    await update({
+      sessionUpdate: "tool_call_update",
+      status: "completed",
+      toolCallId: "call_search",
+    });
+    return { stopReason: "end_turn" };
+  }
   if (mode === "fileChange" && filePath !== null) {
     await update({
       kind: "edit",
@@ -161,11 +195,6 @@ if (mode === "crashOnBoot") {
     process.exit(3);
   });
 } else {
-  if (mode === "signInHang") {
-    process.on("SIGTERM", () => {
-      /* a child that will not stop when asked */
-    });
-  }
   agent({ name: "fake-acp-agent" })
     .onRequest("initialize", () => ({
       agentCapabilities: { loadSession: true },
@@ -176,16 +205,18 @@ if (mode === "crashOnBoot") {
       record("authenticate", params);
       return await authenticate();
     })
-    .onRequest("session/new", ({ params }) => {
+    .onRequest("session/new", async ({ params }) => {
       record("session/new", params);
+      await gateOpened();
       if (mode === "authOnSessionOpen" && !signedIn()) {
         throw RequestError.authRequired();
       }
       sessionCounter += 1;
       return { sessionId: `fakeacp_${String(process.pid)}_${String(sessionCounter)}` };
     })
-    .onRequest("session/load", ({ params }) => {
+    .onRequest("session/load", async ({ params }) => {
       record("session/load", params);
+      await gateOpened();
       if (mode === "authOnSessionOpen" && !signedIn()) {
         throw RequestError.authRequired();
       }

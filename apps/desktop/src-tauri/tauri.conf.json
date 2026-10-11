@@ -5,9 +5,9 @@
   "version": "../package.json",
   "identifier": "com.inteligir.desktop",
   "build": {
-    "beforeDevCommand": "pnpm exec vite",
+    "beforeDevCommand": "pnpm --filter @repo/workspace exec vite",
     "devUrl": "http://localhost:31000",
-    "frontendDist": "../dist/first-run",
+    "frontendDist": "../../workspace/dist/first-run",
     "removeUnusedCommands": true
   },
   "app": {

@@ -8,7 +8,7 @@ import {
   writeDeviceCredential,
 } from "inteligir/server/cloud/credential-store";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, revokeDevice, signUp } from "../harness/cloud-account";
+import { loginDevice, PHONE_BUILD, revokeDevice, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { gitIn } from "../harness/exec";
 import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
@@ -54,7 +54,7 @@ export const hostedVaultSync: Scenario = {
     const worker = await ctx.cloudWorker();
 
     ctx.log("creating the account through the invite gate");
-    const { bearer, userId } = await signUp(worker.origin);
+    const { cookie, userId } = await signUp(worker.origin);
 
     ctx.log("A boots accountless, then signs in through the production route");
     const a = await ctx.boot({ extraEnv: hostedVaultEnv(worker.origin), name: "a" });
@@ -70,7 +70,11 @@ export const hostedVaultSync: Scenario = {
 
     ctx.log("a phone lists A's note under git's own blob id, and reads it in one batch");
     const phone = await loginDevice(worker.origin, PHONE_NAME);
-    const phoneClient = createCloudClient({ baseUrl: worker.origin, credential: phone.credential });
+    const phoneClient = createCloudClient({
+      baseUrl: worker.origin,
+      build: PHONE_BUILD,
+      credential: phone.credential,
+    });
     const tree = await phoneClient.vaultTree({});
     expect(tree.ok, `the phone's tree read: ${tree.ok ? "" : describeCloudFailure(tree.failure)}`);
     const listed = tree.value.entries.find((entry) => entry.path === SHARED_PATH);
@@ -94,7 +98,7 @@ export const hostedVaultSync: Scenario = {
       // through the harness hook: a path rebuilt here would send B down the init+seed path instead
       // of the clone.
       seedData: (dataDir) => {
-        writeDeviceCredential(dataDir, { ...deviceB, deviceName: "E2E Device B", userId });
+        writeDeviceCredential(dataDir, { ...deviceB, deviceName: "E2E Device B" });
       },
     });
 
@@ -185,7 +189,7 @@ export const hostedVaultSync: Scenario = {
     await expectNoTokenInGitConfig(b.vaultDir, b.dataDir, "B");
 
     ctx.log("revoking B: the next sync must read unauthorized, not offline");
-    await revokeDevice(worker.origin, bearer, deviceB.deviceId);
+    await revokeDevice(worker.origin, cookie, deviceB.deviceId);
     await b.api.vault.write({
       content: "# Stranded\n",
       guard: { kind: "overwrite" },

@@ -6,6 +6,7 @@ import type {
   OpenCloudSocketArgs,
 } from "@repo/contract/cloud/sync/cloud-socket";
 import type { PullResponse } from "@repo/contract/cloud/sync/sync-schema";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { clientOver, createFakeVault } from "../../notes/__tests__/fake-vault";
@@ -26,12 +27,19 @@ import type { SqlDriver } from "../sql-driver";
 
 const CRED = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_self" };
 const OTHER_CRED = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_other" };
+// what the cloud answers a sign-in with: the credential, and the account it names
+const OTHER_LOGIN = { ...OTHER_CRED, email: "me@example.test", userId: "user_other" };
 
 // the shape the dispatch contract holds an id to: 32 lowercase hex characters
 const mintedId = (n: number): string => n.toString(16).padStart(32, "0");
 
 const UNAUTHORIZED: CloudResult<PullResponse> = {
   failure: { code: "unauthorized", deviceSeq: null, kind: "refused", message: "unauthorized" },
+  ok: false,
+};
+
+const OUTDATED: CloudResult<PullResponse> = {
+  failure: { code: "client-outdated", deviceSeq: null, kind: "refused", message: "update" },
   ok: false,
 };
 
@@ -123,6 +131,7 @@ const runtimeOver = (
   let minted = 0;
   return composeRuntime({
     attachments: storage.attachments,
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     credentials,
     db: storage.db,
@@ -231,6 +240,24 @@ describe("the composed runtime", () => {
       expect(await heldRows(storage.db)).toBe(0);
       expect(storage.attachments.names()).toEqual([]);
     });
+    expect(credentials.calls).not.toContain("clear");
+  });
+
+  it("keeps the mirror and the credential when the cloud refuses this build", async () => {
+    const cloud = vaultCloud();
+    const credentials = keychain(CRED);
+    const storage = phoneStorage();
+    const rt = runtimeOver(cloud, credentials.store, storage);
+    await mirrorOnce(rt);
+    await until(rt.sync, (status) => status.state === "signed-in" && status.lastSyncedAt !== null);
+    const held = await heldRows(storage.db);
+
+    cloud.pullResults.push(OUTDATED);
+    await rt.sync.syncNow();
+
+    expect(rt.sync.get()).toStrictEqual({ deviceId: CRED.deviceId, state: "outdated" });
+    expect(await heldRows(storage.db)).toBe(held);
+    expect(held).toBeGreaterThan(0);
     expect(credentials.calls).not.toContain("clear");
   });
 
@@ -373,17 +400,18 @@ describe("the phone's note mirror across sign-ins", () => {
     });
   });
 
-  it("wipes the mirror and the attachments on signing in", async () => {
+  it("wipes the mirror and the attachments on signing in, and keeps the bearer alone", async () => {
     const storage = phoneStorage();
     const cloud = vaultCloud();
-    const rt = runtimeOver(cloud, keychain(CRED).store, storage);
+    const credentials = keychain(CRED).store;
+    const rt = runtimeOver(cloud, credentials, storage);
     await mirrorOnce(rt);
     // the new sign-in's own mirror would refill the rows; this one cannot reach its vault
     cloud.client.vaultTree = async () => ({
       failure: { kind: "unreachable", message: "offline" },
       ok: false,
     });
-    vi.stubGlobal("fetch", async () => Response.json(OTHER_CRED));
+    vi.stubGlobal("fetch", async () => Response.json(OTHER_LOGIN));
     try {
       await rt.login.login({
         deviceName: "phone",
@@ -395,6 +423,7 @@ describe("the phone's note mirror across sign-ins", () => {
     }
 
     expect(rt.login.get()).toStrictEqual({ kind: "idle" });
+    expect(await credentials.read()).toStrictEqual(OTHER_CRED);
     expect(rt.sync.get()).toMatchObject({ deviceId: OTHER_CRED.deviceId });
     await vi.waitFor(async () => {
       expect(await heldRows(storage.db)).toBe(0);
@@ -435,7 +464,7 @@ describe("the phone's threads across sign-ins", () => {
     const storage = phoneStorage();
     const rt = runtimeOver(threadCloud(), keychain(CRED).store, storage);
     await pulledOnce(rt);
-    vi.stubGlobal("fetch", async () => Response.json(OTHER_CRED));
+    vi.stubGlobal("fetch", async () => Response.json(OTHER_LOGIN));
     try {
       await rt.login.login({
         deviceName: "phone",
@@ -474,7 +503,10 @@ describe("signing out with edits the vault has not taken", () => {
     const rt = runtimeOver(vaultCloud(), keychain(CRED).store, storage);
     await mirrorOnce(rt);
     expect(await rt.notes.readNote("note.md")).toMatchObject({ ok: true });
-    await rt.notes.write("note.md", "# note\n\nwritten offline\n");
+    await rt.notes.write("note.md", "# note\n\nwritten offline\n", {
+      base: "# note\n",
+      kind: "expected",
+    });
     await rt.notes.putAsset("media/new.png", new Uint8Array([1, 2, 3]));
 
     expect(await rt.logout()).toStrictEqual({ edits: 2, kind: "unsent", requests: 0 });

@@ -3,7 +3,6 @@ import { BasicBlocksKit } from "@repo/editor/kits/basic-blocks-kit";
 import { BasicMarksKit } from "@repo/editor/kits/basic-marks-kit";
 import { BlockMenuKit } from "@repo/editor/kits/block-menu-kit";
 import { BlockPlaceholderKit } from "@repo/editor/kits/block-placeholder-kit";
-import { CalloutKit } from "@repo/editor/kits/callout-kit";
 import { CodeBlockKit } from "@repo/editor/kits/code-block-kit";
 import { ColumnKit } from "@repo/editor/kits/column-kit";
 import { DateKit } from "@repo/editor/kits/date-kit";
@@ -48,7 +47,6 @@ export const CONTENT_KIT = [
   ...ImageKit,
   ...DateKit,
   ...MathKit,
-  ...CalloutKit,
   ...OpaqueKit,
   ...FrontmatterKit,
   ...WikiLinkKit,

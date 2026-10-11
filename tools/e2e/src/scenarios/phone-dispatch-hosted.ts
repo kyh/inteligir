@@ -6,7 +6,7 @@ import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schem
 import { POLL_INTERVAL_MS } from "inteligir/server/cloud/sync-cadence";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, signUp } from "../harness/cloud-account";
+import { loginDevice, PHONE_BUILD, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { signInOwner } from "../harness/hosted-vault";
 import type { AppInstance, InstanceApi } from "../harness/instance";
@@ -134,7 +134,11 @@ export const phoneDispatchHosted: Scenario = {
     ctx.log("creating the account through the invite gate; the phone signs in");
     await signUp(worker.origin);
     const phoneLogin = await loginDevice(worker.origin, PHONE_NAME);
-    const phone = createCloudClient({ baseUrl: worker.origin, credential: phoneLogin.credential });
+    const phone = createCloudClient({
+      baseUrl: worker.origin,
+      build: PHONE_BUILD,
+      credential: phoneLogin.credential,
+    });
 
     // each vault syncs to a bare remote of its own, so the hosted vault plays no part
     const boot = async (name: string): Promise<AppInstance> =>

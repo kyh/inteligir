@@ -3,8 +3,8 @@
 ## Project Overview
 
 **inteligir** is Obsidian where an agent edits your notes with you. It is for
-general knowledge workers, not developers: a small invited cohort, on macOS
-Apple silicon only. The vault is a folder of markdown files on the user's own
+general knowledge workers, not developers, on macOS Apple silicon only, and
+nobody uses it yet. The vault is a folder of markdown files on the user's own
 disk; one local Node process owns that vault, indexes it, answers one API, and
 drives the agent that edits those same files. The only hosted piece is a
 Cloudflare Worker carrying the marketing site, accounts, cross-device sync, the
@@ -39,13 +39,26 @@ The premises every change builds from, each with its reason:
 - **An account is optional, and offered.** Without one the app is a local notes
   app that makes no cloud request; with one it syncs, and the hosted vault is
   free up to about 1 GB.
+- **No users yet, so every format may change.** Nobody but the owner holds an
+  install, and a shim kept for nobody is code every later change steps
+  around. So change any wire, file or database format freely, and write no
+  migration, no reader for an older build's shape, no retired-path sweep and
+  no legacy-name warning: what an older build wrote is replaced, never read.
+  `/local` and `/cloud` may both break, a `/cloud` break raising the client
+  build floor in the same change. Until the premise ends, a Decisions bullet
+  or a note issue's decline that keeps a shape for an older install yields to
+  it. The one exception is the phone's database, which appends a step once
+  EAS has built the app, since it cannot yet replace a file it cannot read
+  (THE PHONE HOLDS EVERY NOTE'S TEXT IN SQLITE, in the Cloud group). The first
+  outside tester ends the premise: strike this bullet before their first
+  build, and from then on a format change migrates.
 
-**TWO PROGRAMS.** `apps/desktop` is the shipped product — the window, and the
-SPA inside it — and the user installs it as the signed dmg. `apps/cli` is the
-`inteligir` binary: `serve` IS that local server, and every other verb but
-`vault open` is a client of a running one. The CLI is the agent's door and
-the developer's; nothing the user does needs a terminal. `apps/mobile` is the
-iPhone app, the same editor over the hosted vault.
+**TWO PROGRAMS.** `apps/desktop` is the shipped product — the window around
+the SPA `apps/workspace` builds — and the user installs it as the signed dmg.
+`apps/cli` is the `inteligir` binary: `serve` IS that local server, and every
+other verb but `vault open` is a client of a running one. The CLI is the
+agent's door and the developer's; nothing the user does needs a terminal.
+`apps/mobile` is the iPhone app, the same editor over the hosted vault.
 
 **The architecture's decision record is GitHub issues
 [#542](https://github.com/kyh/inteligir/issues/542) and
@@ -66,27 +79,14 @@ Turborepo + pnpm monorepo.
 ```
 apps/
   desktop/       @repo/desktop — THE SHIPPED PRODUCT (issues #611, #889). A
-                 Tauri 2 shell over the system WebKit: src-tauri/ (Rust: the
-                 windows and their pin, the server it starts and stops, the
-                 first run, the vault switch, the updater, the menus and the
-                 menu-bar icon), and src/renderer/ (the SPA, which every
-                 vault's server answers and the window loads from that
-                 server's own origin: TanStack Router file routes over
-                 @repo/contract/local; `app/workspace.tsx` owns the note, the rail,
-                 the palette and the panel; `app/note/` the guarded writes;
-                 `app/palette/` the ⌘P pages; `app/sidebar/` the rail's
-                 Recent | Files | Deleted views; `app/agents/` the one agent
-                 sign-in ⌘K, the panel, Settings and onboarding all draw;
-                 `app/settings/` the Settings layer, Account and Advanced
-                 included; `app/onboarding/` the agent and account steps
-                 `/welcome` offers after a first run; and `first-run/`, the
-                 page a launch with no vault opens, which the shell carries,
-                 with no router and no server). The page asks the shell only
-                 what its server cannot answer (the updater, the vault switch,
-                 Reveal/Open of a vault entry, printing, the diagnostics), one
-                 Tauri command per row of `src/ipc-contract.ts`, every answer
-                 parsed on the page's side and mirrored through one
-                 `bridge-store.ts`, and nothing that holds a token: the window
+                 Tauri 2 shell over the system WebKit, all of it src-tauri/
+                 (Rust: the windows and their pin, the server it starts and
+                 stops, the first run, the vault switch, the updater, the
+                 menus and the menu-bar icon) plus the release scripts; the
+                 page it shows is @repo/workspace's. The page asks the shell
+                 only what its server cannot answer (the updater, the vault
+                 switch, Reveal/Open of a vault entry, printing, the
+                 diagnostics), and nothing that holds a token: the window
                  signs in by the server's one-time handoff, as a tab does.
                  The whole security surface is the ORIGIN PIN
                  (src-tauri/src/navigation.rs, pure + unit-tested): one origin,
@@ -137,12 +137,13 @@ apps/
                  the server the shell runs. The build inlines every workspace
                  package (they export TS source) and stages as CONTENT the
                  migrations, the dialect skills, the vendored licence texts,
-                 and the desktop renderer's bundle as dist/ui, which
-                 `serve --open` answers over plain HTTP.
+                 and @repo/workspace's app page as dist/ui, which
+                 `serve --open` answers over plain HTTP. src/workspace/ holds
+                 the workspace UI's suites that boot this server in-process,
+                 a DOM program of their own, so the page never depends on the
+                 server it talks to.
   web/           @repo/web — ONE Cloudflare Worker: the TanStack Start
-                 marketing site, the auth pages, the @repo/ui gallery
-                 (src/components/gallery: `pnpm dev:gallery`, a dev-only
-                 page the Worker never ships), Better Auth on D1
+                 marketing site, the auth pages, Better Auth on D1
                  (invite-gated sign-up), and the v3 cloud (issue #554):
                  device login (POST /v1/device/login mints the device
                  credential from email + password, POST /v1/device/sign-up
@@ -161,6 +162,27 @@ apps/
                  (src/worker/vault/commit-route.ts).
                  src/worker/ is its own tsconfig program (no DOM —
                  workerd's globals must win).
+  workspace/     @repo/workspace — the SPA every vault's server answers and the
+                 window loads from that server's own origin (#889), plus the
+                 first-run page the shell carries, with no router and no
+                 server (`src/first-run/`). TanStack Router file routes over
+                 @repo/contract/local; `app/workspace.tsx` owns the note, the
+                 rail, the palette and the panel; `app/note/` the guarded
+                 writes; `app/palette/` the ⌘P pages; `app/sidebar/` the
+                 rail's Recent | Files | Deleted views; `app/agents/` the one
+                 agent sign-in ⌘K, the panel, Settings and onboarding all
+                 draw; `app/settings/` the Settings layer, Account and
+                 Advanced included; `app/onboarding/` the agent and account
+                 steps `/welcome` offers after a first run. `src/shell/` is
+                 everything the page says to the Tauri shell: one command
+                 per row of `ipc-contract.ts`, the states they carry, and
+                 `shell-commands.ts`, the one door that parses every answer,
+                 mirrored through one `app/bridge-store.ts`. Only this
+                 workspace reaches `@tauri-apps/*` (dep-dag), and it reaches
+                 neither the shell's source nor the server's: the desktop
+                 embeds its build and the CLI stages it, so the edges run
+                 desktop → workspace ← cli. `pnpm dev:workspace` is its loop
+                 with no Rust (`scripts/dev.ts`).
   mobile/        @repo/mobile — the Expo RN client (#576): synced threads,
                  held in its SQLite file and read offline
                  (src/sync/sqlite-sync-store.ts), kept current over the
@@ -197,12 +219,13 @@ apps/
                  @repo/editor, @repo/notes and @repo/ui only.
 packages/
   domain/        @repo/domain — zod-only leaf vocabulary (view context,
-                 provider events, the thread-title rule), vendored-from-bb
-                 shapes; every package may reach it, it reaches nothing.
+                 provider events, the thread-title rule, the harness ids),
+                 vendored-from-bb shapes; every package may reach it, it
+                 reaches nothing.
   contract/      @repo/contract — ONE contract package, TWO entry points (#611),
                  named as in kyh/init's contract-first layout but with no
                  service package, since `apps/cli/src/server` implements /local.
-                 `./local/*` is the oRPC contract the renderer and the CLI
+                 `./local/*` is the oRPC contract the page and the CLI
                  compile against and `inteligir serve` implements: ONE folder
                  per domain, each a `<domain>-contract.ts` +
                  `<domain>-schema.ts`, plus the ws notification protocol, the
@@ -223,14 +246,17 @@ packages/
                  one bundle and may break freely (a CLI installed apart refuses
                  another release's server as `SERVER_VERSION_MISMATCH`),
                  /cloud is a deployed Worker answering installs that may be
-                 months stale and may never break. A dep-dag table
-                 (`CLOUD_ONLY_CLIENTS`) pins apps/web and apps/mobile to /cloud
-                 alone, and a dep-dag row refuses a third bucket in src/, since
-                 the cloud-never-reaches-local guard populates itself from
-                 src/cloud. /cloud stays zod + REST paths (NOT oRPC, diverging
-                 from #611 phase 6 deliberately): oRPC addresses procedures by
-                 router position, so moving the deployed wire to it would break
-                 exactly the stale installs /cloud may never break.
+                 months stale, so it breaks only behind the client build floor
+                 (A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, below), which
+                 costs nothing while nobody else holds an install. A
+                 dep-dag table (`CLOUD_ONLY_CLIENTS`) pins apps/web and
+                 apps/mobile to /cloud alone, and a dep-dag row refuses a third
+                 bucket in src/, since the cloud-never-reaches-local guard
+                 populates itself from src/cloud. /cloud stays zod + REST paths
+                 (NOT oRPC, diverging from #611 phase 6 deliberately): oRPC
+                 addresses procedures by router position, so moving the
+                 deployed wire to it would break every install above the floor
+                 at once.
   db/            @repo/db — drizzle + better-sqlite3 (WAL, sync=NORMAL),
                  committed SQL migrations applied on boot, the DbNotifier
                  seam, prefixed-nanoid ids.
@@ -239,10 +265,10 @@ packages/
                  the literal text scan behind matches and unlinked mentions,
                  the resolver's problems report, tags and tag families,
                  the rename and tag-rename byte-surgery) over ONE markdown scan
-                 (scan-parse + wiki-links), frontmatter (the pin and id line
-                 cuts included), `templates/` (the three placeholders and the
-                 convention folders), the dialect's own modules
-                 (markdown/remark-*, comments/, formulas/),
+                 (the editor's own grammar, `markdown/bare-parse`), frontmatter
+                 (the pin and id line cuts included), `templates/` (the three
+                 placeholders and the convention folders), the dialect's own
+                 modules (markdown/remark-*, comments/, formulas/),
                  `text/` — ONE Myers diff under diff3 — and `sync/`, the one
                  verdict a path two writers changed gets and the conflict
                  copy's name and words. No node/react/ui
@@ -298,6 +324,10 @@ tools/
                  instances and drives them over the wire, which is why it sits
                  outside `verify` (every unit passes while the composition
                  fails).
+  ui-gallery/    @repo/ui-gallery — the @repo/ui gallery, `pnpm dev:gallery`:
+                 a Vite page over @repo/ui alone, never built or deployed, and
+                 no workspace's DECLARED_EDGES row names it, so nothing that
+                 ships can import it.
 ```
 
 ## Tech Stack
@@ -306,8 +336,9 @@ tools/
 - **Web**: TanStack Start + React 19 + Tailwind CSS 4 on a Cloudflare Worker
 - **Phone**: Expo + expo-router (React Native), shipped to TestFlight by EAS;
   the editor runs in a WebView as a Vite page
-- **Auth**: Better Auth on D1 via Drizzle — email+password, bearer tokens,
-  invite-gated sign-up from the site or the app; no social providers
+- **Auth**: Better Auth on D1 via Drizzle — email+password, a session cookie
+  for the site and a device credential for the apps, invite-gated sign-up from
+  the site or the app; no social providers
 
 ## Commands and gates
 
@@ -347,7 +378,9 @@ local loop and the owner-only deploy. `AGENTS.md` is the runnable quickstart;
 Each bullet is the decision, what it rejected and why, and the file that
 carries the mechanism. The mechanism itself is the code's and its tests' to
 state; a bullet names where it lives. The dangling-reference guard keeps the
-pointers honest.
+pointers honest. Until the first outside tester (no users yet, in Project
+Overview), a format change replaces the format and never migrates it, so a
+bullet states the format and never the way from an older one.
 
 The list is grouped by the part of the system a decision governs; append a new bullet
 to the END of its group.
@@ -383,12 +416,12 @@ to the END of its group.
 - **THE EDITOR SHIPS ITS BEHAVIOUR CSS, AND THE APPEARANCE DIALS ARE ONE
   DECLARATION.** `packages/editor/src/styles.css` (the toggle collapse, the
   callout marker swap, the code theme, the prose scope `.typeset-docs`) reaches
-  each host through its `globals.css` import, the desktop's and the phone
+  each host through its `globals.css` import, the workspace's and the phone
   page's (`apps/mobile-editor/src/styles/globals.css`). Every hook is spelled
   once in `packages/editor/src/style-hooks.ts`, pinned both ways and to each
   host's import by `packages/editor/src/__tests__/style-hooks.test.ts`, because
   a missing sheet fails no other test. The tokens are declared once in
-  `apps/desktop/src/renderer/styles/globals.css` and read with no fallback; the
+  `apps/workspace/src/styles/globals.css` and read with no fallback; the
   phone page writes its own value for each, no dials, `--editor-size` at 16px
   or more because iOS zooms into smaller text
   (`tools/repo-guards/src/appearance-tokens.test.ts` counts the writes). No
@@ -397,21 +430,32 @@ to the END of its group.
 - **NOTES SPEAK THE INTELIGIR DIALECT**: `[[Title]]` / `[[Title#H]]` /
   `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe starts the
   alias), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%` comment
-  anchors, GitHub alerts (`> [!NOTE]` through `> [!CAUTION]`) as THE callout,
-  and `inteligir-chart` / `inteligir-canvas` / `inteligir-html` / `:::tabs`
-  blocks, all valid markdown, all round-tripping. The `inteligir-callout` fence
-  is READ-COMPAT (`COMPAT_CALLOUT_LANG`): round-tripped byte-exact, never
-  inserted, taught or seeded (`tools/repo-guards/src/agent-skills.test.ts`
-  holds the skills and `apps/cli/seed/`). Migrating it to an alert on save is
-  rejected: it carries kinds the five-variant alert grammar cannot spell, and
-  the rewrite would make a canonical construct churn. Every spelling lives in
-  one place (`@repo/notes/markdown/fence-langs`,
-  `@repo/editor/nodes/canvas-header`, `@repo/editor/dialect-node-keys`)
-  because the rule table and the knowledge scan both read it. Plain nested
+  anchors, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub alerts
+  (`> [!NOTE]` through `> [!CAUTION]`) as THE callout, `inteligir-chart` /
+  `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
+  `:::columns` containers, and `![](url)` embeds, all valid markdown, all
+  round-tripping. THE DIALECT HAS NO JSX: its blocks are one `:::` line grammar
+  that nests in any flow container, a `:::` closing the innermost
+  (`@repo/notes/markdown/remark-containers`), and every tag is html, the
+  editor's own only where it is a bare `<u>`
+  (`@repo/notes/markdown/remark-inline-html`). Rejected: jsx tags for the
+  toggle, columns, dates and embeds, which kept an MDX tokenizer and its guards
+  in the grammar and a jsx writer in the serializer, and wrote tags other
+  markdown tools draw as raw html; and a date as a `[[YYYY-MM-DD]]` link,
+  which costs the chip and its calendar. An embed's
+  kind is its url's (`@repo/editor/lib/embed-url`), and alt text or a title
+  keeps a web image an image. The alert is the ONLY
+  callout (owner decision): an `inteligir-callout` fence is a plain code block
+  and a `<callout>` tag is carried as its source, both saved byte-exact.
+  Rejected: reading either as a callout, a second grammar with its own node
+  and index pass for kinds the five alerts cannot spell. Every spelling lives
+  in one place (`@repo/notes/markdown/fence-langs`,
+  `@repo/editor/nodes/canvas-header`, `@repo/editor/dialect-node-keys`), and
+  `tools/repo-guards/src/agent-skills.test.ts` holds the skills and
+  `apps/cli/seed/` to it. Plain nested
   `.md`: no bundles, no meta.json. FRONTMATTER IS THE ONLY PROPERTY STORE: no
   metadata table, a note's UUID is its `id:`, and YAML the typing rules cannot
-  represent is preserved byte-exactly. `{{` is reserved from MDX expressions by
-  a tokenizer guard on both braces.
+  represent is preserved byte-exactly.
 
 - **AN ICON BESIDE A LABEL IS A SIBLING OF THE LABEL, NEVER INSIDE IT.**
   `Button` trims its text with `text-box`, which only a block container
@@ -431,7 +475,7 @@ to the END of its group.
   shell; the wiki-link preview is the HoverCard, because Popover has no hover
   mode (`packages/editor/src/wiki-chip.tsx`); the ⌘K composer is a non-modal
   `Dialog` whose `finalFocus` returns through the editor
-  (`apps/desktop/src/renderer/app/actions/action-composer.tsx` says why). The
+  (`apps/workspace/src/app/actions/action-composer.tsx` says why). The
   selection toolbar (`packages/editor/src/selection-toolbar.tsx`) is the one
   exception: with no open/dismiss lifecycle, a Popover would still need its
   selection-driven `open` and its `frozen` hold.
@@ -490,7 +534,7 @@ to the END of its group.
 
 - **A BINDING IS SPELLED FROM THE TABLE ITS LISTENER READS, never as a
   literal.** Five tables own every chord and each handler walks its own:
-  `GLOBAL_SHORTCUTS` (`apps/desktop/src/renderer/app/global-shortcuts.ts`),
+  `GLOBAL_SHORTCUTS` (`apps/workspace/src/app/global-shortcuts.ts`),
   `MARK_SHORTCUTS` (`packages/editor/src/mark-shortcuts.ts`, which builds
   Plate's `shortcuts` config, so Plate's defaults never run), `EDITOR_SHORTCUTS`
   (`packages/editor/src/editor-shortcuts.ts`), `FIND_BAR_SHORTCUTS`
@@ -512,14 +556,14 @@ to the END of its group.
   key, never writes `false`. The open note takes the edit through the live
   editor, so the autosave carries it; any other note is a guarded write whose
   mismatch is reported, never merged
-  (`apps/desktop/src/renderer/app/note/pin-note.ts`). The pinned set is the
+  (`apps/workspace/src/app/note/pin-note.ts`). The pinned set is the
   index's (`usePinnedPaths`), so a pin shows after the sweep.
 
 - **GO TO HEADING IS THE PALETTE OVER THE TOC'S WALK, AND AN EXTRACT IS ONE
   HISTORY BATCH.** ⌘⇧O opens the palette on the open note's outline and lands
   through the TOC's own `goToHeading` (`packages/editor/src/toc.tsx`). The
   outline is walked once, by whatever opens the page, and rides the page
-  (`PaletteEntry` in `apps/desktop/src/renderer/app/palette/command-palette.tsx`),
+  (`PaletteEntry` in `apps/workspace/src/app/palette/command-palette.tsx`),
   never walked in render: the workspace sits outside the Plate provider, so a
   render-time read is one nothing refreshes. "Extract to new note"
   (`packages/editor/src/extract-note.ts`) creates the note through the
@@ -651,8 +695,9 @@ to the END of its group.
   frames it makes, hands a followed web link to Safari and refuses the rest,
   and its origin list admits every address, because the library hands whatever
   that list refuses to the OS before the policy runs. A write's base is
-  compared with the text the phone holds, so a change a sync landed since comes
-  back for the page's own merge (`apps/mobile/src/editor/editor-ports.ts`).
+  compared with the text the phone holds, under the store's write lock, so a
+  change a sync landed since comes back for the page's own merge
+  (`apps/mobile/src/notes/notes-store.ts`).
   `apps/mobile/src/editor/__tests__/`, and
   `tools/e2e/src/scenarios/phone-editor-page.ts` loads the built page from
   `file://` against a scripted phone.
@@ -679,7 +724,7 @@ to the END of its group.
   procedure, since a second server write path is a second CAS. A CAS refusal is
   reported, not diff3-merged, because the user named exact bytes
   (`apps/cli/src/server/vault/git-history.ts`,
-  `apps/desktop/src/renderer/app/actions/history-tab.tsx`, `vault restore` in
+  `apps/workspace/src/app/actions/history-tab.tsx`, `vault restore` in
   `apps/cli/src/commands/vault.ts`). A deleted note comes back the same way,
   from the log's deletions plus the worktree's uncommitted ones. There is no
   trash folder and no purge.
@@ -706,7 +751,7 @@ to the END of its group.
   editor's, run by every host over its own `GuardedVaultPort`, because two
   write policies are two answers to what a stale save does; a host's adapter
   only turns the base into its store's CAS token (the desktop's hashes it,
-  `apps/desktop/src/renderer/app/note/guarded-vault-io.ts`). Every error a
+  `apps/workspace/src/app/note/guarded-vault-io.ts`). Every error a
   vault row declares has a producer
   (`apps/cli/src/server/vault/__tests__/vault-contract-errors.test.ts`), since a
   code no handler raises is a client branch that never runs.
@@ -752,7 +797,9 @@ to the END of its group.
   there outran the shell's readiness wait. A pass concludes one `SyncOutcome`,
   and a path two devices changed is never one of them: a detached HEAD says
   `detached`, never `clean`; a refused push says `rejected` (a 413
-  `too-large`, a 507 `full`), never `offline` (`classifyNetworkFailure`); and
+  `too-large`, a 507 `full`, the hosted vault's 426 `outdated`, which runs no
+  network step again in that process), never `offline`
+  (`classifyNetworkFailure`); and
   a pass that fails with no verdict (a merge that fails outright, a save the
   engine could not record, an unclassified failure) says it stalled, which the
   rail shows as "Sync paused" and hands to Settings › Advanced, never `clean`
@@ -766,7 +813,7 @@ to the END of its group.
 
 - **A MOVE IS A RENAME THAT KEEPS THE NAME, and `planMove` is its one verdict.**
   The tree's drop and the palette's "Move note to folder…" both ask `planMove`
-  (`apps/desktop/src/renderer/app/sidebar/tree-ops.ts`), so both refuse for the
+  (`apps/workspace/src/app/sidebar/tree-ops.ts`), so both refuse for the
   same reasons. The drag's source is component state, not `dataTransfer`, so a
   file dragged in from the desktop is ignored. No second write path: the move
   rides `vault.rename`, which rewrites links for a folder as for a note
@@ -825,7 +872,7 @@ to the END of its group.
   `apps/cli/src/desktop/vaults.ts`); the shell only orders the moves.
   `inteligir vault open <dir>` runs the same plan
   (`apps/cli/src/server/vault-switch.ts`) and restarts nothing.
-  `apps/desktop/src/vaults-state.ts`.
+  `apps/workspace/src/shell/vaults-state.ts`.
 
 - **A SYNC PASS HOLDS THE REPO LOCK ONLY FOR ITS LOCAL STEPS.** The fetch and
   the push run unlocked between locked local steps: held across the network,
@@ -858,7 +905,7 @@ to the END of its group.
   `describeSyncConflict`, and the desktop says each once, as a toast that stays
   until dismissed and opens the version set aside, remembered in the page's
   prefs so a reload says nothing again
-  (`apps/desktop/src/renderer/app/sync-conflict-notices.ts`); there is no
+  (`apps/workspace/src/app/sync-conflict-notices.ts`); there is no
   lasting conflict list, because Recent shows the copy and the copies are the
   record. Rejected: a `conflict` state that stopped sync until someone ran git,
   which a knowledge worker cannot, and a rebase through the conflict, which
@@ -923,7 +970,7 @@ to the END of its group.
   rejected: it would warn when nothing was lost. A conflicted merge's toast
   opens that note's History (owner decision).
   `packages/editor/src/vault-editor.ts`,
-  `apps/desktop/src/renderer/app/note/vault-provider.tsx`.
+  `apps/workspace/src/app/note/vault-provider.tsx`.
 
 - **WHAT THE FILESYSTEM REFUSES COSTS THAT ENTRY, NEVER THE CALL.** A
   subfolder the walk cannot open lists empty, logged once, because one such
@@ -963,11 +1010,11 @@ to the END of its group.
   ADVANCED'S.** The rail, a sync toast, History and a note's facts say sync
   and versions. A sync state's label and its one line are spelled in
   `syncStateLabel` and `syncStateNote`
-  (`apps/desktop/src/renderer/app/vault-hooks.ts`), and nothing but Settings ›
+  (`apps/workspace/src/app/vault-hooks.ts`), and nothing but Settings ›
   Advanced reads `lastError`, git's own stderr: a state only the engine can
   explain says "Sync paused" and offers Sync details…, which opens the one
   section that shows the remote, the raw state and the last error, the thread
-  sync's included (`apps/desktop/src/renderer/app/settings/advanced-section.tsx`).
+  sync's included (`apps/workspace/src/app/settings/advanced-section.tsx`).
   History names a version by when and who, never by its subject or sha: the
   server reads `authorKind` off the author (the user's own edits, the agent,
   or `external`, which keeps its name and subject), so no client matches an
@@ -977,8 +1024,8 @@ to the END of its group.
   `@repo/contract/cloud/vault/vault-git`. Quoting the engine's
   error inside a friendlier sentence is rejected: no sentence around git's
   stderr makes it the user's.
-  `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts` holds the copy
-  to that and refuses a `lastError` read anywhere else in the renderer.
+  `apps/workspace/src/app/__tests__/vault-hooks.test.ts` holds the copy
+  to that and refuses a `lastError` read anywhere else in the page.
 
 - **AN OPENED FOLDER'S OWN ORIGIN IS ITS BYO REMOTE, AND A FOLDER ANOTHER
   SERVICE SYNCS NEVER TAKES THE HOSTED VAULT.** Where a vault syncs has one
@@ -997,10 +1044,10 @@ to the END of its group.
   off, while an origin of the user's own still syncs. Rejected: a stored
   per-vault sync choice, a second record a user's own `git remote set-url`
   would contradict, and config.json's `vaultRemote`, which pinned one remote
-  for every vault and is now a boot warning. `inspectVaultFolder` answers the
+  for every vault. `inspectVaultFolder` answers the
   same facts before a folder is a vault, so a picker and a boot agree. ONE
   WRITE PATH EDITS THAT ORIGIN: `vault.setRemote`, which Settings › Advanced
-  (`apps/desktop/src/renderer/app/settings/sync-remote-row.tsx`) and
+  (`apps/workspace/src/app/settings/sync-remote-row.tsx`) and
   `inteligir vault remote` both call, running `setOrigin` in
   `apps/cli/src/server/vault/git-engine.ts` under the repo lock. Every move of
   the origin, this one's and a pass's (the pin, the account's url), is
@@ -1030,7 +1077,7 @@ to the END of its group.
 
 - **RELATED IS ONE PANEL SECTION**: backlinks first because they are counted,
   then the scorer's rows with their reasons, then unlinked mentions
-  (`apps/desktop/src/renderer/app/actions/related-section.tsx`). Outgoing links
+  (`apps/workspace/src/app/actions/related-section.tsx`). Outgoing links
   stay absent (they are on screen); no graph view; the route is search-shaped
   (a `limit`, no `total`) and fetched only while unfolded. A change sweeps
   `orpc.knowledge.key()` whole, because a link into a note lives in another
@@ -1051,27 +1098,33 @@ to the END of its group.
   is the one answer: `isDocPath` (`.md`, `.markdown`, `.mdx`, `.txt`) and
   `docStem`. A private `.md` rule in a client hides every `.txt` note and
   disagrees on display the moment a name is not lowercase.
-  `apps/desktop/src/renderer/app/__tests__/vault-hooks.test.ts` walks the
-  renderer for either shape.
+  `apps/workspace/src/app/__tests__/vault-hooks.test.ts` walks the
+  page for either shape.
 
-- **THE SCAN READS AS PROSE WHAT THE EDITOR DRAWS AS PROSE, BUT ITS GRAMMAR IS
-  NOT THE EDITOR'S, and `verbatim-spans` is the one bridge.** The scan disables
-  `codeIndented` and `htmlFlow` (`@repo/notes/markdown/scan-parse`) because the
-  editor's plugin list does, pinned in
-  `packages/notes/src/__tests__/link-extract.test.ts`. The scan is total, so a
-  malformed tag cannot cost a note its index row, where the editor's MDX
-  tokenizer throws; unifying the grammars is rejected for exactly that. A
-  rename's span is a licence to rewrite bytes, so a rename's scan runs the
-  editor's plugin list as a bare parse (`@repo/notes/markdown/verbatim-spans`)
-  and withholds spans inside those ranges (`@repo/notes/knowledge/link-extract`);
-  the index path emits no spans and never pays for that parse on every save.
+- **THE SCAN READS A NOTE IN THE EDITOR'S OWN GRAMMAR, AND THAT GRAMMAR IS
+  TOTAL.** The knowledge scan walks the editor's plugin list as a bare parse
+  (`@repo/notes/markdown/bare-parse`), so the index reads as prose exactly what
+  the editor draws as prose: no indented code, no flow html, and math is latex,
+  never a link. No input throws: the grammar has no jsx and no expressions, so
+  `<` opens an html tag, an autolink or text and `{` is prose; a tag folds with
+  its closer while the tree compiles (`@repo/notes/markdown/remark-inline-html`),
+  so the index pairs tags exactly as the editor does, and a tag nothing closes
+  stays an `html` literal. So a stray `{` or `<br>` costs a note neither its
+  rich editing nor its index row. Rejected: a second,
+  plain-markdown grammar for the scan, kept total beside an editor grammar that
+  threw, which needed a bridge to say where the two disagreed. A rename's span
+  is a licence to rewrite bytes, so the scan withholds spans inside a construct
+  the editor carries as its source (`isOpaqueSource` in
+  `@repo/notes/markdown/remark-opaque`, walked by
+  `@repo/notes/knowledge/link-extract`); the index path emits no spans.
+  `packages/notes/src/markdown/__tests__/total-grammar.test.ts`.
 
 - **A TAG IS A SCOPE ON THE RECENT LIST, NOT A VIEW; ITS NOTES ARE A LISTING,
   NOT A SEARCH; AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** No tag browser
   (a Tags tab was built and removed by owner decision): a `#tag` chip asks the
   shell through `showTag` (`packages/editor/src/agent-request.ts`), and the
   rail answers with Recent scoped to the tag
-  (`apps/desktop/src/renderer/app/sidebar/tagged-notes.tsx`).
+  (`apps/workspace/src/app/sidebar/tagged-notes.tsx`).
   `knowledge.tagNotes` answers the tag's family with the whole count, paged,
   from the index alone, because the search route stops at its ceiling with no
   sign of a cut; the family is one predicate, `notesInTagFamily`
@@ -1083,7 +1136,7 @@ to the END of its group.
   `isTagName` (`@repo/notes/knowledge/tag-grammar`, import-free so the
   contract loads no markdown parser). `@repo/notes/knowledge/rename-tags.ts`,
   `apps/cli/src/server/knowledge/rename-tag.ts`,
-  `apps/desktop/src/renderer/app/sidebar/tag-scope.tsx`.
+  `apps/workspace/src/app/sidebar/tag-scope.tsx`.
 
 - **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, and a replace
   rewrites exactly what the rows showed.** FTS5 cannot say where inside a line
@@ -1094,9 +1147,9 @@ to the END of its group.
   (`docTexts`), because LIKE folds ascii case alone. A replace is a per-file
   write with the hash of the bytes it read, and a mismatch is REPORTED by name,
   never diff3-merged: the user named exact bytes
-  (`apps/desktop/src/renderer/app/palette/vault-replace.ts`). A cut listing, or
+  (`apps/workspace/src/app/palette/vault-replace.ts`). A cut listing, or
   one that no longer answers the box, cannot replace
-  (`apps/desktop/src/renderer/app/palette/search-page.tsx`), and a run honours
+  (`apps/workspace/src/app/palette/search-page.tsx`), and a run honours
   a cancel between notes, never inside one. The jump lands by ordinal among
   the note's matches, because a markdown column is not a Slate offset.
 
@@ -1104,13 +1157,13 @@ to the END of its group.
   bytes the row showed.** `knowledge.unlinkedMentions` (`inteligir unlinked`)
   runs the literal matcher over the target's names as whole words, longest
   first; one row per note, excluding notes already linking here. A hit inside
-  code, math, a link, a url, frontmatter, an html tag or a comment marker is
-  withheld by the scan's own regexes as well as the editor's verbatim ranges,
-  because those come back empty for a doc the editor refuses. Not the H1:
+  code, math, a link, a url, frontmatter, an html tag, a comment marker or a
+  `:::` marker line is withheld by the scan's own line regexes as well as the
+  editor's verbatim ranges (math, and what it carries as source). Not the H1:
   `[[H1 text]]` resolves to nothing. Link wraps exactly that site through a
   guarded write, targeting the route's `linkTarget`, because the bare stem may
   be another note's. `@repo/notes/knowledge/unlinked-mentions.ts`,
-  `apps/desktop/src/renderer/app/actions/link-mention.ts`.
+  `apps/workspace/src/app/actions/link-mention.ts`.
 
 - **A PROBLEM IS THE RESOLVER'S VERDICT, never a scan's.** `knowledge.problems`
   (the palette's Problems page, `inteligir problems`) reads the resolved graph
@@ -1178,7 +1231,7 @@ to the END of its group.
   Copy link copies the note's `[[wiki link]]` (`wikiLinkFor`), because a
   loopback URL opened nothing anywhere else and died with the port; a name no
   link can carry copies nothing and says so
-  (`apps/desktop/src/renderer/app/note-topbar.tsx`). Pinned by the round trip
+  (`apps/workspace/src/app/note-topbar.tsx`). Pinned by the round trip
   in `packages/notes/src/__tests__/link-resolve.test.ts`.
 
 - **A DOC WHOSE READ HAS NOT ANSWERED IN 2S IS DEFERRED, NOT AWAITED, AND
@@ -1194,7 +1247,7 @@ to the END of its group.
   stalls every fs call in the process, saves included, which no deadline can
   free; a read left running keeps its slot. A BACKGROUND READ, one of many a
   job makes (the index pass, a rename's snapshot, a delete's id scan, the
-  boot's origin backfill), never takes the third, so a read the window waits on
+  boot's origin repair), never takes the third, so a read the window waits on
   opens beside two that hang; each such job runs no more at once than that
   share, so what waits does so in the job, where the index reads the latest
   path first. The lstat and ancestry checks before the open stay outside it,
@@ -1255,11 +1308,11 @@ to the END of its group.
   changes, and a finish toast ("Agent edited N notes", Undo) sits outside the
   panel; a `changes-committed` frame names its thread, never its turn, since
   the bus carries no payload, so the toast diffs a thread's turns against what
-  it last read (`apps/desktop/src/renderer/app/actions/turn-finish-toast.ts`).
+  it last read (`apps/workspace/src/app/actions/turn-finish-toast.ts`).
   Both undos flush the open note first, so a line inside the autosave debounce
   is merged around rather than missed (`undo-turn.ts`). "Ask agent" seeds the
   composer through `packages/editor/src/agent-request.ts`, so the editor never
-  imports the shell. `apps/desktop/src/renderer/app/actions/actions-panel.tsx`
+  imports the shell. `apps/workspace/src/app/actions/actions-panel.tsx`
   and `action-composer.tsx`.
 
 - **A COMMENT STORE IS ONE DOT-FOLDER KEYED BY THE NOTE'S ID, ITS WRITE IS A
@@ -1311,10 +1364,11 @@ to the END of its group.
   never written by the app; unset, claude, whatever PATH holds (reversing "the
   first harness on PATH": both runtimes ship in the app, so PATH says nothing
   about which one can run). A thread keeps the harness it started on. A model
-  is per harness, because a model id is vendor-specific; a one-model spelling
-  (`INTELIGIR_AGENT_MODEL`, config.json's `agentModel`) is named in a boot
-  warning, never refused, since config a build does not act on must not brick
-  it (`legacyModelWarnings` in `apps/cli/src/server/config.ts`).
+  is per harness, because a model id is vendor-specific (`MODEL_ENV_VARS` and
+  config.json's `agentModels` in `apps/cli/src/server/config.ts`). The read
+  strips a config.json key it does not name rather than refusing it: the
+  window cannot edit that file, so a refusal is a boot nothing in the app
+  repairs.
   `apps/cli/src/server/agents/agent-prefs-store.ts`, `defaultHarnessId` in
   `agent-driver.ts`, `harnessReadiness` in
   `@repo/contract/local/agents/agents-schema`.
@@ -1326,7 +1380,7 @@ to the END of its group.
   vendor spawn policy, resolved per call from `agent-prefs.json`, so a change
   of agent moves the section and every vault shares the list. Add and remove
   only: no toggle, and no header field, since Codex keeps no static header;
-  one-click presets (`apps/desktop/src/renderer/app/settings/connector-presets.ts`).
+  one-click presets (`apps/workspace/src/app/settings/connector-presets.ts`).
   A session is handed no servers of the app's (`mcpServers: []`,
   `packages/agent-runtime/src/acp/acp-runtime.ts`), so the config Settings
   edits is the one a session loads. Each vendor's CLI quirks are its adapter's
@@ -1338,8 +1392,7 @@ to the END of its group.
   the last read for ten seconds, because reading codex's spawns it and runs
   OAuth discovery against every URL row, which that poll would do every 1.5s;
   every edit and every sign-in's end reads again (`connectors-service.ts`).
-  The retired registry is deleted at boot, never
-  imported (`retired-connectors-file.ts`). A booted suite runs the vendors over
+  A booted suite runs the vendors over
   stores under its own temp dir (`apps/cli/src/server/__tests__/boot-app.ts`).
   `apps/cli/src/server/connectors/vendor-mcp-config.ts`.
 
@@ -1375,10 +1428,18 @@ to the END of its group.
 - **THE PROVIDER GRAMMAR IS WHAT THE ACP MAPPER EMITS, AND THE MAPPER IS PINNED
   TO THE ADAPTERS' REAL WIRE** (owner decision, reversing the kept-wide bb
   vocabulary). `ProviderEvent` carries exactly what `AcpTurnMapper` constructs,
-  since a kind nothing produces is a branch every consumer carries. The mapper
+  since a kind nothing produces is a branch every consumer carries. The rule
+  holds for the persisted `ThreadEvent` too: it carries what the mapper emits
+  as the host narrows it, plus the host's own facts, so an update no adapter
+  sends (a plan) or one the timeline would only drop (a tool call still
+  running) maps to nothing, and the runtime's `onActivity` keeps the idle
+  watchdog hearing it. The mapper
   is tested against turns the pinned adapters really sent
   (`packages/agent-runtime/src/acp/__tests__/fixtures/<adapter>@<version>/`),
-  because a fake agent encodes what the adapters were believed to send. The
+  because a fake agent encodes what the adapters were believed to send. A
+  failure no prompt causes on demand is staged: codex is pointed at a local
+  model endpoint answering as the API does (a scenario's `staged`), so the
+  adapter and the vendor binary are still the pinned ones. The
   adapter and SDK pins are exact and move together, and a bump re-records
   (`packages/agent-runtime/scripts/record-acp-transcripts.ts`).
 
@@ -1411,7 +1472,7 @@ to the END of its group.
   running thread stops it. A turn another device runs is refused (`CONFLICT`):
   only its own process can reach its provider, and the wire thread says so
   (`runsElsewhere`), so the panel draws no Stop there
-  (`apps/desktop/src/renderer/app/thread-activity.ts`).
+  (`apps/workspace/src/app/thread-activity.ts`).
   `apps/cli/src/server/agents/runtime-manager.ts`,
   `apps/cli/src/server/threads/service.ts`.
 
@@ -1420,14 +1481,16 @@ to the END of its group.
   agent's `mv` and a pull never reach that route. The create stores the note's
   frontmatter `id` (`threads.origin_note_id`) beside the path, minting one
   through the comment store's guarded step
-  (`apps/cli/src/server/vault/ensure-note-id.ts`); threads recorded by path
-  alone are backfilled once after boot (`compose.ts`). A read resolves the id
+  (`apps/cli/src/server/vault/ensure-note-id.ts`). A phone's request reads the
+  id and never mints one, so over a note with none its thread is bound by path
+  alone, and every such path takes its note's id after each boot
+  (`repairPathOnlyOrigins`, run from `compose.ts`). A read resolves the id
   through the index (`pathForNoteId`), preferring the stored path while it
   still carries the id, so a byte copy never takes the binding. The composer
   mints the open note's id through the live editor, because a server mint under
   the buffer would make the revision name bytes no longer on disk, and outside
   the undo history, because an undo would unbind the action just sent
-  (`apps/desktop/src/renderer/app/note/open-note-id.ts`).
+  (`apps/workspace/src/app/note/open-note-id.ts`).
   `apps/cli/src/server/threads/thread-origins.ts`.
 
 - **THE THREAD LIST IS A KEYSET PAGE, AND A QUESTION A PAGE CANNOT ANSWER IS
@@ -1439,8 +1502,8 @@ to the END of its group.
   `running` thread, archived ones included), and the palette's Actions search
   (`query`, a LIKE over the title and the stored origin path).
   `packages/db/src/threads.ts`,
-  `apps/desktop/src/renderer/app/actions/thread-hooks.ts`,
-  `apps/desktop/src/renderer/app/palette/threads-page.tsx`.
+  `apps/workspace/src/app/actions/thread-hooks.ts`,
+  `apps/workspace/src/app/palette/threads-page.tsx`.
 
 - **NO CONFIGURATION INSIDE THE VAULT RUNS ON THE AGENT'S HOST.** The vault is
   synced content (the hosted remote, a BYO remote, another device's pull).
@@ -1475,7 +1538,11 @@ to the END of its group.
   harness's `envOmit`, a deadline that kills the process group), and the answer
   is shared and kept 10s (`vendor-accounts.ts`), built in `serve.ts` so
   `compose.ts` spawns nothing. A send is refused up front only when the
-  thread's own runtime is missing from the install; a signed-out vendor is not
+  thread's own runtime is missing from the install, or when the thread names a
+  harness this build does not ship: the wire and the runtime take a
+  `HarnessId` (`@repo/domain/harness`), but a thread's row and its log keep
+  the id open, since another device's newer build may name one, and the turn's
+  start narrows it with `parseHarnessId`. A signed-out vendor is not
   pre-gated, because the adapter's `authRequired` is the refusal and it names
   the vendor. `packages/agent-runtime/src/acp/harness-registry.ts`.
 
@@ -1528,25 +1595,55 @@ to the END of its group.
   `agent-hooks.ts`), because a field drawn first would be swapped for the
   sign-in under the typing. Every one of those, each Settings card and
   onboarding draw ONE surface, `AgentSignIn`
-  (`apps/desktop/src/renderer/app/agents/agent-sign-in.tsx`), whose Sign out
+  (`apps/workspace/src/app/agents/agent-sign-in.tsx`), whose Sign out
   names the vendor's own app it signs out too (`vendorApp`: the store is
   shared).
 
 - **A TURN THE VENDOR REFUSED FOR THE PLAN'S USAGE LIMIT OR A SIGN-IN LEAVES THE
-  QUEUE WHERE IT IS.** A refused prompt is read once, into its words and a class
+  QUEUE WHERE IT IS.** A refused prompt, a refused session open and an adapter
+  that died are each read once, into a class
   (`auth | usage-limit | overloaded | context | other`, `providerFailureSchema`
-  in `@repo/domain/provider-event`), from what the adapter attaches: claude's
-  `errorKind`, codex's `codexErrorInfo`, the reserved -32000, and claude's own
-  limit text when no kind came with it (`readProviderError` in
-  `packages/agent-runtime/src/acp/provider-error.ts`). `authentication_failed`
+  in `@repo/domain/provider-event`) beside the adapter's own words, from what
+  the adapter attaches: claude's `errorKind`, the reserved -32000, and claude's
+  own limit text when no kind came with it (`readProviderError` in
+  `packages/agent-runtime/src/acp/provider-error.ts`). A codex turn fails by
+  the typed session failure its prompt's answer carries, whose category and
+  actions are the class (`readSessionFailure`), because the runtime declares
+  typed failures on initialize for codex alone (the row's `typedFailures`):
+  undeclared, codex speaks every failure but a usage limit or a sign-in as the
+  agent's text and ends the turn `end_turn`, so an overflowed context read as
+  a finished reply; declared, claude would stop rejecting a limited turn with
+  the `errorKind` read above. `authentication_failed`
   reads as signed out whatever its code, so the panel says so rather than the
-  adapter's text. The class rides `provider/error` as an optional field, which
-  a log written before it parses without and a stale install strips. A
+  adapter's text. Anything else, a vault holding the vendor's settings
+  included, reads as `other`. The class rides the failed turn's own
+  `provider/error` (`failTurn` in `apps/cli/src/server/agents/runtime-manager.ts`
+  for a dispatch that never reached a prompt) as an optional field, which
+  a log written before it parses without and an older build strips. A
   settle whose turn failed `usage-limit` or `auth` does not drain
   (`failureHoldsQueue` in `apps/cli/src/server/threads/service.ts`): the next
-  send starts the oldest queued message first. Rejected: draining as for any
+  send starts the oldest queued message first. The words a person reads of
+  either are the host's, written beside that rule because they promise it
+  (`providerFailureMessage` in `apps/cli/src/server/threads/provider-failure.ts`),
+  into the one persisted `message` every client shows; the runtime carries
+  the adapter's words alone. Rejected: draining as for any
   failure, which spends every queued message on the same refusal and leaves
   nothing for after the limit resets or the sign-in.
+
+- **AN APPROVAL'S ANSWER IS ITS DECISION, AN ENUM ON THE WIRE AND IN THE ROW**
+  (reversing #788's decline). `pending_interactions.decision` takes
+  `@repo/domain`'s decision tuple and is set exactly when the row is resolved
+  (a CHECK); `answerInteraction` takes the enum, so a word the grammar does not
+  name is the wire's 400, and `inteligir interactions answer` parses its argv
+  into it. What the wire cannot know, whether the request offered that
+  decision, is `unanswerableReason`, which the route's gate and the waiter both
+  run. Every json column (an approval's payload, a queued message's
+  attachments, an event) is parsed inside `@repo/db` and handed back typed,
+  null for bytes the grammar refuses, so one bad row costs that row. Rejected:
+  a string the row replayed verbatim, re-parsed at four sites in two
+  spellings, when its only field is the decision and the phone's answer
+  already wrote the bare enum. `packages/db/src/pending-interactions.ts`,
+  `packages/domain/src/pending-interactions.ts`.
 
 ### Dictation
 
@@ -1562,10 +1659,8 @@ to the END of its group.
   request (`on_permission_request` in `apps/desktop/src-tauri/src/window.rs`),
   which `tools/e2e/src/scenarios/desktop-shell.ts` reads back as a denied
   location and notification request, since a runner has no microphone to ask
-  for; the model folder an install already holds is removed after listen
-  (`apps/cli/src/server/retired-model-dir.ts`). A Mac's ⌘K composer says "fn
-  fn to dictate" beside Send, the app's one hint
-  (`apps/desktop/src/renderer/app/actions/action-composer.tsx`). A dictated
+  for. A Mac's ⌘K composer says "fn fn to dictate" beside Send, the app's one
+  hint (`apps/workspace/src/app/actions/action-composer.tsx`). A dictated
   phrase lands as one IME-style commit; the composer's field carries no caret
   repair (the editor's combobox keeps `reconcileInsertionCaret`,
   `packages/editor/src/combobox-input.ts`) while
@@ -1597,8 +1692,16 @@ to the END of its group.
   device credential** (owner decision, the Obsidian model, reversing the
   browser-approved pairing line). `POST /v1/device/login` verifies the password
   through Better Auth, mints the device credential and deletes the session the
-  sign-in created, so a device holds exactly one secret. That secret also lists
-  and revokes the account's devices (`GET /v1/device/list` and
+  sign-in created, so a device holds exactly one secret. The answer names the
+  account beside it, `{ credential, deviceId, userId, email }`, as sign-up's
+  does, and the Mac keeps all four with the name it joined under: the vault's
+  cross-account fence (`inteligir.account`) and the account's label hold from
+  the first request, a fresh clone pins its account at once, and a stored
+  sign-in missing any of them reads as signed out. Rejected: a second call to
+  learn the account, which leaves a pending state every reader must fail
+  closed on. The phone keeps the bearer alone, since nothing it runs asks
+  whose account it is. The credential also lists and revokes the account's
+  devices (`GET /v1/device/list` and
   `POST /v1/device/revoke` take a session or a live device credential of the
   same account, the `igd_` prefix deciding which), so any signed-in Mac's
   Settings › Account removes a lost phone with no password asked, as a sign-out
@@ -1618,8 +1721,8 @@ to the END of its group.
   person's act. `@repo/contract/cloud/device/login-flow.ts`,
   `apps/web/src/worker/device/login.ts`, `apps/web/src/worker/device/sign-up.ts`,
   `apps/web/src/worker/device/routes.ts`,
-  `apps/desktop/src/renderer/app/account-form.tsx`,
-  `apps/desktop/src/renderer/app/settings/account-section.tsx`.
+  `apps/workspace/src/app/account-form.tsx`,
+  `apps/workspace/src/app/settings/account-section.tsx`.
 
 - **A CREDENTIAL THIS DEVICE DROPS IS REVOKED BY THIS DEVICE, best-effort and
   never waited on.** Forgetting the file alone leaves the row active, and the
@@ -1643,7 +1746,11 @@ to the END of its group.
   so `POST /v1/account/delete` takes the credential, spends a per-device
   window, checks the password through `signInEmail` and runs `deleteUser` under
   the session that sign-in minted: its `beforeDelete` order and tombstone stay
-  the ONE purge path, where a second purge beside it would drift. The
+  the ONE purge path, where a second purge beside it would drift. Better
+  Auth's own `/delete-user` routes are shut (`disabledPaths`, beside every
+  other route no client calls), since they settle for a fresh session where
+  this door asks the password; Better Auth
+  carries no bearer plugin, so a browser's session is its cookie alone. The
   credential alone deletes nothing, since whoever holds a stolen one could end
   the account. The local server asks on a client of its own, because the purge
   revokes this very credential first; success forgets the sign-in as a sign-out
@@ -1654,7 +1761,7 @@ to the END of its group.
   other refusal proves the account is there. No CLI verb: the password is a
   person's to type. `apps/web/src/worker/device/account.ts`,
   `apps/cli/src/server/cloud/sync-runtime.ts`,
-  `apps/desktop/src/renderer/app/settings/delete-account-dialog.tsx`.
+  `apps/workspace/src/app/settings/delete-account-dialog.tsx`.
 
 - **Cloud state names its Durable Object from a VERIFIED credential.** Account
   deletion revokes credentials first, then purges, then writes a tombstone every
@@ -1680,10 +1787,7 @@ to the END of its group.
 - **The D1 auth schema ships via `drizzle-kit push`; there are no migration
   files.** One deployer and an additive schema; `apps/web/vitest.config.ts`
   derives the test DDL by `drizzle-kit export`. A second deployer or a
-  destructive column change is the trigger for migrations. Never flip the
-  timestamp mode in place: both modes read the same INTEGER column, so a
-  redeploy without `UPDATE <table> SET <col> = <col> * 1000` reads every date as
-  1970 and expires every session.
+  destructive column change is the trigger for migrations.
 
 - **Declare D1 uniques as named unique indexes, never `.unique()`**
   (`apps/web/src/worker/db/schema.ts`). Production D1 was pushed by drizzle-kit
@@ -1706,26 +1810,47 @@ to the END of its group.
   keepalive and reconnect are one too. The core is what BOTH clients run, so
   the CLI-only browser opener sits beside its consumer
   (`apps/cli/src/server/browser-opener.ts`). The cloud vault-path grammar is
-  `parseVaultPath` with the parse required to be the identity. The
+  `parseVaultPath` with the parse required to be the identity, one schema
+  (`@repo/notes/knowledge/vault-path-schema`) the phone's editor page parses
+  its wire by too. The
   `[[Title|uuid]]` tier lives in `buildResolver` (tier 0), reached through the
   `id` the wiki-targets rows carry, and on the phone through the id and aliases
   its mirror reads from each note's frontmatter.
 
-- **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, and the Worker is held to
-  exactly what it declares** (owner decision, reversing "final at birth").
-  Every response schema under `@repo/contract/cloud` strips an undeclared field, and
-  an unknown refusal code reads as `internal`, a fault to retry, never a
-  verdict on the credential. Strict readers made every additive change a new
-  route and turned a stale client's `unauthorized` into `malformed`, so a
-  revoked device kept retrying; for the same reason a 5xx, 408 or 429 with no
-  error envelope reads as `unreachable`. Requests stay `.strict()`, since only
-  the always-newest Worker parses them, and the Worker's tests parse every
-  answer through `emitted` (`apps/web/src/worker/__tests__/cloud-helpers.ts`),
-  because a stripping client would let a leaked column through. Two things
-  still close the wire: 0.4.0 and older parse strictly, and a field that
-  changes what a row MEANS reaches only a client whose request declares it.
+- **A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, the Worker is held to
+  exactly what it declares, and the wire breaks only behind the client build
+  floor** (owner decision). Every response schema under `@repo/contract/cloud`
+  strips an undeclared field, and an unknown refusal code reads as `internal`,
+  a fault to retry, never a verdict on the credential. Strict readers made
+  every additive change a new route and turned a stale client's
+  `unauthorized` into `malformed`, so a revoked device kept retrying; for the
+  same reason a 5xx, 408 or 429 with no error envelope reads as
+  `unreachable`. Requests stay `.strict()`, since only the always-newest
+  Worker parses them, and the
+  Worker's tests parse every answer through `emitted`
+  (`apps/web/src/worker/__tests__/cloud-helpers.ts`), because a stripping
+  client would let a leaked column through. The tolerant reader is forward
+  negotiation only, so every request an install makes names its build
+  (`x-inteligir-build: <semver>+<platform>`: the REST calls, the two that ask
+  for a credential, the socket's upgrade and the hosted vault's git
+  `extraHeader`), and the Worker refuses an absent or older one before it
+  routes, below `MIN_CLIENT_BUILD` (`apps/web/cloudflare.config.ts`): 426
+  `client-outdated` in the envelope, plain text on the git mount, which the
+  engine reads as `outdated`. Semver alone is compared; the platform is
+  telemetry. A page the Worker served needs no build, since it ships in the
+  same deploy and a browser marks its requests same-origin. The refusal is
+  terminal and leaves the credential live: the session ends `outdated`, the
+  CLI and the phone ask for an update and retry nothing, and the next build
+  resumes as the same device. A shape retires by raising the floor past every
+  build that reads it, never while one of them can still reach the wire.
+  Rejected: a wire final at birth behind strict readers, and per-route
+  versions, which keep every old shape a route ever served. Still closed
+  above the floor: a field that changes what a row MEANS reaches only a
+  client whose request declares it.
+  `packages/contract/src/cloud/client-build.ts`,
   `packages/contract/src/cloud/cloud-client.ts`,
-  `packages/contract/src/cloud/cloud-errors.ts`.
+  `packages/contract/src/cloud/cloud-errors.ts`,
+  `apps/web/src/worker/client-floor.ts`.
 
 - **Say the delivery guarantee you implement.** Captures are at-least-once
   delivery with exactly-once deletion by the owning claim, so the apply must be
@@ -1739,11 +1864,9 @@ to the END of its group.
   `@repo/domain/provider-event`); a fact about a thread that never made a
   request stays local, since alone it would arrive as an empty action. A stale
   install skips a type it cannot read, so a new event type needs no new route.
-  The Worker keeps no per-thread row beside the log (owner decision): the
-  push's `threads` half and the `thread_meta` lane it filled are gone, the
-  dispatch inbox carrying what the lane was for, and a 0.4.0 install's
-  `threads` is still accepted and dropped, since refusing the key would refuse
-  its every push. `apps/cli/src/server/threads/service.ts`,
+  The Worker keeps no per-thread row beside the log (owner decision): a push
+  is its events alone, and the dispatch inbox carries what a per-thread lane
+  would. `apps/cli/src/server/threads/service.ts`,
   `packages/contract/src/cloud/sync/sync-schema.ts`.
 
 - **A pulled event lands through the SAME ingest, marked with its origin**
@@ -1752,9 +1875,9 @@ to the END of its group.
   cursor moves inside that transaction, which makes the apply exactly-once. A
   synced row carries its origin `(device, position)` under a unique index,
   since signing in again resets the cursor, and the planner skips every device
-  id the install has signed in as (`sync_own_devices`), because each sign-in
-  mints a new id and its own rows carry no origin (`@repo/db/own-synced-copies`
-  removes copies an older install pulled back). Lifecycle projects over what
+  id the install has signed in as (`sync_own_devices`, recorded at every
+  session open), because each sign-in mints a new id and its own rows carry no
+  origin. Lifecycle projects over what
   landed, never what arrived. `apps/cli/src/server/cloud/sync-pass.ts`.
 
 - **Only the process that owns a provider may declare it dead.** Crash recovery
@@ -1780,7 +1903,7 @@ to the END of its group.
   next pass runs at once, so a backlog drains in one sync. Only a pass whose
   every step caught up stamps `lastSyncedAt`. A throw other than a row the log
   refuses fails the pass with the cursor unmoved, because moving past it would
-  lose the row for good. The status reaches the renderer on the bus's
+  lose the row for good. The status reaches the page on the bus's
   `sync-status-changed`, so nothing polls it; the socket drops itself after two
   silent keepalives, since a half-open connection neither answers nor closes.
   `apps/cli/src/server/cloud/sync-pass.ts`, `sync-runtime.ts` and
@@ -1805,14 +1928,18 @@ to the END of its group.
   rows behind it must still land; the pass records the lowest such row with the
   running build, and a session opened under a different build rewinds to it
   (`takeRewindIfBuildChanged` in `packages/db/src/sync-outbox.ts`, from
-  `apps/cli/src/server/cloud/sync-runtime.ts`). Rejected: `meta.schema_version`
-  as the trigger, which counts migrations while a new event type ships without
-  one, and a table of raw skipped rows, a second store beside the log. The
-  phone keeps its threads in its database with the digest of the event grammar
-  that parsed them, and a build whose grammar differs pulls from 0, since its
-  held events lost what the old grammar did not name; each pulled page is one
-  transaction with the cursor, so a cold launch lists the threads offline and
-  pulls on from its cursor (`apps/mobile/src/sync/sqlite-sync-store.ts`).
+  `apps/cli/src/server/cloud/sync-runtime.ts`). A row filed under one thread
+  whose event names another is skipped too, never recorded, since no build
+  reads it differently. Rejected: `meta.schema_version` as the trigger, which
+  counts migrations while a new event type ships without one; a table of raw
+  skipped rows, a second store beside the log; and refusing a mismatched row
+  at each client's apply, a second answer the phone, keying by the envelope,
+  would not give. The phone keeps its threads in its database with the digest
+  of the event grammar that parsed them, and a build whose grammar differs
+  pulls from 0, since its held events lost what the old grammar did not name;
+  each pulled page is one transaction with the cursor, so a cold launch lists
+  the threads offline and pulls on from its cursor
+  (`apps/mobile/src/sync/sqlite-sync-store.ts`).
 
 - **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
   `SyncRuntime`, the login flow and the dispatch runtime publish stores the
@@ -1940,20 +2067,27 @@ to the END of its group.
   offline launch, loses every body to any commit, and holds no frontmatter. A
   sign-in, a sign-out and a revocation wipe the rows and the attachments; the
   boot restore keeps them. The phone's database has ONE `user_version`, so a
-  table another module adds is a step appended to
-  `apps/mobile/src/lib/phone-db.ts`. `apps/mobile/src/notes/vault-mirror.ts`,
+  table another module adds is a step in `apps/mobile/src/lib/phone-db.ts`.
+  Until the first build EAS makes (`easProject` in `apps/mobile/app.config.js`),
+  no phone holds a file worth upgrading, so the schema is ONE step edited in
+  place and a stored row's parser defaults no field for an older row; from
+  that build on, a step is appended, never edited.
+  `apps/mobile/src/notes/vault-mirror.ts`,
   `apps/mobile/src/notes/notes-store.ts`.
 
 - **A PHONE EDIT IS A QUEUED WRITE WITH ITS BASE, AND THE PHONE SETTLES ITS OWN
   CONFLICTS.** A write is durable in the phone's `outbox` table before it
   resolves, and reads, the listing and the resolver see it from then on; the
   rows go to `POST /v1/vault/commit` oldest first, one change set per row, on
-  every write, resume, reconnect and a backoff. A write carries the blob the
-  caller read and one with none throws, as the desktop's guarded io does; a
-  write to a path whose last row writes it replaces the text and KEEPS THE
-  FIRST BASE, so three offline saves are one write. A 409 is settled on the
-  phone by `reconcileFile` (`@repo/notes/sync/reconcile-file`), the desktop's
-  own verdict, and the result and its copy land as ONE set, kept on the row
+  every write, resume, reconnect and a backoff. A write carries the text it
+  was computed from, the editor's `expected` guard, compared with the text the
+  phone holds under the store's write lock; a mismatch answers what the phone
+  holds for the page's own merge, never a merge in the store, which would be a
+  second write policy beside the editor's. A write to a path whose last row
+  writes it replaces the text and KEEPS THE FIRST BASE, so three offline saves
+  are one write. A 409 is settled on the phone by `reconcileFile`
+  (`@repo/notes/sync/reconcile-file`), the desktop's own verdict, and the
+  result and its copy land as ONE set, kept on the row
   before it is sent, so an answer lost after the vault applied it is resent
   unchanged and answered as already held. A landing moves the mirror in the
   transaction that retires the row and stamps what it moved, and a refresh
@@ -2021,7 +2155,7 @@ to the END of its group.
   The phone never pushes to the log, so a request cannot ride it: a `turn` row
   waits beside the captures in the account's `ThreadSyncDO`, any Mac may claim
   it and the first claim wins, and it pings the sockets of the Macs that take a
-  phone's requests with the `dispatch` frame 0.4.0 already parses. Delivery is
+  phone's requests with a `dispatch` frame. Delivery is
   at-least-once to a claimant and a Mac's apply exactly-once on the dispatch
   id, which the phone mints so a resend is one row
   (`packages/contract/src/cloud/dispatch/dispatch-schema.ts`,
@@ -2057,18 +2191,20 @@ to the END of its group.
   keeps each request's URL in the Worker's request log and in its sampled
   traces for up to seven days, and a vault path names a user's file, so the
   tree, file and asset reads POST their query to the routes they always had
-  (`packages/contract/src/cloud/cloud-client.ts`); the Worker parses the body, or a
-  GET's search params for the installs that still send those, with one schema
-  per read (`parseRead` in `apps/web/src/worker/vault/read-routes.ts`).
-  Rejected: turning the invocation log off, which leaves the traces' URLs and
-  takes the operator's one view of a failing route, and reads addressed by
-  blob oid, which the asset route cannot type or size-gate without the path.
-  `docs/privacy.md` says what the log keeps; the phone's fake vault refuses the
-  GET form (`apps/mobile/src/notes/__tests__/fake-vault.ts`).
+  (`packages/contract/src/cloud/cloud-client.ts`); the Worker refuses any
+  other method `bad-request` before it reads the credential and parses the
+  body alone, with one schema per read (`parseRead` in
+  `apps/web/src/worker/vault/read-routes.ts`). Rejected: turning the
+  invocation log off, which leaves the traces' URLs and takes the operator's
+  one view of a failing route, and reads addressed by blob oid, which the
+  asset route cannot type or size-gate without the path. `docs/privacy.md`
+  says what the log keeps; the phone's fake vault refuses a read that is not a
+  POST or carries a query string
+  (`apps/mobile/src/notes/__tests__/fake-vault.ts`).
 
 - **A PR PREVIEW IS A WORKER PREVIEW DRIVEN BY ACTIONS, not Workers Builds**, and
   it binds preview-only resources. Workers Builds would deploy on push and could
-  not wait for CI or keep Deploy's environment gate, so previews ride
+  not wait for CI, so previews ride
   `workflow_run` after CI like Deploy does (which also keeps them out of the
   CI-parity sweep), limited to this repo's branches because that trigger holds
   secrets. A preview inherits no binding, so `apps/web/cloudflare.config.ts` binds
@@ -2078,6 +2214,21 @@ to the END of its group.
   head commit (`.github/scripts/worker-preview.mjs`), created by the script
   because a job's `environment:` under `workflow_run` records the default
   branch. `.github/workflows/preview.yml`, `apps/web/README.md` § Previews.
+
+- **THE INBOXES' RULES ARE ONE TABLE, AND THE CLI'S FAKE CLOUD AND THE WORKER
+  BOTH ANSWER IT.** The local server's suites run against a fake cloud over
+  Maps (`apps/cli/src/server/cloud/__tests__/fake-cloud.ts`), so a refusal or
+  ordering rule of the dispatch and capture inboxes it spelled its own way
+  would pass there and fail deployed. `INBOX_SCENARIOS`
+  (`@repo/contract/cloud/test-support/inbox-scenarios`) drives each rule
+  through the real cloud client and observes ids, states and texts, never a
+  clock or a token; the CLI runs it against the fake and the Worker's
+  pool-workers suite against the object
+  (`apps/web/src/worker/__tests__/inbox-scenarios.test.ts`), holding every
+  answer to its declared shape. A rule both sides answer goes in the table,
+  not in one side's suite. Rejected for now: running `dispatch-inbox.ts`
+  itself in the fake over a shared `SqlStorage` port, a package of its own,
+  whose trigger is the table catching drift more than once.
 
 ### Server process and the desktop shell
 
@@ -2122,7 +2273,8 @@ to the END of its group.
   timestamps rather than re-arming a timer per frame; `writeTransaction` in
   `@repo/db/connection` as the one spelling of `BEGIN IMMEDIATE`. `serve.ts`
   injects node's socket dial and the agent driver because compose is reachable
-  from the renderer's test program.
+  from the workspace UI's suites, a DOM program
+  (`apps/cli/src/workspace/tsconfig.json`).
   `dev-instance.ts` owns the per-checkout derivation; `config.ts` stays the
   parser.
 
@@ -2142,7 +2294,7 @@ to the END of its group.
   WINDOW IS THE SERVER'S OWN PAGE, below); a request with neither gets a 401
   page that runs nothing and names the ways in, never the workspace, which
   would fail every call with nothing saying why
-  (`apps/desktop/src/renderer/app/signed-out-state.ts`).
+  (`apps/workspace/src/app/signed-out-state.ts`).
   The cookie, being ambient, must also prove same-origin, because loopback
   "site" ignores the port, and EVERY REQUEST MUST NAME 127.0.0.1 OR localhost
   AS ITS HOST, so a rebinding page gets nothing. Residual: a cookie is
@@ -2167,7 +2319,10 @@ to the END of its group.
   vault (`apps/cli/src/server/csp.ts`). The first run is the shell's own page,
   so its policy is the shell's config (`apps/desktop/src-tauri/tauri.conf.json`),
   held to the server's for a page with no socket, plus Tauri's IPC origins, by
-  `tools/repo-guards/src/desktop-shell-wire.test.ts`. NOTHING REMOTE
+  `tools/repo-guards/src/desktop-shell-wire.test.ts`; the phone's editor page
+  loads from disk, so its policy is a meta tag held to the same one, each
+  departure (`connect-src 'none'`, no `frame-ancestors`) a reasoned row of
+  `tools/repo-guards/src/phone-page-csp.test.ts`. NOTHING REMOTE
   LOADS IN A NOTE: a remote embed is a beacon on every open, so it draws as a
   card (`packages/editor/src/nodes/remote-content-card.tsx`); widening the
   policy is a privacy decision. AN HTML BLOCK'S RUN IS A FRAME WITH A POLICY OF
@@ -2196,36 +2351,38 @@ to the END of its group.
   second language what the browser path already is. THE BRIDGE CARRIES ONLY
   WHAT THE SHELL OWNS (the updater, the vault switch, Reveal/Open, printing,
   the diagnostics), because no server can answer for any of them. Each command
-  is one row of `apps/desktop/src/ipc-contract.ts`, parsed by zod in the page
-  (`apps/desktop/src/renderer/shell-commands.ts`) and by serde in the shell
+  is one row of `apps/workspace/src/shell/ipc-contract.ts`, parsed by zod in the page
+  (`apps/workspace/src/shell/shell-commands.ts`) and by serde in the shell
   (`apps/desktop/src-tauri/src/commands.rs`), and granted at runtime to that
   window on the server's exact origin alone (`grant_app_window`); the first
   run's own capability grants its four, and `removeUnusedCommands` drops every
   command no capability names. `tools/repo-guards/src/desktop-shell-wire.test.ts`
   holds the names equal across the two languages, which no compiler sees
-  together. A refusal crosses as a value (`{ ok: false, reason }`), never a
-  rejection, which the page reads as a fault. Residual: the page holds the
-  per-boot cookie (HttpOnly, SameSite=Strict, dead with the boot), and Tauri's
-  IPC from the server's origin falls back to `postMessage` under its CSP, at
-  the cost of one console line.
+  together, and the desktop door's answers too: each serde type in
+  `apps/desktop/src-tauri/src/launch.rs` reads the fields of a zod schema
+  typed against the door's `DoorAnswers`
+  (`apps/cli/src/desktop/__tests__/door-answers.ts`), which also parses the
+  fixtures the cargo tests read. A refusal crosses as a value, never a
+  rejection, which the page reads as a fault: one envelope on both sides,
+  `{ ok: true, state? }` or `{ ok: false, reason }`
+  (`apps/desktop/src-tauri/src/answer.rs`, `apps/workspace/src/shell/shell-answer.ts`).
+  A command that can fail only by a fault (a read, a forget, a first run's
+  pick) answers its value bare as a `Result`, whose `Err` rejects. Residual:
+  the page holds the per-boot cookie (HttpOnly, SameSite=Strict, dead with the
+  boot), and Tauri's IPC from the server's origin falls back to `postMessage`
+  under its CSP, at the cost of one console line.
 
 - **UPDATES ARE TAURI'S UPDATER OVER THE GITHUB RELEASE, and nothing moves
-  without a click** (reversing "no update feed"; electron-updater until #889).
+  without a click** (reversing "no update feed").
   The release carries the dmg, `Inteligir.app.tar.gz` with its minisign
   signature and `latest.json`, written by the pack
-  (`apps/desktop/scripts/package.mjs`) and uploaded by the owner's release step
+  (`apps/desktop/scripts/package.ts`) and uploaded by the owner's release step
   (`docs/releasing.md`); the signing key is the owner's release secret, and a
   pack without it makes no feed. A check 15s after launch and every 4 minutes,
   the download and the restart each a click. Install stops the server child
   first, so the vault's pending commit flushes before the bundle is replaced.
-  The same release still carries electron-updater's zip and `latest-mac.yml`,
-  so an Electron install updates into the Tauri app, which keeps the bundle id
-  and the Developer ID that Squirrel's designated-requirement check needs; the
-  manifest names node 24's floor, macOS 13.5, as the Darwin release
-  electron-updater compares, so an older Mac is offered nothing it cannot
-  open. Drop the pair once no supported install runs Electron.
   `apps/desktop/src-tauri/src/updater.rs` (the policy) over `update_state.rs`
-  (a union by status, which `apps/desktop/src/update-state.ts` parses from the
+  (a union by status, which `apps/workspace/src/shell/update-state.ts` parses from the
   `update-state` event).
 
 - **SPELL CHECK IS THE PAGE'S ATTRIBUTE, AND EXPORT AS PDF IS THE SHELL'S
@@ -2233,7 +2390,7 @@ to the END of its group.
   counterpart for). The choice is a page pref like the theme, set as
   `spellcheck` on the document root before the first paint and inherited by
   every field; macOS picks the languages, so the row names none
-  (`apps/desktop/src/renderer/app/spellcheck.ts`). The note's title and body
+  (`apps/workspace/src/app/spellcheck.ts`). The note's title and body
   keep theirs off. WKWebView does nothing on `window.print()`, so Export as
   PDF asks the shell to print the window (`print_page`) under the note's
   title, the suggested file name, which comes back on `afterprint`. A print is
@@ -2241,7 +2398,7 @@ to the END of its group.
   and `afterprint`, which WebKit fires around the shell's print as a browser
   does around its own. #889's print stylesheet was rejected, since a
   screen-only theme needs an at-rule in `packages/editor/src/styles.css`,
-  which its guard keeps flat (`apps/desktop/src/renderer/app/note/export-pdf.ts`).
+  which its guard keeps flat (`apps/workspace/src/app/note/export-pdf.ts`).
 
 - **THE SHELL ASKS THE LOGIN SHELL FOR PATH BEFORE THE FIRST CHILD.** A Finder
   or Dock launch inherits launchd's bare PATH. The agent's runtime needs none
@@ -2258,12 +2415,12 @@ to the END of its group.
   bundled node binary"). The Tauri binary runs no JavaScript, so the server,
   the watcher and each ACP adapter run on the official darwin-arm64 node, a
   `bundle.externalBin` sidecar fetched against a pinned sha-256
-  (`apps/desktop/scripts/fetch-node.mjs`), with the CLI and its production
-  `node_modules` as a resource (`apps/desktop/scripts/stage-server.mjs`); the
+  (`apps/desktop/scripts/fetch-node.ts`), with the CLI and its production
+  `node_modules` as a resource (`apps/desktop/scripts/stage-server.ts`); the
   server forks its children with `child_process`, as under `npx`. Every Mach-O
   in the resources is signed with the hardened runtime before bundling, the
   server's tree with the one entitlements file and the git, which runs no JIT,
-  with none (`apps/desktop/scripts/sign-resources.mjs`).
+  with none (`apps/desktop/scripts/sign-resources.ts`).
   The shell finds node and the CLI only where its bundle carries them, never
   through a variable, and starts every node child with `NODE_OPTIONS` and
   every other `NODE_*` but `NODE_ENV` removed (`scrubbed_env` in
@@ -2291,7 +2448,7 @@ to the END of its group.
   (`apps/cli/src/server/debug-log.ts`, `tools/e2e/src/scenarios/debug-log.ts`).
   A Finder-launched app has no env and drops the shell's stdout, so debug
   logging is Settings › Advanced's switch, kept as `diagnostics.json` in the
-  shell's own folder (Electron's userData, kept so an upgrade keeps the choice)
+  shell's own folder (`desktop/` beside config.json, one per dev checkout)
   because the shell reads it before the start it changes (the page's prefs load
   after that start, and config.json is the app's to read, never to write); on,
   the next child traces every namespace, since a report cannot know which
@@ -2310,11 +2467,11 @@ to the END of its group.
   release, the update it ships and the file say one thing. A list generated
   from commit subjects or issue titles was rejected: both are written for
   whoever builds the thing, and they describe an update as "something
-  changed". `apps/desktop/scripts/release-notes.mjs` prints the section as the
+  changed". `apps/desktop/scripts/release-notes.ts` prints the section as the
   release's notes (`docs/releasing.md`) and refuses one not titled for the
   package's version; `tools/repo-guards/src/changelog.test.ts` holds the file's
   shape. Settings › About links the file on main
-  (`apps/desktop/src/renderer/app/settings/version-row.tsx`).
+  (`apps/workspace/src/app/settings/version-row.tsx`).
 
 - **FIRST RUN IS DECIDED BEFORE ANY SERVER EXISTS**, because a server
   is bound to one vault and one data dir and a knowledge worker chooses between
@@ -2325,7 +2482,7 @@ to the END of its group.
   which created, seeded and committed `~/Inteligir` before the user said
   anything and left it behind when they opened a folder instead. The first-run
   window is its own: the bundle's page on `tauri://`, built apart
-  (`apps/desktop/vite.config.ts`, `--mode first-run`), pinned and locked down
+  (`apps/workspace/vite.config.ts`, `--mode first-run`), pinned and locked down
   like a vault's, with no server behind it and a capability granting its four
   commands alone (`apps/desktop/src-tauri/capabilities/first-run.json`). It
   keeps the default web store rather than #889's non-persistent one, which the
@@ -2339,10 +2496,10 @@ to the END of its group.
   the app window on `/welcome`, a layer over the workspace like Settings, each
   skippable, composing the shared `AgentSignIn` and `AccountForm` rather than
   spelling either flow again. `apps/cli/src/desktop/first-run.ts`,
-  `apps/desktop/src/first-run-state.ts`,
-  `apps/desktop/src/renderer/first-run/vault-step.tsx`,
-  `apps/desktop/src/renderer/routes/_workspace/welcome.tsx`,
-  `apps/desktop/src/renderer/app/onboarding/account-step.tsx`,
+  `apps/workspace/src/shell/first-run-state.ts`,
+  `apps/workspace/src/first-run/vault-step.tsx`,
+  `apps/workspace/src/routes/_workspace/welcome.tsx`,
+  `apps/workspace/src/app/onboarding/account-step.tsx`,
   `tools/e2e/src/scenarios/desktop-onboarding.ts`,
   `tools/e2e/src/scenarios/onboarding-account-browser.ts`.
 
@@ -2352,7 +2509,7 @@ to the END of its group.
   most people's, has only `/usr/bin/git`'s stub: it fails and offers the
   install, so the vault could not even initialize. The pack carries
   dugite-native's macOS arm64 build, fetched at package time against a pinned
-  sha-256 (`apps/desktop/scripts/fetch-git.mjs`) and signed and notarized with
+  sha-256 (`apps/desktop/scripts/fetch-git.ts`) and signed and notarized with
   the rest of the bundle. The desktop door's `launch` asks `xcode-select -p`
   once, before the first child: a developer dir holding `usr/bin/git` keeps the Mac's own git (owner
   decision: a user with the tools and an https remote of their own keeps the
@@ -2374,11 +2531,28 @@ to the END of its group.
   `apps/cli/src/desktop/bundled-git.ts`; the smoke's first launch plays such a
   Mac and proves the host's git never ran.
 
+- **THE LOCAL DATABASE MOVES BY COMMITTED MIGRATIONS, AND A FILE ON A HISTORY
+  THIS BUILD LACKS IS REPLACED AT BOOT.** `inteligir.db` lives on the user's
+  disk and the app ships no drizzle-kit, so its schema changes only through the
+  SQL in `packages/db/drizzle`, applied on boot: the exception to the
+  push-based rule the D1 auth schema follows (in the Cloud group) and the
+  `sync-conventions` skill applies, which must not delete that folder. While
+  nobody but the owner runs the app, the history is one baseline rather than
+  every generation, so the CHECKs `ALTER TABLE` cannot add are declared and
+  the columns sit in order (`packages/db/src/schema.ts`). A file whose ledger
+  names a migration this build does not carry is refused before the migrator
+  runs (`UnknownMigrationHistoryError` in `packages/db/src/migrate.ts`), and
+  the server replaces it and signs the install out, because the cloud log
+  holds the positions a fresh file would hand out again; the next sign-in
+  pulls the account's threads back (`apps/cli/src/server/open-database.ts`).
+  Once anyone else holds a database, squashing is the loss of their threads,
+  and a migration is appended instead.
+
 ### Desktop workspace surfaces
 
 - **WINDOW-LEVEL HOSTS MOUNT AT THE ROOT ROUTE.** `ConfirmDialogHost`, `Toaster`
   and the one `TooltipProvider` live in
-  `apps/desktop/src/renderer/routes/__root.tsx`; a host mounted by one route
+  `apps/workspace/src/routes/__root.tsx`; a host mounted by one route
   leaves another route's `confirm()` parked on a dialog that never opens.
 
 - **THE RAIL IS FLUID'S SIDEBAR ANATOMY, AMBIENT STATE LIVES IN ITS FOOTER,
@@ -2407,8 +2581,8 @@ to the END of its group.
   count and reading time (`app/note-footer.tsx`), the serializer's published
   count, never a recount, with no rule above it so it reads as the note's last
   line; zen hides it. Under the macOS shell the rail reserves the traffic-light
-  corner (`apps/desktop/src/renderer/app/title-bar.ts`).
-  `apps/desktop/src/renderer/app/sidebar/sidebar.tsx`.
+  corner (`apps/workspace/src/app/title-bar.ts`).
+  `apps/workspace/src/app/sidebar/sidebar.tsx`.
 
 - **THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P.** The palette lists every note
   and every command in one field, and the search that is not a lookup opens
@@ -2426,7 +2600,7 @@ to the END of its group.
   characters and reading time are counted by `@repo/editor/note-stats` beside
   the TOC's walk, so both agree on the document, and published by the
   serializer's debounce, never per keystroke.
-  `apps/desktop/src/renderer/app/actions/note-facts.tsx`.
+  `apps/workspace/src/app/actions/note-facts.tsx`.
 
 - **THE PANEL STARTS CLOSED, IS FLAT-TABBED, AND IS DRAGGED LIKE THE RAIL.**
   `panelOpen` defaults off, and every entry that shows something in it opens it
@@ -2454,8 +2628,8 @@ to the END of its group.
   never re-animates the backdrop; a page is a union member, so a move page
   cannot exist without the entry it moves.
   `packages/ui/src/components/command.tsx`,
-  `apps/desktop/src/renderer/app/palette/command-palette.tsx` and
-  `apps/desktop/src/renderer/app/palette/palette-page.tsx`.
+  `apps/workspace/src/app/palette/command-palette.tsx` and
+  `apps/workspace/src/app/palette/palette-page.tsx`.
 
 - **THE BUS IS APPLIED ONCE PER FRAME, AND A KIND REFETCHES ONLY WHAT IT
   MOVES.** `ChangeBatch` folds every ws frame since the last animation frame
@@ -2464,10 +2638,10 @@ to the END of its group.
   `MOVES_THE_DETAIL`, `MOVES_THE_TIMELINE`), so a streamed turn never
   refetches the thread list. The note session hears one `files` event however
   many paths moved (`packages/editor/src/host-io.ts`) and lists through the
-  rail's own tree query (`apps/desktop/src/renderer/app/vault-hooks.ts`). A
+  rail's own tree query (`apps/workspace/src/app/vault-hooks.ts`). A
   reconnect sweeps every family the bus reaches, which is why no window-focus
-  re-walk backs it up. `apps/desktop/src/renderer/app/workspace-context.tsx`
-  and `apps/desktop/src/renderer/app/__tests__/changed-message.test.ts`.
+  re-walk backs it up. `apps/workspace/src/app/workspace-context.tsx`
+  and `apps/workspace/src/app/__tests__/changed-message.test.ts`.
 
 - **THE NOTE STORE OWNS THE OPEN NOTE, THE URL MIRRORS IT, AND SETTINGS
   COVERS A WORKSPACE THAT STAYS MOUNTED** (owner decision). `?note=` is read
@@ -2480,18 +2654,18 @@ to the END of its group.
   and its `GLOBAL_SHORTCUTS` listener detached, since inert does not stop a
   window listener; the way in flushes the open note, since nothing else settles
   a title mid-rename or an edit inside the debounce.
-  `apps/desktop/src/renderer/routes/_workspace.tsx`,
-  `apps/desktop/src/renderer/app/__tests__/workspace-runtime-mount.test.tsx`
-  and `apps/desktop/src/renderer/app/__tests__/workspace-routing.booted.test.tsx`.
+  `apps/workspace/src/routes/_workspace.tsx`,
+  `apps/workspace/src/app/__tests__/workspace-runtime-mount.test.tsx`
+  and `apps/cli/src/workspace/__tests__/workspace-routing.booted.test.tsx`.
 
 - **A PAGE PREFERENCE IS A ROW, AND SO IS AN APPEARANCE DIAL.** What the window
   remembers across a reload is one `PREFS` row (key, a zod schema that decodes
   the stored string and encodes the value back, fallback), read and written
   only through `readPref` / `writePref` / `usePref`, so a key's reader and its
   writer cannot disagree on its bytes, and bytes a row cannot decode read as
-  its fallback (`apps/desktop/src/renderer/app/prefs.ts`). An appearance dial
+  its fallback (`apps/workspace/src/app/prefs.ts`). An appearance dial
   is one `dial()` row naming its `--editor-*` token
-  (`apps/desktop/src/renderer/app/appearance-options.ts`). One table shared
+  (`apps/workspace/src/app/appearance-options.ts`). One table shared
   with the data dir was rejected: no preference is read by both programs, a
   data-dir preference reaches the page through its `@repo/contract/local` contract,
   and a data-dir file's shape must stay readable, so it is not derived from a
@@ -2524,7 +2698,7 @@ to the END of its group.
   directory. The licences shipped elsewhere are the .app's own, since only the
   .app carries what they cover: the bundled git's and node's beside them, and
   the notices of every Rust crate the shell links, written at package time from
-  cargo's resolve (`apps/desktop/scripts/rust-notices.mjs`) and checked by the
+  cargo's resolve (`apps/desktop/scripts/rust-notices.ts`) and checked by the
   smoke. `packages/ui/components.json`
   declares `rsc: true` and it is inert: every consumer is a plain Vite build.
 
@@ -2549,16 +2723,16 @@ to the END of its group.
   suppression, the ones the compiler bails on.
 
 - **THE REACT COMPILER IS ON FOR EVERY BUNDLE**: `compiler: true` on
-  `@vitejs/plugin-react` in the desktop's, the web's and the phone editor
+  `@vitejs/plugin-react` in the workspace's, the web's and the phone editor
   page's vite configs, and `reactCompiler: true` in
-  `apps/mobile/app.config.js`. The suites run what ships: the desktop's,
+  `apps/mobile/app.config.js`. The suites run what ships: the workspace's,
   `@repo/editor`'s, `@repo/ui`'s and the phone page's DOM tests compile their
   sources the same way (test files excluded, because a fixture hook minted in a
   factory is hoisted with no diagnostic), and a `compiled-under-test` suite in
   each fails when the plugin goes (the phone page's is the last case of
   `apps/mobile-editor/src/__tests__/editor-page.test.tsx`). A node suite, and
-  the desktop's booted ones, cannot run compiled: the plugin skips the ssr
-  transform. The manual-memo sweep is #820.
+  the workspace UI's booted ones (`apps/cli/src/workspace/__tests__`), cannot
+  run compiled: the plugin skips the ssr transform. The manual-memo sweep is #820.
 
 - **TOOLING PINS, each with its reason beside it**: `vite` is a pnpm override
   because the catalog bound only the manifests that spell it; `@types/node`
@@ -2582,21 +2756,28 @@ to the END of its group.
 - **A TURBO CACHE KEY NAMES EVERYTHING ITS OUTPUT READS**, because a hit
   replays the output with no error, and the e2e suite and `package:*` ship what
   it replays. Another workspace's files enter a key only through a `^` edge
-  (`tools/repo-guards/src/turbo-cache-keys.test.ts`); the desktop build takes
-  `^topo`, since `^build` would cycle through the CLI build that stages its
-  renderer (`apps/desktop/turbo.json`). A file in no workspace is a named input
+  (`tools/repo-guards/src/turbo-cache-keys.test.ts`), and no task names
+  another workspace's: the CLI's build reaches `@repo/workspace#build` through
+  its own dependency, and the shell's tasks reach both through theirs
+  (`apps/desktop/turbo.json`). A file in no workspace is a named input
   (`apps/cli/turbo.json`), which the same guard holds for a bundled import
   (`/privacy` renders `docs/privacy.md`); a followed file is a named output
   (`apps/web/turbo.json`), and `NODE_ENV` is hashed, not passed through: vite
-  emits React's dev build under `development`.
+  emits React's dev build under `development`. The same inputs decide whether
+  the Worker deploys: `futureFlags.affectedUsingTaskInputs` (`turbo.json`)
+  counts a changed file for every task whose inputs name it, and Deploy asks
+  `turbo query affected`, which honours the flag where `turbo ls` does not
+  (`.github/workflows/deploy.yml`), so an edit to the legal texts alone
+  deploys.
 
-- **A DESKTOP TEST THAT LOGS A console.error FAILS.** React reports a setState
+- **A WORKSPACE TEST THAT LOGS A console.error FAILS.** React reports a setState
   during another component's render, a missing key or an update outside `act`
   as a console.error and nothing else, so a suite that only logs it stays green
   over a real defect
-  (`apps/desktop/src/renderer/app/__tests__/console-error-gate.ts`). A test
+  (`apps/workspace/src/app/__tests__/console-error-gate.ts`). A test
   that provokes one on purpose silences it with its own spy. The booted suites
-  are not gated: the server they boot logs every refused call by design.
+  (`apps/cli/vitest.config.ts`) are not gated: the server they boot logs every
+  refused call by design.
 
 - **A DEPENDENCY'S COST WE CANNOT WAIT OUT UPSTREAM IS A pnpm PATCH, AND A TEST
   FAILS WITHOUT IT.** micromark merges a paragraph's text with one splice per
@@ -2622,7 +2803,7 @@ to the END of its group.
   `tools/e2e/src/scenarios/desktop-shell.ts`, with `desktop-onboarding.ts` and
   `desktop-diagnostics.ts`: the built shell on Linux, driven through
   `tauri-driver` and WebKitGTK's WebDriver (`tools/e2e/src/harness/webdriver.ts`),
-  which also gives the renderer its one WebKit run, never through the env
+  which also gives the page its one WebKit run, never through the env
   pins, since the shell refuses a switch while either pins the launch. Only
   the first window is driveable, so a later one is read through its server and
   the shell's note in its log. Not the packaged `.app`: packing is minutes, and
@@ -2646,7 +2827,7 @@ to the END of its group.
   parses before it reads argv is the entry's static closure; the server and
   the frontmatter parser (yaml, 72 modules) sit behind `await import()` in the
   verbs that need them. A static import that reaches yaml passes every test and
-  every review, so `apps/cli/scripts/build.mjs` walks the metafile's static
+  every review, so `apps/cli/scripts/build.ts` walks the metafile's static
   closure and fails naming the importer (`LOADED_ON_EVERY_VERB_REFUSED`).
 
 - **THE PHONE SHIPS THROUGH EAS TO TESTFLIGHT, AND AN UNSET CLOUD URL IS THE
@@ -2666,6 +2847,49 @@ to the END of its group.
   one that could only fail. `apps/mobile/src/__tests__/app-config.test.ts`
   holds the store config to what App Store Connect judges.
 
+- **A RELEASE SCRIPT IS TYPESCRIPT NODE RUNS AS IT STANDS, CHECKED AS NODE
+  RESOLVES IT.** `apps/desktop/scripts` and `apps/cli/scripts` (and
+  `apps/workspace/scripts`, the page's dev loop) are `.ts` files node 24 strips
+  of their types, each workspace's `typecheck` checking them as
+  a `scripts/tsconfig.json` program under `nodenext` and `erasableSyntaxOnly`,
+  so an extensionless import or an enum fails the typecheck rather than the
+  release; a relative import names its `.ts`, JSON a script reads is parsed by
+  zod, and its own manifest is a JSON import. Rejected: `checkJs` over `.mjs`,
+  whose JSDoc casts the type-assertion rule cannot see, and `tsx`, a loader for
+  what node already runs. A module whose imports name no extension (the
+  server's, most of the contract's) cannot load in a script, so a smoke parses
+  only the fields it reads (`apps/cli/scripts/smoke-lib.ts`).
+  `.github/scripts/worker-preview.mjs` stays JS: its first step runs before the
+  job sets up the repo's node.
+
+- **THE PAGE IS ITS OWN WORKSPACE, AND ITS SUITES THAT BOOT A SERVER LIVE IN
+  THE CLI** (owner decision, reversing #889's place for the SPA inside
+  `apps/desktop` and #645's decline). The shell embeds only the first-run page
+  and the CLI serves the app page, so the page inside the shell's workspace
+  made the CLI's build hand-name the desktop's, the desktop's build take
+  `^topo` to dodge the cycle, and the CLI export its test harness to the
+  page's suites. `@repo/workspace` depends on neither: the desktop embeds its
+  first-run build (`frontendDist`) and the CLI stages its app page, each
+  through `^build`, and the suites that boot a server in-process sit in
+  `apps/cli/src/workspace/__tests__` over the page's exports, so no package
+  exports a harness. Only it reaches `@tauri-apps/*` (`SHELL_API_CLIENTS` in
+  `tools/repo-guards/src/dep-dag.test.ts`). Rejected: a test tsconfig of the
+  page's own inside the desktop (#645's remedy), which kept the cycle in the
+  task graph. `pnpm dev:workspace` (`apps/workspace/scripts/dev.ts`) is the
+  page's loop with no Rust.
+
+- **THE SHELL'S PLUMBING IS COPIED BETWEEN REPOS AND DIVERGES ON PURPOSE.**
+  The shell's log (`apps/desktop/src-tauri/src/server_log.rs`), its origin pin
+  (`apps/desktop/src-tauri/src/navigation.rs`), its runtime
+  (`apps/desktop/src-tauri/src/runtime.rs`) and the packaging scripts in
+  `apps/desktop/scripts` are copied from or to kyh/idlebiz, and the origin pin
+  from or to kyh/init too. Each copy is its own repo's code, shaped to the
+  child it runs and the product it ships, so there is no shared package and a
+  fix is ported by hand. The Rust toolchain
+  (`apps/desktop/rust-toolchain.toml`) and the bundled node (`VERSION` in
+  `apps/desktop/scripts/fetch-node.ts`) are the same in every repo that
+  carries them, and move together.
+
 **Before raising a "new" finding, read
 [#542](https://github.com/kyh/inteligir/issues/542)**: the decision record
 carries what was rejected as well as what was chosen. The `note` issues are
@@ -2674,4 +2898,7 @@ review's refuted findings), #788 (the 2026-09-22 architecture review's refuted
 findings), #645 (the 2026-09-01 review), #674
 (the 2026-09-05 simplify pass), #603 (Moss parity) and #705 (the CodeMirror
 trade); the older ones (#446, #453, #472, #474) catalogue findings declined
-against the hosted Durable-Object architecture this rewrite replaced.
+against the hosted Durable-Object architecture this rewrite replaced. A
+decline that weighs a migration's cost or an older install, such as #788's
+comment-sidecar sweep or #674's lean search table, yields to the no-users
+premise.

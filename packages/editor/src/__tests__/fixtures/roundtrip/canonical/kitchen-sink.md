@@ -2,37 +2,34 @@
 
 Intro paragraph with [[Some Note]] and an alias [[Other|friendly]] plus ![[embed.png]] inline.
 
-```inteligir-callout
-info
-Callout body with **bold** and $$E=mc^2$$ inline.
-```
+> [!TIP]
+> Callout body with **bold** and $$E=mc^2$$ inline.
 
-<toggle>
-  Hidden content line.
+:::toggle
+Hidden content line.
 
-  - nested item
-  - another
-</toggle>
+- nested item
+- another
 
-<column_group>
-  <column>
-    left cell
-  </column>
+:::
 
-  <column>
-    right cell
-  </column>
-</column_group>
+:::columns
+:::column
+left cell
+:::
 
-Meet on <date value="2026-07-01" /> at noon.
+:::column
+right cell
+:::
+:::
+
+Meet on @2026-07-01 at noon.
 
 <!-- an html comment the editor shows but never touches -->
 
-<Steps>
-  Unknown JSX, held verbatim.
-</Steps>
+<Steps>An unknown tag, held verbatim.</Steps>
 
-Press <kbd>K</kbd> to open the palette.
+Press <kbd>K</kbd> to open the palette, and <u>underline</u> stays a mark.
 
 $$
 \int_0^1 x^2 dx
@@ -46,7 +43,7 @@ A-->B;
 > [!NOTE]
 > An alert body.
 
-- [ ] a task with [[wiki]] and <date value="2026-07-02" />
+- [ ] a task with [[wiki]] and @2026-07-02
 - [x] done task
 
 | col | math  |

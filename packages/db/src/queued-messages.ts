@@ -1,32 +1,49 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { z } from "zod";
 import type { DbConnection, DbTransaction } from "./connection";
 import { createPrefixedId, createQueuedThreadMessageId } from "./ids";
+import { readJsonColumn } from "./json-column";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { queuedThreadMessages } from "./schema";
 
-export type QueuedThreadMessageRow = typeof queuedThreadMessages.$inferSelect;
+type StoredQueuedThreadMessage = typeof queuedThreadMessages.$inferSelect;
+
+export interface QueuedThreadMessageRow extends Omit<StoredQueuedThreadMessage, "contextPaths"> {
+  // null for none, and for bytes that no longer parse: those cost the message its attachments,
+  // never the message.
+  contextPaths: string[] | null;
+}
 
 export interface ClaimedQueuedThreadMessageRow extends QueuedThreadMessageRow {
   claimedAt: number;
   claimToken: string;
 }
 
+const storedContextPathsSchema = z.array(z.string().min(1)).min(1);
+
+const readRow = (stored: StoredQueuedThreadMessage): QueuedThreadMessageRow => ({
+  ...stored,
+  contextPaths:
+    stored.contextPaths === null
+      ? null
+      : readJsonColumn(stored.contextPaths, storedContextPathsSchema),
+});
+
 const requireClaimedQueuedThreadMessage = (
-  row: QueuedThreadMessageRow | undefined,
+  stored: StoredQueuedThreadMessage | undefined,
 ): ClaimedQueuedThreadMessageRow | null => {
-  if (!row || row.claimedAt === null || row.claimToken === null) {
+  if (!stored || stored.claimedAt === null || stored.claimToken === null) {
     return null;
   }
-  return { ...row, claimToken: row.claimToken, claimedAt: row.claimedAt };
+  return { ...readRow(stored), claimToken: stored.claimToken, claimedAt: stored.claimedAt };
 };
 
 export interface CreateQueuedThreadMessageInput {
   threadId: string;
   text: string;
-  // the stored text, null for none: the caller that parses the column back owns its encoding too.
-  contextPaths: string | null;
+  contextPaths: readonly string[] | null;
   // the phone's dispatch this message carries out, null for one typed here
   dispatchId: string | null;
 }
@@ -53,12 +70,12 @@ export const createQueuedThreadMessageInTransaction = (
     .orderBy(desc(queuedThreadMessages.sortKey))
     .limit(1)
     .get();
-  return tx
+  const inserted = tx
     .insert(queuedThreadMessages)
     .values({
       claimToken: null,
       claimedAt: null,
-      contextPaths: input.contextPaths,
+      contextPaths: input.contextPaths === null ? null : JSON.stringify(input.contextPaths),
       createdAt: now,
       dispatchId: input.dispatchId,
       id: createQueuedThreadMessageId(),
@@ -69,6 +86,7 @@ export const createQueuedThreadMessageInTransaction = (
     })
     .returning()
     .get();
+  return readRow(inserted);
 };
 
 export const listQueuedThreadMessages = (
@@ -86,7 +104,8 @@ export const listQueuedThreadMessages = (
       ),
     )
     .orderBy(asc(queuedThreadMessages.sortKey), asc(queuedThreadMessages.id))
-    .all();
+    .all()
+    .map(readRow);
 
 // select then cas-update in one transaction: the loser of a race matches nothing and takes the
 // next row.

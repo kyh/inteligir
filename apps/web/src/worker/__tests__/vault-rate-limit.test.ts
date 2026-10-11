@@ -10,17 +10,18 @@ import { createDb } from "../db/client";
 import { rateLimit } from "../db/schema";
 import { deviceRateKey } from "../rate-limit";
 import {
+  buildHeaders,
   deviceHeaders,
   emitted,
-  ORIGIN,
   loginDevice,
+  ORIGIN,
   postSignOut,
+  postVaultRead,
   sessionHeaders,
   signUpUser,
 } from "./cloud-helpers";
 import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
-const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
 const FILES = `${ORIGIN}${VAULT_API_PATHS.files}`;
 const COMMIT = `${ORIGIN}${VAULT_API_PATHS.commit}`;
 const GIT_REFS = `${ORIGIN}${VAULT_GIT_PATH}/info/refs?service=git-upload-pack`;
@@ -45,23 +46,23 @@ describe("the hosted vault's per-device budgets", () => {
   });
 
   it("refuses vault reads once the device's budget is spent, and only that device's", async () => {
-    const { bearer } = await signUpUser("vault-budget-read@example.test");
-    const phone = await loginDevice(bearer, "Phone");
-    const laptop = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("vault-budget-read@example.test");
+    const phone = await loginDevice(cookie, "Phone");
+    const laptop = await loginDevice(cookie, "Laptop");
 
     await spendBudget(deviceRateKey("vaultRead", phone.deviceId));
 
-    const refused = await SELF.fetch(TREE, { headers: deviceHeaders(phone.credential) });
+    const refused = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(phone.credential), {});
     expect(refused.status).toBe(429);
     expect(emitted(cloudErrorSchema, await refused.text()).error.code).toBe("rate-limited");
 
-    const allowed = await SELF.fetch(TREE, { headers: deviceHeaders(laptop.credential) });
+    const allowed = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(laptop.credential), {});
     expect(allowed.status).not.toBe(429);
   });
 
   it("keeps the git remote's budget separate from the read rows'", async () => {
-    const { bearer } = await signUpUser("vault-budget-families@example.test");
-    const device = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("vault-budget-families@example.test");
+    const device = await loginDevice(cookie, "Laptop");
 
     await spendBudget(deviceRateKey("vaultRead", device.deviceId));
 
@@ -74,8 +75,8 @@ describe("the hosted vault's per-device budgets", () => {
   });
 
   it("drops a revoked device's rows at once, not on Better Auth's next prune", async () => {
-    const { bearer } = await signUpUser("vault-budget-revoke@example.test");
-    const device = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("vault-budget-revoke@example.test");
+    const device = await loginDevice(cookie, "Laptop");
     const keys = [
       deviceRateKey("vaultRead", device.deviceId),
       deviceRateKey("vaultGit", device.deviceId),
@@ -87,7 +88,7 @@ describe("the hosted vault's per-device budgets", () => {
 
     const revoked = await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.revoke}`, {
       body: JSON.stringify({ deviceId: device.deviceId }),
-      headers: { ...sessionHeaders(bearer), "content-type": "application/json" },
+      headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
       method: "POST",
     });
     expect(revoked.status).toBe(200);
@@ -101,9 +102,11 @@ describe("the hosted vault's per-device budgets", () => {
   });
 
   it("spends nothing for a credential that never verified", async () => {
-    const unauthorized = await SELF.fetch(TREE, {
-      headers: { authorization: "Bearer igd_not-a-real-credential" },
-    });
+    const unauthorized = await postVaultRead(
+      VAULT_API_PATHS.tree,
+      { ...buildHeaders(), authorization: "Bearer igd_not-a-real-credential" },
+      {},
+    );
     expect(unauthorized.status).toBe(401);
   });
 });
@@ -111,8 +114,8 @@ describe("the hosted vault's per-device budgets", () => {
 // outside the window above: a fourth sign-up there meets better auth's own sign-up throttle
 describe("a batch read's budget", () => {
   it("spends one unit for the whole batch, however many paths it names", async () => {
-    const { bearer } = await signUpUser("vault-budget-batch@example.test");
-    const phone = await loginDevice(bearer, "Phone");
+    const { cookie } = await signUpUser("vault-budget-batch@example.test");
+    const phone = await loginDevice(cookie, "Phone");
     const paths = ["a.md", "b.md", "c.md", "notes/d.md"];
     const pushed = await pushVaultFiles(
       phone.credential,
@@ -146,8 +149,8 @@ describe("a batch read's budget", () => {
 
 describe("a vault write's budget", () => {
   it("refuses a commit once spent, and leaves the reads and the git remote whole", async () => {
-    const { bearer } = await signUpUser("vault-budget-write@example.test");
-    const phone = await loginDevice(bearer, "Phone");
+    const { cookie } = await signUpUser("vault-budget-write@example.test");
+    const phone = await loginDevice(cookie, "Phone");
     const pushed = await pushVaultFiles(
       phone.credential,
       "vault: initialize",
@@ -173,7 +176,7 @@ describe("a vault write's budget", () => {
       expect(refused.status).toBe(429);
       expect(emitted(cloudErrorSchema, await refused.text()).error.code).toBe("rate-limited");
 
-      const tree = await SELF.fetch(TREE, { headers: deviceHeaders(phone.credential) });
+      const tree = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(phone.credential), {});
       expect(tree.status).toBe(200);
       await tree.arrayBuffer();
       const git = await SELF.fetch(GIT_REFS, { headers: deviceHeaders(phone.credential) });
@@ -187,8 +190,8 @@ describe("a vault write's budget", () => {
 
 describe("a signed-out device's budgets", () => {
   it("go with it, as a revoked device's do", async () => {
-    const { bearer } = await signUpUser("vault-budget-signout@example.test");
-    const device = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("vault-budget-signout@example.test");
+    const device = await loginDevice(cookie, "Laptop");
     const key = deviceRateKey("vaultRead", device.deviceId);
     await spendBudget(key);
 

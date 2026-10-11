@@ -28,56 +28,44 @@ const el = (node: Descendant | undefined): TElement => {
 
 describe("column normalizer (suppressed width writer)", () => {
   it("keeps bare columns bare through a forced normalize + edit", () => {
-    const src =
-      "<column_group>\n  <column>\n    left\n  </column>\n\n  <column>\n    right\n  </column>\n</column_group>\n";
+    const src = ":::columns\n:::column\nleft\n:::\n\n:::column\nright\n:::\n:::\n";
     const editor = makeEditor(src);
     editor.tf.normalize({ force: true });
     editor.tf.insertText("+", { at: { offset: 0, path: [0, 0, 0, 0] } });
     const output = out(editor);
-    expect(output).toContain("<column>");
-    expect(output).not.toContain("width");
+    expect(output).toBe(":::columns\n:::column\n+left\n:::\n\n:::column\nright\n:::\n:::\n");
     expect(roundTrip(output)).toBe(output);
   });
 
   it("keeps three bare columns bare (the 33.333…% hazard)", () => {
-    const src =
-      "<column_group>\n  <column>\n    a\n  </column>\n\n  <column>\n    b\n  </column>\n\n  <column>\n    c\n  </column>\n</column_group>\n";
+    const src = ":::columns\n:::column\na\n:::\n\n:::column\nb\n:::\n\n:::column\nc\n:::\n:::\n";
     const editor = makeEditor(src);
     editor.tf.normalize({ force: true });
-    expect(out(editor)).not.toContain("width");
+    expect(out(editor)).toBe(src);
   });
 
   it("preserves authored widths without rebalancing to 100", () => {
     // 70 + 40 ≠ 100, which the stock normalizer would rebalance
-    const src =
-      '<column_group>\n  <column width="70%">\n    a\n  </column>\n\n  <column width="40%">\n    b\n  </column>\n</column_group>\n';
+    const src = ":::columns\n:::column 70%\na\n:::\n\n:::column 40%\nb\n:::\n:::\n";
     const editor = makeEditor(src);
     editor.tf.normalize({ force: true });
-    const output = out(editor);
-    expect(output).toContain('width="70%"');
-    expect(output).toContain('width="40%"');
+    expect(out(editor)).toBe(src);
   });
 
   it("still dissolves a group left with a single column", () => {
-    const editor = makeEditor(
-      "<column_group>\n  <column>\n    keep\n  </column>\n\n  <column>\n    drop\n  </column>\n</column_group>\n",
-    );
+    const editor = makeEditor(":::columns\n:::column\nkeep\n:::\n\n:::column\ndrop\n:::\n:::\n");
     editor.tf.removeNodes({ at: [0, 1] });
-    const output = out(editor);
-    expect(output).not.toContain("column_group");
-    expect(output).toContain("keep");
+    expect(out(editor)).toBe("keep\n");
   });
 });
 
 describe("insertColumnGroup", () => {
-  it("inserts bare columns whose EMPTY form is the self-closed canonical one", () => {
+  it("inserts bare columns whose empty form is their two markers", () => {
     const editor = makeEditor("seed\n");
     editor.tf.select(editor.api.end([0]));
     insertColumnGroup(editor, 2);
     const output = out(editor);
-    expect(output).toContain("<column_group>");
-    expect((output.match(/<column \/>/gu) ?? []).length).toBe(2);
-    expect(output).not.toContain("width");
+    expect(output).toBe("seed\n\n:::columns\n:::column\n:::\n\n:::column\n:::\n:::\n");
     expect(roundTrip(output)).toBe(output);
   });
 
@@ -87,8 +75,7 @@ describe("insertColumnGroup", () => {
     insertColumnGroup(editor, 2);
     editor.tf.insertText("left cell");
     const output = out(editor);
-    expect(output).toContain("left cell");
-    expect(output).toContain("<column />");
+    expect(output).toBe("seed\n\n:::columns\n:::column\nleft cell\n:::\n\n:::column\n:::\n:::\n");
     expect(roundTrip(output)).toBe(output);
   });
 
@@ -96,7 +83,7 @@ describe("insertColumnGroup", () => {
     const editor = makeEditor("seed\n");
     editor.tf.select(editor.api.end([0]));
     insertColumnGroup(editor, 3);
-    expect((out(editor).match(/<column \/>/gu) ?? []).length).toBe(3);
+    expect((out(editor).match(/:::column\n:::/gu) ?? []).length).toBe(3);
   });
 });
 
@@ -195,7 +182,7 @@ describe("insertToggle", () => {
     editor.tf.select(editor.api.end([0]));
     insertToggle(editor);
     const output = out(editor);
-    expect(output).toBe("<toggle>\n  Summary line\n</toggle>\n");
+    expect(output).toBe(":::toggle\nSummary line\n:::\n");
     expect(roundTrip(output)).toBe(output);
   });
 
@@ -205,26 +192,26 @@ describe("insertToggle", () => {
     insertToggle(editor);
     editor.tf.insertBreak();
     editor.tf.insertText("body");
-    expect(out(editor)).toBe("<toggle>\n  Summary\n\n  body\n</toggle>\n");
+    expect(out(editor)).toBe(":::toggle\nSummary\n\nbody\n:::\n");
   });
 
-  it("normalizes typed-into empty <toggle /> children into a paragraph", () => {
-    const editor = makeEditor("<toggle />\n");
+  it("normalizes typed-into empty toggle children into a paragraph", () => {
+    const editor = makeEditor(":::toggle\n:::\n");
     editor.tf.select(editor.api.start([0]));
     editor.tf.insertText("hello");
     const output = out(editor);
-    expect(output).toBe("<toggle>\n  hello\n</toggle>\n");
+    expect(output).toBe(":::toggle\nhello\n:::\n");
   });
 
-  it("leaves an untouched <toggle /> byte-exact", () => {
-    const editor = makeEditor("<toggle />\n\ntext\n");
+  it("leaves an untouched empty toggle byte-exact", () => {
+    const editor = makeEditor(":::toggle\n:::\n\ntext\n");
     editor.tf.insertText("!", { at: { offset: 4, path: [1, 0] } });
-    expect(out(editor)).toBe("<toggle />\n\ntext!\n");
+    expect(out(editor)).toBe(":::toggle\n:::\n\ntext!\n");
   });
 
   it("collapse state lives in the plugin store — flipping it never dirties bytes", () => {
     // headless parse assigns no NodeIdPlugin ids, so an explicit id is driven
-    const editor = makeEditor("<toggle>\n  Summary\n\n  body\n</toggle>\n");
+    const editor = makeEditor(":::toggle\nSummary\n\nbody\n:::\n");
     const before = out(editor);
     const isOpen = (id: string) => editor.getOptions(TogglePlugin).openIds?.has(id) ?? false;
     expect(isOpen("t1")).toBe(false);
@@ -233,7 +220,7 @@ describe("insertToggle", () => {
     editor.getApi(TogglePlugin).toggle.toggleIds(["t1"]);
     expect(isOpen("t1")).toBe(false);
     expect(out(editor)).toBe(before);
-    expect(before).toContain("<toggle>\n");
+    expect(before).toBe(":::toggle\nSummary\n\nbody\n:::\n");
   });
 });
 
@@ -243,7 +230,7 @@ describe("insert transforms serialize canonically", () => {
     editor.tf.select(editor.api.end([0]));
     insertDate(editor);
     const output = out(editor);
-    expect(output).toMatch(/<date value="\d{4}-\d{2}-\d{2}" \/>/u);
+    expect(output).toMatch(/^x@\d{4}-\d{2}-\d{2}/u);
     expect(roundTrip(output)).toBe(output);
   });
 
@@ -311,21 +298,26 @@ describe("insert transforms serialize canonically", () => {
     expect(roundTrip(output)).toBe(output);
   });
 
-  it("insertEmbedFromUrl routes youtube/tweet/pdf/generic to the right nodes", () => {
+  it("insertEmbedFromUrl routes youtube/tweet/pdf/generic to the nodes the url reads back as", () => {
     const cases: [string, string][] = [
-      ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "<video src="],
-      ["https://twitter.com/user/status/1234567890", "<media_embed src="],
-      ["https://example.com/paper.pdf", "<file src="],
-      ["https://example.com/embed", "<media_embed src="],
+      ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", KEYS.video],
+      ["https://twitter.com/user/status/1234567890", KEYS.mediaEmbed],
+      ["https://example.com/paper.pdf", KEYS.file],
+      ["https://example.com/embed", KEYS.mediaEmbed],
     ];
-    for (const [url, tag] of cases) {
+    for (const [url, embedType] of cases) {
       const editor = makeEditor("x\n");
       editor.tf.select(editor.api.end([0]));
       insertEmbedFromUrl(editor, url);
+      expect(
+        editor.children.some((node) => ElementApi.isElement(node) && node.type === embedType),
+        url,
+      ).toBe(true);
       const output = out(editor);
-      expect(output, url).toContain(tag);
-      expect(output, `${url} must stay bare src-only`).not.toMatch(/align|width|isUpload/u);
+      expect(output, url).toContain(`![](${url})`);
       expect(roundTrip(output), url).toBe(output);
+      const reread = parseMarkdown(output);
+      expect(reread.ok && reread.value.some((node) => node.type === embedType), url).toBe(true);
     }
   });
 });

@@ -11,9 +11,11 @@ import { z } from "zod";
 import type { ProviderEvent } from "../../vocabulary/provider-event";
 import { AcpTurnMapper } from "../acp-event-mapping";
 import { toApprovalPayload, toPermissionOutcome } from "../acp-permission-mapping";
+import { readSessionFailure } from "../provider-error";
 
 const FIXTURES = path.join(import.meta.dirname, "fixtures");
-const CTX = { providerThreadId: "session_recorded", threadId: "thr_replay", turnId: "turn_replay" };
+const SESSION_ID = "session_recorded";
+const CTX = { threadId: "thr_replay", turnId: "turn_replay" };
 
 const promptResponseSchema = z.looseObject({
   id: z.union([z.number(), z.string()]),
@@ -49,7 +51,7 @@ const replay = async (lines: readonly string[]): Promise<Replayed> => {
     .connect(ndJsonStream(new WritableStream<Uint8Array>(), fromAgent.readable));
   const prompt = connection.agent.request("session/prompt", {
     prompt: [],
-    sessionId: CTX.providerThreadId,
+    sessionId: SESSION_ID,
   });
   const writer = fromAgent.writable.getWriter();
   const encoder = new TextEncoder();
@@ -59,14 +61,20 @@ const replay = async (lines: readonly string[]): Promise<Replayed> => {
     const frame = response.success ? JSON.stringify({ ...response.data, id: 0 }) : line;
     await writer.write(encoder.encode(`${frame}\n`));
   }
-  const { stopReason } = await prompt;
-  replayed.events.push(...mapper.completed(stopReason));
+  // as the runtime settles a prompt's answer: a typed failure fails the turn whatever its stop.
+  const { _meta: meta, stopReason } = await prompt;
+  const failure = readSessionFailure(meta);
+  replayed.events.push(
+    ...(failure === null
+      ? mapper.completed(stopReason)
+      : mapper.failed(failure.adapterMessage, failure.failure)),
+  );
   connection.close();
   return replayed;
 };
 
 type WithoutEnvelope<Event> = Event extends ProviderEvent
-  ? Omit<Event, "providerThreadId" | "scope" | "threadId">
+  ? Omit<Event, "scope" | "threadId">
   : never;
 
 interface DeltaRun {
@@ -83,7 +91,7 @@ const compact = (
 ): (WithoutEnvelope<ProviderEvent> | DeltaRun)[] => {
   const rows: (WithoutEnvelope<ProviderEvent> | DeltaRun)[] = [];
   for (const event of events) {
-    const { providerThreadId: _thread, scope: _scope, threadId: _id, ...rest } = event;
+    const { scope: _scope, threadId: _id, ...rest } = event;
     if (event.type === "item/agentMessage/delta" || event.type === "item/reasoning/textDelta") {
       const last = rows.at(-1);
       if (
@@ -123,11 +131,13 @@ const messages = (events: readonly ProviderEvent[]) =>
 
 const adapters = readdirSync(FIXTURES);
 
+const readFixture = (adapter: string, scenario: string): string[] =>
+  readFileSync(path.join(FIXTURES, adapter, `${scenario}.ndjson`), "utf-8")
+    .split("\n")
+    .filter((line) => line.trim() !== "");
+
 describe.each(adapters)("%s", (adapter) => {
-  const read = (scenario: string): string[] =>
-    readFileSync(path.join(FIXTURES, adapter, `${scenario}.ndjson`), "utf-8")
-      .split("\n")
-      .filter((line) => line.trim() !== "");
+  const read = (scenario: string): string[] => readFixture(adapter, scenario);
 
   const scenarios = readdirSync(path.join(FIXTURES, adapter)).map((file) =>
     path.basename(file, ".ndjson"),
@@ -138,7 +148,6 @@ describe.each(adapters)("%s", (adapter) => {
 
     for (const event of events) {
       expect(event).toMatchObject({
-        providerThreadId: CTX.providerThreadId,
         scope: { kind: "turn", turnId: CTX.turnId },
         threadId: CTX.threadId,
       });
@@ -203,5 +212,24 @@ describe.each(adapters)("%s", (adapter) => {
     for (const text of messages(events)) {
       expect(text).not.toMatch(/^Warning: /mu);
     }
+  });
+});
+
+describe("a turn codex ended on a typed failure", () => {
+  it("fails a context overflow as context, never speaking the error as the agent", async () => {
+    const codex = adapters.find((adapter) => adapter.startsWith("codex-acp@"));
+    if (codex === undefined) {
+      throw new Error("no codex-acp recording under fixtures/");
+    }
+    const { events } = await replay(readFixture(codex, "context-overflow"));
+    expect(events.filter((event) => event.type === "provider/error")).toEqual([
+      expect.objectContaining({
+        failure: "context",
+        message: expect.stringContaining("context window"),
+      }),
+    ]);
+    expect(events.at(-1)).toMatchObject({ status: "failed", type: "turn/completed" });
+    expect(events.some((event) => event.type === "item/agentMessage/delta")).toBe(false);
+    expect(messages(events)).toEqual([]);
   });
 });

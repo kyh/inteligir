@@ -231,11 +231,12 @@ describe("combobox trigger nodes are excluded from serialization", () => {
   });
 
   it("serializing mid-combobox drops the trigger node, keeps the text, never warns", () => {
-    // the two-char triggers leave their first char in the text, which the serializer escapes.
+    // the two-char triggers leave their first char in the text: the serializer escapes a `[`, and
+    // a `{` is prose.
     for (const trigger of [
       { expected: "before after\n", keys: ["/"], type: KEYS.slashInput },
       { expected: "before \\[after\n", keys: ["[", "["], type: WIKI_INPUT_KEY },
-      { expected: "before \\{after\n", keys: ["{", "{"], type: FORMULA_INPUT_KEY },
+      { expected: "before {after\n", keys: ["{", "{"], type: FORMULA_INPUT_KEY },
     ]) {
       const editor = makeEditor("before after");
       editor.tf.select({ offset: 7, path: [0, 0] });

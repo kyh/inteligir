@@ -1,0 +1,12 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    // ES2024 and node for the suites, which run on node and read the page's own sources off disk.
+    // The page's own ceiling is tsconfig.page.json's ES2023, the stdlib of the window's WebKit.
+    "lib": ["ES2024", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client", "node"],
+    "tsBuildInfoFile": "${configDir}/../.cache/tsbuildinfo.suites.json"
+  },
+  "include": ["."]
+}

@@ -1,7 +1,7 @@
 // no @repo/ui import: it is web-only and the dep-dag guard refuses the edge, so the palette is
 // restated here.
 
-import { Platform, useColorScheme } from "react-native";
+import { useColorScheme } from "react-native";
 
 export interface Theme {
   readonly background: string;
@@ -59,5 +59,4 @@ export const SPACE = {
 
 export const RADIUS = { md: 8 } as const;
 
-// Android ships no Menlo, and an unresolvable family falls back to the proportional sans.
-export const MONO_FONT = Platform.select({ default: "monospace", ios: "Menlo" });
+export const MONO_FONT = "Menlo";

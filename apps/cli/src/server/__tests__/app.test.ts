@@ -260,7 +260,7 @@ describe("the device token", () => {
     const response = await bareRequest(STATUS_RPC_PATH, rpcPost({}));
     expect(response.status).toBe(401);
     expect(await response.text()).toContain("device token");
-    // the renderer tells the gate's 401 from a procedure's UNAUTHORIZED by this challenge alone.
+    // the page tells the gate's 401 from a procedure's UNAUTHORIZED by this challenge alone.
     expect(response.headers.get("www-authenticate")).toBe('Bearer realm="inteligir"');
   });
 
@@ -320,7 +320,7 @@ describe("the device token", () => {
     expect(crossPort.status).toBe(403);
   });
 
-  it("leaves /health outside the gate — it is a spawn probe", async () => {
+  it("leaves /health outside the gate — it is the harnesses' boot probe", async () => {
     const { bareRequest } = await bootTestApp();
     const response = await bareRequest(HEALTH_PATH);
     expect(response.status).toBe(200);

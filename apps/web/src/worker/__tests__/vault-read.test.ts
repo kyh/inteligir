@@ -14,10 +14,11 @@ import { describe, expect, it } from "vitest";
 import { vaultRepoName } from "../vault/git-remote";
 import { treeListingPrefix, treeListingSlot } from "../vault/tree-listing";
 import {
+  buildHeaders,
   deviceHeaders,
   emitted,
-  ORIGIN,
   loginDevice,
+  ORIGIN,
   postVaultRead,
   refusalCodeOf,
   signUpUser,
@@ -25,9 +26,6 @@ import {
 } from "./cloud-helpers";
 import type { VaultReadBody } from "./cloud-helpers";
 import { pushVaultFiles, ZERO_OID } from "./git-pack";
-
-const TREE = `${ORIGIN}${VAULT_API_PATHS.tree}`;
-const FILES = `${ORIGIN}${VAULT_API_PATHS.files}`;
 
 const readTree = async (credential: string, query: VaultReadBody): Promise<Response> =>
   await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(credential), query);
@@ -38,23 +36,13 @@ const readFile = async (credential: string, query: VaultReadBody): Promise<Respo
 const readAsset = async (credential: string, query: VaultReadBody): Promise<Response> =>
   await postVaultRead(VAULT_API_PATHS.asset, deviceHeaders(credential), query);
 
-// the form installs before the body form send, which the Worker answers for as long as one exists
-const getRead = async (
-  path: string,
-  credential: string,
-  query: Record<string, string>,
-): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}${path}?${new URLSearchParams(query).toString()}`, {
-    headers: deviceHeaders(credential),
-  });
-
 const loginAndPush = async (email: string, files: Parameters<typeof pushVaultFiles>[2]) => {
-  const { bearer } = await signUpUser(email);
-  const { credential } = await loginDevice(bearer, "Laptop");
+  const { cookie } = await signUpUser(email);
+  const { credential } = await loginDevice(cookie, "Laptop");
   const pushed = await pushVaultFiles(credential, "vault: initialize", files, ZERO_OID);
   expect(pushed.response.status).toBe(200);
   expect(await pushed.response.text()).toContain("unpack ok");
-  return { bearer, commit: pushed.commit, credential };
+  return { cookie, commit: pushed.commit, credential };
 };
 
 // the phone's paging: the first page resolves the head, every later one pins what it answered.
@@ -89,14 +77,14 @@ const MANY_FOLDERS = [
 
 describe("vault read rows", () => {
   it("refuses the wire without a credential", async () => {
-    const tree = await postVaultRead(VAULT_API_PATHS.tree, {}, {});
+    const tree = await postVaultRead(VAULT_API_PATHS.tree, buildHeaders(), {});
     expect(tree.status).toBe(401);
     expect(await refusalCodeOf(tree)).toBe("unauthorized");
   });
 
   it("answers not-found for an account with no hosted vault — without creating one", async () => {
-    const { bearer } = await signUpUser("vault-read-none@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("vault-read-none@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
     const tree = await readTree(credential, {});
     expect(tree.status).toBe(404);
     expect(await refusalCodeOf(tree)).toBe("not-found");
@@ -128,11 +116,11 @@ describe("vault read rows", () => {
   });
 
   it("keeps the head's listing once, and pages a many-folder vault from it", async () => {
-    const { bearer, commit, credential } = await loginAndPush(
+    const { cookie, commit, credential } = await loginAndPush(
       "vault-read-kept@example.test",
       MANY_FOLDERS.map((path) => ({ content: `# ${path}\n`, path })),
     );
-    const slot = treeListingSlot(env.PACK_CACHE, vaultRepoName(await userIdOf(bearer)));
+    const slot = treeListingSlot(env.PACK_CACHE, vaultRepoName(await userIdOf(cookie)));
 
     expect(await pageWholeTree(credential, 1)).toEqual({ commits: [commit], paths: MANY_FOLDERS });
     const kept = await slot.read(commit);
@@ -147,11 +135,11 @@ describe("vault read rows", () => {
   });
 
   it("walks a pinned page the slot does not hold, and leaves the slot to the newer head", async () => {
-    const { bearer, commit, credential } = await loginAndPush(
+    const { cookie, commit, credential } = await loginAndPush(
       "vault-read-walked@example.test",
       MANY_FOLDERS.map((path) => ({ content: `# ${path}\n`, path })),
     );
-    const slot = treeListingSlot(env.PACK_CACHE, vaultRepoName(await userIdOf(bearer)));
+    const slot = treeListingSlot(env.PACK_CACHE, vaultRepoName(await userIdOf(cookie)));
     const newerHead = "b".repeat(40);
     await slot.write(newerHead, []);
 
@@ -164,10 +152,10 @@ describe("vault read rows", () => {
   });
 
   it("walks again over a listing kept in an older shape, and keeps it with oids", async () => {
-    const { bearer, commit, credential } = await loginAndPush("vault-read-old-slot@example.test", [
+    const { cookie, commit, credential } = await loginAndPush("vault-read-old-slot@example.test", [
       { content: "# a\n", path: "a.md" },
     ]);
-    const repo = vaultRepoName(await userIdOf(bearer));
+    const repo = vaultRepoName(await userIdOf(cookie));
     const slot = treeListingSlot(env.PACK_CACHE, repo);
     const filled = await readTree(credential, {});
     expect(filled.status).toBe(200);
@@ -274,7 +262,7 @@ describe("vault read rows", () => {
       { content: "alpha's note\n", path: "secret.md" },
     ]);
     const beta = await signUpUser("vault-read-beta@example.test");
-    const betaDevice = await loginDevice(beta.bearer, "Laptop");
+    const betaDevice = await loginDevice(beta.cookie, "Laptop");
 
     const asBeta = await readFile(betaDevice.credential, { path: "secret.md", ref: alpha.commit });
     expect(asBeta.status).toBe(404);
@@ -371,7 +359,7 @@ describe("the vault batch route", () => {
     expect(rest.deferred).toEqual([]);
   });
 
-  it("refuses a batch it cannot read as one: too many paths, a repeat, no ref, or a GET", async () => {
+  it("refuses a batch it cannot read as one: too many paths, a repeat, or no ref", async () => {
     const { credential, commit } = await loginAndPush("vault-batch-shape@example.test", [
       { content: "# a\n", path: "a.md" },
     ]);
@@ -388,9 +376,6 @@ describe("the vault batch route", () => {
       expect(response.status, JSON.stringify(body).slice(0, 80)).toBe(400);
       expect(await refusalCodeOf(response)).toBe("bad-request");
     }
-    const get = await SELF.fetch(`${FILES}?ref=${commit}`, { headers: deviceHeaders(credential) });
-    expect(get.status).toBe(400);
-    expect(await refusalCodeOf(get)).toBe("bad-request");
   });
 
   it("answers not-found for a revision the vault does not hold, rather than every path missing", async () => {
@@ -406,7 +391,7 @@ describe("the vault batch route", () => {
   });
 
   it("refuses the wire without a credential", async () => {
-    const response = await postFiles({}, { paths: ["a.md"], ref: "c".repeat(40) });
+    const response = await postFiles(buildHeaders(), { paths: ["a.md"], ref: "c".repeat(40) });
     expect(response.status).toBe(401);
     expect(await refusalCodeOf(response)).toBe("unauthorized");
   });
@@ -416,7 +401,7 @@ describe("the vault batch route", () => {
       { content: "alpha's note\n", path: "secret.md" },
     ]);
     const beta = await signUpUser("vault-batch-beta@example.test");
-    const betaDevice = await loginDevice(beta.bearer, "Phone");
+    const betaDevice = await loginDevice(beta.cookie, "Phone");
     const asBeta = await postFiles(deviceHeaders(betaDevice.credential), {
       paths: ["secret.md"],
       ref: alpha.commit,
@@ -442,11 +427,10 @@ describe("the vault asset route", () => {
   });
 
   it("refuses the wire without a credential", async () => {
-    const response = await postVaultRead(
-      VAULT_API_PATHS.asset,
-      {},
-      { path: "a.png", ref: "c".repeat(40) },
-    );
+    const response = await postVaultRead(VAULT_API_PATHS.asset, buildHeaders(), {
+      path: "a.png",
+      ref: "c".repeat(40),
+    });
     expect(response.status).toBe(401);
     expect(await refusalCodeOf(response)).toBe("unauthorized");
   });
@@ -495,7 +479,7 @@ describe("the vault asset route", () => {
       { content: PNG_BYTES, path: "secret.png" },
     ]);
     const beta = await signUpUser("vault-asset-beta@example.test");
-    const betaDevice = await loginDevice(beta.bearer, "Laptop");
+    const betaDevice = await loginDevice(beta.cookie, "Laptop");
     const asBeta = await readAsset(betaDevice.credential, {
       path: "secret.png",
       ref: alpha.commit,
@@ -504,59 +488,32 @@ describe("the vault asset route", () => {
   });
 });
 
-describe("the GET form a stale install still sends", () => {
-  it("answers the tree, a file and an asset from the URL's query exactly as from the body", async () => {
-    const { credential, commit } = await loginAndPush("vault-read-stale@example.test", [
+describe("a read that is not a POST", () => {
+  it("is refused before the credential is read, whatever its URL carries", async () => {
+    const { credential, commit } = await loginAndPush("vault-read-get@example.test", [
       { content: "# a\n", path: "a.md" },
-      { content: PNG_BYTES, path: "media/α β.png" },
-      { content: "# b\n", path: "notes/b c.md" },
+      { content: PNG_BYTES, path: "media/a.png" },
     ]);
-
-    const pageOne = await getRead(VAULT_API_PATHS.tree, credential, { limit: "2" });
-    expect(pageOne.status).toBe(200);
-    const listed = emitted(vaultTreeResponseSchema, await pageOne.text());
-    const posted = await readTree(credential, { limit: 2 });
-    expect(listed).toEqual(emitted(vaultTreeResponseSchema, await posted.text()));
-    expect(listed.next).toBe("media/α β.png");
-    const pageTwo = await getRead(VAULT_API_PATHS.tree, credential, {
-      after: "media/α β.png",
-      limit: "2",
-      ref: commit,
+    const reads = [
+      [VAULT_API_PATHS.tree, { limit: "2" }],
+      [VAULT_API_PATHS.file, { path: "a.md" }],
+      [VAULT_API_PATHS.files, { paths: "a.md", ref: commit }],
+      [VAULT_API_PATHS.asset, { path: "media/a.png", ref: commit }],
+    ] as const;
+    for (const [path, query] of reads) {
+      const url = `${ORIGIN}${path}?${new URLSearchParams(query).toString()}`;
+      for (const headers of [deviceHeaders(credential), buildHeaders()]) {
+        const response = await SELF.fetch(url, { headers });
+        expect(response.status, path).toBe(400);
+        expect(await refusalCodeOf(response)).toBe("bad-request");
+      }
+    }
+    const put = await SELF.fetch(`${ORIGIN}${VAULT_API_PATHS.tree}`, {
+      body: "{}",
+      headers: { ...deviceHeaders(credential), "content-type": "application/json" },
+      method: "PUT",
     });
-    expect(
-      emitted(vaultTreeResponseSchema, await pageTwo.text()).entries.map((entry) => entry.path),
-    ).toEqual(["notes/b c.md"]);
-
-    const file = await getRead(VAULT_API_PATHS.file, credential, { path: "notes/b c.md" });
-    expect(file.status).toBe(200);
-    const postedFile = await readFile(credential, { path: "notes/b c.md" });
-    expect(emitted(vaultFileResponseSchema, await file.text())).toEqual(
-      emitted(vaultFileResponseSchema, await postedFile.text()),
-    );
-
-    const asset = await getRead(VAULT_API_PATHS.asset, credential, {
-      path: "media/α β.png",
-      ref: commit,
-    });
-    expect(asset.status).toBe(200);
-    expect(asset.headers.get("content-type")).toBe("image/png");
-    expect(asset.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
-    expect(new Uint8Array(await asset.arrayBuffer())).toEqual(PNG_BYTES);
-  });
-
-  it("refuses what the body form refuses: no credential, no vault, a query it cannot read", async () => {
-    const anonymous = await SELF.fetch(`${TREE}?limit=1`);
-    expect(anonymous.status).toBe(401);
-    expect(await refusalCodeOf(anonymous)).toBe("unauthorized");
-
-    const { bearer } = await signUpUser("vault-read-stale-none@example.test");
-    const { credential } = await loginDevice(bearer, "Phone");
-    const noVault = await getRead(VAULT_API_PATHS.tree, credential, {});
-    expect(noVault.status).toBe(404);
-    expect(await refusalCodeOf(noVault)).toBe("not-found");
-
-    const unpinned = await getRead(VAULT_API_PATHS.asset, credential, { path: "a.png" });
-    expect(unpinned.status).toBe(400);
-    expect(await refusalCodeOf(unpinned)).toBe("bad-request");
+    expect(put.status).toBe(400);
+    expect(await refusalCodeOf(put)).toBe("bad-request");
   });
 });

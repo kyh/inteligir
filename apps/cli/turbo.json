@@ -2,17 +2,11 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
-    // The workspace UI this bundle stages is `@repo/desktop#build`'s output,
-    // and the shell in turn PACKS this bundle — so the ordering is named on
-    // one side rather than inherited through `^build` on both, which would be
-    // a cycle. The renderer is built first, this bundle stages it, and
-    // `@repo/desktop#package` puts the result inside the .app.
+    // The root's `^build` reaches @repo/workspace, whose app page this bundle stages as its UI.
     "build": {
-      "dependsOn": ["^build", "@repo/desktop#build"],
       // The licence texts it stages sit at the repo root, in no workspace,
       // so turbo hashes them only where they are named.
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tools/licenses/**"],
-      "outputs": ["dist/**"]
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tools/licenses/**"]
     }
   }
 }

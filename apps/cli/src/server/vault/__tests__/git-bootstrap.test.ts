@@ -158,7 +158,7 @@ describe("the clone path", () => {
     const viaAccount = await ensureVaultRepo({
       git,
       remote: {
-        account: { id: "user-a", state: "known" },
+        accountId: "user-a",
         source: "account",
         url: path.join(scratchDir("inteligir-git-nowhere-2-"), "gone.git"),
       },
@@ -192,7 +192,7 @@ describe("clone failure classes", () => {
     const { created, cloned } = await ensureVaultRepo({
       git,
       remote: {
-        account: { state: "pending" },
+        accountId: "user-a",
         source: "account",
         url: `http://127.0.0.1:${String(port)}/vault.git`,
       },
@@ -266,7 +266,7 @@ describe("the bootstrap port", () => {
     let seeded = false;
     const args: EnsureVaultRepoArgs = {
       remote: {
-        account: { id: "user-x", state: "known" },
+        accountId: "user-x",
         source: "account",
         url: "https://cloud.test/v1/git/me/",
       },
@@ -307,7 +307,7 @@ describe("the bootstrap port", () => {
     let seeded = false;
     await ensureVaultRepo({
       remote: {
-        account: { id: "user-x", state: "known" },
+        accountId: "user-x",
         source: "account",
         url: "https://cloud.test/v1/git/me/",
       },

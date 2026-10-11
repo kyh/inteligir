@@ -11,7 +11,7 @@ const ROLES_DECLARED = "packages/ui/src/styles/globals.css";
 // where chrome is drawn. A file held in AWAITING_CONSUMER keeps its own sizes until a surface
 // draws it.
 const CHROME_ROOTS = [
-  "apps/desktop/src/renderer/",
+  "apps/workspace/src/",
   "packages/editor/src/",
   "packages/ui/src/components/",
   "packages/ui/src/ai/",

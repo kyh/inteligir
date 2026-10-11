@@ -9,7 +9,7 @@
     // not extend that base, because chaining it would silently drag in its
     // lib/target/module/exclude too.)
     "customConditions": ["react-native"],
-    "moduleSuffixes": [".ios", ".android", ".native", ""],
+    "moduleSuffixes": [".ios", ".native", ""],
     "paths": {
       "@/*": ["./src/*"]
     }

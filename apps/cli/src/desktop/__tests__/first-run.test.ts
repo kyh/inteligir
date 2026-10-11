@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, symlinkSync } from "node:fs";
 import path from "node:path";
 import { physicalVaultDir, PROD_DATA_DIR_NAME } from "inteligir/server/config";
-import { makeTempDir, TEMP_DIR_FOLDS_CASE } from "inteligir/server/testing";
+import { makeTempDir, TEMP_DIR_FOLDS_CASE } from "../../server/__tests__/boot-app";
 import { describe, expect, it } from "vitest";
 import {
   folderFactsOf,
@@ -48,12 +48,14 @@ describe("the launch decision", () => {
 });
 
 // a packaged launch on a scratch home, resolved as the desktop entry resolves it
+const PACKAGED: NodeJS.ProcessEnv = { NODE_ENV: "production" };
+
 const scratchLaunch = () => {
   const homeDir = makeTempDir("inteligir-first-run-");
   const resolve = (vaultDir?: string) =>
     vaultDir === undefined
-      ? resolveServerTarget({ env: {}, homeDir, isPackaged: true })
-      : resolveServerTarget({ env: {}, homeDir, isPackaged: true, vaultDir });
+      ? resolveServerTarget({ env: PACKAGED, homeDir })
+      : resolveServerTarget({ env: PACKAGED, homeDir, vaultDir });
   const launched = resolve();
   if (launched.kind !== "resolved") {
     throw new Error(launched.error);

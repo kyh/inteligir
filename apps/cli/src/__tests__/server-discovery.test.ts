@@ -167,24 +167,4 @@ describe("resolveServer", () => {
     expect(failure.message).toContain("inteligir serve");
     expect(failure.message).not.toContain("npm i -g");
   });
-
-  // an older server's row parses without the field: reading it as "no server" would send the
-  // user to start one while one is running.
-  it("refuses a server that publishes no version as older than this CLI, not as no server", () => {
-    const homeDir = scratch();
-    const dataDir = path.join(homeDir, "data");
-    writeServerRow(dataDir, {
-      pid: process.pid,
-      port: 24_911,
-      token: "abc",
-      vaultDir: path.join(homeDir, "vault"),
-    });
-    const failure = captureExit(() => {
-      resolveIn(homeDir, dataDir);
-    });
-    expect(failure.exitCode).toBe(EXIT_UNREACHABLE);
-    expect(failure.code).toBe("SERVER_VERSION_MISMATCH");
-    expect(failure.message).toContain(`older than this CLI (${CLI_VERSION})`);
-    expect(failure.message).not.toContain("No inteligir server is running");
-  });
 });

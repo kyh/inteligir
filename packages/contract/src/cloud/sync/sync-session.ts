@@ -10,10 +10,13 @@ import { PULL_DEFAULT_LIMIT } from "./sync-schema";
 // `id` is the fence: a pass captures the id it started under and re-checks it after every await,
 // because "is a session live?" can be yes about a different session — an old push's ack deletes
 // rows a new sign-in queued, and an old pull's page applies into the new session.
+// `outdated` keeps a credential the cloud never refused: this build is below its floor, and the
+// next build opens the same sign-in live again.
 export type SyncSession<TCredential> =
   | { kind: "off"; id: number }
   | { kind: "live"; id: number; credential: TCredential; client: CloudClient }
-  | { kind: "unauthorized"; id: number; credential: TCredential; detail: string };
+  | { kind: "unauthorized"; id: number; credential: TCredential; detail: string }
+  | { kind: "outdated"; id: number; credential: TCredential };
 
 export interface SyncSessionArgs<TCredential> {
   makeClient: (credential: TCredential, signal: AbortSignal) => CloudClient;
@@ -29,8 +32,6 @@ export interface SyncSessionHandle<TCredential> {
   // no transition: a disposing runtime's pass must observe cancellation, not be waited out.
   abort: () => void;
   fenced: (sessionId: number) => boolean;
-  // the id and client stand: only what is known about the same sign-in changed.
-  replaceCredential: (sessionId: number, credential: TCredential) => void;
   recordFailure: (failure: CloudFailure) => "continue" | "ended";
 }
 
@@ -47,10 +48,14 @@ export const createSyncSession = <TCredential>(
   };
 
   // only through recordFailure, so a session's end and its transport's teardown stay one event.
-  const endUnauthorized = (detail: string): void => {
+  const end = (failure: Extract<CloudFailure, { kind: "refused" }>): void => {
     if (session.kind === "live") {
       counter += 1;
-      session = { credential: session.credential, detail, id: counter, kind: "unauthorized" };
+      const { credential } = session;
+      session =
+        failure.code === "client-outdated"
+          ? { credential, id: counter, kind: "outdated" }
+          : { credential, detail: failure.message, id: counter, kind: "unauthorized" };
     }
     rotate();
   };
@@ -93,16 +98,9 @@ export const createSyncSession = <TCredential>(
       if (failure.kind !== "refused" || !SYNC_TERMINAL_CODES.has(failure.code)) {
         return "continue";
       }
-      endUnauthorized(failure.message);
+      end(failure);
       args.onEnded?.(failure);
       return "ended";
-    },
-
-    replaceCredential(sessionId, credential) {
-      if (session.kind !== "live" || session.id !== sessionId) {
-        return;
-      }
-      session = { client: session.client, credential, id: sessionId, kind: "live" };
     },
   };
 };

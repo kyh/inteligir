@@ -307,8 +307,8 @@ them as read-only — do not modify them.
   each with what it would allow (\`$ <command> (in <cwd>)\`, or
   \`write <scope>\`, and the agent's reason) and the answers it takes;
   \`--thread\` narrows to one thread. Read it before answering.
-- \`inteligir interactions answer <id> <resolution> [--thread <id>]\` — answer
-  one; resolutions are \`allow_once\`, \`allow_for_session\`, or \`deny\` (a
+- \`inteligir interactions answer <id> <decision> [--thread <id>]\` — answer
+  one; a decision is \`allow_once\`, \`allow_for_session\`, or \`deny\` (a
   request may offer only some of them, and the CLI says which). \`--thread\`
   names the owning thread; omitted, it is looked up from the listing.
 

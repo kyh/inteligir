@@ -46,13 +46,13 @@ describe("turnIntoAt round-trips", () => {
   it("paragraph → toggle → paragraph", () => {
     const editor = makeEditor("hello\n");
     turnIntoAt(editor, [0], opt("toggle"));
-    expect(out(editor)).toBe("<toggle>\n  hello\n</toggle>\n");
+    expect(out(editor)).toBe(":::toggle\nhello\n:::\n");
     turnIntoAt(editor, [0], opt("text"));
     expect(out(editor)).toBe("hello\n");
   });
 
   it("toggle with a body promotes its children on unwrap", () => {
-    const editor = makeEditor("<toggle>\n  summary\n\n  body\n</toggle>\n");
+    const editor = makeEditor(":::toggle\nsummary\n\nbody\n:::\n");
     turnIntoAt(editor, [0], opt("text"));
     expect(out(editor)).toBe("summary\n\nbody\n");
   });
@@ -151,13 +151,13 @@ describe("multi-block turn into", () => {
   });
 
   it("leaves a toggle's promoted child alone and converts the block after it", () => {
-    const editor = makeEditor("<toggle>\n  summary\n\n  child\n</toggle>\n\np\n");
+    const editor = makeEditor(":::toggle\nsummary\n\nchild\n:::\n\np\n");
     turnIntoBlocks(editor, [[0], [1]], opt("heading-2"));
     expect(out(editor)).toBe("## summary\n\nchild\n\n## p\n");
   });
 
   it("a selection across a toggle converts the toggle, its body and the block after it", () => {
-    const editor = makeEditor("<toggle>\n  summary\n\n  child\n</toggle>\n\np\n");
+    const editor = makeEditor(":::toggle\nsummary\n\nchild\n:::\n\np\n");
     turnIntoSelection(editor, opt("heading-2"), {
       anchor: { offset: 0, path: [0, 0, 0] },
       focus: { offset: 1, path: [1, 0] },
@@ -229,7 +229,7 @@ describe("moveBlocks", () => {
   });
 
   it("no-ops on a selection that spans two parents", () => {
-    const md = "<toggle>\n  summary\n\n  child\n</toggle>\n\nafter\n";
+    const md = ":::toggle\nsummary\n\nchild\n:::\n\nafter\n";
     const editor = makeEditor(md);
     moveBlocks(editor, [[0, 1], [1]], "up");
     expect(out(editor)).toBe(md);

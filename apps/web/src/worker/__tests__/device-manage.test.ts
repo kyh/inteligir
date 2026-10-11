@@ -41,11 +41,11 @@ const expectUnauthorized = async (response: Response): Promise<void> => {
 // the app holds its own credential and no session, so its Settings list and revoke with that
 describe("a device managing its account's devices", () => {
   it("lists its own account's devices and no one else's", async () => {
-    const { bearer } = await signUpUser("manage-list@example.test");
-    const mac = await loginDevice(bearer, "Mac");
-    await loginDevice(bearer, "Phone");
+    const { cookie } = await signUpUser("manage-list@example.test");
+    const mac = await loginDevice(cookie, "Mac");
+    await loginDevice(cookie, "Phone");
     const stranger = await signUpUser("manage-list-stranger@example.test");
-    await loginDevice(stranger.bearer, "Stranger's Mac");
+    await loginDevice(stranger.cookie, "Stranger's Mac");
 
     const response = await listAs(mac.credential);
     expect(response.status).toBe(200);
@@ -54,10 +54,24 @@ describe("a device managing its account's devices", () => {
     expect(devices.every((row) => row.revokedAt === null)).toBe(true);
   });
 
+  // the sign-in's row is a raw insert beside drizzle's writes, so both must spell the same unit
+  it("dates a sign-in and its first request in the instant each happened", async () => {
+    const before = Date.now();
+    const { cookie } = await signUpUser("manage-dates@example.test");
+    const mac = await loginDevice(cookie, "Mac");
+    const response = await listAs(mac.credential);
+    const after = Date.now();
+    const [row] = emitted(listDevicesResponseSchema, await response.text()).devices;
+    for (const at of [row?.createdAt, row?.lastSeenAt]) {
+      expect(at).toBeGreaterThanOrEqual(before);
+      expect(at).toBeLessThanOrEqual(after);
+    }
+  });
+
   it("revokes a sibling: its next request is refused and its live socket is closed", async () => {
-    const { bearer } = await signUpUser("manage-revoke@example.test");
-    const mac = await loginDevice(bearer, "Mac");
-    const phone = await loginDevice(bearer, "Lost Phone");
+    const { cookie } = await signUpUser("manage-revoke@example.test");
+    const mac = await loginDevice(cookie, "Mac");
+    const phone = await loginDevice(cookie, "Lost Phone");
     const socket = await openSocket(phone.credential, "mobile");
     // oxlint-disable-next-line promise/avoid-new -- the close code arrives as a socket event, which only a promise can hand to an await
     const closed = new Promise<number>((resolve) => {
@@ -81,8 +95,8 @@ describe("a device managing its account's devices", () => {
   it("answers another account's device as not found, and leaves it signed in", async () => {
     const alice = await signUpUser("manage-alice@example.test");
     const mallory = await signUpUser("manage-mallory@example.test");
-    const alicesMac = await loginDevice(alice.bearer, "Alice's Mac");
-    const mallorysMac = await loginDevice(mallory.bearer, "Mallory's Mac");
+    const alicesMac = await loginDevice(alice.cookie, "Alice's Mac");
+    const mallorysMac = await loginDevice(mallory.cookie, "Mallory's Mac");
 
     const response = await revokeAs(mallorysMac.credential, alicesMac.deviceId);
     expect(response.status).toBe(404);
@@ -91,9 +105,9 @@ describe("a device managing its account's devices", () => {
   });
 
   it("refuses a revoked credential both routes, in the words every device route uses", async () => {
-    const { bearer } = await signUpUser("manage-revoked@example.test");
-    const mac = await loginDevice(bearer, "Mac");
-    const phone = await loginDevice(bearer, "Phone");
+    const { cookie } = await signUpUser("manage-revoked@example.test");
+    const mac = await loginDevice(cookie, "Mac");
+    const phone = await loginDevice(cookie, "Phone");
     const revoked = await revokeAs(mac.credential, phone.deviceId);
     expect(revoked.status).toBe(200);
 

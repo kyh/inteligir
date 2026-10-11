@@ -5,10 +5,11 @@
 import { createCloudClient, postDeviceLogin, postDeviceSignUp } from "../cloud-client";
 import type { CloudEndpoint, CloudFailure, CloudResult } from "../cloud-client";
 import { normalizeDeviceName } from "./device-schema";
-import type { DeviceCredential, DeviceLoginResponse } from "./device-schema";
+import type { DeviceLoginResponse } from "./device-schema";
 
+// handed the whole answer: the account it names is the store's to keep or drop
 export interface DeviceCredentialStore {
-  write: (credential: DeviceCredential) => Promise<void>;
+  write: (login: DeviceLoginResponse) => Promise<void>;
 }
 
 export interface LoginDeviceArgs {
@@ -26,7 +27,7 @@ export interface SignUpDeviceArgs extends LoginDeviceArgs {
 }
 
 export type LoginOutcome =
-  | { kind: "logged-in"; credential: DeviceCredential }
+  | { kind: "logged-in"; login: DeviceLoginResponse }
   | { kind: "refused"; failure: CloudFailure };
 
 const keepCredential = async (
@@ -44,7 +45,7 @@ const keepCredential = async (
     await createCloudClient({ ...args.client, credential: result.value.credential }).signOut();
     throw error;
   }
-  return { credential: result.value, kind: "logged-in" };
+  return { kind: "logged-in", login: result.value };
 };
 
 export const loginDevice = async (args: LoginDeviceArgs): Promise<LoginOutcome> =>

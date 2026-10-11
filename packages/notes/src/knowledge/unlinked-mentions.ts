@@ -1,14 +1,17 @@
 // A plain-text mention is a name the wiki grammar would resolve, written without the brackets:
 // the doc's link name or one of its aliases, as a whole word, any case. Not its H1: `[[H1 text]]`
 // resolves to nothing unless that text is also the link name or an alias. Bytes the editor treats as
-// verbatim, code, links, urls, frontmatter and comment markers are withheld, because a "mention"
-// there is not prose and a Link would rewrite something that is not a sentence.
+// verbatim, code, links, urls, frontmatter, comment markers and `:::` marker lines are withheld,
+// because a "mention" there is not prose and a Link would rewrite something that is not a sentence.
 
+import type { Nodes } from "mdast";
+
+import { parseBare } from "../markdown/bare-parse";
 import { frontmatterEnd } from "../markdown/frontmatter";
+import { isMarkerLine } from "../markdown/remark-containers";
 import { COMMENT_MARKER_STRIP_RE } from "../markdown/remark-inline-constructs";
+import { isOpaqueSource } from "../markdown/remark-opaque";
 import { serializeWikiBody } from "../markdown/remark-wiki-link";
-import { insideVerbatim, verbatimSpans } from "../markdown/verbatim-spans";
-import type { VerbatimSpan } from "../markdown/verbatim-spans";
 import { splitLinesKeepingTerminators } from "../text/source-lines";
 import { wikiLinkName } from "./doc-file";
 import { wikiTargetForPath } from "./link-resolve";
@@ -92,12 +95,47 @@ const INLINE_WITHHELD = [
   HTML_TAG,
 ];
 
-// absolute offsets a mention may not sit inside: the editor's verbatim ranges plus the
-// markdown constructs the scan cannot mistake for prose. the regexes overlap the editor's
-// ranges on purpose: those come back empty for a doc its grammar refuses, and a refused doc
-// still has code and math the scan must not call a sentence
-const withheldSpansOf = (body: string, parts: readonly string[]): VerbatimSpan[] => {
-  const spans = verbatimSpans(body);
+// a quote's or a list item's own markers ahead of a line's text
+const LINE_PREFIX = /^(?:[ \t]*>)*[ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?/u;
+
+interface Span {
+  start: number;
+  end: number;
+}
+
+// neither math nor a tag the editor carries as its source string can open without one of these,
+// so a doc holding none skips the parse
+const VERBATIM_OPENER = /[<$]/u;
+
+// what the editor's grammar holds as a string it never reads as prose: math's latex, and every
+// construct it carries as its source
+const collectVerbatim = (node: Nodes, out: Span[]): void => {
+  if (node.type === "math" || node.type === "inlineMath" || isOpaqueSource(node)) {
+    const start = node.position?.start.offset;
+    const end = node.position?.end.offset;
+    if (start !== undefined && end !== undefined) {
+      out.push({ end, start });
+    }
+    return;
+  }
+  if ("children" in node) {
+    for (const child of node.children) {
+      collectVerbatim(child, out);
+    }
+  }
+};
+
+const insideAny = (spans: readonly Span[], start: number, end: number): boolean =>
+  spans.some((span) => start >= span.start && end <= span.end);
+
+// absolute offsets a mention may not sit inside: the editor's verbatim ranges plus, read line by
+// line, the markdown constructs that are not a sentence (code, links, urls, comment markers, and
+// math and html tags again)
+const withheldSpansOf = (body: string, parts: readonly string[]): Span[] => {
+  const spans: Span[] = [];
+  if (VERBATIM_OPENER.test(body)) {
+    collectVerbatim(parseBare(body), spans);
+  }
   const header = frontmatterEnd(body);
   if (header !== null) {
     spans.push({ end: header, start: 0 });
@@ -115,9 +153,13 @@ const withheldSpansOf = (body: string, parts: readonly string[]): VerbatimSpan[]
           fenceStart = null;
         }
       } else if (fenceStart === null) {
-        for (const pattern of INLINE_WITHHELD) {
-          for (const hit of part.matchAll(pattern)) {
-            spans.push({ end: offset + hit.index + hit[0].length, start: offset + hit.index });
+        if (isMarkerLine(part.replace(LINE_PREFIX, "").trimEnd())) {
+          spans.push({ end: offset + part.length, start: offset });
+        } else {
+          for (const pattern of INLINE_WITHHELD) {
+            for (const hit of part.matchAll(pattern)) {
+              spans.push({ end: offset + hit.index + hit[0].length, start: offset + hit.index });
+            }
           }
         }
       }
@@ -131,7 +173,7 @@ const withheldSpansOf = (body: string, parts: readonly string[]): VerbatimSpan[]
   return spans;
 };
 
-export const withheldSpans = (body: string): VerbatimSpan[] =>
+export const withheldSpans = (body: string): Span[] =>
   withheldSpansOf(body, splitLinesKeepingTerminators(body));
 
 const lineStarts = (parts: readonly string[]): number[] => {
@@ -156,7 +198,7 @@ const plainMentions = (body: string, parts: readonly string[], pattern: RegExp):
   const starts = lineStarts(parts);
   return raw.filter((match) => {
     const start = (starts[match.line - 1] ?? 0) + match.column;
-    return !insideVerbatim(withheld, start, start + match.length);
+    return !insideAny(withheld, start, start + match.length);
   });
 };
 

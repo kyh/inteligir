@@ -9,6 +9,7 @@ import { VAULT_REMOTE_PIN_ENV_VAR } from "@repo/contract/local/vault/remote-url"
 import { removeEntryWithComments } from "../comments/remove-with-comments";
 import { attributeWrites, base, refusals } from "../orpc";
 import { vaultWireError } from "./vault-refusals";
+import { guardRefusalError } from "./write-guard";
 
 export type RenameNote = (from: string, to: string) => Promise<VaultRenameResponse>;
 
@@ -45,18 +46,11 @@ const write = base.vault.write.handler(
         return written;
       }
       const result = await context.vault.service.writeGuarded(input.path, input.content, guard);
-      if (result.applied) {
-        attributeWrites(context, [result.path]);
-        return { path: result.path };
+      if (!result.applied) {
+        throw guardRefusalError(errors, input.path, result);
       }
-      if (result.reason === "exists") {
-        throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
-      }
-      // the client merges current with diff3 and retries; current is absent when the file is gone.
-      throw errors.CAS_MISMATCH({
-        data: result.current === null ? {} : { current: result.current },
-        message: `${input.path} changed since the base this write was derived from`,
-      });
+      attributeWrites(context, [result.path]);
+      return { path: result.path };
     }),
 );
 

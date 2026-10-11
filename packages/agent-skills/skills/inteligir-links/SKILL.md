@@ -69,6 +69,7 @@ bytes, so the source note stays the one place to edit it.
 
 Nothing remote loads inside a note: a remote image, video, tweet or page shows as
 a card that opens in the browser. An image the note must show goes in the vault.
+An embed has no alt text; `![Chart](https://…)` with alt text is a remote image.
 
 Vault media lives under `assets/` and is referenced by that relative path. Do
 not write `file://` or absolute local paths — they break for every other person

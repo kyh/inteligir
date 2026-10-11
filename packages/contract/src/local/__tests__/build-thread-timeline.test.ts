@@ -35,7 +35,7 @@ const streamedTurnEvents = (): ThreadEvent[] => {
     },
     { scope: turn, threadId: THREAD_ID, type: "turn/started" },
     {
-      item: { content: [], id: "item_r", summary: [], type: "reasoning" },
+      item: { id: "item_r", text: "", type: "reasoning" },
       scope: turn,
       threadId: THREAD_ID,
       type: "item/started",
@@ -48,12 +48,7 @@ const streamedTurnEvents = (): ThreadEvent[] => {
       type: "item/reasoning/textDelta",
     },
     {
-      item: {
-        content: ["Scanned the vault."],
-        id: "item_r",
-        summary: ["scanned"],
-        type: "reasoning",
-      },
+      item: { id: "item_r", text: "Scanning the vault…", type: "reasoning" },
       scope: turn,
       threadId: THREAD_ID,
       type: "item/completed",
@@ -72,19 +67,11 @@ const streamedTurnEvents = (): ThreadEvent[] => {
       type: "item/started",
     },
     {
-      delta: "abc123 fix\n",
-      itemId: "item_c",
-      scope: turn,
-      threadId: THREAD_ID,
-      type: "item/commandExecution/outputDelta",
-    },
-    {
       item: {
         aggregatedOutput: "abc123 fix\ndef456 feat\n",
         approvalStatus: null,
         command: "git log --oneline -3",
         cwd: "/vault",
-        exitCode: 0,
         id: "item_c",
         status: "completed",
         type: "commandExecution",
@@ -119,28 +106,6 @@ const streamedTurnEvents = (): ThreadEvent[] => {
       threadId: THREAD_ID,
       type: "item/completed",
     },
-    {
-      scope: turn,
-      threadId: THREAD_ID,
-      tokenUsage: {
-        last: {
-          cachedInputTokens: 0,
-          inputTokens: 80,
-          outputTokens: 40,
-          reasoningOutputTokens: 5,
-          totalTokens: 120,
-        },
-        modelContextWindow: 200_000,
-        total: {
-          cachedInputTokens: 0,
-          inputTokens: 80,
-          outputTokens: 40,
-          reasoningOutputTokens: 5,
-          totalTokens: 120,
-        },
-      },
-      type: "thread/tokenUsage/updated",
-    },
     { scope: turn, status: "completed", threadId: THREAD_ID, type: "turn/completed" },
   ];
 };
@@ -149,8 +114,7 @@ describe("buildThreadTimeline", () => {
   it("projects the golden streamed turn", () => {
     const timeline = buildThreadTimeline(stored(streamedTurnEvents()));
     expect(threadTimelineSchema.parse(timeline)).toEqual(timeline);
-    expect(timeline.maxSequence).toBe(14);
-    expect(timeline.tokenUsage?.total.totalTokens).toBe(120);
+    expect(timeline.maxSequence).toBe(12);
 
     expect(timeline.rows.map((row) => ({ id: row.id, kind: row.kind }))).toEqual([
       { id: "user:1", kind: "conversation" },
@@ -184,16 +148,15 @@ describe("buildThreadTimeline", () => {
     if (reasoning.workKind !== "reasoning" || command.workKind !== "command") {
       throw new Error("unexpected work kinds");
     }
-    expect(reasoning.text).toBe("scanned");
+    expect(reasoning.text).toBe("Scanning the vault…");
     expect(command.outputHead).toEqual(["abc123 fix", "def456 feat"]);
     expect(command.outputLineCount).toBe(2);
-    expect(command.exitCode).toBe(0);
     expect(command.status).toBe("completed");
   });
 
   it("renders the streaming buffer while the item is open, then the final text", () => {
     const events = stored(streamedTurnEvents());
-    const midStream = buildThreadTimeline(events.slice(0, 10));
+    const midStream = buildThreadTimeline(events.slice(0, 9));
     const assistant = midStream.rows.find((row) => row.id === "item:turn_1:item_a");
     if (assistant?.kind !== "conversation") {
       throw new Error("expected the streaming assistant row");
@@ -310,9 +273,9 @@ describe("buildThreadTimeline", () => {
 
   it("a streaming delta carries ONLY what the streaming row gained", () => {
     const events = stored(streamedTurnEvents());
-    // between events 10 and 11 only the assistant row's text grows
-    const before = buildThreadTimeline(events.slice(0, 10));
-    const after = buildThreadTimeline(events.slice(0, 11));
+    // between events 9 and 10 only the assistant row's text grows
+    const before = buildThreadTimeline(events.slice(0, 9));
+    const after = buildThreadTimeline(events.slice(0, 10));
     const delta = computeTimelineDelta(before, after);
     expect(delta.rowOrder).toBeUndefined();
     expect(delta.upsertRows).toEqual([]);
@@ -320,7 +283,7 @@ describe("buildThreadTimeline", () => {
       {
         fromLength: "Two commits ".length,
         id: "item:turn_1:item_a",
-        sourceSeqEnd: 11,
+        sourceSeqEnd: 10,
         text: "landed today.",
       },
     ]);
@@ -329,7 +292,7 @@ describe("buildThreadTimeline", () => {
 
   it("a turn moves as a patch carrying only the child that changed", () => {
     const events = stored(streamedTurnEvents());
-    // event 7 is the command's outputDelta, a child of the turn row
+    // event 7 completes the command, a child of the turn row
     const streamed = computeTimelineDelta(
       buildThreadTimeline(events.slice(0, 6)),
       buildThreadTimeline(events.slice(0, 7)),
@@ -356,7 +319,7 @@ describe("buildThreadTimeline", () => {
   });
 
   it("projects an empty log to an empty timeline", () => {
-    expect(buildThreadTimeline([])).toEqual({ maxSequence: 0, rows: [], tokenUsage: null });
+    expect(buildThreadTimeline([])).toEqual({ maxSequence: 0, rows: [] });
   });
 });
 
@@ -376,7 +339,6 @@ const longTurnEvents = (commands: number): ThreadEvent[] => {
         approvalStatus: null,
         command: `make step-${index}`,
         cwd: "/vault",
-        exitCode: 0,
         id: `item_c${index}`,
         status: "completed",
         type: "commandExecution",
@@ -386,7 +348,7 @@ const longTurnEvents = (commands: number): ThreadEvent[] => {
       type: "item/completed",
     })),
     {
-      item: { content: [], id: "item_r", summary: [], type: "reasoning" },
+      item: { id: "item_r", text: "", type: "reasoning" },
       scope: LONG_TURN,
       threadId: THREAD_ID,
       type: "item/started",
@@ -457,7 +419,7 @@ const streamedThought = (tokens: number): ThreadTimelineEvent[] =>
   stored([
     { scope: THOUGHT_TURN, threadId: THREAD_ID, type: "turn/started" },
     {
-      item: { content: [], id: "item_t", summary: [], type: "reasoning" },
+      item: { id: "item_t", text: "", type: "reasoning" },
       scope: THOUGHT_TURN,
       threadId: THREAD_ID,
       type: "item/started",
@@ -517,8 +479,8 @@ describe("a streamed text", () => {
     expect(applyTimelineDelta(before, { ...delta, turnPatches: [misfit] })).toBeNull();
 
     const message = stored(streamedTurnEvents());
-    const held = buildThreadTimeline(message.slice(0, 10));
-    const streamed = computeTimelineDelta(held, buildThreadTimeline(message.slice(0, 11)));
+    const held = buildThreadTimeline(message.slice(0, 9));
+    const streamed = computeTimelineDelta(held, buildThreadTimeline(message.slice(0, 10)));
     const shorter = streamed.textAppends.map((row) => ({ ...row, fromLength: 0 }));
     expect(applyTimelineDelta(held, { ...streamed, textAppends: shorter })).toBeNull();
   });
@@ -528,7 +490,7 @@ describe("a streamed text", () => {
     const settled = stored([
       ...thought.map((entry) => entry.event),
       {
-        item: { content: [], id: "item_t", summary: ["settled"], type: "reasoning" },
+        item: { id: "item_t", text: "settled", type: "reasoning" },
         scope: THOUGHT_TURN,
         threadId: THREAD_ID,
         type: "item/completed",
@@ -555,7 +517,6 @@ const commandRow = (output: string) => {
           approvalStatus: null,
           command: "make",
           cwd: "/vault",
-          exitCode: 0,
           id: "item_c",
           status: "completed",
           type: "commandExecution",
@@ -600,52 +561,6 @@ describe("a command row", () => {
   });
 });
 
-const findReasoningText = (timeline: ReturnType<typeof buildThreadTimeline>): string => {
-  for (const row of timeline.rows) {
-    if (row.kind !== "turn") {
-      continue;
-    }
-    for (const child of row.children) {
-      if (child.kind === "work" && child.workKind === "reasoning") {
-        return child.text;
-      }
-    }
-  }
-  throw new Error("no reasoning row");
-};
-
-describe("reasoning text preference", () => {
-  it("settled reasoning prefers summary, falls back to content, then the stream buffer", () => {
-    const base = {
-      scope: turnScope("turn_r"),
-      threadId: THREAD_ID,
-    };
-    const build = (item: { summary: string[]; content: string[] }) =>
-      buildThreadTimeline(
-        stored([
-          { type: "turn/started", ...base },
-          {
-            type: "item/started",
-            ...base,
-            item: { content: [], id: "item_r", summary: [], type: "reasoning" },
-          },
-          { type: "item/reasoning/summaryTextDelta", ...base, delta: "strea", itemId: "item_r" },
-          { type: "item/reasoning/summaryTextDelta", ...base, delta: "ming", itemId: "item_r" },
-          {
-            type: "item/completed",
-            ...base,
-            item: { id: "item_r", type: "reasoning", ...item },
-          },
-          { type: "turn/completed", ...base, status: "completed" },
-        ]),
-      );
-
-    expect(findReasoningText(build({ content: ["raw"], summary: ["visible"] }))).toBe("visible");
-    expect(findReasoningText(build({ content: ["raw"], summary: [] }))).toBe("raw");
-    expect(findReasoningText(build({ content: [], summary: [] }))).toBe("streaming");
-  });
-});
-
 const statusesOf = (timeline: ThreadTimeline): [string, TimelineRowStatus | null][] =>
   timeline.rows
     .flatMap((row) => [row, ...(row.kind === "turn" ? row.children : [])])
@@ -677,19 +592,11 @@ describe("a log clipped for sync", () => {
         type: "item/started",
       },
       {
-        delta: output,
-        itemId: "item_c",
-        scope: turn,
-        threadId: THREAD_ID,
-        type: "item/commandExecution/outputDelta",
-      },
-      {
         item: {
           aggregatedOutput: output,
           approvalStatus: null,
           command: "make",
           cwd: "/vault",
-          exitCode: 2,
           id: "item_c",
           status: "failed",
           type: "commandExecution",

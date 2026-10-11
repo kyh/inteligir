@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -53,12 +53,12 @@ const EXPECTED = {
   "notes/archive/2025-recap.md": "canonical",
   "journal.md": "canonical",
   "kitchen-sink.md": "canonical",
-  "legacy-web-clip.md": "raw:parse-error",
+  // the angle autolink saves bare; the stray `{`, `<50ms` and the html stay
+  "legacy-web-clip.md": "formattable",
   "frontmatter-note.md": "canonical",
   "private-note.md": "canonical",
   "tagged.md": "canonical",
-  // legacy <callout> jsx converts to the fence and the attribute-name letters go with it.
-  "components-playground.md": "letters-diverge",
+  "components-playground.md": "canonical",
   "math-and-diagrams.md": "canonical",
   "wiki/hub.md": "canonical",
   "wiki/target note.md": "canonical",
@@ -97,4 +97,21 @@ describe("legacy corpus classification", () => {
       expect(letters(once), `${name} must preserve content`).toBe(letters(md));
     }
   });
+});
+
+// the notes a first run copies into a new vault, which a new user opens before writing their own
+const SEED_DIR = `${REPO_ROOT}/apps/cli/seed/`;
+
+describe("the starter vault", () => {
+  const notes = readdirSync(SEED_DIR).filter((name) => name.endsWith(".md"));
+
+  it("is found at all", () => {
+    expect(notes.length).toBeGreaterThan(0);
+  });
+
+  for (const name of notes.toSorted()) {
+    it(`${name} opens rich and saves byte-exact`, () => {
+      expect(classify(readFileSync(`${SEED_DIR}${name}`, "utf-8"))).toBe("canonical");
+    });
+  }
 });

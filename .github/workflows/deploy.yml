@@ -39,7 +39,10 @@ jobs:
           cache: true
 
       # diff against the deployed/web tag, not HEAD^: a multi-commit push whose last
-      # commit is docs-only would otherwise read as "web unchanged"
+      # commit is docs-only would otherwise read as "web unchanged". Only `turbo query` matches
+      # changed files against the build's inputs (turbo.json's futureFlags; `turbo ls` ignores
+      # it), so docs/privacy.md, in no workspace, still counts. Exit 0 is "unaffected"; 1
+      # (affected) and 2 (turbo could not tell) both deploy.
       - name: Detect changed apps
         id: check
         run: |
@@ -50,14 +53,11 @@ jobs:
             exit 0
           fi
 
-          for app in web; do
-            output=$(pnpm turbo ls --filter="@repo/${app}...[${BASE}]") || { echo "${app}=true" >> "$GITHUB_OUTPUT"; continue; }
-            if echo "$output" | grep -q "@repo/"; then
-              echo "${app}=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "${app}=false" >> "$GITHUB_OUTPUT"
-            fi
-          done
+          if pnpm turbo query affected --packages @repo/web --base "$BASE" --head HEAD --exit-code > /dev/null; then
+            echo "web=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "web=true" >> "$GITHUB_OUTPUT"
+          fi
 
   deploy-web:
     needs: detect-changes
@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # reviewers, wait timers and branch policy hang off the environment in repo settings
+    # the environment names the deployment and its URL
     environment:
       name: production
       url: https://inteligir.com
