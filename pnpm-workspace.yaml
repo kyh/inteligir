@@ -28,6 +28,7 @@ catalog:
   "@tailwindcss/vite": ^4.3.3
   "@testing-library/dom": ^10.4.2
   "@testing-library/react": ^16.3.3
+  "@tanstack/react-query": ^5.104.1
   # exact: the committed route tree is an artifact of the plugin version
   "@tanstack/react-router": 1.170.38
   "@tanstack/react-start": 1.168.56

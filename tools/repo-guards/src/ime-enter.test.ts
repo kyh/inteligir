@@ -10,7 +10,7 @@ const IME_HELPER = "@repo/ui/lib/ime";
 
 // where a keydown handler over a text field lives. .ts too: a Plate plugin's handler can sit in a
 // kit file with no markup
-const HANDLER_ROOTS = ["packages/ui/src/", "packages/editor/src/", "apps/desktop/src/renderer/"];
+const HANDLER_ROOTS = ["packages/ui/src/", "packages/editor/src/", "apps/workspace/src/"];
 
 // a key compared to Enter either way round, a switch arm on it, or a hotkey table row naming it
 const TESTS_ENTER =

@@ -1,7 +1,8 @@
 # @repo/desktop — the shipped product
 
-The window, and the page inside it. This app owns **no vault, no agent and no
-index**: those live in the server it starts, and everything here is what a
+The window around the page `@repo/workspace` builds
+([`apps/workspace`](../workspace/README.md)). This app owns **no vault, no agent
+and no index**: those live in the server it starts, and everything here is what a
 browser tab cannot give — a dedicated window, a menu-bar icon, a menu, the
 updater, and a process that starts and stops the server with the app. It is a
 Tauri 2 shell: Rust over the system's own WebKit (WKWebView on the Mac), which
@@ -9,13 +10,14 @@ runs the CLI's server on the node it ships beside itself (issue #889).
 
 ```
 src-tauri/      the shell, in Rust: the windows and their pin, the server it starts and stops,
-                the first run, the vault switch, the updater, the menus and the menu-bar icon
-src/renderer/   the page — TanStack Router file routes over @repo/contract/local — which every
-                vault's server answers; and first-run.html, the page a launch with no vault
-                opens, which the shell carries inside it (first-run/)
-src/*.ts        what the page and the shell say to each other: the command rows
-                (ipc-contract.ts) and the states they carry, parsed on the page's side
+                the first run, the vault switch, the updater, the menus and the menu-bar icon;
+                it embeds @repo/workspace's first-run page (`frontendDist`)
+scripts/        the package step and its smoke, TypeScript node runs as it stands
 ```
+
+What the page and the shell say to each other lives on the page's side, in
+`apps/workspace/src/shell/`: the command rows (`ipc-contract.ts`) and the states
+they carry, parsed there.
 
 ## The shell asks the CLI, and spells none of its rules
 
@@ -73,7 +75,7 @@ picked switch (File › Open Vault…, Settings) asks first when another service
 syncs the folder, in the first run's words (`outsideSyncWarning` in
 `@repo/contract/local/vault/vault-folder`).
 
-`/welcome` (`src/renderer/routes/_workspace/welcome.tsx`) draws over the
+`/welcome` (`apps/workspace/src/routes/_workspace/welcome.tsx`) draws over the
 workspace like Settings, so the vault loads underneath, and offers two steps in
 turn, each with Skip for now: the agent (`AgentSignIn`), then an account
 (`AccountForm`). A fresh checkout's `pnpm dev` shows the first run too, since
@@ -99,13 +101,14 @@ read each other's cookies or localStorage. The page's preferences are that
 store's localStorage.
 
 The page reaches the shell through Tauri's commands, one row each in
-`src/ipc-contract.ts` (its name beside its argument and answer schemas), over
-`src/renderer/shell-commands.ts`, the page's one door: a call per row, typed
+`apps/workspace/src/shell/ipc-contract.ts` (its name beside its argument and
+answer schemas), over `apps/workspace/src/shell/shell-commands.ts`, the page's
+one door: a call per row, typed
 from the row, parsing every answer and every event against it. Its
 `underShell()` says whether the page runs inside the shell; a browser tab on
 the same server does not, and every surface that needs the shell draws
 nothing there. The suites answer those calls through Tauri's own IPC mock
-(`src/renderer/__tests__/mock-shell.ts`), so they run the real command names
+(`apps/workspace/src/shell/__tests__/mock-shell.ts`), so they run the real command names
 and the answer parse. The commands are granted when the shell
 opens the window, to that window and the server's exact origin alone
 (`grant_app_window` in `src-tauri/src/window.rs`), since the port is the
@@ -113,7 +116,7 @@ server's to choose; `src-tauri/capabilities/app-window.json` grants nothing,
 and lists them only so the build keeps them (`removeUnusedCommands`). A
 refusal is an answer, never a rejected promise: a rejection is a fault. One
 envelope carries it, `src-tauri/src/answer.rs` in the shell and
-`src/shell-answer.ts` in the page, and a command that can fail only by a fault
+`apps/workspace/src/shell/shell-answer.ts` in the page, and a command that can fail only by a fault
 answers its value bare.
 
 ## The origin pin is the whole security surface
@@ -245,13 +248,13 @@ launch keeps the developer's own git, as `pnpm e2e` does.
 
 Spell check is the page's own: the `spellcheck` attribute on the document
 root, a page preference, which WebKit's checker honours and every field
-inherits unless it sets its own (`src/renderer/app/spellcheck.ts`). macOS
+inherits unless it sets its own (`apps/workspace/src/app/spellcheck.ts`). macOS
 picks the languages.
 
 WKWebView answers no `window.print()`, so Export as PDF asks the shell to run
 the print panel as a sheet over the window (`print_page`). A print is light
 whatever the window shows, because the theme steps aside between WebKit's
-`beforeprint` and `afterprint` (`src/renderer/app/note/export-pdf.ts`), which
+`beforeprint` and `afterprint` (`apps/workspace/src/app/note/export-pdf.ts`), which
 it fires for the shell's sheet as a browser does for `window.print()`.
 
 ## Running it
@@ -259,17 +262,17 @@ it fires for the shell's sheet as a browser does for `window.print()`.
 ```bash
 pnpm dev              # tauri dev: the page's Vite server, the shell compiled and
                       # launched, and the CLI bundle rebuilt first
+pnpm dev:workspace    # the page alone in a browser tab, on the same server, no Rust
 ```
 
-The shell RUNS that bundle, which is why the dev task depends on
-`inteligir#build` — a stale `dist/` is a window on last week's server with no
-error anywhere. Iterating on the SERVER is `pnpm cli serve` in its own
+The shell RUNS that bundle, which is why the dev task depends on `^build` — a
+stale `dist/` is a window on last week's server with no error anywhere. Iterating on the SERVER is `pnpm cli serve` in its own
 terminal: that runs the TypeScript source under tsx, and a shell started
 afterwards adopts it. A debug build's window has WebKit's inspector (right
 click, Inspect Element).
 
-The shell's unit tests (`cargo test`, beside the page's vitest suites in
-`pnpm test`) cover the policy, never the glue. `pnpm e2e`'s shell scenarios are
+The shell's unit tests (`cargo test`, this workspace's whole `pnpm test`) cover
+the policy, never the glue. `pnpm e2e`'s shell scenarios are
 the glue (`tools/e2e/README.md`): they launch the checkout's unbundled shell
 (`pnpm turbo run build:shell --filter=@repo/desktop`) on a scratch home through
 `tauri-driver` and WebKitGTK's WebDriver, and `desktop-shell` asserts that the
@@ -391,7 +394,7 @@ queued. A shell outside a bundle, or a pack with no updater key, reports
 itself disabled with the reason instead of checking a feed it does not have.
 The state is one plain value, a union by status in which each status carries
 only what it knows, reduced in the shell (`src-tauri/src/update_state.rs`) and
-parsed off the bridge by the page (`src/update-state.ts`).
+parsed off the bridge by the page (`apps/workspace/src/shell/update-state.ts`).
 
 ## What is deliberately not here
 

@@ -1,7 +1,7 @@
 # @repo/contract
 
 ONE contract package, TWO entry points. `@repo/contract/local` is the oRPC contract
-the desktop renderer and the CLI compile against and `inteligir serve`
+the workspace UI and the CLI compile against and `inteligir serve`
 implements. `@repo/contract/cloud` is the wire between an install and the Cloudflare
 Worker — and the client runtime core both the CLI and the phone run over it.
 
@@ -104,7 +104,7 @@ src/
   a capture to the vault. It reaches nothing under `/local` either, pinned by
   the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as apps/web: a phone
   install may be months stale against the deployed Worker.
-- **apps/desktop** compiles against `/local` alone.
+- **apps/workspace** compiles against `/local` alone.
 
 ## Invariants
 

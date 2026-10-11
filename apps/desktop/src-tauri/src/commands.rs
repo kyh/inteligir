@@ -1,4 +1,4 @@
-//! What a page may ask the shell, one command per row of `apps/desktop/src/ipc-contract.ts`. Each
+//! What a page may ask the shell, one command per row of `apps/workspace/src/shell/ipc-contract.ts`. Each
 //! answers a plain value the page parses with that row's schema. A command that can be refused
 //! answers an `Answer`, so the page shows the refusal in the shell's words; one that can fail only
 //! by a fault answers a `Result`, whose `Err` rejects.

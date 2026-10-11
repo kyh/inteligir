@@ -166,7 +166,7 @@ src/
   touch toolbar's image button; a picked path lands through `insertVaultImage`,
   as a paste does). The editor never reaches the
   server for any of it; each host installs it once
-  (`apps/desktop/src/renderer/app/note/vault-provider.tsx`, and the phone's
+  (`apps/workspace/src/app/note/vault-provider.tsx`, and the phone's
   over its WebView bridge, `apps/mobile-editor/src/host/page-host.ts`),
   building the resolver store with `link-resolver-store.ts` and
   `readNoteFormulas` with `note-formulas.ts` over its own reads, and `host.ts` is
@@ -209,7 +209,7 @@ pnpm --filter @repo/editor test
 Two vitest projects: `editor` (node, `*.test.ts`) for the pipeline, the
 fixtures, the property/adversarial harnesses and the open-note store;
 `editor-dom` (jsdom, `*.test.tsx`) for the components. `editor-dom` runs the
-sources through the React Compiler as the shipped renderer does, so a
+sources through the React Compiler as the shipped page does, so a
 memoized read that goes stale fails here (`compiled-under-test.test.tsx`
 fails if the plugin goes). Component tests drive the DOM with `fireEvent` —
 `@testing-library/user-event` is deliberately not a dependency.

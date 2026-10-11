@@ -1,5 +1,5 @@
 //! What a command that can be refused answers, parsed by the page against `answerSchema`
-//! (`apps/desktop/src/shell-answer.ts`): `{ ok: true }`, with the state the page adopts when there
+//! (`apps/workspace/src/shell/shell-answer.ts`): `{ ok: true }`, with the state the page adopts when there
 //! is one, or `{ ok: false, reason }` in the shell's words. A refusal crosses as a value; a command
 //! that can fail only by a fault answers a `Result` instead, and its `Err` rejects.
 

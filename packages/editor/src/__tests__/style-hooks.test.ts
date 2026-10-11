@@ -215,15 +215,15 @@ describe("editor style hooks", () => {
     ).toBe(true);
   });
 
-  it.each([
-    "apps/desktop/src/renderer/styles/globals.css",
-    "apps/mobile-editor/src/styles/globals.css",
-  ])("the host stylesheet %s imports the sheet, so the rules actually ship", (host) => {
-    const globals = fs.readFileSync(path.join(REPO_ROOT, host), "utf-8");
-    expect(
-      globals.includes(`@import "@repo/editor/styles.css";`),
-      `${host} does not import @repo/editor/styles.css.\n` +
-        `  rule: every rule this suite pins is inert until the host's stylesheet pulls the sheet in — the lockstep proves the selectors agree, this proves anyone loads them\n`,
-    ).toBe(true);
-  });
+  it.each(["apps/workspace/src/styles/globals.css", "apps/mobile-editor/src/styles/globals.css"])(
+    "the host stylesheet %s imports the sheet, so the rules actually ship",
+    (host) => {
+      const globals = fs.readFileSync(path.join(REPO_ROOT, host), "utf-8");
+      expect(
+        globals.includes(`@import "@repo/editor/styles.css";`),
+        `${host} does not import @repo/editor/styles.css.\n` +
+          `  rule: every rule this suite pins is inert until the host's stylesheet pulls the sheet in — the lockstep proves the selectors agree, this proves anyone loads them\n`,
+      ).toBe(true);
+    },
+  );
 });

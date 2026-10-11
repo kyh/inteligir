@@ -224,7 +224,7 @@ edited through the same bundled binary and spawn policy
 
 Four trees are staged as CONTENT rather than code: the committed SQL
 migrations, the dialect skills the agent reads with its own shell, the
-workspace UI — the desktop renderer's build — which `serve` answers over plain
+workspace UI — `@repo/workspace`'s app page — which `serve` answers over plain
 HTTP so `--open` lands a browser in the product, and `tools/licenses` as
 `dist/licenses`, because the repo-root path no `files` glob can name is where
 the vendored sources' notices live. The migrations resolve SOURCE-FIRST — the
@@ -241,8 +241,9 @@ checkout on every CI run.
 
 The published surface is the bin and nothing else: `publishConfig.exports` is
 `{}`, so pnpm rewrites the manifest on the way out. The subpath map in
-`package.json` is a WORKSPACE seam — apps/desktop, tools/e2e and
-tools/repo-guards compile against `inteligir/server/*` — and it is unshippable
+`package.json` is a WORKSPACE seam — apps/desktop's smoke compiles against
+`inteligir/scripts/smoke-lib`, tools/e2e and tools/repo-guards against
+`inteligir/server/*` — and it is unshippable
 as written, since those modules target `src/`, which `files` does not carry,
 and import devDependencies and unpublished `@repo/*` packages. Advertising a
 subpath a real install answers with ERR_MODULE_NOT_FOUND is the failure this
@@ -257,5 +258,11 @@ the server's own: the knowledge index over its vault, and the guarded write's
 verdict (`src/server/vault/write-guard.ts`). The server's own suites sit under
 `src/server/__tests__/`; the cloud ones run against a fake cloud that answers
 the inbox table the Worker's suite runs
-(`@repo/contract/cloud/test-support/inbox-scenarios`). The real-server integration lives in `e2e`
-(`cli-drive`): the CLI drives a booted instance under the scripted agent.
+(`@repo/contract/cloud/test-support/inbox-scenarios`). The workspace UI's
+suites that boot this server in-process sit under `src/workspace/__tests__/`,
+beside the harness they use (`src/server/__tests__/boot-app.ts`), so the page
+never depends on this package: the `.booted.test.tsx` ones render the page
+under jsdom (`vitest.config.ts`, a project of their own), and
+`src/workspace/tsconfig.json` compiles them with the DOM. The real-server
+integration lives in `e2e` (`cli-drive`): the CLI drives a booted instance
+under the scripted agent.

@@ -11,6 +11,7 @@
     "dev:gallery": "pnpm --filter @repo/ui-gallery dev",
     "dev:mobile": "turbo run dev -F @repo/mobile",
     "dev:web": "turbo watch dev -F @repo/web...",
+    "dev:workspace": "pnpm --filter @repo/workspace dev",
     "e2e": "pnpm --filter @repo/e2e e2e",
     "format": "oxfmt --check && turbo run format",
     "format:fix": "oxfmt --write && turbo run format:fix",

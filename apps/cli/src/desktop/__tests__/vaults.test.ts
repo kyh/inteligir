@@ -1,6 +1,6 @@
 import { mkdirSync, symlinkSync } from "node:fs";
 import path from "node:path";
-import { makeTempDir, TEMP_DIR_FOLDS_CASE } from "inteligir/server/testing";
+import { makeTempDir, TEMP_DIR_FOLDS_CASE } from "../../server/__tests__/boot-app";
 import { describe, expect, it } from "vitest";
 import type { ServerTarget } from "../server-start";
 import { planVaultSwitch, switchRefusalMessage } from "../vaults";

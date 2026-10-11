@@ -24,7 +24,7 @@ export const WINDOW_LOADED = "[desktop] window loaded";
 export const PAGE_UNDER_SHELL =
   'window.isTauri && document.querySelector("#root")?.firstElementChild != null';
 // a page expression asking the shell one command, by the name its row in
-// apps/desktop/src/ipc-contract.ts gives it, over the IPC the page's own calls ride
+// apps/workspace/src/shell/ipc-contract.ts gives it, over the IPC the page's own calls ride
 export const askShell = (
   command: string,
   args: Readonly<Record<string, string | boolean>> = {},

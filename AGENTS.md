@@ -9,7 +9,8 @@ builds from, and where older prose assumes a developer, the overview wins.
 
 There are TWO programs. `apps/desktop` is THE SHIPPED PRODUCT, installed as the
 signed dmg: a Tauri window on the local server, which it runs as its one child
-on the node the .app carries, showing the SPA that server serves. `apps/cli` is the `inteligir` binary: `serve` runs the whole
+on the node the .app carries, showing the SPA that server serves, which
+`apps/workspace` builds. `apps/cli` is the `inteligir` binary: `serve` runs the whole
 local server (the markdown vault, its index, the agent runtime and one oRPC API
 over SQLite), and every other verb but `vault open` is a client of a running
 one. The CLI is the agent's door and the developer's, which is how an agent
@@ -33,6 +34,8 @@ pnpm dev             # → THE PRODUCT: the shell over its own server, e.g.
 pnpm cli serve       # → the server ALONE, from source, no window. A shell
                      #   started afterwards ADOPTS it, so this is the loop for
                      #   iterating on server code.
+pnpm dev:workspace   # → the page alone in a browser tab, live-reloading, on
+                     #   that same server: the loop for UI work, no Rust.
 ```
 
 That's the whole product setup — no bootstrap script, no Docker, no cloud
@@ -184,7 +187,8 @@ One line per workspace; `CLAUDE.md` § Workspace Structure is the owned
 description of each.
 
 ```
-apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the window and the SPA in it
+apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the Tauri window around the SPA
+apps/workspace          @repo/workspace — the SPA: the page every vault's server answers, and the first run
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
 apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, dispatch, hosted vault
 apps/mobile             @repo/mobile — the iPhone app: notes in the editor page, offline, and asking a Mac's agent
@@ -208,6 +212,7 @@ tools/ui-gallery        @repo/ui-gallery — the @repo/ui gallery `pnpm dev:gall
 - `docs/development.md` — the dev loop in one page.
 - `apps/cli/README.md` — the binary's two modes and every verb.
 - `apps/desktop/README.md` — the shell, its commands, the packaged app.
+- `apps/workspace/README.md` — the page, its dev loop and where its suites run.
 - `docs/privacy.md` — what leaves the machine, what never does, what the phone
   keeps, how it dies.
 - `docs/releasing.md` — the release runbook and every owner-only check.

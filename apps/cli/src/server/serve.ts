@@ -167,7 +167,7 @@ const boot = async (
 
   const composeArgs: ComposeRuntimeArgs = {
     accounts: createAgentAccounts({ cwd: config.dataDir, env }),
-    // injected: the composed graph is also compiled under the browser tsconfig, where
+    // injected: the composed graph is also compiled under the workspace suites' DOM tsconfig, where
     // WebSocket's second argument is a protocol list, not node's `{ headers }`.
     cloudTransport: {
       openSocket: createCloudSocketOpener((url, headers) => new WebSocket(url, { headers })),

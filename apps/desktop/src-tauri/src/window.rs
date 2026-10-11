@@ -206,7 +206,7 @@ pub fn create_app_window<R: Runtime>(
     Ok(window)
 }
 
-/// The first run's page is the bundle's own: under `tauri dev` the renderer's dev server, else
+/// The first run's page is the bundle's own: under `tauri dev` the page's dev server, else
 /// Tauri's embedded assets.
 fn first_run_origin<R: Runtime>(app: &AppHandle<R>) -> String {
     let dev_url = app

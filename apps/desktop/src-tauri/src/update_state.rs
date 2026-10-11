@@ -1,5 +1,5 @@
 //! The updater's one state, reduced here and parsed off the bridge by the page against
-//! `apps/desktop/src/update-state.ts`. Each status carries exactly what it knows, so no surface
+//! `apps/workspace/src/shell/update-state.ts`. Each status carries exactly what it knows, so no surface
 //! reads a version that status cannot have.
 
 use serde::Serialize;

@@ -14,6 +14,7 @@ import {
   resolveWorkspace,
   sourceOf,
   workspaceFiles,
+  workspaceSourceFiles,
   workspaces,
 } from "./repo";
 import type { Workspace } from "./repo";
@@ -32,10 +33,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // below the wire: an edge to @repo/contract would drag @orpc/contract and the contract's notes edge
     // into a package that only writes rows.
     "@repo/db": ["@repo/domain"],
-    // the page alone: the shell is Rust (src-tauri), and every rule it shares with the server it
-    // asks the CLI's desktop entry for, so no source here imports `inteligir`. its suites boot a
-    // server in-process, which is a test dependency, not a shipped edge.
-    "@repo/desktop": ["@repo/contract", "@repo/domain", "@repo/editor", "@repo/notes", "@repo/ui"],
+    // the shell is Rust (src-tauri) and holds no src/: the page it shows is @repo/workspace's, and
+    // every rule it shares with the server it asks the CLI's desktop entry for.
+    "@repo/desktop": [],
     "@repo/domain": [],
     // the `inteligir` edge is the binary it spawns and the config resolution naming this checkout's
     // instance; the @repo/mobile edge is the phone's own platform-free runtime, driven under node
@@ -59,6 +59,16 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // a dev page no row names, so an import of it from a shipped workspace fails here.
     "@repo/ui-gallery": ["@repo/ui"],
     "@repo/web": ["@repo/contract", "@repo/ui"],
+    // the page every vault's server answers and the first run the shell carries; it reaches no
+    // server and no shell source, only the wire to each. Its suites that boot a server live in
+    // apps/cli, so nothing here depends on `inteligir`.
+    "@repo/workspace": [
+      "@repo/contract",
+      "@repo/domain",
+      "@repo/editor",
+      "@repo/notes",
+      "@repo/ui",
+    ],
     // the server reaches no page: no @repo/ui, no @repo/editor, no react.
     inteligir: ["@repo/agent-runtime", "@repo/contract", "@repo/db", "@repo/domain", "@repo/notes"],
   }),
@@ -69,6 +79,10 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
 // things off one row: pnpm must link it, and nothing under src/ imports it.
 const DECLARED_ARTIFACT_EDGES = new Map<string, Record<string, string>>(
   Object.entries({
+    "@repo/desktop": {
+      "@repo/workspace":
+        "the first-run page the shell embeds (`frontendDist` in src-tauri/tauri.conf.json) and the Vite dev server `tauri dev` runs: a build output and a server, never a module",
+    },
     inteligir: {
       "@repo/agent-skills":
         "the dialect skills are CONTENT the agent reads with its shell — agent-shell-env.ts resolves the package's skills/ directory via createRequire and hands the path to agent sessions as INTELIGIR_SKILLS_DIR; no module import exists or should",
@@ -90,12 +104,13 @@ const platformSurfacesOf = (specifier: string): string[] => {
   if (specifier === "react-dom" || specifier.startsWith("react-dom/")) {
     surfaces.push("react");
   }
-  // the desktop shell's own API: only the desktop page, which runs inside the shell, may reach it
-  if (specifier.startsWith("@tauri-apps/")) {
-    surfaces.push("tauri");
-  }
   return surfaces;
 };
+
+// the desktop shell's own API, which answers only inside the shell's window: only the page that
+// window shows may reach it, so the rule is who may, not a row per package that may not
+const SHELL_API = "@tauri-apps/";
+const SHELL_API_CLIENTS = new Set(["@repo/workspace"]);
 
 interface PurityRule {
   forbidden: readonly string[];
@@ -106,32 +121,36 @@ interface PurityRule {
 const PURITY_RULES = new Map<string, PurityRule>(
   Object.entries({
     "@repo/agent-runtime": {
-      forbidden: ["react", "tauri"],
-      why: "it spawns provider processes, so it is node-side by definition — and nothing it exports may pull a process tree into a renderer; the grammars a client reads live in @repo/domain",
+      forbidden: ["react"],
+      why: "it spawns provider processes, so it is node-side by definition — and nothing it exports may pull a process tree into a page; the grammars a client reads live in @repo/domain",
     },
     "@repo/contract": {
-      forbidden: ["node", "react", "tauri"],
+      forbidden: ["node", "react"],
       why: "the contract both ends compile against: it loads in the desktop page, on node, on workerd and in React Native, so a platform import there is a package that stops loading somewhere",
     },
     "@repo/domain": {
-      forbidden: ["node", "react", "tauri"],
+      forbidden: ["node", "react"],
       why: "a zod-only leaf: the thread grammar is parsed on both sides of every wire",
     },
     "@repo/editor": {
-      forbidden: ["node", "tauri"],
+      forbidden: ["node"],
       why: "browser-only: Plate/Slate in the page, never in the Node process",
     },
     "@repo/mobile-editor": {
-      forbidden: ["node", "tauri"],
+      forbidden: ["node"],
       why: "a page in the phone's WebView, loaded from file://: nothing but the browser is there",
     },
     "@repo/notes": {
-      forbidden: ["node", "react", "tauri"],
+      forbidden: ["node", "react"],
       why: "the pure sharing seam: it runs in the browser AND on node, and every platform capability (the SQL driver, the clock, content hashes) is INJECTED",
     },
     "@repo/ui": {
-      forbidden: ["node", "tauri"],
+      forbidden: ["node"],
       why: "browser-only, and consumed by the Worker's SSR half as well as the local app",
+    },
+    "@repo/workspace": {
+      forbidden: ["node"],
+      why: "the page: it runs in the shell's WebKit or a browser tab, never in the Node process",
     },
   }),
 );
@@ -180,10 +199,22 @@ const edgesFrom = (workspace: Workspace, files: readonly string[]): Map<string, 
 
 const shippedEdges = new Map<string, Map<string, string[]>>();
 const testEdges = new Map<string, Map<string, string[]>>();
+// a workspace's own tooling outside src/, its scripts and configs: like a test's, what it imports
+// is a dependency the manifest declares, never an edge. The desktop's scripts are the whole of its
+// TypeScript.
+const toolingEdges = new Map<string, Map<string, string[]>>();
 for (const workspace of workspaces()) {
   const files = workspaceFiles(workspace);
+  const inSrc = new Set([...files.shipped, ...files.test]);
   shippedEdges.set(workspace.name, edgesFrom(workspace, files.shipped));
   testEdges.set(workspace.name, edgesFrom(workspace, files.test));
+  toolingEdges.set(
+    workspace.name,
+    edgesFrom(
+      workspace,
+      workspaceSourceFiles(workspace).filter((file) => !inSrc.has(file)),
+    ),
+  );
 }
 
 const declaredFor = (name: string): readonly string[] => {
@@ -238,7 +269,7 @@ describe("the package dependency DAG", () => {
     const violations: string[] = [];
     for (const workspace of workspaces()) {
       const declared = manifestWorkspaceDeps(workspace.manifest);
-      for (const bucket of [shippedEdges, testEdges]) {
+      for (const bucket of [shippedEdges, testEdges, toolingEdges]) {
         for (const [target, sites] of bucket.get(workspace.name) ?? []) {
           if (declared.has(target)) {
             continue;
@@ -258,10 +289,11 @@ describe("the package dependency DAG", () => {
   it("every workspace dependency a manifest declares is imported somewhere", () => {
     const violations: string[] = [];
     for (const workspace of workspaces()) {
-      const used = new Set([
-        ...(shippedEdges.get(workspace.name) ?? new Map<string, string[]>()).keys(),
-        ...(testEdges.get(workspace.name) ?? new Map<string, string[]>()).keys(),
-      ]);
+      const used = new Set(
+        [shippedEdges, testEdges, toolingEdges].flatMap((bucket) => [
+          ...(bucket.get(workspace.name) ?? new Map<string, string[]>()).keys(),
+        ]),
+      );
       const artifact = artifactEdgesFrom(workspace.name);
       for (const target of manifestWorkspaceDeps(workspace.manifest)) {
         if (used.has(target) || artifact[target] !== undefined) {
@@ -269,7 +301,7 @@ describe("the package dependency DAG", () => {
         }
         violations.push(
           `PHANTOM DEPENDENCY  ${workspace.dir}/package.json declares "${target}"\n` +
-            `  rule: a declared dependency has an importer; nothing under ${workspace.dir}/src imports this one\n` +
+            `  rule: a declared dependency has an importer; nothing under ${workspace.dir} imports this one\n` +
             `  fix: delete it — or, if ${workspace.name} INSTALLS AND EXECUTES ${target}'s build output instead of importing it, add a row to DECLARED_ARTIFACT_EDGES (tools/repo-guards/src/dep-dag.test.ts) saying so`,
         );
       }
@@ -369,6 +401,27 @@ describe("platform purity", () => {
             violations.push(
               `FORBIDDEN IMPORT  ${file} imports "${specifier}"\n` +
                 `  rule: ${workspace.name} may not reach ${surface} — ${rule.why}`,
+            );
+          }
+        }
+      }
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("only the page the shell shows reaches the shell's API", () => {
+    const violations: string[] = [];
+    for (const workspace of workspaces()) {
+      if (SHELL_API_CLIENTS.has(workspace.name)) {
+        continue;
+      }
+      const files = workspaceFiles(workspace);
+      for (const file of [...files.shipped, ...files.test]) {
+        for (const specifier of importsOf(file)) {
+          if (specifier.startsWith(SHELL_API)) {
+            violations.push(
+              `SHELL API OUTSIDE THE PAGE  ${file} imports "${specifier}"\n` +
+                `  rule: Tauri answers only inside the desktop shell's window, so only ${[...SHELL_API_CLIENTS].join(", ")}, the page it shows, reaches it`,
             );
           }
         }

@@ -11,8 +11,8 @@ const packageRoot = path.resolve(import.meta.dirname, "..");
 const distDir = path.join(packageRoot, "dist");
 const repoRoot = path.resolve(packageRoot, "..", "..");
 
-// the desktop app's page, which `serve` answers as the workspace UI (apps/desktop/vite.config.ts)
-const rendererDir = path.join(repoRoot, "apps", "desktop", "dist", "app");
+// the app page, which `serve` answers as the workspace UI (apps/workspace/vite.config.ts)
+const uiDir = path.join(repoRoot, "apps", "workspace", "dist", "app");
 
 const NODE_ESM_REQUIRE_BANNER = [
   'import { createRequire as __createRequire } from "node:module";',
@@ -159,12 +159,12 @@ await cp(path.join(repoRoot, "tools", "licenses"), path.join(distDir, "licenses"
 });
 
 // refused, not skipped: a bundle without the UI boots and opens a browser on a 404
-if (!existsSync(rendererDir)) {
+if (!existsSync(uiDir)) {
   throw new Error(
-    `the workspace UI is missing (${rendererDir}) — run \`pnpm --filter @repo/desktop build\` first`,
+    `the workspace UI is missing (${uiDir}) — run \`pnpm --filter @repo/workspace build\` first`,
   );
 }
-await cp(rendererDir, path.join(distDir, "ui"), { recursive: true });
+await cp(uiDir, path.join(distDir, "ui"), { recursive: true });
 
 process.stdout.write(
   "inteligir: bundled the server, the CLI, the desktop shell's door and the workspace UI\n",

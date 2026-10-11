@@ -6,9 +6,9 @@ import { describe, expect, it } from "vitest";
 
 import { REPO_ROOT, sourceOf, styleFiles, workspaceSourceFiles, workspaces } from "./repo";
 
-const DIALS = "apps/desktop/src/renderer/app/appearance-options.ts";
+const DIALS = "apps/workspace/src/app/appearance-options.ts";
 
-const DEFAULTS = "apps/desktop/src/renderer/styles/globals.css";
+const DEFAULTS = "apps/workspace/src/styles/globals.css";
 
 const MEASURE = "--editor-width";
 

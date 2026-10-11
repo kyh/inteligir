@@ -108,7 +108,7 @@ const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list] [--no-skip]
 
 // a hang backstop, far above any scenario's green run: they pass in seconds.
 const DEFAULT_SCENARIO_TIMEOUT_MS = 180_000;
-// a cold build runs the desktop renderer's vite build before the CLI bundles it.
+// a cold build runs the workspace's vite build before the CLI bundles it.
 const CLI_BUILD_TIMEOUT_MS = 300_000;
 // a cold build compiles the shell and every crate under it
 const SHELL_BUILD_TIMEOUT_MS = 1_200_000;

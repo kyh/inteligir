@@ -57,12 +57,13 @@ worktree under `.claude` is never read as this commit's tree.
 | ------------------------------ | ------------------------------------------------------------------------- |
 | `dep-dag.test.ts`              | The workspace DAG from BOTH sides: every workspace has a `DECLARED_EDGES` |
 |                                | row; shipped imports match it (an undeclared edge and a dead edge both    |
-|                                | fail); every import is in the importer's manifest; every manifest         |
-|                                | dependency is imported, or is a `DECLARED_ARTIFACT_EDGES` row (installed  |
-|                                | and executed, never imported — `inteligir` → `@repo/agent-skills`); no    |
-|                                | cycles. Then platform purity: `PURITY_RULES` per package (node, react,    |
-|                                | `@tauri-apps`), `@repo/domain` declares only zod, no package imports an   |
-|                                | app,                                                                      |
+|                                | fail); every import, a test's and a script's or config's included, is in  |
+|                                | the importer's manifest; every manifest dependency is imported, or is a   |
+|                                | `DECLARED_ARTIFACT_EDGES` row (installed and executed, never imported —   |
+|                                | `inteligir` → `@repo/agent-skills`, `@repo/desktop` → `@repo/workspace`); |
+|                                | no cycles. Then platform purity: `PURITY_RULES` per package (node,        |
+|                                | react), only `@repo/workspace` reaches `@tauri-apps`, `@repo/domain`      |
+|                                | declares only zod, no package imports an app,                             |
 |                                | every `CLOUD_ONLY_CLIENTS` row (`@repo/web`, `@repo/mobile`, each with    |
 |                                | why it ships apart) reaches `@repo/contract/cloud/*` and nothing else of  |
 |                                | the contract, `src/cloud` never reaches `src/local` and a third bucket    |
@@ -111,8 +112,9 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | handled in `lib.rs`, and granted by its window's capability (the app      |
 |                                | window's at runtime, `APP_WINDOW_COMMANDS` and                            |
 |                                | `APP_WINDOW_CORE_PERMISSIONS`); the update event, the server's ready      |
-|                                | marker, the CLI entry the shell runs and the env names it pins on a child |
-|                                | match; and each serde type in `launch.rs` reads the fields of its door    |
+|                                | marker, the CLI entry the shell runs, the env names it pins on a child    |
+|                                | and the one `apps/workspace/scripts/dev.ts` names its Vite under match;   |
+|                                | and each serde type in `launch.rs` reads the fields of its door           |
 |                                | answer's zod schema (`inteligir/desktop/door-answers`), which parses the  |
 |                                | `apps/desktop/src-tauri/fixtures/` the cargo tests read.                  |
 | `phone-page-csp.test.ts`       | The phone editor page's meta CSP (`apps/mobile-editor/index.html`) is     |
@@ -127,7 +129,7 @@ worktree under `.claude` is never read as this commit's tree.
 | `gallery-coverage.test.ts`     | Every component under the demoed roots is imported by the gallery         |
 |                                | (`pnpm dev:gallery`) or is a `NOT_DEMOED` row; `hooks` and `lib` are      |
 |                                | declared non-component roots.                                             |
-| `type-roles.test.ts`           | The chrome under `apps/desktop/src/renderer`, `packages/editor/src`,      |
+| `type-roles.test.ts`           | The chrome under `apps/workspace/src`, `packages/editor/src`,             |
 |                                | `packages/ui/src/components` and `packages/ui/src/ai` (minus              |
 |                                | `AWAITING_CONSUMER`) draws text only in the five roles; a fixed note size |
 |                                | is a `PROSE_SIZES` row with its reason.                                   |
@@ -139,8 +141,8 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | write only tokens something reads, every read resolves to a `globals.css` |
 |                                | declaration, every declaration is read, `--editor-width` carries no       |
 |                                | fallback, and every fallback spells the stylesheet default exactly.       |
-| `page-prefs.test.ts`           | Storage is read and written by key only in the desktop's `PREFS` table    |
-|                                | (`apps/desktop/src/renderer/app/prefs.ts`), and no other file spells one  |
+| `page-prefs.test.ts`           | Storage is read and written by key only in the workspace's `PREFS` table  |
+|                                | (`apps/workspace/src/app/prefs.ts`), and no other file spells one         |
 |                                | of its keys, which are read off the table's own rows; a store that is not |
 |                                | the shell's is an `ELSEWHERE` row with its reason.                        |
 | `workspace-coverage.test.ts`   | The walk's globs come from `pnpm-workspace.yaml` and their count matches  |
@@ -176,8 +178,9 @@ worktree under `.claude` is never read as this commit's tree.
 | `release-versions.test.ts`     | The CLI, the desktop and the phone manifests carry one version, and the   |
 |                                | phone's EAS build installs with the pnpm, the node major and at least the |
 |                                | eas-cli the repo pins — a release ships three artifacts as one product.   |
-| `ime-enter.test.ts`            | A source under `packages/ui/src`, `packages/editor/src` or the desktop    |
-|                                | renderer that tests a key against Enter imports `isImeComposing`, or is   |
+| `ime-enter.test.ts`            | A source under `packages/ui/src`, `packages/editor/src` or                |
+|                                | `apps/workspace/src` that tests a key against Enter imports               |
+|                                | `isImeComposing`, or is                                                   |
 |                                | a `NOT_A_TEXT_FIELD` row — the Enter that commits an IME candidate is not |
 |                                | the user's, and no unit suite types through a composition.                |
 | `e2e-scenario-table.test.ts`   | `tools/e2e/README.md`'s scenario table names every scenario `SCENARIOS`   |

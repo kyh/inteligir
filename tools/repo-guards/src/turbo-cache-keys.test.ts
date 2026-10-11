@@ -139,8 +139,8 @@ describe("every cached turbo task hashes the workspaces it depends on", () => {
   it("finds the tasks it judges", () => {
     expect(
       judged.map((task) => task.id),
-      "the desktop build inlines the editor and the ui — the sweep is broken, not the tree",
-    ).toContain("@repo/desktop#build");
+      "the workspace build inlines the editor and the ui — the sweep is broken, not the tree",
+    ).toContain("@repo/workspace#build");
   });
 
   it("every cached task with workspace dependencies carries a ^ edge", () => {

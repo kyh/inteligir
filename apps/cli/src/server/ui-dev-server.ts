@@ -1,8 +1,9 @@
-// Under the desktop shell's `tauri dev`, the window still loads this server's own origin, as a
-// packaged one does, so its sign-in, its cookie and its socket are the ones a release runs. Only
-// the page's files come from Vite's dev server instead of the bundle, so an edit lands with Vite's
-// hot reload. The shell names Vite's address; a production server never honours it, and it may
-// name only a loopback http origin.
+// Under the desktop shell's `tauri dev`, or the page's own loop (apps/workspace/scripts/dev.ts),
+// the window or the tab still loads this server's own origin, as a packaged one does, so its
+// sign-in, its cookie and its socket are the ones a release runs. Only the page's files come from
+// Vite's dev server instead of the bundle, so an edit lands with Vite's hot reload. Whichever
+// started this server names Vite's address; a production server never honours it, and it may name
+// only a loopback http origin.
 
 import { loopbackRequestOrigin } from "./loopback-origin";
 

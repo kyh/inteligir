@@ -11,10 +11,14 @@ import { loopbackOrigin, SERVER_FILE_NAME } from "inteligir/server/server-file";
 import type { ServerFile } from "inteligir/server/server-file";
 import { silentOwnerSentence } from "inteligir/server/server-probe";
 import type { AskServerStatus, StatusAnswer } from "inteligir/server/server-probe";
-import { makeTempDir } from "inteligir/server/testing";
 import type { SystemStatusResponse } from "@repo/contract/local/system/system-schema";
 import { describe, expect, it } from "vitest";
-import { bootTestApp, listenTestApp, TEST_SERVER_TOKEN } from "../../server/__tests__/boot-app";
+import {
+  bootTestApp,
+  listenTestApp,
+  makeTempDir,
+  TEST_SERVER_TOKEN,
+} from "../../server/__tests__/boot-app";
 import {
   adoptServer,
   describeServerVerdict,

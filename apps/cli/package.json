@@ -44,9 +44,7 @@
     "./server/server-probe": "./src/server/server-probe.ts",
     "./server/shutdown": "./src/server/shutdown.ts",
     "./server/vault-switch": "./src/server/vault-switch.ts",
-    "./server/testing": "./src/server/__tests__/boot-app.ts",
     "./server/ui-dev-server": "./src/server/ui-dev-server.ts",
-    "./server/vault/seed-vault": "./src/server/vault/seed-vault.ts",
     "./scripts/smoke-lib": "./scripts/smoke-lib.ts"
   },
   "publishConfig": {
@@ -56,7 +54,7 @@
   "scripts": {
     "build": "node scripts/build.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts && tsc --noEmit -p src/workspace",
     "smoke": "node scripts/smoke.ts"
   },
   "dependencies": {
@@ -76,15 +74,28 @@
     "@repo/contract": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/domain": "workspace:*",
+    "@repo/editor": "workspace:*",
     "@repo/notes": "workspace:*",
+    "@repo/ui": "workspace:*",
+    "@repo/workspace": "workspace:*",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
     "@types/better-sqlite3": "catalog:",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "citty": "catalog:",
     "consola": "catalog:",
     "esbuild": "catalog:",
     "hono": "catalog:",
+    "jsdom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:",
     "zod": "catalog:"
   },

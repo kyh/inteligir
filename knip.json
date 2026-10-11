@@ -7,34 +7,39 @@
     "apps/cli": {
       "entry": [
         "src/index.ts",
-        "src/**/__tests__/**/*.test.ts",
+        "src/**/__tests__/**/*.test.{ts,tsx}",
         "src/desktop/desktop-entry.ts",
         "src/server/vault/watcher/parcel-child-entry.ts",
         "src/server/knowledge/projection-worker.ts",
         "scripts/*.ts"
       ],
-      "project": ["src/**/*.ts", "scripts/**/*.ts"],
+      "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
       // the ACP adapters are resolved with require from the running bundle, never imported
       "ignoreDependencies": [
         "@agentclientprotocol/claude-agent-acp",
-        "@agentclientprotocol/codex-acp",
-        "tsx"
+        "@agentclientprotocol/codex-acp"
       ],
       // the vault service's suite makes a named pipe with the system's own mkfifo, which no
       // package provides
       "ignoreBinaries": ["mkfifo"]
     },
     "apps/desktop": {
+      "entry": ["scripts/*.ts"],
+      "project": ["scripts/*.ts"],
+      // a build output and a dev server, never a module: src-tauri/tauri.conf.json embeds its
+      // first-run page and runs its Vite under `tauri dev`
+      "ignoreDependencies": ["@repo/workspace"]
+    },
+    "apps/workspace": {
       // the first-run page is a build of its own (vite.config.ts), and first-run.html's script is
       // read by knip's vite plugin only from index.html
       "entry": [
         "scripts/*.ts",
-        "src/renderer/first-run/first-run-main.tsx",
-        "src/renderer/routes/**/*.tsx",
+        "src/first-run/first-run-main.tsx",
+        "src/routes/**/*.tsx",
         "src/**/__tests__/**/*.test.{ts,tsx}"
       ],
       "project": ["src/**/*.{ts,tsx,css}", "scripts/*.ts"],
-      "ignore": ["src/renderer/routeTree.gen.ts"],
       "ignoreDependencies": ["tailwindcss"]
     },
     "apps/mobile": {

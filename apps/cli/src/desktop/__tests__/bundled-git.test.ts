@@ -1,6 +1,6 @@
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { makeTempDir } from "inteligir/server/testing";
+import { makeTempDir } from "../../server/__tests__/boot-app";
 import { describe, expect, it, vi } from "vitest";
 import { bundledGitEnv, isExecutableFile, parseGitVersion, resolveGit } from "../bundled-git";
 import type { BundledGitReason, GitResolution, ResolveGitArgs } from "../bundled-git";

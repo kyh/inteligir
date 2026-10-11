@@ -26,6 +26,7 @@ routes and deploy, `AGENTS.md` the runnable quickstart for coding agents, and
 ```bash
 pnpm dev                # THE PRODUCT — the shell over its own server
 pnpm dev:desktop        # Alias of dev
+pnpm dev:workspace      # The page alone in a browser tab, on this checkout's server; no Rust
 pnpm dev:mobile         # apps/mobile: expo start
 pnpm cli serve          # The server ALONE, from source, no window; a shell adopts it
 pnpm cli <verb>         # Every other verb, against this checkout's instance
@@ -56,6 +57,13 @@ loads the server's own origin, as a packaged one does, and that server answers
 the page's files from Vite, so an edit reloads in place
 (`apps/cli/src/server/ui-dev-server.ts`). An edit to the shell's Rust rebuilds
 and relaunches it.
+
+Iterating on the PAGE needs no Rust: `pnpm dev:workspace` starts the same Vite,
+then this checkout's server from source with `INTELIGIR_UI_DEV_URL` naming it,
+and opens a browser tab on that server, signed in through the same one-time
+handoff (`apps/workspace/scripts/dev.ts`). A CSS edit reloads in place with no
+cargo, and Ctrl+C stops both. Whatever needs the shell (the updater, the vault
+switch, Reveal, printing, the diagnostics) draws nothing in a tab.
 
 Iterating on the SERVER is `pnpm cli serve` in its own terminal: that runs the
 TypeScript source under tsx, and a shell started afterwards ADOPTS it instead

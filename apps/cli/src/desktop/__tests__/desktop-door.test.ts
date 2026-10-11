@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { CONFIG_FILE_NAME, DEV_DATA_ROOT_DIR, physicalVaultDir } from "inteligir/server/config";
 import { pathContains } from "inteligir/server/path-containment";
-import { makeTempDir } from "inteligir/server/testing";
+import { makeTempDir } from "../../server/__tests__/boot-app";
 import { selectionRefusalMessage } from "inteligir/server/vault-switch";
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";

@@ -1,5 +1,5 @@
-// reachable from the renderer's suites through `inteligir/server/testing`, so everything imported
-// here compiles under the browser tsconfig: the cloud socket opener, the acp agent runtime and the
+// reachable from the workspace UI's suites (src/workspace/__tests__), so everything imported here
+// compiles under their DOM tsconfig: the cloud socket opener, the acp agent runtime and the
 // vendor account probe are injected (`cloudTransport`, `driver`, `accounts`) rather than imported,
 // and serve.ts supplies the real ones.
 
@@ -215,7 +215,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     onStatusChanged: () => {
       bus.notifyVault(["sync-status-changed"]);
     },
-    // the rebase's own files-changed notification carries the applied changes to the renderer.
+    // the rebase's own files-changed notification carries the applied changes to the page.
     onVaultPing: () => {
       void vault.git.syncNow();
     },

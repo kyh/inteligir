@@ -1,14 +1,14 @@
 # @repo/domain
 
 The zod-only leaf: the thread grammar every wire in the product carries, and
-the vocabulary the write layer announces change through. The desktop renderer,
+the vocabulary the write layer announces change through. The workspace UI,
 the local server, the cloud page planner and the phone all parse the same
 event with it, so it holds schemas and pure tables and nothing else — no node,
 no db, no transport, no React.
 
 ## Why it exists
 
-A thread event is written by the local server, replayed by the renderer,
+A thread event is written by the local server, replayed by the page,
 pushed through the Worker's merged log and pulled back down by another device,
 and every one of those parses it at its own boundary. One grammar in one
 package with one runtime dependency is what makes that the same parse on every
@@ -20,7 +20,7 @@ every consumer — and by `tsconfig.json` (`ES2023`, `types: []`), so a node
 global is a type error before it is a lint error.
 
 Consumers: `@repo/db`, `@repo/contract`, `@repo/agent-runtime`, the CLI server,
-the desktop renderer, and `apps/mobile`, whose synced log is stored as this
+the workspace UI, and `apps/mobile`, whose synced log is stored as this
 package's `ThreadEvent`.
 
 ## Layout

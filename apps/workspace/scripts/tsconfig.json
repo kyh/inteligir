@@ -1,0 +1,13 @@
+{
+  // node runs these files itself, stripping their types, so the program resolves as node does and
+  // refuses the syntax stripping cannot erase.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "types": ["node"],
+    "module": "nodenext",
+    "erasableSyntaxOnly": true,
+    "tsBuildInfoFile": "${configDir}/../.cache/tsbuildinfo.scripts.json"
+  },
+  "include": ["."]
+}

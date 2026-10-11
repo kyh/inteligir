@@ -10,7 +10,7 @@
     "isolatedModules": true,
     // Strictly stronger than isolatedModules: a value-import of a type-only
     // symbol fails typecheck instead of silently pulling runtime code into the
-    // renderer/RN bundle.
+    // page/RN bundle.
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "noEmit": true,

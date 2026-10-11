@@ -176,7 +176,7 @@ Reading a report or a screenshot means translating back.
 row: the VAULT's pass against where it syncs (`vault.status`,
 `vault.syncNow`; the pass is `apps/cli/src/server/vault/git-engine.ts`),
 worded only by `syncStateLabel` and `syncStateNote`
-(`apps/desktop/src/renderer/app/vault-hooks.ts`). "Only on this Mac" is the
+(`apps/workspace/src/app/vault-hooks.ts`). "Only on this Mac" is the
 `no-remote` state; "Synced by iCloud Drive" is a folder another service syncs,
 which the app leaves to it; "Sync paused" is any state only the engine can
 explain. Not the THREAD sync: actions reach other devices through the
@@ -187,7 +187,7 @@ with no button, and never ride the vault's remote.
 for that path (`apps/cli/src/server/vault/git-history.ts`), each version named
 by when and by whom (`authorKind`: you, the agent, or another device), never
 by a commit subject or sha. Restoring one is an ordinary guarded write of its
-bytes (`apps/desktop/src/renderer/app/actions/history-tab.tsx`). Not the
+bytes (`apps/workspace/src/app/actions/history-tab.tsx`). Not the
 editor's own undo (⌘Z), which lives and dies with the open note, and not
 **Undo changes**.
 
@@ -202,7 +202,7 @@ restore, which puts back exact bytes and so drops whatever came after.
 **Kept both versions** — what the window says when a sync met a note two
 devices changed on the same lines: the **conflict copy** above, named in the
 user's words by `describeSyncConflict` (`@repo/notes/sync/conflict-copy`) and
-said once per report (`apps/desktop/src/renderer/app/sync-conflict-notices.ts`).
+said once per report (`apps/workspace/src/app/sync-conflict-notices.ts`).
 There is no conflict state to clear: sync never stops for one.
 
 **Account** and **Devices** — Settings › Account: an inteligir account (Better
@@ -210,12 +210,12 @@ Auth, in `apps/web`) and this install's DEVICE CREDENTIAL, the one secret a Mac
 or a phone keeps after signing in (`<dataDir>/device-credential`,
 `apps/cli/src/server/cloud/credential-store.ts`). Devices lists the account's
 credentials and revokes a lost one
-(`apps/desktop/src/renderer/app/settings/account-section.tsx`); each sign-in
+(`apps/workspace/src/app/settings/account-section.tsx`); each sign-in
 mints a new device, and this Mac leaves only by signing out. Not the agent's
 sign-in (**Sign in with Claude**), which holds no inteligir account.
 
 **Advanced** — Settings › Advanced
-(`apps/desktop/src/renderer/app/settings/advanced-section.tsx`), the one
+(`apps/workspace/src/app/settings/advanced-section.tsx`), the one
 product surface that keeps the engine's words: where the vault syncs (its own
 origin, `sync-remote-row.tsx`), the raw sync state and git's last error, the
 thread sync's, this device's id, the data folder and the debug-logging switch.
@@ -232,7 +232,7 @@ read (`INTELIGIR_CONNECTED_DIRS`).
 vendor's own login, run by the server through the bundled binary or adapter
 (`agents.signIn`, `apps/cli/src/server/agents/agent-sign-in.ts`) into the
 vendor's shared store (`~/.claude`, `~/.codex`), and drawn everywhere by one
-`AgentSignIn` (`apps/desktop/src/renderer/app/agents/agent-sign-in.tsx`).
+`AgentSignIn` (`apps/workspace/src/app/agents/agent-sign-in.tsx`).
 "Claude" is the `claude` harness and "ChatGPT" the `codex` one (their
 `displayName` in `HARNESS_NAMES`, `@repo/domain/harness`); since the store is
 shared, signing out here signs the vendor's own app (`vendorApp`) out too. Not

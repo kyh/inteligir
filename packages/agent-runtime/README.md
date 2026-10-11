@@ -20,7 +20,7 @@ is small — an `AgentRuntime` with `startThread`, `resumeThread`, `runTurn`,
 method kept for a re-vendor is a stub every test double must write.
 
 The package is node-side by definition (it spawns processes), so nothing it
-exports may pull a process tree into a renderer: the grammars a client reads
+exports may pull a process tree into a page: the grammars a client reads
 live in `@repo/domain`, and this package reaches `@repo/domain` alone
 (`tools/repo-guards/src/dep-dag.test.ts`, its `DECLARED_EDGES` row and its
 platform rule). Its one consumer is the `inteligir` server —

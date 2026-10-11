@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, symlinkSync } from "node:fs";
 import path from "node:path";
 import { physicalVaultDir, PROD_DATA_DIR_NAME } from "inteligir/server/config";
-import { makeTempDir, TEMP_DIR_FOLDS_CASE } from "inteligir/server/testing";
+import { makeTempDir, TEMP_DIR_FOLDS_CASE } from "../../server/__tests__/boot-app";
 import { describe, expect, it } from "vitest";
 import {
   folderFactsOf,
