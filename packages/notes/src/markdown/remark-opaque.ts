@@ -25,9 +25,9 @@ declare module "mdast" {
   }
 }
 
-// Plate's types declare mdx's nodes on mdast, and this file is compiled inside the editor's program
-// as well as this package's, where they do not exist; the grammar never produces one.
-type PlateDeclaredType =
+// Plate's types declare mdx's nodes on mdast, and this package's files are compiled inside the
+// editor's program as well as its own, where they do not exist; the grammar never produces one.
+export type PlateDeclaredType =
   | "mdxFlowExpression"
   | "mdxJsxFlowElement"
   | "mdxJsxTextElement"

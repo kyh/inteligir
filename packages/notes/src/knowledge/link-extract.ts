@@ -17,6 +17,7 @@ import {
 } from "../markdown/frontmatter";
 import type { ParsedProperties, YamlStringEntry } from "../markdown/frontmatter";
 import { isOpaqueSource } from "../markdown/remark-opaque";
+import type { PlateDeclaredType } from "../markdown/remark-opaque";
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
 import type { LinkKind } from "./link-kinds";
 import { inlineTagSpans, isTagName } from "./tag-grammar";
@@ -545,7 +546,7 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
   const scan: BodyScan = { headings: [], links: [], tags: [], title: null };
   const doc: ScanContext = { scan, source, spans: mode === "rewrite" };
   const verbatim: ScanContext = { scan, source, spans: false };
-  // oxlint-disable-next-line complexity -- the count is the node-type enumeration the `never` default holds total, not branching: every arm delegates
+  // oxlint-disable-next-line complexity -- the count is the node-type enumeration the default holds total, not branching: every arm delegates
   walk(tree, (node, at) => {
     const ctx = at.verbatim ? verbatim : doc;
     switch (node.type) {
@@ -613,8 +614,7 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
         break;
       }
       default: {
-        const unscanned: never = node;
-        return unscanned;
+        node satisfies Extract<Nodes, { type: PlateDeclaredType }>;
       }
     }
   });
