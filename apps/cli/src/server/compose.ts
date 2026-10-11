@@ -11,7 +11,6 @@ import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
 import type { AgentAccounts } from "./agents/agent-sign-in";
 import { createAgentsService } from "./agents/agents-service";
-import { listTurnChanges, undoTurnChanges } from "./agents/turn-changes";
 import { createBrowserSession } from "./browser-session";
 import { createCommentsService } from "./comments/comments-service";
 import { CloudPrefsStore } from "./cloud/cloud-prefs-store";
@@ -38,6 +37,7 @@ import { teardownStep } from "./shutdown";
 import type { ShutdownStep, TeardownStepName } from "./shutdown";
 import { ThreadService } from "./threads/service";
 import { createThreadOrigins } from "./threads/thread-origins";
+import { createTurnUndo } from "./threads/turn-changes";
 import { folderExternalSync } from "./vault/folder-facts";
 import { processGit } from "./vault/git-run";
 import { slowReadStall } from "./vault/slow-reads";
@@ -286,18 +286,13 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
       version: args.version,
     },
     threads,
-    turnChanges: async (threadId: string) =>
-      await listTurnChanges({ db, git: vault.git, threadId }),
-    undoTurn: async (threadId: string, turnId: string) =>
-      await undoTurnChanges({
-        db,
-        git: vault.git,
-        knowledge,
-        notifier: bus,
-        service: vault.service,
-        threadId,
-        turnId,
-      }),
+    turnUndo: createTurnUndo({
+      db,
+      git: vault.git,
+      knowledge,
+      notifier: bus,
+      service: vault.service,
+    }),
     vault,
     vaultPrefs,
   };

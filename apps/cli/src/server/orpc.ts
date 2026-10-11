@@ -8,7 +8,6 @@ import type { ORPCError } from "@orpc/server";
 import { implement } from "@orpc/server";
 import type { RecordAgentWrites } from "./agents/agent-driver";
 import type { AgentsService } from "./agents/agents-service";
-import type { ListTurnChanges, UndoTurnChanges } from "./agents/turn-changes";
 import type { BrowserSession } from "./browser-session";
 import type { CommentsService } from "./comments/comments-service";
 import type { CloudPrefsStore } from "./cloud/cloud-prefs-store";
@@ -18,6 +17,7 @@ import type { FoldersService } from "./folders/folders-service";
 import type { RenameTag } from "./knowledge/knowledge-router";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import type { ThreadService } from "./threads/service";
+import type { TurnUndo } from "./threads/turn-changes";
 import type { VaultPrefsStore } from "./vault/vault-prefs-store";
 import type { VaultRuntime } from "./vault/vault-runtime";
 import type { RenameNote } from "./vault/vault-router";
@@ -50,8 +50,7 @@ export interface AppContext {
   renameTag: RenameTag;
   system: SystemFacts;
   threads: ThreadService;
-  turnChanges: ListTurnChanges;
-  undoTurn: UndoTurnChanges;
+  turnUndo: TurnUndo;
   vault: VaultRuntime;
   vaultPrefs: VaultPrefsStore;
 }

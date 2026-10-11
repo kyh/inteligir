@@ -1294,7 +1294,7 @@ to the END of its group.
   device's push rewrites a sha, so the commit carries `Thread:` and `Turn:`
   (an undo `Undoes-Turn:`), spelled once in
   `apps/cli/src/server/vault/turn-trailers.ts` and read back by
-  `threads.turnChanges` (`apps/cli/src/server/agents/turn-changes.ts`). Undo
+  `threads.turnChanges` (`apps/cli/src/server/threads/turn-changes.ts`). Undo
   needs the bytes from just before the turn, so the turn starts with a
   checkpoint of the unclaimed dirty tree: the note the user was typing in
   lands as the engine's, never inside the turn. Undo covers reported edits
@@ -1573,7 +1573,9 @@ to the END of its group.
   (`@repo/notes/comments/revert-entries`), after the notes: an entry goes or
   comes back only while it is as the turn left it, and a store that keeps an
   entry the turn touched is named `edited-since` and still loses the rest.
-  `apps/cli/src/server/agents/turn-changes.ts`.
+  `apps/cli/src/server/threads/turn-changes.ts`, wired in `compose.ts` beside
+  the thread service rather than inside it, which would hand that service the
+  vault's git and writes.
 
 - **SIGNING AN AGENT IN IS THE METHOD ITS ADAPTER ADVERTISES, RUN BY THIS
   SERVER, ONE AT A TIME, AND A SIGNED-OUT AGENT IS ANSWERED BY ITS SIGN-IN, NOT

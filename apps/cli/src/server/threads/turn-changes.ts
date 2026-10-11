@@ -41,8 +41,6 @@ import type { VaultService } from "../vault/vault-service";
 // clock a device keeps in sync.
 const CLOCK_SKEW_MARGIN_MS = 24 * 60 * 60 * 1000;
 
-export type ListTurnChanges = (threadId: string) => Promise<TurnChangesResponse | null>;
-
 interface FoldedTurn {
   paths: Set<string>;
   state: TurnChangeState;
@@ -90,9 +88,7 @@ interface ListTurnChangesArgs {
 }
 
 // null for a thread this device does not hold.
-export const listTurnChanges = async (
-  args: ListTurnChangesArgs,
-): Promise<TurnChangesResponse | null> => {
+const listTurnChanges = async (args: ListTurnChangesArgs): Promise<TurnChangesResponse | null> => {
   const thread = getThread(args.db, args.threadId);
   if (thread === null) {
     return null;
@@ -104,8 +100,6 @@ export type UndoTurnOutcome =
   | { kind: "undone"; changes: UndoTurnResponse }
   | { kind: "not-found"; message: string }
   | { kind: "conflict"; message: string };
-
-export type UndoTurnChanges = (threadId: string, turnId: string) => Promise<UndoTurnOutcome>;
 
 // the trees a path is read at: the parent of the turn's first commit to touch it, and the turn's
 // last commit to touch it.
@@ -520,3 +514,15 @@ export const undoTurnChanges = async (args: UndoTurnArgs): Promise<UndoTurnOutco
     hold.release();
   }
 };
+
+// over the vault's git and its writes, which is why it is wired beside the thread service and
+// never inside it.
+export interface TurnUndo {
+  changes: (threadId: string) => Promise<TurnChangesResponse | null>;
+  undo: (threadId: string, turnId: string) => Promise<UndoTurnOutcome>;
+}
+
+export const createTurnUndo = (deps: Omit<UndoTurnArgs, "threadId" | "turnId">): TurnUndo => ({
+  changes: async (threadId) => await listTurnChanges({ db: deps.db, git: deps.git, threadId }),
+  undo: async (threadId, turnId) => await undoTurnChanges({ ...deps, threadId, turnId }),
+});

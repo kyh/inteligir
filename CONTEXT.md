@@ -194,7 +194,7 @@ editor's own undo (⌘Z), which lives and dies with the open note, and not
 **Undo changes** — the button under an agent's reply, and the Undo on the
 "Agent edited N notes" toast: `threads.undoTurn`, a three-way revert of one
 turn's commit, found by its trailers
-(`apps/cli/src/server/agents/turn-changes.ts` over
+(`apps/cli/src/server/threads/turn-changes.ts` over
 `@repo/notes/text/revert-edit`), which keeps every edit made since; a note
 whose later edits overlap the turn's is kept whole and named. Not a History
 restore, which puts back exact bytes and so drops whatever came after.
