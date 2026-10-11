@@ -1,4 +1,5 @@
 import { pendingInteractionStatusValues } from "@repo/domain/pending-interaction-status";
+import { pendingInteractionApprovalDecisionValues } from "@repo/domain/pending-interactions";
 import type { ThreadEventItemType, ThreadEventType } from "@repo/domain/provider-event";
 import type { ThreadEventScopeKind } from "@repo/domain/thread-event-scope";
 import { threadStatusValues } from "@repo/domain/thread-status";
@@ -8,7 +9,7 @@ import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-o
 // a table's column order is the CREATE TABLE order drizzle-kit emits; sorting it makes the next
 // generated migration recreate every table.
 
-// schema_version is seeded by the first migration and bumped by every later one.
+// schema_version is seeded by the baseline and bumped by every later migration.
 export const meta = sqliteTable("meta", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
@@ -24,18 +25,18 @@ export const threads = sqliteTable(
     // settle the running one.
     activeTurnId: text("active_turn_id"),
     originDocPath: text("origin_doc_path"),
-    // no CHECK pairs them: sqlite cannot ADD a checked column without rebuilding the table, and
-    // a rebuild cascades through the children's foreign keys mid-migration.
-    providerId: text("provider_id"),
-    providerThreadId: text("provider_thread_id"),
-    archivedAt: integer("archived_at"),
-    createdAt: integer("created_at").notNull(),
-    updatedAt: integer("updated_at").notNull(),
     // the origin note's frontmatter `id`, which a move anywhere (Finder, a pull, an agent's `mv`)
     // keeps; origin_doc_path stays the path at compose time and answers for a note with none. no
     // index: the listing filters by it (and by origin_doc_path) inside the (updated_at, id)
     // partial-index scan, which a vault's thread count keeps cheap.
     originNoteId: text("origin_note_id"),
+    // a synced thread/meta binds the harness before this device opens a session on it, so the
+    // id may stand alone; a session never does.
+    providerId: text("provider_id"),
+    providerThreadId: text("provider_thread_id"),
+    archivedAt: integer("archived_at"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
   },
   (table) => [
     // two partial indexes: one (archived_at, updated_at) index cannot serve
@@ -48,6 +49,14 @@ export const threads = sqliteTable(
     index("threads_archived_updated_id_idx")
       .on(table.updatedAt, table.id)
       .where(sql`${table.archivedAt} IS NOT NULL`),
+    check(
+      "threads_origin_shape_check",
+      sql`${table.originNoteId} IS NULL OR ${table.originDocPath} IS NOT NULL`,
+    ),
+    check(
+      "threads_provider_session_check",
+      sql`${table.providerThreadId} IS NULL OR ${table.providerId} IS NOT NULL`,
+    ),
   ],
 );
 
@@ -68,8 +77,7 @@ export const events = sqliteTable(
     data: text("data").notNull().default("{}"),
     // (device, position) of the merged-log row, both null for a local event. not the
     // account-global seq: after signing in again the same seq names another account's row, so an
-    // idempotency check keyed on it would skip a genuine event. no CHECK pairs them, for the
-    // reason on threads.provider_id.
+    // idempotency check keyed on it would skip a genuine event.
     originDeviceId: text("origin_device_id"),
     originDeviceSeq: integer("origin_device_seq"),
     createdAt: integer("created_at").notNull(),
@@ -94,6 +102,10 @@ export const events = sqliteTable(
         (${table.scopeKind} = 'thread' AND ${table.turnId} IS NULL)
       )`,
     ),
+    check(
+      "events_origin_shape_check",
+      sql`(${table.originDeviceId} IS NULL) = (${table.originDeviceSeq} IS NULL)`,
+    ),
   ],
 );
 
@@ -104,21 +116,25 @@ export const queuedThreadMessages = sqliteTable(
     threadId: text("thread_id")
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
-    text: text("text").notNull(),
-    claimedAt: integer("claimed_at"),
-    claimToken: text("claim_token"),
     sortKey: text("sort_key").notNull(),
-    createdAt: integer("created_at").notNull(),
-    updatedAt: integer("updated_at").notNull(),
+    text: text("text").notNull(),
     // json array of vault paths, null for none. Kept, unlike the view context the queue drops:
     // an @-mention is part of what the user asked, not a statement about a screen since left.
     contextPaths: text("context_paths"),
     // the phone's dispatch this message carries out, so a claim that finds it queued here is a
     // duplicate and the request it drains into names it
     dispatchId: text("dispatch_id"),
+    claimedAt: integer("claimed_at"),
+    claimToken: text("claim_token"),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
   },
   (table) => [
     index("queued_thread_messages_thread_sort_idx").on(table.threadId, table.sortKey, table.id),
+    check(
+      "queued_thread_messages_claim_shape_check",
+      sql`(${table.claimedAt} IS NULL) = (${table.claimToken} IS NULL)`,
+    ),
   ],
 );
 
@@ -135,13 +151,13 @@ export const pendingInteractions = sqliteTable(
     requestKey: text("request_key").notNull(),
     status: text("status", { enum: pendingInteractionStatusValues }).notNull(),
     payload: text("payload").notNull(),
-    resolution: text("resolution"),
-    createdAt: integer("created_at").notNull(),
-    resolvedAt: integer("resolved_at"),
-    updatedAt: integer("updated_at").notNull(),
+    decision: text("decision", { enum: pendingInteractionApprovalDecisionValues }),
     // a phone-started turn's approval as the account's dispatch inbox holds it: null, never
     // opened there; opened, the phone may answer it; closed, it settled here and was closed there
     relay: text("relay", { enum: approvalRelayValues }),
+    createdAt: integer("created_at").notNull(),
+    resolvedAt: integer("resolved_at"),
+    updatedAt: integer("updated_at").notNull(),
   },
   (table) => [
     uniqueIndex("pending_interactions_thread_request_idx").on(table.threadId, table.requestKey),
@@ -149,6 +165,10 @@ export const pendingInteractions = sqliteTable(
       table.threadId,
       table.status,
       table.createdAt,
+    ),
+    check(
+      "pending_interactions_decision_shape_check",
+      sql`(${table.status} = 'resolved') = (${table.decision} IS NOT NULL)`,
     ),
   ],
 );
@@ -170,23 +190,29 @@ export const syncOutbox = sqliteTable(
   (table) => [uniqueIndex("sync_outbox_device_seq_idx").on(table.deviceSeq)],
 );
 
+// one row, seeded by the baseline, so every writer is an update and a reader never meets none.
 export const syncState = sqliteTable(
   "sync_state",
   {
     id: integer("id").primaryKey(),
     lastDeviceSeq: integer("last_device_seq").notNull().default(0),
-    cursor: integer("cursor").notNull().default(0),
-    lastSyncedAt: integer("last_synced_at"),
-    // the lowest log row a pull moved past without being able to read it, and the build that
-    // could not: a different build rewinds the cursor to pull it again. no CHECK pairs them, for
-    // the reason on threads.provider_id.
-    skippedFromSeq: integer("skipped_from_seq"),
-    skippedByBuild: text("skipped_by_build"),
     // outbox rows deleted without reaching the log. a count, not a message: the next good pass
     // clears the last error, and the loss outlives it.
     droppedEvents: integer("dropped_events").notNull().default(0),
+    cursor: integer("cursor").notNull().default(0),
+    // the lowest log row a pull moved past without being able to read it, and the build that
+    // could not: a different build rewinds the cursor to pull it again.
+    skippedFromSeq: integer("skipped_from_seq"),
+    skippedByBuild: text("skipped_by_build"),
+    lastSyncedAt: integer("last_synced_at"),
   },
-  (table) => [check("sync_state_singleton_check", sql`${table.id} = 1`)],
+  (table) => [
+    check("sync_state_singleton_check", sql`${table.id} = 1`),
+    check(
+      "sync_state_skip_marker_shape_check",
+      sql`(${table.skippedFromSeq} IS NULL) = (${table.skippedByBuild} IS NULL)`,
+    ),
+  ],
 );
 
 // captures are at-least-once: a device that applied and then lost its claim is handed the same

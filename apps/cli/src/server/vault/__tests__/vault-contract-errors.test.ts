@@ -9,11 +9,14 @@ import { describe, expect, it } from "vitest";
 import { VAULT_REFUSALS } from "../vault-refusals";
 
 const ROUTER_FILE = fileURLToPath(new URL("../vault-router.ts", import.meta.url));
+const GUARD_FILE = fileURLToPath(new URL("../write-guard.ts", import.meta.url));
 const CONTRACT_FILE = "packages/contract/src/local/vault/vault-contract.ts";
 const ROUTER_ANCHOR = "\nexport const vaultRouter";
 
 // the call shape, not the token: a comment mentioning `refusing(` must not hand its block the table.
 const REFUSING_CALL = /\brefusing\(\s*(?:async\s*)?\(/u;
+// a guarded write's refusal is built in write-guard.ts from the handler's own constructors
+const GUARD_REFUSAL_CALL = /\bguardRefusalError\(\s*errors\b/u;
 
 const handlerBlocks = (source: string): Map<string, string> => {
   const starts = [
@@ -36,11 +39,23 @@ const handlerBlocks = (source: string): Map<string, string> => {
   return blocks;
 };
 
-const producibleCodes = (block: string): Set<string> => {
+const constructedCodes = (source: string): Set<string> => {
   const codes = new Set<string>();
-  for (const match of block.matchAll(/\berrors\.(?<code>[A-Z_]+)\(/gu)) {
+  for (const match of source.matchAll(/\berrors\.(?<code>[A-Z_]+)\(/gu)) {
     const code = match.groups?.code;
     if (code !== undefined) {
+      codes.add(code);
+    }
+  }
+  return codes;
+};
+
+const GUARD_CODES = constructedCodes(readFileSync(GUARD_FILE, "utf-8"));
+
+const producibleCodes = (block: string): Set<string> => {
+  const codes = constructedCodes(block);
+  if (GUARD_REFUSAL_CALL.test(block)) {
+    for (const code of GUARD_CODES) {
       codes.add(code);
     }
   }
@@ -72,7 +87,7 @@ describe("the vault contract's declared errors", () => {
     expect(
       unreachable,
       `${CONTRACT_FILE}: row "${row}" declares ${unreachable.join(", ")} but vault-router.ts's ` +
-        `handler has no \`errors.<CODE>(\` for it and ${
+        `handler has no \`errors.<CODE>(\` for it, nor write-guard.ts behind a \`guardRefusalError(errors\`, and ${
           REFUSING_CALL.test(block)
             ? `\`refusing\` answers only ${Object.values(VAULT_REFUSALS).join(", ")}`
             : "runs outside `refusing`"

@@ -15,23 +15,11 @@ export interface SyncState {
   droppedEvents: number;
 }
 
-const EMPTY_SYNC_STATE: SyncState = {
-  cursor: 0,
-  droppedEvents: 0,
-  lastDeviceSeq: 0,
-  lastSyncedAt: null,
-};
-
-// lazy rather than seeded by a migration, so a database restored from a file predating the seed
-// still works.
-const ensureSyncStateRow = (db: DbExecutor): void => {
-  db.insert(syncState).values({ id: SYNC_STATE_ID }).onConflictDoNothing().run();
-};
-
+// the baseline seeds the one row and a sign-out puts its defaults back, so it is never absent.
 export const readSyncState = (db: DbConnection): SyncState => {
   const row = db.select().from(syncState).where(eq(syncState.id, SYNC_STATE_ID)).get();
   if (row === undefined) {
-    return EMPTY_SYNC_STATE;
+    throw new Error("sync_state is missing — did migrations run?");
   }
   return {
     cursor: row.cursor,
@@ -57,7 +45,6 @@ export const enqueueSyncOutboxInTransaction = (
   if (entries.length === 0) {
     return;
   }
-  ensureSyncStateRow(tx);
   // one range: the counter moves once, so a concurrent writer cannot interleave into this batch.
   const allocated = tx
     .update(syncState)
@@ -96,7 +83,6 @@ const countDropped = (tx: DbTransaction, dropped: number): void => {
   if (dropped === 0) {
     return;
   }
-  ensureSyncStateRow(tx);
   tx.update(syncState)
     .set({ droppedEvents: sql`${syncState.droppedEvents} + ${dropped}` })
     .where(eq(syncState.id, SYNC_STATE_ID))
@@ -128,7 +114,6 @@ export const dropSyncOutboxThrough = (db: DbConnection, throughDeviceSeq: number
 // takes a transaction so a pulled event is appended and marked applied in one write; a crash
 // between the two replays the page into duplicates.
 export const writeSyncCursor = (db: DbExecutor, cursor: number): void => {
-  ensureSyncStateRow(db);
   db.update(syncState).set({ cursor }).where(eq(syncState.id, SYNC_STATE_ID)).run();
 };
 
@@ -140,7 +125,6 @@ export interface SkippedLogRow {
 // in the transaction that moves the cursor past the row: apart, a crash between the two loses the
 // row for good. the lowest is kept, because a rewind replays from it.
 export const recordSkippedRow = (tx: DbTransaction, row: SkippedLogRow): void => {
-  ensureSyncStateRow(tx);
   tx.update(syncState)
     .set({
       skippedByBuild: row.build,
@@ -181,18 +165,20 @@ export const takeRewindIfBuildChanged = (db: DbConnection, build: string): numbe
 
 // separate from the cursor: a device with nothing to pull is up to date, not stale.
 export const touchSyncedAt = (db: DbConnection, at: number): void => {
-  ensureSyncStateRow(db);
   db.update(syncState).set({ lastSyncedAt: at }).where(eq(syncState.id, SYNC_STATE_ID)).run();
 };
 
 // on logout: a cursor carried into a second account would skip that account's log from its
 // first row. one transaction, so a crash cannot keep one account's queue beside the next one's
-// positions. sync_own_devices is kept: the log still holds rows under those ids.
+// positions. sync_own_devices is kept: the log still holds rows under those ids. the row is put
+// back as the baseline seeded it, so every column takes its declared default, one added later
+// included.
 export const resetSyncState = (db: DbConnection): void => {
   writeTransaction(db, (tx) => {
     tx.delete(syncOutbox).run();
     tx.delete(syncAppliedCaptures).run();
     tx.delete(syncState).run();
+    tx.insert(syncState).values({ id: SYNC_STATE_ID }).run();
   });
 };
 

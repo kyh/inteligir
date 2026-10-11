@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/ta
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import type { TimelineRow } from "@repo/contract/local/thread-timeline";
 import type { Thread } from "@repo/contract/local/threads/threads-schema";
+import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
 import { isThreadRunning } from "@repo/domain/thread-status";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
@@ -377,9 +378,12 @@ const ActionDetail = ({
   };
 
   // rethrown so the card hands its options back for another try
-  const answerInteraction = async (interactionId: string, resolution: string): Promise<void> => {
+  const answerInteraction = async (
+    interactionId: string,
+    decision: PendingInteractionApprovalDecision,
+  ): Promise<void> => {
     const { error } = await safe(
-      client.threads.answerInteraction({ interactionId, resolution, threadId }),
+      client.threads.answerInteraction({ decision, interactionId, threadId }),
     );
     invalidate();
     if (error !== null) {

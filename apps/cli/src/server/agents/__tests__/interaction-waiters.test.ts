@@ -11,6 +11,7 @@ import { createThread } from "@repo/db/threads";
 import { noopNotifier } from "@repo/domain/notifier";
 import type {
   ApprovalPendingInteractionPayload,
+  PendingInteractionApprovalDecision,
   PendingInteractionCreate,
 } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
@@ -69,12 +70,16 @@ const requestFor = (threadId: string, requestKey = "req-1"): PendingInteractionC
   turnId: "pturn_1",
 });
 
-const resolvedRow = (id: string, threadId: string, resolution: string): PendingInteraction => ({
+const resolvedRow = (
+  id: string,
+  threadId: string,
+  decision: PendingInteractionApprovalDecision,
+): PendingInteraction => ({
   createdAt: 0,
+  decision,
   id,
   payload: APPROVAL_PAYLOAD,
   requestKey: "req-1",
-  resolution,
   resolvedAt: 0,
   status: "resolved",
   threadId,
@@ -82,7 +87,7 @@ const resolvedRow = (id: string, threadId: string, resolution: string): PendingI
 });
 
 describe("createInteractionWaiters", () => {
-  it("parks the provider on the row and answers it from the recorded resolution", async () => {
+  it("parks the provider on the row and answers it from the recorded decision", async () => {
     const { db, threadId, waiters, settledThreads } = makeHarness();
     const parked = waiters.park(requestFor(threadId), "turn_host");
 
@@ -99,7 +104,7 @@ describe("createInteractionWaiters", () => {
     expect(settledThreads).toEqual([threadId]);
   });
 
-  it("denies an unparseable resolution rather than passing it through", async () => {
+  it("denies a decision the request did not offer rather than passing it through", async () => {
     const { db, threadId, waiters, debugLines } = makeHarness();
     const parked = waiters.park(requestFor(threadId), null);
     const [row] = listOpenPendingInteractions(db, threadId);
@@ -107,9 +112,9 @@ describe("createInteractionWaiters", () => {
       throw new Error("expected the parked row");
     }
 
-    waiters.resolve(resolvedRow(row.id, threadId, "approve!!"));
+    waiters.resolve(resolvedRow(row.id, threadId, "allow_for_session"));
     await expect(parked).resolves.toEqual({ decision: "deny" });
-    expect(debugLines.some((line) => line.includes("unparseable"))).toBe(true);
+    expect(debugLines.some((line) => line.includes("did not offer"))).toBe(true);
   });
 
   it("times out onto a deny, interrupting the row and restarting the clock", async () => {
@@ -138,8 +143,8 @@ describe("createInteractionWaiters", () => {
     await first;
 
     resolvePendingInteraction(db, noopNotifier, {
+      decision: "allow_once",
       id: row.id,
-      resolution: "allow_once",
       threadId,
     });
     await expect(waiters.park(requestFor(threadId), null)).resolves.toEqual({

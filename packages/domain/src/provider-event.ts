@@ -194,8 +194,8 @@ export const threadEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     detail: z.string().optional(),
-    // optional, so a log written before it parses; a class a later build adds reads as none
-    // here rather than costing the whole event its parse on a stale install.
+    // the sync log mixes builds across devices: optional, since an older device's row carries none,
+    // and a class a newer device's build adds reads as none rather than costing the event its parse.
     failure: z.preprocess(
       (value) =>
         value === undefined || providerFailureSchema.safeParse(value).success ? value : null,
@@ -215,7 +215,8 @@ export const threadEventSchema = z.discriminatedUnion("type", [
     // the notes the user attached by @-mention, held to the vault path grammar at the wire.
     contextPaths: z.array(z.string().min(1)).optional(),
     // the phone's dispatch this request carries out, so the phone swaps its pending message for
-    // this row; a build that predates it strips it, since this object is not strict.
+    // this row; an older device's build reading it off the sync log strips it, since this object is
+    // not strict.
     dispatchId: z.string().min(1).optional(),
     // recorded before the provider accepts a turn, so no turn id exists yet.
     scope: threadScopeSchema,

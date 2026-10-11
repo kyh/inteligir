@@ -112,7 +112,7 @@ describe("createVaultRemoteProvider", () => {
         "marked, at the url a previous deployment named",
         { markedAccount: true, url: "https://old.test/v1/git" },
       ],
-      ["at the hosted url, from before the marker", { markedAccount: false, url: HOSTED_URL }],
+      ["at the hosted url, set by hand", { markedAccount: false, url: HOSTED_URL }],
       ["marked, with no origin yet", { markedAccount: true, url: null }],
     ];
 

@@ -8,6 +8,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 - **Inteligir needs macOS 13.5 or later.** The app now runs on the Mac's own web engine instead of carrying a browser of its own, and what it brings in its place needs macOS 13.5. On an older Mac, the version you have keeps working and is not offered this update.
 - **Your window settings start over once.** The theme, the text appearance, the sidebar and panel widths, which list the sidebar shows, and the spell check switch go back to their defaults the first time this version opens; set them again in Settings. A message about a note two devices changed that you already saw can show once more. Your notes, vaults, sign-ins and agents are untouched. On macOS 13, every vault now shares one set of these settings.
+- **Your actions on this Mac start over once, and the Mac signs out of your account.** The first time this version opens, it clears the actions this Mac kept and signs it out of your Inteligir account. Sign in again in Settings › Account and the actions your account holds come back; the Mac's earlier sign-in stays in the account's device list until you remove it there. Your notes, vaults and agents are untouched.
 
 ### New
 
@@ -23,6 +24,11 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 - **The agent's own Inteligir commands work on every Mac.** The agent drives the app by typing `inteligir` commands; on a Mac without Node.js installed those failed, and now they run on what the app carries.
 - **Messages you queued wait when your plan's usage limit is reached.** If Claude or ChatGPT stops an action because you've reached your plan's usage limit, or because you're signed out, the action now says so in plain words, and the messages you queued behind it stay queued instead of each failing the same way. Send again once the limit resets or you've signed in, and the oldest queued message goes first.
 - **An agent's separate replies within one action show as separate messages.** When the agent says what it is about to do, edits your notes and then says what it did, each message now shows where it happened, before and after its edits, instead of being joined into one block above all of them. The same goes for its thinking. Conversations from before this update still show the way they did.
+
+### On the command line
+
+- **`inteligir serve` no longer warns about settings it does not read.** `INTELIGIR_AGENT_MODEL` and the `agentModel` and `vaultRemote` keys in `config.json` are ignored silently, like any other setting the app does not read.
+- **`inteligir interactions answer` takes only a decision.** The answer is `allow_once`, `allow_for_session` or `deny`, spelled exactly; the JSON form (`{"decision":…}`) is gone, and any other word is refused before the server is asked. With `--json`, an interaction reports its `decision` in place of `resolution`.
 
 ## 0.6.0 — 2026-09-27
 

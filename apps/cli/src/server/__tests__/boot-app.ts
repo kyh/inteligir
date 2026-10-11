@@ -230,7 +230,6 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     vaultRemote: options.pinnedRemote ?? null,
     // tests drive syncNow directly; a timer would race the assertions.
     vaultSyncIntervalMs: null,
-    warnings: [],
   };
 
   const ports: ComposePorts = {

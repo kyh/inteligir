@@ -1,14 +1,18 @@
-// the cloud worker over Maps. the refusal rules here mirror the durable
-// object's; change both, or the client passes here and fails deployed.
+// the cloud worker over Maps, refusing as the Worker and its durable object do. the inboxes' rules
+// are held to theirs by the table inbox-scenarios.test.ts runs here and apps/web runs against the
+// object; any other rule changes on both sides, or the client passes here and fails deployed.
 
 import {
   ackCapturesRequestSchema,
   CAPTURE_API_PATHS,
   CAPTURE_CLAIM_TTL_MS,
+  captureRequestSchema,
   claimCapturesRequestSchema,
 } from "@repo/contract/cloud/captures/captures-schema";
 import type {
   AckCapturesResponse,
+  CaptureRequest,
+  CaptureResponse,
   CaptureRow,
   ClaimCapturesResponse,
 } from "@repo/contract/cloud/captures/captures-schema";
@@ -35,23 +39,28 @@ import {
   ackDispatchesRequestSchema,
   answerableDecisions,
   APPROVAL_MAX_OPEN,
+  cancelDispatchRequestSchema,
   claimDispatchesRequestSchema,
   closeApprovalRequestSchema,
   createDispatchRequestSchema,
   DISPATCH_API_PATHS,
   DISPATCH_CLAIM_TTL_MS,
   DISPATCH_MAX_PENDING,
+  dispatchStatusRequestSchema,
   openApprovalRequestSchema,
 } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import type {
   AckDispatchesResponse,
   ApprovalRow,
   ApprovalState,
+  CancelDispatchResponse,
   ClaimDispatchesResponse,
   ClaimedDispatch,
   CloseApprovalResponse,
   CreateDispatchResponse,
   DispatchStatus,
+  DispatchStatusResponse,
+  ListApprovalsResponse,
   OpenApprovalResponse,
 } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import {
@@ -93,6 +102,7 @@ interface LogRow {
 
 interface InboxRow {
   id: string;
+  idempotencyKey: string;
   text: string;
   createdAt: number;
   claimToken: string | null;
@@ -119,6 +129,7 @@ const liveDispatchClaim = (row: DispatchRow, now: number): boolean =>
   row.claimToken !== null && row.claimedAt > now - DISPATCH_CLAIM_TTL_MS;
 
 const NO_LONGER_WAITING = "That request is no longer waiting.";
+const SIGNED_OUT = "That computer was signed out.";
 
 interface ApprovalEntry {
   row: Omit<ApprovalRow, "state">;
@@ -188,13 +199,11 @@ export class FakeCloud {
         device.revokedAt = Date.now();
       }
     }
+    this.forgetDevice(deviceId);
   }
 
   capture(text: string): string {
-    this.nextCapture += 1;
-    const id = `cap_${this.nextCapture}`;
-    this.inbox.push({ claimToken: null, claimedAt: 0, createdAt: this.nextCapture, id, text });
-    return id;
+    return this.storeCapture({ idempotencyKey: `fake-capture-${this.nextCapture + 1}`, text }).id;
   }
 
   // every claim, a capture's and a dispatch's, as if its ttl ran out
@@ -265,6 +274,9 @@ export class FakeCloud {
     if (route === `GET ${SYNC_API_PATHS.pull}`) {
       return this.pull(url);
     }
+    if (route === `POST ${CAPTURE_API_PATHS.capture}`) {
+      return this.createCapture(body);
+    }
     if (route === `POST ${CAPTURE_API_PATHS.claim}`) {
       return this.claim(body);
     }
@@ -299,11 +311,21 @@ export class FakeCloud {
       case `POST ${DISPATCH_API_PATHS.ack}`: {
         return this.ackDispatches(body);
       }
+      case `POST ${DISPATCH_API_PATHS.status}`: {
+        return this.dispatchStatuses(body);
+      }
+      case `POST ${DISPATCH_API_PATHS.cancel}`: {
+        return this.cancelDispatch(body);
+      }
       case `POST ${DISPATCH_API_PATHS.approval}`: {
         return this.openApproval(deviceId, body);
       }
       case `POST ${DISPATCH_API_PATHS.approvalClose}`: {
         return this.closeApproval(deviceId, body);
+      }
+      case `GET ${DISPATCH_API_PATHS.approvals}`: {
+        const response: ListApprovalsResponse = { approvals: this.listedApprovals() };
+        return Response.json(response);
       }
       default: {
         return null;
@@ -335,6 +357,78 @@ export class FakeCloud {
     if (entry !== undefined) {
       entry.state = "closed";
     }
+  }
+
+  // an answer withdrawn before its Mac held it leaves the approval answerable again
+  private reopenApproval(approvalId: string | null): void {
+    const entry = approvalId === null ? undefined : this.approvals.get(approvalId);
+    if (entry?.state === "answered") {
+      entry.state = "open";
+    }
+  }
+
+  // the object's order: a revoked phone's waiting rows go, then a revoked Mac's approvals close
+  // and the answers waiting for it are refused
+  private forgetDevice(deviceId: string): void {
+    const now = Date.now();
+    for (const row of this.dispatches.filter(
+      (candidate) =>
+        candidate.fromDeviceId === deviceId &&
+        candidate.settle.state === "pending" &&
+        !liveDispatchClaim(candidate, now),
+    )) {
+      this.dispatches.splice(this.dispatches.indexOf(row), 1);
+      this.reopenApproval(row.approvalId);
+    }
+    for (const entry of this.approvals.values()) {
+      if (entry.fromDeviceId === deviceId) {
+        entry.state = "closed";
+      }
+    }
+    for (const row of this.dispatches) {
+      if (row.toDeviceId === deviceId && row.settle.state === "pending") {
+        row.settle = { message: SIGNED_OUT, state: "refused" };
+      }
+    }
+  }
+
+  // the fake holds no sockets, so it counts no Mac listening and none declining
+  private dispatchStatuses(body: RequestBody): Response {
+    const parsed = dispatchStatusRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Send { ids }.");
+    }
+    const response: DispatchStatusResponse = {
+      desktopsDeclining: 0,
+      desktopsOnline: 0,
+      dispatches: parsed.data.ids.map((id) => this.dispatchStatus(id)),
+    };
+    return Response.json(response);
+  }
+
+  private cancelDispatch(body: RequestBody): Response {
+    const parsed = cancelDispatchRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Send { id }.");
+    }
+    const response: CancelDispatchResponse = { outcome: this.cancelOutcome(parsed.data.id) };
+    return Response.json(response);
+  }
+
+  private cancelOutcome(id: string): CancelDispatchResponse["outcome"] {
+    const row = this.dispatches.find((candidate) => candidate.claimed.id === id);
+    if (row === undefined) {
+      return "unknown";
+    }
+    if (row.settle.state !== "pending") {
+      return "settled";
+    }
+    if (liveDispatchClaim(row, Date.now())) {
+      return "claimed";
+    }
+    this.dispatches.splice(this.dispatches.indexOf(row), 1);
+    this.reopenApproval(row.approvalId);
+    return "cancelled";
   }
 
   private createDispatch(deviceId: string, body: RequestBody): Response {
@@ -585,7 +679,7 @@ export class FakeCloud {
     if (target === undefined) {
       return refuse("not-found", "No such active device.");
     }
-    target.revokedAt = Date.now();
+    this.revoke(target.deviceId);
     const response: RevokeDeviceResponse = { revoked: true };
     return Response.json(response);
   }
@@ -760,6 +854,33 @@ export class FakeCloud {
       return event;
     }
     return { ...typed.data, type: `${typed.data.type}@newer` };
+  }
+
+  // a share-sheet retry after a lost response answers the row it already stored
+  private storeCapture(request: CaptureRequest): CaptureResponse {
+    const existing = this.inbox.find((row) => row.idempotencyKey === request.idempotencyKey);
+    if (existing !== undefined) {
+      return { createdAt: existing.createdAt, duplicate: true, id: existing.id };
+    }
+    this.nextCapture += 1;
+    const id = `cap_${this.nextCapture}`;
+    this.inbox.push({
+      claimToken: null,
+      claimedAt: 0,
+      createdAt: this.nextCapture,
+      id,
+      idempotencyKey: request.idempotencyKey,
+      text: request.text,
+    });
+    return { createdAt: this.nextCapture, duplicate: false, id };
+  }
+
+  private createCapture(body: RequestBody): Response {
+    const parsed = captureRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Send { text, idempotencyKey }.");
+    }
+    return Response.json(this.storeCapture(parsed.data));
   }
 
   private claim(body: RequestBody): Response {

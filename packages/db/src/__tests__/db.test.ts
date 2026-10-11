@@ -1,14 +1,12 @@
-import { cpSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { closeConnection, createConnection } from "../connection";
 import type { DbConnection } from "../connection";
 import { createPrefixedId, GENERATED_ID_SUFFIX_LENGTH } from "../ids";
 import { getMetaValue, getSchemaVersion } from "../meta";
-import { listMigrationNames, runMigrations } from "../migrate";
-import { readSyncState } from "../sync-outbox";
+import { listMigrationNames, runMigrations, UnknownMigrationHistoryError } from "../migrate";
 import { noopNotifier } from "@repo/domain/notifier";
 import { makeTempDir } from "./open-temp-db";
 
@@ -29,13 +27,21 @@ const LATEST = latestGeneration();
 const openTempDb = (): DbConnection =>
   createConnection(path.join(makeTempDir("inteligir-db-test-"), "test.db"));
 
-// a folder per generation, ordered by name: dropping the tail is what an older build's copy is.
-const freezeMigrationsAt = (dir: string, generations: number): void => {
+// what a newer build's copy is: this build's folders and one generation after them.
+const newerMigrations = (): string => {
+  const dir = makeTempDir("inteligir-db-migrations-newer-");
   cpSync(MIGRATIONS_DIR, dir, { recursive: true });
-  for (const name of listMigrationNames(dir).slice(generations)) {
-    rmSync(path.join(dir, name), { force: true, recursive: true });
-  }
+  const next = path.join(dir, "99991231235959_next");
+  mkdirSync(next);
+  writeFileSync(
+    path.join(next, "migration.sql"),
+    `UPDATE \`meta\` SET \`value\` = '${LATEST + 1}' WHERE \`key\` = 'schema_version';`,
+  );
+  return dir;
 };
+
+const tableNames = (db: DbConnection): unknown[] =>
+  db.$client.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").pluck().all();
 
 describe("boot", () => {
   it("migrates on boot and bumps meta.schema_version to the latest generation", () => {
@@ -50,89 +56,48 @@ describe("boot", () => {
     expect(getSchemaVersion(db, runMigrations(db))).toBe(LATEST);
   });
 
-  it("upgrades a POPULATED v2 database in place: child rows survive, FKs hold", () => {
-    const v2Migrations = makeTempDir("inteligir-db-migrations-v2-");
-    freezeMigrationsAt(v2Migrations, 2);
-
-    const db = openTempDb();
-    expect(getSchemaVersion(db, runMigrations(db, v2Migrations))).toBe(2);
-
-    const now = Date.now();
-    db.run(
-      sql`INSERT INTO threads (id, status, created_at, updated_at) VALUES ('thr_v2', 'idle', ${now}, ${now})`,
-    );
-    db.run(
-      sql`INSERT INTO events (id, thread_id, scope_kind, turn_id, sequence, type, data, created_at)
-          VALUES ('evt_v2', 'thr_v2', 'thread', NULL, 1, 'client/turn/requested', '{}', ${now})`,
-    );
-    db.run(
-      sql`INSERT INTO pending_interactions (id, thread_id, request_key, status, payload, created_at, updated_at)
-          VALUES ('pint_v2', 'thr_v2', 'req-1', 'pending', '{}', ${now}, ${now})`,
-    );
-    db.run(
-      sql`INSERT INTO queued_thread_messages (id, thread_id, text, sort_key, created_at, updated_at)
-          VALUES ('qmsg_v2', 'thr_v2', 'queued', 'a', ${now}, ${now})`,
-    );
-
-    expect(getSchemaVersion(db, runMigrations(db))).toBe(LATEST);
-
-    expect(db.get(sql`SELECT count(*) AS n FROM events WHERE thread_id = 'thr_v2'`)).toEqual({
-      n: 1,
-    });
-    expect(
-      db.get(sql`SELECT count(*) AS n FROM pending_interactions WHERE thread_id = 'thr_v2'`),
-    ).toEqual({ n: 1 });
-    expect(
-      db.get(sql`SELECT count(*) AS n FROM queued_thread_messages WHERE thread_id = 'thr_v2'`),
-    ).toEqual({ n: 1 });
-    expect(db.all(sql`PRAGMA foreign_key_check`)).toEqual([]);
-    expect(
-      db.get(
-        sql`SELECT provider_id AS a, provider_thread_id AS b FROM threads WHERE id = 'thr_v2'`,
-      ),
-    ).toEqual({ a: null, b: null });
-  });
-
-  it("adds the dropped-events count to the sync state an earlier generation left", () => {
-    const names = listMigrationNames(MIGRATIONS_DIR);
-    const generation = names.findIndex((name) => name.endsWith("_sync_dropped_events")) + 1;
-    expect(generation).toBeGreaterThan(0);
-    const earlier = makeTempDir("inteligir-db-migrations-earlier-");
-    freezeMigrationsAt(earlier, generation - 1);
-
-    const db = openTempDb();
-    runMigrations(db, earlier);
-    db.run(
-      sql`INSERT INTO sync_state (id, last_device_seq, cursor, last_synced_at) VALUES (1, 7, 42, 1000)`,
-    );
-
-    expect(getSchemaVersion(db, runMigrations(db))).toBe(LATEST);
-    expect(readSyncState(db)).toEqual({
-      cursor: 42,
-      droppedEvents: 0,
-      lastDeviceSeq: 7,
-      lastSyncedAt: 1000,
-    });
-  });
-
   it("refuses to answer a schema version before migrations ran", () => {
     const db = openTempDb();
     expect(() => getSchemaVersion(db, LATEST)).toThrow();
   });
 
   it("refuses a database a NEWER build already upgraded", () => {
-    // drizzle applies nothing from the v2 folder to a fully-migrated file, so the ceiling is
-    // the only guard.
+    // its ledger names a generation after this build's newest, so the migrator applies nothing
+    // and the ceiling is the only guard.
     const db = openTempDb();
-    runMigrations(db);
+    expect(runMigrations(db, newerMigrations())).toBe(LATEST + 1);
 
-    const older = makeTempDir("inteligir-db-migrations-old-");
-    freezeMigrationsAt(older, 2);
-
-    const known = runMigrations(db, older);
-    expect(known).toBe(2);
+    const known = runMigrations(db);
+    expect(known).toBe(LATEST);
     expect(() => getSchemaVersion(db, known)).toThrow(
-      new RegExp(`on schema v${LATEST}, but this build only knows v2`, "u"),
+      new RegExp(`on schema v${LATEST + 1}, but this build only knows v${LATEST}`, "u"),
+    );
+  });
+
+  it("refuses a file migrated through generations this build does not carry, and asks for a wipe", () => {
+    const db = openTempDb();
+    db.$client.exec(
+      `CREATE TABLE "__drizzle_migrations" (id INTEGER PRIMARY KEY, hash text NOT NULL, created_at numeric, name text, applied_at TEXT);
+       INSERT INTO "__drizzle_migrations" (hash, created_at, name) VALUES ('h', 1786863867000, '20260816070427_secret_polaris');
+       CREATE TABLE threads (id text PRIMARY KEY);`,
+    );
+
+    expect(() => runMigrations(db)).toThrow(UnknownMigrationHistoryError);
+    expect(() => runMigrations(db)).toThrow(
+      /20260816070427_secret_polaris, which this build does not carry.*wipe it .*and restart/u,
+    );
+    // refused before the migrator ran: the baseline was not laid over the file's own tables.
+    expect(tableNames(db)).toEqual(["__drizzle_migrations", "threads"]);
+  });
+
+  it("refuses a ledger whose rows name no migration at all", () => {
+    const db = openTempDb();
+    db.$client.exec(
+      `CREATE TABLE "__drizzle_migrations" (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric);
+       INSERT INTO "__drizzle_migrations" (hash, created_at) VALUES ('h', 1786863867225);`,
+    );
+    expect(() => runMigrations(db)).toThrow(
+      /through \(unnamed\), which this build does not carry/u,
     );
   });
 
@@ -163,6 +128,37 @@ describe("boot", () => {
     const reopened = createConnection(databasePath);
     expect(reopened.$client.pragma("freelist_count", { simple: true })).toBe(0);
     closeConnection(reopened);
+  });
+});
+
+describe("the paired columns", () => {
+  const halves = [
+    ["a session without its harness", "UPDATE threads SET provider_thread_id = 'p'"],
+    ["a note id without its path", "UPDATE threads SET origin_note_id = 'n'"],
+    ["a synced device without its position", "UPDATE events SET origin_device_id = 'dev'"],
+    ["a claim time without its token", "UPDATE queued_thread_messages SET claimed_at = 1"],
+    ["a skipped row without its build", "UPDATE sync_state SET skipped_from_seq = 4"],
+    [
+      "an answered approval without its decision",
+      "UPDATE pending_interactions SET status = 'resolved'",
+    ],
+    ["a decision on an approval still open", "UPDATE pending_interactions SET decision = 'deny'"],
+  ] as const;
+
+  it.each(halves)("refuses %s", (_, statement) => {
+    const db = openTempDb();
+    runMigrations(db);
+    db.$client.exec(
+      `INSERT INTO threads (id, status, created_at, updated_at) VALUES ('thr_1', 'idle', 1, 1);
+       INSERT INTO events (id, thread_id, scope_kind, sequence, type, created_at)
+         VALUES ('evt_1', 'thr_1', 'thread', 1, 'client/turn/requested', 1);
+       INSERT INTO queued_thread_messages (id, thread_id, sort_key, text, created_at, updated_at)
+         VALUES ('qmsg_1', 'thr_1', 'a', 'queued', 1, 1);
+       INSERT INTO pending_interactions
+         (id, thread_id, request_key, status, payload, created_at, updated_at)
+         VALUES ('pint_1', 'thr_1', 'req_1', 'pending', '{}', 1, 1);`,
+    );
+    expect(() => db.$client.exec(statement)).toThrow(/CHECK constraint failed/u);
   });
 });
 

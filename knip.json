@@ -25,12 +25,12 @@
       // the first-run page is a build of its own (vite.config.ts), and first-run.html's script is
       // read by knip's vite plugin only from index.html
       "entry": [
-        "scripts/*.{mjs,cjs}",
+        "scripts/*.mjs",
         "src/renderer/first-run/first-run-main.tsx",
         "src/renderer/routes/**/*.tsx",
         "src/**/__tests__/**/*.test.{ts,tsx}"
       ],
-      "project": ["src/**/*.{ts,tsx,css}", "scripts/*.{mjs,cjs}"],
+      "project": ["src/**/*.{ts,tsx,css}", "scripts/*.mjs"],
       "ignore": ["src/renderer/routeTree.gen.ts"],
       "ignoreDependencies": ["tailwindcss"]
     },

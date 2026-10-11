@@ -65,11 +65,12 @@ src/
                          # about, quoted the one way the Mac's composer and
                          # the phone's both start with
   pending-interactions.ts  # the provider-neutral approval grammar — subjects
-                         # (command | file_change), decisions, payload,
-                         # resolution — and `parseApprovalResolution`, the ONE
-                         # parser the answer route's 400 gate and the runtime
-                         # share (deny is always accepted; anything else must
-                         # be a decision the request offered)
+                         # (command | file_change), the decision enum (its
+                         # tuple feeds the column), payload — and
+                         # `unanswerableReason`, the ONE check the answer
+                         # route's 400 gate and the runtime share (deny is
+                         # always accepted; anything else must be a decision
+                         # the request offered)
   pending-interaction-status.ts  # pending|resolved|interrupted, the
                          # same tuple-feeds-both-sides shape as thread-status
   change-kinds.ts        # the invalidation vocabulary: vault, doc and thread
@@ -96,9 +97,8 @@ Every subpath is exported by name in `package.json`; there is no barrel.
   already names is re-vendored from bb, not invented.
 - **Scope is enforced twice, on purpose.** `threadEventSchema` refuses a
   turn-only event under thread scope, and a turn scope with no id, at parse;
-  the `events_scope_shape_check` CHECK in
-  `packages/db/drizzle/20260816084328_early_tana_nile/migration.sql` refuses the same row at
-  insert. A turn-scoped row with no turn id is a row no query can place.
+  the `events_scope_shape_check` CHECK in `packages/db/src/schema.ts` refuses
+  the same row at insert. A turn-scoped row with no turn id is a row no query can place.
 - **The lifecycle is a table, and the db applies it under a CAS.**
   `packages/db/src/threads.ts` evaluates the event here, then updates only
   where the status AND the active turn id still match what it read, so a

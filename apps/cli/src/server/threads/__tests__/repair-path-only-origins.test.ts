@@ -9,14 +9,14 @@ import type { BootedTestApp } from "../../__tests__/boot-app";
 
 const PLANS = "notes/plans.md";
 
-// a row as a database from before origin_note_id holds it: the path it was composed at, no id
+// a row as a phone's request over a note with no id leaves it: the path it was asked over, no id
 const pathOnlyThread = (app: BootedTestApp, notePath: string): string =>
   createThread(app.db, noopNotifier, { origin: { noteId: null, path: notePath } }).id;
 
 const readNote = async (app: BootedTestApp, notePath: string): Promise<string> =>
   await readFile(path.join(app.vaultDir, notePath), "utf-8");
 
-describe("backfilling a path-bound action's note id", () => {
+describe("repairing a path-bound action's note id", () => {
   it("keeps an action in its note's group through an in-app rename", async () => {
     const app = await bootTestApp();
     await app.client.vault.write({
@@ -26,7 +26,7 @@ describe("backfilling a path-bound action's note id", () => {
     });
     const threadId = pathOnlyThread(app, PLANS);
 
-    await app.composed.context.threads.backfillOriginNoteIds();
+    await app.composed.context.threads.repairPathOnlyOrigins();
     const minted = await readNote(app, PLANS);
     expect(frontmatterId(minted)).not.toBeNull();
     expect(getThread(app.db, threadId)?.originNoteId).toBe(frontmatterId(minted));
@@ -47,9 +47,9 @@ describe("backfilling a path-bound action's note id", () => {
     const bound = pathOnlyThread(app, PLANS);
     const orphan = pathOnlyThread(app, "gone.md");
 
-    await app.composed.context.threads.backfillOriginNoteIds();
+    await app.composed.context.threads.repairPathOnlyOrigins();
     const minted = await readNote(app, PLANS);
-    await app.composed.context.threads.backfillOriginNoteIds();
+    await app.composed.context.threads.repairPathOnlyOrigins();
 
     expect(await readNote(app, PLANS)).toBe(minted);
     expect(getThread(app.db, bound)?.originNoteId).toBe(frontmatterId(minted));

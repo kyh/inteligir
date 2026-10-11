@@ -77,29 +77,8 @@ const topLevelMembers = (body: string): string[] => {
 };
 
 // only a table's members are sorted: column order inside an index is the index.
-// drizzle-kit 1.0 spells the same declaration differently from the 0.31 that wrote the shipped
-// migrations, and its own `generate` reads none of these as a change: a primary key without
-// its NOT NULL (sqlite implies it for the rowid alias; the shipped text form is the stricter
-// spelling of the same `.primaryKey()`), a named foreign key with the default ON UPDATE left
-// implicit, and a CHECK naming its columns bare where 0.31 qualified them with the table.
-const foldKitSpelling = (member: string, table: string): string =>
-  member
-    .replace(/^CONSTRAINT `fk_[A-Za-z0-9_]+` FOREIGN KEY/u, "FOREIGN KEY")
-    .replace(" ON UPDATE no action", "")
-    .replace(
-      / ON DELETE (?<action>[a-z ]+)$/iu,
-      (_, action: string) => ` ON DELETE ${action.toUpperCase()}`,
-    )
-    .replace(/ PRIMARY KEY NOT NULL\b/u, " PRIMARY KEY")
-    .replaceAll(`\`${table}\`.`, "");
-
-const normalize = (type: string, name: string, sql: string): string => {
-  // sqlite's own RENAME (the tail of a table-rebuild migration) rewrites the stored CREATE with
-  // double-quoted names where drizzle writes backticks.
-  const flat = sql
-    .replaceAll(/"(?<name>[A-Za-z_][A-Za-z0-9_]*)"/gu, "`$<name>`")
-    .replaceAll(/\s+/gu, " ")
-    .trim();
+const normalize = (type: string, sql: string): string => {
+  const flat = sql.replaceAll(/\s+/gu, " ").trim();
   if (type !== "table") {
     return flat;
   }
@@ -109,9 +88,7 @@ const normalize = (type: string, name: string, sql: string): string => {
     return flat;
   }
   const head = flat.slice(0, open).trim();
-  const members = topLevelMembers(flat.slice(open + 1, close))
-    .map((member) => foldKitSpelling(member, name))
-    .toSorted();
+  const members = topLevelMembers(flat.slice(open + 1, close)).toSorted();
   return `${head} (${members.join(", ")})`;
 };
 
@@ -133,7 +110,7 @@ const schemaOf = (databaseFile: string): SchemaObject[] => {
     }
     objects.push({
       name: row.name,
-      sql: normalize(row.type, row.name, row.sql),
+      sql: normalize(row.type, row.sql),
       type: row.type,
     });
   }

@@ -4,18 +4,13 @@
 // synchronously and a transaction cannot nest, so a dispatch failure is folded
 // back in its own.
 
-import {
-  approvalPendingInteractionPayloadSchema,
-  parseApprovalResolution,
-} from "@repo/domain/pending-interactions";
-import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
+import { unanswerableReason } from "@repo/domain/pending-interactions";
 import { writeTransaction } from "@repo/db/connection";
 import type { DbConnection, DbExecutor, DbTransaction } from "@repo/db/connection";
 import {
   appendEventsInTransaction,
   appendSyncedEventsInTransaction,
   listThreadMetaEvents,
-  storedTurnCompletion,
   storedTurnFailure,
   threadHasEvents,
   threadHoldsDispatch,
@@ -23,7 +18,6 @@ import {
 } from "@repo/db/events";
 import type { SyncedEventInput } from "@repo/db/events";
 import { createTurnId } from "@repo/db/ids";
-import { removeOwnSyncedCopiesInTransaction } from "@repo/db/own-synced-copies";
 import { NotificationBuffer } from "@repo/domain/notifier";
 import type { DbNotifier } from "@repo/domain/notifier";
 import {
@@ -82,7 +76,6 @@ import {
   THREADS_LIST_DEFAULT_LIMIT,
 } from "@repo/contract/local/threads/threads-schema";
 import { computeTimelineDelta } from "@repo/contract/local/thread-timeline";
-import { z } from "zod";
 import { mapWithConcurrency } from "../concurrency";
 import { messageOf } from "../error-message";
 import { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
@@ -131,8 +124,8 @@ interface SendTarget {
   turn: TurnRequest;
 }
 
-// each path is a note read and maybe a write; a vault of old actions is not opened all at once.
-const ORIGIN_BACKFILL_CONCURRENCY = 4;
+// each path is a note read and maybe a write; a vault of many actions is not opened all at once.
+const ORIGIN_REPAIR_CONCURRENCY = 4;
 
 type SendDecision =
   | {
@@ -214,44 +207,17 @@ const toWireThread = (
   updatedAt: row.updatedAt,
 });
 
-// null for unparseable bytes: deny is always answerable, so it costs one card's detail rather than the thread.
-const parseStoredApprovalPayload = (
-  payloadJson: string,
-): ApprovalPendingInteractionPayload | null => {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(payloadJson);
-  } catch {
-    return null;
-  }
-  const parsed = approvalPendingInteractionPayloadSchema.safeParse(raw);
-  return parsed.success ? parsed.data : null;
-};
-
-const toWirePendingInteraction = (row: PendingInteractionRow): PendingInteraction => {
-  const payload = parseStoredApprovalPayload(row.payload);
-  return {
-    createdAt: row.createdAt,
-    id: row.id,
-    payload,
-    requestKey: row.requestKey,
-    resolution: row.resolution,
-    resolvedAt: row.resolvedAt,
-    status: row.status,
-    threadId: row.threadId,
-    turnId: row.turnId,
-  };
-};
-
-// the same parse the runtime's answer path runs, so a resolution this passes is never silently denied downstream.
-const invalidResolutionMessage = (payloadJson: string, resolution: string): string | null => {
-  const payload = parseStoredApprovalPayload(payloadJson);
-  if (payload === null) {
-    return null;
-  }
-  const parsed = parseApprovalResolution(resolution, payload);
-  return parsed.ok ? null : parsed.reason;
-};
+const toWirePendingInteraction = (row: PendingInteractionRow): PendingInteraction => ({
+  createdAt: row.createdAt,
+  decision: row.decision,
+  id: row.id,
+  payload: row.payload,
+  requestKey: row.requestKey,
+  resolvedAt: row.resolvedAt,
+  status: row.status,
+  threadId: row.threadId,
+  turnId: row.turnId,
+});
 
 const lifecycleEventFor = (event: ThreadEvent): ThreadLifecycleEvent | null => {
   switch (event.type) {
@@ -293,7 +259,7 @@ const queueInTransaction = (
   buffer: NotificationBuffer,
 ): QueuedSendOutcome => {
   const queued = createQueuedThreadMessageInTransaction(tx, {
-    contextPaths: turn.contextPaths === undefined ? null : JSON.stringify(turn.contextPaths),
+    contextPaths: turn.contextPaths ?? null,
     dispatchId: turn.dispatchId ?? null,
     text: turn.text,
     threadId,
@@ -302,29 +268,10 @@ const queueInTransaction = (
   return { kind: "queued", queuedMessageId: queued.id };
 };
 
-const storedContextPathsSchema = z.array(z.string().min(1)).min(1);
-
-// only this process writes the column, from a parsed request; bytes that no longer parse cost the
-// message its attachments, never the message.
-const storedContextPaths = (stored: string | null): string[] | undefined => {
-  if (stored === null) {
-    return undefined;
-  }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(stored);
-  } catch {
-    return undefined;
-  }
-  const parsed = storedContextPathsSchema.safeParse(raw);
-  return parsed.success ? parsed.data : undefined;
-};
-
 const queuedTurn = (claimed: ClaimedQueuedThreadMessageRow): TurnRequest => {
   const turn: TurnRequest = { text: claimed.text };
-  const contextPaths = storedContextPaths(claimed.contextPaths);
-  if (contextPaths !== undefined) {
-    turn.contextPaths = contextPaths;
+  if (claimed.contextPaths !== null) {
+    turn.contextPaths = claimed.contextPaths;
   }
   if (claimed.dispatchId !== null) {
     turn.dispatchId = claimed.dispatchId;
@@ -509,25 +456,25 @@ export class ThreadService implements ProviderEventSink {
     this.driver = args.createTurnDriver(this);
   }
 
-  // a method rather than constructor work because it writes.
+  // a method rather than constructor work because it writes. it settles and frees, and never
+  // removes an event: the timeline projection reads each thread's log as append-only.
   boot(): void {
-    // first: a removed copy can be all that holds a thread running, and the sweep would fail a
-    // turn that finished.
-    this.removeOwnSyncedCopies();
     // before the sweep: a claim held by the dead process hides its message from
     // both the queue read and the next drain. a swept row does not auto-dispatch: the next send starts it first.
     releaseAllQueuedMessageClaims(this.db);
     this.recoverWedgedThreads();
   }
 
-  // a thread bound by its path alone loses its note to a rename, so each such path takes the id its
-  // note carries, minted through the create's own guarded step; a note that is gone or cannot take
-  // one leaves its threads on the path. a bound row is never listed again, so a rerun reads only
-  // the paths still without one.
-  async backfillOriginNoteIds(): Promise<void> {
+  // a phone's request over a note with no id starts its thread on the path alone, because the
+  // dispatch reads the id and never mints one; so does a create over a note that could not take one.
+  // a thread bound by its path loses its note to a rename, so each such path takes the id its note
+  // carries, minted through the create's own guarded step; a note that is gone or cannot take one
+  // leaves its threads on the path. a bound row is never listed again, so a rerun reads only the
+  // paths still without one.
+  async repairPathOnlyOrigins(): Promise<void> {
     await mapWithConcurrency(
       listPathOnlyOriginPaths(this.db),
-      ORIGIN_BACKFILL_CONCURRENCY,
+      ORIGIN_REPAIR_CONCURRENCY,
       async (path) => {
         let noteId: string | null;
         try {
@@ -542,28 +489,6 @@ export class ThreadService implements ProviderEventSink {
         }
       },
     );
-  }
-
-  // a copy's turn/started re-opened a turn its original had already settled, and when the
-  // turn's end never came back under that id nothing settled it again: such a thread takes the
-  // end its own rows state. lifecycle is not folded from the rows whole, because a stop settled
-  // here and a start that never produced a turn move it without writing one.
-  private removeOwnSyncedCopies(): void {
-    const buffer = new NotificationBuffer();
-    writeTransaction(this.db, (tx) => {
-      for (const threadId of removeOwnSyncedCopiesInTransaction(tx).threadIds) {
-        const thread = getThread(tx, threadId);
-        if (thread === null || thread.activeTurnId === null || !isThreadRunning(thread.status)) {
-          continue;
-        }
-        const completion = storedTurnCompletion(tx, { threadId, turnId: thread.activeTurnId });
-        const settle = completion === null ? null : lifecycleEventFor(completion);
-        if (settle !== null) {
-          projectLifecycleInTransaction(tx, { drain: false, event: settle, threadId }, buffer);
-        }
-      }
-    });
-    buffer.flushTo(this.notifier);
   }
 
   // every local append goes through here so the outbox enqueue rides the same
@@ -1005,13 +930,16 @@ export class ThreadService implements ProviderEventSink {
     if (existing === null || existing.threadId !== request.threadId) {
       return { kind: "not-found" };
     }
-    const invalid = invalidResolutionMessage(existing.payload, request.resolution);
+    // the runtime's answer path runs the same check, so a decision this takes is never denied
+    // downstream; an unreadable payload leaves it to the waiter's own copy.
+    const invalid =
+      existing.payload === null ? null : unanswerableReason(existing.payload, request.decision);
     if (invalid !== null) {
       return { kind: "invalid-resolution", message: invalid };
     }
     const outcome = resolvePendingInteraction(this.db, this.notifier, {
+      decision: request.decision,
       id: request.interactionId,
-      resolution: request.resolution,
       threadId: request.threadId,
     });
     switch (outcome.kind) {

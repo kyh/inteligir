@@ -13,10 +13,10 @@ const interactionWith = (
   payload: ApprovalPendingInteractionPayload | null,
 ): PendingInteraction => ({
   createdAt: 1,
+  decision: null,
   id: "pint_1",
   payload,
   requestKey: "req-1",
-  resolution: null,
   resolvedAt: null,
   status: "pending",
   threadId: "thr_1",
@@ -92,7 +92,7 @@ describe("ApprovalCard", () => {
     expect(approvalOffer(interactionWith(null)).decisions).toEqual(["deny"]);
   });
 
-  it("takes the picked option id as the resolution verb, and nothing else", () => {
+  it("takes the picked option id as the decision, and nothing else", () => {
     expect(decisionFromAnswers([{ optionIds: ["allow_once"], questionId: "pint_1" }])).toBe(
       "allow_once",
     );

@@ -1,8 +1,3 @@
-import {
-  ackCapturesResponseSchema,
-  captureResponseSchema,
-  claimCapturesResponseSchema,
-} from "@repo/contract/cloud/captures/captures-schema";
 import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import { pullResponseSchema, pushResponseSchema } from "@repo/contract/cloud/sync/sync-schema";
 import type { PushRequest } from "@repo/contract/cloud/sync/sync-schema";
@@ -74,26 +69,6 @@ const capture = async (
     headers: { ...deviceHeaders(credential), "content-type": "application/json" },
     method: "POST",
   });
-
-const claim = async (credential: string) => {
-  const response = await SELF.fetch(`${ORIGIN}/v1/sync/captures/claim`, {
-    body: JSON.stringify({}),
-    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
-    method: "POST",
-  });
-  expect(response.status).toBe(200);
-  return emitted(claimCapturesResponseSchema, await response.text());
-};
-
-const ack = async (credential: string, claimToken: string, ids: string[]) => {
-  const response = await SELF.fetch(`${ORIGIN}/v1/sync/captures/ack`, {
-    body: JSON.stringify({ claimToken, ids }),
-    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
-    method: "POST",
-  });
-  expect(response.status).toBe(200);
-  return emitted(ackCapturesResponseSchema, await response.text());
-};
 
 describe("thread sync log", () => {
   it("pushes, pulls, and ignores a replayed outbox batch", async () => {
@@ -320,75 +295,6 @@ describe("thread sync log", () => {
 });
 
 describe("capture inbox", () => {
-  it("hands a capture to exactly one claimer, and deletes it once", async () => {
-    const { bearer } = await signUpUser("capture-once@example.test");
-    const phone = await loginDevice(bearer, "Phone");
-    const laptop = await loginDevice(bearer, "Laptop");
-
-    const captured = await capture(phone.credential, "buy oat milk", "key-oat-milk-1");
-    const posted = emitted(captureResponseSchema, await captured.text());
-    expect(posted.duplicate).toBe(false);
-
-    const laptopClaim = await claim(laptop.credential);
-    expect(laptopClaim.captures).toEqual([
-      { createdAt: posted.createdAt, id: posted.id, text: "buy oat milk" },
-    ]);
-
-    const phoneClaim = await claim(phone.credential);
-    expect(phoneClaim.captures).toEqual([]);
-
-    expect(await ack(laptop.credential, laptopClaim.claimToken, [posted.id])).toEqual({
-      results: [{ id: posted.id, outcome: "deleted" }],
-    });
-    expect(await ack(phone.credential, phoneClaim.claimToken, [posted.id])).toEqual({
-      results: [{ id: posted.id, outcome: "unknown" }],
-    });
-
-    const emptied = await claim(laptop.credential);
-    expect(emptied.captures).toEqual([]);
-  });
-
-  it("tells a lapsed claimer its rows were reclaimed rather than deleting them", async () => {
-    const { bearer } = await signUpUser("capture-lapsed@example.test");
-    const phone = await loginDevice(bearer, "Phone");
-    const laptop = await loginDevice(bearer, "Laptop");
-    const captured = await capture(phone.credential, "remember", "key-remember-1");
-    const posted = emitted(captureResponseSchema, await captured.text());
-
-    const stale = await claim(laptop.credential);
-    expect(stale.captures).toHaveLength(1);
-
-    const userId = await userIdOf(bearer);
-    const stub = threadSyncStub(env, userId);
-    await runInDurableObject(stub, (_instance, state) => {
-      state.storage.sql.exec("UPDATE captures SET claimed_at = 0");
-    });
-    const fresh = await claim(phone.credential);
-    expect(fresh.captures.map((row) => row.id)).toEqual([posted.id]);
-
-    expect(await ack(laptop.credential, stale.claimToken, [posted.id])).toEqual({
-      results: [{ id: posted.id, outcome: "reclaimed" }],
-    });
-    expect(await ack(phone.credential, fresh.claimToken, [posted.id])).toEqual({
-      results: [{ id: posted.id, outcome: "deleted" }],
-    });
-  });
-
-  it("dedupes a retried capture on its idempotency key", async () => {
-    const { bearer } = await signUpUser("capture-idem@example.test");
-    const phone = await loginDevice(bearer, "Phone");
-
-    const captured = await capture(phone.credential, "one thought", "key-shared");
-    const first = emitted(captureResponseSchema, await captured.text());
-    const recaptured = await capture(phone.credential, "one thought", "key-shared");
-    const retry = emitted(captureResponseSchema, await recaptured.text());
-    expect(retry.id).toBe(first.id);
-    expect(retry.duplicate).toBe(true);
-
-    const claimed = await claim(phone.credential);
-    expect(claimed.captures).toHaveLength(1);
-  });
-
   it("pings every socket when a capture lands", async () => {
     const { bearer } = await signUpUser("capture-ping@example.test");
     const phone = await loginDevice(bearer, "Phone");

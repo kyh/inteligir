@@ -1,8 +1,8 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "2f62b03f-0b1a-4757-8b5e-2b5f32a57288",
-  "prevIds": ["7c121d92-b705-4468-9a1a-ffd4a1b4a015"],
+  "id": "b806ffc9-c136-4e71-afa3-bc7702d74000",
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
       "name": "events",
@@ -246,7 +246,17 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "resolution",
+      "name": "decision",
+      "entityType": "columns",
+      "table": "pending_interactions"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "relay",
       "entityType": "columns",
       "table": "pending_interactions"
     },
@@ -306,7 +316,37 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
+      "name": "sort_key",
+      "entityType": "columns",
+      "table": "queued_thread_messages"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
       "name": "text",
+      "entityType": "columns",
+      "table": "queued_thread_messages"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "context_paths",
+      "entityType": "columns",
+      "table": "queued_thread_messages"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "dispatch_id",
       "entityType": "columns",
       "table": "queued_thread_messages"
     },
@@ -331,16 +371,6 @@
       "table": "queued_thread_messages"
     },
     {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "sort_key",
-      "entityType": "columns",
-      "table": "queued_thread_messages"
-    },
-    {
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
@@ -357,16 +387,6 @@
       "default": null,
       "generated": null,
       "name": "updated_at",
-      "entityType": "columns",
-      "table": "queued_thread_messages"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "context_paths",
       "entityType": "columns",
       "table": "queued_thread_messages"
     },
@@ -476,17 +496,17 @@
       "autoincrement": false,
       "default": "0",
       "generated": null,
-      "name": "cursor",
+      "name": "dropped_events",
       "entityType": "columns",
       "table": "sync_state"
     },
     {
       "type": "integer",
-      "notNull": false,
+      "notNull": true,
       "autoincrement": false,
-      "default": null,
+      "default": "0",
       "generated": null,
-      "name": "last_synced_at",
+      "name": "cursor",
       "entityType": "columns",
       "table": "sync_state"
     },
@@ -507,6 +527,16 @@
       "default": null,
       "generated": null,
       "name": "skipped_by_build",
+      "entityType": "columns",
+      "table": "sync_state"
+    },
+    {
+      "type": "integer",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "last_synced_at",
       "entityType": "columns",
       "table": "sync_state"
     },
@@ -566,6 +596,16 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
+      "name": "origin_note_id",
+      "entityType": "columns",
+      "table": "threads"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
       "name": "provider_id",
       "entityType": "columns",
       "table": "threads"
@@ -611,23 +651,13 @@
       "table": "threads"
     },
     {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "origin_note_id",
-      "entityType": "columns",
-      "table": "threads"
-    },
-    {
       "columns": ["thread_id"],
       "tableTo": "threads",
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "events_thread_id_threads_id_fk",
+      "name": "fk_events_thread_id_threads_id_fk",
       "entityType": "fks",
       "table": "events"
     },
@@ -638,7 +668,7 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "pending_interactions_thread_id_threads_id_fk",
+      "name": "fk_pending_interactions_thread_id_threads_id_fk",
       "entityType": "fks",
       "table": "pending_interactions"
     },
@@ -649,7 +679,7 @@
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "nameExplicit": false,
-      "name": "queued_thread_messages_thread_id_threads_id_fk",
+      "name": "fk_queued_thread_messages_thread_id_threads_id_fk",
       "entityType": "fks",
       "table": "queued_thread_messages"
     },
@@ -863,12 +893,16 @@
         {
           "value": "updated_at",
           "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
         }
       ],
       "isUnique": false,
       "where": "\"threads\".\"archived_at\" IS NULL",
       "origin": "manual",
-      "name": "threads_live_updated_idx",
+      "name": "threads_live_updated_id_idx",
       "entityType": "indexes",
       "table": "threads"
     },
@@ -877,12 +911,16 @@
         {
           "value": "updated_at",
           "isExpression": false
+        },
+        {
+          "value": "id",
+          "isExpression": false
         }
       ],
       "isUnique": false,
       "where": "\"threads\".\"archived_at\" IS NOT NULL",
       "origin": "manual",
-      "name": "threads_archived_updated_idx",
+      "name": "threads_archived_updated_id_idx",
       "entityType": "indexes",
       "table": "threads"
     },
@@ -893,10 +931,46 @@
       "table": "events"
     },
     {
+      "value": "(\"origin_device_id\" IS NULL) = (\"origin_device_seq\" IS NULL)",
+      "name": "events_origin_shape_check",
+      "entityType": "checks",
+      "table": "events"
+    },
+    {
+      "value": "(\"status\" = 'resolved') = (\"decision\" IS NOT NULL)",
+      "name": "pending_interactions_decision_shape_check",
+      "entityType": "checks",
+      "table": "pending_interactions"
+    },
+    {
+      "value": "(\"claimed_at\" IS NULL) = (\"claim_token\" IS NULL)",
+      "name": "queued_thread_messages_claim_shape_check",
+      "entityType": "checks",
+      "table": "queued_thread_messages"
+    },
+    {
       "value": "\"id\" = 1",
       "name": "sync_state_singleton_check",
       "entityType": "checks",
       "table": "sync_state"
+    },
+    {
+      "value": "(\"skipped_from_seq\" IS NULL) = (\"skipped_by_build\" IS NULL)",
+      "name": "sync_state_skip_marker_shape_check",
+      "entityType": "checks",
+      "table": "sync_state"
+    },
+    {
+      "value": "\"origin_note_id\" IS NULL OR \"origin_doc_path\" IS NOT NULL",
+      "name": "threads_origin_shape_check",
+      "entityType": "checks",
+      "table": "threads"
+    },
+    {
+      "value": "\"provider_thread_id\" IS NULL OR \"provider_id\" IS NOT NULL",
+      "name": "threads_provider_session_check",
+      "entityType": "checks",
+      "table": "threads"
     }
   ],
   "renames": []

@@ -252,6 +252,10 @@ closes.
 
 Unit suites run the real program object against an in-process server built from
 the SAME contract (so the fixture cannot drift) — output goldens, `action wait`
-exit codes, discovery resolution. The server's own suites sit under
-`src/server/__tests__/`. The real-server integration lives in `e2e`
+exit codes, discovery resolution. Where the fixture answers from a rule, it runs
+the server's own: the knowledge index over its vault, and the guarded write's
+verdict (`src/server/vault/write-guard.ts`). The server's own suites sit under
+`src/server/__tests__/`; the cloud ones run against a fake cloud that answers
+the inbox table the Worker's suite runs
+(`@repo/contract/cloud/test-support/inbox-scenarios`). The real-server integration lives in `e2e`
 (`cli-drive`): the CLI drives a booted instance under the scripted agent.

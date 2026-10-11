@@ -1,5 +1,8 @@
 import { pendingInteractionStatusSchema } from "@repo/domain/pending-interaction-status";
-import { approvalPendingInteractionPayloadSchema } from "@repo/domain/pending-interactions";
+import {
+  approvalPendingInteractionPayloadSchema,
+  pendingInteractionApprovalDecisionSchema,
+} from "@repo/domain/pending-interactions";
 import { threadStatusSchema } from "@repo/domain/thread-status";
 import { MAX_THREAD_TITLE_LENGTH } from "@repo/domain/thread-title";
 import { viewContextSchema } from "@repo/domain/view-context";
@@ -28,12 +31,12 @@ export type Thread = z.infer<typeof threadSchema>;
 export const pendingInteractionSchema = z
   .object({
     createdAt: z.number(),
+    decision: pendingInteractionApprovalDecisionSchema.nullable(),
     id: z.string().min(1),
     // null when the stored json does not parse: the card stays answerable (deny), and one bad
     // payload must not fail the thread load.
     payload: approvalPendingInteractionPayloadSchema.nullable(),
     requestKey: z.string().min(1),
-    resolution: z.string().nullable(),
     resolvedAt: z.number().nullable(),
     status: pendingInteractionStatusSchema,
     threadId: z.string().min(1),
@@ -310,10 +313,10 @@ export type UndoTurnResponse = z.infer<typeof undoTurnResponseSchema>;
 
 export const answerInteractionRequestSchema = z
   .object({
+    // the shape is the wire's to refuse; whether this request offers the decision is the
+    // route's, from the stored payload (`unanswerableReason`).
+    decision: pendingInteractionApprovalDecisionSchema,
     interactionId: z.string().min(1),
-    // stays a string: the row stores and replays it verbatim; `parseApprovalResolution` is the
-    // one parser.
-    resolution: z.string().min(1),
     threadId: z.string().min(1),
   })
   .strict();

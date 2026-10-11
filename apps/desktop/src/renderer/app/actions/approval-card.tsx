@@ -26,10 +26,7 @@ const isDecision = (value: string): value is PendingInteractionApprovalDecision 
 export interface ApprovalCardProps {
   interaction: PendingInteraction;
   // a rejection hands the card back its options, so a refused answer can be sent again
-  onAnswer: (
-    interactionId: string,
-    resolution: PendingInteractionApprovalDecision,
-  ) => Promise<void>;
+  onAnswer: (interactionId: string, decision: PendingInteractionApprovalDecision) => Promise<void>;
 }
 
 interface ApprovalView {
