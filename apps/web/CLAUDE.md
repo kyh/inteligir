@@ -381,8 +381,10 @@ deviceId, userId, email }`, as sign-up's does, and the Mac keeps all four with
   Rejected: a capture lane of its own, whose phone end held the words in
   memory, so a capture typed offline was lost on relaunch, beside a second
   claim, ack and ledger that only ever appended a bullet. Delivery is
-  at-least-once to a claimant and a Mac's apply exactly-once on the dispatch
-  id, which the phone mints so a resend is one row
+  at-least-once to a claimant and a Mac's apply of a turn or an answer
+  exactly-once on the dispatch id, while a capture can repeat its bullet (Say
+  the delivery guarantee you implement, above); the phone mints the id, so a
+  resend is one row
   (`packages/contract/src/cloud/dispatch/dispatch-schema.ts`,
   `apps/web/src/worker/sync/dispatch-inbox.ts`). The Mac hands each claimed row
   to `ThreadService.acceptDispatch`, which runs the send's own decision, so a
