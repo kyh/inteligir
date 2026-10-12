@@ -23,6 +23,9 @@ const packageRoot = path.resolve(import.meta.dirname, "..");
 const cliBin = path.resolve(packageRoot, "..", "cli", "bin", "inteligir");
 
 const vite = await createServer({ configFile: path.join(packageRoot, "vite.config.ts") });
+// Vite's own listener closes Vite and exits this process on SIGTERM, before the server's flush and
+// with Vite's code; the one below forwards it and lets the server's exit end this process.
+process.removeAllListeners("SIGTERM");
 await vite.listen();
 const pageUrl = vite.resolvedUrls?.local[0];
 if (pageUrl === undefined) {
