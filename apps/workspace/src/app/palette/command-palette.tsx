@@ -13,7 +13,7 @@ import type { Thread } from "@repo/contract/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
-import { isTemplatePath } from "@repo/notes/templates/placeholders";
+import { isTemplatePath } from "@repo/notes/templates/folders";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import type { HeadingItem } from "@repo/editor/toc";

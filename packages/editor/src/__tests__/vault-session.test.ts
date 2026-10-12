@@ -1,5 +1,7 @@
 import { deferred } from "@repo/editor/deferred";
 import type { Deferred } from "@repo/editor/deferred";
+import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
+import type { GuardedVaultPort, GuardedWrite } from "@repo/editor/guarded-vault-io";
 import type { VaultChangedEvent, VaultEntry } from "@repo/editor/host-io";
 import type { OpenPathChange } from "@repo/editor/note/open-note-store";
 import { createVaultSession } from "@repo/editor/note/vault-session";
@@ -596,5 +598,71 @@ describe("starting and stopping", () => {
     session.stop();
     await settle();
     expect(vault.files.get("a.md")).toBe("A typed");
+  });
+});
+
+describe("the note the boot opens", () => {
+  const BOOTED = "a.md";
+  const BYTES = "A\n";
+
+  // `around` reads the host's store under the io, as a boot that skipped `ports.note` would
+  const guardedBoot = (readVia: "io" | "around") => {
+    const disk = new Map([[BOOTED, BYTES]]);
+    const guards: GuardedWrite[] = [];
+    const notices: string[] = [];
+    const port: GuardedVaultPort = {
+      read: async (path) => await (disk.get(path) ?? Promise.reject(new Error(`ENOENT ${path}`))),
+      remove: async (path) => {
+        disk.delete(path);
+        await Promise.resolve();
+      },
+      write: async (path, content, guard) => {
+        guards.push(guard);
+        disk.set(path, content);
+        return await Promise.resolve({ kind: "written" as const });
+      },
+    };
+    const note = createGuardedVaultIo(port);
+    const session = createVaultSession({
+      askVanished: async () => await Promise.resolve("discard" as const),
+      boot: async () => ({
+        entries: [doc(BOOTED)],
+        openNote: { content: await (readVia === "io" ? note : port).read(BOOTED), path: BOOTED },
+      }),
+      list: async () => await Promise.resolve([doc(BOOTED)]),
+      note,
+      notify: (message) => {
+        notices.push(message);
+      },
+      notifyMergeConflict: () => {},
+      publishEditor: () => {},
+      publishListing: () => {},
+      publishOpenPath: () => {},
+      rename: async () => await Promise.resolve({ ok: true as const }),
+    });
+    return { disk, guards, notices, session };
+  };
+
+  it("saves against the bytes the boot read through the session's own io", async () => {
+    const { disk, guards, session } = guardedBoot("io");
+    await session.start();
+    session.actions.editNote(BOOTED, `${BYTES}B\n`);
+
+    expect(await session.actions.flush()).toBe(true);
+    expect(guards).toEqual([{ base: BYTES, kind: "expected" }]);
+    expect(disk.get(BOOTED)).toBe(`${BYTES}B\n`);
+    session.stop();
+  });
+
+  it("writes nothing over bytes the boot read around it, which leave no base to guard with", async () => {
+    const { disk, guards, notices, session } = guardedBoot("around");
+    await session.start();
+    session.actions.editNote(BOOTED, `${BYTES}B\n`);
+
+    expect(await session.actions.flush()).toBe(false);
+    expect(guards).toEqual([]);
+    expect(disk.get(BOOTED)).toBe(BYTES);
+    expect(notices).toEqual([expect.stringMatching(/no base was read/u)]);
+    session.stop();
   });
 });

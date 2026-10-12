@@ -1,6 +1,6 @@
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { readFrontmatterRaw, writeFrontmatterRaw } from "@repo/editor/properties/properties-node";
-import { frontmatterYamlWithId, mintNoteId } from "@repo/notes/markdown/frontmatter";
+import { frontmatterYamlWithId } from "@repo/notes/markdown/frontmatter";
 
 // An action binds to its note by the note's frontmatter id. The open note takes one the way a pin
 // lands, through the live editor's frontmatter node, so the flush that names a view context's
@@ -13,7 +13,7 @@ export const ensureOpenNoteId = (path: string): void => {
   if (editor === null) {
     return;
   }
-  const verdict = frontmatterYamlWithId(readFrontmatterRaw(editor), mintNoteId());
+  const verdict = frontmatterYamlWithId(readFrontmatterRaw(editor), crypto.randomUUID());
   if (verdict.kind === "written") {
     editor.tf.withoutSaving(() => {
       writeFrontmatterRaw(editor, verdict.yaml);

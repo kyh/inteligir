@@ -177,8 +177,8 @@ rather than moving the app somewhere the docs don't name.
   or narrow with a type guard. Kebab-case filenames. Make illegal states
   unrepresentable.
 - **`@repo/notes` is pure and platform-neutral** — no node/react/ui imports
-  (lint-enforced); callers inject platform capabilities (the SQL driver, the
-  clock).
+  and no `crypto` global (lint-enforced); callers inject platform capabilities
+  (the SQL driver, the clock, random bytes and fresh ids).
 - **`pnpm knip` is a CI gate.** A new file must be reachable from a knip
   `entry` glob in `knip.json` or it reads as unused and CI goes red.
   `ignoreDependencies` is the escape hatch for what knip genuinely can't see,

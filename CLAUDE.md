@@ -277,23 +277,25 @@ packages/
                  modules (markdown/remark-*, comments/, formulas/),
                  `text/` — ONE Myers diff under diff3 — and `sync/`, the one
                  verdict a path two writers changed gets and the conflict
-                 copy's name and words. No node/react/ui
-                 imports — lint-enforced. `markdown/mdast-nodes.ts` is the
-                 mdast NARROWING boundary: a walk asks it what a node is
-                 rather than discriminating structurally at each visit.
+                 copy's name and words. No node/react/ui imports and no
+                 `crypto` global — lint-enforced. `markdown/mdast-nodes.ts`
+                 is the mdast NARROWING boundary: a walk asks it what a node
+                 is rather than discriminating structurally at each visit.
   editor/        @repo/editor — the Plate.js WYSIWYG (epic #579):
                  kits/nodes for every dialect construct, the md-rules table,
                  the fixpoint serializer + fixture matrix, the open-note
                  runtime (vault-session/note-runtime/open-note-store) the app
                  drives through three seams, `VaultSessionPorts`
                  (note/vault-session.ts), the `GuardedVaultPort` its one write
-                 policy runs over (guarded-vault-io.ts) and the `EditorHostIo`
-                 singleton (host-io.ts, opened to React by host.ts; the link
-                 resolver store and note formulas it carries live here too, so
-                 no host writes its own), plus the note-level verbs the shell
-                 reaches by path and the action registry a deep node asks the
-                 shell through (`agent-request`; the comment surface keeps its
-                 own, `CommentActions`). A host picks the hand it draws for
+                 policy runs over (guarded-vault-io.ts) and the `EditorHost`
+                 singleton (host-io.ts, opened to React by host.ts): its
+                 `EditorHostIo` (the link resolver store and note formulas it
+                 carries live here too, so no host writes its own), the
+                 `EditorHostActions` a deep node asks the shell through (Ask
+                 agent, `showTag`, a comment's create and open, all required)
+                 and the open note's store, installed by one
+                 `installEditorHost` call per host; plus the note-level verbs
+                 the shell reaches by path. A host picks the hand it draws for
                  (`editor-profile.tsx`): the desktop none, the phone's page
                  `touch`, which mounts the touch kit, its locked rich blocks
                  and the keyboard toolbar.
@@ -529,14 +531,25 @@ to the END of its group.
   `<!-- inteligir:thread anc_… -->` markers parse as opaque comments and are
   preserved; nothing writes new ones.
 
-- **TEMPLATES ARE A FOLDER, AND PLACEHOLDERS EXPAND ON BYTES BEFORE ANY PARSER.**
-  A template is a doc under `templates/` (a fixed convention like the daily
-  folder, no setting); `templates/Daily.md` shapes the daily note. Exactly three
-  placeholders, `{{date}}`, `{{time}}`, `{{title}}`, replaced textually on the
-  raw markdown, so the formula grammar never sees them and every other `{{…}}`
-  is a pill left byte-exact. A note minted from a template drops the template's
-  `id:`, because two notes with one id make the uuid link tier ambiguous.
-  `@repo/notes/templates/placeholders`, `packages/editor/src/insert-template.ts`.
+- **TEMPLATES ARE A FOLDER, AND PLACEHOLDERS EXPAND ON THE TEMPLATE'S OWN
+  BYTES.** A template is a doc under `templates/` (a fixed convention like the
+  daily folder, no setting); `templates/Daily.md` shapes the daily note. Exactly
+  three placeholders, `{{date}}`, `{{time}}`, `{{title}}`, replaced in place on
+  the raw markdown, so the formula grammar never sees them and every other
+  `{{…}}` is a pill left byte-exact. The date and the time are fixed ISO
+  strings; the title is a file name, which can spell markdown and yaml, so it
+  is spelled for where it lands: in prose, the serializer's own escape for the
+  construct and neighbours around it, read off the bare parse; in the
+  frontmatter, a scalar yaml rewrites through its CST, quoted only when plain
+  would not read back as the title; in code, math, a wiki link or a url, as
+  written. Rejected: escaping every punctuation mark, which writes `Mike\'s`
+  into the file, and re-serializing the template, which restyles bytes the
+  author wrote. That expansion loads both parsers, so the folder names live
+  apart from it (`@repo/notes/templates/folders`), where the contract and
+  every command-line verb read them. A note minted from a template drops the
+  template's `id:`, because two notes with one id make the uuid link tier
+  ambiguous. `@repo/notes/templates/placeholders`,
+  `packages/editor/src/insert-template.ts`.
 
 - **A BINDING IS SPELLED FROM THE TABLE ITS LISTENER READS, never as a
   literal.** Five tables own every chord and each handler walks its own:
@@ -840,7 +853,7 @@ to the END of its group.
   `apps/cli/src/server/vault/vault-prefs-store.ts`. The name is
   `freeAssetPath` (`@repo/notes/knowledge/asset-name`), which the phone's
   photos run too; they land in the default folder, spelled once as
-  `DEFAULT_ATTACHMENTS_FOLDER` in `@repo/notes/templates/placeholders`, since
+  `DEFAULT_ATTACHMENTS_FOLDER` in `@repo/notes/templates/folders`, since
   `vault-prefs.json` never reaches the phone.
 
 - **EVERY VAULT GETS ITS OWN DATA DIR, AND A SWITCH IS A NEW CHILD, A NEW
@@ -1128,7 +1141,7 @@ to the END of its group.
 - **A TAG IS A SCOPE ON THE RECENT LIST, NOT A VIEW; ITS NOTES ARE A LISTING,
   NOT A SEARCH; AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** No tag browser
   (a Tags tab was built and removed by owner decision): a `#tag` chip asks the
-  shell through `showTag` (`packages/editor/src/agent-request.ts`), and the
+  shell through `showTag` (`EditorHostActions`, `packages/editor/src/host-io.ts`), and the
   rail answers with Recent scoped to the tag
   (`apps/workspace/src/app/sidebar/tagged-notes.tsx`).
   `knowledge.tagNotes` answers the tag's family with the whole count, paged,
@@ -1177,7 +1190,7 @@ to the END of its group.
   (`wikiLinkName`) or frontmatter `id` two docs share, a tie the resolver is
   quietly breaking. Every row disappears with the sweep that fixes it, so none
   is stale. Daily notes and templates are orphans by design and left out
-  unless asked (`@repo/notes/templates/placeholders` spells the folders). A row
+  unless asked (`@repo/notes/templates/folders` spells the folders). A row
   lands on the link ELEMENT (`packages/editor/src/link-locate.ts`), since the
   find bar cannot see a wiki chip's label, a prop of an inline void.
   `@repo/notes/knowledge/vault-problems.ts`.
@@ -1323,8 +1336,8 @@ to the END of its group.
   it last read (`apps/workspace/src/app/actions/turn-finish-toast.ts`).
   Both undos flush the open note first, so a line inside the autosave debounce
   is merged around rather than missed (`undo-turn.ts`). "Ask agent" seeds the
-  composer through `packages/editor/src/agent-request.ts`, so the editor never
-  imports the shell. `apps/workspace/src/app/actions/actions-panel.tsx`
+  composer through the editor host's agent actions
+  (`packages/editor/src/host-io.ts`), so the editor never imports the shell. `apps/workspace/src/app/actions/actions-panel.tsx`
   and `action-composer.tsx`.
 
 - **A COMMENT STORE IS ONE DOT-FOLDER KEYED BY THE NOTE'S ID, ITS WRITE IS A

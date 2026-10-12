@@ -1,5 +1,4 @@
-import { useCommentSurface } from "@repo/editor/comments/comment-store";
-import { getEditorHostIo } from "@repo/editor/host-io";
+import { getEditorHostActions, getEditorHostIo } from "@repo/editor/host-io";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ThreadHarness } from "../../server/__tests__/boot-app";
@@ -83,7 +82,7 @@ describe("an entry that shows something in the closed panel", () => {
     });
 
     act(() => {
-      useCommentSurface.getState().actions?.open(["c1"]);
+      getEditorHostActions().comments.open(["c1"]);
     });
 
     await waitFor(() => {

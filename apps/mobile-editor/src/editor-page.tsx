@@ -3,7 +3,6 @@ import { createRoot } from "react-dom/client";
 
 import { EditorColumn } from "@repo/editor/editor-column";
 import { EditorProfileProvider } from "@repo/editor/editor-profile";
-import { setEditorHostIo } from "@repo/editor/host-io";
 import { focusNoteBody } from "@repo/editor/note-body-focus";
 import { focusNoteTitle } from "@repo/editor/note-title-focus";
 import { OpenNoteStoreProvider, useOpenNote } from "@repo/editor/note/open-note-context";
@@ -101,8 +100,8 @@ export const mountEditorPage = ({
 }): MountedPage => {
   const store = createOpenNoteStore();
   const host = createPageHost({ bridge, path: init.path, store });
-  // before the first render: the note the boot opens mounts hooks that read the host as they render
-  setEditorHostIo(host.io);
+  // installs the host before the first render: the note the boot opens mounts hooks that read the
+  // host as they render
   host.start();
   const root = createRoot(container);
   root.render(

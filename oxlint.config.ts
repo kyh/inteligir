@@ -53,6 +53,26 @@ export default defineConfig({
         ],
       },
     },
+    {
+      // A test is one of the callers, so it may hand the code under test the platform's bytes.
+      excludeFiles: tests,
+      files: ["packages/notes/src/**"],
+      rules: {
+        "no-restricted-globals": [
+          "error",
+          {
+            checkGlobalObject: true,
+            globals: [
+              {
+                message:
+                  "@repo/notes names no platform and not every runtime it ships to has crypto; take the random bytes or the id from the caller",
+                name: "crypto",
+              },
+            ],
+          },
+        ],
+      },
+    },
   ],
   rules: {
     // Its message asks for a `// SAFETY:` comment, which admits nothing now that

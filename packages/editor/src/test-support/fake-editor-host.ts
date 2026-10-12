@@ -2,14 +2,17 @@ import { createStore } from "zustand/vanilla";
 
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 
-import { setEditorHostIo } from "@repo/editor/host-io";
+import { installEditorHost } from "@repo/editor/host-io";
 import type {
+  AgentRequestActions,
+  CommentActions,
   CreateNewFileResult,
   EditorHostIo,
   LinkResolver,
   ReadVaultAssetResult,
   VaultActions,
 } from "@repo/editor/host-io";
+import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
 export interface HostCall {
   readonly action: keyof VaultActions;
@@ -34,11 +37,18 @@ export interface FakeEditorHostOptions {
   // null is a host with no frame to run an html block in
   readonly htmlFrameUrl?: string | null;
   readonly pickImage?: EditorHostIo["pickImage"];
+  readonly comments?: CommentActions;
+  readonly agent?: AgentRequestActions;
 }
+
+const ignore = (): void => {
+  // the fake shell has no panel, rail or composer to answer with
+};
 
 export const FAKE_HTML_FRAME_URL = "/html-frame-under-test";
 
-// Installs the singleton the hooks read; the io half answers as an empty, read-only vault.
+// Installs the singleton the hooks read; the io half answers as an empty, read-only vault, and the
+// shell refuses every comment and hears every other ask as nothing.
 export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   const calls: HostCall[] = [];
   const record =
@@ -82,7 +92,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     targets: options.wikiTargets ?? [],
   }));
 
-  setEditorHostIo({
+  const io: EditorHostIo = {
     actions,
     htmlFrameUrl: options.htmlFrameUrl === undefined ? FAKE_HTML_FRAME_URL : options.htmlFrameUrl,
     linkResolver,
@@ -100,7 +110,20 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
         : Promise.resolve(content));
     },
     writeVaultAsset: async () => await Promise.reject(new Error("read-only")),
+  };
+
+  const uninstall = installEditorHost({
+    actions: {
+      agent: options.agent ?? { askAboutSelection: ignore, showTag: ignore },
+      comments: options.comments ?? {
+        create: async () => await Promise.resolve(false),
+        open: ignore,
+      },
+    },
+    io,
+    // a store of its own: no editor suite flushes through `flushOpenNote`
+    store: createOpenNoteStore(),
   });
 
-  return { calls };
+  return { calls, uninstall };
 };

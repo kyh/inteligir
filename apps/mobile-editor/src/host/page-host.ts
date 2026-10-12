@@ -6,16 +6,13 @@
 import { deferred } from "@repo/editor/deferred";
 import { z } from "zod";
 
-import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
-import {
-  clearCommentMeta,
-  setCommentActions,
-  setCommentMeta,
-} from "@repo/editor/comments/comment-store";
+import { clearCommentMeta, setCommentMeta } from "@repo/editor/comments/comment-store";
 import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
 import type { GuardedVaultPort } from "@repo/editor/guarded-vault-io";
+import { installEditorHost } from "@repo/editor/host-io";
 import type {
+  EditorHostActions,
   EditorHostIo,
   VaultActions,
   VaultChangedEvent,
@@ -378,40 +375,45 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
     }
   };
 
+  const hostActions: EditorHostActions = {
+    agent: {
+      askAboutSelection: (selection) => {
+        const { openPath } = store.state();
+        if (openPath !== null) {
+          bridge.emit({ path: openPath, selection, type: "askAgent" });
+        }
+      },
+      // a tag has no screen on the phone
+      showTag: () => {
+        /* empty */
+      },
+    },
+    comments: {
+      create: createComment,
+      open: (ids) => {
+        if (ids.length > 0) {
+          bridge.emit({ ids, type: "showComments" });
+        }
+      },
+    },
+  };
+
   let unsubscribe: (() => void) | null = null;
+  let uninstall: (() => void) | null = null;
 
   return {
     io: hostIo,
     start: () => {
       unsubscribe ??= bridge.onNative(onNative);
-      setAgentRequestActions({
-        askAboutSelection: (selection) => {
-          const { openPath } = store.state();
-          if (openPath !== null) {
-            bridge.emit({ path: openPath, selection, type: "askAgent" });
-          }
-        },
-        // a tag has no screen on the phone
-        showTag: () => {
-          /* empty */
-        },
-      });
-      setCommentActions({
-        create: createComment,
-        open: (ids) => {
-          if (ids.length > 0) {
-            bridge.emit({ ids, type: "showComments" });
-          }
-        },
-      });
+      uninstall ??= installEditorHost({ actions: hostActions, io: hostIo, store });
       refreshTargets();
       void session.start();
     },
     stop: () => {
       unsubscribe?.();
       unsubscribe = null;
-      setAgentRequestActions(null);
-      setCommentActions(null);
+      uninstall?.();
+      uninstall = null;
       for (const metaPath of metaPaths) {
         clearCommentMeta(metaPath);
       }

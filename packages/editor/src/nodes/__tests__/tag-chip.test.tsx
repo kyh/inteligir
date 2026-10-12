@@ -5,17 +5,17 @@ import { createPlateEditor, Plate, PlateContent } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/editor/markdown/markdown-doc";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { inlineTagSpans } from "@repo/notes/knowledge/tag-grammar";
 
 afterEach(cleanup);
 const showTag = vi.fn<(tag: string) => void>();
 beforeEach(() => {
   showTag.mockClear();
-  setAgentRequestActions({ askAboutSelection: vi.fn<(text: string) => void>(), showTag });
+  installFakeEditorHost({ agent: { askAboutSelection: vi.fn<(text: string) => void>(), showTag } });
 });
 
 // only TagChipKit: unregistered types still resolve through editor.getType's key fallback, which the suppression checks compare against.

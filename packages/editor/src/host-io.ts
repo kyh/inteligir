@@ -2,10 +2,13 @@ import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import type { StoreApi } from "zustand/vanilla";
 
-// The host as a module singleton rather than context: kit factories and paste handlers run
-// outside React, and host.ts hands components the same object. The shell implements these
-// types; declaring them beside the app's provider would put a type edge back across the
-// package boundary.
+import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
+import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
+
+// The host as a module singleton rather than context: kit factories, paste handlers and a deep
+// node's click run outside React or with no route to the shell's owner, and host.ts hands
+// components the same object. The shell implements these types; declaring them beside the app's
+// provider would put a type edge back across the package boundary.
 
 export interface VaultEntry {
   path: string;
@@ -95,15 +98,56 @@ export interface EditorHostIo {
   pickImage: (() => Promise<PickImageResult>) | null;
 }
 
-let installed: EditorHostIo | null = null;
+export interface CommentActions {
+  /** False means refused; the caller strips the markers it minted. */
+  create: (id: string, text: string) => Promise<boolean>;
+  open: (ids: string[]) => void;
+}
 
-export const setEditorHostIo = (io: EditorHostIo): void => {
-  installed = io;
+export interface AgentRequestActions {
+  askAboutSelection: (selectionText: string) => void;
+  // the rail shows that tag's notes
+  showTag: (tag: string) => void;
+}
+
+// What the editor asks the shell for beyond the vault. Every field is required, so a host that
+// leaves one out fails to typecheck rather than drawing a button that does nothing.
+export interface EditorHostActions {
+  readonly agent: AgentRequestActions;
+  readonly comments: CommentActions;
+}
+
+export interface EditorHost {
+  readonly io: EditorHostIo;
+  readonly actions: EditorHostActions;
+  // the open note's store, flushed through its host's own flush by every writer outside the
+  // note's tree (`flushOpenNote`)
+  readonly store: OpenNoteStore;
+}
+
+let installed: Omit<EditorHost, "store"> | null = null;
+
+// The one door a host comes in by, ahead of the first render: the note the boot opens mounts hooks
+// that read the host as they render. The disposer ends the store's registration and leaves the
+// host installed until the next install replaces it, because an answer in flight when the note
+// unmounts still reads it.
+export const installEditorHost = ({ actions, io, store }: EditorHost): (() => void) => {
+  installed = { actions, io };
+  store.setFlush(io.actions.flush);
+  const unregister = registerOpenNoteStore(store);
+  return () => {
+    store.setFlush(null);
+    unregister();
+  };
 };
 
-export const getEditorHostIo = (): EditorHostIo => {
+const installedHost = (): Omit<EditorHost, "store"> => {
   if (installed === null) {
-    throw new Error("EditorHostIo not installed — the app must setEditorHostIo() before mounting");
+    throw new Error("no editor host installed — the app must installEditorHost() before mounting");
   }
   return installed;
 };
+
+export const getEditorHostIo = (): EditorHostIo => installedHost().io;
+
+export const getEditorHostActions = (): EditorHostActions => installedHost().actions;

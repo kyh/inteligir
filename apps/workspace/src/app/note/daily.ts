@@ -1,6 +1,7 @@
 import { formatIsoDate } from "@repo/notes/iso-date";
 import { removeFrontmatterId } from "@repo/notes/markdown/frontmatter";
-import { DAILY_NOTES_FOLDER, expandTemplate } from "@repo/notes/templates/placeholders";
+import { DAILY_NOTES_FOLDER } from "@repo/notes/templates/folders";
+import { expandTemplate } from "@repo/notes/templates/placeholders";
 
 export const dailyNotePath = (now: Date): string =>
   `${DAILY_NOTES_FOLDER}/${formatIsoDate(now)}.md`;

@@ -10,10 +10,9 @@ import { confirm } from "@repo/ui/components/confirm-dialog";
 import { plural } from "@repo/ui/lib/plural";
 import { toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { client, orpc } from "./api";
-import { setCommentActions } from "@repo/editor/comments/comment-store";
 import { ActionComposer } from "./actions/action-composer";
 import { ActionsPanel } from "./actions/actions-panel";
 import type { PanelTab } from "./actions/actions-panel";
@@ -26,7 +25,6 @@ import { useTurnFinishToast } from "./actions/turn-finish-toast";
 import { useSyncConflictNotices } from "./sync-conflict-notices";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
-import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { EditorColumn } from "@repo/editor/editor-column";
 import { hideFindBar, jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
 import { insertTemplate } from "@repo/editor/insert-template";
@@ -35,12 +33,13 @@ import { getLiveEditor, whenLiveEditor } from "@repo/editor/live-editor";
 import { collectHeadings, goToHeading } from "@repo/editor/toc";
 import type { HeadingItem } from "@repo/editor/toc";
 import { removeFrontmatterId } from "@repo/notes/markdown/frontmatter";
-import { DAILY_TEMPLATE_PATH, expandTemplate } from "@repo/notes/templates/placeholders";
+import { DAILY_TEMPLATE_PATH } from "@repo/notes/templates/folders";
+import { expandTemplate } from "@repo/notes/templates/placeholders";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { backTarget, createOpenNoteStore, forwardTarget } from "@repo/editor/note/open-note-store";
 import { exportNoteAsPdf } from "./note/export-pdf";
-import type { VaultActions } from "@repo/editor/host-io";
+import type { EditorHostActions, VaultActions } from "@repo/editor/host-io";
 import { dailyNoteFromTemplate, dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { readNoteViewContext } from "./note/note-view-context";
 import { setNotePinned } from "./note/pin-note";
@@ -218,32 +217,6 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     [revealPanel],
   );
 
-  // `create` flushes before adding: the route derives `anchored` from disk.
-  useEffect(() => {
-    setCommentActions({
-      create: async (id, text) => {
-        const { openPath: path } = noteStore.state();
-        if (path === null) {
-          return false;
-        }
-        await flushOpenNote();
-        try {
-          await client.comments.add({ id, path, text });
-        } catch {
-          return false;
-        }
-        void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
-        return true;
-      },
-      open: (ids) => {
-        revealPanel({ focus: ids, tab: "comments" });
-      },
-    });
-    return () => {
-      setCommentActions(null);
-    };
-  }, [queryClient, noteStore, revealPanel]);
-
   const readViewContext = useCallback<ViewContextSource>(async (): Promise<ViewContext | null> => {
     const { editor } = noteStore.state();
     if (editor.kind === "closed") {
@@ -290,7 +263,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [initialPanelWidth] = useState(() => `${String(readPref(PREFS.panelWidth))}px`);
   // the rail's view and its tag, owned here for the same reason: a `#tag` chip deep in the note
-  // sets both, and it reaches the shell through the editor's action registry
+  // sets both, and it reaches the shell through the editor host's `showTag`
   const [railView, chooseRailView] = usePref(PREFS.railView);
   // The breadcrumb's ask, keyed by a nonce so naming the same folder twice reveals it twice; the
   // tree consumes it, so the rail shows Files first. The nonce is counted here rather than off
@@ -455,22 +428,42 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     [closePalette, noteStore, navigate],
   );
 
-  useEffect(() => {
-    setAgentRequestActions({
-      askAboutSelection: (selectionText) => {
-        setComposerSeed(quoteSelection(selectionText));
-        setComposerOpen(true);
+  const hostActions = useMemo<EditorHostActions>(
+    () => ({
+      agent: {
+        askAboutSelection: (selectionText) => {
+          setComposerSeed(quoteSelection(selectionText));
+          setComposerOpen(true);
+        },
+        showTag: (tag) => {
+          showRail(true);
+          chooseRailView("recent");
+          setSelectedTag(tag);
+        },
       },
-      showTag: (tag) => {
-        showRail(true);
-        chooseRailView("recent");
-        setSelectedTag(tag);
+      comments: {
+        // flushed before adding: the route derives `anchored` from disk
+        create: async (id, text) => {
+          const { openPath: path } = noteStore.state();
+          if (path === null) {
+            return false;
+          }
+          await flushOpenNote();
+          try {
+            await client.comments.add({ id, path, text });
+          } catch {
+            return false;
+          }
+          void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
+          return true;
+        },
+        open: (ids) => {
+          revealPanel({ focus: ids, tab: "comments" });
+        },
       },
-    });
-    return () => {
-      setAgentRequestActions(null);
-    };
-  }, [chooseRailView, showRail]);
+    }),
+    [chooseRailView, showRail, noteStore, queryClient, revealPanel],
+  );
 
   useGlobalShortcuts({ enabled: !covered, modifier: shortcutModifier }, (action) => {
     switch (action) {
@@ -620,6 +613,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
       onOpenPath={onOpenNote}
       onShowHistory={showHistory}
       actionsRef={actionsRef}
+      hostActions={hostActions}
       store={noteStore}
     >
       <div inert={covered} className="isolate flex h-dvh flex-col bg-surface text-ink print:h-auto">
