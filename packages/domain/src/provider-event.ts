@@ -135,7 +135,9 @@ export const threadEventSchema = z.discriminatedUnion("type", [
       providerFailureSchema.nullable().optional(),
     ),
     message: z.string(),
-    // thread scope for a provider setup or session failure, turn scope for one inside a turn.
+    // thread scope for a failure no running turn met: a dispatch refused before any provider was
+    // reached, or a restart's recovery. turn scope for every other, a refused session open included,
+    // so the settle finds the failure's class on the turn's own rows.
     scope: threadEventScopeSchema,
     threadId: z.string(),
     type: z.literal("provider/error"),

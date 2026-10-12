@@ -28,6 +28,13 @@ package's `ThreadEvent`.
 
 ```
 src/
+  harness.ts             # HARNESS_IDS, harnessIdSchema and HARNESS_NAMES: the
+                         # harness ids the wire takes, claude first, and the
+                         # names a person reads. `parseHarnessId` narrows a
+                         # thread's own provider id, which stays open: another
+                         # device's newer build may name one this build lacks
+  agent-shell-env.ts     # THREAD_ID_ENV_VAR, spelled once: the runtime stamps
+                         # it on every agent shell and the CLI reads it back
   thread-status.ts       # idle|starting|active|stopping|error as ONE tuple —
                          # the drizzle enum column and the wire schema both
                          # read it, so a status cannot exist on one side only
@@ -89,11 +96,12 @@ Every subpath is exported by name in `package.json`; there is no barrel.
   `@repo/agent-runtime/vocabulary/provider-event` is what a provider adapter
   may EMIT; `provider-event.ts` here is what the `events` table STORES and a
   client replays. `apps/cli/src/server/agents/event-mapping.ts` is the one
-  place that narrows the first onto the second — a kind with no persisted
-  counterpart is dropped with a reason, never re-shaped. The shared leaves
-  (file change, item status, scope) are one type here so a narrowing assigns
-  them; a field-by-field respelling would mean the two had drifted. A shape bb
-  already names is re-vendored from bb, not invented.
+  place that narrows the first onto the second, every kind the mapper emits but
+  an adapter's notice, which the runtime manager writes to the agent log
+  instead; nothing is re-shaped. The shared leaves (file change, item status,
+  scope) are one type here so a narrowing assigns them; a field-by-field
+  respelling would mean the two had drifted. A shape bb already names is
+  re-vendored from bb, not invented.
 - **Scope is enforced twice, on purpose.** `threadEventSchema` refuses a
   turn-only event under thread scope, and a turn scope with no id, at parse;
   the `events_scope_shape_check` CHECK in `packages/db/src/schema.ts` refuses

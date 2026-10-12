@@ -228,9 +228,10 @@ scripts/
 ## Seams
 
 - `AgentRuntimeOptions` (`types.ts`) — `onEvent` (every `ProviderEvent`),
-  `onInteractiveRequest` (a permission request as a `PendingInteractionCreate`,
-  answered with a `PendingInteractionResolution`), `onStderr`, and the two
-  getters above.
+  `onActivity` (every update the running turn's session sends, so the host's
+  idle clock hears one that maps to no event), `onInteractiveRequest` (a
+  permission request as a `PendingInteractionCreate`, answered with a
+  `PendingInteractionResolution`), `onStderr`, and the `shellEnv` getter above.
 - `AcpAgentRuntimeOptions.spawnAdapter` (`acp/acp-runtime.ts`) — the one
   injection point for how an adapter starts, handed the harness, its env and
   the workspace to run in, and answering the `ChildProcessWithoutNullStreams`
