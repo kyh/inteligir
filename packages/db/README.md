@@ -220,8 +220,6 @@ touching it, opens with WAL and `synchronous=NORMAL`, hands a deleted row's
 pages back on close, refuses half of every paired column; the skipped-row
 marker keeps the lowest row and rewinds once per build change; a sign-out
 leaves the sync state row exactly as the baseline seeded it;
-the own-copy removal keeps the originals and another device's rows, learns
-the earlier id and runs once;
 contiguous sequences under interleaved writers, the turn/started gate, the
 scope CHECK at the database, a 20-event burst prepares two SELECTs and one
 INSERT, a stored row the grammar refuses left out and reported; the lifecycle
