@@ -224,7 +224,7 @@ export interface VaultService {
   statEntry: (path: string) => Promise<"file" | "dir" | null>;
   listFilesUnder: (path: string) => Promise<string[]>;
   // a read takes a slot of the process's fs budget (read-slots.ts) while the bytes are opened;
-  // absent, its lane is foreground, and a job reading many docs says background.
+  // absent, its lane is foreground, and a job nobody waits on says background.
   read: (path: string, lane?: ReadLane) => Promise<{ path: string; content: string }>;
   statAsset: (path: string) => Promise<{ path: string; etag: string }>;
   readBytes: (

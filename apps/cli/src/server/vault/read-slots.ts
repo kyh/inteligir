@@ -4,11 +4,16 @@
 // three vault files are open for reading at once, whoever asked.
 export const READ_SLOTS = 3;
 
-// a background read is one of many a single job makes (an index pass, a rename's snapshot, a
-// delete's id scan, the boot's origin repair), and on such storage every one of them may stall. it
-// never takes the last slot, so a read the window waits on still opens while two of them hang,
-// rather than queueing behind them or answering that a note on disk is unavailable.
+// a background read is one of many a job nobody waits on makes (an index pass, the boot's origin
+// repair), and on such storage every one of them may stall. it never takes the last slot, so a
+// read someone waits on still opens while two of them hang, rather than queueing behind them or
+// answering that a note on disk is unavailable.
 export const BACKGROUND_READ_SLOTS = 2;
+
+// a request that reads many docs (a delete's id scan, a rename's snapshot) is waited on as the
+// window's read is, so it reads in the foreground lane, where a job's stalls cannot hold it; one
+// doc at a time, so it never holds more of the budget than a single read does.
+export const REQUEST_READ_SLOTS = 1;
 
 export type ReadLane = "foreground" | "background";
 

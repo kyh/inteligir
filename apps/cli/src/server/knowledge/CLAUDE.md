@@ -57,22 +57,28 @@ and cited.
   (`apps/cli/src/server/vault/read-slots.ts`): 3 at once, whoever asked, because
   a stalled open holds one of node's four fs threads and a fourth stalls every
   fs call in the process, saves included, which no deadline can free; a read
-  left running keeps its slot. A BACKGROUND READ, one of many a job makes (the
-  index pass, a rename's snapshot, a delete's id scan, the boot's origin
-  repair), never takes the third, so a read the window waits on opens beside two
-  that hang; each such job runs no more at once than that share, so what waits
-  does so in the job, where the index reads the latest path first. The lstat and
-  ancestry checks before the open stay outside it, and so does a write's read of
-  the bytes it replaces, so a save never waits behind a stalled read. Rejected:
-  a foreground deadline answering "unavailable", which refuses a note that is on
-  disk; re-reading every path once its late read lands, which loops on storage
-  that is always slow; and a wider cap, which the pool cannot afford. No
-  provider path, bundle id or mount type appears anywhere; the scenario suite
-  stalls a path through `INTELIGIR_SLOW_READS`
-  (`apps/cli/src/server/vault/slow-reads.ts`), inside the read's slot, and the
-  boot's timing line (`apps/cli/src/server/boot-report.ts`) counts what was
-  deferred. Residual: the listing's walk has no deadline, a stat or a write's
-  own read can still stall on such storage, and a rename run before a deferred
-  doc lands misses a link the doc gained offline.
+  left running keeps its slot. A BACKGROUND READ, one of many a job nobody waits
+  on makes (the index pass, the boot's origin repair), never takes the third, so
+  a read someone waits on opens beside two that hang; each such job runs no more
+  at once than that share, so what waits does so in the job, where the index
+  reads the latest path first. A request that reads many docs (a delete's id
+  scan, a rename's snapshot) is waited on, so it reads in the foreground lane,
+  one doc at a time: an index stalled on evicted placeholders never holds up a
+  delete or a rename of notes on disk, and a request holds no more of the budget
+  than one read does. The lstat and ancestry checks before the open stay outside
+  it, and so does a write's read of the bytes it replaces, so a save never waits
+  behind a stalled read. Rejected: a foreground deadline answering
+  "unavailable", which refuses a note that is on disk; re-reading every path
+  once its late read lands, which loops on storage that is always slow; a wider
+  cap, which the pool cannot afford; and a request's reads in the background
+  share, which queued a delete behind the index's stalls. No provider path,
+  bundle id or mount type appears anywhere; the scenario suite stalls a path
+  through `INTELIGIR_SLOW_READS` (`apps/cli/src/server/vault/slow-reads.ts`),
+  inside the read's slot, and the boot's timing line
+  (`apps/cli/src/server/boot-report.ts`) counts what was deferred. Residual: the
+  listing's walk has no deadline, a stat or a write's own read can still stall
+  on such storage, a rename run before a deferred doc lands misses a link the
+  doc gained offline, and while the index holds two stalled reads a request
+  whose own doc stalls holds the window's slot.
   `apps/cli/src/server/knowledge/deferred-reads.ts`,
   `tools/e2e/src/scenarios/slow-storage.ts`.

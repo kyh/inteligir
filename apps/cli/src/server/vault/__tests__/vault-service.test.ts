@@ -20,8 +20,9 @@ import { noopNotifier } from "@repo/domain/notifier";
 import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import { VaultPathError, VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
+import { removeEntryWithComments } from "../../comments/remove-with-comments";
 import { snapshotDocs } from "../../knowledge/snapshot-docs";
-import { BACKGROUND_READ_SLOTS, READ_SLOTS } from "../read-slots";
+import { BACKGROUND_READ_SLOTS, READ_SLOTS, REQUEST_READ_SLOTS } from "../read-slots";
 import { slowReadStall } from "../slow-reads";
 import type { VaultMutation } from "../vault-changes";
 import { createVaultService, sweepStaleTmpFiles, VaultServiceError } from "../vault-service";
@@ -630,7 +631,7 @@ const stallOpens = (root: string, lanes: { background: readonly string[]; window
 };
 
 describe("the read budget", () => {
-  it("holds a rename's snapshot, the origin repair and an index pass to the background share, and lets the window's read in beside them", async () => {
+  it("holds the origin repair and an index pass to the background share, and lets the window's read in beside them", async () => {
     const app = await bootTestApp();
     const notes = Array.from({ length: 8 }, (_, index) => `notes/n${String(index)}.md`);
     const ids = new Map(notes.map((note) => [note, randomUUID()]));
@@ -654,7 +655,6 @@ describe("the read budget", () => {
 
     knowledge.noteVaultChange({ kind: "unknown" });
     const sweeps = Promise.all([
-      snapshotDocs(app.vault.service, notes),
       app.composed.context.threads.repairPathOnlyOrigins(),
       knowledge.settle(),
     ]);
@@ -666,18 +666,68 @@ describe("the read budget", () => {
     );
     const windowRead = await app.vault.service.readBytes(picture);
     expect(windowRead.path).toBe(picture);
-    const [snapshot] = await sweeps;
+    await sweeps;
 
     expect(opens.peak).toEqual({
       all: READ_SLOTS,
       background: BACKGROUND_READ_SLOTS,
       backgroundBesideWindow: BACKGROUND_READ_SLOTS,
     });
-    expect([...snapshot.docs.keys()]).toEqual(notes);
     for (const [note, threadId] of threads) {
       expect(getThread(app.db, threadId)?.originNoteId).toBe(ids.get(note));
     }
     expect(knowledge.lastReconcile?.deferred).toBe(0);
+  });
+
+  it("reads a delete's id scan and a rename's snapshot beside two background reads that have not answered, one doc at a time", async () => {
+    const root = makeTempDir("inteligir-vault-test-");
+    const evicted = Array.from(
+      { length: BACKGROUND_READ_SLOTS },
+      (_, index) => `evicted/${String(index)}.md`,
+    );
+    const fetched = Promise.withResolvers<null>();
+    const stalls = { begun: 0 };
+    const requested = { open: 0, peak: 0 };
+    const service = createVaultService({
+      ignore: ignoreFromDisk(root),
+      lock: identityLock,
+      root,
+      stallRead: async (relPath) => {
+        if (relPath.startsWith("evicted/")) {
+          stalls.begun += 1;
+          await fetched.promise;
+          return;
+        }
+        requested.open += 1;
+        requested.peak = Math.max(requested.peak, requested.open);
+        await delay(OPEN_MS);
+        requested.open -= 1;
+      },
+    });
+    const linked = ["linked/a.md", "linked/b.md", "linked/c.md"];
+    for (const file of [...evicted, ...linked, "gone/a.md", "gone/b.md"]) {
+      await service.write(file, `# ${file}\n`);
+    }
+    const knowledge = { noteIdOwners: async () => await Promise.resolve([]) };
+
+    const background = Promise.all(
+      evicted.map(async (file) => await service.read(file, "background")),
+    );
+    await vi.waitFor(() => {
+      expect(stalls.begun).toBe(BACKGROUND_READ_SLOTS);
+    });
+    const [snapshot, removed] = await Promise.all([
+      snapshotDocs(service, linked),
+      removeEntryWithComments(service, "gone", knowledge),
+    ]);
+    expect([...snapshot.docs.keys()]).toEqual(linked);
+    expect(removed).toEqual(["gone"]);
+    fetched.resolve(null);
+    await background;
+
+    requested.peak = 0;
+    await snapshotDocs(service, linked);
+    expect(requested.peak).toBe(REQUEST_READ_SLOTS);
   });
 
   it("holds a slot through the stand-in's stall, as a stalled open would", async () => {
