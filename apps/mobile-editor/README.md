@@ -25,10 +25,11 @@ calendar, the wiki chip), and `vite/classic-page.ts` rewrites vite's entry tag
 and FAILS the build on a module script, a second script or chunk, a
 `crossorigin` tag or a modulepreload link. Every woff2 is inlined into the
 stylesheet. `index.html` carries a static CSP, `apps/cli/src/server/csp.ts`'s
-with `connect-src 'none'`: the page reaches nothing, the bridge is its only
-way out. `tools/repo-guards/src/phone-page-csp.test.ts` holds the copy to the
-server's, so a directive added there fails until the page decides it. There is
-no dev server: the CSP refuses the inline script a Vite dev page injects, and
+with two departures: `connect-src 'none'`, since the page reaches nothing and
+the bridge is its only way out, and no `frame-ancestors`, which a meta tag
+cannot carry. `tools/repo-guards/src/phone-page-csp.test.ts` holds the copy to
+the server's, so a directive added there fails until the page decides it. There
+is no dev server: the CSP refuses the inline script a Vite dev page injects, and
 the page means nothing without a native end.
 
 ## The bridge

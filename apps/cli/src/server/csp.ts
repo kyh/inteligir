@@ -2,7 +2,8 @@ export interface ContentSecurityPolicyArgs {
   // null for a page with no server behind it: the desktop's first run, which dials no socket and
   // whose policy, held in the shell's config, is this one plus Tauri's IPC origins in connect-src
   // (tools/repo-guards/src/desktop-shell-wire.test.ts), and the phone's editor page, whose meta
-  // tag is this one with connect-src 'none' (tools/repo-guards/src/phone-page-csp.test.ts)
+  // tag is this one with connect-src 'none' and no frame-ancestors
+  // (tools/repo-guards/src/phone-page-csp.test.ts)
   wsOrigin: string | null;
 }
 
