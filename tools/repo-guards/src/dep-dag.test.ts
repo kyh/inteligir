@@ -83,8 +83,9 @@ const SHELL_API_CLIENTS = new Set(["@repo/workspace"]);
 // @repo/contract is not here: @orpc/contract is isomorphic and costs no portability.
 const ZOD_ONLY_LEAVES = ["@repo/domain"];
 
-// @repo/contract/cloud may never break and @repo/contract/local may break freely, so a workspace that ships
-// apart from the desktop bundle reaches the cloud entry alone; each row says why it ships apart.
+// @repo/contract/cloud breaks only behind the client build floor (MIN_CLIENT_BUILD) and
+// @repo/contract/local breaks freely, so a workspace that ships apart from the desktop bundle
+// reaches the cloud entry alone; each row says why it ships apart.
 const CLOUD_ONLY_CLIENTS = new Map<string, string>([
   ["@repo/web", "it serves the cloud wire and only the cloud wire"],
   [
@@ -450,7 +451,7 @@ describe("platform purity", () => {
         if (reachesLocal) {
           violations.push(
             `CLOUD REACHES LOCAL  ${file} imports "${specifier}"\n` +
-              `  rule: @repo/contract/cloud is the never-break wire — it may import zod, @repo/notes and its own cloud/ modules, never src/local`,
+              `  rule: @repo/contract/cloud is the floor-gated wire — it may import zod, @repo/notes and its own cloud/ modules, never src/local`,
           );
         }
       }

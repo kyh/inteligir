@@ -1,5 +1,6 @@
 // identity-free: every device dials vault.git and the worker rewrites to the verified user's
-// repo. the never-break rule covers this path: a signed-in install's git config points here.
+// repo. moving it is a /cloud break, which raises the client build floor: a signed-in install's
+// git config points here.
 export const VAULT_GIT_PATH = "/v1/git/vault.git";
 
 // the most one push may carry, whole request body counted. under the 100 MB body the edge takes
