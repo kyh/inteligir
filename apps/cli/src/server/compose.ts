@@ -37,7 +37,7 @@ import { teardownStep } from "./shutdown";
 import type { ShutdownStep, TeardownStepName } from "./shutdown";
 import { ThreadService } from "./threads/service";
 import { createThreadOrigins } from "./threads/thread-origins";
-import { createTurnUndo } from "./threads/turn-changes";
+import { createTurnUndo } from "./threads/turn-undo";
 import { folderExternalSync } from "./vault/folder-facts";
 import { processGit } from "./vault/git-run";
 import { slowReadStall } from "./vault/slow-reads";

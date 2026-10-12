@@ -1573,7 +1573,7 @@ to the END of its group.
   (`@repo/notes/comments/revert-entries`), after the notes: an entry goes or
   comes back only while it is as the turn left it, and a store that keeps an
   entry the turn touched is named `edited-since` and still loses the rest.
-  `apps/cli/src/server/threads/turn-changes.ts`, wired in `compose.ts` beside
+  `apps/cli/src/server/threads/turn-undo.ts`, wired in `compose.ts` beside
   the thread service rather than inside it, which would hand that service the
   vault's git and writes.
 

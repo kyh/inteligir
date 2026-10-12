@@ -12,7 +12,7 @@ import type { ThreadHarness } from "../../__tests__/boot-app";
 import { removeEntryWithComments } from "../../comments/remove-with-comments";
 import { beginAgentTurnWrites } from "../agent-commits";
 import type { AgentTurnWrites } from "../agent-commits";
-import { undoTurnChanges } from "../../threads/turn-changes";
+import { undoTurnChanges } from "../../threads/turn-undo";
 import { awaitThreadStatus, createThread, sendMessage } from "./agent-test-harness";
 
 const doc = (...lines: string[]): string => `${lines.join("\n")}\n`;
