@@ -30,7 +30,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 ### Fixed
 
 - **Underlined text stays underlined.** Text you underlined with ⌘U came back as uneditable gray text the next time the note opened; it now opens underlined.
-- **Tabs work inside toggles, columns, callouts, quotes and lists, and a tab can end with a list or a table.** Tabs anywhere but the top of a note, and a tab whose last block was a list or a table, opened as plain text after a save; they now stay tabs.
+- **Tabs work inside toggles, columns, callouts, quotes and lists, and a tab can end with a list, a table or a callout, or start with a divider.** Tabs anywhere but the top of a note, a tab whose last block was a list, a table or a callout, and a tab whose first block was a divider opened as plain text after a save; they now stay tabs.
 - **`<` before a number stays as you typed it.** A line like "under <50ms" was saved as `under \<50ms`; it is now saved as written.
 - **A stray brace or tag no longer opens a note in Raw.** A note holding a lone `{`, a tag that is never closed (such as `<br>`), or a closing tag with nothing to close opened in Raw, without rich editing. It now opens with rich editing, and those characters stay exactly as you wrote them. Text in braces, like `{count}`, is now ordinary text you can edit.
 - **Renaming a tag reaches every line of a callout, a quote or a list item.** A tag on the second line or later of a callout, a quote or a list item kept its old name when you renamed the tag; it now changes with the rest.

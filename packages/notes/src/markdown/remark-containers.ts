@@ -580,9 +580,10 @@ const emptyFirstItem = (list: List): boolean => {
   return head === undefined || (head.type === "paragraph" && head.children.length === 0);
 };
 
-// a block that cannot interrupt a paragraph would be read as more of the marker line's text
+// a block that cannot interrupt a paragraph would be read as more of the marker line's text, and
+// a `---` rule under it as the setext underline that makes the marker a heading
 const blankAfterMarker = (first: ContainerContent | undefined): string => {
-  if (first?.type === "definition") {
+  if (first?.type === "definition" || first?.type === "thematicBreak") {
     return "\n";
   }
   if (first?.type === "list") {

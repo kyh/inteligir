@@ -323,9 +323,11 @@ const linkRule: WideMdRule = {
   },
 };
 
-const blockquoteRule: WideMdRule = {
+// an alert is still a blockquote to the serializer, which prefixes its lines, so a container
+// keeps the blank line it leaves before a closing `:::` that a quote would read as its own line
+const blockquoteRule: NonNullable<MdRules["blockquote"]> = {
   deserialize: defaultBlockquoteDeserialize,
-  serialize: (node: TElement, options: SerializeMdOptions) => {
+  serialize: (node, options) => {
     const { editor } = options;
     // Plate keeps blockquote soft breaks as "\n" in text leaves, so the marker leads the concatenated text.
     if (!editor || leadingAlertMarker(NodeApi.string(node)) === null) {
@@ -343,13 +345,7 @@ const blockquoteRule: WideMdRule = {
       .trimEnd()
       // the nested pass escapes the marker's leading `[`.
       .replace(/^\\(?=\[!)/u, "");
-    return {
-      type: "html",
-      value: inner
-        .split("\n")
-        .map((line) => (line ? `> ${line}` : ">"))
-        .join("\n"),
-    };
+    return { children: [{ type: "html", value: inner }], type: "blockquote" };
   },
 };
 
@@ -357,7 +353,7 @@ export const MD_RULES: MdRules = {
   a: linkRule,
 
   // remark-stringify escapes `[` at phrasing start, which would re-emit an alert marker as
-  // `> \[!NOTE]`; alerts emit as a raw `html` node with self-managed `> ` prefixes.
+  // `> \[!NOTE]`; an alert's body is serialized apart and quoted as one verbatim `html` block.
   blockquote: blockquoteRule,
 
   [CANVAS_BLOCK_KEY]: {

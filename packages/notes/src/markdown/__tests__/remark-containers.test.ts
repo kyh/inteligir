@@ -151,6 +151,26 @@ describe("a container's markdown", () => {
     },
   );
 
+  it.each([
+    ["a toggle", ":::toggle\n\n---\n\nbody\n:::\n", { toggle: ["thematicBreak", "body"] }],
+    [
+      "a tab panel",
+      ":::tabs\n=== One\n\n---\n\nbody\n:::\n",
+      { tabGroup: [{ "panel One": ["thematicBreak", "body"] }] },
+    ],
+    [
+      "a column",
+      ":::columns\n:::column\n\n---\n\nbody\n:::\n:::\n",
+      { columnGroup: [{ "column bare": ["thematicBreak", "body"] }] },
+    ],
+  ])(
+    "leaves a blank line after the marker before a rule opening %s, which would underline the marker as a heading",
+    (_name, md, reading) => {
+      expect(readings(md)).toEqual([reading]);
+      expect(stringified(md)).toBe(md);
+    },
+  );
+
   it("writes a column's width beside its marker and an empty container as its two markers", () => {
     const md = ":::columns\n:::column 33.33%\nleft\n:::\n\n:::column\n:::\n:::\n";
     expect(stringified(md)).toBe(md);

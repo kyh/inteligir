@@ -187,7 +187,8 @@ Tabs, toggles and columns nest inside each other, a callout, a quote or a list,
 and each `:::` closes the innermost one still open. A block that never closes,
 or holds something its kind does not allow, stays plain text. Leave a blank
 line before a `:::` that follows a list, a quote or a table, which would
-otherwise read the marker as one of its own lines.
+otherwise read the marker as one of its own lines, and after a marker that a
+`---` rule follows, which would otherwise underline the marker into a heading.
 
 ### Inline
 
