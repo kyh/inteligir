@@ -61,7 +61,9 @@ const DATE_TAIL = String.raw`(?<value>${ISO_DATE_PATTERN})(?!\d)`;
 const FORMULA_RE = new RegExp(String.raw`\{${FORMULA_TAIL}`, "gu");
 const MARKER_RE = new RegExp(`%${MARKER_TAIL}`, "gu");
 
-const DATE_CHIP_RE = new RegExp(`@${DATE_TAIL}`, "gu");
+// a date chip as written, `value` its day. Shared and global, like COMMENT_MARKER_STRIP_RE below:
+// hand it to replace, replaceAll, match or matchAll only.
+export const DATE_CHIP_RE = new RegExp(`@${DATE_TAIL}`, "gu");
 
 // Looser than MARKER_RE on purpose, so a half-typed or malformed marker still leaves a preview or
 // a snippet. Shared and global: hand it to replace, replaceAll, match or matchAll only, never to

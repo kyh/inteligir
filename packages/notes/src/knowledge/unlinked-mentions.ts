@@ -1,15 +1,16 @@
 // A plain-text mention is a name the wiki grammar would resolve, written without the brackets:
 // the doc's link name or one of its aliases, as a whole word, any case. Not its H1: `[[H1 text]]`
 // resolves to nothing unless that text is also the link name or an alias. Bytes the editor treats as
-// verbatim, code, links, urls, frontmatter, comment markers and `:::` marker lines are withheld,
-// because a "mention" there is not prose and a Link would rewrite something that is not a sentence.
+// verbatim, code, links, urls, frontmatter, comment markers, date chips and `:::` marker lines are
+// withheld, because a "mention" there is not prose and a Link would rewrite something that is not a
+// sentence: a daily note's name is the day every chip for that day spells.
 
 import type { Nodes } from "mdast";
 
 import { parseBare } from "../markdown/bare-parse";
 import { frontmatterEnd } from "../markdown/frontmatter";
 import { isMarkerLine } from "../markdown/remark-containers";
-import { COMMENT_MARKER_STRIP_RE } from "../markdown/remark-inline-constructs";
+import { COMMENT_MARKER_STRIP_RE, DATE_CHIP_RE } from "../markdown/remark-inline-constructs";
 import { isOpaqueSource } from "../markdown/remark-opaque";
 import { serializeWikiBody } from "../markdown/remark-wiki-link";
 import { splitLinesKeepingTerminators } from "../text/source-lines";
@@ -91,6 +92,7 @@ const INLINE_WITHHELD = [
   MD_LINK,
   URL,
   COMMENT_MARKER_STRIP_RE,
+  DATE_CHIP_RE,
   INLINE_MATH,
   HTML_TAG,
 ];
@@ -129,8 +131,8 @@ const insideAny = (spans: readonly Span[], start: number, end: number): boolean 
   spans.some((span) => start >= span.start && end <= span.end);
 
 // absolute offsets a mention may not sit inside: the editor's verbatim ranges plus, read line by
-// line, the markdown constructs that are not a sentence (code, links, urls, comment markers, and
-// math and html tags again)
+// line, the markdown constructs that are not a sentence (code, links, urls, comment markers, date
+// chips, and math and html tags again)
 const withheldSpansOf = (body: string, parts: readonly string[]): Span[] => {
   const spans: Span[] = [];
   if (VERBATIM_OPENER.test(body)) {
