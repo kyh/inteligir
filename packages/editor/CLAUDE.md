@@ -71,11 +71,12 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   in the grammar and a jsx writer in the serializer, and wrote tags other
   markdown tools draw as raw html; and a date as a `[[YYYY-MM-DD]]` link, which
   costs the chip and its calendar. An embed's kind is its url's
-  (`@repo/editor/lib/embed-url`), and alt text or a title keeps a web image an
-  image. The alert is the ONLY callout (owner decision): an `inteligir-callout`
-  fence is a plain code block and a `<callout>` tag is carried as its source,
-  both saved byte-exact. Rejected: reading either as a callout, a second grammar
-  with its own node and index pass for kinds the five alerts cannot spell. Every
+  (`@repo/editor/lib/embed-url`), only a web url embeds, since `![](path)` is a
+  vault image, and alt text or a title keeps a web image an image. The alert is
+  the ONLY callout (owner decision): an `inteligir-callout` fence is a plain
+  code block and a `<callout>` tag is carried as its source, both saved
+  byte-exact. Rejected: reading either as a callout, a second grammar with its
+  own node and index pass for kinds the five alerts cannot spell. Every
   spelling lives in one place (`@repo/notes/markdown/fence-langs`,
   `@repo/editor/nodes/canvas-header`, `@repo/editor/dialect-node-keys`), and
   `tools/repo-guards/src/agent-skills.test.ts` holds the skills and

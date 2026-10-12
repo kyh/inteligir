@@ -27,10 +27,12 @@ export const EmbedUrlDialogHost = () => {
   const editor = useEditorRef();
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
+  const [refused, setRefused] = useState(false);
 
   useEffect(() => {
     const opener = () => {
       setUrl("");
+      setRefused(false);
       setOpen(true);
     };
     activeOpener = opener;
@@ -47,8 +49,11 @@ export const EmbedUrlDialogHost = () => {
     if (!trimmed) {
       return;
     }
+    if (!insertEmbedFromUrl(editor, trimmed)) {
+      setRefused(true);
+      return;
+    }
     setOpen(false);
-    insertEmbedFromUrl(editor, trimmed);
     editor.tf.focus();
   };
 
@@ -65,9 +70,11 @@ export const EmbedUrlDialogHost = () => {
         <div className="flex flex-col gap-3">
           <Input
             autoFocus
+            aria-invalid={refused}
             value={url}
             onChange={(e) => {
               setUrl(e.target.value);
+              setRefused(false);
             }}
             placeholder="https://…"
             onKeyDown={(e) => {
@@ -79,6 +86,11 @@ export const EmbedUrlDialogHost = () => {
               }
             }}
           />
+          {refused ? (
+            <p className="text-body text-destructive">
+              Only a web link embeds. Paste one that starts with https://
+            </p>
+          ) : null}
           <Button variant="primary" size="compact" onClick={submit} disabled={!trimmed}>
             Embed
           </Button>

@@ -68,7 +68,6 @@ import {
   WIKI_LINK_KEY,
 } from "@repo/editor/dialect-node-keys";
 import { embedTypeForUrl } from "@repo/editor/lib/embed-url";
-import { isHttpUrl } from "@repo/editor/lib/wire";
 import { leadingAlertMarker } from "@repo/editor/markdown/alert-marker";
 import { stringProp } from "@repo/editor/node-props";
 
@@ -158,13 +157,13 @@ const embedFromImage = (block: TElement): TElement => {
   if (
     block.type !== KEYS.img ||
     url === undefined ||
-    !isHttpUrl(url) ||
     block.title !== undefined ||
     captionText(block) !== ""
   ) {
     return block;
   }
-  return { children: [{ text: "" }], type: embedTypeForUrl(url), url };
+  const type = embedTypeForUrl(url);
+  return type === null ? block : { children: [{ text: "" }], type, url };
 };
 
 const BARE_AUTOLINK_PROTOCOL_RE = /^https?:\/\//iu;

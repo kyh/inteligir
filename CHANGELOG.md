@@ -22,6 +22,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 ### Changed
 
 - **Callouts in the older form now show as written.** A callout from before the five kinds in the `/` menu now shows as its plain text, saved exactly as it was, and the links and tags inside it no longer count as links and tags. To give it a callout's look again, make it a Note, Tip, Important, Warning or Caution callout from the `/` menu.
+- **Embed from URL takes a link on the web.** A link that does not start with https:// or http://, such as a file in your vault, is now refused with a message: it opened as an image the next time the note opened. Add a file from your vault as an image or a link instead.
 - **Your account's email shows as soon as you sign in.** The sync menu in the sidebar and Settings › Account name your account right away, where they showed the cloud's address until the app had asked who you are.
 - **The app says which version it is when it syncs.** Each request the Mac app or the phone sends your account names its version, so a version too old to sync is told to update rather than answered wrongly. inteligir.com/privacy lists it.
 - **Choosing a new password looks like the rest of the website.** The page a password-reset email opens now matches the sign-in page, and when its link has expired or was already used, it takes you straight to the page that sends a new one.

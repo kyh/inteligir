@@ -320,4 +320,13 @@ describe("insert transforms serialize canonically", () => {
       expect(reread.ok && reread.value.some((node) => node.type === embedType), url).toBe(true);
     }
   });
+
+  it("insertEmbedFromUrl refuses a url off the web, which would read back as an image", () => {
+    for (const url of ["assets/report.pdf", "example.com", "www.youtube.com/watch?v=dQw4w9WgXcQ"]) {
+      const editor = makeEditor("x\n");
+      editor.tf.select(editor.api.end([0]));
+      expect(insertEmbedFromUrl(editor, url), url).toBe(false);
+      expect(out(editor), url).toBe("x\n");
+    }
+  });
 });

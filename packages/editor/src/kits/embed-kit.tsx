@@ -22,18 +22,19 @@ import { remoteMediaElement } from "@repo/editor/nodes/remote-media-node";
 
 export const EmbedBaseKit = [BaseVideoPlugin, BaseMediaEmbedPlugin, BaseFilePlugin];
 
-const embedNodeForUrl = (url: string): TElement => ({
-  children: [{ text: "" }],
-  type: embedTypeForUrl(url),
-  url,
-});
+// null for a url off the web, which would read back as an image
+const embedNodeForUrl = (url: string): TElement | null => {
+  const type = embedTypeForUrl(url);
+  return type === null ? null : { children: [{ text: "" }], type, url };
+};
 
-export const insertEmbedFromUrl = (editor: PlateEditor, url: string): void => {
-  const trimmed = url.trim();
-  if (trimmed === "") {
-    return;
+export const insertEmbedFromUrl = (editor: PlateEditor, url: string): boolean => {
+  const embed = embedNodeForUrl(url.trim());
+  if (embed === null) {
+    return false;
   }
-  insertVoidAndEscape(editor, embedNodeForUrl(trimmed));
+  insertVoidAndEscape(editor, embed);
+  return true;
 };
 
 // Only video/tweet URLs auto-embed: a generic URL pasted as a link must stay a link.
@@ -102,13 +103,14 @@ const AutoEmbedPlugin = createPlatePlugin({ key: "embedAutoPill" })
           return;
         }
         const text = NodeApi.string(node).trim();
-        if (!isAutoEmbedUrl(text)) {
+        const embed = isAutoEmbedUrl(text) ? embedNodeForUrl(text) : null;
+        if (embed === null) {
           return;
         }
         event.preventDefault();
         editor.tf.withoutNormalizing(() => {
           editor.tf.removeNodes({ at: path });
-          editor.tf.insertNodes(embedNodeForUrl(text), { at: path });
+          editor.tf.insertNodes(embed, { at: path });
           editor.tf.insertNodes(
             { children: [{ text: "" }], type: editor.getType(KEYS.p) },
             { at: PathApi.next(path), select: true },
