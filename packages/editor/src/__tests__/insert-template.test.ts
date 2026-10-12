@@ -21,10 +21,10 @@ const TEMPLATE = "templates/Deep.md";
 
 const unregisters: (() => void)[] = [];
 
-const openNote = () => {
+const openNote = (path = "notes/today.md") => {
   const editor = createPlateEditor({ plugins: EDITOR_KIT, value: EMPTY });
   editor.tf.select({ anchor: { offset: 0, path: [0, 0] }, focus: { offset: 0, path: [0, 0] } });
-  const unregister = registerLiveEditor("notes/today.md", editor);
+  const unregister = registerLiveEditor(path, editor);
   unregisters.push(unregister);
   return { editor, unregister };
 };
@@ -49,6 +49,19 @@ describe("inserting a template", () => {
     expect(editor.api.string([])).toBe("today");
     expect(toast.error).not.toHaveBeenCalled();
     expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("titles it with exactly the note's name, whatever markdown the name spells", async () => {
+    installFakeEditorHost({ readVaultFile: () => "# {{title}}\n" });
+    const { editor } = openNote("notes/Ideas {wip `draft` *Q1*.md");
+
+    await insertTemplate(editor, TEMPLATE);
+
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(editor.children[0]).toMatchObject({
+      children: [{ text: "Ideas {wip `draft` *Q1*" }],
+      type: editor.getType(KEYS.h1),
+    });
   });
 
   it("lands the parsed blocks where the caret is", async () => {
@@ -96,6 +109,14 @@ describe("a template through the editor", () => {
     expect(expanded).toBe(
       "# Standup\n\nOn 2026-09-05 at 09:07: {{2+2|4|id=total}} and {{date|day}}.\n",
     );
+    expect(roundTrip(expanded)).toBe(expanded);
+  });
+
+  it("round-trips byte-exact with a title that spells markdown, escaped as the editor writes it", () => {
+    const expanded = expandTemplate("# {{title}}\n\nAbout {{title}}.\n", {
+      now: new Date(2026, 8, 5, 9, 7),
+      title: "Ideas {wip `draft` *Q1*",
+    });
     expect(roundTrip(expanded)).toBe(expanded);
   });
 });

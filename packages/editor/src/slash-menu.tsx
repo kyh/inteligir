@@ -35,7 +35,7 @@ import type { PlateEditor, PlateElementProps } from "platejs/react";
 import { PlateElement, createPlatePlugin } from "platejs/react";
 
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
-import { isTemplatePath } from "@repo/notes/templates/placeholders";
+import { isTemplatePath } from "@repo/notes/templates/folders";
 
 import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms";
 import type { TurnIntoId } from "@repo/editor/block-transforms";

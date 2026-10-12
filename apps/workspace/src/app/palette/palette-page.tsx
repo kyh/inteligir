@@ -4,7 +4,7 @@
 
 import { CommandEmpty, CommandGroup, CommandItem, CommandList } from "@repo/ui/components/command";
 import { docStem } from "@repo/notes/knowledge/doc-file";
-import { TEMPLATES_FOLDER } from "@repo/notes/templates/placeholders";
+import { TEMPLATES_FOLDER } from "@repo/notes/templates/folders";
 import { FolderIcon, LayoutTemplateIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 

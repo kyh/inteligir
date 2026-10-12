@@ -33,7 +33,7 @@ import { moveCandidates } from "@repo/notes/knowledge/rename-candidates";
 import { computeMoveEdits } from "@repo/notes/knowledge/rename-links";
 import { dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
-import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/placeholders";
+import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/folders";
 import { NOTE_GONE } from "./comment-ops";
 import type { HeldFile, NotesStore, RenameEdits } from "./notes-store";
 

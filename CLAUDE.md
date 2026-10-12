@@ -525,14 +525,25 @@ to the END of its group.
   `<!-- inteligir:thread anc_… -->` markers parse as opaque comments and are
   preserved; nothing writes new ones.
 
-- **TEMPLATES ARE A FOLDER, AND PLACEHOLDERS EXPAND ON BYTES BEFORE ANY PARSER.**
-  A template is a doc under `templates/` (a fixed convention like the daily
-  folder, no setting); `templates/Daily.md` shapes the daily note. Exactly three
-  placeholders, `{{date}}`, `{{time}}`, `{{title}}`, replaced textually on the
-  raw markdown, so the formula grammar never sees them and every other `{{…}}`
-  is a pill left byte-exact. A note minted from a template drops the template's
-  `id:`, because two notes with one id make the uuid link tier ambiguous.
-  `@repo/notes/templates/placeholders`, `packages/editor/src/insert-template.ts`.
+- **TEMPLATES ARE A FOLDER, AND PLACEHOLDERS EXPAND ON THE TEMPLATE'S OWN
+  BYTES.** A template is a doc under `templates/` (a fixed convention like the
+  daily folder, no setting); `templates/Daily.md` shapes the daily note. Exactly
+  three placeholders, `{{date}}`, `{{time}}`, `{{title}}`, replaced in place on
+  the raw markdown, so the formula grammar never sees them and every other
+  `{{…}}` is a pill left byte-exact. The date and the time are fixed ISO
+  strings; the title is a file name, which can spell markdown and yaml, so it
+  is spelled for where it lands: in prose, the serializer's own escape for the
+  construct and neighbours around it, read off the bare parse; in the
+  frontmatter, a scalar yaml rewrites through its CST, quoted only when plain
+  would not read back as the title; in code, math, a wiki link or a url, as
+  written. Rejected: escaping every punctuation mark, which writes `Mike\'s`
+  into the file, and re-serializing the template, which restyles bytes the
+  author wrote. That expansion loads both parsers, so the folder names live
+  apart from it (`@repo/notes/templates/folders`), where the contract and
+  every command-line verb read them. A note minted from a template drops the
+  template's `id:`, because two notes with one id make the uuid link tier
+  ambiguous. `@repo/notes/templates/placeholders`,
+  `packages/editor/src/insert-template.ts`.
 
 - **A BINDING IS SPELLED FROM THE TABLE ITS LISTENER READS, never as a
   literal.** Five tables own every chord and each handler walks its own:
@@ -836,7 +847,7 @@ to the END of its group.
   `apps/cli/src/server/vault/vault-prefs-store.ts`. The name is
   `freeAssetPath` (`@repo/notes/knowledge/asset-name`), which the phone's
   photos run too; they land in the default folder, spelled once as
-  `DEFAULT_ATTACHMENTS_FOLDER` in `@repo/notes/templates/placeholders`, since
+  `DEFAULT_ATTACHMENTS_FOLDER` in `@repo/notes/templates/folders`, since
   `vault-prefs.json` never reaches the phone.
 
 - **EVERY VAULT GETS ITS OWN DATA DIR, AND A SWITCH IS A NEW CHILD, A NEW
@@ -1173,7 +1184,7 @@ to the END of its group.
   (`wikiLinkName`) or frontmatter `id` two docs share, a tie the resolver is
   quietly breaking. Every row disappears with the sweep that fixes it, so none
   is stale. Daily notes and templates are orphans by design and left out
-  unless asked (`@repo/notes/templates/placeholders` spells the folders). A row
+  unless asked (`@repo/notes/templates/folders` spells the folders). A row
   lands on the link ELEMENT (`packages/editor/src/link-locate.ts`), since the
   find bar cannot see a wiki chip's label, a prop of an inline void.
   `@repo/notes/knowledge/vault-problems.ts`.

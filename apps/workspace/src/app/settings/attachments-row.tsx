@@ -1,4 +1,4 @@
-import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/placeholders";
+import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/folders";
 import type { AttachmentLocation } from "@repo/contract/local/vault/vault-schema";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
