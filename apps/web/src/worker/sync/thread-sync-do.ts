@@ -338,7 +338,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
       }
       case "desktops": {
         broadcast({ type: "dispatch" }, this.socketsExcept(fromDeviceId, platformTag("desktop")));
-        return;
+        break;
       }
       // no default
     }

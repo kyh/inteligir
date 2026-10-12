@@ -314,7 +314,8 @@ describe("account deletion", () => {
     const { cookie, password } = await signUpUser("delete-me@example.test");
     const { credential } = await loginDevice(cookie, "Laptop");
     await push(credential, { events: [event("th_1", 1, "to be purged")] });
-    expect((await capture(credential, "to be purged too")).status).toBe(200);
+    const captured = await capture(credential, "to be purged too");
+    expect(captured.status).toBe(200);
     const page = await pull(credential, 0);
     expect(page.lastSeq).toBe(1);
 

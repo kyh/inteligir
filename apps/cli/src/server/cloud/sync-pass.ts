@@ -63,7 +63,7 @@ export interface PassContext {
 }
 
 // an ack that never reached the cloud, and the session whose claim it settles
-export interface HeldAck {
+interface HeldAck {
   sessionId: number;
   request: AckDispatchesRequest;
 }
@@ -252,6 +252,31 @@ const sendHeldAck = async (
   return acked.ok ? null : failedOrFenced(deps, acked.failure);
 };
 
+// an ack that cannot reach the cloud is held for the next pass to send before it claims; null when
+// the cloud answered for every result
+const ackResults = async (
+  deps: SyncPassDeps,
+  context: PassContext,
+  request: AckDispatchesRequest,
+): Promise<SyncOutcome | null> => {
+  const acked = await context.client.ackDispatches(request);
+  if (!deps.fenced(context)) {
+    return "fenced";
+  }
+  if (!acked.ok) {
+    if (acked.failure.kind === "unreachable") {
+      deps.heldAck.current = { request, sessionId: context.sessionId };
+    }
+    return failedOrFenced(deps, acked.failure);
+  }
+  for (const outcome of acked.value.results) {
+    if (outcome.outcome !== "recorded") {
+      deps.debug(`phone request ${outcome.id} was ${outcome.outcome} before this device acked it`);
+    }
+  }
+  return null;
+};
+
 // a turn waits for a whole log, so a request another Mac already ran for a dispatch is here to be
 // found and a follow-up lands in its thread rather than starting one the log already holds: until
 // the pull is caught up, and while this Mac does not take the phone's requests, it claims captures
@@ -315,23 +340,9 @@ const applyDispatches = async (
     if (!deps.fenced(context)) {
       return "fenced";
     }
-    const request: AckDispatchesRequest = { claimToken, results };
-    const acked = await context.client.ackDispatches(request);
-    if (!deps.fenced(context)) {
-      return "fenced";
-    }
-    if (!acked.ok) {
-      if (acked.failure.kind === "unreachable") {
-        deps.heldAck.current = { request, sessionId: context.sessionId };
-      }
-      return failedOrFenced(deps, acked.failure);
-    }
-    for (const outcome of acked.value.results) {
-      if (outcome.outcome !== "recorded") {
-        deps.debug(
-          `phone request ${outcome.id} was ${outcome.outcome} before this device acked it`,
-        );
-      }
+    const stopped = await ackResults(deps, context, { claimToken, results });
+    if (stopped !== null) {
+      return stopped;
     }
   }
   if (failed) {
