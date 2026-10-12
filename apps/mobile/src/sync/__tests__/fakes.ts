@@ -1,8 +1,3 @@
-import type {
-  AckCapturesRequest,
-  CaptureRequest,
-  CaptureResponse,
-} from "@repo/contract/cloud/captures/captures-schema";
 import { syncEventRowSchema } from "@repo/contract/cloud/sync/sync-schema";
 import type {
   PullQuery,
@@ -67,28 +62,19 @@ export const logRow = (args: {
 export interface FakeCloud {
   client: CloudClient;
   pushes: PushRequest[];
+  // the phone never claims from the dispatch inbox: what it holds is a Mac's to apply
   claims: number;
-  captures: CaptureRequest[];
   pullResults: CloudResult<PullResponse>[];
-  captureResults: CloudResult<CaptureResponse>[];
 }
 
 // `vault` answers the vault reads in place of an empty tree
 export const createFakeCloud = (vault: Partial<CloudClient> = {}): FakeCloud => {
   const fake: FakeCloud = {
-    captureResults: [],
-    captures: [],
     claims: 0,
     client: fakeCloudClient({
-      ackCaptures: async (request: AckCapturesRequest) =>
-        ok({ results: request.ids.map((id) => ({ id, outcome: "deleted" as const })) }),
-      claimCaptures: async () => {
+      claimDispatches: async () => {
         fake.claims += 1;
-        return ok({ captures: [], claimToken: "tok", expiresAt: 1 });
-      },
-      createCapture: async (request) => {
-        fake.captures.push(request);
-        return fake.captureResults.shift() ?? ok({ createdAt: 0, duplicate: false, id: "cap_1" });
+        return ok({ claimToken: "tok", dispatches: [], expiresAt: 1 });
       },
       pull: async (query: PullQuery) =>
         fake.pullResults.shift() ?? ok({ events: [], hasMore: false, lastSeq: query.afterSeq }),

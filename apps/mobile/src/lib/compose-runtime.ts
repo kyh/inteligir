@@ -4,8 +4,6 @@
 
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
-import { createCaptureSender } from "../capture/capture-sender";
-import type { CaptureSender } from "../capture/capture-sender";
 import { createDispatchRuntime } from "../dispatch/dispatch-runtime";
 import type { DispatchRuntime, DispatchRuntimeArgs } from "../dispatch/dispatch-runtime";
 import { createLoginStore } from "../login/login-store";
@@ -46,7 +44,7 @@ export interface ComposeRuntimeArgs {
   sha1: Sha1;
   // the name the phone signs in as, which its conflict reports and copies go by
   deviceName: string;
-  // 16 random bytes as hex: a capture's idempotency key, a dispatch's id and a new thread's
+  // 16 random bytes as hex: a dispatch's id and a new thread's
   mintId: () => string;
   // the phone's random bytes, which a comment reply's id is minted from
   randomBytes: (length: number) => Uint8Array;
@@ -83,7 +81,6 @@ export interface AppRuntime {
   resume: () => void;
   // the app left the foreground: the socket closes and nothing polls until it resumes
   suspend: () => void;
-  submitCapture: CaptureSender;
 }
 
 export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
@@ -242,7 +239,6 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       await activate(stored, "restored");
     },
     store,
-    submitCapture: createCaptureSender({ mintKey: args.mintId, send: sync.createCapture }),
     suspend() {
       sync.suspend();
       dispatch.suspend();
