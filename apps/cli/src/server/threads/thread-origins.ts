@@ -43,7 +43,7 @@ export const createThreadOrigins = (
   noteIdAt: async (path, lane) =>
     await orNull(path, async () => {
       const { content } = await vault.read(path, lane);
-      const outcome = await ensureNoteId(vault, path, content);
+      const outcome = await ensureNoteId(vault, path, content, lane);
       return outcome.kind === "id" ? outcome.id : null;
     }),
   noteIdOf: async (path) =>

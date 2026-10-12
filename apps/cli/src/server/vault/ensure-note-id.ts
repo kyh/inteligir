@@ -4,6 +4,7 @@
 
 import { randomUUID } from "node:crypto";
 import { withFrontmatterId } from "@repo/notes/markdown/frontmatter";
+import type { ReadLane } from "./read-slots";
 import type { VaultService } from "./vault-service";
 
 export type EnsureNoteIdOutcome =
@@ -20,6 +21,8 @@ export const ensureNoteId = async (
   vault: Pick<VaultService, "read" | "writeIfUnchanged">,
   notePath: string,
   content: string,
+  // the lane of the read `content` came from, which the re-read keeps
+  lane?: ReadLane,
 ): Promise<EnsureNoteIdOutcome> => {
   let current = content;
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -38,7 +41,7 @@ export const ensureNoteId = async (
         if (result.applied) {
           return { id, kind: "id", minted: true };
         }
-        ({ content: current } = await vault.read(notePath));
+        ({ content: current } = await vault.read(notePath, lane));
         break;
       }
       // no default
