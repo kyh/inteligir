@@ -48,6 +48,11 @@ import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 const AUTO_COMMIT_QUIET_MS = 15_000;
 const AUTO_COMMIT_MAX_WAIT_MS = 60_000;
 
+// the account remote's quiet tick: while its socket would ping this device for another device's
+// push and nothing waits to go up, a tick reaches the hosted vault only this often, because every
+// fetch is an operation the hosted vault bills. a ping, a sign-in and Sync now still reach it at once.
+const ACCOUNT_QUIET_FETCH_MS = 15 * 60_000;
+
 // past this a scoped commit costs more argv (status pathspec, then add) than the unscoped sweep.
 const MAX_SCOPED_COMMIT_PATHS = 200;
 
@@ -79,6 +84,11 @@ export interface GitEngineArgs {
   maxWaitMs?: number;
   // the account remote's push cap; unset, the hosted vault's own.
   maxPushBytes?: number;
+  // whether another device's push to the account remote would ping this device now (its account
+  // socket is up). unset or false, every tick fetches, as a remote that pings nobody needs.
+  accountPingsReach?: () => boolean;
+  // how long a tick may go without reaching a remote that pings; unset, ACCOUNT_QUIET_FETCH_MS.
+  quietFetchMs?: number;
 }
 
 interface CommitHold {
@@ -217,6 +227,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   let disposed = false;
   let inflightSync: Promise<VaultStatusResponse> | null = null;
   let syncAgain = false;
+  // set by every caller but the timer: a ping, a sign-in, Sync now and the boot pass reach the remote.
+  let forceNetwork = false;
+  const quietFetchMs = args.quietFetchMs ?? ACCOUNT_QUIET_FETCH_MS;
   let autoSyncTimer: ReturnType<typeof setInterval> | null = null;
 
   let repoChain: Promise<unknown> = Promise.resolve();
@@ -844,10 +857,32 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
   };
 
+  // a tick that may leave the account remote alone: its socket would have pinged a push from
+  // another device, the last pass that reached it ended clean and recently, and the commit just
+  // made (if any) is already there. the tracking ref is gone after any move of the origin.
+  const quietTickCanWait = async (remote: VaultRemoteSpec, branch: string): Promise<boolean> => {
+    if (
+      remote.source !== "account" ||
+      args.accountPingsReach?.() !== true ||
+      outcome.kind !== "none" ||
+      lastSyncAt === null ||
+      Date.now() - lastSyncAt >= quietFetchMs
+    ) {
+      return false;
+    }
+    try {
+      return (await revParse("HEAD")) === (await revParse(`refs/remotes/origin/${branch}`));
+    } catch {
+      return false;
+    }
+  };
+
   // under the lock, before the fetch. answers the remote and the branch to sync, or null to end the
-  // pass. the remote is asked again here, so an origin changed since the caller's read is this
-  // pass's, never overwritten by it.
-  const preparePass = async (): Promise<{ remote: VaultRemoteSpec; branch: string } | null> => {
+  // pass, as a tick `quietTickCanWait` excuses is. the remote is asked again here, so an origin
+  // changed since the caller's read is this pass's, never overwritten by it.
+  const preparePass = async (
+    forced: boolean,
+  ): Promise<{ remote: VaultRemoteSpec; branch: string } | null> => {
     const { origin, remote } = await readRemote();
     if (remote === null) {
       return null;
@@ -886,6 +921,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     const branch = await currentBranch();
     if (branch === null) {
       outcome = { kind: "detached", message: "vault HEAD is detached; sync needs a branch" };
+      return null;
+    }
+    if (!forced && (await quietTickCanWait(remote, branch))) {
       return null;
     }
     return { branch, remote };
@@ -985,10 +1023,46 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return true;
   };
 
+  // answers whether the push landed: a refusal or a failure is recorded where it is met.
+  const pushBranch = async (
+    remote: VaultRemoteSpec,
+    branch: string,
+    remoteHasBranch: boolean,
+  ): Promise<boolean> => {
+    if (remote.source === "account") {
+      const overCap = await measuredOverCap(branch, remoteHasBranch);
+      if (overCap !== null) {
+        refusedPush = { failure: "too-large", url: remote.url, ...overCap };
+        recordRefusedPush(remote, "too-large");
+        return false;
+      }
+    }
+
+    try {
+      await runNetwork(["push", "origin", branch], remote.env);
+    } catch (error) {
+      const failure = failureFrom(remote, classifyNetworkFailure(error));
+      if (failure !== "too-large" && failure !== "full") {
+        recordNetworkFailure(failure, messageOf(error));
+        return false;
+      }
+      // read after the refusal: the branch only grows past what the push sent, and a head that
+      // holds the refused one is as large.
+      const tips = await withRepoLock(async () => await pushTips(branch, remoteHasBranch));
+      refusedPush =
+        failure === "full"
+          ? { failure, remote: tips.remote, url: remote.url }
+          : { failure, url: remote.url, ...tips };
+      recordRefusedPush(remote, failure);
+      return false;
+    }
+    return true;
+  };
+
   // the network steps run off the repo lock: a fetch or push on a dropped network waits out its
   // timeout, and under the lock every save and every turn start would wait with it.
-  const doSync = async (): Promise<void> => {
-    const prepared = await withRepoLock(preparePass);
+  const doSync = async (forced: boolean): Promise<void> => {
+    const prepared = await withRepoLock(async () => await preparePass(forced));
     if (prepared === null) {
       return;
     }
@@ -1008,40 +1082,24 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     // the remote answered, so nothing an earlier pass concluded holds any more.
     outcome = NO_OUTCOME;
 
-    const pushing = await withRepoLock(
-      async () =>
-        (await integrateFetched(remote, branch, remoteHasBranch)) &&
-        !(await repeatsRefusedPush(remote, branch, remoteHasBranch)),
-    );
-    if (!pushing) {
+    // a push with nothing to send still asks the remote for its refs, an operation the hosted
+    // vault bills like any other; a fetched tip that already holds HEAD is the push's own answer.
+    const step = await withRepoLock(async (): Promise<"stop" | "push" | "in-sync"> => {
+      if (!(await integrateFetched(remote, branch, remoteHasBranch))) {
+        return "stop";
+      }
+      if (remoteHasBranch) {
+        const tips = await pushTips(branch, true);
+        if (tips.head === tips.remote) {
+          return "in-sync";
+        }
+      }
+      return (await repeatsRefusedPush(remote, branch, remoteHasBranch)) ? "stop" : "push";
+    });
+    if (step === "stop") {
       return;
     }
-
-    if (remote.source === "account") {
-      const overCap = await measuredOverCap(branch, remoteHasBranch);
-      if (overCap !== null) {
-        refusedPush = { failure: "too-large", url: remote.url, ...overCap };
-        recordRefusedPush(remote, "too-large");
-        return;
-      }
-    }
-
-    try {
-      await runNetwork(["push", "origin", branch], remote.env);
-    } catch (error) {
-      const failure = failureFrom(remote, classifyNetworkFailure(error));
-      if (failure !== "too-large" && failure !== "full") {
-        recordNetworkFailure(failure, messageOf(error));
-        return;
-      }
-      // read after the refusal: the branch only grows past what the push sent, and a head that
-      // holds the refused one is as large.
-      const tips = await withRepoLock(async () => await pushTips(branch, remoteHasBranch));
-      refusedPush =
-        failure === "full"
-          ? { failure, remote: tips.remote, url: remote.url }
-          : { failure, url: remote.url, ...tips };
-      recordRefusedPush(remote, failure);
+    if (step === "push" && !(await pushBranch(remote, branch, remoteHasBranch))) {
       return;
     }
     refusedPush = null;
@@ -1131,9 +1189,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   // every verdict a pass can name it records where it meets it; what throws is a failure short of
   // one (a save the engine could not record, an unclassified step), unless the repo was found
   // mid-integration, which already said broken.
-  const runSyncPass = async (): Promise<void> => {
+  const runSyncPass = async (forced: boolean): Promise<void> => {
     try {
-      await doSync();
+      await doSync(forced);
     } catch (error) {
       const message = messageOf(error);
       if (outcome.kind !== "broken") {
@@ -1146,17 +1204,26 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   // coalescing: a caller mid-pass joins it and has it run once more before anyone hears back.
   // the running pass may have fetched before whatever that caller is about — another device's
   // push pings mid-pass — and joining alone would answer clean without it until the next tick.
-  const syncNow = async (): Promise<VaultStatusResponse> => {
+  // `forced` is every caller but the timer's tick; a forced caller joining a tick's pass makes
+  // the pass it waits on a forced one.
+  const requestSync = async (forced: boolean): Promise<VaultStatusResponse> => {
     if (inflightSync !== null) {
-      syncAgain = true;
+      // a tick is answered by the pass already running; only a caller with news asks for another.
+      if (forced) {
+        forceNetwork = true;
+        syncAgain = true;
+      }
       return await inflightSync;
     }
+    forceNetwork = forced;
     // claimed before the gate's read, so a second caller joins this one rather than passing the
     // gate beside it.
     const pass = (async () => {
       try {
         for (;;) {
           syncAgain = false;
+          const passForced = forceNetwork;
+          forceNetwork = false;
           // a pass starts by committing the dirty tree, which a hold exists to prevent; the
           // snapshot says "held" rather than reporting clean as if a pass ran.
           const remote = await currentRemote();
@@ -1165,11 +1232,15 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
           }
           syncing = true;
           args.onStatusChanged?.();
-          await runSyncPass();
+          await runSyncPass(passForced);
           syncing = false;
           args.onStatusChanged?.();
+          // read before the decision: a caller joining while the snapshot waits on the repo lock
+          // would otherwise be answered by a pass that had already chosen not to run again, and a
+          // ping it carried would wait for the next pass that reaches the remote.
+          const status = await statusSnapshot();
           if (!syncAgain || disposed) {
-            return await statusSnapshot();
+            return status;
           }
         }
       } finally {
@@ -1179,6 +1250,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     inflightSync = pass;
     return await pass;
   };
+  const syncNow = async (): Promise<VaultStatusResponse> => await requestSync(true);
 
   return {
     async checkpointUnclaimed() {
@@ -1235,7 +1307,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
         return;
       }
       autoSyncTimer = setInterval(() => {
-        void syncNow();
+        void requestSync(false);
       }, intervalMs);
       autoSyncTimer.unref?.();
     },

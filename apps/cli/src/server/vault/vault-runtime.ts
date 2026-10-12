@@ -41,6 +41,8 @@ export interface VaultRuntimeArgs {
   watch?: boolean;
   syncIntervalMs?: number | null;
   git: GitRunner;
+  // the account socket is up, so another device's push pings this one (GitEngineArgs').
+  accountPingsReach?: () => boolean;
   watcherBackend?: ParcelWatcherBackend;
   stallRead?: ReadStall;
   // the watcher's trace: its verdict per event, then what this runtime strips, holds or delivers.
@@ -249,6 +251,9 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     remote: args.remote,
     root,
   };
+  if (args.accountPingsReach !== undefined) {
+    gitArgs.accountPingsReach = args.accountPingsReach;
+  }
   if (args.externalSync !== undefined) {
     gitArgs.externalSync = args.externalSync;
   }

@@ -174,7 +174,7 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
   the last row's `(updated_at, id)`, live rows before archived, so a thread
   touched mid-walk jumps above the cursor rather than shifting every row behind
   it into the page before; each segment is a partial index on `(updated_at,
-id)`, which the cursor's row-value comparison seeks with no temp b-tree. Crash
+  id)`, which the cursor's row-value comparison seeks with no temp b-tree. Crash
   recovery reads `listRunningThreads`, unpaged, because it must reach every
   turn left running.
 - **The lifecycle CAS names the turn.**
