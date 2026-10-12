@@ -43,6 +43,7 @@ const styles = StyleSheet.create({
   pressed70: { opacity: 0.7 },
   pressed80: { opacity: 0.8 },
   screen: { flex: 1 },
+  shrink: { flexShrink: 1 },
   smallLabel: { fontSize: 14, fontWeight: "600" },
   smallText: { fontSize: 14 },
   syncActions: { flexDirection: "row", gap: SPACE.sm },
@@ -109,7 +110,9 @@ const RefusedCaptureRow = ({ refused }: { refused: RefusedCapture }) => {
         {refused.text}
       </Text>
       <View style={styles.captureMeta}>
-        <Text style={[styles.captionText, { color: theme.destructive }]}>{refused.message}</Text>
+        <Text style={[styles.captionText, styles.shrink, { color: theme.destructive }]}>
+          {refused.message}
+        </Text>
         <Pressable
           accessibilityRole="button"
           hitSlop={SPACE.sm}
