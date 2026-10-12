@@ -104,8 +104,9 @@ src/
 
 ## Invariants
 
-- **Purity is the law.** No I/O, clock, or crypto anywhere; callers supply
-  the driver and the timestamps.
+- **Purity is the law.** No I/O, clock, or crypto anywhere (the `crypto`
+  global is lint-refused); callers supply the driver, the timestamps, the
+  random bytes and every fresh id.
 - **The knowledge index is a wipe-and-rebuild cache** (repo Decisions).
   Nothing durable may ever live in it; it is rebuilt from the vault.
 - **Frontmatter is the ONLY property store** (repo Decisions). YAML the

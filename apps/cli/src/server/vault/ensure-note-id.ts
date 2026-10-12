@@ -2,7 +2,8 @@
 // the note moved under it, because the user may be typing in it. Each caller decides what a
 // refusal costs it: a comment is refused, an action keeps its path alone.
 
-import { mintNoteId, withFrontmatterId } from "@repo/notes/markdown/frontmatter";
+import { randomUUID } from "node:crypto";
+import { withFrontmatterId } from "@repo/notes/markdown/frontmatter";
 import type { VaultService } from "./vault-service";
 
 export type EnsureNoteIdOutcome =
@@ -22,7 +23,7 @@ export const ensureNoteId = async (
 ): Promise<EnsureNoteIdOutcome> => {
   let current = content;
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const id = mintNoteId();
+    const id = randomUUID();
     const verdict = withFrontmatterId(current, id);
     switch (verdict.kind) {
       case "unchanged": {

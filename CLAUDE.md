@@ -271,10 +271,10 @@ packages/
                  modules (markdown/remark-*, comments/, formulas/),
                  `text/` — ONE Myers diff under diff3 — and `sync/`, the one
                  verdict a path two writers changed gets and the conflict
-                 copy's name and words. No node/react/ui
-                 imports — lint-enforced. `markdown/mdast-nodes.ts` is the
-                 mdast NARROWING boundary: a walk asks it what a node is
-                 rather than discriminating structurally at each visit.
+                 copy's name and words. No node/react/ui imports and no
+                 `crypto` global — lint-enforced. `markdown/mdast-nodes.ts`
+                 is the mdast NARROWING boundary: a walk asks it what a node
+                 is rather than discriminating structurally at each visit.
   editor/        @repo/editor — the Plate.js WYSIWYG (epic #579):
                  kits/nodes for every dialect construct, the md-rules table,
                  the fixpoint serializer + fixture matrix, the open-note

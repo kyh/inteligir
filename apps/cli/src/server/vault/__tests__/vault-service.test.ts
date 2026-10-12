@@ -1,4 +1,5 @@
 import { execFile, execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
 import fsPromises, {
   chmod,
@@ -19,7 +20,6 @@ import { noopNotifier } from "@repo/domain/notifier";
 import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import { VaultPathError, VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
-import { mintNoteId } from "@repo/notes/markdown/frontmatter";
 import { snapshotDocs } from "../../knowledge/snapshot-docs";
 import { BACKGROUND_READ_SLOTS, READ_SLOTS } from "../read-slots";
 import { slowReadStall } from "../slow-reads";
@@ -633,7 +633,7 @@ describe("the read budget", () => {
   it("holds a rename's snapshot, the origin repair and an index pass to the background share, and lets the window's read in beside them", async () => {
     const app = await bootTestApp();
     const notes = Array.from({ length: 8 }, (_, index) => `notes/n${String(index)}.md`);
-    const ids = new Map(notes.map((note) => [note, mintNoteId()]));
+    const ids = new Map(notes.map((note) => [note, randomUUID()]));
     const threads = new Map<string, string>();
     for (const [note, id] of ids) {
       await app.client.vault.write({
