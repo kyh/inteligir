@@ -164,6 +164,9 @@ what each one is FOR.
 |                            | until A signs in and runs it over the note it named, the reply naming the |
 |                            | note and the phone's pull holding the request; with A and B both          |
 |                            | listening, exactly one runs the next, before a poll could                 |
+| phone-capture-hosted       | the phone's own runtime keeps a capture typed offline across a relaunch   |
+|                            | and sends it once online; A signs in later and writes it to `Inbox.md`    |
+|                            | exactly once, and the phone lets it go                                    |
 | account-hosted             | an account created in the app (`cloud.signUp`) against a Miniflare        |
 |                            | Worker signs that instance in as it; the invite is spent, so a second     |
 |                            | sign-up with it is FORBIDDEN; a second instance signs in with the same    |

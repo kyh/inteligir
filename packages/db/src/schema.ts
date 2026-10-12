@@ -215,14 +215,6 @@ export const syncState = sqliteTable(
   ],
 );
 
-// captures are at-least-once: a device that applied and then lost its claim is handed the same
-// capture again, and this makes the second apply a no-op. pruned by age, since an acked capture
-// never redelivers.
-export const syncAppliedCaptures = sqliteTable("sync_applied_captures", {
-  id: text("id").primaryKey(),
-  appliedAt: integer("applied_at").notNull(),
-});
-
 // every device id this install has signed in as. the log keeps a sign-in's rows after it ends,
 // and this install already holds them as local events with a null origin, which the origin
 // dedupe cannot see; a pull skips a row under any of these ids. outlives a sign-out on purpose:

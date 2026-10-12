@@ -6,8 +6,16 @@ import { File } from "expo-file-system";
 import { addNetworkStateListener } from "expo-network";
 import * as SecureStore from "expo-secure-store";
 import { createKeychainCredentials } from "../credential/secure-store-credential";
-import { threadDispatches, threadListEntries } from "../dispatch/dispatch-projection";
-import type { ThreadDispatches, ThreadListEntry } from "../dispatch/dispatch-projection";
+import {
+  pendingCaptures,
+  threadDispatches,
+  threadListEntries,
+} from "../dispatch/dispatch-projection";
+import type {
+  PendingCaptures,
+  ThreadDispatches,
+  ThreadListEntry,
+} from "../dispatch/dispatch-projection";
 import type {
   AskAgentRequest,
   CancelOutcome,
@@ -32,7 +40,6 @@ import type { SyncStatus } from "../sync/sync-runtime";
 import { liveThreadsFirst, projectThread } from "../sync/thread-projection";
 import type { ThreadProjection } from "../sync/thread-projection";
 import { hexFromBytes } from "@repo/contract/cloud/bytes";
-import type { CloudFailure } from "@repo/contract/cloud/client";
 import { createCloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
 import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
 import { excludeFromBackup } from "./backup-exclusion";
@@ -110,13 +117,6 @@ export const logout = async (options?: { discardUnsent?: boolean }): Promise<Log
 
 export const login = async (request: LoginRequest): Promise<void> => {
   await getRuntime().login.login(request);
-};
-
-export const submitCapture = async (
-  text: string,
-): Promise<{ ok: true } | { ok: false; failure: CloudFailure }> => {
-  const result = await getRuntime().submitCapture(text);
-  return result.ok ? { ok: true } : { failure: result.failure, ok: false };
 };
 
 export const refreshNotes = async (): Promise<void> => {
@@ -251,8 +251,16 @@ export const useDispatches = (threadId: string): ThreadDispatches => {
   );
 };
 
+export const usePendingCaptures = (): PendingCaptures => {
+  const dispatches = useDispatchState();
+  return useMemo(() => pendingCaptures(dispatches), [dispatches]);
+};
+
 export const askAgent = async (request: AskAgentRequest): Promise<DispatchOutcome> =>
   await getRuntime().dispatch.askAgent(request);
+
+export const capture = async (text: string): Promise<DispatchOutcome> =>
+  await getRuntime().dispatch.capture(text);
 
 export const answerApproval = async (
   approvalId: string,

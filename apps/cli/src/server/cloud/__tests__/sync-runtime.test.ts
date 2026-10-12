@@ -1,4 +1,3 @@
-import { CAPTURE_API_PATHS } from "@repo/contract/cloud/captures/captures-schema";
 import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
 import { DISPATCH_API_PATHS } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { CLOUD_ERROR_STATUS, cloudError } from "@repo/contract/cloud/errors";
@@ -18,11 +17,11 @@ import nodePath from "node:path";
 import { setImmediate as tick } from "node:timers/promises";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
-import type { CaptureVault } from "../captures";
 import type { CloudFetch } from "@repo/contract/cloud/client";
 import type { CloudSocket, OpenCloudSocketArgs } from "@repo/contract/cloud/sync/cloud-socket";
 import { readDeviceCredential, writeDeviceCredential } from "../credential-store";
 import type { DeviceCredential } from "../credential-store";
+import type { InboxVault } from "../dispatches";
 import type { SyncedEventSink } from "../sync-pass";
 import { createCloudRuntime } from "../sync-runtime";
 import type { CloudRuntime, CloudTransport, LoginOutcome } from "../sync-runtime";
@@ -42,7 +41,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-interface FakeVault extends CaptureVault {
+interface FakeVault extends InboxVault {
   files: Map<string, string>;
 }
 
@@ -432,30 +431,55 @@ describe("an event the cloud will never hold", () => {
   });
 });
 
-describe("a capture delivered twice", () => {
-  it("applies once", async () => {
+describe("a capture whose ack was lost", () => {
+  it("lands once: the ack goes again before the next claim, lapsed or not", async () => {
     const cloud = new FakeCloud();
-    let lapsed = false;
-    // lapse every claim as the first ack goes out, so that ack owns nothing.
-    const fetchWithLapse: CloudFetch = async (input, init) => {
-      if (!lapsed && new URL(input).pathname === CAPTURE_API_PATHS.ack) {
-        lapsed = true;
-        cloud.lapseClaims();
+    let dropAck = true;
+    const fetch: CloudFetch = async (input, init) => {
+      if (dropAck && new URL(input).pathname === DISPATCH_API_PATHS.ack) {
+        dropAck = false;
+        throw new Error("connection reset");
       }
       return await cloud.fetch(input, init);
     };
-    const harness = makeHarness({ fetch: fetchWithLapse, pollIntervalMs: null });
-    // the login goes through the wrapped fetch, so it lands on the cloud that fetch reaches.
-    const outcome = await loginAs(harness.runtime, "Laptop");
-    expect(outcome.kind).toBe("logged-in");
+    const harness = makeHarness({ cloud, fetch, pollIntervalMs: null });
+    await signIn(harness);
 
-    cloud.capture("buy oat milk");
+    const id = cloud.capture("buy oat milk");
     await harness.runtime.syncNow();
     expect(harness.vault.files.get(CAPTURE_INBOX_PATH)).toContain("buy oat milk");
+    expect(cloud.dispatchStatus(id).state).toBe("claimed");
 
+    cloud.lapseClaims();
     await harness.runtime.syncNow();
+
+    expect(cloud.dispatchStatus(id).state).toBe("delivered");
     const inbox = harness.vault.files.get(CAPTURE_INBOX_PATH) ?? "";
     expect(inbox.match(/buy oat milk/gu)).toHaveLength(1);
+  });
+
+  it("is forgotten by a new sign-in, whose claim it does not settle", async () => {
+    const cloud = new FakeCloud();
+    let dropAck = true;
+    const fetch: CloudFetch = async (input, init) => {
+      if (dropAck && new URL(input).pathname === DISPATCH_API_PATHS.ack) {
+        dropAck = false;
+        throw new Error("connection reset");
+      }
+      return await cloud.fetch(input, init);
+    };
+    const harness = makeHarness({ cloud, fetch, pollIntervalMs: null });
+    await signIn(harness);
+    cloud.capture("buy oat milk");
+    await harness.runtime.syncNow();
+
+    harness.runtime.logout();
+    const acks = (): number =>
+      cloud.requests.filter((route) => route === `POST ${DISPATCH_API_PATHS.ack}`).length;
+    const before = acks();
+    await signIn(harness);
+
+    expect(acks()).toBe(before);
   });
 });
 
@@ -634,7 +658,7 @@ describe("the sync trace", () => {
       /^session \d+ push: caught-up$/u,
       /^pulled 1 row\(s\) after \d+: 0 to apply across 0 thread\(s\), 1 skipped as this device's own or unreadable$/u,
       /^session \d+ pull: caught-up$/u,
-      /^session \d+ captures: caught-up$/u,
+      /^session \d+ dispatch: caught-up$/u,
       /^session \d+ pass: caught-up$/u,
       /^sync ping at 0 skipped: the cursor \d+ covers it$/u,
     ]) {

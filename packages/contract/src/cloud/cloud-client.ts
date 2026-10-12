@@ -9,19 +9,6 @@ import type {
   DeleteAccountResponse,
   DeviceSignUpRequest,
 } from "./account/account-schema";
-import {
-  ackCapturesResponseSchema,
-  CAPTURE_API_PATHS,
-  captureResponseSchema,
-  claimCapturesResponseSchema,
-} from "./captures/captures-schema";
-import type {
-  AckCapturesRequest,
-  AckCapturesResponse,
-  CaptureRequest,
-  CaptureResponse,
-  ClaimCapturesResponse,
-} from "./captures/captures-schema";
 import { clientBuildHeaders } from "./client-build";
 import type { ClientBuild } from "./client-build";
 import { cloudErrorSchema } from "./cloud-errors";
@@ -54,6 +41,7 @@ import type {
   AckDispatchesRequest,
   AckDispatchesResponse,
   CancelDispatchResponse,
+  ClaimDispatchesRequest,
   ClaimDispatchesResponse,
   CloseApprovalResponse,
   CreateDispatchRequest,
@@ -348,11 +336,10 @@ export const postDeviceSignUp = async (
 export interface CloudClient {
   push: (request: PushRequest) => Promise<CloudResult<PushResponse>>;
   pull: (query: PullQuery) => Promise<CloudResult<PullResponse>>;
-  createCapture: (request: CaptureRequest) => Promise<CloudResult<CaptureResponse>>;
-  claimCaptures: (limit: number) => Promise<CloudResult<ClaimCapturesResponse>>;
-  ackCaptures: (request: AckCapturesRequest) => Promise<CloudResult<AckCapturesResponse>>;
   createDispatch: (request: CreateDispatchRequest) => Promise<CloudResult<CreateDispatchResponse>>;
-  claimDispatches: (limit: number) => Promise<CloudResult<ClaimDispatchesResponse>>;
+  claimDispatches: (
+    request: ClaimDispatchesRequest,
+  ) => Promise<CloudResult<ClaimDispatchesResponse>>;
   ackDispatches: (request: AckDispatchesRequest) => Promise<CloudResult<AckDispatchesResponse>>;
   dispatchStatus: (ids: readonly string[]) => Promise<CloudResult<DispatchStatusResponse>>;
   cancelDispatch: (id: string) => Promise<CloudResult<CancelDispatchResponse>>;
@@ -414,20 +401,14 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
     );
 
   return {
-    ackCaptures: async (request) =>
-      await send(CAPTURE_API_PATHS.ack, request, ackCapturesResponseSchema),
     ackDispatches: async (request) =>
       await send(DISPATCH_API_PATHS.ack, request, ackDispatchesResponseSchema),
     cancelDispatch: async (id) =>
       await send(DISPATCH_API_PATHS.cancel, { id }, cancelDispatchResponseSchema),
-    claimCaptures: async (limit) =>
-      await send(CAPTURE_API_PATHS.claim, { limit }, claimCapturesResponseSchema),
-    claimDispatches: async (limit) =>
-      await send(DISPATCH_API_PATHS.claim, { limit }, claimDispatchesResponseSchema),
+    claimDispatches: async (request) =>
+      await send(DISPATCH_API_PATHS.claim, request, claimDispatchesResponseSchema),
     closeApproval: async (id) =>
       await send(DISPATCH_API_PATHS.approvalClose, { id }, closeApprovalResponseSchema),
-    createCapture: async (request) =>
-      await send(CAPTURE_API_PATHS.capture, request, captureResponseSchema),
     createDispatch: async (request) =>
       await send(DISPATCH_API_PATHS.dispatch, request, createDispatchResponseSchema),
     deleteAccount: async (password) => {

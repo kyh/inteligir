@@ -10,13 +10,6 @@ import {
   signUpRequestSchema,
 } from "../account/account-schema";
 import {
-  ackCapturesRequestSchema,
-  ackCapturesResponseSchema,
-  captureRequestSchema,
-  captureResponseSchema,
-  claimCapturesResponseSchema,
-} from "../captures/captures-schema";
-import {
   CLOUD_ERROR_CODES,
   CLOUD_ERROR_STATUS,
   cloudError,
@@ -228,17 +221,6 @@ const APPROVAL_PAYLOAD = {
 } satisfies OpenApprovalRequest["payload"];
 
 const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
-  ["a capture", captureResponseSchema, { createdAt: 1, duplicate: false, id: "cap_1" }],
-  [
-    "a claim",
-    claimCapturesResponseSchema,
-    {
-      captures: [{ createdAt: 1, id: "cap_1", text: "buy oat milk" }],
-      claimToken: "tok",
-      expiresAt: 2,
-    },
-  ],
-  ["an ack", ackCapturesResponseSchema, { results: [{ id: "cap_1", outcome: "deleted" }] }],
   [
     "a login",
     deviceLoginResponseSchema,
@@ -334,6 +316,7 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
   ],
   ["a sync ping", syncPingSchema, { seq: 1, type: "sync" }],
   ["a dispatch ping", syncPingSchema, { threadId: "th_1", type: "dispatch" }],
+  ["a capture's dispatch ping", syncPingSchema, { type: "dispatch" }],
   [
     "a dispatch created",
     createDispatchResponseSchema,
@@ -694,28 +677,6 @@ describe("pull query", () => {
   });
 });
 
-describe("capture handoff", () => {
-  it("demands an idempotency key, so a retried share-sheet post is one capture", () => {
-    expect(captureRequestSchema.safeParse({ text: "buy oat milk" }).success).toBe(false);
-    expect(
-      captureRequestSchema.safeParse({ idempotencyKey: "k".repeat(8), text: "buy oat milk" })
-        .success,
-    ).toBe(true);
-  });
-
-  it("acks by claim token and answers per id", () => {
-    const parsed = ackCapturesResponseSchema.parse({
-      results: [
-        { id: "c1", outcome: "deleted" },
-        { id: "c2", outcome: "reclaimed" },
-        { id: "c3", outcome: "unknown" },
-      ],
-    });
-    expect(parsed.results.map((row) => row.outcome)).toEqual(["deleted", "reclaimed", "unknown"]);
-    expect(ackCapturesRequestSchema.safeParse({ ids: ["c1"] }).success).toBe(false);
-  });
-});
-
 describe("the dispatch inbox", () => {
   const TURN: CreateDispatchRequest = {
     id: DISPATCH_ID,
@@ -730,6 +691,11 @@ describe("the dispatch inbox", () => {
     decision: "allow_once",
     id: "e".repeat(32),
     kind: "answer",
+  };
+  const CAPTURE: CreateDispatchRequest = {
+    id: "f".repeat(32),
+    kind: "capture",
+    text: "buy oat milk",
   };
   const APPROVAL: OpenApprovalRequest = {
     id: APPROVAL_ID,
@@ -748,6 +714,7 @@ describe("the dispatch inbox", () => {
   it("reads every request it sends as exactly that request", () => {
     expect(createDispatchRequestSchema.parse(TURN)).toStrictEqual(TURN);
     expect(createDispatchRequestSchema.parse(ANSWER)).toStrictEqual(ANSWER);
+    expect(createDispatchRequestSchema.parse(CAPTURE)).toStrictEqual(CAPTURE);
     expect(openApprovalRequestSchema.parse(APPROVAL)).toStrictEqual(APPROVAL);
     expect(ackDispatchesRequestSchema.parse(ACK)).toStrictEqual(ACK);
     expect(dispatchStatusRequestSchema.parse({ ids: [DISPATCH_ID] })).toStrictEqual({
@@ -759,7 +726,8 @@ describe("the dispatch inbox", () => {
     expect(closeApprovalRequestSchema.parse({ id: APPROVAL_ID })).toStrictEqual({
       id: APPROVAL_ID,
     });
-    expect(claimDispatchesRequestSchema.parse({})).toStrictEqual({
+    expect(claimDispatchesRequestSchema.parse({ kinds: ["capture"] })).toStrictEqual({
+      kinds: ["capture"],
       limit: DISPATCH_CLAIM_DEFAULT_LIMIT,
     });
   });
@@ -780,9 +748,20 @@ describe("the dispatch inbox", () => {
       { ...TURN, lane: "desktop" },
       { ...ANSWER, decision: "allow_forever" },
       { ...ANSWER, kind: "cancel" },
+      { ...CAPTURE, text: "  " },
+      { ...CAPTURE, text: "x".repeat(DISPATCH_MAX_CHARS + 1) },
+      { ...CAPTURE, threadId: "thr_1" },
     ];
     for (const body of refused) {
       expect(createDispatchRequestSchema.safeParse(body).success, JSON.stringify(body)).toBe(false);
+    }
+  });
+
+  it("names the kinds a claim takes, so a kind its Mac would misread is never handed to it", () => {
+    for (const body of [{}, { kinds: [] }, { kinds: ["note"] }]) {
+      expect(claimDispatchesRequestSchema.safeParse(body).success, JSON.stringify(body)).toBe(
+        false,
+      );
     }
   });
 
@@ -824,7 +803,7 @@ describe("the dispatch inbox", () => {
       },
     });
     await client.createDispatch(TURN);
-    await client.claimDispatches(5);
+    await client.claimDispatches({ kinds: ["turn", "capture"], limit: 5 });
     await client.ackDispatches(ACK);
     await client.dispatchStatus([DISPATCH_ID]);
     await client.cancelDispatch(DISPATCH_ID);
@@ -853,7 +832,7 @@ describe("the dispatch inbox", () => {
     ];
     expect(decoded).toStrictEqual([
       TURN,
-      { limit: 5 },
+      { kinds: ["turn", "capture"], limit: 5 },
       ACK,
       { ids: [DISPATCH_ID] },
       { id: DISPATCH_ID },
@@ -867,7 +846,6 @@ describe("the dispatch inbox", () => {
 describe("ws ping frames", () => {
   it("parses each server frame", () => {
     expect(syncPingSchema.parse({ seq: 12, type: "sync" }).type).toBe("sync");
-    expect(syncPingSchema.parse({ type: "capture" }).type).toBe("capture");
     expect(syncPingSchema.parse({ threadId: "th_1", type: "dispatch" }).type).toBe("dispatch");
     expect(syncPingSchema.parse({ type: "vault" }).type).toBe("vault");
   });

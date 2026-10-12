@@ -8,8 +8,8 @@ nobody uses it yet. The vault is a folder of markdown files on the user's own
 disk; one local Node process owns that vault, indexes it, answers one API, and
 drives the agent that edits those same files. The only hosted piece is a
 Cloudflare Worker carrying the marketing site, accounts, cross-device sync, the
-capture inbox, the dispatch inbox a phone asks a Mac through, and the account's
-hosted vault.
+dispatch inbox a phone asks a Mac and hands it captures through, and the
+account's hosted vault.
 
 The premises every change builds from, each with its reason:
 
@@ -151,9 +151,9 @@ apps/
                  signed-in Mac's Settings › Account with its own device
                  credential, list and revoke; POST /v1/account/delete ends
                  the account through Better Auth's one purge path), the
-                 per-user ThreadSyncDO (merged thread log + capture inbox +
-                 dispatch inbox + ws invalidation), and the hosted vault git
-                 remote (issue #618): durable-git repo
+                 per-user ThreadSyncDO (merged thread log + dispatch inbox +
+                 ws invalidation), and the hosted vault git remote (issue
+                 #618): durable-git repo
                  cells behind src/worker/vault/git-remote.ts, one per user,
                  device-authed, which the Worker commits to itself through
                  the cell's own receive-pack
@@ -189,10 +189,11 @@ apps/
                  account's socket while the app is in the foreground, with a
                  running turn's streamed text folded in memory alone
                  (src/sync/live-turns.ts), that it
-                 asks a Mac's agent in through the dispatch inbox, from a
-                 durable queue of its own (src/dispatch/dispatch-runtime.ts),
-                 produced captures and (#618) a local SQLite mirror of every
-                 note's text (src/notes/vault-mirror.ts), kept current from
+                 asks a Mac's agent in, and hands a Mac captures for
+                 Inbox.md, through the dispatch inbox, from a durable queue
+                 of its own (src/dispatch/dispatch-runtime.ts), and (#618) a
+                 local SQLite mirror of every note's text
+                 (src/notes/vault-mirror.ts), kept current from
                  the hosted vault's /cloud read rows by blob oid and read
                  offline, each note opened in the desktop's editor: the
                  @repo/mobile-editor page the app bundle carries, in a
@@ -241,14 +242,15 @@ packages/
                  cursor is a duplicated conversation — and, for the same
                  reason, the CLIENT RUNTIME CORE both consumers run. apps/web
                  SERVES every row; apps/mobile pulls threads, produces
-                 captures and dispatches, and commits vault change sets from
-                 a queue it settles itself, and never pushes a thread event,
-                 claims a capture or a dispatch or speaks git, because the
-                 desktop runs the turns and owns applying a capture to the
-                 vault. Two entries rather than one router because their
-                 compatibility obligations are OPPOSITE: /local's ends ship in
-                 one bundle and may break freely (a CLI installed apart refuses
-                 another release's server as `SERVER_VERSION_MISMATCH`),
+                 dispatches (its captures among them), and commits vault
+                 change sets from a queue it settles itself, and never
+                 pushes a thread event, claims a dispatch or speaks git,
+                 because the desktop runs the turns and owns applying a
+                 capture to the vault. Two entries rather than one router
+                 because their compatibility obligations are OPPOSITE:
+                 /local's ends ship in one bundle and may break freely (a CLI
+                 installed apart refuses another release's server as
+                 `SERVER_VERSION_MISMATCH`),
                  /cloud is a deployed Worker answering installs that may be
                  months stale, so it breaks only behind the client build floor
                  (A /CLOUD CLIENT IGNORES WHAT IT DOES NOT KNOW, below), which
@@ -915,7 +917,7 @@ to the END of its group.
   which a knowledge worker cannot, and a rebase through the conflict, which
   replays every local commit and has nowhere to keep the other version.
 
-- **THE CAPTURE INBOX MERGES BY UNION.** Two desktops each appending a phone
+- **`Inbox.md` MERGES BY UNION.** Two desktops each appending a phone
   capture to the root `Inbox.md` between syncs overlap on a file the app wrote
   itself, and without union the merge would copy the inbox aside over a
   conflict nobody made. Every boot makes sure `info/attributes` holds
@@ -1865,9 +1867,21 @@ to the END of its group.
   `packages/contract/src/cloud/cloud-errors.ts`,
   `apps/web/src/worker/client-floor.ts`.
 
-- **Say the delivery guarantee you implement.** Captures are at-least-once
-  delivery with exactly-once deletion by the owning claim, so the apply must be
-  idempotent on the capture id (`@repo/contract/cloud/captures/captures-schema`).
+- **Say the delivery guarantee you implement.** The dispatch inbox delivers
+  at-least-once to a claimant and settles a row only under the claim that holds
+  it, so a Mac's apply of a turn or an answer must be exactly-once on the
+  dispatch id, and is: the thread is its ledger (A PHONE ASKS A MAC, below). A
+  capture's only ledger is its bullet in `Inbox.md`, which carries no id, so the
+  Mac holds an ack that never reached the cloud and sends it before its next
+  claim, and the inbox records it under that claim, lapsed or not, until
+  another claim takes the row. A restart between the write and the ack can
+  still repeat a bullet, chosen over losing one. Rejected: a table of applied
+  captures, a second store that repeats a bullet all the same on a crash
+  between its write and the vault's, and spares only a restart that also lost
+  the ack.
+  `@repo/contract/cloud/dispatch/dispatch-schema`,
+  `apps/cli/src/server/cloud/dispatches.ts`,
+  `apps/cli/src/server/cloud/sync-pass.ts`.
 
 - **The THREAD channel carries thread events alone, and a thread's own facts
   are events on it** (owner decision). A thread with no events never reaches
@@ -1957,12 +1971,12 @@ to the END of its group.
 - **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
   `SyncRuntime`, the login flow and the dispatch runtime publish stores the
   screens subscribe to, so a poll pass, a revocation, a refused login and where
-  a request to a Mac stands are shown; a refused capture keeps its text and its
-  idempotency key, and a refused request keeps its words and the Mac's reason
-  until dismissed. A sign-in is ONE session: every runtime reads under
-  `SyncRuntime`'s, so a revocation any request hears ends the sign-in for all,
-  and each checks its fence before recording a refusal, so one heard under an
-  earlier sign-in never ends the next (`apps/mobile/src/lib/compose-runtime.ts`).
+  a request to a Mac stands are shown; a refused request or capture keeps its
+  words and the reason until dismissed. A sign-in is ONE session: every
+  runtime reads under `SyncRuntime`'s, so a revocation any request hears ends
+  the sign-in for all, and each checks its fence before recording a refusal,
+  so one heard under an earlier sign-in never ends the next
+  (`apps/mobile/src/lib/compose-runtime.ts`).
   Which screens exist is the route guard's answer (`Stack.Protected` in
   `apps/mobile/src/app/_layout.tsx`), never a per-screen branch.
   `apps/mobile/src/sync/sync-runtime.ts`,
@@ -2166,11 +2180,21 @@ to the END of its group.
 - **A PHONE ASKS A MAC THROUGH A CLAIMABLE DISPATCH INBOX, THE REQUEST LANDS
   THROUGH THE MAC'S OWN SEND, AND THE THREAD IS ITS LEDGER** (owner decision).
   The phone never pushes to the log, so a request cannot ride it: a `turn` row
-  waits beside the captures in the account's `ThreadSyncDO`, any Mac may claim
-  it and the first claim wins, and it pings the sockets of the Macs that take a
-  phone's requests with a `dispatch` frame. Delivery is
-  at-least-once to a claimant and a Mac's apply exactly-once on the dispatch
-  id, which the phone mints so a resend is one row
+  waits in the account's `ThreadSyncDO`, any Mac may claim it and the first
+  claim wins, and it pings the sockets of the Macs that take a phone's
+  requests with a `dispatch` frame. A CAPTURE RIDES THE SAME INBOX: a
+  `capture` row is a line for `Inbox.md`, kept in the phone's
+  `dispatch_outbox` until a Mac says it wrote it, so one typed offline is sent
+  after a relaunch; every Mac's socket is pinged with a thread-less `dispatch`
+  frame, and a Mac claims captures whether or not it takes the phone's
+  requests, and before its pull has caught up, since no log holds them. A
+  claim names the kinds its Mac applies, so a kind a newer phone sends never
+  reaches a build that would read it as another. Rejected: a capture lane of
+  its own, whose phone end held the words in memory, so a capture typed
+  offline was lost on relaunch, beside a second claim, ack and ledger that
+  only ever appended a bullet. Delivery is at-least-once to a claimant and a
+  Mac's apply exactly-once on the dispatch id, which the phone mints so a
+  resend is one row
   (`packages/contract/src/cloud/dispatch/dispatch-schema.ts`,
   `apps/web/src/worker/sync/dispatch-inbox.ts`). The Mac hands each claimed row
   to `ThreadService.acceptDispatch`, which runs the send's own decision, so a
@@ -2228,11 +2252,11 @@ to the END of its group.
   because a job's `environment:` under `workflow_run` records the default
   branch. `.github/workflows/preview.yml`, `apps/web/README.md` § Previews.
 
-- **THE INBOXES' RULES ARE ONE TABLE, AND THE CLI'S FAKE CLOUD AND THE WORKER
-  BOTH ANSWER IT.** The local server's suites run against a fake cloud over
-  Maps (`apps/cli/src/server/cloud/__tests__/fake-cloud.ts`), so a refusal or
-  ordering rule of the dispatch and capture inboxes it spelled its own way
-  would pass there and fail deployed. `INBOX_SCENARIOS`
+- **THE DISPATCH INBOX'S RULES ARE ONE TABLE, AND THE CLI'S FAKE CLOUD AND THE
+  WORKER BOTH ANSWER IT.** The local server's suites run against a fake cloud
+  over Maps (`apps/cli/src/server/cloud/__tests__/fake-cloud.ts`), so a refusal
+  or ordering rule of the dispatch inbox it spelled its own way would pass
+  there and fail deployed. `INBOX_SCENARIOS`
   (`@repo/contract/cloud/test-support/inbox-scenarios`) drives each rule
   through the real cloud client and observes ids, states and texts, never a
   clock or a token; the CLI runs it against the fake and the Worker's

@@ -297,28 +297,6 @@ describe("the sync runtime", () => {
     expect(revoked).toMatchObject({ deviceId: CRED.deviceId, state: "unauthorized" });
   });
 
-  it("ends the sign-in when a capture is refused as unauthorized", async () => {
-    const store = openSyncStore();
-    const cloud = createFakeCloud();
-    cloud.captureResults.push({
-      failure: { code: "unauthorized", deviceSeq: null, kind: "refused", message: "unauthorized" },
-      ok: false,
-    });
-    const runtime = createSyncRuntime({
-      build: TEST_BUILD,
-      cloudUrl: "https://cloud.test",
-      createClient: () => cloud.client,
-      pollIntervalMs: null,
-      store,
-    });
-    runtime.setCredential(CRED);
-
-    const result = await runtime.createCapture({ idempotencyKey: "k".repeat(16), text: "idea" });
-
-    expect(result.ok).toBe(false);
-    expect(runtime.get()).toMatchObject({ deviceId: CRED.deviceId, state: "unauthorized" });
-  });
-
   it("hands its diagnostics to the injected sink — a row this build cannot read is named", async () => {
     const store = openSyncStore();
     const cloud = createFakeCloud();
@@ -470,7 +448,6 @@ describe("the account's socket", () => {
 
     lastDial().onPing({ type: "vault" });
     lastDial().onPing({ threadId: "thr_x", type: "dispatch" });
-    lastDial().onPing({ type: "capture" });
     await tick();
 
     expect(pings).toEqual({ dispatch: 1, vault: 1 });

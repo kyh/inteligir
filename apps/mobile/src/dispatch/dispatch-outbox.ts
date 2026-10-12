@@ -1,6 +1,6 @@
 // the phone's requests to a Mac, durable from the tap that asks one. Not a log outbox: the phone
 // appends nothing to the thread log, and a row here leaves once a Mac's request carrying its id is
-// in the log, or once the cloud says a Mac took an answer.
+// in the log, or once the cloud says a Mac took an answer or a capture.
 
 import { z } from "zod";
 import {
@@ -17,7 +17,6 @@ import type { SqlDriver } from "../lib/sql-driver";
 
 export interface DispatchRow {
   request: CreateDispatchRequest;
-  threadId: string;
   createdAt: number;
   // null until the cloud has taken the row
   status: DispatchStatus | null;
@@ -36,7 +35,6 @@ const columnsSchema = z.object({
   created_at: z.number(),
   request: z.string(),
   status: z.string().nullable(),
-  thread_id: z.string(),
 });
 
 // a row this build cannot read throws: dropping it would drop the user's words
@@ -44,17 +42,15 @@ const rowOf = (columns: z.infer<typeof columnsSchema>): DispatchRow => ({
   createdAt: columns.created_at,
   request: createDispatchRequestSchema.parse(JSON.parse(columns.request)),
   status: columns.status === null ? null : dispatchStatusSchema.parse(JSON.parse(columns.status)),
-  threadId: columns.thread_id,
 });
 
 export const createDispatchOutbox = (db: SqlDriver): DispatchOutbox => ({
   add: async (row, fence) =>
     await fencedExclusive(db, fence, async (tx) => {
       await tx.run(
-        "INSERT INTO dispatch_outbox (id, thread_id, request, status, created_at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO dispatch_outbox (id, request, status, created_at) VALUES (?, ?, ?, ?)",
         [
           row.request.id,
-          row.threadId,
           JSON.stringify(row.request),
           row.status === null ? null : JSON.stringify(row.status),
           row.createdAt,
@@ -65,7 +61,7 @@ export const createDispatchOutbox = (db: SqlDriver): DispatchOutbox => ({
   load: async () => {
     await phoneDbReady(db);
     const raw = await db.all(
-      "SELECT thread_id, request, status, created_at FROM dispatch_outbox ORDER BY seq",
+      "SELECT request, status, created_at FROM dispatch_outbox ORDER BY seq",
     );
     return raw.map((row) => rowOf(columnsSchema.parse(row)));
   },

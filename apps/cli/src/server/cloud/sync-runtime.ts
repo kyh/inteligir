@@ -43,13 +43,13 @@ import type {
 } from "@repo/contract/local/cloud/cloud-schema";
 import type { DebugLog } from "../debug-log";
 import { messageOf } from "../error-message";
-import type { CaptureVault } from "./captures";
 import {
   clearDeviceCredential,
   readDeviceCredential,
   writeDeviceCredential,
 } from "./credential-store";
 import type { DeviceCredential } from "./credential-store";
+import type { InboxVault } from "./dispatches";
 import { enqueueThreadEvents } from "./outbox";
 import { createSyncCadence } from "./sync-cadence";
 import type { SyncCadenceArgs } from "./sync-cadence";
@@ -78,7 +78,7 @@ export interface CloudRuntimeArgs {
   build: string;
   /** the name a sign-in that names none gives this device (`readMachineName`). */
   machineName: string;
-  vault: CaptureVault;
+  vault: InboxVault;
   transport?: CloudTransport;
   /** the vault ping's handler; also kicked once after a login so the derived remote syncs now. */
   onVaultPing?: () => void;
@@ -358,6 +358,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     debug,
     debugLog: args.debugLog,
     fenced,
+    heldAck: { current: null },
     phoneRequests,
     recordFailure,
     setLastError: (message) => {

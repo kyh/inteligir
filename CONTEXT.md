@@ -50,8 +50,8 @@ changed where their edits overlap, written beside it as
 this device's lines at the overlaps. A note's copy drops its `id:`, so the two
 never answer to one `[[Title|uuid]]` link. Which paths get one is
 `@repo/notes/sync/reconcile-file` (the one verdict the desktop's sync and the
-phone's write queue both run: an edit beats a deletion, the capture inbox and
-the comment store merge and are never copied, another app's dot-folder keeps
+phone's write queue both run: an edit beats a deletion, `Inbox.md` and the
+comment store merge and are never copied, another app's dot-folder keeps
 this device's); the name, its parse and the one sentence every surface says
 about it are `@repo/notes/sync/conflict-copy`. Not the open note's own
 overlap: a save that meets a concurrent write merges into the buffer, keeps

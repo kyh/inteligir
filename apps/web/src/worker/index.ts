@@ -54,7 +54,7 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
     return await handleDeviceRoutes(request, env, url);
   }
 
-  if (url.pathname === "/v1/capture" || url.pathname.startsWith("/v1/sync/")) {
+  if (url.pathname.startsWith("/v1/sync/")) {
     return await handleSyncRoutes(request, env, url);
   }
 

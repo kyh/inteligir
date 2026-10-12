@@ -1,5 +1,6 @@
 import { deleteAccountResponseSchema } from "@repo/contract/cloud/account/account-schema";
 import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
+import { DISPATCH_API_PATHS } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { eq, sql } from "drizzle-orm";
@@ -65,8 +66,8 @@ describe("deleting the account from a device", () => {
       method: "POST",
     });
     expect(synced.status).toBe(200);
-    const captured = await SELF.fetch(`${ORIGIN}/v1/capture`, {
-      body: JSON.stringify({ idempotencyKey: "key-delete-1", text: "a capture" }),
+    const captured = await SELF.fetch(`${ORIGIN}${DISPATCH_API_PATHS.dispatch}`, {
+      body: JSON.stringify({ id: "c".repeat(32), kind: "capture", text: "a capture" }),
       headers: { ...deviceHeaders(phone.credential), "content-type": "application/json" },
       method: "POST",
     });
@@ -93,11 +94,10 @@ describe("deleting the account from a device", () => {
 
     // read off the SQL: every route refuses a tombstoned object, so an answer would prove only the tombstone
     const rows = await runInDurableObject(threadSyncStub(env, userId), (_instance, state) => ({
-      captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
       dispatches: state.storage.sql.exec("SELECT COUNT(*) AS n FROM dispatches").one().n,
       events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
     }));
-    expect(rows).toEqual({ captures: 0, dispatches: 0, events: 0 });
+    expect(rows).toEqual({ dispatches: 0, events: 0 });
 
     expect(await vaultRegistry(env).get(vaultRepoName(userId))).toBeNull();
 

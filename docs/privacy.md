@@ -122,13 +122,12 @@ through the Service or otherwise includes:
     running it sends the question (the command or the change the agent wants to
     make, and why) to the same place for your phone to answer. A Mac with Let my
     phone ask this Mac turned off in Settings never picks one up.
-  - **Captures** — quick-capture text you post from a device, held in the same
-    per-user object until one of your Macs applies it to your Inbox note and
-    acknowledges it, which deletes the row. A capture is handed to one Mac at a
-    time (a claim), and the row is deleted only by the Mac that held that claim.
-    If that Mac dies mid-apply the claim lapses after five minutes and the
-    capture is offered again — so a capture can be delivered twice and is never
-    silently lost. The app deduplicates on the capture's id.
+  - **Captures** — quick-capture text you type on your phone, held in the same
+    per-user object, as a request is, until one of your Macs adds it to your
+    Inbox note. Every Mac signed in to your account picks captures up, Let my
+    phone ask this Mac on or off. A capture is handed to one Mac at a time; if
+    that Mac stops mid-way the hold lapses after two minutes and another may
+    take it, so a capture can be added twice and is never silently lost.
   - **Your vault, in your account's hosted vault — only for a vault nothing else
     syncs.** Signed in, each Mac sends its vault — notes, attachments, comments
     and every earlier version, each change named for the device that saved it
@@ -360,9 +359,8 @@ Specifically, in our cloud:
   log is append-only — that is what makes multi-device merge trivial — so
   archiving a conversation hides it and deletes nothing; there is no deleting
   one conversation from our cloud.
-- A capture is deleted once a Mac has added it to your Inbox note.
-- A request from your phone, and a permission question sent to it, is kept for a
-  day after a Mac settles it, then deleted the next time a request is sent or a
+- A request or a capture from your phone, and a permission question sent to it,
+  is kept for a day after a Mac settles it, then deleted the next time a request is sent or a
   Mac checks for one. One still waiting stays until a Mac picks it up, you
   cancel it, or you revoke the phone that sent it, which deletes every request
   of its no Mac has picked up yet; revoking a Mac settles every question it
@@ -391,9 +389,9 @@ your notes offline:
 - **Your conversations with the agent**, as your Macs sync them.
 - **Whatever it has not sent yet.** Edits, new notes, renames, deletions,
   comments and photos wait on the phone until the hosted vault takes them, and
-  requests to your Mac wait until one picks them up. A change the vault cannot
-  take as it is stays on the phone and says so, until you retry it, keep it as a
-  new note or discard it.
+  requests and captures to your Mac wait until one picks them up. A change the
+  vault cannot take as it is stays on the phone and says so, until you retry
+  it, keep it as a new note or discard it.
 
 It all lives in the app's own storage on the phone. The notes, conversations and
 unsent changes, photos waiting to be sent included, sit where the app keeps them
@@ -1008,13 +1006,10 @@ to Better Auth under `/api/auth/`. Nothing else under `/v1/` exists.
 | `/v1/sync/push`                    | Your conversations with the agent, as events, including what the agent read and changed, with each one's title, note, agent and archived state.                                                                      | The device's credential.                                            |
 | `/v1/sync/pull`                    | The same events, written by your other devices.                                                                                                                                                                      | The device's credential.                                            |
 | `/v1/sync/ws`                      | A live connection that says only that something changed, and whether a Mac takes your phone's requests.                                                                                                              | The device's credential.                                            |
-| `/v1/capture`                      | The text of a quick capture.                                                                                                                                                                                         | The device's credential.                                            |
-| `/v1/sync/captures/claim`          | The captures waiting for a Mac to add them to your Inbox note.                                                                                                                                                       | The device's credential.                                            |
-| `/v1/sync/captures/ack`            | The ids of the captures that Mac added.                                                                                                                                                                              | The device's credential and the claim it was handed.                |
-| `/v1/sync/dispatch`                | What you ask your Mac's agent from your phone, or your answer to its permission question.                                                                                                                            | The device's credential.                                            |
-| `/v1/sync/dispatch/claim`          | The requests waiting for a Mac to pick up, and the answers meant for that Mac.                                                                                                                                       | The device's credential.                                            |
-| `/v1/sync/dispatch/ack`            | The ids of the requests that Mac took, and why it turned one down.                                                                                                                                                   | The device's credential and the claim it was handed.                |
-| `/v1/sync/dispatch/status`         | Whether your requests are waiting, picked up or answered, and how many Macs are online, taking them or not.                                                                                                          | The device's credential.                                            |
+| `/v1/sync/dispatch`                | What you ask your Mac's agent from your phone, your answer to its permission question, or the text of a quick capture.                                                                                               | The device's credential.                                            |
+| `/v1/sync/dispatch/claim`          | The requests and captures waiting for a Mac to pick up, and the answers meant for that Mac.                                                                                                                          | The device's credential.                                            |
+| `/v1/sync/dispatch/ack`            | The ids of the requests and captures that Mac took, and why it turned one down.                                                                                                                                      | The device's credential and the claim it was handed.                |
+| `/v1/sync/dispatch/status`         | Whether your requests and captures are waiting, picked up or answered, and how many Macs are online, taking them or not.                                                                                             | The device's credential.                                            |
 | `/v1/sync/dispatch/cancel`         | The id of a request you took back before a Mac picked it up.                                                                                                                                                         | The device's credential.                                            |
 | `/v1/sync/dispatch/approval`       | The command or change an agent wants your permission for, in a conversation your phone started.                                                                                                                      | The device's credential.                                            |
 | `/v1/sync/dispatch/approval/close` | The id of a permission question that no longer needs your answer.                                                                                                                                                    | The device's credential.                                            |

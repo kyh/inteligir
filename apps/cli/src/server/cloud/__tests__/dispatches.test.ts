@@ -3,8 +3,10 @@ import path from "node:path";
 import type { CloudClient, CloudFetch } from "@repo/contract/cloud/client";
 import {
   APPROVAL_MAX_BYTES,
+  claimDispatchesRequestSchema,
   DISPATCH_API_PATHS,
 } from "@repo/contract/cloud/dispatch/dispatch-schema";
+import type { DispatchKind } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { SYNC_API_PATHS } from "@repo/contract/cloud/sync/sync-schema";
 import { MAX_PULL_PAGES_PER_PASS } from "@repo/contract/cloud/sync/sync-session";
 import type { SocketListener } from "@repo/contract/cloud/sync/sync-ws";
@@ -56,6 +58,21 @@ const requestCount = (mac: ThreadHarness, threadId: string): number =>
 
 const routeOf = (input: string): string => new URL(input).pathname;
 
+const claimedKinds = (init: RequestInit | undefined): DispatchKind[] =>
+  claimDispatchesRequestSchema.parse(JSON.parse(String(init?.body))).kinds;
+
+// the kinds each claim named, in order
+const recordingClaims = (cloud: FakeCloud) => {
+  const kinds: DispatchKind[][] = [];
+  const fetch: CloudFetch = async (input, init) => {
+    if (routeOf(input) === DISPATCH_API_PATHS.claim) {
+      kinds.push(claimedKinds(init));
+    }
+    return await cloud.fetch(input, init);
+  };
+  return { fetch, kinds };
+};
+
 describe("a phone's request reaching a Mac", () => {
   it("is claimed, run through the thread, then acked delivered, in that order", async () => {
     const cloud = new FakeCloud();
@@ -82,7 +99,7 @@ describe("a phone's request reaching a Mac", () => {
     expect(cloud.dispatchStatus(TURN).state).toBe("delivered");
   });
 
-  it("runs once when its ack is lost: the lapsed row comes back and is acked from the thread", async () => {
+  it("runs once when its ack is lost: the ack goes again before the next claim, lapsed or not", async () => {
     const cloud = new FakeCloud();
     let dropAck = true;
     const fetch: CloudFetch = async (input, init) => {
@@ -108,15 +125,14 @@ describe("a phone's request reaching a Mac", () => {
 
   it("is acked without a turn by a second Mac that pulled the first one's request for it", async () => {
     const cloud = new FakeCloud();
-    let dropAck = true;
-    const dropFirstAck: CloudFetch = async (input, init) => {
-      if (dropAck && routeOf(input) === DISPATCH_API_PATHS.ack) {
-        dropAck = false;
+    // the first Mac's acks never land, so its claim lapses with the row still waiting
+    const dropAcks: CloudFetch = async (input, init) => {
+      if (routeOf(input) === DISPATCH_API_PATHS.ack) {
         throw new Error("connection reset");
       }
       return await cloud.fetch(input, init);
     };
-    const first = await bootMac(cloud, dropFirstAck);
+    const first = await bootMac(cloud, dropAcks);
     const phone = await signInPhone(cloud);
     await askFromPhone(phone, "thr_phone");
     await signInMac(first);
@@ -213,7 +229,7 @@ describe("a phone's request reaching a Mac", () => {
     // pages of one row, so one pass's cap is a few dozen rows
     const onePerPage: CloudFetch = async (input, init) => {
       const url = new URL(input);
-      if (url.pathname === DISPATCH_API_PATHS.claim) {
+      if (url.pathname === DISPATCH_API_PATHS.claim && claimedKinds(init).includes("turn")) {
         claims += 1;
       }
       if (url.pathname === SYNC_API_PATHS.pull) {
@@ -244,9 +260,10 @@ describe("a phone's request reaching a Mac", () => {
     expect(titles).toEqual(["Plan the week"]);
   });
 
-  it("is left waiting by a Mac whose person turned phone requests off", async () => {
+  it("is left waiting by a Mac whose person turned phone requests off, which claims captures alone", async () => {
     const cloud = new FakeCloud();
-    const mac = await bootMac(cloud);
+    const claims = recordingClaims(cloud);
+    const mac = await bootMac(cloud, claims.fetch);
     expect(await mac.client.cloud.prefs()).toEqual({ phoneRequests: true });
     expect(await mac.client.cloud.setPrefs({ phoneRequests: false })).toEqual({
       phoneRequests: false,
@@ -256,7 +273,8 @@ describe("a phone's request reaching a Mac", () => {
 
     await signInMac(mac);
 
-    expect(cloud.requests).not.toContain(`POST ${DISPATCH_API_PATHS.claim}`);
+    expect(claims.kinds.length).toBeGreaterThan(0);
+    expect(new Set(claims.kinds.flat())).toEqual(new Set(["capture"]));
     expect(cloud.dispatchStatus(TURN).state).toBe("waiting");
     expect(mac.driver.startedTurns).toEqual([]);
 
@@ -267,14 +285,15 @@ describe("a phone's request reaching a Mac", () => {
 
   it("is left waiting when this Mac's choice cannot be read, which the status says", async () => {
     const cloud = new FakeCloud();
-    const mac = await bootMac(cloud);
+    const claims = recordingClaims(cloud);
+    const mac = await bootMac(cloud, claims.fetch);
     writeFileSync(path.join(mac.dataDir, "cloud-prefs.json"), "{ not json");
     const phone = await signInPhone(cloud);
     await askFromPhone(phone, "thr_phone");
 
     await signInMac(mac);
 
-    expect(cloud.requests).not.toContain(`POST ${DISPATCH_API_PATHS.claim}`);
+    expect(new Set(claims.kinds.flat())).toEqual(new Set(["capture"]));
     expect(cloud.dispatchStatus(TURN).state).toBe("waiting");
     const status = await mac.client.cloud.status();
     expect(status.state === "signed-in" && status.lastError).toContain("cloud-prefs.json");

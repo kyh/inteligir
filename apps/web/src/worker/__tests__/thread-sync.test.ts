@@ -1,3 +1,4 @@
+import { DISPATCH_API_PATHS } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import { pullResponseSchema, pushResponseSchema } from "@repo/contract/cloud/sync/sync-schema";
 import type { PushRequest } from "@repo/contract/cloud/sync/sync-schema";
@@ -50,13 +51,9 @@ const event = (
   threadId,
 });
 
-const capture = async (
-  credential: string,
-  text: string,
-  idempotencyKey: string,
-): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}/v1/capture`, {
-    body: JSON.stringify({ idempotencyKey, text }),
+const capture = async (credential: string, text: string): Promise<Response> =>
+  await SELF.fetch(`${ORIGIN}${DISPATCH_API_PATHS.dispatch}`, {
+    body: JSON.stringify({ id: "c".repeat(32), kind: "capture", text }),
     headers: { ...deviceHeaders(credential), "content-type": "application/json" },
     method: "POST",
   });
@@ -312,33 +309,13 @@ describe("thread sync log", () => {
   });
 });
 
-describe("capture inbox", () => {
-  it("pings every socket when a capture lands", async () => {
-    const { cookie } = await signUpUser("capture-ping@example.test");
-    const phone = await loginDevice(cookie, "Phone");
-    const laptop = await loginDevice(cookie, "Laptop");
-    const laptopWs = await openSocket(laptop.credential, "desktop");
-
-    await capture(phone.credential, "remember the thing", "key-ping-1");
-
-    await awaitFrames(laptopWs, [{ type: "capture" }]);
-    laptopWs.socket.close();
-  });
-
-  it("refuses an empty capture", async () => {
-    const { cookie } = await signUpUser("capture-empty@example.test");
-    const phone = await loginDevice(cookie, "Phone");
-    const response = await capture(phone.credential, "   ", "key-empty-1");
-    expect(response.status).toBe(400);
-  });
-});
-
 describe("account deletion", () => {
   it("purges the thread-sync object and every device row", async () => {
     const { cookie, password } = await signUpUser("delete-me@example.test");
     const { credential } = await loginDevice(cookie, "Laptop");
     await push(credential, { events: [event("th_1", 1, "to be purged")] });
-    await capture(credential, "to be purged too", "key-purge-1");
+    const captured = await capture(credential, "to be purged too");
+    expect(captured.status).toBe(200);
     const page = await pull(credential, 0);
     expect(page.lastSeq).toBe(1);
 
@@ -354,11 +331,10 @@ describe("account deletion", () => {
     // read off the SQL: every route refuses a tombstoned object, so a route answer would prove the tombstone, not the wipe
     const stub = threadSyncStub(env, userId);
     const rows = await runInDurableObject(stub, (_instance, state) => ({
-      captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
       dispatches: state.storage.sql.exec("SELECT COUNT(*) AS n FROM dispatches").one().n,
       events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
     }));
-    expect(rows).toEqual({ captures: 0, dispatches: 0, events: 0 });
+    expect(rows).toEqual({ dispatches: 0, events: 0 });
   });
 
   it("refuses a request that verified just before the account died", async () => {
@@ -377,14 +353,8 @@ describe("account deletion", () => {
         { createdAt: 2, deviceSeq: 2, event: '"after the purge"', threadId: "th_1" },
       ]),
       await stub.pull({ afterSeq: 0, limit: 10 }),
-      await stub.capture({ idempotencyKey: "key-after-purge", text: "after the purge" }),
-      await stub.claimCaptures({ limit: 10 }),
-      await stub.ackCaptures({ claimToken: "late-claim", ids: ["late-capture"] }),
     ];
     expect(late.map((result) => (result.ok ? "answered" : result.code))).toEqual([
-      "account-deleted",
-      "account-deleted",
-      "account-deleted",
       "account-deleted",
       "account-deleted",
     ]);
@@ -396,9 +366,8 @@ describe("account deletion", () => {
     expect(emitted(cloudErrorSchema, await socket.text()).error.code).toBe("account-deleted");
 
     const remaining = await runInDurableObject(stub, (_instance, state) => ({
-      captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
       events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
     }));
-    expect(remaining).toEqual({ captures: 0, events: 0 });
+    expect(remaining).toEqual({ events: 0 });
   });
 });

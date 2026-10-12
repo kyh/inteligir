@@ -9,13 +9,10 @@ export const unreachable = async <T>(): Promise<CloudResult<T>> =>
 // every method the test does not name answers unreachable, so a method the client grows is one
 // default line here rather than an edit to every fake
 export const fakeCloudClient = (answers: Partial<CloudClient> = {}): CloudClient => ({
-  ackCaptures: unreachable,
   ackDispatches: unreachable,
   cancelDispatch: unreachable,
-  claimCaptures: unreachable,
   claimDispatches: unreachable,
   closeApproval: unreachable,
-  createCapture: unreachable,
   createDispatch: unreachable,
   deleteAccount: unreachable,
   dispatchStatus: unreachable,

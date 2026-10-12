@@ -1,8 +1,9 @@
-// the phone asks a Mac's agent through the dispatch inbox, as it produces captures: it never
-// pushes to the thread log and never claims. A request is durable before it is sent and carries an
-// id minted here, so a resend after a lost answer is the same row; while one waits and the app is
-// in the foreground its fate is polled, and it is handed to the log once a pulled request carries
-// its id. A phone-started turn's approvals are listed here and answered through the same inbox.
+// the phone asks a Mac's agent, and hands a Mac a line for the vault's Inbox.md, through the
+// dispatch inbox: it never pushes to the thread log and never claims. A request is durable before
+// it is sent and carries an id minted here, so a resend after a lost answer is the same row; while
+// one waits and the app is in the foreground its fate is polled, and a turn is handed to the log
+// once a pulled request carries its id. A phone-started turn's approvals are listed here and
+// answered through the same inbox.
 
 import { describeCloudFailure } from "@repo/contract/cloud/client";
 import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
@@ -56,13 +57,13 @@ export const noMacHasIt = (phase: DispatchPhase): boolean =>
 
 interface DispatchViewBase {
   id: string;
-  threadId: string;
   createdAt: number;
   phase: DispatchPhase;
 }
 
 export interface TurnDispatch extends DispatchViewBase {
   kind: "turn";
+  threadId: string;
   text: string;
 }
 
@@ -72,7 +73,13 @@ export interface AnswerDispatch extends DispatchViewBase {
   decision: PendingInteractionApprovalDecision;
 }
 
-export type DispatchView = TurnDispatch | AnswerDispatch;
+// a line for Inbox.md, which belongs to no thread
+export interface CaptureDispatch extends DispatchViewBase {
+  kind: "capture";
+  text: string;
+}
+
+export type DispatchView = TurnDispatch | AnswerDispatch | CaptureDispatch;
 
 // the Macs open at the last status poll: those that take this phone's requests, and those whose
 // "Let my phone ask this Mac" is off
@@ -132,6 +139,9 @@ export interface DispatchRuntime extends ReadableStore<DispatchState> {
     approvalId: string,
     decision: PendingInteractionApprovalDecision,
   ) => Promise<DispatchOutcome>;
+  // a line for the vault's Inbox.md, which the first Mac to claim it writes, whether or not it
+  // takes the phone's requests
+  capture: (text: string) => Promise<DispatchOutcome>;
   // withdraws a request no Mac holds yet; a Mac that already has it keeps it
   cancel: (id: string) => Promise<CancelOutcome>;
   // forgets a refused request, whose words the phone kept until now
@@ -165,12 +175,36 @@ const viewOf = (row: DispatchRow, error: string | null): DispatchView => {
     createdAt: row.createdAt,
     id: row.request.id,
     phase: phaseOf(row.status, error),
-    threadId: row.threadId,
   };
   const { request } = row;
-  return request.kind === "turn"
-    ? { ...base, kind: "turn", text: request.text }
-    : { ...base, approvalId: request.approvalId, decision: request.decision, kind: "answer" };
+  switch (request.kind) {
+    case "turn": {
+      return { ...base, kind: "turn", text: request.text, threadId: request.threadId };
+    }
+    case "answer": {
+      return {
+        ...base,
+        approvalId: request.approvalId,
+        decision: request.decision,
+        kind: "answer",
+      };
+    }
+    case "capture": {
+      return { ...base, kind: "capture", text: request.text };
+    }
+    // no default
+  }
+};
+
+// the words a turn or a capture carries, refused before they are kept when the cloud would refuse
+// them
+const textRefusal = (text: string, empty: string): string | null => {
+  if (text === "") {
+    return empty;
+  }
+  return text.length > DISPATCH_MAX_CHARS
+    ? `A message from your phone can be up to ${DISPATCH_MAX_CHARS.toLocaleString()} characters.`
+    : null;
 };
 
 // a refused request stays until the user dismisses it; every other one is still moving
@@ -232,12 +266,12 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     return current.kind === "live" ? fenceFor(current.id) : null;
   };
 
-  const inLog = (row: DispatchRow): boolean => {
-    if (row.request.kind !== "turn") {
+  const inLog = ({ request }: DispatchRow): boolean => {
+    if (request.kind !== "turn") {
       return false;
     }
-    const thread = threads.snapshotThread(row.threadId);
-    return thread !== null && projectThread(thread).dispatchIds.has(row.request.id);
+    const thread = threads.snapshotThread(request.threadId);
+    return thread !== null && projectThread(thread).dispatchIds.has(request.id);
   };
 
   const anyRunning = (): boolean =>
@@ -268,7 +302,8 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     }
   };
 
-  // a Mac taking an answer settles its approval, so the answer's row has nothing left to say
+  // a Mac taking an answer settles its approval, and one taking a capture has written it to
+  // Inbox.md, so neither row has anything left to say
   const record = async (id: string, status: DispatchStatus, fence: Fence): Promise<boolean> => {
     const row = rows.find((candidate) => candidate.request.id === id);
     if (row === undefined) {
@@ -276,12 +311,14 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     }
     errors.delete(id);
     const { request } = row;
-    if (request.kind === "answer" && status.state === "delivered") {
+    if (request.kind !== "turn" && status.state === "delivered") {
       if (!(await outbox.remove([id], fence))) {
         return false;
       }
       forget([id]);
-      approvals = approvals.filter((approval) => approval.id !== request.approvalId);
+      if (request.kind === "answer") {
+        approvals = approvals.filter((approval) => approval.id !== request.approvalId);
+      }
       publish();
       return true;
     }
@@ -464,10 +501,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
 
   // parsed although typed: the wire holds a note's path to the vault grammar and a revision to a
   // sha-256, and a request the cloud would refuse is better refused before it is kept
-  const enqueue = async (
-    threadId: string,
-    candidate: CreateDispatchRequest,
-  ): Promise<DispatchOutcome> => {
+  const enqueue = async (candidate: CreateDispatchRequest): Promise<DispatchOutcome> => {
     const parsed = createDispatchRequestSchema.safeParse(candidate);
     if (!parsed.success) {
       return {
@@ -480,12 +514,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     if (fence === null) {
       return { message: NOT_SIGNED_IN, ok: false };
     }
-    const row: DispatchRow = {
-      createdAt: Date.now(),
-      request: parsed.data,
-      status: null,
-      threadId,
-    };
+    const row: DispatchRow = { createdAt: Date.now(), request: parsed.data, status: null };
     try {
       if (!(await outbox.add(row, fence))) {
         return { message: NOT_SIGNED_IN, ok: false };
@@ -595,19 +624,14 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
         id: args.mintId(),
         kind: "answer",
       };
-      return await enqueue(approval.threadId, request);
+      return await enqueue(request);
     },
 
     askAgent: async (ask) => {
       const text = ask.text.trim();
-      if (text === "") {
-        return { message: "Write something to ask.", ok: false };
-      }
-      if (text.length > DISPATCH_MAX_CHARS) {
-        return {
-          message: `A message from your phone can be up to ${DISPATCH_MAX_CHARS.toLocaleString()} characters.`,
-          ok: false,
-        };
+      const refusal = textRefusal(text, "Write something to ask.");
+      if (refusal !== null) {
+        return { message: refusal, ok: false };
       }
       const request: Extract<CreateDispatchRequest, { kind: "turn" }> = {
         id: args.mintId(),
@@ -625,7 +649,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
           };
         }
       }
-      return await enqueue(ask.threadId, request);
+      return await enqueue(request);
     },
 
     cancel: async (id) => {
@@ -636,6 +660,15 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
       } finally {
         rearm();
       }
+    },
+
+    capture: async (words) => {
+      const text = words.trim();
+      const refusal = textRefusal(text, "Write something to capture.");
+      if (refusal !== null) {
+        return { message: refusal, ok: false };
+      }
+      return await enqueue({ id: args.mintId(), kind: "capture", text });
     },
 
     dismiss: async (id) => {

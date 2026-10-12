@@ -75,10 +75,11 @@ src/
                        # fit-sync-event.ts (the clip
                        # that fits an over-cap event to one row, payload text
                        # only, so a peer's fold settles it the same)
-    captures/          # at-least-once delivery, exactly-once deletion by claim
     dispatch/          # the dispatch inbox: a phone's `turn` any Mac may claim,
-                       # its `answer` only the asking Mac may, and the
-                       # approvals that Mac opens for the phone
+                       # its `answer` only the asking Mac may, its `capture`
+                       # any Mac claims for Inbox.md, each claim naming the
+                       # kinds it takes, and the approvals that Mac opens for
+                       # the phone
     account/           # the account's deletion, which asks the password
                        # again, and both sign-up doors' shapes
     vault/             # VAULT_API_PATHS, the hosted tree/file/files/asset
@@ -94,13 +95,13 @@ src/
 - **apps/web** SERVES every `/cloud` row and reaches nothing under `/local`;
   `dep-dag.test.ts` pins that per import.
 - **apps/cli** implements `/local` and, in `src/server/cloud/`, consumes all
-  of `/cloud` — push, pull, the capture and dispatch claims and acks, the
-  approvals it relays, the git remote.
-- **apps/mobile** pulls threads, produces captures and dispatches, answers a
-  phone-started turn's approvals and commits vault change sets
-  (`vaultCommit`), and never pushes thread events, claims a capture or a
-  dispatch or speaks git, because the desktop runs the turns and owns applying
-  a capture to the vault. It reaches nothing under `/local` either, pinned by
+  of `/cloud` — push, pull, the dispatch claims and acks, the approvals it
+  relays, the git remote.
+- **apps/mobile** pulls threads, produces dispatches (its captures among them),
+  answers a phone-started turn's approvals and commits vault change sets
+  (`vaultCommit`), and never pushes thread events, claims a dispatch or speaks
+  git, because the desktop runs the turns and owns applying a capture to the
+  vault. It reaches nothing under `/local` either, pinned by
   the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as apps/web: a phone
   install may be months stale against the deployed Worker.
 - **apps/workspace** compiles against `/local` alone.
@@ -115,8 +116,9 @@ src/
   Worker's tests hold every answer to exactly the declared shape (`emitted` in
   `apps/web/src/worker/__tests__/cloud-helpers.ts`), since a stripping client
   would let a leaked column through. A field that changes what a row MEANS (a
-  new capture kind) still reaches only a client whose request declares it,
-  because stripped, the row reads as the old kind.
+  new dispatch kind) still reaches only a client whose request declares it,
+  because stripped, the row reads as the old kind: a dispatch claim names the
+  kinds it takes.
 - **Every request names its build, and the Worker refuses one below its
   floor.** `x-inteligir-build` rides the REST calls, the two that ask for a
   credential, the socket's upgrade and the hosted vault's git `extraHeader`

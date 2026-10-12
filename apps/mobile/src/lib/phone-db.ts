@@ -15,7 +15,7 @@ import type { SqlDriver, SqlExecutor } from "./sql-driver";
 // dispatch_outbox: the phone's requests to a Mac, oldest first. `request` is the body sent, frozen
 // when it is asked so every resend is the same row; `status` the cloud's last answer as JSON,
 // null until the cloud has taken the row. `sent` is not a column of its own: it would be a
-// second answer to the question `status` already answers.
+// second answer to the question `status` already answers, and a turn's thread is its request's.
 // the synced threads: thread_sync the pull cursor and the grammar the held events were parsed
 // with, thread_events each held event by its log seq, synced_threads each thread's last seq,
 // which a delta moves though no row holds it.
@@ -52,7 +52,6 @@ const MIGRATIONS: readonly string[] = [
    CREATE TABLE dispatch_outbox (
      seq INTEGER PRIMARY KEY AUTOINCREMENT,
      id TEXT NOT NULL UNIQUE,
-     thread_id TEXT NOT NULL,
      request TEXT NOT NULL,
      status TEXT,
      created_at INTEGER NOT NULL

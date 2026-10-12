@@ -1,4 +1,3 @@
-import type { CaptureResponse } from "@repo/contract/cloud/captures/captures-schema";
 import type { CloudResult } from "@repo/contract/cloud/client";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
 import type {
@@ -343,26 +342,6 @@ describe("the composed runtime", () => {
     expect(closes).toBe(1);
     rt.resume();
     expect(dials).toHaveLength(2);
-  });
-
-  it("sends a capture's retry under the key its first try carried", async () => {
-    const cloud = createFakeCloud();
-    const lost: CloudResult<CaptureResponse> = {
-      failure: { kind: "unreachable", message: "offline" },
-      ok: false,
-    };
-    cloud.captureResults.push(lost);
-    const rt = runtimeOver(cloud, keychain(CRED).store);
-    await rt.start();
-
-    const first = await rt.submitCapture("buy milk");
-    const retried = await rt.submitCapture("buy milk");
-    expect([first.ok, retried.ok]).toEqual([false, true]);
-
-    expect(cloud.captures.map((request) => request.idempotencyKey)).toEqual([
-      mintedId(1),
-      mintedId(1),
-    ]);
   });
 });
 

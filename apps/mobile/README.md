@@ -2,8 +2,8 @@
 
 A full editor over the account's hosted vault. **The agent and the vault
 ENGINE stay on the desktop** (issue #542's re-founding): the phone holds the
-SYNCED THREADS, FEEDS the CAPTURE inbox, ASKS a Mac's agent through the
-DISPATCH inbox and holds a MIRROR of every note's text, reaching
+SYNCED THREADS, ASKS a Mac's agent and hands it CAPTURES for Inbox.md through
+the DISPATCH inbox and holds a MIRROR of every note's text, reaching
 `@repo/contract/cloud` (the wire), `@repo/domain` (the `ThreadEvent` grammar),
 `@repo/notes` (wiki resolution, the rename and delete rules and the one
 conflict verdict, guard-pure) and `@repo/mobile-editor/bridge-protocol` (the
@@ -19,9 +19,6 @@ wire.
 
 ```
 src/
-  capture/      capture-sender.ts: one idempotency key per unsent capture,
-                kept across its retries so a lost response cannot duplicate
-                it (pure, unit-tested)
   sync/         the RN sync client (pure, unit-tested)
     sync-store.ts          the storage PORT (pull cursor + applied thread log)
     sqlite-sync-store.ts   its one implementation, in the phone's database: a
@@ -137,7 +134,7 @@ src/
                 native module this app carries); the external store the
                 runtimes publish through, theme, cloud URL, and routes.ts
                 (every push to a note or a thread and the params it carries)
-  app/          expo-router screens: sign-in, thread list + quick-capture, a
+  app/          expo-router screens: sign-in, thread list + quick capture, a
                 thread view with its composer, pending requests and approval
                 cards, the notes list (New note; Rename and Delete on a long
                 press) + the note in the editor (Ask agent, Comments and
@@ -174,11 +171,11 @@ change re-reads everything. A held row this build cannot read starts the store
 over the same way. A sign-in, a sign-out and a revocation wipe the three
 tables, and the boot restore keeps them; a page that started before a wipe
 never lands (a reset generation, re-checked inside the transaction). There is
-no thread outbox and no capture ledger: the phone
-appends nothing to the log and claims nothing from the inbox, so neither has
-anything to hold. Its own NOTE edits are another matter, below, and so are its
-requests to a Mac: the `dispatch_outbox` table is durable, and it is not a log
-outbox — nothing in it ever reaches the thread log (Asking a Mac, below).
+no thread outbox: the phone appends nothing to the log and claims nothing from
+the inbox, so it has nothing to hold. Its own NOTE edits are another matter,
+below, and so are its requests to a Mac and its captures: the
+`dispatch_outbox` table is durable, and it is not a log outbox — nothing in it
+ever reaches the thread log (Asking a Mac, below).
 
 The log holds what the thread view draws from and no more: a streaming delta
 moves the cursor and the thread's recency and is dropped, because each
@@ -323,17 +320,21 @@ failure, one pass at a time (`createSingleFlight` from
   counts; a discard wipes the rows and the staged photos with the mirror,
   and the requests with them, and so does a revocation.
 
-## Who applies captures
+## Captures
 
-The phone **produces** captures (quick-capture → `POST /v1/capture`,
-retry-stable idempotency key) and never claims one. The desktop owns applying a
-capture to the vault, so a phone claiming would take a capture the desktop then
-never sees — and the consumer half therefore does not exist on this device at
-all.
+The home screen's capture box hands a Mac a line for the vault's `Inbox.md`:
+a `capture` row in `dispatch_outbox`, sent to the account's dispatch inbox like
+a request (below) and kept on the phone until a Mac says it wrote it, so a
+capture typed offline is sent after a relaunch. Any Mac that is open claims it,
+whether or not it takes the phone's requests, and appends it as a bullet;
+`Inbox.md` merges by union, so two devices' captures both land. The box says
+Captured once the row is kept, and under it how many captures no Mac holds
+yet (Not sent yet — retrying, or waiting for your Mac); a refused capture keeps
+its words and the reason until Dismiss.
 
 ## Asking a Mac
 
-The phone asks a Mac's agent the way it produces captures: it posts a
+The phone asks a Mac's agent through the same inbox: it posts a
 `turn` row to the account's dispatch inbox (`POST /v1/sync/dispatch`) and never
 claims one, and a Mac runs the turn and writes it to the log. Ask agent on a
 note opens a new thread under an id the phone mints (`thr_` and 16 random
@@ -361,7 +362,7 @@ sha-256 of the bytes the note screen showed as its view context's revision.
   the pull and the delete.
 - **Cancel takes back only what no Mac holds**; one a Mac claimed stays, as
   Your Mac has it. A refused request keeps its words and the Mac's reason until
-  Dismiss, as a refused capture keeps its text.
+  Dismiss.
 - **A phone-started turn's approvals are answered here** (owner decision): the
   card shows what the agent asks to do and the answers it offers, and the
   answer is an `answer` row only the Mac that asked may claim.
@@ -392,7 +393,7 @@ never hears leaves the row active for the Devices page to revoke.
 
 The notes store holds no client of its own: it reads under the sync runtime's
 session, so one fence covers every request a sign-in makes, and an
-`unauthorized` from a vault read, a capture or a pull ends the sign-in for all
+`unauthorized` from a vault read, a request or a pull ends the sign-in for all
 of them. The composition root then idles the tree and wipes the mirror and
 the threads, and keeps the credential, so the sign-in screen can say this device was
 signed out. A `client-outdated` ends the sign-in too, as `outdated`, but wipes
@@ -409,7 +410,7 @@ that is signed in.
 
 - **Verified here** (`pnpm --filter @repo/mobile typecheck` + `test`, and the
   repo-wide `pnpm verify`): the sync client (pull applies by global seq
-  idempotently, and a pass neither pushes a thread event nor claims a capture),
+  idempotently, and a pass neither pushes a thread event nor claims a row),
   the thread store over `node:sqlite` (a relaunch listing its threads and
   pulling on from its cursor, a page whose transaction fails, a grammar change,
   an unreadable row, a page racing a sign-out),
@@ -420,10 +421,11 @@ that is signed in.
   relaunch that cannot reach the cloud, a batch cut short, a batch that
   outlives its sign-in), the outbox (offline edits across a relaunch, the
   coalesced write, a merge, a copy, a lost answer, a parked row, a refresh
-  racing a landing), the capture sender, the dispatch runtime (a resend under
+  racing a landing), the dispatch runtime (a resend under
   the same id across a relaunch, the log replacing a pending row once, every
   state's words, cancel, a refusal kept, a stale sign-in's refusal, an approval
-  answered, the foreground poll), the socket (a ping past the cursor pulls and
+  answered, the foreground poll, a capture kept offline across a relaunch and
+  dropped once a Mac wrote it), the socket (a ping past the cursor pulls and
   one it covers does not, the background closes it and a resume dials again,
   a sign-out and a refused credential close it for good), the live fold (a
   turn's deltas, an item settling, a turn ending, a reset), and the

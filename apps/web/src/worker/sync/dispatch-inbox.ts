@@ -12,6 +12,7 @@ import type {
   ApprovalRow,
   ApprovalState,
   CancelDispatchResponse,
+  ClaimDispatchesRequest,
   ClaimDispatchesResponse,
   ClaimedDispatch,
   CloseApprovalResponse,
@@ -25,7 +26,7 @@ import type { z } from "zod";
 // The dispatch inbox's SQL, over the thread-sync object's own storage; the object owns the
 // tombstone and the sockets. The clock is an argument, so a claim's TTL is judged on read and a
 // lapsed claim needs no alarm. A row's body is the claimed row itself, frozen at create, so a
-// claim hands over exactly what the phone sent.
+// claim hands over exactly what the phone sent; a capture's thread is null, since it has none.
 
 // a settled row outlives the phone's last status poll by far; one it lost track of reads unknown
 const DISPATCH_RETENTION_MS = 24 * 60 * 60_000;
@@ -34,7 +35,7 @@ export const DISPATCH_TABLES = `
   CREATE TABLE IF NOT EXISTS dispatches (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
-    thread_id TEXT NOT NULL,
+    thread_id TEXT,
     from_device_id TEXT NOT NULL,
     to_device_id TEXT,
     approval_id TEXT,
@@ -143,10 +144,12 @@ const closeApproval = (sql: SqlStorage, approvalId: string | null, now: number):
   }
 };
 
-// a turn pings every desktop but its creator's own sockets; an answer, only the Mac that asked
+// a turn pings every Mac that takes a phone's turns; an answer, only the Mac that asked; a capture,
+// every Mac, since each claims captures. never the creator's own sockets
 export type DispatchPing =
-  | { threadId: string; to: "desktops" }
-  | { threadId: string; to: "device"; deviceId: string };
+  | { threadId: string; to: "phone-requests" }
+  | { threadId: string; to: "device"; deviceId: string }
+  | { to: "desktops" };
 
 export type CreateDispatchOutcome =
   | { kind: "stored"; dispatch: DispatchStatus; duplicate: boolean; ping: DispatchPing | null }
@@ -170,7 +173,7 @@ const insertDispatch = (
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.claimed.id,
     row.claimed.kind,
-    row.claimed.threadId,
+    row.claimed.kind === "capture" ? null : row.claimed.threadId,
     row.fromDeviceId,
     row.toDeviceId,
     row.approvalId,
@@ -276,11 +279,26 @@ export const createDispatchRow = (
         dispatch: { id: request.id, state: "waiting" },
         duplicate: false,
         kind: "stored",
-        ping: { threadId: request.threadId, to: "desktops" },
+        ping: { threadId: request.threadId, to: "phone-requests" },
       };
     }
     case "answer": {
       return storeAnswer(sql, deviceId, request, now);
+    }
+    case "capture": {
+      insertDispatch(sql, {
+        approvalId: null,
+        claimed: { ...request, createdAt: now },
+        fromDeviceId: deviceId,
+        settled: null,
+        toDeviceId: null,
+      });
+      return {
+        dispatch: { id: request.id, state: "waiting" },
+        duplicate: false,
+        kind: "stored",
+        ping: { to: "desktops" },
+      };
     }
     // no default
   }
@@ -289,19 +307,21 @@ export const createDispatchRow = (
 export const claimDispatchRows = (
   sql: SqlStorage,
   deviceId: string,
-  limit: number,
+  { kinds, limit }: ClaimDispatchesRequest,
   now: number,
 ): ClaimDispatchesResponse => {
   prune(sql, now);
   const claimToken = crypto.randomUUID();
   // rowid is insertion order, where two turns sent within one millisecond share a created_at;
-  // RETURNING follows no ORDER BY, and a thread's turns must reach the Mac in the order asked
+  // RETURNING follows no ORDER BY, and a thread's turns must reach the Mac in the order asked.
+  // the kinds are the request's parsed enum, so only their placeholders reach the text
   const rows = sql
     .exec<{ position: number; id: string; body: string; approval_id: string | null }>(
       `UPDATE dispatches SET claim_token = ?, claimed_at = ?
        WHERE id IN (
          SELECT id FROM dispatches
          WHERE state = 'pending'
+           AND kind IN (${kinds.map(() => "?").join(", ")})
            AND (to_device_id IS NULL OR to_device_id = ?)
            AND (claim_token IS NULL OR claimed_at <= ?)
          ORDER BY rowid LIMIT ?
@@ -309,6 +329,7 @@ export const claimDispatchRows = (
        RETURNING rowid AS position, id, body, approval_id`,
       claimToken,
       now,
+      ...kinds,
       deviceId,
       now - DISPATCH_CLAIM_TTL_MS,
       limit,

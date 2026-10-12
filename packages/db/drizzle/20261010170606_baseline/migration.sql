@@ -56,11 +56,6 @@ CREATE TABLE `queued_thread_messages` (
 	CONSTRAINT "queued_thread_messages_claim_shape_check" CHECK(("claimed_at" IS NULL) = ("claim_token" IS NULL))
 );
 --> statement-breakpoint
-CREATE TABLE `sync_applied_captures` (
-	`id` text PRIMARY KEY,
-	`applied_at` integer NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE `sync_outbox` (
 	`id` text PRIMARY KEY,
 	`device_seq` integer NOT NULL,
