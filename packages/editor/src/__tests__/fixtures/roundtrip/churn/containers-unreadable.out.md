@@ -5,11 +5,11 @@ not a toggle: the opener carries a word
 loose text before any panel\
 \=== A\
 x\
-:::
+\:::
 
 :::columns\
-:::
+\:::
 
 :::column\
 a column outside columns\
-:::
+\:::

@@ -58,7 +58,11 @@ becomes a domain value there alone, which is why no walk narrows structurally.
 [!NOTE]` through `> [!CAUTION]`) as THE callout, `inteligir-chart` /
   `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
   `:::columns` containers, and `![](url)` embeds, all valid markdown, all
-  round-tripping. THE DIALECT HAS NO JSX: its blocks are one `:::` line grammar
+  round-tripping. Pills, dates, comment anchors and `:::` lines are read from
+  finished text, so a backslash before one's first character keeps it text
+  (`\@2026-08-22`), and the serializer writes that escape before a text the next
+  parse would read as one (`@repo/notes/markdown/text-escapes`), so text a person
+  types stays text. THE DIALECT HAS NO JSX: its blocks are one `:::` line grammar
   that nests in any flow container, a `:::` closing the innermost
   (`@repo/notes/markdown/remark-containers`), and every tag is html, the
   editor's own only where it is a bare `<u>`

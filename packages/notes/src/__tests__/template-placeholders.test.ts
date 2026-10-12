@@ -60,6 +60,15 @@ describe("the title, spelled for where it lands", () => {
     expect(titled("[{{title}}](x.md)\n", "a]b")).toBe("[a\\]b](x.md)\n");
   });
 
+  it.each([
+    ["a formula pill", "x {{a}} y", "# x \\{{a}} y\n"],
+    ["a date chip", "Meet @2026-01-01", "# Meet \\@2026-01-01\n"],
+  ])("is escaped where it would spell %s, so it reads back as text", (_name, title, md) => {
+    const expanded = titled("# {{title}}\n", title);
+    expect(expanded).toBe(md);
+    expect(firstBlockTexts(parseMdast(expanded).root)).toEqual([title]);
+  });
+
   it("is left alone when nothing in it is syntax", () => {
     expect(titled("# {{title}}\n", "Weekly Review: 1:1, v2.0 & Mike's notes")).toBe(
       "# Weekly Review: 1:1, v2.0 & Mike's notes\n",

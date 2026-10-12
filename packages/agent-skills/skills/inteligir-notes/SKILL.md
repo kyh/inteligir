@@ -202,7 +202,9 @@ otherwise read the marker as one of its own lines, and after a marker that a
 | Formula pill | `{{2+2\|4}}`                            |
 
 Code — inline or fenced — is inert: nothing inside it is parsed as a construct,
-which is how you write an example of any syntax on this page.
+which is how you write an example of any syntax on this page. In prose, a
+backslash before a date, a pill, a comment marker or a `:::` line keeps it
+plain text: `\@2026-08-22`, `\{{2+2}}`, `\:::`.
 
 Raw HTML beyond `<mark>`, `<u>`, and an existing preserved `<blockquote>`
 belongs in an `inteligir-html` fence.

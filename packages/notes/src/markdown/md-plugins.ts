@@ -16,6 +16,7 @@ import { remarkInlineConstructs } from "./remark-inline-constructs";
 import { remarkInlineHtml } from "./remark-inline-html";
 import { remarkOpaque } from "./remark-opaque";
 import { remarkWikiLink } from "./remark-wiki-link";
+import { remarkTextEscapes } from "./text-escapes";
 
 // a thematic break at byte 0 would emit `---`, which the next parse claims as a frontmatter
 // fence; doc-leading hrs emit `***`.
@@ -123,6 +124,7 @@ export const MD_REMARK_PLUGINS: Plugin[] = [
   remarkMathNoSingleDollar,
   remarkGfm,
   remarkNoIndentedCode,
+  remarkTextEscapes,
   remarkInlineHtml,
   remarkWikiLink,
   remarkInlineConstructs,

@@ -2,9 +2,10 @@
 // this transform splits marker lines out of the paragraphs of every flow container (the root, a
 // quote, a list item, a footnote) and folds the blocks between an opener and its `:::` into one
 // node. Containers nest, and a `:::` closes the innermost one open. A marker swallowed by an inline
-// construct is not a marker. An opener whose container cannot be read whole (never closed, content
-// before the first `=== Label` of tabs, anything but a `:::column` between columns) is prose, and
-// the scan resumes after it rather than guessing.
+// construct, or whose first character an escape wrote, is not a marker, and the serializer writes
+// that escape before a line of text that would read as one. An opener whose container cannot be
+// read whole (never closed, content before the first `=== Label` of tabs, anything but a
+// `:::column` between columns) is prose, and the scan resumes after it rather than guessing.
 
 import type {
   BlockContent,
@@ -23,6 +24,7 @@ import type { Plugin, Processor, Transformer } from "unified";
 
 import { splitLinesKeepingTerminators } from "../text/source-lines";
 import { isMdastRoot } from "./mdast-nodes";
+import { escapedAt, textCutter } from "./text-escapes";
 
 export type ContainerContent = BlockContent | DefinitionContent;
 
@@ -74,8 +76,9 @@ const TABS_LINE = ":::tabs";
 const COLUMNS_LINE = ":::columns";
 const COLUMN_LINE = ":::column";
 const CLOSE_LINE = ":::";
+const WIDTH = String.raw`\d+(?:\.\d+)?%`;
 const PANEL_RE = /^=== (?<label>.+)$/u;
-const COLUMN_RE = /^:::column(?: (?<width>\d+(?:\.\d+)?%))?$/u;
+const COLUMN_RE = new RegExp(`^${COLUMN_LINE}(?: (?<width>${WIDTH}))?$`, "u");
 
 type Marker =
   | { kind: "open"; container: "columns" | "tabs" | "toggle" }
@@ -135,25 +138,33 @@ const linesOf = (children: PhrasingContent[]): Line[] => {
       continue;
     }
     const parts = splitLinesKeepingTerminators(child.value);
+    const cut = textCutter(child);
+    let offset = 0;
     for (let at = 0; at < parts.length; at += 2) {
       if (at > 0) {
-        end(parts[at - 1] ?? "\n");
+        const terminator = parts[at - 1] ?? "\n";
+        end(terminator);
+        offset += terminator.length;
       }
       const part = parts[at] ?? "";
       if (part !== "") {
-        nodes.push({ type: "text", value: part });
+        nodes.push(cut(offset, offset + part.length));
       }
+      offset += part.length;
     }
   }
   end("");
   return lines;
 };
 
-const lineText = (line: Line): string | null => {
+const markerOf = (line: Line): Marker | null => {
   const [only, ...rest] = line.nodes;
-  return only?.type === "text" && rest.length === 0 ? only.value : null;
+  return only?.type === "text" && rest.length === 0 && !escapedAt(only, 0)
+    ? markerFor(only.value)
+    : null;
 };
 
+// a merged line keeps no escapes: no marker is read from the paragraphs this builds
 const paragraphOf = (lines: readonly Line[]): Paragraph => {
   const children: PhrasingContent[] = [];
   const push = (node: PhrasingContent): void => {
@@ -199,10 +210,7 @@ const tokensOf = <T>(
       return [{ content, kind: "block", node }];
     }
     const lines = linesOf(content.children);
-    const markers = lines.map((line) => {
-      const text = lineText(line);
-      return text === null ? null : markerFor(text);
-    });
+    const markers = lines.map((line) => markerOf(line));
     if (markers.every((marker) => marker === null)) {
       return [{ content, kind: "block", node }];
     }
@@ -609,6 +617,9 @@ const panelToMarkdown = (panel: TabPanel, state: State, info: Info): string => {
   return inner === "" ? marker : `${marker}\n${blankAfterMarker(panel.children[0])}${inner}`;
 };
 
+// a line of text the next parse would read as a marker, after the `:` its escape goes before
+const MARKER_LINE_TAIL = String.raw`::(?:toggle|tabs|columns|column(?: ${WIDTH})?)?(?=\r?\n|$)`;
+
 const containersToMarkdown: ToMarkdownExtension = {
   handlers: {
     columnGroup: (node: ColumnGroup, _parent: Parents | undefined, state: State, info: Info) => {
@@ -630,6 +641,8 @@ const containersToMarkdown: ToMarkdownExtension = {
     toggle: (node: Toggle, _parent: Parents | undefined, state: State, info: Info) =>
       fenced(TOGGLE_LINE, node, state, info),
   },
+  // a `=== Label` line needs none of its own: stock markdown already escapes a `=` opening a line
+  unsafe: [{ after: MARKER_LINE_TAIL, atBreak: true, character: ":", inConstruct: "phrasing" }],
 };
 
 // a function expression: remark plugins receive the processor as `this`.

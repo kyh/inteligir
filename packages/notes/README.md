@@ -61,6 +61,9 @@ src/
     remark-containers.ts   # the `:::` line grammar (tabs, toggles, columns),
                        # nesting in every flow container; an opener whose
                        # container cannot be read whole stays prose
+    text-escapes.ts    # which of a text's characters a backslash escape
+                       # wrote, so a pill, a date, a comment marker or a
+                       # `:::` line spelled with one stays text
     remark-inline-constructs.ts, remark-opaque.ts, table-pipes.ts,
     line-scan.ts
                        # the rest of the dialect's own remark plugins
