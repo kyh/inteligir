@@ -25,8 +25,8 @@ const pageIsMounted = (bodyText: string): boolean =>
   // status query ran.
   bodyText.includes("Welcome to inteligir") && bodyText.includes("Only on this Mac");
 
-// here, not a unit test: `pnpm verify` runs tests before the build, so a unit test over dist/ reads
-// the previous build.
+// here, not a unit test: no test task waits on a build, so a unit test over dist/ reads the previous
+// build or one mid-write.
 const assertDocumentPolicy = async (app: AppInstance): Promise<void> => {
   // a plain GET is anything on this machine; only a handoff a holder of the bearer minted signs a
   // browser in.

@@ -57,15 +57,26 @@
     "format": {
       "cache": false
     },
+    // the root's own checks: the root package's hash is every file in the tree, so any edit
+    // anywhere misses, and an entry stored per run would never be read back
+    "//#format": {
+      "cache": false
+    },
+    "//#knip": {
+      "cache": false
+    },
+    "//#lint": {
+      "cache": false
+    },
     "format:fix": {
       "cache": false
     },
     "test": {
       "dependsOn": ["^topo"],
       // Every vitest.config.ts caps its own maxWorkers because this task runs
-      // the suites in parallel (the root `test` script runs four at once, or
-      // TEST_CONCURRENCY): uncapped pools exhaust the machine and kill workers
-      // mid-run.
+      // the suites in parallel (the root `test` and `verify` scripts run four
+      // tasks at once, or TEST_CONCURRENCY): uncapped pools exhaust the
+      // machine and kill workers mid-run.
       "cache": false,
       // the macOS CI job's opt-out of the editor's typing budget
       // (packages/editor/vitest.config.ts says why)

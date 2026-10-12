@@ -154,13 +154,15 @@ miniflare's Durable Objects. Sign-up is invite-only and there is no seeded accou
 pnpm format:fix && pnpm verify
 ```
 
-`pnpm verify` = `typecheck && lint && knip && format && test && build`, the same
-six steps CI runs, and its `build` bundles the phone too (`expo export
---platform ios`), so JavaScript Metro refuses fails here rather than on EAS.
-It is check-only on purpose — `format:fix` is a separate first step, never
-folded in. Format before gates, commit after gates. CI runs
-every gate independently (each step runs even if an earlier one fails), so a
-red format cannot hide test regressions behind it.
+`pnpm verify` is one turbo run of `typecheck`, `lint`, `knip`, `format`,
+`test` and `build`, the step CI runs: `lint`, `knip` and oxfmt's half of
+`format` are the root package's own tasks in `turbo.json`, beside the shell's
+`cargo fmt` check. Its `build` bundles the phone too (`expo export --platform
+ios`), so JavaScript Metro refuses fails here rather than on EAS. It is check-only on purpose — `format:fix` is a separate first
+step, never folded in. Format before gates, commit after gates. Turbo carries
+on past a failure to every task whose dependencies passed, so a red format
+cannot hide test regressions behind it, and `TEST_CONCURRENCY` caps how many
+tasks run at once (four by default), as it does for `pnpm test`.
 
 CI then runs a few more that `verify` cannot: it installs agent-browser
 and the shell's WebDriver (`tauri-driver`, each pinned by hand, over
@@ -172,21 +174,16 @@ bytes and the same policy a user gets. So a green `verify` is not a green CI;
 run `pnpm e2e` too before claiming one. A second job runs on macOS, where the
 app ships: `pnpm test` again, since APFS, FSEvents and a tmpdir behind a
 symlink exist only there, and `pnpm smoke:desktop` on an ad-hoc pack
-(`INTELIGIR_PACK_UNSIGNED=1`).
-
-That "plus a few more" is a CLAIM, and
-`tools/repo-guards/src/ci-verify-parity.test.ts` is what keeps it one: every
-gate workflow runs `pnpm verify` or every link of its chain, each job in
-verify's own order, and every step on top of that is a row in
-`DECLARED_CI_EXTRAS` with its reason. A step nobody declared fails the guard
-rather than quietly becoming a build a developer cannot reproduce.
+(`INTELIGIR_PACK_UNSIGNED=1`). Each step CI adds on top of `pnpm verify`
+carries the reason `verify` cannot run it as a comment beside it in
+`.github/workflows/ci.yml`.
 
 ## Tests
 
 Every workspace answers `pnpm --filter <name> test`; each suite's own file
 header says what it pins, and `tools/repo-guards` holds the invariants that
-span workspaces (the dep DAG, ws change kinds, CI parity, dangling references,
-the per-export orphan guard over `@repo/ui`).
+span workspaces (the dep DAG, ws change kinds, turbo's cache keys, dangling
+references, the per-export orphan guard over `@repo/ui`).
 
 End-to-end: `pnpm e2e` boots real app instances on scratch dirs (fixture
 vaults, scratch git remotes, a headless browser, and the desktop shell itself,

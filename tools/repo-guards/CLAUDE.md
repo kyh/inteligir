@@ -6,8 +6,9 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 ## Repo guards, vendoring and tooling
 
 - **No coverage tooling, on purpose, and a structural guard states its own
-  rule.** Targeted structural invariants instead: the dependency DAG and
-  platform rules, ws change-kind reachability (`tools/repo-guards`), route-table
+  rule.** Targeted structural invariants instead: the dependency DAG and where
+  each package may reach, ws change-kind reachability (`tools/repo-guards`),
+  each package's node and react rule (`oxlint.config.ts`), route-table
   completeness (`apps/cli/src/server/__tests__/http-surface.test.ts`),
   migration↔schema agreement
   (`packages/db/src/__tests__/schema-agreement.test.ts`), the per-export orphan
@@ -16,9 +17,13 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `coverage.include` is mandatory in Vitest 4, and gate only `@repo/notes`. A
   guard states its own rule in the failure, names the file, and derives every
   value it can; what it cannot is a row carrying its reason
-  (`AWAITING_CONSUMER`, `CLOUD_ONLY_CLIENTS`, `DECLARED_CI_EXTRAS`,
-  `EXCLUDED_COMMANDS`, `PROSE_SIZES`), and `dep-dag.test.ts`'s `DECLARED_EDGES`
-  is the pin itself.
+  (`AWAITING_CONSUMER`, `CLOUD_ONLY_CLIENTS`, `EXCLUDED_COMMANDS`,
+  `PROSE_SIZES`), and `dep-dag.test.ts`'s `DECLARED_EDGES` is the pin itself. A
+  guard is for a failure nothing else reports, because a second copy of a
+  tool's check or of what the tree already prints is one more table every
+  change keeps in step: knip's unused dependencies, oxlint's import rules and
+  `pnpm e2e --list` get none, and CI is `pnpm verify` plus the steps `verify`
+  cannot run, each with its reason beside it in `.github/workflows/ci.yml`.
 
 - **VENDORED CODE IS THIS REPO'S CODE, except for the attribution.** Rename,
   restructure and delete freely; "the next re-pull becomes a conflict" is not a

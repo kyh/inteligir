@@ -8,7 +8,7 @@ if ! command -v pnpm >/dev/null 2>&1; then
   exit 0
 fi
 
-if ! pnpm format >/dev/null 2>&1; then
+if ! pnpm exec turbo run format >/dev/null 2>&1; then
   echo >&2
   echo "  ✗ Formatting check failed." >&2
   echo >&2

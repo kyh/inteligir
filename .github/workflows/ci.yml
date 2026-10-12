@@ -37,6 +37,7 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-
 
+      # `pnpm verify` and every step after it run on an installed tree, and none of them installs it
       - name: Install
         id: install
         run: pnpm install --frozen-lockfile
@@ -47,6 +48,7 @@ jobs:
       - name: Desktop system libraries
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev webkit2gtk-driver
 
+      # the toolchain apps/desktop/rust-toolchain.toml pins, which verify's clippy and cargo test run on
       - name: Desktop Rust toolchain
         working-directory: apps/desktop
         run: rustup toolchain install
@@ -56,44 +58,29 @@ jobs:
         with:
           workspaces: apps/desktop/src-tauri
 
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Lint
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm lint
-
-      - name: Knip (dead code)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm knip
-
-      - name: Format check
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm format
-
-      - name: Test
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm test
-
-      - name: Build
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm build
+      # the static gate a developer runs, so a local green predicts this step; turbo continues past a
+      # failure, so one run reports every red task. Every step after it is what verify cannot do
+      - name: Verify
+        run: pnpm verify
 
       - name: E2E browser
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # pnpm, not npm: only PNPM_HOME is on PATH here. pinned by hand: a global install
-        # rides no lockfile and no release cooldown
+        # a global install a developer makes once, so verify does not repeat it. pnpm, not npm: only
+        # PNPM_HOME is on PATH here. pinned by hand: a global install rides no lockfile and no release
+        # cooldown
         run: pnpm add -g agent-browser@0.36.0 && agent-browser install --with-deps
 
       - name: E2E shell driver
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # tauri-driver fronts WebKitWebDriver for the shell scenarios. pinned by hand, like
-        # agent-browser: a cargo install rides no lockfile. the Rust cache keeps the binary, so a
-        # warm run only checks it is that version
+        # tauri-driver fronts WebKitWebDriver for the shell scenarios, a cargo install a developer
+        # makes once. pinned by hand, like agent-browser: a cargo install rides no lockfile. the Rust
+        # cache keeps the binary, so a warm run only checks it is that version
         run: cargo install tauri-driver --version 2.1.0 --locked
 
       - name: E2E
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        # outside verify on purpose (tools/e2e/package.json): it boots real instances and drives them
+        # over the wire, because every unit can pass while the composition fails.
         # "E2E browser" installed the browser, "E2E shell driver" the shell's WebDriver, and
         # xvfb-run gives the shell's window the display the runner lacks, so a scenario that skips is
         # a broken setup: --no-skip fails it instead of passing it behind a green step
@@ -141,7 +128,8 @@ jobs:
 
       - name: Smoke desktop
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # ad-hoc whatever the runner's keychain holds; it reaches scripts/package.ts only because
+        # minutes of packaging per run, and only a macOS host can pack or boot the .app, so it stays
+        # out of verify, which runs on every platform. ad-hoc whatever the runner's keychain holds; it reaches scripts/package.ts only because
         # apps/desktop/turbo.json passes it through turbo's strict env
         env:
           INTELIGIR_PACK_UNSIGNED: 1

@@ -173,13 +173,14 @@ pnpm format:fix && pnpm verify
 ```
 
 `format:fix` runs FIRST and never after the gates; `verify` (`typecheck`,
-`lint`, `knip`, `format`, `test`, `build`) is check-only for that reason. CI
-adds the scenario suite and a macOS job (`test` where the app ships, and
-`pnpm smoke:desktop` on an unsigned pack), so run `pnpm e2e` too before
-claiming a green CI; `tools/repo-guards/src/ci-verify-parity.test.ts` holds
-every extra step to a reasoned row. Releasing is the owner's: a change whose
-proof needs a device, an account or a credential adds its check to
-`docs/releasing.md` § 5, under its surface.
+`lint`, `knip`, `format`, `test`, `build`, one turbo run that reports every
+red task) is check-only for that reason. CI runs `pnpm verify` and adds the
+scenario suite and a macOS job (`test` where the app ships, and
+`pnpm smoke:desktop` on an unsigned pack), each extra step with its reason
+beside it in `.github/workflows/ci.yml`, so run `pnpm e2e` too before claiming
+a green CI. Releasing is the owner's: a change whose proof needs a device, an
+account or a credential adds its check to `docs/releasing.md` § 5, under its
+surface.
 
 ## Rules that matter
 

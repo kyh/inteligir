@@ -50,8 +50,13 @@ const turboTasks = (configPath: string): Map<string, TurboTask> => {
   return tasks;
 };
 
+// `//#<task>` is the root package's own, run by no workspace this guard judges.
+const ROOT_PACKAGE_TASK = "//#";
+
 const rootTasks = (): Map<string, TurboTask> => {
-  const tasks = turboTasks(ROOT_CONFIG);
+  const tasks = new Map(
+    [...turboTasks(ROOT_CONFIG)].filter(([name]) => !name.startsWith(ROOT_PACKAGE_TASK)),
+  );
   for (const name of tasks.keys()) {
     if (name.includes("#")) {
       throw new Error(

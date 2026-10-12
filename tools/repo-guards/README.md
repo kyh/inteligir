@@ -10,9 +10,9 @@ every other suite.
 ## Why it exists
 
 There is no coverage tooling, on purpose. What the repo pins instead is
-structure: the dependency DAG and the platform each package may touch, that
-every socket change kind has a producer, that a route path has one spelling,
-that CI is `pnpm verify` plus a declared extra set. Those are questions the
+structure: the dependency DAG and where each package may reach, that every
+socket change kind has a producer, that a route path has one spelling, that
+every turbo cache key names what its output reads. Those are questions the
 compiler, knip and a unit suite cannot ask — a file guard cannot see one unused
 export beside four used ones, TypeScript catches a missing arm but never a
 drifted table, and turbo strips an undeclared env var with no error on either
@@ -72,11 +72,6 @@ worktree under `.claude` is never read as this commit's tree.
 | `dangling-references.test.ts`  | Every `@repo/*` name and every group-anchored path written in a tracked   |
 |                                | source, config, markdown or yaml file resolves to a workspace or a path   |
 |                                | on disk. What it reads is stated in its own section below.                |
-| `ci-verify-parity.test.ts`     | A gate workflow (`pull_request` or `push`) runs `pnpm verify` or every    |
-|                                | link of its chain, each job in verify's order; every step on top is a     |
-|                                | `DECLARED_CI_EXTRAS` row with a reason; every workspace `smoke` script is |
-|                                | reachable from a root script; every root `smoke*` runs in a gate or is a  |
-|                                | `MANUAL_SMOKES` row; a `run:` step with no `name:` throws.                |
 | `ws-change-kinds.test.ts`      | Every kind in `@repo/domain/change-kinds` is fired by a `notifyVault`,    |
 |                                | `notifyDoc` or `notifyThread` call in shipped source outside              |
 |                                | `packages/domain`, and every fired kind is declared.                      |
@@ -191,13 +186,12 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | and no file that is gone, holds no decision of its own, and the root      |
 |                                | `CLAUDE.md` is exactly `@AGENTS.md`.                                      |
 
-Every exception table — `DECLARED_CI_EXTRAS`, `MANUAL_SMOKES`,
-`ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`, `dispatchedIn`,
-`elsewhere`, `ELSEWHERE`, `WITHOUT_DEPENDENCY_EDGE`, `DECLARED_SPLITS`,
-`DATA_FILES`, `DELIBERATE_NON_REFERENCES`, `PROSE_SIZES`, `NOT_A_TEXT_FIELD` —
-has a companion assertion that no row is STALE: a row whose subject is gone, or
-whose gap has closed, fails too. An allowance that outlives what it excused only
-ever loosens.
+Every exception table — `ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`,
+`dispatchedIn`, `elsewhere`, `ELSEWHERE`, `WITHOUT_DEPENDENCY_EDGE`,
+`DECLARED_SPLITS`, `DATA_FILES`, `DELIBERATE_NON_REFERENCES`, `PROSE_SIZES`,
+`NOT_A_TEXT_FIELD` — has a companion assertion that no row is STALE: a row
+whose subject is gone, or whose gap has closed, fails too. An allowance that
+outlives what it excused only ever loosens.
 
 ## What the dangling-reference sweep reads
 
@@ -227,9 +221,9 @@ subpath after the name is not resolved) or a path anchored on a workspace group
   contract from `config.ts`. A hand-written table is a pin or a reasoned
   exception, never a copy of something the tree already says.
 - **A self-check per sweep.** Each guard asserts it found the thing it is held
-  against (`ci.yml`, the `inteligir` workspace, `apps/cli/scripts/smoke.ts`, a
-  `dial()` row), so an empty population fails as "the sweep is broken, not
-  the tree" rather than passing over nothing.
+  against (the `inteligir` workspace, `apps/cli/scripts/smoke.ts`, a `dial()`
+  row), so an empty population fails as "the sweep is broken, not the tree"
+  rather than passing over nothing.
 - **Shipped and test are split.** `workspaceFiles` classes `__tests__/`,
   `test-support/` and `*.test.*` as test; an edge only a test crosses is not a
   DAG edge but must still be declared in the manifest.

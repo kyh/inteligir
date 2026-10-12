@@ -13,7 +13,7 @@
     "dev:web": "turbo watch dev -F @repo/web...",
     "dev:workspace": "pnpm --filter @repo/workspace dev",
     "e2e": "pnpm --filter @repo/e2e e2e",
-    "format": "oxfmt --check && turbo run format",
+    "format": "oxfmt --check",
     "format:fix": "oxfmt --write && turbo run format:fix",
     "hotfix:mobile": "pnpm --filter @repo/mobile hotfix",
     "knip": "knip",
@@ -27,7 +27,7 @@
     "test": "turbo run test --concurrency=${TEST_CONCURRENCY:-4}",
     "testflight:mobile": "pnpm --filter @repo/mobile testflight",
     "typecheck": "turbo run typecheck",
-    "verify": "pnpm typecheck && pnpm lint && pnpm knip && pnpm format && pnpm test && pnpm build"
+    "verify": "turbo run typecheck lint knip format test build --continue=dependencies-successful --concurrency=${TEST_CONCURRENCY:-4}"
   },
   "devDependencies": {
     "dotenv-cli": "^11.0.0",
