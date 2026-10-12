@@ -60,7 +60,9 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | row; shipped imports match it (an undeclared edge and a dead edge both    |
 |                                | fail); every import, a test's and a script's or config's included, is in  |
 |                                | the importer's manifest, which knip skips for a private workspace (knip   |
-|                                | refuses the reverse, a listed workspace nothing imports); no cycles. Then |
+|                                | refuses the reverse, a listed workspace nothing imports); no cycles; and  |
+|                                | a workspace reaches another by its package name alone, so a relative path |
+|                                | into one fails rather than slipping past every check here. Then           |
 |                                | platform reach, beside `oxlint.config.ts`'s node and react rule per       |
 |                                | package: only `@repo/workspace` reaches `@tauri-apps`, `@repo/domain`     |
 |                                | declares only zod, no package imports an app,                             |

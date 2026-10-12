@@ -18,6 +18,7 @@ import {
   workspaces,
 } from "./repo";
 import type { Workspace } from "./repo";
+import { GALLERY_DIR } from "./ui-package";
 
 // what each workspace's shipped source may import; test-only imports are not edges but must still
 // be declared in the manifest.
@@ -121,6 +122,24 @@ const edgesFrom = (workspace: Workspace, files: readonly string[]): Map<string, 
   return edges;
 };
 
+// the deepest dir wins, so a workspace nested in another owns its own files
+const workspaceAt = (relativePath: string): Workspace | null =>
+  workspaces()
+    .filter(
+      (workspace) => relativePath === workspace.dir || relativePath.startsWith(`${workspace.dir}/`),
+    )
+    .toSorted((a, b) => b.dir.length - a.dir.length)[0] ?? null;
+
+// the workspace a relative specifier lands in, when it is not the importer's own
+const pathIntoAnotherWorkspace = (file: string, specifier: string): Workspace | null => {
+  if (!specifier.startsWith(".")) {
+    return null;
+  }
+  const [bare = specifier] = specifier.split("?");
+  const target = workspaceAt(path.posix.join(path.posix.dirname(file), bare));
+  return target === null || target.name === workspaceAt(file)?.name ? null : target;
+};
+
 const shippedEdges = new Map<string, Map<string, string[]>>();
 const testEdges = new Map<string, Map<string, string[]>>();
 // a workspace's own tooling outside src/, its scripts and configs: like a test's, what it imports
@@ -210,6 +229,37 @@ describe("the package dependency DAG", () => {
       }
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  // every other rule in this file reads a package name, so a relative path into another workspace
+  // would pass them all unseen.
+  it("a workspace reaches another only by its package name", () => {
+    const violations: string[] = [];
+    for (const workspace of workspaces()) {
+      for (const file of workspaceSourceFiles(workspace)) {
+        for (const specifier of importsOf(file)) {
+          const target = pathIntoAnotherWorkspace(file, specifier);
+          if (target === null) {
+            continue;
+          }
+          violations.push(
+            `PATH INTO ANOTHER WORKSPACE  ${file} imports "${specifier}", a file of ${target.name}\n` +
+              `  rule: a workspace reaches another by its package name alone — a relative path skips that workspace's exports, its DECLARED_EDGES row and the importer's manifest, so every edge and reach check here passes it\n` +
+              `  fix: import it as "${target.name}/…" through its exports, the edge declared in DECLARED_EDGES and ${workspace.dir}/package.json`,
+          );
+        }
+      }
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("sees a relative path into the gallery, so a clean sweep is a real one", () => {
+    const importer = "apps/web/src/routes/index.tsx";
+    const intoGallery = `${path.posix.relative(path.posix.dirname(importer), GALLERY_DIR)}/src/gallery-page`;
+    expect(pathIntoAnotherWorkspace(importer, intoGallery)?.name).toBe("@repo/ui-gallery");
+    expect(pathIntoAnotherWorkspace(importer, "../../../../docs/privacy.md?raw")).toBeNull();
+    expect(pathIntoAnotherWorkspace(importer, "../router")).toBeNull();
+    expect(pathIntoAnotherWorkspace(importer, "@repo/ui/components/button")).toBeNull();
   });
 
   it("has no cycles", () => {
