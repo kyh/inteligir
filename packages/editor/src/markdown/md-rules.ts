@@ -1,5 +1,5 @@
-// Rule dispatch: deserialize routes by mdast type (JSX by tag name), serialize by the Slate
-// node's plugin key — hence the yaml/frontmatter split.
+// Rule dispatch: deserialize routes by mdast type, serialize by the Slate node's plugin key —
+// hence the yaml/frontmatter split.
 
 import type { AlignType } from "mdast";
 import { ElementApi, KEYS, NodeApi, TextApi } from "platejs";

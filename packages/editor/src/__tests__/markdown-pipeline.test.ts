@@ -45,7 +45,7 @@ describe("owned parse (probe1/2/3 translations)", () => {
     expect(analyzeMarkdown(md).kind).toBe("canonical");
   });
 
-  it("keeps `import X from 'x'` as prose (no mdxjsEsm under agnostic MDX)", () => {
+  it("keeps an import line as prose", () => {
     const md = "import X from 'x'\n\nhello\n";
     expect(analyzeMarkdown(md).kind).toBe("canonical");
     expect(roundTrip(md)).toBe(md);
@@ -117,7 +117,7 @@ describe("opaque nodes (constructs with no editor node)", () => {
     expectOpaque('<callout variant="info">x</callout>\n', ['<callout variant="info">x</callout>']);
   });
 
-  it("carries the jsx the dialect once spelled its own blocks with as the tags it is", () => {
+  it("carries a jsx-style block tag as the html tag it is", () => {
     expectOpaque('Meet <date value="2026-07-01" /> ok\n', ['<date value="2026-07-01" />']);
     expectOpaque("<toggle>x</toggle>\n", ["<toggle>x</toggle>"]);
   });
