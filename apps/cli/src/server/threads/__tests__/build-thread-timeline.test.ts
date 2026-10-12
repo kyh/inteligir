@@ -1,5 +1,5 @@
-import type { ThreadEvent } from "@repo/domain/provider-event";
-import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
+import { clipThreadEventForSync } from "@repo/contract/cloud/sync/fit-sync-event";
+import { EVENT_MAX_BYTES, syncEventInputSchema } from "@repo/contract/cloud/sync/sync-schema";
 import {
   applyTimelineDelta,
   COMMAND_OUTPUT_LINE_CHARS,
@@ -7,17 +7,21 @@ import {
   computeTimelineDelta,
   threadTimelineSchema,
   timelineDeltaSchema,
-} from "../thread-timeline";
-import type { ThreadTimeline, TimelineRowStatus, TimelineTurnRow } from "../thread-timeline";
+} from "@repo/contract/local/thread-timeline";
+import type {
+  ThreadTimeline,
+  TimelineRowStatus,
+  TimelineTurnRow,
+} from "@repo/contract/local/thread-timeline";
+import type { StoredThreadEvent } from "@repo/db/events";
+import type { ThreadEvent } from "@repo/domain/provider-event";
+import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
-import { clipThreadEventForSync } from "../../cloud/sync/fit-sync-event";
-import { EVENT_MAX_BYTES, syncEventInputSchema } from "../../cloud/sync/sync-schema";
 import { buildThreadTimeline } from "../build-thread-timeline";
-import type { ThreadTimelineEvent } from "../build-thread-timeline";
 
 const THREAD_ID = "thr_test";
 
-const stored = (events: readonly ThreadEvent[]): ThreadTimelineEvent[] =>
+const stored = (events: readonly ThreadEvent[]): StoredThreadEvent[] =>
   events.map((event, index) => ({
     createdAt: 1000 + index,
     event,
@@ -415,7 +419,7 @@ describe("a delta into a long turn", () => {
 
 const THOUGHT_TURN = turnScope("turn_thought");
 
-const streamedThought = (tokens: number): ThreadTimelineEvent[] =>
+const streamedThought = (tokens: number): StoredThreadEvent[] =>
   stored([
     { scope: THOUGHT_TURN, threadId: THREAD_ID, type: "turn/started" },
     {
@@ -440,7 +444,7 @@ interface FollowedStream {
 }
 
 // a client that asks after every event, applying each delta as it lands
-const followStream = (events: readonly ThreadTimelineEvent[]): FollowedStream => {
+const followStream = (events: readonly StoredThreadEvent[]): FollowedStream => {
   let held = buildThreadTimeline([]);
   let bytes = 0;
   for (let cut = 1; cut <= events.length; cut += 1) {

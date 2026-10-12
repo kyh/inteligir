@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 
-import { buildThreadTimeline } from "@repo/contract/local/build-thread-timeline";
 import type {
   TimelineCommandWorkRow,
   TimelineConversationRow,
   TimelineRow,
+  TimelineRowStatus,
+  TimelineToolWorkRow,
+  TimelineTurnChild,
   TimelineTurnRow,
 } from "@repo/contract/local/thread-timeline";
 import type { TurnChanges } from "@repo/contract/local/threads/threads-schema";
-import type { ThreadEvent, ThreadEventItem } from "@repo/domain/provider-event";
-import { turnScope } from "@repo/domain/thread-event-scope";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TimelineRowView, TurnChangesFooter, turnFooterSlots } from "../timeline-rows";
@@ -152,30 +152,31 @@ it("names the lines a command's head leaves out", () => {
   expect(view.container.textContent).toContain("9960 more lines");
 });
 
-// through the projection, so the chip reads the status the provider's item carried
-const settledTurn = (item: ThreadEventItem): TimelineRow[] => {
-  const scope = turnScope("turn_1");
-  const events: ThreadEvent[] = [
-    { scope, threadId: "thr_1", type: "turn/started" },
-    { item, scope, threadId: "thr_1", type: "item/completed" },
-    { scope, status: "completed", threadId: "thr_1", type: "turn/completed" },
-  ];
-  return buildThreadTimeline(
-    events.map((event, index) => ({ createdAt: 1000, event, sequence: index + 1 })),
-  ).rows;
-};
+const settledTurn = (child: TimelineTurnChild): TimelineRow[] => [
+  { ...pendingTurn, children: [child], completedAt: 1000, status: "completed" },
+];
+
+const toolCall = (status: TimelineRowStatus): TimelineToolWorkRow => ({
+  ...base,
+  id: "item:turn_1:item_t",
+  kind: "work",
+  result: null,
+  sourceSeqEnd: 3,
+  sourceSeqStart: 3,
+  status,
+  toolArgs: null,
+  toolName: "search",
+  turnId: "turn_1",
+  workKind: "tool",
+});
 
 describe("a failed step", () => {
   it("says a command failed", () => {
     const view = render(
       <List
         rows={settledTurn({
-          approvalStatus: null,
-          command: "cat missing.md",
-          cwd: "",
-          id: "item_c",
-          status: "failed",
-          type: "commandExecution",
+          ...commandRun("missing", 3, { head: [], lines: 0 }),
+          status: "error",
         })}
       />,
     );
@@ -184,21 +185,13 @@ describe("a failed step", () => {
   });
 
   it("says a tool failed", () => {
-    const view = render(
-      <List
-        rows={settledTurn({ id: "item_t", status: "failed", tool: "search", type: "toolCall" })}
-      />,
-    );
+    const view = render(<List rows={settledTurn(toolCall("error"))} />);
     expect(view.getByText("Tool failed")).toBeTruthy();
     expect(view.queryByText("Called a tool")).toBeNull();
   });
 
   it("says nothing failed of one that completed", () => {
-    const view = render(
-      <List
-        rows={settledTurn({ id: "item_t", status: "completed", tool: "search", type: "toolCall" })}
-      />,
-    );
+    const view = render(<List rows={settledTurn(toolCall("completed"))} />);
     expect(view.getByText("Called a tool")).toBeTruthy();
   });
 });

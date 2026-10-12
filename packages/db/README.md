@@ -203,11 +203,11 @@ id)`, which the cursor's row-value comparison seeks with no temp b-tree. Crash
   standalone writer takes. The server binds the `/ws` bus; `noopNotifier` is the test's.
 - `DbTransaction` and the `*InTransaction` variants — how the server composes
   append, lifecycle projection, queue touch and outbox enqueue into ONE
-  immediate transaction (`apps/cli/src/server/threads/service.ts`). An append,
-  a lifecycle move, an enqueue, a claim and a claimed delete have no standalone
-  twin: one would be an append that skips the lifecycle projection and the
-  outbox, and a second spelling of `BEGIN IMMEDIATE`. Tests run them through
-  `writeTransaction` as the server does.
+  immediate transaction (`apps/cli/src/server/threads/thread-ingest.ts`). An
+  append, a lifecycle move, an enqueue, a claim and a claimed delete have no
+  standalone twin: one would be an append that skips the lifecycle projection
+  and the outbox, and a second spelling of `BEGIN IMMEDIATE`. Tests run them
+  through `writeTransaction` as the server does.
 - `runMigrations(db, folder?)` — the staged-content seam the packaged CLI
   drives.
 

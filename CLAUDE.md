@@ -229,8 +229,12 @@ packages/
                  compile against and `inteligir serve` implements: ONE folder
                  per domain, each a `<domain>-contract.ts` +
                  `<domain>-schema.ts`, plus the ws notification protocol, the
-                 paths that are NOT procedures, and `build-thread-timeline`,
-                 the pure fold the delta algebra beside it diffs. `./cloud/*`
+                 paths that are NOT procedures, and the timeline row grammar
+                 with its delta algebra; the fold from stored events into
+                 rows is the server's
+                 (`apps/cli/src/server/threads/build-thread-timeline.ts`),
+                 deterministic because the server diffs two of its
+                 projections into one delta. `./cloud/*`
                  is the cloud wire, the ONE page planner every reader of the
                  merged log runs (`cloud/sync/plan-page`) — two copies would be
                  two answers to "did this row move the cursor?", and a mis-set
@@ -1270,7 +1274,13 @@ to the END of its group.
 - **Ingest is ONE transaction.** Append, lifecycle projection and queue touch
   happen in one immediate transaction; notifications flush after commit.
   Lifecycle CAS predicates include the turn identity so a late completion for
-  turn A cannot settle turn B (`apps/cli/src/server/threads/service.ts`).
+  turn A cannot settle turn B (`apps/cli/src/server/threads/thread-ingest.ts`).
+  Every step is a free function over one `ThreadWrite`, split at the
+  transaction seams (`thread-send.ts`, `thread-stop.ts`, `thread-recovery.ts`,
+  and the reads in `thread-queries.ts`), and only `ThreadService`
+  (`apps/cli/src/server/threads/service.ts`) opens a transaction, flushes what
+  it notified and dispatches after the commit, since a scripted driver
+  re-enters ingest and a transaction cannot nest.
 
 - **AN AGENT COMMIT STAGES THE TURN'S OWN WRITE SET, AND A TURN IS FOUND BY
   ITS TRAILERS, NEVER BY ITS SHA.** The set is the fileChange events of edits
@@ -1288,7 +1298,7 @@ to the END of its group.
   device's push rewrites a sha, so the commit carries `Thread:` and `Turn:`
   (an undo `Undoes-Turn:`), spelled once in
   `apps/cli/src/server/vault/turn-trailers.ts` and read back by
-  `threads.turnChanges` (`apps/cli/src/server/agents/turn-changes.ts`). Undo
+  `threads.turnChanges` (`apps/cli/src/server/threads/turn-changes.ts`). Undo
   needs the bytes from just before the turn, so the turn starts with a
   checkpoint of the unclaimed dirty tree: the note the user was typing in
   lands as the engine's, never inside the turn. Undo covers reported edits
@@ -1453,7 +1463,8 @@ to the END of its group.
   lands as a top-level row, and counting it would move the turn row on every
   token. A command row carries its first `COMMAND_OUTPUT_LINES` lines; the event
   log keeps every byte. Residual: a tool row's result still rides whole.
-  `packages/contract/src/local/thread-timeline.ts`.
+  `packages/contract/src/local/thread-timeline.ts`, over the server's fold
+  (`apps/cli/src/server/threads/build-thread-timeline.ts`).
 
 - **A THREAD IS NAMED BY ITS FIRST MESSAGE, ON THE SERVER**, in the
   transaction that appends it, local or synced; an explicit title stays.
@@ -1461,7 +1472,7 @@ to the END of its group.
   device started as "Untitled action". The rule is `deriveThreadTitle`
   (`@repo/domain/thread-title`), which the phone runs too, and a title the log
   states in a `thread/meta` row outranks it on every device.
-  `apps/cli/src/server/threads/service.ts`.
+  `apps/cli/src/server/threads/thread-ingest.ts`.
 
 - **A STOP IS A CANCEL WITH A CLOSE BEHIND IT, AND THE TURN STILL ENDS THROUGH
   ITS OWN PROMPT** (owner decision: an agent writing the vault the wrong way
@@ -1474,7 +1485,7 @@ to the END of its group.
   (`runsElsewhere`), so the panel draws no Stop there
   (`apps/workspace/src/app/thread-activity.ts`).
   `apps/cli/src/server/agents/runtime-manager.ts`,
-  `apps/cli/src/server/threads/service.ts`.
+  `apps/cli/src/server/threads/thread-stop.ts`.
 
 - **AN ACTION'S ORIGIN IS ITS NOTE'S ID, and the path is only the fallback.**
   Rebinding the stored path on the rename route was rejected: Finder, an
@@ -1567,7 +1578,9 @@ to the END of its group.
   (`@repo/notes/comments/revert-entries`), after the notes: an entry goes or
   comes back only while it is as the turn left it, and a store that keeps an
   entry the turn touched is named `edited-since` and still loses the rest.
-  `apps/cli/src/server/agents/turn-changes.ts`.
+  `apps/cli/src/server/threads/turn-undo.ts`, wired in `compose.ts` beside
+  the thread service rather than inside it, which would hand that service the
+  vault's git and writes.
 
 - **SIGNING AN AGENT IN IS THE METHOD ITS ADAPTER ADVERTISES, RUN BY THIS
   SERVER, ONE AT A TIME, AND A SIGNED-OUT AGENT IS ANSWERED BY ITS SIGN-IN, NOT
@@ -1621,8 +1634,8 @@ to the END of its group.
   for a dispatch that never reached a prompt) as an optional field, which
   a log written before it parses without and an older build strips. A
   settle whose turn failed `usage-limit` or `auth` does not drain
-  (`failureHoldsQueue` in `apps/cli/src/server/threads/service.ts`): the next
-  send starts the oldest queued message first. The words a person reads of
+  (`failureHoldsQueue` in `apps/cli/src/server/threads/thread-ingest.ts`): the
+  next send starts the oldest queued message first. The words a person reads of
   either are the host's, written beside that rule because they promise it
   (`providerFailureMessage` in `apps/cli/src/server/threads/provider-failure.ts`),
   into the one persisted `message` every client shows; the runtime carries
@@ -1866,7 +1879,7 @@ to the END of its group.
   install skips a type it cannot read, so a new event type needs no new route.
   The Worker keeps no per-thread row beside the log (owner decision): a push
   is its events alone, and the dispatch inbox carries what a per-thread lane
-  would. `apps/cli/src/server/threads/service.ts`,
+  would. `apps/cli/src/server/threads/thread-send.ts`, `thread-ingest.ts`,
   `packages/contract/src/cloud/sync/sync-schema.ts`.
 
 - **A pulled event lands through the SAME ingest, marked with its origin**
@@ -2185,7 +2198,7 @@ to the END of its group.
   claims on a thread another Mac ran opens a fresh provider session there.
   `apps/cli/src/server/cloud/dispatches.ts`,
   `apps/cli/src/server/cloud/sync-pass.ts`,
-  `apps/cli/src/server/threads/service.ts`.
+  `apps/cli/src/server/threads/thread-send.ts`.
 
 - **A VAULT READ CARRIES ITS PATH IN THE BODY, NEVER THE URL.** Cloudflare
   keeps each request's URL in the Worker's request log and in its sampled

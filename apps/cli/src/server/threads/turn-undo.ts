@@ -1,17 +1,11 @@
-// a turn's changes are read from the log by its trailers, never from a stored sha: a rebase onto
-// another device's push rewrites the sha and keeps the message.
-
 import type {
-  TurnChanges,
   TurnChangesResponse,
-  TurnChangeState,
   UndoKeptPath,
   UndoKeptReason,
   UndoTurnResponse,
 } from "@repo/contract/local/threads/threads-schema";
 import type { DbConnection } from "@repo/db/connection";
 import { getThread } from "@repo/db/threads";
-import type { ThreadRow } from "@repo/db/threads";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { isThreadRunning } from "@repo/domain/thread-status";
 import { commentStoreKey } from "@repo/notes/comments/comment-key";
@@ -35,77 +29,12 @@ import { ENGINE_IDENTITY } from "../vault/git-run";
 import { undoCommitMessage } from "../vault/turn-trailers";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
-
-// the walk reads committer dates, which are the committing device's clock, and git stops a line of
-// history at the first commit older than the bound; a day costs a day's commits and outlasts any
-// clock a device keeps in sync.
-const CLOCK_SKEW_MARGIN_MS = 24 * 60 * 60 * 1000;
-
-export type ListTurnChanges = (threadId: string) => Promise<TurnChangesResponse | null>;
-
-interface FoldedTurn {
-  paths: Set<string>;
-  state: TurnChangeState;
-}
-
-// oldest first, since the log is read oldest first and a Map keeps its first insertion.
-const foldTurnCommits = (commits: readonly TurnCommit[]): TurnChanges[] => {
-  const turns = new Map<string, FoldedTurn>();
-  for (const commit of commits) {
-    switch (commit.trailers.kind) {
-      case "turn": {
-        const turn = turns.get(commit.trailers.turnId) ?? { paths: new Set(), state: "applied" };
-        for (const change of commit.changes) {
-          turn.paths.add(change.path);
-        }
-        turns.set(commit.trailers.turnId, turn);
-        break;
-      }
-      case "undo": {
-        const undone = turns.get(commit.trailers.undoesTurnId);
-        if (undone !== undefined) {
-          undone.state = "undone";
-        }
-        break;
-      }
-      // no default
-    }
-  }
-  return [...turns].map(([turnId, turn]) => ({
-    paths: [...turn.paths],
-    state: turn.state,
-    turnId,
-  }));
-};
-
-// a thread pulled from another device was created here when it arrived, so what that device
-// committed before then is not read.
-const readThreadTurnCommits = async (git: GitEngine, thread: ThreadRow): Promise<TurnCommit[]> =>
-  await git.turnCommits(thread.id, thread.createdAt - CLOCK_SKEW_MARGIN_MS);
-
-interface ListTurnChangesArgs {
-  db: DbConnection;
-  git: GitEngine;
-  threadId: string;
-}
-
-// null for a thread this device does not hold.
-export const listTurnChanges = async (
-  args: ListTurnChangesArgs,
-): Promise<TurnChangesResponse | null> => {
-  const thread = getThread(args.db, args.threadId);
-  if (thread === null) {
-    return null;
-  }
-  return { turns: foldTurnCommits(await readThreadTurnCommits(args.git, thread)) };
-};
+import { foldTurnCommits, listTurnChanges, readThreadTurnCommits } from "./turn-changes";
 
 export type UndoTurnOutcome =
   | { kind: "undone"; changes: UndoTurnResponse }
   | { kind: "not-found"; message: string }
   | { kind: "conflict"; message: string };
-
-export type UndoTurnChanges = (threadId: string, turnId: string) => Promise<UndoTurnOutcome>;
 
 // the trees a path is read at: the parent of the turn's first commit to touch it, and the turn's
 // last commit to touch it.
@@ -520,3 +449,15 @@ export const undoTurnChanges = async (args: UndoTurnArgs): Promise<UndoTurnOutco
     hold.release();
   }
 };
+
+// over the vault's git and its writes, which is why it is wired beside the thread service and
+// never inside it.
+export interface TurnUndo {
+  changes: (threadId: string) => Promise<TurnChangesResponse | null>;
+  undo: (threadId: string, turnId: string) => Promise<UndoTurnOutcome>;
+}
+
+export const createTurnUndo = (deps: Omit<UndoTurnArgs, "threadId" | "turnId">): TurnUndo => ({
+  changes: async (threadId) => await listTurnChanges({ db: deps.db, git: deps.git, threadId }),
+  undo: async (threadId, turnId) => await undoTurnChanges({ ...deps, threadId, turnId }),
+});

@@ -1,14 +1,9 @@
 // the row grammar is bb's (github.com/get-bb/bb, MIT); the fold is this repo's own
 
-import type {
-  ThreadEvent,
-  ThreadEventFileChange,
-  ThreadEventItem,
-  ThreadEventItemStatus,
-  ThreadEventTurnStatus,
-} from "@repo/domain/provider-event";
-import { assertUnreachable } from "./assert-unreachable";
-import { COMMAND_OUTPUT_LINE_CHARS, COMMAND_OUTPUT_LINES } from "./thread-timeline";
+import {
+  COMMAND_OUTPUT_LINE_CHARS,
+  COMMAND_OUTPUT_LINES,
+} from "@repo/contract/local/thread-timeline";
 import type {
   ThreadTimeline,
   TimelineCommandWorkRow,
@@ -20,14 +15,14 @@ import type {
   TimelineTurnChild,
   TimelineTurnRow,
   TimelineWorkRow,
-} from "./thread-timeline";
-
-// matches @repo/db/events' StoredThreadEvent structurally, not by import: this package is db-free
-export interface ThreadTimelineEvent {
-  sequence: number;
-  createdAt: number;
-  event: ThreadEvent;
-}
+} from "@repo/contract/local/thread-timeline";
+import type { StoredThreadEvent } from "@repo/db/events";
+import type {
+  ThreadEventFileChange,
+  ThreadEventItem,
+  ThreadEventItemStatus,
+  ThreadEventTurnStatus,
+} from "@repo/domain/provider-event";
 
 const itemStatusToRowStatus = (status: ThreadEventItemStatus): TimelineRowStatus => {
   switch (status) {
@@ -44,7 +39,8 @@ const itemStatusToRowStatus = (status: ThreadEventItemStatus): TimelineRowStatus
       return "interrupted";
     }
     default: {
-      return assertUnreachable(status);
+      const exhaustive: never = status;
+      return exhaustive;
     }
   }
 };
@@ -61,7 +57,8 @@ const turnStatusToRowStatus = (status: ThreadEventTurnStatus): TimelineRowStatus
       return "interrupted";
     }
     default: {
-      return assertUnreachable(status);
+      const exhaustive: never = status;
+      return exhaustive;
     }
   }
 };
@@ -211,13 +208,14 @@ const projectItem = (
       return row;
     }
     default: {
-      return assertUnreachable(snapshot);
+      const exhaustive: never = snapshot;
+      return exhaustive;
     }
   }
 };
 
 // must be deterministic, ids included: the server diffs two projections into a delta
-export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): ThreadTimeline => {
+export const buildThreadTimeline = (events: readonly StoredThreadEvent[]): ThreadTimeline => {
   const ordered = events.toSorted((left, right) => left.sequence - right.sequence);
 
   const topLevel: SequencedRow<TimelineRow>[] = [];
@@ -238,7 +236,7 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
   };
 
   const itemAccumulator = (
-    entry: ThreadTimelineEvent,
+    entry: StoredThreadEvent,
     turnId: string,
     itemId: string,
   ): ItemAccumulator => {
@@ -263,7 +261,7 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
     return created;
   };
 
-  const startTurn = (entry: ThreadTimelineEvent, turnId: string): void => {
+  const startTurn = (entry: StoredThreadEvent, turnId: string): void => {
     if (turnsByTurnId.has(turnId)) {
       return;
     }
@@ -279,7 +277,7 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
   };
 
   const completeTurn = (
-    entry: ThreadTimelineEvent,
+    entry: StoredThreadEvent,
     status: ThreadEventTurnStatus,
     turnId: string,
   ): void => {
@@ -293,7 +291,7 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
   };
 
   const captureItemSnapshot = (
-    entry: ThreadTimelineEvent,
+    entry: StoredThreadEvent,
     turnId: string,
     item: ThreadEventItem,
     type: "item/completed" | "item/started",
@@ -307,7 +305,7 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
   };
 
   const appendItemDelta = (
-    entry: ThreadTimelineEvent,
+    entry: StoredThreadEvent,
     turnId: string,
     itemId: string,
     delta: string,
@@ -315,7 +313,7 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
     itemAccumulator(entry, turnId, itemId).textBuffer += delta;
   };
 
-  const applyEvent = (entry: ThreadTimelineEvent): void => {
+  const applyEvent = (entry: StoredThreadEvent): void => {
     const { event } = entry;
 
     switch (event.type) {
@@ -376,7 +374,8 @@ export const buildThreadTimeline = (events: readonly ThreadTimelineEvent[]): Thr
         break;
       }
       default: {
-        return assertUnreachable(event);
+        const exhaustive: never = event;
+        return exhaustive;
       }
     }
   };
