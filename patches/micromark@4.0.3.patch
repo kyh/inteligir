@@ -1,5 +1,5 @@
 diff --git a/dev/lib/initialize/text.js b/dev/lib/initialize/text.js
-index 7192e70a0972e808d779999e57153bf3ed7bfc3a..af32d09014a177447eef91fdf9b62085a83cf50b 100644
+index af0ff9f..f3a61bc 100644
 --- a/dev/lib/initialize/text.js
 +++ b/dev/lib/initialize/text.js
 @@ -5,6 +5,7 @@
@@ -10,7 +10,7 @@ index 7192e70a0972e808d779999e57153bf3ed7bfc3a..af32d09014a177447eef91fdf9b62085
   *   TokenizeContext
   * } from 'micromark-util-types'
   */
-@@ -113,30 +114,40 @@ function createResolver(extraResolver) {
+@@ -114,30 +115,40 @@ function createResolver(extraResolver) {
  
    /** @type {Resolver} */
    function resolveAllText(events, context) {
@@ -69,7 +69,7 @@ index 7192e70a0972e808d779999e57153bf3ed7bfc3a..af32d09014a177447eef91fdf9b62085
    }
  }
 diff --git a/lib/initialize/text.js b/lib/initialize/text.js
-index b9383cb721b95c68bd0e684da6cbf441ed82b8eb..6b98790858937e0fb38e0216b6a1b6f4ca5d69ae 100644
+index f9c110b..f7e7031 100644
 --- a/lib/initialize/text.js
 +++ b/lib/initialize/text.js
 @@ -5,6 +5,7 @@
@@ -80,7 +80,7 @@ index b9383cb721b95c68bd0e684da6cbf441ed82b8eb..6b98790858937e0fb38e0216b6a1b6f4
   *   TokenizeContext
   * } from 'micromark-util-types'
   */
-@@ -104,28 +105,34 @@ function createResolver(extraResolver) {
+@@ -105,28 +106,34 @@ function createResolver(extraResolver) {
  
    /** @type {Resolver} */
    function resolveAllText(events, context) {
