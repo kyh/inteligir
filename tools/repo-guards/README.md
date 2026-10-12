@@ -190,9 +190,9 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | `packages/contract/src/cloud` has a row under `docs/privacy.md`'s "Every  |
 |                                | address the app talks to", and every backticked `/v1/` route there is     |
 |                                | still declared — the page promises every address the app talks to.        |
-| `decisions-index.test.ts`      | `CLAUDE.md` § Decisions' index lists every `###` group under it, in their |
-|                                | order, and every entry's anchor is a group's GitHub slug — a group added  |
-|                                | or renamed far below cannot leave the index behind.                       |
+| `decisions-index.test.ts`      | `AGENTS.md` § Decisions indexes every tracked `CLAUDE.md` below the root  |
+|                                | and no file that is gone, holds no decision of its own, and the root      |
+|                                | `CLAUDE.md` is exactly `@AGENTS.md`.                                      |
 
 Every exception table — `DECLARED_CI_EXTRAS`, `MANUAL_SMOKES`,
 `ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`, `dispatchedIn`,

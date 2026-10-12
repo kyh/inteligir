@@ -69,27 +69,8 @@ pnpm dev              # the desktop shell over a server on a per-checkout port
 
 ### Layout
 
-One line per workspace; [`CLAUDE.md`](./CLAUDE.md) § Workspace Structure is
-the owned description of each.
-
-```
-apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the Tauri window around the SPA
-apps/workspace          @repo/workspace — the SPA: the page every vault's server answers, and the first run
-apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
-apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, dispatch, hosted vault
-apps/mobile             @repo/mobile — the iPhone app: the editor offline over the hosted vault, captures, asks a Mac
-apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
-packages/domain         @repo/domain — zod-only leaf vocabulary
-packages/contract       @repo/contract — ONE contract, TWO entries: /local and /cloud
-packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
-packages/notes          @repo/notes — the pure, platform-neutral domain
-packages/editor         @repo/editor — the Plate WYSIWYG over the fixpoint serializer
-packages/agent-runtime  @repo/agent-runtime — the ACP runtime over the harnesses
-packages/agent-skills   @repo/agent-skills — the dialect spec, as files agents read
-packages/ui             @repo/ui — the shared component vocabulary on Base UI
-tools/repo-guards       @repo/repo-guards — fitness tests over the repo itself
-tools/e2e               @repo/e2e — the scenario suite `pnpm e2e` runs
-```
+[`AGENTS.md`](./AGENTS.md) § Map has one line per workspace, and each
+workspace's README its own layout.
 
 Boundaries are enforced, not documented: `tools/repo-guards` derives the
 dependency DAG from the tree and fails on an undeclared edge, a cycle, a
@@ -97,9 +78,10 @@ phantom dependency, or a package acquiring a platform it may not have
 (`@repo/notes` runs in the browser and on node; the zod-only leaves touch
 neither node nor react).
 
-**[`AGENTS.md`](./AGENTS.md) is the guide for coding agents** — quickstart and
-the runnable recipes. `CLAUDE.md` (root) holds the architecture summary,
-conventions, and the durable decisions; `CONTEXT.md` is the domain glossary.
+**[`AGENTS.md`](./AGENTS.md) is the guide for coding agents** — the premises,
+the quickstart and the rules, and the index of the `CLAUDE.md` beside each
+workspace's code that holds its durable decisions; `CONTEXT.md` is the domain
+glossary.
 
 ### Develop
 

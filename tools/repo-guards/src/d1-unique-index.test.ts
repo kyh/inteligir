@@ -53,7 +53,7 @@ describe("D1 unique constraints", () => {
     expect(
       violations,
       `a D1 schema declares a unique with the \`.unique()\` column modifier:\n  ${violations.join("\n  ")}\n` +
-        `  rule: drizzle-kit 1.0 turns \`.unique()\` into a table recreate, and on D1 the recreate's DROP cascade-wipes every child table (CLAUDE.md, "Declare D1 uniques as named unique indexes, never \`.unique()\`")\n` +
+        `  rule: drizzle-kit 1.0 turns \`.unique()\` into a table recreate, and on D1 the recreate's DROP cascade-wipes every child table (apps/web/CLAUDE.md, "Declare D1 uniques as named unique indexes, never \`.unique()\`")\n` +
         `  fix: drop the modifier and add uniqueIndex("<table>_<column>_unique").on(table.<column>) to the table's extra config`,
     ).toEqual([]);
   });

@@ -1,8 +1,8 @@
 # CONTEXT.md — the domain glossary
 
-What the words mean. `CLAUDE.md` § Decisions records **why a choice was made**;
-this records **what a term names**, where it lives, and — the part worth
-reading — the neighbouring concept it gets confused with.
+What the words mean. The decision files (`AGENTS.md` § Decisions) record **why
+a choice was made**; this records **what a term names**, where it lives, and
+— the part worth reading — the neighbouring concept it gets confused with.
 
 Rules for this file: every entry points at the module that OWNS the concept
 rather than restating its implementation, because the module's own header is the

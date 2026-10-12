@@ -12,7 +12,8 @@ The agent edits the vault with its own shell, and the dialect — `[[wiki
 links]]`, `{{formula}}` pills, `%%i:id%%` comment anchors, the `inteligir-*`
 fences — is not something a model guesses right. Content the agent consumes
 lives in files it reads with its own tools, never inlined into a prompt (the
-rule behind CLAUDE.md's "agent memory is removed" decision): the server hands a
+rule behind the "agent memory is removed" decision in
+`apps/cli/src/server/agents/CLAUDE.md`): the server hands a
 session ONE path, `INTELIGIR_SKILLS_DIR`, plus a three-sentence pointer on the
 first turn, and the model reads what it needs. A package rather than a folder
 under `apps/cli` because the CLI's build and the packaged desktop app both stage

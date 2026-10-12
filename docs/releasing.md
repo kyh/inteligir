@@ -26,9 +26,9 @@ build only once `MIN_CLIENT_BUILD` (`apps/web/cloudflare.config.ts`) is raised
 past it, which retires a wire shape on purpose and is never part of a release
 by default.
 
-**The first outside tester ends the no-users premise** (`CLAUDE.md` § Project
+**The first outside tester ends the no-users premise** (`AGENTS.md` § Project
 Overview). Before anyone outside the team gets a build, through the `Cohort`
-group or an invite code, strike that premise from `CLAUDE.md` and `AGENTS.md`:
+group or an invite code, strike that premise from `AGENTS.md`:
 from that build on, a format change migrates.
 
 The owner publishes once, when every step and every check below has passed.
@@ -104,7 +104,7 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
      now plans nothing.
    - Anything that recreates a table (a `__new_` table, a `DROP TABLE`): STOP.
      D1 ignores the foreign-key pragma a recreate leans on, so the drop
-     cascades through every session, account and device (`CLAUDE.md` §
+     cascades through every session, account and device (`apps/web/CLAUDE.md`,
      Declare D1 uniques as named unique indexes).
 
    Deploy never touches the schema, so it belongs in D1 before the code that

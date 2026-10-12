@@ -1,11 +1,12 @@
 # Development guide
 
 How to run, verify, and change inteligir — the ONE home for the commands, the
-ports, where state lives and the gate; `README.md`, `AGENTS.md` and
-`CLAUDE.md` link here rather than restating them. `CLAUDE.md` holds the
-architecture summary and the decisions, `apps/web/README.md` the Worker's own
-routes and deploy, `AGENTS.md` the runnable quickstart for coding agents, and
-`docs/releasing.md` the release: every step and check that is the owner's.
+ports, where state lives and the gate; `README.md` and `AGENTS.md` link here
+rather than restating them. `AGENTS.md` is the coding agents' root: the
+premises, the quickstart and the index of the decisions, each workspace's
+`CLAUDE.md` its own; `apps/web/README.md` has the Worker's own routes and
+deploy, and `docs/releasing.md` the release: every step and check that is the
+owner's.
 
 ## Prerequisites
 
