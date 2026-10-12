@@ -65,9 +65,12 @@ has nowhere to live — and a squatter holding the port cannot have written the
 file, so a wrong responder is refused rather than adopted.
 
 WHICH data dir is still the client's own question, and it reuses the server's
-resolution (`src/server/config.ts`) rather than re-deriving it: env →
-`<dataDir>/config.json` → the per-checkout default, where the checkout is
-walked up to from wherever the command started. That last part is what lets
+resolution (`src/server/config.ts`) rather than re-deriving it:
+`INTELIGIR_DATA_DIR` pins one, which is then the root too; otherwise the root
+(`~/.inteligir`, or the checkout's dev instance, the checkout walked up to from
+wherever the command started) holds `config.json`, whose `vaultDir` picks the
+vault unless `INTELIGIR_VAULT_DIR` does, and the data dir is
+`<root>/vaults/<hash of that vault's physical path>`. The walk up is what lets
 `pnpm dev` (which runs from `apps/desktop`) and `pnpm cli …` (run from wherever
 you stand) name the same instance.
 
