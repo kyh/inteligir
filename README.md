@@ -73,10 +73,11 @@ pnpm dev              # the desktop shell over a server on a per-checkout port
 workspace's README its own layout.
 
 Boundaries are enforced, not documented: `tools/repo-guards` derives the
-dependency DAG from the tree and fails on an undeclared edge, a cycle, a
-phantom dependency, or a package acquiring a platform it may not have
-(`@repo/notes` runs in the browser and on node; the zod-only leaves touch
-neither node nor react).
+dependency DAG from the tree and fails on an undeclared edge, a cycle or an
+import the importer's manifest does not list, and `oxlint.config.ts` fails a
+package acquiring a platform it may not have (`@repo/notes` runs in the
+browser and on node; `@repo/domain` and `@repo/contract` touch neither node
+nor react). knip fails a dependency nothing imports.
 
 **[`AGENTS.md`](./AGENTS.md) is the guide for coding agents** — the premises,
 the quickstart and the rules, and the index of the `CLAUDE.md` beside each

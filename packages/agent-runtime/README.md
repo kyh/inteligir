@@ -21,9 +21,9 @@ method kept for a re-vendor is a stub every test double must write.
 
 The package is node-side by definition (it spawns processes), so nothing it
 exports may pull a process tree into a page: the grammars a client reads
-live in `@repo/domain`, and this package reaches `@repo/domain` alone
-(`tools/repo-guards/src/dep-dag.test.ts`, its `DECLARED_EDGES` row and its
-platform rule). Its one consumer is the `inteligir` server —
+live in `@repo/domain`, and this package reaches `@repo/domain` alone (its
+`DECLARED_EDGES` row in `tools/repo-guards/src/dep-dag.test.ts`) and never
+react (`oxlint.config.ts`). Its one consumer is the `inteligir` server —
 `apps/cli/src/server/agents/runtime-manager.ts` composes it.
 
 ## Layout

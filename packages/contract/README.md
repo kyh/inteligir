@@ -23,8 +23,8 @@ the floor at once.
 
 The package is platform-neutral by construction (`lib: ["ES2023",
 "WebWorker"]`, `types: []`): it loads in the desktop page, on node, on workerd
-and in React Native, and `tools/repo-guards` refuses a node, react or
-`@tauri-apps` import here.
+and in React Native, and `oxlint.config.ts` refuses a node or react import
+here, `tools/repo-guards` a `@tauri-apps` one.
 
 ## Layout
 
