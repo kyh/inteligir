@@ -19,7 +19,7 @@ const searchPaths = async (app: AppInstance, token: string): Promise<string[]> =
 
 export const slowStorage: Scenario = {
   description:
-    "a doc whose read stalls 30s leaves the reconcile to finish and search to answer without it, and is indexed once its read lands",
+    "a doc whose read stalls 30s (`INTELIGIR_SLOW_READS`): the reconcile finishes and search answers without it, the boot line counts it deferred, and it is indexed once its read lands",
   name: "slow-storage",
   async run(ctx) {
     const app = await ctx.boot({

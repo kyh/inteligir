@@ -23,7 +23,7 @@ const seedCommit = async (vaultDir: string): Promise<string | null> => {
 
 export const hostedVaultSecondMac: Scenario = {
   description:
-    "a second Mac's untouched starter vault takes the account's notes as they are when it signs in: no conflict copy, no starter kept over them",
+    "A signs in, rewrites the starter Welcome.md and syncs; B boots fresh with its own starter notes, signs in to the same account and syncs: B lands on A's history byte for byte, with no conflict copy and A's note searchable, and A's next sync takes nothing",
   name: "hosted-vault-second-mac",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

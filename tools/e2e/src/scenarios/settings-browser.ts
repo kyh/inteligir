@@ -76,7 +76,7 @@ const accountFieldsSchema = z.object({
 
 export const settingsBrowser: Scenario = {
   description:
-    "/settings hosts the dialog and the toaster: the Account section says a dead cloud's device list couldn't load, Delete account… holds its button until a password is typed and shows the dead cloud's refusal, Sign out confirms, a refused connector add toasts, and signed out a refused sign-up keeps the form",
+    "/settings hosts the window-level surfaces: the Account section says a dead cloud's device list couldn't load, Delete account… holds its button until a password is typed and shows the cloud's refusal, Sign out opens its confirm dialog on that route, and a connector add that collides with a row in the instance's claude store toasts there; signed out, Create an account asks for an invite code, and a sign-up the cloud cannot answer says so and keeps what was typed",
   name: "settings-browser",
   async run(ctx) {
     const app = await ctx.boot({

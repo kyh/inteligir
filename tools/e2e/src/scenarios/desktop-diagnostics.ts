@@ -63,7 +63,7 @@ const writeUntilTraced = async (shell: DesktopShell): Promise<void> => {
 
 export const desktopDiagnostics: Scenario = {
   description:
-    "the shell's debug-logging choice, kept in its own folder, reaches the server it starts, whose output always lands in the data dir's logs/server.log: off, the boot line and no trace; on, an external write traced there, and turning it off over the bridge asks for a restart",
+    "the shell's debug-logging choice, seeded in its own folder, reaches the server it starts, whose output always lands in the data dir's `logs/server.log`: off, the boot line and no trace; on, an external write traced there, the shell reports the choice, and turning it off asks for a restart",
   name: "desktop-diagnostics",
   // the shell boots twice
   timeoutMs: 300_000,

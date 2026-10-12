@@ -6,7 +6,7 @@ const TURN_TEXT = "Hello from the e2e harness";
 
 export const threadsScripted: Scenario = {
   description:
-    "create thread, send a turn through the scripted driver, read the timeline and its changes",
+    "a turn through the scripted driver: send, settle, timeline, and the note its changes name under the turn's own id",
   name: "threads-scripted",
   async run(ctx) {
     const app = await ctx.boot({

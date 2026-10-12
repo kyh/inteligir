@@ -50,7 +50,8 @@ const probeSchema = z
   .strict();
 
 export const editorConstructsBrowser: Scenario = {
-  description: "seeded constructs render as their elements, and rendering writes nothing",
+  description:
+    "every live-preview construct renders in a real browser (jsdom has no layout, so the unit suite cannot prove a widget survived the bundle and a measure pass), the file is re-read to prove rendering wrote no bytes, and an edit keeps every construct on disk",
   name: "editor-constructs-browser",
   async run(ctx) {
     const app = await ctx.boot({

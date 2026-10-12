@@ -183,9 +183,6 @@ worktree under `.claude` is never read as this commit's tree.
 |                                | `isImeComposing`, or is                                                   |
 |                                | a `NOT_A_TEXT_FIELD` row — the Enter that commits an IME candidate is not |
 |                                | the user's, and no unit suite types through a composition.                |
-| `e2e-scenario-table.test.ts`   | `tools/e2e/README.md`'s scenario table names every scenario `SCENARIOS`   |
-|                                | registers in `tools/e2e/src/run.ts`, in its order, each read from its own |
-|                                | exported `name`.                                                          |
 | `privacy-routes.test.ts`       | Every `/v1/` string literal in tracked non-test source under              |
 |                                | `packages/contract/src/cloud` has a row under `docs/privacy.md`'s "Every  |
 |                                | address the app talks to", and every backticked `/v1/` route there is     |

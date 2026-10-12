@@ -11,7 +11,8 @@ const BASE = "# Plans\n\nfirst draft\n";
 const MINTED_ID = /^---\nid: [\w-]+\n---\n/u;
 
 export const actionScripted: Scenario = {
-  description: "an action attaches to its note; a scripted turn writes the vault; CAS + rename",
+  description:
+    "an action attaches to its note; a scripted turn writes the vault; the CAS write guards the save (typed conflict, current bytes in the body); a rename drags the attachment along — all verified on disk",
   name: "action-scripted",
   async run(ctx) {
     const app = await ctx.boot({

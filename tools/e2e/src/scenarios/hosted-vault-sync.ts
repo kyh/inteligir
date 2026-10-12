@@ -47,7 +47,8 @@ const expectNoTokenInGitConfig = async (
 };
 
 export const hostedVaultSync: Scenario = {
-  description: "two instances against a real dev Worker: sign in, converge, clone, revoke",
+  description:
+    "the hosted loop for real: a Miniflare Worker, production sign-in, convergence through the derived remote, a phone's listing by blob id and batch read, boot clone, a same-line edit copied aside under the signed-in device's name, and revoke → unauthorized with the other device untouched",
   name: "hosted-vault-sync",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

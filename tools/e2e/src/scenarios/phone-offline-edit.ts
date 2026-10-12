@@ -18,7 +18,7 @@ const plan = (edits: Record<number, string> = {}): string => {
 
 export const phoneOfflineEdit: Scenario = {
   description:
-    "the phone's own runtime edits a note offline while A edits it too: after reconnecting, a far edit lands merged with A's, and a same-line one keeps both versions",
+    "the phone's own runtime (`composeRuntime` under node, over node's sqlite) edits a note offline while A edits it too; reconnected, a far edit lands merged with A's, and a same-line one keeps the phone's version with A's as the copy the phone named, both on A's disk after A syncs",
   name: "phone-offline-edit",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

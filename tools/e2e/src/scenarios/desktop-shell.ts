@@ -54,7 +54,7 @@ const switchedTo = async (shell: DesktopShell): Promise<SwitchState> => {
 
 export const desktopShell: Scenario = {
   description:
-    "the built Tauri shell over WebDriver: its window signs in on the server's own origin, the socket reaches the editor, the pin, every permission and Reveal refuse, a vault switch boots a new child and a new window, and the server never outlives the shell",
+    "the built Tauri shell over WebDriver: the window is the server's own page signed in by its handoff, the rail and a note ride its cookie, an API write reaches the open editor through the socket, `window.open` is denied, every permission request is refused, Reveal refuses a symlink out of the vault, a switch boots a new child and a new window on the new vault, and a SIGTERM quit stops the server and retracts `server.json`",
   name: "desktop-shell",
   // the shell boots twice (the switch)
   timeoutMs: 300_000,

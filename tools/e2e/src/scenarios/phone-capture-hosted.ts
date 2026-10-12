@@ -33,7 +33,7 @@ const inboxBullets = async (vaultDir: string): Promise<number> => {
 
 export const phoneCaptureHosted: Scenario = {
   description:
-    "the phone's own runtime keeps a capture typed offline across a relaunch and sends it once back online; a Mac signing in later writes it to Inbox.md exactly once, and the phone lets it go",
+    "the phone's own runtime keeps a capture typed offline across a relaunch and sends it once online; A signs in later and writes it to `Inbox.md` exactly once, and the phone lets it go",
   name: "phone-capture-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

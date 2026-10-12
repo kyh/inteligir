@@ -49,7 +49,7 @@ const describeSync = (status: CloudStatusResponse): string =>
 
 export const threadSyncHosted: Scenario = {
   description:
-    "a thread sent on A reaches B through a real dev Worker, carried by the socket's ping before B's poll could run",
+    "a thread sent on A reaches B through a Miniflare Worker: B's real socket opens, and B holds A's timeline before its poll timer could run, so the Durable Object's ping is what delivered it",
   name: "thread-sync-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

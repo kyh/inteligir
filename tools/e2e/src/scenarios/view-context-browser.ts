@@ -23,7 +23,7 @@ const hasUserRow = (rows: readonly TimelineRow[]): boolean =>
   rows.some((row) => row.kind === "conversation" && row.role === "user");
 
 export const viewContextBrowser: Scenario = {
-  description: "send from the composer, and the agent is told the path and the revision",
+  description: "the agent is told which note the message left from, and at what revision",
   name: "view-context-browser",
   async run(ctx) {
     const app = await ctx.boot({

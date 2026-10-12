@@ -23,7 +23,8 @@ const expectNothingLeftBehind = async (vaultDir: string, label: string): Promise
 };
 
 export const vaultSync: Scenario = {
-  description: "two instances, one bare remote: propagation, then a merged same-line edit",
+  description:
+    "two instances + one bare remote (auto-sync off, every sync explicit): propagation, then a same-line edit merged with a copy aside, both repos converged byte-identical and left mid-nothing",
   name: "vault-sync",
   async run(ctx) {
     const remote = await ctx.bareRemote();

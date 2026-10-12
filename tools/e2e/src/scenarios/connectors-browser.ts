@@ -57,7 +57,7 @@ const openSettings = async (agentBrowser: AgentBrowser, app: AppInstance): Promi
 
 export const connectorsBrowser: Scenario = {
   description:
-    "Settings' connectors are the default agent's own config, through the real bundled binaries: a URL added under Claude lands in its .claude.json, a command added under ChatGPT in codex's config.toml, and each Remove confirms and takes its row out of that file",
+    "Settings' connectors are the default agent's own config, through the real bundled binaries: a URL added under Claude lands in the instance's `.claude.json`, a command added under ChatGPT in its codex `config.toml`, and each Remove confirms and takes its row out of that file",
   name: "connectors-browser",
   async run(ctx) {
     const app = await ctx.boot({ name: "solo" });

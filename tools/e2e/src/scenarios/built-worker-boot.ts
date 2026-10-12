@@ -79,7 +79,8 @@ const pageWords = (html: string): string =>
   wordsOf(html.replaceAll(/<script\b[\s\S]*?<\/script>|<[^>]*>|&#?\w+;/giu, " "));
 
 export const builtWorkerBoot: Scenario = {
-  description: "the built Worker bundle boots under Miniflare and answers its routes",
+  description:
+    "the built bundle — what `cf deploy` ships — boots under Miniflare and answers; built through turbo on every run, so it is the current source, and the one place a module-scope crash of the emitted module can show",
   name: "built-worker-boot",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(context) {

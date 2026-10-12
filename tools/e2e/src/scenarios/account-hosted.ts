@@ -13,7 +13,7 @@ const REVOKED_DEADLINE_MS = 15_000;
 
 export const accountHosted: Scenario = {
   description:
-    "an account created in the app signs that device in and spends its invite; a second device signs in with the same email and password, and the first lists and revokes it, then deletes the account with its password",
+    "an account created in the app (`cloud.signUp`) against a Miniflare Worker signs that instance in as it; the invite is spent, so a second sign-up with it is FORBIDDEN; a second instance signs in with the same email and password, and the first lists both devices and revokes it; a wrong password deletes nothing, and the right one signs the first out, after which the password signs nothing in and the invite stays spent",
   name: "account-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

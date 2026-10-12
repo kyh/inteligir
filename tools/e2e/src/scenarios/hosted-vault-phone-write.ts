@@ -47,7 +47,7 @@ const conflictOf = (
 
 export const hostedVaultPhoneWrite: Scenario = {
   description:
-    "a phone's change set lands in the hosted vault and reaches the desktop, and a stale one gets the desktop's bytes back",
+    "a second login plays the phone against a Miniflare Worker: its change set lands and A syncs its bytes, history naming the phone; a stale set gets A's bytes back as a conflict, and a recommit on them converges",
   name: "hosted-vault-phone-write",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

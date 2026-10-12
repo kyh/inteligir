@@ -103,7 +103,7 @@ const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list] [--no-skip]
 
   --only <names>  comma-separated scenario names (repeatable)
   --keep          keep the scratch dirs for post-mortem
-  --list          print the scenario names and exit
+  --list          print every scenario and what it proves, then exit
   --no-skip       every SKIP FAILS; for a run whose environment was provisioned, browser and
                   display, so a skip is a broken setup
 `;

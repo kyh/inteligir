@@ -107,7 +107,7 @@ const assertSignedOutJourney = async (
 
 export const browserSmoke: Scenario = {
   description:
-    "the page renders headless: signed-out page, `inteligir open` sign-in, title, SPA mount, API reached, palette chord safe, clean console",
+    "headless page load: the REAL policy on the served document, the signed-out page a bare URL gets and the `inteligir open` link that signs a browser in, the title, SPA mount, API reached, the palette chord safe, clean console after a settle window",
   name: "browser-smoke",
   async run(ctx) {
     const app = await ctx.boot({ name: "solo" });

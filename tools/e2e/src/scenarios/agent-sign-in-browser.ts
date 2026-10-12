@@ -53,7 +53,7 @@ const accountState = async (api: InstanceApi, id: string): Promise<string | null
 
 export const agentSignInBrowser: Scenario = {
   description:
-    "signed out, ⌘K offers Sign in with Claude, whose login takes the pasted code and opens the field; Settings shows Claude signed in and ChatGPT under Other; a send on the real bundled codex, signed out, puts its sign-in above the reply",
+    "signed out, ⌘K offers Sign in with Claude in place of the field; the login (a fake claude, `tools/e2e/src/fixtures/fake-claude.mjs`) takes the code pasted from its page and the field opens; Settings shows Claude signed in and ChatGPT under Other; a send on the real bundled codex, signed out under the instance's empty store, puts ChatGPT's sign-in above the reply",
   name: "agent-sign-in-browser",
   async run(ctx) {
     const app = await ctx.boot({

@@ -219,7 +219,7 @@ const lastWrite = async (phone: Phone, count: number, what: string): Promise<Wri
 
 export const phoneEditorPage: Scenario = {
   description:
-    "the phone's editor page loads from file:// and speaks its bridge: typed bytes land exactly, locked blocks take no typing, a change reloads, a merge shows, a forged frame is ignored, a link and Ask agent reach the native end",
+    "the phone's editor page, built through turbo, loads from `file://` at 390×844 with a scripted phone on its bridge: a typed paragraph writes exactly the note's new bytes under its read base, typing in a tab panel or on a chart writes nothing, a nonce-less frame is ignored, an announced change reloads the buffer, a write the phone finds changed lands merged and shows, and Ask agent and a wiki link tap reach the native end",
   name: "phone-editor-page",
   // the build's own budget plus the drive
   timeoutMs: BUILD_TIMEOUT_MS + 120_000,

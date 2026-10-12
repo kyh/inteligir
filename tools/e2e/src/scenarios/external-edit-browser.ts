@@ -11,7 +11,7 @@ const TURN_DEADLINE_MS = 30_000;
 
 export const externalEditBrowser: Scenario = {
   description:
-    "a clean buffer adopts an agent write; a dirty buffer merges instead of clobbering, and adopts the merge",
+    "a clean buffer adopts an agent write; a dirty buffer merges instead of clobbering, and adopts the merge, so the next save keeps the external line",
   name: "external-edit-browser",
   async run(ctx) {
     const app = await ctx.boot({
