@@ -56,12 +56,14 @@ const heldCredential = (credential: DeviceCredential) => ({
   write: () => Promise.resolve(),
 });
 
+// `credential` is a relaunch: the phone signed in before and reads its Keychain again
 export const phoneRuntime = async (
   origin: string,
   dir: string,
   network: { online: boolean },
+  credential?: DeviceCredential,
 ): Promise<AppRuntime> => {
-  const login = await loginDevice(origin, PHONE_NAME);
+  const login = credential ?? (await loginDevice(origin, PHONE_NAME));
   await mkdir(dir, { recursive: true });
   const fetch: CloudFetch = async (input, init) => {
     if (!network.online) {
