@@ -203,10 +203,11 @@ describe("pending interactions", () => {
       .run('{"kind":"approval","subject":{"kind":"network"}}', unreadable.id);
 
     expect(getPendingInteraction(db, unreadable.id)?.payload).toBeNull();
-    expect(listOpenPendingInteractions(db, thread.id).map((row) => row.payload)).toEqual([
-      null,
-      APPROVAL,
-    ]);
+    // both rows can share a createdAt millisecond, and then their random ids decide the order
+    const payloadByRequest = Object.fromEntries(
+      listOpenPendingInteractions(db, thread.id).map((row) => [row.requestKey, row.payload]),
+    );
+    expect(payloadByRequest).toEqual({ "req-1": null, "req-2": APPROVAL });
   });
 
   it("resolves exactly once", () => {
