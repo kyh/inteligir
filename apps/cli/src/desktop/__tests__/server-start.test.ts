@@ -5,6 +5,8 @@ import {
   DEV_DATA_ROOT_DIR,
   physicalVaultDir,
   PROD_DATA_DIR_NAME,
+  resolveAppConfig,
+  VAULT_DIR_ENV_VAR,
   vaultDataDir,
 } from "inteligir/server/config";
 import { loopbackOrigin, SERVER_FILE_NAME } from "inteligir/server/server-file";
@@ -34,7 +36,10 @@ const scratchHome = (): string => makeTempDir("inteligir-shell-home-");
 const PACKAGED: NodeJS.ProcessEnv = { NODE_ENV: "production" };
 
 interface ManagedConfig {
-  vaultDir: string;
+  agentModels?: { claude: string };
+  cloudUrl?: string;
+  port?: number;
+  vaultDir?: string;
 }
 
 const writeManagedConfig = (dataDir: string, config: ManagedConfig): void => {
@@ -74,6 +79,29 @@ describe("resolveServerTarget", () => {
     expect(resolved.kind === "resolved" && resolved.target.rootDataDir).toBe(
       path.join(homeDir, PROD_DATA_DIR_NAME),
     );
+  });
+
+  it("leaves a child pinned to its target's vault that target's data dir and the root's config.json", () => {
+    const homeDir = scratchHome();
+    const cloudUrl = "https://cloud.example.test";
+    writeManagedConfig(path.join(homeDir, PROD_DATA_DIR_NAME), {
+      agentModels: { claude: "claude-test" },
+      cloudUrl,
+      port: 4999,
+    });
+    const resolved = resolveServerTarget({ env: PACKAGED, homeDir });
+    if (resolved.kind !== "resolved") {
+      throw new Error(resolved.error);
+    }
+    // what the shell pins on a vault's server (`server_env` in apps/desktop/src-tauri/src/shell.rs)
+    const env = { ...PACKAGED, [VAULT_DIR_ENV_VAR]: resolved.target.vaultDir };
+    const child = resolveServerTarget({ env, homeDir });
+    expect(child.kind === "resolved" && child.target.dataDir).toBe(resolved.target.dataDir);
+    const served = resolveAppConfig({ checkoutPath: homeDir, env, homeDir });
+    expect(served.dataDir).toBe(resolved.target.dataDir);
+    expect(served.cloudUrl).toBe(cloudUrl);
+    expect(served.port).toBe(4999);
+    expect(served.agentModels.claude).toBe("claude-test");
   });
 
   it("resolves a switch candidate as a boot would, refusing a vault that nests the data dir", () => {
