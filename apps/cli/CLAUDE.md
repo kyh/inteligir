@@ -166,11 +166,12 @@ vault open <dir>` runs the same plan (`apps/cli/src/server/vault-switch.ts`)
   columns sit in order (`packages/db/src/schema.ts`). A file whose ledger names
   a migration this build does not carry is refused before the migrator runs
   (`UnknownMigrationHistoryError` in `packages/db/src/migrate.ts`), and the
-  server replaces it and signs the install out, because the cloud log holds the
-  positions a fresh file would hand out again; the next sign-in pulls the
-  account's threads back (`apps/cli/src/server/open-database.ts`). Once anyone
-  else holds a database, squashing is the loss of their threads, and a migration
-  is appended instead.
+  server signs the install out, then replaces it, because the cloud log holds
+  the positions a fresh file would hand out again; in that order, a boot stopped
+  between the two finds the old file and replaces it again, never a fresh one
+  beside the old sign-in. The next sign-in pulls the account's threads back
+  (`apps/cli/src/server/open-database.ts`). Once anyone else holds a database,
+  squashing is the loss of their threads, and a migration is appended instead.
 
 ## Repo guards, vendoring and tooling
 

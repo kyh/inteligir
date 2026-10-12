@@ -35,6 +35,8 @@ const openMigrated = (databasePath: string): OpenedDatabase => {
 // it is replaced with a fresh one. the sign-in goes with it: the cloud log already holds this
 // device's positions, which the new file would hand out again from 1 and the log would refuse as
 // conflicts, so the next sign-in mints a device of its own and pulls the account's threads back.
+// the sign-out goes first: a boot stopped before the file is gone finds it and replaces it again,
+// never a fresh file beside the old device's credential.
 // a newer build's file is never replaced: getSchemaVersion refuses it.
 export const openDatabase = (args: OpenDatabaseArgs): OpenedDatabase => {
   try {
@@ -43,10 +45,10 @@ export const openDatabase = (args: OpenDatabaseArgs): OpenedDatabase => {
     if (!(error instanceof UnknownMigrationHistoryError)) {
       throw error;
     }
+    clearDeviceCredential(args.dataDir);
     for (const suffix of SQLITE_SIDECARS) {
       rmSync(`${args.databasePath}${suffix}`, { force: true });
     }
-    clearDeviceCredential(args.dataDir);
     console.warn(
       `[db] ${args.databasePath} was migrated through ${error.unknown.join(", ")}, which this ` +
         `build does not carry: replaced it with a fresh database and signed this install out of ` +

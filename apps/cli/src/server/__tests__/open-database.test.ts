@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { closeConnection, createConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
@@ -16,6 +16,20 @@ const dataDirWith = (prepare: (databasePath: string) => void): OpenDatabaseArgs 
   writeFileSync(deviceCredentialPath(dataDir), "{}\n");
   return { dataDir, databasePath };
 };
+
+const writeUnknownHistory = (databasePath: string): void => {
+  const raw = createConnection(databasePath).$client;
+  raw.exec(
+    `CREATE TABLE "__drizzle_migrations" (id INTEGER PRIMARY KEY, hash text NOT NULL, created_at numeric, name text, applied_at TEXT);
+     INSERT INTO "__drizzle_migrations" (hash, created_at, name) VALUES ('h', 1786863867000, '20260816070427_secret_polaris');
+     CREATE TABLE threads (id text PRIMARY KEY, title text);
+     INSERT INTO threads (id, title) VALUES ('thr_old', 'kept nowhere');`,
+  );
+  raw.close();
+};
+
+// the permission case needs a user the mode binds; root unlinks through a read-only folder.
+const modesBind = process.platform !== "win32" && process.getuid?.() !== 0;
 
 const silenceWarnings = () => {
   const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -36,16 +50,7 @@ const migrationsFolder = (): string => {
 describe("openDatabase", () => {
   it("replaces a file migrated through generations this build does not carry, and signs out", () => {
     const warn = silenceWarnings();
-    const { dataDir, databasePath } = dataDirWith((file) => {
-      const raw = createConnection(file).$client;
-      raw.exec(
-        `CREATE TABLE "__drizzle_migrations" (id INTEGER PRIMARY KEY, hash text NOT NULL, created_at numeric, name text, applied_at TEXT);
-         INSERT INTO "__drizzle_migrations" (hash, created_at, name) VALUES ('h', 1786863867000, '20260816070427_secret_polaris');
-         CREATE TABLE threads (id text PRIMARY KEY, title text);
-         INSERT INTO threads (id, title) VALUES ('thr_old', 'kept nowhere');`,
-      );
-      raw.close();
-    });
+    const { dataDir, databasePath } = dataDirWith(writeUnknownHistory);
 
     const { db, schemaVersion } = openDatabase({ databasePath, dataDir });
     onTestFinished(() => {
@@ -57,6 +62,38 @@ describe("openDatabase", () => {
     expect(existsSync(deviceCredentialPath(dataDir))).toBe(false);
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(/20260816070427_secret_polaris/u));
   });
+
+  it.runIf(modesBind)(
+    "signs out before it removes the file, so a replace stopped midway is redone with no sign-in left",
+    () => {
+      silenceWarnings();
+      const dataDir = makeTempDir("inteligir-open-db-");
+      const databaseDir = path.join(dataDir, "database");
+      mkdirSync(databaseDir);
+      const databasePath = path.join(databaseDir, "inteligir.db");
+      writeUnknownHistory(databasePath);
+      writeFileSync(deviceCredentialPath(dataDir), "{}\n");
+      // sqlite cannot make the -wal and -shm in a read-only folder, so an open handle keeps them.
+      const holder = createConnection(databasePath);
+      chmodSync(databaseDir, 0o555);
+      try {
+        expect(() => openDatabase({ databasePath, dataDir })).toThrow(/EACCES/u);
+      } finally {
+        chmodSync(databaseDir, 0o755);
+        closeConnection(holder);
+      }
+      expect(existsSync(databasePath)).toBe(true);
+      expect(existsSync(deviceCredentialPath(dataDir))).toBe(false);
+
+      const { db, schemaVersion } = openDatabase({ databasePath, dataDir });
+      onTestFinished(() => {
+        closeConnection(db);
+      });
+
+      expect(schemaVersion).toBe(1);
+      expect(db.$client.prepare("SELECT count(*) FROM threads").pluck().get()).toBe(0);
+    },
+  );
 
   it("opens a current file as it is, signed in", () => {
     const { dataDir, databasePath } = dataDirWith((file) => {
