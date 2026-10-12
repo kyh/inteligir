@@ -246,7 +246,9 @@ The published surface is the bin and nothing else: `publishConfig.exports` is
 `{}`, so pnpm rewrites the manifest on the way out. The subpath map in
 `package.json` is a WORKSPACE seam — apps/desktop's smoke compiles against
 `inteligir/scripts/smoke-lib`, tools/e2e and tools/repo-guards against
-`inteligir/server/*` — and it is unshippable
+`inteligir/server/*`, and repo-guards' shell-wire guard against
+`inteligir/desktop/door-answers`, the door's answer schemas kept beside its
+tests in `src/desktop/__tests__/` — and it is unshippable
 as written, since those modules target `src/`, which `files` does not carry,
 and import devDependencies and unpublished `@repo/*` packages. Advertising a
 subpath a real install answers with ERR_MODULE_NOT_FOUND is the failure this
