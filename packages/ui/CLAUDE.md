@@ -38,7 +38,7 @@ per-export orphan guard reads, so one more unconsumed export still fails.
 - **THE CHROME HAS FIVE TYPE ROLES, AND THEY ARE FLUID'S LADDER.** caption 11,
   body 12, subtitle 13, title 15, display 24 — the compact column of `typeScale`
   (`packages/ui/src/lib/size-context.tsx`), drawn as the `text-caption | body |
-subtitle | title | display` utilities in `packages/ui/src/styles/globals.css`,
+  subtitle | title | display` utilities in `packages/ui/src/styles/globals.css`,
   whose numbers `lib/__tests__/type-scale.test.ts` derives from the map. No
   `text-sm`, `text-xs` or px/rem literal in the chrome, because a role says what
   a line IS and a scale held by convention drifts:

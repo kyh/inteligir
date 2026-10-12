@@ -162,7 +162,7 @@ The phone: its editor page, its offline store and queue, and how it ships.
   PRODUCTION ORIGIN ON BOTH CLIENTS.** `pnpm testflight:mobile` builds on EAS
   and submits, iPhone only (owner decision); the signing credentials live on
   EAS, never in the repo, and build numbers are EAS's (`appVersionSource:
-remote` in `apps/mobile/eas.json`), so no commit bumps one. The marketing
+  remote` in `apps/mobile/eas.json`), so no commit bumps one. The marketing
   version is `apps/mobile/package.json`'s, one product version with the CLI and
   the desktop, and EAS builds with the repo's node and pnpm
   (`tools/repo-guards/src/release-versions.test.ts`). A JS-only fix is an EAS

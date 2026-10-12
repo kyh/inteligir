@@ -175,6 +175,7 @@ The left column.
 :::column 40%
 The right column, resized.
 :::
+
 :::
 ```
 

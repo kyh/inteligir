@@ -55,7 +55,7 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe starts the
   alias), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%` comment
   anchors, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub alerts (`>
-[!NOTE]` through `> [!CAUTION]`) as THE callout, `inteligir-chart` /
+  [!NOTE]` through `> [!CAUTION]`) as THE callout, `inteligir-chart` /
   `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
   `:::columns` containers, and `![](url)` embeds, all valid markdown, all
   round-tripping. Pills, dates, comment anchors and `:::` lines are read from
@@ -252,7 +252,7 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   is refused at `beforeinput` too: slate-react defers a plain character to an
   input event the browser never fires there, so the model guard alone let it
   land wherever the user typed next. A host with no html frame (`htmlFrameUrl:
-null`) draws no Run. `packages/editor/src/__tests__/rich-block-lock.test.tsx`.
+  null`) draws no Run. `packages/editor/src/__tests__/rich-block-lock.test.tsx`.
 
 ## Vault: writes, git and containment
 

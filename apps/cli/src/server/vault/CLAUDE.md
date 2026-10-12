@@ -163,7 +163,7 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   capture to the root `Inbox.md` between syncs overlap on a file the app wrote
   itself, and without union the merge would copy the inbox aside over a conflict
   nobody made. Every boot makes sure `info/attributes` holds `/Inbox.md
-merge=union`: local, never a committed `.gitattributes`, because the vault's
+  merge=union`: local, never a committed `.gitattributes`, because the vault's
   files are the user's. Residual: a bullet one device deleted beside the other's
   append comes back. `apps/cli/src/server/vault/git-bootstrap.ts`, over
   `CAPTURE_INBOX_PATH` in `@repo/notes/sync/reconcile-file`, whose verdict
@@ -242,7 +242,7 @@ merge=union`: local, never a committed `.gitattributes`, because the vault's
   picker and a boot agree. ONE WRITE PATH EDITS THAT ORIGIN: `vault.setRemote`,
   which Settings › Advanced
   (`apps/workspace/src/app/settings/sync-remote-row.tsx`) and `inteligir vault
-remote` both call, running `setOrigin` in
+  remote` both call, running `setOrigin` in
   `apps/cli/src/server/vault/git-engine.ts` under the repo lock. Every move of
   the origin, this one's and a pass's (the pin, the account's url), is
   `pointOrigin`: it forgets the old remote's tips, so no status calls the vault

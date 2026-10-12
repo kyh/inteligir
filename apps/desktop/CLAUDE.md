@@ -60,7 +60,7 @@ and cited.
   (`apps/cli/src/desktop/__tests__/door-answers.ts`), which also parses the
   fixtures the cargo tests read. A refusal crosses as a value, never a
   rejection, which the page reads as a fault: one envelope on both sides, `{ ok:
-true, state? }` or `{ ok: false, reason }`
+  true, state? }` or `{ ok: false, reason }`
   (`apps/desktop/src-tauri/src/answer.rs`,
   `apps/workspace/src/shell/shell-answer.ts`). A command that can fail only by a
   fault (a read, a forget, a first run's pick) answers its value bare as a
@@ -198,7 +198,7 @@ true, state? }` or `{ ok: false, reason }`
 
 - **THE .APP SHIPS ITS OWN GIT, AND RUNS IT WHERE THE MAC HAS NONE.** Every
   vault write, sync and history read is git, and so is an agent's own `git
-status`, but a Mac without Xcode or its command-line tools, which is most
+  status`, but a Mac without Xcode or its command-line tools, which is most
   people's, has only `/usr/bin/git`'s stub: it fails and offers the install, so
   the vault could not even initialize. The pack carries dugite-native's macOS
   arm64 build, fetched at package time against a pinned sha-256

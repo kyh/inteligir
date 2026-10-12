@@ -27,10 +27,10 @@ cited.
 
 - **A DEVICE SIGNS IN, OR SIGNS UP, WITH EMAIL + PASSWORD, and gets the same
   device credential** (owner decision, the Obsidian model). `POST
-/v1/device/login` verifies the password through Better Auth, mints the device
+  /v1/device/login` verifies the password through Better Auth, mints the device
   credential and deletes the session the sign-in created, so a device holds
   exactly one secret. The answer names the account beside it, `{ credential,
-deviceId, userId, email }`, as sign-up's does, and the Mac keeps all four with
+  deviceId, userId, email }`, as sign-up's does, and the Mac keeps all four with
   the name it joined under: the vault's cross-account fence
   (`inteligir.account`) and the account's label hold from the first request, a
   fresh clone pins its account at once, and a stored sign-in missing any of them
@@ -38,7 +38,7 @@ deviceId, userId, email }`, as sign-up's does, and the Mac keeps all four with
   leaves a pending state every reader must fail closed on. The phone keeps the
   bearer alone, since nothing it runs asks whose account it is. The credential
   also lists and revokes the account's devices (`GET /v1/device/list` and `POST
-/v1/device/revoke` take a session or a live device credential of the same
+  /v1/device/revoke` take a session or a live device credential of the same
   account, the `igd_` prefix deciding which), so any signed-in Mac's Settings ›
   Account removes a lost phone with no password asked, as a sign-out asks none;
   the web's devices page stays as the fallback. A Mac's own row offers no Revoke
@@ -80,7 +80,7 @@ deviceId, userId, email }`, as sign-up's does, and the Mac keeps all four with
 - **AN ACCOUNT IS DELETED FROM THE APP, THE PASSWORD ASKED AGAIN, THROUGH BETTER
   AUTH'S `deleteUser`** (owner decision: someone who lost their Mac signs in on
   any Mac to delete). The app holds a device credential and no session, so `POST
-/v1/account/delete` takes the credential, spends a per-device window, checks
+  /v1/account/delete` takes the credential, spends a per-device window, checks
   the password through `signInEmail` and runs `deleteUser` under the session
   that sign-in minted: its `beforeDelete` order and tombstone stay the ONE purge
   path, where a second purge beside it would drift. Better Auth's own
@@ -165,7 +165,7 @@ deviceId, userId, email }`, as sign-up's does, and the Mac keeps all four with
   (`apps/web/src/worker/__tests__/cloud-helpers.ts`), because a stripping client
   would let a leaked column through. The tolerant reader is forward negotiation
   only, so every request an install makes names its build (`x-inteligir-build:
-<semver>+<platform>`: the REST calls, the two that ask for a credential, the
+  <semver>+<platform>`: the REST calls, the two that ask for a credential, the
   socket's upgrade and the hosted vault's git `extraHeader`), and the Worker
   refuses an absent or older one before it routes, below `MIN_CLIENT_BUILD`
   (`apps/web/cloudflare.config.ts`): 426 `client-outdated` in the envelope,

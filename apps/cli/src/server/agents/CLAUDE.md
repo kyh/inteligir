@@ -289,7 +289,7 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and comments.
 - **A TURN THE VENDOR REFUSED FOR THE PLAN'S USAGE LIMIT OR A SIGN-IN LEAVES THE
   QUEUE WHERE IT IS.** A refused prompt, a refused session open and an adapter
   that died are each read once, into a class (`auth | usage-limit | overloaded |
-context | other`, `providerFailureSchema` in `@repo/domain/provider-event`)
+  context | other`, `providerFailureSchema` in `@repo/domain/provider-event`)
   beside the adapter's own words, from what the adapter attaches: claude's
   `errorKind`, the reserved -32000, and claude's own limit text when no kind
   came with it (`readProviderError` in
@@ -319,7 +319,7 @@ context | other`, `providerFailureSchema` in `@repo/domain/provider-event`)
   `pending_interactions.decision` takes `@repo/domain`'s decision tuple and is
   set exactly when the row is resolved (a CHECK); `answerInteraction` takes the
   enum, so a word the grammar does not name is the wire's 400, and `inteligir
-interactions answer` parses its argv into it. What the wire cannot know,
+  interactions answer` parses its argv into it. What the wire cannot know,
   whether the request offered that decision, is `unanswerableReason`, which the
   route's gate and the waiter both run. Every json column (an approval's
   payload, a queued message's attachments, an event) is parsed inside `@repo/db`

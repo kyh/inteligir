@@ -53,7 +53,7 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   run's words. Every rule of that plan is the CLI's, asked through the desktop
   door (`apps/cli/src/desktop/desktop-door.ts` over
   `apps/cli/src/desktop/vaults.ts`); the shell only orders the moves. `inteligir
-vault open <dir>` runs the same plan (`apps/cli/src/server/vault-switch.ts`)
+  vault open <dir>` runs the same plan (`apps/cli/src/server/vault-switch.ts`)
   and restarts nothing. `apps/workspace/src/shell/vaults-state.ts`.
 
 ## Server process and the desktop shell
