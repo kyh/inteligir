@@ -17,8 +17,10 @@ rule behind the "agent memory is removed" decision in
 session ONE path, `INTELIGIR_SKILLS_DIR`, plus a three-sentence pointer on the
 first turn, and the model reads what it needs. A package rather than a folder
 under `apps/cli` because the CLI's build and the packaged desktop app both stage
-it, and the dep-dag names it as an ARTIFACT edge — installed and copied, never
-imported (`DECLARED_ARTIFACT_EDGES` in `tools/repo-guards/src/dep-dag.test.ts`).
+it: installed and copied, never imported. The CLI's manifest lists it because
+`apps/cli/src/server/agents/agent-shell-env.ts` resolves its `skills/`
+directory with `require.resolve`, which is also how knip counts the dependency
+used.
 
 ## Layout
 
@@ -67,8 +69,9 @@ the agent runs against its own edit.
 
 ## Invariants
 
-- **Files, never imports.** Nothing under any `src/` imports this package; the
-  dep-dag row is an artifact edge, so a module import fails as undeclared.
+- **Files, never imports.** Nothing under any `src/` imports this package; no
+  `DECLARED_EDGES` row in `tools/repo-guards/src/dep-dag.test.ts` names it, so
+  a module import fails as undeclared.
 - **The spec is the parser's.** A construct a skill teaches is one the editor
   round-trips and the knowledge scan indexes; every fence's one spelling is
   `@repo/notes/markdown/fence-langs`, and a skill that disagrees with it teaches

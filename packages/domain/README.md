@@ -12,12 +12,13 @@ A thread event is written by the local server, replayed by the page,
 pushed through the Worker's merged log and pulled back down by another device,
 and every one of those parses it at its own boundary. One grammar in one
 package with one runtime dependency is what makes that the same parse on every
-target. The leaf-ness is held by `tools/repo-guards/src/dep-dag.test.ts` three
-ways — `@repo/domain` is declared with no outgoing edge, its purity rule
-forbids node, react and `@tauri-apps` imports, and the zod-only-leaf check refuses any
-`dependencies` entry but `zod`, because a second runtime dep here ships to
-every consumer — and by `tsconfig.json` (`ES2023`, `types: []`), so a node
-global is a type error before it is a lint error.
+target. The leaf-ness is held by `tools/repo-guards/src/dep-dag.test.ts` —
+`@repo/domain` is declared with no outgoing edge, only `@repo/workspace`
+reaches `@tauri-apps`, and the zod-only-leaf check refuses any `dependencies`
+entry but `zod`, because a second runtime dep here ships to every consumer —
+by `oxlint.config.ts`, which refuses its source a node or react import, and by
+`tsconfig.json` (`ES2023`, `types: []`), so a node global is a type error
+before it is a lint error.
 
 Consumers: `@repo/db`, `@repo/contract`, `@repo/agent-runtime`, the CLI server,
 the workspace UI, and `apps/mobile`, whose synced log is stored as this

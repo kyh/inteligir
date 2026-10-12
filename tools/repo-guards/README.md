@@ -22,10 +22,11 @@ Every guard obeys three rules. It states its own rule in the failure, so the
 message is the documentation. It names the file to change. And it DERIVES every
 value it compares — the workspace list from `pnpm-workspace.yaml`, a vocabulary
 from its zod declaration, the route paths from the contract's constants — so a
-copy cannot drift from what it copies. The one hand-written list in the package
-is `DECLARED_EDGES` in `dep-dag.test.ts`, and that is the pin itself: the
-statement of which package may import which, held against the import graph
-from both sides.
+copy cannot drift from what it copies. What a guard cannot derive is a
+hand-written table, and there are two kinds: a pin, like `DECLARED_EDGES` in
+`dep-dag.test.ts`, which states which package may import which and is held
+against the import graph from both sides; and an exception table, each row
+carrying its reason, held stale-free (below).
 
 ## Layout
 
@@ -58,11 +59,10 @@ worktree under `.claude` is never read as this commit's tree.
 | `dep-dag.test.ts`              | The workspace DAG from BOTH sides: every workspace has a `DECLARED_EDGES` |
 |                                | row; shipped imports match it (an undeclared edge and a dead edge both    |
 |                                | fail); every import, a test's and a script's or config's included, is in  |
-|                                | the importer's manifest; every manifest dependency is imported, or is a   |
-|                                | `DECLARED_ARTIFACT_EDGES` row (installed and executed, never imported —   |
-|                                | `inteligir` → `@repo/agent-skills`, `@repo/desktop` → `@repo/workspace`); |
-|                                | no cycles. Then platform purity: `PURITY_RULES` per package (node,        |
-|                                | react), only `@repo/workspace` reaches `@tauri-apps`, `@repo/domain`      |
+|                                | the importer's manifest, which knip skips for a private workspace (knip   |
+|                                | refuses the reverse, a listed workspace nothing imports); no cycles. Then |
+|                                | platform reach, beside `oxlint.config.ts`'s node and react rule per       |
+|                                | package: only `@repo/workspace` reaches `@tauri-apps`, `@repo/domain`     |
 |                                | declares only zod, no package imports an app,                             |
 |                                | every `CLOUD_ONLY_CLIENTS` row (`@repo/web`, `@repo/mobile`, each with    |
 |                                | why it ships apart) reaches `@repo/contract/cloud/*` and nothing else of  |
@@ -193,8 +193,7 @@ worktree under `.claude` is never read as this commit's tree.
 
 Every exception table — `DECLARED_CI_EXTRAS`, `MANUAL_SMOKES`,
 `ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`, `dispatchedIn`,
-`elsewhere`, `ELSEWHERE`, `RUNS_OUTSIDE_TURBO`, `WITHOUT_DEPENDENCY_EDGE`,
-`DECLARED_WITHOUT_PRODUCER`, `DECLARED_ARTIFACT_EDGES`, `DECLARED_SPLITS`,
+`elsewhere`, `ELSEWHERE`, `WITHOUT_DEPENDENCY_EDGE`, `DECLARED_SPLITS`,
 `DATA_FILES`, `DELIBERATE_NON_REFERENCES`, `PROSE_SIZES`, `NOT_A_TEXT_FIELD` —
 has a companion assertion that no row is STALE: a row whose subject is gone, or
 whose gap has closed, fails too. An allowance that outlives what it excused only
@@ -225,8 +224,8 @@ subpath after the name is not resolved) or a path anchored on a workspace group
   says the fix. The message is the documentation; a green run needs none.
 - **Every compared value is derived.** Workspaces from the manifest,
   vocabularies from their zod declarations, paths from the contract, the env
-  contract from `config.ts`. `DECLARED_EDGES` is the one hand-written list
-  because it is the pin.
+  contract from `config.ts`. A hand-written table is a pin or a reasoned
+  exception, never a copy of something the tree already says.
 - **A self-check per sweep.** Each guard asserts it found the thing it is held
   against (`ci.yml`, the `inteligir` workspace, `apps/cli/scripts/smoke.ts`, a
   `dial()` row), so an empty population fails as "the sweep is broken, not

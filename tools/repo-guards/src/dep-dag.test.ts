@@ -1,5 +1,5 @@
-// pinned from both sides: a manifest can declare an edge nobody imports, and an import can cross an
-// edge no manifest declares (pnpm's hoisting resolves it). adding a package or an edge: add the
+// the shipped import graph is pinned to DECLARED_EDGES from both sides, and every import, a
+// test's and a tool's included, to its importer's manifest. adding a package or an edge: add the
 // row.
 
 import fs from "node:fs";
@@ -74,86 +74,10 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
   }),
 );
 
-// installed and executed, never imported: absent from DECLARED_EDGES on purpose, so a module import
-// across one still fails as undeclared. its own table because the manifest checks read opposite
-// things off one row: pnpm must link it, and nothing under src/ imports it.
-const DECLARED_ARTIFACT_EDGES = new Map<string, Record<string, string>>(
-  Object.entries({
-    "@repo/desktop": {
-      "@repo/workspace":
-        "the first-run page the shell embeds (`frontendDist` in src-tauri/tauri.conf.json) and the Vite dev server `tauri dev` runs: a build output and a server, never a module",
-    },
-    inteligir: {
-      "@repo/agent-skills":
-        "the dialect skills are CONTENT the agent reads with its shell — agent-shell-env.ts resolves the package's skills/ directory via createRequire and hands the path to agent sessions as INTELIGIR_SKILLS_DIR; no module import exists or should",
-    },
-  }),
-);
-
-const artifactEdgesFrom = (name: string): Record<string, string> =>
-  DECLARED_ARTIFACT_EDGES.get(name) ?? {};
-
-const platformSurfacesOf = (specifier: string): string[] => {
-  const surfaces: string[] = [];
-  if (specifier.startsWith("node:")) {
-    surfaces.push("node");
-  }
-  if (specifier === "react" || specifier.startsWith("react/")) {
-    surfaces.push("react");
-  }
-  if (specifier === "react-dom" || specifier.startsWith("react-dom/")) {
-    surfaces.push("react");
-  }
-  return surfaces;
-};
-
 // the desktop shell's own API, which answers only inside the shell's window: only the page that
 // window shows may reach it, so the rule is who may, not a row per package that may not
 const SHELL_API = "@tauri-apps/";
 const SHELL_API_CLIENTS = new Set(["@repo/workspace"]);
-
-interface PurityRule {
-  forbidden: readonly string[];
-  why: string;
-}
-
-// absent means no platform constraint.
-const PURITY_RULES = new Map<string, PurityRule>(
-  Object.entries({
-    "@repo/agent-runtime": {
-      forbidden: ["react"],
-      why: "it spawns provider processes, so it is node-side by definition — and nothing it exports may pull a process tree into a page; the grammars a client reads live in @repo/domain",
-    },
-    "@repo/contract": {
-      forbidden: ["node", "react"],
-      why: "the contract both ends compile against: it loads in the desktop page, on node, on workerd and in React Native, so a platform import there is a package that stops loading somewhere",
-    },
-    "@repo/domain": {
-      forbidden: ["node", "react"],
-      why: "a zod-only leaf: the thread grammar is parsed on both sides of every wire",
-    },
-    "@repo/editor": {
-      forbidden: ["node"],
-      why: "browser-only: Plate/Slate in the page, never in the Node process",
-    },
-    "@repo/mobile-editor": {
-      forbidden: ["node"],
-      why: "a page in the phone's WebView, loaded from file://: nothing but the browser is there",
-    },
-    "@repo/notes": {
-      forbidden: ["node", "react"],
-      why: "the pure sharing seam: it runs in the browser AND on node, and every platform capability (the SQL driver, the clock, content hashes) is INJECTED",
-    },
-    "@repo/ui": {
-      forbidden: ["node"],
-      why: "browser-only, and consumed by the Worker's SSR half as well as the local app",
-    },
-    "@repo/workspace": {
-      forbidden: ["node"],
-      why: "the page: it runs in the shell's WebKit or a browser tab, never in the Node process",
-    },
-  }),
-);
 
 // @repo/contract is not here: @orpc/contract is isomorphic and costs no portability.
 const ZOD_ONLY_LEAVES = ["@repo/domain"];
@@ -265,6 +189,8 @@ describe("the package dependency DAG", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
+  // knip owns the reverse, a listed workspace nothing imports, but not this: outside --strict, which
+  // stops counting devDependencies, it accepts any workspace package a private workspace imports.
   it("every imported workspace is declared in the importer's manifest", () => {
     const violations: string[] = [];
     for (const workspace of workspaces()) {
@@ -279,74 +205,6 @@ describe("the package dependency DAG", () => {
               `  rule: an import that pnpm's hoisting happens to resolve is not a declared dependency\n${sites
                 .map((site) => `  at ${site}`)
                 .join("\n")}`,
-          );
-        }
-      }
-    }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
-  });
-
-  it("every workspace dependency a manifest declares is imported somewhere", () => {
-    const violations: string[] = [];
-    for (const workspace of workspaces()) {
-      const used = new Set(
-        [shippedEdges, testEdges, toolingEdges].flatMap((bucket) => [
-          ...(bucket.get(workspace.name) ?? new Map<string, string[]>()).keys(),
-        ]),
-      );
-      const artifact = artifactEdgesFrom(workspace.name);
-      for (const target of manifestWorkspaceDeps(workspace.manifest)) {
-        if (used.has(target) || artifact[target] !== undefined) {
-          continue;
-        }
-        violations.push(
-          `PHANTOM DEPENDENCY  ${workspace.dir}/package.json declares "${target}"\n` +
-            `  rule: a declared dependency has an importer; nothing under ${workspace.dir} imports this one\n` +
-            `  fix: delete it — or, if ${workspace.name} INSTALLS AND EXECUTES ${target}'s build output instead of importing it, add a row to DECLARED_ARTIFACT_EDGES (tools/repo-guards/src/dep-dag.test.ts) saying so`,
-        );
-      }
-    }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
-  });
-
-  it("every declared artifact edge is a real, unimported manifest dependency", () => {
-    const violations: string[] = [];
-    for (const [name, targets] of DECLARED_ARTIFACT_EDGES) {
-      const workspace = workspaces().find((candidate) => candidate.name === name);
-      if (workspace === undefined) {
-        violations.push(
-          `STALE ARTIFACT EDGE  ${name} is not a workspace\n` +
-            `  rule: an artifact edge names a package that exists, or it only ever excuses something nobody can find\n` +
-            `  fix: delete the entry from DECLARED_ARTIFACT_EDGES`,
-        );
-        continue;
-      }
-      const declared = manifestWorkspaceDeps(workspace.manifest);
-      const imported = new Set([
-        ...(shippedEdges.get(name) ?? new Map<string, string[]>()).keys(),
-        ...(testEdges.get(name) ?? new Map<string, string[]>()).keys(),
-      ]);
-      for (const [target, why] of Object.entries(targets)) {
-        if (!declared.has(target)) {
-          violations.push(
-            `STALE ARTIFACT EDGE  ${workspace.dir}/package.json no longer declares "${target}"\n` +
-              `  the row claimed: ${why}\n` +
-              `  fix: delete the row — an exemption that outlives its dependency only ever loosens the phantom check`,
-          );
-        }
-        if (declaredFor(name).includes(target)) {
-          violations.push(
-            `EDGE DECLARED TWICE  ${name} -> ${target}\n` +
-              `  rule: an artifact edge is INSTALLED AND EXECUTED, an entry in DECLARED_EDGES is IMPORTED — one dependency is one or the other, and a row in both tables makes the import check unenforceable\n` +
-              `  fix: keep the row in whichever table describes what ${name} actually does with ${target}`,
-          );
-        }
-        if (imported.has(target)) {
-          violations.push(
-            `ARTIFACT EDGE IS IMPORTED  ${name} -> ${target}\n` +
-              `  the row claimed: ${why}\n` +
-              `  rule: an artifact edge means "installed and executed", never "imported" — source under ${workspace.dir}/src imports it, so it is an ordinary edge\n` +
-              `  fix: move it to DECLARED_EDGES, or stop importing it`,
           );
         }
       }
@@ -385,30 +243,6 @@ describe("the package dependency DAG", () => {
 });
 
 describe("platform purity", () => {
-  it("no package reaches a platform its rule forbids", () => {
-    const violations: string[] = [];
-    for (const workspace of workspaces()) {
-      const rule = PURITY_RULES.get(workspace.name);
-      if (rule === undefined) {
-        continue;
-      }
-      for (const file of workspaceFiles(workspace).shipped) {
-        for (const specifier of importsOf(file)) {
-          for (const surface of platformSurfacesOf(specifier)) {
-            if (!rule.forbidden.includes(surface)) {
-              continue;
-            }
-            violations.push(
-              `FORBIDDEN IMPORT  ${file} imports "${specifier}"\n` +
-                `  rule: ${workspace.name} may not reach ${surface} — ${rule.why}`,
-            );
-          }
-        }
-      }
-    }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
-  });
-
   it("only the page the shell shows reaches the shell's API", () => {
     const violations: string[] = [];
     for (const workspace of workspaces()) {
