@@ -76,7 +76,7 @@ the owned description of each.
 apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the Tauri window around the SPA
 apps/workspace          @repo/workspace — the SPA: the page every vault's server answers, and the first run
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
-apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, dispatch, hosted vault
+apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, dispatch, hosted vault
 apps/mobile             @repo/mobile — the iPhone app: the editor offline over the hosted vault, captures, asks a Mac
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
 packages/domain         @repo/domain — zod-only leaf vocabulary

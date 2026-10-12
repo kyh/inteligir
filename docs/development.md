@@ -123,7 +123,7 @@ package time), signed when the keychain holds a Developer ID and notarized when
 `.release/` is present (`apps/desktop/README.md` § Packaging).
 
 `pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, thread sync,
-the capture inbox, the hosted vault git remote — over a local D1 file and
+the dispatch inbox, the hosted vault git remote — over a local D1 file and
 miniflare's Durable Objects. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 § "There is no seeded login" has the exact commands.
 
@@ -145,7 +145,7 @@ miniflare's Durable Objects. Sign-up is invite-only and there is no seeded accou
 | Site + cloud Worker (`pnpm dev:web`)          | 5174 (pinned — `strictPort`)                           |
 | UI gallery (`pnpm dev:gallery`)               | 5175 (pinned — `strictPort`)                           |
 | Accounts, sessions, devices, invites          | D1 (local file under `apps/web/.wrangler`)             |
-| Thread log, captures, hosted vault            | Durable Objects (same `.wrangler` dir)                 |
+| Thread log, dispatch inbox, hosted vault      | Durable Objects (same `.wrangler` dir)                 |
 
 ## Quality gates
 

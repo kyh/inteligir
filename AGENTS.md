@@ -17,7 +17,7 @@ one. The CLI is the agent's door and the developer's, which is how an agent
 drives the product from bash; nothing the user does needs a terminal.
 `apps/web` is the one hosted piece — a Cloudflare Worker carrying the marketing
 site, Better Auth on D1, device sign-in, sign-up and account deletion,
-cross-device sync, the capture and dispatch inboxes and the hosted vault. `apps/mobile` is the iPhone app:
+cross-device sync, the dispatch inbox and the hosted vault. `apps/mobile` is the iPhone app:
 the same editor over the hosted vault, offline, asking a Mac to run the agent.
 This is the tool-agnostic guide for coding agents; `CLAUDE.md` holds the
 architecture and the durable decisions, GitHub issues #542, #611 and #889 the
@@ -195,7 +195,7 @@ description of each.
 apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the Tauri window around the SPA
 apps/workspace          @repo/workspace — the SPA: the page every vault's server answers, and the first run
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
-apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, captures, dispatch, hosted vault
+apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, dispatch, hosted vault
 apps/mobile             @repo/mobile — the iPhone app: notes in the editor page, offline, and asking a Mac's agent
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
 packages/domain         @repo/domain — zod-only leaf vocabulary
