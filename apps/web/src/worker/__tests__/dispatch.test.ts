@@ -302,7 +302,40 @@ describe("a phone's turn", () => {
   });
 });
 
+// the oldest inbox table a live account object holds, which no wake alters
+const OLDEST_DISPATCHES_TABLE = `
+  CREATE TABLE dispatches (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    thread_id TEXT NOT NULL,
+    from_device_id TEXT NOT NULL,
+    to_device_id TEXT,
+    approval_id TEXT,
+    body TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    claim_token TEXT,
+    claimed_at INTEGER,
+    state TEXT NOT NULL,
+    message TEXT,
+    settled_at INTEGER
+  );
+`;
+
 describe("a phone's capture", () => {
+  it("lands in the oldest inbox table a live account object holds", async () => {
+    const { mac, phone, stub } = await account("capture-oldest-table@example.test");
+    await runInDurableObject(stub, (_instance, state) => {
+      state.storage.sql.exec(`DROP TABLE dispatches; ${OLDEST_DISPATCHES_TABLE}`);
+    });
+    const sent = capture("remember the old table");
+
+    expect(await create(phone.credential, sent)).toEqual({
+      dispatch: { id: sent.id, state: "waiting" },
+      duplicate: false,
+    });
+    expect(await claimedRows(mac.credential)).toEqual([{ ...sent, createdAt: expect.any(Number) }]);
+  });
+
   it("pings every Mac, phone requests on or off, and never a phone", async () => {
     const { mac, otherMac, phone } = await account("capture-audience@example.test");
     const macWs = await openSocket(mac.credential, "desktop", TAKES_PHONE_REQUESTS);

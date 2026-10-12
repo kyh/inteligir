@@ -26,16 +26,19 @@ import type { z } from "zod";
 // The dispatch inbox's SQL, over the thread-sync object's own storage; the object owns the
 // tombstone and the sockets. The clock is an argument, so a claim's TTL is judged on read and a
 // lapsed claim needs no alarm. A row's body is the claimed row itself, frozen at create, so a
-// claim hands over exactly what the phone sent; a capture's thread is null, since it has none.
+// claim hands over exactly what the phone sent.
 
 // a settled row outlives the phone's last status poll by far; one it lost track of reads unknown
 const DISPATCH_RETENTION_MS = 24 * 60 * 60_000;
 
+// CREATE TABLE IF NOT EXISTS never alters a table an account object already holds, so every live
+// object keeps the columns its first wake made: a capture, which has no thread, stores '' under the
+// NOT NULL thread_id they hold, and a claim reads a row's thread from its body
 export const DISPATCH_TABLES = `
   CREATE TABLE IF NOT EXISTS dispatches (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
-    thread_id TEXT,
+    thread_id TEXT NOT NULL,
     from_device_id TEXT NOT NULL,
     to_device_id TEXT,
     approval_id TEXT,
@@ -173,7 +176,7 @@ const insertDispatch = (
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.claimed.id,
     row.claimed.kind,
-    row.claimed.kind === "capture" ? null : row.claimed.threadId,
+    row.claimed.kind === "capture" ? "" : row.claimed.threadId,
     row.fromDeviceId,
     row.toDeviceId,
     row.approvalId,
