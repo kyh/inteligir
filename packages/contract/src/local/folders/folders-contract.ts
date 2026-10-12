@@ -1,5 +1,5 @@
 import { oc } from "@orpc/contract";
-import { ALREADY_EXISTS, INVALID_PATH } from "../local-errors";
+import { ALREADY_EXISTS, INVALID_PATH, LIMIT_REACHED } from "../local-errors";
 import {
   connectedFolderAddRequestSchema,
   connectedFolderRemoveRequestSchema,
@@ -7,11 +7,10 @@ import {
 } from "./folders-schema";
 
 export const foldersContract = {
-  // INVALID_PATH also covers the list's size bound
   add: oc
     .input(connectedFolderAddRequestSchema)
     .output(connectedFoldersResponseSchema)
-    .errors({ ALREADY_EXISTS, INVALID_PATH }),
+    .errors({ ALREADY_EXISTS, INVALID_PATH, LIMIT_REACHED }),
 
   list: oc.output(connectedFoldersResponseSchema),
 

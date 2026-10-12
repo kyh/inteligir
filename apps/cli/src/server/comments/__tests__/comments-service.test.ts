@@ -11,16 +11,26 @@ import {
 } from "@repo/notes/comments/sidecar-schema";
 import type { CommentSidecar } from "@repo/notes/comments/sidecar-schema";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
-import { CommentRefusedError } from "../comment-refused-error";
-import { SidecarConflictError } from "../sidecar-conflict-error";
-import { SidecarInvalidError } from "../sidecar-invalid-error";
-import { createCommentsService } from "../comments-service";
+import { CommentsError, createCommentsService } from "../comments-service";
+import type { CommentsErrorCode } from "../comments-service";
 import { identityLock } from "../../__tests__/identity-lock";
 import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
 
 const AT = 1_707_900_000;
 const NOTE_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
 const WITH_ID = `---\nid: ${NOTE_ID}\n---\nnote\n`;
+
+const refusalCode = async (work: Promise<unknown>): Promise<CommentsErrorCode | null> => {
+  try {
+    await work;
+  } catch (error) {
+    if (error instanceof CommentsError) {
+      return error.code;
+    }
+    throw error;
+  }
+  return null;
+};
 
 const boot = () => {
   const root = nodePath.join(makeTempDir("inteligir-comments-"), "vault");
@@ -159,8 +169,8 @@ describe("comments service", () => {
   it("refuses an id that cannot name a file rather than escaping the store's folder", async () => {
     const { root, comments } = boot();
     writeFileSync(nodePath.join(root, "plan.md"), "---\nid: ../escape\n---\nnote\n");
-    await expect(comments.add({ id: "c1", path: "plan.md", text: "x" })).rejects.toThrow(
-      CommentRefusedError,
+    expect(await refusalCode(comments.add({ id: "c1", path: "plan.md", text: "x" }))).toBe(
+      "refused",
     );
   });
 
@@ -261,8 +271,8 @@ describe("an unparseable store", () => {
     const store = nodePath.join(root, commentsStorePath(NOTE_ID));
     mkdirSync(nodePath.dirname(store), { recursive: true });
     writeFileSync(store, "{broken");
-    await expect(comments.add({ id: "c1", path: "plan.md", text: "x" })).rejects.toThrow(
-      SidecarInvalidError,
+    expect(await refusalCode(comments.add({ id: "c1", path: "plan.md", text: "x" }))).toBe(
+      "invalid",
     );
     await expect(comments.list("plan.md")).rejects.toThrow(commentsStorePath(NOTE_ID));
     expect(readFileSync(store, "utf-8")).toBe("{broken");
@@ -329,8 +339,8 @@ describe("the store write is a compare-and-swap", () => {
     };
     const { root, comments } = bootWithStore([OTHER, another], true);
 
-    await expect(comments.add({ id: "ours", path: "plan.md", text: "ours" })).rejects.toThrow(
-      SidecarConflictError,
+    expect(await refusalCode(comments.add({ id: "ours", path: "plan.md", text: "ours" }))).toBe(
+      "conflict",
     );
     expect(Object.keys(storeOnDisk(root, "plan.md")).toSorted()).toEqual(["more", "theirs"]);
   });
