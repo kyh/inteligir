@@ -2,6 +2,8 @@ import { configDefaults, defineConfig } from "vitest/config";
 
 // the workspace UI's own suites under the server they boot in-process (src/workspace/__tests__)
 const BOOTED_DOM_SUITES = "src/**/*.booted.test.tsx";
+// the workspace UI's modules driven over that server, with nothing rendered
+const WORKSPACE_MODULE_SUITES = "src/workspace/**/*.test.ts";
 
 export default defineConfig({
   test: {
@@ -9,9 +11,17 @@ export default defineConfig({
     projects: [
       {
         test: {
-          exclude: [...configDefaults.exclude, BOOTED_DOM_SUITES],
+          exclude: [...configDefaults.exclude, BOOTED_DOM_SUITES, WORKSPACE_MODULE_SUITES],
           include: ["src/**/*.test.ts"],
           name: "cli",
+        },
+      },
+      {
+        // gated as the page's own suites are: these drive the same modules, rendering nothing
+        test: {
+          include: [WORKSPACE_MODULE_SUITES],
+          name: "workspace",
+          setupFiles: ["@repo/workspace/test-support/console-error-gate"],
         },
       },
       {

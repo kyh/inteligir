@@ -20,6 +20,7 @@
     "./app/settings/connectors-section": "./src/app/settings/connectors-section.tsx",
     "./app/workspace-context": "./src/app/workspace-context.tsx",
     "./router": "./src/router.ts",
+    "./test-support/console-error-gate": "./src/app/__tests__/console-error-gate.ts",
     "./test-support/dom-timeouts": "./src/app/__tests__/dom-timeouts.ts",
     "./test-support/inert-socket": "./src/app/__tests__/inert-socket.ts",
     "./test-support/jsdom-stubs": "./src/app/__tests__/jsdom-stubs.ts",

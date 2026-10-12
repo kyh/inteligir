@@ -208,9 +208,10 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   during another component's render, a missing key or an update outside `act` as
   a console.error and nothing else, so a suite that only logs it stays green
   over a real defect (`apps/workspace/src/app/__tests__/console-error-gate.ts`).
-  A test that provokes one on purpose silences it with its own spy. The booted
-  suites (`apps/cli/vitest.config.ts`) are not gated: the server they boot logs
-  every refused call by design.
+  A test that provokes one on purpose silences it with its own spy. The CLI's
+  suites that drive the page's modules over a booted server are gated too; its
+  booted DOM suites are not (`apps/cli/vitest.config.ts`): the server they boot
+  logs every refused call by design.
 
 - **THE PAGE IS ITS OWN WORKSPACE, AND ITS SUITES THAT BOOT A SERVER LIVE IN THE
   CLI** (owner decision). The shell embeds only the first-run page and the CLI

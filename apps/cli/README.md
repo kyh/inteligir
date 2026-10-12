@@ -267,7 +267,8 @@ the inbox table the Worker's suite runs
 suites that boot this server in-process sit under `src/workspace/__tests__/`,
 beside the harness they use (`src/server/__tests__/boot-app.ts`), so the page
 never depends on this package: the `.booted.test.tsx` ones render the page
-under jsdom (`vitest.config.ts`, a project of their own), and
-`src/workspace/tsconfig.json` compiles them with the DOM. The real-server
-integration lives in `e2e` (`cli-drive`): the CLI drives a booted instance
-under the scripted agent.
+under jsdom, the rest drive its modules with nothing rendered and fail a test
+that logs a `console.error`, as the page's own suites do (`vitest.config.ts`,
+a project each), and `src/workspace/tsconfig.json` compiles them with the DOM.
+The real-server integration lives in `e2e` (`cli-drive`): the CLI drives a
+booted instance under the scripted agent.
