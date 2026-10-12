@@ -6,8 +6,8 @@ import type { DbConnection } from "@repo/db/connection";
 import { listStoredThreadEvents } from "@repo/db/events";
 import type { StoredThreadEvent } from "@repo/db/events";
 import type { ThreadTimeline } from "@repo/contract/local/thread-timeline";
-import { buildThreadTimeline } from "@repo/contract/local/build-thread-timeline";
 import { setMostRecent } from "../evict-oldest";
+import { buildThreadTimeline } from "./build-thread-timeline";
 
 const RESIDENT_THREADS = 8;
 // the one just served, plus the bases a client a frame or two behind asks for.

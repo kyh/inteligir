@@ -29,7 +29,6 @@
     "./cloud/vault/vault-schema": "./src/cloud/vault/vault-schema.ts",
     "./local": "./src/local/local-contract.ts",
     "./local/agents/agents-schema": "./src/local/agents/agents-schema.ts",
-    "./local/build-thread-timeline": "./src/local/build-thread-timeline.ts",
     "./local/cloud/cloud-schema": "./src/local/cloud/cloud-schema.ts",
     "./local/comments/comments-schema": "./src/local/comments/comments-schema.ts",
     "./local/connectors/connectors-schema": "./src/local/connectors/connectors-schema.ts",

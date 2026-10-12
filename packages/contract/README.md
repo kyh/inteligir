@@ -46,10 +46,8 @@ src/
                        # and `changed` pings out — never a payload
     thread-timeline.ts # the timeline row grammar, and the delta algebra
                        # (computeTimelineDelta / applyTimelineDelta): rows
-                       # whole, a held turn as a patch of the children that moved
-    build-thread-timeline.ts  # the pure fold from stored events into rows —
-                       # deterministic, ids included, because the server diffs
-                       # two projections into one delta
+                       # whole, a held turn as a patch of the children that
+                       # moved; the fold that builds the rows is the server's
   cloud/               the wire that breaks behind a floor, plus the client
                        # runtime core
     client-build.ts    # the build header every request carries, and the floor
@@ -195,8 +193,9 @@ pins the contract shapes and refusals (and that every answer a newer Worker
 grows still reads), the login flow, the session fence and single-flight, the
 byte primitives, the sync clip (every event type fits the cap with its envelope
 untouched), and that the cloud vault-path grammar admits exactly what
-`parseVaultPath` returns unchanged; `src/local/**/__tests__/` pin the timeline
-fold and delta algebra, the `/ws` strict/lenient pair, each domain's schemas and
-the two comment-store compositions both clients run (a deleted note's restore,
-and a copy given its own id); `knowledge/__tests__/engine-mirror.test.ts` is
-type-level and fails under `tsc`, not `vitest`.
+`parseVaultPath` returns unchanged; `src/local/**/__tests__/` pin the `/ws`
+strict/lenient pair, each domain's schemas and the two comment-store
+compositions both clients run (a deleted note's restore, and a copy given its
+own id); `knowledge/__tests__/engine-mirror.test.ts` is type-level and fails
+under `tsc`, not `vitest`. The delta algebra is pinned over the projections it
+diffs, beside the server's fold in `apps/cli/src/server/threads/__tests__/`.

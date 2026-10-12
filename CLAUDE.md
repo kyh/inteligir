@@ -229,8 +229,12 @@ packages/
                  compile against and `inteligir serve` implements: ONE folder
                  per domain, each a `<domain>-contract.ts` +
                  `<domain>-schema.ts`, plus the ws notification protocol, the
-                 paths that are NOT procedures, and `build-thread-timeline`,
-                 the pure fold the delta algebra beside it diffs. `./cloud/*`
+                 paths that are NOT procedures, and the timeline row grammar
+                 with its delta algebra; the fold from stored events into
+                 rows is the server's
+                 (`apps/cli/src/server/threads/build-thread-timeline.ts`),
+                 deterministic because the server diffs two of its
+                 projections into one delta. `./cloud/*`
                  is the cloud wire, the ONE page planner every reader of the
                  merged log runs (`cloud/sync/plan-page`) — two copies would be
                  two answers to "did this row move the cursor?", and a mis-set
@@ -1459,7 +1463,8 @@ to the END of its group.
   lands as a top-level row, and counting it would move the turn row on every
   token. A command row carries its first `COMMAND_OUTPUT_LINES` lines; the event
   log keeps every byte. Residual: a tool row's result still rides whole.
-  `packages/contract/src/local/thread-timeline.ts`.
+  `packages/contract/src/local/thread-timeline.ts`, over the server's fold
+  (`apps/cli/src/server/threads/build-thread-timeline.ts`).
 
 - **A THREAD IS NAMED BY ITS FIRST MESSAGE, ON THE SERVER**, in the
   transaction that appends it, local or synced; an explicit title stays.
