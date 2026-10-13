@@ -26,7 +26,8 @@ import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useRadius } from "@repo/ui/lib/radius-context";
 import { useSize } from "@repo/ui/lib/size-context";
-import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
+import { useRaisedSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
+import type { SurfaceLevel } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { splitLeadingText } from "@repo/ui/lib/text-children";
 import { Tooltip } from "@repo/ui/components/tooltip";
@@ -402,7 +403,7 @@ SidebarRail.displayName = "SidebarRail";
 interface SidebarPeekProps {
   children: ReactNode;
   clearPeekTimer: () => void;
-  floatingLevel: number;
+  floatingLevel: SurfaceLevel;
   isPeeking: boolean;
   peek: "hover" | "click" | "none";
   schedulePeek: () => void;
@@ -485,7 +486,7 @@ const SidebarPeek = ({
 interface SidebarPanelProps {
   bordered: boolean;
   children: ReactNode;
-  floatingLevel: number;
+  floatingLevel: SurfaceLevel;
   open: boolean;
   rail: boolean;
   side: SidebarSide;
@@ -632,8 +633,7 @@ const SidebarShell = ({
       document.removeEventListener("pointerdown", onPointerDown);
     };
   }, [peekEnabled, isPeeking, setIsPeeking]);
-  const substrate = useSurface();
-  const floatingLevel = Math.min(substrate + 1, 8);
+  const floatingLevel = useRaisedSurface(1);
   const openTransition = open ? spring.moderate : spring.moderate.exit;
   const widthTransition = isResizing ? { duration: 0 } : openTransition;
 
