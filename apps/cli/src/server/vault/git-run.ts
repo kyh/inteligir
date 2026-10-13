@@ -42,12 +42,15 @@ export class GitError extends Error {
 
 export interface RunGitOptions {
   timeoutMs?: number;
-  env?: Record<string, string>;
+  env?: Record<string, string> | undefined;
   // what git reads on stdin (`hash-object --stdin`); unset, stdin is closed empty.
   input?: string;
 }
 
-export type RunGitCommand = (args: readonly string[]) => Promise<{ stdout: string }>;
+export type RunGitCommand = (
+  args: readonly string[],
+  options?: RunGitOptions,
+) => Promise<{ stdout: string }>;
 
 export type RunGit = typeof runGit;
 
@@ -217,6 +220,11 @@ export interface GitRunner {
 
 // the git this process's PATH names, over its own environment.
 export const processGit: GitRunner = { packExceeds, readBlob: readGitBlob, run: runGit };
+
+export const gitAt =
+  (git: Pick<GitRunner, "run">, root: string): RunGitCommand =>
+  async (args, options) =>
+    await git.run(root, args, options);
 
 // never `<root>/.git/…`: in a linked worktree or a submodule `.git` is a file naming the real
 // dir, and a worktree keeps its rebase state apart from the info/ its checkouts share.

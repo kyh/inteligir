@@ -5,7 +5,7 @@ import { createVaultIgnore } from "@repo/notes/knowledge/vault-ignore";
 import type { VaultIgnore } from "@repo/notes/knowledge/vault-ignore";
 import { describe, expect, it } from "vitest";
 import { ensureVaultRepo } from "../git-bootstrap";
-import type { RunGitCommand } from "../git-run";
+import { gitAt } from "../git-run";
 import { createVaultIgnoreHolder, loadVaultIgnore, readIgnoreCase } from "../vault-ignore-files";
 import { createVaultService } from "../vault-service";
 import type { VaultService } from "../vault-service";
@@ -25,8 +25,7 @@ const writeTree = (root: string, files: Record<string, string>): void => {
 const bootRepo = async () => {
   const root = makeTempDir("inteligir-vault-ignore-", { realpath: true });
   await ensureVaultRepo({ git: gitRunner, root });
-  const run: RunGitCommand = async (gitArgs) => await gitRunner.run(root, gitArgs);
-  return { git: run, root };
+  return { git: gitAt(gitRunner, root), root };
 };
 
 const listedPaths = async (service: VaultService, kind?: "file"): Promise<string[]> => {

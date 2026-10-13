@@ -15,9 +15,7 @@ const ASSET_HEADERS = {
 };
 
 export const handleVaultAsset = async (c: Context, vault: VaultService): Promise<Response> => {
-  const query = vaultAssetQuerySchema.safeParse(
-    Object.fromEntries(new URL(c.req.url).searchParams),
-  );
+  const query = vaultAssetQuerySchema.safeParse(c.req.query());
   if (!query.success) {
     return c.text("Bad request", 400);
   }

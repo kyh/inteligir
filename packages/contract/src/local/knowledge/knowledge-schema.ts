@@ -5,6 +5,8 @@
 // can disagree with the arrays.
 
 import { LINK_KINDS } from "@repo/notes/knowledge/link-kinds";
+import { RELATED_DEFAULT_LIMIT } from "@repo/notes/knowledge/related-notes";
+import { SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/search-query";
 import { isTagName, TAG_NAME_RULE } from "@repo/notes/knowledge/tag-grammar";
 import { z } from "zod";
 import { vaultPathSchema, vaultRenameSkipReasonSchema } from "../vault/vault-schema";
@@ -23,11 +25,11 @@ export const KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT = 50;
 // q is the raw box text, parsed engine-side so a typed tag: term and a composed one resolve alike
 export const knowledgeSearchRequestSchema = z
   .object({
-    limit: z.number().int().min(1).max(KNOWLEDGE_SEARCH_MAX_LIMIT).optional(),
+    limit: z.number().int().min(1).max(KNOWLEDGE_SEARCH_MAX_LIMIT).default(SEARCH_DEFAULT_LIMIT),
     q: z.string(),
   })
   .strict();
-export type KnowledgeSearchRequest = z.infer<typeof knowledgeSearchRequestSchema>;
+export type KnowledgeSearchRequest = z.input<typeof knowledgeSearchRequestSchema>;
 
 export const searchResultSchema = z
   .object({
@@ -48,17 +50,22 @@ export type KnowledgeSearchResponse = z.infer<typeof knowledgeSearchResponseSche
 // one line of text: a needle spanning a terminator cannot be found per line, so it is refused
 export const knowledgeMatchesRequestSchema = z
   .object({
-    caseSensitive: z.boolean().optional(),
-    limit: z.number().int().min(1).max(KNOWLEDGE_MATCHES_MAX_LIMIT).optional(),
+    caseSensitive: z.boolean().default(false),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(KNOWLEDGE_MATCHES_MAX_LIMIT)
+      .default(KNOWLEDGE_MATCHES_DEFAULT_LIMIT),
     q: z
       .string()
       .min(1)
       .max(200)
       .refine((value) => !/[\r\n]/u.test(value), { message: "q must be one line" }),
-    wholeWord: z.boolean().optional(),
+    wholeWord: z.boolean().default(false),
   })
   .strict();
-export type KnowledgeMatchesRequest = z.infer<typeof knowledgeMatchesRequestSchema>;
+export type KnowledgeMatchesRequest = z.input<typeof knowledgeMatchesRequestSchema>;
 
 export const vaultMatchSchema = z
   .object({
@@ -90,11 +97,16 @@ export type KnowledgeMatchesResponse = z.infer<typeof knowledgeMatchesResponseSc
 // word, outside code, links, urls and frontmatter. one row per note, on its first mention
 export const knowledgeUnlinkedMentionsRequestSchema = z
   .object({
-    limit: z.number().int().min(1).max(KNOWLEDGE_UNLINKED_MAX_LIMIT).optional(),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(KNOWLEDGE_UNLINKED_MAX_LIMIT)
+      .default(KNOWLEDGE_UNLINKED_DEFAULT_LIMIT),
     path: vaultPathSchema,
   })
   .strict();
-export type KnowledgeUnlinkedMentionsRequest = z.infer<
+export type KnowledgeUnlinkedMentionsRequest = z.input<
   typeof knowledgeUnlinkedMentionsRequestSchema
 >;
 
@@ -137,11 +149,16 @@ export type LinkKindWire = z.infer<typeof linkKindSchema>;
 // the limit applies per family; dailies and templates count as orphans only when asked
 export const knowledgeProblemsRequestSchema = z
   .object({
-    includeConventionFolders: z.boolean().optional(),
-    limit: z.number().int().min(1).max(KNOWLEDGE_PROBLEMS_MAX_LIMIT).optional(),
+    includeConventionFolders: z.boolean().default(false),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(KNOWLEDGE_PROBLEMS_MAX_LIMIT)
+      .default(KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT),
   })
   .strict();
-export type KnowledgeProblemsRequest = z.infer<typeof knowledgeProblemsRequestSchema>;
+export type KnowledgeProblemsRequest = z.input<typeof knowledgeProblemsRequestSchema>;
 
 // once per source and target, on the first line it appears
 export const unresolvedLinkRowSchema = z
@@ -236,11 +253,11 @@ export type KnowledgeBacklinksResponse = z.infer<typeof knowledgeBacklinksRespon
 // a limit and no total: a ranked top-n has no honest count of the rest
 export const knowledgeRelatedRequestSchema = z
   .object({
-    limit: z.number().int().min(1).max(KNOWLEDGE_RELATED_MAX_LIMIT).optional(),
+    limit: z.number().int().min(1).max(KNOWLEDGE_RELATED_MAX_LIMIT).default(RELATED_DEFAULT_LIMIT),
     path: vaultPathSchema,
   })
   .strict();
-export type KnowledgeRelatedRequest = z.infer<typeof knowledgeRelatedRequestSchema>;
+export type KnowledgeRelatedRequest = z.input<typeof knowledgeRelatedRequestSchema>;
 
 export const relatedNoteSchema = z
   .object({
@@ -287,12 +304,17 @@ export const KNOWLEDGE_TAG_NOTES_MAX_LIMIT = 500;
 // a listing, not a search: the tag's family by path, paged, with the whole count
 export const knowledgeTagNotesRequestSchema = z
   .object({
-    limit: z.number().int().min(1).max(KNOWLEDGE_TAG_NOTES_MAX_LIMIT).optional(),
-    offset: z.number().int().min(0).optional(),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(KNOWLEDGE_TAG_NOTES_MAX_LIMIT)
+      .default(KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT),
+    offset: z.number().int().min(0).default(0),
     tag: tagNameSchema,
   })
   .strict();
-export type KnowledgeTagNotesRequest = z.infer<typeof knowledgeTagNotesRequestSchema>;
+export type KnowledgeTagNotesRequest = z.input<typeof knowledgeTagNotesRequestSchema>;
 
 export const knowledgeTagNotesResponseSchema = z
   .object({

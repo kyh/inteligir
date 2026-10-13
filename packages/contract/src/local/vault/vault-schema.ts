@@ -107,12 +107,17 @@ export const VAULT_HISTORY_MAX_LIMIT = 200;
 
 export const vaultHistoryRequestSchema = z
   .object({
-    limit: z.number().int().min(1).max(VAULT_HISTORY_MAX_LIMIT).optional(),
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(VAULT_HISTORY_MAX_LIMIT)
+      .default(VAULT_HISTORY_DEFAULT_LIMIT),
     path: vaultPathSchema,
-    skip: z.number().int().min(0).optional(),
+    skip: z.number().int().min(0).default(0),
   })
   .strict();
-export type VaultHistoryRequest = z.infer<typeof vaultHistoryRequestSchema>;
+export type VaultHistoryRequest = z.input<typeof vaultHistoryRequestSchema>;
 
 // no `total`: a paginated log has no honest count of the rest.
 export const vaultHistoryResponseSchema = z

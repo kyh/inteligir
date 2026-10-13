@@ -4,7 +4,7 @@
 // refused.
 
 import { ORPCError } from "@orpc/server";
-import { base, refusals } from "../orpc";
+import { base, refusing } from "../orpc";
 import { SignInInProgressError } from "./agent-sign-in";
 import { HarnessRefusedError } from "./agents-service";
 
@@ -13,7 +13,7 @@ const HARNESS_REFUSALS = {
   unavailable: "PROVIDER_UNAVAILABLE",
 } as const satisfies Record<HarnessRefusedError["kind"], string>;
 
-const refusing = refusals((cause) => {
+const harnessRefusals = refusing((cause) => {
   if (cause instanceof HarnessRefusedError) {
     return new ORPCError(HARNESS_REFUSALS[cause.kind], { message: cause.message });
   }
@@ -25,28 +25,25 @@ const refusing = refusals((cause) => {
 
 const status = base.agents.status.handler(async ({ context }) => await context.agents.status());
 
-const setDefault = base.agents.setDefault.handler(
-  async ({ context, input }) =>
-    await refusing(async () => await context.agents.setDefault(input.id)),
-);
+const setDefault = base.agents.setDefault
+  .use(harnessRefusals)
+  .handler(async ({ context, input }) => await context.agents.setDefault(input.id));
 
-const signIn = base.agents.signIn.handler(
-  async ({ context, input }) => await refusing(async () => await context.agents.signIn(input.id)),
-);
+const signIn = base.agents.signIn
+  .use(harnessRefusals)
+  .handler(async ({ context, input }) => await context.agents.signIn(input.id));
 
-const cancelSignIn = base.agents.cancelSignIn.handler(
-  async ({ context, input }) =>
-    await refusing(async () => await context.agents.cancelSignIn(input.id)),
-);
+const cancelSignIn = base.agents.cancelSignIn
+  .use(harnessRefusals)
+  .handler(async ({ context, input }) => await context.agents.cancelSignIn(input.id));
 
-const signOut = base.agents.signOut.handler(
-  async ({ context, input }) => await refusing(async () => await context.agents.signOut(input.id)),
-);
+const signOut = base.agents.signOut
+  .use(harnessRefusals)
+  .handler(async ({ context, input }) => await context.agents.signOut(input.id));
 
-const submitSignInCode = base.agents.submitSignInCode.handler(
-  async ({ context, input }) =>
-    await refusing(() => context.agents.submitSignInCode(input.id, input.code)),
-);
+const submitSignInCode = base.agents.submitSignInCode
+  .use(harnessRefusals)
+  .handler(({ context, input }) => context.agents.submitSignInCode(input.id, input.code));
 
 export const agentsRouter = {
   cancelSignIn,

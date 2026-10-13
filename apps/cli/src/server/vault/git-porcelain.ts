@@ -54,8 +54,16 @@ export const entryPaths = (entries: readonly PorcelainEntry[]): string[] =>
   entries.flatMap((entry) => (entry.origin === null ? [entry.path] : [entry.path, entry.origin]));
 
 // git's unmerged columns: U on either side, AA (both added), DD (both deleted).
-export const isUnmerged = (entry: PorcelainEntry): boolean =>
+const isUnmerged = (entry: PorcelainEntry): boolean =>
   entry.x === "U" ||
   entry.y === "U" ||
   (entry.x === "A" && entry.y === "A") ||
   (entry.x === "D" && entry.y === "D");
+
+export const unmergedPaths = async (run: RunGitCommand): Promise<string[]> => {
+  const entries = await readPorcelain(run);
+  return entries
+    .filter(isUnmerged)
+    .map((entry) => entry.path)
+    .toSorted();
+};

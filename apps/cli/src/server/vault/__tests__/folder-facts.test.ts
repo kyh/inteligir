@@ -9,6 +9,7 @@ import {
   readOriginConfig,
   REMOTE_MARKER_KEY,
 } from "../folder-facts";
+import { gitAt } from "../git-run";
 import type { RunGitCommand } from "../git-run";
 import { hermeticGit } from "./git-test-env";
 
@@ -17,10 +18,7 @@ const gitRunner = hermeticGit();
 
 const scratchHome = (): string => makeTempDir("inteligir-folder-facts-");
 
-const gitIn =
-  (root: string): RunGitCommand =>
-  async (gitArgs) =>
-    await gitRunner.run(root, gitArgs);
+const gitIn = (root: string): RunGitCommand => gitAt(gitRunner, root);
 
 const repoIn = async (home: string, name: string): Promise<string> => {
   const dir = path.join(home, name);

@@ -200,7 +200,8 @@ const moveFileByLink = async (from: string, to: string, toRelPath: string): Prom
 
 export interface VaultServiceArgs {
   root: string;
-  // required, not defaulted: a forgotten arg silently dropped the serialization the cas guard needs.
+  // required, not defaulted: the cas guard needs this serialization, and a default would hide a
+  // composition that omits it.
   lock: <T>(work: () => Promise<T>) => Promise<T>;
   // required for the same reason: a composition that forgot it would list every build output
   // the vault's .gitignore names.
@@ -212,7 +213,7 @@ export interface VaultServiceArgs {
   onUnreadableFolder?: UnreadableFolderSink;
   // awaited inside the read's slot, before the file's bytes are opened, so a stalled stand-in holds
   // the slot a stalled open would
-  stallRead?: ReadStall;
+  stallRead?: ReadStall | undefined;
 }
 
 type ConditionalWriteResult =

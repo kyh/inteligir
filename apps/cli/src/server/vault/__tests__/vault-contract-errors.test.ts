@@ -1,6 +1,6 @@
 // a declared class is what a client narrows on, so a row advertising a code no
 // handler raises hands the client a branch that never runs. the other direction
-// is not derivable: `refusing` throws outside the row's typed errors.
+// is not derivable: `vaultRefusals` throws outside the row's typed errors.
 
 import { localContract } from "@repo/contract/local";
 import { readFileSync } from "node:fs";
@@ -13,14 +13,16 @@ const GUARD_FILE = fileURLToPath(new URL("../write-guard.ts", import.meta.url));
 const CONTRACT_FILE = "packages/contract/src/local/vault/vault-contract.ts";
 const ROUTER_ANCHOR = "\nexport const vaultRouter";
 
-// the call shape, not the token: a comment mentioning `refusing(` must not hand its block the table.
-const REFUSING_CALL = /\brefusing\(\s*(?:async\s*)?\(/u;
+// the call shape, not the token: a comment mentioning `vaultRefusals` must not hand its block the table.
+const REFUSING_CALL = /\.use\(vaultRefusals\)\s*\.handler\(/u;
 // a guarded write's refusal is built in write-guard.ts from the handler's own constructors
 const GUARD_REFUSAL_CALL = /\bguardRefusalError\(\s*errors\b/u;
 
 const handlerBlocks = (source: string): Map<string, string> => {
   const starts = [
-    ...source.matchAll(/^const \w+ = base\.vault\.(?<row>\w+)\.handler\(/gmu),
+    ...source.matchAll(
+      /^const \w+ = base\.vault\.(?<row>\w+)\s*(?:\.use\(\w+\)\s*)?\.handler\(/gmu,
+    ),
   ].flatMap((match) => {
     const row = match.groups?.row;
     return row === undefined ? [] : [{ at: match.index, row }];
@@ -75,7 +77,7 @@ describe("the vault contract's declared errors", () => {
     const missing = rows.map(([row]) => row).filter((row) => !blocks.has(row));
     expect(
       missing,
-      `vault-router.ts: no \`const <name> = base.vault.<row>.handler(\` block for these rows`,
+      `vault-router.ts: no \`const <name> = base.vault.<row>[.use(…)].handler(\` block for these rows`,
     ).toEqual([]);
   });
 
@@ -89,8 +91,8 @@ describe("the vault contract's declared errors", () => {
       `${CONTRACT_FILE}: row "${row}" declares ${unreachable.join(", ")} but vault-router.ts's ` +
         `handler has no \`errors.<CODE>(\` for it, nor write-guard.ts behind a \`guardRefusalError(errors\`, and ${
           REFUSING_CALL.test(block)
-            ? `\`refusing\` answers only ${Object.values(VAULT_REFUSALS).join(", ")}`
-            : "runs outside `refusing`"
+            ? `\`vaultRefusals\` answers only ${Object.values(VAULT_REFUSALS).join(", ")}`
+            : "runs without `vaultRefusals`"
         } — a declared class is a promise a client narrows on; drop it or add a producer`,
     ).toEqual([]);
   });

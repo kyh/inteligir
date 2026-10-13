@@ -7,6 +7,7 @@ import type { VaultRemoteSpec } from "../cloud/vault-remote";
 import { REMOTE_MARKER_ACCOUNT, REMOTE_MARKER_KEY } from "./folder-facts";
 import {
   ENGINE_IDENTITY,
+  gitAt,
   gitPath,
   identityEnv,
   isMissingRemoteRepo,
@@ -63,7 +64,6 @@ export interface EnsureVaultRepoArgs {
 // large folder opened as a vault outlasts the shell's readiness wait. the runtime's boot sweep
 // commits it after the listen.
 const commitInitial = async (
-  run: RunGit,
   git: RunGitCommand,
   args: EnsureVaultRepoArgs,
   seeded: boolean,
@@ -71,7 +71,7 @@ const commitInitial = async (
   if (seeded) {
     await git(["add", "-A"]);
   }
-  await run(args.root, ["commit", "--allow-empty", "-m", "vault: initialize"], {
+  await git(["commit", "--allow-empty", "-m", "vault: initialize"], {
     env: identityEnv(args.deviceName ?? ENGINE_IDENTITY.name),
   });
   if (seeded) {
@@ -114,7 +114,7 @@ export const ensureVaultRepo = async (
     created && remote !== null ? await tryCloneVault(run, args, remote) : ("missing" as const);
   const cloned = outcome === "cloned";
   await mkdir(args.root, { recursive: true });
-  const git: RunGitCommand = async (gitArgs) => await run(args.root, gitArgs);
+  const git = gitAt(args.git, args.root);
   // a file, not a dir, in a linked worktree or a submodule: either way the repo is there.
   if (!existsSync(path.join(args.root, ".git"))) {
     await git(["init", "-b", "main"]);
@@ -145,7 +145,7 @@ export const ensureVaultRepo = async (
     await seed(args.root);
   }
   if (!(await hasHeadCommit(git))) {
-    await commitInitial(run, git, args, seed !== undefined);
+    await commitInitial(git, args, seed !== undefined);
   }
   return { cloned, created };
 };

@@ -10,6 +10,7 @@ import { assertVaultAndDataDirDisjoint } from "../path-containment";
 import { ensureVaultRepo } from "./git-bootstrap";
 import { createGitEngine } from "./git-engine";
 import type { GitEngine, GitEngineArgs } from "./git-engine";
+import { gitAt } from "./git-run";
 import type { GitRunner } from "./git-run";
 import { seedVault } from "./seed-vault";
 import type { ReadStall } from "./slow-reads";
@@ -34,17 +35,18 @@ export interface VaultRuntimeArgs {
   // this device's name, which every vault commit carries as its committer (`deviceNameReader`).
   deviceName: () => string;
   // judged once at boot, as the provider's own copy was.
-  externalSync?: ExternalSync | null;
+  externalSync?: ExternalSync | null | undefined;
   dataDir: string;
   notifier: DbNotifier;
   onFilesChanged?: (change: VaultFilesChange) => void;
-  watch?: boolean;
-  syncIntervalMs?: number | null;
+  watch?: boolean | undefined;
+  // unset, the default interval; null, no sync
+  syncIntervalMs?: number | null | undefined;
   git: GitRunner;
   // the account socket is up, so another device's push pings this one (GitEngineArgs').
-  accountPingsReach?: () => boolean;
-  watcherBackend?: ParcelWatcherBackend;
-  stallRead?: ReadStall;
+  accountPingsReach?: (() => boolean) | undefined;
+  watcherBackend?: ParcelWatcherBackend | undefined;
+  stallRead?: ReadStall | undefined;
   // the watcher's trace: its verdict per event, then what this runtime strips, holds or delivers.
   debugLog?: DebugLog | undefined;
 }
@@ -93,7 +95,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     },
   });
 
-  const ignoreCase = await readIgnoreCase(async (gitArgs) => await args.git.run(root, gitArgs));
+  const ignoreCase = await readIgnoreCase(gitAt(args.git, root));
   // loaded off the listen's path: a listing awaits the load, so the first one waits, not the boot.
   const ignore = createVaultIgnoreHolder(
     async () => await loadVaultIgnore(root, { ignoreCase }),
@@ -106,7 +108,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   // a change naming a .gitignore, or naming nothing, may move what the vault ignores. the rules
   // reload at once, so every listing from here waits on them, and the index is told to re-diff:
   // what they hid or revealed is exactly what no path in the change names.
-  const noteFilesChanged = (change: VaultFilesChange): void => {
+  const reportFilesChanged = (change: VaultFilesChange): void => {
     if (change.kind === "paths" && !change.paths.some((changed) => isGitignorePath(changed))) {
       args.onFilesChanged?.(change);
       return;
@@ -134,7 +136,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   // alone: a foreign write behind a save (an agent editing the open note) must still land.
   // recursive dir ops may still echo once through their children; not worth tracking a subtree.
   const recentSelfWrites = new Map<string, { at: number; left: EntryFingerprint }>();
-  const noteSelfWrites = (mutations: readonly VaultMutation[]): void => {
+  const rememberSelfWrites = (mutations: readonly VaultMutation[]): void => {
     const at = Date.now();
     for (const mutation of mutations) {
       recentSelfWrites.set(mutation.path, { at, left: mutation.fingerprint });
@@ -189,15 +191,15 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
         if (moved.length > 0) {
           args.notifier.notifyVault(["files-changed"], moved);
         }
-        noteSelfWrites(delivery.mutations);
+        rememberSelfWrites(delivery.mutations);
         const paths = delivery.mutations.map((mutation) => mutation.path);
-        noteFilesChanged({ kind: "paths", paths });
+        reportFilesChanged({ kind: "paths", paths });
         engine?.scheduleCommit(paths);
         return;
       }
       case "watched": {
         args.notifier.notifyVault(["files-changed"], delivery.paths);
-        noteFilesChanged({ kind: "paths", paths: delivery.paths });
+        reportFilesChanged({ kind: "paths", paths: delivery.paths });
         engine?.scheduleCommit(delivery.paths);
         return;
       }
@@ -208,7 +210,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
         } else {
           args.notifier.notifyVault(["files-changed"], change.paths);
         }
-        noteFilesChanged(change);
+        reportFilesChanged(change);
         engine?.scheduleCommit();
         return;
       }
@@ -220,7 +222,9 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   };
 
   const gitArgs: GitEngineArgs = {
+    accountPingsReach: args.accountPingsReach,
     deviceName: args.deviceName,
+    externalSync: args.externalSync,
     git: args.git,
     onError: (message) => {
       console.error(`vault git: ${message}`);
@@ -251,12 +255,6 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     remote: args.remote,
     root,
   };
-  if (args.accountPingsReach !== undefined) {
-    gitArgs.accountPingsReach = args.accountPingsReach;
-  }
-  if (args.externalSync !== undefined) {
-    gitArgs.externalSync = args.externalSync;
-  }
   const git = createGitEngine(gitArgs);
   engine = git;
 
@@ -276,10 +274,8 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
       console.warn(`vault: ${relPath} cannot be read (${code}); listing it empty`);
     },
     root,
+    stallRead: args.stallRead,
   };
-  if (args.stallRead !== undefined) {
-    serviceArgs.stallRead = args.stallRead;
-  }
   const service = createVaultService(serviceArgs);
 
   let disposed = false;
@@ -302,6 +298,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   let watcher: VaultWatcher | null = null;
   if (args.watch ?? true) {
     const watcherArgs: VaultWatcherArgs = {
+      backend: args.watcherBackend,
       debugLog: args.debugLog,
       ignores: (relPath) => ignore.settled().ignoresChangedPath(relPath),
       onChanged: (paths) => {
@@ -312,9 +309,6 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
       },
       root,
     };
-    if (args.watcherBackend) {
-      watcherArgs.backend = args.watcherBackend;
-    }
     watcher = createVaultWatcher(watcherArgs);
     watcher.start();
   }

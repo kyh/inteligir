@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { VAULT_GIT_MAX_PUSH_BYTES, vaultCommitSubject } from "@repo/contract/cloud/vault/vault-git";
+import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/contract/cloud/vault/vault-git";
 import { VAULT_SYNC_CONFLICTS_MAX } from "@repo/contract/local/vault/vault-schema";
 import type {
   ExternalSync,
@@ -10,13 +10,12 @@ import type {
   VaultStatusResponse,
   VaultSyncConflict,
 } from "@repo/contract/local/vault/vault-schema";
-import { parseConflictCopyPath } from "@repo/notes/sync/conflict-copy";
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";
 import { ownOriginUrl } from "../cloud/vault-remote";
 import type { OriginConfig, VaultRemoteProvider, VaultRemoteSpec } from "../cloud/vault-remote";
 import { messageOf } from "../error-message";
-import { readOriginConfig, REMOTE_MARKER_ACCOUNT, REMOTE_MARKER_KEY } from "./folder-facts";
+import { readOriginConfig } from "./folder-facts";
 import { ACCOUNT_MARKER_KEY, SEED_COMMIT_KEY } from "./git-bootstrap";
 import {
   cachedDeletionLog,
@@ -26,37 +25,36 @@ import {
   readTurnCommits,
 } from "./git-history";
 import type { NoteHistoryPage, TurnCommit } from "./git-history";
-import { mergeFetched, mergeInProgress } from "./git-merge";
+import { mergeFetched, mergeInProgress, pulledCopies } from "./git-merge";
 import type { Reconcile } from "./git-merge";
-import { entryPaths, isUnmerged, readPorcelain } from "./git-porcelain";
-import type { PorcelainEntry } from "./git-porcelain";
+import { createAutoCommit } from "./git-commits";
+import type { CommitHold } from "./git-commits";
+import { readPorcelain, unmergedPaths } from "./git-porcelain";
+import {
+  currentBranch,
+  isAncestor,
+  markOrigin,
+  pointOrigin,
+  readConfig,
+  revListCount,
+  revParse,
+} from "./git-refs";
 import {
   classifyNetworkFailure,
+  gitAt,
   gitPath,
   identityEnv,
   isMissingRemoteRef,
   NETWORK_GIT_TIMEOUT_MS,
   redactRemoteUrl,
 } from "./git-run";
-import type { CommitAuthor, GitRunner, NetworkFailure, RunGitOptions } from "./git-run";
+import type { CommitAuthor, GitRunner, NetworkFailure } from "./git-run";
 import type { VaultFilesChange } from "./vault-changes";
-import { createDebouncedCallbackScheduler } from "./watcher/debounce";
-
-// a 15s pause ends an editing session, so the log stays answerable ("the version from before
-// i rewrote the intro") rather than thirty anonymous revisions; the max wait is the sync
-// interval, since a sync pass commits the dirty tree before it pushes.
-const AUTO_COMMIT_QUIET_MS = 15_000;
-const AUTO_COMMIT_MAX_WAIT_MS = 60_000;
 
 // the account remote's quiet tick: while its socket would ping this device for another device's
 // push and nothing waits to go up, a tick reaches the hosted vault only this often, because every
 // fetch is an operation the hosted vault bills. a ping, a sign-in and Sync now still reach it at once.
 const ACCOUNT_QUIET_FETCH_MS = 15 * 60_000;
-
-// past this a scoped commit costs more argv (status pathspec, then add) than the unscoped sweep.
-const MAX_SCOPED_COMMIT_PATHS = 200;
-
-const ORIGIN_PUSH_URL_KEY = "remote.origin.pushurl";
 
 export interface GitEngineArgs {
   root: string;
@@ -70,7 +68,7 @@ export interface GitEngineArgs {
   // the verdict a path both sides changed gets; a suite injects one that fails.
   reconcile?: Reconcile;
   // the service that syncs the folder, which every status names.
-  externalSync?: ExternalSync | null;
+  externalSync?: ExternalSync | null | undefined;
   // fired on a sync transition, never on a commit that lands: the state is dirty on both sides
   // of a commit, and each announcement costs every client a porcelain read under the repo lock.
   // a flush that fails, and the commit that lands after it, move the reported error, so both fire.
@@ -86,15 +84,9 @@ export interface GitEngineArgs {
   maxPushBytes?: number;
   // whether another device's push to the account remote would ping this device now (its account
   // socket is up). unset or false, every tick fetches, as a remote that pings nobody needs.
-  accountPingsReach?: () => boolean;
+  accountPingsReach?: (() => boolean) | undefined;
   // how long a tick may go without reaching a remote that pings; unset, ACCOUNT_QUIET_FETCH_MS.
   quietFetchMs?: number;
-}
-
-interface CommitHold {
-  // the paths the holding turn wrote, which a checkpoint leaves to the turn's own commit.
-  claim: (paths: readonly string[]) => void;
-  release: () => void;
 }
 
 export interface GitEngine {
@@ -213,9 +205,6 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const externalSync = args.externalSync ?? null;
 
   let lastSyncAt: number | null = null;
-  // reported ahead of the outcome's message until a flush or a whole-tree commit lands: a tree the
-  // auto-commit left dirty says why nowhere else, and a vault with no remote runs no pass.
-  let flushError: string | null = null;
   let outcome: SyncOutcome = NO_OUTCOME;
   // memos, not verdicts: each outlives the passes that go offline meanwhile, so the pass skips a
   // push or a merge that could only fail the same way again.
@@ -249,8 +238,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return await next;
   };
 
-  const run = async (gitArgs: readonly string[], options: RunGitOptions = {}) =>
-    await git.run(root, gitArgs, options);
+  const run = gitAt(git, root);
 
   const deletionLog = cachedDeletionLog(run);
 
@@ -270,13 +258,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return remote;
   };
 
-  const runNetwork = async (gitArgs: readonly string[], env?: Record<string, string>) => {
-    const options: RunGitOptions = { timeoutMs: NETWORK_GIT_TIMEOUT_MS };
-    if (env) {
-      options.env = env;
-    }
-    return await run(gitArgs, options);
-  };
+  const runNetwork = async (gitArgs: readonly string[], env?: Record<string, string>) =>
+    await run(gitArgs, { env, timeoutMs: NETWORK_GIT_TIMEOUT_MS });
 
   // a failure the pass met on the network and could name, said once to the log. a lost race is no
   // failure of the remote: the tree says "unpushed", and the next pass rebases onto the push that
@@ -291,9 +274,6 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     args.onError?.(message);
     outcome = { failure: refused, kind: "unreachable", message };
   };
-
-  const porcelain = async (paths: readonly string[] = []): Promise<PorcelainEntry[]> =>
-    await readPorcelain(run, paths);
 
   let rebaseStateDirs: readonly string[] | null = null;
   const rebaseInProgress = async (): Promise<boolean> => {
@@ -333,246 +313,23 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     mayBeMidIntegration = false;
   };
 
-  const commit = async (subject: string, author?: CommitAuthor): Promise<void> => {
-    await run(["commit", "-m", subject], {
-      env: identityEnv(args.deviceName(), author),
-    });
-  };
-
-  const clearFlushError = (): void => {
-    if (flushError !== null) {
-      flushError = null;
-      args.onStatusChanged?.();
-    }
-  };
-
-  // a whole-tree commit that succeeds leaves nothing a failed flush stranded, whoever ran it: a
-  // sync pass or a checkpoint clears the report as a later flush would.
-  const commitIfDirty = async (): Promise<{ files: number } | null> => {
-    await clearInterruptedIntegration();
-    const dirty = entryPaths(await porcelain());
-    if (dirty.length === 0) {
-      clearFlushError();
-      return null;
-    }
-    // unscoped: the scoped form passes every path as argv, and a large vault's first commit
-    // would exceed ARG_MAX.
-    await run(["add", "-A"]);
-    await commit(vaultCommitSubject(dirty));
-    clearFlushError();
-    return { files: dirty.length };
-  };
-
-  const commitPathsIfDirty = async (
-    paths: readonly string[],
-    author: CommitAuthor | undefined,
-    subject: string | ((dirty: readonly string[]) => string),
-  ): Promise<{ files: number } | null> => {
-    if (paths.length === 0) {
-      return null;
-    }
-    await clearInterruptedIntegration();
-    // git add errors on a pathspec matching nothing, and a reported write may have been reverted.
-    const dirty = entryPaths(await porcelain(paths));
-    if (dirty.length === 0) {
-      return null;
-    }
-    // -A with a pathspec stages deletions under it too; the commit takes only the index.
-    await run(["add", "-A", "--", ...dirty]);
-    await commit(subject instanceof Function ? subject(dirty) : subject, author);
-    return { files: dirty.length };
-  };
-
-  // each live hold's claims. a held flush is re-armed on release; the release path's own
-  // commitPaths usually beats it.
-  const liveHolds = new Set<Set<string>>();
-  let flushDeferredWhileHeld = false;
-
-  const claimedPaths = (): string[] => [
-    ...new Set([...liveHolds].flatMap((claims) => [...claims])),
-  ];
-
-  const stagedPaths = async (paths: readonly string[] = []): Promise<string[]> => {
-    const { stdout } = await run([
-      "diff",
-      "--cached",
-      "--name-only",
-      "-z",
-      "--no-renames",
-      "--",
-      ...paths,
-    ]);
-    return stdout.split("\0").filter((staged) => staged.length > 0);
-  };
-
-  const commitUnclaimed = async (): Promise<{ files: number } | null> => {
-    const claimed = claimedPaths();
-    if (claimed.length === 0) {
-      return await commitIfDirty();
-    }
-    await clearInterruptedIntegration();
-    // an :(exclude) pathspec is magic, which --literal-pathspecs turns off, and naming every
-    // unclaimed path is the argv a large vault's first commit would overflow: the whole tree is
-    // staged and the claims taken back out.
-    await run(["add", "-A"]);
-    const claimedStaged = await stagedPaths(claimed);
-    if (claimedStaged.length > 0) {
-      await run(["reset", "-q", "--", ...claimedStaged]);
-    }
-    const staged = await stagedPaths();
-    if (staged.length === 0) {
-      return null;
-    }
-    await commit(vaultCommitSubject(staged));
-    return { files: staged.length };
-  };
-
-  // null means "whatever is dirty"; one unscoped call in the window decides the whole flush.
-  let pendingCommitPaths: Set<string> | null = new Set();
-
-  const noteCommitPaths = (paths: readonly string[] | undefined): void => {
-    if (paths === undefined || pendingCommitPaths === null) {
-      pendingCommitPaths = null;
-      return;
-    }
-    for (const notePath of paths) {
-      pendingCommitPaths.add(notePath);
-    }
-    if (pendingCommitPaths.size > MAX_SCOPED_COMMIT_PATHS) {
-      pendingCommitPaths = null;
-    }
-  };
-
-  const flushCommit = async (scoped: Set<string> | null): Promise<void> => {
-    try {
-      await withRepoLock(async () =>
-        scoped === null
-          ? await commitIfDirty()
-          : await commitPathsIfDirty([...scoped], undefined, vaultCommitSubject),
-      );
-    } catch (error) {
-      // whatever failed is still dirty and its paths are spent: the next flush sweeps everything.
-      pendingCommitPaths = null;
-      flushError = error instanceof Error ? error.message : "auto-commit failed";
-      args.onError?.(flushError);
-      args.onStatusChanged?.();
-      return;
-    }
-    clearFlushError();
-  };
-
-  const commitScheduler = createDebouncedCallbackScheduler({
-    debounceMs: args.quietMs ?? AUTO_COMMIT_QUIET_MS,
-    maxWaitMs: args.maxWaitMs ?? AUTO_COMMIT_MAX_WAIT_MS,
-    onFlush: () => {
-      if (disposed) {
-        return;
-      }
-      if (liveHolds.size > 0) {
-        flushDeferredWhileHeld = true;
-        return;
-      }
-      const scoped = pendingCommitPaths;
-      pendingCommitPaths = new Set();
-      void flushCommit(scoped);
-    },
+  const autoCommit = createAutoCommit({
+    beforeCommit: clearInterruptedIntegration,
+    deviceName: args.deviceName,
+    lock: withRepoLock,
+    maxWaitMs: args.maxWaitMs,
+    onError: args.onError,
+    onStatusChanged: args.onStatusChanged,
+    quietMs: args.quietMs,
+    run,
   });
-
-  const holdCommits = (): CommitHold => {
-    const claims = new Set<string>();
-    liveHolds.add(claims);
-    return {
-      claim(paths) {
-        if (!liveHolds.has(claims)) {
-          return;
-        }
-        for (const claimed of paths) {
-          claims.add(claimed);
-        }
-      },
-      release() {
-        if (!liveHolds.delete(claims)) {
-          return;
-        }
-        if (liveHolds.size === 0 && flushDeferredWhileHeld) {
-          flushDeferredWhileHeld = false;
-          commitScheduler.schedule();
-        }
-      },
-    };
-  };
-
-  const currentBranch = async (): Promise<string | null> => {
-    try {
-      const { stdout } = await run(["symbolic-ref", "--short", "-q", "HEAD"]);
-      const branch = stdout.trim();
-      // git refuses "-"-leading ref names itself; this only keeps a corrupted head out of argv.
-      return branch.length > 0 && !branch.startsWith("-") ? branch : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const readConfig = async (key: string): Promise<string | null> => {
-    try {
-      const { stdout } = await run(["config", "--get", key]);
-      const value = stdout.trim();
-      return value === "" ? null : value;
-    } catch {
-      return null;
-    }
-  };
-
-  // a new url leaves the old remote's tips under refs/remotes/origin, and a status measured against
-  // them would call the vault synced with a remote that never saw it.
-  const forgetOriginTips = async (): Promise<void> => {
-    const { stdout } = await run([
-      "for-each-ref",
-      "--format=delete %(refname)",
-      "refs/remotes/origin",
-    ]);
-    if (stdout.trim().length > 0) {
-      // origin/HEAD is a symref: deleted through, it would delete the branch it names twice.
-      await run(["update-ref", "--no-deref", "--stdin"], { input: stdout });
-    }
-  };
-
-  // the one way the app moves the origin, a pass's and a choice's alike: a hand-set pushurl
-  // outlives `set-url`, and pushes would keep going where the vault synced before.
-  const pointOrigin = async (current: string | null, url: string): Promise<void> => {
-    if (current === url) {
-      return;
-    }
-    if (current !== null) {
-      await forgetOriginTips();
-    }
-    if ((await readConfig(ORIGIN_PUSH_URL_KEY)) !== null) {
-      await run(["config", "--unset-all", ORIGIN_PUSH_URL_KEY]);
-    }
-    // "--" so the url can never read as an option.
-    await run(
-      current === null
-        ? ["remote", "add", "--", "origin", url]
-        : ["remote", "set-url", "--", "origin", url],
-    );
-  };
-
-  // the origin is the vault's own record of where it syncs, so the app marks the origin it manages
-  // and drops the mark when an explicit remote takes it over.
-  const markOrigin = async (managed: boolean, origin: OriginConfig): Promise<void> => {
-    if (managed && !origin.markedAccount) {
-      await run(["config", REMOTE_MARKER_KEY, REMOTE_MARKER_ACCOUNT]);
-    } else if (!managed && origin.markedAccount) {
-      await run(["config", "--unset-all", REMOTE_MARKER_KEY]);
-    }
-  };
 
   const ensureOriginRemote = async (
     remote: VaultRemoteSpec,
     origin: OriginConfig,
   ): Promise<void> => {
-    await pointOrigin(origin.url, remote.url);
-    await markOrigin(remote.source === "account", origin);
+    await pointOrigin(run, origin.url, remote.url);
+    await markOrigin(run, remote.source === "account", origin);
   };
 
   // the account choice drops only an origin the provider calls the user's own: the app's own stays
@@ -583,13 +340,13 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return "pinned";
     }
     if (choice.kind === "remote") {
-      await pointOrigin(origin.url, choice.url);
-      await markOrigin(false, origin);
+      await pointOrigin(run, origin.url, choice.url);
+      await markOrigin(run, false, origin);
     } else {
       if (origin.url !== null && remote?.source === "explicit") {
         await run(["remote", "remove", "origin"]);
       }
-      await markOrigin(true, origin);
+      await markOrigin(run, true, origin);
     }
     // what a pass concluded about the old remote says nothing of the new one; a repo left
     // mid-integration is broken whichever remote it syncs with.
@@ -608,31 +365,11 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return written;
   };
 
-  const revListCount = async (range: string): Promise<number> => {
-    const { stdout } = await run(["rev-list", "--count", range]);
-    return Math.trunc(Number(stdout.trim())) || 0;
-  };
-
-  const revParse = async (rev: string): Promise<string> => {
-    const { stdout } = await run(["rev-parse", rev]);
-    return stdout.trim();
-  };
-
   // what `push origin <branch>` sends, against the tip it is measured from.
   const pushTips = async (branch: string, remoteHasBranch: boolean): Promise<PushTips> => ({
-    head: await revParse(`refs/heads/${branch}`),
-    remote: remoteHasBranch ? await revParse(`refs/remotes/origin/${branch}`) : null,
+    head: await revParse(run, `refs/heads/${branch}`),
+    remote: remoteHasBranch ? await revParse(run, `refs/remotes/origin/${branch}`) : null,
   });
-
-  // a failed check reads as "not an ancestor", which resends the push: the answer a doubt earns.
-  const isAncestor = async (ancestor: string, rev: string): Promise<boolean> => {
-    try {
-      await run(["merge-base", "--is-ancestor", ancestor, rev]);
-      return true;
-    } catch {
-      return false;
-    }
-  };
 
   // under the lock, before the push. true ends the pass on the refusal already recorded.
   const repeatsRefusedPush = async (
@@ -648,7 +385,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (tips.remote !== refused.remote) {
       return false;
     }
-    if (refused.failure === "too-large" && !(await isAncestor(refused.head, tips.head))) {
+    if (refused.failure === "too-large" && !(await isAncestor(run, refused.head, tips.head))) {
       return false;
     }
     outcome = {
@@ -699,24 +436,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
   };
 
-  const unmergedPaths = async (): Promise<string[]> => {
-    const entries = await porcelain();
-    return entries
-      .filter(isUnmerged)
-      .map((entry) => entry.path)
-      .toSorted();
-  };
-
-  const unmergedPathsOr = async (fallback: string[]): Promise<string[]> => {
-    try {
-      return await unmergedPaths();
-    } catch {
-      return fallback;
-    }
-  };
-
   const readAccountMarker = async (): Promise<string | null> =>
-    await readConfig(ACCOUNT_MARKER_KEY);
+    await readConfig(run, ACCOUNT_MARKER_KEY);
 
   // a tree left mid-rebase or mid-merge is no diff between two commits. a clean abort needs no
   // report: it puts back the tree the pass started from.
@@ -735,7 +456,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   // both sides changed, which the pass merges instead; "unhandled" is the caller's cue to rethrow.
   const recoverFailedRebase = async (): Promise<"conflicted" | "broken" | "unhandled"> => {
     // git's own unmerged set, read before the abort wipes it.
-    const stopped = (await rebaseInProgress()) ? await unmergedPathsOr([]) : [];
+    const stopped = (await rebaseInProgress()) ? await unmergedPaths(run).catch(() => []) : [];
     if (await rebaseInProgress()) {
       // never leave the repo mid-rebase.
       await run(["rebase", "--abort"]).catch(() => {
@@ -743,7 +464,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       });
     }
     // a swallowed failed abort would leave every later commit landing in rebase state.
-    const stillUnmerged = await unmergedPathsOr(["unknown"]);
+    const stillUnmerged = await unmergedPaths(run).catch(() => ["unknown"]);
     if ((await rebaseInProgress()) || stillUnmerged.length > 0) {
       markBroken("rebase");
       return "broken";
@@ -751,7 +472,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return stopped.length > 0 ? "conflicted" : "unhandled";
   };
 
-  const noteConflicts = (reports: readonly SyncConflictReport[]): void => {
+  const recordConflicts = (reports: readonly SyncConflictReport[]): void => {
     if (reports.length === 0) {
       return;
     }
@@ -760,53 +481,6 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       0,
       VAULT_SYNC_CONFLICTS_MAX,
     );
-  };
-
-  // a copy another device's merge or the phone made arrives as a note like any other; its name
-  // says whose version it holds, and whoever added it kept theirs at the note.
-  const pulledCopies = async (
-    from: string,
-    to: string,
-    madeHere: ReadonlySet<string>,
-  ): Promise<SyncConflictReport[]> => {
-    const { stdout } = await run([
-      "diff",
-      "--name-only",
-      "-z",
-      "--no-renames",
-      "--diff-filter=A",
-      from,
-      to,
-      "--",
-    ]);
-    const reports: SyncConflictReport[] = [];
-    for (const added of stdout.split("\0")) {
-      const copy = added === "" || madeHere.has(added) ? null : parseConflictCopyPath(added);
-      if (copy === null) {
-        continue;
-      }
-      // first-parent: a copy another desktop made lands in its merge commit, which adds the path
-      // to that device's own line.
-      const adder = await run([
-        "log",
-        "-1",
-        "--diff-merges=first-parent",
-        "--no-patch",
-        "--diff-filter=A",
-        "--format=%cn",
-        `${from}..${to}`,
-        "--",
-        added,
-      ]);
-      reports.push({
-        copyDevice: copy.device,
-        copyPath: added,
-        keptDevice: adder.stdout.trim(),
-        kind: "copied",
-        path: copy.path,
-      });
-    }
-    return reports;
   };
 
   // a rebase keeps the history a line, so it goes first; it replays commits one by one and drops
@@ -871,7 +545,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return false;
     }
     try {
-      return (await revParse("HEAD")) === (await revParse(`refs/remotes/origin/${branch}`));
+      return (
+        (await revParse(run, "HEAD")) === (await revParse(run, `refs/remotes/origin/${branch}`))
+      );
     } catch {
       return false;
     }
@@ -916,9 +592,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
         return null;
       }
     }
-    await commitIfDirty();
+    await autoCommit.commitIfDirty();
     await ensureOriginRemote(remote, origin);
-    const branch = await currentBranch();
+    const branch = await currentBranch(run);
     if (branch === null) {
       outcome = { kind: "detached", message: "vault HEAD is detached; sync needs a branch" };
       return null;
@@ -942,7 +618,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     remoteRef: string,
     tips: IntegrationTips,
   ): Promise<boolean> => {
-    const seed = await readConfig(SEED_COMMIT_KEY);
+    const seed = await readConfig(run, SEED_COMMIT_KEY);
     if (seed === null) {
       return false;
     }
@@ -976,7 +652,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     const madeHere = new Set(
       settled.flatMap((report) => (report.kind === "copied" ? [report.copyPath] : [])),
     );
-    return await pulledCopies(tips.head, head, madeHere).catch(() => []);
+    return await pulledCopies(run, tips.head, head, madeHere).catch(() => []);
   };
 
   // under the lock, between the fetch and the push. false ends the pass before its push.
@@ -987,20 +663,20 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   ): Promise<boolean> => {
     // the lock was free across the fetch: a turn may have taken its hold and begun writing,
     // and a dispose may have run the final flush.
-    if (disposed || liveHolds.size > 0) {
+    if (disposed || autoCommit.held()) {
       return false;
     }
     // a save that landed during the fetch would refuse the rebase as unstaged changes.
-    await commitIfDirty();
+    await autoCommit.commitIfDirty();
     if (!remoteHasBranch) {
       return true;
     }
     const remoteRef = `refs/remotes/origin/${branch}`;
     const tips: IntegrationTips = {
-      head: await revParse("HEAD"),
-      remote: await revParse(remoteRef),
+      head: await revParse(run, "HEAD"),
+      remote: await revParse(run, remoteRef),
     };
-    if (await isAncestor(tips.remote, tips.head)) {
+    if (await isAncestor(run, tips.remote, tips.head)) {
       return true;
     }
     if (await yieldSeededHistory(remote, branch, remoteRef, tips)) {
@@ -1015,10 +691,10 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (settled === null) {
       return false;
     }
-    const head = await revParse("HEAD");
+    const head = await revParse(run, "HEAD");
     if (head !== tips.head) {
       await reportMovedTree(tips.head, head);
-      noteConflicts([...settled, ...(await copiesPulledSince(tips, head, settled))]);
+      recordConflicts([...settled, ...(await copiesPulledSince(tips, head, settled))]);
     }
     return true;
   };
@@ -1117,15 +793,15 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   // behind the repo lock so a status never reports a sync's half-way tree.
   const treeState = async (): Promise<"clean" | "dirty"> =>
     await withRepoLock(async () => {
-      const dirtyPaths = await porcelain()
+      const dirtyPaths = await readPorcelain(run)
         .then((entries) => entries.length)
         .catch(() => 0);
       let unpushed = 0;
       if (dirtyPaths === 0) {
-        const branch = await currentBranch();
+        const branch = await currentBranch(run);
         if (branch !== null) {
           // no remote-tracking ref yet means everything local is unpushed.
-          unpushed = await revListCount(`refs/remotes/origin/${branch}..HEAD`).catch(() => 1);
+          unpushed = await revListCount(run, `refs/remotes/origin/${branch}..HEAD`).catch(() => 1);
         }
       }
       return dirtyPaths > 0 || unpushed > 0 ? "dirty" : "clean";
@@ -1139,7 +815,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       conflicts,
       device: args.deviceName(),
       externalSync,
-      lastError: flushError ?? verdict.message,
+      lastError: autoCommit.flushError() ?? verdict.message,
       lastSyncAt,
     };
     if (remote === null) {
@@ -1159,7 +835,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (verdict.kind === "broken") {
       return { ...fields, state: "broken" };
     }
-    if (liveHolds.size > 0) {
+    if (autoCommit.held()) {
       return { ...fields, state: "held" };
     }
     switch (verdict.kind) {
@@ -1177,7 +853,10 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       }
       case "none": {
         // a failed flush leaves the tree dirty, which alone reads as edits on their way
-        return { ...fields, state: flushError === null ? await treeState() : "stalled" };
+        return {
+          ...fields,
+          state: autoCommit.flushError() === null ? await treeState() : "stalled",
+        };
       }
       default: {
         const exhaustive: never = verdict;
@@ -1227,7 +906,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
           // a pass starts by committing the dirty tree, which a hold exists to prevent; the
           // snapshot says "held" rather than reporting clean as if a pass ran.
           const remote = await currentRemote();
-          if (remote === null || outcome.kind === "broken" || liveHolds.size > 0) {
+          if (remote === null || outcome.kind === "broken" || autoCommit.held()) {
             return await statusSnapshot();
           }
           syncing = true;
@@ -1253,54 +932,36 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const syncNow = async (): Promise<VaultStatusResponse> => await requestSync(true);
 
   return {
-    async checkpointUnclaimed() {
-      return await withRepoLock(commitUnclaimed);
-    },
-    claimedPaths,
+    checkpointUnclaimed: autoCommit.checkpointUnclaimed,
+    claimedPaths: autoCommit.claimedPaths,
+    commitNow: autoCommit.commitNow,
+    commitPaths: autoCommit.commitPaths,
     currentRemote,
-    async commitNow(paths?: readonly string[]) {
-      return await withRepoLock(
-        async () =>
-          await (paths === undefined
-            ? commitIfDirty()
-            : commitPathsIfDirty(paths, undefined, vaultCommitSubject)),
-      );
-    },
-    async commitPaths(paths, author, subject) {
-      return await withRepoLock(async () => await commitPathsIfDirty(paths, author, subject));
-    },
     async deleted() {
       return await readDeletedNotes(run, deletionLog, (notePath) =>
         existsSync(path.join(root, notePath)),
       );
     },
     async dispose() {
+      // first: a pass between its fetch and its integration reads it and stops.
       disposed = true;
-      commitScheduler.dispose();
       if (autoSyncTimer !== null) {
         clearInterval(autoSyncTimer);
         autoSyncTimer = null;
       }
-      // flush, never cancel: the debounce dies with the process. a failed flush rejects so the
-      // shutdown exit code can name it.
-      await withRepoLock(async () => await commitIfDirty());
+      await autoCommit.dispose();
     },
     async history(notePath, page) {
       return await readNoteHistory(run, notePath, page);
     },
-    holdCommits,
+    holdCommits: autoCommit.hold,
     isSyncing: () => syncing,
     async revision(notePath, sha) {
       return await readNoteRevision(run, notePath, sha);
     },
     runExclusive: withRepoLock,
     setOrigin,
-    scheduleCommit(paths?: readonly string[]) {
-      if (!disposed) {
-        noteCommitPaths(paths);
-        commitScheduler.schedule();
-      }
-    },
+    scheduleCommit: autoCommit.schedule,
     startAutoSync(intervalMs: number) {
       // armed with no remote too: a sign-in after boot starts syncing on the next tick.
       if (disposed || autoSyncTimer !== null) {

@@ -1,6 +1,7 @@
 // no middleware ladder: the token is checked at the http boundary (three of the
 // four surfaces it guards are not procedures) and containment is the vault
 // service's alone — a resolveVaultPath middleware would be a second answer to it.
+// the one middleware is a procedure's own refusal translation, `refusing`.
 
 import { localContract } from "@repo/contract/local";
 import type { AgentStatus } from "@repo/contract/local/system/system-schema";
@@ -67,12 +68,11 @@ export const attributeWrites = (context: AppContext, paths: readonly string[]): 
 };
 
 // an unnamed refusal is rethrown as it came — a 500, rather than a class the contract row does not declare.
-export const refusals =
-  (translate: (cause: unknown) => ORPCError<string, unknown> | null) =>
-  async <T>(work: () => T | Promise<T>): Promise<T> => {
+export const refusing = (translate: (cause: unknown) => ORPCError<string, unknown> | null) =>
+  base.middleware(async ({ next }) => {
     try {
-      return await work();
+      return await next();
     } catch (error) {
       throw translate(error) ?? error;
     }
-  };
+  });
