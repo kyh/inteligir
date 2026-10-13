@@ -46,7 +46,7 @@ import { setNotePinned } from "./note/pin-note";
 import type { PinNoteApi } from "./note/pin-note";
 import { VaultProvider } from "./note/vault-provider";
 import { CommandPalette } from "./palette/command-palette";
-import type { PaletteEntry, PaletteRequest } from "./palette/command-palette";
+import type { PaletteActions, PaletteEntry, PaletteRequest } from "./palette/command-palette";
 import { replaceInVault, summarizeReplace } from "./palette/vault-replace";
 import type { ReplaceProgressPort, VaultReplaceRequest } from "./palette/vault-replace";
 import { Sidebar } from "@repo/ui/components/sidebar";
@@ -114,6 +114,31 @@ const pinAndReport = async (api: PinNoteApi, path: string, pinned: boolean): Pro
   }
 };
 
+const setPinned = (path: string, pinned: boolean): void => {
+  void pinAndReport(client, path, pinned);
+};
+
+// settles when the run is over, so the palette can show it running and offer the cancel
+const replaceAll = async (
+  request: VaultReplaceRequest,
+  port: ReplaceProgressPort,
+): Promise<void> => {
+  const noteCount = request.paths.length;
+  const confirmed = await confirm({
+    body: `Every match of "${request.needle}" becomes "${request.replacement}". A note stays recoverable from its History.`,
+    confirmLabel: "Replace all",
+    title: `Replace in ${plural(noteCount, "note")}?`,
+  });
+  if (!confirmed) {
+    return;
+  }
+  // the open note's buffer lands first, so its file is not the one that "changed since read"
+  await flushOpenNote();
+  const outcomes = await replaceInVault(client, request, port);
+  const summary = summarizeReplace(outcomes, noteCount - outcomes.length);
+  toast[summary.tone](summary.message);
+};
+
 export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => {
   const queryClient = useQueryClient();
   const treeQuery = useVaultTree();
@@ -123,15 +148,15 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   // the last request mounted with `open` off, because unmounting the dialog cuts its exit tween;
   // the next open replaces it.
   const [palette, setPalette] = useState<{ request: PaletteRequest; open: boolean } | null>(null);
-  const openPalette = useCallback((entry: PaletteEntry): void => {
+  const openPalette = (entry: PaletteEntry): void => {
     setPalette((current) => ({
       open: true,
       request: { ...entry, nonce: (current?.request.nonce ?? 0) + 1 },
     }));
-  }, []);
-  const closePalette = useCallback((): void => {
+  };
+  const closePalette = (): void => {
     setPalette((current) => (current === null ? null : { ...current, open: false }));
-  }, []);
+  };
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [shortcutModifier] = useState(platformShortcutModifier);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
@@ -153,11 +178,11 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   const forward = useStore(noteStore.store, forwardTarget);
   // walked as the headings page opens, never in render: nothing re-renders the workspace when the
   // document changes.
-  const listOpenHeadings = useCallback((): readonly HeadingItem[] => {
+  const listOpenHeadings = (): readonly HeadingItem[] => {
     const { openPath: path } = noteStore.state();
     const editor = path === null ? null : getLiveEditor(path);
     return editor === null ? [] : collectHeadings(editor);
-  }, [noteStore]);
+  };
 
   const [panelThreadId, setPanelThreadId] = useState<string | null>(null);
 
@@ -210,14 +235,11 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     [showPanel],
   );
 
-  const openThread = useCallback(
-    (threadId: string): void => {
-      revealPanel({ tab: "actions", threadId });
-    },
-    [revealPanel],
-  );
+  const openThread = (threadId: string): void => {
+    revealPanel({ tab: "actions", threadId });
+  };
 
-  const readViewContext = useCallback<ViewContextSource>(async (): Promise<ViewContext | null> => {
+  const readViewContext: ViewContextSource = async (): Promise<ViewContext | null> => {
     const { editor } = noteStore.state();
     if (editor.kind === "closed") {
       return null;
@@ -234,12 +256,13 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
           : null;
       },
     });
-  }, [noteStore]);
+  };
 
   const actionsRef = useRef<VaultActions | null>(null);
   const noteColumnRef = useRef<HTMLElement | null>(null);
   // Ordinary opens, Back and Forward included: the store's stacks recognize a back/forward move
   // by value.
+  // held by hand, as showHistory is: VaultProvider re-points its merge-conflict toast in an effect
   const setOpenNote = useCallback((path: string | null): void => {
     if (path === null) {
       return;
@@ -270,81 +293,49 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   // the ask, which is cleared once the tree has focused it.
   const [reveal, setReveal] = useState<{ path: string; nonce: number } | null>(null);
   const revealNonce = useRef(0);
-  const revealInTree = useCallback(
-    (path: string): void => {
-      chooseRailView("files");
-      revealNonce.current += 1;
-      setReveal({ nonce: revealNonce.current, path });
-    },
-    [chooseRailView],
-  );
+  const revealInTree = (path: string): void => {
+    chooseRailView("files");
+    revealNonce.current += 1;
+    setReveal({ nonce: revealNonce.current, path });
+  };
+  // held by hand: the tree's focus effect re-runs on its identity
   const clearReveal = useCallback((): void => {
     setReveal(null);
   }, []);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
-  const createNote = useCallback(async (path: string, content = ""): Promise<void> => {
+  const createNote = async (path: string, content = ""): Promise<void> => {
     await actionsRef.current?.createFile(path, content);
-  }, []);
+  };
 
-  const newUntitledNote = useCallback(
-    (parentDir: string): void => {
-      void createNote(untitledNotePath(parentDir, treeQuery.data));
-    },
-    [treeQuery.data, createNote],
-  );
+  const newUntitledNote = (parentDir: string): void => {
+    void createNote(untitledNotePath(parentDir, treeQuery.data));
+  };
 
   // the live editor is keyed by path, so a note mid-switch answers no editor and the bar stays shut
-  const findInNote = useCallback((): void => {
+  const findInNote = (): void => {
     const { openPath: path } = noteStore.state();
     const editor = path === null ? null : getLiveEditor(path);
     if (editor !== null) {
       openFindBar(editor);
     }
-  }, [noteStore]);
+  };
 
   // the note opens first; the find bar takes the match once its editor is live
-  const openMatch = useCallback(
-    (match: VaultMatchWire, needle: string, options: TextMatchOptions): void => {
-      setOpenNote(match.path);
-      void jumpWhenLive(match.path, needle, match.ordinal, options);
-    },
-    [setOpenNote],
-  );
+  const openMatch = (match: VaultMatchWire, needle: string, options: TextMatchOptions): void => {
+    setOpenNote(match.path);
+    void jumpWhenLive(match.path, needle, match.ordinal, options);
+  };
 
   // the link element itself when the note still carries it; else the find bar shows the target
-  const openProblemLink = useCallback(
-    (sourcePath: string, target: string): void => {
-      setOpenNote(sourcePath);
-      void showLinkWhenLive(sourcePath, target);
-    },
-    [setOpenNote],
-  );
-
-  // settles when the run is over, so the palette can show it running and offer the cancel
-  const replaceAll = useCallback(
-    async (request: VaultReplaceRequest, port: ReplaceProgressPort): Promise<void> => {
-      const noteCount = request.paths.length;
-      const confirmed = await confirm({
-        body: `Every match of "${request.needle}" becomes "${request.replacement}". A note stays recoverable from its History.`,
-        confirmLabel: "Replace all",
-        title: `Replace in ${plural(noteCount, "note")}?`,
-      });
-      if (!confirmed) {
-        return;
-      }
-      // the open note's buffer lands first, so its file is not the one that "changed since read"
-      await flushOpenNote();
-      const outcomes = await replaceInVault(client, request, port);
-      const summary = summarizeReplace(outcomes, noteCount - outcomes.length);
-      toast[summary.tone](summary.message);
-    },
-    [],
-  );
+  const openProblemLink = (sourcePath: string, target: string): void => {
+    setOpenNote(sourcePath);
+    void showLinkWhenLive(sourcePath, target);
+  };
 
   // the template is read on every ⌘D rather than looked up in the tree, which can be stale; a
   // refused read keeps the built-in shape, so the day's note opens either way.
-  const openDailyNote = useCallback((): void => {
+  const openDailyNote = (): void => {
     const now = new Date();
     void (async () => {
       let content = dailyNoteTemplate(now);
@@ -357,42 +348,33 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
       // Create-exclusive rather than checking the tree first, which can be stale.
       await createNote(dailyNotePath(now), content);
     })();
-  }, [createNote]);
+  };
 
-  const newNoteFromTemplate = useCallback(
-    (templatePath: string): void => {
-      void (async () => {
-        let template: string;
-        try {
-          ({ content: template } = await client.vault.read({ path: templatePath }));
-        } catch {
-          toast.error("Could not read the template.");
-          return;
-        }
-        const path = untitledNotePath("", treeQuery.data);
-        const body = expandTemplate(template, { now: new Date(), title: docStem(path) });
-        await createNote(path, removeFrontmatterId(body));
-      })();
-    },
-    [treeQuery.data, createNote],
-  );
-
-  const insertTemplateIntoNote = useCallback(
-    (templatePath: string): void => {
-      const { openPath: path } = noteStore.state();
-      const editor = path === null ? null : getLiveEditor(path);
-      if (editor !== null) {
-        void insertTemplate(editor, templatePath);
+  const newNoteFromTemplate = (templatePath: string): void => {
+    void (async () => {
+      let template: string;
+      try {
+        ({ content: template } = await client.vault.read({ path: templatePath }));
+      } catch {
+        toast.error("Could not read the template.");
+        return;
       }
-    },
-    [noteStore],
-  );
+      const path = untitledNotePath("", treeQuery.data);
+      const body = expandTemplate(template, { now: new Date(), title: docStem(path) });
+      await createNote(path, removeFrontmatterId(body));
+    })();
+  };
+
+  const insertTemplateIntoNote = (templatePath: string): void => {
+    const { openPath: path } = noteStore.state();
+    const editor = path === null ? null : getLiveEditor(path);
+    if (editor !== null) {
+      void insertTemplate(editor, templatePath);
+    }
+  };
 
   const { syncNow, inFlight: syncInFlight } = useSyncNow();
 
-  const setPinned = useCallback((path: string, pinned: boolean): void => {
-    void pinAndReport(client, path, pinned);
-  }, []);
   const pinnedPaths = usePinnedPaths();
   const openPinned = openPath !== null && pinnedPaths.has(openPath);
 
@@ -406,28 +388,27 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   // Settings covers a workspace that stays mounted, so no unmount settles a title mid-rename or
   // an edit inside the autosave debounce: the blur and the flush stand in for it. The palette and
   // the find bar are portaled, so the cover would hide neither: both close here.
-  const onOpenSettings = useCallback(
-    (section?: SettingsSection): void => {
-      closePalette();
-      const { openPath: path } = noteStore.state();
-      const editor = path === null ? null : getLiveEditor(path);
-      if (editor !== null) {
-        hideFindBar(editor);
-      }
-      if (document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur();
-      }
-      void flushOpenNote();
-      // the router scrolls a hash's anchor into view once the page has rendered
-      if (section === undefined) {
-        void navigate({ search: true, to: "/settings" });
-      } else {
-        void navigate({ hash: section, search: true, to: "/settings" });
-      }
-    },
-    [closePalette, noteStore, navigate],
-  );
+  const onOpenSettings = (section?: SettingsSection): void => {
+    closePalette();
+    const { openPath: path } = noteStore.state();
+    const editor = path === null ? null : getLiveEditor(path);
+    if (editor !== null) {
+      hideFindBar(editor);
+    }
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    void flushOpenNote();
+    // the router scrolls a hash's anchor into view once the page has rendered
+    if (section === undefined) {
+      void navigate({ search: true, to: "/settings" });
+    } else {
+      void navigate({ hash: section, search: true, to: "/settings" });
+    }
+  };
 
+  // Held by hand, with showRail, revealPanel and showPanel under it: VaultProvider re-installs the
+  // editor host whenever this changes, which a compiler bailout must not make every render.
   const hostActions = useMemo<EditorHostActions>(
     () => ({
       agent: {
@@ -519,91 +500,65 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
 
   const treeEntries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
 
-  const paletteActions = useMemo(
-    () => ({
-      goToHeading: (heading: HeadingItem) => {
-        const { openPath: path } = noteStore.state();
-        const editor = path === null ? null : getLiveEditor(path);
-        if (editor !== null) {
-          goToHeading(editor, heading);
-        }
-      },
-      moveNote: treeOps.moveEntry,
-      newNote: newUntitledNote,
-      newNoteFromTemplate,
-      note:
-        openPath === null
-          ? null
-          : {
-              exportPdf: () => {
-                void exportNoteAsPdf(docStem(openPath));
-              },
-              findInNote,
-              insertTemplate: insertTemplateIntoNote,
-              listHeadings: listOpenHeadings,
-              path: openPath,
-              pinned: openPinned,
-              togglePin: () => {
-                setPinned(openPath, !openPinned);
-              },
+  const paletteActions: PaletteActions = {
+    goToHeading: (heading) => {
+      const { openPath: path } = noteStore.state();
+      const editor = path === null ? null : getLiveEditor(path);
+      if (editor !== null) {
+        goToHeading(editor, heading);
+      }
+    },
+    moveNote: treeOps.moveEntry,
+    newNote: newUntitledNote,
+    newNoteFromTemplate,
+    note:
+      openPath === null
+        ? null
+        : {
+            exportPdf: () => {
+              void exportNoteAsPdf(docStem(openPath));
             },
-      openDailyNote,
-      openDeletedNotes: () => {
-        chooseRailView("deleted");
-      },
-      openMatch,
-      openNote: setOpenNote,
-      openProblemLink,
-      openSettings: () => {
-        onOpenSettings();
-      },
-      openThread,
-      replaceAll,
-      syncNow,
-    }),
-    [
-      setOpenNote,
-      newUntitledNote,
-      newNoteFromTemplate,
-      openDailyNote,
-      openThread,
-      syncNow,
-      onOpenSettings,
-      findInNote,
-      insertTemplateIntoNote,
-      openPath,
-      openPinned,
-      setPinned,
-      treeOps,
-      openMatch,
-      replaceAll,
-      noteStore,
-      openProblemLink,
-      chooseRailView,
-      listOpenHeadings,
-    ],
-  );
+            findInNote,
+            insertTemplate: insertTemplateIntoNote,
+            listHeadings: listOpenHeadings,
+            path: openPath,
+            pinned: openPinned,
+            togglePin: () => {
+              setPinned(openPath, !openPinned);
+            },
+          },
+    openDailyNote,
+    openDeletedNotes: () => {
+      chooseRailView("deleted");
+    },
+    openMatch,
+    openNote: setOpenNote,
+    openProblemLink,
+    openSettings: () => {
+      onOpenSettings();
+    },
+    openThread,
+    replaceAll,
+    syncNow,
+  };
 
-  const noteMetadata = useMemo(
-    () => ({
-      deleteNote: () => {
-        const { openPath: path } = noteStore.state();
-        if (path !== null) {
-          treeOps.removeEntry(path, "file");
-        }
-      },
-      openDeletedNotes: () => {
-        chooseRailView("deleted");
-      },
-      setPinned: (pinned: boolean) => {
-        const { openPath: path } = noteStore.state();
-        if (path !== null) {
-          setPinned(path, pinned);
-        }
-      },
-    }),
-    [noteStore, treeOps, setPinned, chooseRailView],
-  );
+  const noteMetadata = {
+    deleteNote: () => {
+      const { openPath: path } = noteStore.state();
+      if (path !== null) {
+        treeOps.removeEntry(path, "file");
+      }
+    },
+    openDeletedNotes: () => {
+      chooseRailView("deleted");
+    },
+    setPinned: (pinned: boolean) => {
+      const { openPath: path } = noteStore.state();
+      if (path !== null) {
+        setPinned(path, pinned);
+      }
+    },
+  };
 
   const threads = threadsQuery.data ?? EMPTY_THREADS;
 

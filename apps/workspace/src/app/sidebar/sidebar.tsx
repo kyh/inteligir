@@ -45,7 +45,7 @@ import {
   SunIcon,
   VaultIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "@repo/ui/components/sonner";
 import { useAgentWorking } from "../actions/thread-hooks";
 import { useCloudSession } from "../cloud-session";
@@ -410,7 +410,7 @@ export const SidebarRailContent = ({
   const handleSetPinned = ops.setPinned;
 
   const entries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
-  const listed = useMemo(() => visibleEntries(entries), [entries]);
+  const listed = visibleEntries(entries);
   // the breadcrumb's reveal and the open note land on the fold state the rail owns, during the
   // rail's own render; the tree focuses the revealed row its next render draws
   const tree = useTreeState({ entries: listed, onRevealConsumed, openPath, reveal });

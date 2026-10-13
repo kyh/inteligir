@@ -9,7 +9,7 @@ import {
   KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
 } from "@repo/contract/local/knowledge/knowledge-schema";
 import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNotesWithTag } from "../vault-hooks";
 import { NotesList } from "./notes-list";
 import { RenameTagDialog, TagScopeHeader } from "./tag-scope";
@@ -38,10 +38,9 @@ export const TaggedNotes = ({
   const [limit, setLimit] = useState(KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT);
   const [renaming, setRenaming] = useState(false);
   const taggedQuery = useNotesWithTag(tag, limit);
-  const taggedPaths = useMemo(() => new Set(taggedQuery.data?.paths), [taggedQuery.data]);
-  const taggedEntries = useMemo(
-    () => entries.filter((entry) => entry.kind === "file" && taggedPaths.has(entry.path)),
-    [entries, taggedPaths],
+  const taggedPaths = new Set(taggedQuery.data?.paths);
+  const taggedEntries = entries.filter(
+    (entry) => entry.kind === "file" && taggedPaths.has(entry.path),
   );
   const cut =
     taggedQuery.data !== undefined && taggedQuery.data.paths.length < taggedQuery.data.total;

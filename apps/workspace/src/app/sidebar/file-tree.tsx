@@ -445,6 +445,7 @@ export const FileTree = ({
     revealToFocus,
     revealFocused,
   } = state;
+  // by hand: read past the effect below, so the compiler leaves it bare and rebuilds per render
   const roots = useMemo(() => buildTree(entries, sort), [entries, sort]);
 
   const [menu, setMenu] = useState<TreeMenu | null>(null);

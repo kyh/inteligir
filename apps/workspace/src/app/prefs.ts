@@ -122,6 +122,7 @@ export const usePref = <Value>(
   row: PagePref<Value, Value>,
 ): readonly [Value, (next: Value) => void] => {
   const [value, setValue] = useState(() => readPref(row));
+  // as stable as useState's own setter: callers hold it in memos that an effect reads
   const choose = useCallback(
     (next: Value): void => {
       writePref(row, next);

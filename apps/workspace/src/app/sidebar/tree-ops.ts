@@ -42,6 +42,8 @@ interface TreeOpsDeps {
   setPinned: (path: string, pinned: boolean) => void;
 }
 
+// The memo is the hook's one hook, so it stays: the compiler skips a hook that calls none, which
+// would mint the ops every render, and a plain factory taking the ref bails its caller out.
 export const useTreeOps = ({ actions, createNote, setPinned }: TreeOpsDeps): TreeOps =>
   useMemo<TreeOps>(() => {
     const paths = desktopPaths();
