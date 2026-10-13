@@ -10,6 +10,7 @@ import { assertVaultAndDataDirDisjoint } from "../path-containment";
 import { ensureVaultRepo } from "./git-bootstrap";
 import { createGitEngine } from "./git-engine";
 import type { GitEngine, GitEngineArgs } from "./git-engine";
+import { gitAt } from "./git-run";
 import type { GitRunner } from "./git-run";
 import { seedVault } from "./seed-vault";
 import type { ReadStall } from "./slow-reads";
@@ -93,7 +94,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     },
   });
 
-  const ignoreCase = await readIgnoreCase(async (gitArgs) => await args.git.run(root, gitArgs));
+  const ignoreCase = await readIgnoreCase(gitAt(args.git, root));
   // loaded off the listen's path: a listing awaits the load, so the first one waits, not the boot.
   const ignore = createVaultIgnoreHolder(
     async () => await loadVaultIgnore(root, { ignoreCase }),

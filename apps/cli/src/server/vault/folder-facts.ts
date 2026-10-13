@@ -11,7 +11,7 @@ import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { hostedVaultRemoteUrl, NO_ORIGIN, ownOriginUrl } from "../cloud/vault-remote";
 import type { OriginConfig } from "../cloud/vault-remote";
 import { detectExternalSync, nodeExternalSyncDeps } from "./external-sync";
-import { processGit, redactRemoteUrl } from "./git-run";
+import { gitAt, processGit, redactRemoteUrl } from "./git-run";
 import type { GitRunner, RunGitCommand } from "./git-run";
 
 // set beside the hosted url whenever the app writes it, so an origin the app manages is told from
@@ -131,10 +131,7 @@ export const inspectVaultFolder = async (
   }
   // only its own: git run in a folder inside another repo would read that repo's origin.
   const isRepo = existsSync(path.join(dir, ".git"));
-  const { run } = context.git ?? processGit;
-  const origin = isRepo
-    ? await readOriginConfig(async (gitArgs) => await run(dir, gitArgs))
-    : NO_ORIGIN;
+  const origin = isRepo ? await readOriginConfig(gitAt(context.git ?? processGit, dir)) : NO_ORIGIN;
   const own = ownOriginUrl(origin, hostedVaultRemoteUrl(context.cloudUrl));
   return {
     exists: true,

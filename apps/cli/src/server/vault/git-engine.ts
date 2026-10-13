@@ -32,6 +32,7 @@ import { entryPaths, isUnmerged, readPorcelain } from "./git-porcelain";
 import type { PorcelainEntry } from "./git-porcelain";
 import {
   classifyNetworkFailure,
+  gitAt,
   gitPath,
   identityEnv,
   isMissingRemoteRef,
@@ -249,8 +250,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return await next;
   };
 
-  const run = async (gitArgs: readonly string[], options: RunGitOptions = {}) =>
-    await git.run(root, gitArgs, options);
+  const run = gitAt(git, root);
 
   const deletionLog = cachedDeletionLog(run);
 

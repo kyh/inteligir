@@ -10,10 +10,10 @@ import { deviceLabel } from "@repo/notes/sync/conflict-copy";
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import type { FileSide, Reconciled, ReconcileInput } from "@repo/notes/sync/reconcile-file";
 import { identityEnv } from "./git-run";
-import type { RunGitOptions } from "./git-run";
+import type { RunGitCommand } from "./git-run";
 
 interface MergeGit {
-  run: (gitArgs: readonly string[], options?: RunGitOptions) => Promise<{ stdout: string }>;
+  run: RunGitCommand;
   readBlob: (oid: string) => Promise<Uint8Array>;
 }
 

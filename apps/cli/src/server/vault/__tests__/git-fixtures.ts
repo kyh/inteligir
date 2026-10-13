@@ -12,8 +12,8 @@ import type { EnsureVaultRepoArgs } from "../git-bootstrap";
 import { createGitEngine } from "../git-engine";
 import type { GitEngine, GitEngineArgs } from "../git-engine";
 import type { Reconcile } from "../git-merge";
-import { gitPath, identityEnv } from "../git-run";
-import type { RunGitCommand, RunGitOptions } from "../git-run";
+import { gitAt, gitPath, identityEnv } from "../git-run";
+import type { RunGitOptions } from "../git-run";
 import type { VaultFilesChange } from "../vault-changes";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { hermeticGit } from "./git-test-env";
@@ -118,16 +118,11 @@ export const lastMessage = async (root: string): Promise<string> => {
   return stdout.trim();
 };
 
-const gitIn =
-  (root: string): RunGitCommand =>
-  async (gitArgs) =>
-    await git.run(root, gitArgs);
-
 // a person's own git in the vault, committing as the named device
 export const asDevice = (device: string): RunGitOptions => ({ env: identityEnv(device) });
 
 export const gitDirPath = async (root: string, rel: string): Promise<string> =>
-  await gitPath(gitIn(root), root, rel);
+  await gitPath(gitAt(git, root), root, rel);
 
 export const expectCleanRepo = async (root: string): Promise<void> => {
   const { stdout } = await git.run(root, ["status", "--porcelain"]);
