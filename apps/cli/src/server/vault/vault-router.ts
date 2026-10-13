@@ -7,20 +7,19 @@ import {
 import type { VaultRenameResponse } from "@repo/contract/local/vault/vault-schema";
 import { VAULT_REMOTE_PIN_ENV_VAR } from "@repo/contract/local/vault/remote-url";
 import { removeEntryWithComments } from "../comments/remove-with-comments";
-import { attributeWrites, base, refusals } from "../orpc";
+import { attributeWrites, base, refusing } from "../orpc";
 import { vaultWireError } from "./vault-refusals";
 import { guardRefusalError } from "./write-guard";
 
 export type RenameNote = (from: string, to: string) => Promise<VaultRenameResponse>;
 
-const refusing = refusals(vaultWireError);
+const vaultRefusals = refusing(vaultWireError);
 
 const tree = base.vault.tree.handler(async ({ context }) => await context.vault.service.listTree());
 
-const read = base.vault.read.handler(
-  async ({ context, input }) =>
-    await refusing(async () => await context.vault.service.read(input.path)),
-);
+const read = base.vault.read
+  .use(vaultRefusals)
+  .handler(async ({ context, input }) => await context.vault.service.read(input.path));
 
 const history = base.vault.history.handler(async ({ context, input }) => ({
   revisions: await context.vault.git.history(input.path, {
@@ -29,80 +28,67 @@ const history = base.vault.history.handler(async ({ context, input }) => ({
   }),
 }));
 
-const revision = base.vault.revision.handler(
-  async ({ context, input }) =>
-    await refusing(async () => ({
-      content: await context.vault.git.revision(input.path, input.sha),
-    })),
-);
+const revision = base.vault.revision.use(vaultRefusals).handler(async ({ context, input }) => ({
+  content: await context.vault.git.revision(input.path, input.sha),
+}));
 
-const write = base.vault.write.handler(
-  async ({ context, input, errors }) =>
-    await refusing(async () => {
-      const { guard } = input;
-      if (guard.kind === "overwrite") {
-        const written = await context.vault.service.write(input.path, input.content);
-        attributeWrites(context, [written.path]);
-        return written;
-      }
-      const result = await context.vault.service.writeGuarded(input.path, input.content, guard);
-      if (!result.applied) {
-        throw guardRefusalError(errors, input.path, result);
-      }
-      attributeWrites(context, [result.path]);
-      return { path: result.path };
-    }),
-);
+const write = base.vault.write.use(vaultRefusals).handler(async ({ context, input, errors }) => {
+  const { guard } = input;
+  if (guard.kind === "overwrite") {
+    const written = await context.vault.service.write(input.path, input.content);
+    attributeWrites(context, [written.path]);
+    return written;
+  }
+  const result = await context.vault.service.writeGuarded(input.path, input.content, guard);
+  if (!result.applied) {
+    throw guardRefusalError(errors, input.path, result);
+  }
+  attributeWrites(context, [result.path]);
+  return { path: result.path };
+});
 
-const assetWrite = base.vault.assetWrite.handler(async ({ context, input, errors }) => {
-  if (assetMediaType(input.baseName) === null) {
-    throw errors.INVALID_PATH({
-      message: `${input.baseName} is not an image type this vault serves`,
-    });
-  }
-  if (input.file.size > VAULT_ASSET_MAX_BYTES) {
-    throw errors.PAYLOAD_TOO_LARGE({
-      message: `attachment is ${input.file.size} bytes; the cap is ${VAULT_ASSET_MAX_BYTES}`,
-    });
-  }
-  const bytes = new Uint8Array(await input.file.arrayBuffer());
-  return await refusing(async () => {
+const assetWrite = base.vault.assetWrite
+  .use(vaultRefusals)
+  .handler(async ({ context, input, errors }) => {
+    if (assetMediaType(input.baseName) === null) {
+      throw errors.INVALID_PATH({
+        message: `${input.baseName} is not an image type this vault serves`,
+      });
+    }
+    if (input.file.size > VAULT_ASSET_MAX_BYTES) {
+      throw errors.PAYLOAD_TOO_LARGE({
+        message: `attachment is ${input.file.size} bytes; the cap is ${VAULT_ASSET_MAX_BYTES}`,
+      });
+    }
+    const bytes = new Uint8Array(await input.file.arrayBuffer());
     const written = await context.vault.service.writeAsset(input.dir, input.baseName, bytes);
     attributeWrites(context, [written.path]);
     return written;
   });
+
+const rename = base.vault.rename.use(vaultRefusals).handler(async ({ context, input }) => {
+  const renamed = await context.renameNote(input.from, input.to);
+  attributeWrites(context, [input.from, renamed.path, ...renamed.rewritten]);
+  return renamed;
 });
 
-const rename = base.vault.rename.handler(
-  async ({ context, input }) =>
-    await refusing(async () => {
-      const renamed = await context.renameNote(input.from, input.to);
-      attributeWrites(context, [input.from, renamed.path, ...renamed.rewritten]);
-      return renamed;
-    }),
-);
-
 // nothing to attribute: git tracks no empty folder, and a file written into it is its own write.
-const mkdir = base.vault.mkdir.handler(
-  async ({ context, input }) =>
-    await refusing(async () => await context.vault.service.createDir(input.path)),
-);
+const mkdir = base.vault.mkdir
+  .use(vaultRefusals)
+  .handler(async ({ context, input }) => await context.vault.service.createDir(input.path));
 
 const deleted = base.vault.deleted.handler(async ({ context }) => ({
   entries: await context.vault.git.deleted(),
 }));
 
-const remove = base.vault.remove.handler(
-  async ({ context, input }) =>
-    await refusing(async () => {
-      // `add -A` stages a deletion under a pathspec, a folder's included.
-      attributeWrites(
-        context,
-        await removeEntryWithComments(context.vault.service, input.path, context.knowledge),
-      );
-      return { ok: true } as const;
-    }),
-);
+const remove = base.vault.remove.use(vaultRefusals).handler(async ({ context, input }) => {
+  // `add -A` stages a deletion under a pathspec, a folder's included.
+  attributeWrites(
+    context,
+    await removeEntryWithComments(context.vault.service, input.path, context.knowledge),
+  );
+  return { ok: true } as const;
+});
 
 const commitNow = base.vault.commitNow.handler(async ({ context, input }) => {
   const committed = await context.vault.git.commitNow(input?.paths);
