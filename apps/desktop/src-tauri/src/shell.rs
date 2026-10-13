@@ -17,7 +17,7 @@ use crate::diagnostics::{self, Diagnostics, ServerRun};
 use crate::door::Door;
 use crate::launch::{FolderSync, Handoff, Launch, Opening, Plan, Proposal, Target};
 use crate::runtime::{self, NodeRuntime};
-use crate::server::{self, OwnedServer, ServerSpec, Started};
+use crate::server::{self, OwnedServer, Started};
 use crate::server_log::{self, SERVER_LOG_MAX_BYTES, ServerLog};
 use crate::vaults::{self, VaultsState};
 use crate::window::{self, AppWindow};
@@ -280,19 +280,6 @@ fn working_dir(bundled: bool, node: &NodeRuntime) -> PathBuf {
         .map_or_else(|| PathBuf::from("/"), Path::to_path_buf)
 }
 
-/// What a vault's server runs with: the door's env and the target's vault, pinned so a selector
-/// rewritten since cannot move it. The data dir is the CLI's to derive from the root and that
-/// vault, as the target's was: a pinned one is the root too, and the child would read config.json
-/// from the vault's own dir, where nothing writes one.
-fn server_env(
-    door_env: &BTreeMap<OsString, OsString>,
-    target: &Target,
-) -> BTreeMap<OsString, OsString> {
-    let mut env = door_env.clone();
-    env.insert(VAULT_DIR_ENV_VAR.into(), target.vault_dir.clone().into());
-    env
-}
-
 /// Said once and fatal: the app has nothing to show without a vault.
 fn fail_start(app: &AppHandle, reason: &str) {
     eprintln!("[desktop] Inteligir failed to start: {reason}");
@@ -381,32 +368,29 @@ pub fn boot_vault(app: &AppHandle, target: Target, path: &str) -> Result<(), Str
     let launched = shell.launched()?;
     let door = &launched.door;
     let debug = shell.debug_choice();
-    let mut env = server_env(&door.env, &target);
+    let mut args = vec!["serve"];
+    if debug {
+        args.push("--debug");
+    }
+    let mut command = door.command(&args);
+    // pinned to the target's vault, so a selector rewritten since cannot move it. Never the data
+    // dir, which the CLI derives from the root and that vault as the target's was: a pinned one is
+    // the root too, and the child would read config.json from the vault's own dir, where nothing
+    // writes one
+    command.env(VAULT_DIR_ENV_VAR, &target.vault_dir);
     // under `tauri dev` the server answers the page's files from Vite, so an edit reloads in place
     // while the window keeps its server's origin (apps/cli/src/server/ui-dev-server.ts)
     if tauri::is_dev()
         && let Some(dev_url) = &app.config().build.dev_url
     {
-        env.insert(UI_DEV_URL_ENV_VAR.into(), dev_url.to_string().into());
-    }
-    let mut args = vec!["serve"];
-    if debug {
-        args.push("--debug");
+        command.env(UI_DEV_URL_ENV_VAR, dev_url.as_str());
     }
     let log = Arc::new(Mutex::new(ServerLog::new(
         server_log::server_log_path(Path::new(&target.data_dir)),
         SERVER_LOG_MAX_BYTES,
     )));
-    let spec = ServerSpec {
-        node: door.runtime.node.clone(),
-        entry: door.runtime.desktop_entry(),
-        args: args.into_iter().map(str::to_owned).collect(),
-        cwd: door.cwd.clone(),
-        env,
-        log: Arc::clone(&log),
-    };
     let exiting = app.clone();
-    let started = server::start(spec, move |code| {
+    let started = server::start(command, Arc::clone(&log), move |code| {
         // no in-place restart: a fresh child mints a fresh session the window does not hold
         let code = code.map_or_else(|| "a signal".to_owned(), |code| format!("code {code}"));
         exiting
@@ -779,8 +763,6 @@ pub fn open_in_browser(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::OsStr;
-
     use super::*;
 
     fn target(vault_dir: &str) -> Target {
@@ -812,27 +794,6 @@ mod tests {
             server: Server::Adopted,
             window: "vault-1".to_owned(),
         })
-    }
-
-    #[test]
-    fn a_vault_s_server_is_pinned_to_its_vault_and_left_to_derive_its_data_dir() {
-        let door_env = BTreeMap::from([(OsString::from("PATH"), OsString::from("/usr/bin"))]);
-        let env = server_env(&door_env, &target("/h/Notes"));
-        assert_eq!(
-            env.get(OsStr::new(VAULT_DIR_ENV_VAR)),
-            Some(&OsString::from("/h/Notes"))
-        );
-        assert_eq!(
-            env.get(OsStr::new("PATH")),
-            Some(&OsString::from("/usr/bin"))
-        );
-        assert!(!env.contains_key(OsStr::new(DATA_DIR_ENV_VAR)));
-
-        let pinned = BTreeMap::from([(OsString::from(DATA_DIR_ENV_VAR), OsString::from("/pin"))]);
-        assert_eq!(
-            server_env(&pinned, &target("/h/Notes")).get(OsStr::new(DATA_DIR_ENV_VAR)),
-            Some(&OsString::from("/pin"))
-        );
     }
 
     #[test]

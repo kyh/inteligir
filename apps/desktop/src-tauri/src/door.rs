@@ -30,15 +30,24 @@ pub struct Door {
 }
 
 impl Door {
-    /// The answer, or why there is none: the CLI's refusal as it stands, or what kept the entry from
-    /// answering at all.
-    pub fn ask<T: DeserializeOwned>(&self, args: &[&str]) -> Result<T, String> {
-        let output = Command::new(&self.runtime.node)
+    /// The entry run with `args`, on the door's env alone and in its working dir: an ask, or the
+    /// server's start.
+    pub fn command(&self, args: &[&str]) -> Command {
+        let mut command = Command::new(&self.runtime.node);
+        command
             .arg(self.runtime.desktop_entry())
             .args(args)
             .env_clear()
             .envs(&self.env)
-            .current_dir(&self.cwd)
+            .current_dir(&self.cwd);
+        command
+    }
+
+    /// The answer, or why there is none: the CLI's refusal as it stands, or what kept the entry from
+    /// answering at all.
+    pub fn ask<T: DeserializeOwned>(&self, args: &[&str]) -> Result<T, String> {
+        let output = self
+            .command(args)
             .stdin(Stdio::null())
             .output()
             .map_err(|error| format!("{} could not start: {error}", self.runtime.node.display()))?;

@@ -7,10 +7,8 @@
 //! SIGKILL, so the vault's pending commit is flushed. There is no restart: a fresh child mints a
 //! fresh session, which the window's cookie does not hold.
 
-use std::collections::BTreeMap;
-use std::ffi::OsString;
 use std::io::{BufRead, BufReader, Read};
-use std::path::PathBuf;
+use std::path::Path;
 use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
@@ -63,16 +61,6 @@ enum Announcement {
 
 fn parse_announcement(line: &str) -> Option<Announcement> {
     serde_json::from_str(line.strip_prefix(READY_MARKER)?).ok()
-}
-
-pub struct ServerSpec {
-    pub node: PathBuf,
-    pub entry: PathBuf,
-    pub args: Vec<String>,
-    pub cwd: PathBuf,
-    pub env: BTreeMap<OsString, OsString>,
-    /// Shared with the window, which notes its own load beside what the server says.
-    pub log: Arc<Mutex<ServerLog>>,
 }
 
 /// The child the shell started. Dropping it stops nothing: only `stop` does, and an adopted server
@@ -188,23 +176,18 @@ fn watch(
     });
 }
 
-/// Starts the server, or adopts the one already serving. `on_unexpected_exit` runs on the watcher
-/// thread when a child that became ready exits with no `stop` asking it to.
+/// Starts the server `command` runs, or adopts the one already serving. `log` is shared with the
+/// window, which notes its own load beside what the server says. `on_unexpected_exit` runs on the
+/// watcher thread when a child that became ready exits with no `stop` asking it to.
 pub fn start(
-    spec: ServerSpec,
+    mut command: Command,
+    log: Arc<Mutex<ServerLog>>,
     on_unexpected_exit: impl FnOnce(Option<i32>) + Send + 'static,
 ) -> Result<Started, String> {
-    let log = spec.log;
     log.lock()
         .unwrap_or_else(PoisonError::into_inner)
         .append("[desktop] starting the server");
-    let mut command = Command::new(&spec.node);
     command
-        .arg(&spec.entry)
-        .args(&spec.args)
-        .current_dir(&spec.cwd)
-        .env_clear()
-        .envs(&spec.env)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -219,7 +202,7 @@ pub fn start(
     let mut child: Child = command.spawn().map_err(|error| {
         format!(
             "the server could not start ({}): {error}",
-            spec.node.display()
+            Path::new(command.get_program()).display()
         )
     })?;
     let pid = child.id();
@@ -238,7 +221,7 @@ pub fn start(
         child,
         Watched {
             exit: Arc::clone(&exit),
-            log: Arc::clone(&log),
+            log,
             stdout_ended,
             events,
         },
@@ -411,20 +394,20 @@ mod tests {
         );
     }
 
-    // `/bin/sh -c <script>` in the entry's place: the races are the shell's, not node's
+    // `/bin/sh -c <script>` as the server: the races are the shell's, not node's
     #[cfg(unix)]
-    fn spec_running(script: &str, dir: &std::path::Path) -> ServerSpec {
-        ServerSpec {
-            node: PathBuf::from("/bin/sh"),
-            entry: PathBuf::from("-c"),
-            args: vec![script.to_owned()],
-            cwd: dir.to_path_buf(),
-            env: BTreeMap::new(),
-            log: Arc::new(Mutex::new(ServerLog::new(
-                dir.join("server.log"),
-                crate::server_log::SERVER_LOG_MAX_BYTES,
-            ))),
-        }
+    fn start_running(
+        script: &str,
+        dir: &Path,
+        on_unexpected_exit: impl FnOnce(Option<i32>) + Send + 'static,
+    ) -> Result<Started, String> {
+        let mut sh = Command::new("/bin/sh");
+        sh.args(["-c", script]).env_clear().current_dir(dir);
+        let log = ServerLog::new(
+            dir.join("server.log"),
+            crate::server_log::SERVER_LOG_MAX_BYTES,
+        );
+        start(sh, Arc::new(Mutex::new(log)), on_unexpected_exit)
     }
 
     #[cfg(unix)]
@@ -433,7 +416,7 @@ mod tests {
         let dir = tempfile::tempdir()?;
         let script = r#"echo 'inteligir-desktop:{"kind":"adopted","origin":"o","handoffUrl":"u"}'"#;
         for _ in 0..40 {
-            let started = start(spec_running(script, dir.path()), |_| {});
+            let started = start_running(script, dir.path(), |_| {});
             assert!(
                 matches!(started, Ok(Started::Adopted { .. })),
                 "the exit outran the announcement: {:?}",
@@ -450,7 +433,7 @@ mod tests {
         let script = r#"echo 'inteligir-desktop:{"kind":"ready","origin":"o","handoffUrl":"u","stopGraceMs":1000}'"#;
         for _ in 0..40 {
             let (told, heard) = mpsc::channel();
-            let started = start(spec_running(script, dir.path()), move |code| {
+            let started = start_running(script, dir.path(), move |code| {
                 let _ = told.send(code);
             });
             match started {
