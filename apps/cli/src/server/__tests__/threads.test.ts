@@ -27,7 +27,6 @@ import type { TimelineRow } from "@repo/contract/local/thread-timeline";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
-import { unavailableTurnDriver } from "../threads/turn-driver";
 import { authorizationHeader } from "../server-file";
 import { bootTestApp, bootThreadHarness, listenTestApp, TEST_SERVER_TOKEN } from "./boot-app";
 import type { BootedTestApp } from "./boot-app";
@@ -333,7 +332,6 @@ describe("a thread's title", () => {
   it("names a thread another device started, from the request that synced in", async () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });
     const service = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,
@@ -390,7 +388,6 @@ describe("a thread's own facts", () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });
     const { changes, notifier } = recordingNotifier();
     const service = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier,
       origins: pathOnlyOrigins,
@@ -436,7 +433,6 @@ describe("a thread's own facts", () => {
   it("take a title stated after the thread's first line already named it", async () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });
     const service = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,
@@ -660,21 +656,13 @@ describe("the queue drain", () => {
     await client.threads.send({ text: "first", threadId });
     await client.threads.send({ text: "queued", threadId });
 
-    const drivers: FakeTurnDriver[] = [];
     const revived = new ThreadService({
-      createTurnDriver: (sink) => {
-        const made = new FakeTurnDriver(sink, { mode: "manual" });
-        drivers.push(made);
-        return made;
-      },
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,
     });
-    const [revivedDriver] = drivers;
-    if (revivedDriver === undefined) {
-      throw new Error("the revived driver was not constructed");
-    }
+    const revivedDriver = new FakeTurnDriver(revived, { mode: "manual" });
+    revived.attachDriver(revivedDriver);
     revived.boot();
     const recovered = await revived.get(threadId);
     expect(recovered?.thread.status).toBe("error");
@@ -721,7 +709,6 @@ describe("the queue drain", () => {
     expect(listQueuedThreadMessages(db, threadId)).toEqual([]);
 
     const revived = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,
@@ -778,7 +765,6 @@ describe("turn identity and crash recovery", () => {
     const threadId = await createThread(client);
     const other = await createThread(client);
     const service = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,
@@ -816,7 +802,6 @@ describe("turn identity and crash recovery", () => {
 
     // a fresh service on the same db is a process restart.
     const revived = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,
@@ -918,7 +903,6 @@ describe("stopping a turn", () => {
   it("refuses to stop a turn another device is running, and leaves it running", async () => {
     const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
     const remote = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,

@@ -12,10 +12,9 @@ import type { PendingInteractionCreate } from "@repo/domain/pending-interactions
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import type { TurnDriver } from "../../threads/turn-driver";
+import type { ProviderEventSink } from "../../threads/turn-driver";
 import type { GitEngine } from "../../vault/git-engine";
-import { createAcpRuntimeManager } from "../runtime-manager";
-import type { AcpRuntimeManager } from "../runtime-manager";
+import { AcpTurnDriver } from "../runtime-manager";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { fakeSessionFacts } from "./agent-test-harness";
 
@@ -90,8 +89,7 @@ const fakeAgentRuntime = (timeline: string[], overrides: Partial<AgentRuntime>):
 interface Harness {
   db: DbConnection;
   threadId: string;
-  driver: TurnDriver;
-  manager: AcpRuntimeManager;
+  driver: AcpTurnDriver;
   ingested: ThreadEvent[];
   // the runtime's closes and the ingested event types, in the order they happened.
   timeline: string[];
@@ -105,7 +103,13 @@ const makeHarness = (runtime: Partial<AgentRuntime> = {}): Harness => {
   const ingested: ThreadEvent[] = [];
   const timeline: string[] = [];
   let captured: AcpAgentRuntimeOptions | null = null;
-  const manager = createAcpRuntimeManager({
+  const sink: ProviderEventSink = {
+    ingestProviderEvents: (_threadId, events) => {
+      ingested.push(...events);
+      timeline.push(...events.map((event) => event.type));
+    },
+  };
+  const driver = new AcpTurnDriver(sink, {
     createRuntime: (options) => {
       captured = options;
       return fakeAgentRuntime(timeline, runtime);
@@ -121,14 +125,8 @@ const makeHarness = (runtime: Partial<AgentRuntime> = {}): Harness => {
     turnIdleTimeoutMs: BUDGET_MS,
     vaultDir: makeTempDir("inteligir-watchdog-vault-"),
   });
-  const driver = manager.createTurnDriver({
-    ingestProviderEvents: (_threadId, events) => {
-      ingested.push(...events);
-      timeline.push(...events.map((event) => event.type));
-    },
-  });
   onTestFinished(async () => {
-    await manager.dispose();
+    await driver.dispose();
   });
   onTestFinished(() => {
     closeConnection(db);
@@ -137,7 +135,6 @@ const makeHarness = (runtime: Partial<AgentRuntime> = {}): Harness => {
     db,
     driver,
     ingested,
-    manager,
     runtimeOptions: () => {
       if (captured === null) {
         throw new Error("no turn was dispatched, so no runtime was built");

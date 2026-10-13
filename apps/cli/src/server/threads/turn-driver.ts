@@ -6,6 +6,10 @@ import type { PendingInteraction } from "@repo/contract/local/threads/threads-sc
 // ever will, which leaves settling the stop to the caller.
 export type TurnInterrupt = "settling" | "not-running";
 
+// a write the agent made through the server rather than its own tools, named by the thread whose
+// shell sent it; a thread with no turn running records nothing.
+export type RecordAgentWrites = (threadId: string, paths: readonly string[]) => void;
+
 export interface TurnDriver {
   // called outside any transaction: the driver may synchronously report events back through the sink.
   startTurn: (args: TurnDriverStartArgs) => void;
@@ -14,6 +18,9 @@ export interface TurnDriver {
   interruptTurn: (threadId: string) => TurnInterrupt;
   // called after the row is resolved.
   onInteractionResolved?: (interaction: PendingInteraction) => void;
+  // lands in the turn's commit like a write its tools reported.
+  recordAgentWrites?: RecordAgentWrites;
+  dispose?: () => Promise<void>;
 }
 
 // what a message asks its turn to carry, beside the text the user typed.
@@ -33,8 +40,6 @@ export interface TurnDriverStartArgs extends TurnRequest {
 export interface ProviderEventSink {
   ingestProviderEvents: (threadId: string, events: readonly ThreadEvent[]) => void;
 }
-
-export type CreateTurnDriver = (sink: ProviderEventSink) => TurnDriver;
 
 export class TurnDriverUnavailableError extends Error {
   constructor(message?: string) {

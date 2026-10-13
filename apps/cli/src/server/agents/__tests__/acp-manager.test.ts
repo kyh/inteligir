@@ -19,11 +19,10 @@ import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 import { apiFor } from "../../../context";
 import { loopbackOrigin } from "../../server-file";
-import type { TurnDriver } from "../../threads/turn-driver";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
 import { AUDIENCE_INSTRUCTIONS, CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
-import { createAcpRuntimeManager } from "../runtime-manager";
-import type { AcpRuntimeManager, AcpRuntimeManagerDeps } from "../runtime-manager";
+import { AcpTurnDriver } from "../runtime-manager";
+import type { AcpTurnDriverDeps } from "../runtime-manager";
 import { bootTestApp, listenTestApp, TEST_SERVER_TOKEN } from "../../__tests__/boot-app";
 import type { BootedTestApp } from "../../__tests__/boot-app";
 import {
@@ -73,8 +72,7 @@ interface ManagerOptions {
 }
 
 interface ManagerHarness extends BootedTestApp {
-  manager: AcpRuntimeManager;
-  driver: TurnDriver;
+  driver: AcpTurnDriver;
 }
 
 const fakeSpawn =
@@ -104,11 +102,11 @@ const bootWithManager = async (
   mode: FakeAcpMode,
   options: ManagerOptions = {},
 ): Promise<ManagerHarness> => {
-  const wired: { manager: AcpRuntimeManager; driver: TurnDriver }[] = [];
+  let driver: AcpTurnDriver | null = null;
   const booted = await bootTestApp({
     agent: { mode: "acp", runtime: "ready" },
-    makeDriver: ({ db, bus, vault, vaultDir }) => {
-      const deps: AcpRuntimeManagerDeps = {
+    makeDriver: ({ db, bus, vault, vaultDir, sink }) => {
+      const deps: AcpTurnDriverDeps = {
         db,
         defaultProviderId: () => "codex",
         git: vault.git,
@@ -135,25 +133,14 @@ const bootWithManager = async (
       if (options.stopGraceMs !== undefined) {
         deps.stopGraceMs = options.stopGraceMs;
       }
-      const manager = createAcpRuntimeManager(deps);
-      return {
-        createTurnDriver: (sink) => {
-          const driver = manager.createTurnDriver(sink);
-          wired.push({ driver, manager });
-          return driver;
-        },
-        dispose: async () => {
-          await manager.dispose();
-        },
-        recordAgentWrites: manager.recordAgentWrites,
-      };
+      driver = new AcpTurnDriver(sink, deps);
+      return { driver };
     },
   });
-  const [driven] = wired;
-  if (driven === undefined) {
-    throw new Error("the thread service never asked for its turn driver");
+  if (driver === null) {
+    throw new Error("the composition never built its turn driver");
   }
-  return { ...booted, ...driven };
+  return { ...booted, driver };
 };
 
 const hasExited = (child: ChildProcess): boolean =>
@@ -605,7 +592,7 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     // the resume's child and the fresh start's child, each refused and each gone.
     expect(children).toHaveLength(3);
     await awaitExited(children);
-    await harness.manager.dispose();
+    await harness.driver.dispose();
     expect(children.filter((child) => !hasExited(child))).toEqual([]);
   });
 
@@ -757,7 +744,7 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
 
     // straight to the driver: the dispatch parks on the vault lock, so dispose lands before it spawns.
     harness.driver.startTurn({ text: "too late", threadId, turnId: "turn_after_dispose" });
-    await harness.manager.dispose();
+    await harness.driver.dispose();
     await harness.vault.git.runExclusive(async () => {
       await Promise.resolve();
     });
@@ -797,14 +784,14 @@ const idleRuntime = (prompted: string[]): AgentRuntime => ({
 
 // the manager over the composed server's own engine, with the provider's reports the test's.
 const bootWithScriptedRuntime = async (
-  options: Pick<AcpRuntimeManagerDeps, "stopGraceMs"> = {},
+  options: Pick<AcpTurnDriverDeps, "stopGraceMs"> = {},
 ): Promise<ScriptedRuntimeHarness> => {
   let runtimeOptions: AcpAgentRuntimeOptions | null = null;
   const prompted: string[] = [];
   const booted = await bootTestApp({
     agent: { mode: "acp", runtime: "ready" },
-    makeDriver: ({ db, bus, vault, vaultDir }) => {
-      const manager = createAcpRuntimeManager({
+    makeDriver: ({ db, bus, vault, vaultDir, sink }) => ({
+      driver: new AcpTurnDriver(sink, {
         ...options,
         createRuntime: (captured) => {
           runtimeOptions = captured;
@@ -819,15 +806,8 @@ const bootWithScriptedRuntime = async (
         reapIntervalMs: null,
         sessionFacts: () => fakeSessionFacts(),
         vaultDir,
-      });
-      return {
-        createTurnDriver: manager.createTurnDriver,
-        dispose: async () => {
-          await manager.dispose();
-        },
-        recordAgentWrites: manager.recordAgentWrites,
-      };
-    },
+      }),
+    }),
   });
   return {
     ...booted,

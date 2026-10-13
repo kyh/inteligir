@@ -31,7 +31,6 @@ import { setMostRecent } from "../evict-oldest";
 import { providerFailureMessage } from "../threads/provider-failure";
 import { TurnDriverUnavailableError } from "../threads/turn-driver";
 import type {
-  CreateTurnDriver,
   ProviderEventSink,
   TurnDriver,
   TurnDriverStartArgs,
@@ -86,7 +85,7 @@ const RESIDENT_INSTRUCTION_HASHES = 512;
 // as a brake to someone watching the vault change.
 const DEFAULT_STOP_GRACE_MS = 5000;
 
-export interface AcpRuntimeManagerDeps {
+export interface AcpTurnDriverDeps {
   db: DbConnection;
   notifier: DbNotifier;
   vaultDir: string;
@@ -114,13 +113,6 @@ export interface AcpRuntimeManagerDeps {
   debugLog?: DebugLog | undefined;
 }
 
-export interface AcpRuntimeManager {
-  createTurnDriver: CreateTurnDriver;
-  // a write the agent made through the server lands in its turn's commit like one its tools reported.
-  recordAgentWrites: (threadId: string, paths: readonly string[]) => void;
-  dispose: () => Promise<void>;
-}
-
 // a started turn the user stopped carries the timer that closes its session if it never ends.
 type TurnPhase =
   | { kind: "dispatched" }
@@ -135,9 +127,9 @@ interface ActiveTurn {
   lastEventAt: number;
 }
 
-class AcpTurnDriver implements TurnDriver {
+export class AcpTurnDriver implements TurnDriver {
   private readonly sink: ProviderEventSink;
-  private readonly deps: AcpRuntimeManagerDeps;
+  private readonly deps: AcpTurnDriverDeps;
   private readonly resolveVaultPath: VaultPathResolver;
   private runtime: AgentRuntime | null = null;
   private reapTimer: ReturnType<typeof setInterval> | null = null;
@@ -152,7 +144,7 @@ class AcpTurnDriver implements TurnDriver {
   private watchdogTimer: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
 
-  constructor(sink: ProviderEventSink, deps: AcpRuntimeManagerDeps) {
+  constructor(sink: ProviderEventSink, deps: AcpTurnDriverDeps) {
     this.sink = sink;
     this.deps = deps;
     this.resolveVaultPath = createVaultPathResolver(deps.vaultDir);
@@ -275,7 +267,7 @@ class AcpTurnDriver implements TurnDriver {
     try {
       await this.dispatchTurn(args, harness);
     } catch (error) {
-      // a disposed manager leaves its turns to the next boot's recovery; a turn the watchdog settled
+      // a disposed driver leaves its turns to the next boot's recovery; a turn the watchdog settled
       // mid-dispatch is already failed, and failing it here would fail the turn that replaced it.
       if (this.disposed || !this.isDispatching(args)) {
         this.debug(
@@ -678,23 +670,3 @@ class AcpTurnDriver implements TurnDriver {
     }
   }
 }
-
-export const createAcpRuntimeManager = (deps: AcpRuntimeManagerDeps): AcpRuntimeManager => {
-  let driver: AcpTurnDriver | null = null;
-  return {
-    createTurnDriver: (sink) => {
-      // a second driver over the same manager would leave the first running unreachably and undisposed.
-      if (driver !== null) {
-        throw new Error("createTurnDriver was already called on this runtime manager");
-      }
-      driver = new AcpTurnDriver(sink, deps);
-      return driver;
-    },
-    async dispose() {
-      await driver?.dispose();
-    },
-    recordAgentWrites(threadId, paths) {
-      driver?.recordAgentWrites(threadId, paths);
-    },
-  };
-};

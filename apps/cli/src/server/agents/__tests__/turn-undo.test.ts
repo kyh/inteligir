@@ -1,4 +1,4 @@
-// the turns here commit through the same write set the runtime manager opens per turn, over the
+// the turns here commit through the same write set the ACP turn driver opens per turn, over the
 // composed server's own engine and vault; only the provider is the test's.
 
 import { existsSync, readFileSync } from "node:fs";
