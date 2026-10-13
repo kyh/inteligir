@@ -69,11 +69,13 @@ export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
   models?: HarnessModels;
   // spawned detached, as `spawnNodeAdapter` does: the teardown kills the adapter's process group,
   // and only a group of its own holds what the adapter starts and nothing of the host's.
-  spawnAdapter?: (
-    harness: HarnessDefinition,
-    env: Record<string, string>,
-    cwd: string,
-  ) => ChildProcessWithoutNullStreams;
+  spawnAdapter?:
+    | ((
+        harness: HarnessDefinition,
+        env: Record<string, string>,
+        cwd: string,
+      ) => ChildProcessWithoutNullStreams)
+    | undefined;
   // every frame traded with an adapter, as `traceFrames` redacts it; absent, nothing is tapped.
   debugLog?: ((line: string) => void) | undefined;
 }

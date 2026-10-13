@@ -813,7 +813,7 @@ const bootWithScriptedRuntime = async (
     ...booted,
     emit: (event) => {
       if (runtimeOptions === null) {
-        throw new Error("no turn was dispatched, so no runtime was built");
+        throw new Error("the driver never built its runtime");
       }
       runtimeOptions.onEvent(event);
     },

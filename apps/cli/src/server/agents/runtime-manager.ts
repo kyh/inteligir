@@ -131,7 +131,7 @@ export class AcpTurnDriver implements TurnDriver {
   private readonly sink: ProviderEventSink;
   private readonly deps: AcpTurnDriverDeps;
   private readonly resolveVaultPath: VaultPathResolver;
-  private runtime: AgentRuntime | null = null;
+  private readonly runtime: AgentRuntime;
   private reapTimer: ReturnType<typeof setInterval> | null = null;
   private readonly events = new ProviderEventCoalescer((threadId, batch) => {
     this.sink.ingestProviderEvents(threadId, batch);
@@ -158,6 +158,31 @@ export class AcpTurnDriver implements TurnDriver {
         this.noteTurnActivity(threadId);
       },
     });
+    this.runtime = (deps.createRuntime ?? createAcpAgentRuntime)({
+      debugLog: deps.debugLog,
+      models: deps.models,
+      onActivity: (threadId) => {
+        this.noteTurnActivity(threadId);
+      },
+      onEvent: (event) => {
+        this.onRuntimeEvent(event);
+      },
+      onInteractiveRequest: async (request) => await this.onInteractiveRequest(request),
+      onStderr: (line) => {
+        this.debug(`agent: ${line}`);
+      },
+      // spread: AgentShellEnv is an interface, which a string record does not take.
+      shellEnv: () => ({ ...toShellEnv(deps.sessionFacts(), deps.hostEnv) }),
+      spawnAdapter: deps.spawnAdapter,
+      workspacePath: deps.vaultDir,
+    });
+    const { reapIntervalMs } = deps;
+    if (reapIntervalMs !== null) {
+      this.reapTimer = setInterval(() => {
+        this.background("idle session reaping", this.reapIdleSessions());
+      }, reapIntervalMs ?? DEFAULT_REAP_INTERVAL_MS);
+      this.reapTimer.unref();
+    }
     const budgetMs = deps.turnIdleTimeoutMs ?? DEFAULT_TURN_IDLE_TIMEOUT_MS;
     if (deps.turnIdleTimeoutMs !== null) {
       this.watchdogTimer = setInterval(
@@ -175,59 +200,27 @@ export class AcpTurnDriver implements TurnDriver {
     this.deps.onDebug?.(message);
   }
 
-  private ensureRuntime(): AgentRuntime {
-    if (this.disposed) {
-      throw new Error("The agent runtime manager is disposed");
-    }
-    if (this.runtime !== null) {
-      return this.runtime;
-    }
-    const createRuntime = this.deps.createRuntime ?? createAcpAgentRuntime;
-    const runtimeOptions: AcpAgentRuntimeOptions = {
-      debugLog: this.deps.debugLog,
-      onActivity: (threadId) => {
-        this.noteTurnActivity(threadId);
-      },
-      onEvent: (event) => {
-        this.onRuntimeEvent(event);
-      },
-      onInteractiveRequest: async (request) => await this.onInteractiveRequest(request),
-      onStderr: (line) => {
-        this.debug(`agent: ${line}`);
-      },
-      workspacePath: this.deps.vaultDir,
-    };
-    runtimeOptions.shellEnv = () => ({
-      ...toShellEnv(this.deps.sessionFacts(), this.deps.hostEnv),
+  private async reapIdleSessions(): Promise<void> {
+    const result = await this.runtime.reapIdleProviderSessions({
+      idleForMs: DEFAULT_IDLE_REAP_MS,
+      nowMs: Date.now(),
     });
-    runtimeOptions.models = this.deps.models;
-    if (this.deps.spawnAdapter !== undefined) {
-      runtimeOptions.spawnAdapter = this.deps.spawnAdapter;
+    for (const reaped of result.reapedSessions) {
+      this.debug(
+        `reaped idle agent session for thread ${reaped.threadId} after ${reaped.idleForMs}ms`,
+      );
     }
-    const runtime = createRuntime(runtimeOptions);
-    this.runtime = runtime;
-    const { reapIntervalMs } = this.deps;
-    if (reapIntervalMs !== null) {
-      this.reapTimer = setInterval(() => {
-        void (async () => {
-          try {
-            const result = await runtime.reapIdleProviderSessions({
-              idleForMs: DEFAULT_IDLE_REAP_MS,
-              nowMs: Date.now(),
-            });
-            for (const reaped of result.reapedSessions) {
-              this.debug(
-                `reaped idle agent session for thread ${reaped.threadId} after ${reaped.idleForMs}ms`,
-              );
-            }
-          } catch (error) {
-            this.debug(`idle session reaping failed: ${messageOf(error)}`);
-          }
-        })();
-      }, reapIntervalMs ?? DEFAULT_REAP_INTERVAL_MS);
-      this.reapTimer.unref();
-    }
-    return runtime;
+  }
+
+  // fire and forget: a failure is the agent log's to read, never the caller's to handle.
+  private background(what: string, work: Promise<unknown>): void {
+    void (async () => {
+      try {
+        await work;
+      } catch (error) {
+        this.debug(`${what} failed: ${messageOf(error)}`);
+      }
+    })();
   }
 
   startTurn(args: TurnDriverStartArgs): void {
@@ -289,6 +282,9 @@ export class AcpTurnDriver implements TurnDriver {
   // a dispatch resumes after every await into a thread that may have moved on; one whose turn was
   // settled meanwhile stops rather than opening a session or prompting a turn nobody awaits.
   private assertDispatching(args: TurnDriverStartArgs): void {
+    if (this.disposed) {
+      throw new Error("The agent runtime manager is disposed");
+    }
     if (!this.isDispatching(args)) {
       throw new Error(`Turn ${args.turnId} settled before its dispatch finished`);
     }
@@ -298,19 +294,10 @@ export class AcpTurnDriver implements TurnDriver {
   // trusted to have kept the instructions it was handed.
   private abandonProviderSession(threadId: string): void {
     this.instructionHashes.delete(threadId);
-    const { runtime } = this;
-    if (runtime === null) {
-      return;
-    }
-    void (async () => {
-      try {
-        await runtime.closeThread(threadId);
-      } catch (error) {
-        this.debug(
-          `closing the provider session for thread ${threadId} failed: ${messageOf(error)}`,
-        );
-      }
-    })();
+    this.background(
+      `closing the provider session for thread ${threadId}`,
+      this.runtime.closeThread(threadId),
+    );
   }
 
   private noteTurnActivity(threadId: string): void {
@@ -351,13 +338,12 @@ export class AcpTurnDriver implements TurnDriver {
     // never writes into a rebase's checkout window.
     await this.turnsByThreadId.get(args.threadId)?.writes.ready;
     this.assertDispatching(args);
-    const runtime = this.ensureRuntime();
     // acp's session/new carries no instructions field, so a turn's prompt is the only channel.
-    const instructions = runtime.hasThread(args.threadId)
+    const instructions = this.runtime.hasThread(args.threadId)
       ? undefined
-      : await this.openThreadSession(runtime, args, harness);
+      : await this.openThreadSession(args, harness);
     this.assertDispatching(args);
-    await runtime.runTurn({
+    await this.runtime.runTurn({
       input: turnPromptInput(args, instructions),
       threadId: args.threadId,
       turnId: args.turnId,
@@ -384,7 +370,6 @@ export class AcpTurnDriver implements TurnDriver {
   }
 
   private async openThreadSession(
-    runtime: AgentRuntime,
     args: TurnDriverStartArgs,
     providerId: HarnessId,
   ): Promise<string | undefined> {
@@ -392,7 +377,7 @@ export class AcpTurnDriver implements TurnDriver {
     const persisted = getThread(this.deps.db, threadId)?.providerThreadId ?? null;
     if (persisted !== null) {
       try {
-        const resumed = await runtime.resumeThread({
+        const resumed = await this.runtime.resumeThread({
           providerId,
           providerThreadId: persisted,
           threadId,
@@ -412,7 +397,7 @@ export class AcpTurnDriver implements TurnDriver {
       }
       this.assertDispatching(args);
     }
-    const started = await runtime.startThread({ providerId, threadId });
+    const started = await this.runtime.startThread({ providerId, threadId });
     setThreadProviderSession(this.deps.db, {
       providerId,
       providerThreadId: started.providerThreadId,
@@ -450,24 +435,10 @@ export class AcpTurnDriver implements TurnDriver {
     state.phase.stopDeadline.unref();
     // the cancel first: it answers the agent's open permission requests cancelled, and the
     // waiters' deny below only clears the cards.
-    this.cancelProviderTurn(threadId);
+    this.background(`cancelling the turn on thread ${threadId}`, this.runtime.cancelTurn(threadId));
     this.waiters.cancel(threadId);
     interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
     return "settling";
-  }
-
-  private cancelProviderTurn(threadId: string): void {
-    const { runtime } = this;
-    if (runtime === null) {
-      return;
-    }
-    void (async () => {
-      try {
-        await runtime.cancelTurn(threadId);
-      } catch (error) {
-        this.debug(`cancelling the turn on thread ${threadId} failed: ${messageOf(error)}`);
-      }
-    })();
   }
 
   // an agent that never answered the cancel: closing its session is what stops it, and a closed
@@ -605,15 +576,7 @@ export class AcpTurnDriver implements TurnDriver {
     this.turnsByThreadId.delete(threadId);
     this.waiters.cancel(threadId);
     interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
-    void this.finishWrites(threadId, state.writes);
-  }
-
-  private async finishWrites(threadId: string, writes: AgentTurnWrites): Promise<void> {
-    try {
-      await writes.finish();
-    } catch (error) {
-      this.debug(`settling the write set for thread ${threadId} failed: ${messageOf(error)}`);
-    }
+    this.background(`settling the write set for thread ${threadId}`, state.writes.finish());
   }
 
   // turn-scoped and classed like a refused prompt's: the settle finds the class on the turn's own
@@ -664,9 +627,6 @@ export class AcpTurnDriver implements TurnDriver {
       this.watchdogTimer = null;
     }
     this.waiters.cancel();
-    if (this.runtime !== null) {
-      await this.runtime.shutdown();
-      this.runtime = null;
-    }
+    await this.runtime.shutdown();
   }
 }

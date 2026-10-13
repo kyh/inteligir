@@ -80,12 +80,10 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
     notifier: args.notifier,
     onDebug,
     sessionFacts: args.sessionFacts,
+    spawnAdapter: args.spawnAdapter,
     unavailableReason: (id) => missingRuntime(id, env),
     vaultDir: args.config.vaultDir,
   };
-  if (args.spawnAdapter !== undefined) {
-    acp.spawnAdapter = args.spawnAdapter;
-  }
   return {
     driver: new AcpTurnDriver(args.sink, acp),
     // the harness a new thread would start on.

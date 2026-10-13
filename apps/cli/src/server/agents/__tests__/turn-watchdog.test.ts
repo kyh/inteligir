@@ -137,7 +137,7 @@ const makeHarness = (runtime: Partial<AgentRuntime> = {}): Harness => {
     ingested,
     runtimeOptions: () => {
       if (captured === null) {
-        throw new Error("no turn was dispatched, so no runtime was built");
+        throw new Error("the driver never built its runtime");
       }
       return captured;
     },
