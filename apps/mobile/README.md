@@ -122,6 +122,13 @@ src/
                         list and the open note
     comments-view.tsx   a note's comment threads in a sheet over the editor,
                         each with Reply, Resolve (or Reopen) and Delete
+    use-note-editor.ts  the note screen's editor, made once per mount: the
+                        page in the bundle, its ports and the bridge's host,
+                        with the flush on every way out (leaving the screen,
+                        the back gesture's start, the app leaving the
+                        foreground)
+    use-sheet-comments.ts the comments sheet's threads, read each time it
+                        opens, and its edits, which read them again in place
   lib/          the composition root: compose-runtime.ts (platform-free and
                 unit-tested: the restore, sign-out, revocation and resume)
                 and app-runtime.ts (its binding to the Keychain, the

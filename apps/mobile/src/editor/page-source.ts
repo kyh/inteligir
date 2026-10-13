@@ -1,7 +1,7 @@
 // Where the WebView finds the editor page: in the app bundle, so a note opens offline and nothing
 // is fetched. The page has no dev server (its CSP refuses the script a Vite dev page injects), so a
-// development build carries the built page too. Only a screen imports this; it loads native
-// modules.
+// development build carries the built page too. Only the note screen's editor hook imports this; it
+// loads native modules.
 
 import { Directory, File, Paths } from "expo-file-system";
 import { EDITOR_PAGE_FOLDER } from "./page-folder";
