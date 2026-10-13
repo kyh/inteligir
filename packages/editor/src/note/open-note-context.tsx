@@ -13,7 +13,7 @@ export const OpenNoteStoreProvider = ({
 }: {
   store: OpenNoteStore;
   children: ReactNode;
-}) => <OpenNoteStoreContext.Provider value={store}>{children}</OpenNoteStoreContext.Provider>;
+}) => <OpenNoteStoreContext value={store}>{children}</OpenNoteStoreContext>;
 
 // a missing provider is a mount-order bug; throw rather than make every call site carry a dead null check.
 export const useOpenNoteStore = (): OpenNoteStore => {

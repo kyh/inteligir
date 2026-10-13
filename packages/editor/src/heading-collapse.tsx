@@ -183,7 +183,7 @@ const CollapseProvider = ({ children }: { children: ReactNode }) => {
     [path, folded],
     { equalityFn: sameDerived },
   );
-  return <DerivedContext.Provider value={derived}>{children}</DerivedContext.Provider>;
+  return <DerivedContext value={derived}>{children}</DerivedContext>;
 };
 
 const CollapsibleBlock = ({ id, children }: { id: string; children: ReactNode }) => {

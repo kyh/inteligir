@@ -7,7 +7,6 @@ import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-hos
 const mocks = vi.hoisted(() => ({
   currentMarkdown: "seed",
   editor: {
-    operations: [{ type: "insert_text" }],
     tf: {
       setValue: vi.fn((value: { children: { text: string }[] }[]) => {
         mocks.currentMarkdown = value[0]?.children[0]?.text ?? "";
@@ -17,9 +16,15 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("platejs/react", () => ({
-  Plate: ({ children, onChange }: { children?: React.ReactNode; onChange?: () => void }) => (
+  Plate: ({
+    children,
+    onValueChange,
+  }: {
+    children?: React.ReactNode;
+    onValueChange?: () => void;
+  }) => (
     <div>
-      <button type="button" onClick={onChange}>
+      <button type="button" onClick={onValueChange}>
         change
       </button>
       {children}
@@ -94,7 +99,6 @@ describe("MarkdownEditor lifecycle", () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     mocks.currentMarkdown = "seed";
-    mocks.editor.operations = [{ type: "insert_text" }];
   });
 
   afterEach(() => {
