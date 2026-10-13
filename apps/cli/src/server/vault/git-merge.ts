@@ -6,7 +6,7 @@
 
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/contract/local/vault/vault-schema";
 import { takenIgnoringCase } from "@repo/notes/knowledge/doc-file";
-import { deviceLabel } from "@repo/notes/sync/conflict-copy";
+import { deviceLabel, parseConflictCopyPath } from "@repo/notes/sync/conflict-copy";
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import type { FileSide, Reconciled, ReconcileInput } from "@repo/notes/sync/reconcile-file";
 import { identityEnv } from "./git-run";
@@ -282,4 +282,52 @@ export const mergeFetched = async (
     });
     throw error;
   }
+};
+
+// a copy another device's merge or the phone made arrives as a note like any other; its name
+// says whose version it holds, and whoever added it kept theirs at the note.
+export const pulledCopies = async (
+  run: RunGitCommand,
+  from: string,
+  to: string,
+  madeHere: ReadonlySet<string>,
+): Promise<SyncConflictReport[]> => {
+  const { stdout } = await run([
+    "diff",
+    "--name-only",
+    "-z",
+    "--no-renames",
+    "--diff-filter=A",
+    from,
+    to,
+    "--",
+  ]);
+  const reports: SyncConflictReport[] = [];
+  for (const added of stdout.split("\0")) {
+    const copy = added === "" || madeHere.has(added) ? null : parseConflictCopyPath(added);
+    if (copy === null) {
+      continue;
+    }
+    // first-parent: a copy another desktop made lands in its merge commit, which adds the path
+    // to that device's own line.
+    const adder = await run([
+      "log",
+      "-1",
+      "--diff-merges=first-parent",
+      "--no-patch",
+      "--diff-filter=A",
+      "--format=%cn",
+      `${from}..${to}`,
+      "--",
+      added,
+    ]);
+    reports.push({
+      copyDevice: copy.device,
+      copyPath: added,
+      keptDevice: adder.stdout.trim(),
+      kind: "copied",
+      path: copy.path,
+    });
+  }
+  return reports;
 };

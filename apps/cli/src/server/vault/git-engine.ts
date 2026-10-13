@@ -10,13 +10,12 @@ import type {
   VaultStatusResponse,
   VaultSyncConflict,
 } from "@repo/contract/local/vault/vault-schema";
-import { parseConflictCopyPath } from "@repo/notes/sync/conflict-copy";
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";
 import { ownOriginUrl } from "../cloud/vault-remote";
 import type { OriginConfig, VaultRemoteProvider, VaultRemoteSpec } from "../cloud/vault-remote";
 import { messageOf } from "../error-message";
-import { readOriginConfig, REMOTE_MARKER_ACCOUNT, REMOTE_MARKER_KEY } from "./folder-facts";
+import { readOriginConfig } from "./folder-facts";
 import { ACCOUNT_MARKER_KEY, SEED_COMMIT_KEY } from "./git-bootstrap";
 import {
   cachedDeletionLog,
@@ -26,10 +25,19 @@ import {
   readTurnCommits,
 } from "./git-history";
 import type { NoteHistoryPage, TurnCommit } from "./git-history";
-import { mergeFetched, mergeInProgress } from "./git-merge";
+import { mergeFetched, mergeInProgress, pulledCopies } from "./git-merge";
 import type { Reconcile } from "./git-merge";
-import { entryPaths, isUnmerged, readPorcelain } from "./git-porcelain";
+import { entryPaths, readPorcelain, unmergedPaths } from "./git-porcelain";
 import type { PorcelainEntry } from "./git-porcelain";
+import {
+  currentBranch,
+  isAncestor,
+  markOrigin,
+  pointOrigin,
+  readConfig,
+  revListCount,
+  revParse,
+} from "./git-refs";
 import {
   classifyNetworkFailure,
   gitAt,
@@ -56,8 +64,6 @@ const ACCOUNT_QUIET_FETCH_MS = 15 * 60_000;
 
 // past this a scoped commit costs more argv (status pathspec, then add) than the unscoped sweep.
 const MAX_SCOPED_COMMIT_PATHS = 200;
-
-const ORIGIN_PUSH_URL_KEY = "remote.origin.pushurl";
 
 export interface GitEngineArgs {
   root: string;
@@ -502,77 +508,12 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     };
   };
 
-  const currentBranch = async (): Promise<string | null> => {
-    try {
-      const { stdout } = await run(["symbolic-ref", "--short", "-q", "HEAD"]);
-      const branch = stdout.trim();
-      // git refuses "-"-leading ref names itself; this only keeps a corrupted head out of argv.
-      return branch.length > 0 && !branch.startsWith("-") ? branch : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const readConfig = async (key: string): Promise<string | null> => {
-    try {
-      const { stdout } = await run(["config", "--get", key]);
-      const value = stdout.trim();
-      return value === "" ? null : value;
-    } catch {
-      return null;
-    }
-  };
-
-  // a new url leaves the old remote's tips under refs/remotes/origin, and a status measured against
-  // them would call the vault synced with a remote that never saw it.
-  const forgetOriginTips = async (): Promise<void> => {
-    const { stdout } = await run([
-      "for-each-ref",
-      "--format=delete %(refname)",
-      "refs/remotes/origin",
-    ]);
-    if (stdout.trim().length > 0) {
-      // origin/HEAD is a symref: deleted through, it would delete the branch it names twice.
-      await run(["update-ref", "--no-deref", "--stdin"], { input: stdout });
-    }
-  };
-
-  // the one way the app moves the origin, a pass's and a choice's alike: a hand-set pushurl
-  // outlives `set-url`, and pushes would keep going where the vault synced before.
-  const pointOrigin = async (current: string | null, url: string): Promise<void> => {
-    if (current === url) {
-      return;
-    }
-    if (current !== null) {
-      await forgetOriginTips();
-    }
-    if ((await readConfig(ORIGIN_PUSH_URL_KEY)) !== null) {
-      await run(["config", "--unset-all", ORIGIN_PUSH_URL_KEY]);
-    }
-    // "--" so the url can never read as an option.
-    await run(
-      current === null
-        ? ["remote", "add", "--", "origin", url]
-        : ["remote", "set-url", "--", "origin", url],
-    );
-  };
-
-  // the origin is the vault's own record of where it syncs, so the app marks the origin it manages
-  // and drops the mark when an explicit remote takes it over.
-  const markOrigin = async (managed: boolean, origin: OriginConfig): Promise<void> => {
-    if (managed && !origin.markedAccount) {
-      await run(["config", REMOTE_MARKER_KEY, REMOTE_MARKER_ACCOUNT]);
-    } else if (!managed && origin.markedAccount) {
-      await run(["config", "--unset-all", REMOTE_MARKER_KEY]);
-    }
-  };
-
   const ensureOriginRemote = async (
     remote: VaultRemoteSpec,
     origin: OriginConfig,
   ): Promise<void> => {
-    await pointOrigin(origin.url, remote.url);
-    await markOrigin(remote.source === "account", origin);
+    await pointOrigin(run, origin.url, remote.url);
+    await markOrigin(run, remote.source === "account", origin);
   };
 
   // the account choice drops only an origin the provider calls the user's own: the app's own stays
@@ -583,13 +524,13 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return "pinned";
     }
     if (choice.kind === "remote") {
-      await pointOrigin(origin.url, choice.url);
-      await markOrigin(false, origin);
+      await pointOrigin(run, origin.url, choice.url);
+      await markOrigin(run, false, origin);
     } else {
       if (origin.url !== null && remote?.source === "explicit") {
         await run(["remote", "remove", "origin"]);
       }
-      await markOrigin(true, origin);
+      await markOrigin(run, true, origin);
     }
     // what a pass concluded about the old remote says nothing of the new one; a repo left
     // mid-integration is broken whichever remote it syncs with.
@@ -608,31 +549,11 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return written;
   };
 
-  const revListCount = async (range: string): Promise<number> => {
-    const { stdout } = await run(["rev-list", "--count", range]);
-    return Math.trunc(Number(stdout.trim())) || 0;
-  };
-
-  const revParse = async (rev: string): Promise<string> => {
-    const { stdout } = await run(["rev-parse", rev]);
-    return stdout.trim();
-  };
-
   // what `push origin <branch>` sends, against the tip it is measured from.
   const pushTips = async (branch: string, remoteHasBranch: boolean): Promise<PushTips> => ({
-    head: await revParse(`refs/heads/${branch}`),
-    remote: remoteHasBranch ? await revParse(`refs/remotes/origin/${branch}`) : null,
+    head: await revParse(run, `refs/heads/${branch}`),
+    remote: remoteHasBranch ? await revParse(run, `refs/remotes/origin/${branch}`) : null,
   });
-
-  // a failed check reads as "not an ancestor", which resends the push: the answer a doubt earns.
-  const isAncestor = async (ancestor: string, rev: string): Promise<boolean> => {
-    try {
-      await run(["merge-base", "--is-ancestor", ancestor, rev]);
-      return true;
-    } catch {
-      return false;
-    }
-  };
 
   // under the lock, before the push. true ends the pass on the refusal already recorded.
   const repeatsRefusedPush = async (
@@ -648,7 +569,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (tips.remote !== refused.remote) {
       return false;
     }
-    if (refused.failure === "too-large" && !(await isAncestor(refused.head, tips.head))) {
+    if (refused.failure === "too-large" && !(await isAncestor(run, refused.head, tips.head))) {
       return false;
     }
     outcome = {
@@ -699,24 +620,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
   };
 
-  const unmergedPaths = async (): Promise<string[]> => {
-    const entries = await porcelain();
-    return entries
-      .filter(isUnmerged)
-      .map((entry) => entry.path)
-      .toSorted();
-  };
-
-  const unmergedPathsOr = async (fallback: string[]): Promise<string[]> => {
-    try {
-      return await unmergedPaths();
-    } catch {
-      return fallback;
-    }
-  };
-
   const readAccountMarker = async (): Promise<string | null> =>
-    await readConfig(ACCOUNT_MARKER_KEY);
+    await readConfig(run, ACCOUNT_MARKER_KEY);
 
   // a tree left mid-rebase or mid-merge is no diff between two commits. a clean abort needs no
   // report: it puts back the tree the pass started from.
@@ -735,7 +640,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   // both sides changed, which the pass merges instead; "unhandled" is the caller's cue to rethrow.
   const recoverFailedRebase = async (): Promise<"conflicted" | "broken" | "unhandled"> => {
     // git's own unmerged set, read before the abort wipes it.
-    const stopped = (await rebaseInProgress()) ? await unmergedPathsOr([]) : [];
+    const stopped = (await rebaseInProgress()) ? await unmergedPaths(run).catch(() => []) : [];
     if (await rebaseInProgress()) {
       // never leave the repo mid-rebase.
       await run(["rebase", "--abort"]).catch(() => {
@@ -743,7 +648,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       });
     }
     // a swallowed failed abort would leave every later commit landing in rebase state.
-    const stillUnmerged = await unmergedPathsOr(["unknown"]);
+    const stillUnmerged = await unmergedPaths(run).catch(() => ["unknown"]);
     if ((await rebaseInProgress()) || stillUnmerged.length > 0) {
       markBroken("rebase");
       return "broken";
@@ -760,53 +665,6 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       0,
       VAULT_SYNC_CONFLICTS_MAX,
     );
-  };
-
-  // a copy another device's merge or the phone made arrives as a note like any other; its name
-  // says whose version it holds, and whoever added it kept theirs at the note.
-  const pulledCopies = async (
-    from: string,
-    to: string,
-    madeHere: ReadonlySet<string>,
-  ): Promise<SyncConflictReport[]> => {
-    const { stdout } = await run([
-      "diff",
-      "--name-only",
-      "-z",
-      "--no-renames",
-      "--diff-filter=A",
-      from,
-      to,
-      "--",
-    ]);
-    const reports: SyncConflictReport[] = [];
-    for (const added of stdout.split("\0")) {
-      const copy = added === "" || madeHere.has(added) ? null : parseConflictCopyPath(added);
-      if (copy === null) {
-        continue;
-      }
-      // first-parent: a copy another desktop made lands in its merge commit, which adds the path
-      // to that device's own line.
-      const adder = await run([
-        "log",
-        "-1",
-        "--diff-merges=first-parent",
-        "--no-patch",
-        "--diff-filter=A",
-        "--format=%cn",
-        `${from}..${to}`,
-        "--",
-        added,
-      ]);
-      reports.push({
-        copyDevice: copy.device,
-        copyPath: added,
-        keptDevice: adder.stdout.trim(),
-        kind: "copied",
-        path: copy.path,
-      });
-    }
-    return reports;
   };
 
   // a rebase keeps the history a line, so it goes first; it replays commits one by one and drops
@@ -871,7 +729,9 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       return false;
     }
     try {
-      return (await revParse("HEAD")) === (await revParse(`refs/remotes/origin/${branch}`));
+      return (
+        (await revParse(run, "HEAD")) === (await revParse(run, `refs/remotes/origin/${branch}`))
+      );
     } catch {
       return false;
     }
@@ -918,7 +778,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
     await commitIfDirty();
     await ensureOriginRemote(remote, origin);
-    const branch = await currentBranch();
+    const branch = await currentBranch(run);
     if (branch === null) {
       outcome = { kind: "detached", message: "vault HEAD is detached; sync needs a branch" };
       return null;
@@ -942,7 +802,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     remoteRef: string,
     tips: IntegrationTips,
   ): Promise<boolean> => {
-    const seed = await readConfig(SEED_COMMIT_KEY);
+    const seed = await readConfig(run, SEED_COMMIT_KEY);
     if (seed === null) {
       return false;
     }
@@ -976,7 +836,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     const madeHere = new Set(
       settled.flatMap((report) => (report.kind === "copied" ? [report.copyPath] : [])),
     );
-    return await pulledCopies(tips.head, head, madeHere).catch(() => []);
+    return await pulledCopies(run, tips.head, head, madeHere).catch(() => []);
   };
 
   // under the lock, between the fetch and the push. false ends the pass before its push.
@@ -997,10 +857,10 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     }
     const remoteRef = `refs/remotes/origin/${branch}`;
     const tips: IntegrationTips = {
-      head: await revParse("HEAD"),
-      remote: await revParse(remoteRef),
+      head: await revParse(run, "HEAD"),
+      remote: await revParse(run, remoteRef),
     };
-    if (await isAncestor(tips.remote, tips.head)) {
+    if (await isAncestor(run, tips.remote, tips.head)) {
       return true;
     }
     if (await yieldSeededHistory(remote, branch, remoteRef, tips)) {
@@ -1015,7 +875,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (settled === null) {
       return false;
     }
-    const head = await revParse("HEAD");
+    const head = await revParse(run, "HEAD");
     if (head !== tips.head) {
       await reportMovedTree(tips.head, head);
       noteConflicts([...settled, ...(await copiesPulledSince(tips, head, settled))]);
@@ -1122,10 +982,10 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
         .catch(() => 0);
       let unpushed = 0;
       if (dirtyPaths === 0) {
-        const branch = await currentBranch();
+        const branch = await currentBranch(run);
         if (branch !== null) {
           // no remote-tracking ref yet means everything local is unpushed.
-          unpushed = await revListCount(`refs/remotes/origin/${branch}..HEAD`).catch(() => 1);
+          unpushed = await revListCount(run, `refs/remotes/origin/${branch}..HEAD`).catch(() => 1);
         }
       }
       return dirtyPaths > 0 || unpushed > 0 ? "dirty" : "clean";
