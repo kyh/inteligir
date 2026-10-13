@@ -7,7 +7,11 @@ use std::fmt::Write as _;
 use std::fs::{self, OpenOptions};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
+
+use time::OffsetDateTime;
+use time::format_description::BorrowedFormatItem;
+use time::macros::format_description;
 
 pub const SERVER_LOG_MAX_BYTES: u64 = 5 * 1024 * 1024;
 
@@ -106,34 +110,17 @@ fn capped(mut text: String, max_bytes: u64) -> String {
     text
 }
 
+const STAMP: &[BorrowedFormatItem<'_>] =
+    format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z");
+
 /// RFC 3339 in UTC to the millisecond.
 pub fn utc_stamp(at: SystemTime) -> String {
-    let since = at.duration_since(UNIX_EPOCH).unwrap_or_default();
-    let millis = since.subsec_millis();
-    let secs = since.as_secs();
-    let (days, rest) = (secs / 86_400, secs % 86_400);
-    let (hour, minute, second) = (rest / 3600, rest % 3600 / 60, rest % 60);
-    let (year, month, day) = civil_from_days(days);
-    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}Z")
-}
-
-/// Days since 1970-01-01 to a proleptic Gregorian date (Howard Hinnant's `civil_from_days`).
-fn civil_from_days(days: u64) -> (u64, u64, u64) {
-    let z = days + 719_468;
-    let era = z / 146_097;
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + u64::from(month <= 2);
-    (year, month, day)
+    OffsetDateTime::from(at).format(STAMP).unwrap_or_default()
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::time::{Duration, UNIX_EPOCH};
 
     use super::*;
 

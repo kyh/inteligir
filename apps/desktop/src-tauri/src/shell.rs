@@ -445,11 +445,7 @@ pub fn boot_vault(app: &AppHandle, target: Target, path: &str) -> Result<(), Str
 }
 
 fn hex16(id: &[u8; 16]) -> String {
-    id.iter().fold(String::with_capacity(32), |mut hex, byte| {
-        use std::fmt::Write as _;
-        let _ = write!(hex, "{byte:02x}");
-        hex
-    })
+    format!("{:032x}", u128::from_be_bytes(*id))
 }
 
 /// The app is ending, for a quit or an install: the child's ordered shutdown flushes the vault's
@@ -777,6 +773,12 @@ mod tests {
             server: Server::Adopted,
             window: "vault-1".to_owned(),
         })
+    }
+
+    #[test]
+    fn a_store_id_names_its_folder_in_hex() {
+        let id: [u8; 16] = std::array::from_fn(|index| u8::try_from(index).unwrap_or_default());
+        assert_eq!(hex16(&id), "000102030405060708090a0b0c0d0e0f");
     }
 
     #[test]
