@@ -14,7 +14,7 @@ import { readFrontmatterRaw, writeFrontmatterRaw } from "@repo/editor/properties
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
-import { InlineProperties } from "../actions-panel";
+import { InlineProperties } from "../metadata-tab";
 
 beforeEach(() => {
   installFakeEditorHost();

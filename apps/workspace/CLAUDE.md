@@ -76,7 +76,8 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   rather than missed (`undo-turn.ts`). "Ask agent" seeds the composer through
   the editor host's agent actions (`packages/editor/src/host-io.ts`), so the
   editor never imports the shell.
-  `apps/workspace/src/app/actions/actions-panel.tsx` and `action-composer.tsx`.
+  `apps/workspace/src/app/actions/actions-panel.tsx`, `action-detail.tsx` and
+  `action-composer.tsx`.
 
 ## Desktop workspace surfaces
 
