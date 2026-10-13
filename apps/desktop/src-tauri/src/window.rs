@@ -12,7 +12,7 @@ use tauri::ipc::CapabilityBuilder;
 use tauri::utils::acl::capability::Capability;
 use tauri::webview::{NewWindowResponse, PageLoadEvent, PermissionResponse};
 use tauri::{
-    AppHandle, Manager, Runtime, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+    AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry,
 };
 use tauri_plugin_opener::OpenerExt;
 
@@ -33,7 +33,7 @@ pub fn app_title() -> &'static str {
     }
 }
 
-fn open_externally<R: Runtime>(app: &AppHandle<R>, opens: &ExternalOpens, url: &Url) {
+fn open_externally(app: &AppHandle, opens: &ExternalOpens, url: &Url) {
     if !opens.allow(Instant::now()) {
         eprintln!("[desktop] refused to open {url}: another opened less than a second ago");
         return;
@@ -45,13 +45,13 @@ fn open_externally<R: Runtime>(app: &AppHandle<R>, opens: &ExternalOpens, url: &
 
 /// The pin, the popup policy, the permission policy and the show-once-loaded every window shares.
 /// `noted` hears the line each load prints, for a window whose vault keeps a log.
-fn pinned<'a, R: Runtime, M: Manager<R>>(
-    builder: WebviewWindowBuilder<'a, R, M>,
-    app: &AppHandle<R>,
+fn pinned<'a>(
+    builder: WebviewWindowBuilder<'a, Wry, AppHandle>,
+    app: &AppHandle,
     pinned_origin: String,
     page: &'static str,
     noted: impl Fn(&str) + Send + Sync + 'static,
-) -> WebviewWindowBuilder<'a, R, M> {
+) -> WebviewWindowBuilder<'a, Wry, AppHandle> {
     let opens = Arc::new(ExternalOpens::new());
     let navigating = (app.clone(), Arc::clone(&opens));
     let opening = (app.clone(), opens);
@@ -99,7 +99,7 @@ fn pinned<'a, R: Runtime, M: Manager<R>>(
 }
 
 /// Closing hides: the app stays in the menu bar, and Show brings the same page back.
-fn hide_on_close<R: Runtime>(window: &WebviewWindow<R>) {
+fn hide_on_close(window: &WebviewWindow) {
     let hiding = window.clone();
     window.on_window_event(move |event| {
         if let WindowEvent::CloseRequested { api, .. } = event {
@@ -139,11 +139,7 @@ pub struct AppWindow<'a> {
 const APP_WINDOW_CAPABILITY: &str = include_str!("../capabilities/app-window.json");
 
 /// The app window's permissions are granted for this window and the server's exact origin alone.
-fn grant_app_window<R: Runtime>(
-    app: &AppHandle<R>,
-    label: &str,
-    origin: &str,
-) -> tauri::Result<()> {
+fn grant_app_window(app: &AppHandle, label: &str, origin: &str) -> tauri::Result<()> {
     let listed: Capability = serde_json::from_str(APP_WINDOW_CAPABILITY)?;
     let capability = listed.permissions.iter().fold(
         CapabilityBuilder::new(format!("app-window-{label}"))
@@ -155,10 +151,7 @@ fn grant_app_window<R: Runtime>(
     app.add_capability(capability)
 }
 
-pub fn create_app_window<R: Runtime>(
-    app: &AppHandle<R>,
-    spec: &AppWindow<'_>,
-) -> tauri::Result<WebviewWindow<R>> {
+pub fn create_app_window(app: &AppHandle, spec: &AppWindow<'_>) -> tauri::Result<WebviewWindow> {
     let mut url = Url::parse(spec.handoff_url).map_err(|_| {
         tauri::Error::InvalidWebviewUrl("the server announced a handoff that is not a URL")
     })?;
@@ -194,7 +187,7 @@ pub fn create_app_window<R: Runtime>(
 
 /// The first run's page is the bundle's own: under `tauri dev` the page's dev server, else
 /// Tauri's embedded assets.
-fn first_run_origin<R: Runtime>(app: &AppHandle<R>) -> String {
+fn first_run_origin(app: &AppHandle) -> String {
     let dev_url = app
         .config()
         .build
@@ -207,7 +200,7 @@ fn first_run_origin<R: Runtime>(app: &AppHandle<R>) -> String {
         .unwrap_or_default()
 }
 
-pub fn create_first_run_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>> {
+pub fn create_first_run_window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let window = pinned(
         WebviewWindowBuilder::new(app, FIRST_RUN, WebviewUrl::App(FIRST_RUN_PAGE.into())),
         app,
@@ -225,7 +218,7 @@ pub fn create_first_run_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<
 }
 
 /// Brings a window forward; false when there is none.
-pub fn bring_forward<R: Runtime>(app: &AppHandle<R>, label: &str) -> bool {
+pub fn bring_forward(app: &AppHandle, label: &str) -> bool {
     let Some(window) = app.get_webview_window(label) else {
         return false;
     };

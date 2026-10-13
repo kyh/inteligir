@@ -11,7 +11,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
+use tauri::{AppHandle, Manager, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
@@ -40,17 +40,15 @@ fn no_vault() -> String {
 // ---- diagnostics ----
 
 #[tauri::command]
-pub async fn diagnostics_get_state<R: Runtime>(
-    app: AppHandle<R>,
-) -> Result<diagnostics::State, String> {
+pub async fn diagnostics_get_state(app: AppHandle) -> Result<diagnostics::State, String> {
     app.state::<Shell>()
         .with_diagnostics(|diagnostics, run| diagnostics.state(run))
         .ok_or_else(no_vault)
 }
 
 #[tauri::command]
-pub async fn diagnostics_set_debug<R: Runtime>(
-    app: AppHandle<R>,
+pub async fn diagnostics_set_debug(
+    app: AppHandle,
     debug: bool,
 ) -> Result<Answer<diagnostics::State>, String> {
     app.state::<Shell>()
@@ -61,9 +59,7 @@ pub async fn diagnostics_set_debug<R: Runtime>(
 /// A relaunch is the ordinary quit, which stops the server and flushes its commit, then a start;
 /// a refused one moves nothing.
 #[tauri::command]
-pub async fn diagnostics_restart<R: Runtime>(
-    app: AppHandle<R>,
-) -> Result<Answer<diagnostics::State>, String> {
+pub async fn diagnostics_restart(app: AppHandle) -> Result<Answer<diagnostics::State>, String> {
     let answer = app
         .state::<Shell>()
         .with_diagnostics(|diagnostics, run| diagnostics.restart(run))
@@ -75,24 +71,24 @@ pub async fn diagnostics_restart<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn diagnostics_open_data_folder<R: Runtime>(app: AppHandle<R>) -> Answer {
+pub async fn diagnostics_open_data_folder(app: AppHandle) -> Answer {
     blocking(move || shell::open_data_folder(&app).into()).await
 }
 
 #[tauri::command]
-pub async fn diagnostics_show_log<R: Runtime>(app: AppHandle<R>) -> Answer {
+pub async fn diagnostics_show_log(app: AppHandle) -> Answer {
     blocking(move || shell::show_server_log(&app).into()).await
 }
 
 // ---- Reveal / Open ----
 
-fn resolved<R: Runtime>(app: &AppHandle<R>, path: &str) -> Result<std::path::PathBuf, String> {
+fn resolved(app: &AppHandle, path: &str) -> Result<std::path::PathBuf, String> {
     let target = app.state::<Shell>().target().ok_or_else(no_vault)?;
     paths::resolve_vault_entry(Path::new(&target.vault_dir), path)
 }
 
 #[tauri::command]
-pub async fn paths_reveal<R: Runtime>(app: AppHandle<R>, path: String) -> Answer {
+pub async fn paths_reveal(app: AppHandle, path: String) -> Answer {
     blocking(move || {
         resolved(&app, &path)
             .and_then(|entry| {
@@ -106,7 +102,7 @@ pub async fn paths_reveal<R: Runtime>(app: AppHandle<R>, path: String) -> Answer
 }
 
 #[tauri::command]
-pub async fn paths_open<R: Runtime>(app: AppHandle<R>, path: String) -> Answer {
+pub async fn paths_open(app: AppHandle, path: String) -> Answer {
     blocking(move || {
         resolved(&app, &path)
             .and_then(|entry| {
@@ -123,40 +119,40 @@ pub async fn paths_open<R: Runtime>(app: AppHandle<R>, path: String) -> Answer {
 
 /// WKWebView answers no `window.print()`, so the page asks the shell to print the window.
 #[tauri::command]
-pub async fn print_page<R: Runtime>(window: WebviewWindow<R>) -> Answer {
+pub async fn print_page(window: WebviewWindow) -> Answer {
     window.print().map_err(|error| error.to_string()).into()
 }
 
 // ---- updates ----
 
 #[tauri::command]
-pub async fn updates_get_state<R: Runtime>(app: AppHandle<R>) -> UpdateState {
+pub async fn updates_get_state(app: AppHandle) -> UpdateState {
     app.state::<Updates>().state()
 }
 
 #[tauri::command]
-pub async fn updates_check<R: Runtime>(app: AppHandle<R>) -> UpdateState {
+pub async fn updates_check(app: AppHandle) -> UpdateState {
     updater::check(&app, "settings").await
 }
 
 #[tauri::command]
-pub async fn updates_download<R: Runtime>(app: AppHandle<R>) -> UpdateState {
+pub async fn updates_download(app: AppHandle) -> UpdateState {
     updater::download(&app).await
 }
 
 #[tauri::command]
-pub async fn updates_install<R: Runtime>(app: AppHandle<R>) -> UpdateState {
+pub async fn updates_install(app: AppHandle) -> UpdateState {
     blocking(move || updater::install(&app)).await
 }
 
 // ---- vaults ----
 
 #[tauri::command]
-pub async fn vaults_get_state<R: Runtime>(app: AppHandle<R>) -> Result<VaultsState, String> {
+pub async fn vaults_get_state(app: AppHandle) -> Result<VaultsState, String> {
     shell::vaults_state(&app).ok_or_else(no_vault)
 }
 
-fn switch_answer<R: Runtime>(app: &AppHandle<R>, outcome: Outcome) -> Answer<VaultsState> {
+fn switch_answer(app: &AppHandle, outcome: Outcome) -> Answer<VaultsState> {
     match outcome {
         Outcome::Done => shell::vaults_state(app).ok_or_else(no_vault).into(),
         Outcome::Refused(reason) | Outcome::Reported(reason) => Answer::refused(reason),
@@ -164,7 +160,7 @@ fn switch_answer<R: Runtime>(app: &AppHandle<R>, outcome: Outcome) -> Answer<Vau
 }
 
 /// The folder is the person's pick, made here: the page never names a path it was not handed.
-pub fn pick_vault_dir<R: Runtime>(app: &AppHandle<R>) -> Option<String> {
+pub fn pick_vault_dir(app: &AppHandle) -> Option<String> {
     let mut picker = app
         .dialog()
         .file()
@@ -184,7 +180,7 @@ pub fn pick_vault_dir<R: Runtime>(app: &AppHandle<R>) -> Option<String> {
 }
 
 #[tauri::command]
-pub async fn vaults_pick<R: Runtime>(app: AppHandle<R>) -> Answer<VaultsState> {
+pub async fn vaults_pick(app: AppHandle) -> Answer<VaultsState> {
     blocking(move || {
         let outcome = match pick_vault_dir(&app) {
             None => Outcome::Done,
@@ -197,7 +193,7 @@ pub async fn vaults_pick<R: Runtime>(app: AppHandle<R>) -> Answer<VaultsState> {
 
 /// Only a path this shell handed out comes back: the list is the page's whole vocabulary.
 #[tauri::command]
-pub async fn vaults_open<R: Runtime>(app: AppHandle<R>, path: String) -> Answer<VaultsState> {
+pub async fn vaults_open(app: AppHandle, path: String) -> Answer<VaultsState> {
     blocking(move || {
         if !shell::is_remembered(&app, &path) {
             return Answer::refused("That vault is not one the app remembers.");
@@ -210,10 +206,7 @@ pub async fn vaults_open<R: Runtime>(app: AppHandle<R>, path: String) -> Answer<
 
 /// Forgetting a row cannot be refused, so it answers the state alone.
 #[tauri::command]
-pub async fn vaults_forget<R: Runtime>(
-    app: AppHandle<R>,
-    path: String,
-) -> Result<VaultsState, String> {
+pub async fn vaults_forget(app: AppHandle, path: String) -> Result<VaultsState, String> {
     shell::forget_vault(&app, &path);
     shell::vaults_state(&app).ok_or_else(no_vault)
 }
@@ -227,7 +220,7 @@ pub struct FirstRunState {
 }
 
 #[tauri::command]
-pub async fn first_run_get_state<R: Runtime>(app: AppHandle<R>) -> Result<FirstRunState, String> {
+pub async fn first_run_get_state(app: AppHandle) -> Result<FirstRunState, String> {
     app.state::<Shell>()
         .with_first_run(|first_run| FirstRunState {
             new_vault: first_run.proposal.clone(),
@@ -246,8 +239,8 @@ pub enum PickParent {
     },
 }
 
-fn pick_for_first_run<R: Runtime>(
-    app: &AppHandle<R>,
+fn pick_for_first_run(
+    app: &AppHandle,
     title: &str,
     create: bool,
     directory: Option<String>,
@@ -270,7 +263,7 @@ fn pick_for_first_run<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn first_run_pick_parent<R: Runtime>(app: AppHandle<R>) -> Result<PickParent, String> {
+pub async fn first_run_pick_parent(app: AppHandle) -> Result<PickParent, String> {
     blocking(move || {
         let proposal = app
             .state::<Shell>()
@@ -299,7 +292,7 @@ pub enum PickFolder {
 }
 
 #[tauri::command]
-pub async fn first_run_pick_folder<R: Runtime>(app: AppHandle<R>) -> Result<PickFolder, String> {
+pub async fn first_run_pick_folder(app: AppHandle) -> Result<PickFolder, String> {
     blocking(move || {
         let Some(picked) = pick_for_first_run(&app, "Open a folder of notes", false, None) else {
             return Ok(PickFolder::Cancelled);
@@ -324,7 +317,7 @@ pub enum FirstRunChoice {
 
 /// Every folder the page names back is one handed out here, the proposal's parent or a pick.
 #[tauri::command]
-pub async fn first_run_finish<R: Runtime>(app: AppHandle<R>, choice: FirstRunChoice) -> Answer {
+pub async fn first_run_finish(app: AppHandle, choice: FirstRunChoice) -> Answer {
     blocking(move || {
         let shell = app.state::<Shell>();
         let handed_out = shell.with_first_run(|first_run| match &choice {

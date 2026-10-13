@@ -9,7 +9,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 
@@ -294,7 +294,7 @@ fn server_env(
 }
 
 /// Said once and fatal: the app has nothing to show without a vault.
-fn fail_start<R: Runtime>(app: &AppHandle<R>, reason: &str) {
+fn fail_start(app: &AppHandle, reason: &str) {
     eprintln!("[desktop] Inteligir failed to start: {reason}");
     app.dialog()
         .message(reason)
@@ -306,7 +306,7 @@ fn fail_start<R: Runtime>(app: &AppHandle<R>, reason: &str) {
 
 /// The launch, on a thread of its own: the login shell, the CLI and the first boot all take time
 /// the main thread must not wait out.
-pub fn start<R: Runtime>(app: &AppHandle<R>) {
+pub fn start(app: &AppHandle) {
     let shell = app.state::<Shell>();
     let exe = match std::env::current_exe() {
         Ok(exe) => exe,
@@ -376,11 +376,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
 
 /// The server first, then the window that loads from it. On failure nothing of this boot is left
 /// running.
-pub fn boot_vault<R: Runtime>(
-    app: &AppHandle<R>,
-    target: Target,
-    path: &str,
-) -> Result<(), String> {
+pub fn boot_vault(app: &AppHandle, target: Target, path: &str) -> Result<(), String> {
     let shell = app.state::<Shell>();
     let launched = shell.launched()?;
     let door = &launched.door;
@@ -489,7 +485,7 @@ fn hex16(id: &[u8; 16]) -> String {
 /// The app is ending, for a quit or an install: the child's ordered shutdown flushes the vault's
 /// pending commit before anything moves on, and nothing opens after it. An adopted server is
 /// nobody's to stop and outlives the shell.
-pub fn stop_owned_server<R: Runtime>(app: &AppHandle<R>) {
+pub fn stop_owned_server(app: &AppHandle) {
     let ended = std::mem::replace(&mut app.state::<Shell>().lock().phase, Phase::Closing);
     if let Phase::Open(Open {
         server: Server::Owned { server, .. },
@@ -502,7 +498,7 @@ pub fn stop_owned_server<R: Runtime>(app: &AppHandle<R>) {
 
 /// The window the app is on: the vault's (the previous one's while a switch is under way), the
 /// first run's before the first vault opens, and none while the launch's boot is under way.
-pub fn show_current_window<R: Runtime>(app: &AppHandle<R>) {
+pub fn show_current_window(app: &AppHandle) {
     let label = match &app.state::<Shell>().lock().phase {
         Phase::FirstRun { .. } => Some(window::FIRST_RUN.to_owned()),
         phase => phase.shown().map(|(_, window)| window.to_owned()),
@@ -512,13 +508,13 @@ pub fn show_current_window<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-pub fn vaults_state<R: Runtime>(app: &AppHandle<R>) -> Option<VaultsState> {
+pub fn vaults_state(app: &AppHandle) -> Option<VaultsState> {
     app.state::<Shell>()
         .lock()
         .vaults(|path| Path::new(path).exists())
 }
 
-pub fn remember_list<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
+pub fn remember_list(app: &AppHandle) -> Vec<String> {
     let shell = app.state::<Shell>();
     let state = shell.lock();
     let current = state
@@ -528,7 +524,7 @@ pub fn remember_list<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
     vaults::offered(&state.recent, current, |path| Path::new(path).exists())
 }
 
-pub fn forget_vault<R: Runtime>(app: &AppHandle<R>, path: &str) {
+pub fn forget_vault(app: &AppHandle, path: &str) {
     let shell = app.state::<Shell>();
     {
         let mut state = shell.lock();
@@ -542,7 +538,7 @@ pub fn forget_vault<R: Runtime>(app: &AppHandle<R>, path: &str) {
     crate::menu::rebuild(app);
 }
 
-pub fn is_remembered<R: Runtime>(app: &AppHandle<R>, path: &str) -> bool {
+pub fn is_remembered(app: &AppHandle, path: &str) -> bool {
     app.state::<Shell>()
         .lock()
         .recent
@@ -552,10 +548,7 @@ pub fn is_remembered<R: Runtime>(app: &AppHandle<R>, path: &str) -> bool {
 
 /// The folder's own service keeps syncing it and the app will not: a picked switch asks first, in
 /// the first run's words.
-pub fn confirm_outside_sync<R: Runtime>(
-    app: &AppHandle<R>,
-    vault_dir: &str,
-) -> Result<bool, String> {
+pub fn confirm_outside_sync(app: &AppHandle, vault_dir: &str) -> Result<bool, String> {
     let door = app.state::<Shell>().door()?;
     let sync: FolderSync = door.ask(&["sync", vault_dir])?;
     let Some(warning) = sync.warning else {
@@ -577,7 +570,7 @@ pub fn confirm_outside_sync<R: Runtime>(
 /// written, the new server and window up. Any failure after the stop puts the previous vault back,
 /// and a selector that cannot be put back ends the app rather than leave config.json naming the
 /// vault that failed.
-pub fn switch_vault<R: Runtime>(app: &AppHandle<R>, vault_dir: &str, confirm: bool) -> Outcome {
+pub fn switch_vault(app: &AppHandle, vault_dir: &str, confirm: bool) -> Outcome {
     let shell = app.state::<Shell>();
     if let Err(reason) = shell.lock().phase.leaving() {
         return Outcome::Refused(reason.to_owned());
@@ -616,12 +609,7 @@ pub fn switch_vault<R: Runtime>(app: &AppHandle<R>, vault_dir: &str, confirm: bo
 }
 
 /// A failed boot left nothing running, so the way back is the previous vault's boot alone.
-fn run_switch<R: Runtime>(
-    app: &AppHandle<R>,
-    door: &Door,
-    leaving: &Leaving,
-    opening: &Opening,
-) -> Outcome {
+fn run_switch(app: &AppHandle, door: &Door, leaving: &Leaving, opening: &Opening) -> Outcome {
     let close_previous = || {
         if let Some(window) = app.get_webview_window(&leaving.window)
             && let Err(error) = window.destroy()
@@ -680,7 +668,7 @@ fn select(door: &Door, vault_dir: Option<&str>) -> Result<Target, String> {
 
 /// The first run's choice: planned against the server's rules, the selector written, the vault
 /// booted; a failed boot takes the selector back out, so the next launch asks again.
-pub fn finish_first_run<R: Runtime>(app: &AppHandle<R>, plan_args: &[&str]) -> Outcome {
+pub fn finish_first_run(app: &AppHandle, plan_args: &[&str]) -> Outcome {
     let shell = app.state::<Shell>();
     let door = match shell.door() {
         Ok(door) => door,
@@ -731,14 +719,14 @@ pub fn finish_first_run<R: Runtime>(app: &AppHandle<R>, plan_args: &[&str]) -> O
     }
 }
 
-pub fn ask_door<T: serde::de::DeserializeOwned, R: Runtime>(
-    app: &AppHandle<R>,
+pub fn ask_door<T: serde::de::DeserializeOwned>(
+    app: &AppHandle,
     args: &[&str],
 ) -> Result<T, String> {
     app.state::<Shell>().door()?.ask(args)
 }
 
-pub fn open_data_folder<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+pub fn open_data_folder(app: &AppHandle) -> Result<(), String> {
     let target = app
         .state::<Shell>()
         .target()
@@ -749,7 +737,7 @@ pub fn open_data_folder<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
 }
 
 /// A server the shell adopted wrote no log here, but an earlier one on this data dir may have.
-pub fn show_server_log<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+pub fn show_server_log(app: &AppHandle) -> Result<(), String> {
     let target = app
         .state::<Shell>()
         .target()
@@ -764,7 +752,7 @@ pub fn show_server_log<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
 }
 
 /// A browser holds no bearer, so it signs in once through a handoff the server mints.
-pub fn open_in_browser<R: Runtime>(app: &AppHandle<R>) {
+pub fn open_in_browser(app: &AppHandle) {
     let shell = app.state::<Shell>();
     let Some(target) = shell.target() else {
         return;

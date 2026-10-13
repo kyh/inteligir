@@ -6,7 +6,7 @@
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, SystemTime};
 
-use tauri::{AppHandle, Emitter, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
@@ -73,7 +73,7 @@ impl Updates {
     }
 }
 
-fn publish<R: Runtime>(app: &AppHandle<R>, inner: &mut Inner, next: UpdateState) {
+fn publish(app: &AppHandle, inner: &mut Inner, next: UpdateState) {
     if inner.state == next {
         return;
     }
@@ -83,12 +83,12 @@ fn publish<R: Runtime>(app: &AppHandle<R>, inner: &mut Inner, next: UpdateState)
     }
 }
 
-fn updates<R: Runtime>(app: &AppHandle<R>) -> tauri::State<'_, Updates> {
+fn updates(app: &AppHandle) -> tauri::State<'_, Updates> {
     app.state::<Updates>()
 }
 
 /// Reserves a step; false when another is running, which is said and skipped.
-fn reserve<R: Runtime>(app: &AppHandle<R>, step: Step) -> bool {
+fn reserve(app: &AppHandle, step: Step) -> bool {
     let updates = updates(app);
     let mut inner = updates.lock();
     if let Some(running) = inner.step {
@@ -99,7 +99,7 @@ fn reserve<R: Runtime>(app: &AppHandle<R>, step: Step) -> bool {
     true
 }
 
-fn release<R: Runtime>(app: &AppHandle<R>, step: Step) {
+fn release(app: &AppHandle, step: Step) {
     let updates = updates(app);
     let mut inner = updates.lock();
     if inner.step == Some(step) {
@@ -107,7 +107,7 @@ fn release<R: Runtime>(app: &AppHandle<R>, step: Step) {
     }
 }
 
-pub async fn check<R: Runtime>(app: &AppHandle<R>, reason: &str) -> UpdateState {
+pub async fn check(app: &AppHandle, reason: &str) -> UpdateState {
     {
         let state = updates(app).state();
         if state.is_disabled() {
@@ -158,7 +158,7 @@ pub async fn check<R: Runtime>(app: &AppHandle<R>, reason: &str) -> UpdateState 
 /// Runs only where the button offers a download, so the two cannot disagree. Reserved before the
 /// update is read, so no check can swap `found` between the read and the download: the bytes are
 /// always the update's that install pairs them with.
-pub async fn download<R: Runtime>(app: &AppHandle<R>) -> UpdateState {
+pub async fn download(app: &AppHandle) -> UpdateState {
     if !reserve(app, Step::Download) {
         return updates(app).state();
     }
@@ -221,7 +221,7 @@ pub async fn download<R: Runtime>(app: &AppHandle<R>) -> UpdateState {
 
 /// Stops the server, replaces the bundle, relaunches. The server is already down when an install
 /// fails, so the honest move is to say so and quit.
-pub fn install<R: Runtime>(app: &AppHandle<R>) -> UpdateState {
+pub fn install(app: &AppHandle) -> UpdateState {
     let (update, bytes) = {
         let updates = updates(app);
         let inner = updates.lock();
@@ -266,7 +266,7 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) -> UpdateState {
 }
 
 /// The first check shortly after launch, then every few minutes; a disabled updater runs neither.
-pub fn start<R: Runtime>(app: &AppHandle<R>) {
+pub fn start(app: &AppHandle) {
     if let UpdateStatus::Disabled { reason } = updates(app).state().status {
         println!("[updater] updates disabled: {reason}");
         return;
@@ -282,7 +282,7 @@ pub fn start<R: Runtime>(app: &AppHandle<R>) {
     });
 }
 
-fn tell<R: Runtime>(app: &AppHandle<R>, title: &str, message: &str, kind: MessageDialogKind) {
+fn tell(app: &AppHandle, title: &str, message: &str, kind: MessageDialogKind) {
     app.dialog()
         .message(message)
         .title(title)
@@ -290,7 +290,7 @@ fn tell<R: Runtime>(app: &AppHandle<R>, title: &str, message: &str, kind: Messag
         .blocking_show();
 }
 
-fn ask<R: Runtime>(app: &AppHandle<R>, title: &str, message: &str, yes: &str, no: &str) -> bool {
+fn ask(app: &AppHandle, title: &str, message: &str, yes: &str, no: &str) -> bool {
     app.dialog()
         .message(message)
         .title(title)
@@ -302,7 +302,7 @@ fn ask<R: Runtime>(app: &AppHandle<R>, title: &str, message: &str, yes: &str, no
         .blocking_show()
 }
 
-fn ask_to_restart<R: Runtime>(app: &AppHandle<R>, version: &str) {
+fn ask_to_restart(app: &AppHandle, version: &str) {
     if ask(
         app,
         "Update ready",
@@ -317,7 +317,7 @@ fn ask_to_restart<R: Runtime>(app: &AppHandle<R>, version: &str) {
 }
 
 /// Check for Updates… in the app menu: the same steps the page's button takes, said in dialogs.
-pub async fn check_from_menu<R: Runtime>(app: AppHandle<R>) {
+pub async fn check_from_menu(app: AppHandle) {
     let state = check(&app, "menu").await;
     let menu_app = app.clone();
     let _ = tauri::async_runtime::spawn_blocking(move || {

@@ -7,7 +7,7 @@
 use tauri::menu::{
     AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu, SubmenuBuilder,
 };
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::shell::{self, Outcome, Shell};
@@ -21,17 +21,17 @@ pub const SHOW_APP: &str = "show-app";
 pub const HIDE_APP: &str = "hide-app";
 const RECENT_PREFIX: &str = "open-recent:";
 
-fn item<R: Runtime>(
-    app: &AppHandle<R>,
+fn item(
+    app: &AppHandle,
     id: &str,
     text: &str,
     enabled: bool,
     accelerator: Option<&str>,
-) -> tauri::Result<MenuItem<R>> {
+) -> tauri::Result<MenuItem<Wry>> {
     MenuItem::with_id(app, id, text, enabled, accelerator)
 }
 
-fn app_menu<R: Runtime>(app: &AppHandle<R>, vault_open: bool) -> tauri::Result<Submenu<R>> {
+fn app_menu(app: &AppHandle, vault_open: bool) -> tauri::Result<Submenu<Wry>> {
     let info = app.package_info();
     let about = AboutMetadata {
         name: Some(crate::window::app_title().to_owned()),
@@ -66,11 +66,7 @@ fn app_menu<R: Runtime>(app: &AppHandle<R>, vault_open: bool) -> tauri::Result<S
         .build()
 }
 
-fn file_menu<R: Runtime>(
-    app: &AppHandle<R>,
-    switchable: bool,
-    recent: &[String],
-) -> tauri::Result<Submenu<R>> {
+fn file_menu(app: &AppHandle, switchable: bool, recent: &[String]) -> tauri::Result<Submenu<Wry>> {
     let mut recent_menu =
         SubmenuBuilder::new(app, "Open Recent Vault").enabled(switchable && !recent.is_empty());
     for path in recent {
@@ -99,7 +95,7 @@ fn file_menu<R: Runtime>(
 
 /// Named "Edit", so macOS adds Start Dictation… and Emoji & Symbols to it: dictation is the
 /// operating system's.
-fn edit_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Submenu<R>> {
+fn edit_menu(app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
     SubmenuBuilder::new(app, "Edit")
         .item(&PredefinedMenuItem::undo(app, None)?)
         .item(&PredefinedMenuItem::redo(app, None)?)
@@ -111,7 +107,7 @@ fn edit_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Submenu<R>> {
         .build()
 }
 
-fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
+fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let shell = app.state::<Shell>();
     let vault_open = shell.target().is_some();
     // an adopted server, or a launch an env var pins, refuses a switch: no entry offers one
@@ -148,7 +144,7 @@ fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 
 /// The menu bar is macOS's; elsewhere the shell runs only under the scenario suite, where a GTK
 /// menu bar would only take height from the page.
-pub fn rebuild<R: Runtime>(app: &AppHandle<R>) {
+pub fn rebuild(app: &AppHandle) {
     if cfg!(target_os = "macos") {
         match build(app) {
             Ok(menu) => {
@@ -162,7 +158,7 @@ pub fn rebuild<R: Runtime>(app: &AppHandle<R>) {
     tray::rebuild(app);
 }
 
-fn say<R: Runtime>(app: &AppHandle<R>, title: &str, message: &str) {
+fn say(app: &AppHandle, title: &str, message: &str) {
     app.dialog()
         .message(message)
         .title(title)
@@ -170,14 +166,14 @@ fn say<R: Runtime>(app: &AppHandle<R>, title: &str, message: &str) {
         .blocking_show();
 }
 
-fn switch_from_menu<R: Runtime>(app: &AppHandle<R>, vault_dir: &str, confirm: bool) {
+fn switch_from_menu(app: &AppHandle, vault_dir: &str, confirm: bool) {
     match shell::switch_vault(app, vault_dir, confirm) {
         Outcome::Done | Outcome::Reported(_) => {}
         Outcome::Refused(reason) => say(app, "Could not open the vault", &reason),
     }
 }
 
-pub fn on_event<R: Runtime>(app: &AppHandle<R>, event: &MenuEvent) {
+pub fn on_event(app: &AppHandle, event: &MenuEvent) {
     let id = event.id().as_ref().to_owned();
     let app = app.clone();
     match id.as_str() {
