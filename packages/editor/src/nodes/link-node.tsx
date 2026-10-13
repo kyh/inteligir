@@ -10,7 +10,7 @@ import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 
 import { useVaultActions, useVaultLinkTarget } from "@repo/editor/host";
-import { isHttpUrl, openExternalUrl } from "@repo/editor/lib/wire";
+import { isHttpUrl, openExternalUrl } from "@repo/editor/lib/url";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { stringProp } from "@repo/editor/node-props";
 

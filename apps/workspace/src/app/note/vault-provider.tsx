@@ -9,7 +9,7 @@ import type {
   VaultActions,
   VaultEntry,
 } from "@repo/editor/host-io";
-import { createLinkResolverStore } from "@repo/editor/link-resolver-store";
+import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
 import { createNoteFormulas } from "@repo/editor/note-formulas";
 import type { NoteFormulas } from "@repo/editor/note-formulas";
 import { readVaultTree, readWikiTargets, renameVaultEntry, useWikiTargets } from "../vault-hooks";
@@ -90,7 +90,7 @@ interface VaultPortInputs {
 const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): VaultPort => {
   let mirrorOpenPath: (path: string | null) => void = noOpenPathMirror;
   let showHistory: (path: string) => void = noHistory;
-  const linkResolver = createLinkResolverStore();
+  const linkResolver = createLinkResolverFeed();
   const io = createGuardedVaultIo(createGuardedVaultPort(client));
   const formulas = createNoteFormulas({
     listTargets: async () => {
@@ -209,7 +209,6 @@ export const VaultProvider = ({
   // the accepted trade.
   useEffect(() => {
     const io: EditorHostIo = {
-      actions: session.actions,
       // root-relative: the page and the frame share the one origin that serves both.
       htmlFrameUrl: HTML_FRAME_PATH,
       linkResolver: port.linkResolver,
@@ -227,6 +226,7 @@ export const VaultProvider = ({
         return { bytes: await response.blob(), ok: true };
       },
       readVaultFile: async ({ path }) => await readFile(path),
+      vault: session.actions,
       // the choice is read per paste, not cached: the CLI can change it between two pastes.
       writeVaultAsset: async ({ baseName, file }) => {
         // refused before the upload, so an oversized paste costs no round trip of its bytes.

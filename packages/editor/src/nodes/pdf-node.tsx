@@ -4,7 +4,7 @@ import { FileTextIcon } from "lucide-react";
 import { PlateElement, useFocused, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { isHttpUrl, isPdfUrl } from "@repo/editor/lib/wire";
+import { isHttpUrl, isPdfUrl } from "@repo/editor/lib/url";
 import { cn } from "@repo/ui/lib/cn";
 
 import { stringProp } from "@repo/editor/node-props";

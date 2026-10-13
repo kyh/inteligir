@@ -65,7 +65,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
       calls.push({ action, args });
     };
 
-  const actions: VaultActions = {
+  const vault: VaultActions = {
     createFile: record("createFile", Promise.resolve()),
     createFileAt: async (path, seedContent) => {
       calls.push({ action: "createFileAt", args: [path, seedContent] });
@@ -98,7 +98,6 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
   }));
 
   const io: EditorHostIo = {
-    actions,
     htmlFrameUrl: options.htmlFrameUrl === undefined ? FAKE_HTML_FRAME_URL : options.htmlFrameUrl,
     linkResolver,
     onVaultChanged: () => () => {
@@ -114,6 +113,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
         ? Promise.reject(new Error(`ENOENT ${path}`))
         : Promise.resolve(content));
     },
+    vault,
     writeVaultAsset: async () => await Promise.reject(new Error("read-only")),
   };
 

@@ -14,7 +14,7 @@ import { cn } from "@repo/ui/lib/cn";
 
 import { useVaultLinkTarget } from "@repo/editor/host";
 import { getEditorHostIo } from "@repo/editor/host-io";
-import { isHttpUrl } from "@repo/editor/lib/wire";
+import { isHttpUrl } from "@repo/editor/lib/url";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { stringProp } from "@repo/editor/node-props";
 import { RemoteContentCard } from "@repo/editor/nodes/remote-content-card";

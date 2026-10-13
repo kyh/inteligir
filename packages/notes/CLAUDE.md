@@ -109,7 +109,7 @@ node is rather than discriminating structurally at each visit.
   RESOLVER.** `mdLinkTarget` (`@repo/notes/knowledge/link-extract`) is how the
   scan reads an md url, and the editor reads a link's or an image's url through
   it and resolves it from the note it is written in with the index's own
-  `buildResolver` (`packages/editor/src/link-resolver-store.ts`), so the image
+  `buildResolver` (`packages/editor/src/link-resolver-feed.ts`), so the image
   Problems calls missing is the one drawn missing and a vault url opens in the
   app; only an http(s) url reaches the browser. An image the resolver misses
   falls back to a root path, because a pasted asset is on disk before the

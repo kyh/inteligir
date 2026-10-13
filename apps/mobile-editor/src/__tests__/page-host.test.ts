@@ -148,7 +148,7 @@ describe("each port is one frame kind, and its answer comes back as the port's o
   it("creates under the absent guard, with no base", async () => {
     const { host, phone } = await openHost();
     const kinds = await asked(phone, async () => {
-      expect(await host.io.actions.createNewFileAt("Ideas", "- one\n")).toEqual({
+      expect(await host.io.vault.createNewFileAt("Ideas", "- one\n")).toEqual({
         kind: "created",
         path: "Ideas.md",
       });
@@ -165,14 +165,14 @@ describe("each port is one frame kind, and its answer comes back as the port's o
     const { host, phone } = await openHost();
     expect(
       await asked(phone, async () => {
-        await host.io.actions.renameEntry("Other.md", "Later.md");
+        await host.io.vault.renameEntry("Other.md", "Later.md");
       }),
     ).toEqual(["rename", "list"]);
     expect(phone.files.has("Later.md")).toBe(true);
 
     expect(
       await asked(phone, async () => {
-        await host.io.actions.deleteEntry("Later.md");
+        await host.io.vault.deleteEntry("Later.md");
       }),
     ).toEqual(["remove", "list"]);
     expect(phone.files.has("Later.md")).toBe(false);
@@ -182,8 +182,8 @@ describe("each port is one frame kind, and its answer comes back as the port's o
 describe("the open note", () => {
   it("saves an edit against the text it was read as", async () => {
     const { host, phone } = await openHost();
-    host.io.actions.editNote("Note.md", `${NOTE}More.\n`);
-    expect(await host.io.actions.flush()).toBe(true);
+    host.io.vault.editNote("Note.md", `${NOTE}More.\n`);
+    expect(await host.io.vault.flush()).toBe(true);
 
     expect(phone.requests("write").map((frame) => frame.payload)).toEqual([
       { content: `${NOTE}More.\n`, guard: { base: NOTE, kind: "expected" }, path: "Note.md" },
@@ -198,8 +198,8 @@ describe("the open note", () => {
     const { host, phone, store } = await openHost({ "Note.md": "one\ntwo\nthree\n" });
     const warned = vi.spyOn(toast, "warning");
     phone.files.set("Note.md", "one\ntwo (theirs)\nthree\nfour\n");
-    host.io.actions.editNote("Note.md", "one\ntwo (mine)\nthree\n");
-    await host.io.actions.flush();
+    host.io.vault.editNote("Note.md", "one\ntwo (mine)\nthree\n");
+    await host.io.vault.flush();
 
     const [first, retry] = phone.requests("write");
     expect(first?.payload.guard).toEqual({ base: "one\ntwo\nthree\n", kind: "expected" });
@@ -242,7 +242,7 @@ describe("the open note", () => {
 
   it("writes an unsaved edit for a writer outside the note, and stops once the page is gone", async () => {
     const { host, phone } = await openHost();
-    host.io.actions.editNote("Note.md", `${NOTE}Flushed.\n`);
+    host.io.vault.editNote("Note.md", `${NOTE}Flushed.\n`);
 
     expect(await flushOpenNote()).toBe(true);
     expect(phone.files.get("Note.md")).toBe(`${NOTE}Flushed.\n`);
@@ -256,7 +256,7 @@ describe("the open note", () => {
 
   it("answers a flush once the edits are written", async () => {
     const { host, phone } = await openHost();
-    host.io.actions.editNote("Note.md", `${NOTE}Unsaved.\n`);
+    host.io.vault.editNote("Note.md", `${NOTE}Unsaved.\n`);
     phone.deliver({ id: 7, nonce: PHONE_NONCE, type: "flush" });
 
     await vi.waitFor(() => {
@@ -271,8 +271,8 @@ describe("the open note", () => {
 describe("leaving the note", () => {
   it("writes the note, then asks the native stack to open the other one", async () => {
     const { host, phone, store } = await openHost();
-    host.io.actions.editNote("Note.md", `${NOTE}Before leaving.\n`);
-    host.io.actions.openFile("Other.md");
+    host.io.vault.editNote("Note.md", `${NOTE}Before leaving.\n`);
+    host.io.vault.openFile("Other.md");
 
     await vi.waitFor(() => {
       expect(phone.events("navigate")).toEqual([
@@ -285,7 +285,7 @@ describe("leaving the note", () => {
 
   it("opens a note it creates on the native stack too", async () => {
     const { host, phone } = await openHost();
-    await host.io.actions.createFile("Someday");
+    await host.io.vault.createFile("Someday");
     await vi.waitFor(() => {
       expect(phone.events("navigate").map((frame) => frame.path)).toEqual(["Someday.md"]);
     });
@@ -357,7 +357,7 @@ const create = async (id: string, text: string): Promise<boolean> =>
 describe("a new comment", () => {
   it("rides the save that writes its markers, so the phone lands both as one change set", async () => {
     const { host, phone } = await openHost();
-    host.io.actions.editNote("Note.md", ANCHORED);
+    host.io.vault.editNote("Note.md", ANCHORED);
 
     expect(await create("c3", "Why here?")).toBe(true);
     expect(phone.requests("write")).toEqual([]);
@@ -370,7 +370,7 @@ describe("a new comment", () => {
   it("merges a note the phone finds changed and carries the comment on the retry", async () => {
     const { host, phone } = await openHost({ "Note.md": "one\n\nHello there.\n" });
     phone.files.set("Note.md", "one\n\nHello there.\n\nfrom the Mac\n");
-    host.io.actions.editNote("Note.md", "one\n\n%%i:c3:start%%Hello%%i:c3:end%% there.\n");
+    host.io.vault.editNote("Note.md", "one\n\n%%i:c3:start%%Hello%%i:c3:end%% there.\n");
 
     expect(await create("c3", "Why here?")).toBe(true);
     const [first, retry] = phone.requests("addComment").map((frame) => frame.payload);
@@ -386,16 +386,16 @@ describe("a new comment", () => {
 
   it("sends its entry alone when the autosave already wrote its markers, and the next save as a write", async () => {
     const { host, phone } = await openHost();
-    host.io.actions.editNote("Note.md", ANCHORED);
-    await host.io.actions.flush();
+    host.io.vault.editNote("Note.md", ANCHORED);
+    await host.io.vault.flush();
 
     expect(await create("c3", "Why here?")).toBe(true);
     expect(phone.requests("addComment").map((frame) => frame.payload)).toEqual([
       { base: ANCHORED, content: ANCHORED, id: "c3", path: "Note.md", text: "Why here?" },
     ]);
 
-    host.io.actions.editNote("Note.md", `${ANCHORED}More.\n`);
-    await host.io.actions.flush();
+    host.io.vault.editNote("Note.md", `${ANCHORED}More.\n`);
+    await host.io.vault.flush();
     expect(phone.requests("write").map((frame) => frame.payload.content)).toEqual([
       ANCHORED,
       `${ANCHORED}More.\n`,
@@ -404,10 +404,7 @@ describe("a new comment", () => {
 
   it("is refused before anything is written on a note whose id is not text", async () => {
     const { host, phone } = await openHost({ "Note.md": "---\nid: 42\n---\nHello there.\n" });
-    host.io.actions.editNote(
-      "Note.md",
-      "---\nid: 42\n---\n%%i:c3:start%%Hello%%i:c3:end%% there.\n",
-    );
+    host.io.vault.editNote("Note.md", "---\nid: 42\n---\n%%i:c3:start%%Hello%%i:c3:end%% there.\n");
 
     expect(await create("c3", "Why here?")).toBe(false);
     expect(phone.requests("addComment")).toEqual([]);
@@ -416,8 +413,8 @@ describe("a new comment", () => {
 
   it("says why when the phone finds the note changed under its entry, or gone", async () => {
     const { host, phone } = await openHost();
-    host.io.actions.editNote("Note.md", ANCHORED);
-    await host.io.actions.flush();
+    host.io.vault.editNote("Note.md", ANCHORED);
+    await host.io.vault.flush();
     const refused = vi.spyOn(toast, "error");
 
     phone.answer = (request) =>
@@ -435,8 +432,8 @@ describe("a new comment", () => {
 
   it("fails when the phone refuses its entry", async () => {
     const { host, phone } = await openHost();
-    host.io.actions.editNote("Note.md", ANCHORED);
-    await host.io.actions.flush();
+    host.io.vault.editNote("Note.md", ANCHORED);
+    await host.io.vault.flush();
     phone.answer = (request) =>
       request.kind === "addComment"
         ? { error: "The comments could not be read.", ok: false }

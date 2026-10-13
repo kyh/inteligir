@@ -49,7 +49,7 @@ export interface LinkResolver {
   targets: readonly WikiTarget[];
 }
 
-// The read half only: the host feeds the writer (`link-resolver-store.ts`). A store rather than a
+// The read half only: the host feeds the writer (`link-resolver-feed.ts`). A store rather than a
 // field because the resolver is rebuilt on every vault refresh while the actions never change, so
 // only its readers re-render.
 export type LinkResolverStore = Pick<
@@ -78,7 +78,7 @@ export type PickImageResult =
   | { readonly kind: "refused"; readonly message: string };
 
 export interface EditorHostIo {
-  actions: VaultActions;
+  vault: VaultActions;
   linkResolver: LinkResolverStore;
   readVaultFile: (payload: { path: string }) => Promise<string>;
   readVaultAsset: (payload: { path: string }) => Promise<ReadVaultAssetResult>;
@@ -140,7 +140,7 @@ export const installEditorHost = (host: EditorHost): (() => void) => {
 };
 
 export const installedFlush = (): (() => Promise<boolean>) | null =>
-  flushing === null ? null : flushing.io.actions.flush;
+  flushing === null ? null : flushing.io.vault.flush;
 
 const installedHost = (): EditorHost => {
   if (installed === null) {

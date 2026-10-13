@@ -5,7 +5,7 @@
 import { KEYS } from "platejs";
 import { parseTwitterUrl, parseVideoUrl } from "@platejs/media";
 
-import { isHttpUrl, isPdfUrl } from "@repo/editor/lib/wire";
+import { isHttpUrl, isPdfUrl } from "@repo/editor/lib/url";
 
 type EmbedType = typeof KEYS.file | typeof KEYS.mediaEmbed | typeof KEYS.video;
 

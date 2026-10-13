@@ -26,7 +26,7 @@ import { getEditorHostIo, vaultChangeTouches } from "@repo/editor/host-io";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { classNameSlateElement } from "@repo/editor/kits/kit-utils";
 import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@repo/editor/kits/table-kit";
-import { isHttpUrl } from "@repo/editor/lib/wire";
+import { isHttpUrl } from "@repo/editor/lib/url";
 import { alertMarkerPrefix, parseAlertVariant } from "@repo/editor/markdown/alert-marker";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { stringProp } from "@repo/editor/node-props";

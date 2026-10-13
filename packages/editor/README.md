@@ -93,7 +93,7 @@ src/
 - `host-io.ts` — the injected host, `EditorHost`, as a MODULE SINGLETON
   because kit factories, paste handlers and a deep node's click run outside
   React or with no route to the shell. Its `EditorHostIo` carries the vault
-  actions, the link resolver store (the knowledge index's own `buildResolver` over
+  actions (`vault`), the link resolver store (the knowledge index's own `buildResolver` over
   the listing, for wiki targets and md urls alike, and the wiki targets it was
   built over, which the `[[` picker and the slash menu's templates list —
   subscribed to rather than read, because it moves with every refresh while the
@@ -112,7 +112,7 @@ src/
   `installEditorHost`, ahead of the first render
   (`apps/workspace/src/app/note/vault-provider.tsx`, and the phone's
   over its WebView bridge, `apps/mobile-editor/src/host/page-host.ts`),
-  building the resolver store with `link-resolver-store.ts` and
+  feeding the resolver store through `link-resolver-feed.ts` and
   `readNoteFormulas` with `note-formulas.ts` over its own reads, and `host.ts` is
   React's door (`useVaultActions`, `useLinkResolver`, `useWikiTargets`, and
   `useVaultLinkTarget`, which reads an md url through `mdLinkTarget` and

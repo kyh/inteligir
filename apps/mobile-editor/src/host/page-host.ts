@@ -19,7 +19,7 @@ import type {
   VaultEntry,
 } from "@repo/editor/host-io";
 import { withRichBlockLockLifted } from "@repo/editor/kits/rich-block-lock-kit";
-import { createLinkResolverStore } from "@repo/editor/link-resolver-store";
+import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
 import { getLiveEditor } from "@repo/editor/live-editor";
 import { createNoteFormulas } from "@repo/editor/note-formulas";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
@@ -103,7 +103,7 @@ const editorStateKey = ({ dirty, saveError }: EditorStateFrame): string =>
   `${String(dirty)}:${saveError?.kind ?? ""}:${saveError?.kind === "refused" ? saveError.message : ""}`;
 
 export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHost => {
-  const linkResolver = createLinkResolverStore();
+  const linkResolver = createLinkResolverFeed();
   const changeListeners = new Set<(event: VaultChangedEvent) => void>();
 
   const readFile = async (notePath: string): Promise<string> => {
@@ -229,7 +229,7 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
     })();
   };
 
-  const actions: VaultActions = {
+  const vault: VaultActions = {
     ...session.actions,
     createFile: async (rawPath, content) => {
       const created = await session.actions.createFileAt(rawPath, content);
@@ -250,7 +250,6 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
   };
 
   const hostIo: EditorHostIo = {
-    actions,
     // no server answers a frame on the phone, so an html block offers no Run
     htmlFrameUrl: null,
     linkResolver: linkResolver.store,
@@ -264,6 +263,7 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
     readNoteFormulas: formulas.read,
     readVaultAsset,
     readVaultFile: async ({ path: notePath }) => await readFile(notePath),
+    vault,
     writeVaultAsset: async ({ baseName, file }) =>
       await bridge.request("writeAsset", {
         base64: await base64Of(file),
