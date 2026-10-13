@@ -82,7 +82,7 @@ const pruneExecDir = async (root: string): Promise<number> => {
   return pruned.length;
 };
 
-try {
+export const fetchGit = async (): Promise<void> => {
   const tarball = await fetchPinned(TARBALL, { cacheDir, log });
   const copying = await fetchPinned(COPYING, { cacheDir, log });
   // staged beside the payload and swapped in whole, so an interrupted run never leaves a half tree
@@ -95,7 +95,4 @@ try {
   await rm(payloadDir, { force: true, recursive: true });
   await rename(stagingDir, payloadDir);
   log(`${TARBALL.name} -> ${path.relative(packageRoot, payloadDir)} (${pruned} entries pruned)`);
-} catch (error) {
-  process.stderr.write(`fetch-git: ${error instanceof Error ? error.message : String(error)}\n`);
-  process.exitCode = 1;
-}
+};

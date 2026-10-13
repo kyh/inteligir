@@ -10,7 +10,7 @@
     "dev": "tauri dev",
     "format": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
     "format:fix": "cargo fmt --manifest-path src-tauri/Cargo.toml",
-    "package": "node scripts/fetch-git.ts && node scripts/fetch-node.ts && node scripts/package.ts",
+    "package": "node scripts/package.ts",
     "smoke": "node scripts/smoke-packaged.ts",
     "tauri": "tauri",
     "test": "cargo test --locked --manifest-path src-tauri/Cargo.toml",
