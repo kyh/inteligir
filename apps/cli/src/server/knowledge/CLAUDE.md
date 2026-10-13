@@ -29,7 +29,7 @@ and cited.
   the store's own failure rebuilds: the driver throws `KnowledgeStoreError`
   (`@repo/notes/knowledge/sql-knowledge-store`) for every database failure, and
   any other throw fails that pass and reconciles on the next.
-  `apps/cli/src/server/knowledge/knowledge-runtime.ts`.
+  `apps/cli/src/server/knowledge/index-pass.ts`.
 
 - **THE SCAN RUNS ON A WORKER; THE SERVER'S LOOP READS BYTES AND WRITES ROWS.**
   Projecting a 20k-line note is seconds of synchronous CPU (2.9s measured),

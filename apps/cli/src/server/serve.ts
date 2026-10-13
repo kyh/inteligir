@@ -24,7 +24,7 @@ import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { debugLog } from "./debug-log";
 import { resolveCheckoutRoot } from "./dev-instance";
-import type { ReconcileStats } from "./knowledge/knowledge-runtime";
+import type { ReconcileStats } from "./knowledge/index-pass";
 import { closeServer, guardUpgradeSockets, listenWithRetry } from "./listen";
 import { LOOPBACK_HOST } from "./loopback-origin";
 import { acquireServeLock, serveLockPath } from "./serve-lock";
