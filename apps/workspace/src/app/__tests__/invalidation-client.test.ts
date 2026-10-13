@@ -49,10 +49,10 @@ class FakeSocket implements InvalidationSocket {
   }
 }
 
-const harness = () => {
+const harness = (targets: readonly RealtimeSubscriptionTarget[] = []) => {
   const sockets: FakeSocket[] = [];
   const changed: ChangedMessage[] = [];
-  const reconnected: (readonly RealtimeSubscriptionTarget[])[] = [];
+  const onReconnected = vi.fn<() => void>();
   const client = new InvalidationClient({
     createSocket: () => {
       const socket = new FakeSocket();
@@ -62,11 +62,10 @@ const harness = () => {
     onChanged: (message) => {
       changed.push(message);
     },
-    onReconnected: (targets) => {
-      reconnected.push(targets);
-    },
+    onReconnected,
+    targets,
   });
-  return { changed, client, reconnected, sockets };
+  return { changed, client, onReconnected, sockets };
 };
 
 beforeEach(() => {
@@ -79,53 +78,13 @@ afterEach(() => {
 
 describe("subscriptions", () => {
   it("sends the subscribe frame once the socket is open", () => {
-    const h = harness();
+    const h = harness([{ kind: "vault" }]);
     h.client.start();
     const [socket] = h.sockets;
     expect(socket).toBeDefined();
-    h.client.subscribe({ kind: "vault" });
     expect(socket?.sent).toEqual([]);
     socket?.open();
     expect(socket?.sentFrames()).toEqual([{ target: { kind: "vault" }, type: "subscribe" }]);
-  });
-
-  it("subscribes immediately when already connected", () => {
-    const h = harness();
-    h.client.start();
-    const [socket] = h.sockets;
-    socket?.open();
-    h.client.subscribe({ kind: "thread-list" });
-    expect(socket?.sentFrames()).toEqual([{ target: { kind: "thread-list" }, type: "subscribe" }]);
-  });
-
-  it("ref-counts a target: one subscribe, unsubscribe only on the last release", () => {
-    const h = harness();
-    h.client.start();
-    const [socket] = h.sockets;
-    socket?.open();
-    const releaseA = h.client.subscribe({ kind: "vault" });
-    const releaseB = h.client.subscribe({ kind: "vault" });
-    expect(socket?.sent).toHaveLength(1);
-    releaseA();
-    expect(socket?.sent).toHaveLength(1);
-    releaseB();
-    expect(socket?.sentFrames().at(-1)).toEqual({
-      target: { kind: "vault" },
-      type: "unsubscribe",
-    });
-  });
-
-  it("a release is idempotent", () => {
-    const h = harness();
-    h.client.start();
-    const [socket] = h.sockets;
-    socket?.open();
-    const release = h.client.subscribe({ kind: "vault" });
-    h.client.subscribe({ kind: "vault" });
-    release();
-    release();
-    const unsubscribes = socket?.sentFrames().filter((frame) => frame.type === "unsubscribe");
-    expect(unsubscribes).toEqual([]);
   });
 });
 
@@ -165,11 +124,9 @@ describe("messages", () => {
 });
 
 describe("reconnect", () => {
-  it("reconnects after a drop and resubscribes every held target", async () => {
-    const h = harness();
+  it("reconnects after a drop and resubscribes every target", async () => {
+    const h = harness([{ kind: "vault" }, { kind: "thread-list" }]);
     h.client.start();
-    h.client.subscribe({ kind: "vault" });
-    h.client.subscribe({ kind: "thread-list" });
     const [first] = h.sockets;
     first?.open();
     expect(first?.sent).toHaveLength(2);
@@ -185,19 +142,6 @@ describe("reconnect", () => {
       { target: { kind: "vault" }, type: "subscribe" },
       { target: { kind: "thread-list" }, type: "subscribe" },
     ]);
-  });
-
-  it("does not resubscribe targets released while disconnected", async () => {
-    const h = harness();
-    h.client.start();
-    const release = h.client.subscribe({ kind: "vault" });
-    h.sockets[0]?.open();
-    h.sockets[0]?.drop();
-    release();
-    await vi.advanceTimersByTimeAsync(500);
-    const [, second] = h.sockets;
-    second?.open();
-    expect(second?.sent).toEqual([]);
   });
 
   it("backs off between failed attempts and resets after a successful open", async () => {
@@ -219,22 +163,21 @@ describe("reconnect", () => {
     expect(h.sockets).toHaveLength(4);
   });
 
-  it("reports a reconnect with the held targets — and never the first connect", async () => {
-    const h = harness();
+  it("reports a reconnect — and never the first connect", async () => {
+    const h = harness([{ kind: "vault" }]);
     h.client.start();
-    h.client.subscribe({ kind: "vault" });
     h.sockets[0]?.open();
-    expect(h.reconnected).toEqual([]);
+    expect(h.onReconnected).not.toHaveBeenCalled();
 
     h.sockets[0]?.drop();
     await vi.advanceTimersByTimeAsync(500);
     h.sockets[1]?.open();
-    expect(h.reconnected).toEqual([[{ kind: "vault" }]]);
+    expect(h.onReconnected).toHaveBeenCalledTimes(1);
 
     h.sockets[1]?.drop();
     await vi.advanceTimersByTimeAsync(500);
     h.sockets[2]?.open();
-    expect(h.reconnected).toHaveLength(2);
+    expect(h.onReconnected).toHaveBeenCalledTimes(2);
   });
 
   it("stops reconnecting after dispose", async () => {

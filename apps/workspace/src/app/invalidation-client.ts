@@ -1,7 +1,4 @@
-import {
-  realtimeSubscriptionTargetKey,
-  serverMessageLenientSchema,
-} from "@repo/contract/local/notifications";
+import { serverMessageLenientSchema } from "@repo/contract/local/notifications";
 import type {
   ChangedMessage,
   ClientMessage,
@@ -20,25 +17,19 @@ export interface InvalidationSocket {
 }
 
 export interface InvalidationClientArgs {
+  targets: readonly RealtimeSubscriptionTarget[];
   createSocket: () => InvalidationSocket;
   onChanged: (message: ChangedMessage) => void;
   // re-connects only: whatever changed in the gap produced no frames, so the consumer must invalidate.
-  onReconnected?: (targets: readonly RealtimeSubscriptionTarget[]) => void;
+  onReconnected?: () => void;
   reconnectDelayMs?: (attempt: number) => number;
 }
 
 const defaultReconnectDelayMs = (attempt: number): number => Math.min(500 * 2 ** attempt, 10_000);
 
-interface HeldTarget {
-  target: RealtimeSubscriptionTarget;
-  count: number;
-}
-
 export class InvalidationClient {
   private readonly args: InvalidationClientArgs;
-  private readonly held = new Map<string, HeldTarget>();
   private socket: InvalidationSocket | null = null;
-  private socketOpen = false;
   private hasConnectedBefore = false;
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -64,46 +55,16 @@ export class InvalidationClient {
     this.teardownSocket();
   }
 
-  subscribe(target: RealtimeSubscriptionTarget): () => void {
-    const key = realtimeSubscriptionTargetKey(target);
-    const existing = this.held.get(key);
-    if (existing) {
-      existing.count += 1;
-    } else {
-      this.held.set(key, { count: 1, target });
-      this.sendFrame({ target, type: "subscribe" });
-    }
-    let released = false;
-    return () => {
-      if (released) {
-        return;
-      }
-      released = true;
-      const holder = this.held.get(key);
-      if (!holder) {
-        return;
-      }
-      holder.count -= 1;
-      if (holder.count === 0) {
-        this.held.delete(key);
-        this.sendFrame({ target, type: "unsubscribe" });
-      }
-    };
-  }
-
   private connect(): void {
     const socket = this.args.createSocket();
     this.socket = socket;
-    this.socketOpen = false;
     socket.onOpen = () => {
-      this.socketOpen = true;
       this.reconnectAttempt = 0;
-      const targets = [...this.held.values()].map((holder) => holder.target);
-      for (const target of targets) {
+      for (const target of this.args.targets) {
         socket.send(encodeFrame({ target, type: "subscribe" }));
       }
       if (this.hasConnectedBefore) {
-        this.args.onReconnected?.(targets);
+        this.args.onReconnected?.();
       }
       this.hasConnectedBefore = true;
     };
@@ -128,7 +89,6 @@ export class InvalidationClient {
         return;
       }
       this.socket = null;
-      this.socketOpen = false;
       this.scheduleReconnect();
     };
   }
@@ -147,20 +107,12 @@ export class InvalidationClient {
     }, delayMs);
   }
 
-  private sendFrame(frame: ClientMessage): void {
-    // not queued when closed: the open handler replays every held target.
-    if (this.socket !== null && this.socketOpen) {
-      this.socket.send(encodeFrame(frame));
-    }
-  }
-
   private teardownSocket(): void {
     const { socket } = this;
     if (socket === null) {
       return;
     }
     this.socket = null;
-    this.socketOpen = false;
     socket.onOpen = null;
     socket.onMessage = null;
     socket.onClose = null;

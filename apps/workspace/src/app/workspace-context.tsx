@@ -358,10 +358,9 @@ export const WorkspaceProvider = ({ children }: { children: React.ReactNode }) =
       onReconnected: () => {
         sweepAfterReconnect(runtime.queryClient, runtime.emitVaultChange, runtime.notifyThread);
       },
+      targets: [{ kind: "vault" }, { kind: "thread-list" }],
     });
     invalidation.start();
-    invalidation.subscribe({ kind: "vault" });
-    invalidation.subscribe({ kind: "thread-list" });
     return () => {
       invalidation.dispose();
       if (frame !== null) {
