@@ -178,7 +178,7 @@ pub fn on_event(app: &AppHandle, event: &MenuEvent) {
     let app = app.clone();
     match id.as_str() {
         CHECK_FOR_UPDATES => {
-            tauri::async_runtime::spawn(updater::check_from_menu(app));
+            std::thread::spawn(move || updater::check_from_menu(&app));
         }
         SHOW_APP => shell::show_current_window(&app),
         HIDE_APP => {
