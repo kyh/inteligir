@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { VAULT_GIT_MAX_PUSH_BYTES, vaultCommitSubject } from "@repo/contract/cloud/vault/vault-git";
+import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/contract/cloud/vault/vault-git";
 import { VAULT_SYNC_CONFLICTS_MAX } from "@repo/contract/local/vault/vault-schema";
 import type {
   ExternalSync,
@@ -27,8 +27,9 @@ import {
 import type { NoteHistoryPage, TurnCommit } from "./git-history";
 import { mergeFetched, mergeInProgress, pulledCopies } from "./git-merge";
 import type { Reconcile } from "./git-merge";
-import { entryPaths, readPorcelain, unmergedPaths } from "./git-porcelain";
-import type { PorcelainEntry } from "./git-porcelain";
+import { createAutoCommit } from "./git-commits";
+import type { CommitHold } from "./git-commits";
+import { readPorcelain, unmergedPaths } from "./git-porcelain";
 import {
   currentBranch,
   isAncestor,
@@ -49,21 +50,11 @@ import {
 } from "./git-run";
 import type { CommitAuthor, GitRunner, NetworkFailure, RunGitOptions } from "./git-run";
 import type { VaultFilesChange } from "./vault-changes";
-import { createDebouncedCallbackScheduler } from "./watcher/debounce";
-
-// a 15s pause ends an editing session, so the log stays answerable ("the version from before
-// i rewrote the intro") rather than thirty anonymous revisions; the max wait is the sync
-// interval, since a sync pass commits the dirty tree before it pushes.
-const AUTO_COMMIT_QUIET_MS = 15_000;
-const AUTO_COMMIT_MAX_WAIT_MS = 60_000;
 
 // the account remote's quiet tick: while its socket would ping this device for another device's
 // push and nothing waits to go up, a tick reaches the hosted vault only this often, because every
 // fetch is an operation the hosted vault bills. a ping, a sign-in and Sync now still reach it at once.
 const ACCOUNT_QUIET_FETCH_MS = 15 * 60_000;
-
-// past this a scoped commit costs more argv (status pathspec, then add) than the unscoped sweep.
-const MAX_SCOPED_COMMIT_PATHS = 200;
 
 export interface GitEngineArgs {
   root: string;
@@ -96,12 +87,6 @@ export interface GitEngineArgs {
   accountPingsReach?: () => boolean;
   // how long a tick may go without reaching a remote that pings; unset, ACCOUNT_QUIET_FETCH_MS.
   quietFetchMs?: number;
-}
-
-interface CommitHold {
-  // the paths the holding turn wrote, which a checkpoint leaves to the turn's own commit.
-  claim: (paths: readonly string[]) => void;
-  release: () => void;
 }
 
 export interface GitEngine {
@@ -220,9 +205,6 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const externalSync = args.externalSync ?? null;
 
   let lastSyncAt: number | null = null;
-  // reported ahead of the outcome's message until a flush or a whole-tree commit lands: a tree the
-  // auto-commit left dirty says why nowhere else, and a vault with no remote runs no pass.
-  let flushError: string | null = null;
   let outcome: SyncOutcome = NO_OUTCOME;
   // memos, not verdicts: each outlives the passes that go offline meanwhile, so the pass skips a
   // push or a merge that could only fail the same way again.
@@ -298,9 +280,6 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     outcome = { failure: refused, kind: "unreachable", message };
   };
 
-  const porcelain = async (paths: readonly string[] = []): Promise<PorcelainEntry[]> =>
-    await readPorcelain(run, paths);
-
   let rebaseStateDirs: readonly string[] | null = null;
   const rebaseInProgress = async (): Promise<boolean> => {
     rebaseStateDirs ??= [
@@ -339,174 +318,16 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     mayBeMidIntegration = false;
   };
 
-  const commit = async (subject: string, author?: CommitAuthor): Promise<void> => {
-    await run(["commit", "-m", subject], {
-      env: identityEnv(args.deviceName(), author),
-    });
-  };
-
-  const clearFlushError = (): void => {
-    if (flushError !== null) {
-      flushError = null;
-      args.onStatusChanged?.();
-    }
-  };
-
-  // a whole-tree commit that succeeds leaves nothing a failed flush stranded, whoever ran it: a
-  // sync pass or a checkpoint clears the report as a later flush would.
-  const commitIfDirty = async (): Promise<{ files: number } | null> => {
-    await clearInterruptedIntegration();
-    const dirty = entryPaths(await porcelain());
-    if (dirty.length === 0) {
-      clearFlushError();
-      return null;
-    }
-    // unscoped: the scoped form passes every path as argv, and a large vault's first commit
-    // would exceed ARG_MAX.
-    await run(["add", "-A"]);
-    await commit(vaultCommitSubject(dirty));
-    clearFlushError();
-    return { files: dirty.length };
-  };
-
-  const commitPathsIfDirty = async (
-    paths: readonly string[],
-    author: CommitAuthor | undefined,
-    subject: string | ((dirty: readonly string[]) => string),
-  ): Promise<{ files: number } | null> => {
-    if (paths.length === 0) {
-      return null;
-    }
-    await clearInterruptedIntegration();
-    // git add errors on a pathspec matching nothing, and a reported write may have been reverted.
-    const dirty = entryPaths(await porcelain(paths));
-    if (dirty.length === 0) {
-      return null;
-    }
-    // -A with a pathspec stages deletions under it too; the commit takes only the index.
-    await run(["add", "-A", "--", ...dirty]);
-    await commit(subject instanceof Function ? subject(dirty) : subject, author);
-    return { files: dirty.length };
-  };
-
-  // each live hold's claims. a held flush is re-armed on release; the release path's own
-  // commitPaths usually beats it.
-  const liveHolds = new Set<Set<string>>();
-  let flushDeferredWhileHeld = false;
-
-  const claimedPaths = (): string[] => [
-    ...new Set([...liveHolds].flatMap((claims) => [...claims])),
-  ];
-
-  const stagedPaths = async (paths: readonly string[] = []): Promise<string[]> => {
-    const { stdout } = await run([
-      "diff",
-      "--cached",
-      "--name-only",
-      "-z",
-      "--no-renames",
-      "--",
-      ...paths,
-    ]);
-    return stdout.split("\0").filter((staged) => staged.length > 0);
-  };
-
-  const commitUnclaimed = async (): Promise<{ files: number } | null> => {
-    const claimed = claimedPaths();
-    if (claimed.length === 0) {
-      return await commitIfDirty();
-    }
-    await clearInterruptedIntegration();
-    // an :(exclude) pathspec is magic, which --literal-pathspecs turns off, and naming every
-    // unclaimed path is the argv a large vault's first commit would overflow: the whole tree is
-    // staged and the claims taken back out.
-    await run(["add", "-A"]);
-    const claimedStaged = await stagedPaths(claimed);
-    if (claimedStaged.length > 0) {
-      await run(["reset", "-q", "--", ...claimedStaged]);
-    }
-    const staged = await stagedPaths();
-    if (staged.length === 0) {
-      return null;
-    }
-    await commit(vaultCommitSubject(staged));
-    return { files: staged.length };
-  };
-
-  // null means "whatever is dirty"; one unscoped call in the window decides the whole flush.
-  let pendingCommitPaths: Set<string> | null = new Set();
-
-  const noteCommitPaths = (paths: readonly string[] | undefined): void => {
-    if (paths === undefined || pendingCommitPaths === null) {
-      pendingCommitPaths = null;
-      return;
-    }
-    for (const notePath of paths) {
-      pendingCommitPaths.add(notePath);
-    }
-    if (pendingCommitPaths.size > MAX_SCOPED_COMMIT_PATHS) {
-      pendingCommitPaths = null;
-    }
-  };
-
-  const flushCommit = async (scoped: Set<string> | null): Promise<void> => {
-    try {
-      await withRepoLock(async () =>
-        scoped === null
-          ? await commitIfDirty()
-          : await commitPathsIfDirty([...scoped], undefined, vaultCommitSubject),
-      );
-    } catch (error) {
-      // whatever failed is still dirty and its paths are spent: the next flush sweeps everything.
-      pendingCommitPaths = null;
-      flushError = error instanceof Error ? error.message : "auto-commit failed";
-      args.onError?.(flushError);
-      args.onStatusChanged?.();
-      return;
-    }
-    clearFlushError();
-  };
-
-  const commitScheduler = createDebouncedCallbackScheduler({
-    debounceMs: args.quietMs ?? AUTO_COMMIT_QUIET_MS,
-    maxWaitMs: args.maxWaitMs ?? AUTO_COMMIT_MAX_WAIT_MS,
-    onFlush: () => {
-      if (disposed) {
-        return;
-      }
-      if (liveHolds.size > 0) {
-        flushDeferredWhileHeld = true;
-        return;
-      }
-      const scoped = pendingCommitPaths;
-      pendingCommitPaths = new Set();
-      void flushCommit(scoped);
-    },
+  const autoCommit = createAutoCommit({
+    beforeCommit: clearInterruptedIntegration,
+    deviceName: args.deviceName,
+    lock: withRepoLock,
+    maxWaitMs: args.maxWaitMs,
+    onError: args.onError,
+    onStatusChanged: args.onStatusChanged,
+    quietMs: args.quietMs,
+    run,
   });
-
-  const holdCommits = (): CommitHold => {
-    const claims = new Set<string>();
-    liveHolds.add(claims);
-    return {
-      claim(paths) {
-        if (!liveHolds.has(claims)) {
-          return;
-        }
-        for (const claimed of paths) {
-          claims.add(claimed);
-        }
-      },
-      release() {
-        if (!liveHolds.delete(claims)) {
-          return;
-        }
-        if (liveHolds.size === 0 && flushDeferredWhileHeld) {
-          flushDeferredWhileHeld = false;
-          commitScheduler.schedule();
-        }
-      },
-    };
-  };
 
   const ensureOriginRemote = async (
     remote: VaultRemoteSpec,
@@ -776,7 +597,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
         return null;
       }
     }
-    await commitIfDirty();
+    await autoCommit.commitIfDirty();
     await ensureOriginRemote(remote, origin);
     const branch = await currentBranch(run);
     if (branch === null) {
@@ -847,11 +668,11 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   ): Promise<boolean> => {
     // the lock was free across the fetch: a turn may have taken its hold and begun writing,
     // and a dispose may have run the final flush.
-    if (disposed || liveHolds.size > 0) {
+    if (disposed || autoCommit.held()) {
       return false;
     }
     // a save that landed during the fetch would refuse the rebase as unstaged changes.
-    await commitIfDirty();
+    await autoCommit.commitIfDirty();
     if (!remoteHasBranch) {
       return true;
     }
@@ -977,7 +798,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   // behind the repo lock so a status never reports a sync's half-way tree.
   const treeState = async (): Promise<"clean" | "dirty"> =>
     await withRepoLock(async () => {
-      const dirtyPaths = await porcelain()
+      const dirtyPaths = await readPorcelain(run)
         .then((entries) => entries.length)
         .catch(() => 0);
       let unpushed = 0;
@@ -999,7 +820,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       conflicts,
       device: args.deviceName(),
       externalSync,
-      lastError: flushError ?? verdict.message,
+      lastError: autoCommit.flushError() ?? verdict.message,
       lastSyncAt,
     };
     if (remote === null) {
@@ -1019,7 +840,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     if (verdict.kind === "broken") {
       return { ...fields, state: "broken" };
     }
-    if (liveHolds.size > 0) {
+    if (autoCommit.held()) {
       return { ...fields, state: "held" };
     }
     switch (verdict.kind) {
@@ -1037,7 +858,10 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       }
       case "none": {
         // a failed flush leaves the tree dirty, which alone reads as edits on their way
-        return { ...fields, state: flushError === null ? await treeState() : "stalled" };
+        return {
+          ...fields,
+          state: autoCommit.flushError() === null ? await treeState() : "stalled",
+        };
       }
       default: {
         const exhaustive: never = verdict;
@@ -1087,7 +911,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
           // a pass starts by committing the dirty tree, which a hold exists to prevent; the
           // snapshot says "held" rather than reporting clean as if a pass ran.
           const remote = await currentRemote();
-          if (remote === null || outcome.kind === "broken" || liveHolds.size > 0) {
+          if (remote === null || outcome.kind === "broken" || autoCommit.held()) {
             return await statusSnapshot();
           }
           syncing = true;
@@ -1113,54 +937,36 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
   const syncNow = async (): Promise<VaultStatusResponse> => await requestSync(true);
 
   return {
-    async checkpointUnclaimed() {
-      return await withRepoLock(commitUnclaimed);
-    },
-    claimedPaths,
+    checkpointUnclaimed: autoCommit.checkpointUnclaimed,
+    claimedPaths: autoCommit.claimedPaths,
+    commitNow: autoCommit.commitNow,
+    commitPaths: autoCommit.commitPaths,
     currentRemote,
-    async commitNow(paths?: readonly string[]) {
-      return await withRepoLock(
-        async () =>
-          await (paths === undefined
-            ? commitIfDirty()
-            : commitPathsIfDirty(paths, undefined, vaultCommitSubject)),
-      );
-    },
-    async commitPaths(paths, author, subject) {
-      return await withRepoLock(async () => await commitPathsIfDirty(paths, author, subject));
-    },
     async deleted() {
       return await readDeletedNotes(run, deletionLog, (notePath) =>
         existsSync(path.join(root, notePath)),
       );
     },
     async dispose() {
+      // first: a pass between its fetch and its integration reads it and stops.
       disposed = true;
-      commitScheduler.dispose();
       if (autoSyncTimer !== null) {
         clearInterval(autoSyncTimer);
         autoSyncTimer = null;
       }
-      // flush, never cancel: the debounce dies with the process. a failed flush rejects so the
-      // shutdown exit code can name it.
-      await withRepoLock(async () => await commitIfDirty());
+      await autoCommit.dispose();
     },
     async history(notePath, page) {
       return await readNoteHistory(run, notePath, page);
     },
-    holdCommits,
+    holdCommits: autoCommit.hold,
     isSyncing: () => syncing,
     async revision(notePath, sha) {
       return await readNoteRevision(run, notePath, sha);
     },
     runExclusive: withRepoLock,
     setOrigin,
-    scheduleCommit(paths?: readonly string[]) {
-      if (!disposed) {
-        noteCommitPaths(paths);
-        commitScheduler.schedule();
-      }
-    },
+    scheduleCommit: autoCommit.schedule,
     startAutoSync(intervalMs: number) {
       // armed with no remote too: a sign-in after boot starts syncing on the next tick.
       if (disposed || autoSyncTimer !== null) {

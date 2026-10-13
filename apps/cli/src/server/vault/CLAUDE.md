@@ -14,7 +14,7 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   less every path a live turn claimed (`checkpointUnclaimed`), because
   `--literal-pathspecs` rules out an `:(exclude)` and naming every other path is
   an argv a first commit overflows; unscoped `add -A` survives for that same
-  ARG_MAX. `apps/cli/src/server/vault/git-engine.ts` says why the max wait is
+  ARG_MAX. `apps/cli/src/server/vault/git-commits.ts` says why the max wait is
   the sync interval.
 
 - **NOTE HISTORY IS LOCAL, AND A RESTORE IS A WRITE.** History reads the vault's
