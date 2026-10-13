@@ -2,7 +2,7 @@
 //! Show brings it back, and Quit is the one way out (and the server's flush).
 
 use tauri::image::Image;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder};
 use tauri::tray::{TrayIcon, TrayIconBuilder};
 use tauri::{AppHandle, Manager, Wry};
 
@@ -13,29 +13,18 @@ const TRAY_ID: &str = "inteligir";
 
 fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let vault_open = app.state::<Shell>().target().is_some();
-    Menu::with_items(
-        app,
-        &[
-            &MenuItem::with_id(
-                app,
-                SHOW_APP,
-                format!("Show {}", crate::window::app_title()),
-                true,
-                None::<&str>,
-            )?,
-            &MenuItem::with_id(app, HIDE_APP, "Hide", true, None::<&str>)?,
-            &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(
-                app,
-                OPEN_DATA_FOLDER,
-                "Open Data Folder",
-                vault_open,
-                None::<&str>,
-            )?,
-            &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::quit(app, None)?,
-        ],
-    )
+    MenuBuilder::new(app)
+        .text(SHOW_APP, format!("Show {}", crate::window::app_title()))
+        .text(HIDE_APP, "Hide")
+        .separator()
+        .item(
+            &MenuItemBuilder::with_id(OPEN_DATA_FOLDER, "Open Data Folder")
+                .enabled(vault_open)
+                .build(app)?,
+        )
+        .separator()
+        .quit()
+        .build()
 }
 
 fn create(app: &AppHandle) -> tauri::Result<TrayIcon> {

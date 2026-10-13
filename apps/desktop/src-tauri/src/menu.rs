@@ -5,7 +5,7 @@
 //! runs on a thread of its own.
 
 use tauri::menu::{
-    AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu, SubmenuBuilder,
+    AboutMetadata, Menu, MenuBuilder, MenuEvent, MenuItemBuilder, Submenu, SubmenuBuilder,
 };
 use tauri::{AppHandle, Manager, Wry};
 
@@ -20,16 +20,6 @@ pub const SHOW_APP: &str = "show-app";
 pub const HIDE_APP: &str = "hide-app";
 const RECENT_PREFIX: &str = "open-recent:";
 
-fn item(
-    app: &AppHandle,
-    id: &str,
-    text: &str,
-    enabled: bool,
-    accelerator: Option<&str>,
-) -> tauri::Result<MenuItem<Wry>> {
-    MenuItem::with_id(app, id, text, enabled, accelerator)
-}
-
 fn app_menu(app: &AppHandle, vault_open: bool) -> tauri::Result<Submenu<Wry>> {
     let info = app.package_info();
     let about = AboutMetadata {
@@ -38,30 +28,22 @@ fn app_menu(app: &AppHandle, vault_open: bool) -> tauri::Result<Submenu<Wry>> {
         ..AboutMetadata::default()
     };
     SubmenuBuilder::new(app, crate::window::app_title())
-        .item(&PredefinedMenuItem::about(app, None, Some(about))?)
-        .item(&item(
-            app,
-            CHECK_FOR_UPDATES,
-            "Check for Updates…",
-            true,
-            None,
-        )?)
+        .about(Some(about))
+        .text(CHECK_FOR_UPDATES, "Check for Updates…")
         .separator()
-        .item(&item(
-            app,
-            OPEN_DATA_FOLDER,
-            "Open Data Folder",
-            vault_open,
-            None,
-        )?)
+        .item(
+            &MenuItemBuilder::with_id(OPEN_DATA_FOLDER, "Open Data Folder")
+                .enabled(vault_open)
+                .build(app)?,
+        )
         .separator()
-        .item(&PredefinedMenuItem::services(app, None)?)
+        .services()
         .separator()
-        .item(&PredefinedMenuItem::hide(app, None)?)
-        .item(&PredefinedMenuItem::hide_others(app, None)?)
-        .item(&PredefinedMenuItem::show_all(app, None)?)
+        .hide()
+        .hide_others()
+        .show_all()
         .separator()
-        .item(&PredefinedMenuItem::quit(app, None)?)
+        .quit()
         .build()
 }
 
@@ -70,25 +52,18 @@ fn file_menu(app: &AppHandle, switchable: bool, recent: &[String]) -> tauri::Res
         SubmenuBuilder::new(app, "Open Recent Vault").enabled(switchable && !recent.is_empty());
     for path in recent {
         let name = crate::vaults::vault_ref(path).name;
-        recent_menu = recent_menu.item(&item(
-            app,
-            &format!("{RECENT_PREFIX}{path}"),
-            &name,
-            true,
-            None,
-        )?);
+        recent_menu = recent_menu.text(format!("{RECENT_PREFIX}{path}"), name);
     }
     SubmenuBuilder::new(app, "File")
-        .item(&item(
-            app,
-            OPEN_VAULT,
-            "Open Vault…",
-            switchable,
-            Some("CmdOrCtrl+O"),
-        )?)
+        .item(
+            &MenuItemBuilder::with_id(OPEN_VAULT, "Open Vault…")
+                .enabled(switchable)
+                .accelerator("CmdOrCtrl+O")
+                .build(app)?,
+        )
         .item(&recent_menu.build()?)
         .separator()
-        .item(&PredefinedMenuItem::close_window(app, None)?)
+        .close_window()
         .build()
 }
 
@@ -96,13 +71,13 @@ fn file_menu(app: &AppHandle, switchable: bool, recent: &[String]) -> tauri::Res
 /// operating system's.
 fn edit_menu(app: &AppHandle) -> tauri::Result<Submenu<Wry>> {
     SubmenuBuilder::new(app, "Edit")
-        .item(&PredefinedMenuItem::undo(app, None)?)
-        .item(&PredefinedMenuItem::redo(app, None)?)
+        .undo()
+        .redo()
         .separator()
-        .item(&PredefinedMenuItem::cut(app, None)?)
-        .item(&PredefinedMenuItem::copy(app, None)?)
-        .item(&PredefinedMenuItem::paste(app, None)?)
-        .item(&PredefinedMenuItem::select_all(app, None)?)
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
         .build()
 }
 
@@ -112,33 +87,26 @@ fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     // an adopted server, or a launch an env var pins, refuses a switch: no entry offers one
     let switchable = shell::vaults_state(app).is_some_and(|state| state.blocked.is_none());
     let recent = shell::remember_list(app);
-    let view = SubmenuBuilder::new(app, "View")
-        .item(&PredefinedMenuItem::fullscreen(app, None)?)
-        .build()?;
+    let view = SubmenuBuilder::new(app, "View").fullscreen().build()?;
     let window = SubmenuBuilder::new(app, "Window")
-        .item(&PredefinedMenuItem::minimize(app, None)?)
-        .item(&PredefinedMenuItem::maximize(app, None)?)
+        .minimize()
+        .maximize()
         .build()?;
     let help = SubmenuBuilder::new(app, "Help")
-        .item(&item(
-            app,
-            OPEN_IN_BROWSER,
-            "Open in Browser",
-            vault_open,
-            None,
-        )?)
+        .item(
+            &MenuItemBuilder::with_id(OPEN_IN_BROWSER, "Open in Browser")
+                .enabled(vault_open)
+                .build(app)?,
+        )
         .build()?;
-    Menu::with_items(
-        app,
-        &[
-            &app_menu(app, vault_open)?,
-            &file_menu(app, switchable, &recent)?,
-            &edit_menu(app)?,
-            &view,
-            &window,
-            &help,
-        ],
-    )
+    MenuBuilder::new(app)
+        .item(&app_menu(app, vault_open)?)
+        .item(&file_menu(app, switchable, &recent)?)
+        .item(&edit_menu(app)?)
+        .item(&view)
+        .item(&window)
+        .item(&help)
+        .build()
 }
 
 /// The menu bar is macOS's; elsewhere the shell runs only under the scenario suite, where a GTK
