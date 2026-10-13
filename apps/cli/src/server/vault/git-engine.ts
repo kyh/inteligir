@@ -472,7 +472,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return stopped.length > 0 ? "conflicted" : "unhandled";
   };
 
-  const noteConflicts = (reports: readonly SyncConflictReport[]): void => {
+  const recordConflicts = (reports: readonly SyncConflictReport[]): void => {
     if (reports.length === 0) {
       return;
     }
@@ -694,7 +694,7 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     const head = await revParse(run, "HEAD");
     if (head !== tips.head) {
       await reportMovedTree(tips.head, head);
-      noteConflicts([...settled, ...(await copiesPulledSince(tips, head, settled))]);
+      recordConflicts([...settled, ...(await copiesPulledSince(tips, head, settled))]);
     }
     return true;
   };

@@ -653,7 +653,7 @@ describe("the read budget", () => {
     await knowledge.settle();
     const opens = stallOpens(app.vaultDir, { background: notes, window: picture });
 
-    knowledge.noteVaultChange({ kind: "unknown" });
+    knowledge.invalidate({ kind: "unknown" });
     const sweeps = Promise.all([
       app.composed.context.threads.repairPathOnlyOrigins(),
       knowledge.settle(),

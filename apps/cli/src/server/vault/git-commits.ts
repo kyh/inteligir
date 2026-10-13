@@ -160,7 +160,7 @@ export const createAutoCommit = (args: AutoCommitArgs): AutoCommit => {
   // null means "whatever is dirty"; one unscoped call in the window decides the whole flush.
   let pendingCommitPaths: Set<string> | null = new Set();
 
-  const noteCommitPaths = (paths: readonly string[] | undefined): void => {
+  const addPendingCommitPaths = (paths: readonly string[] | undefined): void => {
     if (paths === undefined || pendingCommitPaths === null) {
       pendingCommitPaths = null;
       return;
@@ -259,7 +259,7 @@ export const createAutoCommit = (args: AutoCommitArgs): AutoCommit => {
     hold,
     schedule(paths) {
       if (!disposed) {
-        noteCommitPaths(paths);
+        addPendingCommitPaths(paths);
         commitScheduler.schedule();
       }
     },

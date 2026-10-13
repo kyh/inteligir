@@ -108,7 +108,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   // a change naming a .gitignore, or naming nothing, may move what the vault ignores. the rules
   // reload at once, so every listing from here waits on them, and the index is told to re-diff:
   // what they hid or revealed is exactly what no path in the change names.
-  const noteFilesChanged = (change: VaultFilesChange): void => {
+  const reportFilesChanged = (change: VaultFilesChange): void => {
     if (change.kind === "paths" && !change.paths.some((changed) => isGitignorePath(changed))) {
       args.onFilesChanged?.(change);
       return;
@@ -136,7 +136,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   // alone: a foreign write behind a save (an agent editing the open note) must still land.
   // recursive dir ops may still echo once through their children; not worth tracking a subtree.
   const recentSelfWrites = new Map<string, { at: number; left: EntryFingerprint }>();
-  const noteSelfWrites = (mutations: readonly VaultMutation[]): void => {
+  const rememberSelfWrites = (mutations: readonly VaultMutation[]): void => {
     const at = Date.now();
     for (const mutation of mutations) {
       recentSelfWrites.set(mutation.path, { at, left: mutation.fingerprint });
@@ -191,15 +191,15 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
         if (moved.length > 0) {
           args.notifier.notifyVault(["files-changed"], moved);
         }
-        noteSelfWrites(delivery.mutations);
+        rememberSelfWrites(delivery.mutations);
         const paths = delivery.mutations.map((mutation) => mutation.path);
-        noteFilesChanged({ kind: "paths", paths });
+        reportFilesChanged({ kind: "paths", paths });
         engine?.scheduleCommit(paths);
         return;
       }
       case "watched": {
         args.notifier.notifyVault(["files-changed"], delivery.paths);
-        noteFilesChanged({ kind: "paths", paths: delivery.paths });
+        reportFilesChanged({ kind: "paths", paths: delivery.paths });
         engine?.scheduleCommit(delivery.paths);
         return;
       }
@@ -210,7 +210,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
         } else {
           args.notifier.notifyVault(["files-changed"], change.paths);
         }
-        noteFilesChanged(change);
+        reportFilesChanged(change);
         engine?.scheduleCommit();
         return;
       }

@@ -55,7 +55,7 @@ export interface KnowledgeRuntimeArgs {
 }
 
 export interface KnowledgeRuntime {
-  noteVaultChange: (change: VaultFilesChange) => void;
+  invalidate: (change: VaultFilesChange) => void;
   // a pass the store failed rebuilds before this resolves, and rejects only if the rebuild failed
   // too; any other failure rejects and leaves the index standing. a doc whose read is still out
   // answers from its last entry meanwhile.
@@ -223,6 +223,14 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       store.dispose();
     },
 
+    invalidate(change) {
+      if (indexPass.disposed) {
+        return;
+      }
+      indexPass.invalidate(change);
+      debounce.arm();
+    },
+
     get lastReconcile() {
       return indexPass.lastReconcile;
     },
@@ -242,14 +250,6 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     async noteIdOwners(id) {
       await settle();
       return graph.pathsWithNoteId(id);
-    },
-
-    noteVaultChange(change) {
-      if (indexPass.disposed) {
-        return;
-      }
-      indexPass.invalidate(change);
-      debounce.arm();
     },
 
     async pathForNoteId(id, lastPath) {

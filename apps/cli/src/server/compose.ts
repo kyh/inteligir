@@ -141,7 +141,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     git: ports.vault?.git ?? processGit,
     notifier: bus,
     onFilesChanged: (change) => {
-      knowledgeRef?.noteVaultChange(change);
+      knowledgeRef?.invalidate(change);
     },
     remote: vaultRemote,
     stallRead: config.slowReads === null ? undefined : slowReadStall(config.slowReads),

@@ -12,7 +12,7 @@ const PLANS = "notes/plans.md";
 const moveOutsideTheApp = async (app: BootedTestApp, from: string, to: string): Promise<void> => {
   await mkdir(path.dirname(path.join(app.vaultDir, to)), { recursive: true });
   await rename(path.join(app.vaultDir, from), path.join(app.vaultDir, to));
-  app.composed.context.knowledge.noteVaultChange({ kind: "paths", paths: [from, to] });
+  app.composed.context.knowledge.invalidate({ kind: "paths", paths: [from, to] });
 };
 
 const originOf = async (app: BootedTestApp, threadId: string): Promise<string | null> => {
@@ -44,7 +44,7 @@ describe("an action's origin", () => {
 
     // with no note carrying the id, the path it was composed at is all the thread knows
     await rm(path.join(app.vaultDir, "archive/plans.md"));
-    app.composed.context.knowledge.noteVaultChange({ kind: "paths", paths: ["archive/plans.md"] });
+    app.composed.context.knowledge.invalidate({ kind: "paths", paths: ["archive/plans.md"] });
     expect(await originOf(app, thread.id)).toBe(PLANS);
   });
 

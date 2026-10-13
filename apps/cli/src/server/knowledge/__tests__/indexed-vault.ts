@@ -57,7 +57,7 @@ export const bootIndexedVault = (
     ignore: ignoreFromDisk(dirs.root),
     lock: identityLock,
     onMutated: (mutations) =>
-      sink?.noteVaultChange({ kind: "paths", paths: mutations.map((mutation) => mutation.path) }),
+      sink?.invalidate({ kind: "paths", paths: mutations.map((mutation) => mutation.path) }),
     root: dirs.root,
   });
   const runtimeArgs: KnowledgeRuntimeArgs = {
