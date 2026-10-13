@@ -5,6 +5,7 @@
 mod answer;
 mod commands;
 mod diagnostics;
+mod dialogs;
 mod door;
 mod files;
 mod first_run;

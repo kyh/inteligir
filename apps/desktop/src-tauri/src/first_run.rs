@@ -2,13 +2,14 @@
 //! picked, and every folder the page names back must be one of them.
 
 use std::collections::HashSet;
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
-use tauri_plugin_dialog::DialogExt;
 
 use crate::answer::Answer;
+use crate::dialogs;
 use crate::launch::{FolderSync, Proposal};
 use crate::shell::{self, Outcome, Shell};
 use crate::window;
@@ -61,28 +62,15 @@ pub fn state(app: &AppHandle) -> Result<FirstRunState, String> {
         .ok_or_else(|| OVER.to_owned())
 }
 
-fn pick(app: &AppHandle, title: &str, create: bool, directory: Option<String>) -> Option<String> {
-    let mut picker = app
-        .dialog()
-        .file()
-        .set_title(title)
-        .set_can_create_directories(create);
-    if let Some(directory) = directory {
-        picker = picker.set_directory(directory);
-    }
-    if let Some(parent) = app.get_webview_window(window::FIRST_RUN) {
-        picker = picker.set_parent(&parent);
-    }
-    picker
-        .blocking_pick_folder()
-        .and_then(|picked| picked.into_path().ok())
-        .map(|path| path.to_string_lossy().into_owned())
+fn pick(app: &AppHandle, title: &str, create: bool, start_in: Option<&str>) -> Option<String> {
+    let parent = app.get_webview_window(window::FIRST_RUN);
+    dialogs::pick_folder(app, title, create, start_in.map(Path::new), parent.as_ref())
 }
 
 pub fn pick_parent(app: &AppHandle) -> Result<PickParent, String> {
     let shell = app.state::<Shell>();
     let proposal = shell.with_first_run(|first_run| first_run.proposal.parent.clone());
-    let Some(picked) = pick(app, "Where should the vault go?", true, proposal) else {
+    let Some(picked) = pick(app, "Where should the vault go?", true, proposal.as_deref()) else {
         return Ok(PickParent::Cancelled);
     };
     shell.with_first_run(|first_run| first_run.parents.insert(picked.clone()));

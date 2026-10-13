@@ -8,10 +8,9 @@ use tauri::menu::{
     AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu, SubmenuBuilder,
 };
 use tauri::{AppHandle, Manager, Wry};
-use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::shell::{self, Outcome, Shell};
-use crate::{commands, tray, updater};
+use crate::{dialogs, tray, updater};
 
 const CHECK_FOR_UPDATES: &str = "check-for-updates";
 pub const OPEN_DATA_FOLDER: &str = "open-data-folder";
@@ -158,18 +157,10 @@ pub fn rebuild(app: &AppHandle) {
     tray::rebuild(app);
 }
 
-fn say(app: &AppHandle, title: &str, message: &str) {
-    app.dialog()
-        .message(message)
-        .title(title)
-        .kind(MessageDialogKind::Error)
-        .blocking_show();
-}
-
 fn switch_from_menu(app: &AppHandle, vault_dir: &str, confirm: bool) {
     match shell::switch_vault(app, vault_dir, confirm) {
         Outcome::Done | Outcome::Reported(_) => {}
-        Outcome::Refused(reason) => say(app, "Could not open the vault", &reason),
+        Outcome::Refused(reason) => dialogs::error(app, "Could not open the vault", &reason),
     }
 }
 
@@ -191,13 +182,13 @@ pub fn on_event(app: &AppHandle, event: &MenuEvent) {
         OPEN_DATA_FOLDER => {
             std::thread::spawn(move || {
                 if let Err(reason) = shell::open_data_folder(&app) {
-                    say(&app, "Could not open the data folder", &reason);
+                    dialogs::error(&app, "Could not open the data folder", &reason);
                 }
             });
         }
         OPEN_VAULT => {
             std::thread::spawn(move || {
-                if let Some(picked) = commands::pick_vault_dir(&app) {
+                if let Some(picked) = shell::pick_vault_dir(&app) {
                     switch_from_menu(&app, &picked, true);
                 }
             });

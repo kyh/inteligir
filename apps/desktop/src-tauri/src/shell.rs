@@ -10,10 +10,11 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use tauri::{AppHandle, Manager};
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tauri_plugin_dialog::MessageDialogKind;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::diagnostics::{self, Diagnostics, ServerRun};
+use crate::dialogs;
 use crate::door::Door;
 use crate::first_run::FirstRun;
 use crate::launch::{FolderSync, Handoff, Launch, Opening, Plan, Target};
@@ -277,11 +278,7 @@ fn working_dir(bundled: bool, node: &NodeRuntime) -> PathBuf {
 /// Said once and fatal: the app has nothing to show without a vault.
 fn fail_start(app: &AppHandle, reason: &str) {
     eprintln!("[desktop] Inteligir failed to start: {reason}");
-    app.dialog()
-        .message(reason)
-        .title("Inteligir failed to start")
-        .kind(MessageDialogKind::Error)
-        .blocking_show();
+    dialogs::error(app, "Inteligir failed to start", reason);
     app.exit(1);
 }
 
@@ -387,14 +384,13 @@ pub fn boot_vault(app: &AppHandle, target: Target, path: &str) -> Result<(), Str
     let started = server::start(command, Arc::clone(&log), move |code| {
         // no in-place restart: a fresh child mints a fresh session the window does not hold
         let code = code.map_or_else(|| "a signal".to_owned(), |code| format!("code {code}"));
-        exiting
-            .dialog()
-            .message(format!(
+        dialogs::error(
+            &exiting,
+            "Inteligir server stopped",
+            &format!(
                 "The local server exited unexpectedly ({code}). Reopen Inteligir to continue."
-            ))
-            .title("Inteligir server stopped")
-            .kind(MessageDialogKind::Error)
-            .blocking_show();
+            ),
+        );
         exiting.exit(1);
     })?;
     let (live, server) = match started {
@@ -524,6 +520,16 @@ pub fn is_remembered(app: &AppHandle, path: &str) -> bool {
         .any(|each| each == path)
 }
 
+/// The folder is the person's pick, made here: the page never names a path it was not handed. The
+/// picker starts beside the vault on screen.
+pub fn pick_vault_dir(app: &AppHandle) -> Option<String> {
+    let beside = app
+        .state::<Shell>()
+        .target()
+        .and_then(|target| Path::new(&target.vault_dir).parent().map(Path::to_path_buf));
+    dialogs::pick_folder(app, "Open vault", true, beside.as_deref(), None)
+}
+
 /// The folder's own service keeps syncing it and the app will not: a picked switch asks first, in
 /// the first run's words.
 pub fn confirm_outside_sync(app: &AppHandle, vault_dir: &str) -> Result<bool, String> {
@@ -532,16 +538,14 @@ pub fn confirm_outside_sync(app: &AppHandle, vault_dir: &str) -> Result<bool, St
     let Some(warning) = sync.warning else {
         return Ok(true);
     };
-    Ok(app
-        .dialog()
-        .message(warning.detail)
-        .title(warning.headline)
-        .kind(MessageDialogKind::Warning)
-        .buttons(MessageDialogButtons::OkCancelCustom(
-            "Open".to_owned(),
-            "Cancel".to_owned(),
-        ))
-        .blocking_show())
+    Ok(dialogs::confirm(
+        app,
+        MessageDialogKind::Warning,
+        &warning.headline,
+        &warning.detail,
+        "Open",
+        "Cancel",
+    ))
 }
 
 /// A switch: planned and refused before anything moves, then the old server stopped, the selector
@@ -616,21 +620,13 @@ fn run_switch(app: &AppHandle, door: &Door, leaving: &Leaving, opening: &Opening
     .and_then(|()| boot_vault(app, leaving.target.clone(), "/"));
     if let Err(reopen) = restored {
         let reason = format!("{reopen} Reopen Inteligir to continue.");
-        app.dialog()
-            .message(&reason)
-            .title("Inteligir could not reopen the vault")
-            .kind(MessageDialogKind::Error)
-            .blocking_show();
+        dialogs::error(app, "Inteligir could not reopen the vault", &reason);
         app.exit(1);
         return Outcome::Reported(reason);
     }
     close_previous();
     let reason = format!("Could not open {}: {reason}", opening.vault_dir);
-    app.dialog()
-        .message(&reason)
-        .title("Could not open the vault")
-        .kind(MessageDialogKind::Error)
-        .blocking_show();
+    dialogs::error(app, "Could not open the vault", &reason);
     Outcome::Reported(reason)
 }
 
@@ -747,11 +743,7 @@ pub fn open_in_browser(app: &AppHandle) {
             .map_err(|error| error.to_string())
     });
     if let Err(reason) = opened {
-        app.dialog()
-            .message(reason)
-            .title("Could not open Inteligir in the browser")
-            .kind(MessageDialogKind::Error)
-            .blocking_show();
+        dialogs::error(app, "Could not open Inteligir in the browser", &reason);
     }
 }
 

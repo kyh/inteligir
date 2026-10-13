@@ -10,7 +10,6 @@
 use std::path::Path;
 
 use tauri::{AppHandle, Manager, WebviewWindow};
-use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::answer::Answer;
@@ -156,30 +155,10 @@ fn switch_answer(app: &AppHandle, outcome: Outcome) -> Answer<VaultsState> {
     }
 }
 
-/// The folder is the person's pick, made here: the page never names a path it was not handed.
-pub fn pick_vault_dir(app: &AppHandle) -> Option<String> {
-    let mut picker = app
-        .dialog()
-        .file()
-        .set_title("Open vault")
-        .set_can_create_directories(true);
-    if let Some(parent) = app
-        .state::<Shell>()
-        .target()
-        .and_then(|target| Path::new(&target.vault_dir).parent().map(Path::to_path_buf))
-    {
-        picker = picker.set_directory(parent);
-    }
-    picker
-        .blocking_pick_folder()
-        .and_then(|picked| picked.into_path().ok())
-        .map(|path| path.to_string_lossy().into_owned())
-}
-
 #[tauri::command]
 pub async fn vaults_pick(app: AppHandle) -> Answer<VaultsState> {
     blocking(move || {
-        let outcome = match pick_vault_dir(&app) {
+        let outcome = match shell::pick_vault_dir(&app) {
             None => Outcome::Done,
             Some(picked) => shell::switch_vault(&app, &picked, true),
         };

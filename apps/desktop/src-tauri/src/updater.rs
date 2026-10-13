@@ -7,9 +7,10 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, SystemTime};
 
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tauri_plugin_dialog::MessageDialogKind;
 use tauri_plugin_updater::{Update, UpdaterExt};
 
+use crate::dialogs;
 use crate::server_log::utc_stamp;
 use crate::update_state::{UpdateAction, UpdateState, UpdateStatus, failure_reason};
 
@@ -242,11 +243,11 @@ pub fn install(app: &AppHandle) -> UpdateState {
             let message = failure_reason(&error.to_string());
             updates.transition(app, |inner| inner.state.failure(&message, None));
             drop(running);
-            app.dialog()
-                .message(format!("{message} Reopen Inteligir to continue."))
-                .title("Update failed")
-                .kind(MessageDialogKind::Error)
-                .blocking_show();
+            dialogs::error(
+                app,
+                "Update failed",
+                &format!("{message} Reopen Inteligir to continue."),
+            );
             app.exit(1);
             updates.state()
         }
@@ -270,29 +271,10 @@ pub fn start(app: &AppHandle) {
     });
 }
 
-fn tell(app: &AppHandle, title: &str, message: &str, kind: MessageDialogKind) {
-    app.dialog()
-        .message(message)
-        .title(title)
-        .kind(kind)
-        .blocking_show();
-}
-
-fn ask(app: &AppHandle, title: &str, message: &str, yes: &str, no: &str) -> bool {
-    app.dialog()
-        .message(message)
-        .title(title)
-        .kind(MessageDialogKind::Info)
-        .buttons(MessageDialogButtons::OkCancelCustom(
-            yes.to_owned(),
-            no.to_owned(),
-        ))
-        .blocking_show()
-}
-
 fn ask_to_restart(app: &AppHandle, version: &str) {
-    if ask(
+    if dialogs::confirm(
         app,
+        MessageDialogKind::Info,
         "Update ready",
         &format!(
             "Inteligir {version} is ready to install. The app restarts to finish; your notes are saved first."
@@ -314,15 +296,16 @@ pub fn check_from_menu(app: &AppHandle) {
     } = tauri::async_runtime::block_on(check(app, "menu"));
     match status {
         UpdateStatus::Idle | UpdateStatus::Checking { .. } | UpdateStatus::Downloading { .. } => {}
-        UpdateStatus::UpToDate => tell(
+        UpdateStatus::UpToDate => dialogs::show(
             app,
+            MessageDialogKind::Info,
             "You're up to date",
             &format!("Inteligir {current_version} is the newest version."),
-            MessageDialogKind::Info,
         ),
         UpdateStatus::Available { version } => {
-            if ask(
+            if dialogs::confirm(
                 app,
+                MessageDialogKind::Info,
                 "Update available",
                 &format!("Inteligir {version} is available."),
                 "Download",
@@ -331,7 +314,7 @@ pub fn check_from_menu(app: &AppHandle) {
                 match tauri::async_runtime::block_on(download(app)).status {
                     UpdateStatus::Downloaded { version } => ask_to_restart(app, &version),
                     UpdateStatus::Error { message, .. } => {
-                        tell(app, "Download failed", &message, MessageDialogKind::Error);
+                        dialogs::error(app, "Download failed", &message);
                     }
                     _ => {}
                 }
@@ -339,14 +322,14 @@ pub fn check_from_menu(app: &AppHandle) {
         }
         UpdateStatus::Downloaded { version } => ask_to_restart(app, &version),
         UpdateStatus::Disabled { reason } => {
-            tell(app, "Updates are off", &reason, MessageDialogKind::Warning);
+            dialogs::show(app, MessageDialogKind::Warning, "Updates are off", &reason);
         }
         UpdateStatus::Error { message, .. } => {
-            tell(
+            dialogs::show(
                 app,
+                MessageDialogKind::Warning,
                 "Update check failed",
                 &message,
-                MessageDialogKind::Warning,
             );
         }
     }
