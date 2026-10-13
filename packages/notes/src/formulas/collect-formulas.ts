@@ -1,6 +1,6 @@
 // Parsed, not regexed: a pill inside a code fence is literal in the editor and must be here too.
 
-import type { Nodes } from "mdast";
+import { SKIP, visit } from "unist-util-visit";
 
 import { parseMdast } from "../markdown/parse";
 import { parseFormulaMeta } from "./formula-meta";
@@ -17,26 +17,17 @@ export interface CollectedFormula {
 }
 
 export const collectFormulas = (markdown: string): CollectedFormula[] => {
-  const parsed = parseMdast(markdown);
   const collected: CollectedFormula[] = [];
-  const walk = (node: Nodes): void => {
-    if (node.type === "formulaPill") {
-      const { source, display, meta } = node;
-      collected.push({
-        display,
-        expression: parseExpression(source),
-        meta: parseFormulaMeta(meta),
-        source,
-      });
-      return;
-    }
-    if ("children" in node) {
-      for (const child of node.children) {
-        walk(child);
-      }
-    }
-  };
-  walk(parsed.root);
+  visit(parseMdast(markdown).root, "formulaPill", (node) => {
+    const { source, display, meta } = node;
+    collected.push({
+      display,
+      expression: parseExpression(source),
+      meta: parseFormulaMeta(meta),
+      source,
+    });
+    return SKIP;
+  });
   return collected;
 };
 
