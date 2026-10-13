@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "app-window",
-  "description": "The app window's commands, listed so the build keeps them. This file grants them to no page: the shell grants them when it opens the window, for that window and the server's exact origin alone (src/window.rs), since the port is the server's to choose.",
+  "description": "The app window's permissions, which the shell reads when it opens the window and grants for that window and the server's exact origin alone (src/window.rs), since the port is the server's to choose. This file itself grants them to no page; the build keeps every command it names.",
   "windows": ["vault-*"],
   "local": false,
   "remote": { "urls": [] },

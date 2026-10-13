@@ -107,13 +107,12 @@ worktree under `.claude` is never read as this commit's tree.
 | `desktop-shell-wire.test.ts`   | The words the Rust shell shares with the TypeScript page and CLI, read    |
 |                                | from both sides: every command a page asks is named once in `build.rs`,   |
 |                                | handled in `lib.rs`, and granted by its window's capability (the app      |
-|                                | window's at runtime, `APP_WINDOW_COMMANDS` and                            |
-|                                | `APP_WINDOW_CORE_PERMISSIONS`); the update event, the server's ready      |
-|                                | marker, the CLI entry the shell runs, the env names it pins on a child    |
-|                                | and the one `apps/workspace/scripts/dev.ts` names its Vite under match;   |
-|                                | and each serde type in `launch.rs` reads the fields of its door           |
-|                                | answer's zod schema (`inteligir/desktop/door-answers`), which parses the  |
-|                                | `apps/desktop/src-tauri/fixtures/` the cargo tests read.                  |
+|                                | window's is the list the shell grants at runtime); the update event, the  |
+|                                | server's ready marker, the CLI entry the shell runs, the env names it     |
+|                                | pins on a child and the one `apps/workspace/scripts/dev.ts` names its     |
+|                                | Vite under match; and each serde type in `launch.rs` reads the fields of  |
+|                                | its door answer's zod schema (`inteligir/desktop/door-answers`), which    |
+|                                | parses the `apps/desktop/src-tauri/fixtures/` the cargo tests read.       |
 | `phone-page-csp.test.ts`       | The phone editor page's meta CSP (`apps/mobile-editor/index.html`) is     |
 |                                | `csp.ts`'s for a page with no socket, apart from a `PAGE_DEPARTURES` row  |
 |                                | with its reason (`connect-src 'none'`, no `frame-ancestors`), so a        |

@@ -3,8 +3,9 @@
 //! answers an `Answer`, so the page shows the refusal in the shell's words; one that can fail only
 //! by a fault answers a `Result`, whose `Err` rejects.
 //!
-//! The app window reaches these through a capability the shell adds for the server's exact origin
-//! (`window.rs`); the first run reaches only its four, through `capabilities/first-run.json`.
+//! The app window reaches these through `capabilities/app-window.json`, which the shell grants that
+//! window for the server's exact origin alone (`window.rs`); the first run reaches only its four,
+//! through `capabilities/first-run.json`.
 
 use std::path::Path;
 
@@ -23,26 +24,6 @@ use crate::update_state::UpdateState;
 use crate::updater::{self, Updates};
 use crate::vaults::VaultsState;
 use crate::window;
-
-/// The commands the app window is granted, named as `build.rs`'s app manifest names them.
-pub const APP_WINDOW_COMMANDS: &[&str] = &[
-    "diagnostics_get_state",
-    "diagnostics_open_data_folder",
-    "diagnostics_restart",
-    "diagnostics_set_debug",
-    "diagnostics_show_log",
-    "paths_open",
-    "paths_reveal",
-    "print_page",
-    "updates_check",
-    "updates_download",
-    "updates_get_state",
-    "updates_install",
-    "vaults_forget",
-    "vaults_get_state",
-    "vaults_open",
-    "vaults_pick",
-];
 
 /// Blocking work (a door call, a dialog, a server's start) runs off the async runtime's threads.
 async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
@@ -394,13 +375,5 @@ mod tests {
             serde_json::from_str(r#"{"kind":"create","name":"Notes","parent":"/h"}"#)?;
         assert!(matches!(choice, FirstRunChoice::Create { .. }));
         Ok(())
-    }
-
-    #[test]
-    fn the_app_window_s_commands_are_named_once_in_order() {
-        let mut sorted = APP_WINDOW_COMMANDS.to_vec();
-        sorted.sort_unstable();
-        sorted.dedup();
-        assert_eq!(sorted, APP_WINDOW_COMMANDS);
     }
 }

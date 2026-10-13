@@ -9,13 +9,13 @@ use std::time::Instant;
 
 use sha2::{Digest, Sha256};
 use tauri::ipc::CapabilityBuilder;
+use tauri::utils::acl::capability::Capability;
 use tauri::webview::{NewWindowResponse, PageLoadEvent, PermissionResponse};
 use tauri::{
     AppHandle, Manager, Runtime, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_opener::OpenerExt;
 
-use crate::commands::APP_WINDOW_COMMANDS;
 use crate::navigation::{self, ExternalOpens, Verdict};
 use crate::server_log::ServerLog;
 
@@ -135,37 +135,23 @@ pub struct AppWindow<'a> {
     pub log: Arc<Mutex<ServerLog>>,
 }
 
-/// Tauri's own permissions the app window takes beside its commands: the update event, and the
-/// title bar's drag and double-click. `capabilities/app-window.json` lists them too, so the build
-/// keeps them, held equal by `tools/repo-guards/src/desktop-shell-wire.test.ts`.
-const APP_WINDOW_CORE_PERMISSIONS: &[&str] = &[
-    "core:event:allow-listen",
-    "core:event:allow-unlisten",
-    "core:window:allow-internal-toggle-maximize",
-    "core:window:allow-start-dragging",
-];
+/// The app window's permissions, one list for the build and the runtime grant.
+const APP_WINDOW_CAPABILITY: &str = include_str!("../capabilities/app-window.json");
 
-/// The app window's commands are granted for this window and the server's exact origin alone.
+/// The app window's permissions are granted for this window and the server's exact origin alone.
 fn grant_app_window<R: Runtime>(
     app: &AppHandle<R>,
     label: &str,
     origin: &str,
 ) -> tauri::Result<()> {
-    let mut capability = CapabilityBuilder::new(format!("app-window-{label}"))
-        .window(label)
-        .local(false)
-        .remote(origin.to_owned());
-    for permission in APP_WINDOW_COMMANDS
-        .iter()
-        .map(|command| format!("allow-{}", command.replace('_', "-")))
-        .chain(
-            APP_WINDOW_CORE_PERMISSIONS
-                .iter()
-                .map(|&permission| permission.to_owned()),
-        )
-    {
-        capability = capability.permission(permission);
-    }
+    let listed: Capability = serde_json::from_str(APP_WINDOW_CAPABILITY)?;
+    let capability = listed.permissions.iter().fold(
+        CapabilityBuilder::new(format!("app-window-{label}"))
+            .window(label)
+            .local(false)
+            .remote(origin.to_owned()),
+        |capability, permission| capability.permission(permission.identifier().get()),
+    );
     app.add_capability(capability)
 }
 
@@ -255,7 +241,22 @@ pub fn bring_forward<R: Runtime>(app: &AppHandle<R>, label: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use tauri::utils::acl::capability::PermissionEntry;
+
     use super::*;
+
+    #[test]
+    fn the_app_window_s_capability_lists_bare_permissions() -> serde_json::Result<()> {
+        let listed: Capability = serde_json::from_str(APP_WINDOW_CAPABILITY)?;
+        // a scope would not survive the runtime grant, which takes each permission's name alone
+        assert!(
+            listed
+                .permissions
+                .iter()
+                .all(|permission| matches!(permission, PermissionEntry::PermissionRef(_)))
+        );
+        Ok(())
+    }
 
     #[test]
     fn a_data_dir_names_one_store() {
