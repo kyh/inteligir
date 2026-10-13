@@ -10,6 +10,7 @@ import { ensureVaultRepo, SEED_COMMIT_KEY } from "../git-bootstrap";
 import type { EnsureVaultRepoArgs } from "../git-bootstrap";
 import { createGitEngine } from "../git-engine";
 import { GitError } from "../git-run";
+import type { RunGitOptions } from "../git-run";
 import { boundAddressSchema } from "../../__tests__/bound-address";
 import {
   commitCount,
@@ -227,7 +228,7 @@ describe("the bootstrap port", () => {
     const run = async (
       cwd: string,
       args: readonly string[],
-      options: { timeoutMs?: number; env?: Record<string, string> } = {},
+      options: RunGitOptions = {},
     ): Promise<{ stdout: string }> => {
       calls.push({ args: [...args], cwd, env: options.env, timeoutMs: options.timeoutMs });
       born ||= args.includes("commit");

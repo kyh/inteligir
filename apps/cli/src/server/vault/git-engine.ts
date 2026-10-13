@@ -48,7 +48,7 @@ import {
   NETWORK_GIT_TIMEOUT_MS,
   redactRemoteUrl,
 } from "./git-run";
-import type { CommitAuthor, GitRunner, NetworkFailure, RunGitOptions } from "./git-run";
+import type { CommitAuthor, GitRunner, NetworkFailure } from "./git-run";
 import type { VaultFilesChange } from "./vault-changes";
 
 // the account remote's quiet tick: while its socket would ping this device for another device's
@@ -68,7 +68,7 @@ export interface GitEngineArgs {
   // the verdict a path both sides changed gets; a suite injects one that fails.
   reconcile?: Reconcile;
   // the service that syncs the folder, which every status names.
-  externalSync?: ExternalSync | null;
+  externalSync?: ExternalSync | null | undefined;
   // fired on a sync transition, never on a commit that lands: the state is dirty on both sides
   // of a commit, and each announcement costs every client a porcelain read under the repo lock.
   // a flush that fails, and the commit that lands after it, move the reported error, so both fire.
@@ -84,7 +84,7 @@ export interface GitEngineArgs {
   maxPushBytes?: number;
   // whether another device's push to the account remote would ping this device now (its account
   // socket is up). unset or false, every tick fetches, as a remote that pings nobody needs.
-  accountPingsReach?: () => boolean;
+  accountPingsReach?: (() => boolean) | undefined;
   // how long a tick may go without reaching a remote that pings; unset, ACCOUNT_QUIET_FETCH_MS.
   quietFetchMs?: number;
 }
@@ -258,13 +258,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     return remote;
   };
 
-  const runNetwork = async (gitArgs: readonly string[], env?: Record<string, string>) => {
-    const options: RunGitOptions = { timeoutMs: NETWORK_GIT_TIMEOUT_MS };
-    if (env) {
-      options.env = env;
-    }
-    return await run(gitArgs, options);
-  };
+  const runNetwork = async (gitArgs: readonly string[], env?: Record<string, string>) =>
+    await run(gitArgs, { env, timeoutMs: NETWORK_GIT_TIMEOUT_MS });
 
   // a failure the pass met on the network and could name, said once to the log. a lost race is no
   // failure of the remote: the tree says "unpushed", and the next pass rebases onto the push that

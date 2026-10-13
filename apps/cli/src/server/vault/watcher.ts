@@ -21,7 +21,7 @@ export interface VaultWatcherArgs {
   ignores: (relPath: string) => boolean;
   onChanged: (paths: readonly string[]) => void;
   onError?: (message: string) => void;
-  backend?: ParcelWatcherBackend;
+  backend?: ParcelWatcherBackend | undefined;
   // how the proxy starts its child; absent, node forks it
   spawnChannel?: () => ChildChannel;
   debugLog?: DebugLog | undefined;

@@ -76,10 +76,6 @@ export class JsonFileStore<TSchema extends z.ZodType> {
       );
     }
     const contents = `${JSON.stringify(value, null, 2)}\n`;
-    if (this.args.mode === undefined) {
-      stagedWriteFileSync(this.path, contents);
-    } else {
-      stagedWriteFileSync(this.path, contents, { mode: this.args.mode });
-    }
+    stagedWriteFileSync(this.path, contents, { mode: this.args.mode });
   }
 }

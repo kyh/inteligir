@@ -42,7 +42,7 @@ export class GitError extends Error {
 
 export interface RunGitOptions {
   timeoutMs?: number;
-  env?: Record<string, string>;
+  env?: Record<string, string> | undefined;
   // what git reads on stdin (`hash-object --stdin`); unset, stdin is closed empty.
   input?: string;
 }

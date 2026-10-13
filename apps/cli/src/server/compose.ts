@@ -144,17 +144,11 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
       knowledgeRef?.noteVaultChange(change);
     },
     remote: vaultRemote,
+    stallRead: config.slowReads === null ? undefined : slowReadStall(config.slowReads),
+    syncIntervalMs: config.vaultSyncIntervalMs,
     vaultDir: config.vaultDir,
+    watch: ports.vault?.watch,
   };
-  if (config.vaultSyncIntervalMs !== undefined) {
-    vaultArgs.syncIntervalMs = config.vaultSyncIntervalMs;
-  }
-  if (ports.vault?.watch !== undefined) {
-    vaultArgs.watch = ports.vault.watch;
-  }
-  if (config.slowReads !== null) {
-    vaultArgs.stallRead = slowReadStall(config.slowReads);
-  }
   const vault = await createVaultRuntime(vaultArgs);
   const vaultPrefs = new VaultPrefsStore(config.dataDir);
   register("vault", async () => {

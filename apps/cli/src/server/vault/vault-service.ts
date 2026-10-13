@@ -213,7 +213,7 @@ export interface VaultServiceArgs {
   onUnreadableFolder?: UnreadableFolderSink;
   // awaited inside the read's slot, before the file's bytes are opened, so a stalled stand-in holds
   // the slot a stalled open would
-  stallRead?: ReadStall;
+  stallRead?: ReadStall | undefined;
 }
 
 type ConditionalWriteResult =

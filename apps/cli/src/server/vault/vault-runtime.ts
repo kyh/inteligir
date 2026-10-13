@@ -35,17 +35,18 @@ export interface VaultRuntimeArgs {
   // this device's name, which every vault commit carries as its committer (`deviceNameReader`).
   deviceName: () => string;
   // judged once at boot, as the provider's own copy was.
-  externalSync?: ExternalSync | null;
+  externalSync?: ExternalSync | null | undefined;
   dataDir: string;
   notifier: DbNotifier;
   onFilesChanged?: (change: VaultFilesChange) => void;
-  watch?: boolean;
-  syncIntervalMs?: number | null;
+  watch?: boolean | undefined;
+  // unset, the default interval; null, no sync
+  syncIntervalMs?: number | null | undefined;
   git: GitRunner;
   // the account socket is up, so another device's push pings this one (GitEngineArgs').
-  accountPingsReach?: () => boolean;
-  watcherBackend?: ParcelWatcherBackend;
-  stallRead?: ReadStall;
+  accountPingsReach?: (() => boolean) | undefined;
+  watcherBackend?: ParcelWatcherBackend | undefined;
+  stallRead?: ReadStall | undefined;
   // the watcher's trace: its verdict per event, then what this runtime strips, holds or delivers.
   debugLog?: DebugLog | undefined;
 }
@@ -221,7 +222,9 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   };
 
   const gitArgs: GitEngineArgs = {
+    accountPingsReach: args.accountPingsReach,
     deviceName: args.deviceName,
+    externalSync: args.externalSync,
     git: args.git,
     onError: (message) => {
       console.error(`vault git: ${message}`);
@@ -252,12 +255,6 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
     remote: args.remote,
     root,
   };
-  if (args.accountPingsReach !== undefined) {
-    gitArgs.accountPingsReach = args.accountPingsReach;
-  }
-  if (args.externalSync !== undefined) {
-    gitArgs.externalSync = args.externalSync;
-  }
   const git = createGitEngine(gitArgs);
   engine = git;
 
@@ -277,10 +274,8 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
       console.warn(`vault: ${relPath} cannot be read (${code}); listing it empty`);
     },
     root,
+    stallRead: args.stallRead,
   };
-  if (args.stallRead !== undefined) {
-    serviceArgs.stallRead = args.stallRead;
-  }
   const service = createVaultService(serviceArgs);
 
   let disposed = false;
@@ -303,6 +298,7 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
   let watcher: VaultWatcher | null = null;
   if (args.watch ?? true) {
     const watcherArgs: VaultWatcherArgs = {
+      backend: args.watcherBackend,
       debugLog: args.debugLog,
       ignores: (relPath) => ignore.settled().ignoresChangedPath(relPath),
       onChanged: (paths) => {
@@ -313,9 +309,6 @@ export const createVaultRuntime = async (args: VaultRuntimeArgs): Promise<VaultR
       },
       root,
     };
-    if (args.watcherBackend) {
-      watcherArgs.backend = args.watcherBackend;
-    }
     watcher = createVaultWatcher(watcherArgs);
     watcher.start();
   }
