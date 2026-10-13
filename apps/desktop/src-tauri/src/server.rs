@@ -3,9 +3,10 @@
 //! The shell starts the CLI's desktop entry with `serve`. Either the server boots and announces
 //! itself on a ready line, or a server already serving this data dir at the bundled version is
 //! adopted: the entry announces it and exits. One that holds the data dir but cannot be adopted
-//! is refused in the person's words. Whatever the child prints is appended to the server log. On quit the shell sends SIGTERM and waits the server's own teardown budget before
-//! SIGKILL, so the vault's pending commit is flushed. There is no restart: a fresh child mints a
-//! fresh session, which the window's cookie does not hold.
+//! is refused in the person's words. Whatever the child prints is appended to the server log. On
+//! quit the shell sends SIGTERM and waits the server's own teardown budget before SIGKILL, so the
+//! vault's pending commit is flushed. There is no restart: a fresh child mints a fresh session,
+//! which the window's cookie does not hold.
 
 use std::io::{BufRead, BufReader, Read};
 use std::path::Path;

@@ -77,7 +77,6 @@ enum Phase {
     Closing,
 }
 
-/// A vault on screen: its window, and the server behind it.
 struct Open {
     target: Target,
     server: Server,
@@ -103,7 +102,6 @@ impl Server {
     }
 }
 
-/// What a switch leaves: the vault on screen, its window, and the server the shell started for it.
 struct Leaving {
     target: Target,
     window: String,
@@ -211,7 +209,6 @@ impl Shell {
         self.launched().map(|launched| launched.door)
     }
 
-    /// The vault on screen, the previous one while a switch is under way.
     pub fn target(&self) -> Option<Target> {
         self.lock().phase.shown().map(|(target, _)| target.clone())
     }
@@ -234,7 +231,6 @@ impl Shell {
             .map(|diagnostics| read(diagnostics, open.server.run()))
     }
 
-    /// The choice the next start of the server runs with.
     fn debug_choice(&self) -> bool {
         self.lock()
             .diagnostics

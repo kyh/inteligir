@@ -1,7 +1,7 @@
-//! What a page may ask the shell, one command per row of `apps/workspace/src/shell/ipc-contract.ts`. Each
-//! answers a plain value the page parses with that row's schema. A command that can be refused
-//! answers an `Answer`, so the page shows the refusal in the shell's words; one that can fail only
-//! by a fault answers a `Result`, whose `Err` rejects.
+//! What a page may ask the shell, one command per row of
+//! `apps/workspace/src/shell/ipc-contract.ts`. Each answers a plain value the page parses with that
+//! row's schema. A command that can be refused answers an `Answer`, so the page shows the refusal
+//! in the shell's words; one that can fail only by a fault answers a `Result`, whose `Err` rejects.
 //!
 //! The app window reaches these through `capabilities/app-window.json`, which the shell grants that
 //! window for the server's exact origin alone (`window.rs`); the first run reaches only its four,
@@ -32,8 +32,6 @@ async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) 
 fn no_vault() -> String {
     shell::NO_VAULT.to_owned()
 }
-
-// ---- diagnostics ----
 
 #[tauri::command]
 pub async fn diagnostics_get_state(app: AppHandle) -> Result<diagnostics::State, String> {
@@ -76,8 +74,6 @@ pub async fn diagnostics_show_log(app: AppHandle) -> Answer {
     blocking(move || shell::show_server_log(&app).into()).await
 }
 
-// ---- Reveal / Open ----
-
 fn resolved(app: &AppHandle, path: &str) -> Result<std::path::PathBuf, String> {
     let target = app.state::<Shell>().target().ok_or_else(no_vault)?;
     paths::resolve_vault_entry(Path::new(&target.vault_dir), path)
@@ -111,15 +107,10 @@ pub async fn paths_open(app: AppHandle, path: String) -> Answer {
     .await
 }
 
-// ---- Export to PDF ----
-
-/// WKWebView answers no `window.print()`, so the page asks the shell to print the window.
 #[tauri::command]
 pub async fn print_page(window: WebviewWindow) -> Answer {
     window.print().map_err(|error| error.to_string()).into()
 }
-
-// ---- updates ----
 
 #[tauri::command]
 pub async fn updates_get_state(app: AppHandle) -> UpdateState {
@@ -140,8 +131,6 @@ pub async fn updates_download(app: AppHandle) -> UpdateState {
 pub async fn updates_install(app: AppHandle) -> UpdateState {
     blocking(move || updater::install(&app)).await
 }
-
-// ---- vaults ----
 
 #[tauri::command]
 pub async fn vaults_get_state(app: AppHandle) -> Result<VaultsState, String> {
@@ -180,14 +169,11 @@ pub async fn vaults_open(app: AppHandle, path: String) -> Answer<VaultsState> {
     .await
 }
 
-/// Forgetting a row cannot be refused, so it answers the state alone.
 #[tauri::command]
 pub async fn vaults_forget(app: AppHandle, path: String) -> Result<VaultsState, String> {
     shell::forget_vault(&app, &path);
     shell::vaults_state(&app).ok_or_else(no_vault)
 }
-
-// ---- the first run ----
 
 #[tauri::command]
 pub async fn first_run_get_state(app: AppHandle) -> Result<FirstRunState, String> {
