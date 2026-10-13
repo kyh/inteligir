@@ -87,7 +87,7 @@ const openRuntime = async (port: GuardedVaultPort) => {
     }
   });
   await vi.waitFor(() => {
-    expect(runtime.controller.getState()).toMatchObject({ path: NOTE });
+    expect(runtime.getState()).toMatchObject({ path: NOTE });
   });
   const surface = {
     type: (next: string): void => {
@@ -195,14 +195,14 @@ describe("the guarded vault io", () => {
     store.files.set(NOTE, EXTERNAL);
 
     surface.type("# Plans\n\nintro rewritten\n\nfooter\n");
-    runtime.controller.externalChange();
-    expect(runtime.controller.getState()).toMatchObject({ dirty: true });
+    runtime.externalChange();
+    expect(runtime.getState()).toMatchObject({ dirty: true });
 
     expect(await runtime.flush()).toBe(true);
     const onDisk = store.files.get(NOTE);
     expect(onDisk).toContain("intro rewritten");
     expect(onDisk).toContain("external-appended-line");
-    expect(runtime.controller.getState()).toMatchObject({ content: onDisk });
+    expect(runtime.getState()).toMatchObject({ content: onDisk });
     runtime.dispose();
   });
 
@@ -212,11 +212,11 @@ describe("the guarded vault io", () => {
     store.files.set(NOTE, EXTERNAL);
 
     const gate = store.hold();
-    runtime.controller.externalChange();
+    runtime.externalChange();
     surface.type("# Plans\n\nintro rewritten\n\nfooter\n");
     gate.resolve();
     await vi.waitFor(() => {
-      expect(runtime.controller.getState()).toMatchObject({
+      expect(runtime.getState()).toMatchObject({
         content: expect.stringContaining("external-appended-line"),
       });
     });

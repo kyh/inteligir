@@ -110,7 +110,7 @@ export class VaultEditorController {
     this.onMergeConflict = onMergeConflict;
   }
 
-  // arrow fields, so both pass as bare references (vault-session subscribes that way).
+  // arrow fields, so both pass as bare references (the note runtime hands them out that way).
   readonly getState = (): VaultEditorState => this.st;
   readonly subscribe = (fn: () => void): (() => void) => {
     this.subs.add(fn);

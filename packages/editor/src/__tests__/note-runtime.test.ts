@@ -48,7 +48,7 @@ describe("createNoteRuntime", () => {
     await settle();
 
     runtime.edit("same");
-    expect(runtime.controller.getState()).toMatchObject({ dirty: false });
+    expect(runtime.getState()).toMatchObject({ dirty: false });
     expect(vi.getTimerCount()).toBe(0);
 
     await runDebounce();
@@ -84,11 +84,11 @@ describe("createNoteRuntime", () => {
       },
     });
     await settle();
-    expect(runtime.controller.getState()).toMatchObject({ kind: "open", path: "a.md" });
+    expect(runtime.getState()).toMatchObject({ kind: "open", path: "a.md" });
     expect(vanished).toEqual([]);
 
     io.files.delete("a.md");
-    runtime.controller.externalChange();
+    runtime.externalChange();
     await settle();
     expect(vanished).toEqual(["a.md"]);
   });
@@ -103,9 +103,9 @@ describe("createNoteRuntime", () => {
       },
     });
     await settle();
-    expect(runtime.controller.getState()).toEqual(EMPTY_EDITOR_STATE);
+    expect(runtime.getState()).toEqual(EMPTY_EDITOR_STATE);
 
-    runtime.controller.externalChange();
+    runtime.externalChange();
     await settle();
     expect(vanished).toEqual([]);
   });
@@ -172,13 +172,13 @@ describe("createNoteRuntime", () => {
     runtime.registerPreFlush(() => {
       runs += 1;
     });
-    runtime.controller.externalChange();
+    runtime.externalChange();
     await settle();
     const drained = runs;
     expect(drained).toBeGreaterThan(0);
 
     runtime.dispose();
-    runtime.controller.externalChange();
+    runtime.externalChange();
     await settle();
     expect(runs).toBe(drained);
   });
@@ -226,7 +226,7 @@ describe("createNoteRuntime", () => {
     runtime.edit("v1");
     await runDebounce();
     expect(io.writes).toBe(1);
-    expect(runtime.controller.getState()).toMatchObject({
+    expect(runtime.getState()).toMatchObject({
       dirty: true,
       saveError: { kind: "refused", message: "offline" },
     });
@@ -245,7 +245,7 @@ describe("createNoteRuntime", () => {
     await settle();
     expect(io.writes).toBe(3);
     expect(io.files.get("a.md")).toBe("v1");
-    expect(runtime.controller.getState()).toMatchObject({ dirty: false, saveError: null });
+    expect(runtime.getState()).toMatchObject({ dirty: false, saveError: null });
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -272,7 +272,7 @@ describe("createNoteRuntime", () => {
     io.files.delete("a.md");
     runtime.edit("v1");
     await runDebounce();
-    expect(runtime.controller.getState()).toMatchObject({
+    expect(runtime.getState()).toMatchObject({
       dirty: true,
       path: "a.md",
       saveError: { kind: "vanished" },
@@ -281,7 +281,7 @@ describe("createNoteRuntime", () => {
 
     await expect(runtime.recreate()).resolves.toBe(true);
     expect(io.files.get("a.md")).toBe("v1");
-    expect(runtime.controller.getState()).toMatchObject({ dirty: false, saveError: null });
+    expect(runtime.getState()).toMatchObject({ dirty: false, saveError: null });
   });
 
   it("flush() writes a keystroke the surface held back while its write was in flight", async () => {
