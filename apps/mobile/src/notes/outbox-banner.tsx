@@ -1,4 +1,4 @@
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import type { StyleProp, ViewStyle } from "react-native";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import {
@@ -9,11 +9,11 @@ import {
   useOutboxStatus,
 } from "@/lib/app-runtime";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
+import { TextButton } from "@/ui/text-button";
 import { outboxNotices, PARKED_ACTION_LABELS } from "./outbox-notices";
 import type { OutboxNotice, ParkedAction } from "./outbox-notices";
 
 const styles = StyleSheet.create({
-  action: { fontSize: 14, fontWeight: "600" },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.lg },
   banner: { gap: SPACE.sm, paddingBottom: SPACE.sm },
   message: { fontSize: 14, lineHeight: 20 },
@@ -24,7 +24,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE.md,
     paddingVertical: SPACE.md,
   },
-  pressed: { opacity: 0.7 },
   title: { fontSize: 14, fontWeight: "600" },
 });
 
@@ -69,20 +68,6 @@ const runParked = async (
   }
 };
 
-const ActionButton = ({ label, onPress }: { label: string; onPress: () => void }) => {
-  const theme = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      hitSlop={SPACE.sm}
-      style={({ pressed }) => pressed && styles.pressed}
-      onPress={onPress}
-    >
-      <Text style={[styles.action, { color: theme.foreground }]}>{label}</Text>
-    </Pressable>
-  );
-};
-
 const Notice = ({ notice, onOpen }: { notice: OutboxNotice; onOpen: (path: string) => void }) => {
   const theme = useTheme();
   const frame = [styles.notice, { backgroundColor: theme.card, borderColor: theme.border }];
@@ -93,8 +78,9 @@ const Notice = ({ notice, onOpen }: { notice: OutboxNotice; onOpen: (path: strin
         <Text style={[styles.message, { color: theme.mutedForeground }]}>{notice.reason}</Text>
         <View style={styles.actions}>
           {notice.actions.map((action) => (
-            <ActionButton
+            <TextButton
               key={action}
+              fontSize={14}
               label={PARKED_ACTION_LABELS[action]}
               onPress={() => {
                 void runParked(action, notice, onOpen);
@@ -109,13 +95,15 @@ const Notice = ({ notice, onOpen }: { notice: OutboxNotice; onOpen: (path: strin
     <View style={frame}>
       <Text style={[styles.message, { color: theme.cardForeground }]}>{notice.message}</Text>
       <View style={styles.actions}>
-        <ActionButton
+        <TextButton
+          fontSize={14}
           label="Open"
           onPress={() => {
             onOpen(notice.open);
           }}
         />
-        <ActionButton
+        <TextButton
+          fontSize={14}
           label="Dismiss"
           onPress={() => {
             dismissSyncNotice(notice.id);

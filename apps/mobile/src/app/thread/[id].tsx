@@ -34,6 +34,7 @@ import {
 import { firstParam } from "@/lib/routes";
 import { MONO_FONT, RADIUS, SPACE, useTheme } from "@/lib/theme";
 import type { ThreadDisplayItem } from "@/sync/thread-projection";
+import { TextButton } from "@/ui/text-button";
 import { DISPATCH_MAX_CHARS } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { quoteSelection } from "@repo/domain/quote-selection";
 import { docStem } from "@repo/notes/knowledge/doc-file";
@@ -154,20 +155,6 @@ const Item = ({ item }: { item: ThreadDisplayItem }) => {
   }
 };
 
-const TextAction = ({ label, onPress }: { label: string; onPress: () => void }) => {
-  const theme = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      hitSlop={SPACE.sm}
-      style={({ pressed }) => pressed && styles.pressed}
-      onPress={onPress}
-    >
-      <Text style={[styles.action, { color: theme.foreground }]}>{label}</Text>
-    </Pressable>
-  );
-};
-
 const cancel = async (id: string): Promise<void> => {
   const outcome = await cancelDispatch(id);
   if (!outcome.ok) {
@@ -204,7 +191,8 @@ const PendingRow = ({
           {dispatchCaption(phase, desktops)}
         </Text>
         {cancellable ? (
-          <TextAction
+          <TextButton
+            fontSize={13}
             label="Cancel"
             onPress={() => {
               void cancel(dispatch.id);
@@ -212,7 +200,8 @@ const PendingRow = ({
           />
         ) : null}
         {refused ? (
-          <TextAction
+          <TextButton
+            fontSize={13}
             label="Dismiss"
             onPress={() => {
               void dismissDispatch(dispatch.id);
@@ -253,7 +242,8 @@ const ApprovalAnswer = ({
           {`${DECISION_LABELS[answer.decision]} · ${dispatchCaption(answer.phase, desktops)}`}
         </Text>
         {refused ? (
-          <TextAction
+          <TextButton
+            fontSize={13}
             label="Dismiss"
             onPress={() => {
               void dismissDispatch(answer.id);

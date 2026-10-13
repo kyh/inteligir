@@ -7,15 +7,7 @@ import {
 } from "expo-router/react-navigation";
 import type { ParamListBase } from "expo-router/react-navigation";
 import { useEffect, useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Alert, KeyboardAvoidingView, Linking, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import type { PageInit } from "@repo/mobile-editor/bridge-protocol";
@@ -33,9 +25,9 @@ import { OutboxBanner } from "@/notes/outbox-banner";
 import { useNoteEditor } from "@/notes/use-note-editor";
 import { useSheetComments } from "@/notes/use-sheet-comments";
 import type { SheetRequest } from "@/notes/use-sheet-comments";
+import { TextButton } from "@/ui/text-button";
 
 const styles = StyleSheet.create({
-  action: { fontSize: 16, fontWeight: "600" },
   banner: { paddingHorizontal: SPACE.lg, paddingTop: SPACE.sm },
   failed: {
     alignItems: "center",
@@ -44,7 +36,6 @@ const styles = StyleSheet.create({
     paddingVertical: 96,
   },
   failedText: { fontSize: 16, textAlign: "center" },
-  pressed: { opacity: 0.7 },
   screen: { flex: 1 },
   status: { fontSize: 16, paddingHorizontal: SPACE.xxl, paddingVertical: 96, textAlign: "center" },
 });
@@ -287,14 +278,7 @@ const NoteScreen = () => {
             <Text style={[styles.failedText, { color: theme.mutedForeground }]}>
               {`Couldn't open this note: ${openFailed}`}
             </Text>
-            <Pressable
-              accessibilityRole="button"
-              hitSlop={SPACE.sm}
-              style={({ pressed }) => pressed && styles.pressed}
-              onPress={loadPageAgain}
-            >
-              <Text style={[styles.action, { color: theme.foreground }]}>Retry</Text>
-            </Pressable>
+            <TextButton fontSize={16} label="Retry" onPress={loadPageAgain} />
           </View>
         )}
       </KeyboardAvoidingView>

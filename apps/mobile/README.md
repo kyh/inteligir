@@ -141,6 +141,8 @@ src/
                 native module this app carries); the external store the
                 runtimes publish through, theme, cloud URL, and routes.ts
                 (every push to a note or a thread and the params it carries)
+  ui/           text-button.tsx: a label that acts, with no frame of its own,
+                sized by the text it sits by, shared by the screens
   app/          expo-router screens: sign-in, thread list + quick capture, a
                 thread view with its composer, pending requests and approval
                 cards, the notes list (New note; Rename and Delete on a long
