@@ -281,7 +281,8 @@ export class ThreadClosedError extends Error {
 
 const CANCELLED_PERMISSION: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };
 
-const whenAborted = async (signal: AbortSignal): Promise<null> => {
+// raced against a request, so the request's own settle always has a handler.
+export const whenAborted = async (signal: AbortSignal): Promise<null> => {
   if (!signal.aborted) {
     await once(signal, "abort");
   }
