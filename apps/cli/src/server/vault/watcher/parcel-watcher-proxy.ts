@@ -16,23 +16,8 @@ export interface ChildChannel {
   kill: () => void;
 }
 
-type ProxyLogLevel = "info" | "warn" | "error";
-
-interface ProxyLogFields {
-  sinceLastPongMs?: number;
-  delayMs?: number;
-  consecutiveRestarts?: number;
-  activeSubscriptions?: number;
-  watchError?: string;
-}
-
 export interface ParcelWatcherProxyOptions {
   spawnChannel: () => ChildChannel;
-  pingIntervalMs?: number;
-  pingTimeoutMs?: number;
-  baseRestartDelayMs?: number;
-  maxRestartDelayMs?: number;
-  log?: (level: ProxyLogLevel, message: string, fields?: ProxyLogFields) => void;
 }
 
 type SubscribeCallback = (error: ParcelWatcherError, events: ParcelWatcherEventBatch) => void;
@@ -48,10 +33,14 @@ export interface ParcelWatcherProxy extends ParcelWatcherBackend {
   dispose: () => void;
 }
 
-const DEFAULT_PING_INTERVAL_MS = 5000;
-const DEFAULT_PING_TIMEOUT_MS = 15_000;
-const DEFAULT_BASE_RESTART_DELAY_MS = 250;
-const DEFAULT_MAX_RESTART_DELAY_MS = 30_000;
+const PING_INTERVAL_MS = 5000;
+const PING_TIMEOUT_MS = 15_000;
+const BASE_RESTART_DELAY_MS = 250;
+const MAX_RESTART_DELAY_MS = 30_000;
+
+const unboundSpawn = (): void => {
+  /* replaced before the proxy is returned */
+};
 
 const toEventBatch = (events: SerializedParcelEvent[]): ParcelWatcherEventBatch =>
   events.map((event) => ({ path: event.path, type: event.type }));
@@ -62,16 +51,6 @@ const toEventBatch = (events: SerializedParcelEvent[]): ParcelWatcherEventBatch 
 export const createParcelWatcherProxy = (
   options: ParcelWatcherProxyOptions,
 ): ParcelWatcherProxy => {
-  const pingIntervalMs = options.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
-  const pingTimeoutMs = options.pingTimeoutMs ?? DEFAULT_PING_TIMEOUT_MS;
-  const baseRestartDelayMs = options.baseRestartDelayMs ?? DEFAULT_BASE_RESTART_DELAY_MS;
-  const maxRestartDelayMs = options.maxRestartDelayMs ?? DEFAULT_MAX_RESTART_DELAY_MS;
-  const log =
-    options.log ??
-    (() => {
-      /* empty */
-    });
-
   const subscriptions = new Map<string, SubscriptionRecord>();
   let channel: ChildChannel | null = null;
   let childReady = false;
@@ -85,9 +64,7 @@ export const createParcelWatcherProxy = (
   let lastPingTickAt = 0;
   let pingTimer: ReturnType<typeof setInterval> | null = null;
   // the child's events feed handlers that respawn it, so the spawn binds once those exist.
-  let startChild = (): void => {
-    log("error", "Watcher child spawn requested before the proxy was wired");
-  };
+  let startChild = unboundSpawn;
 
   const nextId = (): string => {
     idCounter += 1;
@@ -130,12 +107,11 @@ export const createParcelWatcherProxy = (
       startChild();
       return;
     }
-    const delay = Math.min(baseRestartDelayMs * 2 ** (consecutiveRestarts - 1), maxRestartDelayMs);
+    const delay = Math.min(
+      BASE_RESTART_DELAY_MS * 2 ** (consecutiveRestarts - 1),
+      MAX_RESTART_DELAY_MS,
+    );
     consecutiveRestarts += 1;
-    log("warn", "Backing off before watcher child respawn", {
-      consecutiveRestarts,
-      delayMs: delay,
-    });
     respawnTimer = setTimeout(() => {
       respawnTimer = null;
       startChild();
@@ -168,22 +144,19 @@ export const createParcelWatcherProxy = (
       const tickAt = Date.now();
       const sinceLastPingTickMs = tickAt - lastPingTickAt;
       lastPingTickAt = tickAt;
-      if (sinceLastPingTickMs > pingIntervalMs + pingTimeoutMs) {
+      if (sinceLastPingTickMs > PING_INTERVAL_MS + PING_TIMEOUT_MS) {
         // the parent itself stalled (laptop sleep, blocked loop): the silence says nothing
         // about the child.
         lastPongAt = tickAt;
         channel.send({ kind: "ping" });
         return;
       }
-      if (tickAt - lastPongAt > pingTimeoutMs) {
-        log("warn", "Watcher child unresponsive; killing", {
-          sinceLastPongMs: tickAt - lastPongAt,
-        });
+      if (tickAt - lastPongAt > PING_TIMEOUT_MS) {
         killAndRespawn();
         return;
       }
       channel.send({ kind: "ping" });
-    }, pingIntervalMs);
+    }, PING_INTERVAL_MS);
     pingTimer.unref?.();
   };
 
@@ -197,9 +170,6 @@ export const createParcelWatcherProxy = (
     if (disposed) {
       return;
     }
-    log("warn", "Watcher child exited; respawning", {
-      activeSubscriptions: subscriptions.size,
-    });
     scheduleRespawn();
   };
 
@@ -228,9 +198,6 @@ export const createParcelWatcherProxy = (
       case "watch-error": {
         // parcel's shared native backend died in the child (an EINTR poll interruption), taking
         // every watch down at once: recycle the whole child.
-        log("warn", "Watcher child reported a backend error; recycling", {
-          watchError: message.message,
-        });
         killAndRespawn();
         break;
       }

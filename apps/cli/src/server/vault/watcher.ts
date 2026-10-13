@@ -8,7 +8,7 @@ import { createForkChannel } from "./watcher/fork-channel";
 import type { ParcelAsyncSubscription, ParcelWatcherBackend } from "./watcher/parcel-backend";
 import { toWatchErrorMessage } from "./watcher/parcel-backend";
 import { createParcelWatcherProxy } from "./watcher/parcel-watcher-proxy";
-import type { ChildChannel, ParcelWatcherProxy } from "./watcher/parcel-watcher-proxy";
+import type { ParcelWatcherProxy } from "./watcher/parcel-watcher-proxy";
 
 const DEBOUNCE_MS = 200;
 const MAX_WAIT_MS = 1000;
@@ -22,8 +22,6 @@ export interface VaultWatcherArgs {
   onChanged: (paths: readonly string[]) => void;
   onError?: (message: string) => void;
   backend?: ParcelWatcherBackend | undefined;
-  // how the proxy starts its child; absent, node forks it
-  spawnChannel?: () => ChildChannel;
   debugLog?: DebugLog | undefined;
 }
 
@@ -41,9 +39,7 @@ export const createVaultWatcher = (args: VaultWatcherArgs): VaultWatcher => {
   const backend =
     args.backend ??
     (() => {
-      ownedProxy = createParcelWatcherProxy({
-        spawnChannel: args.spawnChannel ?? createForkChannel,
-      });
+      ownedProxy = createParcelWatcherProxy({ spawnChannel: createForkChannel });
       return ownedProxy;
     })();
 

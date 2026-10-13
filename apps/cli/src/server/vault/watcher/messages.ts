@@ -77,7 +77,7 @@ export const parentToChildMessageSchema = z.discriminatedUnion("kind", [
     .transform(({ kind, id, dir, rescan, opts }) => ({ dir, id, kind, opts, rescan })),
   z.object({ id: z.string(), kind: z.literal("unsubscribe") }),
   z.object({ kind: z.literal("ping") }),
-]);
+]) satisfies z.ZodType<ParentToChildMessage>;
 
 export const childToParentMessageSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("ready") }),
@@ -87,4 +87,4 @@ export const childToParentMessageSchema = z.discriminatedUnion("kind", [
   z.object({ id: z.string(), kind: z.literal("subscribe-failed"), message: z.string() }),
   z.object({ id: z.string(), kind: z.literal("watch-error"), message: z.string() }),
   z.object({ events: parcelEventBatchSchema, id: z.string(), kind: z.literal("events") }),
-]);
+]) satisfies z.ZodType<ChildToParentMessage>;
