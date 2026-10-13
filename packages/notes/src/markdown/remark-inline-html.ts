@@ -163,7 +163,6 @@ const inlineHtmlToMarkdown: ToMarkdownExtension = {
   },
 };
 
-// a function expression: remark plugins receive the processor as `this`.
 export const remarkInlineHtml: Plugin = function remarkInlineHtml(this: Processor): undefined {
   const data = this.data();
   (data.micromarkExtensions ??= []).push({ disable: { null: ["htmlFlow"] } });

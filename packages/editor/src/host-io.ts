@@ -103,7 +103,7 @@ export interface CommentActions {
 
 export interface AgentRequestActions {
   askAboutSelection: (selectionText: string) => void;
-  // the rail shows that tag's notes
+  /** The rail shows that tag's notes. */
   showTag: (tag: string) => void;
 }
 

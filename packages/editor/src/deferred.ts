@@ -1,6 +1,6 @@
 // `Promise.withResolvers`, spelled out: the WebKit this package ships in lacks it below Safari 17.4,
 // and both its hosts go lower (the desktop window at the macOS 13.5 floor runs Safari 16.6's, the
-// phone page iOS 16.4's). `lib` stops at ES2023 for the same reason (tsconfig.json).
+// phone page iOS 16.4's).
 
 export interface Deferred<T> {
   readonly promise: Promise<T>;

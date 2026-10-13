@@ -1,5 +1,4 @@
-// not Plate's `deserializeMd`: its regex `htmlToJsx` pre-pass corrupts code fences and it
-// swallows parse errors into silently-degraded models. The grammar is total
+// not Plate's `deserializeMd` (`@repo/editor/kits/markdown-kit` says why). The grammar is total
 // (no expressions, no jsx, and a tag nothing closes stays html), so every input yields a tree and no
 // note opens raw for its bytes.
 

@@ -17,13 +17,13 @@ and its navigation stack stay native.
 ## The build
 
 `pnpm --filter @repo/mobile-editor build` writes `dist/`: `index.html`, ONE
-classic `<script defer>` and one stylesheet, relative to the page. WKWebView
-fetches a module script, and any tag marked `crossorigin`, in CORS mode, and a
-`file://` page has no origin to answer one with (vitejs/vite#14483), so the
-build is one IIFE with every dynamic import inlined (mermaid, katex, the
-calendar, the wiki chip), and `vite/classic-page.ts` rewrites vite's entry tag
-and FAILS the build on a module script, a second script or chunk, a
-`crossorigin` tag or a modulepreload link. Every woff2 is inlined into the
+classic `<script defer>` and one stylesheet, relative to the page. A `file://`
+page in WKWebView loads no module script and no `crossorigin` tag
+(`vite/classic-page.ts` says why), so the build is one IIFE with every dynamic
+import inlined (mermaid, katex, the calendar, the wiki chip), and
+`vite/classic-page.ts` rewrites vite's entry tag and FAILS the build on a
+module script, a second script or chunk, a `crossorigin` tag or a
+modulepreload link. Every woff2 is inlined into the
 stylesheet. `index.html` carries a static CSP, `apps/cli/src/server/csp.ts`'s
 with two departures: `connect-src 'none'`, since the page reaches nothing and
 the bridge is its only way out, and no `frame-ancestors`, which a meta tag

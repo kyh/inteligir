@@ -110,7 +110,7 @@ export class VaultEditorController {
     this.onMergeConflict = onMergeConflict;
   }
 
-  // bound so they can be passed straight to useSyncExternalStore.
+  // arrow fields, so both pass as bare references (vault-session subscribes that way).
   readonly getState = (): VaultEditorState => this.st;
   readonly subscribe = (fn: () => void): (() => void) => {
     this.subs.add(fn);

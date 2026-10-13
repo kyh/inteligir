@@ -224,7 +224,6 @@ const inlineConstructsToMarkdown: ToMarkdownExtension = {
   unsafe: UNSAFE,
 };
 
-// a function expression: remark plugins receive the processor as `this`.
 export const remarkInlineConstructs: Plugin = function remarkInlineConstructs(
   this: Processor,
 ): Transformer {

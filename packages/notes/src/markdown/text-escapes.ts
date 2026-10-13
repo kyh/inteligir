@@ -67,7 +67,6 @@ export const textCutter = (node: Text): ((start: number, end: number) => Text) =
   };
 };
 
-// a function expression: remark plugins receive the processor as `this`.
 export const remarkTextEscapes: Plugin = function remarkTextEscapes(this: Processor): undefined {
   (this.data().fromMarkdownExtensions ??= []).push(escapesFromMarkdown);
 };

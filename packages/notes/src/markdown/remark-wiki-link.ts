@@ -170,7 +170,6 @@ const wikiToMarkdown: ToMarkdownExtension = {
   },
 };
 
-// a function expression: remark plugins receive the processor as `this`.
 export const remarkWikiLink: Plugin = function remarkWikiLink(this: Processor): undefined {
   const data = this.data();
   (data.micromarkExtensions ??= []).push(wikiSyntax);

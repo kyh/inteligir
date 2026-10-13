@@ -61,7 +61,6 @@ const blobOf = (base64: string, mediaType: string): Blob =>
     type: mediaType,
   });
 
-// the platform's own encoder, so no hand-rolled codec rides beside it
 const base64Of = async (blob: Blob): Promise<string> => {
   const read = deferred<string>();
   const reader = new FileReader();
