@@ -72,6 +72,12 @@ const RAIL_VIEW_LABELS: Record<RailView, string> = {
   recent: "Recent",
 };
 
+// The shell drags the window only on a mousedown whose target is this element itself, so it
+// stays a childless strip: a child would take the press and drag nothing.
+const TitleBarDragStrip = () => (
+  <div aria-hidden="true" className="h-5 shrink-0" data-tauri-drag-region />
+);
+
 const ThemeButton = () => {
   const { resolved, setTheme } = useTheme();
   const next = resolved === "dark" ? "light" : "dark";
@@ -103,11 +109,9 @@ export interface SidebarRailContentProps {
   onViewChange: (view: RailView) => void;
   selectedTag: string | null;
   onSelectTag: (tag: string | null) => void;
-  // the breadcrumb's ask, applied to the tree's state: open the way to this entry and select it;
-  // the tree says once it has focused the row, so the owner can clear it
+  // the breadcrumb's ask; the tree says once it has focused the row, so the owner can clear it
   reveal: TreeReveal | null;
   onRevealConsumed: () => void;
-  // the header's Search opens the one palette; the chord is spelled by the workspace's table
   onOpenSearch: () => void;
   searchShortcut: string | null;
   onSyncNow: () => void;
@@ -205,16 +209,10 @@ export const SidebarRailContent = ({
     }
   };
 
-  // Fluid's sidebar anatomy: the vault row and Search share the header line; one group whose
-  // label names the view and opens the view menu, with New note as the group's action; the sync
-  // row, Settings and the theme in the footer. Every other verb is a right-click.
   return (
     <>
       <SidebarHeader>
-        {insetTitleBar ? (
-          // the shell drags the window from a mousedown on this element itself
-          <div aria-hidden="true" className="h-5 shrink-0" data-tauri-drag-region />
-        ) : null}
+        {insetTitleBar ? <TitleBarDragStrip /> : null}
         <div className="flex items-center gap-1 pr-1.5">
           <div className="min-w-0 flex-1">
             <VaultRow vaultName={treeQuery.data?.name ?? "Vault"} />

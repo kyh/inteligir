@@ -1,6 +1,4 @@
-// What this window remembers across a reload: one row per stored key, whose schema decodes the
-// stored string and encodes the value back, so a key's reader and its writer cannot disagree on
-// its bytes. Bytes a row cannot decode read as its fallback, like a key never written.
+// CLAUDE.md § A PAGE PREFERENCE IS A ROW
 
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/components/sidebar-core";
 import { parseTheme } from "@repo/ui/lib/theme";

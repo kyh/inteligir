@@ -58,7 +58,6 @@ export const shellPaths = {
   reveal: command(APP_COMMANDS.paths.reveal),
 };
 
-// the print panel, as a sheet over the window
 export const shellPrint = command(APP_COMMANDS.print);
 
 // the shell reduces the updater's state and pushes every move
