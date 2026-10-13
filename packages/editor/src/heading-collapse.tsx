@@ -4,7 +4,7 @@
 // addressed by block id: Plate re-renders a block only when its own node changes, so the
 // `path` it last rendered with is stale after an insert above it.
 
-import { createContext, useContext, useSyncExternalStore } from "react";
+import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import { NodeApi } from "platejs";
 import type { TElement } from "platejs";
@@ -12,7 +12,9 @@ import { createPlatePlugin, useEditorSelector } from "platejs/react";
 import type { RenderNodeWrapper } from "platejs/react";
 import { ChevronDownIcon } from "lucide-react";
 import { z } from "zod";
+import { useStore } from "zustand";
 import { shallow } from "zustand/shallow";
+import { createStore } from "zustand/vanilla";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
@@ -30,14 +32,11 @@ const HEADING_RANK = new Map<string, number>([
 
 // A toggle replaces a note's set rather than mutating it, so the set is itself the snapshot a
 // subscriber compares.
-const folds = new Map<string, ReadonlySet<string>>();
-const listeners = new Set<() => void>();
+const foldsStore = createStore<ReadonlyMap<string, ReadonlySet<string>>>()(() => new Map());
 
-const emit = (): void => {
-  for (const listener of listeners) {
-    listener();
-  }
-};
+// A note's stored folds, read on first ask and kept beside the store rather than written into it:
+// the first ask is a render's selector, and setting state there would notify mid-render.
+const restored = new Map<string, ReadonlySet<string>>();
 
 // decoded per note, so one unreadable entry cannot discard every other note's folds
 const STORED_NOTES = z.record(z.string(), z.unknown());
@@ -81,35 +80,31 @@ const writeStorage = (path: string, keys: ReadonlySet<string>): void => {
   }
 };
 
-const foldsFor = (path: string): ReadonlySet<string> => {
-  const known = folds.get(path);
+const foldsFor = (
+  folds: ReadonlyMap<string, ReadonlySet<string>>,
+  path: string,
+): ReadonlySet<string> => {
+  const known = folds.get(path) ?? restored.get(path);
   if (known !== undefined) {
     return known;
   }
-  const restored = new Set(readStorage().get(path));
-  folds.set(path, restored);
-  return restored;
+  const stored = new Set(readStorage().get(path));
+  restored.set(path, stored);
+  return stored;
 };
 
-export const headingCollapseKeys = (path: string): ReadonlySet<string> => foldsFor(path);
+export const headingCollapseKeys = (path: string): ReadonlySet<string> =>
+  foldsFor(foldsStore.getState(), path);
 
 export const toggleHeadingCollapse = (path: string, key: string): void => {
-  const keys = new Set(foldsFor(path));
+  const keys = new Set(headingCollapseKeys(path));
   if (keys.has(key)) {
     keys.delete(key);
   } else {
     keys.add(key);
   }
-  folds.set(path, keys);
   writeStorage(path, keys);
-  emit();
-};
-
-const subscribe = (listener: () => void): (() => void) => {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  foldsStore.setState((folds) => new Map(folds).set(path, keys), true);
 };
 
 const NO_FOLDS: ReadonlySet<string> = new Set();
@@ -180,7 +175,9 @@ const DerivedContext = createContext<Derived | null>(null);
 const CollapseProvider = ({ children }: { children: ReactNode }) => {
   // subscribed once here rather than per block, so the fold set and every chevron name the same file
   const path = useOpenNotePath();
-  const folded = useSyncExternalStore(subscribe, () => (path === null ? NO_FOLDS : foldsFor(path)));
+  const folded = useStore(foldsStore, (folds) =>
+    path === null ? NO_FOLDS : foldsFor(folds, path),
+  );
   const derived = useEditorSelector(
     (editor) => (path === null ? null : derive(editor.children, path, folded)),
     [path, folded],

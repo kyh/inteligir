@@ -3,7 +3,8 @@
 
 import { NodeApi } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
-import { useSyncExternalStore } from "react";
+import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
 
 export interface NoteStats {
   readonly words: number;
@@ -51,38 +52,31 @@ export const readingMinutes = (words: number): number =>
 
 // keyed by path like the live editor: a note switch mounts a new editor, and the outgoing one's
 // numbers must stop answering for the incoming path
-const stats = new Map<string, NoteStats>();
-const listeners = new Set<() => void>();
+const statsStore = createStore<ReadonlyMap<string, NoteStats>>()(() => new Map());
 
-const notify = (): void => {
-  for (const listener of listeners) {
-    listener();
-  }
-};
+const sameStats = (a: NoteStats | undefined, b: NoteStats): boolean =>
+  a !== undefined && a.words === b.words && a.characters === b.characters;
 
 export const publishNoteStats = (path: string, next: NoteStats): void => {
-  const prior = stats.get(path);
-  if (prior !== undefined && prior.words === next.words && prior.characters === next.characters) {
-    return;
-  }
-  stats.set(path, next);
-  notify();
+  statsStore.setState(
+    (stats) => (sameStats(stats.get(path), next) ? stats : new Map(stats).set(path, next)),
+    true,
+  );
 };
 
 export const clearNoteStats = (path: string): void => {
-  if (stats.delete(path)) {
-    notify();
-  }
+  statsStore.setState((stats) => {
+    if (!stats.has(path)) {
+      return stats;
+    }
+    const next = new Map(stats);
+    next.delete(path);
+    return next;
+  }, true);
 };
 
-export const readNoteStats = (path: string): NoteStats | null => stats.get(path) ?? null;
-
-const subscribe = (listener: () => void): (() => void) => {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-};
+export const readNoteStats = (path: string): NoteStats | null =>
+  statsStore.getState().get(path) ?? null;
 
 export const useNoteStats = (path: string | null): NoteStats | null =>
-  useSyncExternalStore(subscribe, () => (path === null ? null : readNoteStats(path)));
+  useStore(statsStore, (stats) => (path === null ? null : (stats.get(path) ?? null)));
