@@ -53,7 +53,6 @@ src/
                        # for a typed failure on a prompt's answer
   vocabulary/
     provider-event.ts  # ProviderEvent — the runtime's EMITTED grammar
-  thread-shell-environment.ts  # stamps INTELIGIR_THREAD_ID onto a spawn's env
   test-support/
     fake-acp-agent.mjs # a scripted ACP agent (FAKE_ACP_MODE) the server's
                        # runtime-manager and sign-in suites spawn in place of

@@ -87,12 +87,8 @@ export interface HarnessDefinition {
   typedFailures: boolean;
 }
 
-const resolveAdapterEntry = (specifier: string): string => require.resolve(specifier);
-
-const CLAUDE_ADAPTER_ENTRY = resolveAdapterEntry(
-  "@agentclientprotocol/claude-agent-acp/dist/index.js",
-);
-const CODEX_ADAPTER_ENTRY = resolveAdapterEntry("@agentclientprotocol/codex-acp/dist/index.js");
+const CLAUDE_ADAPTER_ENTRY = require.resolve("@agentclientprotocol/claude-agent-acp/dist/index.js");
+const CODEX_ADAPTER_ENTRY = require.resolve("@agentclientprotocol/codex-acp/dist/index.js");
 
 const glibcReportSchema = z.object({ header: z.object({ glibcVersionRuntime: z.string() }) });
 

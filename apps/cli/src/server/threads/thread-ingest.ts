@@ -27,7 +27,13 @@ import type { ThreadLifecycleEvent } from "@repo/domain/thread-lifecycle";
 import { isThreadRunning } from "@repo/domain/thread-status";
 import { deriveThreadTitle } from "@repo/domain/thread-title";
 import { QUEUE_HOLDING_FAILURES } from "./provider-failure";
-import { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
+
+export class ThreadEventThreadIdMismatchError extends Error {
+  constructor(expected: string, actual: string) {
+    super(`Ingest for thread ${expected} carried an event for thread ${actual}`);
+    this.name = "ThreadEventThreadIdMismatchError";
+  }
+}
 
 // one write transaction as every thread step sees it. its notifications wait for the commit, and
 // every local append goes through `appendLocal` so the outbox enqueue rides the same transaction;

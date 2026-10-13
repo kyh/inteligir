@@ -68,8 +68,6 @@ export type AnswerInteractionOutcome =
   | { kind: "already-resolved" }
   | { kind: "invalid-resolution"; message: string };
 
-export { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
-
 // inside the transaction that writes the events: an event is owed to the account's log exactly when it is in the local one.
 export interface ThreadSyncHooks {
   enqueue: (tx: DbTransaction, events: readonly ThreadEvent[]) => void;

@@ -22,6 +22,7 @@ import type {
   SessionNotification,
   Stream,
 } from "@agentclientprotocol/sdk";
+import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
 import type { HarnessId } from "@repo/domain/harness";
 import type { PendingInteractionResolution } from "@repo/domain/pending-interactions";
 import type {
@@ -39,7 +40,6 @@ import type { ProviderEvent } from "../vocabulary/provider-event.js";
 import { AcpTurnMapper } from "./acp-event-mapping.js";
 import { toApprovalPayload, toPermissionOutcome } from "./acp-permission-mapping.js";
 import { traceFrames } from "./frame-trace.js";
-import { buildThreadShellEnvironment } from "../thread-shell-environment.js";
 import { HARNESSES, VaultConfigRefusedError, harnessHostEnv } from "./harness-registry.js";
 import type { HarnessDefinition, HarnessModels } from "./harness-registry.js";
 import {
@@ -103,12 +103,10 @@ export const adapterSpawnEnv = (
   options: AdapterSpawnEnvOptions,
 ): AgentRuntimeShellEnvironment => {
   const env = harnessHostEnv(harness, options.hostEnv);
-  Object.assign(
-    env,
-    options.threadId === null
-      ? options.shellEnv
-      : buildThreadShellEnvironment({ baseShellEnv: options.shellEnv, threadId: options.threadId }),
-  );
+  Object.assign(env, options.shellEnv);
+  if (options.threadId !== null) {
+    env[THREAD_ID_ENV_VAR] = options.threadId;
+  }
   // a value the host already set wins: it names an install the user chose.
   for (const [key, value] of Object.entries(harness.adapterEnv)) {
     env[key] ??= value;
@@ -398,13 +396,9 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     }
   };
 
-  const kill = async (adapter: AcpAdapter): Promise<void> => {
-    await terminateAdapter(adapter.child, adapter.gone);
-  };
-
   const destroyAdapter = async (adapter: AcpAdapter): Promise<void> => {
     detach(adapter);
-    await kill(adapter);
+    await terminateAdapter(adapter.child, adapter.gone);
   };
 
   const cancelPrompt = async (session: AcpSession, turn: AcpTurn): Promise<void> => {
@@ -438,7 +432,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
         delay(ADAPTER_STOP_GRACE_MS, null, { ref: false }),
       ]);
     }
-    await kill(adapter);
+    await terminateAdapter(adapter.child, adapter.gone);
   };
 
   const closeGeneration = (threadId: string): number => closeGenerations.get(threadId) ?? 0;

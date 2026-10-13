@@ -42,17 +42,19 @@ export interface ProviderEventSink {
 }
 
 export class TurnDriverUnavailableError extends Error {
-  constructor(message?: string) {
-    super(message ?? "No agent provider is configured");
+  constructor(message: string) {
+    super(message);
     this.name = "TurnDriverUnavailableError";
   }
 }
 
-export const createUnavailableTurnDriver = (message?: string): TurnDriver => ({
+export const createUnavailableTurnDriver = (message: string): TurnDriver => ({
   interruptTurn: () => "not-running",
   startTurn() {
     throw new TurnDriverUnavailableError(message);
   },
 });
 
-export const unavailableTurnDriver: TurnDriver = createUnavailableTurnDriver();
+export const unavailableTurnDriver: TurnDriver = createUnavailableTurnDriver(
+  "No agent provider is configured",
+);
