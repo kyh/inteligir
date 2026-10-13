@@ -97,7 +97,8 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   agent's spinner and Settings, because a strip across the whole window was a
   second bar under a rail that already had a bottom; its account row runs the
   one `useCloudSession` (`app/cloud-session.ts`) Settings › Account runs too,
-  and offers Sync now and no second sync for actions, which sync on their own.
+  and offers Sync now and no second sync for actions, which sync on their own
+  (`sidebar/sync-row.tsx`).
   The view is the workspace's (`railView` in `app/prefs.ts`), because a `#tag`
   chip, a create and "Deleted notes…" each switch it. THERE IS NO FOLDER SCOPE:
   the breadcrumb REVEALS rather than narrows, opening the way to that folder in
