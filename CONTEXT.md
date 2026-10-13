@@ -144,7 +144,7 @@ state.
   (`@repo/agent-runtime/vocabulary/provider-event`). The two
   grammars are near-twins with the same file name and are not the same set —
   the runtime constructs its events and never parses them, and
-  `apps/cli/src/server/agents/event-mapping.ts` is the one place that narrows onto
+  `apps/cli/src/server/agents/runtime-manager.ts` is the one place that narrows onto
   the persisted grammar. The one provider event with no persisted counterpart,
   an adapter's notice, is written to the agent log alone, never invented into
   a divergent shape.

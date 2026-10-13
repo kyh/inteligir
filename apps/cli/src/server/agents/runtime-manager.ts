@@ -43,8 +43,6 @@ import { toInstructions } from "./agent-instructions";
 import { toShellEnv } from "./agent-shell-env";
 import type { AgentSessionFacts } from "./agent-shell-env";
 import { ProviderEventCoalescer } from "./event-coalescer";
-import { mapProviderEvent } from "./event-mapping";
-import type { PersistedProviderEvent } from "./event-mapping";
 import { createInteractionWaiters } from "./interaction-waiters";
 import type { InteractionWaiters } from "./interaction-waiters";
 import { turnPromptInput } from "./view-context-prompt";
@@ -54,6 +52,10 @@ const instructionsHash = (instructions: string): string =>
 
 const unshippedHarnessDetail = (id: string): string =>
   `This action runs on an agent this copy of inteligir does not have ("${id}") — update inteligir to continue it`;
+
+// the persisted grammar takes every kind the mapper emits but an adapter's notice, which the agent
+// log alone reads until one earns a renderer.
+type PersistedProviderEvent = Exclude<ProviderEvent, { type: "provider/notice" }>;
 
 // the runtime reports a refusal in its adapter's words and the host words it for the person, so
 // the one persisted message names the harness this turn ran on.
@@ -483,15 +485,15 @@ export class AcpTurnDriver implements TurnDriver {
       this.debug(`adapter notice for thread ${threadId}: ${event.severity}: ${event.message}`);
       return;
     }
-    const mapped = mapProviderEvent(wordFailure(event, state.harness));
+    const persisted: ThreadEvent = wordFailure(event, state.harness);
     if (event.type === "turn/completed") {
       // settle before ingest: the ingest transaction drains the queue and can synchronously
       // dispatch the next turn through startTurn, which must find this one released.
       this.settleTurn(threadId);
-      this.sink.ingestProviderEvents(threadId, [mapped]);
+      this.sink.ingestProviderEvents(threadId, [persisted]);
       return;
     }
-    this.events.push(threadId, mapped);
+    this.events.push(threadId, persisted);
   }
 
   private onTurnStarted(
@@ -506,7 +508,7 @@ export class AcpTurnDriver implements TurnDriver {
       return;
     }
     state.phase = { kind: "started", stopDeadline: null };
-    this.events.push(threadId, mapProviderEvent(event));
+    this.events.push(threadId, event);
   }
 
   private vaultPathsOf(changes: FileChangeProviderItem["changes"]): string[] {

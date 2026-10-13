@@ -77,7 +77,7 @@ scripts/
   parsed.** Types only, and no wider than the mapper: a kind or field no code
   here produces is a branch every consumer would carry for nothing. The server
   narrows it onto `ThreadEvent` in `@repo/domain` in
-  `apps/cli/src/server/agents/event-mapping.ts`, every kind but a notice, which
+  `apps/cli/src/server/agents/runtime-manager.ts`, every kind but a notice, which
   only the agent log reads. An update the grammar carries nothing of (a plan, a
   tool call still running, a usage count) maps to no event, and `onActivity`
   tells the host the session spoke, so its idle clock still hears a long tool
