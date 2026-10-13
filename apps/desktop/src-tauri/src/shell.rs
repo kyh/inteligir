@@ -15,7 +15,8 @@ use tauri_plugin_opener::OpenerExt;
 
 use crate::diagnostics::{self, Diagnostics, ServerRun};
 use crate::door::Door;
-use crate::launch::{FolderSync, Handoff, Launch, Opening, Plan, Proposal, Target};
+use crate::first_run::FirstRun;
+use crate::launch::{FolderSync, Handoff, Launch, Opening, Plan, Target};
 use crate::runtime::{self, NodeRuntime};
 use crate::server::{self, OwnedServer, Started};
 use crate::server_log::{self, SERVER_LOG_MAX_BYTES, ServerLog};
@@ -32,13 +33,6 @@ const OWN_DIR_NAME: &str = "desktop";
 const DATA_DIR_ENV_VAR: &str = "INTELIGIR_DATA_DIR";
 const VAULT_DIR_ENV_VAR: &str = "INTELIGIR_VAULT_DIR";
 const UI_DEV_URL_ENV_VAR: &str = "INTELIGIR_UI_DEV_URL";
-
-/// The first run's handed-out folders: every folder the page names back is one the shell gave it.
-pub struct FirstRun {
-    pub proposal: Proposal,
-    pub parents: HashSet<String>,
-    pub folders: HashSet<String>,
-}
 
 /// What a launch settles for the life of the app.
 #[derive(Clone)]
@@ -764,6 +758,7 @@ pub fn open_in_browser(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::launch::Proposal;
 
     fn target(vault_dir: &str) -> Target {
         Target {

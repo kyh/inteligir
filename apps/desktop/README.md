@@ -60,7 +60,7 @@ A first run opens its own window on the page the shell carries,
 Tauri's IPC origins, which `tools/repo-guards/src/desktop-shell-wire.test.ts`
 holds it to. Its capability (`src-tauri/capabilities/first-run.json`) grants
 that window four commands and nothing else: the proposal, a picked parent, a
-picked folder, and `finish`. It keeps WebKit's default store, which no vault's
+picked folder, and `finish` (`src-tauri/src/first_run.rs`). It keeps WebKit's default store, which no vault's
 window shares, so nothing it keeps reaches a vault. The
 page offers a new vault (the default's name and place, or another folder the
 shell's picker handed out) or an existing folder of notes, with what the folder

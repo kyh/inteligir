@@ -7,6 +7,7 @@ mod commands;
 mod diagnostics;
 mod door;
 mod files;
+mod first_run;
 mod launch;
 mod menu;
 mod navigation;

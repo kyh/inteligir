@@ -9,21 +9,18 @@
 
 use std::path::Path;
 
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tauri::{AppHandle, Manager, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::answer::Answer;
 use crate::diagnostics;
-use crate::launch::FolderSync;
+use crate::first_run::{self, FirstRunChoice, FirstRunState, PickFolder, PickParent};
 use crate::paths;
 use crate::shell::{self, Outcome, Shell};
 use crate::update_state::UpdateState;
 use crate::updater::{self, Updates};
 use crate::vaults::VaultsState;
-use crate::window;
 
 /// Blocking work (a door call, a dialog, a server's start) runs off the async runtime's threads.
 async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
@@ -213,160 +210,22 @@ pub async fn vaults_forget(app: AppHandle, path: String) -> Result<VaultsState, 
 
 // ---- the first run ----
 
-#[derive(Serialize)]
-pub struct FirstRunState {
-    #[serde(rename = "newVault")]
-    new_vault: crate::launch::Proposal,
-}
-
 #[tauri::command]
 pub async fn first_run_get_state(app: AppHandle) -> Result<FirstRunState, String> {
-    app.state::<Shell>()
-        .with_first_run(|first_run| FirstRunState {
-            new_vault: first_run.proposal.clone(),
-        })
-        .ok_or_else(|| "The first run is over.".to_owned())
-}
-
-#[derive(Serialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-pub enum PickParent {
-    Cancelled,
-    #[serde(rename_all = "camelCase")]
-    Picked {
-        external_sync: Value,
-        path: String,
-    },
-}
-
-fn pick_for_first_run(
-    app: &AppHandle,
-    title: &str,
-    create: bool,
-    directory: Option<String>,
-) -> Option<String> {
-    let mut picker = app
-        .dialog()
-        .file()
-        .set_title(title)
-        .set_can_create_directories(create);
-    if let Some(directory) = directory {
-        picker = picker.set_directory(directory);
-    }
-    if let Some(parent) = app.get_webview_window(window::FIRST_RUN) {
-        picker = picker.set_parent(&parent);
-    }
-    picker
-        .blocking_pick_folder()
-        .and_then(|picked| picked.into_path().ok())
-        .map(|path| path.to_string_lossy().into_owned())
+    first_run::state(&app)
 }
 
 #[tauri::command]
 pub async fn first_run_pick_parent(app: AppHandle) -> Result<PickParent, String> {
-    blocking(move || {
-        let proposal = app
-            .state::<Shell>()
-            .with_first_run(|first_run| first_run.proposal.parent.clone());
-        let Some(picked) = pick_for_first_run(&app, "Where should the vault go?", true, proposal)
-        else {
-            return Ok(PickParent::Cancelled);
-        };
-        app.state::<Shell>()
-            .with_first_run(|first_run| first_run.parents.insert(picked.clone()));
-        // judged at the parent: the vault is not made yet, and whatever syncs the parent syncs it
-        let sync: FolderSync = shell::ask_door(&app, &["sync", &picked])?;
-        Ok(PickParent::Picked {
-            external_sync: sync.external_sync,
-            path: picked,
-        })
-    })
-    .await
-}
-
-#[derive(Serialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-pub enum PickFolder {
-    Cancelled,
-    Picked { facts: Value, path: String },
+    blocking(move || first_run::pick_parent(&app)).await
 }
 
 #[tauri::command]
 pub async fn first_run_pick_folder(app: AppHandle) -> Result<PickFolder, String> {
-    blocking(move || {
-        let Some(picked) = pick_for_first_run(&app, "Open a folder of notes", false, None) else {
-            return Ok(PickFolder::Cancelled);
-        };
-        app.state::<Shell>()
-            .with_first_run(|first_run| first_run.folders.insert(picked.clone()));
-        let facts: Value = shell::ask_door(&app, &["facts", &picked])?;
-        Ok(PickFolder::Picked {
-            facts,
-            path: picked,
-        })
-    })
-    .await
+    blocking(move || first_run::pick_folder(&app)).await
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-pub enum FirstRunChoice {
-    Create { name: String, parent: String },
-    Open { path: String },
-}
-
-/// Every folder the page names back is one handed out here, the proposal's parent or a pick.
 #[tauri::command]
 pub async fn first_run_finish(app: AppHandle, choice: FirstRunChoice) -> Answer {
-    blocking(move || {
-        let shell = app.state::<Shell>();
-        let handed_out = shell.with_first_run(|first_run| match &choice {
-            FirstRunChoice::Create { parent, .. } => first_run.parents.contains(parent),
-            FirstRunChoice::Open { path } => first_run.folders.contains(path),
-        });
-        let refusal = match (&choice, handed_out) {
-            (_, None) => Some("The first run is over."),
-            (FirstRunChoice::Create { .. }, Some(false)) => {
-                Some("That location is not one the app offered.")
-            }
-            (FirstRunChoice::Open { .. }, Some(false)) => {
-                Some("That folder is not one the app offered.")
-            }
-            (_, Some(true)) => None,
-        };
-        if let Some(reason) = refusal {
-            return Answer::refused(reason);
-        }
-        let args: Vec<&str> = match &choice {
-            FirstRunChoice::Create { name, parent } => vec!["plan-create", parent, name],
-            FirstRunChoice::Open { path } => vec!["plan-open", path],
-        };
-        match shell::finish_first_run(&app, &args) {
-            Outcome::Done => Answer::Done(()),
-            Outcome::Refused(reason) | Outcome::Reported(reason) => Answer::Refused(reason),
-        }
-    })
-    .await
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_cancelled_pick_crosses_as_its_kind() -> Result<(), serde_json::Error> {
-        assert_eq!(
-            serde_json::to_value(PickParent::Cancelled)?,
-            serde_json::json!({ "kind": "cancelled" })
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn reads_the_page_s_first_run_choice() -> Result<(), serde_json::Error> {
-        let choice: FirstRunChoice =
-            serde_json::from_str(r#"{"kind":"create","name":"Notes","parent":"/h"}"#)?;
-        assert!(matches!(choice, FirstRunChoice::Create { .. }));
-        Ok(())
-    }
+    blocking(move || first_run::finish(&app, &choice)).await
 }
