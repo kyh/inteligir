@@ -2,11 +2,27 @@
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 
-const SurfaceContext = createContext<number>(1);
+export type SurfaceLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
-export const useSurface = (): number => useContext(SurfaceContext);
+const isSurfaceLevel = (level: number): level is SurfaceLevel =>
+  Number.isInteger(level) && level >= 1 && level <= 8;
 
-export const SurfaceProvider = ({ value, children }: { value: number; children: ReactNode }) => {
-  const level = Math.max(1, Math.min(8, value));
-  return <SurfaceContext.Provider value={level}>{children}</SurfaceContext.Provider>;
+// round after clamping so a fractional level cannot miss the lookup; the final fallback is
+// unreachable but the guard cannot prove that
+const clampSurfaceLevel = (level: number): SurfaceLevel => {
+  const clamped = Math.round(Math.max(1, Math.min(8, level)));
+  return isSurfaceLevel(clamped) ? clamped : 1;
 };
+
+const SurfaceContext = createContext<SurfaceLevel>(1);
+
+export const useRaisedSurface = (offset: number): SurfaceLevel =>
+  clampSurfaceLevel(useContext(SurfaceContext) + offset);
+
+export const SurfaceProvider = ({
+  value,
+  children,
+}: {
+  value: SurfaceLevel;
+  children: ReactNode;
+}) => <SurfaceContext.Provider value={value}>{children}</SurfaceContext.Provider>;
