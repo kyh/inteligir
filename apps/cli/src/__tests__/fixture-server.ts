@@ -6,12 +6,6 @@ import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schem
 import type { CommentThreadWire } from "@repo/contract/local/comments/comments-schema";
 import type { ConnectorsResponse } from "@repo/contract/local/connectors/connectors-schema";
 import type { ConnectedFoldersResponse } from "@repo/contract/local/folders/folders-schema";
-import {
-  KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
-  KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
-  KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
-  KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
-} from "@repo/contract/local/knowledge/knowledge-schema";
 import type {
   BacklinkEntryWire,
   RelatedNoteWire,
@@ -353,14 +347,14 @@ const knowledgeRouter = {
     collectVaultMatches(
       [...context.vault].map(([path, body]) => ({ body, path, title: docStem(path) })),
       input.q,
-      { caseSensitive: input.caseSensitive ?? false, wholeWord: input.wholeWord ?? false },
-      input.limit ?? KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
+      { caseSensitive: input.caseSensitive, wholeWord: input.wholeWord },
+      input.limit,
     ),
   ),
   problems: base.knowledge.problems.handler(({ context, input }) =>
     indexOf(context.vault).problems({
-      includeConventionFolders: input.includeConventionFolders ?? false,
-      limit: input.limit ?? KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
+      includeConventionFolders: input.includeConventionFolders,
+      limit: input.limit,
     }),
   ),
   related: base.knowledge.related.handler(({ context, input }) => ({
@@ -378,9 +372,9 @@ const knowledgeRouter = {
   })),
   tagNotes: base.knowledge.tagNotes.handler(({ context, input }) => {
     const all = indexOf(context.vault).notesInTagFamily(input.tag);
-    const offset = input.offset ?? 0;
+    const { offset } = input;
     return {
-      paths: all.slice(offset, offset + (input.limit ?? KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT)),
+      paths: all.slice(offset, offset + input.limit),
       tag: input.tag,
       total: all.length,
     };
@@ -397,7 +391,7 @@ const knowledgeRouter = {
       [...context.vault].map(([path, body]) => ({ body, path, title: docStem(path) })),
       {
         exclude: new Set([input.path, ...context.backlinks.map((entry) => entry.sourcePath)]),
-        limit: input.limit ?? KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
+        limit: input.limit,
         names: mentionNames(input.path, []),
       },
     ),

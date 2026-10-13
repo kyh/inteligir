@@ -2,7 +2,6 @@ import {
   assetMediaType,
   DEFAULT_ATTACHMENT_LOCATION,
   VAULT_ASSET_MAX_BYTES,
-  VAULT_HISTORY_DEFAULT_LIMIT,
 } from "@repo/contract/local/vault/vault-schema";
 import type { VaultRenameResponse } from "@repo/contract/local/vault/vault-schema";
 import { VAULT_REMOTE_PIN_ENV_VAR } from "@repo/contract/local/vault/remote-url";
@@ -23,8 +22,8 @@ const read = base.vault.read
 
 const history = base.vault.history.handler(async ({ context, input }) => ({
   revisions: await context.vault.git.history(input.path, {
-    limit: input.limit ?? VAULT_HISTORY_DEFAULT_LIMIT,
-    skip: input.skip ?? 0,
+    limit: input.limit,
+    skip: input.skip,
   }),
 }));
 

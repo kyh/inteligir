@@ -1,13 +1,7 @@
-import { SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/search-query";
-import { RELATED_DEFAULT_LIMIT } from "@repo/notes/knowledge/related-notes";
 import { parseSearchQuery } from "@repo/notes/knowledge/vault-search";
 import {
   KNOWLEDGE_BACKLINKS_MAX,
-  KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
-  KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
-  KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
   KNOWLEDGE_TAGS_MAX,
-  KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
 } from "@repo/contract/local/knowledge/knowledge-schema";
 import type { KnowledgeRenameTagResponse } from "@repo/contract/local/knowledge/knowledge-schema";
 import { attributeWrites, base } from "../orpc";
@@ -17,7 +11,7 @@ export type RenameTag = (from: string, to: string) => Promise<KnowledgeRenameTag
 const search = base.knowledge.search.handler(async ({ context, input }) => {
   const { query: text, tag } = parseSearchQuery(input.q);
   const results = await context.knowledge.search({
-    limit: input.limit ?? SEARCH_DEFAULT_LIMIT,
+    limit: input.limit,
     query: text,
     tag,
   });
@@ -27,9 +21,9 @@ const search = base.knowledge.search.handler(async ({ context, input }) => {
 const matches = base.knowledge.matches.handler(
   async ({ context, input }) =>
     await context.knowledge.matches({
-      limit: input.limit ?? KNOWLEDGE_MATCHES_DEFAULT_LIMIT,
+      limit: input.limit,
       needle: input.q,
-      options: { caseSensitive: input.caseSensitive ?? false, wholeWord: input.wholeWord ?? false },
+      options: { caseSensitive: input.caseSensitive, wholeWord: input.wholeWord },
     }),
 );
 
@@ -48,31 +42,24 @@ const backlinks = base.knowledge.backlinks.handler(async ({ context, input }) =>
 
 const unlinkedMentions = base.knowledge.unlinkedMentions.handler(async ({ context, input }) => ({
   path: input.path,
-  ...(await context.knowledge.unlinkedMentions(
-    input.path,
-    input.limit ?? KNOWLEDGE_UNLINKED_DEFAULT_LIMIT,
-  )),
+  ...(await context.knowledge.unlinkedMentions(input.path, input.limit)),
 }));
 
 const problems = base.knowledge.problems.handler(
   async ({ context, input }) =>
     await context.knowledge.problems({
-      includeConventionFolders: input.includeConventionFolders ?? false,
-      limit: input.limit ?? KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT,
+      includeConventionFolders: input.includeConventionFolders,
+      limit: input.limit,
     }),
 );
 
 const related = base.knowledge.related.handler(async ({ context, input }) => ({
   path: input.path,
-  related: await context.knowledge.relatedNotes(input.path, input.limit ?? RELATED_DEFAULT_LIMIT),
+  related: await context.knowledge.relatedNotes(input.path, input.limit),
 }));
 
 const tagNotes = base.knowledge.tagNotes.handler(async ({ context, input }) => {
-  const page = await context.knowledge.tagNotes(
-    input.tag,
-    input.limit ?? KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
-    input.offset ?? 0,
-  );
+  const page = await context.knowledge.tagNotes(input.tag, input.limit, input.offset);
   return { tag: input.tag, ...page };
 });
 
