@@ -4,6 +4,7 @@ import type { Registry } from "durable-git";
 import { declaredLength } from "../cloud-http";
 import { pingVaultAdvanced } from "../sync/routes";
 import { concatBytes } from "./git-objects";
+import { FLUSH_PKT, pktLine, readPktLines } from "./pkt-line";
 
 // The one door to a user's repo cell, for a client's request and the Worker's own push alike, so
 // both take the cell's ref CAS, both run the after-push effects and both meet the one quota gate.
@@ -194,17 +195,6 @@ export const receiveIntoVaultCell = async (
   return { kind: "answered", response };
 };
 
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
-
-export const FLUSH_PKT = encoder.encode("0000");
-
-export const pktLine = (text: string): Uint8Array => {
-  const payload = encoder.encode(text);
-  const length = (payload.length + 4).toString(16).padStart(4, "0");
-  return concatBytes([encoder.encode(length), payload]);
-};
-
 export interface VaultPackPush {
   readonly ref: string;
   // what the ref must still hold for the push to land
@@ -222,30 +212,6 @@ export type VaultPushOutcome =
   | { readonly kind: "ref-moved" }
   | { readonly kind: "full" }
   | { readonly kind: "refused"; readonly reason: string };
-
-const PKT_LENGTH = /^[0-9a-f]{4}$/iu;
-
-// the lines up to the flush; null when a frame is malformed or no flush ends them
-const readPktLines = (bytes: Uint8Array): string[] | null => {
-  const lines: string[] = [];
-  let at = 0;
-  while (at + 4 <= bytes.length) {
-    const prefix = decoder.decode(bytes.subarray(at, at + 4));
-    if (!PKT_LENGTH.test(prefix)) {
-      return null;
-    }
-    const length = Number.parseInt(prefix, 16);
-    if (length === 0) {
-      return lines;
-    }
-    if (length < 4 || at + length > bytes.length) {
-      return null;
-    }
-    lines.push(decoder.decode(bytes.subarray(at + 4, at + length)).replace(/\n$/u, ""));
-    at += length;
-  }
-  return null;
-};
 
 // durable-git answers a CAS that lost to another push `ng <ref> fetch first`, as git does
 const readReportStatus = (bytes: Uint8Array, ref: string): VaultPushOutcome => {
