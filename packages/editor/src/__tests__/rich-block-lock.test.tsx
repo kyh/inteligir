@@ -13,7 +13,7 @@ import { withRichBlockLockLifted } from "@repo/editor/kits/rich-block-lock-kit";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
-import { GROUPS } from "@repo/editor/slash-menu";
+import { GROUPS } from "@repo/editor/slash-items";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 import { EditorHarness } from "./editor-harness";

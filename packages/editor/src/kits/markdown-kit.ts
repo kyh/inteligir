@@ -8,8 +8,8 @@ import { MarkdownPlugin } from "@platejs/markdown";
 import { MD_REMARK_PLUGINS } from "@repo/notes/markdown/md-plugins";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
-import { FORMULA_INPUT_KEY } from "@repo/editor/formula-input-key";
-import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
+import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
+import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 
 export const MarkdownKit = [
   MarkdownPlugin.configure({

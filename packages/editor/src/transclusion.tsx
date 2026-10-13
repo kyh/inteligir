@@ -35,7 +35,7 @@ import { alertPresentation } from "@repo/editor/nodes/blockquote-node";
 import { ImageFigure } from "@repo/editor/nodes/image-node";
 import { RichBlockCard } from "@repo/editor/nodes/rich-block-chrome";
 import { decideTransclusion } from "@repo/editor/transclusion-guard";
-import WikiChip from "@repo/editor/wiki-chip";
+import WikiChip from "@repo/editor/wiki/wiki-chip";
 import { useOpenNote } from "@repo/editor/note/open-note-context";
 import { useLinkResolver, useVaultActions, useVaultLinkTarget } from "@repo/editor/host";
 import { parseWikiBody, wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";

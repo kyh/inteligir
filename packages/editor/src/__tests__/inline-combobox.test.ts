@@ -10,10 +10,10 @@ import {
   racedComboboxText,
   reconcileInsertionCaret,
 } from "@repo/editor/combobox-input";
-import { FORMULA_INPUT_KEY } from "@repo/editor/formula-input-key";
+import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
+import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 
 const makeEditor = (text: string) =>
   createSlateEditor({

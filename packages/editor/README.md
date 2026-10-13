@@ -40,7 +40,8 @@ src/
                        # session's ordering, the autosave runtime, the raw/rich
                        # gate and the flush writers outside the note reach
   comments/            # anchored-comment markers, ranges, gutter, store
-  formulas/            # `{{…}}` pill entry, editing and recompute
+  formulas/            # `{{…}}` pills: the `{{` picker, entry, editing, recompute
+  wiki/                # `[[…]]` links: the `[[` picker, the chip, insertion, keys
   properties/          # the typed frontmatter panel
   lib/                 # debounce, the dark-class hook, embed and url helpers
   test-support/        # the fake editor host, for any suite that mounts the
@@ -48,7 +49,7 @@ src/
   __tests__/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)
   *.ts(x)              # the editor surface and its column, the host seam
                        # (§ Seams), the write policy, and the in-document
-                       # affordances: menus, toolbars, pickers, TOC, embeds
+                       # affordances: menus, toolbars, TOC, embeds
 ```
 
 ## Invariants

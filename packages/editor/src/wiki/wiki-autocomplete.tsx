@@ -19,8 +19,8 @@ import {
   InlineComboboxItem,
   InlineComboboxInput,
 } from "@repo/editor/inline-combobox";
-import { insertWikiChipFromPicker } from "@repo/editor/wiki-insert";
-import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
+import { insertWikiChipFromPicker } from "@repo/editor/wiki/wiki-insert";
+import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 import { useLinkResolver, useVaultActions, useWikiTargets } from "@repo/editor/host";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { wikiTargetForPath } from "@repo/notes/knowledge/link-resolve";

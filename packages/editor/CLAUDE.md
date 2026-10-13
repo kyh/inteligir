@@ -93,7 +93,7 @@ becomes a domain value there alone, which is why no walk narrows structurally.
 
 - **THE PLATE SLASH MENU IS THE INSERTION SURFACE, AND THE TOUCH TOOLBAR IS ITS
   SOFT-KEYBOARD TWIN.** Slash items are grouped data (`GROUPS` in
-  `packages/editor/src/slash-menu.tsx`); every row's markdown must re-parse to a
+  `packages/editor/src/slash-items.tsx`); every row's markdown must re-parse to a
   modeled construct and be its own fixpoint, no row excepted
   (`packages/editor/src/__tests__/slash-rows.test.ts`), and no two rows may
   write the same bytes: a second name for a construct is a keyword on its row

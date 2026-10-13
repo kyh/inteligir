@@ -4,7 +4,7 @@ import type { Value } from "platejs";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
-import { GROUPS } from "@repo/editor/slash-menu";
+import { GROUPS } from "@repo/editor/slash-items";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 import { EditorHarness } from "./editor-harness";

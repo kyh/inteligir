@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import WikiChip from "@repo/editor/wiki-chip";
+import WikiChip from "@repo/editor/wiki/wiki-chip";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host";
 
