@@ -66,7 +66,10 @@ export const attributeWrites = (context: AppContext, paths: readonly string[]): 
   }
 };
 
-// an unnamed refusal is rethrown as it came — a 500, rather than a class the contract row does not declare.
+// for a refusal class whose wire code is shared across routes and the HTTP surfaces that are not
+// procedures (`vault-refusals.ts`); a refusal one route alone raises maps through that handler's
+// own `errors`. an unnamed refusal is rethrown as it came — a 500, rather than a class the
+// contract row does not declare.
 export const refusals =
   (translate: (cause: unknown) => ORPCError<string, unknown> | null) =>
   async <T>(work: () => T | Promise<T>): Promise<T> => {
