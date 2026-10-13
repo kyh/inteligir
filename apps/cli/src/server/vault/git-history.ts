@@ -14,8 +14,6 @@ import { VaultServiceError } from "./vault-service";
 // nul-separated: git c-quotes paths holding a space or a non-ascii byte in the line format.
 const LOG_FORMAT = "%H%x00%aI%x00%an%x00%ae%x00%s";
 
-const LOG_HEADER_FIELDS = LOG_FORMAT.split("%x00").length;
-
 // sha1 or sha256 repos.
 const OBJECT_NAME = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
@@ -47,6 +45,40 @@ const readStatusTuple = (
   };
 };
 
+interface LogFrame {
+  sha: string;
+  // the format's fields after %H, in its order
+  fields: readonly string[];
+  tuples: readonly StatusTuple[];
+}
+
+// a `-z --name-status` log is a flat run of tokens: each commit's format fields, then its status
+// tuples until the next sha.
+const logFrames = function* logFrames(stdout: string, format: string): Generator<LogFrame> {
+  const tokens = stdout.split("\0");
+  const headerFields = format.split("%x00").length;
+  let index = 0;
+  while (index < tokens.length) {
+    const sha = tokens[index];
+    if (sha === undefined || !OBJECT_NAME.test(sha)) {
+      // the trailing empty token; stopping beats mis-framing everything after a drifted git.
+      return;
+    }
+    const fields = tokens.slice(index + 1, index + headerFields);
+    index += headerFields;
+    const tuples: StatusTuple[] = [];
+    for (
+      let read = readStatusTuple(tokens, index);
+      read !== null;
+      read = readStatusTuple(tokens, index)
+    ) {
+      index = read.next;
+      tuples.push(read.tuple);
+    }
+    yield { fields, sha, tuples };
+  }
+};
+
 // a phone's edit is the user's own, as another Mac's engine commit is: the Worker names the phone
 // in the author.
 const authorKindOf = (authorEmail: string): VaultRevision["authorKind"] => {
@@ -59,35 +91,13 @@ const authorKindOf = (authorEmail: string): VaultRevision["authorKind"] => {
 // a commit's name-status block holds one or more tuples: a path that was a file, a directory,
 // then a file again reports `A path` and `D path/child` in one commit.
 export const parseFollowLog = (stdout: string, requestedPath: string): VaultRevision[] => {
-  const tokens = stdout.split("\0");
   const revisions: VaultRevision[] = [];
   let pathAtNewerRevision = requestedPath;
-  let index = 0;
-
-  const readTuple = (): StatusTuple | null => {
-    const read = readStatusTuple(tokens, index);
-    if (read === null) {
-      return null;
-    }
-    index = read.next;
-    return read.tuple;
-  };
-
-  while (index < tokens.length) {
-    const sha = tokens[index];
-    if (sha === undefined || !OBJECT_NAME.test(sha)) {
-      // the trailing empty token; stopping beats mis-framing everything after a drifted git.
-      break;
-    }
-    const authoredAt = tokens[index + 1] ?? "";
-    const authorName = tokens[index + 2] ?? "";
-    const authorEmail = tokens[index + 3] ?? "";
-    const subject = tokens[index + 4] ?? "";
-    index += LOG_HEADER_FIELDS;
-
+  for (const { fields, sha, tuples } of logFrames(stdout, LOG_FORMAT)) {
+    const [authoredAt = "", authorName = "", authorEmail = "", subject = ""] = fields;
     let content: StatusTuple | null = null;
     let deleted: StatusTuple | null = null;
-    for (let tuple = readTuple(); tuple !== null; tuple = readTuple()) {
+    for (const tuple of tuples) {
       if (tuple.letter === "D") {
         deleted = tuple;
       } else {
@@ -182,8 +192,6 @@ export const readNoteRevision = async (
 
 const DELETION_LOG_FORMAT = "%H%x00%P%x00%aI";
 
-const DELETION_HEADER_FIELDS = DELETION_LOG_FORMAT.split("%x00").length;
-
 export interface DeletionRecord {
   // the deleting commit's first parent: the tree that still holds the bytes.
   parent: string;
@@ -192,30 +200,12 @@ export interface DeletionRecord {
 }
 
 export const parseDeletionLog = (stdout: string): DeletionRecord[] => {
-  const tokens = stdout.split("\0");
   const records: DeletionRecord[] = [];
-  let index = 0;
-  while (index < tokens.length) {
-    const sha = tokens[index];
-    if (sha === undefined || !OBJECT_NAME.test(sha)) {
-      break;
-    }
+  for (const { fields, tuples } of logFrames(stdout, DELETION_LOG_FORMAT)) {
+    const [parents = "", deletedAt = ""] = fields;
     // `%P` is space-separated; --no-merges leaves one, but the frame is read the same either way.
-    const [parent] = (tokens[index + 1] ?? "").split(" ");
-    const deletedAt = tokens[index + 2] ?? "";
-    index += DELETION_HEADER_FIELDS;
-
-    const paths: string[] = [];
-    for (
-      let read = readStatusTuple(tokens, index);
-      read !== null;
-      read = readStatusTuple(tokens, index)
-    ) {
-      index = read.next;
-      if (read.tuple.letter === "D") {
-        paths.push(read.tuple.path);
-      }
-    }
+    const [parent] = parents.split(" ");
+    const paths = tuples.filter((tuple) => tuple.letter === "D").map((tuple) => tuple.path);
     if (parent !== undefined && OBJECT_NAME.test(parent)) {
       records.push({ deletedAt, parent, paths });
     }
@@ -311,8 +301,6 @@ export const readDeletedNotes = async (
 
 const TURN_LOG_FORMAT = "%H%x00%P%x00%B";
 
-const TURN_HEADER_FIELDS = TURN_LOG_FORMAT.split("%x00").length;
-
 type TurnChangeStatus = "A" | "M" | "D";
 
 // --no-renames: a moved note is the path it left and the path it made. a type change (a file
@@ -338,28 +326,16 @@ export interface TurnCommit {
 }
 
 const parseTurnLog = (stdout: string, threadId: string): TurnCommit[] => {
-  const tokens = stdout.split("\0");
   const commits: TurnCommit[] = [];
-  let index = 0;
-  while (index < tokens.length) {
-    const sha = tokens[index];
-    if (sha === undefined || !OBJECT_NAME.test(sha)) {
-      break;
-    }
-    const [parent] = (tokens[index + 1] ?? "").split(" ");
-    const trailers = parseAgentCommitTrailers(tokens[index + 2] ?? "");
-    index += TURN_HEADER_FIELDS;
-
+  for (const { fields, sha, tuples } of logFrames(stdout, TURN_LOG_FORMAT)) {
+    const [parents = "", body = ""] = fields;
+    const [parent] = parents.split(" ");
+    const trailers = parseAgentCommitTrailers(body);
     const changes: TurnFileChange[] = [];
-    for (
-      let read = readStatusTuple(tokens, index);
-      read !== null;
-      read = readStatusTuple(tokens, index)
-    ) {
-      index = read.next;
-      const status = TURN_CHANGE_STATUS.get(read.tuple.letter);
+    for (const tuple of tuples) {
+      const status = TURN_CHANGE_STATUS.get(tuple.letter);
       if (status !== undefined) {
-        changes.push({ path: read.tuple.path, status });
+        changes.push({ path: tuple.path, status });
       }
     }
     // the grep matches a substring, so `thr_a` also finds the commits of `thr_ab`.
