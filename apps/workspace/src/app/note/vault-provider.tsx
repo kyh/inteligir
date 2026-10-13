@@ -238,7 +238,7 @@ export const VaultProvider = ({
         return await client.vault.assetWrite({ baseName, dir, file });
       },
     };
-    return installEditorHost({ actions: hostActions, io, store });
+    return installEditorHost({ actions: hostActions, io });
   }, [vaultChanges, port, session, store, hostActions]);
 
   useEffect(() => {

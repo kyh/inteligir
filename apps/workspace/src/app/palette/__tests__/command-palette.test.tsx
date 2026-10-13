@@ -7,8 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
-import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
@@ -916,12 +915,13 @@ describe("the problems page", () => {
 
   it("lands the open note's unsaved edits before it rewrites that note", async () => {
     const vault = copiedVault();
-    const store = createOpenNoteStore();
-    store.setFlush(async () => {
-      vault.log.push("flush");
-      return true;
+    const { uninstall } = installFakeEditorHost({
+      flush: async () => {
+        vault.log.push("flush");
+        return true;
+      },
     });
-    onTestFinished(registerOpenNoteStore(store));
+    onTestFinished(uninstall);
     renderPalette({ fakes: { problems: someProblems, vault }, note: makeNote("Plan copy.md") });
     render(<ConfirmDialogHost />);
     fireEvent.click(rows().getByText("Problems"));

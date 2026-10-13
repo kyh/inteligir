@@ -12,7 +12,6 @@ import type {
   ReadVaultAssetResult,
   VaultActions,
 } from "@repo/editor/host-io";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
 
 export interface HostCall {
   readonly action: keyof VaultActions;
@@ -33,6 +32,9 @@ export interface FakeEditorHostOptions {
   // answers the exclusive create in place of `created`, still recorded, so a case can hold it in
   // flight or find a name taken that the listing lacks
   readonly createNewFileAt?: VaultActions["createNewFileAt"];
+  // answers the flush in place of the immediate success, still recorded, so a case can refuse it,
+  // reject it or hold it past the flush's timeout
+  readonly flush?: VaultActions["flush"];
   readonly readNoteFormulas?: EditorHostIo["readNoteFormulas"];
   // null is a host with no frame to run an html block in
   readonly htmlFrameUrl?: string | null;
@@ -80,7 +82,10 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     },
     deleteEntry: record("deleteEntry", Promise.resolve()),
     editNote: recordVoid("editNote"),
-    flush: record("flush", Promise.resolve(true)),
+    flush: async () => {
+      calls.push({ action: "flush", args: [] });
+      return await (options.flush === undefined ? Promise.resolve(true) : options.flush());
+    },
     openFile: recordVoid("openFile"),
     registerNoteSerializeFlush: recordVoid("registerNoteSerializeFlush"),
     renameEntry: options.renameEntry ?? record("renameEntry", Promise.resolve(true)),
@@ -121,8 +126,6 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
       },
     },
     io,
-    // a store of its own: no editor suite flushes through `flushOpenNote`
-    store: createOpenNoteStore(),
   });
 
   return { calls, uninstall };

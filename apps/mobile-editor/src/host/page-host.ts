@@ -405,7 +405,7 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
     io: hostIo,
     start: () => {
       unsubscribe ??= bridge.onNative(onNative);
-      uninstall ??= installEditorHost({ actions: hostActions, io: hostIo, store });
+      uninstall ??= installEditorHost({ actions: hostActions, io: hostIo });
       refreshTargets();
       void session.start();
     },

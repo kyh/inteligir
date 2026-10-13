@@ -1,23 +1,16 @@
 // the shell's writers outside the note's own tree (a restore, a vault replace, a comment, a
-// send's view context) flush the open note through this module; a live store registers itself,
-// so a torn-down session is one nothing can flush.
+// send's view context) flush the open note through this module, over the installed host's flush;
+// once that host's disposer runs there is nothing left to flush.
 
 import { deferred } from "@repo/editor/deferred";
-import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
+import { installedFlush } from "@repo/editor/host-io";
 
 const FLUSH_TIMEOUT_MS = 5000;
 
-const liveStores = new Set<OpenNoteStore>();
-
-export const registerOpenNoteStore = (store: OpenNoteStore): (() => void) => {
-  liveStores.add(store);
-  return () => {
-    liveStores.delete(store);
-  };
-};
-
-const flushStore = async (store: OpenNoteStore): Promise<boolean> => {
-  const { flush } = store.state();
+// never rejects. the timeout bounds the caller's wait and does not abort the
+// write, so a flush slow enough to time out can still land late.
+export const flushOpenNote = async (): Promise<boolean> => {
+  const flush = installedFlush();
   if (flush === null) {
     return true;
   }
@@ -30,11 +23,4 @@ const flushStore = async (store: OpenNoteStore): Promise<boolean> => {
   } finally {
     clearTimeout(timer);
   }
-};
-
-// never rejects. the timeout bounds the caller's wait and does not abort the
-// write, so a flush slow enough to time out can still land late.
-export const flushOpenNote = async (): Promise<boolean> => {
-  const verdicts = await Promise.all([...liveStores].map(flushStore));
-  return verdicts.every(Boolean);
 };

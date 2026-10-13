@@ -13,8 +13,8 @@ workspace above it consumes an editor rather than containing one.
 
 Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
 (the components). No node, and nothing of the desktop shell's. The host contract is this package's own
-`host-io.ts` (`EditorHost`: its `EditorHostIo`, its `EditorHostActions` and
-the open note's store), `note/vault-session.ts` (`VaultSessionPorts`) and
+`host-io.ts` (`EditorHost`: its `EditorHostIo` and its `EditorHostActions`),
+`note/vault-session.ts` (`VaultSessionPorts`) and
 `guarded-vault-io.ts` (`GuardedVaultPort`); a host implements all three and
 comes in through one call, `installEditorHost`, and everything above its
 store (the write policy, the link resolver, note formulas) is this package's,
@@ -74,7 +74,7 @@ src/
                        # watcher + the hold a rename carries the note through
     open-doc.ts, markdown-gate.ts, open-note-flush.ts
                        # the open-document union, the raw/rich gate, the flush
-                       # that visits every registered store
+                       # a writer outside the note reaches it through
     vanished-prompt.ts # what every host asks of a deleted note with unsaved
                        # edits, and says of a save that kept its lines
   comments/            # anchored-comment markers, ranges, gutter, store
@@ -83,9 +83,8 @@ src/
   lib/                 # debounce, the dark-class hook, the wire helper
   host-io.ts, host.ts  # the injected host as a MODULE SINGLETON (vault actions,
                        # the wiki resolver store, IO, change events, what the
-                       # editor asks the shell for), installed with the open
-                       # note's store in one call, and the hooks React reads
-                       # it through
+                       # editor asks the shell for), installed in one call,
+                       # and the hooks React reads it through
   guarded-vault-io.ts  # the write policy every host runs over its own store:
                        # the base each note was read as, the diff3 retry, vanished
   link-resolver-store.ts
@@ -170,9 +169,9 @@ src/
   as a paste does). Its `EditorHostActions` are what the editor asks the shell
   for (Ask agent and a `#tag` chip's `showTag`, a comment's create and open),
   every one required, so a host that leaves one out fails to typecheck rather
-  than drawing a button that does nothing. Its store is the open note's, which
-  the install registers under the host's own flush, so `flushOpenNote`
-  reaches the note on every host. The editor never reaches the
+  than drawing a button that does nothing. The install hands `flushOpenNote`
+  the host's own flush, so a writer outside the note's tree reaches the open
+  note on every host. The editor never reaches the
   server for any of it; each host installs it once, through
   `installEditorHost`, ahead of the first render
   (`apps/workspace/src/app/note/vault-provider.tsx`, and the phone's
