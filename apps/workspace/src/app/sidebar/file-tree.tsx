@@ -20,6 +20,7 @@ import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import { ChevronRightIcon, EllipsisIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
+import { copyText } from "../copy-text";
 import type { TreeSort } from "../prefs";
 import { RailReadFailed } from "./rail-read-failed";
 import { absoluteEntryPath, planMove } from "./tree-ops";
@@ -139,18 +140,6 @@ const visibleRows = (
       visibleRows(node.children, expanded, editing, rootDir, depth + 1, out);
     }
   }
-};
-
-const copyText = (text: string): void => {
-  void (async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      toast.error("Could not copy");
-      return;
-    }
-    toast.success("Copied");
-  })();
 };
 
 const InlineNameInput = ({
@@ -333,7 +322,7 @@ const RowMenu = ({
           onClick={() => {
             const target = menu.node.path;
             onClose();
-            copyText(target);
+            void copyText(target);
           }}
         >
           Copy path
@@ -343,7 +332,7 @@ const RowMenu = ({
             onClick={() => {
               const target = menu.node.path;
               onClose();
-              copyText(absoluteEntryPath(vaultRoot, target));
+              void copyText(absoluteEntryPath(vaultRoot, target));
             }}
           >
             Copy absolute path

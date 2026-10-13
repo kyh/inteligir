@@ -28,6 +28,7 @@ import {
 import { Fragment } from "react";
 
 import { shareWithAgentText } from "./actions/share-with-agent";
+import { copyText } from "./copy-text";
 
 export interface NoteTopbarProps {
   path: string | null;
@@ -47,16 +48,6 @@ export interface NoteTopbarProps {
   onOpenComments: () => void;
   onExportPdf: () => void;
 }
-
-const copyText = async (text: string, done: string): Promise<void> => {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    toast.error("Could not copy");
-    return;
-  }
-  toast.success(done);
-};
 
 const PanelToggle = () => {
   const { toggleSidebar } = useSidebar();
