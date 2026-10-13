@@ -7,7 +7,8 @@ import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { orpc } from "../api";
 import { readVaultTree } from "../vault-hooks";
-import { ChangeBatch, createWorkspaceQueryClient } from "../workspace-context";
+import { ChangeBatch } from "../change-batch";
+import { createWorkspaceQueryClient } from "../workspace-context";
 import { stubRpc } from "./rpc-stub";
 
 const TREE = {

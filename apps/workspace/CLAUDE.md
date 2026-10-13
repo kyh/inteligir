@@ -56,7 +56,7 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   `limit`, no `total`) and fetched only while unfolded. A change sweeps
   `orpc.knowledge.key()` whole, because a link into a note lives in another
   note's bytes, except that `content-changed` skips the vault-wide
-  `knowledge.unlinkedMentions` (`app/workspace-context.tsx`).
+  `knowledge.unlinkedMentions` (`app/change-batch.ts`).
 
 ## Agents and threads
 
@@ -171,7 +171,8 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   (`packages/editor/src/host-io.ts`) and lists through the rail's own tree query
   (`apps/workspace/src/app/vault-hooks.ts`). A reconnect sweeps every family the
   bus reaches, which is why no window-focus re-walk backs it up.
-  `apps/workspace/src/app/workspace-context.tsx` and
+  `apps/workspace/src/app/change-batch.ts`, `app/actions/thread-hooks.ts`,
+  `app/workspace-context.tsx`, which flushes the batch per frame, and
   `apps/workspace/src/app/__tests__/changed-message.test.ts`.
 
 - **THE NOTE STORE OWNS THE OPEN NOTE, THE URL MIRRORS IT, AND SETTINGS COVERS A
