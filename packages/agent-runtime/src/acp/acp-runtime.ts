@@ -27,8 +27,6 @@ import type { PendingInteractionResolution } from "@repo/domain/pending-interact
 import type {
   AgentRuntime,
   AgentRuntimeOptions,
-  ReapIdleProviderSessionsArgs,
-  ReapIdleProviderSessionsResult,
   ResumeThreadArgs,
   ResumeThreadResult,
   RunTurnArgs,
@@ -78,6 +76,9 @@ export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
     | undefined;
   // every frame traded with an adapter, as `traceFrames` redacts it; absent, nothing is tapped.
   debugLog?: ((line: string) => void) | undefined;
+  // a session with no turn for `afterMs` has its child ended, checked every `everyMs`; absent, none
+  // is.
+  idleSession?: { afterMs: number; everyMs: number } | undefined;
 }
 
 interface AdapterExit {
@@ -598,6 +599,41 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     }
   };
 
+  const reapIdleSessions = async (afterMs: number): Promise<void> => {
+    const nowMs = Date.now();
+    // snapshot: destroyAdapter mutates the map mid-iteration.
+    const live = [...sessions.values()];
+    for (const session of live) {
+      const idleForMs = nowMs - session.idleSinceMs;
+      if (session.turn === null && idleForMs >= afterMs) {
+        await destroyAdapter(session.adapter);
+        const { threadId } = session.adapter;
+        options.onStderr?.(
+          `reaped idle agent session for thread ${threadId} after ${idleForMs}ms`,
+          threadId,
+        );
+      }
+    }
+  };
+
+  const { idleSession } = options;
+  const reapTimer =
+    idleSession === undefined
+      ? null
+      : setInterval(() => {
+          if (shuttingDown) {
+            return;
+          }
+          void (async () => {
+            try {
+              await reapIdleSessions(idleSession.afterMs);
+            } catch (error) {
+              options.onStderr?.(`idle session reaping failed: ${describeProviderError(error)}`);
+            }
+          })();
+        }, idleSession.everyMs);
+  reapTimer?.unref();
+
   const runtime: AgentRuntime = {
     async cancelTurn(threadId: string): Promise<void> {
       const session = sessions.get(threadId);
@@ -612,31 +648,6 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
 
     hasThread(threadId: string): boolean {
       return sessions.has(threadId);
-    },
-
-    async reapIdleProviderSessions(
-      args: ReapIdleProviderSessionsArgs,
-    ): Promise<ReapIdleProviderSessionsResult> {
-      const reaped: ReapIdleProviderSessionsResult["reapedSessions"] = [];
-      // snapshot: destroyAdapter mutates the map mid-iteration.
-      const live = [...sessions.values()];
-      for (const session of live) {
-        if (session.turn !== null) {
-          continue;
-        }
-        const idleForMs = args.nowMs - session.idleSinceMs;
-        if (idleForMs < args.idleForMs) {
-          continue;
-        }
-        await destroyAdapter(session.adapter);
-        reaped.push({
-          idleForMs,
-          providerId: session.adapter.harness.id,
-          providerThreadId: session.providerThreadId,
-          threadId: session.adapter.threadId,
-        });
-      }
-      return { reapedSessions: reaped };
     },
 
     async resumeThread(args: ResumeThreadArgs): Promise<ResumeThreadResult> {
@@ -679,6 +690,9 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     },
 
     async shutdown(): Promise<void> {
+      if (reapTimer !== null) {
+        clearInterval(reapTimer);
+      }
       shuttingDown = true;
       await Promise.all(
         [...adapters.values()].map(async (adapter) => {

@@ -65,32 +65,12 @@ export interface RunTurnArgs {
   input: PromptInput[];
 }
 
-export interface ReapIdleProviderSessionsArgs {
-  idleForMs: number;
-  nowMs: number;
-}
-
-export interface ReapedIdleProviderSession {
-  idleForMs: number;
-  providerId: HarnessId;
-  providerThreadId: string;
-  threadId: string;
-}
-
-export interface ReapIdleProviderSessionsResult {
-  reapedSessions: ReapedIdleProviderSession[];
-}
-
 export interface AgentRuntime {
   startThread: (args: StartThreadArgs) => Promise<StartThreadResult>;
 
   resumeThread: (args: ResumeThreadArgs) => Promise<ResumeThreadResult>;
 
   runTurn: (args: RunTurnArgs) => Promise<void>;
-
-  reapIdleProviderSessions: (
-    args: ReapIdleProviderSessionsArgs,
-  ) => Promise<ReapIdleProviderSessionsResult>;
 
   hasThread: (threadId: string) => boolean;
 

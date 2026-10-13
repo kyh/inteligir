@@ -67,8 +67,7 @@ type FileChangeProviderItem = Extract<
   { type: "fileChange" }
 >;
 
-const DEFAULT_REAP_INTERVAL_MS = 60_000;
-const DEFAULT_IDLE_REAP_MS = 10 * 60_000;
+const IDLE_SESSION = { afterMs: 10 * 60_000, everyMs: 60_000 };
 
 // idle time, not wall time: a streaming turn is working and a parked approval has its own clock.
 // what is left is a provider that accepted a turn and went silent, which no other path settles.
@@ -103,8 +102,6 @@ export interface AcpTurnDriverDeps {
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
   createRuntime?: typeof createAcpAgentRuntime;
   // null disables.
-  reapIntervalMs?: number | null;
-  // null disables.
   turnIdleTimeoutMs?: number | null;
   // how long a cancelled turn has to end itself before its session is closed.
   stopGraceMs?: number;
@@ -132,7 +129,6 @@ export class AcpTurnDriver implements TurnDriver {
   private readonly deps: AcpTurnDriverDeps;
   private readonly resolveVaultPath: VaultPathResolver;
   private readonly runtime: AgentRuntime;
-  private reapTimer: ReturnType<typeof setInterval> | null = null;
   private readonly events = new ProviderEventCoalescer((threadId, batch) => {
     this.sink.ingestProviderEvents(threadId, batch);
   });
@@ -160,6 +156,7 @@ export class AcpTurnDriver implements TurnDriver {
     });
     this.runtime = (deps.createRuntime ?? createAcpAgentRuntime)({
       debugLog: deps.debugLog,
+      idleSession: IDLE_SESSION,
       models: deps.models,
       onActivity: (threadId) => {
         this.noteTurnActivity(threadId);
@@ -176,13 +173,6 @@ export class AcpTurnDriver implements TurnDriver {
       spawnAdapter: deps.spawnAdapter,
       workspacePath: deps.vaultDir,
     });
-    const { reapIntervalMs } = deps;
-    if (reapIntervalMs !== null) {
-      this.reapTimer = setInterval(() => {
-        this.background("idle session reaping", this.reapIdleSessions());
-      }, reapIntervalMs ?? DEFAULT_REAP_INTERVAL_MS);
-      this.reapTimer.unref();
-    }
     const budgetMs = deps.turnIdleTimeoutMs ?? DEFAULT_TURN_IDLE_TIMEOUT_MS;
     if (deps.turnIdleTimeoutMs !== null) {
       this.watchdogTimer = setInterval(
@@ -198,18 +188,6 @@ export class AcpTurnDriver implements TurnDriver {
 
   private debug(message: string): void {
     this.deps.onDebug?.(message);
-  }
-
-  private async reapIdleSessions(): Promise<void> {
-    const result = await this.runtime.reapIdleProviderSessions({
-      idleForMs: DEFAULT_IDLE_REAP_MS,
-      nowMs: Date.now(),
-    });
-    for (const reaped of result.reapedSessions) {
-      this.debug(
-        `reaped idle agent session for thread ${reaped.threadId} after ${reaped.idleForMs}ms`,
-      );
-    }
   }
 
   // fire and forget: a failure is the agent log's to read, never the caller's to handle.
@@ -618,10 +596,6 @@ export class AcpTurnDriver implements TurnDriver {
   async dispose(): Promise<void> {
     this.disposed = true;
     this.events.flushAll();
-    if (this.reapTimer !== null) {
-      clearInterval(this.reapTimer);
-      this.reapTimer = null;
-    }
     if (this.watchdogTimer !== null) {
       clearInterval(this.watchdogTimer);
       this.watchdogTimer = null;

@@ -15,8 +15,7 @@ ChatGPT plan. Two harnesses exist today and both speak ACP, so the seam between
 protocol, and adding a harness is a row in a table rather than a second
 runtime. What the server needs from that seam
 is small — an `AgentRuntime` with `startThread`, `resumeThread`, `runTurn`,
-`reapIdleProviderSessions`, `hasThread`, `cancelTurn`, `closeThread`, `shutdown`
-(`types.ts`) — and the interface carries only what the host calls, because a
+`hasThread`, `cancelTurn`, `closeThread`, `shutdown` (`types.ts`) — and the interface carries only what the host calls, because a
 method kept for a re-vendor is a stub every test double must write.
 
 The package is node-side by definition (it spawns processes), so nothing it

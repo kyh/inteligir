@@ -20,7 +20,6 @@ const recordingCreateRuntime =
         await Promise.resolve();
       },
       hasThread: () => false,
-      reapIdleProviderSessions: async () => await Promise.resolve({ reapedSessions: [] }),
       resumeThread: async () => await Promise.resolve({ loaded: true, providerThreadId: "prov_1" }),
       runTurn: async () => {
         await Promise.resolve();
@@ -47,7 +46,6 @@ describe("ACP runtime shell env wiring", () => {
           hostEnv: { PATH: "/usr/bin" },
           models: { claude: null, codex: null },
           notifier: bus,
-          reapIntervalMs: null,
           sessionFacts: () =>
             fakeSessionFacts({ cliBinDir: "/repo/apps/cli/bin", dataDir: "/instances/one/data" }),
           vaultDir,

@@ -74,7 +74,6 @@ const fakeAgentRuntime = (timeline: string[], overrides: Partial<AgentRuntime>):
     await Promise.resolve();
   },
   hasThread: () => true,
-  reapIdleProviderSessions: async () => await Promise.resolve({ reapedSessions: [] }),
   resumeThread: async () => await Promise.resolve({ loaded: true, providerThreadId: "pt_1" }),
   runTurn: async () => {
     await Promise.resolve();
@@ -120,7 +119,6 @@ const makeHarness = (runtime: Partial<AgentRuntime> = {}): Harness => {
     hostEnv: {},
     models: { claude: null, codex: null },
     notifier: noopNotifier,
-    reapIntervalMs: null,
     sessionFacts: () => fakeSessionFacts(),
     turnIdleTimeoutMs: BUDGET_MS,
     vaultDir: makeTempDir("inteligir-watchdog-vault-"),

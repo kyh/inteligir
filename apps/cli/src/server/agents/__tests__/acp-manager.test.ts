@@ -113,7 +113,6 @@ const bootWithManager = async (
         hostEnv: {},
         models: { claude: null, codex: null },
         notifier: bus,
-        reapIntervalMs: null,
         sessionFacts: () =>
           fakeSessionFacts({
             cliBinDir: options.cliBinDir ?? null,
@@ -770,7 +769,6 @@ const idleRuntime = (prompted: string[]): AgentRuntime => ({
     await Promise.resolve();
   },
   hasThread: () => false,
-  reapIdleProviderSessions: async () => await Promise.resolve({ reapedSessions: [] }),
   resumeThread: async () => await Promise.resolve({ loaded: false, providerThreadId: "pt_1" }),
   runTurn: async ({ turnId }) => {
     prompted.push(turnId);
@@ -803,7 +801,6 @@ const bootWithScriptedRuntime = async (
         hostEnv: {},
         models: { claude: null, codex: null },
         notifier: bus,
-        reapIntervalMs: null,
         sessionFacts: () => fakeSessionFacts(),
         vaultDir,
       }),
