@@ -13,8 +13,7 @@ const COMMENTS_REFUSALS = {
   refused: "BAD_REQUEST",
 } as const satisfies Record<CommentsErrorCode, keyof typeof COMMENTS_REFUSAL_ERRORS>;
 
-// the vault's refusals are translated by vault-refusals.ts, not restated here: two
-// translations of one class drift (a sidecar conflict at 500 beside vault.write's 409).
+// vault refusals are translated by vault-refusals.ts, not restated here.
 const asWireError = (cause: unknown): ORPCError<string, unknown> | null =>
   cause instanceof CommentsError
     ? new ORPCError(COMMENTS_REFUSALS[cause.code], { message: cause.message })
