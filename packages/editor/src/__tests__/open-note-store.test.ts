@@ -1,6 +1,7 @@
 // The real markdown gate runs here: mocking analyzeMarkdown would turn "is the
 // verdict for these bytes?" into "was the mock called?".
 
+import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { describeGateReason } from "@repo/editor/markdown/markdown-doc";
@@ -128,10 +129,7 @@ const recordStates = () => {
 
 // one macrotask hop; under node the idle pass is a macrotask queued first, so it has run
 const drain = async (): Promise<void> => {
-  // oxlint-disable-next-line promise/avoid-new -- setTimeout has no promise-native form here
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, 0);
-  });
+  await delay(0);
 };
 
 const expectGateInLockstep = (seen: readonly OpenNoteState[]): void => {

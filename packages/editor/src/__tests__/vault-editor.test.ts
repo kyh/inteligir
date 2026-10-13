@@ -1,14 +1,8 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { describe, expect, it } from "vitest";
 
 import { EMPTY_EDITOR_STATE, VaultEditorController } from "@repo/editor/vault-editor";
 import { FakeVault } from "./fake-vault";
-
-const tick = async (): Promise<void> => {
-  // oxlint-disable-next-line promise/avoid-new -- setTimeout has no promise-native form here
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, 0);
-  });
-};
 
 describe("VaultEditorController", () => {
   it("opens a file and tracks edits/saves", async () => {
@@ -33,7 +27,7 @@ describe("VaultEditorController", () => {
     await c.open("a.md");
     c.edit("v1");
     const flush1 = c.flush();
-    await tick();
+    await delay(0);
     c.edit("v2");
     io.pendingWrites[0]?.resolve();
     await flush1;
@@ -69,12 +63,12 @@ describe("VaultEditorController", () => {
     c.edit("one typed\n");
     await c.flush();
     c.externalChange();
-    await tick();
+    await delay(0);
     expect(c.getState()).toMatchObject({ content: "one typed\n", diskSeq: 1 });
 
     io.files.set("a.md", "one typed\nexternal\n");
     c.externalChange();
-    await tick();
+    await delay(0);
     expect(c.getState()).toMatchObject({ content: "one typed\nexternal\n", diskSeq: 2 });
 
     io.landAs = (sent) => `${sent}merged\n`;
@@ -95,7 +89,7 @@ describe("VaultEditorController", () => {
     await c.open("a.md");
     c.edit("one typed\ntwo\nthree\n");
     const flushed = c.flush();
-    await tick();
+    await delay(0);
     c.edit("one typed more\ntwo\nthree\n");
     io.pendingWrites[0]?.resolve();
     await flushed;
@@ -126,7 +120,7 @@ describe("VaultEditorController", () => {
     await c.open("a.md");
     c.edit("one typed\ntwo\nthree\n");
     const flushed = c.flush();
-    await tick();
+    await delay(0);
     held = "one typed more\ntwo\nthree\n";
     io.pendingWrites[0]?.resolve();
     await flushed;
@@ -150,7 +144,7 @@ describe("VaultEditorController", () => {
     await c.open("a.md");
     io.files.set("a.md", "one\ntwo\nthree\nexternal\n");
     c.externalChange();
-    await tick();
+    await delay(0);
     expect(c.getState()).toMatchObject({ content: "one typed\ntwo\nthree\n", dirty: true });
   });
 
@@ -178,7 +172,7 @@ describe("VaultEditorController", () => {
         c.edit("one typed\ntwo\nthree\n");
       }
       io.pendingReads[0]?.resolve("one\ntwo\nthree\nexternal\n");
-      await tick();
+      await delay(0);
       expect(c.getState()).toMatchObject({
         content: "one typed\ntwo\nthree\nexternal\n",
         dirty: true,
@@ -194,12 +188,12 @@ describe("VaultEditorController", () => {
     await c.open("a.md");
     c.edit("one typed\ntwo\n");
     const flushed = c.flush();
-    await tick();
+    await delay(0);
     io.files.set("a.md", "one typed\ntwo\nexternal\n");
     c.externalChange();
     io.pendingWrites[0]?.resolve();
     await flushed;
-    await tick();
+    await delay(0);
     expect(c.getState()).toMatchObject({
       content: "one typed\ntwo\nexternal\n",
       dirty: false,
@@ -217,14 +211,14 @@ describe("VaultEditorController", () => {
     c.externalChange();
     c.edit("one typed\ntwo\n");
     const flushed = c.flush();
-    await tick();
+    await delay(0);
     io.pendingReads[0]?.resolve("one\ntwo\n");
-    await tick();
+    await delay(0);
     io.files.set("a.md", "one typed\ntwo\nexternal\n");
     io.pendingWrites[0]?.resolve();
     await flushed;
     io.pendingReads[1]?.resolve("one typed\ntwo\nexternal\n");
-    await tick();
+    await delay(0);
     expect(c.getState()).toMatchObject({
       content: "one typed\ntwo\nexternal\n",
       dirty: false,
@@ -238,9 +232,9 @@ describe("VaultEditorController", () => {
     io.manualRead = true;
     const c = new VaultEditorController(io);
     const openA = c.open("a.md");
-    await tick();
+    await delay(0);
     const openB = c.open("b.md");
-    await tick();
+    await delay(0);
     io.pendingReads[1]?.resolve("B");
     io.pendingReads[0]?.resolve("A");
     await Promise.all([openA, openB]);
@@ -255,7 +249,7 @@ describe("VaultEditorController", () => {
     c.edit("typed");
     io.files.set("a.md", "external");
     c.externalChange();
-    await tick();
+    await delay(0);
     expect(c.getState()).toMatchObject({ content: "typed", dirty: true });
   });
 
@@ -266,7 +260,7 @@ describe("VaultEditorController", () => {
     await c.open("a.md");
     io.files.set("a.md", "v1-external");
     c.externalChange();
-    await tick();
+    await delay(0);
     expect(c.getState()).toMatchObject({ content: "v1-external" });
   });
 
@@ -278,7 +272,7 @@ describe("VaultEditorController", () => {
     await c.open("a.md");
     c.edit("v1");
     const flush = c.flush();
-    await tick();
+    await delay(0);
     const removed = c.remove();
     io.pendingWrites[0]?.resolve();
     await Promise.all([flush, removed]);
@@ -372,7 +366,7 @@ describe("VaultEditorController", () => {
     await c.open("a.md");
     io.files.delete("a.md");
     c.externalChange();
-    await tick();
+    await delay(0);
     expect(c.getState()).toEqual(EMPTY_EDITOR_STATE);
   });
 });
@@ -407,7 +401,7 @@ describe("a merge that kept the buffer's lines over a concurrent change", () => 
     c.externalChange();
     c.edit("one mine\ntwo\n");
     io.pendingReads[0]?.resolve("one theirs\ntwo\n");
-    await tick();
+    await delay(0);
     expect(c.getState()).toMatchObject({ content: "one mine\ntwo\n", dirty: true });
     expect(conflicts.count).toBe(1);
   });
@@ -421,7 +415,7 @@ describe("a merge that kept the buffer's lines over a concurrent change", () => 
     await c.open("a.md");
     c.edit("one typed\ntwo\nthree\n");
     const flushed = c.flush();
-    await tick();
+    await delay(0);
     c.edit("one typed more\ntwo\nthree\n");
     io.pendingWrites[0]?.resolve();
     await flushed;

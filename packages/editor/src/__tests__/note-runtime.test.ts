@@ -4,16 +4,14 @@ import { createNoteRuntime } from "@repo/editor/note/note-runtime";
 import { EMPTY_EDITOR_STATE } from "@repo/editor/vault-editor";
 import { FakeVault } from "./fake-vault";
 
-// fake timers leave microtasks alone, so a few hops drain the controller's chains.
+// advancing by nothing first waits one real macrotask, so the controller's chains drain, and fires
+// only a timer already due.
 const settle = async (): Promise<void> => {
-  for (let i = 0; i < 10; i += 1) {
-    await Promise.resolve();
-  }
+  await vi.advanceTimersByTimeAsync(0);
 };
 
 const runDebounce = async (): Promise<void> => {
-  vi.advanceTimersByTime(600);
-  await settle();
+  await vi.advanceTimersByTimeAsync(600);
 };
 
 describe("createNoteRuntime", () => {
@@ -231,18 +229,14 @@ describe("createNoteRuntime", () => {
       saveError: { kind: "refused", message: "offline" },
     });
 
-    vi.advanceTimersByTime(1999);
-    await settle();
+    await vi.advanceTimersByTimeAsync(1999);
     expect(io.writes).toBe(1);
-    vi.advanceTimersByTime(1);
-    await settle();
+    await vi.advanceTimersByTimeAsync(1);
     expect(io.writes).toBe(2);
 
-    vi.advanceTimersByTime(3999);
-    await settle();
+    await vi.advanceTimersByTimeAsync(3999);
     expect(io.writes).toBe(2);
-    vi.advanceTimersByTime(1);
-    await settle();
+    await vi.advanceTimersByTimeAsync(1);
     expect(io.writes).toBe(3);
     expect(io.files.get("a.md")).toBe("v1");
     expect(runtime.getState()).toMatchObject({ dirty: false, saveError: null });
