@@ -10,8 +10,8 @@ file; the app reads and writes those bytes and nothing else. Anything you write
 here a person can read in a plain text editor, and anything that survives a save
 is what this skill describes.
 
-Read this first. Six focused skills own the exact contract for the constructs
-that need one — they are listed at the bottom.
+Read this first. Focused skills own the exact contract for the constructs that
+need one — they are listed at the bottom.
 
 ## The Rules That Never Bend
 

@@ -1,9 +1,8 @@
-// Settings' connectors are the default agent's own, resolved per call from the stored choice, so a
-// change of agent moves the section to the other vendor's config at once. Every call on one vendor's
-// config waits for the one before it: two adds of one name would both pass the list's check, and
-// codex would let the second replace the first. A plain list answers from the last read for a few
-// seconds: reading codex's spawns it and runs OAuth discovery against every URL row, and Settings
-// asks every 1.5s while a sign-in waits. Every edit, and every sign-in's end, reads again.
+// every call on one vendor's config waits for the one before it: two adds of one name would both
+// pass the list's check, and codex would let the second replace the first. A plain list answers
+// from the last read for ten seconds: reading codex's spawns it and runs OAuth discovery against
+// every URL row, and Settings asks every 1.5s while a sign-in waits. Every edit, and every
+// sign-in's end, reads again.
 
 import type { HarnessId } from "@repo/domain/harness";
 import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";

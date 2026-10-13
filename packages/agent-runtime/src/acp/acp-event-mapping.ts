@@ -2,7 +2,7 @@
 // tool_call then mutated by tool_call_update, so this mapper mints the item ids. A turn holds as
 // many message and reasoning items as the agent spoke: one ends where its chunks' messageId
 // changes, or where a tool call opens (claude's adapter sends no messageId), because one id per
-// turn glued a preamble to the answer and drew both above every tool call.
+// turn would draw a preamble and its answer as one item above every tool call.
 
 import type {
   ProviderFailure,
@@ -99,7 +99,7 @@ const mapStopReason = (stopReason: StopReason): "completed" | "failed" | "interr
 };
 
 // a content collection replaces the one before it (the protocol's rule): claude sends a Bash call's
-// description as content, then its output, and appending ran the two together.
+// description as content, then its output, which appending would run together.
 const replaceContent = (
   open: OpenToolCall,
   content: ToolCallContent[] | null | undefined,

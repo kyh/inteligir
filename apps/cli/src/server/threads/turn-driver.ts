@@ -2,8 +2,8 @@ import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
 
-// what a stop found: a turn that will still report its own end through the sink, or none that
-// ever will, which leaves settling the stop to the caller.
+// "settling": the driver will still report the turn's end through the sink. "not-running": no
+// turn will, so the caller settles the stop.
 export type TurnInterrupt = "settling" | "not-running";
 
 // a write the agent made through the server rather than its own tools, named by the thread whose

@@ -2,7 +2,7 @@
 // vendor's shared store. claude's is a terminal method, which ACP has the client run: the bundled
 // claude with `auth login --claudeai`, run here through the one vendor spawn policy with piped
 // stdio and no terminal. That needs no pty (`script -q /dev/null`, which `claude mcp login` does
-// need): read from the bundled CLI (2.1.280), the login subcommand never enters raw mode; it opens
+// need): read from the bundled CLI, the login subcommand never enters raw mode; it opens
 // the browser itself (`open`, or $BROWSER) whatever its stdout is, prints the manual address as
 // plain text when stdout is not a TTY, reads a pasted code line by line from stdin, and exits 0
 // once the credential is stored. codex's is an agent method, which its adapter runs itself.

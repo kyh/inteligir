@@ -153,7 +153,8 @@ const killGroup = (child: ChildProcessWithoutNullStreams): void => {
 };
 
 // stdin's end first, on which both pinned adapters stop their own child and exit, where codex-acp's
-// SIGTERM skips that. SIGTERM once the grace passes, then SIGKILL to the group.
+// SIGTERM skips that. SIGTERM once the grace passes, then SIGKILL to the group. A host that dies
+// needs none of this: each adapter leads a group of its own, and the host's death closes its stdin.
 export const terminateAdapter = async (
   child: ChildProcessWithoutNullStreams,
   gone: Promise<unknown>,
@@ -269,7 +270,6 @@ export const openAdapterChannel = (
   return { exited, gone, stream: ndJsonStream(stdinWeb, identity.readable) };
 };
 
-// the host closed the thread while its adapter was still being opened.
 export class ThreadClosedError extends Error {
   constructor(threadId: string) {
     super(`Thread "${threadId}" was closed before its adapter opened`);

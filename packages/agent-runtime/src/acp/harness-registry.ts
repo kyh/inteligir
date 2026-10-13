@@ -17,7 +17,6 @@ export type VendorAccount =
   | { state: "signed-out" }
   | { state: "unknown"; detail: string };
 
-// one finished run of a vendor binary.
 export interface VendorExit {
   code: number;
   stdout: string;
@@ -48,7 +47,6 @@ export interface AgentSignIn {
 }
 export type SignInMethod = TerminalSignIn | AgentSignIn;
 
-// the claude SDK's filesystem setting tiers.
 type ClaudeSettingSource = "user" | "project" | "local";
 
 interface HarnessSessionMeta {

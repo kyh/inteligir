@@ -366,7 +366,8 @@ export const buildThreadTimeline = (events: readonly StoredThreadEvent[]): Threa
       (left, right) => left.seq - right.seq,
     );
     // own plus children's, not every turn-scoped event: a streaming assistant message is
-    // turn-scoped but lands top-level, and counting it moved this row per token, resending the subtree
+    // turn-scoped but lands top-level, and counting it would move this row per token, resending the
+    // subtree
     let sourceSeqEnd = turn.ownSeqEnd;
     for (const child of children) {
       sourceSeqEnd = Math.max(sourceSeqEnd, child.row.sourceSeqEnd);

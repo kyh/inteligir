@@ -297,8 +297,8 @@ export const dispatchOutcomeOf = (threadId: string, outcome: SendOutcome): Dispa
 };
 
 // the queue row and its request event are one transaction: deleting after
-// the dispatch left a window where a refused start released the row and the
-// next drain appended the message a second time, on every signed-in device.
+// the dispatch would let a refused start release the row and the next drain
+// append the message a second time, on every signed-in device.
 export const prepareQueuedTurnInTransaction = (
   write: ThreadWrite,
   threadId: string,
