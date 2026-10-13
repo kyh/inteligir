@@ -38,6 +38,7 @@ import { expandTemplate } from "@repo/notes/templates/placeholders";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { backTarget, createOpenNoteStore, forwardTarget } from "@repo/editor/note/open-note-store";
+import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { exportNoteAsPdf } from "./note/export-pdf";
 import type { EditorHostActions, VaultActions } from "@repo/editor/host-io";
 import { dailyNoteFromTemplate, dailyNotePath, dailyNoteTemplate } from "./note/daily";
@@ -98,6 +99,12 @@ const jumpWhenLive = async (
   if (editor !== null) {
     jumpToFindMatch(editor, needle, ordinal, options);
   }
+};
+
+// for verbs only: a render reads the editor through useLiveEditor, which re-renders as it mounts
+const openLiveEditor = (noteStore: OpenNoteStore) => {
+  const { openPath } = noteStore.state();
+  return openPath === null ? null : getLiveEditor(openPath);
 };
 
 const showLinkWhenLive = async (sourcePath: string, target: string): Promise<void> => {
@@ -179,8 +186,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   // walked as the headings page opens, never in render: nothing re-renders the workspace when the
   // document changes.
   const listOpenHeadings = (): readonly HeadingItem[] => {
-    const { openPath: path } = noteStore.state();
-    const editor = path === null ? null : getLiveEditor(path);
+    const editor = openLiveEditor(noteStore);
     return editor === null ? [] : collectHeadings(editor);
   };
 
@@ -314,8 +320,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
 
   // the live editor is keyed by path, so a note mid-switch answers no editor and the bar stays shut
   const findInNote = (): void => {
-    const { openPath: path } = noteStore.state();
-    const editor = path === null ? null : getLiveEditor(path);
+    const editor = openLiveEditor(noteStore);
     if (editor !== null) {
       openFindBar(editor);
     }
@@ -366,8 +371,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   };
 
   const insertTemplateIntoNote = (templatePath: string): void => {
-    const { openPath: path } = noteStore.state();
-    const editor = path === null ? null : getLiveEditor(path);
+    const editor = openLiveEditor(noteStore);
     if (editor !== null) {
       void insertTemplate(editor, templatePath);
     }
@@ -390,8 +394,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   // the find bar are portaled, so the cover would hide neither: both close here.
   const onOpenSettings = (section?: SettingsSection): void => {
     closePalette();
-    const { openPath: path } = noteStore.state();
-    const editor = path === null ? null : getLiveEditor(path);
+    const editor = openLiveEditor(noteStore);
     if (editor !== null) {
       hideFindBar(editor);
     }
@@ -502,8 +505,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
 
   const paletteActions: PaletteActions = {
     goToHeading: (heading) => {
-      const { openPath: path } = noteStore.state();
-      const editor = path === null ? null : getLiveEditor(path);
+      const editor = openLiveEditor(noteStore);
       if (editor !== null) {
         goToHeading(editor, heading);
       }
