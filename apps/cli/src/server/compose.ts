@@ -33,8 +33,8 @@ import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { renameTagAcrossVault } from "./knowledge/rename-tag";
 import { openDatabase } from "./open-database";
 import type { AppServices } from "./orpc";
-import { teardownStep } from "./shutdown";
-import type { ShutdownStep, TeardownStepName } from "./shutdown";
+import { addTeardownStep } from "./shutdown";
+import type { ShutdownStep } from "./shutdown";
 import { ThreadService } from "./threads/service";
 import { createThreadOrigins } from "./threads/thread-origins";
 import { createTurnUndo } from "./threads/turn-undo";
@@ -45,16 +45,6 @@ import { createVaultRuntime } from "./vault/vault-runtime";
 import type { VaultRuntime, VaultRuntimeArgs } from "./vault/vault-runtime";
 import { VaultPrefsStore } from "./vault/vault-prefs-store";
 import { WsBus } from "./ws-bus";
-
-// unshift: the listener must close its sockets before any service behind it, the vault flush included.
-export const registerListener = (teardown: ShutdownStep[], run: ShutdownStep["run"]): void => {
-  teardown.unshift(teardownStep("listener", run));
-};
-
-// push: whenever it is registered, the data dir is released only after the db behind it closes.
-export const registerLockRelease = (teardown: ShutdownStep[], run: ShutdownStep["run"]): void => {
-  teardown.push(teardownStep("lock", run));
-};
 
 interface ComposeDriverDeps {
   config: AppConfig;
@@ -96,7 +86,7 @@ export interface ComposedRuntime {
   db: DbConnection;
   // the service that syncs the vault's folder instead, which withholds the hosted vault
   externalSync: ExternalSync | null;
-  // each step is unshifted as its resource comes up, so a boot that throws (EADDRINUSE
+  // each step is added as its resource comes up, so a boot that throws (EADDRINUSE
   // with the watcher forked and the db open) is still torn down by the caller.
   teardown: ShutdownStep[];
 }
@@ -105,12 +95,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   const { config } = args;
   const ports = args.ports ?? {};
   const teardown = args.teardown ?? [];
-  const register = (name: TeardownStepName, run: ShutdownStep["run"]): void => {
-    teardown.unshift(teardownStep(name, run));
-  };
 
   const { db, schemaVersion } = openDatabase(config);
-  register("db", () => {
+  addTeardownStep(teardown, "db", () => {
     closeConnection(db);
   });
 
@@ -157,7 +144,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   }
   const vault = await createVaultRuntime(vaultArgs);
   const vaultPrefs = new VaultPrefsStore(config.dataDir);
-  register("vault", async () => {
+  addTeardownStep(teardown, "vault", async () => {
     await vault.dispose();
   });
 
@@ -168,7 +155,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     vault: vault.service,
     vaultRoot: config.vaultDir,
   });
-  register("knowledge", async () => {
+  addTeardownStep(teardown, "knowledge", async () => {
     await knowledge.dispose();
   });
   knowledgeRef = knowledge;
@@ -183,7 +170,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     configs: ports.connectors ?? createVendorMcpConfigs({ cwd: config.dataDir, env: process.env }),
     defaultHarness: () => defaultHarnessId(agentPrefs.read().defaultHarness ?? null),
   });
-  register("connectors", async () => {
+  addTeardownStep(teardown, "connectors", async () => {
     await connectors.dispose();
   });
 
@@ -195,7 +182,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     folders,
     vault,
   });
-  register("agent", async () => {
+  addTeardownStep(teardown, "agent", async () => {
     await args.accounts.dispose();
     await agentDriver.dispose();
   });
@@ -230,7 +217,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   }
   const cloud = createCloudRuntime(cloudArgs);
   cloudRef = cloud;
-  register("cloud", async () => {
+  addTeardownStep(teardown, "cloud", async () => {
     await cloud.dispose();
   });
   // an approval is raised by the agent runtime and settled by the thread service or its turn's

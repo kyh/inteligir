@@ -18,7 +18,7 @@ import { createApp } from "./app";
 import { bootReport } from "./boot-report";
 import type { BootPhases } from "./boot-report";
 import type { VaultRemoteSpec } from "./cloud/vault-remote";
-import { composeRuntime, registerListener, registerLockRelease } from "./compose";
+import { composeRuntime } from "./compose";
 import type { ComposeRuntimeArgs } from "./compose";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
@@ -32,6 +32,7 @@ import { loopbackOrigin, mintServerToken, removeServerFile, writeServerFile } fr
 import { probeServerFile, processAlive, silentOwnerSentence } from "./server-probe";
 import type { ServerFileProbe } from "./server-probe";
 import {
+  addTeardownStep,
   createGracefulShutdown,
   ignoreDeadStreamErrors,
   installFatalErrorHandlers,
@@ -133,7 +134,7 @@ export const claimDataDir = async (dataDir: string, teardown: ShutdownStep[]): P
       `${holder} already holds ${dataDir}. ${STOP_IT_FIRST} If none is running, delete ${serveLockPath(dataDir)}.`,
     );
   }
-  registerLockRelease(teardown, claim.release);
+  addTeardownStep(teardown, "lock", claim.release);
 };
 
 export interface RunServeOptions {
@@ -214,7 +215,7 @@ const boot = async (
     probeOnBusyPort: config.mode === "dev" && config.portSource === "default",
   });
   // removed inside the listener step: a row pointing at a closing port is worse than none.
-  registerListener(teardown, async () => {
+  addTeardownStep(teardown, "listener", async () => {
     removeServerFile(config.dataDir, serverToken);
     await closeServer(server, upgradedSockets);
   });
