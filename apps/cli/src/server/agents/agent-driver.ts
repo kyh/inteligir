@@ -29,8 +29,8 @@ export interface ResolveAgentDriverArgs {
   sink: ProviderEventSink;
   // a getter, read per session open, so a Settings edit reaches the next session without a reboot.
   sessionFacts: () => AgentSessionFacts;
-  // the stored choice, read per thread start for the same reason; null falls back to claude
-  preferredProviderId?: () => HarnessId | null;
+  // the stored default, read per thread start for the same reason.
+  defaultHarness: () => HarnessId;
   env?: NodeJS.ProcessEnv;
   // absent: the runtime forks each adapter with child_process
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
@@ -43,8 +43,6 @@ export interface ResolvedAgentDriver {
   status: () => AgentStatus;
   driver: TurnDriver;
 }
-
-export const defaultHarnessId = (preferred: HarnessId | null): HarnessId => preferred ?? "claude";
 
 const missingRuntime = (id: HarnessId, env: NodeJS.ProcessEnv): string | null => {
   const harness = HARNESSES[id];
@@ -69,11 +67,10 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
   }
 
   const env = args.env ?? process.env;
-  const defaultProviderId = (): HarnessId => defaultHarnessId(args.preferredProviderId?.() ?? null);
   const acp: AcpTurnDriverDeps = {
     db: args.db,
     debugLog: args.debugLog,
-    defaultProviderId,
+    defaultProviderId: args.defaultHarness,
     git: args.vault.git,
     hostEnv: env,
     models: args.config.agentModels,
@@ -88,7 +85,7 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
     driver: new AcpTurnDriver(args.sink, acp),
     // the harness a new thread would start on.
     status: () => {
-      const detail = missingRuntime(defaultProviderId(), env);
+      const detail = missingRuntime(args.defaultHarness(), env);
       return detail === null
         ? { mode, runtime: "ready" }
         : { detail, mode, runtime: "unavailable" };

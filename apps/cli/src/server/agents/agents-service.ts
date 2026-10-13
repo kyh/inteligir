@@ -9,7 +9,6 @@ import { HARNESS_IDS } from "@repo/domain/harness";
 import type { HarnessId } from "@repo/domain/harness";
 import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 
-import { defaultHarnessId } from "./agent-driver";
 import type { AgentPrefsStore } from "./agent-prefs-store";
 import type { AgentAccounts } from "./agent-sign-in";
 import { missingRuntimeDetail } from "./vendor-process";
@@ -60,7 +59,7 @@ export const createAgentsService = (args: CreateAgentsServiceArgs): AgentsServic
     };
   };
   const status = async (): Promise<AgentsStatusResponse> => ({
-    defaultId: defaultHarnessId(args.store.read().defaultHarness ?? null),
+    defaultId: args.store.defaultHarness(),
     harnesses: await Promise.all(HARNESS_IDS.map(harnessStatus)),
     signingIn: args.accounts.signingIn(),
   });
@@ -80,7 +79,7 @@ export const createAgentsService = (args: CreateAgentsServiceArgs): AgentsServic
     if (stored.defaultHarness === id) {
       return;
     }
-    const current = defaultHarnessId(stored.defaultHarness ?? null);
+    const current = args.store.defaultHarness();
     const account = current === id ? null : await args.accounts.status(current);
     if (account === null || account.state !== "signed-in") {
       args.store.write({ ...stored, defaultHarness: id });

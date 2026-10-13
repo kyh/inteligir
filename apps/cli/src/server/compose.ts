@@ -6,7 +6,6 @@
 import { closeConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
-import { defaultHarnessId } from "./agents/agent-driver";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
 import type { AgentAccounts } from "./agents/agent-sign-in";
@@ -183,7 +182,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   const agentPrefs = new AgentPrefsStore(config.dataDir);
   const connectors = createConnectorsService({
     configs: ports.connectors ?? createVendorMcpConfigs({ cwd: config.dataDir, env: process.env }),
-    defaultHarness: () => defaultHarnessId(agentPrefs.read().defaultHarness ?? null),
+    defaultHarness: () => agentPrefs.defaultHarness(),
   });
   register("connectors", async () => {
     await connectors.dispose();

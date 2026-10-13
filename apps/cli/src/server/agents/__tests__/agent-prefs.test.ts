@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { defaultHarnessId } from "../agent-driver";
 import { AgentPrefsStore } from "../agent-prefs-store";
 import { JsonFileStoreError } from "../../json-file-store";
 import { createAgentsService } from "../agents-service";
@@ -53,11 +52,13 @@ describe("the stored default", () => {
 
 describe("the harness a new thread starts on", () => {
   it("is the stored choice, ready or not", () => {
-    expect(defaultHarnessId("codex")).toBe("codex");
+    const store = new AgentPrefsStore(scratch());
+    store.write({ defaultHarness: "codex" });
+    expect(store.defaultHarness()).toBe("codex");
   });
 
   it("falls back to claude with nothing chosen, whatever PATH holds", async () => {
-    expect(defaultHarnessId(null)).toBe("claude");
+    expect(new AgentPrefsStore(scratch()).defaultHarness()).toBe("claude");
     const agents = createAgentsService({
       accounts: fakeAgentAccounts(),
       env: NOTHING_ON_PATH,

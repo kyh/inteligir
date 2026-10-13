@@ -46,6 +46,7 @@ const bootScripted = async (): Promise<BootedTestApp> =>
           vaultDir,
         },
         db,
+        defaultHarness: () => "claude",
         notifier: bus,
         sessionFacts: () => fakeSessionFacts(),
         sink,

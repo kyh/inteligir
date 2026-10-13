@@ -181,7 +181,7 @@ const boot = async (
         db,
         debugLog: debugLog(driverConfig.debug, "acp"),
         notifier: bus,
-        preferredProviderId: () => agentPrefs.read().defaultHarness ?? null,
+        defaultHarness: () => agentPrefs.defaultHarness(),
         sessionFacts: () => ({
           cliBinDir,
           connectedDirs: folders.list(),
