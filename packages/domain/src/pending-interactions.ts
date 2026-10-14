@@ -47,8 +47,6 @@ export type ApprovalPendingInteractionPayload = z.infer<
   typeof approvalPendingInteractionPayloadSchema
 >;
 
-export type PendingInteractionPayload = z.infer<typeof approvalPendingInteractionPayloadSchema>;
-
 export interface PendingInteractionResolution {
   decision: PendingInteractionApprovalDecision;
 }

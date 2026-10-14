@@ -16,24 +16,12 @@ export type ThreadLifecycleEvent =
 
 export type ThreadLifecycleEventType = ThreadLifecycleEvent["type"];
 
-// stop intent is not a predicate: it is the `stopping` status. settles carry no predicate, or
-// an archive mid-run would wedge the status forever.
-export interface ThreadLifecycleSupersessionPredicates {
-  notArchived?: true;
-}
-
-type ThreadLifecycleEventPredicateTable = {
-  [K in ThreadLifecycleEventType]: ThreadLifecycleSupersessionPredicates;
-};
-
-export const THREAD_LIFECYCLE_EVENT_PREDICATES: ThreadLifecycleEventPredicateTable = {
-  "run.failed": {},
-  "run.preparing": { notArchived: true },
-  "run.started": { notArchived: true },
-  "run.succeeded": {},
-  "stop.requested": {},
-  "stop.settled": {},
-};
+// new work an archive supersedes. settles and stops are left out on purpose: refused on an
+// archived thread, they would leave a mid-run status stuck forever.
+const REFUSED_WHEN_ARCHIVED: ReadonlySet<ThreadLifecycleEventType> = new Set([
+  "run.preparing",
+  "run.started",
+]);
 
 // an absent cell is a no-op in that status.
 type ThreadLifecycleTransitions = Partial<Record<ThreadLifecycleEventType, ThreadStatus>>;
@@ -79,8 +67,8 @@ export interface ThreadLifecycleRowState {
 export type ThreadLifecycleNoopReason = "illegal-transition" | "superseded" | "stale-turn";
 
 export type ThreadLifecycleEvaluation =
-  | { to: ThreadStatus; activeTurnId: string | null }
-  | { noop: ThreadLifecycleNoopReason; detail: string };
+  | { kind: "move"; to: ThreadStatus; activeTurnId: string | null }
+  | { kind: "noop"; reason: ThreadLifecycleNoopReason; detail: string };
 
 export interface EvaluateThreadLifecycleEventArgs {
   event: ThreadLifecycleEvent;
@@ -114,16 +102,16 @@ export const evaluateThreadLifecycleEvent = (
   args: EvaluateThreadLifecycleEventArgs,
 ): ThreadLifecycleEvaluation => {
   const { event, thread } = args;
-  const predicates = THREAD_LIFECYCLE_EVENT_PREDICATES[event.type];
-  if (predicates.notArchived && thread.archivedAt !== null) {
-    return { detail: "archivedAt set", noop: "superseded" };
+  if (REFUSED_WHEN_ARCHIVED.has(event.type) && thread.archivedAt !== null) {
+    return { detail: "archivedAt set", kind: "noop", reason: "superseded" };
   }
 
   const settling = settlingTurnId(event);
   if (settling.settles && settling.turnId !== thread.activeTurnId) {
     return {
       detail: `${event.type} names turn ${settling.turnId ?? "<none>"} but the active turn is ${thread.activeTurnId ?? "<none>"}`,
-      noop: "stale-turn",
+      kind: "noop",
+      reason: "stale-turn",
     };
   }
 
@@ -131,7 +119,8 @@ export const evaluateThreadLifecycleEvent = (
   if (to === undefined) {
     return {
       detail: `no transition for ${event.type} from status ${thread.status}`,
-      noop: "illegal-transition",
+      kind: "noop",
+      reason: "illegal-transition",
     };
   }
   let { activeTurnId } = thread;
@@ -140,5 +129,5 @@ export const evaluateThreadLifecycleEvent = (
   } else if (settling.settles) {
     activeTurnId = null;
   }
-  return { activeTurnId, to };
+  return { activeTurnId, kind: "move", to };
 };

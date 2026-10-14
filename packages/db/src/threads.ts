@@ -352,11 +352,11 @@ export const applyThreadLifecycleEventInTransaction = (
       status: thread.status,
     },
   });
-  if ("noop" in evaluation) {
+  if (evaluation.kind === "noop") {
     return {
       applied: false,
       detail: evaluation.detail,
-      reason: evaluation.noop,
+      reason: evaluation.reason,
     };
   }
 

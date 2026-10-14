@@ -9,8 +9,8 @@ import {
   unanswerableReason,
 } from "@repo/domain/pending-interactions";
 import type {
+  ApprovalPendingInteractionPayload,
   PendingInteractionCreate,
-  PendingInteractionPayload,
   PendingInteractionResolution,
 } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
@@ -19,7 +19,7 @@ export const INTERACTION_TIMEOUT_MS = 30 * 60_000;
 
 interface InteractionWaiter {
   threadId: string;
-  payload: PendingInteractionPayload;
+  payload: ApprovalPendingInteractionPayload;
   resolve: (resolution: PendingInteractionResolution) => void;
 }
 
