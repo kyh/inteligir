@@ -583,7 +583,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
             writePref(PREFS.sidebarWidth, px);
           }}
           actionsRef={railActionsRef}
-          peek="click"
+          peek
           width={initialSidebarWidth}
         >
           <Sidebar variant="floating" className="h-full print:hidden">
