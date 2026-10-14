@@ -42,7 +42,6 @@ const DiffTable = ({
     {...props}
   />
 );
-DiffTable.displayName = "DiffTable";
 
 export interface DiffTableHeaderProps extends HTMLAttributes<HTMLDivElement> {
   hint?: ReactNode;
@@ -68,7 +67,6 @@ const DiffTableHeader = ({
     {hint === undefined ? null : <span className="text-[11px] text-ink-3">{hint}</span>}
   </div>
 );
-DiffTableHeader.displayName = "DiffTableHeader";
 
 export interface DiffTableGridProps extends HTMLAttributes<HTMLTableElement> {
   widths?: readonly string[];
@@ -97,7 +95,6 @@ const DiffTableGrid = ({
     {children}
   </table>
 );
-DiffTableGrid.displayName = "DiffTableGrid";
 
 export interface DiffTableHeadProps extends HTMLAttributes<HTMLTableSectionElement> {
   // the rows lead with a DiffIncludedMark, so the head names that column first
@@ -122,7 +119,6 @@ const DiffTableHead = ({
     </tr>
   </thead>
 );
-DiffTableHead.displayName = "DiffTableHead";
 
 const DiffTableHeadCell = ({
   className,
@@ -136,7 +132,6 @@ const DiffTableHeadCell = ({
     {...props}
   />
 );
-DiffTableHeadCell.displayName = "DiffTableHeadCell";
 
 const DiffTableBody = ({
   className,
@@ -145,7 +140,6 @@ const DiffTableBody = ({
 }: HTMLAttributes<HTMLTableSectionElement> & RefAttributes<HTMLTableSectionElement>) => (
   <tbody ref={ref} data-slot="diff-table-body" className={className} {...props} />
 );
-DiffTableBody.displayName = "DiffTableBody";
 
 // the row's own click and keys are the toggle, so a forwarded pair would replace onToggle
 export interface DiffRowProps extends Omit<
@@ -170,7 +164,7 @@ const DiffRow = ({
   const interactive = onToggle !== undefined && change !== "unchanged";
   const marked = change !== "unchanged" && included;
   return (
-    <DiffRowContext.Provider value={rowContext}>
+    <DiffRowContext value={rowContext}>
       <tr
         ref={ref}
         data-slot="diff-row"
@@ -200,10 +194,9 @@ const DiffRow = ({
       >
         {children}
       </tr>
-    </DiffRowContext.Provider>
+    </DiffRowContext>
   );
 };
-DiffRow.displayName = "DiffRow";
 
 const diffCellVariants = cva("px-3 py-2 transition-colors duration-200", {
   defaultVariants: { tone: "plain" },
@@ -241,7 +234,6 @@ const DiffCell = ({
     />
   );
 };
-DiffCell.displayName = "DiffCell";
 
 // the state is words, not only a fill: outside a grid a row's aria-selected is not read
 const DiffIncludedMark = ({
@@ -273,7 +265,6 @@ const DiffIncludedMark = ({
     </td>
   );
 };
-DiffIncludedMark.displayName = "DiffIncludedMark";
 
 export interface DiffTableFooterProps extends HTMLAttributes<HTMLDivElement> {
   actions?: ReactNode;
@@ -299,7 +290,6 @@ const DiffTableFooter = ({
     {actions === undefined ? null : <span className="flex items-center gap-2">{actions}</span>}
   </div>
 );
-DiffTableFooter.displayName = "DiffTableFooter";
 
 export {
   DiffTable,

@@ -1,19 +1,19 @@
-<column_group>
-  <column width="50%">
-    resized left
-  </column>
+:::columns
+:::column 50%
+resized left
+:::
 
-  <column width="50%">
-    resized right
-  </column>
-</column_group>
+:::column 50%
+resized right
+:::
+:::
 
-<column_group>
-  <column>
-    bare left
-  </column>
+:::columns
+:::column
+bare left
+:::
 
-  <column>
-    bare right
-  </column>
-</column_group>
+:::column
+bare right
+:::
+:::

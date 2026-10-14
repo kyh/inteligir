@@ -21,16 +21,22 @@ The Worker is not one of them: `.github/workflows/deploy.yml` deploys it after
 every green CI on main and moves the `deployed/web` tag to what it deployed.
 **The order is the rule**: the D1 schema, then the Worker, then any build that
 calls a route the Worker just gained. An app ahead of its Worker fails every
-such call; a Worker ahead of its apps costs nothing, because `/v1` never
-breaks a stale install.
+such call; a Worker ahead of its apps costs nothing, because `/v1` breaks a
+build only once `MIN_CLIENT_BUILD` (`apps/web/cloudflare.config.ts`) is raised
+past it, which retires a wire shape on purpose and is never part of a release
+by default.
+
+**The first outside tester ends the no-users premise** (`AGENTS.md` § Project
+Overview). Before anyone outside the team gets a build, through the `Cohort`
+group or an invite code, strike that premise from `AGENTS.md`:
+from that build on, a format change migrates.
 
 The owner publishes once, when every step and every check below has passed.
 
 ## Once per machine
 
-- **`.release/`** (gitignored) at the repo root: `notary.env` (`APPLE_API_KEY`,
-  the `.p8`'s file name, beside it; `APPLE_API_KEY_ID`; `APPLE_API_ISSUER`)
-  and the `.p8`, with the Developer ID Application certificate in the login
+- **`.release/`** (gitignored) at the repo root: `notary.env` and the `.p8`
+  beside it, with the Developer ID Application certificate in the login
   keychain (`security find-identity -v -p codesigning` lists it); and the
   updater's key, which signs every update an installed app accepts:
   `pnpm --filter @repo/desktop tauri signer generate -w ../../.release/updater.key`
@@ -39,6 +45,11 @@ The owner publishes once, when every step and every check below has passed.
   goes in `updater.key.password`. Lose the key and no installed app can verify
   an update again, so it is backed up wherever the Developer ID's export is.
   `apps/desktop/README.md` § Packaging says how the package step reads them.
+  `notary.env` holds Tauri's own names, `APPLE_API_ISSUER`, `APPLE_API_KEY`
+  (the key's id) and `APPLE_API_KEY_PATH` (the `.p8`'s file name), and a pack
+  refuses one missing any: a file written for the earlier pack renames
+  `APPLE_API_KEY` to `APPLE_API_KEY_PATH`, then `APPLE_API_KEY_ID` to
+  `APPLE_API_KEY`.
 - **GitHub and npm**: `gh auth status` has push rights on the repo, and
   `npm whoami` names the account that owns `inteligir`.
 - **Cloudflare**: `pnpm --filter @repo/web exec cf auth whoami` is signed in,
@@ -77,7 +88,7 @@ only on the Mac that built it, and one with no updater key ships an app that
 never updates. Package only through `pnpm smoke:desktop` or
 `pnpm package:desktop`: turbo's strict env mode strips `APPLE_API_*` exported
 in a shell (so they live in `.release/`), and the Tauri CLI run directly packs
-none of the resources (`apps/desktop/scripts/package.mjs` names them) and
+none of the resources (`apps/desktop/scripts/package.ts` names them) and
 signs none of the binaries inside them.
 
 Commit as `release: <version>`, push, and wait for CI on that commit to go
@@ -93,7 +104,7 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
      now plans nothing.
    - Anything that recreates a table (a `__new_` table, a `DROP TABLE`): STOP.
      D1 ignores the foreign-key pragma a recreate leans on, so the drop
-     cascades through every session, account and device (`CLAUDE.md` §
+     cascades through every session, account and device (`apps/web/CLAUDE.md`,
      Declare D1 uniques as named unique indexes).
 
    Deploy never touches the schema, so it belongs in D1 before the code that
@@ -106,12 +117,14 @@ green: `gh run list --commit "$(git rev-parse HEAD)"`.
    ```sh
    git fetch origin --tags --force
    gh run list --workflow Deploy --limit 3                  # the run after step 2's CI succeeded
-   pnpm turbo ls --filter="@repo/web...[deployed/web]"      # names no package
-   curl -s -X POST https://inteligir.com/v1/vault/commit    # an "unauthorized" error, never "not-found"
+   pnpm turbo query affected --packages @repo/web --base deployed/web --head HEAD   # names no package
+   curl -s -X POST -H 'x-inteligir-build: <version>+desktop' \
+     https://inteligir.com/v1/vault/commit                  # an "unauthorized" error, never "not-found"
    ```
 
-   A package named means the Worker at this commit is not deployed yet: wait
-   for Deploy, or re-run it from the Actions tab.
+   The query is the one Deploy asks. A package named means the Worker at this
+   commit is not deployed yet: wait for Deploy, or re-run it from the Actions
+   tab.
 
 ## 4. The phone's internal build
 
@@ -179,10 +192,21 @@ app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
   for any stdio server. Passing: Settings › Connectors lists it, and a new
   action asked which tools it has lists that server's, with nothing set in the
   app.
+- **A quit leaves no agent running.** Start an action on ChatGPT that runs a
+  long command (ask it to run `sleep 600` in a shell), and Quit while it runs.
+  Passing: within 15 seconds of the window closing, `pgrep -fl Inteligir.app/`
+  and `pgrep -fl 'sleep 600'` print nothing. Make Claude the default in Settings ›
+  Agent and repeat: the same.
 - **Dictation is the Mac's.** Press fn twice in the ⌘K composer and speak,
   then type. Passing: the words land once, at the caret; typing carries on
   after them; Enter while dictation is live does not send; the Edit menu shows
   Start Dictation…; and dictating into a note behaves the same.
+- **An earlier install's database starts over once.** With 0.6.0 installed,
+  signed in and holding an action that has synced, install this build over it
+  and open it from Finder. Passing: the app opens signed out with no actions,
+  `~/.inteligir/logs/server.log` has the `[db]` line saying the database was
+  replaced, and once you sign in again in Settings › Account the action comes
+  back, with the Mac's earlier sign-in listed beside its new one.
 
 ### The iPhone app, on the internal build
 
@@ -204,8 +228,9 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   second; New note opens with its title focused and the keyboard up; a
   `[[link]]` pushes its note and back returns; an external link opens Safari
   and the page never navigates; a chart and tabs refuse edits; dark mode
-  follows the system; typing and then backgrounding and killing the app keeps
-  what was typed.
+  follows the system, with no light edge behind a pushed screen or the
+  keyboard, even after switching it with the app open; typing and then
+  backgrounding and killing the app keeps what was typed.
 - **Offline.** Sync once, turn on airplane mode, kill the app and open it.
   Passing: the notes list, any note and every thread open. Edit a note and add
   a photo while still offline, kill the app, open it, turn airplane mode off.
@@ -235,7 +260,10 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   the 60s poll would land it (the account's socket upgraded from the device,
   React Native's headers argument carrying the bearer), and ends as the
   settled reply.
-- **Capture.** Passing: a quick capture lands in `Inbox.md` on the Mac.
+- **Capture.** Passing: a quick capture lands in `Inbox.md` on the Mac. In
+  airplane mode, capture a line, force-quit the app, turn airplane mode off and
+  open it. Passing: `Inbox.md` on the Mac holds the line once, and the count of
+  captures waiting under the box clears.
 - **Sign out.** With an edit still unsent (airplane mode), Sign out. Passing: it
   asks first and names the count; confirmed, the sign-in screen shows.
 - **Revoke.** Sign the phone in again, then Revoke it in Settings › Account on
@@ -266,12 +294,12 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   `com.apple.WebKit.WebContent` process in Activity Monitor. Passing: the note
   reloads with its text.
 - **The database upgrades.** Every step appended to `MIGRATIONS` in
-  `apps/mobile/src/lib/phone-db.ts` since the build testers hold: install that
-  build (for this release, a development build from the last commit whose
-  `MIGRATIONS` held three steps), sign in, sync, leave an edit unsent, then
-  install this build over it. Passing: it opens with no error, the unsent edit
-  still waits, and after one sync, turning on airplane mode and a cold launch
-  shows the threads.
+  `apps/mobile/src/lib/phone-db.ts` since the build TestFlight last served:
+  install that build, sign in, sync, leave an edit unsent, then install this
+  build over it. Passing: it opens with no error, the unsent edit still waits,
+  and after one sync, turning on airplane mode and a cold launch shows the
+  threads. The first TestFlight build has no build before it, so it skips
+  this.
 
 ## 6. Publish
 
@@ -281,33 +309,25 @@ refuses a server of another version, so npm and the Mac app ship as one.
 1. **The Mac app.** Tag and publish. The site's Download button links
    `releases/latest/download/Inteligir-arm64.dmg`, so the release must carry
    the dmg under that fixed name (`DMG_NAME` in
-   `apps/desktop/scripts/package.mjs`), and every installed app reads
+   `apps/desktop/scripts/package.ts`), and every installed app reads
    `latest.json` and the signed `Inteligir.app.tar.gz` it names. The notes are
-   the changelog's top section, which `apps/desktop/scripts/release-notes.mjs`
+   the changelog's top section, which `apps/desktop/scripts/release-notes.ts`
    prints only once it is titled for this version, so a refusal stops the
    chain before the tag:
 
    ```sh
-   node apps/desktop/scripts/release-notes.mjs > .release/notes.md &&
+   node apps/desktop/scripts/release-notes.ts > .release/notes.md &&
      git tag v<version> && git push origin v<version> &&
      gh release create v<version> --notes-file .release/notes.md \
        apps/desktop/.output/bin/Inteligir-arm64.dmg \
        apps/desktop/.output/bin/Inteligir.app.tar.gz \
        apps/desktop/.output/bin/Inteligir.app.tar.gz.sig \
-       apps/desktop/.output/bin/latest.json \
-       apps/desktop/.output/bin/Inteligir-<version>-arm64.zip \
-       apps/desktop/.output/bin/latest-mac.yml
+       apps/desktop/.output/bin/latest.json
    ```
 
    A release missing `latest.json` or the archive is one no installed app can
    update to, and one missing `Inteligir-arm64.dmg` leaves the Download button
-   a 404. The zip and `latest-mac.yml` are for the Electron builds (0.6.0 and
-   older), whose updater reads them: the zip holds this app, under the same
-   bundle id and team, so they update onto it. The manifest's
-   `minimumSystemVersion` is Darwin 22.6.0, which is macOS 13.5, node 24's
-   floor, since electron-updater compares Darwin releases: an Electron build
-   on an older Mac is offered nothing it cannot open and
-   stays on 0.6.0. Keep uploading both until no tester runs an Electron build.
+   a 404.
 
 2. **npm.** `pnpm --filter inteligir publish --otp <code>`, from the tagged
    commit on a clean main (pnpm refuses another branch or a dirty tree); it
@@ -341,8 +361,8 @@ refuses a server of another version, so npm and the Mac app ship as one.
 
 - **The phone, JavaScript alone**: an EAS Update, never a new build
   (`apps/mobile/README.md` § Hotfixes has the mechanics). Branch from the tag
-  of the build testers hold, apply the fix, and run `pnpm hotfix:mobile` there.
-  An update reaches only builds whose fingerprint matches, and the fingerprint
+  of the build TestFlight serves, apply the fix, and run `pnpm hotfix:mobile`
+  there. An update reaches only builds whose fingerprint matches, and the fingerprint
   covers the app config, `version` included, so one bundled after a version
   bump reaches nobody; `pnpm --filter @repo/mobile exec eas fingerprint:compare --build-id <id>`
   names what differs. The editor page is part of the fingerprint too, so a
@@ -355,4 +375,4 @@ refuses a server of another version, so npm and the Mac app ship as one.
   a branch off the tag, then `apps/mobile/README.md` § Per release from step 3.
 - **The Mac app or the CLI**: a patch version through this whole runbook. All
   three manifests move with it, but the phone's build may stay behind; its
-  JavaScript hotfixes then branch from the tag of the build testers hold.
+  JavaScript hotfixes then branch from the tag of the build TestFlight serves.

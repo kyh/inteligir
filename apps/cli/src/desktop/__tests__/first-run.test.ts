@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, symlinkSync } from "node:fs";
 import path from "node:path";
-import { PROD_DATA_DIR_NAME } from "inteligir/server/config";
-import { makeTempDir } from "inteligir/server/testing";
+import { physicalVaultDir, PROD_DATA_DIR_NAME } from "inteligir/server/config";
+import { makeTempDir, TEMP_DIR_FOLDS_CASE } from "../../server/__tests__/boot-app";
 import { describe, expect, it } from "vitest";
 import {
   folderFactsOf,
@@ -48,12 +48,14 @@ describe("the launch decision", () => {
 });
 
 // a packaged launch on a scratch home, resolved as the desktop entry resolves it
+const PACKAGED: NodeJS.ProcessEnv = { NODE_ENV: "production" };
+
 const scratchLaunch = () => {
   const homeDir = makeTempDir("inteligir-first-run-");
   const resolve = (vaultDir?: string) =>
     vaultDir === undefined
-      ? resolveServerTarget({ env: {}, homeDir, isPackaged: true })
-      : resolveServerTarget({ env: {}, homeDir, isPackaged: true, vaultDir });
+      ? resolveServerTarget({ env: PACKAGED, homeDir })
+      : resolveServerTarget({ env: PACKAGED, homeDir, vaultDir });
   const launched = resolve();
   if (launched.kind !== "resolved") {
     throw new Error(launched.error);
@@ -79,21 +81,56 @@ describe("the first-run choice", () => {
     });
   });
 
-  it("opens the proposal named in another case as the proposal, without a selector", () => {
+  it.skipIf(!TEMP_DIR_FOLDS_CASE)(
+    "opens the proposal named in another case as the proposal where the volume folds case",
+    () => {
+      const { homeDir, launch, plan } = scratchLaunch();
+      expect(plan({ kind: "create", name: "inteligir", parent: homeDir })).toEqual({
+        kind: "open",
+        selector: null,
+        vaultDir: launch.vaultDir,
+      });
+    },
+  );
+
+  it.skipIf(TEMP_DIR_FOLDS_CASE)(
+    "keeps the proposal's name in another case a vault of its own where the volume does not fold case",
+    () => {
+      const { homeDir, plan } = scratchLaunch();
+      const other = physicalVaultDir(path.join(homeDir, "inteligir"));
+      expect(plan({ kind: "create", name: "inteligir", parent: homeDir })).toEqual({
+        kind: "open",
+        selector: other,
+        vaultDir: other,
+      });
+    },
+  );
+
+  it("points the selector at a new vault anywhere else, spelled where it will land", () => {
+    const { homeDir, plan } = scratchLaunch();
+    const work = physicalVaultDir(path.join(homeDir, "Work notes"));
+    expect(plan({ kind: "create", name: "Work notes", parent: homeDir })).toEqual({
+      kind: "open",
+      selector: work,
+      vaultDir: work,
+    });
+  });
+
+  // neither folder exists yet, so both are judged through the symlink to where they will land
+  it("judges a new vault named through a symlinked parent where it will land", () => {
     const { homeDir, launch, plan } = scratchLaunch();
-    expect(plan({ kind: "create", name: "inteligir", parent: homeDir })).toEqual({
+    const linked = path.join(makeTempDir("inteligir-first-run-link-"), "Home");
+    symlinkSync(homeDir, linked);
+    expect(plan({ kind: "create", name: "Inteligir", parent: linked })).toEqual({
       kind: "open",
       selector: null,
       vaultDir: launch.vaultDir,
     });
-  });
-
-  it("points the selector at a new vault anywhere else", () => {
-    const { homeDir, plan } = scratchLaunch();
-    expect(plan({ kind: "create", name: "Work notes", parent: homeDir })).toEqual({
-      kind: "open",
-      selector: path.join(homeDir, "Work notes"),
-      vaultDir: path.join(homeDir, "Work notes"),
+    expect(
+      plan({ kind: "create", name: "Notes", parent: path.join(linked, PROD_DATA_DIR_NAME) }),
+    ).toEqual({
+      kind: "refused",
+      reason: "That folder is inside Inteligir's own settings. Choose one elsewhere.",
     });
   });
 

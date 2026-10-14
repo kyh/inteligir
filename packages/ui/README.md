@@ -8,10 +8,12 @@ attribution header on each file.
 
 ## Consumers
 
-- `apps/desktop` — the product's renderer
+- `apps/workspace` — the product's page
 - `packages/editor` — note editor
 - `apps/mobile-editor` — the phone's editor page
-- `apps/web` — the site, the auth pages and the gallery (`pnpm dev:gallery`)
+- `apps/web` — the site and the auth pages
+- `tools/ui-gallery` — the gallery (`pnpm dev:gallery`), which the orphan guard
+  does not count as a consumer
 
 The package stays a leaf: no `@repo/*` runtime dependencies. Consumers import
 path exports such as `@repo/ui/components/button` and
@@ -35,11 +37,6 @@ components.json  shadcn config: base-rhea, zinc, the @fluid registry
 - No `any`, type assertions, or non-null assertions.
 - Use `cssVars(...)` instead of casting `React.CSSProperties`.
 - `dropdown-menu` keeps `anchor` passthrough and `modal={false}`.
-- A framer popup renders its Base UI Popup as the motion element and wraps it
-  in `PopupExit`; Base UI waits on that element's own animations, never a
-  wrapper's.
-- `MotionPolicy` is mounted once at each app root; nothing else configures
-  reduced motion for framer.
 - `popover` keeps `anchor` passthrough.
 - "Added" and "done" draw the `success` / `success-foreground` tokens
   (`styles/globals.css`), never a raw hue: each mode's `--success` reads as
@@ -69,17 +66,13 @@ local.
 
 `ThemeProvider` is controlled. Apps own persistence and pass `theme` plus
 `setTheme`. Current binders are `apps/web/src/components/theme-provider.tsx`
-and `apps/desktop/src/renderer/app/workspace-context.tsx`. Do not nest a third provider; its
+and `apps/workspace/src/app/workspace-context.tsx`. Do not nest a third provider; its
 document-class effect races the others.
 
 ## Verification
 
 `pnpm --filter @repo/ui test` runs the package's suites; the jsdom ones run
-the sources through the React Compiler as the shipped renderer does, which
-`components/__tests__/compiled-under-test.test.tsx` pins. The orphan
-invariant lives in `tools/repo-guards/src/ui-orphan-exports.test.ts`, PER
-EXPORT: every named export under the wildcard-exported directories needs a
-consumer outside the gallery or a reasoned allowance row. Knip alone cannot
-ask that — the export wildcard makes each file look like intentional public
-API. Consumer tests cover behavior; package type safety is
-`pnpm --filter @repo/ui typecheck`.
+the sources through the React Compiler as the shipped page does, which
+`components/__tests__/compiled-under-test.test.tsx` pins. Type safety is
+`pnpm --filter @repo/ui typecheck`; the per-export orphan guard is
+`tools/repo-guards/src/ui-orphan-exports.test.ts` (`packages/ui/CLAUDE.md`).

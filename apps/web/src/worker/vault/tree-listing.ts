@@ -11,7 +11,7 @@ const listingKey = (repo: string): string => `${treeListingPrefix(repo)}head.jso
 // already refused every path the contract would. A slot kept in an older shape fails it, so it is
 // a miss the next head-resolving read walks again and overwrites.
 const listingSchema = z.array(
-  z.object({ oid: z.string(), path: z.string(), size: z.number() }).strict(),
+  z.strictObject({ oid: z.string(), path: z.string(), size: z.number() }),
 );
 
 export interface TreeListingSlot {

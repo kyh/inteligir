@@ -54,6 +54,20 @@ describe("a device managing its account's devices", () => {
     expect(devices.every((row) => row.revokedAt === null)).toBe(true);
   });
 
+  // the sign-in's row is a raw insert beside drizzle's writes, so both must spell the same unit
+  it("dates a sign-in and its first request in the instant each happened", async () => {
+    const before = Date.now();
+    const { cookie } = await signUpUser("manage-dates@example.test");
+    const mac = await loginDevice(cookie, "Mac");
+    const response = await listAs(mac.credential);
+    const after = Date.now();
+    const [row] = emitted(listDevicesResponseSchema, await response.text()).devices;
+    for (const at of [row?.createdAt, row?.lastSeenAt]) {
+      expect(at).toBeGreaterThanOrEqual(before);
+      expect(at).toBeLessThanOrEqual(after);
+    }
+  });
+
   it("revokes a sibling: its next request is refused and its live socket is closed", async () => {
     const { cookie } = await signUpUser("manage-revoke@example.test");
     const mac = await loginDevice(cookie, "Mac");

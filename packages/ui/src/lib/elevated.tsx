@@ -5,12 +5,13 @@ import type { HTMLMotionProps } from "framer-motion";
 
 import { cn } from "@repo/ui/lib/cn";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
-import { SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
+import { SurfaceProvider, useRaisedSurface } from "@repo/ui/lib/surface-context";
+import type { SurfaceLevel } from "@repo/ui/lib/surface-context";
 
 interface ElevatedProps extends Omit<HTMLMotionProps<"div">, "children"> {
   // conventional offsets: 2 for menus and popovers, 4 for dialogs
   offset: number;
-  shadowLevel?: number;
+  shadowLevel?: SurfaceLevel;
   children?: ReactNode;
 }
 
@@ -23,8 +24,7 @@ const Elevated = ({
   children,
   ...props
 }: ElevatedProps & RefAttributes<HTMLDivElement>) => {
-  const substrate = useSurface();
-  const level = Math.min(substrate + offset, 8);
+  const level = useRaisedSurface(offset);
   return (
     <SurfaceProvider value={level}>
       <motion.div className={cn(surfaceClasses(level, shadowLevel ?? level), className)} {...props}>

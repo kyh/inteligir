@@ -1,6 +1,7 @@
 // The real markdown gate runs here: mocking analyzeMarkdown would turn "is the
 // verdict for these bytes?" into "was the mock called?".
 
+import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { describeGateReason } from "@repo/editor/markdown/markdown-doc";
@@ -48,15 +49,10 @@ const OTHER_PATH = "notes/b.md";
 // parses and round-trips byte-canonically
 const RICH_MD = "# Hello\n\nA plain paragraph.\n";
 const RICH_MD_2 = "# Hello\n\nA plain paragraph, revised.\n";
-// the closing tag does not match, so the gate refuses Rich
-const GATED_MD = "<Foo>centered</Bar>\n";
-const GATED_MD_2 = "<Foo>again</Bar>\n";
-const GATED_REASON = {
-  kind: "parse-error",
-  line: 1,
-  message:
-    "Unexpected closing tag `</Bar>`, expected corresponding closing tag for `<Foo>` (1:1-1:6)",
-} as const;
+// a save decodes the entity and drops its name's letters, so the gate refuses Rich
+const GATED_MD = "Fish &amp; chips\n";
+const GATED_MD_2 = "Fish &amp; more chips\n";
+const GATED_REASON = { kind: "roundtrip-loss" } as const;
 
 type OpenPatch = Partial<Omit<OpenEditorState, "kind">>;
 
@@ -133,10 +129,7 @@ const recordStates = () => {
 
 // one macrotask hop; under node the idle pass is a macrotask queued first, so it has run
 const drain = async (): Promise<void> => {
-  // oxlint-disable-next-line promise/avoid-new -- setTimeout has no promise-native form here
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, 0);
-  });
+  await delay(0);
 };
 
 const expectGateInLockstep = (seen: readonly OpenNoteState[]): void => {

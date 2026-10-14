@@ -1,10 +1,6 @@
-// the phone's writes, durable in its database before a write resolves, sent to the hosted vault
-// oldest first, one change set per row, through the guarded route. A row the vault refuses as stale
-// is settled here with the desktop's own verdict (outbox-reconcile.ts), and that settle is kept on
-// the row before it is sent, so an answer lost after the vault applied it is resent as the same set,
-// which the vault answers as already held. A landing moves the mirror's rows in the transaction that
-// retires the row. Unreachable stops the queue and keeps it; a refusal no resend passes parks that
-// row with its bytes and lets the rows on other paths go; nothing here ever drops the user's text.
+// A row the vault refuses as stale is settled with the desktop's own verdict (outbox-reconcile.ts),
+// and that settle is kept on the row before it is sent, so an answer lost after the vault applied it
+// is resent as the same set, which the vault answers as already held.
 
 import { z } from "zod";
 import { base64FromBytes, utf8ByteLength } from "@repo/contract/cloud/bytes";
@@ -22,8 +18,9 @@ import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import { diff3 } from "@repo/notes/text/diff3";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
-import { fencedExclusive, phoneDbReady } from "../lib/phone-db";
-import type { Fence } from "../lib/phone-db";
+import { fencedExclusive } from "../lib/phone-db";
+import type { Fence, Fenced } from "../lib/phone-db";
+import type { SignInFence } from "../lib/sign-in-fence";
 import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import {
@@ -50,7 +47,7 @@ const MAX_SETS_PER_PASS = 25;
 
 const MAX_RETRY_MS = 5 * 60 * 1000;
 
-// refusals no resend passes: the row parks and the rows on other paths go on
+// the refusals that park a row, each with the words its notice says
 const PARKING_CODES: ReadonlyMap<CloudErrorCode, string> = new Map([
   ["file-too-large", "This is too large to save to your vault from your phone."],
   ["bad-request", "Your vault could not take this change."],
@@ -95,10 +92,9 @@ export interface CreateVaultOutboxArgs {
   db: SqlDriver;
   files: OutboxFiles;
   session: SessionPort;
-  fenceFor: (sessionId: number) => Fence;
-  // the store's last reset: a pass waits it out, so a wipe has cleared the rows of the sign-in it
+  // the store's: a pass waits out its last reset, so a wipe has cleared the rows of the sign-in it
   // ended before the next sign-in's pass reads them
-  resetWork: () => Promise<void>;
+  signIn: SignInFence;
   // the name conflict reports and copies tell this phone by
   thisDevice: string;
   // whether a path is taken on this phone, ignoring case
@@ -219,7 +215,7 @@ const parkedOf = (row: OutboxRow, reason: string): ParkedChange => {
 const textPut = (op: TextOp): VaultChangeRequest =>
   putText(op.path, op.op === "write" ? op.baseOid : null, op.content);
 
-// the one put of a text row's own text, kept as a settle is while the vault may hold it
+// what a pin keeps as a text row's settle
 const firstSetOf = (op: TextOp): Settle => ({
   against: null,
   changes: [textPut(op)],
@@ -365,10 +361,6 @@ const mineOf = (row: OutboxRow): string | null => {
 
 type SendOutcome = "landed" | "parked" | "again" | "stop" | "fenced";
 
-interface CoalesceVerdict {
-  value: "coalesced" | "stale";
-}
-
 // a note too large to ride a conflict inline is read at the conflict's head; past the wire's cap
 // it is bytes no merge reads
 const readVaultText =
@@ -418,11 +410,10 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
   };
 
   // the cache is read back whole when the transaction fails, since its work may have moved it
-  const mutate = async (
+  const mutate = async <T>(
     fence: Fence,
-    work: (tx: SqlExecutor) => Promise<void>,
-  ): Promise<boolean> => {
-    await phoneDbReady(db);
+    work: (tx: SqlExecutor) => Promise<T>,
+  ): Promise<Fenced<T>> => {
     try {
       return await fencedExclusive(db, fence, work);
     } catch (error) {
@@ -492,7 +483,6 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     };
   };
 
-  // the landings and the row's retirement are one transaction; a text written since stays queued
   const settleRow = async (
     fence: Fence,
     row: OutboxRow,
@@ -515,7 +505,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
         replaceRow(remainder);
       }
     });
-    if (!landed) {
+    if (!landed.ran) {
       return false;
     }
     await keepLanded(fence, row.op);
@@ -536,10 +526,10 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
         replaceRow(next);
       }
     });
-    if (landed) {
+    if (landed.ran) {
       changed([]);
     }
-    return landed;
+    return landed.ran;
   };
 
   const changesToSend = async (
@@ -637,7 +627,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
             replaceRow(kept);
           }
         });
-        if (!saved) {
+        if (!saved.ran) {
           return "fenced";
         }
         // a retarget changes what the row lays over the mirror
@@ -669,18 +659,17 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     row: OutboxRow,
     keep: (now: OutboxRow) => boolean,
   ): Promise<OutboxRow | null> => {
-    const pinned = { row };
-    const saved = await mutate(fence, async (tx) => {
+    const pinned = await mutate(fence, async (tx) => {
       const now = await readRow(tx, row.seq);
       if (now === null || !isTextOp(now.op) || keep(now)) {
-        return;
+        return row;
       }
       const next: OutboxRow = { ...now, settle: firstSetOf(now.op) };
       await saveRow(tx, next);
       replaceRow(next);
-      pinned.row = next;
+      return next;
     });
-    return saved ? pinned.row : null;
+    return pinned.ran ? pinned.value : null;
   };
 
   // a pinned first set the user has written past since: the head says whether it ever reached the
@@ -720,10 +709,6 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     fence: Fence,
     queued: OutboxRow,
   ): Promise<SendOutcome> => {
-    // a text row's first set is kept on the row as a settle is, before it is sent: a resend after
-    // a lost answer is then that same set, which the vault answers as already held, and a text
-    // coalesced meanwhile lands rebased onto it rather than reconciled against the phone's own
-    // write
     const pinned =
       queued.settle === null && isTextOp(queued.op)
         ? await pinText(fence, queued, (now) => now.settle !== null)
@@ -777,13 +762,12 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
 
   const pass = async (): Promise<SyncOutcome> => {
     stopped = false;
-    await args.resetWork();
-    await phoneDbReady(db);
+    await args.signIn.ready();
     const current = session.current();
     if (current.kind !== "live") {
       return "fenced";
     }
-    const fence = args.fenceFor(current.id);
+    const fence = args.signIn.fenceFor(current.id);
     const rounds = new Map<number, number>();
     for (let sets = 0; sets < MAX_SETS_PER_PASS; sets += 1) {
       if (!fence()) {
@@ -831,12 +815,6 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     }
   };
 
-  // a user's own action on a parked row, under the sign-in that is live now
-  const liveFence = (): Fence | null => {
-    const current = session.current();
-    return current.kind === "live" ? args.fenceFor(current.id) : null;
-  };
-
   // `Plan.md` is kept as `Plan 2.md`, the way a create steps past a taken name
   const freeNameBeside = (path: string): string => {
     const name = basenamePath(path);
@@ -847,11 +825,10 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
 
   return {
     coalesce: async (seq, expected, content, fence) => {
-      const verdict: CoalesceVerdict = { value: "stale" };
-      const landed = await mutate(fence, async (tx) => {
+      const verdict = await mutate(fence, async (tx): Promise<"coalesced" | "stale"> => {
         const now = await readRow(tx, seq);
         if (now === null || !isTextOp(now.op) || now.op.content !== expected) {
-          return;
+          return "stale";
         }
         // a parked settle was refused, so none of it is in the vault to land again
         const next: OutboxRow = {
@@ -862,9 +839,9 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
         };
         await saveRow(tx, next);
         replaceRow(next);
-        verdict.value = "coalesced";
+        return "coalesced";
       });
-      if (!landed) {
+      if (!verdict.ran) {
         return "fenced";
       }
       if (verdict.value === "coalesced") {
@@ -875,17 +852,16 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     },
 
     discard: async (seq) => {
-      const fence = liveFence();
+      const fence = args.signIn.live();
       const row = rows.find((candidate) => candidate.seq === seq);
       if (fence === null || row === undefined) {
         return;
       }
-      if (
-        await mutate(fence, async (tx) => {
-          await tx.run("DELETE FROM outbox WHERE seq = ?", [seq]);
-          dropRow(seq);
-        })
-      ) {
+      const discarded = await mutate(fence, async (tx) => {
+        await tx.run("DELETE FROM outbox WHERE seq = ?", [seq]);
+        dropRow(seq);
+      });
+      if (discarded.ran) {
         await releaseStaged(row.op);
         changed([]);
         void drain();
@@ -903,15 +879,14 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       const landed = await mutate(fence, async (tx) => {
         rows = [...rows, await insertRow(tx, op, Date.now())];
       });
-      if (landed) {
+      if (landed.ran) {
         changed([]);
         void drain();
       }
-      return landed;
+      return landed.ran;
     },
 
     load: async (fence) => {
-      await phoneDbReady(db);
       const loaded = await readRows(db);
       if (fence()) {
         rows = loaded;
@@ -920,7 +895,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     },
 
     retry: async (seq) => {
-      const fence = liveFence();
+      const fence = args.signIn.live();
       if (fence === null) {
         return;
       }
@@ -941,7 +916,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     rows: () => rows,
 
     saveAsNew: async (seq) => {
-      const fence = liveFence();
+      const fence = args.signIn.live();
       const row = rows.find((candidate) => candidate.seq === seq);
       if (fence === null || row === undefined) {
         return null;
@@ -958,7 +933,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
         dropRow(seq);
         rows = [...rows, await insertRow(tx, copy, row.createdAt)];
       });
-      if (!landed) {
+      if (!landed.ran) {
         return null;
       }
       changed([]);
@@ -975,7 +950,6 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     status,
 
     unsent: async () => {
-      await phoneDbReady(db);
       const [row] = await db.all("SELECT count(*) AS count FROM outbox");
       return countSchema.parse(row).count;
     },
@@ -988,7 +962,6 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       lastError = null;
       publish();
       try {
-        await phoneDbReady(db);
         // cleared again inside: a write whose transaction was queued ahead of this one landed in
         // the cache after the line above
         await db.exclusive(async (tx) => {

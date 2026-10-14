@@ -6,6 +6,7 @@ import { mkdirSync } from "node:fs";
 import { inspect } from "node:util";
 import { createCloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
 import { browserHandoffUrl } from "@repo/contract/local/routes";
+import { agentStatusLine } from "@repo/contract/local/system/system-schema";
 import { externalSyncName } from "@repo/contract/local/vault/vault-schema";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
 import { resolveUiDir } from "../paths";
@@ -17,23 +18,21 @@ import { createApp } from "./app";
 import { bootReport } from "./boot-report";
 import type { BootPhases } from "./boot-report";
 import type { VaultRemoteSpec } from "./cloud/vault-remote";
-import { migrateLegacyCommentSidecars } from "./comments/comments-migration";
-import { composeRuntime, registerListener, registerLockRelease } from "./compose";
+import { composeRuntime } from "./compose";
 import type { ComposeRuntimeArgs } from "./compose";
 import { resolveAppConfig } from "./config";
 import { ensureDevDataDirOwnership } from "./data-dir";
 import { debugLog } from "./debug-log";
 import { resolveCheckoutRoot } from "./dev-instance";
-import { messageOf } from "./error-message";
-import type { ReconcileStats } from "./knowledge/knowledge-runtime";
+import type { ReconcileStats } from "./knowledge/index-pass";
 import { closeServer, guardUpgradeSockets, listenWithRetry } from "./listen";
 import { LOOPBACK_HOST } from "./loopback-origin";
-import { removeRetiredModelDir } from "./retired-model-dir";
 import { acquireServeLock, serveLockPath } from "./serve-lock";
 import { loopbackOrigin, mintServerToken, removeServerFile, writeServerFile } from "./server-file";
 import { probeServerFile, processAlive, silentOwnerSentence } from "./server-probe";
 import type { ServerFileProbe } from "./server-probe";
 import {
+  addTeardownStep,
   createGracefulShutdown,
   ignoreDeadStreamErrors,
   installFatalErrorHandlers,
@@ -49,6 +48,7 @@ export interface ServeOverrides {
   INTELIGIR_PORT?: string;
   INTELIGIR_DATA_DIR?: string;
   INTELIGIR_VAULT_DIR?: string;
+  INTELIGIR_DEBUG?: string;
 }
 
 export interface ServeResult {
@@ -134,7 +134,7 @@ export const claimDataDir = async (dataDir: string, teardown: ShutdownStep[]): P
       `${holder} already holds ${dataDir}. ${STOP_IT_FIRST} If none is running, delete ${serveLockPath(dataDir)}.`,
     );
   }
-  registerLockRelease(teardown, claim.release);
+  addTeardownStep(teardown, "lock", claim.release);
 };
 
 export interface RunServeOptions {
@@ -168,13 +168,13 @@ const boot = async (
 
   const composeArgs: ComposeRuntimeArgs = {
     accounts: createAgentAccounts({ cwd: config.dataDir, env }),
-    // injected: the composed graph is also compiled under the browser tsconfig, where
+    // injected: the composed graph is also compiled under the workspace suites' DOM tsconfig, where
     // WebSocket's second argument is a protocol list, not node's `{ headers }`.
     cloudTransport: {
       openSocket: createCloudSocketOpener((url, headers) => new WebSocket(url, { headers })),
     },
     config,
-    driver: ({ config: driverConfig, db, bus, vault, folders, agentPrefs }) => {
+    driver: ({ config: driverConfig, db, bus, vault, folders, agentPrefs, sink }) => {
       const cliBinDir = options.cliBinDir ?? resolveCliBinDir();
       const skillsDir = resolveSkillsDir();
       const driverArgs: ResolveAgentDriverArgs = {
@@ -182,13 +182,14 @@ const boot = async (
         db,
         debugLog: debugLog(driverConfig.debug, "acp"),
         notifier: bus,
-        preferredProviderId: () => agentPrefs.read().defaultHarness ?? null,
+        defaultHarness: () => agentPrefs.defaultHarness(),
         sessionFacts: () => ({
           cliBinDir,
           connectedDirs: folders.list(),
           dataDir: driverConfig.dataDir,
           skillsDir,
         }),
+        sink,
         vault,
       };
       return resolveAgentDriver(driverArgs);
@@ -215,7 +216,7 @@ const boot = async (
     probeOnBusyPort: config.mode === "dev" && config.portSource === "default",
   });
   // removed inside the listener step: a row pointing at a closing port is worse than none.
-  registerListener(teardown, async () => {
+  addTeardownStep(teardown, "listener", async () => {
     removeServerFile(config.dataDir, serverToken);
     await closeServer(server, upgradedSockets);
   });
@@ -247,41 +248,13 @@ const boot = async (
     };
     console.log(bootReport(phases, reconcile));
   })();
-  // after listen too, and guarded: a whole-vault walk ahead of the bind delays the readiness the
-  // shell waits on, and a sweep that throws must not fail the boot. a note opened meanwhile folds
-  // its own sidecar on first touch, through the same CAS writes.
-  void (async () => {
-    try {
-      await migrateLegacyCommentSidecars({
-        comments: runtime.context.comments,
-        vault: runtime.context.vault.service,
-        warn: (message) => {
-          console.warn(`[comments] ${message}`);
-        },
-      });
-    } catch (error) {
-      console.warn(`[comments] boot sweep skipped: ${messageOf(error)}`);
-    }
-  })();
-  // after listen and guarded for the same reasons: removing a folder no build reads must neither
-  // delay the readiness the shell waits on nor fail a boot.
-  void (async () => {
-    try {
-      await removeRetiredModelDir(config);
-    } catch (error) {
-      console.warn(`[models] retired model folder left in place: ${messageOf(error)}`);
-    }
-  })();
   const bootRemote = await runtime.context.vault.git.currentRemote();
   const agent = runtime.context.system.agent();
   const serverUrl = loopbackOrigin(port);
   console.log(
     `inteligir ${version} (${config.mode}) listening on ${serverUrl} — data: ${config.dataDir} — vault: ${config.vaultDir}${bootSyncNote(bootRemote, runtime.externalSync)}`,
   );
-  console.log(`agent: ${agent.runtime}${agent.detail === null ? "" : ` — ${agent.detail}`}`);
-  for (const warning of config.warnings) {
-    console.warn(`config: ${warning}`);
-  }
+  console.log(`agent: ${agentStatusLine(agent)}`);
   const uiUrl =
     clientDir === null && uiDev === null
       ? null

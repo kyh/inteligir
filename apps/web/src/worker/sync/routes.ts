@@ -1,10 +1,4 @@
 import {
-  ackCapturesRequestSchema,
-  CAPTURE_API_PATHS,
-  captureRequestSchema,
-  claimCapturesRequestSchema,
-} from "@repo/contract/cloud/captures/captures-schema";
-import {
   ackDispatchesRequestSchema,
   cancelDispatchRequestSchema,
   claimDispatchesRequestSchema,
@@ -19,35 +13,18 @@ import {
   pushRequestSchema,
   SYNC_API_PATHS,
 } from "@repo/contract/cloud/sync/sync-schema";
-import type {
-  PullResponse,
-  PushRequest,
-  SyncEventRow,
-} from "@repo/contract/cloud/sync/sync-schema";
 import {
   SYNC_WS_PATH,
   SYNC_WS_PHONE_REQUESTS_PARAM,
   SYNC_WS_PLATFORM_PARAM,
 } from "@repo/contract/cloud/sync/sync-ws";
-import { z } from "zod";
-import { refuse } from "../cloud-http";
+import { refuse, refuseNoDeviceCredential, withBody } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
 import type { VerifiedDevice } from "../device/device-auth";
 import { SOCKET_IDENTITY_HEADERS } from "./thread-sync-do";
-import type {
-  EventPage,
-  StoredEvent,
-  SyncRefusal,
-  SyncResult,
-  ThreadSyncDO,
-} from "./thread-sync-do";
-
-// The object is named from the verified userId, never from a path or body, and every body is
-// parsed here, so the object is handed typed values and the verified deviceId as an argument.
-
-export const threadSyncStub = (env: Env, userId: string): DurableObjectStub<ThreadSyncDO> =>
-  env.THREAD_SYNC.getByName(`user:${userId}`);
+import type { EventPage, SyncRefusal, SyncResult, ThreadSyncDO } from "./thread-sync-do";
+import { threadSyncStub } from "./thread-sync-stub";
 
 interface SyncCall {
   readonly device: VerifiedDevice;
@@ -62,35 +39,14 @@ const refusal = (refused: SyncRefusal): Response =>
 const answer = <T>(result: SyncResult<T>): Response =>
   result.ok ? Response.json(result.value) : refusal(result);
 
-// the log compares a replayed body byte for byte, so each is serialized once, here, and the
-// object stores and compares that text. a stale install's `threads` goes no further than the parse.
-const storedEvents = (request: PushRequest): StoredEvent[] =>
-  request.events.map(({ createdAt, deviceSeq, event, threadId }) => ({
-    createdAt,
-    deviceSeq,
-    event: JSON.stringify(event),
-    threadId,
-  }));
-
-// a parse failure is storage corruption; surface the raw string rather than 500 every pull forever
-const storedEventSchema = z.json();
-
-const parseStoredEvent = (stored: string): SyncEventRow["event"] => {
-  let source: unknown;
-  try {
-    source = JSON.parse(stored);
-  } catch {
-    return stored;
-  }
-  const event = storedEventSchema.safeParse(source);
-  return event.success ? event.data : stored;
+// every stored body is the one text the push parse serialized, so a page splices each in verbatim:
+// parsing it back only to serialize it again would spend the Worker's cpu on bytes it never reads
+const pullBody = ({ hasMore, lastSeq, rows }: EventPage): string => {
+  const events = rows.map(
+    ({ event, ...envelope }) => `${JSON.stringify(envelope).slice(0, -1)},"event":${event}}`,
+  );
+  return `{"events":[${events.join(",")}],"hasMore":${hasMore},"lastSeq":${lastSeq}}`;
 };
-
-const pullResponse = (page: EventPage): PullResponse => ({
-  events: page.rows.map((row) => ({ ...row, event: parseStoredEvent(row.event) })),
-  hasMore: page.hasMore,
-  lastSeq: page.lastSeq,
-});
 
 // the upgrade is forwarded whole for its handshake headers, with the identity stamped over any
 // inbound copy and the bearer dropped
@@ -114,30 +70,12 @@ const openSocket = async ({ device, request, stub, url }: SyncCall): Promise<Res
   return await stub.fetch(new Request("https://thread-sync/ws", { headers }));
 };
 
-const withBody =
-  <S extends z.ZodType>(
-    schema: S,
-    usage: string,
-    run: (call: SyncCall, body: z.infer<S>) => Promise<Response>,
-    // an empty body is a request at its defaults, so a claim may send nothing for its limit
-    { emptyIsDefault = false } = {},
-  ) =>
-  async (call: SyncCall): Promise<Response> => {
-    const body = schema.safeParse(
-      await call.request.json().catch(() => (emptyIsDefault ? {} : null)),
-    );
-    return body.success ? await run(call, body.data) : refuse("bad-request", usage);
-  };
-
 const SYNC_ROUTES = new Map<string, (call: SyncCall) => Promise<Response>>([
   [
     `POST ${SYNC_API_PATHS.push}`,
-    async ({ device, request, stub }) => {
-      const body = pushRequestSchema.safeParse(await request.json().catch(() => null));
-      return body.success
-        ? answer(await stub.push(device.deviceId, storedEvents(body.data)))
-        : refuse("bad-request", "Malformed push batch.");
-    },
+    withBody(pushRequestSchema, "Malformed push batch.", async ({ device, stub }, body) =>
+      answer(await stub.push(device.deviceId, body.events)),
+    ),
   ],
   [
     `GET ${SYNC_API_PATHS.pull}`,
@@ -147,35 +85,16 @@ const SYNC_ROUTES = new Map<string, (call: SyncCall) => Promise<Response>>([
         return refuse("bad-request", "Malformed pull cursor.");
       }
       const page = await stub.pull(query.data);
-      return page.ok ? Response.json(pullResponse(page.value)) : refusal(page);
+      return page.ok
+        ? new Response(pullBody(page.value), { headers: { "content-type": "application/json" } })
+        : refusal(page);
     },
-  ],
-  [
-    `POST ${CAPTURE_API_PATHS.capture}`,
-    withBody(captureRequestSchema, "Send { text, idempotencyKey }.", async ({ stub }, body) =>
-      answer(await stub.capture(body)),
-    ),
-  ],
-  [
-    `POST ${CAPTURE_API_PATHS.claim}`,
-    withBody(
-      claimCapturesRequestSchema,
-      "Send { limit? }.",
-      async ({ stub }, body) => answer(await stub.claimCaptures(body)),
-      { emptyIsDefault: true },
-    ),
-  ],
-  [
-    `POST ${CAPTURE_API_PATHS.ack}`,
-    withBody(ackCapturesRequestSchema, "Send { claimToken, ids }.", async ({ stub }, body) =>
-      answer(await stub.ackCaptures(body)),
-    ),
   ],
   [
     `POST ${DISPATCH_API_PATHS.dispatch}`,
     withBody(
       createDispatchRequestSchema,
-      'Send { kind: "turn", id, threadId, text } or { kind: "answer", id, approvalId, decision }.',
+      'Send { kind: "turn", id, threadId, text }, { kind: "answer", id, approvalId, decision } or { kind: "capture", id, text }.',
       async ({ device, stub }, body) => answer(await stub.createDispatch(device.deviceId, body)),
     ),
   ],
@@ -183,9 +102,8 @@ const SYNC_ROUTES = new Map<string, (call: SyncCall) => Promise<Response>>([
     `POST ${DISPATCH_API_PATHS.claim}`,
     withBody(
       claimDispatchesRequestSchema,
-      "Send { limit? }.",
+      "Send { kinds, limit? }.",
       async ({ device, stub }, body) => answer(await stub.claimDispatches(device.deviceId, body)),
-      { emptyIsDefault: true },
     ),
   ],
   [
@@ -235,39 +153,8 @@ export const handleSyncRoutes = async (request: Request, env: Env, url: URL): Pr
     request.headers.get("authorization"),
   );
   if (device === null) {
-    return refuse("unauthorized", "No valid device credential.");
+    return refuseNoDeviceCredential();
   }
 
   return await route({ device, request, stub: threadSyncStub(env, device.userId), url });
-};
-
-// a failure propagates so beforeDelete aborts and the account survives to retry
-export const purgeThreadSync = async (env: Env, userId: string): Promise<void> => {
-  await threadSyncStub(env, userId).purge();
-};
-
-// best-effort: the revoke is already committed in D1, so a failure costs a stale socket, never a working credential
-export const severDeviceSockets = async (
-  env: Env,
-  userId: string,
-  deviceId: string,
-): Promise<void> => {
-  try {
-    await threadSyncStub(env, userId).severDevice(deviceId);
-  } catch {
-    // the revoke already stands
-  }
-};
-
-// best-effort like the sever: a lost ping costs staleness until the next poll
-export const pingVaultAdvanced = async (
-  env: Env,
-  userId: string,
-  pushingDeviceId: string,
-): Promise<void> => {
-  try {
-    await threadSyncStub(env, userId).vaultPing(pushingDeviceId);
-  } catch {
-    // the push already stands
-  }
 };

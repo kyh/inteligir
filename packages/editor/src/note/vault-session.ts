@@ -18,6 +18,8 @@ import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
 export interface WorkspaceBoot {
   readonly entries: VaultEntry[];
+  // read through `VaultSessionPorts.note`: the session opens the note on these bytes and reads
+  // nothing itself, so bytes read around it leave the first save no base to guard it with
   readonly openNote: { readonly path: string; readonly content: string } | null;
 }
 
@@ -132,7 +134,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     let failing: SaveError["kind"] | null = null;
     // subscribe before the first publish so no emission slips between snapshot and subscription.
     const publish = (): void => {
-      const state = created.controller.getState();
+      const state = created.getState();
       ports.publishEditor(state);
       const saveError = state.kind === "open" ? state.saveError : null;
       if (saveError !== null && saveError.kind !== failing) {
@@ -140,7 +142,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
       }
       failing = saveError?.kind ?? null;
     };
-    unpublish = created.controller.subscribe(publish);
+    unpublish = created.subscribe(publish);
     publish();
     return created;
   };
@@ -179,7 +181,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
         if (seq !== navSeq) {
           return;
         }
-        const left = leaving?.controller.getState();
+        const left = leaving?.getState();
         if (leaving === null || left?.kind !== "open" || left.saveError?.kind !== "vanished") {
           ports.notify("Couldn't save the current file — resolve that before switching.");
           return;
@@ -340,7 +342,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
 
   const handleVaultChanged = (event: VaultChangedEvent): void => {
     if (openPath !== null && vaultChangeTouches(event, openPath)) {
-      runtime?.controller.externalChange();
+      runtime?.externalChange();
     }
     // a content write moves no row, so an autosave costs no walk; a files event always re-lists,
     // since a path it names may have left the vault as easily as joined it.

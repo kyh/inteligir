@@ -92,7 +92,7 @@ const createExtractedNote = async (
       toast.error("No link can name a note in this folder, so nothing was extracted.");
       return null;
     }
-    const result = await getEditorHostIo().actions.createNewFileAt(planned, markdown);
+    const result = await getEditorHostIo().vault.createNewFileAt(planned, markdown);
     // the session already said why
     if (result.kind === "refused") {
       return null;

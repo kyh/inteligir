@@ -1,8 +1,9 @@
-// the phone asks a Mac's agent through the dispatch inbox, as it produces captures: it never
-// pushes to the thread log and never claims. A request is durable before it is sent and carries an
-// id minted here, so a resend after a lost answer is the same row; while one waits and the app is
-// in the foreground its fate is polled, and it is handed to the log once a pulled request carries
-// its id. A phone-started turn's approvals are listed here and answered through the same inbox.
+// the phone asks a Mac's agent, and hands a Mac a line for the vault's Inbox.md, through the
+// dispatch inbox: it never pushes to the thread log and never claims. A request is durable before
+// it is sent and carries an id minted here, so a resend after a lost answer is the same row; while
+// one waits and the app is in the foreground its fate is polled, and a turn is handed to the log
+// once a pulled request carries its id. A phone-started turn's approvals are listed here and
+// answered through the same inbox.
 
 import { describeCloudFailure } from "@repo/contract/cloud/client";
 import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
@@ -24,9 +25,10 @@ import { messageOf } from "../lib/error-message";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
 import type { Fence } from "../lib/phone-db";
+import { createSignInFence, NOT_SIGNED_IN } from "../lib/sign-in-fence";
+import type { SignInSource } from "../lib/sign-in-fence";
 import { createSerialLock } from "../lib/sql-driver";
 import type { SqlDriver } from "../lib/sql-driver";
-import type { SignInSource } from "../notes/notes-store";
 import type { SessionPort } from "../sync/sync-runtime";
 import type { SyncStore } from "../sync/sync-store";
 import { projectThread } from "../sync/thread-projection";
@@ -35,7 +37,6 @@ import type { DispatchRow } from "./dispatch-outbox";
 
 export const DISPATCH_STATUS_POLL_MS = 10_000;
 
-const NOT_SIGNED_IN = "Not signed in.";
 // the cloud no longer holds a row it took: cancelled, pruned, or its phone revoked
 const NO_LONGER_WAITING = "This request is no longer waiting for your Mac.";
 const APPROVAL_GONE = "That request is no longer waiting for an answer.";
@@ -56,13 +57,13 @@ export const noMacHasIt = (phase: DispatchPhase): boolean =>
 
 interface DispatchViewBase {
   id: string;
-  threadId: string;
   createdAt: number;
   phase: DispatchPhase;
 }
 
 export interface TurnDispatch extends DispatchViewBase {
   kind: "turn";
+  threadId: string;
   text: string;
 }
 
@@ -72,7 +73,13 @@ export interface AnswerDispatch extends DispatchViewBase {
   decision: PendingInteractionApprovalDecision;
 }
 
-export type DispatchView = TurnDispatch | AnswerDispatch;
+// a line for Inbox.md, which belongs to no thread
+export interface CaptureDispatch extends DispatchViewBase {
+  kind: "capture";
+  text: string;
+}
+
+export type DispatchView = TurnDispatch | AnswerDispatch | CaptureDispatch;
 
 // the Macs open at the last status poll: those that take this phone's requests, and those whose
 // "Let my phone ask this Mac" is off
@@ -109,7 +116,7 @@ export interface DispatchRuntimeArgs {
   threads: Pick<SyncStore, "snapshotThread" | "snapshotThreads" | "subscribeThreads">;
   // a delivered request, and a running turn's reply, arrive through the log
   pull: () => void;
-  // 16 random bytes as hex: the contract's dispatch id
+  // 16 random bytes as hex: a dispatch's id, and a new thread's
   mintId: () => string;
   // null never polls on a timer
   pollIntervalMs?: number | null;
@@ -132,6 +139,9 @@ export interface DispatchRuntime extends ReadableStore<DispatchState> {
     approvalId: string,
     decision: PendingInteractionApprovalDecision,
   ) => Promise<DispatchOutcome>;
+  // a line for the vault's Inbox.md, which the first Mac to claim it writes, whether or not it
+  // takes the phone's requests
+  capture: (text: string) => Promise<DispatchOutcome>;
   // withdraws a request no Mac holds yet; a Mac that already has it keeps it
   cancel: (id: string) => Promise<CancelOutcome>;
   // forgets a refused request, whose words the phone kept until now
@@ -165,12 +175,36 @@ const viewOf = (row: DispatchRow, error: string | null): DispatchView => {
     createdAt: row.createdAt,
     id: row.request.id,
     phase: phaseOf(row.status, error),
-    threadId: row.threadId,
   };
   const { request } = row;
-  return request.kind === "turn"
-    ? { ...base, kind: "turn", text: request.text }
-    : { ...base, approvalId: request.approvalId, decision: request.decision, kind: "answer" };
+  switch (request.kind) {
+    case "turn": {
+      return { ...base, kind: "turn", text: request.text, threadId: request.threadId };
+    }
+    case "answer": {
+      return {
+        ...base,
+        approvalId: request.approvalId,
+        decision: request.decision,
+        kind: "answer",
+      };
+    }
+    case "capture": {
+      return { ...base, kind: "capture", text: request.text };
+    }
+    // no default
+  }
+};
+
+// the words a turn or a capture carries, refused before they are kept when the cloud would refuse
+// them
+const textRefusal = (text: string, empty: string): string | null => {
+  if (text === "") {
+    return empty;
+  }
+  return text.length > DISPATCH_MAX_CHARS
+    ? `A message from your phone can be up to ${DISPATCH_MAX_CHARS.toLocaleString()} characters.`
+    : null;
 };
 
 // a refused request stays until the user dismisses it; every other one is still moving
@@ -213,8 +247,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
   let desktops: DesktopsOnline | null = null;
   // why an unsent row's last try did not reach the cloud; not kept across a relaunch
   const errors = new Map<string, string>();
-  let generation = 0;
-  let resetWork: Promise<void> = Promise.resolve();
+  const signIn = createSignInFence(session);
   let active = true;
   let timer: ReturnType<typeof setInterval> | null = null;
   const flight = createSingleFlight();
@@ -222,22 +255,12 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
   const serial = createSerialLock();
   const state = createExternalStore<DispatchState>(EMPTY_STATE);
 
-  const fenceFor = (sessionId: number): Fence => {
-    const started = generation;
-    return () => session.fenced(sessionId) && generation === started;
-  };
-
-  const liveFence = (): Fence | null => {
-    const current = session.current();
-    return current.kind === "live" ? fenceFor(current.id) : null;
-  };
-
-  const inLog = (row: DispatchRow): boolean => {
-    if (row.request.kind !== "turn") {
+  const inLog = ({ request }: DispatchRow): boolean => {
+    if (request.kind !== "turn") {
       return false;
     }
-    const thread = threads.snapshotThread(row.threadId);
-    return thread !== null && projectThread(thread).dispatchIds.has(row.request.id);
+    const thread = threads.snapshotThread(request.threadId);
+    return thread !== null && projectThread(thread).dispatchIds.has(request.id);
   };
 
   const anyRunning = (): boolean =>
@@ -268,7 +291,8 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     }
   };
 
-  // a Mac taking an answer settles its approval, so the answer's row has nothing left to say
+  // a Mac taking an answer settles its approval, and one taking a capture has written it to
+  // Inbox.md, so neither row has anything left to say
   const record = async (id: string, status: DispatchStatus, fence: Fence): Promise<boolean> => {
     const row = rows.find((candidate) => candidate.request.id === id);
     if (row === undefined) {
@@ -276,12 +300,14 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     }
     errors.delete(id);
     const { request } = row;
-    if (request.kind === "answer" && status.state === "delivered") {
+    if (request.kind !== "turn" && status.state === "delivered") {
       if (!(await outbox.remove([id], fence))) {
         return false;
       }
       forget([id]);
-      approvals = approvals.filter((approval) => approval.id !== request.approvalId);
+      if (request.kind === "answer") {
+        approvals = approvals.filter((approval) => approval.id !== request.approvalId);
+      }
       publish();
       return true;
     }
@@ -391,12 +417,12 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
 
   const pass = async (): Promise<SyncOutcome> =>
     await serial(async () => {
-      await resetWork;
+      await signIn.ready();
       const current = session.current();
       if (current.kind !== "live") {
         return "fenced";
       }
-      const fence = fenceFor(current.id);
+      const fence = signIn.fenceFor(current.id);
       let outcome: SyncOutcome = "caught-up";
       for (const step of [sendUnsent, pollStatus, pollApprovals]) {
         const stepped = await step(current.client, fence);
@@ -464,10 +490,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
 
   // parsed although typed: the wire holds a note's path to the vault grammar and a revision to a
   // sha-256, and a request the cloud would refuse is better refused before it is kept
-  const enqueue = async (
-    threadId: string,
-    candidate: CreateDispatchRequest,
-  ): Promise<DispatchOutcome> => {
+  const enqueue = async (candidate: CreateDispatchRequest): Promise<DispatchOutcome> => {
     const parsed = createDispatchRequestSchema.safeParse(candidate);
     if (!parsed.success) {
       return {
@@ -475,17 +498,12 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
         ok: false,
       };
     }
-    await resetWork;
-    const fence = liveFence();
+    await signIn.ready();
+    const fence = signIn.live();
     if (fence === null) {
       return { message: NOT_SIGNED_IN, ok: false };
     }
-    const row: DispatchRow = {
-      createdAt: Date.now(),
-      request: parsed.data,
-      status: null,
-      threadId,
-    };
+    const row: DispatchRow = { createdAt: Date.now(), request: parsed.data, status: null };
     try {
       if (!(await outbox.add(row, fence))) {
         return { message: NOT_SIGNED_IN, ok: false };
@@ -500,7 +518,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
   };
 
   const cancelOne = async (id: string): Promise<CancelOutcome> => {
-    await resetWork;
+    await signIn.ready();
     const current = session.current();
     if (!rows.some((row) => row.request.id === id)) {
       return { ok: true };
@@ -508,7 +526,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     if (current.kind !== "live") {
       return { message: NOT_SIGNED_IN, ok: false };
     }
-    const fence = fenceFor(current.id);
+    const fence = signIn.fenceFor(current.id);
     const result = await current.client.cancelDispatch(id);
     if (!fence()) {
       return { message: NOT_SIGNED_IN, ok: false };
@@ -544,7 +562,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
   };
 
   const hydrate = async (sessionId: number): Promise<void> => {
-    const fence = fenceFor(sessionId);
+    const fence = signIn.fenceFor(sessionId);
     try {
       const loaded = await outbox.load();
       if (fence()) {
@@ -566,10 +584,10 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
   };
 
   threads.subscribeThreads(() => {
-    const fence = liveFence();
+    const fence = signIn.live();
     if (fence !== null) {
       void (async () => {
-        await resetWork;
+        await signIn.ready();
         try {
           await dropLanded(fence);
         } catch (error) {
@@ -595,19 +613,14 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
         id: args.mintId(),
         kind: "answer",
       };
-      return await enqueue(approval.threadId, request);
+      return await enqueue(request);
     },
 
     askAgent: async (ask) => {
       const text = ask.text.trim();
-      if (text === "") {
-        return { message: "Write something to ask.", ok: false };
-      }
-      if (text.length > DISPATCH_MAX_CHARS) {
-        return {
-          message: `A message from your phone can be up to ${DISPATCH_MAX_CHARS.toLocaleString()} characters.`,
-          ok: false,
-        };
+      const refusal = textRefusal(text, "Write something to ask.");
+      if (refusal !== null) {
+        return { message: refusal, ok: false };
       }
       const request: Extract<CreateDispatchRequest, { kind: "turn" }> = {
         id: args.mintId(),
@@ -625,7 +638,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
           };
         }
       }
-      return await enqueue(ask.threadId, request);
+      return await enqueue(request);
     },
 
     cancel: async (id) => {
@@ -638,9 +651,18 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
       }
     },
 
+    capture: async (words) => {
+      const text = words.trim();
+      const refusal = textRefusal(text, "Write something to capture.");
+      if (refusal !== null) {
+        return { message: refusal, ok: false };
+      }
+      return await enqueue({ id: args.mintId(), kind: "capture", text });
+    },
+
     dismiss: async (id) => {
-      await resetWork;
-      const fence = liveFence();
+      await signIn.ready();
+      const fence = signIn.live();
       const row = rows.find((candidate) => candidate.request.id === id);
       if (fence === null || row === undefined || !settled(row)) {
         return;
@@ -660,19 +682,13 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     newThreadId: () => `thr_${args.mintId()}`,
 
     reset(next) {
-      generation += 1;
+      signIn.restart(next, { hydrate, wipe });
       rows = [];
       approvals = [];
       desktops = null;
       errors.clear();
       clearTimer();
       publish();
-      if (next !== "restored") {
-        resetWork = wipe();
-        return;
-      }
-      const current = session.current();
-      resetWork = current.kind === "live" ? hydrate(current.id) : Promise.resolve();
     },
 
     resume() {
@@ -690,7 +706,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     },
 
     async unclaimedCount() {
-      await resetWork;
+      await signIn.ready();
       return rows.filter((row) => noMacHasIt(phaseOf(row.status, null))).length;
     },
   };

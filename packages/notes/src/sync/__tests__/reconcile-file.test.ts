@@ -189,6 +189,22 @@ describe("reconcileFile", () => {
     ).toEqual({ copy: null, report: null, stays: { kind: "mine" } });
   });
 
+  it("reconciles a json file named like a comment store beside a note as the user's own text", () => {
+    const result = reconcile({
+      base: text('{\n  "topic": "budget"\n}\n'),
+      mine: text('{\n  "topic": "budget, mine"\n}\n'),
+      path: "work/meeting.md.comments.json",
+      theirs: text('{\n  "topic": "budget, theirs"\n}\n'),
+    });
+    expect(result.stays).toEqual({ kind: "mine" });
+    expect(result.copy).toEqual({
+      kind: "text",
+      path: "work/meeting.md.comments (conflict, Kai’s iPhone).json",
+      text: '{\n  "topic": "budget, theirs"\n}\n',
+    });
+    expect(result.report?.kind).toBe("copied");
+  });
+
   describe("the comment store", () => {
     const path = commentsStorePath("7d1c");
     const AT = 1_707_900_000;
@@ -211,22 +227,6 @@ describe("reconcileFile", () => {
       expect(result.stays.kind).toBe("merged");
       const merged = result.stays.kind === "merged" ? parseSidecar(result.stays.text) : null;
       expect(merged?.ok === true ? Object.keys(merged.sidecar) : null).toEqual(["c1", "m1", "t1"]);
-    });
-
-    it("merges the beside-the-note spelling older vaults hold the same way", () => {
-      const result = reconcile({
-        base: store({ c1: root }),
-        mine: store({ c1: root, m1: { ...root, text: "mine" } }),
-        path: "work/Plan.md.comments.json",
-        theirs: store({ c1: root, t1: { ...root, text: "theirs" } }),
-      });
-      expect(result.copy).toBeNull();
-      const merged = result.stays.kind === "merged" ? parseSidecar(result.stays.text) : null;
-      expect(merged?.ok === true ? merged.sidecar : null).toEqual({
-        c1: root,
-        m1: { ...root, text: "mine" },
-        t1: { ...root, text: "theirs" },
-      });
     });
 
     it("keeps the store whole beside a deletion, since the note it belongs to reports", () => {

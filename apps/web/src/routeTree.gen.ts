@@ -22,6 +22,7 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AppIndexRouteImport } from './routes/app/index'
 import { Route as AppDevicesRouteImport } from './routes/app/devices'
 import { Route as AppForgotPasswordRouteImport } from './routes/app/forgot-password'
+import { Route as AppResetPasswordRouteImport } from './routes/app/reset-password'
 import { Route as AppSignInRouteImport } from './routes/app/sign-in'
 import { Route as AppSignUpRouteImport } from './routes/app/sign-up'
 
@@ -90,6 +91,11 @@ const AppForgotPasswordRoute = AppForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => AppRoute,
 } as any)
+const AppResetPasswordRoute = AppResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSignInRoute = AppSignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
@@ -114,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/app/devices': typeof AppDevicesRoute
   '/app/forgot-password': typeof AppForgotPasswordRoute
+  '/app/reset-password': typeof AppResetPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
   '/app/sign-up': typeof AppSignUpRoute
   '/app/': typeof AppIndexRoute
@@ -130,6 +137,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/app/devices': typeof AppDevicesRoute
   '/app/forgot-password': typeof AppForgotPasswordRoute
+  '/app/reset-password': typeof AppResetPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
   '/app/sign-up': typeof AppSignUpRoute
   '/app': typeof AppIndexRoute
@@ -148,6 +156,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/app/devices': typeof AppDevicesRoute
   '/app/forgot-password': typeof AppForgotPasswordRoute
+  '/app/reset-password': typeof AppResetPasswordRoute
   '/app/sign-in': typeof AppSignInRoute
   '/app/sign-up': typeof AppSignUpRoute
   '/app/': typeof AppIndexRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/app/devices'
     | '/app/forgot-password'
+    | '/app/reset-password'
     | '/app/sign-in'
     | '/app/sign-up'
     | '/app/'
@@ -183,6 +193,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/app/devices'
     | '/app/forgot-password'
+    | '/app/reset-password'
     | '/app/sign-in'
     | '/app/sign-up'
     | '/app'
@@ -200,6 +211,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/app/devices'
     | '/app/forgot-password'
+    | '/app/reset-password'
     | '/app/sign-in'
     | '/app/sign-up'
     | '/app/'
@@ -311,6 +323,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppForgotPasswordRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/reset-password': {
+      id: '/app/reset-password'
+      path: '/reset-password'
+      fullPath: '/app/reset-password'
+      preLoaderRoute: typeof AppResetPasswordRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/sign-in': {
       id: '/app/sign-in'
       path: '/sign-in'
@@ -331,6 +350,7 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppDevicesRoute: typeof AppDevicesRoute
   AppForgotPasswordRoute: typeof AppForgotPasswordRoute
+  AppResetPasswordRoute: typeof AppResetPasswordRoute
   AppSignInRoute: typeof AppSignInRoute
   AppSignUpRoute: typeof AppSignUpRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -339,6 +359,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppDevicesRoute: AppDevicesRoute,
   AppForgotPasswordRoute: AppForgotPasswordRoute,
+  AppResetPasswordRoute: AppResetPasswordRoute,
   AppSignInRoute: AppSignInRoute,
   AppSignUpRoute: AppSignUpRoute,
   AppIndexRoute: AppIndexRoute,

@@ -13,7 +13,7 @@ import { withRichBlockLockLifted } from "@repo/editor/kits/rich-block-lock-kit";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
-import { GROUPS } from "@repo/editor/slash-menu";
+import { GROUPS } from "@repo/editor/slash-items";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
 import { EditorHarness } from "./editor-harness";
@@ -42,15 +42,15 @@ const NOTE = [
   "inside the second tab",
   ":::",
   "",
-  "<column_group>",
-  "  <column>",
-  "    left column",
-  "  </column>",
+  ":::columns",
+  ":::column",
+  "left column",
+  ":::",
   "",
-  "  <column>",
-  "    right column",
-  "  </column>",
-  "</column_group>",
+  ":::column",
+  "right column",
+  ":::",
+  ":::",
   "",
   "after",
   "",
@@ -148,7 +148,7 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
     ["tab group", "before\n\n:::tabs\n=== One\ninside\n:::\n\nafter\n"],
     [
       "column group",
-      "before\n\n<column_group>\n  <column>\n    left\n  </column>\n\n  <column>\n    right\n  </column>\n</column_group>\n\nafter\n",
+      "before\n\n:::columns\n:::column\nleft\n:::\n\n:::column\nright\n:::\n:::\n\nafter\n",
     ],
   ])("a backspace from the paragraph after a %s leaves the group whole", (_group, md) => {
     const editor = touchEditor(md);
@@ -211,15 +211,15 @@ const MARKED = [
   "%%i:c1:start%%inside%%i:c1:end%% the first tab",
   ":::",
   "",
-  "<column_group>",
-  "  <column>",
-  "    %%i:c2:start%%left%%i:c2:end%% column",
-  "  </column>",
+  ":::columns",
+  ":::column",
+  "%%i:c2:start%%left%%i:c2:end%% column",
+  ":::",
   "",
-  "  <column>",
-  "    right column",
-  "  </column>",
-  "</column_group>",
+  ":::column",
+  "right column",
+  ":::",
+  ":::",
   "",
 ].join("\n");
 

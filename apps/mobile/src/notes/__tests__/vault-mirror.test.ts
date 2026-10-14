@@ -1,8 +1,10 @@
 import { createCloudClient } from "@repo/contract/cloud/client";
 import type { CloudFetch } from "@repo/contract/cloud/client";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
-import { describe, expect, it } from "vitest";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { deferred } from "../../__tests__/async";
 import type { SqlDriver } from "../../lib/sql-driver";
 import { createSyncRuntime } from "../../sync/sync-runtime";
 import { createNotesStore } from "../notes-store";
@@ -28,10 +30,12 @@ const offline: CloudFetch = async () => {
 // one launch of the phone: a store over the database file, signed in as the boot restore does
 const launch = (fetch: CloudFetch, db: SqlDriver) => {
   const sync = createSyncRuntime({
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     createClient: (credential) =>
       createCloudClient({
         baseUrl: "https://cloud.test",
+        build: TEST_BUILD,
         credential: credential.credential,
         fetch,
       }),
@@ -63,15 +67,6 @@ const listedPaths = (store: ReturnType<typeof launch>["store"]): string[] => {
   return tree.state === "ready" ? tree.entries.map((entry) => entry.path) : [];
 };
 
-const until = async (done: () => boolean): Promise<void> => {
-  while (!done()) {
-    // oxlint-disable-next-line promise/avoid-new -- a macrotask: every settled promise has run by then
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, 0);
-    });
-  }
-};
-
 describe("the vault mirror", () => {
   it("serves the list and every body on a relaunch that cannot reach the cloud", async () => {
     const file = tempDbPath();
@@ -80,7 +75,9 @@ describe("the vault mirror", () => {
     await first.store.refresh();
 
     const second = launch(offline, openTempDb(file));
-    await until(() => second.store.tree.get().state === "ready");
+    await vi.waitFor(() => {
+      expect(second.store.tree.get().state).toBe("ready");
+    });
 
     expect(listedPaths(second.store)).toEqual(Object.keys(VAULT));
     const notes = Object.entries(VAULT).filter(([listed]) => listed.endsWith(".md"));
@@ -209,13 +206,12 @@ describe("the vault mirror", () => {
     const mirror = createVaultMirror(db);
     let signedIn = true;
     const fence = (): boolean => signedIn;
-    const releases: (() => void)[] = [];
+    const asked = deferred();
+    const released = deferred();
     const client = clientOver(async (input, init) => {
       if (new URL(input).pathname === VAULT_API_PATHS.files) {
-        // oxlint-disable-next-line promise/avoid-new -- a deferred: the test releases the batch by hand
-        await new Promise<void>((resolve) => {
-          releases.push(resolve);
-        });
+        asked.resolve();
+        await released.promise;
       }
       return await vault.fetch(input, init);
     });
@@ -225,9 +221,9 @@ describe("the vault mirror", () => {
     const filling = mirror.fillTexts(client, { commit: vault.head(), settled: true }, fence, () => {
       // progress is the store's to show
     });
-    await until(() => releases.length > 0);
+    await asked.promise;
     signedIn = false;
-    releases[0]?.();
+    released.resolve();
 
     expect(await filling).toEqual({ kind: "fenced" });
     expect(await heldPaths(db)).toEqual([]);
@@ -327,5 +323,16 @@ describe("the vault mirror", () => {
       { oid: blobOid("two\n"), path: "x.md" },
       { oid: blobOid("one\n"), path: "y.md" },
     ]);
+  });
+
+  it("refuses a listing whose aliases are not the list it wrote", async () => {
+    const db = openTempDb();
+    const { store } = launch(createFakeVault(VAULT).fetch, db);
+    await store.refresh();
+    await db.exclusive(async (tx) => {
+      await tx.run("UPDATE mirror_entries SET aliases = ? WHERE path = ?", ['"Alias"', "a.md"]);
+    });
+
+    await expect(createVaultMirror(db).snapshot()).rejects.toThrow();
   });
 });

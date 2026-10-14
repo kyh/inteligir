@@ -28,7 +28,6 @@ const ChatPanel = ({
     {...props}
   />
 );
-ChatPanel.displayName = "ChatPanel";
 
 export interface ChatPanelHeaderProps extends HTMLAttributes<HTMLDivElement> {
   actions?: ReactNode;
@@ -54,7 +53,6 @@ const ChatPanelHeader = ({
     {actions === undefined ? null : <div className="flex items-center gap-1">{actions}</div>}
   </div>
 );
-ChatPanelHeader.displayName = "ChatPanelHeader";
 
 export interface ChatTabProps extends HTMLAttributes<HTMLButtonElement> {
   active?: boolean;
@@ -80,7 +78,6 @@ const ChatTab = ({
     {...props}
   />
 );
-ChatTab.displayName = "ChatTab";
 
 const ChatPanelBody = ({
   className,
@@ -94,7 +91,6 @@ const ChatPanelBody = ({
     {...props}
   />
 );
-ChatPanelBody.displayName = "ChatPanelBody";
 
 export interface ChatMessageProps extends HTMLAttributes<HTMLDivElement> {
   author?: ReactNode;
@@ -136,7 +132,6 @@ const ChatMessage = ({
     <div className="text-[13px] leading-normal text-ink">{children}</div>
   </div>
 );
-ChatMessage.displayName = "ChatMessage";
 
 // controlled: the send button and Enter both read what the field holds
 export interface ChatComposerProps extends Omit<
@@ -201,6 +196,5 @@ const ChatComposer = ({
     </div>
   );
 };
-ChatComposer.displayName = "ChatComposer";
 
 export { ChatPanel, ChatPanelHeader, ChatTab, ChatPanelBody, ChatMessage, ChatComposer };

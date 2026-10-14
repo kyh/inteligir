@@ -1,4 +1,4 @@
-// never read `dist/` here: `pnpm verify` runs tests before the build, so it would assert over the previous build.
+// never read `dist/` here: no test task waits on a build, so `pnpm verify` would assert over the previous build or one mid-write.
 
 import { describe, expect, it } from "vitest";
 import { buildContentSecurityPolicy } from "../csp";

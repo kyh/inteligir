@@ -1,11 +1,12 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
-import type { HarnessId, HarnessModels } from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessId } from "@repo/domain/harness";
+import type { HarnessModels } from "@repo/agent-runtime/acp/harness-registry";
 import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
 import { agentModeSchema, agentModeValues } from "@repo/contract/local/system/system-schema";
 import type { AgentMode } from "@repo/contract/local/system/system-schema";
@@ -13,15 +14,16 @@ import { parseRemoteUrl, VAULT_REMOTE_PIN_ENV_VAR } from "@repo/contract/local/v
 import { DEBUG_NAMESPACES, parseDebugNamespaces } from "./debug-log";
 import type { DebugNamespace } from "./debug-log";
 import { resolveDevDefaultPort, resolveDevInstanceId } from "./dev-instance";
-import { errnoCode } from "./errno";
+import { readJsonFile } from "./json-file-store";
 import { assertVaultAndDataDirDisjoint } from "./path-containment";
 import { stagedWriteFileSync } from "./staged-write";
 import type { SlowReads } from "./vault/slow-reads";
 
-type RuntimeMode = "dev" | "prod";
+export type RuntimeMode = "dev" | "prod";
 
 export const PROD_DATA_DIR_NAME = ".inteligir";
 export const DATA_DIR_ENV_VAR = "INTELIGIR_DATA_DIR";
+export const VAULT_DIR_ENV_VAR = "INTELIGIR_VAULT_DIR";
 export const DEV_DATA_ROOT_DIR = ".inteligir-dev";
 const PROD_VAULT_DIR_NAME = "Inteligir";
 // siblings, not nested: the vault is a git repo the sync loop pushes, and a nested data dir
@@ -34,24 +36,43 @@ export const PROD_SERVER_PORT = 4664;
 export const VAULTS_DIR_NAME = "vaults";
 const VAULT_DATA_DIR_HASH_LENGTH = 16;
 
-// A folder's identity: every symlink followed, and the native realpath rather than the JS one,
-// because only it answers a case-insensitive volume's own case (`~/inteligir` is `~/Inteligir`).
-// A path with no physical spelling, one not there yet, keeps its resolved one.
-export const physicalVaultDir = (vaultDir: string): string => {
+// the native realpath, or null for a path that is not there
+export type Realpath = (target: string) => string | null;
+
+export const nativeRealpath: Realpath = (target) => {
   try {
-    return realpathSync.native(vaultDir);
+    return realpathSync.native(target);
   } catch {
-    return path.resolve(vaultDir);
+    return null;
   }
 };
 
-// The default vault keeps the root, as every install before a second vault did; any other
-// vault gets a dir of its own beneath it, so two vaults never share an index, a db or a
-// server.json. Keyed by the spelling the selector stores, which selection makes physical:
-// hashing the realpath here instead would move the dir of every vault already stored under a
-// symlinked spelling.
+// A folder's identity: every symlink followed, through the nearest ancestor that exists for a
+// folder not made yet, so a vault has one spelling before its first boot and after it. The native
+// realpath rather than the JS one, because only it answers a case-insensitive volume's own case
+// (`~/inteligir` is `~/Inteligir`); a tail not made yet keeps the case it was given.
+export const physicalVaultDir = (dir: string, realpath: Realpath = nativeRealpath): string => {
+  const missing: string[] = [];
+  let current = path.resolve(dir);
+  for (;;) {
+    const real = realpath(current);
+    if (real !== null) {
+      return path.join(real, ...missing.toReversed());
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return path.resolve(dir);
+    }
+    missing.push(path.basename(current));
+    current = parent;
+  }
+};
+
+// Every vault gets a dir of its own beneath the root, so two vaults never share an index, a db or
+// a server.json. Keyed by the folder's physical path, so every spelling the disk resolves to one
+// folder is one vault with one data dir.
 export const vaultDataDir = (rootDataDir: string, vaultDir: string): string => {
-  const digest = createHash("sha256").update(path.resolve(vaultDir)).digest("hex");
+  const digest = createHash("sha256").update(physicalVaultDir(vaultDir)).digest("hex");
   return path.join(rootDataDir, VAULTS_DIR_NAME, digest.slice(0, VAULT_DATA_DIR_HASH_LENGTH));
 };
 
@@ -160,7 +181,7 @@ const parseSyncIntervalValue = (name: string, rawValue: string): number => {
 const ENV_VARS = {
   agent: defineEnvVar({
     description:
-      "Agent runtime selection: auto (the ACP runtime, over the vendor binaries bundled with the adapters; PATH is never consulted), scripted (in-process fake for e2e), or off. WHICH harness runs is a thread's own providerId, never this.",
+      "Agent runtime selection: acp (the ACP runtime, over the vendor binaries bundled with the adapters; PATH is never consulted), scripted (in-process fake for e2e), or off. WHICH harness runs is a thread's own providerId, never this.",
     name: "INTELIGIR_AGENT",
     parse: ({ name, value }) => parseAgentModeValue(name, value),
   }),
@@ -188,7 +209,7 @@ const ENV_VARS = {
   vaultDir: defineEnvVar({
     description:
       "Absolute (or ~-relative) vault directory override; replaces both the prod (~/Inteligir) and dev (<dataDir>/vault) defaults.",
-    name: "INTELIGIR_VAULT_DIR",
+    name: VAULT_DIR_ENV_VAR,
     parse: ({ homeDir, name, value }) => parseDataDirValue(name, value, homeDir),
   }),
   vaultRemote: defineEnvVar({
@@ -248,7 +269,8 @@ const readEnvVar = <TValue>(
   return definition.parse({ homeDir, name: definition.name, value: rawValue });
 };
 
-// lenient: unknown keys from a newer build must not brick an older one.
+// unknown keys are stripped, not refused: the window edits nothing here but the vault selector, so
+// a refused key would be a boot nothing in the app repairs.
 const managedConfigSchema = z.object({
   agent: agentModeSchema.optional(),
   agentModels: z
@@ -267,73 +289,29 @@ const managedConfigFileSchema = managedConfigSchema.loose();
 
 const readManagedConfigFile = (dataDir: string): z.infer<typeof managedConfigFileSchema> => {
   const configPath = path.join(dataDir, CONFIG_FILE_NAME);
-  let raw: string;
-  try {
-    raw = readFileSync(configPath, "utf-8");
-  } catch (error) {
-    if (errnoCode(error) === "ENOENT") {
+  const read = readJsonFile(configPath, managedConfigFileSchema);
+  switch (read.kind) {
+    case "ok": {
+      return read.value;
+    }
+    case "absent": {
       return {};
     }
-    throw error;
+    case "unreadable": {
+      throw read.error;
+    }
+    case "malformed": {
+      throw new Error(
+        read.issue === "json"
+          ? `${configPath} is not valid JSON`
+          : `${configPath} does not match the ${CONFIG_FILE_NAME} shape:\n${z.prettifyError(read.error)}`,
+      );
+    }
+    // no default
   }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error(`${configPath} is not valid JSON`);
-  }
-  const verdict = managedConfigFileSchema.safeParse(parsed);
-  if (!verdict.success) {
-    throw new Error(
-      `${configPath} does not match the ${CONFIG_FILE_NAME} shape:\n${z.prettifyError(verdict.error)}`,
-    );
-  }
-  return verdict.data;
 };
 
 type ManagedConfig = z.infer<typeof managedConfigSchema>;
-
-// one model for every harness, a spelling nothing reads: a model id is vendor-specific. named in a
-// boot warning, never refused, since config the build does not act on must not brick the boot.
-const LEGACY_MODEL_ENV_VAR = "INTELIGIR_AGENT_MODEL";
-const LEGACY_MODEL_CONFIG_KEY = "agentModel";
-
-const legacyModelWarnings = (
-  env: NodeJS.ProcessEnv,
-  managedFile: z.infer<typeof managedConfigFileSchema>,
-  rootDataDir: string,
-): string[] => {
-  const warnings: string[] = [];
-  if (env[LEGACY_MODEL_ENV_VAR] !== undefined) {
-    warnings.push(
-      `${LEGACY_MODEL_ENV_VAR} is ignored: a model is per harness, so set ` +
-        `${MODEL_ENV_VARS.claude.name} or ${MODEL_ENV_VARS.codex.name}.`,
-    );
-  }
-  if (managedFile[LEGACY_MODEL_CONFIG_KEY] !== undefined) {
-    warnings.push(
-      `${path.join(rootDataDir, CONFIG_FILE_NAME)}'s ${LEGACY_MODEL_CONFIG_KEY} is ignored: a ` +
-        "model is per harness, so set agentModels.claude or agentModels.codex.",
-    );
-  }
-  return warnings;
-};
-
-// one remote for every vault the root selects, where a vault's record of where it syncs is its
-// own repo's origin. warned, never refused, for the same reason as the model keys.
-const RETIRED_VAULT_REMOTE_CONFIG_KEY = "vaultRemote";
-
-const retiredVaultRemoteWarnings = (
-  managedFile: z.infer<typeof managedConfigFileSchema>,
-  rootDataDir: string,
-): string[] =>
-  managedFile[RETIRED_VAULT_REMOTE_CONFIG_KEY] === undefined
-    ? []
-    : [
-        `${path.join(rootDataDir, CONFIG_FILE_NAME)}'s ${RETIRED_VAULT_REMOTE_CONFIG_KEY} is ` +
-          "ignored: a vault syncs with its own git origin, so run `inteligir vault remote <url>`, " +
-          `or pin one with ${ENV_VARS.vaultRemote.name}.`,
-      ];
 
 // the selector as config.json holds it, unparsed, so writing it back restores exactly it
 export const readManagedVaultDir = (rootDataDir: string): string | null =>
@@ -359,7 +337,7 @@ export interface AppConfig {
   databasePath: string;
   dataDir: string;
   dataDirSource: "env" | "default";
-  // where config.json lives and where the default vault's data is; `dataDir` sits beneath it for any other vault
+  // where config.json lives; `dataDir` sits beneath it unless the env pins it
   rootDataDir: string;
   // what `~/` resolved against, and where the boot looks for a service syncing the vault's folder
   homeDir: string;
@@ -379,8 +357,6 @@ export interface AppConfig {
   agentModels: HarnessModels;
   cloudUrl: string;
   debug: ReadonlySet<DebugNamespace>;
-  // what the resolve found and will not act on, for the boot to say.
-  warnings: readonly string[];
 }
 
 export interface ResolveAppConfigArgs {
@@ -402,7 +378,6 @@ const configSource = <T>(envValue: T | undefined, managedValue: T | undefined): 
 interface ResolvedVaultDir {
   vaultDir: string;
   vaultDirSource: VaultDirSource;
-  defaultVaultDir: string;
 }
 
 const resolveVaultDir = (
@@ -422,7 +397,6 @@ const resolveVaultDir = (
       ? path.join(homeDir, PROD_VAULT_DIR_NAME)
       : path.join(devInstanceDir, DEV_INSTANCE_VAULT_DIR_NAME);
   return {
-    defaultVaultDir,
     vaultDir: envVaultDir ?? managedVaultDir ?? defaultVaultDir,
     vaultDirSource: configSource(envVaultDir, managedVaultDir),
   };
@@ -467,8 +441,7 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
       ? path.join(homeDir, PROD_DATA_DIR_NAME)
       : path.join(devInstanceDir, DEV_INSTANCE_DATA_DIR_NAME));
 
-  const managedFile = readManagedConfigFile(rootDataDir);
-  const managed = managedConfigSchema.parse(managedFile);
+  const managed = managedConfigSchema.parse(readManagedConfigFile(rootDataDir));
 
   const envPort = readEnvVar(ENV_VARS.port, args.env, homeDir);
   const port =
@@ -476,27 +449,24 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
     managed.port ??
     (mode === "prod" ? PROD_SERVER_PORT : resolveDevDefaultPort(args.checkoutPath));
 
-  const { vaultDir, vaultDirSource, defaultVaultDir } = resolveVaultDir(
+  const { vaultDir, vaultDirSource } = resolveVaultDir(
     args,
     homeDir,
     mode,
     devInstanceDir,
     managed,
   );
-  // an explicit data dir is taken as given: a harness or an operator pinned it and expects exactly it.
-  // the default reached by another case or through a symlink is still the default, and keeps the root
-  const dataDir =
-    envDataDir !== undefined || physicalVaultDir(vaultDir) === physicalVaultDir(defaultVaultDir)
-      ? rootDataDir
-      : vaultDataDir(rootDataDir, vaultDir);
-  // the root too: a vault under it would sit beside config.json and every other vault's db
+  // an explicit data dir is taken as given: a harness, an operator or the shell pinned it and
+  // expects exactly it
+  const dataDir = envDataDir ?? vaultDataDir(rootDataDir, vaultDir);
+  // the data dir is the root or beneath it, so this one check covers both: a vault under the root
+  // would sit beside config.json and every vault's db
   assertVaultAndDataDirDisjoint(path.resolve(vaultDir), path.resolve(rootDataDir));
-  assertVaultAndDataDirDisjoint(path.resolve(vaultDir), path.resolve(dataDir));
 
   const vaultRemote = readEnvVar(ENV_VARS.vaultRemote, args.env, homeDir) ?? null;
   const envSyncIntervalMs = readEnvVar(ENV_VARS.vaultSyncIntervalMs, args.env, homeDir);
   const slowReads = readEnvVar(ENV_VARS.slowReads, args.env, homeDir) ?? null;
-  const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "auto";
+  const agent = readEnvVar(ENV_VARS.agent, args.env, homeDir) ?? managed.agent ?? "acp";
   const agentModels = resolveAgentModels(args, homeDir, managed);
   const cloudUrl = resolveCloudUrl(args, homeDir, managed);
   const debug = readEnvVar(ENV_VARS.debug, args.env, homeDir) ?? new Set();
@@ -518,10 +488,6 @@ export const resolveAppConfig = (args: ResolveAppConfigArgs): AppConfig => {
     vaultDir,
     vaultDirSource,
     vaultRemote,
-    warnings: [
-      ...legacyModelWarnings(args.env, managedFile, rootDataDir),
-      ...retiredVaultRemoteWarnings(managedFile, rootDataDir),
-    ],
   };
   if (envSyncIntervalMs !== undefined) {
     config.vaultSyncIntervalMs = envSyncIntervalMs === 0 ? null : envSyncIntervalMs;

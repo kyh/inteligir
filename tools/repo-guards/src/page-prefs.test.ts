@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { REPO_ROOT, sourceOf, workspaceSourceFiles, workspaces } from "./repo";
 
-const TABLE = "apps/desktop/src/renderer/app/prefs.ts";
+const TABLE = "apps/workspace/src/app/prefs.ts";
 
 const KEYED_ACCESS =
   /\b(?:localStorage|sessionStorage)\s*\.\s*(?:getItem|setItem|removeItem)\s*\(/u;
@@ -16,7 +16,7 @@ const ROW_KEY = /\b(?:pref|unsetPref)\(\s*"(?<key>[^"]+)"/gu;
 
 const ELSEWHERE = new Map<string, string>([
   [
-    "apps/desktop/src/renderer/app/__tests__/prefs.test.ts",
+    "apps/workspace/src/app/__tests__/prefs.test.ts",
     "pins the keys and bytes a window's storage already holds, so it spells them rather than reading them off the table",
   ],
   [

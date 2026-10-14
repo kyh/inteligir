@@ -3,7 +3,7 @@ import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-sch
 import { hexFromBytes, sha256Hex } from "@repo/contract/cloud/bytes";
 import { APIError } from "better-auth/api";
 import { applySetCookies } from "better-auth/cookies";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { createAuth } from "../auth/auth";
 import type { Db } from "../db/client";
 import { device, session } from "../db/schema";
@@ -37,10 +37,16 @@ export interface LoginArgs {
   deviceName: string;
 }
 
+// the user row Better Auth's sign-in or sign-up just answered with
+interface AccountUser {
+  id: string;
+  email: string;
+}
+
 export interface MintArgs {
   // what Better Auth's sign-in or sign-up just minted; null when it minted none
   sessionToken: string | null;
-  userId: string;
+  user: AccountUser;
   deviceName: string;
 }
 
@@ -49,7 +55,6 @@ export interface MintArgs {
 // account's device cap refuses.
 export const mintDeviceCredential = async (
   db: Db,
-  d1: D1Database,
   args: MintArgs,
 ): Promise<DeviceLoginResponse | null> => {
   // the sign-in or sign-up minted a browser session this device must never hold: the igd_
@@ -61,33 +66,24 @@ export const mintDeviceCredential = async (
 
   const credential = generateDeviceCredential();
   const deviceId = crypto.randomUUID();
-  // epoch seconds: the schema's mode "timestamp" is what every other reader of these columns expects
-  const nowSeconds = Math.floor(Date.now() / 1000);
+  const hash = await sha256Hex(credential);
   // the cap subquery inside the insert is the guard: two logins racing the twentieth slot both
   // count before either lands, and only the statement itself sees the other's row
-  const inserted = await d1
-    .prepare(
-      `INSERT INTO device (id, user_id, name, credential_hash, created_at)
-       SELECT ?, ?, ?, ?, ?
-       WHERE (SELECT COUNT(*) FROM device WHERE user_id = ? AND revoked_at IS NULL) < ?`,
-    )
-    .bind(
-      deviceId,
-      args.userId,
-      args.deviceName,
-      await sha256Hex(credential),
-      nowSeconds,
-      args.userId,
-      MAX_DEVICES_PER_ACCOUNT,
-    )
-    .run();
-  return inserted.meta.changes === 0 ? null : { credential, deviceId };
+  const inserted = await db.run(
+    sql`INSERT INTO device (id, user_id, name, credential_hash, created_at)
+        SELECT ${deviceId}, ${args.user.id}, ${args.deviceName}, ${hash}, ${Date.now()}
+        WHERE (SELECT COUNT(*) FROM device WHERE user_id = ${args.user.id} AND revoked_at IS NULL)
+          < ${MAX_DEVICES_PER_ACCOUNT}`,
+  );
+  return inserted.meta.changes === 0
+    ? null
+    : { credential, deviceId, email: args.user.email, userId: args.user.id };
 };
 
 interface SignedIn {
   // the session the sign-in minted: whoever asked deletes it, or the account holds a session nobody sees
   token: string;
-  user: { id: string };
+  user: AccountUser;
   // request headers carrying that session's cookie, for a Better Auth call that must run under it
   sessionCookie: Headers;
 }
@@ -116,20 +112,15 @@ export const signInWithPassword = async (
   }
 };
 
-export const loginDevice = async (
-  db: Db,
-  d1: D1Database,
-  auth: Auth,
-  args: LoginArgs,
-): Promise<LoginResult> => {
+export const loginDevice = async (db: Db, auth: Auth, args: LoginArgs): Promise<LoginResult> => {
   const signedIn = await signInWithPassword(auth, args.email, args.password);
   if (signedIn === null) {
     return refuseLogin("invalid-credentials");
   }
-  const minted = await mintDeviceCredential(db, d1, {
+  const minted = await mintDeviceCredential(db, {
     deviceName: args.deviceName,
     sessionToken: signedIn.token,
-    userId: signedIn.user.id,
+    user: signedIn.user,
   });
   return minted === null ? refuseLogin("device-limit") : { loggedIn: true, response: minted };
 };

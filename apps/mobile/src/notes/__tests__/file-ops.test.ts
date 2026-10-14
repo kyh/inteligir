@@ -109,7 +109,10 @@ describe("renaming a note on the phone", () => {
     const vault = createFakeVault({ "a.md": "Links to [[target]].\n", "target.md": "# Target\n" });
     const { store } = await phone(vault);
     await readText(store, "a.md");
-    await store.write("a.md", "Links to [[target]], and more.\n");
+    await store.write("a.md", "Links to [[target]], and more.\n", {
+      base: "Links to [[target]].\n",
+      kind: "expected",
+    });
 
     const outcome = await store.rename("target.md", "Moved.md", {
       note: null,

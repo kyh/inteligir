@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     // ES2023 is the repo-wide floor and the CEILING here: these components are
-    // bundled into apps/web and the desktop renderer, which ship at Vite's
+    // bundled into apps/web and the workspace UI, which ship at Vite's
     // default `baseline-widely-available` target (Safari 16.4). Vite transforms
     // syntax, never stdlib — an ES2024+ builtin (Object.groupBy,
     // Set.intersection, Promise.withResolvers, iterator helpers) would typecheck

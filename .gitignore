@@ -12,23 +12,16 @@ coverage
 .tanstack/
 .cloudflare/
 .wrangler/
-out/
-
-# nitro
-.nitro/
-.output/
 
 # build output
 dist/
-# the desktop app's git and node, fetched and pinned by apps/desktop/scripts/fetch-git.mjs and
-# fetch-node.mjs at package time
+.output/
+# the desktop app's git and node, fetched and pinned by apps/desktop/scripts/fetch-git.ts and
+# fetch-node.ts at package time
 apps/desktop/resources/git/
 apps/desktop/resources/git.partial/
 apps/desktop/resources/node/
 apps/desktop/resources/node.partial/
-
-# production
-.source
 
 # misc
 .DS_Store
@@ -54,11 +47,6 @@ yarn-error.log*
 
 # turbo
 .turbo
-
-# Supabase
-.branches
-.temp
-.superset
 
 .claude/scheduled_tasks.lock
 .claude/worktrees

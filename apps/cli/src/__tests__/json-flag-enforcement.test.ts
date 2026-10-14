@@ -60,10 +60,10 @@ const seedFixture = (state: FixtureState): void => {
     pendingInteractions: [
       {
         createdAt: 1_700_000_000_000,
+        decision: null,
         id: "int_1",
         payload: null,
         requestKey: "req_1",
-        resolution: null,
         resolvedAt: null,
         status: "pending",
         threadId: "thr_1",

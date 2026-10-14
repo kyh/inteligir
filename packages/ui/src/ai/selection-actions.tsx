@@ -23,7 +23,6 @@ const SelectionActions = ({
     {...props}
   />
 );
-SelectionActions.displayName = "SelectionActions";
 
 export interface SelectionActionProps extends HTMLAttributes<HTMLButtonElement> {
   icon?: ReactNode;
@@ -56,7 +55,6 @@ const SelectionAction = ({
     {hasMenu ? <ChevronRightIcon size={10} strokeWidth={2.5} className="text-ink-3" /> : null}
   </button>
 );
-SelectionAction.displayName = "SelectionAction";
 
 const SelectionActionsSeparator = ({
   className,
@@ -71,7 +69,6 @@ const SelectionActionsSeparator = ({
     {...props}
   />
 );
-SelectionActionsSeparator.displayName = "SelectionActionsSeparator";
 
 const Shimmer = ({
   className,
@@ -80,7 +77,6 @@ const Shimmer = ({
 }: HTMLAttributes<HTMLSpanElement> & RefAttributes<HTMLSpanElement>) => (
   <span ref={ref} data-slot="shimmer" className={cn("bui-shimmer-text", className)} {...props} />
 );
-Shimmer.displayName = "Shimmer";
 
 const SelectionResult = ({
   className,
@@ -98,7 +94,6 @@ const SelectionResult = ({
     {...props}
   />
 );
-SelectionResult.displayName = "SelectionResult";
 
 export interface SelectionResultHeaderProps extends HTMLAttributes<HTMLDivElement> {
   icon?: ReactNode;
@@ -125,7 +120,6 @@ const SelectionResultHeader = ({
     {children}
   </div>
 );
-SelectionResultHeader.displayName = "SelectionResultHeader";
 
 const SelectionResultBody = ({
   className,
@@ -139,7 +133,6 @@ const SelectionResultBody = ({
     {...props}
   />
 );
-SelectionResultBody.displayName = "SelectionResultBody";
 
 export interface SelectionResultFooterProps extends HTMLAttributes<HTMLDivElement> {
   actions?: ReactNode;
@@ -165,7 +158,6 @@ const SelectionResultFooter = ({
     {actions === undefined ? null : <span className="flex items-center gap-1.5">{actions}</span>}
   </div>
 );
-SelectionResultFooter.displayName = "SelectionResultFooter";
 
 export {
   SelectionActions,

@@ -3,16 +3,17 @@
 // and never stored, since a folder does not move under a running server.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
+import { nativeRealpath, physicalVaultDir } from "../config";
+import type { Realpath } from "../config";
 import { pathContains, relativeUnder } from "../path-containment";
 
 export interface ExternalSyncDeps {
   homeDir: string;
-  // the native realpath, or null for a path that is not there
-  realpath: (target: string) => string | null;
+  realpath: Realpath;
   exists: (target: string) => boolean;
   readFile: (target: string) => string | null;
   // the attribute's value, or null when the entry carries none
@@ -33,25 +34,6 @@ const ICLOUD_DESKTOP_DOCUMENTS = ["Desktop", "Documents"];
 const ICLOUD_DESKTOP_XATTR = "com.apple.icloud.desktop";
 const OBSIDIAN_CORE_PLUGINS = [".obsidian", "core-plugins.json"];
 const OBSIDIAN_SYNC_PLUGIN = "sync";
-
-// the folder's physical spelling, reached through its nearest existing ancestor, so a vault not
-// created yet is judged where it will land
-const physicalPath = (dir: string, deps: ExternalSyncDeps): string => {
-  const missing: string[] = [];
-  let current = path.resolve(dir);
-  for (;;) {
-    const real = deps.realpath(current);
-    if (real !== null) {
-      return path.join(real, ...missing.toReversed());
-    }
-    const parent = path.dirname(current);
-    if (parent === current) {
-      return path.resolve(dir);
-    }
-    missing.push(path.basename(current));
-    current = parent;
-  }
-};
 
 const cloudStorageSync = (folder: string, root: string): ExternalSync | null => {
   const inside = relativeUnder(root, folder);
@@ -99,8 +81,9 @@ const obsidianSyncOn = (folder: string, deps: ExternalSyncDeps): boolean => {
 };
 
 export const detectExternalSync = (dir: string, deps: ExternalSyncDeps): ExternalSync | null => {
-  const homeDir = deps.realpath(deps.homeDir) ?? path.resolve(deps.homeDir);
-  const folder = physicalPath(dir, deps);
+  const homeDir = physicalVaultDir(deps.homeDir, deps.realpath);
+  // judged where it physically sits, so a vault not created yet is judged where it will land
+  const folder = physicalVaultDir(dir, deps.realpath);
   if (pathContains(path.join(homeDir, ...ICLOUD_DRIVE), folder)) {
     return { kind: "icloud-drive" };
   }
@@ -154,11 +137,5 @@ export const nodeExternalSyncDeps = (
     }
   },
   readXattr: platform === "darwin" ? readXattrWithTool : () => null,
-  realpath: (target) => {
-    try {
-      return realpathSync.native(target);
-    } catch {
-      return null;
-    }
-  },
+  realpath: nativeRealpath,
 });

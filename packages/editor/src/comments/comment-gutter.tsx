@@ -3,12 +3,13 @@ import { createPlatePlugin, useEditorSelector } from "platejs/react";
 import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
 import { shallow } from "zustand/shallow";
 
+import { getEditorHostActions } from "@repo/editor/host-io";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 
 import { blockHoldsCommentMarkers, commentIdsByBlock } from "./comment-ranges";
-import { useCommentMeta, useCommentSurface } from "./comment-store";
+import { useCommentMeta } from "./comment-store";
 
 const NO_IDS: readonly string[] = [];
 
@@ -17,7 +18,6 @@ const NO_IDS: readonly string[] = [];
 // touching this block.
 const CommentGutterBlock = (props: PlateElementProps) => {
   const { element } = props;
-  const actions = useCommentSurface((state) => state.actions);
   const notePath = useOpenNotePath();
   const { resolvedIds } = useCommentMeta(notePath);
   const ids = useEditorSelector(
@@ -45,7 +45,7 @@ const CommentGutterBlock = (props: PlateElementProps) => {
             event.preventDefault();
           }}
           onClick={() => {
-            actions?.open([...ids]);
+            getEditorHostActions().comments.open([...ids]);
           }}
           className="absolute top-[0.35em] -left-6 flex size-4 cursor-pointer items-center justify-center rounded-sm select-none hover:bg-accent print:hidden"
         >

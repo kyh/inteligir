@@ -107,7 +107,7 @@ describe("comment gutter", () => {
 
   it("draws the dot beside a callout whose body a range starts in", () => {
     const { view } = renderNote(
-      "```inteligir-callout\ntype: info\nopening %%i:abc:start%%words\n```\n\nclosing%%i:abc:end%% tail\n",
+      "> [!NOTE]\n> opening %%i:abc:start%%words\n\nclosing%%i:abc:end%% tail\n",
     );
     expect(view.getAllByRole("button", { name: "Comments on this block" })).toHaveLength(1);
   });

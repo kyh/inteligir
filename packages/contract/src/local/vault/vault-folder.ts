@@ -9,19 +9,17 @@ import type { ExternalSync } from "./vault-schema";
 // where the folder already syncs on its own, the app's hosted vault aside: a host, or a path on
 // this Mac, which has none to name
 export const ownSyncSchema = z.discriminatedUnion("kind", [
-  z.object({ host: z.string().min(1), kind: z.literal("host") }).strict(),
-  z.object({ kind: z.literal("local") }).strict(),
+  z.strictObject({ host: z.string().min(1), kind: z.literal("host") }),
+  z.strictObject({ kind: z.literal("local") }),
 ]);
 export type OwnSync = z.infer<typeof ownSyncSchema>;
 
-export const folderFactsSchema = z
-  .object({
-    externalSync: externalSyncSchema.nullable(),
-    // the walk stops at a bound, so a capped count is a floor
-    noteCount: z.object({ capped: z.boolean(), count: z.number().int().nonnegative() }).strict(),
-    ownSync: ownSyncSchema.nullable(),
-  })
-  .strict();
+export const folderFactsSchema = z.strictObject({
+  externalSync: externalSyncSchema.nullable(),
+  // the walk stops at a bound, so a capped count is a floor
+  noteCount: z.strictObject({ capped: z.boolean(), count: z.number().int().nonnegative() }),
+  ownSync: ownSyncSchema.nullable(),
+});
 export type FolderFacts = z.infer<typeof folderFactsSchema>;
 
 // one folder's name, made beside the parent: a `/` or `:` would name another folder (Finder shows a

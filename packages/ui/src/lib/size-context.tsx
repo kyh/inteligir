@@ -67,7 +67,7 @@ const useSizeVariant = (override?: SizeVariant | null): SizeVariant => {
 const useSize = (override?: SizeVariant | null): SizeClasses => sizeMap[useSizeVariant(override)];
 
 const SizeProvider = ({ children, size }: { children: ReactNode; size: SizeVariant }) => (
-  <SizeContext.Provider value={size}>{children}</SizeContext.Provider>
+  <SizeContext value={size}>{children}</SizeContext>
 );
 
 export { SizeProvider, typeScale, useSize, useSizeVariant };

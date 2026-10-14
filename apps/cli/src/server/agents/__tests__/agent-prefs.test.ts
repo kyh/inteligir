@@ -1,30 +1,16 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
-import { isHarnessId } from "@repo/agent-runtime/acp/harness-registry";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { defaultHarnessId } from "../agent-driver";
 import { AgentPrefsStore } from "../agent-prefs-store";
 import { JsonFileStoreError } from "../../json-file-store";
-import { createAgentsService, HarnessRefusedError } from "../agents-service";
+import { createAgentsService } from "../agents-service";
 import type { AgentAccounts } from "../agent-sign-in";
 import { fakeAgentAccounts } from "../../__tests__/boot-app";
+import { makeTempDir } from "../../__tests__/temp-dir";
 
 const NOTHING_ON_PATH = { PATH: "/nonexistent-dir" };
-const dirs: string[] = [];
-
-const scratch = (): string => {
-  const dir = mkdtempSync(path.join(tmpdir(), "agent-prefs-"));
-  dirs.push(dir);
-  return dir;
-};
-
-afterEach(() => {
-  for (const dir of dirs.splice(0)) {
-    rmSync(dir, { force: true, recursive: true });
-  }
-});
+const scratch = (): string => makeTempDir("agent-prefs-");
 
 describe("the stored default", () => {
   it("is no choice until one is written, and survives a write", () => {
@@ -54,11 +40,13 @@ describe("the stored default", () => {
 
 describe("the harness a new thread starts on", () => {
   it("is the stored choice, ready or not", () => {
-    expect(defaultHarnessId("codex")).toBe("codex");
+    const store = new AgentPrefsStore(scratch());
+    store.write({ defaultHarness: "codex" });
+    expect(store.defaultHarness()).toBe("codex");
   });
 
   it("falls back to claude with nothing chosen, whatever PATH holds", async () => {
-    expect(defaultHarnessId(null)).toBe("claude");
+    expect(new AgentPrefsStore(scratch()).defaultHarness()).toBe("claude");
     const agents = createAgentsService({
       accounts: fakeAgentAccounts(),
       env: NOTHING_ON_PATH,
@@ -111,30 +99,5 @@ describe("the agents service", () => {
       { displayName: "ChatGPT", id: "codex", runtime: "missing", vendorApp: "Codex" },
     ]);
     expect(asked).toEqual(["claude"]);
-  });
-
-  it("refuses an unknown harness without writing", async () => {
-    const store = new AgentPrefsStore(scratch());
-    const agents = createAgentsService({
-      accounts: fakeAgentAccounts(),
-      env: NOTHING_ON_PATH,
-      store,
-    });
-    await expect(agents.setDefault("gemini")).rejects.toThrow(HarnessRefusedError);
-    expect(store.read()).toEqual({});
-  });
-
-  it("refuses a name every object answers to", async () => {
-    const store = new AgentPrefsStore(scratch());
-    const agents = createAgentsService({
-      accounts: fakeAgentAccounts(),
-      env: NOTHING_ON_PATH,
-      store,
-    });
-    for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
-      expect(isHarnessId(name)).toBe(false);
-      await expect(agents.setDefault(name)).rejects.toThrow(HarnessRefusedError);
-    }
-    expect(store.read()).toEqual({});
   });
 });

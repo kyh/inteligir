@@ -1,3 +1,0 @@
-<callout draft>
-  x
-</callout>

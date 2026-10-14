@@ -11,7 +11,7 @@ import type {
 } from "react";
 import { cn } from "@repo/ui/lib/cn";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useRadius } from "@repo/ui/lib/radius-context";
+import { radius } from "@repo/ui/lib/radius";
 import { SizeProvider, useSize } from "@repo/ui/lib/size-context";
 import type { SizeVariant } from "@repo/ui/lib/size-context";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
@@ -121,108 +121,93 @@ const useMenuScope = (containerRef: RefObject<HTMLElement | null>): MenuScope =>
     [requestSync],
   );
 
-  const overlayRect = useCallback(
-    (row: HTMLElement | null): ItemRect | null => {
-      const idx = row === null ? -1 : orderedRows.indexOf(row);
-      return idx === -1 ? null : (itemRects[idx] ?? null);
-    },
-    [itemRects, orderedRows],
-  );
+  const overlayRect = (row: HTMLElement | null): ItemRect | null => {
+    const idx = row === null ? -1 : orderedRows.indexOf(row);
+    return idx === -1 ? null : (itemRects[idx] ?? null);
+  };
 
   // hover tracking freezes while a popup anchored in the rail is open, or a non-modal popup lets
   // rows underneath keep highlighting; the rail, not the whole window, since this runs per move
-  const popupOpen = useCallback(() => {
+  const popupOpen = () => {
     const container = containerRef.current;
     if (!container) {
       return false;
     }
     const root = container.closest(RAIL) ?? container;
     return root.querySelector('[data-sidebar^="menu-"][data-popup-open]') !== null;
-  }, [containerRef]);
+  };
 
-  const onMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (popupOpen()) {
-        return;
-      }
-      handlers.onMouseMove(e);
-    },
-    [popupOpen, handlers],
-  );
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (popupOpen()) {
+      return;
+    }
+    handlers.onMouseMove(e);
+  };
 
-  const onFocus = useCallback(
-    (e: React.FocusEvent) => {
-      const { target } = e;
-      if (!(target instanceof HTMLElement)) {
-        setFocusedRowEl(null);
-        setActiveIndex(null);
-        return;
-      }
-      if (!target.closest('[data-sidebar="menu-button"]')) {
-        return;
-      }
-      const rowEl = target.closest('[data-sidebar="menu-item"]');
-      const row = rowEl instanceof HTMLElement ? rowEl : null;
-      if (!row) {
-        return;
-      }
-      const idx = orderedRows.indexOf(row);
-      if (idx === -1) {
-        return;
-      }
-      setActiveIndex(idx);
-      setFocusedRowEl(target.matches(":focus-visible") ? row : null);
-    },
-    [setActiveIndex, orderedRows],
-  );
-
-  const onPointerDown = useCallback(() => {
-    setFocusedRowEl(null);
-  }, []);
-
-  const onBlur = useCallback(
-    (e: React.FocusEvent) => {
-      if (e.relatedTarget instanceof Node && containerRef.current?.contains(e.relatedTarget)) {
-        return;
-      }
+  const onFocus = (e: React.FocusEvent) => {
+    const { target } = e;
+    if (!(target instanceof HTMLElement)) {
       setFocusedRowEl(null);
       setActiveIndex(null);
-    },
-    [containerRef, setActiveIndex],
-  );
+      return;
+    }
+    if (!target.closest('[data-sidebar="menu-button"]')) {
+      return;
+    }
+    const rowEl = target.closest('[data-sidebar="menu-item"]');
+    const row = rowEl instanceof HTMLElement ? rowEl : null;
+    if (!row) {
+      return;
+    }
+    const idx = orderedRows.indexOf(row);
+    if (idx === -1) {
+      return;
+    }
+    setActiveIndex(idx);
+    setFocusedRowEl(target.matches(":focus-visible") ? row : null);
+  };
 
-  const onKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      // a row that walked the key itself (a tree's expand on ArrowRight) is left alone
-      if (!NAV_KEYS.has(e.key) || e.defaultPrevented) {
-        return;
-      }
-      const container = containerRef.current;
-      if (!container || !(e.target instanceof HTMLElement)) {
-        return;
-      }
-      const items = [...container.querySelectorAll<HTMLElement>('[data-sidebar="menu-button"]')];
-      const currentIdx = items.indexOf(e.target);
-      if (currentIdx === -1) {
-        return;
-      }
-      e.preventDefault();
-      // keep handled arrows from the shell's window-level key bindings
-      e.stopPropagation();
-      if (e.key === "Home") {
-        items[0]?.focus();
-      } else if (e.key === "End") {
-        items.at(-1)?.focus();
-      } else {
-        const forward = e.key === "ArrowDown" || e.key === "ArrowRight";
-        const next = forward
-          ? (currentIdx + 1) % items.length
-          : (currentIdx - 1 + items.length) % items.length;
-        items[next]?.focus();
-      }
-    },
-    [containerRef],
-  );
+  const onPointerDown = () => {
+    setFocusedRowEl(null);
+  };
+
+  const onBlur = (e: React.FocusEvent) => {
+    if (e.relatedTarget instanceof Node && containerRef.current?.contains(e.relatedTarget)) {
+      return;
+    }
+    setFocusedRowEl(null);
+    setActiveIndex(null);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    // a row that walked the key itself (a tree's expand on ArrowRight) is left alone
+    if (!NAV_KEYS.has(e.key) || e.defaultPrevented) {
+      return;
+    }
+    const container = containerRef.current;
+    if (!container || !(e.target instanceof HTMLElement)) {
+      return;
+    }
+    const items = [...container.querySelectorAll<HTMLElement>('[data-sidebar="menu-button"]')];
+    const currentIdx = items.indexOf(e.target);
+    if (currentIdx === -1) {
+      return;
+    }
+    e.preventDefault();
+    // keep handled arrows from the shell's window-level key bindings
+    e.stopPropagation();
+    if (e.key === "Home") {
+      items[0]?.focus();
+    } else if (e.key === "End") {
+      items.at(-1)?.focus();
+    } else {
+      const forward = e.key === "ArrowDown" || e.key === "ArrowRight";
+      const next = forward
+        ? (currentIdx + 1) % items.length
+        : (currentIdx - 1 + items.length) % items.length;
+      items[next]?.focus();
+    }
+  };
 
   const hoveredRowEl = activeIndex === null ? null : (orderedRows[activeIndex] ?? null);
   const firstRowEl = orderedRows[0] ?? null;
@@ -295,7 +280,6 @@ const SidebarMenu = ({
 
   return size ? <SizeProvider size={size}>{content}</SizeProvider> : content;
 };
-SidebarMenu.displayName = "SidebarMenu";
 
 type SidebarMenuItemProps = LiHTMLAttributes<HTMLLIElement>;
 
@@ -353,7 +337,6 @@ const SidebarMenuItem = ({
     </MenuItemContext>
   );
 };
-SidebarMenuItem.displayName = "SidebarMenuItem";
 
 // element children render outside the text-box-trimmed span, which would clip an inline SVG
 const MenuRowLabel = ({
@@ -432,7 +415,6 @@ const SidebarMenuButton = ({
 }: SidebarMenuButtonProps & RefAttributes<HTMLButtonElement>) => {
   const scope = useContext(MenuScopeContext);
   const item = useContext(MenuItemContext);
-  const radius = useRadius();
   const sizeClasses = useSize();
 
   const setActive = item?.setActive;
@@ -486,7 +468,6 @@ const SidebarMenuButton = ({
     </button>
   );
 };
-SidebarMenuButton.displayName = "SidebarMenuButton";
 
 interface SidebarMenuActionProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   // hidden until the row is hovered or holds focus, or its popup is open
@@ -500,26 +481,22 @@ const SidebarMenuAction = ({
   className,
   ref,
   ...props
-}: SidebarMenuActionProps & RefAttributes<HTMLButtonElement>) => {
-  const radius = useRadius();
-  return (
-    <button
-      ref={ref}
-      type="button"
-      data-sidebar="menu-action"
-      className={cn(
-        "absolute top-1/2 right-1 z-20 flex size-6 shrink-0 -translate-y-1/2 items-center justify-center text-muted-foreground outline-none",
-        "transition-[color,opacity] duration-80 hover:text-foreground focus-visible:text-foreground",
-        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        showOnHover &&
-          "opacity-0 group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100",
-        radius.item,
-        className,
-      )}
-      {...props}
-    />
-  );
-};
-SidebarMenuAction.displayName = "SidebarMenuAction";
+}: SidebarMenuActionProps & RefAttributes<HTMLButtonElement>) => (
+  <button
+    ref={ref}
+    type="button"
+    data-sidebar="menu-action"
+    className={cn(
+      "absolute top-1/2 right-1 z-20 flex size-6 shrink-0 -translate-y-1/2 items-center justify-center text-muted-foreground outline-none",
+      "transition-[color,opacity] duration-80 hover:text-foreground focus-visible:text-foreground",
+      "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+      showOnHover &&
+        "opacity-0 group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100",
+      radius.item,
+      className,
+    )}
+    {...props}
+  />
+);
 
 export { SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction };

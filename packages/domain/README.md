@@ -1,84 +1,46 @@
 # @repo/domain
 
 The zod-only leaf: the thread grammar every wire in the product carries, and
-the vocabulary the write layer announces change through. The desktop renderer,
+the vocabulary the write layer announces change through. The workspace UI,
 the local server, the cloud page planner and the phone all parse the same
 event with it, so it holds schemas and pure tables and nothing else — no node,
 no db, no transport, no React.
 
 ## Why it exists
 
-A thread event is written by the local server, replayed by the renderer,
+A thread event is written by the local server, replayed by the page,
 pushed through the Worker's merged log and pulled back down by another device,
 and every one of those parses it at its own boundary. One grammar in one
 package with one runtime dependency is what makes that the same parse on every
-target. The leaf-ness is held by `tools/repo-guards/src/dep-dag.test.ts` three
-ways — `@repo/domain` is declared with no outgoing edge, its purity rule
-forbids node, react and `@tauri-apps` imports, and the zod-only-leaf check refuses any
-`dependencies` entry but `zod`, because a second runtime dep here ships to
-every consumer — and by `tsconfig.json` (`ES2023`, `types: []`), so a node
-global is a type error before it is a lint error.
+target. The leaf-ness is held by `tools/repo-guards/src/dep-dag.test.ts` —
+`@repo/domain` is declared with no outgoing edge, only `@repo/workspace`
+reaches `@tauri-apps`, and the zod-only-leaf check refuses any `dependencies`
+entry but `zod`, because a second runtime dep here ships to every consumer —
+by `oxlint.config.ts`, which refuses its source a node or react import, and by
+`tsconfig.json` (`ES2023`, `types: []`), so a node global is a type error
+before it is a lint error.
 
 Consumers: `@repo/db`, `@repo/contract`, `@repo/agent-runtime`, the CLI server,
-the desktop renderer, and `apps/mobile`, whose synced log is stored as this
+the workspace UI, and `apps/mobile`, whose synced log is stored as this
 package's `ThreadEvent`.
 
 ## Layout
 
 ```
 src/
-  thread-status.ts       # idle|starting|active|stopping|error as ONE tuple —
-                         # the drizzle enum column and the wire schema both
-                         # read it, so a status cannot exist on one side only
-  thread-lifecycle.ts    # THREAD_LIFECYCLE: (status, event) → status as data.
-                         # `evaluateThreadLifecycleEvent` checks supersession
-                         # and turn identity BEFORE the table so a stale event
-                         # reports its true diagnosis (superseded | stale-turn |
-                         # illegal-transition). stop intent is the `stopping`
-                         # status, not a side field, and `stopping` has no
-                         # run.started cell: a queued turn cannot reactivate it
-  provider-event.ts      # the PERSISTED ThreadEvent grammar, despite the name:
-                         # seven item kinds, fourteen event types, each with its
-                         # own scope. `client/turn/requested` carries the
-                         # optional viewContext and contextPaths beside bb's
-                         # `text`, which stays exactly what the user typed.
-                         # `thread/meta` (title, origin note, harness) and
-                         # `thread/archived` are local: the thread's own facts,
-                         # riding its log to every device
-                         # `mergeAdjacentDeltas` stores one item's adjacent
-                         # deltas as one row, a reset opening a new run and a
-                         # caller's cap bounding each. `settledReasoningText`
-                         # is the one reading of a settled thought both the
-                         # desktop's fold and the phone's run
-  thread-event-scope.ts  # thread | turn scope, each its own schema so an
-                         # event type names the one it takes (anything looser
-                         # than turn scope states why beside its member)
-  view-context.ts        # the screen a message left from: `doc` + path +
-                         # sha-256 revision. a single-member discriminatedUnion
-                         # so a second surface breaks every consumer at compile
-  thread-title.ts        # `deriveThreadTitle`: a thread's name from its first
-                         # message, the one reading the server's naming and
-                         # the phone's projection both run; and
-                         # `MAX_THREAD_TITLE_LENGTH`, an explicit title's bound
-                         # on the create route and on `thread/meta`
-  quote-selection.ts     # `quoteSelection`: a selection the agent is asked
-                         # about, quoted the one way the Mac's composer and
-                         # the phone's both start with
-  pending-interactions.ts  # the provider-neutral approval grammar — subjects
-                         # (command | file_change), decisions, payload,
-                         # resolution — and `parseApprovalResolution`, the ONE
-                         # parser the answer route's 400 gate and the runtime
-                         # share (deny is always accepted; anything else must
-                         # be a decision the request offered)
-  pending-interaction-status.ts  # pending|resolved|interrupted, the
-                         # same tuple-feeds-both-sides shape as thread-status
-  change-kinds.ts        # the invalidation vocabulary: vault, doc and thread
-                         # change kinds — pings naming a subscription target,
-                         # never payloads
-  notifier.ts            # DbNotifier, the seam writes announce through;
-                         # NotificationBuffer queues deliveries and `flushTo`
-                         # runs them AFTER commit, so no subscriber sees
-                         # rolled-back state or re-enters the db mid-transaction
+  harness.ts                     # the harness ids the wire takes, and their names
+  agent-shell-env.ts             # the thread-id env var the runtime sets and the CLI reads
+  thread-status.ts               # the one status tuple the db column and the wire share
+  thread-lifecycle.ts            # (status, event) → status, as data
+  provider-event.ts              # the PERSISTED ThreadEvent grammar, despite the name
+  thread-event-scope.ts          # the thread and turn scopes an event type names
+  view-context.ts                # the screen a message left from
+  thread-title.ts                # a thread's name from its first message, and its bound
+  quote-selection.ts             # the one way a selection is quoted to the agent
+  pending-interactions.ts        # the provider-neutral approval grammar
+  pending-interaction-status.ts  # the interaction status tuple, shared like thread-status
+  change-kinds.ts                # the invalidation vocabulary: pings, never payloads
+  notifier.ts                    # DbNotifier, the seam a write announces through
 ```
 
 Every subpath is exported by name in `package.json`; there is no barrel.
@@ -88,17 +50,17 @@ Every subpath is exported by name in `package.json`; there is no barrel.
 - **Two grammars share the word "event"; only this one is durable.**
   `@repo/agent-runtime/vocabulary/provider-event` is what a provider adapter
   may EMIT; `provider-event.ts` here is what the `events` table STORES and a
-  client replays. `apps/cli/src/server/agents/event-mapping.ts` is the one
-  place that narrows the first onto the second — a kind with no persisted
-  counterpart is dropped with a reason, never re-shaped. The shared leaves
-  (file change, item status, scope) are one type here so a narrowing assigns
-  them; a field-by-field respelling would mean the two had drifted. A shape bb
-  already names is re-vendored from bb, not invented.
+  client replays. `apps/cli/src/server/agents/runtime-manager.ts` is the one
+  place that narrows the first onto the second, every kind the mapper emits but
+  an adapter's notice, which the turn driver writes to the agent log instead;
+  nothing is re-shaped. The shared leaves (file change, item status,
+  scope) are one type here so a narrowing assigns them; a field-by-field
+  respelling would mean the two had drifted. A shape bb already names is
+  re-vendored from bb, not invented.
 - **Scope is enforced twice, on purpose.** `threadEventSchema` refuses a
   turn-only event under thread scope, and a turn scope with no id, at parse;
-  the `events_scope_shape_check` CHECK in
-  `packages/db/drizzle/20260816084328_early_tana_nile/migration.sql` refuses the same row at
-  insert. A turn-scoped row with no turn id is a row no query can place.
+  the `events_scope_shape_check` CHECK in `packages/db/src/schema.ts` refuses
+  the same row at insert. A turn-scoped row with no turn id is a row no query can place.
 - **The lifecycle is a table, and the db applies it under a CAS.**
   `packages/db/src/threads.ts` evaluates the event here, then updates only
   where the status AND the active turn id still match what it read, so a
@@ -130,15 +92,6 @@ Every subpath is exported by name in `package.json`; there is no barrel.
 
 ## Testing
 
-`pnpm --filter @repo/domain test` — vitest. `provider-event.test` pins the
-scope refusals at parse, the either-scope `provider/error`, a streamed item's
-round trip, that a delta's item ref invents no kind, and that a delta merge
-never joins across a boundary, an item, a turn, a delta type or a reset, nor
-past its byte limit, escapes and split characters included. That
-a merged log folds to the same rows is fuzzed where the fold is reachable,
+`pnpm --filter @repo/domain test` — vitest. That a merged log folds to the
+same rows is fuzzed where the fold is reachable,
 `apps/cli/src/server/agents/__tests__/event-coalescer.test.ts`.
-`thread-lifecycle.test` fuzzes random event sequences inside the declared
-statuses and turn-binding invariants: every absent cell is an
-`illegal-transition` no-op, a settle naming another turn is `stale-turn`, an
-archived thread supersedes new work before the table is consulted, `stopping`
-cannot dispatch, and every reachable status can reach `idle` again.

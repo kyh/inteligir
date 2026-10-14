@@ -1,5 +1,5 @@
-// the paths outside the rpc handler, none of which may acquire a typed client: /health is an
-// unauthenticated supervisor probe, /vault/asset answers bytes with an etag, a 304 and a
+// the paths outside the rpc handler, none of which may acquire a typed client: /health is the
+// harnesses' unauthenticated boot probe, /vault/asset answers bytes with an etag, a 304 and a
 // sandbox csp, /html-frame is the document a note's html block runs in under its own sandbox
 // csp, and the /ws socket carries frames.
 
@@ -15,10 +15,10 @@ export const HTML_FRAME_PATH = "/html-frame";
 
 export const WS_PATH = "/ws";
 
-export const healthResponseSchema = z.object({ ok: z.literal(true) }).strict();
+export const healthResponseSchema = z.strictObject({ ok: z.literal(true) });
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
-export const vaultAssetQuerySchema = z.object({ path: z.string().min(1) }).strict();
+export const vaultAssetQuerySchema = z.strictObject({ path: z.string().min(1) });
 
 export const vaultAssetUrl = (origin: string, path: string): string =>
   `${origin}${VAULT_ASSET_PATH}?path=${encodeURIComponent(path)}`;

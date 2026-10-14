@@ -46,7 +46,7 @@ const writeUntilIndexed = async (app: AppInstance): Promise<void> => {
 
 export const debugLogTrace: Scenario = {
   description:
-    "INTELIGIR_DEBUG traces what the watcher kept and dropped and the index's verdict, by path and never by content; unset, nothing",
+    "`INTELIGIR_DEBUG` traces what the watcher kept and dropped and the index's verdict, by path and never by content or credential; an instance without it writes no debug line",
   name: "debug-log",
   async run(ctx) {
     const traced = await ctx.boot({

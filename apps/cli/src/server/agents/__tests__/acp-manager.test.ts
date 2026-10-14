@@ -8,23 +8,21 @@ import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime
 import type { AgentRuntime, AgentRuntimeShellEnvironment } from "@repo/agent-runtime/types";
 import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-event";
 import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
-import { parseApprovalResolution } from "@repo/domain/pending-interactions";
-import type { PendingInteractionPayload } from "@repo/domain/pending-interactions";
 import type { ThreadEventItemStatus } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { listStoredThreadEvents } from "@repo/db/events";
-import { getThread } from "@repo/db/threads";
+import { listQueuedThreadMessages } from "@repo/db/queued-messages";
+import { getThread, setThreadProviderSession } from "@repo/db/threads";
 import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
 import { apiFor } from "../../../context";
 import { loopbackOrigin } from "../../server-file";
-import type { TurnDriver } from "../../threads/turn-driver";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
 import { AUDIENCE_INSTRUCTIONS, CLI_POINTER_INSTRUCTIONS } from "../agent-instructions";
-import { createAcpRuntimeManager } from "../runtime-manager";
-import type { AcpRuntimeManager, AcpRuntimeManagerDeps } from "../runtime-manager";
+import { AcpTurnDriver } from "../runtime-manager";
+import type { AcpTurnDriverDeps } from "../runtime-manager";
 import { bootTestApp, listenTestApp, TEST_SERVER_TOKEN } from "../../__tests__/boot-app";
 import type { BootedTestApp } from "../../__tests__/boot-app";
 import {
@@ -65,6 +63,8 @@ interface ManagerOptions {
   children?: ChildProcess[];
   // mutable on purpose: a sign-in between two sends, read at the next session open.
   mode?: FakeAcpMode;
+  // a file the fake's session open waits for, so a send can queue behind a session still opening.
+  gateFile?: string;
   // mutable on purpose: a runtime restored between two sends, read at the next send.
   unavailableReason?: string | null;
   // the provider each send's refusal check was asked about.
@@ -72,8 +72,7 @@ interface ManagerOptions {
 }
 
 interface ManagerHarness extends BootedTestApp {
-  manager: AcpRuntimeManager;
-  driver: TurnDriver;
+  driver: AcpTurnDriver;
 }
 
 const fakeSpawn =
@@ -87,30 +86,33 @@ const fakeSpawn =
     if (options.filePath !== undefined) {
       childEnv.FAKE_ACP_FILE = options.filePath;
     }
+    if (options.gateFile !== undefined) {
+      childEnv.FAKE_ACP_GATE = options.gateFile;
+    }
     const child = spawn(process.execPath, [FAKE_AGENT], {
+      detached: true,
       env: childEnv,
       stdio: ["pipe", "pipe", "pipe"],
     });
     options.children?.push(child);
-    return { child };
+    return child;
   };
 
 const bootWithManager = async (
   mode: FakeAcpMode,
   options: ManagerOptions = {},
 ): Promise<ManagerHarness> => {
-  const wired: { manager: AcpRuntimeManager; driver: TurnDriver }[] = [];
+  let driver: AcpTurnDriver | null = null;
   const booted = await bootTestApp({
-    agent: { detail: null, mode: "auto", runtime: "acp" },
-    makeDriver: ({ db, bus, vault, vaultDir }) => {
-      const deps: AcpRuntimeManagerDeps = {
+    agent: { mode: "acp", runtime: "ready" },
+    makeDriver: ({ db, bus, vault, vaultDir, sink }) => {
+      const deps: AcpTurnDriverDeps = {
         db,
         defaultProviderId: () => "codex",
         git: vault.git,
         hostEnv: {},
         models: { claude: null, codex: null },
         notifier: bus,
-        reapIntervalMs: null,
         sessionFacts: () =>
           fakeSessionFacts({
             cliBinDir: options.cliBinDir ?? null,
@@ -130,25 +132,14 @@ const bootWithManager = async (
       if (options.stopGraceMs !== undefined) {
         deps.stopGraceMs = options.stopGraceMs;
       }
-      const manager = createAcpRuntimeManager(deps);
-      return {
-        createTurnDriver: (sink) => {
-          const driver = manager.createTurnDriver(sink);
-          wired.push({ driver, manager });
-          return driver;
-        },
-        dispose: async () => {
-          await manager.dispose();
-        },
-        recordAgentWrites: manager.recordAgentWrites,
-      };
+      driver = new AcpTurnDriver(sink, deps);
+      return { driver };
     },
   });
-  const [driven] = wired;
-  if (driven === undefined) {
-    throw new Error("the thread service never asked for its turn driver");
+  if (driver === null) {
+    throw new Error("the composition never built its turn driver");
   }
-  return { ...booted, ...driven };
+  return { ...booted, driver };
 };
 
 const hasExited = (child: ChildProcess): boolean =>
@@ -169,33 +160,6 @@ const headCommit = (vaultDir: string) => {
   const [author = "", email = "", ...rest] = stdout.split("\n");
   return { author, email, files: rest.filter((line) => line.length > 0) };
 };
-
-describe("parseApprovalResolution", () => {
-  const commandPayload: PendingInteractionPayload = {
-    availableDecisions: ["allow_once", "deny"],
-    kind: "approval",
-    reason: null,
-    subject: {
-      command: "ls",
-      cwd: null,
-      itemId: "cmd_1",
-      kind: "command",
-    },
-  };
-
-  it("accepts bare verbs and refuses out-of-set decisions", () => {
-    expect(parseApprovalResolution("deny", commandPayload)).toEqual({
-      ok: true,
-      resolution: { decision: "deny" },
-    });
-    expect(parseApprovalResolution("allow_once", commandPayload)).toEqual({
-      ok: true,
-      resolution: { decision: "allow_once" },
-    });
-    expect(parseApprovalResolution("allow_for_session", commandPayload).ok).toBe(false);
-    expect(parseApprovalResolution("approve!!", commandPayload).ok).toBe(false);
-  });
-});
 
 // every case spawns node children that import the ACP sdk, a few hundred ms each before a first frame.
 describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
@@ -307,6 +271,25 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     ).toMatchObject({ text: "hello from the fake agent", turnId });
   });
 
+  it("refuses a send on a thread started on a harness this build does not ship, spawning nothing", async () => {
+    const checkedProviders: string[] = [];
+    const spawnedEnvs: Record<string, string>[] = [];
+    const harness = await bootWithManager("message", { checkedProviders, spawnedEnvs });
+    const threadId = await createThread(harness.client);
+    // as another device's newer build would have stated it on the thread's log.
+    setThreadProviderSession(harness.db, {
+      providerId: "gemini",
+      providerThreadId: "pt_gemini",
+      threadId,
+    });
+    const [refusal] = await safe(harness.client.threads.send({ text: "hello", threadId }));
+    expect(isDefinedError(refusal) && refusal.code).toBe("PROVIDER_UNAVAILABLE");
+    expect(refusal?.message).toContain('"gemini"');
+    expect(checkedProviders).toEqual([]);
+    expect(spawnedEnvs).toEqual([]);
+    expect(getThread(harness.db, threadId)?.providerId).toBe("gemini");
+  });
+
   it("reads the session facts at every session open: a folder added after the first turn reaches the next session's env AND prompt", async () => {
     const connectedDirs: string[] = [];
     const spawnedEnvs: Record<string, string>[] = [];
@@ -378,8 +361,8 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     });
 
     await harness.client.threads.answerInteraction({
+      decision: "allow_once",
       interactionId: interaction.id,
-      resolution: "allow_once",
       threadId,
     });
     await awaitThreadStatus(harness.client, threadId, "idle");
@@ -419,8 +402,8 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     await agentApi.comments.add({ id: "c1", path: "plan.md", text: "from the agent" });
 
     await harness.client.threads.answerInteraction({
+      decision: "allow_once",
       interactionId: interaction.id,
-      resolution: "allow_once",
       threadId,
     });
     await awaitThreadStatus(harness.client, threadId, "idle");
@@ -454,16 +437,16 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     // the fake offers allow_once and reject_once only.
     const [outOfSet] = await safe(
       harness.client.threads.answerInteraction({
+        decision: "allow_for_session",
         interactionId: interaction.id,
-        resolution: "allow_for_session",
         threadId,
       }),
     );
     expect(isDefinedError(outOfSet) && outOfSet.code).toBe("INVALID_RESOLUTION");
 
     await harness.client.threads.answerInteraction({
+      decision: "allow_once",
       interactionId: interaction.id,
-      resolution: "allow_once",
       threadId,
     });
 
@@ -492,8 +475,8 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     expect(queued.kind).toBe("queued");
 
     await harness.client.threads.answerInteraction({
+      decision: "allow_once",
       interactionId: interaction.id,
-      resolution: "allow_once",
       threadId,
     });
 
@@ -507,18 +490,55 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     await awaitThreadStatus(harness.client, threadId, "idle");
   });
 
-  it("names the harness when session/new is refused for auth", async () => {
+  it("fails the turn whose session/new was refused for auth with the signed-out sentence", async () => {
     const harness = await bootWithManager("authOnSessionOpen");
     const threadId = await createThread(harness.client);
-    await sendMessage(harness.client, threadId, "hello agent");
+    const turnId = await sendMessage(harness.client, threadId, "hello agent");
 
     await awaitThreadStatus(harness.client, threadId, "error");
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     expect(rows.find((row) => row.kind === "error")).toMatchObject({
-      detail: "ChatGPT is signed out on this Mac.",
-      message: "The agent provider failed",
+      detail: null,
+      message: "ChatGPT is signed out on this Mac.",
+      turnId,
     });
+  });
+
+  it("leaves a message queued behind a session/new refused for auth for the next send to start first", async () => {
+    const children: ChildProcess[] = [];
+    const managerOptions: ManagerOptions = { children };
+    const harness = await bootWithManager("authOnSessionOpen", managerOptions);
+    const gateFile = path.join(harness.dataDir, "session-gate");
+    managerOptions.gateFile = gateFile;
+    const threadId = await createThread(harness.client);
+    const userTexts = async () =>
+      flattenTimelineRows(await fetchTimelineRows(harness.client, threadId)).flatMap((row) =>
+        row.kind === "conversation" && row.role === "user" ? [row.text] : [],
+      );
+    await sendMessage(harness.client, threadId, "first");
+    const queued = await harness.client.threads.send({ text: "second", threadId });
+    expect(queued.kind).toBe("queued");
+
+    writeFileSync(gateFile, "");
+    await awaitThreadStatus(harness.client, threadId, "error");
+    await awaitExited(children);
+    expect(listQueuedThreadMessages(harness.db, threadId).map((row) => row.text)).toEqual([
+      "second",
+    ]);
+    expect(await userTexts()).toEqual(["first"]);
+
+    managerOptions.mode = "message";
+    const later = await harness.client.threads.send({ text: "third", threadId });
+    expect(later.kind).toBe("queued");
+    await vi.waitFor(async () => {
+      const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+      const completed = rows.filter((row) => row.kind === "turn" && row.status === "completed");
+      expect(completed).toHaveLength(2);
+    }, PROVIDER_WAIT);
+    await awaitThreadStatus(harness.client, threadId, "idle");
+    expect(await userTexts()).toEqual(["first", "second", "third"]);
+    expect(listQueuedThreadMessages(harness.db, threadId)).toEqual([]);
   });
 
   it("fails a prompt refused for auth with the signed-out sentence", async () => {
@@ -571,21 +591,22 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     // the resume's child and the fresh start's child, each refused and each gone.
     expect(children).toHaveLength(3);
     await awaitExited(children);
-    await harness.manager.dispose();
+    await harness.driver.dispose();
     expect(children.filter((child) => !hasExited(child))).toEqual([]);
   });
 
   it("fails a turn whose adapter dies before the handshake, naming what it said on stderr", async () => {
     const harness = await bootWithManager("crashOnBoot");
     const threadId = await createThread(harness.client);
-    await sendMessage(harness.client, threadId, "hello agent");
+    const turnId = await sendMessage(harness.client, threadId, "hello agent");
 
     await awaitThreadStatus(harness.client, threadId, "error");
 
     const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
     expect(rows.find((row) => row.kind === "error")).toMatchObject({
-      detail: "The ChatGPT adapter exited (code 3): fake agent: cannot start",
-      message: "The agent provider failed",
+      detail: null,
+      message: "The ChatGPT adapter exited (code 3): fake agent: cannot start",
+      turnId,
     });
   });
 
@@ -722,7 +743,7 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
 
     // straight to the driver: the dispatch parks on the vault lock, so dispose lands before it spawns.
     harness.driver.startTurn({ text: "too late", threadId, turnId: "turn_after_dispose" });
-    await harness.manager.dispose();
+    await harness.driver.dispose();
     await harness.vault.git.runExclusive(async () => {
       await Promise.resolve();
     });
@@ -735,12 +756,12 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
 interface ScriptedRuntimeHarness extends BootedTestApp {
   // resolves once the manager has put the turn's prompt on the wire, so a turn/started lands on a
   // dispatched turn.
-  prompted: Promise<void>;
+  prompted: (turnId: string) => Promise<void>;
   // what the provider reports, as the runtime would hand it to the manager.
   emit: (event: ProviderEvent) => void;
 }
 
-const idleRuntime = (prompted: () => void): AgentRuntime => ({
+const idleRuntime = (prompted: string[]): AgentRuntime => ({
   cancelTurn: async () => {
     await Promise.resolve();
   },
@@ -748,10 +769,9 @@ const idleRuntime = (prompted: () => void): AgentRuntime => ({
     await Promise.resolve();
   },
   hasThread: () => false,
-  reapIdleProviderSessions: async () => await Promise.resolve({ reapedSessions: [] }),
   resumeThread: async () => await Promise.resolve({ loaded: false, providerThreadId: "pt_1" }),
-  runTurn: async () => {
-    prompted();
+  runTurn: async ({ turnId }) => {
+    prompted.push(turnId);
     await Promise.resolve();
   },
   shutdown: async () => {
@@ -761,16 +781,19 @@ const idleRuntime = (prompted: () => void): AgentRuntime => ({
 });
 
 // the manager over the composed server's own engine, with the provider's reports the test's.
-const bootWithScriptedRuntime = async (): Promise<ScriptedRuntimeHarness> => {
-  let options: AcpAgentRuntimeOptions | null = null;
-  const prompted: PromiseWithResolvers<void> = Promise.withResolvers();
+const bootWithScriptedRuntime = async (
+  options: Pick<AcpTurnDriverDeps, "stopGraceMs"> = {},
+): Promise<ScriptedRuntimeHarness> => {
+  let runtimeOptions: AcpAgentRuntimeOptions | null = null;
+  const prompted: string[] = [];
   const booted = await bootTestApp({
-    agent: { detail: null, mode: "auto", runtime: "acp" },
-    makeDriver: ({ db, bus, vault, vaultDir }) => {
-      const manager = createAcpRuntimeManager({
+    agent: { mode: "acp", runtime: "ready" },
+    makeDriver: ({ db, bus, vault, vaultDir, sink }) => ({
+      driver: new AcpTurnDriver(sink, {
+        ...options,
         createRuntime: (captured) => {
-          options = captured;
-          return idleRuntime(prompted.resolve);
+          runtimeOptions = captured;
+          return idleRuntime(prompted);
         },
         db,
         defaultProviderId: () => "codex",
@@ -778,28 +801,24 @@ const bootWithScriptedRuntime = async (): Promise<ScriptedRuntimeHarness> => {
         hostEnv: {},
         models: { claude: null, codex: null },
         notifier: bus,
-        reapIntervalMs: null,
         sessionFacts: () => fakeSessionFacts(),
         vaultDir,
-      });
-      return {
-        createTurnDriver: manager.createTurnDriver,
-        dispose: async () => {
-          await manager.dispose();
-        },
-        recordAgentWrites: manager.recordAgentWrites,
-      };
-    },
+      }),
+    }),
   });
   return {
     ...booted,
     emit: (event) => {
-      if (options === null) {
-        throw new Error("no turn was dispatched, so no runtime was built");
+      if (runtimeOptions === null) {
+        throw new Error("the driver never built its runtime");
       }
-      options.onEvent(event);
+      runtimeOptions.onEvent(event);
     },
-    prompted: prompted.promise,
+    prompted: async (turnId) => {
+      await vi.waitFor(() => {
+        expect(prompted).toContain(turnId);
+      }, PROVIDER_WAIT);
+    },
   };
 };
 
@@ -808,9 +827,9 @@ describe("a write the provider reports", { timeout: 20_000 }, () => {
     const harness = await bootWithScriptedRuntime();
     const threadId = await createThread(harness.client);
     const turnId = await sendMessage(harness.client, threadId, "tidy my notes");
-    await harness.prompted;
+    await harness.prompted(turnId);
 
-    const reported = { providerThreadId: "pt_1", scope: turnScope("pturn_1"), threadId };
+    const reported = { scope: turnScope(turnId), threadId };
     const fileChange = (id: string, file: string, status: ThreadEventItemStatus) => ({
       approvalStatus: null,
       changes: [{ kind: "update" as const, path: path.join(harness.vaultDir, file) }],
@@ -857,5 +876,44 @@ describe("a write the provider reports", { timeout: 20_000 }, () => {
     expect(await harness.client.threads.turnChanges({ threadId })).toEqual({
       turns: [{ paths: ["agent.md"], state: "applied", turnId }],
     });
+  });
+});
+
+describe("a report from a turn the host already settled", { timeout: 20_000 }, () => {
+  it("settles nothing: a late turn/completed from a stopped turn leaves the next turn running", async () => {
+    const harness = await bootWithScriptedRuntime({ stopGraceMs: 50 });
+    const threadId = await createThread(harness.client);
+    const stoppedTurnId = await sendMessage(harness.client, threadId, "ignore the stop");
+    await harness.prompted(stoppedTurnId);
+    const stopped = { scope: turnScope(stoppedTurnId), threadId };
+    harness.emit({ ...stopped, type: "turn/started" });
+    await harness.client.threads.interrupt({ threadId });
+    await awaitThreadStatus(harness.client, threadId, "idle");
+
+    const nextTurnId = await sendMessage(harness.client, threadId, "the next one");
+    await harness.prompted(nextTurnId);
+    const next = { scope: turnScope(nextTurnId), threadId };
+    harness.emit({ ...next, type: "turn/started" });
+    await awaitThreadStatus(harness.client, threadId, "active");
+    harness.emit({ ...stopped, status: "completed", type: "turn/completed" });
+    expect(getThread(harness.db, threadId)).toMatchObject({
+      activeTurnId: nextTurnId,
+      status: "active",
+    });
+
+    const reply = { id: "msg_1", text: "still the next turn's", type: "agentMessage" as const };
+    harness.emit({ ...next, item: reply, type: "item/started" });
+    harness.emit({ ...next, item: reply, type: "item/completed" });
+    harness.emit({ ...next, status: "completed", type: "turn/completed" });
+    await awaitThreadStatus(harness.client, threadId, "idle");
+
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    expect(rows.filter((row) => row.kind === "turn")).toEqual([
+      expect.objectContaining({ status: "interrupted", turnId: stoppedTurnId }),
+      expect.objectContaining({ status: "completed", turnId: nextTurnId }),
+    ]);
+    expect(
+      rows.find((row) => row.kind === "conversation" && row.role === "assistant"),
+    ).toMatchObject({ text: reply.text, turnId: nextTurnId });
   });
 });

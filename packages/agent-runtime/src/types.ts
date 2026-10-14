@@ -2,6 +2,7 @@
 // AgentRuntime carries only what the host calls: a method kept for a re-vendor is a stub every test
 // double must write.
 
+import type { HarnessId } from "@repo/domain/harness";
 import type {
   PendingInteractionCreate,
   PendingInteractionResolution,
@@ -24,6 +25,10 @@ export interface AgentRuntimeOptions {
 
   onEvent: (event: ProviderEvent) => void;
 
+  // every update the running turn's session sends, one that maps to no event included: a tool call
+  // still running speaks only so, and the host's idle clock must hear it.
+  onActivity?: (threadId: string) => void;
+
   onInteractiveRequest?: (
     request: PendingInteractionCreate,
   ) => Promise<PendingInteractionResolution>;
@@ -33,7 +38,7 @@ export interface AgentRuntimeOptions {
 
 export interface StartThreadArgs {
   threadId: string;
-  providerId: string;
+  providerId: HarnessId;
 }
 
 export interface StartThreadResult {
@@ -43,7 +48,7 @@ export interface StartThreadResult {
 export interface ResumeThreadArgs {
   threadId: string;
   providerThreadId?: string;
-  providerId: string;
+  providerId: HarnessId;
 }
 
 export interface ResumeThreadResult {
@@ -55,23 +60,9 @@ export interface ResumeThreadResult {
 
 export interface RunTurnArgs {
   threadId: string;
+  // the host's id: ACP names no turns, so it scopes every event and request the prompt raises.
+  turnId: string;
   input: PromptInput[];
-}
-
-export interface ReapIdleProviderSessionsArgs {
-  idleForMs: number;
-  nowMs: number;
-}
-
-export interface ReapedIdleProviderSession {
-  idleForMs: number;
-  providerId: string;
-  providerThreadId: string;
-  threadId: string;
-}
-
-export interface ReapIdleProviderSessionsResult {
-  reapedSessions: ReapedIdleProviderSession[];
 }
 
 export interface AgentRuntime {
@@ -80,10 +71,6 @@ export interface AgentRuntime {
   resumeThread: (args: ResumeThreadArgs) => Promise<ResumeThreadResult>;
 
   runTurn: (args: RunTurnArgs) => Promise<void>;
-
-  reapIdleProviderSessions: (
-    args: ReapIdleProviderSessionsArgs,
-  ) => Promise<ReapIdleProviderSessionsResult>;
 
   hasThread: (threadId: string) => boolean;
 

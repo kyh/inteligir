@@ -6,6 +6,22 @@ import tanstack from "ultracite/oxlint/tanstack";
 
 const tests = ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"];
 
+// A regex, not a group: a group matches gitignore-style, so "react" would also refuse
+// "@platejs/react".
+const NODE = "^node:";
+const REACT = "^react(?:-dom)?(?:/|$)";
+const NODE_OR_REACT = "^(?:node:|react(?:-dom)?(?:/|$))";
+
+const NOTES_PURITY =
+  "@repo/notes is pure and platform-neutral — no node/react/ui imports; callers inject platform capabilities";
+
+// A test is one of the package's callers, so it may hand the code under test the platform.
+const platformPurity = (dir: string, regex: string, message: string) => ({
+  excludeFiles: tests,
+  files: [`${dir}/src/**`],
+  rules: { "no-restricted-imports": ["error", { patterns: [{ message, regex }] }] },
+});
+
 export default defineConfig({
   extends: [core, react, tanstack, antiSlop],
   ignorePatterns: [
@@ -37,16 +53,74 @@ export default defineConfig({
       rules: { "unicorn/require-post-message-target-origin": "off" },
     },
     {
+      // Hono's middleware awaits next() to run the rest of the chain, then reads or stamps the
+      // response it left; the rule assumes Express's call-and-return callback.
+      files: ["apps/cli/src/server/app.ts"],
+      rules: { "node/callback-return": "off" },
+    },
+    platformPurity(
+      "packages/agent-runtime",
+      REACT,
+      "@repo/agent-runtime spawns provider processes, so nothing it exports may pull a process tree into a page; the grammars a client reads live in @repo/domain",
+    ),
+    platformPurity(
+      "packages/contract",
+      NODE_OR_REACT,
+      "@repo/contract is what both ends compile against: it loads in the desktop page, on node, on workerd and in React Native, so a platform import is a package that stops loading somewhere",
+    ),
+    platformPurity(
+      "packages/domain",
+      NODE_OR_REACT,
+      "@repo/domain is a zod-only leaf: the thread grammar is parsed on both sides of every wire",
+    ),
+    platformPurity(
+      "packages/editor",
+      NODE,
+      "@repo/editor is browser-only: Plate/Slate in the page, never in the Node process",
+    ),
+    platformPurity(
+      "apps/mobile-editor",
+      NODE,
+      "@repo/mobile-editor is a page in the phone's WebView, loaded from file://: nothing but the browser is there",
+    ),
+    platformPurity(
+      "packages/ui",
+      NODE,
+      "@repo/ui is browser-only, and the Worker's SSR half consumes it as well as the local app",
+    ),
+    platformPurity(
+      "apps/workspace",
+      NODE,
+      "@repo/workspace is the page: it runs in the shell's WebKit or a browser tab, never in the Node process",
+    ),
+    {
       files: ["packages/notes/src/**"],
       rules: {
         "no-restricted-imports": [
           "error",
           {
             patterns: [
+              { message: NOTES_PURITY, regex: NODE_OR_REACT },
+              { group: ["@repo/ui", "@repo/ui/*"], message: NOTES_PURITY },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      // A test is one of the callers, so it may hand the code under test the platform's bytes.
+      excludeFiles: tests,
+      files: ["packages/notes/src/**"],
+      rules: {
+        "no-restricted-globals": [
+          "error",
+          {
+            checkGlobalObject: true,
+            globals: [
               {
-                group: ["node:*", "react", "react-dom", "react/*", "@repo/ui", "@repo/ui/*"],
                 message:
-                  "@repo/notes is pure and platform-neutral — no node/react/ui imports; callers inject platform capabilities",
+                  "@repo/notes names no platform and not every runtime it ships to has crypto; take the random bytes or the id from the caller",
+                name: "crypto",
               },
             ],
           },

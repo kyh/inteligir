@@ -17,7 +17,6 @@ const Flowchart = ({
     {...props}
   />
 );
-Flowchart.displayName = "Flowchart";
 
 export interface FlowchartConnectorProps extends HTMLAttributes<HTMLDivElement> {
   label?: ReactNode;
@@ -47,7 +46,6 @@ const FlowchartConnector = ({
     )}
   </div>
 );
-FlowchartConnector.displayName = "FlowchartConnector";
 
 export interface FlowchartNodeProps extends HTMLAttributes<HTMLDivElement> {
   kind?: ReactNode;
@@ -81,7 +79,6 @@ const FlowchartNode = ({
     </div>
   </div>
 );
-FlowchartNode.displayName = "FlowchartNode";
 
 export interface FlowchartNodeTitleProps extends HTMLAttributes<HTMLDivElement> {
   icon?: ReactNode;
@@ -107,7 +104,6 @@ const FlowchartNodeTitle = ({
     {children}
   </div>
 );
-FlowchartNodeTitle.displayName = "FlowchartNodeTitle";
 
 const FlowchartNodeCaption = ({
   className,
@@ -121,7 +117,6 @@ const FlowchartNodeCaption = ({
     {...props}
   />
 );
-FlowchartNodeCaption.displayName = "FlowchartNodeCaption";
 
 const FlowchartBranch = ({
   className,
@@ -135,7 +130,6 @@ const FlowchartBranch = ({
     {...props}
   />
 );
-FlowchartBranch.displayName = "FlowchartBranch";
 
 export interface FlowchartConditionProps extends HTMLAttributes<HTMLDivElement> {
   operator?: ReactNode;
@@ -170,7 +164,6 @@ const FlowchartCondition = ({
     )}
   </div>
 );
-FlowchartCondition.displayName = "FlowchartCondition";
 
 export {
   Flowchart,

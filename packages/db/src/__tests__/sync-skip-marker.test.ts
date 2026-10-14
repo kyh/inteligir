@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { writeTransaction } from "../connection";
 import type { DbConnection } from "../connection";
+import { syncState } from "../schema";
 import {
+  dropSyncOutboxThrough,
+  enqueueSyncOutboxInTransaction,
   readSyncState,
   recordSkippedRow,
   resetSyncState,
   takeRewindIfBuildChanged,
+  touchSyncedAt,
   writeSyncCursor,
 } from "../sync-outbox";
 import { openTempDb } from "./open-temp-db";
@@ -41,5 +45,23 @@ describe("the skipped-row marker", () => {
     resetSyncState(db);
     expect(takeRewindIfBuildChanged(db, "1.1.0")).toBeNull();
     expect(readSyncState(db).cursor).toBe(0);
+  });
+});
+
+describe("a sign-out's reset", () => {
+  it("leaves the sync state row exactly as the baseline seeded it", () => {
+    const db = openTempDb();
+    const fresh = db.select().from(syncState).all();
+
+    writeTransaction(db, (tx) => {
+      enqueueSyncOutboxInTransaction(tx, [{ body: "{}", threadId: "thr_1" }]);
+    });
+    expect(dropSyncOutboxThrough(db, 1)).toBe(1);
+    skipPast(db, 4, "1.0.0");
+    touchSyncedAt(db, 1000);
+    expect(db.select().from(syncState).all()).not.toEqual(fresh);
+
+    resetSyncState(db);
+    expect(db.select().from(syncState).all()).toEqual(fresh);
   });
 });

@@ -21,6 +21,7 @@ tauri-plugin-dialog = "2.8"
 tauri-plugin-opener = "2.7"
 tauri-plugin-single-instance = "2.5"
 tauri-plugin-updater = "2.13"
+time = { version = "0.3", features = ["formatting", "macros"] }
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.31", features = ["signal"] }

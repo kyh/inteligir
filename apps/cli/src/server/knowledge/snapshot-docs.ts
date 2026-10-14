@@ -4,9 +4,8 @@
 
 import type { VaultRenameSkipReason } from "@repo/contract/local/vault/vault-schema";
 import { mapWithConcurrency } from "../concurrency";
+import { REQUEST_READ_SLOTS } from "../vault/read-slots";
 import type { VaultService } from "../vault/vault-service";
-
-const SNAPSHOT_CONCURRENCY = 8;
 
 export interface DocSnapshots {
   docs: Map<string, string>;
@@ -19,7 +18,7 @@ export const snapshotDocs = async (
 ): Promise<DocSnapshots> => {
   const snapshots = await mapWithConcurrency(
     candidates,
-    SNAPSHOT_CONCURRENCY,
+    REQUEST_READ_SLOTS,
     async (candidate) =>
       await service
         .read(candidate)

@@ -1,6 +1,7 @@
 import type { CloudResult } from "@repo/contract/cloud/client";
 import { planPage } from "@repo/contract/cloud/sync/plan-page";
 import type { PullResponse } from "@repo/contract/cloud/sync/sync-schema";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { SqlDriver } from "../../lib/sql-driver";
@@ -39,6 +40,7 @@ const launch = (store: SyncStore, pages: CloudResult<PullResponse>[] = []) => {
     },
   });
   const runtime = createSyncRuntime({
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     createClient: () => cloud.client,
     pollIntervalMs: null,
@@ -56,19 +58,19 @@ const heldEvents = async (db: SqlDriver): Promise<number> => {
 // the SQL port with the cursor's write refused, as a full disk would refuse it partway through a page
 const refusingCursor = (db: SqlDriver): SqlDriver => ({
   ...db,
-  exclusive: async (work) => {
-    await db.exclusive(async (tx) => {
-      await work({
-        ...tx,
-        run: async (sql, params) => {
-          if (sql.includes("thread_sync")) {
-            throw new Error("disk full");
-          }
-          await tx.run(sql, params);
-        },
-      });
-    });
-  },
+  exclusive: async (work) =>
+    await db.exclusive(
+      async (tx) =>
+        await work({
+          ...tx,
+          run: async (sql, params) => {
+            if (sql.includes("thread_sync")) {
+              throw new Error("disk full");
+            }
+            await tx.run(sql, params);
+          },
+        }),
+    ),
 });
 
 describe("the synced threads on disk", () => {

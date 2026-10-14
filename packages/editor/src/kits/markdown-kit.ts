@@ -1,6 +1,6 @@
-// The stock paste parser runs deserializeMd, whose regex htmlToJsx pre-pass is fence-unaware:
-// HTML inside a fence gets class→className and <!-- -->→{/* */} rewritten, and the autosave
-// writes those bytes to the vault.
+// Plate's deserializeMd is banned, and the stock paste parser runs it. Its regex htmlToJsx pre-pass
+// is fence-unaware: HTML inside a fence gets class→className and <!-- -->→{/* */} rewritten, and
+// the autosave writes those bytes to the vault. It also swallows parse errors into degraded models.
 
 import { KEYS } from "platejs";
 import { MarkdownPlugin } from "@platejs/markdown";
@@ -8,8 +8,8 @@ import { MarkdownPlugin } from "@platejs/markdown";
 import { MD_REMARK_PLUGINS } from "@repo/notes/markdown/md-plugins";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { mdToSlate } from "@repo/editor/markdown/md-to-slate";
-import { FORMULA_INPUT_KEY } from "@repo/editor/formula-input-key";
-import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
+import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
+import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 
 export const MarkdownKit = [
   MarkdownPlugin.configure({

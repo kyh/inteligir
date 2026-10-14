@@ -1,13 +1,13 @@
 import { setImmediate as tick } from "node:timers/promises";
 import { utf8ByteLength } from "@repo/contract/cloud/bytes";
 import { EVENT_MAX_BYTES } from "@repo/contract/cloud/sync/sync-schema";
-import { buildThreadTimeline } from "@repo/contract/local/build-thread-timeline";
 import type { ThreadEvent, ThreadEventItem } from "@repo/domain/provider-event";
 import { isThreadEventDelta } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import type { TurnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it, vi } from "vitest";
 import { ProviderEventCoalescer } from "../event-coalescer";
+import { buildThreadTimeline } from "../../threads/build-thread-timeline";
 
 const scope = turnScope("turn_1");
 
@@ -24,14 +24,6 @@ const completed = (threadId: string): ThreadEvent => ({
   scope,
   threadId,
   type: "item/completed",
-});
-
-const output = (text: string): ThreadEvent => ({
-  delta: text,
-  itemId: "item_c",
-  scope,
-  threadId: "thr_1",
-  type: "item/commandExecution/outputDelta",
 });
 
 const deltaText = (events: readonly ThreadEvent[]): string =>
@@ -94,20 +86,6 @@ describe("ProviderEventCoalescer", () => {
     expect(ingest).toHaveBeenLastCalledWith("thr_2", [two]);
   });
 
-  it("honours a reset: the output before it and the output from it are two rows", async () => {
-    const { coalescer, ingested } = collect();
-    for (const event of [
-      output("stale "),
-      output("line"),
-      { ...output("fresh "), reset: true },
-      output("line"),
-    ]) {
-      coalescer.push("thr_1", event);
-    }
-    await tick();
-    expect(ingested).toEqual([output("stale line"), { ...output("fresh line"), reset: true }]);
-  });
-
   it("splits a run before a merged row would outgrow what the outbox can sync whole", async () => {
     const { coalescer, ingested } = collect();
     const chunks = Array.from({ length: 100 }, (_, n) => ({
@@ -149,7 +127,7 @@ const pick = <T>(random: () => number, values: readonly T[]): T => {
 };
 
 const THREAD_ID = "thr_fold";
-const STREAM_KINDS = ["agentMessage", "plan", "reasoning", "command"] as const;
+const STREAM_KINDS = ["agentMessage", "reasoning"] as const;
 type StreamKind = (typeof STREAM_KINDS)[number];
 const CHUNKS = ["a", "bc", "de f", "\n", "é", "😀"];
 
@@ -163,48 +141,20 @@ const startedItem = (item: OpenItem): ThreadEventItem => {
     case "agentMessage": {
       return { id: item.id, text: "", type: "agentMessage" };
     }
-    case "plan": {
-      return { id: item.id, text: "", type: "plan" };
-    }
     case "reasoning": {
-      return { content: [], id: item.id, summary: [], type: "reasoning" };
-    }
-    case "command": {
-      return {
-        approvalStatus: null,
-        command: "ls",
-        cwd: "/vault",
-        id: item.id,
-        status: "pending",
-        type: "commandExecution",
-      };
+      return { id: item.id, text: "", type: "reasoning" };
     }
     // no default
   }
 };
 
-// settled with no text of their own where the grammar allows it, so the folded buffer is what shows.
 const completedItem = (item: OpenItem): ThreadEventItem => {
   switch (item.kind) {
     case "agentMessage": {
       return { id: item.id, text: "final", type: "agentMessage" };
     }
-    case "plan": {
-      return { id: item.id, text: "final plan", type: "plan" };
-    }
     case "reasoning": {
-      return { content: [], id: item.id, summary: [], type: "reasoning" };
-    }
-    case "command": {
-      return {
-        approvalStatus: null,
-        command: "ls",
-        cwd: "/vault",
-        exitCode: 0,
-        id: item.id,
-        status: "completed",
-        type: "commandExecution",
-      };
+      return { id: item.id, text: "final thought", type: "reasoning" };
     }
     // no default
   }
@@ -221,18 +171,8 @@ const streamedDelta = (random: () => number, item: OpenItem, itemScope: TurnScop
     case "agentMessage": {
       return { ...base, type: "item/agentMessage/delta" };
     }
-    case "plan": {
-      return { ...base, type: "item/plan/delta" };
-    }
     case "reasoning": {
-      return random() < 0.5
-        ? { ...base, type: "item/reasoning/summaryTextDelta" }
-        : { ...base, type: "item/reasoning/textDelta" };
-    }
-    case "command": {
-      return random() < 0.15
-        ? { ...base, reset: true, type: "item/commandExecution/outputDelta" }
-        : { ...base, type: "item/commandExecution/outputDelta" };
+      return { ...base, type: "item/reasoning/textDelta" };
     }
     // no default
   }

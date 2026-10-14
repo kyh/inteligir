@@ -65,9 +65,12 @@ has nowhere to live — and a squatter holding the port cannot have written the
 file, so a wrong responder is refused rather than adopted.
 
 WHICH data dir is still the client's own question, and it reuses the server's
-resolution (`src/server/config.ts`) rather than re-deriving it: env →
-`<dataDir>/config.json` → the per-checkout default, where the checkout is
-walked up to from wherever the command started. That last part is what lets
+resolution (`src/server/config.ts`) rather than re-deriving it:
+`INTELIGIR_DATA_DIR` pins one, which is then the root too; otherwise the root
+(`~/.inteligir`, or the checkout's dev instance, the checkout walked up to from
+wherever the command started) holds `config.json`, whose `vaultDir` picks the
+vault unless `INTELIGIR_VAULT_DIR` does, and the data dir is
+`<root>/vaults/<hash of that vault's physical path>`. The walk up is what lets
 `pnpm dev` (which runs from `apps/desktop`) and `pnpm cli …` (run from wherever
 you stand) name the same instance.
 
@@ -224,7 +227,7 @@ edited through the same bundled binary and spawn policy
 
 Four trees are staged as CONTENT rather than code: the committed SQL
 migrations, the dialect skills the agent reads with its own shell, the
-workspace UI — the desktop renderer's build — which `serve` answers over plain
+workspace UI — `@repo/workspace`'s app page — which `serve` answers over plain
 HTTP so `--open` lands a browser in the product, and `tools/licenses` as
 `dist/licenses`, because the repo-root path no `files` glob can name is where
 the vendored sources' notices live. The migrations resolve SOURCE-FIRST — the
@@ -241,8 +244,11 @@ checkout on every CI run.
 
 The published surface is the bin and nothing else: `publishConfig.exports` is
 `{}`, so pnpm rewrites the manifest on the way out. The subpath map in
-`package.json` is a WORKSPACE seam — apps/desktop, tools/e2e and
-tools/repo-guards compile against `inteligir/server/*` — and it is unshippable
+`package.json` is a WORKSPACE seam — apps/desktop's smoke compiles against
+`inteligir/scripts/smoke-lib`, tools/e2e and tools/repo-guards against
+`inteligir/server/*`, and repo-guards' shell-wire guard against
+`inteligir/desktop/door-answers`, the door's answer schemas kept beside its
+tests in `src/desktop/__tests__/` — and it is unshippable
 as written, since those modules target `src/`, which `files` does not carry,
 and import devDependencies and unpublished `@repo/*` packages. Advertising a
 subpath a real install answers with ERR_MODULE_NOT_FOUND is the failure this
@@ -252,6 +258,17 @@ closes.
 
 Unit suites run the real program object against an in-process server built from
 the SAME contract (so the fixture cannot drift) — output goldens, `action wait`
-exit codes, discovery resolution. The server's own suites sit under
-`src/server/__tests__/`. The real-server integration lives in `e2e`
-(`cli-drive`): the CLI drives a booted instance under the scripted agent.
+exit codes, discovery resolution. Where the fixture answers from a rule, it runs
+the server's own: the knowledge index over its vault, and the guarded write's
+verdict (`src/server/vault/write-guard.ts`). The server's own suites sit under
+`src/server/__tests__/`; the cloud ones run against a fake cloud that answers
+the inbox table the Worker's suite runs
+(`@repo/contract/cloud/test-support/inbox-scenarios`). The workspace UI's
+suites that boot this server in-process sit under `src/workspace/__tests__/`,
+beside the harness they use (`src/server/__tests__/boot-app.ts`), so the page
+never depends on this package: the `.booted.test.tsx` ones render the page
+under jsdom, the rest drive its modules with nothing rendered and fail a test
+that logs a `console.error`, as the page's own suites do (`vitest.config.ts`,
+a project each), and `src/workspace/tsconfig.json` compiles them with the DOM.
+The real-server integration lives in `e2e` (`cli-drive`): the CLI drives a
+booted instance under the scripted agent.

@@ -5,8 +5,8 @@ import type { TElement } from "platejs";
 import { cancelComboboxInput, commitComboboxInput } from "@repo/editor/combobox-input";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { insertWikiChipFromPicker } from "@repo/editor/wiki-insert";
-import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
+import { insertWikiChipFromPicker } from "@repo/editor/wiki/wiki-insert";
+import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 
 const makeEditor = (text: string) =>
   createSlateEditor({

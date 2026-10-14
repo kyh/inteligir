@@ -3,13 +3,11 @@
 // shutdown; a crash leaves it behind on purpose, so the dial fails rather than
 // looking like "never started".
 
-import { chmodSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
-import { constantTimeEqual } from "@repo/contract/cloud/bytes";
-import { BROWSER_SESSION_COOKIE } from "./browser-session";
-import { errnoCode } from "./errno";
+import { readJsonFile } from "./json-file-store";
 import { LOOPBACK_HOST } from "./loopback-origin";
 import { stagedWriteFileSync } from "./staged-write";
 
@@ -21,7 +19,7 @@ const SERVER_FILE_MODE = 0o600;
 
 const TOKEN_BYTES = 32;
 
-const BEARER_PREFIX = "Bearer ";
+export const BEARER_PREFIX = "Bearer ";
 
 // lenient about extra keys: a newer build's file must not brick an older reader.
 const serverFileSchema = z.object({
@@ -33,44 +31,29 @@ const serverFileSchema = z.object({
   // diagnostic only; nothing branches on it.
   vaultDir: z.string().min(1),
   // /local may break between releases, so a CLI installed apart from the app refuses a server of
-  // another one. optional so an older server's row reads as another release, not as no server.
-  version: z.string().min(1).optional(),
+  // another one.
+  version: z.string().min(1),
 });
 
 export type ServerFile = z.infer<typeof serverFileSchema>;
-
-// what this build publishes: a row with no release would be refused by every CLI, its own included.
-export type PublishedServerFile = ServerFile & { version: string };
 
 const serverFilePath = (dataDir: string): string => path.join(dataDir, SERVER_FILE_NAME);
 
 // per boot, not per install: a token that outlives its process can be replayed against the next one.
 export const mintServerToken = (): string => randomBytes(TOKEN_BYTES).toString("base64url");
 
-export const writeServerFile = (dataDir: string, value: PublishedServerFile): void => {
-  mkdirSync(dataDir, { recursive: true });
+export const writeServerFile = (dataDir: string, value: ServerFile): void => {
   stagedWriteFileSync(serverFilePath(dataDir), `${JSON.stringify(value, null, 2)}\n`, {
     mode: SERVER_FILE_MODE,
   });
-  chmodSync(serverFilePath(dataDir), SERVER_FILE_MODE);
 };
 
 export const readServerFile = (dataDir: string): ServerFile | null => {
-  let raw: string;
-  try {
-    raw = readFileSync(serverFilePath(dataDir), "utf-8");
-  } catch (error) {
-    const code = errnoCode(error);
-    if (code === "ENOENT" || code === "EACCES") {
-      return null;
-    }
-    throw error;
+  const read = readJsonFile(serverFilePath(dataDir), serverFileSchema);
+  if (read.kind === "unreadable" && read.code !== "EACCES") {
+    throw read.error;
   }
-  try {
-    return serverFileSchema.parse(JSON.parse(raw));
-  } catch {
-    return null;
-  }
+  return read.kind === "ok" ? read.value : null;
 };
 
 // only this boot's own row: a row minted by another boot is that server's address, not ours to retract.
@@ -80,47 +63,5 @@ export const removeServerFile = (dataDir: string, token: string): void => {
   }
   rmSync(serverFilePath(dataDir), { force: true });
 };
-
-// the bearer proves the caller read the data dir; the cookie holds the browser's own secret and
-// is ambient, so only it needs the same-origin check.
-export type TokenCarrier = "header" | "cookie";
-
-export interface PresentedCredential {
-  token: string;
-  carrier: TokenCarrier;
-}
-
-const cookieValue = (header: string | undefined, name: string): string | null => {
-  if (header === undefined) {
-    return null;
-  }
-  for (const pair of header.split(";")) {
-    const separator = pair.indexOf("=");
-    if (separator === -1) {
-      continue;
-    }
-    if (pair.slice(0, separator).trim() === name) {
-      return pair.slice(separator + 1).trim();
-    }
-  }
-  return null;
-};
-
-// the header wins: a caller that set one means it.
-export const presentedCredential = (headers: {
-  authorization: string | undefined;
-  cookie: string | undefined;
-}): PresentedCredential | null => {
-  const { authorization } = headers;
-  if (authorization !== undefined && authorization.startsWith(BEARER_PREFIX)) {
-    const value = authorization.slice(BEARER_PREFIX.length).trim();
-    return value.length === 0 ? null : { carrier: "header", token: value };
-  }
-  const cookie = cookieValue(headers.cookie, BROWSER_SESSION_COOKIE);
-  return cookie === null ? null : { carrier: "cookie", token: cookie };
-};
-
-export const tokenAccepted = (expected: string, presented: string | null): boolean =>
-  presented !== null && constantTimeEqual(expected, presented);
 
 export const authorizationHeader = (token: string): string => `${BEARER_PREFIX}${token}`;

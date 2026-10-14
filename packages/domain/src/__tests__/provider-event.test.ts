@@ -3,10 +3,9 @@ import {
   getThreadEventItemRef,
   isThreadEventDelta,
   mergeAdjacentDeltas,
-  settledReasoningText,
   threadEventSchema,
 } from "../provider-event";
-import type { DeltaRunLimit, ThreadEvent, ThreadEventItem } from "../provider-event";
+import type { DeltaRunLimit, ThreadEvent } from "../provider-event";
 import { threadScope, turnScope } from "../thread-event-scope";
 import { MAX_THREAD_TITLE_LENGTH } from "../thread-title";
 
@@ -123,23 +122,6 @@ const message = (delta: string, itemId = "item_a", turnId = "turn_1"): ThreadEve
   type: "item/agentMessage/delta",
 });
 
-const output = (delta: string): ThreadEvent => ({
-  delta,
-  itemId: "item_c",
-  scope: turnScope("turn_1"),
-  threadId: "thr_1",
-  type: "item/commandExecution/outputDelta",
-});
-
-const resetOutput = (delta: string): ThreadEvent => ({
-  delta,
-  itemId: "item_c",
-  reset: true,
-  scope: turnScope("turn_1"),
-  threadId: "thr_1",
-  type: "item/commandExecution/outputDelta",
-});
-
 const deltasOf = (events: readonly ThreadEvent[]): string[] =>
   events.map((event) => (isThreadEventDelta(event) ? event.delta : event.type));
 
@@ -184,14 +166,6 @@ describe("mergeAdjacentDeltas", () => {
     expect(mergeAdjacentDeltas(events, unbounded)).toEqual(events);
   });
 
-  it("opens a new run at a reset, which the appends after it join", () => {
-    const merged = mergeAdjacentDeltas(
-      [output("one "), output("two "), resetOutput("fresh "), output("tail")],
-      unbounded,
-    );
-    expect(merged).toEqual([output("one two "), resetOutput("fresh tail")]);
-  });
-
   it("starts the next run where a join would pass the limit", () => {
     const merged = mergeAdjacentDeltas(
       [message("aa"), message("bb"), message("cc"), message("dd"), message("e")],
@@ -212,23 +186,5 @@ describe("mergeAdjacentDeltas", () => {
       expect(jsonBytes(event)).toBeLessThanOrEqual(limit.maxBytes);
     }
     expect(deltasOf(merged).join("")).toBe(deltasOf(events).join(""));
-  });
-});
-
-const reasoning = (
-  summary: string[],
-  content: string[],
-): Extract<ThreadEventItem, { type: "reasoning" }> => ({
-  content,
-  id: "item_r",
-  summary,
-  type: "reasoning",
-});
-
-describe("settledReasoningText", () => {
-  it("reads the visible summary, else the raw content, one paragraph per part", () => {
-    expect(settledReasoningText(reasoning(["first", "second"], ["raw"]))).toBe("first\n\nsecond");
-    expect(settledReasoningText(reasoning([], ["raw", "more"]))).toBe("raw\n\nmore");
-    expect(settledReasoningText(reasoning([], []))).toBe("");
   });
 });

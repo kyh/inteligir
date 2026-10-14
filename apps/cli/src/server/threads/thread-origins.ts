@@ -9,12 +9,13 @@ import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import type { KnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import { ensureNoteId } from "../vault/ensure-note-id";
+import type { ReadLane } from "../vault/read-slots";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
 
 export interface ThreadOrigins {
   // the note's id, minted into it when it has none; null when it has none and cannot take one
-  noteIdAt: (path: string) => Promise<string | null>;
+  noteIdAt: (path: string, lane?: ReadLane) => Promise<string | null>;
   // the note's id as its bytes stand, minting nothing: a listing reads, it never writes
   noteIdOf: (path: string) => Promise<string | null>;
   pathForNoteId: KnowledgeRuntime["pathForNoteId"];
@@ -39,10 +40,10 @@ export const createThreadOrigins = (
   vault: Pick<VaultService, "read" | "writeIfUnchanged">,
   knowledge: Pick<KnowledgeRuntime, "pathForNoteId">,
 ): ThreadOrigins => ({
-  noteIdAt: async (path) =>
+  noteIdAt: async (path, lane) =>
     await orNull(path, async () => {
-      const { content } = await vault.read(path);
-      const outcome = await ensureNoteId(vault, path, content);
+      const { content } = await vault.read(path, lane);
+      const outcome = await ensureNoteId(vault, path, content, lane);
       return outcome.kind === "id" ? outcome.id : null;
     }),
   noteIdOf: async (path) =>

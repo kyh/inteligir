@@ -1,17 +1,24 @@
 import type { CloudResult } from "@repo/contract/cloud/client";
 import type { CreateDispatchResponse } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { planPage } from "@repo/contract/cloud/sync/plan-page";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { deferred } from "../../__tests__/async";
 import type { SqlDriver } from "../../lib/sql-driver";
 import { openSyncStore, openTempDb, tempDbPath } from "../../notes/__tests__/phone-storage";
 import { createFakeCloud, logRow } from "../../sync/__tests__/fakes";
 import { createSyncRuntime } from "../../sync/sync-runtime";
 import type { SyncStore } from "../../sync/sync-store";
 import { projectThread } from "../../sync/thread-projection";
-import { dispatchCaption, threadDispatches, threadListEntries } from "../dispatch-projection";
+import {
+  dispatchCaption,
+  pendingCaptures,
+  threadDispatches,
+  threadListEntries,
+} from "../dispatch-projection";
 import { createDispatchRuntime, DISPATCH_STATUS_POLL_MS } from "../dispatch-runtime";
 import type { DesktopsOnline, DispatchView } from "../dispatch-runtime";
 import { createFakeInbox } from "./fake-inbox";
@@ -43,6 +50,7 @@ const phoneOver = (
   const store = openSyncStore(db);
   const cloud = createFakeCloud(inbox.client);
   const sync = createSyncRuntime({
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     createClient: () => cloud.client,
     pollIntervalMs: null,
@@ -338,11 +346,8 @@ describe("the phone's requests to a Mac", () => {
 
   it("does not let a refusal heard under an earlier sign-in end the one that replaced it", async () => {
     const inbox = createFakeInbox();
-    const releases: ((answer: CloudResult<CreateDispatchResponse>) => void)[] = [];
-    // oxlint-disable-next-line promise/avoid-new -- a deferred: the test answers the create by hand, after the sign-in changed under it
-    inbox.hold = new Promise((resolve) => {
-      releases.push(resolve);
-    });
+    const created = deferred<CloudResult<CreateDispatchResponse>>();
+    inbox.hold = created.promise;
     const { dispatch, sync } = phoneOver(inbox, openTempDb());
     await dispatch.askAgent({ text: "under the first sign-in", threadId: "thr_a" });
     await vi.waitFor(() => {
@@ -351,7 +356,7 @@ describe("the phone's requests to a Mac", () => {
 
     sync.setCredential(OTHER_CRED);
     dispatch.reset("signed-in");
-    releases.shift()?.({
+    created.resolve({
       failure: { code: "unauthorized", deviceSeq: null, kind: "refused", message: "revoked" },
       ok: false,
     });
@@ -412,6 +417,7 @@ describe("the phone's requests to a Mac", () => {
     const store = openSyncStore();
     const cloud = createFakeCloud(inbox.client);
     const sync = createSyncRuntime({
+      build: TEST_BUILD,
       cloudUrl: "https://cloud.test",
       createClient: () => cloud.client,
       pollIntervalMs: null,
@@ -470,5 +476,72 @@ describe("the phone's requests to a Mac", () => {
     const settledAt = statusPolls.count;
     await vi.advanceTimersByTimeAsync(DISPATCH_STATUS_POLL_MS * 3);
     expect(statusPolls.count).toBe(settledAt);
+  });
+});
+
+describe("the phone's captures", () => {
+  it("keeps a capture typed offline across a relaunch and sends it then, under the SAME id", async () => {
+    const file = tempDbPath();
+    const inbox = createFakeInbox();
+    inbox.network = "down";
+    const first = phoneOver(inbox, openTempDb(file));
+
+    const id = idOf(await first.dispatch.capture("  buy milk  "));
+    await first.dispatch.sendNow();
+    expect(pendingCaptures(first.dispatch.get())).toStrictEqual({
+      caption: "1 capture not sent yet — retrying",
+      refused: [],
+    });
+    expect(threadListEntries([], first.dispatch.get())).toStrictEqual([]);
+    expect(await first.dispatch.unclaimedCount()).toBe(1);
+    first.dispatch.suspend();
+
+    inbox.network = "up";
+    const relaunched = phoneOver(inbox, openTempDb(file), { firstId: 9, source: "restored" });
+    await relaunched.dispatch.sendNow();
+
+    expect(inbox.rows.get(id)?.request).toStrictEqual({ id, kind: "capture", text: "buy milk" });
+    expect(pendingCaptures(relaunched.dispatch.get()).caption).toBe(
+      "1 capture waiting for your Mac",
+    );
+
+    inbox.deliver(id);
+    await relaunched.dispatch.sendNow();
+    expect(relaunched.dispatch.get().dispatches).toStrictEqual([]);
+    expect(pendingCaptures(relaunched.dispatch.get())).toStrictEqual({
+      caption: null,
+      refused: [],
+    });
+    expect(await rowsIn(openTempDb(file))).toBe(0);
+  });
+
+  it("keeps a refused capture's words until they are dismissed", async () => {
+    const inbox = createFakeInbox();
+    const db = openTempDb();
+    const { dispatch } = phoneOver(inbox, db);
+    const id = idOf(await dispatch.capture("call the bank"));
+    await dispatch.sendNow();
+
+    inbox.refuse(id, "That capture could not be added.");
+    await dispatch.sendNow();
+    expect(pendingCaptures(dispatch.get())).toStrictEqual({
+      caption: null,
+      refused: [{ id, message: "That capture could not be added.", text: "call the bank" }],
+    });
+
+    await dispatch.dismiss(id);
+    expect(dispatch.get().dispatches).toStrictEqual([]);
+    expect(await rowsIn(db)).toBe(0);
+  });
+
+  it("refuses an empty capture before keeping it", async () => {
+    const db = openTempDb();
+    const { dispatch } = phoneOver(createFakeInbox(), db);
+
+    expect(await dispatch.capture("   ")).toStrictEqual({
+      message: "Write something to capture.",
+      ok: false,
+    });
+    expect(await rowsIn(db)).toBe(0);
   });
 });

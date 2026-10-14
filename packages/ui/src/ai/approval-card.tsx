@@ -143,7 +143,7 @@ const ApprovalCard = ({
   }
 
   return (
-    <ApprovalCardContext.Provider value={value}>
+    <ApprovalCardContext value={value}>
       <div
         ref={ref}
         data-slot="approval-card"
@@ -156,10 +156,9 @@ const ApprovalCard = ({
       >
         {children}
       </div>
-    </ApprovalCardContext.Provider>
+    </ApprovalCardContext>
   );
 };
-ApprovalCard.displayName = "ApprovalCard";
 
 interface ApprovalQuestionProps extends HTMLAttributes<HTMLDivElement> {
   questionId: string;
@@ -209,7 +208,7 @@ const ApprovalQuestion = ({
   );
 
   return (
-    <ApprovalQuestionContext.Provider value={context}>
+    <ApprovalQuestionContext value={context}>
       <div
         ref={ref}
         data-slot="approval-question"
@@ -225,10 +224,9 @@ const ApprovalQuestion = ({
         </div>
         <div className="mt-2 flex flex-col gap-0.5">{children}</div>
       </div>
-    </ApprovalQuestionContext.Provider>
+    </ApprovalQuestionContext>
   );
 };
-ApprovalQuestion.displayName = "ApprovalQuestion";
 
 // onClick is omitted: a forwarded one would replace the pick while aria-pressed still promised it
 interface ApprovalOptionProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onClick"> {
@@ -292,7 +290,6 @@ const ApprovalOption = ({
     </button>
   );
 };
-ApprovalOption.displayName = "ApprovalOption";
 
 const ApprovalCustomAnswer = ({
   className,
@@ -326,7 +323,6 @@ const ApprovalCustomAnswer = ({
     </label>
   );
 };
-ApprovalCustomAnswer.displayName = "ApprovalCustomAnswer";
 
 const ApprovalActions = ({
   className,
@@ -360,6 +356,5 @@ const ApprovalActions = ({
     </div>
   );
 };
-ApprovalActions.displayName = "ApprovalActions";
 
 export { ApprovalCard, ApprovalQuestion, ApprovalOption, ApprovalCustomAnswer, ApprovalActions };

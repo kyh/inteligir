@@ -1,3 +1,0 @@
-<callout {...props}>
-  x
-</callout>

@@ -64,28 +64,26 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
     publishNoteStats(path, collectNoteStats(editor));
   }, [path, editor]);
 
-  const onChangeRef = useRef(onChange);
-  const doSerialize = useCallback(() => {
+  const serialize = () => {
     const md = serializeNote(editor);
     if (md === seeded.current) {
       return;
     }
     seeded.current = null;
     lastValueProp.current = md;
-    onChangeRef.current(md);
+    onChange(md);
     publishStats();
     // behind the settle, never per keystroke; a changed display re-enters this path, unrecorded by undo.
     scheduleFormulaRecompute(editor);
-  }, [editor, publishStats]);
+  };
+  const serializeRef = useRef(serialize);
   useLayoutEffect(() => {
-    onChangeRef.current = onChange;
-  }, [onChange]);
+    serializeRef.current = serialize;
+  });
   // One debouncer for the editor's life — rebuilding it would drop a pending flush — so it is
-  // built on first use, and its callback reads the ref rather than closing over one doSerialize.
-  const doSerializeRef = useRef(doSerialize);
-  useLayoutEffect(() => {
-    doSerializeRef.current = doSerialize;
-  }, [doSerialize]);
+  // built on first use, and its callback reads the ref rather than closing over one serialize.
+  // Not a useState initializer: that runs in render, and a closure over a ref handed out there
+  // keeps the React Compiler off the whole component.
   const schedulerRef = useRef<Debouncer | null>(null);
   const getScheduler = useCallback((): Debouncer => {
     const existing = schedulerRef.current;
@@ -93,7 +91,7 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
       return existing;
     }
     const created = createDebouncer(() => {
-      doSerializeRef.current();
+      serializeRef.current();
     }, SERIALIZE_DEBOUNCE_MS);
     schedulerRef.current = created;
     return created;
@@ -153,11 +151,7 @@ export const MarkdownEditor = ({ path, value, onChange, onRegisterSerializeFlush
   return (
     <Plate
       editor={editor}
-      onChange={() => {
-        // selection-only flushes never change bytes; skip the serialize and the re-render it triggers.
-        if (editor.operations.every((op) => op.type === "set_selection")) {
-          return;
-        }
+      onValueChange={() => {
         announceLiveEditorEdit();
         getScheduler().schedule();
       }}

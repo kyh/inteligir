@@ -6,21 +6,24 @@ import {
   PROD_DATA_DIR_NAME,
   PROD_SERVER_PORT,
   resolveAppConfig,
+  vaultDataDir,
 } from "../config";
 import { resolveDevDefaultPort, resolveDevInstanceId } from "../dev-instance";
 import { makeTempDir } from "./temp-dir";
 
 describe("data dir", () => {
-  it("prod defaults to ~/.inteligir", () => {
+  it("prod defaults to the default vault's dir beneath ~/.inteligir", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const config = resolveAppConfig({
       checkoutPath: "/checkout/a",
       env: { NODE_ENV: "production" },
       homeDir,
     });
+    const dataDir = vaultDataDir(path.join(homeDir, PROD_DATA_DIR_NAME), config.vaultDir);
     expect(config.mode).toBe("prod");
-    expect(config.dataDir).toBe(path.join(homeDir, PROD_DATA_DIR_NAME));
-    expect(config.databasePath).toBe(path.join(homeDir, PROD_DATA_DIR_NAME, "inteligir.db"));
+    expect(config.rootDataDir).toBe(path.join(homeDir, PROD_DATA_DIR_NAME));
+    expect(config.dataDir).toBe(dataDir);
+    expect(config.databasePath).toBe(path.join(dataDir, "inteligir.db"));
     expect(config.port).toBe(PROD_SERVER_PORT);
   });
 
@@ -30,8 +33,9 @@ describe("data dir", () => {
     const b = resolveAppConfig({ checkoutPath: "/checkout/b", env: {}, homeDir });
 
     const instanceDir = path.join(homeDir, DEV_DATA_ROOT_DIR, resolveDevInstanceId("/checkout/a"));
-    expect(a.dataDir).toBe(path.join(instanceDir, "data"));
+    expect(a.rootDataDir).toBe(path.join(instanceDir, "data"));
     expect(a.vaultDir).toBe(path.join(instanceDir, "vault"));
+    expect(a.dataDir).toBe(vaultDataDir(a.rootDataDir, a.vaultDir));
     expect(a.dataDir).not.toBe(b.dataDir);
     expect(a.port).toBe(resolveDevDefaultPort("/checkout/a"));
     expect(a.port).not.toBe(b.port);
@@ -241,32 +245,6 @@ describe("the vault dir and remote", () => {
     expect(() => resolveWithRemote("ext::sh -c evil")).toThrow(/INTELIGIR_VAULT_REMOTE/u);
   });
 
-  it("reads no remote from config.json, which would pin every vault, and says so", () => {
-    const homeDir = makeTempDir("inteligir-config-test-");
-    const dataDir = makeTempDir("inteligir-config-test-");
-    const configPath = path.join(dataDir, "config.json");
-    // a value the pin's grammar refuses is ignored too: the key is read by nothing
-    for (const remote of ["https://github.com/kyh/vault.git", "--upload-pack=/bin/evil"]) {
-      writeFileSync(configPath, JSON.stringify({ vaultRemote: remote }));
-      const retired = resolveAppConfig({
-        checkoutPath: "/checkout/a",
-        env: { INTELIGIR_DATA_DIR: dataDir },
-        homeDir,
-      });
-      expect(retired.vaultRemote).toBeNull();
-      expect(retired.warnings).toEqual([
-        `${configPath}'s vaultRemote is ignored: a vault syncs with its own git origin, so run \`inteligir vault remote <url>\`, or pin one with INTELIGIR_VAULT_REMOTE.`,
-      ]);
-    }
-
-    const pinned = resolveAppConfig({
-      checkoutPath: "/checkout/a",
-      env: { INTELIGIR_DATA_DIR: dataDir, INTELIGIR_VAULT_REMOTE: "git@example.com:v.git" },
-      homeDir,
-    });
-    expect(pinned.vaultRemote).toBe("git@example.com:v.git");
-  });
-
   it("INTELIGIR_SYNC_INTERVAL_MS: unset = absent, 0 = disabled (null), positive = cadence", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const resolveWithInterval = (interval?: string) =>
@@ -307,10 +285,10 @@ describe("the vault dir and remote", () => {
 });
 
 describe("the agent selection", () => {
-  it("defaults to auto and validates INTELIGIR_AGENT values", () => {
+  it("defaults to acp and validates INTELIGIR_AGENT values", () => {
     const homeDir = makeTempDir("inteligir-config-test-");
     const defaulted = resolveAppConfig({ checkoutPath: "/checkout/a", env: {}, homeDir });
-    expect(defaulted.agent).toBe("auto");
+    expect(defaulted.agent).toBe("acp");
     expect(defaulted.agentModels).toEqual({ claude: null, codex: null });
 
     const withEnv = resolveAppConfig({
@@ -356,26 +334,6 @@ describe("the agent selection", () => {
     });
     expect(layered.agent).toBe("scripted");
     expect(layered.agentModels).toEqual({ claude: "m3", codex: "m2" });
-  });
-
-  it("warns on the one-model spellings, naming the per-harness ones, and reads neither", () => {
-    const homeDir = makeTempDir("inteligir-config-test-");
-    const dataDir = makeTempDir("inteligir-config-test-");
-    const configPath = path.join(dataDir, "config.json");
-    writeFileSync(configPath, JSON.stringify({ agentModel: "m-old" }));
-    const legacy = resolveAppConfig({
-      checkoutPath: "/checkout/a",
-      env: { INTELIGIR_AGENT_MODEL: "m-env", INTELIGIR_DATA_DIR: dataDir },
-      homeDir,
-    });
-    expect(legacy.agentModels).toEqual({ claude: null, codex: null });
-    expect(legacy.warnings).toEqual([
-      "INTELIGIR_AGENT_MODEL is ignored: a model is per harness, so set INTELIGIR_CLAUDE_MODEL or INTELIGIR_CODEX_MODEL.",
-      `${configPath}'s agentModel is ignored: a model is per harness, so set agentModels.claude or agentModels.codex.`,
-    ]);
-
-    const current = resolveAppConfig({ checkoutPath: "/checkout/a", env: {}, homeDir });
-    expect(current.warnings).toEqual([]);
   });
 });
 

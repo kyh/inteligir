@@ -9,8 +9,10 @@ import { RPC_PREFIX } from "@repo/contract/local/routes";
 import type { AgentStatus } from "@repo/contract/local/system/system-schema";
 import { createRouterClient } from "@orpc/server";
 import type { RouterClient } from "@orpc/server";
-import { HARNESS_IDS, HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
-import type { HarnessId, VendorAccount } from "@repo/agent-runtime/acp/harness-registry";
+import { HARNESS_IDS } from "@repo/domain/harness";
+import type { HarnessId } from "@repo/domain/harness";
+import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
+import type { VendorAccount } from "@repo/agent-runtime/acp/harness-registry";
 import { onTestFinished } from "vitest";
 import { createApp } from "../app";
 import type { CloudTransport } from "../cloud/sync-runtime";
@@ -19,7 +21,6 @@ import { composeRuntime } from "../compose";
 import type { ComposedRuntime, ComposePorts, ComposeRuntimeArgs } from "../compose";
 import { createVendorMcpConfigs } from "../connectors/connectors-service";
 import type { VendorMcpConfigs } from "../connectors/vendor-mcp-config";
-import type { RecordAgentWrites } from "../agents/agent-driver";
 import { SignInInProgressError } from "../agents/agent-sign-in";
 import type { AgentAccounts, SigningIn } from "../agents/agent-sign-in";
 import type { AppConfig } from "../config";
@@ -30,8 +31,8 @@ import { LOOPBACK_HOST } from "../loopback-origin";
 import { authorizationHeader, loopbackOrigin } from "../server-file";
 import type { ShutdownStep } from "../shutdown";
 import { unavailableTurnDriver } from "../threads/turn-driver";
-import type { CreateTurnDriver } from "../threads/turn-driver";
-import { hermeticGitEnv } from "../vault/__tests__/git-test-env";
+import type { ProviderEventSink, TurnDriver } from "../threads/turn-driver";
+import { hermeticGit } from "../vault/__tests__/git-test-env";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import type { WsBus } from "../ws-bus";
 import { boundAddressSchema } from "./bound-address";
@@ -160,10 +161,14 @@ export interface BootTestAppOptions {
   pinnedRemote?: string;
   // the vault's folder is left for the boot to create, so it seeds the starter notes.
   seedsStarters?: boolean;
-  makeDriver?: (deps: { db: DbConnection; bus: WsBus; vault: VaultRuntime; vaultDir: string }) => {
-    createTurnDriver: CreateTurnDriver;
-    dispose?: () => Promise<void>;
-    recordAgentWrites?: RecordAgentWrites;
+  makeDriver?: (deps: {
+    db: DbConnection;
+    bus: WsBus;
+    vault: VaultRuntime;
+    vaultDir: string;
+    sink: ProviderEventSink;
+  }) => {
+    driver: TurnDriver;
     // absent, `agent` answers every request.
     status?: () => AgentStatus;
   };
@@ -210,7 +215,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
   }
   mkdirSync(dataDir, { recursive: true });
 
-  const agent = options.agent ?? { detail: null, mode: "off", runtime: "off" };
+  const agent = options.agent ?? { mode: "off" };
   const config: AppConfig = {
     agent: agent.mode,
     agentModels: { claude: null, codex: null },
@@ -230,7 +235,6 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     vaultRemote: options.pinnedRemote ?? null,
     // tests drive syncNow directly; a timer would race the assertions.
     vaultSyncIntervalMs: null,
-    warnings: [],
   };
 
   const ports: ComposePorts = {
@@ -238,8 +242,8 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     machineName: TEST_MACHINE_NAME,
     vault:
       options.remote === "derived" || options.pinnedRemote !== undefined
-        ? { gitEnv: hermeticGitEnv(), watch: false }
-        : { gitEnv: hermeticGitEnv(), remote: options.remote ?? (() => null), watch: false },
+        ? { git: hermeticGit(), watch: false }
+        : { git: hermeticGit(), remote: options.remote ?? (() => null), watch: false },
   };
   const connectors =
     options.connectors ??
@@ -260,21 +264,12 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
       const made = options.makeDriver?.({
         bus: deps.bus,
         db: deps.db,
+        sink: deps.sink,
         vault: deps.vault,
         vaultDir,
       });
       return {
-        createTurnDriver: made?.createTurnDriver ?? (() => unavailableTurnDriver),
-        dispose:
-          made?.dispose ??
-          (async () => {
-            await Promise.resolve();
-          }),
-        recordAgentWrites:
-          made?.recordAgentWrites ??
-          (() => {
-            /* empty */
-          }),
+        driver: made?.driver ?? unavailableTurnDriver,
         status: made?.status ?? (() => agent),
       };
     },
@@ -340,12 +335,10 @@ export const bootThreadHarness = async (
   let driver: FakeTurnDriver | null = null;
   const booted = await bootTestApp({
     ...options,
-    makeDriver: () => ({
-      createTurnDriver: (sink) => {
-        driver = new FakeTurnDriver(sink, driverOptions);
-        return driver;
-      },
-    }),
+    makeDriver: ({ sink }) => {
+      driver = new FakeTurnDriver(sink, driverOptions);
+      return { driver };
+    },
   });
   if (driver === null) {
     throw new Error("the fake driver was not constructed");

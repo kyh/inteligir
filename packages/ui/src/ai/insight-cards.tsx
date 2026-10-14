@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import type { HTMLAttributes, PointerEvent, ReactNode, RefAttributes } from "react";
 import { cva } from "class-variance-authority";
 
@@ -19,7 +19,6 @@ const InsightCardGrid = ({
     {...props}
   />
 );
-InsightCardGrid.displayName = "InsightCardGrid";
 
 const InsightCard = ({
   className,
@@ -36,7 +35,6 @@ const InsightCard = ({
     {...props}
   />
 );
-InsightCard.displayName = "InsightCard";
 
 export interface InsightCardHeaderProps extends HTMLAttributes<HTMLDivElement> {
   actions?: ReactNode;
@@ -59,7 +57,6 @@ const InsightCardHeader = ({
     {actions}
   </div>
 );
-InsightCardHeader.displayName = "InsightCardHeader";
 
 const insightDeltaVariants = cva("text-[12px] font-medium tabular-nums", {
   defaultVariants: { direction: "flat" },
@@ -99,7 +96,6 @@ const InsightCardMetric = ({
     )}
   </div>
 );
-InsightCardMetric.displayName = "InsightCardMetric";
 
 export interface InsightSeries {
   id: string;
@@ -161,29 +157,23 @@ const InsightChart = ({
   const [hover, setHover] = useState<number | null>(null);
   const length = series[0]?.points.length ?? 0;
 
-  const paths = useMemo(
-    () => series.map((entry) => ({ d: pathFor(entry.points, 100, height, 6), id: entry.id })),
-    [series, height],
-  );
+  const paths = series.map((entry) => ({ d: pathFor(entry.points, 100, height, 6), id: entry.id }));
 
-  const scrub = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      if (length < 2) {
-        return;
-      }
-      const box = event.currentTarget.getBoundingClientRect();
-      const ratio = (event.clientX - box.left) / box.width;
-      const index = Math.min(length - 1, Math.max(0, Math.round(ratio * (length - 1))));
-      setHover(index);
-      onScrub?.(index);
-    },
-    [length, onScrub],
-  );
+  const scrub = (event: PointerEvent<HTMLDivElement>) => {
+    if (length < 2) {
+      return;
+    }
+    const box = event.currentTarget.getBoundingClientRect();
+    const ratio = (event.clientX - box.left) / box.width;
+    const index = Math.min(length - 1, Math.max(0, Math.round(ratio * (length - 1))));
+    setHover(index);
+    onScrub?.(index);
+  };
 
-  const leave = useCallback(() => {
+  const leave = () => {
     setHover(null);
     onScrub?.(null);
-  }, [onScrub]);
+  };
 
   return (
     <div
@@ -241,7 +231,6 @@ const InsightChart = ({
     </div>
   );
 };
-InsightChart.displayName = "InsightChart";
 
 const InsightChartTooltip = ({
   className,
@@ -259,7 +248,6 @@ const InsightChartTooltip = ({
     {...props}
   />
 );
-InsightChartTooltip.displayName = "InsightChartTooltip";
 
 export interface InsightChartTooltipRowProps extends HTMLAttributes<HTMLDivElement> {
   value?: ReactNode;
@@ -282,7 +270,6 @@ const InsightChartTooltipRow = ({
     <span className="font-medium text-ink tabular-nums">{value}</span>
   </div>
 );
-InsightChartTooltipRow.displayName = "InsightChartTooltipRow";
 
 export interface InsightChartLegendItemProps extends HTMLAttributes<HTMLSpanElement> {
   index?: number;
@@ -316,7 +303,6 @@ const InsightChartLegendItem = ({
     {children}
   </span>
 );
-InsightChartLegendItem.displayName = "InsightChartLegendItem";
 
 export {
   InsightCardGrid,

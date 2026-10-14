@@ -2,8 +2,9 @@
 // shared store (~/.claude, ~/.codex) a Mac already signed in keeps: a credential file or keychain
 // entry existing says nothing about whether the vendor still accepts it.
 
+import type { HarnessId } from "@repo/domain/harness";
 import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
-import type { HarnessId, VendorAccount } from "@repo/agent-runtime/acp/harness-registry";
+import type { VendorAccount } from "@repo/agent-runtime/acp/harness-registry";
 import { messageOf } from "../error-message";
 import { missingRuntimeDetail, runVendor } from "./vendor-process";
 import type { VendorProcessContext } from "./vendor-process";

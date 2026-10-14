@@ -1,6 +1,7 @@
 import { isDefinedError, ORPCError, safe } from "@orpc/client";
 import { noopNotifier } from "@repo/domain/notifier";
 import type { DbNotifier } from "@repo/domain/notifier";
+import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { writeTransaction } from "@repo/db/connection";
@@ -25,8 +26,8 @@ import { applyTimelineDelta } from "@repo/contract/local/thread-timeline";
 import type { TimelineRow } from "@repo/contract/local/thread-timeline";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
-import { ThreadEventThreadIdMismatchError, ThreadService } from "../threads/service";
-import { unavailableTurnDriver } from "../threads/turn-driver";
+import { ThreadService } from "../threads/service";
+import { ThreadEventThreadIdMismatchError } from "../threads/thread-ingest";
 import { authorizationHeader } from "../server-file";
 import { bootTestApp, bootThreadHarness, listenTestApp, TEST_SERVER_TOKEN } from "./boot-app";
 import type { BootedTestApp } from "./boot-app";
@@ -332,7 +333,6 @@ describe("a thread's title", () => {
   it("names a thread another device started, from the request that synced in", async () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });
     const service = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,
@@ -389,7 +389,6 @@ describe("a thread's own facts", () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });
     const { changes, notifier } = recordingNotifier();
     const service = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier,
       origins: pathOnlyOrigins,
@@ -435,7 +434,6 @@ describe("a thread's own facts", () => {
   it("take a title stated after the thread's first line already named it", async () => {
     const { client, db } = await bootThreadHarness({ mode: "manual" });
     const service = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,
@@ -659,21 +657,13 @@ describe("the queue drain", () => {
     await client.threads.send({ text: "first", threadId });
     await client.threads.send({ text: "queued", threadId });
 
-    const drivers: FakeTurnDriver[] = [];
     const revived = new ThreadService({
-      createTurnDriver: (sink) => {
-        const made = new FakeTurnDriver(sink, { mode: "manual" });
-        drivers.push(made);
-        return made;
-      },
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,
     });
-    const [revivedDriver] = drivers;
-    if (revivedDriver === undefined) {
-      throw new Error("the revived driver was not constructed");
-    }
+    const revivedDriver = new FakeTurnDriver(revived, { mode: "manual" });
+    revived.attachDriver(revivedDriver);
     revived.boot();
     const recovered = await revived.get(threadId);
     expect(recovered?.thread.status).toBe("error");
@@ -720,7 +710,6 @@ describe("the queue drain", () => {
     expect(listQueuedThreadMessages(db, threadId)).toEqual([]);
 
     const revived = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,
@@ -777,7 +766,6 @@ describe("turn identity and crash recovery", () => {
     const threadId = await createThread(client);
     const other = await createThread(client);
     const service = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,
@@ -803,14 +791,18 @@ describe("turn identity and crash recovery", () => {
     expect(await getThreadStatus(client, threadId)).toBe("active");
     // an approval the dead provider raised and nobody answered.
     const orphan = createPendingInteraction(db, noopNotifier, {
-      payload: "{}",
+      payload: {
+        availableDecisions: ["allow_once"],
+        kind: "approval",
+        reason: null,
+        subject: { command: "ls", cwd: null, itemId: "item_1", kind: "command" },
+      },
       requestKey: "req-orphaned",
       threadId,
     });
 
     // a fresh service on the same db is a process restart.
     const revived = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,
@@ -912,7 +904,6 @@ describe("stopping a turn", () => {
   it("refuses to stop a turn another device is running, and leaves it running", async () => {
     const { client, db, driver } = await bootThreadHarness({ mode: "manual" });
     const remote = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,
@@ -975,7 +966,7 @@ describe("pending interactions over the API", () => {
   it("lists open interactions on the thread and answers them exactly once", async () => {
     const { bus, client, db } = await bootThreadHarness({ mode: "manual" });
     const threadId = await createThread(client);
-    const payload = {
+    const payload: ApprovalPendingInteractionPayload = {
       availableDecisions: ["allow_once", "deny"],
       kind: "approval",
       reason: null,
@@ -987,7 +978,7 @@ describe("pending interactions over the API", () => {
       },
     };
     const interaction = createPendingInteraction(db, bus, {
-      payload: JSON.stringify(payload),
+      payload,
       requestKey: "req-1",
       threadId,
     });
@@ -997,16 +988,20 @@ describe("pending interactions over the API", () => {
     expect(detail.pendingInteractions[0]?.payload).toEqual(payload);
 
     const answered = await client.threads.answerInteraction({
+      decision: "allow_once",
       interactionId: interaction.id,
-      resolution: "allow_once",
       threadId,
     });
-    expect(answered.interaction.id).toBe(interaction.id);
+    expect(answered.interaction).toMatchObject({
+      decision: "allow_once",
+      id: interaction.id,
+      status: "resolved",
+    });
 
     const [again] = await safe(
       client.threads.answerInteraction({
+        decision: "deny",
         interactionId: interaction.id,
-        resolution: "deny",
         threadId,
       }),
     );
@@ -1014,8 +1009,8 @@ describe("pending interactions over the API", () => {
 
     const [unknown] = await safe(
       client.threads.answerInteraction({
+        decision: "deny",
         interactionId: "pint_missing",
-        resolution: "allow",
         threadId,
       }),
     );

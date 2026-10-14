@@ -12,7 +12,7 @@ const thingsStore = (dataDir: string) =>
     dataDir,
     empty: { things: [] },
     fileName: FILE_NAME,
-    schema: z.object({ things: z.array(z.string()) }).strict(),
+    schema: z.strictObject({ things: z.array(z.string()) }),
   });
 
 describe("a data-dir JSON store", () => {
@@ -54,7 +54,7 @@ describe("a data-dir JSON store", () => {
       dataDir,
       empty: {},
       fileName: FILE_NAME,
-      schema: z.object({ port: z.number().int().min(1).optional() }).strict(),
+      schema: z.strictObject({ port: z.number().int().min(1).optional() }),
     });
     expect(() => {
       store.write({ port: 0 });

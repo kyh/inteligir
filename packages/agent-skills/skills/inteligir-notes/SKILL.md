@@ -10,8 +10,8 @@ file; the app reads and writes those bytes and nothing else. Anything you write
 here a person can read in a plain text editor, and anything that survives a save
 is what this skill describes.
 
-Read this first. Six focused skills own the exact contract for the constructs
-that need one — they are listed at the bottom.
+Read this first. Focused skills own the exact contract for the constructs that
+need one — they are listed at the bottom.
 
 ## The Rules That Never Bend
 
@@ -49,6 +49,8 @@ never invent, copy, or reassign one.
 | Something set apart — context, caution, priority  | Callout                             | Bold prose                                   |
 | A numeric shape or trend                          | Chart                               | A table nobody will read as a shape          |
 | Peer views read one at a time                     | Tabs                                | Five headings the reader must scroll         |
+| Detail most readers can skip                      | Toggle                              | A section the reader must scroll past        |
+| Short blocks read side by side                    | Columns                             | A table holding paragraphs                   |
 | Source, logs, literal text, ASCII diagrams        | Fenced code                         | An image of text                             |
 | Rough spatial sketch with position and connectors | Canvas                              | Canvas for a generic diagram — use ASCII     |
 | Real interaction that must be clicked             | HTML block                          | Rebuilding tables, tabs, or callouts in HTML |
@@ -116,9 +118,7 @@ Pick the marker by what the reader must do with it:
 | `[!WARNING]`   | A risk that needs attention now               |
 | `[!CAUTION]`   | An action whose consequences are hard to undo |
 
-Only these five markers make an alert. An `inteligir-callout` fence in an
-existing note is an older spelling the app still renders: leave it exactly as
-found, and never write a new one.
+Only these five markers make an alert.
 
 ### Charts
 
@@ -152,18 +152,60 @@ The first thing inside `:::tabs` must be a `=== Label` line; content before it
 keeps the whole block as plain text. Panels hold ordinary markdown. Reach for a
 table instead when the reader needs to see all panels at once.
 
+### Toggles
+
+```markdown
+:::toggle
+The summary, shown while folded.
+
+What opens under it: any markdown.
+:::
+```
+
+The first block is the summary; everything after it folds under it.
+
+### Columns
+
+```markdown
+:::columns
+:::column
+The left column.
+:::
+
+:::column 40%
+The right column, resized.
+:::
+
+:::
+```
+
+Only `:::column` blocks sit inside `:::columns`. A width appears only after
+someone resizes a column; never invent one.
+
+### How `:::` Blocks Close
+
+Tabs, toggles and columns nest inside each other, a callout, a quote or a list,
+and each `:::` closes the innermost one still open. A block that never closes,
+or holds something its kind does not allow, stays plain text. Leave a blank
+line before a `:::` that follows a list, a quote or a table, which would
+otherwise read the marker as one of its own lines, and after a marker that a
+`---` rule follows, which would otherwise underline the marker into a heading.
+
 ### Inline
 
 | Form         | Syntax                                  |
 | ------------ | --------------------------------------- |
 | Wiki link    | `[[Note Title]]`                        |
+| Date         | `@2026-08-22`                           |
 | Highlight    | `<mark data-color="yellow">text</mark>` |
 | Underline    | `<u>text</u>`                           |
 | Tag          | `#tag`                                  |
 | Formula pill | `{{2+2\|4}}`                            |
 
 Code — inline or fenced — is inert: nothing inside it is parsed as a construct,
-which is how you write an example of any syntax on this page.
+which is how you write an example of any syntax on this page. In prose, a
+backslash before a date, a pill, a comment marker or a `:::` line keeps it
+plain text: `\@2026-08-22`, `\{{2+2}}`, `\:::`.
 
 Raw HTML beyond `<mark>`, `<u>`, and an existing preserved `<blockquote>`
 belongs in an `inteligir-html` fence.
@@ -181,8 +223,7 @@ belongs in an `inteligir-html` fence.
 ## Before You Finish
 
 - Frontmatter (if any) opens the file, one H1 follows, then the body.
-- Every construct is spelled exactly as above — a new callout is an alert,
-  never an `inteligir-callout` fence.
+- Every construct is spelled exactly as above — a callout is an alert.
 - Frontmatter, comment markers, and formula identities you did not come to
   change are byte-identical to what you found.
 - Nothing outside the vault's `.md` files and `assets/` was created.

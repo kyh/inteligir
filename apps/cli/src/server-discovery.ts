@@ -16,40 +16,24 @@ export interface ResolvedServer {
   vaultDir: string;
 }
 
-export interface ResolveDataDirArgs {
-  env: NodeJS.ProcessEnv;
-  checkoutPath: string;
-  homeDir?: string;
-}
+export type ResolveDataDirArgs = ResolveAppConfigArgs;
 
 export interface ResolveServerArgs extends ResolveDataDirArgs {
   // this binary's own release, which the server must share.
   cliVersion: string;
 }
 
-export const resolveDataDir = (args: ResolveDataDirArgs): string => {
-  const configArgs: ResolveAppConfigArgs = {
-    checkoutPath: args.checkoutPath,
-    env: args.env,
-  };
-  if (args.homeDir !== undefined) {
-    configArgs.homeDir = args.homeDir;
-  }
-  return resolveAppConfig(configArgs).dataDir;
-};
+export const resolveDataDir = (args: ResolveDataDirArgs): string => resolveAppConfig(args).dataDir;
 
 const versionMismatch = (
   dataDir: string,
-  serverVersion: string | undefined,
+  serverVersion: string,
   cliVersion: string,
 ): CliExitError =>
   new CliExitError(
-    serverVersion === undefined
-      ? `The inteligir server for ${dataDir} is older than this CLI (${cliVersion}): it names no release.` +
-          " Update the app, or restart `inteligir serve` from a matching install."
-      : `The inteligir server for ${dataDir} is ${serverVersion} (the desktop app or \`inteligir serve\`),` +
-          ` and this CLI is ${cliVersion}. Install the matching CLI (\`npm i -g inteligir@${serverVersion}\`)` +
-          " or update the app.",
+    `The inteligir server for ${dataDir} is ${serverVersion} (the desktop app or \`inteligir serve\`),` +
+      ` and this CLI is ${cliVersion}. Install the matching CLI (\`npm i -g inteligir@${serverVersion}\`)` +
+      " or update the app.",
     { code: "SERVER_VERSION_MISMATCH" },
   );
 

@@ -9,10 +9,10 @@ import { createPlateEditor } from "platejs/react";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { lockedBlockTypes } from "@repo/editor/kits/rich-block-lock-kit";
 import { parseMarkdown, roundTrip, serializeNote } from "@repo/editor/markdown/markdown-doc";
-import { GROUPS } from "@repo/editor/slash-menu";
-import type { SlashItem } from "@repo/editor/slash-menu";
+import { GROUPS } from "@repo/editor/slash-items";
+import type { SlashItem } from "@repo/editor/slash-items";
 
-const OPAQUE_TYPES = new Set(["opaqueBlock", "opaqueInline"]);
+const OPAQUE_TYPES = new Set(["opaqueInline"]);
 
 const typesIn = (nodes: readonly Descendant[], wanted: ReadonlySet<string>): string[] =>
   nodes.flatMap((node) => {

@@ -5,7 +5,7 @@ import { physicalVaultDir } from "inteligir/server/config";
 import { readServerFile } from "inteligir/server/server-file";
 import { processAlive } from "inteligir/server/server-probe";
 import { expect, expectEq } from "../harness/assert";
-import { running, WINDOW_LOADED } from "../harness/desktop-shell";
+import { askShell, PAGE_UNDER_SHELL, running, WINDOW_LOADED } from "../harness/desktop-shell";
 import type { DesktopShell, ShellTarget } from "../harness/desktop-shell";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
@@ -54,7 +54,7 @@ const switchedTo = async (shell: DesktopShell): Promise<SwitchState> => {
 
 export const desktopShell: Scenario = {
   description:
-    "the built Tauri shell over WebDriver: its window signs in on the server's own origin, the socket reaches the editor, the pin, every permission and Reveal refuse, a vault switch boots a new child and a new window, and the server never outlives the shell",
+    "the built Tauri shell over WebDriver: the window is the server's own page signed in by its handoff, the rail and a note ride its cookie, an API write reaches the open editor through the socket, `window.open` is denied, every permission request is refused, Reveal refuses a symlink out of the vault, a switch boots a new child and a new window on the new vault, and a SIGTERM quit stops the server and retracts `server.json`",
   name: "desktop-shell",
   // the shell boots twice (the switch)
   timeoutMs: 300_000,
@@ -83,7 +83,7 @@ export const desktopShell: Scenario = {
 
     ctx.log("the window is the server's own page, signed in by the handoff it was opened with");
     // the session opens with the window, and the page signs in after it
-    await page.waitUntil("window.desktopBridge", PAGE_DEADLINE_MS);
+    await page.waitUntil(PAGE_UNDER_SHELL, PAGE_DEADLINE_MS);
     const url = await page.url();
     expect(url.startsWith(`${shell.serverOrigin}/`), `the window is not on the server: ${url}`);
     expect(!url.includes("handoff"), `the handoff's nonce stayed in the window's url: ${url}`);
@@ -145,7 +145,7 @@ export const desktopShell: Scenario = {
     ctx.log("Reveal refuses what the vault does not physically contain");
     for (const entry of [ESCAPE_LINK, "../outside/secret.md"]) {
       const answer = await page.runAsync(
-        `window.desktopBridge.paths.reveal(${JSON.stringify(entry)}).then(done, (error) => done({ ok: false, reason: String(error) }))`,
+        `${askShell("paths_reveal", { path: entry })}.then(done, (error) => done({ ok: false, reason: String(error) }))`,
         pathActionSchema,
       );
       expect(!answer.ok, `Reveal handed the OS ${entry}, which is outside the vault`);
@@ -156,7 +156,7 @@ export const desktopShell: Scenario = {
     const beforeServer = requireServer(before);
     // not awaited: a switch closes this window before its answer could land
     await page.run(
-      `void window.desktopBridge.vaults.open(${JSON.stringify(secondVault)}); return "asked"`,
+      `void ${askShell("vaults_open", { path: secondVault })}; return "asked"`,
       z.string(),
     );
     const secondVaultDir = physicalVaultDir(secondVault);

@@ -5,8 +5,9 @@ import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { createAcpAgentRuntime } from "../acp-runtime";
 import type { AcpAgentRuntimeOptions } from "../acp-runtime";
-import { HARNESS_IDS } from "../harness-registry";
-import type { HarnessId, HarnessModels } from "../harness-registry";
+import { HARNESS_IDS } from "@repo/domain/harness";
+import type { HarnessId } from "@repo/domain/harness";
+import type { HarnessModels } from "../harness-registry";
 
 // each adapter is a child that exits before the handshake: the env it was handed is the whole
 // assertion, so the session it never opens is expected to fail.
@@ -16,11 +17,10 @@ const spawnedEnvs = async (
   const envs = new Map<HarnessId, Record<string, string>>();
   const spawnAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (harness, env) => {
     envs.set(harness.id, env);
-    return {
-      child: spawn(process.execPath, ["-e", "process.exit(0)"], {
-        stdio: ["pipe", "pipe", "pipe"],
-      }),
-    };
+    return spawn(process.execPath, ["-e", "process.exit(0)"], {
+      detached: true,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
   };
   const runtime = createAcpAgentRuntime({
     models,

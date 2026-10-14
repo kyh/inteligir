@@ -11,16 +11,26 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { logout, submitCapture, syncNow, useSyncStatus, useThreadList } from "@/lib/app-runtime";
+import {
+  capture,
+  dismissDispatch,
+  logout,
+  syncNow,
+  usePendingCaptures,
+  useSyncStatus,
+  useThreadList,
+} from "@/lib/app-runtime";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 import type { Theme } from "@/lib/theme";
+import type { RefusedCapture } from "@/dispatch/dispatch-projection";
 import type { SyncStatus } from "@/sync/sync-runtime";
-import { describeCloudFailure } from "@repo/contract/cloud/client";
+import { TextButton } from "@/ui/text-button";
 
 const styles = StyleSheet.create({
   bodyText: { fontSize: 16, textAlign: "center" },
   captionText: { fontSize: 12 },
   captureBox: { gap: SPACE.sm, paddingHorizontal: SPACE.lg, paddingTop: SPACE.md },
+  captureMeta: { alignItems: "center", flexDirection: "row", gap: SPACE.md },
   empty: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96 },
   footer: { borderTopWidth: 1, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
   input: {
@@ -34,6 +44,7 @@ const styles = StyleSheet.create({
   pressed70: { opacity: 0.7 },
   pressed80: { opacity: 0.8 },
   screen: { flex: 1 },
+  shrink: { flexShrink: 1 },
   smallLabel: { fontSize: 14, fontWeight: "600" },
   smallText: { fontSize: 14 },
   syncActions: { flexDirection: "row", gap: SPACE.sm },
@@ -68,7 +79,7 @@ const describeStatus = (status: SyncStatus): string => {
 
 type CaptureNotice =
   | { kind: "idle" }
-  | { kind: "sending" }
+  | { kind: "keeping" }
   | { kind: "captured" }
   | { kind: "failed"; message: string };
 
@@ -84,17 +95,42 @@ const captureNoticeLine = (
       return { color: theme.destructive, text: notice.message };
     }
     case "idle":
-    case "sending": {
+    case "keeping": {
       return null;
     }
     // no default
   }
 };
 
+// the words stay on screen with the cloud's reason, for the user to copy before dismissing them
+const RefusedCaptureRow = ({ refused }: { refused: RefusedCapture }) => {
+  const theme = useTheme();
+  return (
+    <View>
+      <Text selectable style={[styles.smallText, { color: theme.foreground }]}>
+        {refused.text}
+      </Text>
+      <View style={styles.captureMeta}>
+        <Text style={[styles.captionText, styles.shrink, { color: theme.destructive }]}>
+          {refused.message}
+        </Text>
+        <TextButton
+          fontSize={14}
+          label="Dismiss"
+          onPress={() => {
+            void dismissDispatch(refused.id);
+          }}
+        />
+      </View>
+    </View>
+  );
+};
+
 const CaptureBox = () => {
   const theme = useTheme();
   const [text, setText] = useState("");
   const [notice, setNotice] = useState<CaptureNotice>({ kind: "idle" });
+  const pending = usePendingCaptures();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -106,21 +142,21 @@ const CaptureBox = () => {
     [],
   );
 
-  const capture = useCallback(async () => {
+  const submit = useCallback(async () => {
     const value = text.trim();
-    if (value === "" || notice.kind === "sending") {
+    if (value === "" || notice.kind === "keeping") {
       return;
     }
     if (timer.current !== null) {
       clearTimeout(timer.current);
     }
-    setNotice({ kind: "sending" });
-    const result = await submitCapture(value);
+    setNotice({ kind: "keeping" });
+    const result = await capture(value);
     if (!result.ok) {
-      setNotice({ kind: "failed", message: describeCloudFailure(result.failure) });
+      setNotice({ kind: "failed", message: result.message });
       return;
     }
-    // clear only the words that were sent; text typed while the POST was in flight stays.
+    // clear only the words that were kept; text typed while they were being kept stays.
     setText((current) => (current === text ? "" : current));
     setNotice({ kind: "captured" });
     timer.current = setTimeout(() => {
@@ -143,12 +179,20 @@ const CaptureBox = () => {
         returnKeyType="done"
         submitBehavior="blurAndSubmit"
         onSubmitEditing={() => {
-          void capture();
+          void submit();
         }}
       />
       {line === null ? null : (
         <Text style={[styles.captionText, { color: line.color }]}>{line.text}</Text>
       )}
+      {pending.caption === null ? null : (
+        <Text style={[styles.captionText, { color: theme.mutedForeground }]}>
+          {pending.caption}
+        </Text>
+      )}
+      {pending.refused.map((refused) => (
+        <RefusedCaptureRow key={refused.id} refused={refused} />
+      ))}
     </View>
   );
 };

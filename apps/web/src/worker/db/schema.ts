@@ -1,11 +1,8 @@
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // Hand-written Better Auth core tables, column and index set per `@better-auth/cli generate` for
-// the current plugin set. Timestamps are `mode: "timestamp"` (seconds) where the generator now
-// emits "timestamp_ms": never flip it in place — both read the same INTEGER column, so without
-// `UPDATE <table> SET <col> = <col> * 1000` every stored date reads as 1970 and every session
-// expires. When a plugin needs columns or indexes, run the generator and port them, keeping this
-// mode and its index names. A new index must reach D1 as a bare CREATE INDEX: check
+// the current plugin set. When a plugin needs columns or indexes, run the generator and port them,
+// keeping its index names. A new index must reach D1 as a bare CREATE INDEX: check
 // `drizzle-kit push --explain` and refuse any plan that recreates a table.
 
 // A table's column order is the CREATE TABLE order drizzle-kit emits, and it mirrors what
@@ -22,10 +19,10 @@ export const user = sqliteTable(
       .$defaultFn(() => false)
       .notNull(),
     image: text("image"),
-    createdAt: integer("created_at", { mode: "timestamp" })
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
       .$defaultFn(() => new Date())
       .notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp" })
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .$defaultFn(() => new Date())
       .notNull(),
   },
@@ -36,10 +33,10 @@ export const session = sqliteTable(
   "session",
   {
     id: text("id").primaryKey(),
-    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
     token: text("token").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
     userId: text("user_id")
@@ -56,8 +53,8 @@ export const account = sqliteTable(
   "account",
   {
     id: text("id").primaryKey(),
-    // required since better-auth 1.7: sign-in matches on providerId, issuer and accountId,
-    // and nothing static catches its absence — it 500s at first signup
+    // sign-in matches on providerId, issuer and accountId, and nothing static catches a missing
+    // column: it 500s at first signup
     issuer: text("issuer").notNull(),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
@@ -67,12 +64,12 @@ export const account = sqliteTable(
     accessToken: text("access_token"),
     refreshToken: text("refresh_token"),
     idToken: text("id_token"),
-    accessTokenExpiresAt: integer("access_token_expires_at", { mode: "timestamp" }),
-    refreshTokenExpiresAt: integer("refresh_token_expires_at", { mode: "timestamp" }),
+    accessTokenExpiresAt: integer("access_token_expires_at", { mode: "timestamp_ms" }),
+    refreshTokenExpiresAt: integer("refresh_token_expires_at", { mode: "timestamp_ms" }),
     scope: text("scope"),
     password: text("password"),
-    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
   (table) => [
     index("account_userId_idx").on(table.userId),
@@ -86,9 +83,9 @@ export const verification = sqliteTable(
     id: text("id").primaryKey(),
     identifier: text("identifier").notNull(),
     value: text("value").notNull(),
-    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
-    updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).$defaultFn(() => new Date()),
   },
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
@@ -110,7 +107,7 @@ export const rateLimit = sqliteTable(
 export const inviteCode = sqliteTable("invite_code", {
   code: text("code").primaryKey(),
   redeemedBy: text("redeemed_by"),
-  redeemedAt: integer("redeemed_at", { mode: "timestamp" }),
+  redeemedAt: integer("redeemed_at", { mode: "timestamp_ms" }),
 });
 
 // credentialHash is SHA-256 of the minted credential, whose plaintext is never stored;
@@ -124,9 +121,9 @@ export const device = sqliteTable(
       .references(() => user.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     credentialHash: text("credential_hash").notNull(),
-    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-    lastSeenAt: integer("last_seen_at", { mode: "timestamp" }),
-    revokedAt: integer("revoked_at", { mode: "timestamp" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }),
+    revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
   },
   // revoked_at too: every login counts the account's active rows against the cap
   (table) => [

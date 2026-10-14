@@ -30,7 +30,7 @@ const shellArgs = (overrides: Partial<ShellPathArgs> = {}): ShellPathArgs => ({
   env: { PATH: LAUNCHD_PATH, SHELL: "/bin/zsh" },
   homeDir: HOME,
   isDirectory: () => true,
-  isPackaged: true,
+  mode: "prod",
   platform: "darwin",
   run: async () => await Promise.resolve(marked("/opt/homebrew/bin:/usr/bin")),
   ...overrides,
@@ -137,7 +137,7 @@ describe("resolveShellPath", () => {
     expect(await resolveShellPath(shellArgs({ platform: "win32", run }))).toEqual({
       source: "inherited",
     });
-    expect(await resolveShellPath(shellArgs({ isPackaged: false, run }))).toEqual({
+    expect(await resolveShellPath(shellArgs({ mode: "dev", run }))).toEqual({
       source: "inherited",
     });
     expect(run.calls).toEqual([]);

@@ -29,7 +29,7 @@ const dictateThenType = async (agentBrowser: AgentBrowser): Promise<void> => {
 
 export const osDictationBrowser: Scenario = {
   description:
-    "words the OS dictates and words typed after them land in order, once, in the composer and in the note",
+    "words the OS dictates (CDP's `Input.insertText`, the IME-style commit macOS dictation makes) and words typed after them land in order and once: in the ⌘K composer's field, sending nothing, and in the note focus returns to, on disk",
   name: "os-dictation-browser",
   async run(ctx) {
     const app = await ctx.boot({

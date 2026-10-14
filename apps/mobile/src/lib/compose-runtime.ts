@@ -2,10 +2,8 @@
 // database, the attachment and outbox files, SHA-1 and the OS, so every transition between signed
 // in and out runs under test, and the scenario suite drives it under node against a real Worker.
 
+import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
-import type { DeviceCredentialStore } from "@repo/contract/cloud/device/login-flow";
-import { createCaptureSender } from "../capture/capture-sender";
-import type { CaptureSender } from "../capture/capture-sender";
 import { createDispatchRuntime } from "../dispatch/dispatch-runtime";
 import type { DispatchRuntime, DispatchRuntimeArgs } from "../dispatch/dispatch-runtime";
 import { createLoginStore } from "../login/login-store";
@@ -16,7 +14,7 @@ import type { CommentOps } from "../notes/comment-ops";
 import { createFileOps } from "../notes/file-ops";
 import type { FileOps } from "../notes/file-ops";
 import { createNotesStore } from "../notes/notes-store";
-import type { CreateNotesStoreArgs, NotesStore, SignInSource } from "../notes/notes-store";
+import type { CreateNotesStoreArgs, NotesStore } from "../notes/notes-store";
 import type { Sha1 } from "../notes/outbox-ops";
 import type { OutboxFiles } from "../notes/outbox-files";
 import { createLiveTurns } from "../sync/live-turns";
@@ -26,33 +24,31 @@ import { createSyncRuntime } from "../sync/sync-runtime";
 import type { SyncRuntime, SyncRuntimeArgs } from "../sync/sync-runtime";
 import type { SyncStore } from "../sync/sync-store";
 import { messageOf } from "./error-message";
+import type { SignInSource } from "./sign-in-fence";
 import type { SqlDriver } from "./sql-driver";
 
-export interface CredentialStore extends DeviceCredentialStore {
+export interface CredentialStore {
   read: () => Promise<DeviceCredential | null>;
+  write: (credential: DeviceCredential) => Promise<void>;
   clear: () => Promise<void>;
 }
 
 export interface ComposeRuntimeArgs {
   cloudUrl: string;
+  build: ClientBuild;
   credentials: CredentialStore;
-  // opened once for the app's life; a restore keeps what it holds, every other sign-in wipes it
+  // openPhoneDb's, opened once for the app's life; a restore keeps what it holds, every other
+  // sign-in wipes it
   db: SqlDriver;
   attachments: AttachmentFiles;
   outboxFiles: OutboxFiles;
   sha1: Sha1;
-  // the name the phone signs in as, which its conflict reports and copies go by
   deviceName: string;
-  // 16 random bytes as hex: a capture's idempotency key, a dispatch's id and a new thread's
   mintId: () => string;
-  // the phone's random bytes, which a comment reply's id is minted from
   randomBytes: (length: number) => Uint8Array;
-  // a note's new frontmatter id, uuid-shaped, for its first comment made here
   mintNoteId: () => string;
-  sync?: Omit<SyncRuntimeArgs, "cloudUrl" | "onDispatchPing" | "onVaultPing" | "store">;
-  // the first wait after a failed send of the phone's edits; null never retries on a timer
-  retryBaseMs?: number | null;
-  // how often a waiting request's fate is asked; null never polls on a timer
+  sync?: Omit<SyncRuntimeArgs, "build" | "cloudUrl" | "onDispatchPing" | "onVaultPing" | "store">;
+  retryBaseMs?: CreateNotesStoreArgs["retryBaseMs"];
   dispatchPollIntervalMs?: DispatchRuntimeArgs["pollIntervalMs"];
 }
 
@@ -80,7 +76,6 @@ export interface AppRuntime {
   resume: () => void;
   // the app left the foreground: the socket closes and nothing polls until it resumes
   suspend: () => void;
-  submitCapture: CaptureSender;
 }
 
 export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
@@ -91,6 +86,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   let pinged: { vault: () => void; dispatch: () => void } | null = null;
   const sync = createSyncRuntime({
     ...args.sync,
+    build: args.build,
     cloudUrl: args.cloudUrl,
     onDispatchPing: () => {
       pinged?.dispatch();
@@ -154,9 +150,14 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   };
 
   const login = createLoginStore({
-    client: { baseUrl: args.cloudUrl },
+    client: { baseUrl: args.cloudUrl, build: args.build },
     store: {
-      write: async (credential) => {
+      // the bearer alone: nothing the phone runs asks whose account it is
+      write: async (answer) => {
+        const credential: DeviceCredential = {
+          credential: answer.credential,
+          deviceId: answer.deviceId,
+        };
         await args.credentials.write(credential);
         await activate(credential, "signed-in");
       },
@@ -233,7 +234,6 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       await activate(stored, "restored");
     },
     store,
-    submitCapture: createCaptureSender({ mintKey: args.mintId, send: sync.createCapture }),
     suspend() {
       sync.suspend();
       dispatch.suspend();

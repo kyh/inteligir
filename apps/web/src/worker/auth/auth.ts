@@ -7,12 +7,12 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
 import { sql } from "drizzle-orm";
-import { deleteVaultGitRepo } from "../vault/git-remote";
+import { deleteVaultGitRepo } from "../vault/vault-repo";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 import { purgeDeviceRows } from "../device/login";
 import { AUTH_RATE_WINDOW_SECONDS, CALLER_IP_HEADER } from "../rate-limit";
-import { purgeThreadSync } from "../sync/routes";
+import { purgeThreadSync } from "../sync/thread-sync-stub";
 import { sendResetEmail } from "./reset-email";
 
 // Built per request: D1 is a runtime binding, not a module singleton. No baseURL config —
@@ -75,7 +75,8 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
       // sessions only, not device credentials: most resets are the owner rotating a password,
       // and cutting every signed-in device would sign their own machines out; per-device revoke is the hatch
       revokeSessionsOnPasswordReset: true,
-      // the client requests with redirectTo AUTH_PAGE_PATHS.resetPage, so the URL's GET leg lands on ./reset-page.ts
+      // the forgot-password page requests with redirectTo /app/reset-password, so the URL's GET leg
+      // lands on the site's route (apps/web/src/routes/app/reset-password.tsx)
       sendResetPassword: async ({ user, url }) => {
         await sendResetEmail(env, user.email, url);
       },

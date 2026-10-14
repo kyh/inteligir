@@ -1,7 +1,6 @@
-// one table for the vault procedures, the comments procedures and the asset route: three
-// copies disagreed (a sidecar conflict answered 500 while vault.write answered 409). total
-// over VaultServiceErrorCode via satisfies, so a new code fails to compile rather than 500ing,
-// and each class is one the contract declares.
+// one table for the vault procedures, the comments procedures and the asset route, so one
+// refusal maps to one class everywhere. total over VaultServiceErrorCode via satisfies, so a
+// new code fails to compile rather than 500ing, and each class is one the contract declares.
 
 import type { VAULT_REFUSAL_ERRORS } from "@repo/contract/local/errors";
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";

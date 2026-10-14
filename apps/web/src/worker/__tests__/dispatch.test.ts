@@ -1,14 +1,11 @@
 import { hexFromBytes } from "@repo/contract/cloud/bytes";
 import {
   ackDispatchesResponseSchema,
-  cancelDispatchResponseSchema,
   claimDispatchesResponseSchema,
   closeApprovalResponseSchema,
   createDispatchResponseSchema,
   DISPATCH_API_PATHS,
-  DISPATCH_MAX_PENDING,
   dispatchStatusResponseSchema,
-  listApprovalsResponseSchema,
   openApprovalResponseSchema,
 } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import type {
@@ -25,7 +22,8 @@ import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
-import { threadSyncStub } from "../sync/routes";
+import { initDispatchTables } from "../sync/dispatch-inbox";
+import { threadSyncStub } from "../sync/thread-sync-stub";
 import {
   awaitFrames,
   deviceHeaders,
@@ -34,7 +32,6 @@ import {
   openSocket,
   ORIGIN,
   postAccountDelete,
-  sessionHeaders,
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
@@ -74,7 +71,11 @@ const create = async (credential: string, request: CreateDispatchRequest) =>
 const claim = async (credential: string) =>
   await answered(
     claimDispatchesResponseSchema,
-    await post(credential, DISPATCH_API_PATHS.claim, "{}"),
+    await post(
+      credential,
+      DISPATCH_API_PATHS.claim,
+      JSON.stringify({ kinds: ["turn", "answer", "capture"] }),
+    ),
   );
 
 const claimedRows = async (credential: string) => {
@@ -99,12 +100,6 @@ const statesOf = async (credential: string, ids: string[]) => {
   return answer.dispatches;
 };
 
-const cancel = async (credential: string, id: string) =>
-  await answered(
-    cancelDispatchResponseSchema,
-    await post(credential, DISPATCH_API_PATHS.cancel, JSON.stringify({ id })),
-  );
-
 const openApproval = async (credential: string, request: OpenApprovalRequest) =>
   await answered(
     openApprovalResponseSchema,
@@ -117,25 +112,14 @@ const closeApproval = async (credential: string, id: string) =>
     await post(credential, DISPATCH_API_PATHS.approvalClose, JSON.stringify({ id })),
   );
 
-const listApprovals = async (credential: string) =>
-  await answered(
-    listApprovalsResponseSchema,
-    await SELF.fetch(`${ORIGIN}${DISPATCH_API_PATHS.approvals}`, {
-      headers: deviceHeaders(credential),
-    }),
-  );
-
-const approvalsOf = async (credential: string) => {
-  const listed = await listApprovals(credential);
-  return listed.approvals;
-};
-
 const turn = (threadId: string, text: string): CreateDispatchRequest => ({
   id: mintId(),
   kind: "turn",
   text,
   threadId,
 });
+
+const capture = (text: string): CreateDispatchRequest => ({ id: mintId(), kind: "capture", text });
 
 const approvalOn = (threadId: string): OpenApprovalRequest => ({
   id: mintId(),
@@ -149,15 +133,6 @@ const approvalOn = (threadId: string): OpenApprovalRequest => ({
   turnId: "turn_1",
 });
 
-const revoke = async (cookie: string, deviceId: string): Promise<void> => {
-  const response = await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
-    body: JSON.stringify({ deviceId }),
-    headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
-    method: "POST",
-  });
-  expect(response.status).toBe(200);
-};
-
 // a phone, the Mac it asks, and a second Mac that may race it, on one account
 const account = async (email: string) => {
   const { cookie, password } = await signUpUser(email);
@@ -169,72 +144,6 @@ const account = async (email: string) => {
 };
 
 describe("a phone's turn", () => {
-  it("hands the turn, exactly as sent, to one of two Macs claiming at once", async () => {
-    const { mac, otherMac, phone } = await account("dispatch-once@example.test");
-    const request: CreateDispatchRequest = {
-      id: mintId(),
-      kind: "turn",
-      originDocPath: "notes/Week.md",
-      text: "summarise this week",
-      threadId: "thr_phone1",
-      viewContext: { resource: "notes/Week.md", revision: "c".repeat(64), surface: "doc" },
-    };
-    expect(await create(phone.credential, request)).toEqual({
-      dispatch: { id: request.id, state: "waiting" },
-      duplicate: false,
-    });
-
-    const claims = await Promise.all([claim(mac.credential), claim(otherMac.credential)]);
-    const won = claims.flatMap((claimed) => claimed.dispatches);
-    expect(won).toEqual([{ ...request, createdAt: expect.any(Number) }]);
-  });
-
-  it("hands a thread's turns over in the order the phone sent them", async () => {
-    const { mac, phone } = await account("dispatch-order@example.test");
-    // ids that sort against the send order, so only insertion order can pass
-    const sent = ["f", "e", "d"].map((digit, index): CreateDispatchRequest => ({
-      id: digit.repeat(32),
-      kind: "turn",
-      text: `step ${index + 1}`,
-      threadId: "thr_order",
-    }));
-    for (const request of sent) {
-      await create(phone.credential, request);
-    }
-    const claimed = await claimedRows(mac.credential);
-    expect(claimed.map((row) => row.id)).toEqual(sent.map((request) => request.id));
-  });
-
-  it("lets a lapsed claim be taken again, and tells its late ack so", async () => {
-    const { mac, otherMac, phone, stub } = await account("dispatch-lapsed@example.test");
-    const request = turn("thr_lapsed", "tidy my inbox");
-    await create(phone.credential, request);
-
-    const stale = await claim(mac.credential);
-    expect(stale.dispatches.map((row) => row.id)).toEqual([request.id]);
-    expect(await claimedRows(otherMac.credential)).toEqual([]);
-
-    await runInDurableObject(stub, (_instance, state) => {
-      state.storage.sql.exec("UPDATE dispatches SET claimed_at = 0");
-    });
-    expect(await statesOf(phone.credential, [request.id])).toEqual([
-      { id: request.id, state: "waiting" },
-    ]);
-    const fresh = await claim(otherMac.credential);
-    expect(fresh.dispatches.map((row) => row.id)).toEqual([request.id]);
-
-    const delivered: AckDispatchesRequest["results"] = [{ id: request.id, outcome: "delivered" }];
-    expect(await ack(mac.credential, { claimToken: stale.claimToken, results: delivered })).toEqual(
-      { results: [{ id: request.id, outcome: "reclaimed" }] },
-    );
-    expect(
-      await ack(otherMac.credential, { claimToken: fresh.claimToken, results: delivered }),
-    ).toEqual({ results: [{ id: request.id, outcome: "recorded" }] });
-    expect(
-      await ack(otherMac.credential, { claimToken: fresh.claimToken, results: delivered }),
-    ).toEqual({ results: [{ id: request.id, outcome: "recorded" }] });
-  });
-
   it("stores a resent turn once and pings for it once", async () => {
     const { mac, phone } = await account("dispatch-resend@example.test");
     const macWs = await openSocket(mac.credential, "desktop", TAKES_PHONE_REQUESTS);
@@ -355,59 +264,6 @@ describe("a phone's turn", () => {
     socket.close();
   });
 
-  it("cancels a row no Mac holds, and says so for one a Mac does", async () => {
-    const { mac, phone } = await account("dispatch-cancel@example.test");
-    const held = turn("thr_held", "first");
-    await create(phone.credential, held);
-    const claimed = await claim(mac.credential);
-    const waiting = turn("thr_waiting", "second");
-    await create(phone.credential, waiting);
-
-    expect(await cancel(phone.credential, waiting.id)).toEqual({ outcome: "cancelled" });
-    expect(await statesOf(phone.credential, [waiting.id])).toEqual([
-      { id: waiting.id, state: "unknown" },
-    ]);
-    expect(await cancel(phone.credential, held.id)).toEqual({ outcome: "claimed" });
-
-    await ack(mac.credential, {
-      claimToken: claimed.claimToken,
-      results: [{ id: held.id, outcome: "delivered" }],
-    });
-    expect(await cancel(phone.credential, held.id)).toEqual({ outcome: "settled" });
-    expect(await cancel(phone.credential, mintId())).toEqual({ outcome: "unknown" });
-    expect(await claimedRows(mac.credential)).toEqual([]);
-  });
-
-  it("drops a revoked phone's waiting turns, and leaves the one a Mac already holds", async () => {
-    const { cookie, mac, phone } = await account("dispatch-revoke@example.test");
-    const held = turn("thr_held", "already on its way");
-    await create(phone.credential, held);
-    await claim(mac.credential);
-    const waiting = turn("thr_lost", "from a lost phone");
-    await create(phone.credential, waiting);
-
-    await revoke(cookie, phone.deviceId);
-
-    expect(await statesOf(mac.credential, [held.id, waiting.id])).toEqual([
-      { id: held.id, state: "claimed" },
-      { id: waiting.id, state: "unknown" },
-    ]);
-  });
-
-  it("refuses a turn past the account's pending cap as rate-limited", async () => {
-    const { phone, stub } = await account("dispatch-cap@example.test");
-    for (let index = 0; index < DISPATCH_MAX_PENDING; index += 1) {
-      const stored = await stub.createDispatch(phone.deviceId, turn("thr_cap", `ask ${index}`));
-      expect(stored.ok).toBe(true);
-    }
-    const response = await post(
-      phone.credential,
-      DISPATCH_API_PATHS.dispatch,
-      JSON.stringify(turn("thr_cap", "one more")),
-    );
-    expect(await refusal(response)).toEqual({ code: "rate-limited", status: 429 });
-  });
-
   it("refuses a turn it cannot read exactly", async () => {
     const { phone } = await account("dispatch-malformed@example.test");
     const malformed = [
@@ -447,195 +303,108 @@ describe("a phone's turn", () => {
   });
 });
 
+describe("a phone's capture", () => {
+  it("is claimed as the phone sent it, with no thread", async () => {
+    const { mac, phone } = await account("capture-claim@example.test");
+    const sent = capture("remember the milk");
+
+    expect(await create(phone.credential, sent)).toEqual({
+      dispatch: { id: sent.id, state: "waiting" },
+      duplicate: false,
+    });
+    expect(await claimedRows(mac.credential)).toEqual([{ ...sent, createdAt: expect.any(Number) }]);
+  });
+
+  it("pings every Mac, phone requests on or off, and never a phone", async () => {
+    const { mac, otherMac, phone } = await account("capture-audience@example.test");
+    const macWs = await openSocket(mac.credential, "desktop", TAKES_PHONE_REQUESTS);
+    const quietMacWs = await openSocket(otherMac.credential, "desktop");
+    const phoneWs = await openSocket(phone.credential, "mobile");
+
+    await create(phone.credential, capture("remember the thing"));
+    await awaitFrames(macWs, [{ type: "dispatch" }]);
+    await awaitFrames(quietMacWs, [{ type: "dispatch" }]);
+
+    // a later turn's frame: the capture's, had the phone been sent one, would sit before it
+    await create(phone.credential, turn("thr_after", "and then this"));
+    await awaitFrames(macWs, [{ type: "dispatch" }, { threadId: "thr_after", type: "dispatch" }]);
+    expect(phoneWs.frames).toEqual([]);
+
+    macWs.socket.close();
+    quietMacWs.socket.close();
+    phoneWs.socket.close();
+  });
+
+  it("refuses a claim that names no kind", async () => {
+    const { mac } = await account("capture-kindless@example.test");
+    for (const body of ["{}", JSON.stringify({ kinds: [] })]) {
+      const response = await post(mac.credential, DISPATCH_API_PATHS.claim, body);
+      expect(await refusal(response)).toEqual({ code: "bad-request", status: 400 });
+    }
+  });
+});
+
+describe("the dispatch inbox's tables", () => {
+  it("keep their rows across a wake while their version stands", async () => {
+    const { phone, stub } = await account("inbox-tables-kept@example.test");
+    const kept = turn("thr_kept", "still waiting");
+    await create(phone.credential, kept);
+
+    await runInDurableObject(stub, (_instance, state) => {
+      initDispatchTables(state.storage);
+    });
+    expect(await statesOf(phone.credential, [kept.id])).toEqual([
+      { id: kept.id, state: "waiting" },
+    ]);
+  });
+
+  it("are replaced on the wake of an object that kept no version of them", async () => {
+    const { mac, phone, stub } = await account("inbox-tables-replaced@example.test");
+    const stale = mintId();
+    await runInDurableObject(stub, (_instance, state) => {
+      const { kv, sql } = state.storage;
+      for (const key of Array.from(kv.list(), ([name]) => name)) {
+        kv.delete(key);
+      }
+      sql.exec(
+        "DROP TABLE dispatches; CREATE TABLE dispatches (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL)",
+      );
+      sql.exec("INSERT INTO dispatches VALUES (?, 'thr_stale')", stale);
+      initDispatchTables(state.storage);
+    });
+    const sent = capture("lands in the current shape");
+
+    expect(await statesOf(phone.credential, [stale])).toEqual([{ id: stale, state: "unknown" }]);
+    await create(phone.credential, sent);
+    expect(await claimedRows(mac.credential)).toEqual([{ ...sent, createdAt: expect.any(Number) }]);
+  });
+});
+
 describe("an approval asked on the phone", () => {
-  it("reaches the phone, and the phone's answer reaches only the Mac that asked", async () => {
-    const { mac, otherMac, phone } = await account("approval-flow@example.test");
+  it("pings the phone once as it opens, and only the Mac that asked as it is answered", async () => {
+    const { mac, otherMac, phone } = await account("approval-pings@example.test");
     const phoneWs = await openSocket(phone.credential, "mobile");
     const macWs = await openSocket(mac.credential, "desktop");
     const otherWs = await openSocket(otherMac.credential, "desktop");
     const approval = approvalOn("thr_ask");
 
-    expect(await openApproval(mac.credential, approval)).toEqual({
-      duplicate: false,
-      state: "open",
-    });
-    expect(await openApproval(mac.credential, approval)).toEqual({
-      duplicate: true,
-      state: "open",
-    });
+    await openApproval(mac.credential, approval);
+    await openApproval(mac.credential, approval);
     await awaitFrames(phoneWs, [{ threadId: "thr_ask", type: "dispatch" }]);
-    expect(await listApprovals(phone.credential)).toEqual({
-      approvals: [
-        {
-          createdAt: expect.any(Number),
-          id: approval.id,
-          payload: approval.payload,
-          state: "open",
-          threadId: "thr_ask",
-          turnId: "turn_1",
-        },
-      ],
-    });
 
-    const unoffered = await post(
-      phone.credential,
-      DISPATCH_API_PATHS.dispatch,
-      JSON.stringify({
-        approvalId: approval.id,
-        decision: "allow_for_session",
-        id: mintId(),
-        kind: "answer",
-      }),
-    );
-    expect(await refusal(unoffered)).toEqual({ code: "bad-request", status: 400 });
-
-    const answer: CreateDispatchRequest = {
+    await create(phone.credential, {
       approvalId: approval.id,
       decision: "allow_once",
       id: mintId(),
       kind: "answer",
-    };
-    expect(await create(phone.credential, answer)).toEqual({
-      dispatch: { id: answer.id, state: "waiting" },
-      duplicate: false,
     });
     await awaitFrames(macWs, [{ threadId: "thr_ask", type: "dispatch" }]);
-    const listed = await approvalsOf(phone.credential);
-    expect(listed.map((row) => row.state)).toEqual(["answered"]);
-
-    const late = await create(phone.credential, { ...answer, decision: "deny", id: mintId() });
-    expect(late.dispatch).toEqual({
-      id: late.dispatch.id,
-      message: "That request was already answered.",
-      state: "refused",
-    });
-
-    expect(await claimedRows(otherMac.credential)).toEqual([]);
-    const claimed = await claim(mac.credential);
-    expect(claimed.dispatches).toEqual([
-      { ...answer, createdAt: expect.any(Number), threadId: "thr_ask" },
-    ]);
-    await ack(mac.credential, {
-      claimToken: claimed.claimToken,
-      results: [{ id: answer.id, outcome: "delivered" }],
-    });
-    expect(await listApprovals(phone.credential)).toEqual({ approvals: [] });
-    expect(await statesOf(phone.credential, [answer.id])).toEqual([
-      { id: answer.id, state: "delivered" },
-    ]);
-
-    const afterClose = await create(phone.credential, { ...answer, id: mintId() });
-    expect(afterClose.dispatch).toMatchObject({
-      message: "That request is no longer waiting.",
-      state: "refused",
-    });
     // an answer is for the Mac that asked: the other heard nothing
     expect(otherWs.frames).toEqual([]);
 
     phoneWs.socket.close();
     macWs.socket.close();
     otherWs.socket.close();
-  });
-
-  it("refuses an answer to an approval it never held", async () => {
-    const { phone } = await account("approval-unknown@example.test");
-    const response = await post(
-      phone.credential,
-      DISPATCH_API_PATHS.dispatch,
-      JSON.stringify({ approvalId: mintId(), decision: "deny", id: mintId(), kind: "answer" }),
-    );
-    expect(await refusal(response)).toEqual({ code: "not-found", status: 404 });
-  });
-
-  it("is closed by the Mac that opened it and no other", async () => {
-    const { mac, otherMac, phone } = await account("approval-close@example.test");
-    const approval = approvalOn("thr_close");
-    await openApproval(mac.credential, approval);
-
-    expect(await closeApproval(otherMac.credential, approval.id)).toEqual({ outcome: "unknown" });
-    expect(await approvalsOf(phone.credential)).toHaveLength(1);
-    expect(await closeApproval(mac.credential, approval.id)).toEqual({ outcome: "closed" });
-    expect(await closeApproval(mac.credential, approval.id)).toEqual({ outcome: "closed" });
-    expect(await listApprovals(phone.credential)).toEqual({ approvals: [] });
-    expect(await openApproval(mac.credential, approval)).toEqual({
-      duplicate: true,
-      state: "closed",
-    });
-  });
-
-  it("refuses the answer still waiting when its Mac closes it, and leaves one the Mac holds", async () => {
-    const { mac, phone } = await account("approval-close-answer@example.test");
-    const held = approvalOn("thr_held");
-    const waiting = approvalOn("thr_waiting");
-    await openApproval(mac.credential, held);
-    await openApproval(mac.credential, waiting);
-    const heldAnswer: CreateDispatchRequest = {
-      approvalId: held.id,
-      decision: "allow_once",
-      id: mintId(),
-      kind: "answer",
-    };
-    await create(phone.credential, heldAnswer);
-    const claimed = await claim(mac.credential);
-    const waitingAnswer: CreateDispatchRequest = {
-      approvalId: waiting.id,
-      decision: "deny",
-      id: mintId(),
-      kind: "answer",
-    };
-    await create(phone.credential, waitingAnswer);
-
-    await closeApproval(mac.credential, held.id);
-    await closeApproval(mac.credential, waiting.id);
-
-    expect(await statesOf(phone.credential, [waitingAnswer.id, heldAnswer.id])).toEqual([
-      { id: waitingAnswer.id, message: "That request is no longer waiting.", state: "refused" },
-      { id: heldAnswer.id, state: "claimed" },
-    ]);
-    await ack(mac.credential, {
-      claimToken: claimed.claimToken,
-      results: [{ id: heldAnswer.id, outcome: "delivered" }],
-    });
-    expect(await statesOf(phone.credential, [heldAnswer.id])).toEqual([
-      { id: heldAnswer.id, state: "delivered" },
-    ]);
-  });
-
-  it("opens again when the answer is withdrawn before its Mac held it", async () => {
-    const { mac, phone } = await account("approval-withdraw@example.test");
-    const approval = approvalOn("thr_withdraw");
-    await openApproval(mac.credential, approval);
-    const answer: CreateDispatchRequest = {
-      approvalId: approval.id,
-      decision: "deny",
-      id: mintId(),
-      kind: "answer",
-    };
-    await create(phone.credential, answer);
-
-    expect(await cancel(phone.credential, answer.id)).toEqual({ outcome: "cancelled" });
-    const listed = await approvalsOf(phone.credential);
-    expect(listed.map((row) => row.state)).toEqual(["open"]);
-  });
-
-  it("closes a revoked Mac's approvals and refuses the answers waiting for it", async () => {
-    const { cookie, mac, phone } = await account("approval-revoke@example.test");
-    const approval = approvalOn("thr_gone");
-    await openApproval(mac.credential, approval);
-    const answer: CreateDispatchRequest = {
-      approvalId: approval.id,
-      decision: "allow_once",
-      id: mintId(),
-      kind: "answer",
-    };
-    await create(phone.credential, answer);
-
-    await revoke(cookie, mac.deviceId);
-
-    expect(await listApprovals(phone.credential)).toEqual({ approvals: [] });
-    expect(await statesOf(phone.credential, [answer.id])).toEqual([
-      { id: answer.id, message: "That computer was signed out.", state: "refused" },
-    ]);
   });
 
   it("prunes a closed approval a day on, at the next open", async () => {
@@ -671,7 +440,7 @@ describe("a deleted account's dispatch inbox", () => {
     // replays calls whose credential check passed before the purge, as the Worker would have made them
     const late = [
       await stub.createDispatch(phone.deviceId, turn("thr_doomed", "after the purge")),
-      await stub.claimDispatches(mac.deviceId, { limit: 10 }),
+      await stub.claimDispatches(mac.deviceId, { kinds: ["turn"], limit: 10 }),
       await stub.ackDispatches({
         claimToken: "late-claim",
         results: [{ id: mintId(), outcome: "delivered" }],

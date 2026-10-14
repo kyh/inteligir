@@ -5,7 +5,7 @@
 import { PlateLeaf } from "platejs/react";
 import type { PlateLeafProps } from "platejs/react";
 
-import { useAgentRequestActions } from "@repo/editor/agent-request";
+import { getEditorHostActions } from "@repo/editor/host-io";
 
 // a drag ending over a chip fires a click; reads the DOM selection because Slate's lags a click by a tick.
 const hasRangeSelection = (): boolean => {
@@ -24,7 +24,7 @@ export const TagChipLeaf = (props: PlateLeafProps) => {
         ...props.attributes,
         onClick: () => {
           if (tag !== "" && !hasRangeSelection()) {
-            useAgentRequestActions.getState().actions?.showTag(tag);
+            getEditorHostActions().agent.showTag(tag);
           }
         },
         title: `Show notes tagged #${tag}`,

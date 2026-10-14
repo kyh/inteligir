@@ -1,8 +1,4 @@
-import {
-  ackCapturesResponseSchema,
-  captureResponseSchema,
-  claimCapturesResponseSchema,
-} from "@repo/contract/cloud/captures/captures-schema";
+import { DISPATCH_API_PATHS } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import { pullResponseSchema, pushResponseSchema } from "@repo/contract/cloud/sync/sync-schema";
 import type { PushRequest } from "@repo/contract/cloud/sync/sync-schema";
@@ -10,15 +6,16 @@ import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/sync/sync-ws";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { threadSyncStub } from "../sync/routes";
+import { threadSyncStub } from "../sync/thread-sync-stub";
 import { SOCKET_IDENTITY_HEADERS } from "../sync/thread-sync-do";
 import {
   awaitFrames,
+  buildHeaders,
   deviceHeaders,
   emitted,
+  loginDevice,
   openSocket,
   ORIGIN,
-  loginDevice,
   postAccountDelete,
   postSignOut,
   sessionHeaders,
@@ -26,18 +23,7 @@ import {
   userIdOf,
 } from "./cloud-helpers";
 
-// what 0.4.0 sends beside its events: each titled thread's lane and title
-interface StaleThreadMeta {
-  lane: "any" | "desktop";
-  threadId: string;
-  title?: string;
-  updatedAt: number;
-}
-
-const push = async (
-  credential: string,
-  body: PushRequest & { threads?: readonly StaleThreadMeta[] },
-): Promise<Response> =>
+const push = async (credential: string, body: PushRequest): Promise<Response> =>
   await SELF.fetch(`${ORIGIN}/v1/sync/push`, {
     body: JSON.stringify(body),
     headers: { ...deviceHeaders(credential), "content-type": "application/json" },
@@ -65,36 +51,12 @@ const event = (
   threadId,
 });
 
-const capture = async (
-  credential: string,
-  text: string,
-  idempotencyKey: string,
-): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}/v1/capture`, {
-    body: JSON.stringify({ idempotencyKey, text }),
+const capture = async (credential: string, text: string): Promise<Response> =>
+  await SELF.fetch(`${ORIGIN}${DISPATCH_API_PATHS.dispatch}`, {
+    body: JSON.stringify({ id: "c".repeat(32), kind: "capture", text }),
     headers: { ...deviceHeaders(credential), "content-type": "application/json" },
     method: "POST",
   });
-
-const claim = async (credential: string) => {
-  const response = await SELF.fetch(`${ORIGIN}/v1/sync/captures/claim`, {
-    body: JSON.stringify({}),
-    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
-    method: "POST",
-  });
-  expect(response.status).toBe(200);
-  return emitted(claimCapturesResponseSchema, await response.text());
-};
-
-const ack = async (credential: string, claimToken: string, ids: string[]) => {
-  const response = await SELF.fetch(`${ORIGIN}/v1/sync/captures/ack`, {
-    body: JSON.stringify({ claimToken, ids }),
-    headers: { ...deviceHeaders(credential), "content-type": "application/json" },
-    method: "POST",
-  });
-  expect(response.status).toBe(200);
-  return emitted(ackCapturesResponseSchema, await response.text());
-};
 
 describe("thread sync log", () => {
   it("pushes, pulls, and ignores a replayed outbox batch", async () => {
@@ -114,6 +76,52 @@ describe("thread sync log", () => {
     expect(page.events.map((row) => row.deviceSeq)).toEqual([1, 2]);
     expect(page.events[0]?.event).toEqual({ payload: "a", type: "test" });
     expect(page.hasMore).toBe(false);
+  });
+
+  it("stores each body as one text that parses back, and serves that text verbatim", async () => {
+    const { cookie } = await signUpUser("sync-verbatim@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
+    const bodies: PushRequest["events"][number]["event"][] = [
+      { nested: [1, "x", null, { deep: [true, false] }], type: "test" },
+      'a bare string: "quoted", \\ a backslash, a \u2028 separator and a </script>',
+      "あ😀 and a lone \uD800 half",
+      0.1,
+      1e21,
+      null,
+      false,
+      [],
+      {},
+    ];
+    await push(credential, {
+      events: bodies.map((body, index) => ({
+        createdAt: index,
+        deviceSeq: index + 1,
+        event: body,
+        threadId: "th_1",
+      })),
+    });
+
+    const stub = threadSyncStub(env, await userIdOf(cookie));
+    const stored = await runInDurableObject(stub, (_instance, state) =>
+      state.storage.sql
+        .exec<{ event: string }>("SELECT event FROM sync_events ORDER BY seq")
+        .toArray()
+        .map((row) => row.event),
+    );
+    expect(stored).toEqual(bodies.map((body) => JSON.stringify(body)));
+    for (const [index, text] of stored.entries()) {
+      expect(JSON.parse(text)).toEqual(bodies[index]);
+    }
+
+    const response = await SELF.fetch(`${ORIGIN}/v1/sync/pull?afterSeq=0`, {
+      headers: deviceHeaders(credential),
+    });
+    expect(response.headers.get("content-type")).toBe("application/json");
+    const text = await response.text();
+    for (const body of stored) {
+      expect(text).toContain(`"event":${body}`);
+    }
+    expect(emitted(pullResponseSchema, text).events.map((row) => row.event)).toEqual(bodies);
   });
 
   it("accepts a retry that appends to a partially-stored batch", async () => {
@@ -166,6 +174,21 @@ describe("thread sync log", () => {
     });
     expect(response.status).toBe(409);
     expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("sync-out-of-order");
+    const page = await pull(credential, 0);
+    expect(page.events).toEqual([]);
+  });
+
+  it("refuses a batch carrying a key beside its events, storing none of it", async () => {
+    const { cookie } = await signUpUser("sync-undeclared@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
+
+    const withThreads = {
+      events: [event("th_1", 1, "a")],
+      threads: [{ threadId: "th_1", title: "Fix the build" }],
+    };
+    const response = await push(credential, withThreads);
+    expect(response.status).toBe(400);
+    expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("bad-request");
     const page = await pull(credential, 0);
     expect(page.events).toEqual([]);
   });
@@ -225,40 +248,6 @@ describe("thread sync log", () => {
     phoneWs.socket.close();
   });
 
-  it("accepts a stale install's desktop lane and dispatches nothing for it", async () => {
-    const { cookie } = await signUpUser("sync-stale-lane@example.test");
-    const desktop = await loginDevice(cookie, "Desktop");
-    const stale = await loginDevice(cookie, "Old Laptop");
-    const desktopWs = await openSocket(desktop.credential, "desktop");
-
-    const pushed = await push(stale.credential, {
-      events: [event("th_lane", 1, "run this")],
-      threads: [{ lane: "desktop", threadId: "th_lane", title: "Do the thing", updatedAt: 1000 }],
-    });
-    expect(emitted(pushResponseSchema, await pushed.text())).toEqual({
-      accepted: 1,
-      duplicates: 0,
-      lastSeq: 1,
-    });
-    const metaOnly = await push(stale.credential, {
-      events: [],
-      threads: [{ lane: "desktop", threadId: "th_later", updatedAt: 2000 }],
-    });
-    expect(emitted(pushResponseSchema, await metaOnly.text())).toEqual({
-      accepted: 0,
-      duplicates: 0,
-      lastSeq: 1,
-    });
-    await push(stale.credential, { events: [event("th_lane", 2, "and this")] });
-
-    // frames arrive in order, so a dispatch for either push would sit before the second sync
-    await awaitFrames(desktopWs, [
-      { seq: 1, type: "sync" },
-      { seq: 2, type: "sync" },
-    ]);
-    desktopWs.socket.close();
-  });
-
   it("keeps its socket identity in the hibernation tags, not in instance memory", async () => {
     const { cookie } = await signUpUser("sync-hibernate@example.test");
     const desktop = await loginDevice(cookie, "Desktop");
@@ -314,99 +303,9 @@ describe("thread sync log", () => {
 
   it("refuses the socket without a device credential", async () => {
     const response = await SELF.fetch(`${ORIGIN}/v1/sync/ws`, {
-      headers: { upgrade: "websocket" },
+      headers: { ...buildHeaders(), upgrade: "websocket" },
     });
     expect(response.status).toBe(401);
-  });
-});
-
-describe("capture inbox", () => {
-  it("hands a capture to exactly one claimer, and deletes it once", async () => {
-    const { cookie } = await signUpUser("capture-once@example.test");
-    const phone = await loginDevice(cookie, "Phone");
-    const laptop = await loginDevice(cookie, "Laptop");
-
-    const captured = await capture(phone.credential, "buy oat milk", "key-oat-milk-1");
-    const posted = emitted(captureResponseSchema, await captured.text());
-    expect(posted.duplicate).toBe(false);
-
-    const laptopClaim = await claim(laptop.credential);
-    expect(laptopClaim.captures).toEqual([
-      { createdAt: posted.createdAt, id: posted.id, text: "buy oat milk" },
-    ]);
-
-    const phoneClaim = await claim(phone.credential);
-    expect(phoneClaim.captures).toEqual([]);
-
-    expect(await ack(laptop.credential, laptopClaim.claimToken, [posted.id])).toEqual({
-      results: [{ id: posted.id, outcome: "deleted" }],
-    });
-    expect(await ack(phone.credential, phoneClaim.claimToken, [posted.id])).toEqual({
-      results: [{ id: posted.id, outcome: "unknown" }],
-    });
-
-    const emptied = await claim(laptop.credential);
-    expect(emptied.captures).toEqual([]);
-  });
-
-  it("tells a lapsed claimer its rows were reclaimed rather than deleting them", async () => {
-    const { cookie } = await signUpUser("capture-lapsed@example.test");
-    const phone = await loginDevice(cookie, "Phone");
-    const laptop = await loginDevice(cookie, "Laptop");
-    const captured = await capture(phone.credential, "remember", "key-remember-1");
-    const posted = emitted(captureResponseSchema, await captured.text());
-
-    const stale = await claim(laptop.credential);
-    expect(stale.captures).toHaveLength(1);
-
-    const userId = await userIdOf(cookie);
-    const stub = threadSyncStub(env, userId);
-    await runInDurableObject(stub, (_instance, state) => {
-      state.storage.sql.exec("UPDATE captures SET claimed_at = 0");
-    });
-    const fresh = await claim(phone.credential);
-    expect(fresh.captures.map((row) => row.id)).toEqual([posted.id]);
-
-    expect(await ack(laptop.credential, stale.claimToken, [posted.id])).toEqual({
-      results: [{ id: posted.id, outcome: "reclaimed" }],
-    });
-    expect(await ack(phone.credential, fresh.claimToken, [posted.id])).toEqual({
-      results: [{ id: posted.id, outcome: "deleted" }],
-    });
-  });
-
-  it("dedupes a retried capture on its idempotency key", async () => {
-    const { cookie } = await signUpUser("capture-idem@example.test");
-    const phone = await loginDevice(cookie, "Phone");
-
-    const captured = await capture(phone.credential, "one thought", "key-shared");
-    const first = emitted(captureResponseSchema, await captured.text());
-    const recaptured = await capture(phone.credential, "one thought", "key-shared");
-    const retry = emitted(captureResponseSchema, await recaptured.text());
-    expect(retry.id).toBe(first.id);
-    expect(retry.duplicate).toBe(true);
-
-    const claimed = await claim(phone.credential);
-    expect(claimed.captures).toHaveLength(1);
-  });
-
-  it("pings every socket when a capture lands", async () => {
-    const { cookie } = await signUpUser("capture-ping@example.test");
-    const phone = await loginDevice(cookie, "Phone");
-    const laptop = await loginDevice(cookie, "Laptop");
-    const laptopWs = await openSocket(laptop.credential, "desktop");
-
-    await capture(phone.credential, "remember the thing", "key-ping-1");
-
-    await awaitFrames(laptopWs, [{ type: "capture" }]);
-    laptopWs.socket.close();
-  });
-
-  it("refuses an empty capture", async () => {
-    const { cookie } = await signUpUser("capture-empty@example.test");
-    const phone = await loginDevice(cookie, "Phone");
-    const response = await capture(phone.credential, "   ", "key-empty-1");
-    expect(response.status).toBe(400);
   });
 });
 
@@ -415,7 +314,8 @@ describe("account deletion", () => {
     const { cookie, password } = await signUpUser("delete-me@example.test");
     const { credential } = await loginDevice(cookie, "Laptop");
     await push(credential, { events: [event("th_1", 1, "to be purged")] });
-    await capture(credential, "to be purged too", "key-purge-1");
+    const captured = await capture(credential, "to be purged too");
+    expect(captured.status).toBe(200);
     const page = await pull(credential, 0);
     expect(page.lastSeq).toBe(1);
 
@@ -431,11 +331,10 @@ describe("account deletion", () => {
     // read off the SQL: every route refuses a tombstoned object, so a route answer would prove the tombstone, not the wipe
     const stub = threadSyncStub(env, userId);
     const rows = await runInDurableObject(stub, (_instance, state) => ({
-      captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
       dispatches: state.storage.sql.exec("SELECT COUNT(*) AS n FROM dispatches").one().n,
       events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
     }));
-    expect(rows).toEqual({ captures: 0, dispatches: 0, events: 0 });
+    expect(rows).toEqual({ dispatches: 0, events: 0 });
   });
 
   it("refuses a request that verified just before the account died", async () => {
@@ -454,14 +353,8 @@ describe("account deletion", () => {
         { createdAt: 2, deviceSeq: 2, event: '"after the purge"', threadId: "th_1" },
       ]),
       await stub.pull({ afterSeq: 0, limit: 10 }),
-      await stub.capture({ idempotencyKey: "key-after-purge", text: "after the purge" }),
-      await stub.claimCaptures({ limit: 10 }),
-      await stub.ackCaptures({ claimToken: "late-claim", ids: ["late-capture"] }),
     ];
     expect(late.map((result) => (result.ok ? "answered" : result.code))).toEqual([
-      "account-deleted",
-      "account-deleted",
-      "account-deleted",
       "account-deleted",
       "account-deleted",
     ]);
@@ -473,9 +366,8 @@ describe("account deletion", () => {
     expect(emitted(cloudErrorSchema, await socket.text()).error.code).toBe("account-deleted");
 
     const remaining = await runInDurableObject(stub, (_instance, state) => ({
-      captures: state.storage.sql.exec("SELECT COUNT(*) AS n FROM captures").one().n,
       events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
     }));
-    expect(remaining).toEqual({ captures: 0, events: 0 });
+    expect(remaining).toEqual({ events: 0 });
   });
 });

@@ -27,19 +27,6 @@ export const commentsStoreNoteId = (path: string): string | null => {
 
 export const isCommentsStorePath = (path: string): boolean => commentsStoreNoteId(path) !== null;
 
-// The beside-the-note spelling older vaults and older agents still write: recognised so it can be
-// folded into the store, never written.
-const LEGACY_SIDECAR_SUFFIX = ".comments.json";
-
-export const legacyCommentsSidecarPath = (notePath: string): string =>
-  `${notePath}${LEGACY_SIDECAR_SUFFIX}`;
-
-export const isLegacyCommentsSidecarPath = (path: string): boolean =>
-  path.endsWith(LEGACY_SIDECAR_SUFFIX);
-
-export const legacySidecarNotePath = (sidecarPath: string): string =>
-  sidecarPath.slice(0, -LEGACY_SIDECAR_SUFFIX.length);
-
 export const COMMENT_SOURCES = ["user", "agent", "external"] as const;
 export const commentSourceSchema = z.enum(COMMENT_SOURCES);
 export type CommentSource = z.infer<typeof commentSourceSchema>;

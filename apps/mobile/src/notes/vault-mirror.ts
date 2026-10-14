@@ -1,9 +1,6 @@
-// every note's text, held on the phone in SQLite so the notes open offline. A refresh diffs the
-// hosted tree against the rows by blob oid and fetches only what changed, forty paths to a request
-// pinned to the listing's commit. The mirrored commit advances only once every wanted row holds its
-// text, so a refresh cut short resumes from the rows still empty. A write the phone lands moves its
-// rows at once and stamps them, and a refresh that listed the tree before that landing leaves them
-// alone. Pure over the SQL port and the cloud client; the store decides what the screens see.
+// A refresh diffs the hosted tree against the rows by blob oid and fetches only what changed, forty
+// paths to a request pinned to the listing's commit. Pure over the SQL port and the cloud client;
+// the store decides what the screens see.
 
 import { z } from "zod";
 import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
@@ -25,7 +22,7 @@ import {
   noteIdOfProperties,
   parseProperties,
 } from "@repo/notes/markdown/frontmatter";
-import { fencedExclusive, phoneDbReady } from "../lib/phone-db";
+import { fencedExclusive } from "../lib/phone-db";
 import type { Fence } from "../lib/phone-db";
 import type { SqlDriver, SqlExecutor, SqlValue } from "../lib/sql-driver";
 
@@ -177,16 +174,6 @@ const movedRowSchema = z.object({
   size: z.number(),
 });
 
-const parseAliases = (raw: string): readonly string[] => {
-  try {
-    const parsed = aliasesSchema.safeParse(JSON.parse(raw));
-    return parsed.success ? parsed.data : [];
-  } catch {
-    return [];
-  }
-};
-
-// what the resolver reads off a note: its frontmatter id and aliases
 export const noteFactsOf = (content: string): NoteFacts => {
   const yaml = frontmatterYaml(content);
   const properties = yaml === null ? null : parseProperties(yaml);
@@ -199,7 +186,6 @@ const payloadOf = (content: string): TextPayload => {
   return { aliases: JSON.stringify(facts.aliases), content, note_id: facts.noteId };
 };
 
-// a note or a comment store: a file whose text the phone reads
 export const holdsText = (path: string): boolean => isDocPath(path) || isCommentsStorePath(path);
 
 const wantsText = (entry: Pick<TreeEntry, "path" | "size">): boolean =>
@@ -469,8 +455,7 @@ export const landOnRows = (
   return [...byPath.values()].toSorted((a, b) => (a.path < b.path ? -1 : 1));
 };
 
-// the rows a landed write leaves, stamped so a refresh listed before it cannot put them back. Runs
-// inside the caller's transaction, beside the outbox rows it settles.
+// runs inside the caller's transaction, beside the outbox rows it retires
 export const landInMirror = async (
   tx: SqlExecutor,
   landings: readonly MirrorLanding[],
@@ -509,7 +494,6 @@ const storeAnswer = async (
 
 export const createVaultMirror = (db: SqlDriver): VaultMirror => {
   const walkHead: VaultMirror["walkHead"] = async (client, fence) => {
-    await phoneDbReady(db);
     const meta = await readMeta(db);
     const mark = await readLandedMark(db);
     if (!fence()) {
@@ -544,18 +528,18 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
     if (after !== undefined) {
       return { kind: "too-large" };
     }
-    const applied = { settled: false };
-    const landed = await fencedExclusive(db, fence, async (tx) => {
-      applied.settled = await applyTree(tx, commit, entries, mark);
-    });
-    return landed
-      ? { commit, firstMirror: meta.mirrored === null, kind: "applied", settled: applied.settled }
+    const landed = await fencedExclusive(
+      db,
+      fence,
+      async (tx) => await applyTree(tx, commit, entries, mark),
+    );
+    return landed.ran
+      ? { commit, firstMirror: meta.mirrored === null, kind: "applied", settled: landed.value }
       : { kind: "fenced" };
   };
 
   const fillTexts: VaultMirror["fillTexts"] = async (client, walked, fence, onProgress) => {
     const { commit } = walked;
-    await phoneDbReady(db);
     const empty = await db.all(
       "SELECT path, oid FROM mirror_entries WHERE wants_text = 1 AND content IS NULL ORDER BY path",
     );
@@ -584,7 +568,12 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
       if (answer.commit !== commit || settled === 0) {
         return { kind: "incomplete" };
       }
-      if (!(await fencedExclusive(db, fence, async (tx) => await storeAnswer(tx, answer, oidOf)))) {
+      const stored = await fencedExclusive(
+        db,
+        fence,
+        async (tx) => await storeAnswer(tx, answer, oidOf),
+      );
+      if (!stored.ran) {
         return { kind: "fenced" };
       }
       queue.push(...answer.deferred);
@@ -596,29 +585,24 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
       onProgress(progress);
     }
 
-    const verdict = { complete: false };
-    const landed = await fencedExclusive(db, fence, async (tx) => {
+    const landed = await fencedExclusive(db, fence, async (tx): Promise<FillOutcome> => {
       const counts = await readCounts(tx);
       const meta = await readMeta(tx);
       if (counts.fetched < counts.total || meta.tree !== commit) {
-        return;
+        return { kind: "incomplete" };
       }
       if (walked.settled) {
         await tx.run("UPDATE mirror_meta SET mirrored_commit = tree_commit WHERE id = 1");
       }
-      verdict.complete = true;
+      return { kind: "complete" };
     });
-    if (!landed) {
-      return { kind: "fenced" };
-    }
-    return verdict.complete ? { kind: "complete" } : { kind: "incomplete" };
+    return landed.ran ? landed.value : { kind: "fenced" };
   };
 
   return {
     fillTexts,
 
     async readText(path) {
-      await phoneDbReady(db);
       const [row] = await db.all(
         "SELECT path, oid, pin_commit, content FROM mirror_entries WHERE path = ?",
         [path],
@@ -627,7 +611,6 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
     },
 
     async readTexts() {
-      await phoneDbReady(db);
       const rows = await db.all(
         "SELECT path, oid, pin_commit, content FROM mirror_entries WHERE content IS NOT NULL",
       );
@@ -635,14 +618,13 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
     },
 
     async snapshot() {
-      await phoneDbReady(db);
       const listed = await db.all(
         "SELECT path, oid, size, pin_commit, note_id, aliases FROM mirror_entries ORDER BY path",
       );
       const rows = listed.map((raw) => {
         const row = snapshotRowSchema.parse(raw);
         return {
-          aliases: parseAliases(row.aliases),
+          aliases: aliasesSchema.parse(JSON.parse(row.aliases)),
           noteId: row.note_id,
           oid: row.oid,
           path: row.path,
@@ -667,7 +649,6 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
     walkHead,
 
     async wipe() {
-      await phoneDbReady(db);
       await db.exclusive(async (tx) => {
         await tx.exec(
           "DELETE FROM mirror_entries; DELETE FROM mirror_meta; DELETE FROM mirror_landings;",

@@ -1,12 +1,21 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
+import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
 import { File } from "expo-file-system";
 import { addNetworkStateListener } from "expo-network";
 import * as SecureStore from "expo-secure-store";
 import { createKeychainCredentials } from "../credential/secure-store-credential";
-import { threadDispatches, threadListEntries } from "../dispatch/dispatch-projection";
-import type { ThreadDispatches, ThreadListEntry } from "../dispatch/dispatch-projection";
+import {
+  pendingCaptures,
+  threadDispatches,
+  threadListEntries,
+} from "../dispatch/dispatch-projection";
+import type {
+  PendingCaptures,
+  ThreadDispatches,
+  ThreadListEntry,
+} from "../dispatch/dispatch-projection";
 import type {
   AskAgentRequest,
   CancelOutcome,
@@ -31,7 +40,6 @@ import type { SyncStatus } from "../sync/sync-runtime";
 import { liveThreadsFirst, projectThread } from "../sync/thread-projection";
 import type { ThreadProjection } from "../sync/thread-projection";
 import { hexFromBytes } from "@repo/contract/cloud/bytes";
-import type { CloudFailure } from "@repo/contract/cloud/client";
 import { createCloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
 import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
 import { excludeFromBackup } from "./backup-exclusion";
@@ -39,6 +47,7 @@ import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
 import type { AppRuntime, LogoutOutcome } from "./compose-runtime";
 import { createExpoSqlDriver } from "./expo-sql-driver";
+import { openPhoneDb } from "./phone-db";
 
 let runtime: AppRuntime | null = null;
 
@@ -49,12 +58,17 @@ const devLog = (message: string): void => {
   }
 };
 
+// the version app.config.js read from the package. a build that carries none says 0.0.0, which
+// the cloud refuses as too old rather than letting a build it cannot place through
+const appVersion = (): string => Constants.expoConfig?.version ?? "0.0.0";
+
 const build = (): AppRuntime => {
   const rt = composeRuntime({
     attachments: createExpoAttachmentFiles(),
+    build: { platform: "mobile", version: appVersion() },
     cloudUrl: getCloudUrl(),
     credentials: createKeychainCredentials(SecureStore),
-    db: createExpoSqlDriver("inteligir.db"),
+    db: openPhoneDb(createExpoSqlDriver("inteligir.db")),
     deviceName: defaultDeviceName(),
     mintId: () => hexFromBytes(Crypto.getRandomBytes(16)),
     mintNoteId: Crypto.randomUUID,
@@ -104,13 +118,6 @@ export const logout = async (options?: { discardUnsent?: boolean }): Promise<Log
 
 export const login = async (request: LoginRequest): Promise<void> => {
   await getRuntime().login.login(request);
-};
-
-export const submitCapture = async (
-  text: string,
-): Promise<{ ok: true } | { ok: false; failure: CloudFailure }> => {
-  const result = await getRuntime().submitCapture(text);
-  return result.ok ? { ok: true } : { failure: result.failure, ok: false };
 };
 
 export const refreshNotes = async (): Promise<void> => {
@@ -245,8 +252,16 @@ export const useDispatches = (threadId: string): ThreadDispatches => {
   );
 };
 
+export const usePendingCaptures = (): PendingCaptures => {
+  const dispatches = useDispatchState();
+  return useMemo(() => pendingCaptures(dispatches), [dispatches]);
+};
+
 export const askAgent = async (request: AskAgentRequest): Promise<DispatchOutcome> =>
   await getRuntime().dispatch.askAgent(request);
+
+export const capture = async (text: string): Promise<DispatchOutcome> =>
+  await getRuntime().dispatch.capture(text);
 
 export const answerApproval = async (
   approvalId: string,

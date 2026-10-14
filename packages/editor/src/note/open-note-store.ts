@@ -30,8 +30,6 @@ export interface OpenNoteState {
   openDoc: OpenDoc;
   back: string[];
   forward: string[];
-  /** installed by the owning session and cleared with it, so no separate teardown can forget to. */
-  flush: (() => Promise<boolean>) | null;
 }
 
 const INITIAL_ANALYZED: Analyzed = { content: "", path: null, rawReason: null };
@@ -40,7 +38,6 @@ const INITIAL_STATE: OpenNoteState = {
   analyzed: INITIAL_ANALYZED,
   back: [],
   editor: EMPTY_EDITOR_STATE,
-  flush: null,
   forward: [],
   openDoc: { kind: "none" },
   openPath: null,
@@ -106,7 +103,6 @@ export interface OpenNoteStore {
   state: () => OpenNoteState;
   publishEditor: (editor: VaultEditorState) => void;
   publishOpenPath: (path: string | null, change?: OpenPathChange) => void;
-  setFlush: (flush: (() => Promise<boolean>) | null) => void;
 }
 
 // `carry`: a rename moved the open note, so history entries naming the old path
@@ -222,9 +218,6 @@ export const createOpenNoteStore = (): OpenNoteStore => {
   return {
     publishEditor,
     publishOpenPath,
-    setFlush: (flush) => {
-      store.setState({ flush });
-    },
     state: () => store.getState(),
     store,
   };

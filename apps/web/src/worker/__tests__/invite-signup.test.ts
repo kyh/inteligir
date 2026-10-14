@@ -1,4 +1,4 @@
-import { AUTH_PAGE_PATHS } from "@repo/contract/cloud/account/account-schema";
+import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
-import { cookieHeaderOf } from "./cloud-helpers";
+import { cookieHeaderOf, OWN_PAGE_HEADERS } from "./cloud-helpers";
 
 const ORIGIN = "https://inteligir-web.workers.dev";
 const PASSWORD = "test-password-1234";
@@ -46,9 +46,9 @@ const mintCode = async (code: string): Promise<void> => {
 };
 
 const signUp = async (body: Record<string, string>): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}${AUTH_PAGE_PATHS.signUp}`, {
+  await SELF.fetch(`${ORIGIN}${AUTH_API_PATHS.signUp}`, {
     body: JSON.stringify(body),
-    headers: { "content-type": "application/json", origin: ORIGIN },
+    headers: { ...OWN_PAGE_HEADERS, "content-type": "application/json" },
     method: "POST",
   });
 

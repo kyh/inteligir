@@ -1,0 +1,7 @@
+{
+  "externalSync": { "kind": "dropbox" },
+  "warning": {
+    "detail": "Inteligir won't sync these notes, and your phone won't see them.",
+    "headline": "Dropbox keeps syncing this folder."
+  }
+}

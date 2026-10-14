@@ -3,30 +3,14 @@
 // verdict on the credential; `malformed` is a body this build cannot read (an intercepting proxy).
 
 import type { z } from "zod";
-import {
-  ACCOUNT_API_PATHS,
-  accountResponseSchema,
-  deleteAccountResponseSchema,
-} from "./account/account-schema";
+import { ACCOUNT_API_PATHS, deleteAccountResponseSchema } from "./account/account-schema";
 import type {
-  AccountResponse,
   DeleteAccountRequest,
   DeleteAccountResponse,
   DeviceSignUpRequest,
 } from "./account/account-schema";
-import {
-  ackCapturesResponseSchema,
-  CAPTURE_API_PATHS,
-  captureResponseSchema,
-  claimCapturesResponseSchema,
-} from "./captures/captures-schema";
-import type {
-  AckCapturesRequest,
-  AckCapturesResponse,
-  CaptureRequest,
-  CaptureResponse,
-  ClaimCapturesResponse,
-} from "./captures/captures-schema";
+import { clientBuildHeaders } from "./client-build";
+import type { ClientBuild } from "./client-build";
 import { cloudErrorSchema } from "./cloud-errors";
 import type { CloudError, CloudErrorCode } from "./cloud-errors";
 import {
@@ -57,6 +41,7 @@ import type {
   AckDispatchesRequest,
   AckDispatchesResponse,
   CancelDispatchResponse,
+  ClaimDispatchesRequest,
   ClaimDispatchesResponse,
   CloseApprovalResponse,
   CreateDispatchRequest,
@@ -180,8 +165,7 @@ const UNREADABLE_OK: CloudFailure = {
 
 // response schemas strip what they do not declare, so a newer worker may add a field and this
 // build reads on. a field that changes what a row MEANS is another matter: stripped, the row
-// reads as something else, so it reaches only a client whose request asks for it. 0.4.0 and
-// older refuse any added field, which is why what they must read rides a new route.
+// reads as something else, so it reaches only a client whose request asks for it.
 const readValue = async <TSchema extends z.ZodType>(
   response: Response,
   schema: TSchema,
@@ -298,6 +282,9 @@ type JsonBody =
 
 export interface CloudEndpoint {
   baseUrl: string;
+  // rides every request, the two that ask for a credential included: the Worker refuses a build
+  // below its floor before it reads anything else
+  build: ClientBuild;
   fetch?: CloudFetch;
   // composed with the per-request timeout, not replacing it: a shutdown must not wait out
   // a hung request, and a hung request must not wait for a shutdown
@@ -326,7 +313,7 @@ const postForCredential = async (
     async () =>
       await call(endpointUrl(endpoint.baseUrl, path), {
         body: JSON.stringify(request),
-        headers: { "content-type": "application/json" },
+        headers: { ...clientBuildHeaders(endpoint.build), "content-type": "application/json" },
         method: "POST",
         signal: callSignal(endpoint.signal),
       }),
@@ -349,18 +336,16 @@ export const postDeviceSignUp = async (
 export interface CloudClient {
   push: (request: PushRequest) => Promise<CloudResult<PushResponse>>;
   pull: (query: PullQuery) => Promise<CloudResult<PullResponse>>;
-  createCapture: (request: CaptureRequest) => Promise<CloudResult<CaptureResponse>>;
-  claimCaptures: (limit: number) => Promise<CloudResult<ClaimCapturesResponse>>;
-  ackCaptures: (request: AckCapturesRequest) => Promise<CloudResult<AckCapturesResponse>>;
   createDispatch: (request: CreateDispatchRequest) => Promise<CloudResult<CreateDispatchResponse>>;
-  claimDispatches: (limit: number) => Promise<CloudResult<ClaimDispatchesResponse>>;
+  claimDispatches: (
+    request: ClaimDispatchesRequest,
+  ) => Promise<CloudResult<ClaimDispatchesResponse>>;
   ackDispatches: (request: AckDispatchesRequest) => Promise<CloudResult<AckDispatchesResponse>>;
   dispatchStatus: (ids: readonly string[]) => Promise<CloudResult<DispatchStatusResponse>>;
   cancelDispatch: (id: string) => Promise<CloudResult<CancelDispatchResponse>>;
   openApproval: (request: OpenApprovalRequest) => Promise<CloudResult<OpenApprovalResponse>>;
   closeApproval: (id: string) => Promise<CloudResult<CloseApprovalResponse>>;
   listApprovals: () => Promise<CloudResult<ListApprovalsResponse>>;
-  account: () => Promise<CloudResult<AccountResponse>>;
   // ends the account the credential belongs to, every device's credential with it, once the
   // password checks out again
   deleteAccount: (password: string) => Promise<CloudResult<DeleteAccountResponse>>;
@@ -390,15 +375,15 @@ export interface CreateCloudClientArgs extends CloudEndpoint {
 
 export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
   const call = args.fetch ?? fetch;
-  const authorization = `Bearer ${args.credential}`;
+  const headers = { ...clientBuildHeaders(args.build), authorization: `Bearer ${args.credential}` };
 
   const requestInit = (json: JsonBody, timeoutMs?: number): RequestInit => {
     const signal = callSignal(args.signal, timeoutMs);
     return json === undefined
-      ? { headers: { authorization }, method: "GET", signal }
+      ? { headers, method: "GET", signal }
       : {
           body: JSON.stringify(json),
-          headers: { authorization, "content-type": "application/json" },
+          headers: { ...headers, "content-type": "application/json" },
           method: "POST",
           signal,
         };
@@ -416,21 +401,14 @@ export const createCloudClient = (args: CreateCloudClientArgs): CloudClient => {
     );
 
   return {
-    account: async () => await send(ACCOUNT_API_PATHS.account, undefined, accountResponseSchema),
-    ackCaptures: async (request) =>
-      await send(CAPTURE_API_PATHS.ack, request, ackCapturesResponseSchema),
     ackDispatches: async (request) =>
       await send(DISPATCH_API_PATHS.ack, request, ackDispatchesResponseSchema),
     cancelDispatch: async (id) =>
       await send(DISPATCH_API_PATHS.cancel, { id }, cancelDispatchResponseSchema),
-    claimCaptures: async (limit) =>
-      await send(CAPTURE_API_PATHS.claim, { limit }, claimCapturesResponseSchema),
-    claimDispatches: async (limit) =>
-      await send(DISPATCH_API_PATHS.claim, { limit }, claimDispatchesResponseSchema),
+    claimDispatches: async (request) =>
+      await send(DISPATCH_API_PATHS.claim, request, claimDispatchesResponseSchema),
     closeApproval: async (id) =>
       await send(DISPATCH_API_PATHS.approvalClose, { id }, closeApprovalResponseSchema),
-    createCapture: async (request) =>
-      await send(CAPTURE_API_PATHS.capture, request, captureResponseSchema),
     createDispatch: async (request) =>
       await send(DISPATCH_API_PATHS.dispatch, request, createDispatchResponseSchema),
     deleteAccount: async (password) => {

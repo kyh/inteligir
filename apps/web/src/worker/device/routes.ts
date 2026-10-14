@@ -16,12 +16,12 @@ import type { LoginFailure } from "./login";
 import { signUpDevice } from "./sign-up";
 import { createAuth, createSignUpAuth } from "../auth/auth";
 import { signUpBodyRefusal } from "../auth/invite";
-import { jsonNoStore, refuse } from "../cloud-http";
+import { jsonNoStore, refuse, refuseNoDeviceCredential } from "../cloud-http";
 import { createDb } from "../db/client";
 import type { Db } from "../db/client";
 import { device } from "../db/schema";
 import { forgetDeviceBudgets, spendCallerBudget } from "../rate-limit";
-import { severDeviceSockets } from "../sync/routes";
+import { severDeviceSockets } from "../sync/thread-sync-stub";
 
 // login and sign-up ARE the authentication; sign-out is a device's alone, since a session naming
 // no device has nothing to sign out
@@ -94,7 +94,7 @@ export const handleDeviceRoutes = async (
     if (!body.success) {
       return refuse("bad-request", "Send { email, password, deviceName }.");
     }
-    const result = await loginDevice(db, env.DB, createAuth(env, url.origin), body.data);
+    const result = await loginDevice(db, createAuth(env, url.origin), body.data);
     if (!result.loggedIn) {
       return refuse(result.failure, LOGIN_FAILURE_MESSAGE[result.failure]);
     }
@@ -113,7 +113,7 @@ export const handleDeviceRoutes = async (
         signUpBodyRefusal(body.error, "Send { name, email, password, inviteCode, deviceName }."),
       );
     }
-    const result = await signUpDevice(db, env.DB, createSignUpAuth(env, url.origin), body.data);
+    const result = await signUpDevice(db, createSignUpAuth(env, url.origin), body.data);
     if (!result.signedUp) {
       return refuse(result.failure, result.message);
     }
@@ -123,7 +123,7 @@ export const handleDeviceRoutes = async (
   if (route === `POST ${DEVICE_API_PATHS.signOut}`) {
     const verified = await verifyDeviceCredential(db, request.headers.get("authorization"));
     if (verified === null) {
-      return refuse("unauthorized", "No valid device credential.");
+      return refuseNoDeviceCredential();
     }
     // a dashboard revoke landing after the verify already did the rest: signed out either way
     await revokeDevice(env, db, verified);
@@ -133,12 +133,9 @@ export const handleDeviceRoutes = async (
 
   const userId = await accountUserId(request, env, db, url.origin);
   if (userId === null) {
-    return refuse(
-      "unauthorized",
-      carriesDeviceCredential(request.headers.get("authorization"))
-        ? "No valid device credential."
-        : "Sign in first.",
-    );
+    return carriesDeviceCredential(request.headers.get("authorization"))
+      ? refuseNoDeviceCredential()
+      : refuse("unauthorized", "Sign in first.");
   }
 
   if (route === `GET ${DEVICE_API_PATHS.list}`) {
@@ -146,7 +143,7 @@ export const handleDeviceRoutes = async (
       .select()
       .from(device)
       .where(eq(device.userId, userId))
-      // created_at is whole seconds, so two sign-ins in one second tie; rowid is their arrival order
+      // two sign-ins within one millisecond share a created_at; rowid is their arrival order
       .orderBy(device.createdAt, sql`rowid`)
       .all();
     const body: ListDevicesResponse = {

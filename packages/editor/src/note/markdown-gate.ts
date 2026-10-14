@@ -1,5 +1,4 @@
-// the one file in ./note that knows a rich editor exists; an editor whose document
-// is the markdown text itself makes this `() => null` and nothing above it changes.
+// the one file in ./note that knows a rich editor exists.
 
 import { analyzeMarkdown, gateReasonFor } from "@repo/editor/markdown/markdown-doc";
 import type { GateReason } from "@repo/editor/markdown/markdown-doc";

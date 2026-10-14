@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  evaluateThreadLifecycleEvent,
-  THREAD_LIFECYCLE,
-  THREAD_LIFECYCLE_EVENT_PREDICATES,
-} from "../thread-lifecycle";
+import { evaluateThreadLifecycleEvent, THREAD_LIFECYCLE } from "../thread-lifecycle";
 import type {
   ThreadLifecycleEvent,
   ThreadLifecycleEventType,
@@ -12,14 +8,15 @@ import type {
 import { threadStatusValues } from "../thread-status";
 import type { ThreadStatus } from "../thread-status";
 
-const eventTypes: readonly ThreadLifecycleEventType[] = [
-  "run.preparing",
-  "run.started",
-  "run.succeeded",
-  "run.failed",
-  "stop.requested",
-  "stop.settled",
-];
+// keyed by itself, so an event type added to the union and missing here fails to compile
+const eventTypes = Object.values({
+  "run.failed": "run.failed",
+  "run.preparing": "run.preparing",
+  "run.started": "run.started",
+  "run.succeeded": "run.succeeded",
+  "stop.requested": "stop.requested",
+  "stop.settled": "stop.settled",
+} as const satisfies { [K in ThreadLifecycleEventType]: K });
 
 // mulberry32, seeded so a failing sequence reproduces.
 const makeRandom = (seed: number): (() => number) => {
@@ -81,7 +78,7 @@ const applyEvent = (
   event: ThreadLifecycleEvent,
 ): ThreadLifecycleRowState => {
   const evaluation = evaluateThreadLifecycleEvent({ event, thread });
-  if ("noop" in evaluation) {
+  if (evaluation.kind === "noop") {
     return thread;
   }
   return { ...thread, activeTurnId: evaluation.activeTurnId, status: evaluation.to };
@@ -109,7 +106,7 @@ describe("evaluateThreadLifecycleEvent", () => {
         const evaluation = evaluateThreadLifecycleEvent({ event, thread });
         thread = applyEvent(thread, event);
         expect(statuses.has(thread.status)).toBe(true);
-        if ("noop" in evaluation) {
+        if (evaluation.kind === "noop") {
           expect(thread).toEqual(before);
         } else {
           expect(evaluation.to).toBe(THREAD_LIFECYCLE[before.status][event.type]);
@@ -138,10 +135,11 @@ describe("evaluateThreadLifecycleEvent", () => {
         if (expected === undefined) {
           expect(evaluation).toEqual({
             detail: `no transition for ${type} from status ${status}`,
-            noop: "illegal-transition",
+            kind: "noop",
+            reason: "illegal-transition",
           });
         } else {
-          expect(evaluation).toMatchObject({ to: expected });
+          expect(evaluation).toMatchObject({ kind: "move", to: expected });
         }
       }
     }
@@ -160,26 +158,27 @@ describe("evaluateThreadLifecycleEvent", () => {
       }),
     ).toEqual({
       detail: "run.succeeded names turn turn_a but the active turn is turn_b",
-      noop: "stale-turn",
+      kind: "noop",
+      reason: "stale-turn",
     });
     expect(
       evaluateThreadLifecycleEvent({
         event: { turnId: "turn_b", type: "run.succeeded" },
         thread: active,
       }),
-    ).toEqual({ activeTurnId: null, to: "idle" });
+    ).toEqual({ activeTurnId: null, kind: "move", to: "idle" });
     expect(
       evaluateThreadLifecycleEvent({
         event: { turnId: null, type: "run.failed" },
         thread: { activeTurnId: null, archivedAt: null, status: "starting" },
       }),
-    ).toEqual({ activeTurnId: null, to: "error" });
+    ).toEqual({ activeTurnId: null, kind: "move", to: "error" });
     expect(
       evaluateThreadLifecycleEvent({
         event: { turnId: null, type: "run.failed" },
         thread: active,
       }),
-    ).toMatchObject({ noop: "stale-turn" });
+    ).toMatchObject({ kind: "noop", reason: "stale-turn" });
   });
 
   it("supersedes new work on archived threads before table lookup", () => {
@@ -190,13 +189,13 @@ describe("evaluateThreadLifecycleEvent", () => {
     };
     expect(
       evaluateThreadLifecycleEvent({ event: { type: "run.preparing" }, thread: archived }),
-    ).toEqual({ detail: "archivedAt set", noop: "superseded" });
+    ).toEqual({ detail: "archivedAt set", kind: "noop", reason: "superseded" });
     expect(
       evaluateThreadLifecycleEvent({
         event: { turnId: "turn_a", type: "run.started" },
         thread: archived,
       }),
-    ).toEqual({ detail: "archivedAt set", noop: "superseded" });
+    ).toEqual({ detail: "archivedAt set", kind: "noop", reason: "superseded" });
 
     const archivedActive: ThreadLifecycleRowState = {
       activeTurnId: "turn_a",
@@ -208,18 +207,12 @@ describe("evaluateThreadLifecycleEvent", () => {
         event: { turnId: "turn_a", type: "run.succeeded" },
         thread: archivedActive,
       }),
-    ).toEqual({ activeTurnId: null, to: "idle" });
+    ).toEqual({ activeTurnId: null, kind: "move", to: "idle" });
   });
 
   it("cannot dispatch new work out of stopping, structurally", () => {
     expect(THREAD_LIFECYCLE.stopping["run.started"]).toBeUndefined();
     expect(THREAD_LIFECYCLE.stopping["run.preparing"]).toBeUndefined();
-  });
-
-  it("fuzzes every event type the predicate table declares", () => {
-    expect([...eventTypes].toSorted()).toEqual(
-      Object.keys(THREAD_LIFECYCLE_EVENT_PREDICATES).toSorted(),
-    );
   });
 
   it("every reachable status can reach idle again", () => {

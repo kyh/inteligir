@@ -2,7 +2,7 @@
 // verdict, and an orphan is a doc with no in-edge, so every row disappears with the sweep
 // that fixes it. Each family is capped on its own; the totals say what the cap hid.
 
-import { DAILY_NOTES_FOLDER, TEMPLATES_FOLDER } from "../templates/placeholders";
+import { DAILY_NOTES_FOLDER, TEMPLATES_FOLDER } from "../templates/folders";
 import { isDocPath, wikiLinkName } from "./doc-file";
 import type { LinkKind } from "./link-kinds";
 import type { BacklinkEntry, ForwardLinkEntry, WikiTarget } from "./link-graph-index";

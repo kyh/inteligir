@@ -1,9 +1,7 @@
-// a connector's sign-in is the vendor's own `mcp login`, left running while the person finishes it
-// in the browser: one per harness and name, since a second would race the first for one callback,
-// and each ended by its window, its row's removal or the server's shutdown, every one of which
-// kills the vendor process rather than leave it waiting on a browser that is not coming back.
+// one per harness and name, since a second would race the first for one callback; every end kills
+// the vendor process rather than leave it waiting on a browser that is not coming back.
 
-import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessId } from "@repo/domain/harness";
 import type { ConnectorSignIn } from "@repo/contract/local/connectors/connectors-schema";
 import { messageOf } from "../error-message";
 

@@ -15,16 +15,14 @@ import { hermeticGitEnv } from "../server/vault/__tests__/git-test-env";
 import { runCliForTest } from "./run-cli";
 
 const envelopeSchema = z.object({ error: z.string().min(1), message: z.string() });
-const selectionSchema = z
-  .object({
-    dataDir: z.string(),
-    externalSync: externalSyncSchema.nullable(),
-    previousVaultDir: z.string(),
-    remote: z.string().nullable(),
-    running: z.object({ baseUrl: z.string() }).nullable(),
-    vaultDir: z.string(),
-  })
-  .strict();
+const selectionSchema = z.strictObject({
+  dataDir: z.string(),
+  externalSync: externalSyncSchema.nullable(),
+  previousVaultDir: z.string(),
+  remote: z.string().nullable(),
+  running: z.object({ baseUrl: z.string() }).nullable(),
+  vaultDir: z.string(),
+});
 
 // no server: the leaf never dials one, and a dial would be the bug
 const NO_SERVER = "http://127.0.0.1:1";
@@ -33,7 +31,12 @@ const NO_SERVER = "http://127.0.0.1:1";
 const scratch = () => {
   const homeDir = makeTempDir("inteligir-vault-open-", { realpath: true });
   const config = resolveAppConfig({ checkoutPath: resolveCheckoutRoot(), env: {}, homeDir });
-  return { defaultVaultDir: config.vaultDir, homeDir, rootDataDir: config.rootDataDir };
+  return {
+    dataDir: config.dataDir,
+    defaultVaultDir: config.vaultDir,
+    homeDir,
+    rootDataDir: config.rootDataDir,
+  };
 };
 
 const newVault = (homeDir: string, name: string): string => {
@@ -113,9 +116,9 @@ describe("inteligir vault open", () => {
   });
 
   it("leaves a running server alone and says so", async () => {
-    const { homeDir, rootDataDir, defaultVaultDir } = scratch();
-    mkdirSync(rootDataDir, { recursive: true });
-    writeServerFile(rootDataDir, {
+    const { dataDir, homeDir, defaultVaultDir } = scratch();
+    mkdirSync(dataDir, { recursive: true });
+    writeServerFile(dataDir, {
       pid: process.pid,
       port: 4664,
       token: "t",
@@ -129,7 +132,7 @@ describe("inteligir vault open", () => {
       baseUrl: "http://127.0.0.1:4664",
     });
     // untouched: the row still names the previous vault
-    expect(readFileSync(path.join(rootDataDir, "server.json"), "utf-8")).toContain(defaultVaultDir);
+    expect(readFileSync(path.join(dataDir, "server.json"), "utf-8")).toContain(defaultVaultDir);
   });
 
   it("names the service that syncs a folder, which the hosted vault then stays off", async () => {

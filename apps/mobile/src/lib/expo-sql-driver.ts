@@ -18,6 +18,12 @@ const executorOver = (db: SQLiteDatabase): SqlExecutor => ({
   },
 });
 
+// withExclusiveTransactionAsync answers nothing, so what `work` answers rides out beside it, read
+// only once the commit has resolved
+interface TransactionOutcome<T> {
+  committed: { value: T } | null;
+}
+
 const directoryOf = (path: string): string => path.slice(0, path.lastIndexOf("/"));
 
 const openPrepared = async (name: string): Promise<SQLiteDatabase> => {
@@ -42,12 +48,17 @@ export const createExpoSqlDriver = (name: string): SqlDriver => {
   // not, and sees what the last commit left.
   return {
     all: async (sql, params) => await executorOver(await database()).all(sql, params),
-    exclusive: async (work) =>
+    exclusive: async <T>(work: (tx: SqlExecutor) => Promise<T>): Promise<T> =>
       await serial(async () => {
         const db = await database();
+        const outcome: TransactionOutcome<T> = { committed: null };
         await db.withExclusiveTransactionAsync(async (txn) => {
-          await work(executorOver(txn));
+          outcome.committed = { value: await work(executorOver(txn)) };
         });
+        if (outcome.committed === null) {
+          throw new Error("The phone's database ended a transaction without running it.");
+        }
+        return outcome.committed.value;
       }),
   };
 };

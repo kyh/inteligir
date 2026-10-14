@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   ACCOUNT_API_PATHS,
-  accountResponseSchema,
   DELETE_ACCOUNT_REFUSALS,
   deleteAccountRequestSchema,
   deleteAccountResponseSchema,
@@ -10,13 +9,6 @@ import {
   isDeleteAccountRefusal,
   signUpRequestSchema,
 } from "../account/account-schema";
-import {
-  ackCapturesRequestSchema,
-  ackCapturesResponseSchema,
-  captureRequestSchema,
-  captureResponseSchema,
-  claimCapturesResponseSchema,
-} from "../captures/captures-schema";
 import {
   CLOUD_ERROR_CODES,
   CLOUD_ERROR_STATUS,
@@ -65,6 +57,7 @@ import {
 } from "../device/device-schema";
 import { createCloudClient, readCloudCall } from "../cloud-client";
 import type { CloudFailure, CloudFetch } from "../cloud-client";
+import { TEST_BUILD } from "../test-support/fake-cloud-client";
 import {
   EVENT_MAX_BYTES,
   pullQuerySchema,
@@ -130,9 +123,10 @@ describe("error envelope", () => {
 const failureFor = async (response: Response): Promise<CloudFailure | null> => {
   const result = await createCloudClient({
     baseUrl: "https://cloud.test",
+    build: TEST_BUILD,
     credential: `igd_${"a".repeat(64)}`,
     fetch: async () => response,
-  }).account();
+  }).listDevices();
   return result.ok ? null : result.failure;
 };
 
@@ -181,7 +175,7 @@ describe("a failure the cloud did not word", () => {
   it("reads a request that never left as unreachable, for a reader with no client", async () => {
     const result = await readCloudCall(async () => {
       throw new TypeError("Failed to fetch");
-    }, accountResponseSchema);
+    }, listDevicesResponseSchema);
     expect(result).toStrictEqual({
       failure: { kind: "unreachable", message: "Failed to fetch" },
       ok: false,
@@ -227,22 +221,15 @@ const APPROVAL_PAYLOAD = {
 } satisfies OpenApprovalRequest["payload"];
 
 const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
-  ["the account", accountResponseSchema, { email: "owner@example.test", id: "user_1" }],
-  ["a capture", captureResponseSchema, { createdAt: 1, duplicate: false, id: "cap_1" }],
-  [
-    "a claim",
-    claimCapturesResponseSchema,
-    {
-      captures: [{ createdAt: 1, id: "cap_1", text: "buy oat milk" }],
-      claimToken: "tok",
-      expiresAt: 2,
-    },
-  ],
-  ["an ack", ackCapturesResponseSchema, { results: [{ id: "cap_1", outcome: "deleted" }] }],
   [
     "a login",
     deviceLoginResponseSchema,
-    { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" },
+    {
+      credential: `igd_${"a".repeat(64)}`,
+      deviceId: "dev_1",
+      email: "owner@example.test",
+      userId: "user_1",
+    },
   ],
   [
     "the device list",
@@ -329,6 +316,7 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
   ],
   ["a sync ping", syncPingSchema, { seq: 1, type: "sync" }],
   ["a dispatch ping", syncPingSchema, { threadId: "th_1", type: "dispatch" }],
+  ["a capture's dispatch ping", syncPingSchema, { type: "dispatch" }],
   [
     "a dispatch created",
     createDispatchResponseSchema,
@@ -429,13 +417,11 @@ describe("a worker newer than this build", () => {
   it("hands the caller a grown answer stripped to the declared shape", async () => {
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: `igd_${"a".repeat(64)}`,
-      fetch: async () => Response.json({ email: "owner@example.test", id: "user_1", plan: "pro" }),
-    }).account();
-    expect(result).toStrictEqual({
-      ok: true,
-      value: { email: "owner@example.test", id: "user_1" },
-    });
+      fetch: async () => Response.json({ devices: [], plan: "pro" }),
+    }).listDevices();
+    expect(result).toStrictEqual({ ok: true, value: { devices: [] } });
   });
 });
 
@@ -498,9 +484,16 @@ describe("device login", () => {
     expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(64)}`)).toBe(true);
     expect(DEVICE_CREDENTIAL_PATTERN.test(`igd_${"a".repeat(63)}`)).toBe(false);
     expect(DEVICE_CREDENTIAL_PATTERN.test("not-a-credential")).toBe(false);
-    const answer = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
+    const answer = {
+      credential: `igd_${"a".repeat(64)}`,
+      deviceId: "dev_1",
+      email: "owner@example.test",
+      userId: "user_1",
+    };
     expect(deviceLoginResponseSchema.parse(answer)).toEqual(answer);
     expect(deviceLoginResponseSchema.parse({ ...answer, token: "x" })).toStrictEqual(answer);
+    const accountless = { credential: answer.credential, deviceId: answer.deviceId };
+    expect(deviceLoginResponseSchema.safeParse(accountless).success).toBe(false);
   });
 
   it("signs a device out with its own credential, and nothing else", async () => {
@@ -508,6 +501,7 @@ describe("device login", () => {
     const credential = `igd_${"a".repeat(64)}`;
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential,
       fetch: async (input, init) => {
         seen.push({
@@ -530,6 +524,7 @@ describe("device login", () => {
     const password = " the password, spaces kept ";
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential,
       fetch: async (input, init) => {
         seen.push({
@@ -623,30 +618,22 @@ describe("invite sign-up request", () => {
 });
 
 describe("push request", () => {
-  it("accepts an opaque JSON event body", () => {
+  it("accepts an opaque JSON event body and answers the one text the log stores", () => {
+    const event = { nested: [1, "x", null], type: "turn/started" };
     const result = pushRequestSchema.safeParse({
-      events: [
-        {
-          createdAt: 1,
-          deviceSeq: 1,
-          event: { nested: [1, "x", null], type: "turn/started" },
-          threadId: "th_1",
-        },
-      ],
+      events: [{ createdAt: 1, deviceSeq: 1, event, threadId: "th_1" }],
     });
-    expect(result.success).toBe(true);
+    expect(result.data?.events[0]?.event).toBe(JSON.stringify(event));
   });
 
-  it("still reads a 0.4.0 push, whose threads half carries each thread's lane", () => {
-    const stale = {
-      events: [{ createdAt: 1, deviceSeq: 1, event: { type: "thread/meta" }, threadId: "th_1" }],
-      threads: [
-        { lane: "desktop", threadId: "th_1", title: "Fix the build", updatedAt: 1 },
-        { lane: "any", threadId: "th_2", updatedAt: 2 },
-      ],
-    };
-    expect(pushRequestSchema.safeParse(stale).success).toBe(true);
-    expect(pushRequestSchema.safeParse({ ...stale, lanes: [] }).success).toBe(false);
+  it("refuses a key beside the events, a thread list among them", () => {
+    const events = [
+      { createdAt: 1, deviceSeq: 1, event: { type: "thread/meta" }, threadId: "th_1" },
+    ];
+    expect(pushRequestSchema.safeParse({ events }).success).toBe(true);
+    for (const extra of [{ threads: [] }, { threads: [{ threadId: "th_1" }] }, { lanes: [] }]) {
+      expect(pushRequestSchema.safeParse({ events, ...extra }).success).toBe(false);
+    }
   });
 
   it("refuses an event body over the byte ceiling", () => {
@@ -690,28 +677,6 @@ describe("pull query", () => {
   });
 });
 
-describe("capture handoff", () => {
-  it("demands an idempotency key, so a retried share-sheet post is one capture", () => {
-    expect(captureRequestSchema.safeParse({ text: "buy oat milk" }).success).toBe(false);
-    expect(
-      captureRequestSchema.safeParse({ idempotencyKey: "k".repeat(8), text: "buy oat milk" })
-        .success,
-    ).toBe(true);
-  });
-
-  it("acks by claim token and answers per id", () => {
-    const parsed = ackCapturesResponseSchema.parse({
-      results: [
-        { id: "c1", outcome: "deleted" },
-        { id: "c2", outcome: "reclaimed" },
-        { id: "c3", outcome: "unknown" },
-      ],
-    });
-    expect(parsed.results.map((row) => row.outcome)).toEqual(["deleted", "reclaimed", "unknown"]);
-    expect(ackCapturesRequestSchema.safeParse({ ids: ["c1"] }).success).toBe(false);
-  });
-});
-
 describe("the dispatch inbox", () => {
   const TURN: CreateDispatchRequest = {
     id: DISPATCH_ID,
@@ -726,6 +691,11 @@ describe("the dispatch inbox", () => {
     decision: "allow_once",
     id: "e".repeat(32),
     kind: "answer",
+  };
+  const CAPTURE: CreateDispatchRequest = {
+    id: "f".repeat(32),
+    kind: "capture",
+    text: "buy oat milk",
   };
   const APPROVAL: OpenApprovalRequest = {
     id: APPROVAL_ID,
@@ -744,6 +714,7 @@ describe("the dispatch inbox", () => {
   it("reads every request it sends as exactly that request", () => {
     expect(createDispatchRequestSchema.parse(TURN)).toStrictEqual(TURN);
     expect(createDispatchRequestSchema.parse(ANSWER)).toStrictEqual(ANSWER);
+    expect(createDispatchRequestSchema.parse(CAPTURE)).toStrictEqual(CAPTURE);
     expect(openApprovalRequestSchema.parse(APPROVAL)).toStrictEqual(APPROVAL);
     expect(ackDispatchesRequestSchema.parse(ACK)).toStrictEqual(ACK);
     expect(dispatchStatusRequestSchema.parse({ ids: [DISPATCH_ID] })).toStrictEqual({
@@ -755,7 +726,8 @@ describe("the dispatch inbox", () => {
     expect(closeApprovalRequestSchema.parse({ id: APPROVAL_ID })).toStrictEqual({
       id: APPROVAL_ID,
     });
-    expect(claimDispatchesRequestSchema.parse({})).toStrictEqual({
+    expect(claimDispatchesRequestSchema.parse({ kinds: ["capture"] })).toStrictEqual({
+      kinds: ["capture"],
       limit: DISPATCH_CLAIM_DEFAULT_LIMIT,
     });
   });
@@ -776,9 +748,20 @@ describe("the dispatch inbox", () => {
       { ...TURN, lane: "desktop" },
       { ...ANSWER, decision: "allow_forever" },
       { ...ANSWER, kind: "cancel" },
+      { ...CAPTURE, text: "  " },
+      { ...CAPTURE, text: "x".repeat(DISPATCH_MAX_CHARS + 1) },
+      { ...CAPTURE, threadId: "thr_1" },
     ];
     for (const body of refused) {
       expect(createDispatchRequestSchema.safeParse(body).success, JSON.stringify(body)).toBe(false);
+    }
+  });
+
+  it("names the kinds a claim takes, so a kind its Mac would misread is never handed to it", () => {
+    for (const body of [{}, { kinds: [] }, { kinds: ["note"] }]) {
+      expect(claimDispatchesRequestSchema.safeParse(body).success, JSON.stringify(body)).toBe(
+        false,
+      );
     }
   });
 
@@ -808,6 +791,7 @@ describe("the dispatch inbox", () => {
     const seen: { body: unknown; method: string; path: string }[] = [];
     const client = createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: `igd_${"a".repeat(64)}`,
       fetch: async (input, init) => {
         seen.push({
@@ -819,7 +803,7 @@ describe("the dispatch inbox", () => {
       },
     });
     await client.createDispatch(TURN);
-    await client.claimDispatches(5);
+    await client.claimDispatches({ kinds: ["turn", "capture"], limit: 5 });
     await client.ackDispatches(ACK);
     await client.dispatchStatus([DISPATCH_ID]);
     await client.cancelDispatch(DISPATCH_ID);
@@ -848,7 +832,7 @@ describe("the dispatch inbox", () => {
     ];
     expect(decoded).toStrictEqual([
       TURN,
-      { limit: 5 },
+      { kinds: ["turn", "capture"], limit: 5 },
       ACK,
       { ids: [DISPATCH_ID] },
       { id: DISPATCH_ID },
@@ -862,7 +846,6 @@ describe("the dispatch inbox", () => {
 describe("ws ping frames", () => {
   it("parses each server frame", () => {
     expect(syncPingSchema.parse({ seq: 12, type: "sync" }).type).toBe("sync");
-    expect(syncPingSchema.parse({ type: "capture" }).type).toBe("capture");
     expect(syncPingSchema.parse({ threadId: "th_1", type: "dispatch" }).type).toBe("dispatch");
     expect(syncPingSchema.parse({ type: "vault" }).type).toBe("vault");
   });
@@ -875,14 +858,6 @@ describe("ws ping frames", () => {
     expect(syncPingSchema.safeParse({ type: "presence" }).success).toBe(false);
   });
 });
-
-// the vault routes' own decode: the search params whole, then the row's schema
-const paramsOf = (uri: string | undefined): Record<string, string> => {
-  if (uri === undefined) {
-    throw new Error("the client sent no request");
-  }
-  return Object.fromEntries(new URL(uri).searchParams);
-};
 
 describe("vault read rows", () => {
   it("parses the tree page and the file", () => {
@@ -934,6 +909,7 @@ describe("vault read rows", () => {
     const sent: { body: unknown; method: string; url: URL }[] = [];
     const client = createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: `igd_${"a".repeat(64)}`,
       fetch: async (input, init) => {
         sent.push({
@@ -973,20 +949,10 @@ describe("vault read rows", () => {
     expect(posted(VAULT_API_PATHS.asset, vaultAssetQuerySchema)).toEqual(asset);
   });
 
-  it("decodes the GET form a stale install sends from its search params", () => {
-    const query: VaultTreeQuery = { after: "notes/α β&c=d+e.md", limit: 500, ref: COMMIT };
-    const url = new URL(`https://cloud.test${VAULT_API_PATHS.tree}`);
-    url.search = new URLSearchParams({
-      after: "notes/α β&c=d+e.md",
-      limit: "500",
-      ref: COMMIT,
-    }).toString();
-    expect(vaultTreeQuerySchema.parse(paramsOf(url.toString()))).toEqual(query);
-  });
-
   it("refuses a tree limit that is not a whole number in range", () => {
-    for (const limit of ["", "0", "501", "1.5", "ten"]) {
-      expect(vaultTreeQuerySchema.safeParse({ limit }).success).toBe(false);
+    expect(vaultTreeQuerySchema.safeParse({ limit: 500 }).success).toBe(true);
+    for (const limit of [0, 501, 1.5, "7", "", "ten"]) {
+      expect(vaultTreeQuerySchema.safeParse({ limit }).success, String(limit)).toBe(false);
     }
   });
 
@@ -1015,6 +981,7 @@ describe("vault read rows", () => {
     const seen: { authorization: string | null; body: unknown; method: string; url: URL }[] = [];
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential,
       fetch: async (input, init) => {
         seen.push({
@@ -1044,8 +1011,8 @@ describe("vault read rows", () => {
     expect(assetMediaType("no-extension")).toBeNull();
   });
 
-  it("pins the asset allowlist WHOLE — growth is additive, removal never happens", () => {
-    // hand-listed on purpose: removing an entry 400s every stale phone whose notes embed it
+  it("pins the asset allowlist WHOLE — growth is additive, removal waits on the build floor", () => {
+    // hand-listed on purpose: removing an entry 400s every phone above the floor whose notes embed it
     expect(Object.fromEntries(VAULT_ASSET_MEDIA_TYPES)).toEqual({
       ".apng": "image/apng",
       ".avif": "image/avif",
@@ -1069,6 +1036,7 @@ describe("an attachment's bytes", () => {
   const assetOver = async (fetch: CloudFetch) =>
     await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: CREDENTIAL,
       fetch,
     }).vaultAsset(QUERY);
@@ -1239,6 +1207,7 @@ describe("a vault change set", () => {
     const request: VaultCommitRequest = { authoredAt: 1, changes: [put("notes/α β&c.md")] };
     const result = await createCloudClient({
       baseUrl: "https://cloud.test",
+      build: TEST_BUILD,
       credential: CREDENTIAL,
       fetch: async (input, init) => {
         seen.push({

@@ -1,20 +1,15 @@
-// reachable from the renderer's suites through `inteligir/server/testing`, so everything imported
-// here compiles under the browser tsconfig: the cloud socket opener, the acp agent runtime and the
+// reachable from the workspace UI's suites (src/workspace/__tests__), so everything imported here
+// compiles under their DOM tsconfig: the cloud socket opener, the acp agent runtime and the
 // vendor account probe are injected (`cloudTransport`, `driver`, `accounts`) rather than imported,
 // and serve.ts supplies the real ones.
 
-import { closeConnection, createConnection } from "@repo/db/connection";
+import { closeConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
-import { getSchemaVersion } from "@repo/db/meta";
-import { runMigrations } from "@repo/db/migrate";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
-import { resolveMigrationsFolder } from "../paths";
-import { defaultHarnessId } from "./agents/agent-driver";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
 import type { AgentAccounts } from "./agents/agent-sign-in";
 import { createAgentsService } from "./agents/agents-service";
-import { listTurnChanges, undoTurnChanges } from "./agents/turn-changes";
 import { createBrowserSession } from "./browser-session";
 import { createCommentsService } from "./comments/comments-service";
 import { CloudPrefsStore } from "./cloud/cloud-prefs-store";
@@ -23,7 +18,6 @@ import type { CloudRuntime, CloudRuntimeArgs, CloudTransport } from "./cloud/syn
 import { createVaultRemoteProvider } from "./cloud/vault-remote";
 import type { AppConfig } from "./config";
 import { createConnectorsService, createVendorMcpConfigs } from "./connectors/connectors-service";
-import { removeRetiredConnectorsFile } from "./connectors/retired-connectors-file";
 import type { VendorMcpConfigs } from "./connectors/vendor-mcp-config";
 import { debugLog } from "./debug-log";
 import { deviceNameReader, readMachineName } from "./device-name";
@@ -36,27 +30,21 @@ import type { KnowledgeRuntime, KnowledgeRuntimeArgs } from "./knowledge/knowled
 import { createProjectionWorker } from "./knowledge/projector";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { renameTagAcrossVault } from "./knowledge/rename-tag";
+import { openDatabase } from "./open-database";
 import type { AppServices } from "./orpc";
-import { teardownStep } from "./shutdown";
-import type { ShutdownStep, TeardownStepName } from "./shutdown";
+import { addTeardownStep } from "./shutdown";
+import type { ShutdownStep } from "./shutdown";
 import { ThreadService } from "./threads/service";
 import { createThreadOrigins } from "./threads/thread-origins";
+import type { ProviderEventSink } from "./threads/turn-driver";
+import { createTurnUndo } from "./threads/turn-undo";
 import { folderExternalSync } from "./vault/folder-facts";
+import { processGit } from "./vault/git-run";
 import { slowReadStall } from "./vault/slow-reads";
 import { createVaultRuntime } from "./vault/vault-runtime";
 import type { VaultRuntime, VaultRuntimeArgs } from "./vault/vault-runtime";
 import { VaultPrefsStore } from "./vault/vault-prefs-store";
 import { WsBus } from "./ws-bus";
-
-// unshift: the listener must close its sockets before any service behind it, the vault flush included.
-export const registerListener = (teardown: ShutdownStep[], run: ShutdownStep["run"]): void => {
-  teardown.unshift(teardownStep("listener", run));
-};
-
-// push: whenever it is registered, the data dir is released only after the db behind it closes.
-export const registerLockRelease = (teardown: ShutdownStep[], run: ShutdownStep["run"]): void => {
-  teardown.push(teardownStep("lock", run));
-};
 
 interface ComposeDriverDeps {
   config: AppConfig;
@@ -65,6 +53,7 @@ interface ComposeDriverDeps {
   vault: VaultRuntime;
   folders: FoldersService;
   agentPrefs: AgentPrefsStore;
+  sink: ProviderEventSink;
 }
 
 export interface ComposePorts {
@@ -74,7 +63,7 @@ export interface ComposePorts {
   connectors?: VendorMcpConfigs;
   // what this device is called before any sign-in names it; unset, the machine's own name.
   machineName?: string;
-  vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "gitEnv" | "remote">>;
+  vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "git" | "remote">>;
 }
 
 export interface ComposeRuntimeArgs {
@@ -98,7 +87,7 @@ export interface ComposedRuntime {
   db: DbConnection;
   // the service that syncs the vault's folder instead, which withholds the hosted vault
   externalSync: ExternalSync | null;
-  // each step is unshifted as its resource comes up, so a boot that throws (EADDRINUSE
+  // each step is added as its resource comes up, so a boot that throws (EADDRINUSE
   // with the watcher forked and the db open) is still torn down by the caller.
   teardown: ShutdownStep[];
 }
@@ -107,15 +96,11 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   const { config } = args;
   const ports = args.ports ?? {};
   const teardown = args.teardown ?? [];
-  const register = (name: TeardownStepName, run: ShutdownStep["run"]): void => {
-    teardown.unshift(teardownStep(name, run));
-  };
 
-  const db = createConnection(config.databasePath);
-  register("db", () => {
+  const { db, schemaVersion } = openDatabase(config);
+  addTeardownStep(teardown, "db", () => {
     closeConnection(db);
   });
-  const schemaVersion = getSchemaVersion(db, runMigrations(db, resolveMigrationsFolder()));
 
   const bus = new WsBus();
   // late-bound: the knowledge runtime needs the vault service; changes before it exists
@@ -128,6 +113,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   const vaultRemote =
     ports.vault?.remote ??
     createVaultRemoteProvider({
+      build: { platform: "desktop", version: args.version },
       cloudUrl: config.cloudUrl,
       dataDir: config.dataDir,
       externalSync,
@@ -140,28 +126,20 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     debugLog: debugLog(config.debug, "watcher"),
     deviceName: deviceNameReader(config.dataDir, machineName),
     externalSync,
+    git: ports.vault?.git ?? processGit,
     notifier: bus,
     onFilesChanged: (change) => {
-      knowledgeRef?.noteVaultChange(change);
+      knowledgeRef?.invalidate(change);
     },
     remote: vaultRemote,
+    stallRead: config.slowReads === null ? undefined : slowReadStall(config.slowReads),
+    syncIntervalMs: config.vaultSyncIntervalMs,
     vaultDir: config.vaultDir,
+    watch: ports.vault?.watch,
   };
-  if (config.vaultSyncIntervalMs !== undefined) {
-    vaultArgs.syncIntervalMs = config.vaultSyncIntervalMs;
-  }
-  if (ports.vault?.watch !== undefined) {
-    vaultArgs.watch = ports.vault.watch;
-  }
-  if (ports.vault?.gitEnv !== undefined) {
-    vaultArgs.gitEnv = ports.vault.gitEnv;
-  }
-  if (config.slowReads !== null) {
-    vaultArgs.stallRead = slowReadStall(config.slowReads);
-  }
   const vault = await createVaultRuntime(vaultArgs);
   const vaultPrefs = new VaultPrefsStore(config.dataDir);
-  register("vault", async () => {
+  addTeardownStep(teardown, "vault", async () => {
     await vault.dispose();
   });
 
@@ -172,7 +150,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     vault: vault.service,
     vaultRoot: config.vaultDir,
   });
-  register("knowledge", async () => {
+  addTeardownStep(teardown, "knowledge", async () => {
     await knowledge.dispose();
   });
   knowledgeRef = knowledge;
@@ -183,31 +161,14 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     vaultDir: config.vaultDir,
   });
   const agentPrefs = new AgentPrefsStore(config.dataDir);
-  try {
-    removeRetiredConnectorsFile(config.dataDir);
-  } catch (error) {
-    console.warn(`[connectors] the retired registry was left in place: ${messageOf(error)}`);
-  }
   const connectors = createConnectorsService({
     configs: ports.connectors ?? createVendorMcpConfigs({ cwd: config.dataDir, env: process.env }),
-    defaultHarness: () => defaultHarnessId(agentPrefs.read().defaultHarness ?? null),
+    defaultHarness: () => agentPrefs.defaultHarness(),
   });
-  register("connectors", async () => {
+  addTeardownStep(teardown, "connectors", async () => {
     await connectors.dispose();
   });
 
-  const agentDriver = args.driver({
-    agentPrefs,
-    bus,
-    config,
-    db,
-    folders,
-    vault,
-  });
-  register("agent", async () => {
-    await args.accounts.dispose();
-    await agentDriver.dispose();
-  });
   const agents = createAgentsService({
     accounts: args.accounts,
     env: process.env,
@@ -227,9 +188,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     onStatusChanged: () => {
       bus.notifyVault(["sync-status-changed"]);
     },
-    // the rebase's own files-changed notification carries the applied changes to the renderer.
+    // the rebase's own files-changed notification carries the applied changes to the page.
     onVaultPing: () => {
-      void vault.syncNow();
+      void vault.git.syncNow();
     },
     phoneRequests: () => cloudPrefs.phoneRequests(),
     vault: vault.service,
@@ -239,7 +200,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   }
   const cloud = createCloudRuntime(cloudArgs);
   cloudRef = cloud;
-  register("cloud", async () => {
+  addTeardownStep(teardown, "cloud", async () => {
     await cloud.dispose();
   });
   // an approval is raised by the agent runtime and settled by the thread service or its turn's
@@ -251,11 +212,24 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     }
   });
   const threads = new ThreadService({
-    createTurnDriver: agentDriver.createTurnDriver,
     db,
     notifier: bus,
     origins: createThreadOrigins(vault.service, knowledge),
     sync: cloud,
+  });
+  const { driver: turnDriver, status: agentStatus } = args.driver({
+    agentPrefs,
+    bus,
+    config,
+    db,
+    folders,
+    sink: threads,
+    vault,
+  });
+  threads.attachDriver(turnDriver);
+  addTeardownStep(teardown, "agent", async () => {
+    await args.accounts.dispose();
+    await turnDriver.dispose?.();
   });
   // crash recovery writes (settles turns, frees claims, enqueues), so it runs in boot order, not in the constructor.
   threads.boot();
@@ -264,9 +238,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   // failure costs only the bindings it did not reach, which the next boot retries.
   void (async () => {
     try {
-      await threads.backfillOriginNoteIds();
+      await threads.repairPathOnlyOrigins();
     } catch (error) {
-      console.warn(`[threads] origin backfill skipped: ${messageOf(error)}`);
+      console.warn(`[threads] origin repair skipped: ${messageOf(error)}`);
     }
   })();
 
@@ -284,15 +258,16 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     connectors,
     folders,
     knowledge,
-    recordAgentWrites: agentDriver.recordAgentWrites,
+    recordAgentWrites: (threadId, paths) => {
+      turnDriver.recordAgentWrites?.(threadId, paths);
+    },
     renameNote: async (from: string, to: string) =>
       await renameNoteWithLinkRewrite({ from, knowledge, service: vault.service, to }),
     renameTag: async (from: string, to: string) =>
       await renameTagAcrossVault({ from, knowledge, service: vault.service, to }),
     system: {
-      agent: agentDriver.status,
+      agent: agentStatus,
       dataDir: config.dataDir,
-      dataDirScope: config.dataDir === config.rootDataDir ? "root" : "vault",
       schemaVersion,
       servesUi: args.servesUi,
       startedAt: Date.now(),
@@ -300,18 +275,13 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
       version: args.version,
     },
     threads,
-    turnChanges: async (threadId: string) =>
-      await listTurnChanges({ db, git: vault.git, threadId }),
-    undoTurn: async (threadId: string, turnId: string) =>
-      await undoTurnChanges({
-        db,
-        git: vault.git,
-        knowledge,
-        notifier: bus,
-        service: vault.service,
-        threadId,
-        turnId,
-      }),
+    turnUndo: createTurnUndo({
+      db,
+      git: vault.git,
+      knowledge,
+      notifier: bus,
+      service: vault.service,
+    }),
     vault,
     vaultPrefs,
   };

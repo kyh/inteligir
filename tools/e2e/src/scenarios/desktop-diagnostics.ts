@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
+import { askShell, PAGE_UNDER_SHELL } from "../harness/desktop-shell";
 import type { DesktopShell } from "../harness/desktop-shell";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
@@ -62,7 +63,7 @@ const writeUntilTraced = async (shell: DesktopShell): Promise<void> => {
 
 export const desktopDiagnostics: Scenario = {
   description:
-    "the shell's debug-logging choice, kept in its own folder, reaches the server it starts, whose output always lands in the data dir's logs/server.log: off, the boot line and no trace; on, an external write traced there, and turning it off over the bridge asks for a restart",
+    "the shell's debug-logging choice, seeded in its own folder, reaches the server it starts, whose output always lands in the data dir's `logs/server.log`: off, the boot line and no trace; on, an external write traced there, the shell reports the choice, and turning it off asks for a restart",
   name: "desktop-diagnostics",
   // the shell boots twice
   timeoutMs: 300_000,
@@ -87,18 +88,18 @@ export const desktopDiagnostics: Scenario = {
     const traced = await ctx.desktopShell({ seedOwnDir: seedChoice(true) });
     await writeUntilTraced(traced);
 
-    ctx.log("the bridge reports the choice, and turning it off asks for a restart");
+    ctx.log("the shell reports the choice, and turning it off asks for a restart");
     // the trace is the server's; the window's page may still be loading
-    await traced.window.waitUntil("window.desktopBridge", PAGE_DEADLINE_MS);
+    await traced.window.waitUntil(PAGE_UNDER_SHELL, PAGE_DEADLINE_MS);
     const state = await traced.window.runAsync(
-      "window.desktopBridge.diagnostics.getState().then(done)",
+      `${askShell("diagnostics_get_state")}.then(done)`,
       diagnosticsStateSchema,
     );
-    expectEq(state.debug, true, "the bridge's debug choice");
+    expectEq(state.debug, true, "the shell's debug choice");
     expectEq(state.server, "owned", "who started the server");
     expectEq(state.restartRequired, false, "a restart asked for before any change");
     const answer = await traced.window.runAsync(
-      "window.desktopBridge.diagnostics.setDebug(false).then(done)",
+      `${askShell("diagnostics_set_debug", { debug: false })}.then(done)`,
       diagnosticsAnswerSchema,
     );
     expect(answer.ok, `setDebug(false) was refused: ${JSON.stringify(answer)}`);

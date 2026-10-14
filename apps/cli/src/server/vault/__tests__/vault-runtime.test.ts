@@ -4,7 +4,7 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import type { VaultFilesChange } from "../vault-changes";
 import { createVaultRuntime } from "../vault-runtime";
 import { makeTempDir } from "../../__tests__/temp-dir";
-import { hermeticGitEnv } from "./git-test-env";
+import { hermeticGit } from "./git-test-env";
 import { createNotifierRecorder } from "./notifier-recorder";
 import { scriptedWatcher } from "./scripted-watcher";
 
@@ -16,14 +16,15 @@ const bootRuntime = async () => {
   const watcher = scriptedWatcher();
   const changes: VaultFilesChange[] = [];
   const traced: string[] = [];
+  const notifier = createNotifierRecorder();
   const runtime = await createVaultRuntime({
     dataDir: makeTempDir("inteligir-echo-data-"),
     debugLog: (line) => {
       traced.push(line);
     },
     deviceName: () => "Test Mac",
-    gitEnv: hermeticGitEnv(),
-    notifier: createNotifierRecorder(),
+    git: hermeticGit(),
+    notifier,
     onFilesChanged: (change) => {
       changes.push(change);
     },
@@ -60,8 +61,63 @@ const bootRuntime = async () => {
       .map((entry) => entry.path)
       .toSorted();
   };
-  return { changes, listedFiles, report, runtime, traced, writeExternally };
+  // the engine says sync-status-changed on its own schedule; a write's announcement is the rest.
+  const filesChanged = () =>
+    notifier.vaultChanges.filter(({ changes: kinds }) => kinds.includes("files-changed"));
+  return { changes, filesChanged, listedFiles, notifier, report, runtime, traced, writeExternally };
 };
+
+describe("what a write announces", { timeout: 20_000 }, () => {
+  it("says content-changed alone when only the bytes moved", async () => {
+    const { filesChanged, notifier, runtime } = await bootRuntime();
+    await runtime.service.write("note.md", "one");
+    notifier.reset();
+
+    await runtime.service.write("note.md", "two");
+
+    expect(notifier.docChanges).toEqual([{ changes: ["content-changed"], docId: "note.md" }]);
+    expect(filesChanged()).toEqual([]);
+  });
+
+  it("still says files-changed when the write CREATES the file", async () => {
+    const { filesChanged, notifier, runtime } = await bootRuntime();
+    await runtime.service.write("fresh.md", "one");
+    expect(filesChanged()).toEqual([{ changes: ["files-changed"], paths: ["fresh.md"] }]);
+
+    notifier.reset();
+    await runtime.service.writeGuarded("guarded.md", "one", { kind: "absent" });
+    expect(filesChanged()).toEqual([{ changes: ["files-changed"], paths: ["guarded.md"] }]);
+    expect(notifier.docChanges).toEqual([]);
+  });
+
+  it("names a rename's two ends and a delete's path, and no note's content", async () => {
+    const { filesChanged, notifier, runtime } = await bootRuntime();
+    await runtime.service.write("before.md", "one");
+    notifier.reset();
+
+    await runtime.service.rename("before.md", "after.md");
+    await runtime.service.remove("after.md");
+
+    expect(filesChanged()).toEqual([
+      { changes: ["files-changed"], paths: ["before.md", "after.md"] },
+      { changes: ["files-changed"], paths: ["after.md"] },
+    ]);
+    expect(notifier.docChanges).toEqual([]);
+  });
+
+  it("says files-changed for a create exactly once with the watcher on", async () => {
+    const { filesChanged, report, runtime, writeExternally } = await bootRuntime();
+    await runtime.service.write("fresh.md", "ours\n");
+
+    await writeExternally("other.md", "an external edit\n");
+    await report("fresh.md", "other.md");
+
+    expect(filesChanged()).toEqual([
+      { changes: ["files-changed"], paths: ["fresh.md"] },
+      { changes: ["files-changed"], paths: ["other.md"] },
+    ]);
+  });
+});
 
 describe("the runtime's self-write echo filter", { timeout: 20_000 }, () => {
   it("drops a save's own echo, and delivers a foreign write that lands right behind it", async () => {

@@ -2,11 +2,17 @@
 // cursor moves inside the apply's transaction: a separate advance is the window
 // a crash duplicates a conversation through.
 
-import { CLAIM_DEFAULT_LIMIT } from "@repo/contract/cloud/captures/captures-schema";
 import { describeCloudFailure } from "@repo/contract/cloud/client";
 import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
-import { DISPATCH_CLAIM_DEFAULT_LIMIT } from "@repo/contract/cloud/dispatch/dispatch-schema";
-import type { DispatchResult } from "@repo/contract/cloud/dispatch/dispatch-schema";
+import {
+  DISPATCH_CLAIM_DEFAULT_LIMIT,
+  dispatchKindSchema,
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
+import type {
+  AckDispatchesRequest,
+  DispatchKind,
+  DispatchResult,
+} from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { SYNC_OUTBOX_CODES } from "@repo/contract/cloud/errors";
 import type { LogPlanStep } from "@repo/contract/cloud/sync/plan-page";
 import { pullPages } from "@repo/contract/cloud/sync/sync-session";
@@ -19,26 +25,20 @@ import { setInteractionRelay } from "@repo/db/pending-interactions";
 import {
   countSyncOutbox,
   dropSyncOutboxThrough,
-  pruneAppliedCaptures,
   readSyncState,
-  recordAppliedCaptures,
   recordSkippedRow,
   touchSyncedAt,
-  unappliedCaptureIds,
   writeSyncCursor,
 } from "@repo/db/sync-outbox";
 import type { DebugLog } from "../debug-log";
 import { messageOf } from "../error-message";
-import { ThreadEventThreadIdMismatchError } from "../threads/thread-event-mismatch-error";
-import { appendToInbox, APPLIED_CAPTURE_RETENTION_MS } from "./captures";
-import type { CaptureVault } from "./captures";
 import {
   applyDispatch,
   approvalsToClose,
   approvalsToOpen,
   approvalsToWithdraw,
 } from "./dispatches";
-import type { DispatchSink } from "./dispatches";
+import type { DispatchSink, InboxVault } from "./dispatches";
 import { ackPushBatch, takePushBatch } from "./outbox";
 
 // bounds one pass's drain so a backlog cannot starve the pull half or hold a shutdown open.
@@ -62,11 +62,17 @@ export interface PassContext {
   ownDeviceIds: ReadonlySet<string>;
 }
 
+// an ack that never reached the cloud, and the session whose claim it settles
+interface HeldAck {
+  sessionId: number;
+  request: AckDispatchesRequest;
+}
+
 export interface SyncPassDeps {
   db: DbConnection;
   /** the running build, recorded beside a row it could not read so a different one pulls it again. */
   build: string;
-  vault: CaptureVault;
+  vault: InboxVault;
   debug: (message: string) => void;
   /** INTELIGIR_DEBUG's sync trace: where each step of a pass stopped, and each pulled page. */
   debugLog?: DebugLog | undefined;
@@ -74,13 +80,15 @@ export interface SyncPassDeps {
   sink: () => SyncedEventSink | null;
   /** checked after every await, before any write. */
   fenced: (context: PassContext) => boolean;
-  /** read per pass: off, this Mac claims nothing from the dispatch inbox and offers no approval. */
+  /** read per pass: off, this Mac claims only captures from the dispatch inbox and offers no approval. */
   phoneRequests: () => boolean;
+  /** outlives the pass it was taken in, so the next one sends it before it claims. */
+  heldAck: { current: HeldAck | null };
   recordFailure: (failure: CloudFailure) => "continue" | "ended";
   setLastError: (message: string | null) => void;
 }
 
-type PassStepName = "push" | "pull" | "captures" | "dispatch" | "approvals";
+type PassStepName = "push" | "pull" | "dispatch" | "approvals";
 
 // what the steps before one concluded, for a step that waits on another's work
 type EarlierSteps = ReadonlyMap<PassStepName, SyncOutcome>;
@@ -160,13 +168,10 @@ const applyStep = (deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "apply
     try {
       target.applySyncedEvents({ cursor: row.seq, rows: [row], threadId: step.threadId });
     } catch (error) {
-      // only the log's own refusals of a row are skipped. anything else is this build's fault, and
+      // only the log's own refusal of a row is skipped. anything else is this build's fault, and
       // moving the cursor past it would lose the row for good: it fails the pass instead, with the
       // cursor where the last commit left it and the error in the status.
-      if (
-        !(error instanceof MissingTurnStartedError) &&
-        !(error instanceof ThreadEventThreadIdMismatchError)
-      ) {
+      if (!(error instanceof MissingTurnStartedError)) {
         throw error;
       }
       deps.debug(`skipping a synced ${row.event.type}: ${messageOf(error)}`);
@@ -187,7 +192,7 @@ const skipStep = (deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "skip" 
 };
 
 // a throw is a row that did not land, and applyStep's refusal to move the cursor past it: this
-// step fails with the cursor where the last commit left it, and the captures still run.
+// step fails with the cursor where the last commit left it, and the captures still land.
 const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> => {
   try {
     return await pullPages({
@@ -218,103 +223,97 @@ const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<S
   }
 };
 
-// vault write, then ledger, then ack. the ledger closes the lapsed-claim window;
-// a crash between the write and the ledger (two stores, no shared transaction)
-// duplicates a bullet, and that direction is chosen: recording first would lose
-// the capture outright.
-const applyCaptures = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> => {
+const EVERY_KIND: DispatchKind[] = [...dispatchKindSchema.options];
+const CAPTURES_ONLY: DispatchKind[] = ["capture"];
+
+// an ack that could not reach the cloud is sent again before the next claim: the inbox records it
+// under its claim, lapsed or not, until another claim takes those rows, so a row this Mac applied
+// is not handed over again. any answer settles it, a refusal included.
+const sendHeldAck = async (
+  deps: SyncPassDeps,
+  context: PassContext,
+): Promise<SyncOutcome | null> => {
+  const held = deps.heldAck.current;
+  if (held === null) {
+    return null;
+  }
+  if (held.sessionId !== context.sessionId) {
+    deps.heldAck.current = null;
+    return null;
+  }
+  const acked = await context.client.ackDispatches(held.request);
   if (!deps.fenced(context)) {
     return "fenced";
   }
-  const claimed = await context.client.claimCaptures(CLAIM_DEFAULT_LIMIT);
-  // what follows writes the vault — the one side effect that outlives the session.
-  if (!deps.fenced(context)) {
-    return "fenced";
+  if (!acked.ok && acked.failure.kind === "unreachable") {
+    return failedOrFenced(deps, acked.failure);
   }
-  if (!claimed.ok) {
-    return failedOrFenced(deps, claimed.failure);
-  }
-  const { captures } = claimed.value;
-  if (captures.length === 0) {
-    return "caught-up";
-  }
-  const fresh = unappliedCaptureIds(
-    deps.db,
-    captures.map((capture) => capture.id),
-  );
-  const toWrite = captures.filter((capture) => fresh.has(capture.id));
-  if (toWrite.length > 0) {
-    const written = await appendToInbox(deps.vault, toWrite);
-    if (!deps.fenced(context)) {
-      return "fenced";
-    }
-    if (!written.applied) {
-      // nothing recorded, nothing acked: the claim lapses and these are redelivered.
-      deps.debug(written.reason);
-      deps.setLastError(written.reason);
-      return "failed";
-    }
-    recordAppliedCaptures(
-      deps.db,
-      toWrite.map((capture) => capture.id),
-      Date.now(),
-    );
-  }
-  const acked = await context.client.ackCaptures({
-    claimToken: claimed.value.claimToken,
-    ids: captures.map((capture) => capture.id),
-  });
+  deps.heldAck.current = null;
+  return acked.ok ? null : failedOrFenced(deps, acked.failure);
+};
+
+// an ack that cannot reach the cloud is held for the next pass to send before it claims; null when
+// the cloud answered for every result
+const ackResults = async (
+  deps: SyncPassDeps,
+  context: PassContext,
+  request: AckDispatchesRequest,
+): Promise<SyncOutcome | null> => {
+  const acked = await context.client.ackDispatches(request);
   if (!deps.fenced(context)) {
     return "fenced";
   }
   if (!acked.ok) {
+    if (acked.failure.kind === "unreachable") {
+      deps.heldAck.current = { request, sessionId: context.sessionId };
+    }
     return failedOrFenced(deps, acked.failure);
   }
   for (const outcome of acked.value.results) {
-    if (outcome.outcome === "reclaimed") {
-      deps.debug(`capture ${outcome.id} was reclaimed before this device acked it`);
+    if (outcome.outcome !== "recorded") {
+      deps.debug(`phone request ${outcome.id} was ${outcome.outcome} before this device acked it`);
     }
   }
-  pruneAppliedCaptures(deps.db, Date.now() - APPLIED_CAPTURE_RETENTION_MS);
-  // a full claim may have left more in the inbox behind it.
-  return captures.length < CLAIM_DEFAULT_LIMIT ? "caught-up" : "more";
+  return null;
 };
 
-// waits for a whole log, so a request another Mac already ran for a dispatch is here to be found
-// and a follow-up lands in its thread rather than starting one the log already holds: a pull with
-// more behind it runs the next pass at once, and a failed one leaves the row for a later pass or
-// another Mac. a row's ack waits for every row before it in the claim; one whose apply threw is
-// left out, so its claim lapses and it comes back.
+// a turn waits for a whole log, so a request another Mac already ran for a dispatch is here to be
+// found and a follow-up lands in its thread rather than starting one the log already holds: until
+// the pull is caught up, and while this Mac does not take the phone's requests, it claims captures
+// alone, which no log holds. a row's ack waits for every row before it in the claim; one whose
+// apply threw is left out, so its claim lapses and it comes back.
 const applyDispatches = async (
   deps: SyncPassDeps,
   context: PassContext,
   earlier: EarlierSteps,
 ): Promise<SyncOutcome> => {
-  const pulled = earlier.get("pull") ?? "failed";
-  if (pulled !== "caught-up") {
-    return pulled;
-  }
   if (!deps.fenced(context)) {
     return "fenced";
   }
-  let takesRequests: boolean;
+  let takesRequests = false;
+  let failed = false;
   try {
     takesRequests = deps.phoneRequests();
   } catch (error) {
     // an unreadable choice is not taken as on: the person may have turned it off
+    failed = true;
     const message = messageOf(error);
     deps.setLastError(message);
     deps.debug(`reading whether this Mac takes phone requests failed: ${message}`);
-    return "failed";
-  }
-  if (!takesRequests) {
-    return "caught-up";
   }
   const sink = deps.sink();
   if (sink === null) {
     throw new Error("cloud sync has no ingest sink attached");
   }
-  const claimed = await context.client.claimDispatches(DISPATCH_CLAIM_DEFAULT_LIMIT);
+  const held = await sendHeldAck(deps, context);
+  if (held !== null) {
+    return held;
+  }
+  const kinds = takesRequests && earlier.get("pull") === "caught-up" ? EVERY_KIND : CAPTURES_ONLY;
+  const claimed = await context.client.claimDispatches({
+    kinds,
+    limit: DISPATCH_CLAIM_DEFAULT_LIMIT,
+  });
   if (!deps.fenced(context)) {
     return "fenced";
   }
@@ -323,14 +322,13 @@ const applyDispatches = async (
   }
   const { claimToken, dispatches } = claimed.value;
   const results: DispatchResult[] = [];
-  let failed = false;
   for (const dispatch of dispatches) {
     // a turn run under a session that has ended would be enqueued into the next one's outbox
     if (!deps.fenced(context)) {
       return "fenced";
     }
     try {
-      results.push(await applyDispatch(sink, deps.db, dispatch));
+      results.push(await applyDispatch({ db: deps.db, sink, vault: deps.vault }, dispatch));
     } catch (error) {
       failed = true;
       const message = messageOf(error);
@@ -342,19 +340,9 @@ const applyDispatches = async (
     if (!deps.fenced(context)) {
       return "fenced";
     }
-    const acked = await context.client.ackDispatches({ claimToken, results });
-    if (!deps.fenced(context)) {
-      return "fenced";
-    }
-    if (!acked.ok) {
-      return failedOrFenced(deps, acked.failure);
-    }
-    for (const outcome of acked.value.results) {
-      if (outcome.outcome !== "recorded") {
-        deps.debug(
-          `phone request ${outcome.id} was ${outcome.outcome} before this device acked it`,
-        );
-      }
+    const stopped = await ackResults(deps, context, { claimToken, results });
+    if (stopped !== null) {
+      return stopped;
     }
   }
   if (failed) {
@@ -414,7 +402,6 @@ const relayApprovals = async (deps: SyncPassDeps, context: PassContext): Promise
 const PASS_STEPS: readonly (readonly [PassStepName, PassStep])[] = [
   ["push", drain],
   ["pull", pullAndApply],
-  ["captures", applyCaptures],
   ["dispatch", applyDispatches],
   ["approvals", relayApprovals],
 ];

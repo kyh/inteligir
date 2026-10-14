@@ -12,6 +12,7 @@ import type {
   ApprovalRow,
   ApprovalState,
   CancelDispatchResponse,
+  ClaimDispatchesRequest,
   ClaimDispatchesResponse,
   ClaimedDispatch,
   CloseApprovalResponse,
@@ -30,16 +31,14 @@ import type { z } from "zod";
 // a settled row outlives the phone's last status poll by far; one it lost track of reads unknown
 const DISPATCH_RETENTION_MS = 24 * 60 * 60_000;
 
-export const DISPATCH_TABLES = `
+const DISPATCH_TABLES = `
   CREATE TABLE IF NOT EXISTS dispatches (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
-    thread_id TEXT NOT NULL,
     from_device_id TEXT NOT NULL,
     to_device_id TEXT,
     approval_id TEXT,
     body TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
     claim_token TEXT,
     claimed_at INTEGER,
     state TEXT NOT NULL,
@@ -57,6 +56,20 @@ export const DISPATCH_TABLES = `
     closed_at INTEGER
   );
 `;
+
+// IF NOT EXISTS never alters a table an object already holds, so every change to DISPATCH_TABLES
+// bumps this, and an object holding another version drops both tables on its next wake: an older
+// shape's rows are replaced, never migrated, and a dropped request reads unknown
+const DISPATCH_TABLES_VERSION = 2;
+const DISPATCH_TABLES_VERSION_KEY = "dispatch-tables-version";
+
+export const initDispatchTables = ({ kv, sql }: DurableObjectStorage): void => {
+  if (kv.get(DISPATCH_TABLES_VERSION_KEY) !== DISPATCH_TABLES_VERSION) {
+    sql.exec("DROP TABLE IF EXISTS dispatches; DROP TABLE IF EXISTS dispatch_approvals");
+    kv.put(DISPATCH_TABLES_VERSION_KEY, DISPATCH_TABLES_VERSION);
+  }
+  sql.exec(DISPATCH_TABLES);
+};
 
 const ALREADY_ANSWERED = "That request was already answered.";
 const NO_LONGER_WAITING = "That request is no longer waiting.";
@@ -143,10 +156,12 @@ const closeApproval = (sql: SqlStorage, approvalId: string | null, now: number):
   }
 };
 
-// a turn pings every desktop but its creator's own sockets; an answer, only the Mac that asked
+// a turn pings every Mac that takes a phone's turns; an answer, only the Mac that asked; a capture,
+// every Mac, since each claims captures. never the creator's own sockets
 export type DispatchPing =
-  | { threadId: string; to: "desktops" }
-  | { threadId: string; to: "device"; deviceId: string };
+  | { threadId: string; to: "phone-requests" }
+  | { threadId: string; to: "device"; deviceId: string }
+  | { to: "desktops" };
 
 export type CreateDispatchOutcome =
   | { kind: "stored"; dispatch: DispatchStatus; duplicate: boolean; ping: DispatchPing | null }
@@ -166,16 +181,14 @@ const insertDispatch = (
 ): void => {
   sql.exec(
     `INSERT INTO dispatches
-       (id, kind, thread_id, from_device_id, to_device_id, approval_id, body, created_at, state, message, settled_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, kind, from_device_id, to_device_id, approval_id, body, state, message, settled_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.claimed.id,
     row.claimed.kind,
-    row.claimed.threadId,
     row.fromDeviceId,
     row.toDeviceId,
     row.approvalId,
     JSON.stringify(row.claimed),
-    row.claimed.createdAt,
     row.settled === null ? "pending" : "refused",
     row.settled?.message ?? null,
     row.settled?.at ?? null,
@@ -276,11 +289,26 @@ export const createDispatchRow = (
         dispatch: { id: request.id, state: "waiting" },
         duplicate: false,
         kind: "stored",
-        ping: { threadId: request.threadId, to: "desktops" },
+        ping: { threadId: request.threadId, to: "phone-requests" },
       };
     }
     case "answer": {
       return storeAnswer(sql, deviceId, request, now);
+    }
+    case "capture": {
+      insertDispatch(sql, {
+        approvalId: null,
+        claimed: { ...request, createdAt: now },
+        fromDeviceId: deviceId,
+        settled: null,
+        toDeviceId: null,
+      });
+      return {
+        dispatch: { id: request.id, state: "waiting" },
+        duplicate: false,
+        kind: "stored",
+        ping: { to: "desktops" },
+      };
     }
     // no default
   }
@@ -289,19 +317,21 @@ export const createDispatchRow = (
 export const claimDispatchRows = (
   sql: SqlStorage,
   deviceId: string,
-  limit: number,
+  { kinds, limit }: ClaimDispatchesRequest,
   now: number,
 ): ClaimDispatchesResponse => {
   prune(sql, now);
   const claimToken = crypto.randomUUID();
-  // rowid is insertion order, where two turns sent within one millisecond share a created_at;
-  // RETURNING follows no ORDER BY, and a thread's turns must reach the Mac in the order asked
+  // rowid is insertion order, where two turns sent within one millisecond share a createdAt;
+  // RETURNING follows no ORDER BY, and a thread's turns must reach the Mac in the order asked.
+  // the kinds are the request's parsed enum, so only their placeholders reach the text
   const rows = sql
     .exec<{ position: number; id: string; body: string; approval_id: string | null }>(
       `UPDATE dispatches SET claim_token = ?, claimed_at = ?
        WHERE id IN (
          SELECT id FROM dispatches
          WHERE state = 'pending'
+           AND kind IN (${kinds.map(() => "?").join(", ")})
            AND (to_device_id IS NULL OR to_device_id = ?)
            AND (claim_token IS NULL OR claimed_at <= ?)
          ORDER BY rowid LIMIT ?
@@ -309,6 +339,7 @@ export const claimDispatchRows = (
        RETURNING rowid AS position, id, body, approval_id`,
       claimToken,
       now,
+      ...kinds,
       deviceId,
       now - DISPATCH_CLAIM_TTL_MS,
       limit,

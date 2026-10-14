@@ -7,33 +7,6 @@
 
 use std::path::{Component, Path, PathBuf};
 
-use serde::Serialize;
-
-/// What the page reads back (`path-action.ts`): only whether the OS took the entry, and the
-/// reason when not.
-#[derive(Debug, PartialEq, Eq, Serialize)]
-pub struct PathAction {
-    ok: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    reason: Option<String>,
-}
-
-impl PathAction {
-    pub const fn done() -> Self {
-        Self {
-            ok: true,
-            reason: None,
-        }
-    }
-
-    pub fn refused(reason: impl Into<String>) -> Self {
-        Self {
-            ok: false,
-            reason: Some(reason.into()),
-        }
-    }
-}
-
 /// The entry's realpath when it is physically inside the vault, and never the vault itself.
 pub fn resolve_vault_entry(vault_dir: &Path, relative: &str) -> Result<PathBuf, String> {
     let named = Path::new(relative);
@@ -111,19 +84,6 @@ mod tests {
         fs::write(dir.path().join("key"), "")?;
         std::os::unix::fs::symlink(dir.path().join("key"), vault.join("notes.md"))?;
         assert!(resolve_vault_entry(&vault, "notes.md").is_err());
-        Ok(())
-    }
-
-    #[test]
-    fn serializes_as_the_page_reads_it() -> Result<(), serde_json::Error> {
-        assert_eq!(
-            serde_json::to_string(&PathAction::done())?,
-            r#"{"ok":true}"#
-        );
-        assert_eq!(
-            serde_json::to_string(&PathAction::refused("no"))?,
-            r#"{"ok":false,"reason":"no"}"#
-        );
         Ok(())
     }
 }

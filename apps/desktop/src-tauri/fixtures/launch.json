@@ -1,0 +1,12 @@
+{
+  "env": { "PATH": "/opt/homebrew/bin:/usr/bin" },
+  "notes": [],
+  "plan": "first-run",
+  "proposal": { "name": "Inteligir", "parent": "/h" },
+  "target": {
+    "dataDir": "/h/.inteligir",
+    "rootDataDir": "/h/.inteligir",
+    "switchBlocked": null,
+    "vaultDir": "/h/Inteligir"
+  }
+}

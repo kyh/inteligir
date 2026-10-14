@@ -115,7 +115,7 @@ const NoteDocument = ({ path, showRich }: { path: string; showRich: boolean }) =
   const editingRef = useRef(false);
   const toBodyRef = useRef(false);
   const commitTitleRef = useRef(commitTitle);
-  useEffect(() => {
+  useLayoutEffect(() => {
     commitTitleRef.current = commitTitle;
   });
   useEffect(() => {

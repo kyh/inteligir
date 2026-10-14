@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useMemo, useRef, useState } from "react";
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
@@ -35,7 +35,7 @@ const CodeBlock = ({
   ref,
   ...props
 }: CodeBlockProps & RefAttributes<HTMLDivElement>) => (
-  <CodeBlockContext.Provider value={useMemo(() => ({ code }), [code])}>
+  <CodeBlockContext value={useMemo(() => ({ code }), [code])}>
     <div
       ref={ref}
       data-slot="code-block"
@@ -47,9 +47,8 @@ const CodeBlock = ({
     >
       {children}
     </div>
-  </CodeBlockContext.Provider>
+  </CodeBlockContext>
 );
-CodeBlock.displayName = "CodeBlock";
 
 const CodeBlockHeader = ({
   className,
@@ -66,7 +65,6 @@ const CodeBlockHeader = ({
     {...props}
   />
 );
-CodeBlockHeader.displayName = "CodeBlockHeader";
 
 export interface CodeBlockTitleProps extends HTMLAttributes<HTMLSpanElement> {
   language?: ReactNode;
@@ -89,7 +87,6 @@ const CodeBlockTitle = ({
     {language === undefined ? null : <span className="text-[11.5px] text-ink-3">{language}</span>}
   </span>
 );
-CodeBlockTitle.displayName = "CodeBlockTitle";
 
 // onClick is omitted: a forwarded one would replace the copy the label promises
 export interface CodeBlockCopyProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onClick"> {
@@ -109,7 +106,7 @@ const CodeBlockCopy = ({
   // a second copy must cancel the first reset timer
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const copy = useCallback(async () => {
+  const copy = async () => {
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
@@ -122,7 +119,7 @@ const CodeBlockCopy = ({
     } catch {
       setCopied(false);
     }
-  }, [code]);
+  };
 
   return (
     <button
@@ -145,7 +142,6 @@ const CodeBlockCopy = ({
     </button>
   );
 };
-CodeBlockCopy.displayName = "CodeBlockCopy";
 
 const CodeBlockBody = ({
   className,
@@ -162,7 +158,6 @@ const CodeBlockBody = ({
     {...props}
   />
 );
-CodeBlockBody.displayName = "CodeBlockBody";
 
 // line numbers are a css counter: an index would miscount conditionally rendered lines
 const CodeBlockLine = ({
@@ -185,7 +180,6 @@ const CodeBlockLine = ({
     <span className="pl-2.5 whitespace-pre">{children}</span>
   </div>
 );
-CodeBlockLine.displayName = "CodeBlockLine";
 
 const codeTokenVariants = cva("", {
   defaultVariants: { tone: "plain" },
@@ -217,7 +211,6 @@ const CodeToken = ({
     {...props}
   />
 );
-CodeToken.displayName = "CodeToken";
 
 export {
   CodeBlock,

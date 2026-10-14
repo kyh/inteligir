@@ -22,9 +22,6 @@ type CommentMetaEvent = Extract<EditorNativeEvent, { type: "commentMeta" }>;
 
 type WikiTargetRow = RequestResult<"wikiTargets">["targets"][number];
 
-// the stale answers a guarded change hands back for the page's own merge
-type StaleBase = Extract<RequestResult<"write">, { kind: "changed" | "missing" }>;
-
 // whether the page holds edits it has not written, and why its last save failed
 export type PageEditorState = Pick<
   Extract<EditorPageEvent, { type: "editorState" }>,
@@ -40,19 +37,11 @@ export type EditorRoute =
 export interface EditorPortsArgs {
   store: Pick<
     NotesStore,
-    | "attachmentFile"
-    | "create"
-    | "heldFiles"
-    | "readComments"
-    | "readNote"
-    | "tree"
-    | "watchPath"
-    | "write"
+    "attachmentFile" | "heldFiles" | "readComments" | "readNote" | "tree" | "watchPath" | "write"
   >;
   fileOps: FileOps;
   comments: CommentOps;
   pickImage: () => Promise<PhotoIngest>;
-  // a file the phone holds, as base64
   readBase64: (uri: string) => Promise<string>;
   revisionOf: (content: string) => Promise<string>;
   newThreadId: () => string;
@@ -223,27 +212,10 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
     return read.content;
   };
 
-  // The page's CAS: its base is compared with the text the phone holds now, so a change a sync
-  // landed since the page read is handed back for the page's own merge. null when the base holds.
-  const staleBase = async (path: string, base: string): Promise<StaleBase | null> => {
-    const read = await store.readNote(path);
-    if (!read.ok) {
-      if (read.notFound) {
-        return { kind: "missing" };
-      }
-      throw new Error(read.message);
-    }
-    return read.content === base ? null : { current: read.content, kind: "changed" };
-  };
-
   const requests: EditorRequestPorts = {
     // the page's write under the `expected` guard, with the new comment its markers anchor; a
     // first comment mints the note an id, which the page is told of as a change to the note
     addComment: async ({ base, content, id, path, text }) => {
-      const stale = await staleBase(path, base);
-      if (stale !== null) {
-        return stale;
-      }
       const added = await args.comments.add({
         anchor: { content, expected: base },
         id,
@@ -322,25 +294,7 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
           .map(targetOf),
       }),
 
-    write: async ({ content, guard, path }) => {
-      if (guard.kind === "absent") {
-        const created = await store.create(path, content);
-        return created.kind === "created" ? { kind: "written" } : { kind: "exists" };
-      }
-      const stale = await staleBase(path, guard.base);
-      if (stale !== null) {
-        return stale;
-      }
-      const written = await store.write(path, content);
-      if (written.kind === "vanished") {
-        return { kind: "missing" };
-      }
-      // the store merged a landing that raced this write, so the page holds less than the phone
-      if (written.content !== content) {
-        emit({ kind: "content", path });
-      }
-      return { kind: "written" };
-    },
+    write: async ({ content, guard, path }) => await store.write(path, content, guard),
 
     writeAsset: async ({ base64, baseName }) => {
       const written = await fileOps.writeAsset(baseName, bytesFromBase64(base64));

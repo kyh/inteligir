@@ -134,9 +134,9 @@ rather than dropped. Quote an argument that holds spaces
   refused as \`CAS_MISMATCH\` and left as it was: run it again.
 - \`inteligir vault open <dir>\` — select the vault the next \`inteligir serve\`
   boots on (the app's own vault switch writes the same selector). A running
-  server is untouched and named; restart it, or reopen the app, to switch. A
-  vault other than the default keeps its own data dir beneath the root, so it
-  starts with no index and no credential. \`--json\` also carries the folder's
+  server is untouched and named; restart it, or reopen the app, to switch.
+  Every vault keeps its own data dir beneath the root, so one opened for the
+  first time starts with no index and no credential. \`--json\` also carries the folder's
   \`externalSync\` (another service that syncs it, so the hosted vault stays
   off) and \`remote\` (its own git origin, which it keeps syncing with).
 - \`inteligir vault attachments [root|beside-note|folder:<path>]\` — where a
@@ -307,8 +307,8 @@ them as read-only — do not modify them.
   each with what it would allow (\`$ <command> (in <cwd>)\`, or
   \`write <scope>\`, and the agent's reason) and the answers it takes;
   \`--thread\` narrows to one thread. Read it before answering.
-- \`inteligir interactions answer <id> <resolution> [--thread <id>]\` — answer
-  one; resolutions are \`allow_once\`, \`allow_for_session\`, or \`deny\` (a
+- \`inteligir interactions answer <id> <decision> [--thread <id>]\` — answer
+  one; a decision is \`allow_once\`, \`allow_for_session\`, or \`deny\` (a
   request may offer only some of them, and the CLI says which). \`--thread\`
   names the owning thread; omitted, it is looked up from the listing.
 

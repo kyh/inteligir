@@ -46,45 +46,43 @@ const colorSchema = z
     { message: "color must be #RGB/#RRGGBB/#RRGGBBAA or a named color" },
   );
 
-const pointSchema = z
-  .object({ color: colorSchema.optional(), label: z.string(), value: z.number() })
-  .strict();
+const pointSchema = z.strictObject({
+  color: colorSchema.optional(),
+  label: z.string(),
+  value: z.number(),
+});
 
-const seriesSchema = z
-  .object({ color: colorSchema.optional(), data: z.array(pointSchema).min(1), name: z.string() })
-  .strict();
+const seriesSchema = z.strictObject({
+  color: colorSchema.optional(),
+  data: z.array(pointSchema).min(1),
+  name: z.string(),
+});
 
-const optionsSchema = z
-  .object({
-    height: z.number().positive().optional(),
-    palette: z.enum(["classic", "accessible", "mono"]).optional(),
-    showGrid: z.boolean().optional(),
-    showLegend: z.boolean().optional(),
-    width: z.number().positive().optional(),
-    xAxisLabel: z.string().optional(),
-    yAxisLabel: z.string().optional(),
-  })
-  .strict();
+const optionsSchema = z.strictObject({
+  height: z.number().positive().optional(),
+  palette: z.enum(["classic", "accessible", "mono"]).optional(),
+  showGrid: z.boolean().optional(),
+  showLegend: z.boolean().optional(),
+  width: z.number().positive().optional(),
+  xAxisLabel: z.string().optional(),
+  yAxisLabel: z.string().optional(),
+});
 
 // a plain union: both branches share "bar", which zod's discriminator refuses; the series
 // branch omitting "stacked-bar" is the one-data-array rule.
 const chartSchema = z.union([
-  z
-    .object({
-      data: z.array(pointSchema).min(1),
-      options: optionsSchema.optional(),
-      title: z.string().optional(),
-      type: z.enum(["bar", "line", "area", "stacked-bar"]),
-    })
-    .strict(),
-  z
-    .object({
-      options: optionsSchema.optional(),
-      series: z.array(seriesSchema).min(1),
-      title: z.string().optional(),
-      type: z.enum(["bar", "line", "area"]),
-    })
-    .strict(),
+  z.strictObject({
+    data: z.array(pointSchema).min(1),
+    options: optionsSchema.optional(),
+    title: z.string().optional(),
+    type: z.enum(["bar", "line", "area", "stacked-bar"]),
+  }),
+  z.strictObject({
+    options: optionsSchema.optional(),
+    series: z.array(seriesSchema).min(1),
+    title: z.string().optional(),
+    type: z.enum(["bar", "line", "area"]),
+  }),
 ]);
 
 export type ChartPayload = z.infer<typeof chartSchema>;

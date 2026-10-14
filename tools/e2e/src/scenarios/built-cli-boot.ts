@@ -26,7 +26,7 @@ const searchFinds = async (app: AppInstance, token: string, notePath: string): P
 
 export const builtCliBoot: Scenario = {
   description:
-    "the esbuild bundle npm and the .app run boots, migrates, indexes, watches and serves its UI",
+    "the esbuild bundle — what npm and the .app run — boots in production mode, serves `dist/ui`'s shell byte for byte, migrates and indexes a write, hears an on-disk write through its forked watcher, and answers a client verb run from the same split bundle",
   name: "built-cli-boot",
   // no build step: the runner builds this bundle at suite start, through turbo.
   async run(ctx) {

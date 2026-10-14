@@ -1,17 +1,7 @@
-// the cloud worker over Maps. the refusal rules here mirror the durable
-// object's; change both, or the client passes here and fails deployed.
+// the cloud worker over Maps, refusing as the Worker and its durable object do. the inboxes' rules
+// are held to theirs by the table inbox-scenarios.test.ts runs here and apps/web runs against the
+// object; any other rule changes on both sides, or the client passes here and fails deployed.
 
-import {
-  ackCapturesRequestSchema,
-  CAPTURE_API_PATHS,
-  CAPTURE_CLAIM_TTL_MS,
-  claimCapturesRequestSchema,
-} from "@repo/contract/cloud/captures/captures-schema";
-import type {
-  AckCapturesResponse,
-  CaptureRow,
-  ClaimCapturesResponse,
-} from "@repo/contract/cloud/captures/captures-schema";
 import {
   ACCOUNT_API_PATHS,
   deleteAccountRequestSchema,
@@ -35,23 +25,28 @@ import {
   ackDispatchesRequestSchema,
   answerableDecisions,
   APPROVAL_MAX_OPEN,
+  cancelDispatchRequestSchema,
   claimDispatchesRequestSchema,
   closeApprovalRequestSchema,
   createDispatchRequestSchema,
   DISPATCH_API_PATHS,
   DISPATCH_CLAIM_TTL_MS,
   DISPATCH_MAX_PENDING,
+  dispatchStatusRequestSchema,
   openApprovalRequestSchema,
 } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import type {
   AckDispatchesResponse,
   ApprovalRow,
   ApprovalState,
+  CancelDispatchResponse,
   ClaimDispatchesResponse,
   ClaimedDispatch,
   CloseApprovalResponse,
   CreateDispatchResponse,
   DispatchStatus,
+  DispatchStatusResponse,
+  ListApprovalsResponse,
   OpenApprovalResponse,
 } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import {
@@ -66,6 +61,13 @@ import type {
 } from "@repo/contract/cloud/sync/sync-schema";
 import { createCloudClient, postDeviceLogin } from "@repo/contract/cloud/client";
 import type { CloudClient, CloudFetch } from "@repo/contract/cloud/client";
+import {
+  CLIENT_BUILD_HEADER,
+  meetsBuildFloor,
+  parseClientBuildHeader,
+  parseReleaseVersion,
+} from "@repo/contract/cloud/client-build";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 
@@ -74,8 +76,6 @@ type RequestBody = z.infer<ReturnType<typeof z.json>>;
 const parseJson = (text: string): RequestBody => z.json().parse(JSON.parse(text));
 
 const typedEventSchema = z.object({ type: z.string() }).catchall(z.json());
-
-type AckCaptureResult = AckCapturesResponse["results"][number];
 
 const refuse = (code: CloudErrorCode, message: string, deviceSeq?: number): Response =>
   Response.json(cloudError(code, message, deviceSeq), {
@@ -89,14 +89,6 @@ interface LogRow {
   deviceSeq: number;
   body: string;
   createdAt: number;
-}
-
-interface InboxRow {
-  id: string;
-  text: string;
-  createdAt: number;
-  claimToken: string | null;
-  claimedAt: number;
 }
 
 type DispatchSettle =
@@ -119,6 +111,7 @@ const liveDispatchClaim = (row: DispatchRow, now: number): boolean =>
   row.claimToken !== null && row.claimedAt > now - DISPATCH_CLAIM_TTL_MS;
 
 const NO_LONGER_WAITING = "That request is no longer waiting.";
+const SIGNED_OUT = "That computer was signed out.";
 
 interface ApprovalEntry {
   row: Omit<ApprovalRow, "state">;
@@ -150,7 +143,6 @@ export class FakeCloud {
   ]);
   private readonly inviteCodes = new Set([FAKE_INVITE_CODE]);
   private readonly log: LogRow[] = [];
-  private readonly inbox: InboxRow[] = [];
   // insertion order is the claim order, as rowid is the object's
   private readonly dispatches: DispatchRow[] = [];
   private readonly approvals = new Map<string, ApprovalEntry>();
@@ -170,10 +162,12 @@ export class FakeCloud {
   deleteWindowShut = false;
   /** event types served as a newer build writes them: renamed, so this build's grammar refuses them. */
   readonly unreadableTypes = new Set<string>();
+  /** the oldest build it answers, as the worker's floor does; null answers every build. */
+  buildFloor: string | null = null;
 
   /** another device joining the account on its own, speaking the wire as the app does. */
   async signInDevice(deviceName: string): Promise<{ client: CloudClient; deviceId: string }> {
-    const endpoint = { baseUrl: FAKE_CLOUD_URL, fetch: this.fetch };
+    const endpoint = { baseUrl: FAKE_CLOUD_URL, build: TEST_BUILD, fetch: this.fetch };
     const login = await postDeviceLogin(endpoint, { ...FAKE_ACCOUNT, deviceName });
     if (!login.ok) {
       throw new Error(`${deviceName} could not sign in: ${JSON.stringify(login.failure)}`);
@@ -188,20 +182,27 @@ export class FakeCloud {
         device.revokedAt = Date.now();
       }
     }
+    this.forgetDevice(deviceId);
   }
 
+  /** a phone's capture, waiting for a Mac to claim it. */
   capture(text: string): string {
     this.nextCapture += 1;
-    const id = `cap_${this.nextCapture}`;
-    this.inbox.push({ claimToken: null, claimedAt: 0, createdAt: this.nextCapture, id, text });
+    const id = this.nextCapture.toString(16).padStart(32, "0");
+    this.dispatches.push({
+      approvalId: null,
+      claimToken: null,
+      claimed: { createdAt: Date.now(), id, kind: "capture", text },
+      claimedAt: 0,
+      fromDeviceId: "fake-phone",
+      settle: { state: "pending" },
+      toDeviceId: null,
+    });
     return id;
   }
 
-  // every claim, a capture's and a dispatch's, as if its ttl ran out
+  // every claim, as if its ttl ran out
   lapseClaims(): void {
-    for (const row of this.inbox) {
-      row.claimedAt = 0;
-    }
     for (const row of this.dispatches) {
       row.claimedAt = 0;
     }
@@ -236,10 +237,22 @@ export class FakeCloud {
   readonly fetch: CloudFetch = async (input, init) =>
     await Promise.resolve(this.route(input, init));
 
+  private belowFloor(init?: RequestInit): boolean {
+    if (this.buildFloor === null) {
+      return false;
+    }
+    const floor = parseReleaseVersion(this.buildFloor);
+    const build = parseClientBuildHeader(new Headers(init?.headers).get(CLIENT_BUILD_HEADER));
+    return floor === null || build === null || !meetsBuildFloor(build, floor);
+  }
+
   private route(input: string, init?: RequestInit): Response {
     const url = new URL(input);
     const route = `${init?.method ?? "GET"} ${url.pathname}`;
     this.requests.push(route);
+    if (this.belowFloor(init)) {
+      return refuse("client-outdated", "This version of Inteligir can't sync anymore.");
+    }
     const text = z.string().safeParse(init?.body);
     const body: RequestBody = text.success ? parseJson(text.data) : null;
 
@@ -264,15 +277,6 @@ export class FakeCloud {
     }
     if (route === `GET ${SYNC_API_PATHS.pull}`) {
       return this.pull(url);
-    }
-    if (route === `POST ${CAPTURE_API_PATHS.claim}`) {
-      return this.claim(body);
-    }
-    if (route === `POST ${CAPTURE_API_PATHS.ack}`) {
-      return this.ack(body);
-    }
-    if (route === `GET ${ACCOUNT_API_PATHS.account}`) {
-      return this.account(device);
     }
     if (route === `POST ${ACCOUNT_API_PATHS.delete}`) {
       return this.deleteAccount(device, body);
@@ -299,11 +303,21 @@ export class FakeCloud {
       case `POST ${DISPATCH_API_PATHS.ack}`: {
         return this.ackDispatches(body);
       }
+      case `POST ${DISPATCH_API_PATHS.status}`: {
+        return this.dispatchStatuses(body);
+      }
+      case `POST ${DISPATCH_API_PATHS.cancel}`: {
+        return this.cancelDispatch(body);
+      }
       case `POST ${DISPATCH_API_PATHS.approval}`: {
         return this.openApproval(deviceId, body);
       }
       case `POST ${DISPATCH_API_PATHS.approvalClose}`: {
         return this.closeApproval(deviceId, body);
+      }
+      case `GET ${DISPATCH_API_PATHS.approvals}`: {
+        const response: ListApprovalsResponse = { approvals: this.listedApprovals() };
+        return Response.json(response);
       }
       default: {
         return null;
@@ -337,6 +351,78 @@ export class FakeCloud {
     }
   }
 
+  // an answer withdrawn before its Mac held it leaves the approval answerable again
+  private reopenApproval(approvalId: string | null): void {
+    const entry = approvalId === null ? undefined : this.approvals.get(approvalId);
+    if (entry?.state === "answered") {
+      entry.state = "open";
+    }
+  }
+
+  // the object's order: a revoked phone's waiting rows go, then a revoked Mac's approvals close
+  // and the answers waiting for it are refused
+  private forgetDevice(deviceId: string): void {
+    const now = Date.now();
+    for (const row of this.dispatches.filter(
+      (candidate) =>
+        candidate.fromDeviceId === deviceId &&
+        candidate.settle.state === "pending" &&
+        !liveDispatchClaim(candidate, now),
+    )) {
+      this.dispatches.splice(this.dispatches.indexOf(row), 1);
+      this.reopenApproval(row.approvalId);
+    }
+    for (const entry of this.approvals.values()) {
+      if (entry.fromDeviceId === deviceId) {
+        entry.state = "closed";
+      }
+    }
+    for (const row of this.dispatches) {
+      if (row.toDeviceId === deviceId && row.settle.state === "pending") {
+        row.settle = { message: SIGNED_OUT, state: "refused" };
+      }
+    }
+  }
+
+  // the fake holds no sockets, so it counts no Mac listening and none declining
+  private dispatchStatuses(body: RequestBody): Response {
+    const parsed = dispatchStatusRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Send { ids }.");
+    }
+    const response: DispatchStatusResponse = {
+      desktopsDeclining: 0,
+      desktopsOnline: 0,
+      dispatches: parsed.data.ids.map((id) => this.dispatchStatus(id)),
+    };
+    return Response.json(response);
+  }
+
+  private cancelDispatch(body: RequestBody): Response {
+    const parsed = cancelDispatchRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return refuse("bad-request", "Send { id }.");
+    }
+    const response: CancelDispatchResponse = { outcome: this.cancelOutcome(parsed.data.id) };
+    return Response.json(response);
+  }
+
+  private cancelOutcome(id: string): CancelDispatchResponse["outcome"] {
+    const row = this.dispatches.find((candidate) => candidate.claimed.id === id);
+    if (row === undefined) {
+      return "unknown";
+    }
+    if (row.settle.state !== "pending") {
+      return "settled";
+    }
+    if (liveDispatchClaim(row, Date.now())) {
+      return "claimed";
+    }
+    this.dispatches.splice(this.dispatches.indexOf(row), 1);
+    this.reopenApproval(row.approvalId);
+    return "cancelled";
+  }
+
   private createDispatch(deviceId: string, body: RequestBody): Response {
     const parsed = createDispatchRequestSchema.safeParse(body);
     if (!parsed.success) {
@@ -353,7 +439,7 @@ export class FakeCloud {
       return refuse("rate-limited", "Too many requests are already waiting for a computer.");
     }
     const createdAt = Date.now();
-    if (request.kind === "turn") {
+    if (request.kind === "turn" || request.kind === "capture") {
       this.dispatches.push({
         approvalId: null,
         claimToken: null,
@@ -415,14 +501,16 @@ export class FakeCloud {
   private claimDispatches(deviceId: string, body: RequestBody): Response {
     const parsed = claimDispatchesRequestSchema.safeParse(body);
     if (!parsed.success) {
-      return refuse("bad-request", "Send { limit? }.");
+      return refuse("bad-request", "Send { kinds, limit? }.");
     }
     const now = Date.now();
     const claimToken = `dclaim_${now}_${Math.random()}`;
+    const { kinds } = parsed.data;
     const taken = this.dispatches
       .filter(
         (row) =>
           row.settle.state === "pending" &&
+          kinds.includes(row.claimed.kind) &&
           (row.toDeviceId === null || row.toDeviceId === deviceId) &&
           !liveDispatchClaim(row, now),
       )
@@ -526,13 +614,6 @@ export class FakeCloud {
     );
   }
 
-  private account(device: FakeDevice): Response {
-    const account = this.accounts.get(device.email);
-    return account === undefined
-      ? refuse("unauthorized", "No valid device credential.")
-      : Response.json({ email: device.email, id: account.id });
-  }
-
   // the worker's order: the window, the password asked again, then the account and every device row
   private deleteAccount(caller: FakeDevice, body: RequestBody): Response {
     if (this.deleteWindowShut) {
@@ -585,7 +666,7 @@ export class FakeCloud {
     if (target === undefined) {
       return refuse("not-found", "No such active device.");
     }
-    target.revokedAt = Date.now();
+    this.revoke(target.deviceId);
     const response: RevokeDeviceResponse = { revoked: true };
     return Response.json(response);
   }
@@ -619,13 +700,14 @@ export class FakeCloud {
       return refuse("bad-request", "Send { email, password, deviceName }.");
     }
     // mirrors the worker: an unknown address and a wrong password are one answer.
-    if (this.accounts.get(parsed.data.email)?.password !== parsed.data.password) {
+    const account = this.accounts.get(parsed.data.email);
+    if (account?.password !== parsed.data.password) {
       return refuse("invalid-credentials", "Wrong email or password.");
     }
     if (this.activeDeviceCount() >= this.maxDevices) {
       return refuse("device-limit", "This account has too many active devices — revoke one first.");
     }
-    return this.mint(parsed.data.email, parsed.data.deviceName);
+    return this.mint(parsed.data.email, account.id, parsed.data.deviceName);
   }
 
   // the worker's order: the claim, then the account, and a refused account leaves the code unspent.
@@ -648,11 +730,12 @@ export class FakeCloud {
       );
     }
     this.inviteCodes.delete(inviteCode);
-    this.accounts.set(email, { id: `user_${this.accounts.size + 1}`, password });
-    return this.mint(email, parsed.data.deviceName);
+    const userId = `user_${this.accounts.size + 1}`;
+    this.accounts.set(email, { id: userId, password });
+    return this.mint(email, userId, parsed.data.deviceName);
   }
 
-  private mint(email: string, name: string): Response {
+  private mint(email: string, userId: string, name: string): Response {
     this.nextDevice += 1;
     const deviceId = `dev_${this.nextDevice}`;
     // random like the worker's, never derived from the per-cloud device counter: two fake clouds
@@ -665,7 +748,7 @@ export class FakeCloud {
       name,
       revokedAt: null,
     });
-    const response: DeviceLoginResponse = { credential, deviceId };
+    const response: DeviceLoginResponse = { credential, deviceId, email, userId };
     return Response.json(response);
   }
 
@@ -693,10 +776,9 @@ export class FakeCloud {
     let accepted = 0;
     let duplicates = 0;
     for (const event of events) {
-      const serialized = JSON.stringify(event.event);
       const stored = mine.find((row) => row.deviceSeq === event.deviceSeq);
       if (stored !== undefined) {
-        if (stored.body !== serialized) {
+        if (stored.body !== event.event) {
           return refuse(
             "sync-conflict",
             "That outbox position is already stored with a different body.",
@@ -715,7 +797,7 @@ export class FakeCloud {
       }
       this.nextSeq += 1;
       this.log.push({
-        body: serialized,
+        body: event.event,
         createdAt: event.createdAt,
         deviceId,
         deviceSeq: event.deviceSeq,
@@ -760,53 +842,5 @@ export class FakeCloud {
       return event;
     }
     return { ...typed.data, type: `${typed.data.type}@newer` };
-  }
-
-  private claim(body: RequestBody): Response {
-    const parsed = claimCapturesRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Send { limit? }.");
-    }
-    const now = Date.now();
-    const claimToken = `claim_${now}_${this.inbox.length}_${Math.random()}`;
-    const taken = this.inbox
-      .filter((row) => row.claimToken === null || row.claimedAt <= now - CAPTURE_CLAIM_TTL_MS)
-      .slice(0, parsed.data.limit);
-    for (const row of taken) {
-      row.claimToken = claimToken;
-      row.claimedAt = now;
-    }
-    const captures: CaptureRow[] = taken.map((row) => ({
-      createdAt: row.createdAt,
-      id: row.id,
-      text: row.text,
-    }));
-    const response: ClaimCapturesResponse = {
-      captures,
-      claimToken,
-      expiresAt: now + CAPTURE_CLAIM_TTL_MS,
-    };
-    return Response.json(response);
-  }
-
-  private ack(body: RequestBody): Response {
-    const parsed = ackCapturesRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Send { claimToken, ids }.");
-    }
-    const results = parsed.data.ids.map((id): AckCaptureResult => {
-      const index = this.inbox.findIndex((row) => row.id === id);
-      if (index === -1) {
-        return { id, outcome: "unknown" };
-      }
-      const row = this.inbox[index];
-      if (row === undefined || row.claimToken !== parsed.data.claimToken) {
-        return { id, outcome: "reclaimed" };
-      }
-      this.inbox.splice(index, 1);
-      return { id, outcome: "deleted" };
-    });
-    const response: AckCapturesResponse = { results };
-    return Response.json(response);
   }
 }

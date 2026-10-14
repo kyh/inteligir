@@ -11,8 +11,8 @@ import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { hostedVaultRemoteUrl, NO_ORIGIN, ownOriginUrl } from "../cloud/vault-remote";
 import type { OriginConfig } from "../cloud/vault-remote";
 import { detectExternalSync, nodeExternalSyncDeps } from "./external-sync";
-import { redactRemoteUrl, runGit } from "./git-run";
-import type { RunGitCommand } from "./git-run";
+import { gitAt, processGit, redactRemoteUrl } from "./git-run";
+import type { GitRunner, RunGitCommand } from "./git-run";
 
 // set beside the hosted url whenever the app writes it, so an origin the app manages is told from
 // one the user set, and unset when an explicit remote takes the origin over.
@@ -112,9 +112,9 @@ const isDirectory = (dir: string): boolean => {
 export interface InspectVaultFolderContext {
   homeDir: string;
   cloudUrl: string;
-  // absent: this process's own environment, which the desktop shell starts with the git its server
+  // absent: the git on this process's PATH, which the desktop shell starts with the git its server
   // runs (on a Mac without the developer tools, the one on launchd's PATH is the install stub)
-  gitEnv?: Record<string, string>;
+  git?: Pick<GitRunner, "run">;
 }
 
 // the outside-sync check alone, for an ask that needs nothing else: no walk, no git
@@ -131,10 +131,7 @@ export const inspectVaultFolder = async (
   }
   // only its own: git run in a folder inside another repo would read that repo's origin.
   const isRepo = existsSync(path.join(dir, ".git"));
-  const gitOptions = context.gitEnv === undefined ? {} : { env: context.gitEnv };
-  const origin = isRepo
-    ? await readOriginConfig(async (gitArgs) => await runGit(dir, gitArgs, gitOptions))
-    : NO_ORIGIN;
+  const origin = isRepo ? await readOriginConfig(gitAt(context.git ?? processGit, dir)) : NO_ORIGIN;
   const own = ownOriginUrl(origin, hostedVaultRemoteUrl(context.cloudUrl));
   return {
     exists: true,

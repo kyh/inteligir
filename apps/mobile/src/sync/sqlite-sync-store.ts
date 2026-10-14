@@ -9,7 +9,7 @@ import { hexFromBytes } from "@repo/contract/cloud/bytes";
 import type { LogPlanStep } from "@repo/contract/cloud/sync/plan-page";
 import { isThreadEventDelta, threadEventSchema } from "@repo/domain/provider-event";
 import type { ThreadEvent } from "@repo/domain/provider-event";
-import { fencedExclusive, phoneDbReady } from "../lib/phone-db";
+import { fencedExclusive } from "../lib/phone-db";
 import { createSerialLock } from "../lib/sql-driver";
 import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { Sha1 } from "../notes/outbox-ops";
@@ -169,7 +169,6 @@ export const createSqliteSyncStore = (args: CreateSqliteSyncStoreArgs): SyncStor
   };
 
   const wipe = async (): Promise<void> => {
-    await phoneDbReady(db);
     await db.exclusive(async (tx) => {
       await tx.exec(
         "DELETE FROM thread_events; DELETE FROM synced_threads; DELETE FROM thread_sync;",
@@ -180,7 +179,6 @@ export const createSqliteSyncStore = (args: CreateSqliteSyncStoreArgs): SyncStor
   // false when what the disk holds must go: another grammar parsed it, or it cannot be read
   const restore = async (started: number): Promise<boolean> => {
     try {
-      await phoneDbReady(db);
       const read = await readHeld(db, await grammar());
       if (read !== null && generation === started) {
         adopt(read);
@@ -210,7 +208,7 @@ export const createSqliteSyncStore = (args: CreateSqliteSyncStoreArgs): SyncStor
             await writePage(tx, write, written);
           },
         );
-        if (!landed || generation !== started) {
+        if (!landed.ran || generation !== started) {
           return;
         }
         if (write.threads.size === 0) {

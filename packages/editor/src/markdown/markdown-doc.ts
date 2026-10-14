@@ -1,7 +1,6 @@
 // Idempotent pipeline: once roundTrip(raw) === raw, re-serializing is stable, so a rich save is
 // a minimal diff. Unmodelled constructs become opaque nodes rather than a refusal.
-// Plate's deserializeMd is banned: its htmlToJsx pre-pass corrupts code fences and it swallows
-// parse errors into degraded models.
+// Plate's deserializeMd is banned (`@repo/editor/kits/markdown-kit` says why).
 
 import { ElementApi, createSlateEditor } from "platejs";
 import type { SlateEditor, Value } from "platejs";
@@ -16,8 +15,8 @@ import type { ConvertFailure } from "@repo/editor/markdown/md-to-slate";
 
 export { MD_STRINGIFY } from "@repo/notes/markdown/md-plugins";
 
-// Why a file opens Raw. Only a parse error is the file's; the rest are the editor's limits or its
-// bugs, and the file keeps its bytes either way.
+// Why a file opens Raw: never its bytes, which always parse, but the editor's limits or its bugs,
+// and the file keeps its bytes either way.
 export type GateReason =
   | ConvertFailure
   // re-serializing never settles on one set of bytes
@@ -44,11 +43,6 @@ export const gateReasonFor = (analysis: DocAnalysis): GateReason | null => {
 
 export const describeGateReason = (reason: GateReason): string => {
   switch (reason.kind) {
-    case "parse-error": {
-      return reason.line === null
-        ? `Parse error: ${reason.message}`
-        : `Parse error at line ${reason.line}: ${reason.message}`;
-    }
     case "too-deep": {
       return "This note nests deeper than the rich editor can hold — opened in Raw";
     }

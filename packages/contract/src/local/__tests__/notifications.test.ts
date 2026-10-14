@@ -3,16 +3,8 @@ import {
   changedMessageLenientSchema,
   changedMessageSchema,
   clientMessageSchema,
-  realtimeSubscriptionTargetKey,
   serverMessageLenientSchema,
 } from "../notifications";
-
-describe("realtimeSubscriptionTargetKey", () => {
-  it("keys list targets by kind", () => {
-    expect(realtimeSubscriptionTargetKey({ kind: "vault" })).toBe("vault");
-    expect(realtimeSubscriptionTargetKey({ kind: "thread-list" })).toBe("thread-list");
-  });
-});
 
 describe("strict outbound schemas", () => {
   it("rejects an unknown change kind", () => {

@@ -31,7 +31,7 @@ const shellState = async (shell: DesktopShell): Promise<ShellState> => {
 
 export const desktopOnboarding: Scenario = {
   description:
-    "the built shell on a fresh home opens only its first run, with no server; Create with the defaults boots the default vault and replaces the first run with the app window on /welcome over the seeded vault; a relaunch goes straight to the app",
+    "the built shell on a fresh home opens only its first-run page and boots nothing; Create with the defaults boots the default vault, and the app window replaces the page on `/welcome` over the seeded vault; a relaunch goes straight to the app",
   name: "desktop-onboarding",
   // the shell launches twice
   timeoutMs: 300_000,

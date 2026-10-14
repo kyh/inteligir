@@ -1,8 +1,4 @@
-import {
-  ACCOUNT_API_PATHS,
-  accountResponseSchema,
-  AUTH_PAGE_PATHS,
-} from "@repo/contract/cloud/account/account-schema";
+import { AUTH_API_PATHS } from "@repo/contract/cloud/account/account-schema";
 import type { DeviceSignUpRequest } from "@repo/contract/cloud/account/account-schema";
 import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import {
@@ -16,9 +12,10 @@ import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  deviceHeaders,
+  buildHeaders,
   emitted,
   ORIGIN,
+  OWN_PAGE_HEADERS,
   PASSWORD,
   refusalCodeOf,
   signUpUser,
@@ -46,7 +43,7 @@ const postSignUp = async (
 ): Promise<Response> =>
   await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.signUp}`, {
     body: JSON.stringify(body),
-    headers: { ...headers, "content-type": "application/json" },
+    headers: { ...buildHeaders(), ...headers, "content-type": "application/json" },
     method: "POST",
   });
 
@@ -55,9 +52,9 @@ const postSiteSignUp = async (
   code: string,
   headers: Record<string, string> = {},
 ): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}${AUTH_PAGE_PATHS.signUp}`, {
+  await SELF.fetch(`${ORIGIN}${AUTH_API_PATHS.signUp}`, {
     body: JSON.stringify({ email, inviteCode: code, name: "Site Signup", password: PASSWORD }),
-    headers: { ...headers, "content-type": "application/json", origin: ORIGIN },
+    headers: { ...OWN_PAGE_HEADERS, ...headers, "content-type": "application/json" },
     method: "POST",
   });
 
@@ -77,20 +74,20 @@ describe("device sign-up", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.getSetCookie()).toEqual([]);
     const signedUp = emitted(deviceLoginResponseSchema, await response.text());
-
-    const account = await SELF.fetch(`${ORIGIN}${ACCOUNT_API_PATHS.account}`, {
-      headers: deviceHeaders(signedUp.credential),
-    });
-    expect(account.status).toBe(200);
-    const answered = emitted(accountResponseSchema, await account.text());
-    expect(answered.email).toBe("app-ok@example.test");
+    expect(signedUp.email).toBe("app-ok@example.test");
+    const account = await userByEmail("app-ok@example.test");
+    expect(account?.id).toBe(signedUp.userId);
 
     const db = createDb(env.DB);
-    const sessions = await db.select().from(session).where(eq(session.userId, answered.id)).all();
+    const sessions = await db
+      .select()
+      .from(session)
+      .where(eq(session.userId, signedUp.userId))
+      .all();
     expect(sessions).toEqual([]);
     const row = await db.select().from(device).where(eq(device.id, signedUp.deviceId)).get();
     expect(row?.name).toBe("Test Laptop");
-    expect(row?.userId).toBe(answered.id);
+    expect(row?.userId).toBe(signedUp.userId);
 
     const code = await readCode("APP-INVITE-OK");
     expect(code?.redeemedAt).not.toBeNull();

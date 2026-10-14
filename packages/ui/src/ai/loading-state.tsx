@@ -115,6 +115,5 @@ const LoadingState = ({
     </div>
   );
 };
-LoadingState.displayName = "LoadingState";
 
 export { LoadingState };

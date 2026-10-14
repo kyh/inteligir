@@ -8,7 +8,9 @@ import type { OpenCloudSocketArgs } from "@repo/contract/cloud/sync/cloud-socket
 import type { PullResponse } from "@repo/contract/cloud/sync/sync-schema";
 import { MAX_PULL_PAGES_PER_PASS } from "@repo/contract/cloud/sync/sync-session";
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/sync/sync-ws";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { deferred } from "../../__tests__/async";
 import { openSyncStore } from "../../notes/__tests__/phone-storage";
 import { createSyncRuntime } from "../sync-runtime";
 import type { SyncRuntime, SyncStatus } from "../sync-runtime";
@@ -19,6 +21,11 @@ const OTHER = "dev_other";
 
 const UNAUTHORIZED: CloudResult<PullResponse> = {
   failure: { code: "unauthorized", deviceSeq: null, kind: "refused", message: "unauthorized" },
+  ok: false,
+};
+
+const OUTDATED: CloudResult<PullResponse> = {
+  failure: { code: "client-outdated", deviceSeq: null, kind: "refused", message: "update" },
   ok: false,
 };
 
@@ -38,30 +45,33 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+// told on the notification itself, not polled: a status a 5ms poll moves past would be missed
 const published = async (
   runtime: SyncRuntime,
   done: (status: SyncStatus) => boolean,
-): Promise<SyncStatus> =>
-  // oxlint-disable-next-line promise/avoid-new -- the status arrives as a store notification, which only a promise can hand to an await
-  await new Promise((resolve) => {
-    let unsubscribe: (() => void) | null = null;
-    const check = (): void => {
-      const status = runtime.get();
-      if (!done(status)) {
-        return;
-      }
-      unsubscribe?.();
-      resolve(status);
-    };
-    unsubscribe = runtime.subscribe(check);
-    check();
-  });
+): Promise<SyncStatus> => {
+  const seen = deferred<SyncStatus>();
+  const check = (): void => {
+    const status = runtime.get();
+    if (done(status)) {
+      seen.resolve(status);
+    }
+  };
+  const unsubscribe = runtime.subscribe(check);
+  check();
+  try {
+    return await seen.promise;
+  } finally {
+    unsubscribe();
+  }
+};
 
 describe("the sync runtime", () => {
   it("is restoring until a credential is handed over, and makes no request meanwhile", async () => {
     const store = openSyncStore();
     const cloud = createFakeCloud();
     const runtime = createSyncRuntime({
+      build: TEST_BUILD,
       cloudUrl: "https://cloud.test",
       createClient: () => cloud.client,
       pollIntervalMs: null,
@@ -93,6 +103,7 @@ describe("the sync runtime", () => {
       }),
     );
     const runtime = createSyncRuntime({
+      build: TEST_BUILD,
       cloudUrl: "https://cloud.test",
       createClient: () => cloud.client,
       pollIntervalMs: null,
@@ -114,6 +125,7 @@ describe("the sync runtime", () => {
     const cloud = createFakeCloud();
     cloud.pullResults.push(UNAUTHORIZED);
     const runtime = createSyncRuntime({
+      build: TEST_BUILD,
       cloudUrl: "https://cloud.test",
       createClient: () => cloud.client,
       pollIntervalMs: null,
@@ -124,6 +136,35 @@ describe("the sync runtime", () => {
     await runtime.syncNow();
 
     expect(runtime.get().state).toBe("unauthorized");
+  });
+
+  it("goes outdated when the cloud refuses this build, keeps the sign-in and asks nothing more", async () => {
+    const store = openSyncStore();
+    const cloud = createFakeCloud();
+    cloud.pullResults.push(OUTDATED);
+    let pulls = 0;
+    const runtime = createSyncRuntime({
+      build: TEST_BUILD,
+      cloudUrl: "https://cloud.test",
+      createClient: () => ({
+        ...cloud.client,
+        pull: async (query) => {
+          pulls += 1;
+          return await cloud.client.pull(query);
+        },
+      }),
+      pollIntervalMs: null,
+      store,
+    });
+    runtime.setCredential(CRED);
+
+    await runtime.syncNow();
+    expect(runtime.get()).toStrictEqual({ deviceId: CRED.deviceId, state: "outdated" });
+    await runtime.syncNow();
+    runtime.resume();
+    await runtime.syncNow();
+    expect(pulls).toBe(1);
+    expect(runtime.session.current()).toMatchObject({ credential: CRED, kind: "outdated" });
   });
 
   it("publishes a poll pass — the snapshot moves with no caller on this side", async () => {
@@ -145,6 +186,7 @@ describe("the sync runtime", () => {
       }),
     );
     const runtime = createSyncRuntime({
+      build: TEST_BUILD,
       cloudUrl: "https://cloud.test",
       createClient: () => cloud.client,
       pollIntervalMs: 5,
@@ -187,6 +229,7 @@ describe("the sync runtime", () => {
       );
     }
     const runtime = createSyncRuntime({
+      build: TEST_BUILD,
       cloudUrl: "https://cloud.test",
       createClient: () => cloud.client,
       pollIntervalMs: null,
@@ -219,6 +262,7 @@ describe("the sync runtime", () => {
     const cloud = createFakeCloud();
     cloud.pullResults.push(EMPTY_PAGE, UNREACHABLE);
     const runtime = createSyncRuntime({
+      build: TEST_BUILD,
       cloudUrl: "https://cloud.test",
       createClient: () => cloud.client,
       pollIntervalMs: null,
@@ -243,6 +287,7 @@ describe("the sync runtime", () => {
     const cloud = createFakeCloud();
     cloud.pullResults.push(EMPTY_PAGE, UNAUTHORIZED);
     const runtime = createSyncRuntime({
+      build: TEST_BUILD,
       cloudUrl: "https://cloud.test",
       createClient: () => cloud.client,
       pollIntervalMs: 5,
@@ -253,27 +298,6 @@ describe("the sync runtime", () => {
 
     const revoked = await published(runtime, (status) => status.state === "unauthorized");
     expect(revoked).toMatchObject({ deviceId: CRED.deviceId, state: "unauthorized" });
-  });
-
-  it("ends the sign-in when a capture is refused as unauthorized", async () => {
-    const store = openSyncStore();
-    const cloud = createFakeCloud();
-    cloud.captureResults.push({
-      failure: { code: "unauthorized", deviceSeq: null, kind: "refused", message: "unauthorized" },
-      ok: false,
-    });
-    const runtime = createSyncRuntime({
-      cloudUrl: "https://cloud.test",
-      createClient: () => cloud.client,
-      pollIntervalMs: null,
-      store,
-    });
-    runtime.setCredential(CRED);
-
-    const result = await runtime.createCapture({ idempotencyKey: "k".repeat(16), text: "idea" });
-
-    expect(result.ok).toBe(false);
-    expect(runtime.get()).toMatchObject({ deviceId: CRED.deviceId, state: "unauthorized" });
   });
 
   it("hands its diagnostics to the injected sink — a row this build cannot read is named", async () => {
@@ -297,6 +321,7 @@ describe("the sync runtime", () => {
     );
     const debugged: string[] = [];
     const runtime = createSyncRuntime({
+      build: TEST_BUILD,
       cloudUrl: "https://cloud.test",
       createClient: () => cloud.client,
       onDebug: (message) => {
@@ -322,6 +347,7 @@ const socketed = () => {
   let closes = 0;
   let pulls = 0;
   const runtime = createSyncRuntime({
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     createClient: () => ({
       ...cloud.client,
@@ -425,7 +451,6 @@ describe("the account's socket", () => {
 
     lastDial().onPing({ type: "vault" });
     lastDial().onPing({ threadId: "thr_x", type: "dispatch" });
-    lastDial().onPing({ type: "capture" });
     await tick();
 
     expect(pings).toEqual({ dispatch: 1, vault: 1 });
@@ -525,6 +550,7 @@ const recordingSignOuts = () => {
     },
   });
   const runtime = createSyncRuntime({
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     createClient,
     pollIntervalMs: null,
@@ -557,6 +583,7 @@ describe("dropping a credential", () => {
   it("signs out here even when the cloud cannot hear it", () => {
     const cloud = createFakeCloud();
     const runtime = createSyncRuntime({
+      build: TEST_BUILD,
       cloudUrl: "https://cloud.test",
       createClient: () => ({ ...cloud.client, signOut: async () => await UNREACHABLE_SIGN_OUT }),
       pollIntervalMs: null,

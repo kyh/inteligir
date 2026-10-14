@@ -3,15 +3,14 @@ import {
   createPendingInteraction,
   interruptPendingInteraction,
 } from "@repo/db/pending-interactions";
-import type { CreatePendingInteractionInput } from "@repo/db/pending-interactions";
 import type { DbNotifier } from "@repo/domain/notifier";
 import {
   approvalPendingInteractionPayloadSchema,
-  parseApprovalResolution,
+  unanswerableReason,
 } from "@repo/domain/pending-interactions";
 import type {
+  ApprovalPendingInteractionPayload,
   PendingInteractionCreate,
-  PendingInteractionPayload,
   PendingInteractionResolution,
 } from "@repo/domain/pending-interactions";
 import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
@@ -20,7 +19,7 @@ export const INTERACTION_TIMEOUT_MS = 30 * 60_000;
 
 interface InteractionWaiter {
   threadId: string;
-  payload: PendingInteractionPayload;
+  payload: ApprovalPendingInteractionPayload;
   resolve: (resolution: PendingInteractionResolution) => void;
 }
 
@@ -33,10 +32,7 @@ export interface InteractionWaitersDeps {
 }
 
 export interface InteractionWaiters {
-  park: (
-    create: PendingInteractionCreate,
-    hostTurnId: string | null,
-  ) => Promise<PendingInteractionResolution>;
+  park: (create: PendingInteractionCreate) => Promise<PendingInteractionResolution>;
   resolve: (interaction: PendingInteraction) => void;
   cancel: (threadId?: string) => void;
   hasParked: (threadId: string) => boolean;
@@ -67,55 +63,45 @@ export const createInteractionWaiters = (deps: InteractionWaitersDeps): Interact
       return false;
     },
 
-    async park(create, hostTurnId) {
+    async park(create) {
       const payload = approvalPendingInteractionPayloadSchema.parse(create.payload);
-      const pending: CreatePendingInteractionInput = {
-        payload: JSON.stringify(payload),
+      const row = createPendingInteraction(deps.db, deps.notifier, {
+        payload,
         requestKey: create.providerRequestId,
         threadId: create.threadId,
-      };
-      if (hostTurnId !== null) {
-        pending.turnId = hostTurnId;
-      }
-      const row = createPendingInteraction(deps.db, deps.notifier, pending);
-      if (row.status === "resolved" && row.resolution !== null) {
-        const parsed = parseApprovalResolution(row.resolution, payload);
-        return parsed.ok ? parsed.resolution : { decision: "deny" };
+        turnId: create.turnId,
+      });
+      if (row.status === "resolved" && row.decision !== null) {
+        return unanswerableReason(payload, row.decision) === null
+          ? { decision: row.decision }
+          : { decision: "deny" };
       }
       if (row.status === "interrupted") {
         return { decision: "deny" };
       }
-      // oxlint-disable-next-line promise/avoid-new -- bridges the approval that arrives on another request, or the timeout
-      return await new Promise<PendingInteractionResolution>((resolve) => {
-        let settled = false;
-        const settle = (resolution: PendingInteractionResolution): void => {
-          if (settled) {
-            return;
-          }
-          settled = true;
+      // the approval arrives on another request, or the timeout answers it.
+      const { promise, resolve } = Promise.withResolvers<PendingInteractionResolution>();
+      const timer = setTimeout(() => {
+        if (waitersByInteractionId.delete(row.id)) {
+          interruptPendingInteraction(deps.db, deps.notifier, {
+            id: row.id,
+            threadId: create.threadId,
+          });
+          resolve({ decision: "deny" });
+          deps.onWaitSettled(create.threadId);
+        }
+      }, INTERACTION_TIMEOUT_MS);
+      timer.unref();
+      waitersByInteractionId.set(row.id, {
+        payload,
+        resolve: (resolution) => {
+          clearTimeout(timer);
           resolve(resolution);
-        };
-        const timer = setTimeout(() => {
-          if (waitersByInteractionId.delete(row.id)) {
-            interruptPendingInteraction(deps.db, deps.notifier, {
-              id: row.id,
-              threadId: create.threadId,
-            });
-            settle({ decision: "deny" });
-            deps.onWaitSettled(create.threadId);
-          }
-        }, INTERACTION_TIMEOUT_MS);
-        timer.unref();
-        waitersByInteractionId.set(row.id, {
-          payload,
-          resolve: (resolution) => {
-            clearTimeout(timer);
-            settle(resolution);
-            deps.onWaitSettled(create.threadId);
-          },
-          threadId: create.threadId,
-        });
+          deps.onWaitSettled(create.threadId);
+        },
+        threadId: create.threadId,
       });
+      return await promise;
     },
 
     resolve(interaction) {
@@ -124,18 +110,15 @@ export const createInteractionWaiters = (deps: InteractionWaitersDeps): Interact
         return;
       }
       waitersByInteractionId.delete(interaction.id);
-      const parsed =
-        interaction.resolution === null
-          ? null
-          : parseApprovalResolution(interaction.resolution, waiter.payload);
-      if (parsed === null || !parsed.ok) {
+      const { decision } = interaction;
+      if (decision === null || unanswerableReason(waiter.payload, decision) !== null) {
         deps.debug(
-          `interaction ${interaction.id} resolved with an unparseable resolution; denying the provider`,
+          `interaction ${interaction.id} resolved with a decision the request did not offer; denying the provider`,
         );
         waiter.resolve({ decision: "deny" });
         return;
       }
-      waiter.resolve(parsed.resolution);
+      waiter.resolve({ decision });
     },
   };
 };

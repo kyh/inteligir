@@ -1,41 +1,45 @@
 import { z } from "zod";
 
 // the runtime shape, never which harness: a thread carries its own providerId
-export const agentModeValues = ["auto", "scripted", "off"] as const;
+export const agentModeValues = ["acp", "scripted", "off"] as const;
 export const agentModeSchema = z.enum(agentModeValues);
 export type AgentMode = z.infer<typeof agentModeSchema>;
 
-// mode is the configuration; runtime is what actually serves turns
-export const agentStatusSchema = z
-  .object({
-    detail: z.string().nullable(),
-    mode: agentModeSchema,
-    runtime: z.enum(["acp", "scripted", "unavailable", "off"]),
-  })
-  .strict();
+// mode is the configuration. Only the ACP runtime can be configured and not serve turns: the harness
+// a new thread starts on is missing from this copy of the app, which detail says in the person's
+// words.
+export const agentStatusSchema = z.discriminatedUnion("mode", [
+  z.discriminatedUnion("runtime", [
+    z.strictObject({ mode: z.literal("acp"), runtime: z.literal("ready") }),
+    z.strictObject({
+      detail: z.string().min(1),
+      mode: z.literal("acp"),
+      runtime: z.literal("unavailable"),
+    }),
+  ]),
+  z.strictObject({ mode: z.literal("scripted") }),
+  z.strictObject({ mode: z.literal("off") }),
+]);
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
 
-export const guideResponseSchema = z.object({ markdown: z.string().min(1) }).strict();
+// the status in configuration words, for the server's boot line and `inteligir status`
+export const agentStatusLine = (agent: AgentStatus): string =>
+  agent.mode === "acp" && agent.runtime === "unavailable"
+    ? `acp, unavailable — ${agent.detail}`
+    : agent.mode;
+
+export const guideResponseSchema = z.strictObject({ markdown: z.string().min(1) });
 export type GuideResponse = z.infer<typeof guideResponseSchema>;
 
-// root: the default vault's data dir, the one every install has. vault: this vault's own dir
-// beneath it, where the credential and the agent default start empty. connectors belong to the
-// agent, so every vault shares them.
-export const dataDirScopeSchema = z.enum(["root", "vault"]);
-export type DataDirScope = z.infer<typeof dataDirScopeSchema>;
-
-export const systemStatusResponseSchema = z
-  .object({
-    agent: agentStatusSchema,
-    dataDir: z.string().min(1),
-    dataDirScope: dataDirScopeSchema,
-    schemaVersion: z.number().int().min(1),
-    uptimeMs: z.number().min(0),
-    vaultDir: z.string().min(1),
-    version: z.string().min(1),
-  })
-  .strict();
+export const systemStatusResponseSchema = z.strictObject({
+  agent: agentStatusSchema,
+  dataDir: z.string().min(1),
+  schemaVersion: z.number().int().min(1),
+  uptimeMs: z.number().min(0),
+  vaultDir: z.string().min(1),
+  version: z.string().min(1),
+});
 export type SystemStatusResponse = z.infer<typeof systemStatusResponseSchema>;
 
-export const browserHandoffResponseSchema = z.object({ nonce: z.string().min(1) }).strict();
+export const browserHandoffResponseSchema = z.strictObject({ nonce: z.string().min(1) });
 export type BrowserHandoffResponse = z.infer<typeof browserHandoffResponseSchema>;

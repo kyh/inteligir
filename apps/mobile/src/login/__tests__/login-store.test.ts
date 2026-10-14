@@ -1,10 +1,17 @@
 import type { CloudFetch } from "@repo/contract/cloud/client";
-import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
+import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-schema";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { deferred } from "../../__tests__/async";
 import { createLoginStore } from "../login-store";
 
-const LOGGED_IN = { credential: `igd_${"c".repeat(64)}`, deviceId: "dev_x" };
+const LOGGED_IN: DeviceLoginResponse = {
+  credential: `igd_${"c".repeat(64)}`,
+  deviceId: "dev_x",
+  email: "owner@example.test",
+  userId: "user_x",
+};
 const REQUEST = {
   deviceName: "Phone",
   email: "owner@example.test",
@@ -24,46 +31,30 @@ const loginRefused: CloudFetch = async () =>
     { status: 401 },
   );
 
-const noop = (): void => {};
-
 // released from outside, so a test can look at the state while the login is in flight
 const heldLogin = () => {
-  let markReached: () => void = noop;
-  let release: () => void = noop;
-  // oxlint-disable-next-line promise/avoid-new -- a deferred: the test releases the login by hand
-  const reached = new Promise<void>((resolve) => {
-    markReached = resolve;
-  });
-  // oxlint-disable-next-line promise/avoid-new -- a deferred: the test releases the login by hand
-  const released = new Promise<void>((resolve) => {
-    release = resolve;
-  });
+  const reached = deferred();
+  const released = deferred();
   const fetch: CloudFetch = async () => {
-    markReached();
-    await released;
+    reached.resolve();
+    await released.promise;
     return Response.json(LOGGED_IN);
   };
-  return {
-    fetch,
-    reached,
-    release: () => {
-      release();
-    },
-  };
+  return { fetch, reached: reached.promise, release: released.resolve };
 };
 
 const harness = (args: {
   fetch: CloudFetch;
-  write?: (credential: DeviceCredential) => Promise<void>;
+  write?: (login: DeviceLoginResponse) => Promise<void>;
 }) => {
-  const written: DeviceCredential[] = [];
+  const written: DeviceLoginResponse[] = [];
   const store = createLoginStore({
-    client: { baseUrl: "https://cloud.test", fetch: args.fetch },
+    client: { baseUrl: "https://cloud.test", build: TEST_BUILD, fetch: args.fetch },
     store: {
       write:
         args.write ??
-        (async (credential) => {
-          written.push(credential);
+        (async (login) => {
+          written.push(login);
         }),
     },
   });

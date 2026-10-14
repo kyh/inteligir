@@ -1,30 +1,13 @@
 // Parsed, not regexed: a marker inside a code fence is literal in the editor and must be here too.
 
-import type { Nodes } from "mdast";
+import { visit } from "unist-util-visit";
 
 import { parseMdast } from "../markdown/parse";
 import { splitMarkerIds } from "../markdown/remark-inline-constructs";
 
-const walk = (node: Nodes, visitor: (node: Nodes) => void): void => {
-  visitor(node);
-  if ("children" in node) {
-    for (const child of node.children) {
-      walk(child, visitor);
-    }
-  }
-};
-
-// null when the doc does not parse: answering "none" would let a cleanup pass delete every thread
-export const markerRootIds = (source: string): Set<string> | null => {
-  const parsed = parseMdast(source);
-  if (!parsed.ok) {
-    return null;
-  }
+export const markerRootIds = (source: string): Set<string> => {
   const ids = new Set<string>();
-  walk(parsed.root, (node) => {
-    if (node.type !== "commentMarker") {
-      return;
-    }
+  visit(parseMdast(source).root, "commentMarker", (node) => {
     for (const id of splitMarkerIds(node.ids)) {
       ids.add(id);
     }

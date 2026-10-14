@@ -109,7 +109,14 @@ export const loadVerdict = (
 export const openWindowVerdict = (url: string): LoadVerdict =>
   isHttpUrl(url) ? { kind: "open-outside", url } : { kind: "refuse" };
 
-type PageRequest = Extract<PageFrame, { type: "request" }>;
+// a page request with its payload tied to its kind, so `ports[request.kind]` takes it with no
+// switch (microsoft/TypeScript#47109)
+interface RequestOf<K extends RequestKind> {
+  id: number;
+  nonce: string;
+  kind: K;
+  payload: RequestPayload<K>;
+}
 
 export const createEditorHost = (args: EditorHostArgs): EditorHost => {
   const flushTimeoutMs = args.flushTimeoutMs ?? FLUSH_TIMEOUT_MS;
@@ -160,50 +167,8 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
     }
   };
 
-  const ask = async (request: PageRequest): Promise<void> => {
-    const { ports } = args;
-    switch (request.kind) {
-      case "addComment": {
-        await respond(request, async () => await ports.addComment(request.payload));
-        return;
-      }
-      case "list": {
-        await respond(request, async () => await ports.list(request.payload));
-        return;
-      }
-      case "pickImage": {
-        await respond(request, async () => await ports.pickImage(request.payload));
-        return;
-      }
-      case "read": {
-        await respond(request, async () => await ports.read(request.payload));
-        return;
-      }
-      case "readAsset": {
-        await respond(request, async () => await ports.readAsset(request.payload));
-        return;
-      }
-      case "remove": {
-        await respond(request, async () => await ports.remove(request.payload));
-        return;
-      }
-      case "rename": {
-        await respond(request, async () => await ports.rename(request.payload));
-        return;
-      }
-      case "wikiTargets": {
-        await respond(request, async () => await ports.wikiTargets(request.payload));
-        return;
-      }
-      case "write": {
-        await respond(request, async () => await ports.write(request.payload));
-        return;
-      }
-      case "writeAsset": {
-        await respond(request, async () => await ports.writeAsset(request.payload));
-      }
-      // no default
-    }
+  const ask = async <K extends RequestKind>(request: RequestOf<K>): Promise<void> => {
+    await respond(request, async () => await args.ports[request.kind](request.payload));
   };
 
   // the page that was loaded holds nothing now

@@ -30,18 +30,16 @@ export const tagCommand = (deps: CliDeps) =>
         run: async ({ args }) => {
           const offset =
             args.offset === undefined
-              ? 0
+              ? undefined
               : parseBoundedInteger(args.offset, "--offset", { min: 0 });
-          const request: KnowledgeTagNotesRequest = { tag: args.tag };
-          if (args.limit !== undefined) {
-            request.limit = parseBoundedInteger(args.limit, "--limit", {
-              max: KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
-              min: 1,
-            });
-          }
-          if (args.offset !== undefined) {
-            request.offset = offset;
-          }
+          const limit =
+            args.limit === undefined
+              ? undefined
+              : parseBoundedInteger(args.limit, "--limit", {
+                  max: KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
+                  min: 1,
+                });
+          const request: KnowledgeTagNotesRequest = { limit, offset, tag: args.tag };
           const api = apiFor(deps);
           const body = await api.knowledge.tagNotes(request);
           if (outputJson(args, body)) {
@@ -51,7 +49,7 @@ export const tagCommand = (deps: CliDeps) =>
             out.info(`No note holds #${body.tag}.`);
             return;
           }
-          const shown = offset + body.paths.length;
+          const shown = (offset ?? 0) + body.paths.length;
           writeLines([
             ...body.paths,
             ...(shown < body.total

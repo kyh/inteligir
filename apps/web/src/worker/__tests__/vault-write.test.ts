@@ -14,7 +14,7 @@ import {
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { vaultRegistry, vaultRepoName } from "../vault/git-remote";
+import { vaultRegistry, vaultRepoName } from "../vault/vault-repo";
 import { vaultStorageCap } from "../vault/receive-pack";
 import {
   deviceHeaders,

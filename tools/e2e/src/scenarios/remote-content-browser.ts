@@ -15,7 +15,7 @@ const RUN_DEADLINE_MS = 15_000;
 // the block proves it ran by messaging the page: its frame's origin is opaque, so no probe reads in.
 const DOC = `# Remote
 
-<video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+![](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
 
 ![shot](https://example.com/shot.png)
 
@@ -32,9 +32,11 @@ const PROBE = `JSON.stringify({
   remoteImages: [...document.querySelectorAll('${EDITOR} img')].filter((img) => /^https?:/iu.test(img.getAttribute('src') ?? '')).length,
 })`;
 
-const probeSchema = z
-  .object({ cards: z.number(), frames: z.number(), remoteImages: z.number() })
-  .strict();
+const probeSchema = z.strictObject({
+  cards: z.number(),
+  frames: z.number(),
+  remoteImages: z.number(),
+});
 
 const LISTEN = `(() => { window.inteligirHtmlRan = false; addEventListener('message', (event) => { if (event.data === '${RAN}') { window.inteligirHtmlRan = true; } }); return 'listening'; })()`;
 
@@ -46,7 +48,7 @@ const RUN_FRAME_SRC = `String(document.querySelector('${EDITOR} iframe[title="HT
 // remote frame, or a Run that cannot run, shows up.
 export const remoteContentBrowser: Scenario = {
   description:
-    "under the shipped CSP a remote embed is an unloaded card, and an html block's Run runs its script",
+    "under the built bundle's CSP a remote embed is an unloaded card, and an html block's Run executes its script under its own policy",
   name: "remote-content-browser",
   async run(ctx) {
     const app = await ctx.boot({

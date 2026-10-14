@@ -14,9 +14,9 @@ export interface SqlExecutor {
 // a read outside a transaction, and every write inside one
 export interface SqlDriver {
   all: SqlExecutor["all"];
-  // one write transaction at a time, in call order: it commits when `work` resolves and rolls back
-  // when it throws. every statement inside runs on `tx`.
-  exclusive: (work: (tx: SqlExecutor) => Promise<void>) => Promise<void>;
+  // one write transaction at a time, in call order: it commits when `work` resolves, answering what
+  // `work` did, and rolls back when it throws. every statement inside runs on `tx`.
+  exclusive: <T>(work: (tx: SqlExecutor) => Promise<T>) => Promise<T>;
 }
 
 // a queue of one: each task starts once the one before it has settled, whichever way

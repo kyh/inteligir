@@ -1,5 +1,7 @@
-// the phone keeps ONE database file, so every table in it rides one `user_version`: a step is
-// appended here, never edited once shipped, and each opens in the transaction that records it.
+// the phone keeps ONE database file, so every table in it rides one `user_version`, and each step
+// opens in the transaction that records it. No phone holds a file worth keeping until the first
+// build EAS makes (`easProject` in app.config.js), so until then the schema is one step, edited in
+// place; from that build on, a step is appended, never edited.
 
 import { z } from "zod";
 import type { SqlDriver, SqlExecutor } from "./sql-driver";
@@ -7,6 +9,16 @@ import type { SqlDriver, SqlExecutor } from "./sql-driver";
 // mirror_meta's tree_commit is the tree the rows hold, mirrored_commit the last one they held
 // every wanted text of. mirror_entries puts content last: a listing read stops at the columns
 // before it rather than walking a long note's overflow pages to reach one after it.
+// outbox: the phone's unsent writes, oldest first; `op` and `settle` are JSON parsed on every
+// read. mirror_landings: which paths a landed write moved, in landing order, so a refresh that
+// listed the tree before a landing leaves those rows alone.
+// dispatch_outbox: the phone's requests to a Mac, oldest first. `request` is the body sent, frozen
+// when it is asked so every resend is the same row; `status` the cloud's last answer as JSON,
+// null until the cloud has taken the row. `sent` is not a column of its own: it would be a
+// second answer to the question `status` already answers, and a turn's thread is its request's.
+// the synced threads: thread_sync the pull cursor and the grammar the held events were parsed
+// with, thread_events each held event by its log seq, synced_threads each thread's last seq,
+// which a delta moves though no row holds it.
 const MIGRATIONS: readonly string[] = [
   `CREATE TABLE mirror_meta (
      id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -23,11 +35,8 @@ const MIGRATIONS: readonly string[] = [
      aliases TEXT NOT NULL DEFAULT '[]',
      content TEXT,
      CHECK (content IS NOT NULL OR (note_id IS NULL AND aliases = '[]'))
-   );`,
-  // outbox: the phone's unsent writes, oldest first; `op` and `settle` are JSON parsed on every
-  // read. mirror_landings: which paths a landed write moved, in landing order, so a refresh that
-  // listed the tree before a landing leaves those rows alone.
-  `CREATE TABLE outbox (
+   );
+   CREATE TABLE outbox (
      seq INTEGER PRIMARY KEY AUTOINCREMENT,
      op TEXT NOT NULL,
      state TEXT NOT NULL CHECK (state IN ('pending', 'parked')),
@@ -39,23 +48,15 @@ const MIGRATIONS: readonly string[] = [
    CREATE TABLE mirror_landings (
      seq INTEGER PRIMARY KEY AUTOINCREMENT,
      path TEXT NOT NULL
-   );`,
-  // dispatch_outbox: the phone's requests to a Mac, oldest first. `request` is the body sent, frozen
-  // when it is asked so every resend is the same row; `status` the cloud's last answer as JSON,
-  // null until the cloud has taken the row. `sent` is not a column of its own: it would be a
-  // second answer to the question `status` already answers.
-  `CREATE TABLE dispatch_outbox (
+   );
+   CREATE TABLE dispatch_outbox (
      seq INTEGER PRIMARY KEY AUTOINCREMENT,
      id TEXT NOT NULL UNIQUE,
-     thread_id TEXT NOT NULL,
      request TEXT NOT NULL,
      status TEXT,
      created_at INTEGER NOT NULL
-   );`,
-  // the synced threads: thread_sync the pull cursor and the grammar the held events were parsed
-  // with, thread_events each held event by its log seq, synced_threads each thread's last seq,
-  // which a delta moves though no row holds it
-  `CREATE TABLE thread_sync (
+   );
+   CREATE TABLE thread_sync (
      id INTEGER PRIMARY KEY CHECK (id = 1),
      cursor INTEGER NOT NULL,
      grammar TEXT NOT NULL
@@ -92,42 +93,44 @@ const migratePhoneDb = async (db: SqlDriver): Promise<void> => {
 // true while the sign-in the work started under is still the one it may write for
 export type Fence = () => boolean;
 
-// every module over the one file shares its migration
-const migrations = new WeakMap<SqlDriver, Promise<void>>();
-
-// run on the first call, so a failed migration fails the call that asked rather than nobody, and
-// forgotten when it fails, so the next call tries again
-export const phoneDbReady = async (db: SqlDriver): Promise<void> => {
-  let migrated = migrations.get(db);
-  if (migrated === undefined) {
-    migrated = migratePhoneDb(db);
-    migrations.set(db, migrated);
-  }
-  try {
-    await migrated;
-  } catch (error) {
-    if (migrations.get(db) === migrated) {
-      migrations.delete(db);
+// every call through the returned driver waits out one migration, run on the first call so a
+// failed migration fails the call that asked rather than nobody, and forgotten when it fails so
+// the next call tries again. Every module over the one file shares it.
+export const openPhoneDb = (driver: SqlDriver): SqlDriver => {
+  let migrated: Promise<void> | null = null;
+  const ready = async (): Promise<void> => {
+    migrated ??= migratePhoneDb(driver);
+    const current = migrated;
+    try {
+      await current;
+    } catch (error) {
+      if (migrated === current) {
+        migrated = null;
+      }
+      throw error;
     }
-    throw error;
-  }
+  };
+  return {
+    all: async (sql, params) => {
+      await ready();
+      return await driver.all(sql, params);
+    },
+    exclusive: async (work) => {
+      await ready();
+      return await driver.exclusive(work);
+    },
+  };
 };
 
-// the fence is checked again inside the transaction: a wipe queued ahead of it must win. true when
+export type Fenced<T> = { ran: true; value: T } | { ran: false };
+
+// the fence is checked again inside the transaction: a wipe queued ahead of it must win. `ran` when
 // `work` ran and committed
-export const fencedExclusive = async (
+export const fencedExclusive = async <T>(
   db: SqlDriver,
   fence: Fence,
-  work: (tx: SqlExecutor) => Promise<void>,
-): Promise<boolean> => {
-  await phoneDbReady(db);
-  const outcome = { ran: false };
-  await db.exclusive(async (tx) => {
-    if (!fence()) {
-      return;
-    }
-    await work(tx);
-    outcome.ran = true;
-  });
-  return outcome.ran;
-};
+  work: (tx: SqlExecutor) => Promise<T>,
+): Promise<Fenced<T>> =>
+  await db.exclusive(async (tx) =>
+    fence() ? { ran: true, value: await work(tx) } : { ran: false },
+  );

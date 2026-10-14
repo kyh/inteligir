@@ -2,10 +2,13 @@
 //! itself as the one child it supervises, and what only a native host can do for that page: menus,
 //! the menu-bar icon, dialogs, Finder, and the updates.
 
+mod answer;
 mod commands;
 mod diagnostics;
+mod dialogs;
 mod door;
 mod files;
+mod first_run;
 mod launch;
 mod menu;
 mod navigation;
@@ -29,7 +32,7 @@ use crate::updater::Updates;
 /// shutdown and Ctrl-C under `tauri dev` all flush the vault's pending commit. A handler, not a
 /// blocked mask: nothing of it reaches the children the shell starts.
 #[cfg(unix)]
-fn quit_on_signals<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+fn quit_on_signals(app: &tauri::AppHandle) {
     use signal_hook::consts::{SIGINT, SIGTERM};
     use signal_hook::iterator::Signals;
     match Signals::new([SIGTERM, SIGINT]) {
@@ -105,13 +108,7 @@ pub fn run() {
         ])
         .on_menu_event(|app, event| menu::on_event(app, &event))
         .setup(move |app| {
-            // the Electron shell's userData, so an upgrade keeps the recent list and the debug choice
-            let own_dir = app.path().data_dir()?.join(if bundled {
-                "Inteligir"
-            } else {
-                "Inteligir (Dev)"
-            });
-            app.manage(Shell::new(own_dir, bundled));
+            app.manage(Shell::new(bundled));
             #[cfg(unix)]
             quit_on_signals(app.handle());
             let launching = app.handle().clone();

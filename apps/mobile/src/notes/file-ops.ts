@@ -1,9 +1,6 @@
-// The phone's file verbs over the notes store, each planned with the rule the server runs, so a
-// note made, renamed or deleted here is the one the Mac would have made: a new note steps past a
-// taken name, a rename rewrites the links naming the note and keeps its old name as an alias in
-// the same change set, a delete takes the note's comment store unless another note carries its id,
-// and a photo lands under a free name in the attachments folder. Platform-free: the scenario suite
-// runs it under node.
+// A new note steps past a taken name, a delete leaves a comment store another note carries the id
+// of, and a photo lands under a free name in the attachments folder. Platform-free: the scenario
+// suite runs it under node.
 
 import {
   VAULT_COMMIT_MAX_BYTES,
@@ -33,7 +30,7 @@ import { moveCandidates } from "@repo/notes/knowledge/rename-candidates";
 import { computeMoveEdits } from "@repo/notes/knowledge/rename-links";
 import { dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
-import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/placeholders";
+import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/folders";
 import { NOTE_GONE } from "./comment-ops";
 import type { HeldFile, NotesStore, RenameEdits } from "./notes-store";
 

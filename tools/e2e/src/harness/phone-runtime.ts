@@ -10,10 +10,11 @@ import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema
 import { composeRuntime } from "@repo/mobile/lib/compose-runtime";
 import type { AppRuntime } from "@repo/mobile/lib/compose-runtime";
 import { openNodeSqlDriver } from "@repo/mobile/lib/node-sql-driver";
+import { openPhoneDb } from "@repo/mobile/lib/phone-db";
 import type { AttachmentFiles } from "@repo/mobile/notes/attachment-files";
 import type { OutboxFiles } from "@repo/mobile/notes/outbox-files";
 import { expect, expectEq } from "./assert";
-import { loginDevice } from "./cloud-account";
+import { loginDevice, PHONE_BUILD } from "./cloud-account";
 import { pollUntil } from "./poll";
 
 export const PHONE_NAME = "E2E Phone";
@@ -56,12 +57,14 @@ const heldCredential = (credential: DeviceCredential) => ({
   write: () => Promise.resolve(),
 });
 
+// `credential` is a relaunch: the phone signed in before and reads its Keychain again
 export const phoneRuntime = async (
   origin: string,
   dir: string,
   network: { online: boolean },
+  credential?: DeviceCredential,
 ): Promise<AppRuntime> => {
-  const credential = await loginDevice(origin, PHONE_NAME);
+  const login = credential ?? (await loginDevice(origin, PHONE_NAME));
   await mkdir(dir, { recursive: true });
   const fetch: CloudFetch = async (input, init) => {
     if (!network.online) {
@@ -72,9 +75,10 @@ export const phoneRuntime = async (
   // two maps, as the app keeps two folders, so neither store finds or clears the other's files.
   return composeRuntime({
     attachments: memoryFiles(),
+    build: PHONE_BUILD,
     cloudUrl: origin,
-    credentials: heldCredential(credential),
-    db: openNodeSqlDriver(path.join(dir, "inteligir.db")),
+    credentials: heldCredential({ credential: login.credential, deviceId: login.deviceId }),
+    db: openPhoneDb(openNodeSqlDriver(path.join(dir, "inteligir.db"))),
     deviceName: PHONE_NAME,
     mintId: () => randomBytes(16).toString("hex"),
     mintNoteId: randomUUID,
@@ -84,7 +88,12 @@ export const phoneRuntime = async (
     sha1: (bytes) => Promise.resolve(createHash("sha1").update(bytes).digest()),
     sync: {
       createClient: (signedIn) =>
-        createCloudClient({ baseUrl: origin, credential: signedIn.credential, fetch }),
+        createCloudClient({
+          baseUrl: origin,
+          build: PHONE_BUILD,
+          credential: signedIn.credential,
+          fetch,
+        }),
       pollIntervalMs: null,
     },
   });

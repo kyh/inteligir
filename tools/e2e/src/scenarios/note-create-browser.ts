@@ -10,7 +10,8 @@ const CREATE_DEADLINE_MS = 30_000;
 const NAME_INPUT = '[role="tree"] input[aria-label="Name"]';
 
 export const noteCreateBrowser: Scenario = {
-  description: "the sidebar's New note creates the file on disk through the session",
+  description:
+    "a note created through the session — the sidebar's New note, the inline name, Enter — lands on disk as the file a user would go looking for",
   name: "note-create-browser",
   async run(ctx) {
     const app = await ctx.boot({ name: "solo" });

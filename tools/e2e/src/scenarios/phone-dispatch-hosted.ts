@@ -6,7 +6,7 @@ import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schem
 import { POLL_INTERVAL_MS } from "inteligir/server/cloud/sync-cadence";
 import { z } from "zod";
 import { expect, expectEq } from "../harness/assert";
-import { loginDevice, signUp } from "../harness/cloud-account";
+import { loginDevice, PHONE_BUILD, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { signInOwner } from "../harness/hosted-vault";
 import type { AppInstance, InstanceApi } from "../harness/instance";
@@ -125,7 +125,7 @@ const timesAsked = async (api: InstanceApi, threadId: string, text: string): Pro
 
 export const phoneDispatchHosted: Scenario = {
   description:
-    "a phone's request waits in the dispatch inbox until a Mac signs in, runs there over the note it was asked from, and reaches the phone's pull; with two Macs listening, exactly one runs it, before a poll could; a Mac that stops taking the phone's requests is no longer counted as listening",
+    "a second login plays the phone: its request waits with no desktop online until A signs in and runs it over the note it named, the reply naming the note and the phone's pull holding the request; with A and B both listening, exactly one runs the next, before a poll could; and once B stops taking the phone's requests the phone counts A alone, though B stays open",
   name: "phone-dispatch-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -134,7 +134,11 @@ export const phoneDispatchHosted: Scenario = {
     ctx.log("creating the account through the invite gate; the phone signs in");
     await signUp(worker.origin);
     const phoneLogin = await loginDevice(worker.origin, PHONE_NAME);
-    const phone = createCloudClient({ baseUrl: worker.origin, credential: phoneLogin.credential });
+    const phone = createCloudClient({
+      baseUrl: worker.origin,
+      build: PHONE_BUILD,
+      credential: phoneLogin.credential,
+    });
 
     // each vault syncs to a bare remote of its own, so the hosted vault plays no part
     const boot = async (name: string): Promise<AppInstance> =>

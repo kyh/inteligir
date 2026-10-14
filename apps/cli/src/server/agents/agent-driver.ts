@@ -5,19 +5,19 @@
 import type { DbConnection } from "@repo/db/connection";
 import type { DbNotifier } from "@repo/domain/notifier";
 import type { AgentStatus } from "@repo/contract/local/system/system-schema";
-import type { CreateTurnDriver } from "../threads/turn-driver";
 import { createUnavailableTurnDriver } from "../threads/turn-driver";
+import type { ProviderEventSink, TurnDriver } from "../threads/turn-driver";
 import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime";
-import { HARNESSES, isHarnessId } from "@repo/agent-runtime/acp/harness-registry";
-import type { HarnessId } from "@repo/agent-runtime/acp/harness-registry";
+import type { HarnessId } from "@repo/domain/harness";
+import { HARNESSES } from "@repo/agent-runtime/acp/harness-registry";
 import type { AppConfig } from "../config";
 import type { DebugLog } from "../debug-log";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import { createBoundedAgentLog } from "./agent-log";
 import type { AgentSessionFacts } from "./agent-shell-env";
-import { createAcpRuntimeManager } from "./runtime-manager";
-import type { AcpRuntimeManagerDeps } from "./runtime-manager";
-import { createScriptedTurnDriverFactory } from "./scripted-driver";
+import { AcpTurnDriver } from "./runtime-manager";
+import type { AcpTurnDriverDeps } from "./runtime-manager";
+import { ScriptedTurnDriver } from "./scripted-driver";
 import type { ScriptedDriverDeps } from "./scripted-driver";
 import { missingRuntimeDetail } from "./vendor-process";
 
@@ -26,10 +26,11 @@ export interface ResolveAgentDriverArgs {
   db: DbConnection;
   notifier: DbNotifier;
   vault: VaultRuntime;
+  sink: ProviderEventSink;
   // a getter, read per session open, so a Settings edit reaches the next session without a reboot.
   sessionFacts: () => AgentSessionFacts;
-  // the stored choice, read per thread start for the same reason; null falls back to claude
-  preferredProviderId?: () => HarnessId | null;
+  // the stored default, read per thread start for the same reason.
+  defaultHarness: () => HarnessId;
   env?: NodeJS.ProcessEnv;
   // absent: the runtime forks each adapter with child_process
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
@@ -37,34 +38,14 @@ export interface ResolveAgentDriverArgs {
   debugLog?: DebugLog | undefined;
 }
 
-// a write the agent made through the server rather than its own tools, named by the thread whose
-// shell sent it; a thread with no turn running records nothing.
-export type RecordAgentWrites = (threadId: string, paths: readonly string[]) => void;
-
 export interface ResolvedAgentDriver {
   // read per request: a runtime removed from under a running app is the next answer.
   status: () => AgentStatus;
-  createTurnDriver: CreateTurnDriver;
-  recordAgentWrites: RecordAgentWrites;
-  dispose: () => Promise<void>;
+  driver: TurnDriver;
 }
 
-const noDispose = async (): Promise<void> => {
-  /* empty */
-};
-
-const recordNothing: RecordAgentWrites = () => {
-  /* empty */
-};
-
-export const defaultHarnessId = (preferred: HarnessId | null): HarnessId => preferred ?? "claude";
-
-// a provider this build does not know is left to the runtime, whose refusal names it.
-const missingRuntime = (providerId: string, env: NodeJS.ProcessEnv): string | null => {
-  if (!isHarnessId(providerId)) {
-    return null;
-  }
-  const harness = HARNESSES[providerId];
+const missingRuntime = (id: HarnessId, env: NodeJS.ProcessEnv): string | null => {
+  const harness = HARNESSES[id];
   return harness.vendorExecutable(env) === null ? missingRuntimeDetail(harness) : null;
 };
 
@@ -72,12 +53,7 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
   const mode = args.config.agent;
   if (mode === "off") {
     const detail = "The agent is disabled (INTELIGIR_AGENT=off)";
-    return {
-      createTurnDriver: () => createUnavailableTurnDriver(detail),
-      dispose: noDispose,
-      recordAgentWrites: recordNothing,
-      status: () => ({ detail, mode, runtime: "off" }),
-    };
+    return { driver: createUnavailableTurnDriver(detail), status: () => ({ mode }) };
   }
   const onDebug = createBoundedAgentLog();
   if (mode === "scripted") {
@@ -87,44 +63,31 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
       onError: onDebug,
       vault: args.vault.service,
     };
-    return {
-      createTurnDriver: createScriptedTurnDriverFactory(scripted),
-      dispose: noDispose,
-      recordAgentWrites: recordNothing,
-      status: () => ({ detail: null, mode, runtime: "scripted" }),
-    };
+    return { driver: new ScriptedTurnDriver(args.sink, scripted), status: () => ({ mode }) };
   }
 
   const env = args.env ?? process.env;
-  const defaultProviderId = (): HarnessId => defaultHarnessId(args.preferredProviderId?.() ?? null);
-  const acp: AcpRuntimeManagerDeps = {
+  const acp: AcpTurnDriverDeps = {
     db: args.db,
     debugLog: args.debugLog,
-    defaultProviderId,
+    defaultProviderId: args.defaultHarness,
     git: args.vault.git,
     hostEnv: env,
     models: args.config.agentModels,
     notifier: args.notifier,
     onDebug,
     sessionFacts: args.sessionFacts,
-    unavailableReason: (providerId) => missingRuntime(providerId, env),
+    spawnAdapter: args.spawnAdapter,
+    unavailableReason: (id) => missingRuntime(id, env),
     vaultDir: args.config.vaultDir,
   };
-  if (args.spawnAdapter !== undefined) {
-    acp.spawnAdapter = args.spawnAdapter;
-  }
-  const manager = createAcpRuntimeManager(acp);
   return {
-    createTurnDriver: manager.createTurnDriver,
-    dispose: async () => {
-      await manager.dispose();
-    },
-    recordAgentWrites: manager.recordAgentWrites,
+    driver: new AcpTurnDriver(args.sink, acp),
     // the harness a new thread would start on.
     status: () => {
-      const detail = missingRuntime(defaultProviderId(), env);
+      const detail = missingRuntime(args.defaultHarness(), env);
       return detail === null
-        ? { detail: null, mode, runtime: "acp" }
+        ? { mode, runtime: "ready" }
         : { detail, mode, runtime: "unavailable" };
     },
   };

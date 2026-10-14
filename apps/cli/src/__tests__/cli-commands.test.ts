@@ -126,7 +126,6 @@ const SHOW_TIMELINE: ThreadTimeline = {
       viewContext: null,
     },
   ],
-  tokenUsage: null,
 };
 
 const COMMAND_APPROVAL: ApprovalPendingInteractionPayload = {
@@ -550,8 +549,11 @@ describe("vault commands", () => {
     });
     expect(given.code).toBe(0);
     const { id } = z
-      .object({ comments: z.literal("copied"), id: z.uuid(), path: z.literal("notes/copy.md") })
-      .strict()
+      .strictObject({
+        comments: z.literal("copied"),
+        id: z.uuid(),
+        path: z.literal("notes/copy.md"),
+      })
       .parse(JSON.parse(given.stdout));
     expect(state.vault.get("notes/copy.md")).toBe(copy.replace(shared, id));
     expect(state.vault.get(`.inteligir/comments/${id}.json`)).toBe(storeBytes);
@@ -982,10 +984,10 @@ describe("interactions commands", () => {
       pendingInteractions: [
         {
           createdAt: 1_700_000_000_000,
+          decision: null,
           id: "int_1",
           payload: null,
           requestKey: "req_1",
-          resolution: null,
           resolvedAt: null,
           status: "pending",
           threadId: "thr_1",
@@ -1055,7 +1057,7 @@ describe("status, guide and help", () => {
       "Data dir: /fixture/data",
       "Vault: /fixture/vault",
       "Schema: v3 — uptime 65s",
-      "Agent: acp (mode auto)",
+      "Agent: acp",
       "Thread context: thr_ctx",
     ]);
   });
@@ -1300,6 +1302,20 @@ describe("argv the CLI refuses", () => {
     expect(JSON.parse(result.stderr)).toEqual({
       error: "INVALID_USAGE",
       message: "unexpected argument: b — quote a value that contains spaces",
+    });
+  });
+
+  it("refuses a harness id no harness has, naming the ones there are", async () => {
+    const server = await boot(seededState());
+    const result = await runCliForTest({
+      argv: ["agents", "default", "gemini", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toEqual({
+      error: "INVALID_USAGE",
+      message: 'No harness is called "gemini"; pass one of claude, codex.',
     });
   });
 
@@ -1557,7 +1573,7 @@ describe("action new never orphans a thread silently", () => {
   });
 });
 
-describe("interactions answer validates the resolution locally", () => {
+describe("interactions answer validates the decision locally", () => {
   it("refuses a decision the request never offered, naming the ones it did", async () => {
     const state = seededState();
     state.threads.push({
@@ -1576,8 +1592,8 @@ describe("interactions answer validates the resolution locally", () => {
               kind: "command",
             },
           },
+          decision: null,
           requestKey: "req_a",
-          resolution: null,
           resolvedAt: null,
           status: "pending",
           threadId: "thr_a",
@@ -1595,6 +1611,16 @@ describe("interactions answer validates the resolution locally", () => {
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("allow_once, deny");
     expect(state.threads.at(-1)?.pendingInteractions[0]?.status).toBe("pending");
+  });
+
+  it("refuses a word that names no decision, before asking the server", async () => {
+    const result = await runCliForTest({
+      argv: ["interactions", "answer", "int_a", "allow_always", "--json"],
+      baseUrl: null,
+    });
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+    expect(result.stderr).toContain("allow_once, allow_for_session, deny");
   });
 });
 

@@ -1,15 +1,7 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import {
-  useRef,
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  createContext,
-  useContext,
-} from "react";
+import { useRef, useState, useEffect, useMemo, createContext, useContext } from "react";
 import type { ComponentProps, ReactNode, RefAttributes } from "react";
 import { Menu } from "@base-ui/react/menu";
 import { CheckIcon } from "lucide-react";
@@ -24,24 +16,10 @@ import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import { useHighlighted, useHighlightStore, useRowOrder } from "@repo/ui/hooks/use-row-order";
 import type { HighlightStore } from "@repo/ui/hooks/use-row-order";
-import { radiusMap } from "@repo/ui/lib/radius-context";
+import { radius } from "@repo/ui/lib/radius";
 import { SizeProvider, useSize } from "@repo/ui/lib/size-context";
 import type { SizeVariant } from "@repo/ui/lib/size-context";
 import { Elevated } from "@repo/ui/lib/elevated";
-
-// popups ignore the global radius context: the pill radius distorts perceived padding at this
-// scale and makes the corner shadow asymmetric.
-const radius = radiusMap.rounded;
-
-const DropdownMenuContext = createContext<{ open: boolean } | null>(null);
-
-const useDropdownMenuContext = () => {
-  const ctx = useContext(DropdownMenuContext);
-  if (!ctx) {
-    throw new Error("DropdownMenu compound components must be inside <DropdownMenu>");
-  }
-  return ctx;
-};
 
 interface DropdownItemsContextValue {
   // a row hands the popup its element; the popup keeps the ordering, since only it can read the
@@ -74,42 +52,47 @@ interface DropdownMenuProps {
 
 const DropdownMenu = ({
   children,
-  open: openProp,
+  open,
   defaultOpen = false,
   onOpenChange,
   disabled = false,
   modal = false,
   size,
 }: DropdownMenuProps) => {
-  const [internalOpen, setInternalOpen] = useState(defaultOpen);
-  const open = openProp ?? internalOpen;
-
-  const handleOpenChange = useCallback(
-    (next: boolean) => {
-      if (openProp === undefined) {
-        setInternalOpen(next);
-      }
-      onOpenChange?.(next);
-    },
-    [openProp, onOpenChange],
-  );
-
-  const ctx = useMemo(() => ({ open }), [open]);
-
   const root = (
-    <DropdownMenuContext.Provider value={ctx}>
-      <Menu.Root open={open} onOpenChange={handleOpenChange} disabled={disabled} modal={modal}>
-        {children}
-      </Menu.Root>
-    </DropdownMenuContext.Provider>
+    <Menu.Root
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      disabled={disabled}
+      modal={modal}
+    >
+      {children}
+    </Menu.Root>
   );
 
   return size ? <SizeProvider size={size}>{root}</SizeProvider> : root;
 };
 
-DropdownMenu.displayName = "DropdownMenu";
-
 const DropdownMenuTrigger = Menu.Trigger;
+
+// The popup remounts on every open (no keepMounted), so this measures once per open. Double rAF:
+// the first waits for React's commit, the second for layout.
+const MeasureOnOpen = ({ measure }: { measure: () => void }) => {
+  useEffect(() => {
+    let inner: number;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => {
+        measure();
+      });
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, [measure]);
+  return null;
+};
 
 type MenuPositionerProps = ComponentProps<typeof Menu.Positioner>;
 
@@ -133,7 +116,6 @@ const DropdownMenuContent = ({
   anchor,
   ref,
 }: DropdownMenuContentProps & RefAttributes<HTMLDivElement>) => {
-  const { open } = useDropdownMenuContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const { activeIndex, setActiveIndex, itemRects, session, handlers, setItems, measureItems } =
@@ -153,23 +135,6 @@ const DropdownMenuContent = ({
 
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    // double rAF: first waits for React commit, second for layout
-    let inner: number;
-    const outer = requestAnimationFrame(() => {
-      inner = requestAnimationFrame(() => {
-        measureItems();
-      });
-    });
-    return () => {
-      cancelAnimationFrame(outer);
-      cancelAnimationFrame(inner);
-    };
-  }, [open, measureItems]);
-
   const activeRowEl = activeIndex === null ? null : (orderedRows[activeIndex] ?? null);
   const highlight = useHighlightStore(activeRowEl);
   const itemsCtx = useMemo(() => ({ highlight, registerRow }), [registerRow, highlight]);
@@ -188,7 +153,7 @@ const DropdownMenuContent = ({
         anchor={anchor}
         className="z-50 outline-none"
       >
-        <DropdownItemsContext.Provider value={itemsCtx}>
+        <DropdownItemsContext value={itemsCtx}>
           <Menu.Popup
             ref={composeRefs<HTMLDivElement>(containerRef, ref)}
             render={(popupProps, state) => {
@@ -236,21 +201,19 @@ const DropdownMenuContent = ({
               className,
             )}
           >
+            <MeasureOnOpen measure={measureItems} />
             <ProximityOverlays
               hoverRect={activeIndex === null ? null : (itemRects[activeIndex] ?? null)}
               focusRect={focusedIndex === null ? null : (itemRects[focusedIndex] ?? null)}
               session={session}
-              radius={radius}
             />
             {children}
           </Menu.Popup>
-        </DropdownItemsContext.Provider>
+        </DropdownItemsContext>
       </Menu.Positioner>
     </Menu.Portal>
   );
 };
-
-DropdownMenuContent.displayName = "DropdownMenuContent";
 
 const DropdownMenuLabel = ({
   className,
@@ -271,8 +234,6 @@ const DropdownMenuLabel = ({
   );
 };
 
-DropdownMenuLabel.displayName = "DropdownMenuLabel";
-
 const DropdownMenuSeparator = ({
   className,
   ref,
@@ -286,8 +247,6 @@ const DropdownMenuSeparator = ({
     {...props}
   />
 );
-
-DropdownMenuSeparator.displayName = "DropdownMenuSeparator";
 
 type MenuRowVariant = "default" | "destructive";
 

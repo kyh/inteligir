@@ -37,7 +37,7 @@ interface MoveState {
 
 export const treeOpsBrowser: Scenario = {
   description:
-    "the tree's row menu pins a note into its frontmatter, and a drag moves it with its image",
+    "the rail opens on Files; the tree's row menu pins a note into its frontmatter, and a drag moves it into a folder with its image still loading",
   name: "tree-ops-browser",
   async run(ctx) {
     const app = await ctx.boot({

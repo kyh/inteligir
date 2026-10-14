@@ -3,6 +3,7 @@ import type { OpenCloudSocketArgs } from "../sync/cloud-socket";
 import { createSocketLink } from "../sync/socket-link";
 import type { SocketLinkArgs } from "../sync/socket-link";
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "../sync/sync-ws";
+import { TEST_BUILD } from "../test-support/fake-cloud-client";
 import type { SocketListener } from "../sync/sync-ws";
 
 afterEach(() => {
@@ -18,6 +19,7 @@ const harness = (overrides: Partial<SocketLinkArgs> = {}) => {
   let listener: SocketListener = { phoneRequests: true, platform: "desktop" };
   const link = createSocketLink({
     baseUrl: "https://cloud.test",
+    build: TEST_BUILD,
     canConnect: () => true,
     credential: () => "igd_test",
     listener: () => listener,

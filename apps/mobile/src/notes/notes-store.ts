@@ -10,7 +10,6 @@ import {
 import type { CommentSidecar } from "@repo/notes/comments/sidecar-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { extnamePath } from "@repo/notes/knowledge/vault-path";
-import { diff3 } from "@repo/notes/text/diff3";
 import { describeCloudFailure } from "@repo/contract/cloud/client";
 import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
 import { createSingleFlight } from "@repo/contract/cloud/sync/sync-session";
@@ -19,21 +18,21 @@ import { messageOf } from "../lib/error-message";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
 import type { Fence } from "../lib/phone-db";
+import { createSignInFence, NOT_SIGNED_IN } from "../lib/sign-in-fence";
+import type { SignInSource } from "../lib/sign-in-fence";
 import { createSerialLock } from "../lib/sql-driver";
 import type { SqlDriver } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import type { AttachmentFiles } from "./attachment-files";
 import { blobOid, isTextOp, leavesAt, opPaths, rebaseEdit, textBlobOid } from "./outbox-ops";
-import type { CommentOp, GuardedText, OutboxRow, RenameOp, Sha1 } from "./outbox-ops";
+import type { CommentOp, GuardedText, OutboxRow, Sha1, VaultOp } from "./outbox-ops";
 import type { OutboxFiles } from "./outbox-files";
 import { createVaultOutbox, STAGED_FILE_GONE } from "./vault-outbox";
-import type { OutboxStatus } from "./vault-outbox";
+import type { CreateVaultOutboxArgs, OutboxStatus } from "./vault-outbox";
 import { landOnRows, createVaultMirror } from "./vault-mirror";
 import type { MirrorLanding, MirrorProgress, MirrorRow, MirrorText } from "./vault-mirror";
 import { overlayEntries } from "./vault-overlay";
 import type { OverlayEntry } from "./vault-overlay";
-
-const NOT_SIGNED_IN = "Not signed in.";
 
 const INCOMPLETE = "Some notes did not download. Pull down to try again.";
 
@@ -43,9 +42,6 @@ const UNREADABLE_COMMENTS = "This note's comments could not be read.";
 
 // an account whose hosted vault no Mac has pushed yet answers 404 until one does
 const NO_HOSTED_VAULT = "Your notes aren't here yet — open inteligir on your Mac while signed in.";
-
-// a write races a landing that rebases the row it meant to join; past this the note keeps changing
-const MAX_WRITE_ATTEMPTS = 3;
 
 const DEFAULT_RETRY_BASE_MS = 2000;
 
@@ -73,10 +69,7 @@ export interface NoteText {
   content: string;
 }
 
-// `notFound` is the one refusal a writer may take as the note being gone
-export type NoteRead =
-  | ({ ok: true } & NoteText)
-  | { ok: false; notFound: boolean; message: string };
+export type NoteRead = ({ ok: true } & NoteText) | { ok: false; message: string };
 
 // a note without an id, or with no store yet, has no comments; only an unreadable store is a failure
 export type CommentsRead =
@@ -85,16 +78,20 @@ export type CommentsRead =
 
 type AttachmentRead = { ok: true; uri: string } | { ok: false; message: string };
 
-// `notFound` is the one refusal a reader may treat as absence; `oid` is null for text only this
-// phone holds
-type FileRead =
-  | ({ ok: true; oid: string | null } & NoteText)
-  | { ok: false; notFound: boolean; message: string };
+// `notFound` is the one refusal a reader may treat as absence
+type FileRead = ({ ok: true } & NoteText) | { ok: false; notFound: boolean; message: string };
 
-// the write surface mirrors @repo/editor's VaultIO: a write lands once it is durable on this
-// phone, answering the bytes it holds for the path, which a rebase onto the phone's own merge can
-// widen; `vanished` is a note this phone deleted or renamed away since the caller read it
-type WriteOutcome = { kind: "landed"; content: string; conflicted: boolean } | { kind: "vanished" };
+// the write surface is @repo/editor's GuardedVaultPort, whose one write policy the editor page
+// runs: `absent` is a create, and `expected` names the text the write was computed from. A write
+// lands once it is durable on this phone; `changed` hands back what the phone holds instead, for
+// the caller's own merge, and `missing` is a note this phone no longer holds.
+type GuardedWrite = { kind: "absent" } | { kind: "expected"; base: string };
+
+type GuardedWriteResult =
+  | { kind: "written" }
+  | { kind: "exists" }
+  | { kind: "changed"; current: string }
+  | { kind: "missing" };
 
 type CreateOutcome = { kind: "created" } | { kind: "exists" };
 
@@ -129,16 +126,11 @@ export type CommentEditOutcome =
   | { kind: "vanished" }
   | { kind: "refused"; message: string };
 
-// a listed file with the frontmatter facts its held text carries
 export interface HeldFile {
   path: string;
   noteId: string | null;
   aliases: readonly string[];
 }
-
-// restored: the boot read of a credential whose rows are on disk. signed-in: nothing on disk is
-// this sign-in's.
-export type SignInSource = "restored" | "signed-in";
 
 export interface NotesStore {
   // drops what the previous sign-in held. null is no sign-in, or one the cloud refused, and wipes
@@ -151,10 +143,9 @@ export interface NotesStore {
   // sends the unsent writes, oldest first; a call while a send runs joins it
   drain: () => Promise<void>;
   tree: ReadableStore<NotesTreeState>;
-  // a read records the base the caller's next write to that path is guarded by
   readNote: (path: string) => Promise<NoteRead>;
-  // throws when the caller never read the path: an inferred base lets a concurrent edit win
-  write: (path: string, content: string) => Promise<WriteOutcome>;
+  // `expected` is compared with the text the phone holds, under the lock every change here takes
+  write: (path: string, content: string, guard: GuardedWrite) => Promise<GuardedWriteResult>;
   create: (path: string, content: string) => Promise<CreateOutcome>;
   // the move and its edits are one change set
   rename: (from: string, to: string, edits?: RenameEdits) => Promise<RenameOutcome>;
@@ -189,16 +180,15 @@ export interface NotesStore {
 
 type LiveSession = Extract<ReturnType<SessionPort["current"]>, { kind: "live" }>;
 
+interface QueuedWrite {
+  fence: Fence;
+  // throws when the sign-in the write began under has ended
+  enqueue: (op: VaultOp) => Promise<void>;
+}
+
 interface Listing {
   files: ReadonlyMap<string, OverlayEntry>;
   taken: ReadonlySet<string>;
-}
-
-// what the caller's next write to a path is guarded by: `seen` is the text it last read or wrote,
-// `base` the vault's blob that text derives from, null for a note the vault has not held
-interface Guard {
-  base: { oid: string; content: string } | null;
-  seen: string;
 }
 
 export interface CreateNotesStoreArgs {
@@ -207,12 +197,10 @@ export interface CreateNotesStoreArgs {
   attachments: AttachmentFiles;
   outboxFiles: OutboxFiles;
   sha1: Sha1;
-  // the name this phone's conflict reports and copies go by
   deviceName: string;
   // a note's new frontmatter id, uuid-shaped, for its first comment made here
   mintNoteId: () => string;
-  // the first wait after a failed send, doubling; null never retries on a timer
-  retryBaseMs?: number | null;
+  retryBaseMs?: CreateVaultOutboxArgs["retryBaseMs"];
 }
 
 const storageMessage = (cause: unknown): string =>
@@ -245,9 +233,7 @@ const versionOf = (entry: OverlayEntry | undefined): string => {
 const lastRowOn = (rows: readonly OutboxRow[], path: string): OutboxRow | undefined =>
   rows.findLast((row) => opPaths(row.op).includes(path));
 
-// every await is followed by a fence: the session's, so a response from an earlier sign-in or one
-// the cloud has since refused never lands, and a wipe generation, so a write started before a
-// sign-out or a revocation never lands either.
+// every await is followed by the sign-in's fence
 export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   const { attachments, session } = args;
   const mirror = createVaultMirror(args.db);
@@ -255,21 +241,14 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   // the mirror's rows as the last snapshot read them, with every landing since laid on
   let mirrorRows: readonly MirrorRow[] | null = null;
   let landings = 0;
-  let generation = 0;
-  // the last reset's own work, which a refresh waits out: a wipe must land before the walk reads
-  // the mirrored commit, and a restore's rows before the walk's replace them
-  let resetWork: Promise<void> = Promise.resolve();
+  // a refresh waits out the last reset's work: a wipe must land before the walk reads the mirrored
+  // commit, and a restore's rows before the walk's replace them
+  const signIn = createSignInFence(session);
   const refreshing = createSingleFlight();
   const tree = createExternalStore<NotesTreeState>({ state: "idle" });
-  const guards = new Map<string, Guard>();
   const watchers = new Map<string, { version: string; listeners: Set<() => void> }>();
   // one write at a time, so the row a write joins is the row it read
   const writing = createSerialLock();
-
-  const fenceFor = (sessionId: number): Fence => {
-    const started = generation;
-    return () => session.fenced(sessionId) && generation === started;
-  };
 
   const notifyWatchers = (): void => {
     for (const [path, watcher] of watchers) {
@@ -304,16 +283,11 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     notifyWatchers();
   };
 
-  // a landed write moves the base the caller's next write is guarded by, and text that landed as
-  // it was written is no change to the watcher that wrote it
-  const guardLandings = (landed: readonly MirrorLanding[]): void => {
+  // text that landed as it was written is no change to the watcher that wrote it
+  const expectLandings = (landed: readonly MirrorLanding[]): void => {
     for (const landing of landed) {
       if (landing.kind !== "put" || landing.text === null) {
         continue;
-      }
-      const guard = guards.get(landing.path);
-      if (guard !== undefined) {
-        guards.set(landing.path, { ...guard, base: { content: landing.text, oid: landing.oid } });
       }
       const watcher = watchers.get(landing.path);
       if (watcher?.version === `text:${landing.text}`) {
@@ -324,15 +298,11 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
   const outbox = createVaultOutbox({
     db: args.db,
-    fenceFor,
     files: args.outboxFiles,
     isTaken: (path) => listing?.taken.has(vaultCollisionKey(path)) === true,
     // the staged name is the blob's, as the attachment cache names it
     keepLanded: async (file, bytes) => {
       await attachments.save(file, bytes);
-    },
-    resetWork: async () => {
-      await resetWork;
     },
     onChange: (rows, landed) => {
       if (landed.length > 0) {
@@ -340,12 +310,13 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         if (mirrorRows !== null) {
           mirrorRows = landOnRows(mirrorRows, landed);
         }
-        guardLandings(landed);
+        expectLandings(landed);
       }
       relist(rows);
     },
     retryBaseMs: args.retryBaseMs === undefined ? DEFAULT_RETRY_BASE_MS : args.retryBaseMs,
     session,
+    signIn,
     thisDevice: args.deviceName,
   });
 
@@ -413,8 +384,8 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   };
 
   const walkAndFill = async (current: LiveSession): Promise<void> => {
-    const fence = fenceFor(current.id);
-    await resetWork;
+    const fence = signIn.fenceFor(current.id);
+    await signIn.ready();
     if (!fence()) {
       return;
     }
@@ -463,7 +434,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
   // a mirror that cannot be read or written is a failure of this phone, never of the cloud's
   const guarded = async (current: LiveSession): Promise<void> => {
-    const fence = fenceFor(current.id);
+    const fence = signIn.fenceFor(current.id);
     try {
       await walkAndFill(current);
     } catch (error) {
@@ -474,7 +445,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   };
 
   const hydrate = async (sessionId: number): Promise<void> => {
-    const fence = fenceFor(sessionId);
+    const fence = signIn.fenceFor(sessionId);
     try {
       await outbox.load(fence);
       await publishListing(fence, null);
@@ -499,13 +470,22 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     }
   };
 
-  const liveFence = (): Fence => {
-    const current = session.current();
-    if (current.kind !== "live") {
-      throw new Error(NOT_SIGNED_IN);
-    }
-    return fenceFor(current.id);
-  };
+  const queued = async <T>(work: (write: QueuedWrite) => Promise<T>): Promise<T> =>
+    await writing(async () => {
+      await signIn.ready();
+      const fence = signIn.live();
+      if (fence === null) {
+        throw new Error(NOT_SIGNED_IN);
+      }
+      return await work({
+        enqueue: async (op) => {
+          if (!(await outbox.enqueue(op, fence))) {
+            throw new Error(NOT_SIGNED_IN);
+          }
+        },
+        fence,
+      });
+    });
 
   // a note an unsent rename moved away or an unsent delete removed is gone here, whatever the
   // mirror still holds
@@ -523,7 +503,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     if (current.kind !== "live") {
       return { message: NOT_SIGNED_IN, notFound: false, ok: false };
     }
-    const fence = fenceFor(current.id);
+    const fence = signIn.fenceFor(current.id);
     const mirrorPath = row?.path ?? path;
     let held: MirrorText | null;
     try {
@@ -535,7 +515,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       return { message: NOT_SIGNED_IN, notFound: false, ok: false };
     }
     if (held !== null && held.content !== null) {
-      return { content: held.content, oid: held.oid, ok: true, path };
+      return { content: held.content, ok: true, path };
     }
 
     const query: Parameters<CloudClient["vaultFile"]>[0] = { path: mirrorPath };
@@ -564,48 +544,19 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         // served either way; the next refresh or read stores it
       }
     }
-    return { content: result.value.content, oid: result.value.oid, ok: true, path };
+    return { content: result.value.content, ok: true, path };
   };
 
   const readFile = async (path: string): Promise<FileRead> => {
-    await resetWork;
+    await signIn.ready();
     const entry = listing?.files.get(path);
     if (entry?.source.kind === "text") {
-      return { content: entry.source.text, oid: null, ok: true, path };
+      return { content: entry.source.text, ok: true, path };
     }
     if (entry?.source.kind === "staged" || goneHere(path)) {
       return { message: "This is not a note on this phone.", notFound: true, ok: false };
     }
     return await readFromMirror(path, entry?.source.row ?? null);
-  };
-
-  // the text and blob an unsent rename or comment edit leaves at a path; null where it leaves none
-  const textLeftBy = async (
-    op: RenameOp | CommentOp,
-    path: string,
-  ): Promise<{ oid: string; content: string } | null> => {
-    const leaves = await leavesAt(args.sha1, op, path);
-    return leaves === null || leaves.content === null
-      ? null
-      : { content: leaves.content, oid: leaves.oid };
-  };
-
-  // the vault's blob the caller's view of a path derives from: an unsent write's own base, none
-  // for an unsent create, what an unsent rename or comment edit leaves there, else what was read
-  const recordGuard = async (
-    path: string,
-    read: { content: string; oid: string | null },
-  ): Promise<void> => {
-    const last = lastRowOn(outbox.rows(), path);
-    let base: Guard["base"] = read.oid === null ? null : { content: read.content, oid: read.oid };
-    if (last?.op.op === "write") {
-      base = { content: last.op.baseContent, oid: last.op.baseOid };
-    } else if (last?.op.op === "create") {
-      base = null;
-    } else if (last?.op.op === "rename" || last?.op.op === "comment") {
-      base = (await textLeftBy(last.op, path)) ?? base;
-    }
-    guards.set(path, { base, seen: read.content });
   };
 
   const outboxBytes = async (file: string): Promise<Uint8Array> => {
@@ -616,16 +567,13 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     return await args.outboxFiles.read(file);
   };
 
-  // the blob and text an unsent row leaves at a path, for a rename or a delete queued behind it
-  const projectedBase = async (
+  // what the phone holds at a path now, and the blob the vault takes a change to it against: what
+  // the last unsent row on the path leaves there, else the mirror's row
+  const heldText = async (
     path: string,
   ): Promise<{ oid: string; content: string | null } | null> => {
     const last = lastRowOn(outbox.rows(), path);
     if (last === undefined) {
-      const guard = guards.get(path)?.base;
-      if (guard !== undefined && guard !== null) {
-        return guard;
-      }
       const entry = listing?.files.get(path);
       if (entry?.source.kind !== "vault") {
         return null;
@@ -664,106 +612,72 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     }
   };
 
-  // the blob a new write row is computed from: what an unsent rename or comment edit leaves at the
-  // path, else the base the caller's guard holds
-  const writeBase = async (
-    last: OutboxRow | undefined,
-    path: string,
-    guard: Guard,
-  ): Promise<{ oid: string; content: string } | null> => {
-    if (last?.op.op === "rename" || last?.op.op === "comment") {
-      return await textLeftBy(last.op, path);
-    }
-    return guard.base;
-  };
-
-  const write: NotesStore["write"] = async (path, content) =>
-    await writing(async () => {
-      await resetWork;
-      const guard = guards.get(path);
-      // Not inferred from the mirror: that would let a concurrent edit merge to the vault's
-      // bytes alone and drop this write silently.
-      if (guard === undefined) {
-        throw new Error(`write ${path}: no base was read, so nothing can guard this write`);
-      }
-      const fence = liveFence();
-      for (let attempt = 0; attempt < MAX_WRITE_ATTEMPTS; attempt += 1) {
-        const last = lastRowOn(outbox.rows(), path);
-        if (goneHere(path)) {
-          return { kind: "vanished" };
-        }
-        const joins = last !== undefined && isTextOp(last.op) ? last.op : null;
-        const onto = await writeBase(last, path, guard);
-        const ontoText = joins === null ? onto?.content : joins.content;
-        if (ontoText === undefined) {
-          return { kind: "vanished" };
-        }
-        // the caller wrote from what it last saw; bytes the phone took since (its own merge
-        // landing) move under the edit rather than being overwritten by it
-        const { conflicted, merged } =
-          guard.seen === ontoText
-            ? { conflicted: false, merged: content }
-            : diff3(guard.seen, content, ontoText);
-        expectOwn(path, merged);
-        if (joins !== null && last !== undefined) {
-          const verdict = await outbox.coalesce(last.seq, joins.content, merged, fence);
-          if (verdict === "fenced") {
-            throw new Error(NOT_SIGNED_IN);
-          }
-          if (verdict === "stale") {
-            continue;
-          }
-        } else if (onto === null) {
-          return { kind: "vanished" };
-        } else if (
-          !(await outbox.enqueue(
-            { baseContent: onto.content, baseOid: onto.oid, content: merged, op: "write", path },
-            fence,
-          ))
-        ) {
-          throw new Error(NOT_SIGNED_IN);
-        }
-        guards.set(path, { ...guard, seen: merged });
-        return { conflicted, content: merged, kind: "landed" };
-      }
-      throw new Error(`write ${path}: the note kept changing while it was saved`);
-    });
-
   const create: NotesStore["create"] = async (path, content) =>
-    await writing(async () => {
-      await resetWork;
-      const fence = liveFence();
+    await queued(async ({ enqueue }) => {
       if (isTakenHere(path)) {
         return { kind: "exists" };
       }
       expectOwn(path, content);
-      if (!(await outbox.enqueue({ content, op: "create", path }, fence))) {
-        throw new Error(NOT_SIGNED_IN);
-      }
-      guards.set(path, { base: null, seen: content });
+      await enqueue({ content, op: "create", path });
       return { kind: "created" };
     });
 
-  const vaultRowFor = (path: string): MirrorRow | null => {
-    const entry = listing?.files.get(path);
-    return entry?.source.kind === "vault" ? entry.source.row : null;
+  // the note a guarded write is compared with; one whose text has not downloaded is no text the
+  // write could have been computed from
+  const heldNote = async (
+    path: string,
+  ): Promise<{ kind: "held"; oid: string; content: string } | { kind: "missing" }> => {
+    const held = goneHere(path) ? null : await heldText(path);
+    if (held === null) {
+      return { kind: "missing" };
+    }
+    if (held.content === null) {
+      throw new Error(UNREADABLE_NOTE);
+    }
+    return { content: held.content, kind: "held", oid: held.oid };
   };
 
-  // what the phone holds at a path now, and the blob the vault takes a change to it against: the
-  // mirror's row, not the base an open note's guard keeps, since a rename plans every other note
-  // from the text it holds
-  const heldText = async (
+  // compared and queued under the write lock, so no other change made here slips between the text
+  // the guard was checked against and the row that carries the write. A mismatch is never merged
+  // here: the merge is the caller's write policy, and a second one is a second answer to what a
+  // stale save does.
+  const writeExpected = async (
     path: string,
-  ): Promise<{ oid: string; content: string | null } | null> => {
-    if (lastRowOn(outbox.rows(), path) !== undefined) {
-      return await projectedBase(path);
+    content: string,
+    base: string,
+  ): Promise<GuardedWriteResult> =>
+    await queued(async ({ enqueue, fence }) => {
+      const held = await heldNote(path);
+      if (held.kind === "missing") {
+        return held;
+      }
+      if (held.content !== base) {
+        return { current: held.content, kind: "changed" };
+      }
+      const last = lastRowOn(outbox.rows(), path);
+      expectOwn(path, content);
+      if (last !== undefined && isTextOp(last.op)) {
+        const verdict = await outbox.coalesce(last.seq, last.op.content, content, fence);
+        if (verdict === "fenced") {
+          throw new Error(NOT_SIGNED_IN);
+        }
+        // a landing since the compare retired or rebased the row the write meant to join
+        if (verdict === "stale") {
+          const now = await heldNote(path);
+          return now.kind === "missing" ? now : { current: now.content, kind: "changed" };
+        }
+      } else {
+        await enqueue({ baseContent: held.content, baseOid: held.oid, content, op: "write", path });
+      }
+      return { kind: "written" };
+    });
+
+  const write: NotesStore["write"] = async (path, content, guard) => {
+    if (guard.kind === "expected") {
+      return await writeExpected(path, content, guard.base);
     }
-    const row = vaultRowFor(path);
-    if (row === null) {
-      return null;
-    }
-    const read = await readFromMirror(path, row);
-    return { content: read.ok ? read.content : null, oid: row.oid };
+    const created = await create(path, content);
+    return created.kind === "created" ? { kind: "written" } : created;
   };
 
   // a note that no longer holds the text its rewrite was planned from is left out, never merged,
@@ -791,16 +705,14 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   };
 
   const rename: NotesStore["rename"] = async (from, to, edits = NO_EDITS) =>
-    await writing(async () => {
-      await resetWork;
-      const fence = liveFence();
+    await queued(async ({ enqueue }) => {
       if (listing?.files.has(from) !== true) {
         return { kind: "vanished" };
       }
       if (vaultCollisionKey(from) !== vaultCollisionKey(to) && isTakenHere(to)) {
         return { kind: "exists" };
       }
-      const base = await projectedBase(from);
+      const base = await heldText(from);
       if (base === null) {
         return { kind: "vanished" };
       }
@@ -812,81 +724,47 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
           : rebaseEdit(edits.note.expected, edits.note.content, base.content);
       const content = carried === base.content ? null : carried;
       const rewrites = await heldRewrites(edits, new Set([from, to]), skipped);
-      const moved = guards.get(from);
-      if (
-        !(await outbox.enqueue(
-          {
-            baseContent: base.content,
-            baseOid: base.oid,
-            content,
-            from,
-            op: "rename",
-            rewrites,
-            to,
-          },
-          fence,
-        ))
-      ) {
-        throw new Error(NOT_SIGNED_IN);
-      }
-      guards.delete(from);
-      const leaves =
-        content === null ? base : { content, oid: await textBlobOid(args.sha1, content) };
-      if (leaves.content !== null) {
-        guards.set(to, {
-          base: { content: leaves.content, oid: leaves.oid },
-          seen: moved?.seen ?? leaves.content,
-        });
-      }
+      await enqueue({
+        baseContent: base.content,
+        baseOid: base.oid,
+        content,
+        from,
+        op: "rename",
+        rewrites,
+        to,
+      });
       return { kind: "renamed", skipped };
     });
 
   const remove: NotesStore["remove"] = async (path, stores = []) => {
-    await writing(async () => {
-      await resetWork;
-      const fence = liveFence();
-      guards.delete(path);
+    await queued(async ({ enqueue }) => {
       if (listing?.files.has(path) !== true) {
         return;
       }
-      const base = await projectedBase(path);
+      const base = await heldText(path);
       if (base === null) {
         return;
       }
       const storeBases: { baseOid: string; path: string }[] = [];
       for (const store of stores) {
-        const held = listing?.files.has(store) === true ? await projectedBase(store) : null;
+        const held = listing?.files.has(store) === true ? await heldText(store) : null;
         if (held !== null) {
-          guards.delete(store);
           storeBases.push({ baseOid: held.oid, path: store });
         }
       }
-      if (
-        !(await outbox.enqueue(
-          { baseOid: base.oid, op: "remove", path, stores: storeBases },
-          fence,
-        ))
-      ) {
-        throw new Error(NOT_SIGNED_IN);
-      }
+      await enqueue({ baseOid: base.oid, op: "remove", path, stores: storeBases });
     });
   };
 
   const putAsset: NotesStore["putAsset"] = async (path, bytes) =>
-    await writing(async () => {
-      await resetWork;
-      const fence = liveFence();
+    await queued(async ({ enqueue }) => {
       if (isTakenHere(path)) {
         return { kind: "exists" };
       }
       // named by the blob, so the same bytes staged twice are one file
       const stagedFile = `${await blobOid(args.sha1, bytes)}${extnamePath(path)}`;
       await outbox.stage(stagedFile, bytes);
-      if (
-        !(await outbox.enqueue({ op: "putAsset", path, size: bytes.length, stagedFile }, fence))
-      ) {
-        throw new Error(NOT_SIGNED_IN);
-      }
+      await enqueue({ op: "putAsset", path, size: bytes.length, stagedFile });
       return { kind: "created" };
     });
 
@@ -919,9 +797,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   // read, planned and queued under the write lock, so no write lands between the texts the edit
   // was made from and the row that carries it
   const editComments: NotesStore["editComments"] = async ({ anchor, edit, path }) =>
-    await writing(async () => {
-      await resetWork;
-      const fence = liveFence();
+    await queued(async ({ enqueue }) => {
       const note = goneHere(path) ? null : await heldText(path);
       if (note === null) {
         return { kind: "vanished" };
@@ -950,15 +826,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
           : { baseContent: note.content, baseOid: note.oid, content: key.content, path };
       expectOwn(path, key.content);
       expectOwn(store.path, store.content);
-      if (!(await outbox.enqueue({ anchored, op: "comment", store }, fence))) {
-        throw new Error(NOT_SIGNED_IN);
-      }
-      if (anchored !== null) {
-        guards.set(path, {
-          base: { content: key.content, oid: await textBlobOid(args.sha1, key.content) },
-          seen: key.content,
-        });
-      }
+      await enqueue({ anchored, op: "comment", store });
       return { kind: "edited", note: key.content };
     });
 
@@ -972,7 +840,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       if (entry === undefined || entry.source.kind === "text") {
         return { message: "This attachment is not in your vault.", ok: false };
       }
-      const fence = fenceFor(current.id);
+      const fence = signIn.fenceFor(current.id);
       try {
         if (entry.source.kind === "staged") {
           const uri = await outbox.stagedUri(entry.source.file);
@@ -1004,7 +872,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     create,
 
     async drain() {
-      await resetWork;
+      await signIn.ready();
       await outbox.drain();
     },
 
@@ -1020,7 +888,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
           })),
 
     async noteTexts() {
-      await resetWork;
+      await signIn.ready();
       const listed = listing;
       if (listed === null) {
         return new Map();
@@ -1080,11 +948,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
     async readNote(path) {
       const read = await readFile(path);
-      if (!read.ok) {
-        return { message: read.message, notFound: read.notFound, ok: false };
-      }
-      await recordGuard(path, read);
-      return { content: read.content, ok: true, path: read.path };
+      return read.ok ? read : { message: read.message, ok: false };
     },
 
     async refresh() {
@@ -1112,24 +976,17 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     rename,
 
     reset(next) {
-      generation += 1;
+      signIn.restart(next, { hydrate, wipe });
       listing = null;
       mirrorRows = null;
-      guards.clear();
       tree.set({ state: "idle" });
-      if (next !== "restored") {
-        resetWork = wipe();
-        return;
-      }
-      const current = session.current();
-      resetWork = current.kind === "live" ? hydrate(current.id) : Promise.resolve();
     },
 
     tree,
 
     // counted on disk, so rows a load could not read still ask before a sign-out discards them
     async unsentCount() {
-      await resetWork;
+      await signIn.ready();
       return await outbox.unsent();
     },
 

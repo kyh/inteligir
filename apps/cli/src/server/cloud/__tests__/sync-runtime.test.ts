@@ -1,5 +1,3 @@
-import { ACCOUNT_API_PATHS } from "@repo/contract/cloud/account/account-schema";
-import { CAPTURE_API_PATHS } from "@repo/contract/cloud/captures/captures-schema";
 import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
 import { DISPATCH_API_PATHS } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { CLOUD_ERROR_STATUS, cloudError } from "@repo/contract/cloud/errors";
@@ -19,11 +17,11 @@ import nodePath from "node:path";
 import { setImmediate as tick } from "node:timers/promises";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
-import type { CaptureVault } from "../captures";
 import type { CloudFetch } from "@repo/contract/cloud/client";
 import type { CloudSocket, OpenCloudSocketArgs } from "@repo/contract/cloud/sync/cloud-socket";
 import { readDeviceCredential, writeDeviceCredential } from "../credential-store";
 import type { DeviceCredential } from "../credential-store";
+import type { InboxVault } from "../dispatches";
 import type { SyncedEventSink } from "../sync-pass";
 import { createCloudRuntime } from "../sync-runtime";
 import type { CloudRuntime, CloudTransport, LoginOutcome } from "../sync-runtime";
@@ -43,7 +41,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-interface FakeVault extends CaptureVault {
+interface FakeVault extends InboxVault {
   files: Map<string, string>;
 }
 
@@ -267,35 +265,31 @@ describe("signing in", () => {
       credential: stored?.credential,
       deviceId,
       deviceName: "Laptop",
+      email: FAKE_ACCOUNT.email,
       userId: "user_fake",
     });
-    const status = harness.runtime.status();
-    expect(status.state).toBe("signed-in");
+    expect(harness.runtime.status()).toMatchObject({
+      accountEmail: FAKE_ACCOUNT.email,
+      state: "signed-in",
+    });
   });
 
-  it("retries the account identity on the next pass rather than losing vault sync for good", async () => {
-    const cloud = new FakeCloud();
-    let refusals = 1;
-    const harness = makeHarness({
-      cloud,
-      fetch: async (input, init) => {
-        if (new URL(input).pathname === ACCOUNT_API_PATHS.account && refusals > 0) {
-          refusals -= 1;
-          throw new Error("network is down");
-        }
-        return await cloud.fetch(input, init);
-      },
-      pollIntervalMs: null,
+  it("names the account from the stored sign-in at boot, before any request", async () => {
+    const first = makeHarness({ pollIntervalMs: null });
+    await signIn(first);
+    const stored = readDeviceCredential(first.dataDir);
+    if (stored === null) {
+      throw new Error("the sign-in kept no credential");
+    }
+    await first.runtime.dispose();
+
+    const harness = makeHarness({ cloud: first.cloud, credential: stored, pollIntervalMs: null });
+    const requestsBefore = first.cloud.requests.length;
+    expect(harness.runtime.status()).toMatchObject({
+      accountEmail: FAKE_ACCOUNT.email,
+      state: "signed-in",
     });
-
-    await signIn(harness);
-    expect(readDeviceCredential(harness.dataDir)?.userId).toBeUndefined();
-    const pingsWhileBlind = harness.vaultPings();
-
-    await harness.runtime.syncNow();
-
-    expect(readDeviceCredential(harness.dataDir)?.userId).toBe("user_fake");
-    expect(harness.vaultPings()).toBe(pingsWhileBlind + 1);
+    expect(first.cloud.requests.slice(requestsBefore)).toEqual([]);
   });
 
   it("reports the cloud's own refusal for a wrong password, and keeps nothing", async () => {
@@ -437,30 +431,55 @@ describe("an event the cloud will never hold", () => {
   });
 });
 
-describe("a capture delivered twice", () => {
-  it("applies once", async () => {
+describe("a capture whose ack was lost", () => {
+  it("lands once: the ack goes again before the next claim, lapsed or not", async () => {
     const cloud = new FakeCloud();
-    let lapsed = false;
-    // lapse every claim as the first ack goes out, so that ack owns nothing.
-    const fetchWithLapse: CloudFetch = async (input, init) => {
-      if (!lapsed && new URL(input).pathname === CAPTURE_API_PATHS.ack) {
-        lapsed = true;
-        cloud.lapseClaims();
+    let dropAck = true;
+    const fetch: CloudFetch = async (input, init) => {
+      if (dropAck && new URL(input).pathname === DISPATCH_API_PATHS.ack) {
+        dropAck = false;
+        throw new Error("connection reset");
       }
       return await cloud.fetch(input, init);
     };
-    const harness = makeHarness({ fetch: fetchWithLapse, pollIntervalMs: null });
-    // the login goes through the wrapped fetch, so it lands on the cloud that fetch reaches.
-    const outcome = await loginAs(harness.runtime, "Laptop");
-    expect(outcome.kind).toBe("logged-in");
+    const harness = makeHarness({ cloud, fetch, pollIntervalMs: null });
+    await signIn(harness);
 
-    cloud.capture("buy oat milk");
+    const id = cloud.capture("buy oat milk");
     await harness.runtime.syncNow();
     expect(harness.vault.files.get(CAPTURE_INBOX_PATH)).toContain("buy oat milk");
+    expect(cloud.dispatchStatus(id).state).toBe("claimed");
 
+    cloud.lapseClaims();
     await harness.runtime.syncNow();
+
+    expect(cloud.dispatchStatus(id).state).toBe("delivered");
     const inbox = harness.vault.files.get(CAPTURE_INBOX_PATH) ?? "";
     expect(inbox.match(/buy oat milk/gu)).toHaveLength(1);
+  });
+
+  it("is forgotten by a new sign-in, whose claim it does not settle", async () => {
+    const cloud = new FakeCloud();
+    let dropAck = true;
+    const fetch: CloudFetch = async (input, init) => {
+      if (dropAck && new URL(input).pathname === DISPATCH_API_PATHS.ack) {
+        dropAck = false;
+        throw new Error("connection reset");
+      }
+      return await cloud.fetch(input, init);
+    };
+    const harness = makeHarness({ cloud, fetch, pollIntervalMs: null });
+    await signIn(harness);
+    cloud.capture("buy oat milk");
+    await harness.runtime.syncNow();
+
+    harness.runtime.logout();
+    const acks = (): number =>
+      cloud.requests.filter((route) => route === `POST ${DISPATCH_API_PATHS.ack}`).length;
+    const before = acks();
+    await signIn(harness);
+
+    expect(acks()).toBe(before);
   });
 });
 
@@ -487,6 +506,44 @@ describe("a revoked device", () => {
     await harness.runtime.syncNow();
     await harness.runtime.syncNow();
     expect(harness.cloud.requests).toHaveLength(requestsAtRefusal);
+  });
+});
+
+describe("a build below the cloud's floor", () => {
+  it("stops syncing as outdated, keeps the sign-in, and retries nothing", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    const deviceId = await signIn(harness);
+
+    harness.cloud.buildFloor = "1.0.0";
+    append(harness, [message("thr_1", "after the floor rose")]);
+    await harness.runtime.syncNow();
+
+    expect(harness.runtime.status()).toStrictEqual({
+      cloudUrl: CLOUD_URL,
+      deviceId,
+      state: "outdated",
+    });
+    expect(readDeviceCredential(harness.dataDir)?.deviceId).toBe(deviceId);
+    const requestsAtRefusal = harness.cloud.requests.length;
+    await harness.runtime.syncNow();
+    await harness.runtime.syncNow();
+    expect(harness.cloud.requests).toHaveLength(requestsAtRefusal);
+    expect(await harness.runtime.devices()).toMatchObject({ kind: "not-live" });
+    expect(harness.cloud.requests).toHaveLength(requestsAtRefusal);
+  });
+
+  it("asks the account to drop this device on a sign-out, and says the cloud refused it", async () => {
+    const harness = makeHarness({ pollIntervalMs: null });
+    await signIn(harness);
+    harness.cloud.buildFloor = "1.0.0";
+    await harness.runtime.syncNow();
+
+    expect(harness.runtime.logout()).toMatchObject({ revokeError: null, state: "signed-out" });
+    await harness.runtime.dispose();
+    expect(harness.runtime.status()).toMatchObject({
+      revokeError: expect.stringContaining("can't sync"),
+      state: "signed-out",
+    });
   });
 });
 
@@ -601,7 +658,7 @@ describe("the sync trace", () => {
       /^session \d+ push: caught-up$/u,
       /^pulled 1 row\(s\) after \d+: 0 to apply across 0 thread\(s\), 1 skipped as this device's own or unreadable$/u,
       /^session \d+ pull: caught-up$/u,
-      /^session \d+ captures: caught-up$/u,
+      /^session \d+ dispatch: caught-up$/u,
       /^session \d+ pass: caught-up$/u,
       /^sync ping at 0 skipped: the cursor \d+ covers it$/u,
     ]) {
@@ -641,12 +698,12 @@ describe("the invalidation socket", () => {
     if (dial === undefined) {
       throw new Error("expected a socket dial");
     }
-    // one from the login, one from the account-identity learner.
-    expect(harness.vaultPings()).toBe(2);
+    // the login's own, so the remote it derived syncs now
+    expect(harness.vaultPings()).toBe(1);
     const quiet = harness.cloud.requests.length;
 
     dial.onPing({ type: "vault" });
-    expect(harness.vaultPings()).toBe(3);
+    expect(harness.vaultPings()).toBe(2);
     expect(harness.cloud.requests).toHaveLength(quiet);
   });
 

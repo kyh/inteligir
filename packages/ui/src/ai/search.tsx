@@ -22,7 +22,6 @@ const SearchPanel = ({
     {...props}
   />
 );
-SearchPanel.displayName = "SearchPanel";
 
 // controlled: the clear button shows for what the field holds
 export interface SearchFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "value"> {
@@ -71,7 +70,6 @@ const SearchField = ({
     </div>
   );
 };
-SearchField.displayName = "SearchField";
 
 const SearchResults = ({
   className,
@@ -85,7 +83,6 @@ const SearchResults = ({
     </GlideList>
   </div>
 );
-SearchResults.displayName = "SearchResults";
 
 const SearchResult = ({
   className,
@@ -105,7 +102,6 @@ const SearchResult = ({
     {...props}
   />
 );
-SearchResult.displayName = "SearchResult";
 
 export interface SearchEmptyProps extends HTMLAttributes<HTMLDivElement> {
   hint?: ReactNode;
@@ -135,6 +131,5 @@ const SearchEmpty = ({
     {hint === undefined ? null : <span className="text-[12px] text-ink-3">{hint}</span>}
   </div>
 );
-SearchEmpty.displayName = "SearchEmpty";
 
 export { SearchPanel, SearchField, SearchResults, SearchResult, SearchEmpty };

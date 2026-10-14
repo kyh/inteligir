@@ -7,7 +7,7 @@ import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 
 // React's door to the host singleton; anything outside a component reads getEditorHostIo() itself.
 
-export const useVaultActions = (): VaultActions => getEditorHostIo().actions;
+export const useVaultActions = (): VaultActions => getEditorHostIo().vault;
 
 export const useLinkResolver = (): LinkResolver => useStore(getEditorHostIo().linkResolver);
 

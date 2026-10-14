@@ -7,6 +7,7 @@ import { and, desc, eq, gt, inArray, isNull, lt, max, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { DbConnection, DbExecutor, DbTransaction } from "./connection";
 import { createEventId } from "./ids";
+import { readJsonColumn } from "./json-column";
 import { events, queuedThreadMessages } from "./schema";
 
 export type EventRow = typeof events.$inferSelect;
@@ -238,16 +239,8 @@ export interface ListStoredThreadEventsArgs {
   onSkipped?: (row: UnreadableStoredEvent) => void;
 }
 
-const readStoredEvent = (data: string): ThreadEvent | null => {
-  let json: unknown;
-  try {
-    json = JSON.parse(data);
-  } catch {
-    return null;
-  }
-  const parsed = threadEventSchema.safeParse(json);
-  return parsed.success ? parsed.data : null;
-};
+const readStoredEvent = (data: string): ThreadEvent | null =>
+  readJsonColumn(data, threadEventSchema);
 
 export const listStoredThreadEvents = (
   db: DbConnection,
@@ -305,30 +298,6 @@ export const listThreadMetaEvents = (db: DbExecutor, threadId: string): ThreadMe
       const event = readStoredEvent(row.data);
       return event?.type === "thread/meta" ? [event] : [];
     });
-
-type TurnCompletedEvent = Extract<ThreadEvent, { type: "turn/completed" }>;
-
-// how a turn's own rows say it ended, the latest statement when there are several.
-export const storedTurnCompletion = (
-  db: DbExecutor,
-  args: { threadId: string; turnId: string },
-): TurnCompletedEvent | null => {
-  const row = db
-    .select({ data: events.data })
-    .from(events)
-    .where(
-      and(
-        eq(events.threadId, args.threadId),
-        eq(events.turnId, args.turnId),
-        eq(events.type, "turn/completed"),
-      ),
-    )
-    .orderBy(desc(events.sequence))
-    .limit(1)
-    .get();
-  const event = row === undefined ? null : readStoredEvent(row.data);
-  return event?.type === "turn/completed" ? event : null;
-};
 
 // the class of the latest error a turn's own rows record, or null when none carries one.
 export const storedTurnFailure = (

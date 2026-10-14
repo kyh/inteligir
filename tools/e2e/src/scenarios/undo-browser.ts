@@ -34,7 +34,7 @@ const CLICK_LAST_UNDO = `(() => {
 
 export const undoBrowser: Scenario = {
   description:
-    "a finished action toasts what it edited and Undo takes it back; a reply's Undo changes keeps a line typed since",
+    "a ⌘K action's finish toast offers Undo, which removes the note it made and the reply says Changes undone; a reply's Undo changes, clicked inside the autosave debounce, takes its turn back and keeps a line typed since, on disk and in the editor",
   name: "undo-browser",
   async run(ctx) {
     const app = await ctx.boot({

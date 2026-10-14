@@ -6,6 +6,7 @@ import type { PlateLeafProps } from "platejs/react";
 
 import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
 import type { EditorShortcut } from "@repo/editor/editor-shortcuts";
+import { getEditorHostActions } from "@repo/editor/host-io";
 import { selectionEdgeLocked } from "@repo/editor/kits/rich-block-lock-kit";
 import { liveEditorPath } from "@repo/editor/live-editor";
 import { stringProp } from "@repo/editor/node-props";
@@ -59,7 +60,6 @@ type CommentDecoration = DecoratedRange & {
 const CommentRangeLeaf = (props: PlateLeafProps) => {
   const ids = splitMarkerIds(stringProp(props.leaf, "commentIds") ?? "");
   const orphan = props.leaf.commentOrphan === true;
-  const actions = useCommentSurface((state) => state.actions);
   const notePath = useOpenNotePath();
   const { knownIds, resolvedIds } = useCommentMeta(notePath);
   const resolved = ids.length > 0 && ids.every((id) => resolvedIds.has(id));
@@ -77,7 +77,7 @@ const CommentRangeLeaf = (props: PlateLeafProps) => {
         ...props.attributes,
         onClick: () => {
           if (ids.length > 0) {
-            actions?.open(ids);
+            getEditorHostActions().comments.open(ids);
           }
         },
       }}
@@ -155,7 +155,6 @@ const CommentCreateHost = () => {
   const editor = useEditorRef();
   const notePath = useOpenNotePath();
   const armed = useCommentSurface((state) => state.pendingCreate);
-  const actions = useCommentSurface((state) => state.actions);
   const [text, setText] = useState("");
   // keyed by the create it saves, so a create armed meanwhile is not held by another's save
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -196,13 +195,15 @@ const CommentCreateHost = () => {
 
   const save = (): void => {
     const trimmed = text.trim();
-    if (trimmed === "" || saving || actions === null) {
+    if (trimmed === "" || saving) {
       return;
     }
     const { id } = pending;
     setSavingId(id);
     void (async () => {
-      const ok = await actions.create(id, trimmed).catch(() => false);
+      const ok = await getEditorHostActions()
+        .comments.create(id, trimmed)
+        .catch(() => false);
       setSavingId((current) => (current === id ? null : current));
       if (!ok) {
         removeCommentMarkers(editor, [id]);

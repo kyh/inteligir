@@ -30,19 +30,17 @@ export const SYNC_WS_KEEPALIVE_PONG = "pong";
 export const SYNC_WS_REVOKED_CLOSE_CODE = 1008;
 
 // sync and vault are not sent to the pushing device's own sockets. dispatch says the dispatch
-// inbox holds something for the thread: a phone's turn, to the sockets of Macs that take one; an answer, to the
-// sockets of the Mac that asked; an approval, to mobile sockets. every frame is bare: the pull,
-// the claim or the listing carries the state.
+// inbox holds something: a phone's turn, to the sockets of Macs that take one; an answer, to the
+// sockets of the Mac that asked; an approval, to mobile sockets; each naming its thread. a
+// capture, which belongs to no thread, to every Mac's sockets. every frame is bare: the pull, the
+// claim or the listing carries the state.
 export const syncPingSchema = z.discriminatedUnion("type", [
   z.object({
     seq: z.number().int().nonnegative(),
     type: z.literal("sync"),
   }),
   z.object({
-    type: z.literal("capture"),
-  }),
-  z.object({
-    threadId: z.string().min(1),
+    threadId: z.string().min(1).optional(),
     type: z.literal("dispatch"),
   }),
   z.object({

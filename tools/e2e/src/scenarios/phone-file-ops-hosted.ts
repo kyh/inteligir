@@ -36,7 +36,7 @@ const commentStores = async (vaultDir: string): Promise<string[]> => {
 
 export const phoneFileOpsHosted: Scenario = {
   description:
-    "the phone's own runtime creates a note, renames one another note links to, deletes one with comments and adds a photo; A syncs the rewritten link, the old name as an alias, no comment store and the photo's bytes",
+    "the phone's own runtime creates a note, renames one another note links to, deletes one with a comment and adds a photo; after A syncs, A holds the rewritten link, the old name as the note's alias, no comment store and the photo's bytes",
   name: "phone-file-ops-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

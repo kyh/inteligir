@@ -8,18 +8,18 @@ import { runMigrations } from "@repo/db/migrate";
 import { listOpenPendingInteractions } from "@repo/db/pending-interactions";
 import { createThread } from "@repo/db/threads";
 import { noopNotifier } from "@repo/domain/notifier";
+import type { PendingInteractionCreate } from "@repo/domain/pending-interactions";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import type { TurnDriver } from "../../threads/turn-driver";
+import type { ProviderEventSink } from "../../threads/turn-driver";
 import type { GitEngine } from "../../vault/git-engine";
-import { createAcpRuntimeManager } from "../runtime-manager";
-import type { AcpRuntimeManager } from "../runtime-manager";
+import { AcpTurnDriver } from "../runtime-manager";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { fakeSessionFacts } from "./agent-test-harness";
 
 const BUDGET_MS = 200;
-const PROVIDER_TURN_ID = "pturn_1";
+const TURN_ID = "turn_1";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -74,7 +74,6 @@ const fakeAgentRuntime = (timeline: string[], overrides: Partial<AgentRuntime>):
     await Promise.resolve();
   },
   hasThread: () => true,
-  reapIdleProviderSessions: async () => await Promise.resolve({ reapedSessions: [] }),
   resumeThread: async () => await Promise.resolve({ loaded: true, providerThreadId: "pt_1" }),
   runTurn: async () => {
     await Promise.resolve();
@@ -89,8 +88,7 @@ const fakeAgentRuntime = (timeline: string[], overrides: Partial<AgentRuntime>):
 interface Harness {
   db: DbConnection;
   threadId: string;
-  driver: TurnDriver;
-  manager: AcpRuntimeManager;
+  driver: AcpTurnDriver;
   ingested: ThreadEvent[];
   // the runtime's closes and the ingested event types, in the order they happened.
   timeline: string[];
@@ -104,7 +102,13 @@ const makeHarness = (runtime: Partial<AgentRuntime> = {}): Harness => {
   const ingested: ThreadEvent[] = [];
   const timeline: string[] = [];
   let captured: AcpAgentRuntimeOptions | null = null;
-  const manager = createAcpRuntimeManager({
+  const sink: ProviderEventSink = {
+    ingestProviderEvents: (_threadId, events) => {
+      ingested.push(...events);
+      timeline.push(...events.map((event) => event.type));
+    },
+  };
+  const driver = new AcpTurnDriver(sink, {
     createRuntime: (options) => {
       captured = options;
       return fakeAgentRuntime(timeline, runtime);
@@ -115,19 +119,12 @@ const makeHarness = (runtime: Partial<AgentRuntime> = {}): Harness => {
     hostEnv: {},
     models: { claude: null, codex: null },
     notifier: noopNotifier,
-    reapIntervalMs: null,
     sessionFacts: () => fakeSessionFacts(),
     turnIdleTimeoutMs: BUDGET_MS,
     vaultDir: makeTempDir("inteligir-watchdog-vault-"),
   });
-  const driver = manager.createTurnDriver({
-    ingestProviderEvents: (_threadId, events) => {
-      ingested.push(...events);
-      timeline.push(...events.map((event) => event.type));
-    },
-  });
   onTestFinished(async () => {
-    await manager.dispose();
+    await driver.dispose();
   });
   onTestFinished(() => {
     closeConnection(db);
@@ -136,10 +133,9 @@ const makeHarness = (runtime: Partial<AgentRuntime> = {}): Harness => {
     db,
     driver,
     ingested,
-    manager,
     runtimeOptions: () => {
       if (captured === null) {
-        throw new Error("no turn was dispatched, so no runtime was built");
+        throw new Error("the driver never built its runtime");
       }
       return captured;
     },
@@ -154,19 +150,29 @@ const turnFailed = (ingested: readonly ThreadEvent[]): boolean =>
 const providerFrame = (threadId: string, delta: string): ProviderEvent => ({
   delta,
   itemId: "item_1",
-  providerThreadId: "pt_1",
-  scope: turnScope(PROVIDER_TURN_ID),
+  scope: turnScope(TURN_ID),
   threadId,
   type: "item/agentMessage/delta",
 });
 
+const approvalFor = (threadId: string, turnId: string): PendingInteractionCreate => ({
+  payload: {
+    availableDecisions: ["allow_once", "deny"],
+    kind: "approval",
+    reason: null,
+    subject: { command: "ls", cwd: null, itemId: "cmd_1", kind: "command" },
+  },
+  providerRequestId: "req-1",
+  threadId,
+  turnId,
+});
+
 const startSilentTurn = async (harness: Harness): Promise<void> => {
-  harness.driver.startTurn({ text: "go", threadId: harness.threadId, turnId: "turn_1" });
+  harness.driver.startTurn({ text: "go", threadId: harness.threadId, turnId: TURN_ID });
   // let the dispatch settle onto the fake runtime before the clock advances.
   await vi.advanceTimersByTimeAsync(0);
   harness.runtimeOptions().onEvent({
-    providerThreadId: "pt_1",
-    scope: turnScope(PROVIDER_TURN_ID),
+    scope: turnScope(TURN_ID),
     threadId: harness.threadId,
     type: "turn/started",
   });
@@ -182,9 +188,10 @@ describe("the silent-turn watchdog", () => {
 
     expect(turnFailed(harness.ingested)).toBe(true);
     const completed = harness.ingested.find((event) => event.type === "turn/completed");
-    expect(completed).toMatchObject({ scope: { kind: "turn", turnId: "turn_1" } });
+    expect(completed).toMatchObject({ scope: turnScope(TURN_ID) });
     const failure = harness.ingested.find((event) => event.type === "provider/error");
-    expect(failure?.type === "provider/error" ? failure.detail : "").toContain(
+    expect(failure).toMatchObject({ failure: "other", scope: turnScope(TURN_ID) });
+    expect(failure?.type === "provider/error" ? failure.message : "").toContain(
       `produced nothing for ${BUDGET_MS}ms`,
     );
   });
@@ -225,19 +232,7 @@ describe("the silent-turn watchdog", () => {
     if (request === undefined) {
       throw new Error("the driver registered no interaction inlet");
     }
-    const parked = request({
-      payload: {
-        availableDecisions: ["allow_once", "deny"],
-        kind: "approval",
-        reason: null,
-        subject: { command: "ls", cwd: null, itemId: "cmd_1", kind: "command" },
-      },
-      providerId: "claude",
-      providerRequestId: "req-1",
-      providerThreadId: "pt_1",
-      threadId: harness.threadId,
-      turnId: PROVIDER_TURN_ID,
-    });
+    const parked = request(approvalFor(harness.threadId, TURN_ID));
 
     await vi.advanceTimersByTimeAsync(BUDGET_MS * 4);
     expect(turnFailed(harness.ingested)).toBe(false);
@@ -248,10 +243,10 @@ describe("the silent-turn watchdog", () => {
     }
     harness.driver.onInteractionResolved?.({
       createdAt: 0,
+      decision: "allow_once",
       id: row.id,
       payload: null,
       requestKey: row.requestKey,
-      resolution: "allow_once",
       resolvedAt: 0,
       status: "resolved",
       threadId: harness.threadId,
@@ -263,6 +258,23 @@ describe("the silent-turn watchdog", () => {
     expect(turnFailed(harness.ingested)).toBe(false);
     await vi.advanceTimersByTimeAsync(BUDGET_MS * 2);
     expect(turnFailed(harness.ingested)).toBe(true);
+  });
+});
+
+describe("an approval naming a turn that is not the running one", () => {
+  it("is denied without a card, since no settle is left to clear one", async () => {
+    vi.useFakeTimers();
+    const harness = makeHarness();
+    await startSilentTurn(harness);
+
+    const request = harness.runtimeOptions().onInteractiveRequest;
+    if (request === undefined) {
+      throw new Error("the driver registered no interaction inlet");
+    }
+    await expect(request(approvalFor(harness.threadId, "turn_settled"))).resolves.toEqual({
+      decision: "deny",
+    });
+    expect(listOpenPendingInteractions(harness.db, harness.threadId)).toEqual([]);
   });
 });
 

@@ -39,7 +39,7 @@ const commentOnPhone = async (
 
 export const phoneCommentsHosted: Scenario = {
   description:
-    "the phone's own runtime comments on a note with no id, then replies and comments again offline while A comments on the same note; A syncs every thread anchored on its own words, and the phone's resolve",
+    "the phone's own runtime comments on a note with no id, minting it one; offline it replies and comments again while A comments on the same note; after A syncs, every thread is anchored on its own words, the reply is there, and the phone's resolve reaches A",
   name: "phone-comments-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {

@@ -15,28 +15,24 @@ export const VAULT_COMMIT_MAX_BYTES = 16 * 1024 * 1024;
 
 // a text note crosses as the string it is; only an attachment path takes base64
 const vaultContentSchema = z.discriminatedUnion("encoding", [
-  z.object({ encoding: z.literal("utf-8"), text: z.string() }).strict(),
-  z.object({ data: z.base64(), encoding: z.literal("base64") }).strict(),
+  z.strictObject({ encoding: z.literal("utf-8"), text: z.string() }),
+  z.strictObject({ data: z.base64(), encoding: z.literal("base64") }),
 ]);
 
 const vaultChangeSchema = z.discriminatedUnion("op", [
-  z
-    .object({
-      base: gitOidSchema.nullable(),
-      content: vaultContentSchema,
-      op: z.literal("put"),
-      path: vaultPathSchema,
-    })
-    .strict(),
-  z.object({ base: gitOidSchema, op: z.literal("delete"), path: vaultPathSchema }).strict(),
-  z
-    .object({
-      base: gitOidSchema,
-      from: vaultPathSchema,
-      op: z.literal("move"),
-      to: vaultPathSchema,
-    })
-    .strict(),
+  z.strictObject({
+    base: gitOidSchema.nullable(),
+    content: vaultContentSchema,
+    op: z.literal("put"),
+    path: vaultPathSchema,
+  }),
+  z.strictObject({ base: gitOidSchema, op: z.literal("delete"), path: vaultPathSchema }),
+  z.strictObject({
+    base: gitOidSchema,
+    from: vaultPathSchema,
+    op: z.literal("move"),
+    to: vaultPathSchema,
+  }),
 ]);
 export type VaultChangeRequest = z.infer<typeof vaultChangeSchema>;
 
@@ -47,20 +43,18 @@ export const vaultChangePaths = (
     | { readonly op: "put" | "delete"; readonly path: string },
 ): readonly string[] => (change.op === "move" ? [change.from, change.to] : [change.path]);
 
-export const vaultCommitRequestSchema = z
-  .object({
-    // unix ms, when the device made the change: a queued edit keeps its own time in the history
-    authoredAt: z.number().int().nonnegative().optional(),
-    changes: z
-      .array(vaultChangeSchema)
-      .min(1)
-      .max(VAULT_COMMIT_MAX_CHANGES)
-      .refine((changes) => {
-        const named = changes.flatMap(vaultChangePaths);
-        return new Set(named).size === named.length;
-      }, "a change set names each path once"),
-  })
-  .strict();
+export const vaultCommitRequestSchema = z.strictObject({
+  // unix ms, when the device made the change: a queued edit keeps its own time in the history
+  authoredAt: z.number().int().nonnegative().optional(),
+  changes: z
+    .array(vaultChangeSchema)
+    .min(1)
+    .max(VAULT_COMMIT_MAX_CHANGES)
+    .refine((changes) => {
+      const named = changes.flatMap(vaultChangePaths);
+      return new Set(named).size === named.length;
+    }, "a change set names each path once"),
+});
 export type VaultCommitRequest = z.infer<typeof vaultCommitRequestSchema>;
 
 // where each change leaves its path: the blob it holds, or null once it is gone

@@ -24,14 +24,14 @@ const FULL_MESSAGE = "Your cloud vault is full. New changes stay on this Mac.";
 
 export const hostedVaultFull: Scenario = {
   description:
-    "a 512 KiB hosted vault: an attachment past it leaves A full, a later note commits on A, and a second device clones neither",
+    "a Miniflare Worker capped at 512 KiB: A's first note syncs, an attachment past the cap leaves A `full` with its own words, a later note commits on A and both the next sync and `inteligir vault status --json` still say full, and B's clone holds the first note alone",
   name: "hosted-vault-full",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
     const worker = await ctx.cloudWorker({
       vars: { VAULT_STORAGE_CAP_BYTES: String(CAP_BYTES) },
     });
-    const { userId } = await signUp(worker.origin);
+    await signUp(worker.origin);
 
     const a = await ctx.boot({ extraEnv: hostedVaultEnv(worker.origin), name: "a" });
     await signInOwner(a, "A", "E2E Device A");
@@ -81,7 +81,7 @@ export const hostedVaultFull: Scenario = {
       extraEnv: hostedVaultEnv(worker.origin),
       name: "b",
       seedData: (dataDir) => {
-        writeDeviceCredential(dataDir, { ...deviceB, deviceName: "E2E Device B", userId });
+        writeDeviceCredential(dataDir, { ...deviceB, deviceName: "E2E Device B" });
       },
     });
     expect(existsSync(path.join(b.vaultDir, FIRST_PATH)), "B's clone holds A's first note");

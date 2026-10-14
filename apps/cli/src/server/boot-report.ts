@@ -1,7 +1,7 @@
 // one line once the first index settle ends, so "is this boot slow, and where" has an answer: the
 // wall time of each phase, and what the first reconcile found.
 
-import type { ReconcileStats } from "./knowledge/knowledge-runtime";
+import type { ReconcileStats } from "./knowledge/index-pass";
 
 export interface BootPhases {
   // the config, then the data dir claimed against a server already holding it

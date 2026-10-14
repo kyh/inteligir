@@ -3,7 +3,7 @@
 
 import type { LogPlanStep } from "@repo/contract/cloud/sync/plan-page";
 import type { ThreadEvent, ThreadEventDelta } from "@repo/domain/provider-event";
-import type { SignInSource } from "../notes/notes-store";
+import type { SignInSource } from "../lib/sign-in-fence";
 
 // a streamed turn is mostly deltas, and each completed item carries its deltas' final text: a delta
 // moves the cursor and the thread's recency and is never held; the live fold draws it meanwhile.

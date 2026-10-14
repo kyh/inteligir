@@ -1,3 +1,4 @@
+import type { ClientBuild } from "../client-build";
 import type { CloudSocket, CloudSocketOpener, OpenCloudSocketArgs } from "./cloud-socket";
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "./sync-ws";
 import type { SocketListener } from "./sync-ws";
@@ -7,6 +8,7 @@ const RECONNECT_MAX_MS = 60_000;
 
 export interface SocketLinkArgs {
   baseUrl: string;
+  build: ClientBuild;
   /** null is poll-only; the socket carries only invalidation pings. */
   openSocket: CloudSocketOpener | null;
   /** read at every dial, so a choice the upgrade announces is the one current when it dials. */
@@ -58,6 +60,7 @@ export const createSocketLink = (args: SocketLinkArgs): SocketLink => {
     socketGeneration = generation;
     const opened = args.openSocket({
       baseUrl: args.baseUrl,
+      build: args.build,
       credential,
       listener: args.listener(),
       onClose: (code) => {

@@ -12,12 +12,15 @@ The agent edits the vault with its own shell, and the dialect — `[[wiki
 links]]`, `{{formula}}` pills, `%%i:id%%` comment anchors, the `inteligir-*`
 fences — is not something a model guesses right. Content the agent consumes
 lives in files it reads with its own tools, never inlined into a prompt (the
-rule behind CLAUDE.md's "agent memory is removed" decision): the server hands a
+rule behind the "agent memory is removed" decision in
+`apps/cli/src/server/agents/CLAUDE.md`): the server hands a
 session ONE path, `INTELIGIR_SKILLS_DIR`, plus a three-sentence pointer on the
 first turn, and the model reads what it needs. A package rather than a folder
 under `apps/cli` because the CLI's build and the packaged desktop app both stage
-it, and the dep-dag names it as an ARTIFACT edge — installed and copied, never
-imported (`DECLARED_ARTIFACT_EDGES` in `tools/repo-guards/src/dep-dag.test.ts`).
+it: installed and copied, never imported. The CLI's manifest lists it because
+`apps/cli/src/server/agents/agent-shell-env.ts` resolves its `skills/`
+directory with `require.resolve`, which is also how knip counts the dependency
+used.
 
 ## Layout
 
@@ -48,26 +51,18 @@ the agent runs against its own edit.
 
 ## How a skill reaches an agent
 
-- **In a checkout**, `resolveSkillsDir`
-  (`apps/cli/src/server/agents/agent-shell-env.ts`) resolves
-  `@repo/agent-skills/skills/inteligir-notes/SKILL.md` through this package's
-  `exports` map with `createRequire` and takes `skills/` two levels up. The map
-  exists FOR that resolve, and `inteligir-notes` is the probe file: renaming it
-  silently drops the pointer in every checkout.
-- **In a published install** no workspace package resolves, so the same
-  function reads `dist/skills` — `apps/cli/scripts/build.mjs` copies this
-  directory there as CONTENT beside the migrations, the licences and the UI.
-- The path resolves ONCE at boot, in `apps/cli/src/server/serve.ts`'s driver
-  factory, and rides `AgentSessionFacts`. `toShellEnv` names it
-  `INTELIGIR_SKILLS_DIR` in the agent's shell and `toInstructions` states the
-  pointer at the head of the first turn's prompt (ACP's `session/new` carries no
-  instructions field) — each only when the dir resolved, so a prompt never
-  promises a path the shell does not carry.
+`resolveSkillsDir` (`apps/cli/src/server/agents/agent-shell-env.ts`) finds
+`skills/` through this package's `exports` map in a checkout, and `dist/skills`
+in a published install, where `apps/cli/scripts/build.ts` stages this
+directory as content. `inteligir-notes/SKILL.md` is the file it resolves, so
+renaming that skill would silently drop the pointer in every checkout; the
+guard below fails first.
 
 ## Invariants
 
-- **Files, never imports.** Nothing under any `src/` imports this package; the
-  dep-dag row is an artifact edge, so a module import fails as undeclared.
+- **Files, never imports.** Nothing under any `src/` imports this package; no
+  `DECLARED_EDGES` row in `tools/repo-guards/src/dep-dag.test.ts` names it, so
+  a module import fails as undeclared.
 - **The spec is the parser's.** A construct a skill teaches is one the editor
   round-trips and the knowledge scan indexes; every fence's one spelling is
   `@repo/notes/markdown/fence-langs`, and a skill that disagrees with it teaches
@@ -76,7 +71,7 @@ the agent runs against its own edit.
   `inteligir-notes` first".
 - **Adding a skill** is one directory, one `SKILL.md`, frontmatter `name` equal
   to the directory, and a row under the hub's "Focused Contracts" so the hub
-  names it; `build.mjs` stages the whole directory, so nothing else changes. A
+  names it; `build.ts` stages the whole directory, so nothing else changes. A
   new construct lands in the editor kit, the rule table, the scan and
   `fence-langs` FIRST, then the words.
 - The skills are ordinary tracked markdown: oxfmt formats them, and the
@@ -84,23 +79,12 @@ the agent runs against its own edit.
 
 ## Testing
 
-No suite of its own — `package.json` has no scripts. The set itself is pinned
-by `tools/repo-guards/src/agent-skills.test.ts`: every directory carries a
-`SKILL.md` whose frontmatter names it, the hub's index names every focused
-skill and no phantom, and the resolver's probe file exists, so renaming
-`inteligir-notes` fails CI rather than silently dropping the pointer. The same
-guard holds the fences to the parser: every `inteligir-*` fence an example
-opens is a `*_LANG` that `@repo/notes/markdown/fence-langs` exports, and every
-one it exports is taught — except a `COMPAT_*` spelling, which the app reads
-but never writes new, so no skill and no note under `apps/cli/seed/` may open
-one. `packages/editor/src/__tests__/skill-examples.test.ts`
-holds the examples themselves: each `markdown` fence in a `SKILL.md` must open
-rich through the editor's gate and settle after one save. The
-rest of the pins are downstream:
-`apps/cli/src/server/agents/__tests__/agent-shell-env.test.ts` and
-`agent-instructions.test.ts` (the env var and the pointer appear together, and
-only when a dir resolved), `acp-manager.test.ts` (the pointer leads the first
-prompt), and both smokes — `pnpm smoke:cli` and `pnpm smoke:desktop` — which
-fail a packaged install carrying no `dist/skills/inteligir-notes/SKILL.md`,
-because a missing directory silently disables the capability rather than
-erroring.
+No suite of its own — `package.json` has no scripts.
+`tools/repo-guards/src/agent-skills.test.ts` pins the set (every directory's
+`SKILL.md` names it, the hub names every focused skill and no phantom, the
+resolver's probe file exists) and holds every `inteligir-*` fence an example
+opens to `@repo/notes/markdown/fence-langs`, and
+`packages/editor/src/__tests__/skill-examples.test.ts` opens each example
+through the editor. Both smokes fail a packaged install carrying no
+`dist/skills/inteligir-notes/SKILL.md`, because a missing directory silently
+disables the capability rather than erroring.

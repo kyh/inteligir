@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { HTMLAttributes, RefAttributes } from "react";
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
 import { animate, motion, useMotionValue } from "framer-motion";
@@ -99,50 +99,44 @@ const Switch = ({
     }
   }, [thumbX, motionX]);
 
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (disabled) {
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (disabled) {
+      return;
+    }
+    if (e.pointerType === "mouse" && e.button !== 0) {
+      return;
+    }
+    setPressed(true);
+    dragging.current = false;
+    didDrag.current = false;
+    pointerStart.current = {
+      clientX: e.clientX,
+      originX: motionX.get(),
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!pointerStart.current) {
+      return;
+    }
+    const delta = e.clientX - pointerStart.current.clientX;
+
+    if (!dragging.current) {
+      if (Math.abs(delta) < DRAG_DEAD_ZONE) {
         return;
       }
-      if (e.pointerType === "mouse" && e.button !== 0) {
-        return;
-      }
-      setPressed(true);
-      dragging.current = false;
-      didDrag.current = false;
-      pointerStart.current = {
-        clientX: e.clientX,
-        originX: motionX.get(),
-      };
-      e.currentTarget.setPointerCapture(e.pointerId);
-    },
-    [disabled, motionX],
-  );
+      dragging.current = true;
+    }
 
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!pointerStart.current) {
-        return;
-      }
-      const delta = e.clientX - pointerStart.current.clientX;
+    const dragMin = THUMB_OFFSET;
+    const pressedThumbWidth = m.thumbSize + m.pressExtend;
+    const dragMax = m.trackWidth - THUMB_OFFSET - pressedThumbWidth;
+    const rawX = pointerStart.current.originX + delta;
+    motionX.set(Math.max(dragMin, Math.min(dragMax, rawX)));
+  };
 
-      if (!dragging.current) {
-        if (Math.abs(delta) < DRAG_DEAD_ZONE) {
-          return;
-        }
-        dragging.current = true;
-      }
-
-      const dragMin = THUMB_OFFSET;
-      const pressedThumbWidth = m.thumbSize + m.pressExtend;
-      const dragMax = m.trackWidth - THUMB_OFFSET - pressedThumbWidth;
-      const rawX = pointerStart.current.originX + delta;
-      motionX.set(Math.max(dragMin, Math.min(dragMax, rawX)));
-    },
-    [motionX, m],
-  );
-
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = () => {
     if (!pointerStart.current) {
       return;
     }
@@ -173,9 +167,9 @@ const Switch = ({
     }
 
     pointerStart.current = null;
-  }, [checked, onCheckedChange, motionX, m, thumbTravel]);
+  };
 
-  const handlePointerCancel = useCallback(() => {
+  const handlePointerCancel = () => {
     if (!pointerStart.current) {
       return;
     }
@@ -188,7 +182,7 @@ const Switch = ({
     }
 
     pointerStart.current = null;
-  }, [checked, motionX, thumbTravel]);
+  };
 
   return (
     // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- the drag and hit area around the Base UI switch, which owns the keyboard path
@@ -284,7 +278,5 @@ const Switch = ({
     </div>
   );
 };
-
-Switch.displayName = "Switch";
 
 export { Switch };

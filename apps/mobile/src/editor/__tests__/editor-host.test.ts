@@ -8,6 +8,7 @@ import type {
   RequestResult,
 } from "@repo/mobile-editor/bridge-protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { nextTask } from "../../__tests__/async";
 import { createEditorHost, loadVerdict, openWindowVerdict } from "../editor-host";
 import type { EditorPageEvent, EditorRequestPorts } from "../editor-host";
 
@@ -29,14 +30,6 @@ const framesOf = (script: string): NativeFrame[] => {
     },
   });
   return received;
-};
-
-// a macrotask: every port the frames reached has answered by then
-const settled = async (): Promise<void> => {
-  // oxlint-disable-next-line promise/avoid-new -- a timer only a promise can hand to an await
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, 0);
-  });
 };
 
 // one answer per kind, each distinct, so a frame routed to the wrong port shows
@@ -218,7 +211,7 @@ describe("the native end of the editor page's bridge", () => {
     for (const frame of requestFrames(nonce)) {
       fromPage(frame);
     }
-    await settled();
+    await nextTask();
     expect(calls).toStrictEqual(KINDS.map((kind) => ({ kind, payload: PAYLOADS[kind] })));
     expect(responses()).toStrictEqual(
       KINDS.map((kind, id) => ({
@@ -241,7 +234,7 @@ describe("the native end of the editor page's bridge", () => {
     });
     const nonce = load();
     fromPage({ id: 7, kind: "read", nonce, payload: { path: "a.md" }, type: "request" });
-    await settled();
+    await nextTask();
     expect(responses()).toStrictEqual([
       { error: "This is not a note on this phone.", id: 7, nonce, ok: false, type: "response" },
     ]);
@@ -259,7 +252,7 @@ describe("the native end of the editor page's bridge", () => {
     const nonce = load();
     fromPage({ id: 1, kind: "list", nonce: `${nonce}x`, payload: {}, type: "request" });
     fromPage({ nonce: `${nonce}x`, path: "b.md", type: "navigate" });
-    await settled();
+    await nextTask();
     expect(calls).toStrictEqual([]);
     expect(responses()).toStrictEqual([]);
     expect(events).toStrictEqual([]);
@@ -274,7 +267,7 @@ describe("the native end of the editor page's bridge", () => {
       fromPage({ id: 1, kind: "list", nonce, payload: {}, type: "request" }, url);
       fromPage({ nonce, path: "b.md", type: "navigate" }, url);
     }
-    await settled();
+    await nextTask();
     expect(calls).toStrictEqual([]);
     expect(events).toStrictEqual([]);
     // the page's own address with a fragment is still the page
@@ -306,7 +299,7 @@ describe("the native end of the editor page's bridge", () => {
     ]) {
       host.receive({ data, url: PAGE_URL });
     }
-    await settled();
+    await nextTask();
     expect(calls).toStrictEqual([]);
     expect(responses()).toStrictEqual([]);
   });
@@ -329,7 +322,7 @@ describe("the native end of the editor page's bridge", () => {
     if (flush?.type !== "flush") {
       throw new Error("the host sent no flush");
     }
-    await settled();
+    await nextTask();
     expect(answered).toBeNull();
     fromPage({ id: flush.id, nonce, ok: true, type: "flushed" });
     await flushing;
@@ -371,7 +364,7 @@ describe("the native end of the editor page's bridge", () => {
     fromPage({ id: 1, kind: "list", nonce: before, payload: {}, type: "request" });
     const after = load();
     fromPage({ id: 2, kind: "list", nonce: after, payload: {}, type: "request" });
-    await settled();
+    await nextTask();
     expect(calls).toHaveLength(1);
     expect(responses()).toMatchObject([{ id: 2, nonce: after }]);
   });
@@ -396,7 +389,7 @@ describe("the native end of the editor page's bridge", () => {
     });
     const nonce = load();
     fromPage({ id: 1, kind: "read", nonce, payload: { path: "a.md" }, type: "request" });
-    await settled();
+    await nextTask();
     expect(responses()).toStrictEqual([
       { id: 1, nonce, ok: true, result: { content: hostile }, type: "response" },
     ]);

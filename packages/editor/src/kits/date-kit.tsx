@@ -1,5 +1,3 @@
-// Never set rawDate: its presence flips Plate's default rule to `<date>text</date>` instead of `<date value="…" />`.
-
 import { KEYS } from "platejs";
 import type { PlateEditor } from "platejs/react";
 import { BaseDatePlugin } from "@platejs/date";

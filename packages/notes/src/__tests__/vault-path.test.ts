@@ -5,6 +5,7 @@ import {
   parseVaultPath,
   VaultPathError,
 } from "../knowledge/vault-path";
+import { normalVaultPathSchema } from "../knowledge/vault-path-schema";
 
 describe("parseVaultPath", () => {
   it("accepts and normalizes ordinary vault paths", () => {
@@ -44,5 +45,27 @@ describe("isIgnoredEntryName", () => {
     expect(isIgnoredEntryName(".inteligir-tmp-deadbeef")).toBe(true);
     expect(isIgnoredEntryName(".gitignore")).toBe(false);
     expect(isIgnoredEntryName("notes")).toBe(false);
+  });
+});
+
+const issues = (raw: string): string[] =>
+  normalVaultPathSchema.safeParse(raw).error?.issues.map((issue) => issue.message) ?? [];
+
+describe("normalVaultPathSchema", () => {
+  it("admits a path the grammar leaves as it is", () => {
+    expect(normalVaultPathSchema.parse("notes/today.md")).toBe("notes/today.md");
+  });
+
+  it.each(["notes//today.md", "notes/today.md/"])(
+    "refuses %s, which the grammar would rename",
+    (raw) => {
+      expect(issues(raw)).toEqual([
+        "path must be already normal — no empty segments or trailing slash",
+      ]);
+    },
+  );
+
+  it("refuses what the grammar refuses, in the grammar's words", () => {
+    expect(issues("../outside.md")).toEqual(["path must not contain . or .. segments"]);
   });
 });

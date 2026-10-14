@@ -3,14 +3,18 @@
 // bundles is a cache hit that replays the stale output, and nothing errors. `^topo` is the edge for
 // a task that cannot take `^<itself>` without a cycle: it runs no script and puts every
 // dependency's files in the key.
+//
+// every task is read from turbo's own dry run, so the layering of the root's config, a
+// workspace's override and `$TURBO_EXTENDS$` is turbo's resolution rather than a copy of it.
 
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
+  REPO_ROOT,
   importsOf,
   manifestWorkspaceDeps,
-  readJsonFile,
   turboTaskBodies,
   workspaceFiles,
   workspaceTurboConfig,
@@ -20,165 +24,131 @@ import type { Workspace } from "./repo";
 
 const ROOT_CONFIG = "turbo.json";
 
-// turbo's microsyntax for "the root's list, then these" inside a workspace's override.
-const EXTENDS_ROOT = "$TURBO_EXTENDS$";
+// `//#<task>` is the root package's own, run by no workspace this guard judges.
+const ROOT_PACKAGE_TASK = "//#";
 
-// `<workspace>#<task>` → why its output reads none of its dependencies; drains when the task gains
-// a `^` edge or stops being a cached task.
-const WITHOUT_DEPENDENCY_EDGE = new Map<string, string>();
+// turbo's `command` for a package with no script of the task's name.
+const NO_SCRIPT = "<NONEXISTENT>";
 
-const turboTaskSchema = z.looseObject({
-  cache: z.boolean().optional(),
-  dependsOn: z.array(z.string()).optional(),
-  inputs: z.array(z.string()).optional(),
+const dryRunSchema = z.looseObject({
+  tasks: z.array(
+    z.looseObject({
+      command: z.string(),
+      // every file hashed into the key, relative to the package's directory.
+      inputs: z.record(z.string(), z.string()),
+      package: z.string(),
+      resolvedTaskDefinition: z.looseObject({
+        cache: z.boolean(),
+        dependsOn: z.array(z.string()),
+      }),
+      task: z.string(),
+      taskId: z.string(),
+    }),
+  ),
 });
-type TurboTask = z.infer<typeof turboTaskSchema>;
+type DryRunTask = z.infer<typeof dryRunSchema>["tasks"][number];
 
-const scriptsSchema = z.looseObject({ scripts: z.record(z.string(), z.string()).optional() });
-
-const turboTasks = (configPath: string): Map<string, TurboTask> => {
-  const tasks = new Map<string, TurboTask>();
-  for (const [name, body] of turboTaskBodies(configPath)) {
-    const task = turboTaskSchema.safeParse(body);
-    if (!task.success) {
-      throw new Error(
-        `${configPath}: tasks.${name} must be an object whose dependsOn and inputs are arrays of strings and whose cache is a boolean`,
-      );
-    }
-    tasks.set(name, task.data);
-  }
-  return tasks;
-};
-
-const rootTasks = (): Map<string, TurboTask> => {
-  const tasks = turboTasks(ROOT_CONFIG);
-  for (const name of tasks.keys()) {
-    if (name.includes("#")) {
-      throw new Error(
-        `${ROOT_CONFIG}: cannot read the package-scoped task "${name}".\n` +
-          `  rule: tools/repo-guards/src/turbo-cache-keys.test.ts layers a workspace's own turbo.json over the root's unscoped tasks, and knows no third layer\n` +
-          `  fix: move it to that workspace's turbo.json, or teach this guard the layer — skipping it would judge the task by the wrong dependsOn`,
-      );
+const taskNames = (): string[] => {
+  const configs = [
+    ROOT_CONFIG,
+    ...workspaces().flatMap((workspace) => workspaceTurboConfig(workspace) ?? []),
+  ];
+  const names = new Set<string>();
+  for (const config of configs) {
+    for (const key of turboTaskBodies(config).keys()) {
+      if (!key.startsWith(ROOT_PACKAGE_TASK)) {
+        names.add(key.slice(key.indexOf("#") + 1));
+      }
     }
   }
-  return tasks;
+  return [...names].toSorted();
 };
 
-const scriptsOf = (workspace: Workspace): Set<string> => {
-  const { scripts } = readJsonFile(
-    `${workspace.dir}/package.json`,
-    scriptsSchema,
-    'a "scripts" map of names to strings',
-  );
-  return new Set(Object.keys(scripts ?? {}));
+let cachedDryRun: DryRunTask[] | undefined;
+
+// the binary itself: pnpm prints a banner on stdout ahead of the JSON.
+const dryRun = (): DryRunTask[] => {
+  if (cachedDryRun !== undefined) {
+    return cachedDryRun;
+  }
+  const args = ["run", ...taskNames(), "--dry=json"];
+  const output = execFileSync(path.join(REPO_ROOT, "node_modules/.bin/turbo"), args, {
+    cwd: REPO_ROOT,
+    encoding: "utf-8",
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  const parsed = dryRunSchema.safeParse(JSON.parse(output));
+  if (!parsed.success) {
+    throw new Error(
+      `turbo ${args.join(" ")}: expected a "tasks" list with each task's command, hashed inputs and resolved cache and dependsOn`,
+    );
+  }
+  cachedDryRun = parsed.data.tasks.filter((task) => task.command !== NO_SCRIPT);
+  return cachedDryRun;
+};
+
+const workspaceNamed = (name: string): Workspace | undefined =>
+  workspaces().find((workspace) => workspace.name === name);
+
+const ownDependsOnSchema = z.looseObject({ dependsOn: z.array(z.string()).optional() });
+
+// a workspace's turbo.json spells the list only where its own task declares one: an override of
+// just inputs or outputs inherits the root's dependsOn, and the fix lands there.
+const dependsOnConfig = (workspace: Workspace, task: string): string => {
+  const config = workspaceTurboConfig(workspace);
+  if (config === null) {
+    return ROOT_CONFIG;
+  }
+  const own = ownDependsOnSchema.optional().safeParse(turboTaskBodies(config).get(task));
+  if (!own.success) {
+    throw new Error(
+      `${config}: tasks.${task} must be an object whose dependsOn is an array of strings`,
+    );
+  }
+  return own.data?.dependsOn === undefined ? ROOT_CONFIG : config;
 };
 
 interface JudgedTask {
-  // `<workspace>#<task>`, turbo's own spelling.
-  id: string;
-  task: string;
-  dependsOn: string[];
-  // where the list the judgement read is spelled.
-  declaredIn: string;
+  task: DryRunTask;
+  workspace: Workspace;
   dependencies: string[];
 }
 
-// a workspace's override replaces the root's field whole, unless it spells EXTENDS_ROOT.
-const effectiveList = (
-  rootTask: TurboTask | undefined,
-  ownTask: TurboTask | undefined,
-  field: "dependsOn" | "inputs",
-): string[] => {
-  const rootList = rootTask?.[field] ?? [];
-  const ownList = ownTask?.[field];
-  if (ownList === undefined) {
-    return rootList;
-  }
-  if (!ownList.includes(EXTENDS_ROOT)) {
-    return ownList;
-  }
-  return [...rootList, ...ownList.filter((each) => each !== EXTENDS_ROOT)];
-};
-
-const cachedTasks = (): JudgedTask[] => {
-  const root = rootTasks();
-  const judged: JudgedTask[] = [];
-  for (const workspace of workspaces()) {
+const cachedTasks = (): JudgedTask[] =>
+  dryRun().flatMap((task) => {
+    const workspace = workspaceNamed(task.package);
+    if (workspace === undefined || !task.resolvedTaskDefinition.cache) {
+      return [];
+    }
     const dependencies = [...manifestWorkspaceDeps(workspace.manifest)].toSorted();
-    if (dependencies.length === 0) {
-      continue;
-    }
-    const ownConfig = workspaceTurboConfig(workspace);
-    const own = ownConfig === null ? new Map<string, TurboTask>() : turboTasks(ownConfig);
-    const scripts = scriptsOf(workspace);
-    for (const name of new Set([...root.keys(), ...own.keys()])) {
-      const rootTask = root.get(name);
-      const ownTask = own.get(name);
-      if (!scripts.has(name) || (ownTask?.cache ?? rootTask?.cache ?? true) === false) {
-        continue;
-      }
-      judged.push({
-        declaredIn:
-          ownConfig !== null && ownTask?.dependsOn !== undefined ? ownConfig : ROOT_CONFIG,
-        dependencies,
-        dependsOn: effectiveList(rootTask, ownTask, "dependsOn"),
-        id: `${workspace.name}#${name}`,
-        task: name,
-      });
-    }
-  }
-  return judged;
-};
-
-const hashesDependencies = (task: JudgedTask): boolean =>
-  task.dependsOn.some((each) => each.startsWith("^"));
+    return dependencies.length === 0 ? [] : [{ dependencies, task, workspace }];
+  });
 
 describe("every cached turbo task hashes the workspaces it depends on", () => {
   const judged = cachedTasks();
 
   it("finds the tasks it judges", () => {
     expect(
-      judged.map((task) => task.id),
-      "the desktop build inlines the editor and the ui — the sweep is broken, not the tree",
-    ).toContain("@repo/desktop#build");
+      judged.map((each) => each.task.taskId),
+      "the workspace build inlines the editor and the ui — the sweep is broken, not the tree",
+    ).toContain("@repo/workspace#build");
   });
 
   it("every cached task with workspace dependencies carries a ^ edge", () => {
     const violations: string[] = [];
-    for (const task of judged) {
-      if (hashesDependencies(task) || WITHOUT_DEPENDENCY_EDGE.has(task.id)) {
+    for (const { dependencies, task, workspace } of judged) {
+      const { dependsOn } = task.resolvedTaskDefinition;
+      if (dependsOn.some((each) => each.startsWith("^"))) {
         continue;
       }
       violations.push(
-        `UNHASHED DEPENDENCIES  ${task.id}\n` +
-          `  rule: turbo puts another workspace's files in a task's cache key only through a "^" edge — without one, an edit confined to ${task.dependencies.join(", ")} is a cache hit that replays stale output\n` +
-          `  at ${task.declaredIn} tasks.${task.task}.dependsOn (${JSON.stringify(task.dependsOn)})\n` +
-          `  fix: add "^${task.task}", or "^topo" where that would be a cycle — or a WITHOUT_DEPENDENCY_EDGE row saying why this output reads none of them`,
+        `UNHASHED DEPENDENCIES  ${task.taskId}\n` +
+          `  rule: turbo puts another workspace's files in a task's cache key only through a "^" edge — without one, an edit confined to ${dependencies.join(", ")} is a cache hit that replays stale output\n` +
+          `  at ${dependsOnConfig(workspace, task.task)} tasks.${task.task}.dependsOn (resolved: ${JSON.stringify(dependsOn)})\n` +
+          `  fix: add "^${task.task}", or "^topo" where that would be a cycle`,
       );
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
-  });
-
-  it("no entry in WITHOUT_DEPENDENCY_EDGE is stale", () => {
-    const stale: string[] = [];
-    for (const [id, why] of WITHOUT_DEPENDENCY_EDGE) {
-      const task = judged.find((candidate) => candidate.id === id);
-      if (task === undefined) {
-        stale.push(
-          `STALE EXCEPTION  ${id} is no longer a cached task with workspace dependencies\n` +
-            `  fix: delete the entry from WITHOUT_DEPENDENCY_EDGE`,
-        );
-        continue;
-      }
-      if (hashesDependencies(task)) {
-        stale.push(
-          `STALE EXCEPTION  ${id} now carries a "^" edge\n` +
-            `  the reason it named ("${why}") no longer excuses anything\n` +
-            `  fix: delete the entry from WITHOUT_DEPENDENCY_EDGE`,
-        );
-      }
-    }
-    expect(stale, `\n${stale.join("\n\n")}\n`).toEqual([]);
   });
 });
 
@@ -189,32 +159,19 @@ describe("every cached turbo task hashes the workspaces it depends on", () => {
 const TURBO_ROOT = "$TURBO_ROOT$/";
 
 interface StrayImport {
+  build: DryRunTask;
   workspace: Workspace;
   file: string;
   // repo-relative, its query dropped.
   target: string;
 }
 
-const buildInputs = (workspace: Workspace): string[] => {
-  const ownConfig = workspaceTurboConfig(workspace);
-  const own = ownConfig === null ? undefined : turboTasks(ownConfig).get("build");
-  return effectiveList(rootTasks().get("build"), own, "inputs");
-};
-
-const namesInput = (inputs: readonly string[], target: string): boolean =>
-  inputs.some((input) => {
-    if (!input.startsWith(TURBO_ROOT)) {
-      return false;
-    }
-    const glob = input.slice(TURBO_ROOT.length);
-    return glob === target || (glob.endsWith("/**") && target.startsWith(glob.slice(0, -2)));
-  });
-
 const strayImports = (): StrayImport[] => {
   const dirs = workspaces().map((workspace) => workspace.dir);
   const found: StrayImport[] = [];
   for (const workspace of workspaces()) {
-    if (!scriptsOf(workspace).has("build")) {
+    const build = dryRun().find((task) => task.package === workspace.name && task.task === "build");
+    if (build === undefined) {
       continue;
     }
     for (const file of workspaceFiles(workspace).shipped) {
@@ -227,7 +184,7 @@ const strayImports = (): StrayImport[] => {
         if (dirs.some((dir) => target === dir || target.startsWith(`${dir}/`))) {
           continue;
         }
-        found.push({ file, target, workspace });
+        found.push({ build, file, target, workspace });
       }
     }
   }
@@ -247,7 +204,7 @@ describe("a bundled file outside every workspace is a named build input", () => 
   it("every one is named in its workspace's build inputs", () => {
     const violations: string[] = [];
     for (const stray of judged) {
-      if (namesInput(buildInputs(stray.workspace), stray.target)) {
+      if (path.relative(stray.workspace.dir, stray.target) in stray.build.inputs) {
         continue;
       }
       violations.push(

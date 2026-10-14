@@ -41,7 +41,7 @@ const duplicateIds = async (cli: AgentShellCli): Promise<DuplicateIdRow[]> => {
 
 export const cliDrive: Scenario = {
   description:
-    "the CLI drives a real instance: vault write, search, action new+wait+show+changes+undo, vault new-id",
+    "the CLI drives a real instance, and the env an agent's shell would get resolves against this checkout: vault write and read, search, action new, wait, show, changes and undo, and status; a byte copy's shared id is listed, and `vault new-id` gives it its own on the same line with a copy of the store",
   name: "cli-drive",
   // bin/inteligir runs src/ under tsx in a checkout; the bundle is built-cli-boot's to test, and
   // the packed tarball pnpm smoke:cli's.

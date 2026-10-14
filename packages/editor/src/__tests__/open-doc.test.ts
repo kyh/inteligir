@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { deriveOpenDoc, openDocPath } from "@repo/editor/note/open-doc";
 import type { GateReason } from "@repo/editor/markdown/markdown-doc";
 
-const GATE: GateReason = { kind: "parse-error", line: 3, message: "Unexpected token" };
+const GATE: GateReason = { kind: "roundtrip-loss" };
 
 describe("deriveOpenDoc", () => {
   it("none when nothing is open", () => {

@@ -1,0 +1,27 @@
+{
+  "name": "@repo/ui-gallery",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The @repo/ui gallery: every component with the states worth seeing, served by `pnpm dev:gallery` and never built or deployed.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/ui": "workspace:*",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "oxc-transform-react": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  }
+}

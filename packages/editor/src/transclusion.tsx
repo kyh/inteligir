@@ -18,7 +18,6 @@ import {
   FORMULA_PILL_KEY,
   FRONTMATTER_KEY,
   HTML_BLOCK_KEY,
-  OPAQUE_BLOCK_KEY,
   OPAQUE_INLINE_KEY,
   WIKI_EMBED_KEY,
   WIKI_LINK_KEY,
@@ -27,7 +26,7 @@ import { getEditorHostIo, vaultChangeTouches } from "@repo/editor/host-io";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { classNameSlateElement } from "@repo/editor/kits/kit-utils";
 import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@repo/editor/kits/table-kit";
-import { isHttpUrl } from "@repo/editor/lib/wire";
+import { isHttpUrl } from "@repo/editor/lib/url";
 import { alertMarkerPrefix, parseAlertVariant } from "@repo/editor/markdown/alert-marker";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { stringProp } from "@repo/editor/node-props";
@@ -36,7 +35,7 @@ import { alertPresentation } from "@repo/editor/nodes/blockquote-node";
 import { ImageFigure } from "@repo/editor/nodes/image-node";
 import { RichBlockCard } from "@repo/editor/nodes/rich-block-chrome";
 import { decideTransclusion } from "@repo/editor/transclusion-guard";
-import WikiChip from "@repo/editor/wiki-chip";
+import WikiChip from "@repo/editor/wiki/wiki-chip";
 import { useOpenNote } from "@repo/editor/note/open-note-context";
 import { useLinkResolver, useVaultActions, useVaultLinkTarget } from "@repo/editor/host";
 import { parseWikiBody, wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
@@ -205,15 +204,6 @@ const richBlockStatic = (label: string) =>
     );
   };
 
-const OpaqueBlockStatic = (props: SlateElementProps) => (
-  <SlateElement {...props} className="my-1">
-    <pre className="overflow-x-auto whitespace-pre text-muted-foreground">
-      {stringProp(props.element, "value") ?? ""}
-    </pre>
-    {props.children}
-  </SlateElement>
-);
-
 const OpaqueInlineStatic = (props: SlateElementProps) => (
   <SlateElement {...props} as="span">
     <code className="text-muted-foreground">{stringProp(props.element, "value") ?? ""}</code>
@@ -313,7 +303,6 @@ export const STATIC_COMPONENTS: ReadonlyMap<string, (props: SlateElementProps) =
     [CHART_BLOCK_KEY, richBlockStatic("chart")],
     [CANVAS_BLOCK_KEY, richBlockStatic("canvas")],
     [HTML_BLOCK_KEY, richBlockStatic("html")],
-    [OPAQUE_BLOCK_KEY, OpaqueBlockStatic],
     [OPAQUE_INLINE_KEY, OpaqueInlineStatic],
     [FRONTMATTER_KEY, FrontmatterStatic],
     ["table", TableStatic],

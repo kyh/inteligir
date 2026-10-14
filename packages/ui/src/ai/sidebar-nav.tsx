@@ -26,7 +26,7 @@ const SidebarRail = ({
 }: SidebarRailProps & RefAttributes<HTMLDivElement>) => {
   const context = useMemo(() => ({ collapsed }), [collapsed]);
   return (
-    <SidebarNavContext.Provider value={context}>
+    <SidebarNavContext value={context}>
       <div
         ref={ref}
         data-slot="sidebar-rail"
@@ -39,10 +39,9 @@ const SidebarRail = ({
         )}
         {...props}
       />
-    </SidebarNavContext.Provider>
+    </SidebarNavContext>
   );
 };
-SidebarRail.displayName = "SidebarRail";
 
 export interface SidebarWorkspaceProps extends HTMLAttributes<HTMLButtonElement> {
   monogram?: ReactNode;
@@ -81,7 +80,6 @@ const SidebarWorkspace = ({
     </button>
   );
 };
-SidebarWorkspace.displayName = "SidebarWorkspace";
 
 export interface SidebarNavGroupProps extends HTMLAttributes<HTMLDivElement> {
   label?: ReactNode;
@@ -111,7 +109,6 @@ const SidebarNavGroup = ({
     </div>
   );
 };
-SidebarNavGroup.displayName = "SidebarNavGroup";
 
 export interface SidebarNavItemProps extends HTMLAttributes<HTMLButtonElement> {
   icon?: ReactNode;
@@ -173,7 +170,6 @@ const SidebarNavItem = ({
     </button>
   );
 };
-SidebarNavItem.displayName = "SidebarNavItem";
 
 const SidebarNavFooter = ({
   className,
@@ -187,6 +183,5 @@ const SidebarNavFooter = ({
     {...props}
   />
 );
-SidebarNavFooter.displayName = "SidebarNavFooter";
 
 export { SidebarRail, SidebarWorkspace, SidebarNavGroup, SidebarNavItem, SidebarNavFooter };

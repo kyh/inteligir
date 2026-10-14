@@ -41,10 +41,10 @@ export const vaultOpSchema = z.discriminatedUnion("op", [
   z.object({
     baseContent: z.string().nullable(),
     baseOid: gitOidSchema,
-    content: z.string().nullable().default(null),
+    content: z.string().nullable(),
     from: vaultPathSchema,
     op: z.literal("rename"),
-    rewrites: z.array(guardedTextSchema).default([]),
+    rewrites: z.array(guardedTextSchema),
     to: vaultPathSchema,
   }),
   z.object({
@@ -62,7 +62,7 @@ export const vaultOpSchema = z.discriminatedUnion("op", [
     baseOid: gitOidSchema,
     op: z.literal("remove"),
     path: vaultPathSchema,
-    stores: z.array(z.object({ baseOid: gitOidSchema, path: vaultPathSchema })).default([]),
+    stores: z.array(z.object({ baseOid: gitOidSchema, path: vaultPathSchema })),
   }),
   z.object({
     op: z.literal("putAsset"),
@@ -102,8 +102,6 @@ export const settleSchema = z.object({
 });
 export type Settle = z.infer<typeof settleSchema>;
 
-// a parked row is one the vault refused for a reason no resend passes; its bytes stay until the
-// user retries, keeps them as a new note or discards them
 export type RowState = { kind: "pending" } | { kind: "parked"; reason: string };
 
 export interface OutboxRow {
@@ -164,7 +162,6 @@ export const commentChanges = (op: CommentOp): VaultChangeRequest[] => [
   putText(op.store.path, op.store.base?.oid ?? null, op.store.content),
 ];
 
-// the phone's own SHA-1: expo-crypto's on a device, node's under test
 export type Sha1 = (bytes: Uint8Array<ArrayBuffer>) => Promise<Uint8Array>;
 
 const encoder = new TextEncoder();
@@ -181,8 +178,6 @@ export const blobOid = async (sha1: Sha1, bytes: Uint8Array): Promise<string> =>
 export const textBlobOid = async (sha1: Sha1, text: string): Promise<string> =>
   await blobOid(sha1, encoder.encode(text));
 
-// the blob and text an unsent rename leaves at a path: the note at its new name, or a note whose
-// links it rewrote; null where it leaves nothing
 const renameLeaves = async (
   sha1: Sha1,
   op: RenameOp,
@@ -206,7 +201,6 @@ const commentTextAt = (op: CommentOp, path: string): string | null => {
   return op.anchored !== null && path === op.anchored.path ? op.anchored.content : null;
 };
 
-// the blob and text an unsent comment edit leaves at a path: its store, or the note it anchored in
 const commentLeaves = async (
   sha1: Sha1,
   op: CommentOp,

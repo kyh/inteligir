@@ -42,10 +42,7 @@ export const searchCommand = (deps: CliDeps) =>
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_SEARCH_MAX_LIMIT);
       const api = apiFor(deps);
-      const request: KnowledgeSearchRequest = { q: args.query };
-      if (limit !== undefined) {
-        request.limit = limit;
-      }
+      const request: KnowledgeSearchRequest = { limit, q: args.query };
       const body = await api.knowledge.search(request);
       if (outputJson(args, body)) {
         return;
@@ -77,16 +74,12 @@ export const matchesCommand = (deps: CliDeps) =>
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_MATCHES_MAX_LIMIT);
       const api = apiFor(deps);
-      const request: KnowledgeMatchesRequest = { q: args.text };
-      if (args["case-sensitive"] === true) {
-        request.caseSensitive = true;
-      }
-      if (args["whole-word"] === true) {
-        request.wholeWord = true;
-      }
-      if (limit !== undefined) {
-        request.limit = limit;
-      }
+      const request: KnowledgeMatchesRequest = {
+        caseSensitive: args["case-sensitive"] === true || undefined,
+        limit,
+        q: args.text,
+        wholeWord: args["whole-word"] === true || undefined,
+      };
       const body = await api.knowledge.matches(request);
       if (outputJson(args, body)) {
         return;
@@ -143,10 +136,7 @@ export const unlinkedCommand = (deps: CliDeps) =>
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_UNLINKED_MAX_LIMIT);
       const api = apiFor(deps);
-      const request: KnowledgeUnlinkedMentionsRequest = { path: args.path };
-      if (limit !== undefined) {
-        request.limit = limit;
-      }
+      const request: KnowledgeUnlinkedMentionsRequest = { limit, path: args.path };
       const body = await api.knowledge.unlinkedMentions(request);
       if (outputJson(args, body)) {
         return;
@@ -232,13 +222,10 @@ export const problemsCommand = (deps: CliDeps) =>
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_PROBLEMS_MAX_LIMIT);
       const api = apiFor(deps);
-      const request: KnowledgeProblemsRequest = {};
-      if (limit !== undefined) {
-        request.limit = limit;
-      }
-      if (args["include-conventions"] === true) {
-        request.includeConventionFolders = true;
-      }
+      const request: KnowledgeProblemsRequest = {
+        includeConventionFolders: args["include-conventions"] === true || undefined,
+        limit,
+      };
       const body = await api.knowledge.problems(request);
       if (outputJson(args, body)) {
         return;
@@ -263,10 +250,7 @@ export const relatedCommand = (deps: CliDeps) =>
     run: async ({ args }) => {
       const limit = parseLimit(args.limit, KNOWLEDGE_RELATED_MAX_LIMIT);
       const api = apiFor(deps);
-      const request: KnowledgeRelatedRequest = { path: args.path };
-      if (limit !== undefined) {
-        request.limit = limit;
-      }
+      const request: KnowledgeRelatedRequest = { limit, path: args.path };
       const body = await api.knowledge.related(request);
       if (outputJson(args, body)) {
         return;

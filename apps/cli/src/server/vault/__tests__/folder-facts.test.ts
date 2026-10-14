@@ -9,19 +9,16 @@ import {
   readOriginConfig,
   REMOTE_MARKER_KEY,
 } from "../folder-facts";
-import { runGit } from "../git-run";
+import { gitAt } from "../git-run";
 import type { RunGitCommand } from "../git-run";
-import { hermeticGitEnv } from "./git-test-env";
+import { hermeticGit } from "./git-test-env";
 
 const CLOUD_URL = "https://cloud.test";
-const env = hermeticGitEnv();
+const gitRunner = hermeticGit();
 
 const scratchHome = (): string => makeTempDir("inteligir-folder-facts-");
 
-const gitIn =
-  (root: string): RunGitCommand =>
-  async (gitArgs) =>
-    await runGit(root, gitArgs, { env });
+const gitIn = (root: string): RunGitCommand => gitAt(gitRunner, root);
 
 const repoIn = async (home: string, name: string): Promise<string> => {
   const dir = path.join(home, name);
@@ -31,7 +28,7 @@ const repoIn = async (home: string, name: string): Promise<string> => {
 };
 
 const inspect = async (home: string, dir: string) =>
-  await inspectVaultFolder(dir, { cloudUrl: CLOUD_URL, homeDir: home });
+  await inspectVaultFolder(dir, { cloudUrl: CLOUD_URL, git: gitRunner, homeDir: home });
 
 describe("readOriginConfig", () => {
   it("reads the origin and the app's mark in one pass", async () => {
@@ -65,9 +62,9 @@ describe("inspectVaultFolder", () => {
     const repo = await repoIn(home, "Vault");
     await gitIn(repo)(["remote", "add", "origin", "https://example.test/vault.git"]);
     expect(await inspect(home, repo)).toMatchObject({ remote: "https://example.test/vault.git" });
-    const noGit = { PATH: path.join(home, "no-git-here") };
+    const noGit = hermeticGit({ PATH: path.join(home, "no-git-here") });
     expect(
-      await inspectVaultFolder(repo, { cloudUrl: CLOUD_URL, gitEnv: noGit, homeDir: home }),
+      await inspectVaultFolder(repo, { cloudUrl: CLOUD_URL, git: noGit, homeDir: home }),
     ).toMatchObject({ exists: true, remote: null });
   });
 

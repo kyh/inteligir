@@ -1,14 +1,13 @@
-// The scan grammar (../markdown/scan-parse) is plain markdown and the editor's
-// is not, so a `targetSpan` or a tag's span is emitted only where the raw bytes
-// re-derive what was parsed and lie outside ../markdown/verbatim-spans; a link or
-// a tag failing either is indexed but never rewritten. Only a rename asks for
-// spans: those ranges are a second parse under the editor's grammar, and the
-// index, which projects every doc on every save, never reads them.
+// The scan walks the editor's own grammar (../markdown/bare-parse), so the index reads as prose
+// exactly what the editor draws as prose. A `targetSpan` or a tag's span is emitted only where the
+// raw bytes re-derive what was parsed and the editor does not hold them verbatim (inside a tag it
+// cannot model, which it carries as a string); a link or a tag failing either is indexed but never
+// rewritten. Only a rename asks for spans; the index, which projects every doc on every save,
+// never verifies them.
 
 import type { Nodes } from "mdast";
 
-import { parseCalloutPayload } from "../markdown/callout-payload";
-import { isCalloutLang } from "../markdown/fence-langs";
+import { parseBare } from "../markdown/bare-parse";
 import {
   noteIdOfProperties,
   parseProperties,
@@ -17,10 +16,9 @@ import {
   yamlStringEntries,
 } from "../markdown/frontmatter";
 import type { ParsedProperties, YamlStringEntry } from "../markdown/frontmatter";
+import { isOpaqueSource } from "../markdown/remark-opaque";
+import type { PlateDeclaredType } from "../markdown/remark-opaque";
 import { parseWikiBodyRange } from "../markdown/remark-wiki-link";
-import { parseScan } from "../markdown/scan-parse";
-import { insideVerbatim, verbatimSpans } from "../markdown/verbatim-spans";
-import type { VerbatimSpan } from "../markdown/verbatim-spans";
 import type { LinkKind } from "./link-kinds";
 import { inlineTagSpans, isTagName } from "./tag-grammar";
 import type { InlineTagSpan } from "./tag-grammar";
@@ -63,7 +61,6 @@ interface ExtractedTag {
   span?: Span;
 }
 
-// what a body holds; a callout's body is scanned as one and folded into the body around it
 interface BodyScan {
   title: string | null;
   headings: string[];
@@ -76,16 +73,13 @@ interface NodePosition {
   line: number;
 }
 
-// the source, the ranges a span may not land in, and the scan every collector appends to.
-// `verbatim` is null on the index path, which emits no span at all
+// the source, whether a span may be emitted here (never on the index path, never inside bytes the
+// editor holds verbatim), and the scan every collector appends to
 interface ScanContext {
   source: string;
-  verbatim: readonly VerbatimSpan[] | null;
+  spans: boolean;
   scan: BodyScan;
 }
-
-const spannable = (ctx: ScanContext, span: Span): boolean =>
-  ctx.verbatim !== null && !insideVerbatim(ctx.verbatim, span.start, span.end);
 
 // anything with a scheme (`https:`, `mailto:`, `C:\…` alike) or protocol-relative `//` is external
 const SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
@@ -102,16 +96,24 @@ const position = (node: Nodes): NodePosition | null => {
   return { line: start.line, span: { end: end.offset, start: start.offset } };
 };
 
-const walk = (
-  node: Nodes,
-  visitor: (node: Nodes, inLink: boolean) => void,
-  inLink = false,
-): void => {
-  visitor(node, inLink);
+interface Visit {
+  inLink: boolean;
+  // inside a node the editor carries as its source string
+  verbatim: boolean;
+}
+
+const AT_ROOT: Visit = { inLink: false, verbatim: false };
+
+const walk = (node: Nodes, visitor: (node: Nodes, at: Visit) => void, at = AT_ROOT): void => {
+  const here: Visit = { inLink: at.inLink, verbatim: at.verbatim || isOpaqueSource(node) };
+  visitor(node, here);
   if ("children" in node) {
-    const childrenInLink = inLink || LINK_LIKE.has(node.type);
+    const below: Visit = {
+      inLink: here.inLink || LINK_LIKE.has(node.type),
+      verbatim: here.verbatim,
+    };
     for (const child of node.children) {
-      walk(child, visitor, childrenInLink);
+      walk(child, visitor, below);
     }
   }
 };
@@ -300,7 +302,7 @@ const wikiToLink = (
   // the span may hold `\#` escapes the target does not: a rename writes its target back through
   // serializeWikiBody, which escapes what the parse would otherwise split
   const verified =
-    spannable(ctx, targetSpan) &&
+    ctx.spans &&
     ctx.source.slice(pos.span.start, pos.span.end) === `${embed ? "!" : ""}[[${body}]]`;
   const link: ScannedLink = {
     embed,
@@ -335,13 +337,10 @@ const mdToLink = (
   }
   const { anchor, target, written } = parsed;
   let targetSpan: Span | undefined;
-  const dest = ctx.verbatim === null ? null : locate();
+  const dest = ctx.spans ? locate() : null;
   if (dest) {
     const pathSpan = splitRawFragment(ctx.source, dest);
-    if (
-      spannable(ctx, pathSpan) &&
-      decodeMdEscapes(ctx.source.slice(pathSpan.start, pathSpan.end)) === written
-    ) {
+    if (decodeMdEscapes(ctx.source.slice(pathSpan.start, pathSpan.end)) === written) {
       targetSpan = pathSpan;
     }
   }
@@ -431,15 +430,46 @@ const frontmatterPinned = (parsed: ParsedProperties | null): boolean => {
   return prop !== undefined && prop.type === "checkbox" && prop.value;
 };
 
+interface ValueLine {
+  valueStart: number;
+  // null where the line's bytes do not re-derive it
+  sourceStart: number | null;
+}
+
+// a text node's later lines sit past their container's prefix (an alert's `> `, a list item's
+// indent), which its value drops, so each is found where its own bytes start in that source line
+const valueLines = (value: string, offset: number, source: string): ValueLine[] => {
+  const [first = "", ...rest] = value.split("\n");
+  const lines: ValueLine[] = [{ sourceStart: offset, valueStart: 0 }];
+  let valueStart = first.length + 1;
+  let lineEnd = source.indexOf("\n", offset);
+  for (const line of rest) {
+    const lineStart = lineEnd === -1 ? -1 : lineEnd + 1;
+    lineEnd = lineStart === -1 ? -1 : source.indexOf("\n", lineStart);
+    const at = lineStart === -1 ? -1 : source.indexOf(line, lineStart);
+    const inLine = at !== -1 && (lineEnd === -1 || at + line.length <= lineEnd);
+    lines.push({ sourceStart: inLine ? at : null, valueStart });
+    valueStart += line.length + 1;
+  }
+  return lines;
+};
+
 // a span is kept where the raw bytes spell the tag (a text node's value can differ from its
-// source through an escape) outside the verbatim ranges, on the link policy's terms
+// source through an escape), on the link policy's terms
 const collectTextTags = (node: Extract<Nodes, { type: "text" }>, ctx: ScanContext): void => {
   const offset = node.position?.start.offset;
-  for (const { end, start, tag } of inlineTagSpans(node.value)) {
+  const tags = inlineTagSpans(node.value);
+  const lines =
+    offset === undefined || !ctx.spans || tags.length === 0
+      ? []
+      : valueLines(node.value, offset, ctx.source);
+  for (const { end, start, tag } of tags) {
     const extracted: ExtractedTag = { tag };
-    if (offset !== undefined) {
-      const span: Span = { end: offset + end, start: offset + start };
-      if (spannable(ctx, span) && ctx.source.slice(span.start, span.end) === `#${tag}`) {
+    const line = lines.findLast(({ valueStart }) => valueStart <= start);
+    if (line !== undefined && line.sourceStart !== null) {
+      const shift = line.sourceStart - line.valueStart;
+      const span: Span = { end: end + shift, start: start + shift };
+      if (ctx.source.slice(span.start, span.end) === `#${tag}`) {
         extracted.span = span;
       }
     }
@@ -509,77 +539,19 @@ const collectDefinition = (
   }
 };
 
-// A callout body is markdown the editor renders, so its links and tags are indexed
-// with spans shifted into the outer source. Only a column-0 fence qualifies: an
-// indented fence prefixes every body line, so a flat offset shift names wrong bytes.
-const calloutBodySlice = (
-  source: string,
-  node: Extract<Nodes, { type: "code" }>,
-): { body: string; bodyStart: number } | null => {
-  const pos = node.position;
-  if (pos?.start.offset === undefined || pos.start.column !== 1) {
-    return null;
-  }
-  const openLineEnd = source.indexOf("\n", pos.start.offset);
-  if (openLineEnd === -1) {
-    return null;
-  }
-  // an unknown kind renders as a plain code block, where a wiki spelling is not a link
-  const payload = parseCalloutPayload(node.value);
-  if (payload === null) {
-    return null;
-  }
-  const lines = node.value.split("\n");
-  const { headerLines } = payload;
-  let bodyStart = openLineEnd + 1;
-  for (let skipped = 0; skipped < headerLines; skipped += 1) {
-    const nl = source.indexOf("\n", bodyStart);
-    if (nl === -1) {
-      return null;
-    }
-    bodyStart = nl + 1;
-  }
-  const body = lines.slice(headerLines).join("\n");
-  if (source.slice(bodyStart, bodyStart + body.length) !== body) {
-    return null;
-  }
-  return { body, bodyStart };
-};
-
-// a callout's links and tags, moved to where its body sits in the outer source
-const pushShifted = (body: BodyScan, bodyStart: number, ctx: ScanContext): void => {
-  const lineShift = ctx.source.slice(0, bodyStart).split("\n").length - 1;
-  const shift = (span: Span): Span => ({
-    end: span.end + bodyStart,
-    start: span.start + bodyStart,
-  });
-  for (const link of body.links) {
-    const shifted: ScannedLink = { ...link, line: link.line + lineShift };
-    if (link.targetSpan !== undefined) {
-      shifted.targetSpan = shift(link.targetSpan);
-    }
-    ctx.scan.links.push(shifted);
-  }
-  for (const { span, tag } of body.tags) {
-    ctx.scan.tags.push(span === undefined ? { tag } : { span: shift(span), tag });
-  }
-};
-
 // `index` reads what a doc holds; `rewrite` also verifies the spans a rename may splice
 type ScanMode = "index" | "rewrite";
 
 const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
   const scan: BodyScan = { headings: [], links: [], tags: [], title: null };
-  const ctx: ScanContext = {
-    scan,
-    source,
-    verbatim: mode === "rewrite" ? verbatimSpans(source) : null,
-  };
-  // oxlint-disable-next-line complexity -- the count is the node-type enumeration switch-exhaustiveness-check requires, not branching: every arm delegates
-  walk(tree, (node, inLink) => {
+  const doc: ScanContext = { scan, source, spans: mode === "rewrite" };
+  const verbatim: ScanContext = { scan, source, spans: false };
+  // oxlint-disable-next-line complexity -- the count is the node-type enumeration the default holds total, not branching: every arm delegates
+  walk(tree, (node, at) => {
+    const ctx = at.verbatim ? verbatim : doc;
     switch (node.type) {
       case "text": {
-        if (!inLink) {
+        if (!at.inLink) {
           collectTextTags(node, ctx);
         }
         break;
@@ -605,22 +577,20 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
         collectDefinition(node, ctx);
         break;
       }
-      case "code": {
-        const slice = isCalloutLang(node.lang) ? calloutBodySlice(source, node) : null;
-        if (slice) {
-          pushShifted(scanBody(slice.body, parseScan(slice.body), mode), slice.bodyStart, ctx);
-        }
-        break;
-      }
       case "blockquote":
       case "break":
+      case "code":
+      case "column":
+      case "columnGroup":
       case "commentMarker":
+      case "date":
       case "delete":
       case "emphasis":
       case "footnoteDefinition":
       case "footnoteReference":
       case "formulaPill":
       case "html":
+      case "htmlElement":
       case "imageReference":
       case "inlineCode":
       case "inlineMath":
@@ -628,12 +598,6 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
       case "list":
       case "listItem":
       case "math":
-      case "mdxFlowExpression":
-      case "mdxJsxFlowElement":
-      case "mdxJsxTextElement":
-      case "mdxTextExpression":
-      case "mdxjsEsm":
-      case "opaqueBlock":
       case "opaqueInline":
       case "paragraph":
       case "root":
@@ -644,17 +608,21 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
       case "tableCell":
       case "tableRow":
       case "thematicBreak":
+      case "toggle":
+      case "underline":
       case "yaml": {
         break;
       }
-      // no default
+      default: {
+        node satisfies Extract<Nodes, { type: PlateDeclaredType }>;
+      }
     }
   });
   return scan;
 };
 
 export const scanDoc = (source: string): DocScan => {
-  const tree = parseScan(source);
+  const tree = parseBare(source);
   const yaml = frontmatterText(tree);
   const frontmatter = yaml === null ? null : parseProperties(yaml);
   const body = scanBody(source, tree, "index");
@@ -672,14 +640,14 @@ export const scanDoc = (source: string): DocScan => {
   };
 };
 
-// the links a rename may splice: the index's own walk, callout bodies included
+// the links a rename may splice: the index's own walk
 export const documentLinkSpans = (source: string): RewritableLink[] =>
-  scanBody(source, parseScan(source), "rewrite").links.flatMap((link) =>
+  scanBody(source, parseBare(source), "rewrite").links.flatMap((link) =>
     link.targetSpan === undefined ? [] : [{ ...link, targetSpan: link.targetSpan }],
   );
 
 // the inline tags a rename may splice, on the same terms
 export const documentTagSpans = (source: string): InlineTagSpan[] =>
-  scanBody(source, parseScan(source), "rewrite").tags.flatMap(({ span, tag }) =>
+  scanBody(source, parseBare(source), "rewrite").tags.flatMap(({ span, tag }) =>
     span === undefined ? [] : [{ end: span.end, start: span.start, tag }],
   );

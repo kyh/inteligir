@@ -3,7 +3,7 @@ import { z } from "zod";
 import { attachmentLocationSchema } from "@repo/contract/local/vault/vault-schema";
 import { JsonFileStore } from "../json-file-store";
 
-const vaultPrefsSchema = z.object({ attachments: attachmentLocationSchema.optional() }).strict();
+const vaultPrefsSchema = z.strictObject({ attachments: attachmentLocationSchema.optional() });
 
 // read per paste, so a Settings or CLI change reaches the next paste without a reboot
 export class VaultPrefsStore extends JsonFileStore<typeof vaultPrefsSchema> {

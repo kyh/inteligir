@@ -5,13 +5,13 @@ import type { DbNotifier } from "@repo/domain/notifier";
 import { z } from "zod";
 import {
   clientMessageSchema,
-  realtimeSubscriptionTargetKey,
   subscriptionKeysForMessage,
 } from "@repo/contract/local/notifications";
 import type {
   ChangedMessage,
   HelloMessage,
   RealtimeSubscriptionTarget,
+  SubscriptionKey,
   VaultChangedMessage,
 } from "@repo/contract/local/notifications";
 
@@ -44,8 +44,8 @@ const decodeSocketPayload = (raw: SocketPayload): string => {
 export type ThreadChangeListener = (threadId: string, changes: readonly ThreadChangeKind[]) => void;
 
 export class WsBus implements DbNotifier {
-  private readonly keysBySocket = new Map<BusSocket, Set<string>>();
-  private readonly socketsByKey = new Map<string, Set<BusSocket>>();
+  private readonly keysBySocket = new Map<BusSocket, Set<SubscriptionKey>>();
+  private readonly socketsByKey = new Map<SubscriptionKey, Set<BusSocket>>();
   private readonly threadListeners = new Set<ThreadChangeListener>();
 
   // a service in this process hears what the window hears, so it reacts to a change whichever
@@ -112,7 +112,7 @@ export class WsBus implements DbNotifier {
     if (!this.keysBySocket.has(socket)) {
       this.keysBySocket.set(socket, new Set());
     }
-    const key = realtimeSubscriptionTargetKey(target);
+    const key = target.kind;
     this.keysBySocket.get(socket)?.add(key);
 
     const sockets = this.socketsByKey.get(key) ?? new Set<BusSocket>();
@@ -121,7 +121,7 @@ export class WsBus implements DbNotifier {
   }
 
   unsubscribe(socket: BusSocket, target: RealtimeSubscriptionTarget): void {
-    const key = realtimeSubscriptionTargetKey(target);
+    const key = target.kind;
     this.keysBySocket.get(socket)?.delete(key);
 
     const sockets = this.socketsByKey.get(key);

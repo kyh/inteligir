@@ -20,7 +20,7 @@ const DECLARED_ROUTES = new Map<string, string>([
   ],
   [
     key("GET", HEALTH_PATH),
-    "a supervisor's spawn probe: it must answer before this process has any reason to hold a credential, so it is the one route outside the token gate",
+    "the boot probe the smokes and the e2e harness wait on before they read a credential, so it is the one route outside the token gate",
   ],
   [
     key("GET", VAULT_ASSET_PATH),

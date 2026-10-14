@@ -5,22 +5,11 @@
 import { z } from "zod";
 
 import { commentIdSchema } from "@repo/notes/comments/sidecar-schema";
-import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
+import { normalVaultPathSchema } from "@repo/notes/knowledge/vault-path-schema";
 
 // Native reaches the page only by calling this, through `injectJavaScript`: a message event is
 // one a child frame's `parent.postMessage` could forge too.
 export const PAGE_RECEIVER = "__inteligirEditorReceive";
-
-// the page and the native end address the same files, so a path either would normalize is refused
-// rather than renamed
-const vaultPathSchema = z.string().superRefine((value, ctx) => {
-  const parsed = parseVaultPath(value);
-  if (!parsed.ok) {
-    ctx.addIssue({ code: "custom", message: parsed.message });
-  } else if (parsed.path !== value) {
-    ctx.addIssue({ code: "custom", message: "path must be already normal" });
-  }
-});
 
 // minted by the native end for one page load, and carried by every frame after `init`, so a frame
 // that did not come from the other end, or from an earlier load of it, is dropped
@@ -29,47 +18,45 @@ const nonceSchema = z.string().min(16);
 const idSchema = z.number().int().nonnegative();
 
 const guardSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("absent") }).strict(),
-  z.object({ base: z.string(), kind: z.literal("expected") }).strict(),
+  z.strictObject({ kind: z.literal("absent") }),
+  z.strictObject({ base: z.string(), kind: z.literal("expected") }),
 ]);
 
-const writtenSchema = z.object({ kind: z.literal("written") }).strict();
-const changedSchema = z.object({ current: z.string(), kind: z.literal("changed") }).strict();
-const missingSchema = z.object({ kind: z.literal("missing") }).strict();
+const writtenSchema = z.strictObject({ kind: z.literal("written") });
+const changedSchema = z.strictObject({ current: z.string(), kind: z.literal("changed") });
+const missingSchema = z.strictObject({ kind: z.literal("missing") });
 
 const guardedWriteResultSchema = z.discriminatedUnion("kind", [
   writtenSchema,
-  z.object({ kind: z.literal("exists") }).strict(),
+  z.strictObject({ kind: z.literal("exists") }),
   changedSchema,
   missingSchema,
 ]);
 
 const renameResultSchema = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true) }).strict(),
-  z.object({ error: z.string(), ok: z.literal(false) }).strict(),
+  z.strictObject({ ok: z.literal(true) }),
+  z.strictObject({ error: z.string(), ok: z.literal(false) }),
 ]);
 
 const pickImageResultSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("picked"), path: vaultPathSchema }).strict(),
-  z.object({ kind: z.literal("cancelled") }).strict(),
-  z.object({ kind: z.literal("refused"), message: z.string() }).strict(),
+  z.strictObject({ kind: z.literal("picked"), path: normalVaultPathSchema }),
+  z.strictObject({ kind: z.literal("cancelled") }),
+  z.strictObject({ kind: z.literal("refused"), message: z.string() }),
 ]);
 
-const wikiTargetSchema = z
-  .object({
-    aliases: z.array(z.string()).exactOptional(),
-    id: z.string().min(1).exactOptional(),
-    path: vaultPathSchema,
-    pinned: z.boolean().exactOptional(),
-    title: z.string(),
-    type: z.enum(["doc", "asset"]),
-  })
-  .strict();
+const wikiTargetSchema = z.strictObject({
+  aliases: z.array(z.string()).exactOptional(),
+  id: z.string().min(1).exactOptional(),
+  path: normalVaultPathSchema,
+  pinned: z.boolean().exactOptional(),
+  title: z.string(),
+  type: z.enum(["doc", "asset"]),
+});
 
 // the bridge carries strings, so bytes ride as base64 beside the media type the Blob is rebuilt with
-const assetBytesSchema = z.object({ base64: z.string(), mediaType: z.string() }).strict();
+const assetBytesSchema = z.strictObject({ base64: z.string(), mediaType: z.string() });
 
-const noPayload = z.object({}).strict();
+const noPayload = z.strictObject({});
 
 // One row per question the page asks. The page's store is the phone's, so a create is `write` under
 // the `absent` guard, as `GuardedVaultPort` spells it, and a note is read the same way whether it
@@ -78,47 +65,52 @@ const REQUEST_SCHEMAS = {
   // the open note's write under the `expected` guard, carrying a new comment on the text it
   // anchors: the phone lands the note and the comment's entry as one change set
   addComment: {
-    payload: z
-      .object({
-        base: z.string(),
-        content: z.string(),
-        id: commentIdSchema,
-        path: vaultPathSchema,
-        text: z.string().min(1),
-      })
-      .strict(),
+    payload: z.strictObject({
+      base: z.string(),
+      content: z.string(),
+      id: commentIdSchema,
+      path: normalVaultPathSchema,
+      text: z.string().min(1),
+    }),
     result: z.discriminatedUnion("kind", [writtenSchema, changedSchema, missingSchema]),
   },
   list: {
     payload: noPayload,
     // files only; the page decides which are docs, through @repo/notes' one answer
-    result: z.object({ paths: z.array(vaultPathSchema) }).strict(),
+    result: z.strictObject({ paths: z.array(normalVaultPathSchema) }),
   },
   pickImage: { payload: noPayload, result: pickImageResultSchema },
   read: {
-    payload: z.object({ path: vaultPathSchema }).strict(),
-    result: z.object({ content: z.string() }).strict(),
+    payload: z.strictObject({ path: normalVaultPathSchema }),
+    result: z.strictObject({ content: z.string() }),
   },
-  readAsset: { payload: z.object({ path: vaultPathSchema }).strict(), result: assetBytesSchema },
-  remove: { payload: z.object({ path: vaultPathSchema }).strict(), result: noPayload },
+  readAsset: {
+    payload: z.strictObject({ path: normalVaultPathSchema }),
+    result: assetBytesSchema,
+  },
+  remove: { payload: z.strictObject({ path: normalVaultPathSchema }), result: noPayload },
   rename: {
-    payload: z.object({ from: vaultPathSchema, to: vaultPathSchema }).strict(),
+    payload: z.strictObject({ from: normalVaultPathSchema, to: normalVaultPathSchema }),
     result: renameResultSchema,
   },
   wikiTargets: {
     payload: noPayload,
-    result: z.object({ targets: z.array(wikiTargetSchema) }).strict(),
+    result: z.strictObject({ targets: z.array(wikiTargetSchema) }),
   },
   write: {
     // `base` is the text the write was computed from; the native end compares it with what its
     // store holds, the page's CAS
-    payload: z.object({ content: z.string(), guard: guardSchema, path: vaultPathSchema }).strict(),
+    payload: z.strictObject({
+      content: z.string(),
+      guard: guardSchema,
+      path: normalVaultPathSchema,
+    }),
     result: guardedWriteResultSchema,
   },
   // native picks the folder, from the vault's attachments choice and the note the page has open
   writeAsset: {
-    payload: assetBytesSchema.extend({ baseName: z.string().min(1) }).strict(),
-    result: z.object({ path: vaultPathSchema }).strict(),
+    payload: assetBytesSchema.extend({ baseName: z.string().min(1) }),
+    result: z.strictObject({ path: normalVaultPathSchema }),
   },
 };
 
@@ -144,19 +136,17 @@ const requestFrame = <K extends RequestKind, P extends RequestSchemas[K]["payloa
   kind: K,
   payload: P,
 ) =>
-  z
-    .object({
-      id: idSchema,
-      kind: z.literal(kind),
-      nonce: nonceSchema,
-      payload,
-      type: z.literal("request"),
-    })
-    .strict();
+  z.strictObject({
+    id: idSchema,
+    kind: z.literal(kind),
+    nonce: nonceSchema,
+    payload,
+    type: z.literal("request"),
+  });
 
 const saveErrorSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("vanished") }).strict(),
-  z.object({ kind: z.literal("refused"), message: z.string() }).strict(),
+  z.strictObject({ kind: z.literal("vanished") }),
+  z.strictObject({ kind: z.literal("refused"), message: z.string() }),
 ]);
 
 export const pageFrameSchema = z.discriminatedUnion("type", [
@@ -173,120 +163,100 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
     requestFrame("writeAsset", REQUEST_SCHEMAS.writeAsset.payload),
   ]),
   // the receiver is installed and the page waits for `init`; it knows no nonce yet
-  z.object({ type: z.literal("ready") }).strict(),
+  z.strictObject({ type: z.literal("ready") }),
   // the note the page shows, which a rename moves; null once it was deleted elsewhere and the page
   // shows none
-  z
-    .object({ nonce: nonceSchema, path: vaultPathSchema.nullable(), type: z.literal("opened") })
-    .strict(),
+  z.strictObject({
+    nonce: nonceSchema,
+    path: normalVaultPathSchema.nullable(),
+    type: z.literal("opened"),
+  }),
   // the note this page was opened on could not be read, so the page shows none until a fresh load
   // of it reads the note again
-  z
-    .object({
-      message: z.string(),
-      nonce: nonceSchema,
-      path: vaultPathSchema,
-      type: z.literal("openFailed"),
-    })
-    .strict(),
-  z
-    .object({
-      dirty: z.boolean(),
-      nonce: nonceSchema,
-      saveError: saveErrorSchema.nullable(),
-      type: z.literal("editorState"),
-    })
-    .strict(),
-  z
-    .object({
-      ids: z.array(z.string().min(1)).min(1),
-      nonce: nonceSchema,
-      type: z.literal("showComments"),
-    })
-    .strict(),
+  z.strictObject({
+    message: z.string(),
+    nonce: nonceSchema,
+    path: normalVaultPathSchema,
+    type: z.literal("openFailed"),
+  }),
+  z.strictObject({
+    dirty: z.boolean(),
+    nonce: nonceSchema,
+    saveError: saveErrorSchema.nullable(),
+    type: z.literal("editorState"),
+  }),
+  z.strictObject({
+    ids: z.array(z.string().min(1)).min(1),
+    nonce: nonceSchema,
+    type: z.literal("showComments"),
+  }),
   // the page has flushed and asks the native stack to open this note, which keeps the back gesture
-  z.object({ nonce: nonceSchema, path: vaultPathSchema, type: z.literal("navigate") }).strict(),
-  z
-    .object({
-      nonce: nonceSchema,
-      path: vaultPathSchema,
-      selection: z.string(),
-      type: z.literal("askAgent"),
-    })
-    .strict(),
+  z.strictObject({ nonce: nonceSchema, path: normalVaultPathSchema, type: z.literal("navigate") }),
+  z.strictObject({
+    nonce: nonceSchema,
+    path: normalVaultPathSchema,
+    selection: z.string(),
+    type: z.literal("askAgent"),
+  }),
   // the answer to a `flush`: whether the open note's edits are all written
-  z
-    .object({ id: idSchema, nonce: nonceSchema, ok: z.boolean(), type: z.literal("flushed") })
-    .strict(),
+  z.strictObject({ id: idSchema, nonce: nonceSchema, ok: z.boolean(), type: z.literal("flushed") }),
 ]);
 
 export type PageFrame = z.infer<typeof pageFrameSchema>;
 
 const vaultChangedEventSchema = z.discriminatedUnion("kind", [
   // a listing row moved; null paths is a change nobody could attribute, so every reader re-checks
-  z.object({ kind: z.literal("files"), paths: z.array(vaultPathSchema).nullable() }).strict(),
-  z.object({ kind: z.literal("content"), path: vaultPathSchema }).strict(),
+  z.strictObject({ kind: z.literal("files"), paths: z.array(normalVaultPathSchema).nullable() }),
+  z.strictObject({ kind: z.literal("content"), path: normalVaultPathSchema }),
 ]);
 
 export const nativeFrameSchema = z.discriminatedUnion("type", [
-  z
-    .object({
-      focus: z.enum(["title", "body"]).nullable(),
-      nonce: nonceSchema,
-      path: vaultPathSchema,
-      type: z.literal("init"),
-    })
-    .strict(),
+  z.strictObject({
+    focus: z.enum(["title", "body"]).nullable(),
+    nonce: nonceSchema,
+    path: normalVaultPathSchema,
+    type: z.literal("init"),
+  }),
   // a result is parsed by the request it answers, which knows its kind
   z.discriminatedUnion("ok", [
-    z
-      .object({
-        id: idSchema,
-        nonce: nonceSchema,
-        ok: z.literal(true),
-        result: z.unknown(),
-        type: z.literal("response"),
-      })
-      .strict(),
-    z
-      .object({
-        error: z.string(),
-        id: idSchema,
-        nonce: nonceSchema,
-        ok: z.literal(false),
-        type: z.literal("response"),
-      })
-      .strict(),
-  ]),
-  z
-    .object({
-      event: vaultChangedEventSchema,
+    z.strictObject({
+      id: idSchema,
       nonce: nonceSchema,
-      type: z.literal("vaultChanged"),
-    })
-    .strict(),
+      ok: z.literal(true),
+      result: z.unknown(),
+      type: z.literal("response"),
+    }),
+    z.strictObject({
+      error: z.string(),
+      id: idSchema,
+      nonce: nonceSchema,
+      ok: z.literal(false),
+      type: z.literal("response"),
+    }),
+  ]),
+  z.strictObject({
+    event: vaultChangedEventSchema,
+    nonce: nonceSchema,
+    type: z.literal("vaultChanged"),
+  }),
   // write the open note's edits now (the screen is leaving, the app is backgrounding); answered by
   // a `flushed` frame with the same id
-  z.object({ id: idSchema, nonce: nonceSchema, type: z.literal("flush") }).strict(),
+  z.strictObject({ id: idSchema, nonce: nonceSchema, type: z.literal("flush") }),
   // what the note's comment ranges are drawn by: every thread its store holds, and which of them
   // are resolved; sent when the page opens the note and whenever the note or its store changes
-  z
-    .object({
-      knownIds: z.array(commentIdSchema),
-      nonce: nonceSchema,
-      path: vaultPathSchema,
-      resolvedIds: z.array(commentIdSchema),
-      type: z.literal("commentMeta"),
-    })
-    .strict(),
+  z.strictObject({
+    knownIds: z.array(commentIdSchema),
+    nonce: nonceSchema,
+    path: normalVaultPathSchema,
+    resolvedIds: z.array(commentIdSchema),
+    type: z.literal("commentMeta"),
+  }),
   // threads deleted on the phone, whose markers the page takes out of the open note and writes
-  z
-    .object({
-      ids: z.array(commentIdSchema).min(1),
-      nonce: nonceSchema,
-      type: z.literal("commentsRemoved"),
-    })
-    .strict(),
+  z.strictObject({
+    ids: z.array(commentIdSchema).min(1),
+    nonce: nonceSchema,
+    type: z.literal("commentsRemoved"),
+  }),
 ]);
 
 export type NativeFrame = z.infer<typeof nativeFrameSchema>;

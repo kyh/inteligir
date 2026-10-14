@@ -1,7 +1,10 @@
-import { parseVaultPath } from "@repo/notes/knowledge/vault-path";
+import { normalVaultPathSchema as vaultPathSchema } from "@repo/notes/knowledge/vault-path-schema";
 import { z } from "zod";
 
+// a git push can place git's machinery and staging files in the hosted tree; the read routes
+// must hide what the local engine would never list
 export { isIgnoredEntryName } from "@repo/notes/knowledge/vault-path";
+export { normalVaultPathSchema as vaultPathSchema } from "@repo/notes/knowledge/vault-path-schema";
 export { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "./vault-asset-media-types";
 
 export const VAULT_API_PATHS = {
@@ -31,35 +34,13 @@ export const VAULT_ASSET_MAX_BYTES = 10 * 1024 * 1024;
 export const gitOidSchema = z.string().regex(/^[0-9a-f]{40}$/u, "must be a full lowercase git oid");
 const commitShaSchema = gitOidSchema;
 
-// a git push can place git's machinery and staging files in the hosted tree; the read routes
-// must hide what the local engine would never list
-
-// the parse must be the identity: these values address git trees verbatim, so a path the
-// grammar would normalize is refused rather than silently renamed
-export const vaultPathSchema = z.string().superRefine((value, ctx) => {
-  const parsed = parseVaultPath(value);
-  if (!parsed.ok) {
-    ctx.addIssue({ code: "custom", message: parsed.message });
-    return;
-  }
-  if (parsed.path !== value) {
-    ctx.addIssue({
-      code: "custom",
-      message: "path must be already normal — no empty segments or trailing slash",
-    });
-  }
-});
-
 // a read's query rides a POST body: a vault path names a file, and a URL is what Cloudflare's
-// request log and traces keep. The GET form older installs still send carries the same fields in
-// the URL's search params, where every value arrives as a string.
-export const vaultTreeQuerySchema = z
-  .object({
-    after: vaultPathSchema.optional(),
-    limit: z.coerce.number().int().min(1).max(VAULT_TREE_MAX_ENTRIES).optional(),
-    ref: commitShaSchema.optional(),
-  })
-  .strict();
+// request log and traces keep
+export const vaultTreeQuerySchema = z.strictObject({
+  after: vaultPathSchema.optional(),
+  limit: z.number().int().min(1).max(VAULT_TREE_MAX_ENTRIES).optional(),
+  ref: commitShaSchema.optional(),
+});
 export type VaultTreeQuery = z.infer<typeof vaultTreeQuerySchema>;
 
 export const vaultTreeResponseSchema = z.object({
@@ -77,12 +58,10 @@ export const vaultTreeResponseSchema = z.object({
 });
 export type VaultTreeResponse = z.infer<typeof vaultTreeResponseSchema>;
 
-export const vaultFileQuerySchema = z
-  .object({
-    path: vaultPathSchema,
-    ref: commitShaSchema.optional(),
-  })
-  .strict();
+export const vaultFileQuerySchema = z.strictObject({
+  path: vaultPathSchema,
+  ref: commitShaSchema.optional(),
+});
 export type VaultFileQuery = z.infer<typeof vaultFileQuerySchema>;
 
 export const vaultFileResponseSchema = z.object({
@@ -96,16 +75,14 @@ export type VaultFileResponse = z.infer<typeof vaultFileResponseSchema>;
 // ref is required: a mirror diffs a tree page by oid and fetches what changed, so every batch must
 // read the revision that page named. Unpinned, a push landing mid-mirror would hand it bytes the
 // listing never saw, under a commit it never recorded.
-export const vaultFilesRequestSchema = z
-  .object({
-    paths: z
-      .array(vaultPathSchema)
-      .min(1)
-      .max(VAULT_FILES_MAX_PATHS)
-      .refine((paths) => new Set(paths).size === paths.length, "paths must be unique"),
-    ref: commitShaSchema,
-  })
-  .strict();
+export const vaultFilesRequestSchema = z.strictObject({
+  paths: z
+    .array(vaultPathSchema)
+    .min(1)
+    .max(VAULT_FILES_MAX_PATHS)
+    .refine((paths) => new Set(paths).size === paths.length, "paths must be unique"),
+  ref: commitShaSchema,
+});
 export type VaultFilesRequest = z.infer<typeof vaultFilesRequestSchema>;
 
 // the single-file route's refusals, answered per path so one file never fails the batch
@@ -129,10 +106,8 @@ export type VaultFilesResponse = z.infer<typeof vaultFilesResponseSchema>;
 
 // ref is required: a read pinned to a commit names immutable bytes, which the phone keeps under
 // their blob oid and the route answers `immutable`
-export const vaultAssetQuerySchema = z
-  .object({
-    path: vaultPathSchema,
-    ref: commitShaSchema,
-  })
-  .strict();
+export const vaultAssetQuerySchema = z.strictObject({
+  path: vaultPathSchema,
+  ref: commitShaSchema,
+});
 export type VaultAssetQuery = z.infer<typeof vaultAssetQuerySchema>;

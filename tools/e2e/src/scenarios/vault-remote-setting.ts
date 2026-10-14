@@ -26,7 +26,7 @@ const expectNoRemote = async (app: AppInstance, label: string): Promise<void> =>
 
 export const vaultRemoteSetting: Scenario = {
   description:
-    "the one write to where a vault syncs: A picks a bare remote over the API, B through `inteligir vault remote` and pulls A's note, A goes back to the account signed out and stays remote-less across a restart, and a pinned instance refuses",
+    "the one write to where a vault syncs: A picks a bare remote over `vault.setRemote`, B through `inteligir vault remote` and pulls A's note; A back on the account signed out has no origin, across a restart too; an instance `INTELIGIR_VAULT_REMOTE` pins refuses every choice",
   name: "vault-remote-setting",
   async run(ctx) {
     const remote = await ctx.bareRemote();

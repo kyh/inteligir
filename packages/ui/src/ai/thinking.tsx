@@ -106,7 +106,6 @@ const Thinking = ({
     </div>
   );
 };
-Thinking.displayName = "Thinking";
 
 const THINKING_ROW =
   "flex min-h-7 w-full items-center gap-2 rounded-[6px] px-1.5 py-0.5 text-left animate-in fade-in slide-in-from-bottom-1 fill-mode-both";
@@ -212,23 +211,19 @@ const ThinkingRow = ({
     </button>
   );
 };
-ThinkingRow.displayName = "ThinkingRow";
 
 type ThinkingPartProps = Omit<ThinkingRowProps, "kind">;
 
 const ThinkingStep = (props: ThinkingPartProps & RefAttributes<HTMLElement>) => (
   <ThinkingRow kind="step" {...props} />
 );
-ThinkingStep.displayName = "ThinkingStep";
 
 const ThinkingReasoning = (props: ThinkingPartProps & RefAttributes<HTMLElement>) => (
   <ThinkingRow kind="reasoning" {...props} />
 );
-ThinkingReasoning.displayName = "ThinkingReasoning";
 
 const ThinkingTool = (props: ThinkingPartProps & RefAttributes<HTMLElement>) => (
   <ThinkingRow kind="tool" {...props} />
 );
-ThinkingTool.displayName = "ThinkingTool";
 
 export { Thinking, ThinkingStep, ThinkingReasoning, ThinkingTool };

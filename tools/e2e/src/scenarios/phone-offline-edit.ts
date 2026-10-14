@@ -18,7 +18,7 @@ const plan = (edits: Record<number, string> = {}): string => {
 
 export const phoneOfflineEdit: Scenario = {
   description:
-    "the phone's own runtime edits a note offline while A edits it too: after reconnecting, a far edit lands merged with A's, and a same-line one keeps both versions",
+    "the phone's own runtime (`composeRuntime` under node, over node's sqlite) edits a note offline while A edits it too; reconnected, a far edit lands merged with A's, and a same-line one keeps the phone's version with A's as the copy the phone named, both on A's disk after A syncs",
   name: "phone-offline-edit",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -40,7 +40,14 @@ export const phoneOfflineEdit: Scenario = {
 
     ctx.log("offline, the phone edits line 1 while A edits line 10 and syncs");
     network.online = false;
-    await phone.notes.write(NOTE, plan({ 1: "the phone's line 1" }));
+    expectEq(
+      await phone.notes.write(NOTE, plan({ 1: "the phone's line 1" }), {
+        base: plan(),
+        kind: "expected",
+      }),
+      { kind: "written" },
+      "the phone's far edit",
+    );
     await a.api.vault.write({
       content: plan({ 10: "A's line 10" }),
       guard: { kind: "overwrite" },
@@ -61,7 +68,11 @@ export const phoneOfflineEdit: Scenario = {
     network.online = false;
     const fromPhone = plan({ 1: "the phone's line 1", 5: "the phone's line 5", 10: "A's line 10" });
     const fromA = plan({ 1: "the phone's line 1", 5: "A's line 5", 10: "A's line 10" });
-    await phone.notes.write(NOTE, fromPhone);
+    expectEq(
+      await phone.notes.write(NOTE, fromPhone, { base: both, kind: "expected" }),
+      { kind: "written" },
+      "the phone's same-line edit",
+    );
     await a.api.vault.write({ content: fromA, guard: { kind: "overwrite" }, path: NOTE });
     await syncUntil(a.api, "A after its same-line edit", "clean");
 

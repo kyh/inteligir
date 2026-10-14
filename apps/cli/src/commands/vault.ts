@@ -319,16 +319,18 @@ export const vaultCommand = (deps: CliDeps) =>
           name: "history",
         },
         run: async ({ args }) => {
-          const request: VaultHistoryRequest = { path: args.path };
-          if (args.skip !== undefined) {
-            request.skip = parseBoundedInteger(args.skip, "--skip", { min: 0 });
-          }
-          if (args.limit !== undefined) {
-            request.limit = parseBoundedInteger(args.limit, "--limit", {
-              max: VAULT_HISTORY_MAX_LIMIT,
-              min: 1,
-            });
-          }
+          const skip =
+            args.skip === undefined
+              ? undefined
+              : parseBoundedInteger(args.skip, "--skip", { min: 0 });
+          const limit =
+            args.limit === undefined
+              ? undefined
+              : parseBoundedInteger(args.limit, "--limit", {
+                  max: VAULT_HISTORY_MAX_LIMIT,
+                  min: 1,
+                });
+          const request: VaultHistoryRequest = { limit, path: args.path, skip };
           const api = apiFor(deps);
           const body = await api.vault.history(request);
           if (outputJson(args, body)) {
@@ -418,7 +420,7 @@ export const vaultCommand = (deps: CliDeps) =>
         run: async ({ args }) => {
           const api = apiFor(deps);
           // dynamic imports: both read frontmatter, and a static one would load yaml before every
-          // client verb reads argv (the build refuses that, scripts/build.mjs).
+          // client verb reads argv (the build refuses that, scripts/build.ts).
           const [{ frontmatterId }, { giveNoteOwnId }] = await Promise.all([
             import("@repo/notes/markdown/frontmatter"),
             import("@repo/contract/local/vault/give-note-own-id"),
@@ -608,7 +610,7 @@ export const vaultCommand = (deps: CliDeps) =>
           let comments: CommentStoreRestore = { kind: "none" };
           if (guard.kind === "absent") {
             // dynamic import: it reads frontmatter, and a static one would load yaml before every
-            // client verb reads argv (the build refuses that, scripts/build.mjs).
+            // client verb reads argv (the build refuses that, scripts/build.ts).
             const { restoreCommentStore } =
               await import("@repo/contract/local/vault/restore-comment-store");
             comments = await restoreCommentStore(api, revision.content, args.sha);

@@ -51,7 +51,7 @@ export const signUpBodyRefusal = (error: z.ZodError, otherwise: string): string 
     ? `Use a password of ${PASSWORD_MIN_LENGTH} to ${PASSWORD_MAX_LENGTH} characters.`
     : otherwise;
 
-const refuse = (status: number, message: string): Response =>
+const formRefusal = (status: number, message: string): Response =>
   Response.json({ message }, { status });
 
 // through the handler rather than auth.api.signUpEmail: a rejected sign-up is then a response to
@@ -80,16 +80,19 @@ export const handleInviteSignUp = async (request: Request, env: Env): Promise<Re
 
   if (!(await spendCallerBudget(env, db, "inviteSignUp", request))) {
     // the page renders { message }; a bare-text body is the one refusal it cannot explain
-    return refuse(429, "Too many attempts — wait a minute.");
+    return formRefusal(429, "Too many attempts — wait a minute.");
   }
 
   const body = signUpRequestSchema.safeParse(await request.json().catch(() => null));
   if (!body.success) {
-    return refuse(400, signUpBodyRefusal(body.error, "Fill in every field to create an account."));
+    return formRefusal(
+      400,
+      signUpBodyRefusal(body.error, "Fill in every field to create an account."),
+    );
   }
   const parsed = body.data;
   if (!(await claimInvite(db, parsed.inviteCode, parsed.email))) {
-    return refuse(403, INVITE_REFUSED);
+    return formRefusal(403, INVITE_REFUSED);
   }
 
   const response = await forwardSignUp(request, env, url.origin, parsed);

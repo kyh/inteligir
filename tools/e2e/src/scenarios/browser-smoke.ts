@@ -25,8 +25,8 @@ const pageIsMounted = (bodyText: string): boolean =>
   // status query ran.
   bodyText.includes("Welcome to inteligir") && bodyText.includes("Only on this Mac");
 
-// here, not a unit test: `pnpm verify` runs tests before the build, so a unit test over dist/ reads
-// the previous build.
+// here, not a unit test: no test task waits on a build, so a unit test over dist/ reads the previous
+// build or one mid-write.
 const assertDocumentPolicy = async (app: AppInstance): Promise<void> => {
   // a plain GET is anything on this machine; only a handoff a holder of the bearer minted signs a
   // browser in.
@@ -107,7 +107,7 @@ const assertSignedOutJourney = async (
 
 export const browserSmoke: Scenario = {
   description:
-    "the page renders headless: signed-out page, `inteligir open` sign-in, title, SPA mount, API reached, palette chord safe, clean console",
+    "headless page load: the REAL policy on the served document, the signed-out page a bare URL gets and the `inteligir open` link that signs a browser in, the title, SPA mount, API reached, the palette chord safe, clean console after a settle window",
   name: "browser-smoke",
   async run(ctx) {
     const app = await ctx.boot({ name: "solo" });

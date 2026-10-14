@@ -15,7 +15,7 @@ A link to a note that does not exist yet renders dashed: [[Field Notes]].
 
 ## Marks and inline
 
-**Bold**, _italic_, ~~strikethrough~~, `inline code`, a [link](https://example.com), an inline equation $$a^2+b^2=c^2$$, and a date chip <date value="2026-08-22" /> in prose.
+**Bold**, _italic_, ~~strikethrough~~, `inline code`, a [link](https://example.com), an inline equation $$a^2+b^2=c^2$$, and a date chip @2026-08-22 in prose.
 
 A tag chip: #reference
 
@@ -70,21 +70,22 @@ Review-->Ship;
 
 ## Toggle and columns
 
-<toggle>
-  Hidden until opened.
+:::toggle
+Hidden until opened.
 
-  - details live here
-</toggle>
+- details live here
 
-<column_group>
-  <column>
-    Left column.
-  </column>
+:::
 
-  <column>
-    Right column.
-  </column>
-</column_group>
+:::columns
+:::column
+Left column.
+:::
+
+:::column
+Right column.
+:::
+:::
 
 ## Callouts
 

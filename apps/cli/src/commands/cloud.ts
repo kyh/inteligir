@@ -34,6 +34,12 @@ const describe = (status: CloudStatusResponse): string[] => {
         status.detail,
       ];
     }
+    case "outdated": {
+      return [
+        `outdated  ${new URL(status.cloudUrl).host}  device ${status.deviceId}`,
+        "The cloud no longer syncs this version. Update inteligir (npm i -g inteligir@latest, or the app) and sync resumes as this device.",
+      ];
+    }
     case "signed-in": {
       const synced =
         status.lastSyncedAt === null ? "never" : new Date(status.lastSyncedAt).toISOString();
@@ -124,10 +130,7 @@ export const cloudCommand = (deps: CliDeps) =>
           const source = passwordSource(args);
           const api = apiFor(deps);
           const password = await readPassword(source);
-          const input: CloudLoginRequest = { email: args.email, password };
-          if (args.name !== undefined) {
-            input.deviceName = args.name;
-          }
+          const input: CloudLoginRequest = { deviceName: args.name, email: args.email, password };
           const body = await api.cloud.login(input);
           if (outputJson(args, body)) {
             return;

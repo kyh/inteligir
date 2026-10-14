@@ -1,5 +1,5 @@
-// pinned from both sides: a manifest can declare an edge nobody imports, and an import can cross an
-// edge no manifest declares (pnpm's hoisting resolves it). adding a package or an edge: add the
+// the shipped import graph is pinned to DECLARED_EDGES from both sides, and every import, a
+// test's and a tool's included, to its importer's manifest. adding a package or an edge: add the
 // row.
 
 import fs from "node:fs";
@@ -14,9 +14,11 @@ import {
   resolveWorkspace,
   sourceOf,
   workspaceFiles,
+  workspaceSourceFiles,
   workspaces,
 } from "./repo";
 import type { Workspace } from "./repo";
+import { GALLERY_DIR } from "./ui-package";
 
 // what each workspace's shipped source may import; test-only imports are not edges but must still
 // be declared in the manifest.
@@ -32,10 +34,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // below the wire: an edge to @repo/contract would drag @orpc/contract and the contract's notes edge
     // into a package that only writes rows.
     "@repo/db": ["@repo/domain"],
-    // the page alone: the shell is Rust (src-tauri), and every rule it shares with the server it
-    // asks the CLI's desktop entry for, so no source here imports `inteligir`. its suites boot a
-    // server in-process, which is a test dependency, not a shipped edge.
-    "@repo/desktop": ["@repo/contract", "@repo/domain", "@repo/editor", "@repo/notes", "@repo/ui"],
+    // the shell is Rust (src-tauri) and holds no src/: the page it shows is @repo/workspace's, and
+    // every rule it shares with the server it asks the CLI's desktop entry for.
+    "@repo/desktop": [],
     "@repo/domain": [],
     // the `inteligir` edge is the binary it spawns and the config resolution naming this checkout's
     // instance; the @repo/mobile edge is the phone's own platform-free runtime, driven under node
@@ -56,89 +57,35 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/notes": [],
     "@repo/repo-guards": [],
     "@repo/ui": [],
+    // a dev page no row names, so an import of it from a shipped workspace fails here.
+    "@repo/ui-gallery": ["@repo/ui"],
     "@repo/web": ["@repo/contract", "@repo/ui"],
+    // the page every vault's server answers and the first run the shell carries; it reaches no
+    // server and no shell source, only the wire to each. Its suites that boot a server live in
+    // apps/cli, so nothing here depends on `inteligir`.
+    "@repo/workspace": [
+      "@repo/contract",
+      "@repo/domain",
+      "@repo/editor",
+      "@repo/notes",
+      "@repo/ui",
+    ],
     // the server reaches no page: no @repo/ui, no @repo/editor, no react.
     inteligir: ["@repo/agent-runtime", "@repo/contract", "@repo/db", "@repo/domain", "@repo/notes"],
   }),
 );
 
-// installed and executed, never imported: absent from DECLARED_EDGES on purpose, so a module import
-// across one still fails as undeclared. its own table because the manifest checks read opposite
-// things off one row: pnpm must link it, and nothing under src/ imports it.
-const DECLARED_ARTIFACT_EDGES = new Map<string, Record<string, string>>(
-  Object.entries({
-    inteligir: {
-      "@repo/agent-skills":
-        "the dialect skills are CONTENT the agent reads with its shell — agent-shell-env.ts resolves the package's skills/ directory via createRequire and hands the path to agent sessions as INTELIGIR_SKILLS_DIR; no module import exists or should",
-    },
-  }),
-);
-
-const artifactEdgesFrom = (name: string): Record<string, string> =>
-  DECLARED_ARTIFACT_EDGES.get(name) ?? {};
-
-const platformSurfacesOf = (specifier: string): string[] => {
-  const surfaces: string[] = [];
-  if (specifier.startsWith("node:")) {
-    surfaces.push("node");
-  }
-  if (specifier === "react" || specifier.startsWith("react/")) {
-    surfaces.push("react");
-  }
-  if (specifier === "react-dom" || specifier.startsWith("react-dom/")) {
-    surfaces.push("react");
-  }
-  // the desktop shell's own API: only the desktop page, which runs inside the shell, may reach it
-  if (specifier.startsWith("@tauri-apps/")) {
-    surfaces.push("tauri");
-  }
-  return surfaces;
-};
-
-interface PurityRule {
-  forbidden: readonly string[];
-  why: string;
-}
-
-// absent means no platform constraint.
-const PURITY_RULES = new Map<string, PurityRule>(
-  Object.entries({
-    "@repo/agent-runtime": {
-      forbidden: ["react", "tauri"],
-      why: "it spawns provider processes, so it is node-side by definition — and nothing it exports may pull a process tree into a renderer; the grammars a client reads live in @repo/domain",
-    },
-    "@repo/contract": {
-      forbidden: ["node", "react", "tauri"],
-      why: "the contract both ends compile against: it loads in the desktop page, on node, on workerd and in React Native, so a platform import there is a package that stops loading somewhere",
-    },
-    "@repo/domain": {
-      forbidden: ["node", "react", "tauri"],
-      why: "a zod-only leaf: the thread grammar is parsed on both sides of every wire",
-    },
-    "@repo/editor": {
-      forbidden: ["node", "tauri"],
-      why: "browser-only: Plate/Slate in the page, never in the Node process",
-    },
-    "@repo/mobile-editor": {
-      forbidden: ["node", "tauri"],
-      why: "a page in the phone's WebView, loaded from file://: nothing but the browser is there",
-    },
-    "@repo/notes": {
-      forbidden: ["node", "react", "tauri"],
-      why: "the pure sharing seam: it runs in the browser AND on node, and every platform capability (the SQL driver, the clock, content hashes) is INJECTED",
-    },
-    "@repo/ui": {
-      forbidden: ["node", "tauri"],
-      why: "browser-only, and consumed by the Worker's SSR half as well as the local app",
-    },
-  }),
-);
+// the desktop shell's own API, which answers only inside the shell's window: only the page that
+// window shows may reach it, so the rule is who may, not a row per package that may not
+const SHELL_API = "@tauri-apps/";
+const SHELL_API_CLIENTS = new Set(["@repo/workspace"]);
 
 // @repo/contract is not here: @orpc/contract is isomorphic and costs no portability.
 const ZOD_ONLY_LEAVES = ["@repo/domain"];
 
-// @repo/contract/cloud may never break and @repo/contract/local may break freely, so a workspace that ships
-// apart from the desktop bundle reaches the cloud entry alone; each row says why it ships apart.
+// @repo/contract/cloud breaks only behind the client build floor (MIN_CLIENT_BUILD) and
+// @repo/contract/local breaks freely, so a workspace that ships apart from the desktop bundle
+// reaches the cloud entry alone; each row says why it ships apart.
 const CLOUD_ONLY_CLIENTS = new Map<string, string>([
   ["@repo/web", "it serves the cloud wire and only the cloud wire"],
   [
@@ -176,12 +123,42 @@ const edgesFrom = (workspace: Workspace, files: readonly string[]): Map<string, 
   return edges;
 };
 
+// the deepest dir wins, so a workspace nested in another owns its own files
+const workspaceAt = (relativePath: string): Workspace | null =>
+  workspaces()
+    .filter(
+      (workspace) => relativePath === workspace.dir || relativePath.startsWith(`${workspace.dir}/`),
+    )
+    .toSorted((a, b) => b.dir.length - a.dir.length)[0] ?? null;
+
+// the workspace a relative specifier lands in, when it is not the importer's own
+const pathIntoAnotherWorkspace = (file: string, specifier: string): Workspace | null => {
+  if (!specifier.startsWith(".")) {
+    return null;
+  }
+  const [bare = specifier] = specifier.split("?");
+  const target = workspaceAt(path.posix.join(path.posix.dirname(file), bare));
+  return target === null || target.name === workspaceAt(file)?.name ? null : target;
+};
+
 const shippedEdges = new Map<string, Map<string, string[]>>();
 const testEdges = new Map<string, Map<string, string[]>>();
+// a workspace's own tooling outside src/, its scripts and configs: like a test's, what it imports
+// is a dependency the manifest declares, never an edge. The desktop's scripts are the whole of its
+// TypeScript.
+const toolingEdges = new Map<string, Map<string, string[]>>();
 for (const workspace of workspaces()) {
   const files = workspaceFiles(workspace);
+  const inSrc = new Set([...files.shipped, ...files.test]);
   shippedEdges.set(workspace.name, edgesFrom(workspace, files.shipped));
   testEdges.set(workspace.name, edgesFrom(workspace, files.test));
+  toolingEdges.set(
+    workspace.name,
+    edgesFrom(
+      workspace,
+      workspaceSourceFiles(workspace).filter((file) => !inSrc.has(file)),
+    ),
+  );
 }
 
 const declaredFor = (name: string): readonly string[] => {
@@ -232,11 +209,13 @@ describe("the package dependency DAG", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
+  // knip owns the reverse, a listed workspace nothing imports, but not this: outside --strict, which
+  // stops counting devDependencies, it accepts any workspace package a private workspace imports.
   it("every imported workspace is declared in the importer's manifest", () => {
     const violations: string[] = [];
     for (const workspace of workspaces()) {
       const declared = manifestWorkspaceDeps(workspace.manifest);
-      for (const bucket of [shippedEdges, testEdges]) {
+      for (const bucket of [shippedEdges, testEdges, toolingEdges]) {
         for (const [target, sites] of bucket.get(workspace.name) ?? []) {
           if (declared.has(target)) {
             continue;
@@ -253,71 +232,35 @@ describe("the package dependency DAG", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("every workspace dependency a manifest declares is imported somewhere", () => {
+  // every other rule in this file reads a package name, so a relative path into another workspace
+  // would pass them all unseen.
+  it("a workspace reaches another only by its package name", () => {
     const violations: string[] = [];
     for (const workspace of workspaces()) {
-      const used = new Set([
-        ...(shippedEdges.get(workspace.name) ?? new Map<string, string[]>()).keys(),
-        ...(testEdges.get(workspace.name) ?? new Map<string, string[]>()).keys(),
-      ]);
-      const artifact = artifactEdgesFrom(workspace.name);
-      for (const target of manifestWorkspaceDeps(workspace.manifest)) {
-        if (used.has(target) || artifact[target] !== undefined) {
-          continue;
+      for (const file of workspaceSourceFiles(workspace)) {
+        for (const specifier of importsOf(file)) {
+          const target = pathIntoAnotherWorkspace(file, specifier);
+          if (target === null) {
+            continue;
+          }
+          violations.push(
+            `PATH INTO ANOTHER WORKSPACE  ${file} imports "${specifier}", a file of ${target.name}\n` +
+              `  rule: a workspace reaches another by its package name alone — a relative path skips that workspace's exports, its DECLARED_EDGES row and the importer's manifest, so every edge and reach check here passes it\n` +
+              `  fix: import it as "${target.name}/…" through its exports, the edge declared in DECLARED_EDGES and ${workspace.dir}/package.json`,
+          );
         }
-        violations.push(
-          `PHANTOM DEPENDENCY  ${workspace.dir}/package.json declares "${target}"\n` +
-            `  rule: a declared dependency has an importer; nothing under ${workspace.dir}/src imports this one\n` +
-            `  fix: delete it — or, if ${workspace.name} INSTALLS AND EXECUTES ${target}'s build output instead of importing it, add a row to DECLARED_ARTIFACT_EDGES (tools/repo-guards/src/dep-dag.test.ts) saying so`,
-        );
       }
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("every declared artifact edge is a real, unimported manifest dependency", () => {
-    const violations: string[] = [];
-    for (const [name, targets] of DECLARED_ARTIFACT_EDGES) {
-      const workspace = workspaces().find((candidate) => candidate.name === name);
-      if (workspace === undefined) {
-        violations.push(
-          `STALE ARTIFACT EDGE  ${name} is not a workspace\n` +
-            `  rule: an artifact edge names a package that exists, or it only ever excuses something nobody can find\n` +
-            `  fix: delete the entry from DECLARED_ARTIFACT_EDGES`,
-        );
-        continue;
-      }
-      const declared = manifestWorkspaceDeps(workspace.manifest);
-      const imported = new Set([
-        ...(shippedEdges.get(name) ?? new Map<string, string[]>()).keys(),
-        ...(testEdges.get(name) ?? new Map<string, string[]>()).keys(),
-      ]);
-      for (const [target, why] of Object.entries(targets)) {
-        if (!declared.has(target)) {
-          violations.push(
-            `STALE ARTIFACT EDGE  ${workspace.dir}/package.json no longer declares "${target}"\n` +
-              `  the row claimed: ${why}\n` +
-              `  fix: delete the row — an exemption that outlives its dependency only ever loosens the phantom check`,
-          );
-        }
-        if (declaredFor(name).includes(target)) {
-          violations.push(
-            `EDGE DECLARED TWICE  ${name} -> ${target}\n` +
-              `  rule: an artifact edge is INSTALLED AND EXECUTED, an entry in DECLARED_EDGES is IMPORTED — one dependency is one or the other, and a row in both tables makes the import check unenforceable\n` +
-              `  fix: keep the row in whichever table describes what ${name} actually does with ${target}`,
-          );
-        }
-        if (imported.has(target)) {
-          violations.push(
-            `ARTIFACT EDGE IS IMPORTED  ${name} -> ${target}\n` +
-              `  the row claimed: ${why}\n` +
-              `  rule: an artifact edge means "installed and executed", never "imported" — source under ${workspace.dir}/src imports it, so it is an ordinary edge\n` +
-              `  fix: move it to DECLARED_EDGES, or stop importing it`,
-          );
-        }
-      }
-    }
-    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  it("sees a relative path into the gallery, so a clean sweep is a real one", () => {
+    const importer = "apps/web/src/routes/index.tsx";
+    const intoGallery = `${path.posix.relative(path.posix.dirname(importer), GALLERY_DIR)}/src/gallery-page`;
+    expect(pathIntoAnotherWorkspace(importer, intoGallery)?.name).toBe("@repo/ui-gallery");
+    expect(pathIntoAnotherWorkspace(importer, "../../../../docs/privacy.md?raw")).toBeNull();
+    expect(pathIntoAnotherWorkspace(importer, "../router")).toBeNull();
+    expect(pathIntoAnotherWorkspace(importer, "@repo/ui/components/button")).toBeNull();
   });
 
   it("has no cycles", () => {
@@ -351,22 +294,19 @@ describe("the package dependency DAG", () => {
 });
 
 describe("platform purity", () => {
-  it("no package reaches a platform its rule forbids", () => {
+  it("only the page the shell shows reaches the shell's API", () => {
     const violations: string[] = [];
     for (const workspace of workspaces()) {
-      const rule = PURITY_RULES.get(workspace.name);
-      if (rule === undefined) {
+      if (SHELL_API_CLIENTS.has(workspace.name)) {
         continue;
       }
-      for (const file of workspaceFiles(workspace).shipped) {
+      const files = workspaceFiles(workspace);
+      for (const file of [...files.shipped, ...files.test]) {
         for (const specifier of importsOf(file)) {
-          for (const surface of platformSurfacesOf(specifier)) {
-            if (!rule.forbidden.includes(surface)) {
-              continue;
-            }
+          if (specifier.startsWith(SHELL_API)) {
             violations.push(
-              `FORBIDDEN IMPORT  ${file} imports "${specifier}"\n` +
-                `  rule: ${workspace.name} may not reach ${surface} — ${rule.why}`,
+              `SHELL API OUTSIDE THE PAGE  ${file} imports "${specifier}"\n` +
+                `  rule: Tauri answers only inside the desktop shell's window, so only ${[...SHELL_API_CLIENTS].join(", ")}, the page it shows, reaches it`,
             );
           }
         }
@@ -511,7 +451,7 @@ describe("platform purity", () => {
         if (reachesLocal) {
           violations.push(
             `CLOUD REACHES LOCAL  ${file} imports "${specifier}"\n` +
-              `  rule: @repo/contract/cloud is the never-break wire — it may import zod, @repo/notes and its own cloud/ modules, never src/local`,
+              `  rule: @repo/contract/cloud is the floor-gated wire — it may import zod, @repo/notes and its own cloud/ modules, never src/local`,
           );
         }
       }

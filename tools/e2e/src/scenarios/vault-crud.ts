@@ -10,7 +10,8 @@ const FIRST_CONTENT = "# Hello\n\nWritten by the e2e harness.\n";
 const SECOND_CONTENT = "# Hello again\n\nOverwritten by the e2e harness.\n";
 
 export const vaultCrud: Scenario = {
-  description: "write/read/rename/delete via the typed client + on-disk assertions",
+  description:
+    "write/read/rename/delete over the wire, bytes verified on disk; a rename onto an existing file and every path refusal verified to leave the disk untouched",
   name: "vault-crud",
   async run(ctx) {
     const app = await ctx.boot({

@@ -1,4 +1,4 @@
-// the turns here commit through the same write set the runtime manager opens per turn, over the
+// the turns here commit through the same write set the ACP turn driver opens per turn, over the
 // composed server's own engine and vault; only the provider is the test's.
 
 import { existsSync, readFileSync } from "node:fs";
@@ -12,7 +12,7 @@ import type { ThreadHarness } from "../../__tests__/boot-app";
 import { removeEntryWithComments } from "../../comments/remove-with-comments";
 import { beginAgentTurnWrites } from "../agent-commits";
 import type { AgentTurnWrites } from "../agent-commits";
-import { undoTurnChanges } from "../turn-changes";
+import { undoTurnChanges } from "../../threads/turn-undo";
 import { awaitThreadStatus, createThread, sendMessage } from "./agent-test-harness";
 
 const doc = (...lines: string[]): string => `${lines.join("\n")}\n`;

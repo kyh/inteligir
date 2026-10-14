@@ -8,7 +8,8 @@ import { agentNote, runTurn } from "../harness/threads";
 const USER_LINE = "Call Sam about the draft";
 
 export const undoScripted: Scenario = {
-  description: "undo takes one scripted turn back, keeping the line the user added since",
+  description:
+    "undoing the second of two scripted turns leaves the first turn's text and a line the user added since, on disk and through `vault.read`; the first turn's note is then kept as edited since, and an untouched turn's undo removes the note it made",
   name: "undo-scripted",
   async run(ctx) {
     const app = await ctx.boot({

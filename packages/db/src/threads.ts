@@ -194,8 +194,8 @@ export const listThreads = (db: DbConnection, query: ThreadListQuery): ThreadPag
 export const listRunningThreads = (db: DbConnection): ThreadRow[] =>
   db.select().from(threads).where(inArray(threads.status, RUNNING_STATUSES)).all();
 
-// the paths threads are bound by alone: composed over a note with no id to give, or before the
-// id column existed.
+// the paths threads are bound by alone: composed over a note with no id to give, or asked over
+// from a phone, which reads an id and never mints one.
 export const listPathOnlyOriginPaths = (db: DbExecutor): string[] =>
   db
     .selectDistinct({ path: threads.originDocPath })
@@ -352,11 +352,11 @@ export const applyThreadLifecycleEventInTransaction = (
       status: thread.status,
     },
   });
-  if ("noop" in evaluation) {
+  if (evaluation.kind === "noop") {
     return {
       applied: false,
       detail: evaluation.detail,
-      reason: evaluation.noop,
+      reason: evaluation.reason,
     };
   }
 

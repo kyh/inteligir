@@ -1,6 +1,6 @@
 //! The updater's one state, reduced here and parsed off the bridge by the page against
-//! `apps/desktop/src/update-state.ts`, the same union the Electron shell sent. Each status carries
-//! exactly what it knows, so no surface reads a version that status cannot have.
+//! `apps/workspace/src/shell/update-state.ts`. Each status carries exactly what it knows, so no surface
+//! reads a version that status cannot have.
 
 use serde::Serialize;
 
@@ -13,143 +13,86 @@ pub enum UpdateAction {
     Install { version: String },
 }
 
+/// The facts every status shares, beside the status itself.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateState {
+    pub checked_at: Option<String>,
+    pub current_version: String,
+    #[serde(flatten)]
+    pub status: UpdateStatus,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "status", rename_all = "kebab-case")]
-pub enum UpdateState {
-    #[serde(rename_all = "camelCase")]
+pub enum UpdateStatus {
     Disabled {
-        checked_at: Option<String>,
-        current_version: String,
         /// Why nothing will be checked.
         reason: String,
     },
-    #[serde(rename_all = "camelCase")]
-    Idle {
-        checked_at: Option<String>,
-        current_version: String,
-    },
-    #[serde(rename_all = "camelCase")]
+    Idle,
     Checking {
-        checked_at: Option<String>,
-        current_version: String,
         /// What the button offered before the check: a failure offers it again, and a downloaded
         /// update survives whatever the check answers.
         retry: UpdateAction,
     },
-    #[serde(rename_all = "camelCase")]
-    UpToDate {
-        checked_at: Option<String>,
-        current_version: String,
-    },
-    #[serde(rename_all = "camelCase")]
+    UpToDate,
     Available {
-        checked_at: Option<String>,
-        current_version: String,
         version: String,
     },
-    #[serde(rename_all = "camelCase")]
     Downloading {
-        checked_at: Option<String>,
-        current_version: String,
         percent: u8,
         version: String,
     },
-    #[serde(rename_all = "camelCase")]
     Downloaded {
-        checked_at: Option<String>,
-        current_version: String,
         version: String,
     },
-    #[serde(rename_all = "camelCase")]
     Error {
-        checked_at: Option<String>,
-        current_version: String,
         message: String,
         retry: UpdateAction,
     },
 }
 
-use UpdateState as S;
-
-struct Base {
-    checked_at: Option<String>,
-    current_version: String,
-}
+use UpdateStatus as S;
 
 impl UpdateState {
     pub fn initial(current_version: &str, disabled_reason: Option<&str>) -> Self {
-        let current_version = current_version.to_owned();
-        match disabled_reason {
-            None => S::Idle {
-                checked_at: None,
-                current_version,
-            },
-            Some(reason) => S::Disabled {
-                checked_at: None,
-                current_version,
+        Self {
+            checked_at: None,
+            current_version: current_version.to_owned(),
+            status: disabled_reason.map_or(S::Idle, |reason| S::Disabled {
                 reason: reason.to_owned(),
-            },
+            }),
         }
     }
 
-    fn base(&self) -> Base {
-        let (S::Disabled {
+    /// This version in another status, last checked when `checked_at` says.
+    fn next(&self, checked_at: Option<String>, status: UpdateStatus) -> Self {
+        Self {
             checked_at,
-            current_version,
-            ..
+            current_version: self.current_version.clone(),
+            status,
         }
-        | S::Idle {
-            checked_at,
-            current_version,
-        }
-        | S::Checking {
-            checked_at,
-            current_version,
-            ..
-        }
-        | S::UpToDate {
-            checked_at,
-            current_version,
-        }
-        | S::Available {
-            checked_at,
-            current_version,
-            ..
-        }
-        | S::Downloading {
-            checked_at,
-            current_version,
-            ..
-        }
-        | S::Downloaded {
-            checked_at,
-            current_version,
-            ..
-        }
-        | S::Error {
-            checked_at,
-            current_version,
-            ..
-        }) = self;
-        Base {
-            checked_at: checked_at.clone(),
-            current_version: current_version.clone(),
-        }
+    }
+
+    /// Another status, last checked when this one was.
+    fn with_status(&self, status: UpdateStatus) -> Self {
+        self.next(self.checked_at.clone(), status)
     }
 
     pub fn is_disabled(&self) -> bool {
-        matches!(self, S::Disabled { .. })
+        matches!(self.status, S::Disabled { .. })
     }
 
     /// What one button does next; None while a step is running or nothing can be done.
     pub fn action(&self) -> Option<UpdateAction> {
-        match self {
+        match &self.status {
             S::Disabled { .. } | S::Checking { .. } | S::Downloading { .. } => None,
-            S::Idle { .. } | S::UpToDate { .. } => Some(UpdateAction::Check),
-            S::Available { version, .. } => Some(UpdateAction::Download {
+            S::Idle | S::UpToDate => Some(UpdateAction::Check),
+            S::Available { version } => Some(UpdateAction::Download {
                 version: version.clone(),
             }),
-            S::Downloaded { version, .. } => Some(UpdateAction::Install {
+            S::Downloaded { version } => Some(UpdateAction::Install {
                 version: version.clone(),
             }),
             S::Error { retry, .. } => Some(retry.clone()),
@@ -158,8 +101,8 @@ impl UpdateState {
 
     /// What a failure leaves the button offering: the update already found, else a fresh check.
     fn retry_after(&self) -> UpdateAction {
-        match self {
-            S::Checking { retry, .. } => retry.clone(),
+        match &self.status {
+            S::Checking { retry } => retry.clone(),
             S::Downloading { version, .. } => UpdateAction::Download {
                 version: version.clone(),
             },
@@ -178,11 +121,12 @@ impl UpdateState {
         if self.is_disabled() {
             return self.clone();
         }
-        S::Checking {
-            checked_at: Some(checked_at.to_owned()),
-            current_version: self.base().current_version,
-            retry: self.retry_after(),
-        }
+        self.next(
+            Some(checked_at.to_owned()),
+            S::Checking {
+                retry: self.retry_after(),
+            },
+        )
     }
 
     /// A newer version than the one on disk is a fresh download, not the old one.
@@ -190,73 +134,46 @@ impl UpdateState {
         if self.is_disabled() {
             return self.clone();
         }
-        let checked_at = Some(checked_at.to_owned());
-        let current_version = self.base().current_version;
         let version = version.to_owned();
-        if self.kept_download().as_deref() == Some(version.as_str()) {
-            S::Downloaded {
-                checked_at,
-                current_version,
-                version,
-            }
+        let status = if self.kept_download().as_deref() == Some(version.as_str()) {
+            S::Downloaded { version }
         } else {
-            S::Available {
-                checked_at,
-                current_version,
-                version,
-            }
-        }
+            S::Available { version }
+        };
+        self.next(Some(checked_at.to_owned()), status)
     }
 
     pub fn no_update(&self, checked_at: &str) -> Self {
         if self.is_disabled() {
             return self.clone();
         }
-        let checked_at = Some(checked_at.to_owned());
-        let current_version = self.base().current_version;
-        match self.kept_download() {
-            None => S::UpToDate {
-                checked_at,
-                current_version,
-            },
-            Some(version) => S::Downloaded {
-                checked_at,
-                current_version,
-                version,
-            },
-        }
+        let status = match self.kept_download() {
+            None => S::UpToDate,
+            Some(version) => S::Downloaded { version },
+        };
+        self.next(Some(checked_at.to_owned()), status)
     }
 
     pub fn download_started(&self, version: &str) -> Self {
         if self.is_disabled() {
             return self.clone();
         }
-        let Base {
-            checked_at,
-            current_version,
-        } = self.base();
-        S::Downloading {
-            checked_at,
-            current_version,
+        self.with_status(S::Downloading {
             percent: 0,
             version: version.to_owned(),
-        }
+        })
     }
 
     /// The same state when nothing moved, so a caller can skip a broadcast by equality.
     pub fn download_progress(&self, percent: u8) -> Self {
-        match self {
+        match &self.status {
             S::Downloading {
-                checked_at,
-                current_version,
                 percent: before,
                 version,
-            } if *before != percent.min(100) => S::Downloading {
-                checked_at: checked_at.clone(),
-                current_version: current_version.clone(),
+            } if *before != percent.min(100) => self.with_status(S::Downloading {
                 percent: percent.min(100),
                 version: version.clone(),
-            },
+            }),
             _ => self.clone(),
         }
     }
@@ -265,15 +182,9 @@ impl UpdateState {
         if self.is_disabled() {
             return self.clone();
         }
-        let Base {
-            checked_at,
-            current_version,
-        } = self.base();
-        S::Downloaded {
-            checked_at,
-            current_version,
+        self.with_status(S::Downloaded {
             version: version.to_owned(),
-        }
+        })
     }
 
     /// A failed download keeps its version and a failed install its bytes, so the retry is that step.
@@ -281,13 +192,15 @@ impl UpdateState {
         if self.is_disabled() {
             return self.clone();
         }
-        let base = self.base();
-        S::Error {
-            checked_at: checked_at.map(str::to_owned).or(base.checked_at),
-            current_version: base.current_version,
-            message: message.to_owned(),
-            retry: self.retry_after(),
-        }
+        self.next(
+            checked_at
+                .map(str::to_owned)
+                .or_else(|| self.checked_at.clone()),
+            S::Error {
+                message: message.to_owned(),
+                retry: self.retry_after(),
+            },
+        )
     }
 }
 
@@ -302,35 +215,58 @@ pub fn failure_reason(message: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::{Value, json};
+
     use super::*;
 
     const AT: &str = "2026-10-04T10:00:00.000Z";
 
-    fn json(state: &UpdateState) -> String {
-        serde_json::to_string(state).unwrap_or_default()
+    fn wire(state: &UpdateState) -> Value {
+        serde_json::to_value(state).unwrap_or_default()
     }
 
     #[test]
     fn serializes_the_union_the_page_parses() {
         assert_eq!(
-            json(&UpdateState::initial("0.7.0", None)),
-            r#"{"status":"idle","checkedAt":null,"currentVersion":"0.7.0"}"#
+            wire(&UpdateState::initial("0.7.0", None)),
+            json!({ "status": "idle", "checkedAt": null, "currentVersion": "0.7.0" })
+        );
+        assert_eq!(
+            wire(&UpdateState::initial("0.7.0", Some("no feed"))),
+            json!({ "status": "disabled", "checkedAt": null, "currentVersion": "0.7.0", "reason": "no feed" })
         );
         let checking = UpdateState::initial("0.7.0", None).check_started(AT);
         assert_eq!(
-            json(&checking),
-            format!(
-                r#"{{"status":"checking","checkedAt":"{AT}","currentVersion":"0.7.0","retry":{{"action":"check"}}}}"#
-            )
+            wire(&checking),
+            json!({
+                "status": "checking",
+                "checkedAt": AT,
+                "currentVersion": "0.7.0",
+                "retry": { "action": "check" },
+            })
         );
         let downloading = checking
             .update_available("0.8.0", AT)
             .download_started("0.8.0");
         assert_eq!(
-            json(&downloading.download_progress(42)),
-            format!(
-                r#"{{"status":"downloading","checkedAt":"{AT}","currentVersion":"0.7.0","percent":42,"version":"0.8.0"}}"#
-            )
+            wire(&downloading.download_progress(42)),
+            json!({
+                "status": "downloading",
+                "checkedAt": AT,
+                "currentVersion": "0.7.0",
+                "percent": 42,
+                "version": "0.8.0",
+            })
+        );
+        assert_eq!(
+            wire(&downloading.failure("network", None)),
+            json!({
+                "status": "error",
+                "checkedAt": AT,
+                "currentVersion": "0.7.0",
+                "message": "network",
+                "retry": { "action": "download", "version": "0.8.0" },
+            })
         );
     }
 
@@ -349,17 +285,17 @@ mod tests {
             .download_complete("0.8.0");
         let checking = downloaded.check_started(AT);
         assert!(matches!(
-            checking.update_available("0.8.0", AT),
-            UpdateState::Downloaded { .. }
+            checking.update_available("0.8.0", AT).status,
+            UpdateStatus::Downloaded { .. }
         ));
         assert!(matches!(
-            checking.no_update(AT),
-            UpdateState::Downloaded { .. }
+            checking.no_update(AT).status,
+            UpdateStatus::Downloaded { .. }
         ));
         // a newer one is a fresh download
         assert!(matches!(
-            checking.update_available("0.9.0", AT),
-            UpdateState::Available { .. }
+            checking.update_available("0.9.0", AT).status,
+            UpdateStatus::Available { .. }
         ));
     }
 

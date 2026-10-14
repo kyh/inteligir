@@ -13,7 +13,7 @@ import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { stringProp } from "@repo/editor/node-props";
 import { wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
 
-const WikiChip = lazy(async () => await import("@repo/editor/wiki-chip"));
+const WikiChip = lazy(async () => await import("@repo/editor/wiki/wiki-chip"));
 const Transclusion = lazy(async () => await import("@repo/editor/transclusion"));
 
 const wikiLinkBasePlugin = createSlatePlugin({

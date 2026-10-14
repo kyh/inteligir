@@ -7,13 +7,12 @@ import { runMigrations } from "@repo/db/migrate";
 import { noopNotifier } from "@repo/domain/notifier";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
-import type * as BuildThreadTimeline from "@repo/contract/local/build-thread-timeline";
 import type * as DbEvents from "@repo/db/events";
 import { applyTimelineDelta } from "@repo/contract/local/thread-timeline";
 import type { ThreadTimeline } from "@repo/contract/local/thread-timeline";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import type * as BuildThreadTimeline from "../build-thread-timeline";
 import { ThreadService } from "../service";
-import { unavailableTurnDriver } from "../turn-driver";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { pathOnlyOrigins } from "../../__tests__/path-only-origins";
 
@@ -40,7 +39,7 @@ vi.mock("@repo/db/events", async (importOriginal) => {
 
 // reached through an import, so the module is the only vantage that sees a rebuild down the call path.
 // oxlint-disable-next-line anti-slop/no-module-mocking
-vi.mock("@repo/contract/local/build-thread-timeline", async (importOriginal) => {
+vi.mock("../build-thread-timeline", async (importOriginal) => {
   const actual = await importOriginal<typeof BuildThreadTimeline>();
   return {
     ...actual,
@@ -57,7 +56,6 @@ const openService = () => {
   return {
     db,
     service: new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,

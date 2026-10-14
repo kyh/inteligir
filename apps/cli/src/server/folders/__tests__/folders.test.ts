@@ -1,10 +1,14 @@
 import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ORPCError, safe } from "@orpc/client";
+import { CONNECTED_FOLDERS_MAX } from "@repo/contract/local/folders/folders-schema";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { createFoldersService, FolderRefusedError } from "../folders-service";
+import type { FolderRefusal } from "../folders-service";
 import { FoldersStore } from "../folders-store";
 import { JsonFileStoreError } from "../../json-file-store";
+import { bootTestApp } from "../../__tests__/boot-app";
 import { makeTempDir } from "../../__tests__/temp-dir";
 
 let root: string;
@@ -24,20 +28,29 @@ beforeEach(() => {
   mkdirSync(refDir, { recursive: true });
 });
 
-afterEach(() => {});
-
 const service = () => createFoldersService({ dataDir, store: new FoldersStore(dataDir), vaultDir });
 
-const refusalKind = (run: () => string[]): string | null => {
+const refusal = (run: () => string[]): FolderRefusal | null => {
   try {
     run();
   } catch (error) {
     if (error instanceof FolderRefusedError) {
-      return error.kind;
+      return error.refusal;
     }
     throw error;
   }
   return null;
+};
+
+const ADD_INVALID_PATH: FolderRefusal = { code: "invalid_path", op: "add" };
+
+// none of them on disk: the store holds spellings, and the cap counts rows
+const fillToCap = (storeDir: string): void => {
+  new FoldersStore(storeDir).write(
+    Array.from({ length: CONNECTED_FOLDERS_MAX }, (_, index) =>
+      path.join(storeDir, `full-${index}`),
+    ),
+  );
 };
 
 describe("folders store", () => {
@@ -61,28 +74,28 @@ describe("folders service validation", () => {
   });
 
   it("refuses a relative path", () => {
-    expect(refusalKind(() => service().add("reference"))).toBe("invalid-path");
+    expect(refusal(() => service().add("reference"))).toEqual(ADD_INVALID_PATH);
   });
 
   it("refuses a missing path", () => {
-    expect(refusalKind(() => service().add(path.join(root, "nope")))).toBe("invalid-path");
+    expect(refusal(() => service().add(path.join(root, "nope")))).toEqual(ADD_INVALID_PATH);
   });
 
   it("refuses a file", () => {
     const file = path.join(root, "a-file.txt");
     writeFileSync(file, "x", "utf-8");
-    expect(refusalKind(() => service().add(file))).toBe("invalid-path");
+    expect(refusal(() => service().add(file))).toEqual(ADD_INVALID_PATH);
   });
 
   it("refuses a folder inside the vault, and the vault itself", () => {
     const nested = path.join(vaultDir, "notes");
     mkdirSync(nested);
-    expect(refusalKind(() => service().add(nested))).toBe("invalid-path");
-    expect(refusalKind(() => service().add(vaultDir))).toBe("invalid-path");
+    expect(refusal(() => service().add(nested))).toEqual(ADD_INVALID_PATH);
+    expect(refusal(() => service().add(vaultDir))).toEqual(ADD_INVALID_PATH);
   });
 
   it("refuses a folder containing the data dir", () => {
-    expect(refusalKind(() => service().add(root))).toBe("invalid-path");
+    expect(refusal(() => service().add(root))).toEqual(ADD_INVALID_PATH);
   });
 
   it("dedupes through symlinked spellings", () => {
@@ -90,7 +103,7 @@ describe("folders service validation", () => {
     symlinkSync(refDir, alias);
     const folders = service();
     folders.add(refDir);
-    expect(refusalKind(() => folders.add(alias))).toBe("already-exists");
+    expect(refusal(() => folders.add(alias))).toEqual({ code: "already_exists", op: "add" });
   });
 
   it("removes by stored spelling even after the directory is gone", () => {
@@ -100,7 +113,25 @@ describe("folders service validation", () => {
     expect(folders.remove(refDir)).toEqual([]);
   });
 
+  it("refuses a real folder past the cap as the cap, not as its path", () => {
+    fillToCap(dataDir);
+    expect(refusal(() => service().add(refDir))).toEqual({ code: "limit_reached", op: "add" });
+  });
+
   it("remove refuses an unknown path", () => {
-    expect(refusalKind(() => service().remove(refDir))).toBe("not-found");
+    expect(refusal(() => service().remove(refDir))).toEqual({ code: "not_found", op: "remove" });
+  });
+});
+
+describe("folders procedures", () => {
+  it("answer the cap as its own class", async () => {
+    const harness = await bootTestApp();
+    const reference = path.join(path.dirname(harness.dataDir), "reference");
+    mkdirSync(reference);
+    fillToCap(harness.dataDir);
+
+    const [error] = await safe(harness.client.folders.add({ path: reference }));
+
+    expect(error instanceof ORPCError && error.code).toBe("LIMIT_REACHED");
   });
 });

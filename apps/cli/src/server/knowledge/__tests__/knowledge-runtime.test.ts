@@ -2,7 +2,6 @@ import { chmodSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import nodePath from "node:path";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { setTimeout as delay } from "node:timers/promises";
-import { noopNotifier } from "@repo/domain/notifier";
 import { PROJECTION_VERSION } from "@repo/notes/knowledge/projection";
 import { VAULT_MAX_CONTENT_LENGTH } from "@repo/contract/local/vault/vault-schema";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -105,7 +104,7 @@ describe("the knowledge runtime", () => {
 
     await service.rename("notes", "archive");
     // a watcher announces the folder and the files inside it together
-    knowledge.noteVaultChange({ kind: "paths", paths: ["archive/one.md", "archive/two.md"] });
+    knowledge.invalidate({ kind: "paths", paths: ["archive/one.md", "archive/two.md"] });
     const hits = await knowledge.search({ limit: 10, query: "wombat" });
     expect(hits.map((h) => h.path).toSorted()).toEqual(["archive/one.md", "archive/two.md"]);
     expect(reads.toSorted()).toEqual(["archive/one.md", "archive/two.md"]);
@@ -132,7 +131,6 @@ describe("the knowledge runtime", () => {
     const service = createVaultService({
       ignore: ignoreFromDisk(dirs.root),
       lock: identityLock,
-      notifier: noopNotifier,
       root: dirs.root,
     });
     let listTreeCalls = 0;
@@ -158,7 +156,7 @@ describe("the knowledge runtime", () => {
     const afterBoot = listTreeCalls;
 
     writeFileSync(nodePath.join(dirs.root, "quoll.md"), "# Quoll\n\nQuoll sightings.\n");
-    knowledge.noteVaultChange({ kind: "paths", paths: ["quoll.md"] });
+    knowledge.invalidate({ kind: "paths", paths: ["quoll.md"] });
     await knowledge.settle();
     expect(await searchPaths(knowledge, "quoll")).toEqual(["quoll.md"]);
     expect(listTreeCalls).toBe(afterBoot);
@@ -210,7 +208,7 @@ describe("the knowledge runtime", () => {
     await knowledge.settle();
 
     writeFileSync(nodePath.join(dirs.root, "pulled.md"), "# Pulled\n\nNarwhal sighting.\n");
-    knowledge.noteVaultChange({ kind: "unknown" });
+    knowledge.invalidate({ kind: "unknown" });
 
     const hits = await knowledge.search({ limit: 10, query: "narwhal" });
     expect(hits.map((h) => h.path)).toEqual(["pulled.md"]);
@@ -231,7 +229,7 @@ describe("the knowledge runtime", () => {
     expect(reads.filter((path) => path.startsWith("node_modules/"))).toEqual([]);
 
     writeFileSync(nodePath.join(dirs.root, ".gitignore"), "");
-    knowledge.noteVaultChange({ kind: "unknown" });
+    knowledge.invalidate({ kind: "unknown" });
     const revealed = await searchPaths(knowledge, "wombat");
     expect(revealed.toSorted()).toEqual([
       "node_modules/pkg/CHANGELOG.md",
@@ -292,7 +290,7 @@ describe("the knowledge runtime", () => {
     const oversized = `# Big\n\n${"x".repeat(VAULT_MAX_CONTENT_LENGTH)}`;
 
     writeFileSync(nodePath.join(dirs.root, "big.md"), oversized);
-    knowledge.noteVaultChange({ kind: "paths", paths: ["big.md"] });
+    knowledge.invalidate({ kind: "paths", paths: ["big.md"] });
     await knowledge.settle();
     expect(await knowledge.search({ limit: 10, query: "big" })).toEqual([]);
 
@@ -301,7 +299,7 @@ describe("the knowledge runtime", () => {
     expect(found.map((h) => h.path)).toEqual(["big.md"]);
 
     writeFileSync(nodePath.join(dirs.root, "big.md"), oversized);
-    knowledge.noteVaultChange({ kind: "paths", paths: ["big.md"] });
+    knowledge.invalidate({ kind: "paths", paths: ["big.md"] });
     await knowledge.settle();
     expect(await knowledge.search({ limit: 10, query: "ocelot" })).toEqual([]);
   });
@@ -354,7 +352,7 @@ describe("the knowledge runtime", () => {
 
     writeFileSync(nodePath.join(dirs.root, "b.md"), "# B\n\nHeron notes.\n");
     failNextListing = true;
-    knowledge.noteVaultChange({ kind: "unknown" });
+    knowledge.invalidate({ kind: "unknown" });
     await expect(knowledge.search({ limit: 10, query: "heron" })).rejects.toThrow(
       "transient io failure",
     );
@@ -362,6 +360,56 @@ describe("the knowledge runtime", () => {
 
     expect(await searchPaths(knowledge, "heron")).toEqual(["b.md"]);
     expect(knowledge.lastReconcile).toMatchObject({ projected: 1, removed: 0, unchanged: 1 });
+  });
+
+  it("reconciles whole after the pass rerun over a rebuilt store fails for another reason", async () => {
+    const dirs = makeDirs();
+    writeFileSync(nodePath.join(dirs.root, "a.md"), "# A\n\nIbis notes.\n");
+    let writeDuringNextListing = false;
+    let failCraneStat = false;
+    const { service, knowledge } = bootIndexedVault(dirs, {
+      reader: (inner) => ({
+        ...inner,
+        // announced after the rerun's listing, so only its changed-paths step sees the note
+        listTree: async () => {
+          const listing = await inner.listTree();
+          if (writeDuringNextListing) {
+            writeDuringNextListing = false;
+            await inner.write("c.md", "# C\n\nCrane notes.\n");
+          }
+          return listing;
+        },
+        statEntry: async (path) => {
+          if (failCraneStat && path === "c.md") {
+            failCraneStat = false;
+            throw new Error("transient io failure");
+          }
+          return await inner.statEntry(path);
+        },
+      }),
+    });
+    await knowledge.settle();
+
+    const saboteur = createSqliteDriver(nodePath.join(dirs.dataDir, "knowledge.db"));
+    saboteur.exec("DROP TABLE files");
+    saboteur.close();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {
+      /* empty */
+    });
+    onTestFinished(() => {
+      warn.mockRestore();
+    });
+
+    writeDuringNextListing = true;
+    failCraneStat = true;
+    await service.write("b.md", "# B\n\nHeron notes.\n");
+    await expect(knowledge.search({ limit: 10, query: "heron" })).rejects.toThrow(
+      "transient io failure",
+    );
+    expect(warn).toHaveBeenCalledWith("[knowledge] pass failed:", "transient io failure");
+
+    expect(await searchPaths(knowledge, "crane")).toEqual(["c.md"]);
+    expect(await searchPaths(knowledge, "heron")).toEqual(["b.md"]);
   });
 
   it("keeps an unreadable doc's last entry without a rebuild, and indexes it once readable", async () => {
@@ -376,7 +424,7 @@ describe("the knowledge runtime", () => {
 
     writeFileSync(locked, "# B\n\nHeron and egret notes.\n");
     chmodSync(locked, 0o000);
-    knowledge.noteVaultChange({ kind: "unknown" });
+    knowledge.invalidate({ kind: "unknown" });
     expect(await searchPaths(knowledge, "ibis")).toEqual(["a.md"]);
     expect(await searchPaths(knowledge, "heron")).toEqual(["b.md"]);
     expect(await searchPaths(knowledge, "egret")).toEqual([]);
@@ -404,7 +452,7 @@ describe("the knowledge runtime", () => {
     expect(await searchPaths(knowledge, "kestrel")).toEqual(["a.md"]);
     expect(reads).toHaveLength(readsAfterFirstPass);
 
-    knowledge.noteVaultChange({ kind: "unknown" });
+    knowledge.invalidate({ kind: "unknown" });
     await knowledge.settle();
     expect(knowledge.lastReconcile).toMatchObject({ projected: 0, removed: 0, unchanged: 3 });
   });
@@ -438,7 +486,7 @@ describe("the knowledge runtime", () => {
     expect(projected).toEqual([]);
 
     writeFileSync(nodePath.join(dirs.root, "deep.md"), "# Deep\n\nNow shallow kestrel.\n");
-    second.knowledge.noteVaultChange({ kind: "paths", paths: ["deep.md"] });
+    second.knowledge.invalidate({ kind: "paths", paths: ["deep.md"] });
     expect(await searchPaths(second.knowledge, "shallow")).toEqual(["deep.md"]);
   });
 
@@ -468,7 +516,7 @@ describe("the knowledge runtime", () => {
     }
     reads.splice(0);
     watching = true;
-    knowledge.noteVaultChange({ kind: "unknown" });
+    knowledge.invalidate({ kind: "unknown" });
     const settling = knowledge.settle();
     await firstRead.promise;
     await knowledge.dispose();
@@ -651,7 +699,7 @@ describe("a read that has not answered by its deadline", () => {
       await knowledge.settle();
 
       writeFileSync(slow, "# Slow\n\nOkapi notes.\n");
-      knowledge.noteVaultChange({ kind: "paths", paths: ["slow.md"] });
+      knowledge.invalidate({ kind: "paths", paths: ["slow.md"] });
       await knowledge.settle();
 
       opened.resolve();
@@ -681,7 +729,7 @@ describe("a read that has not answered by its deadline", () => {
       await knowledge.settle();
 
       rmSync(slow);
-      knowledge.noteVaultChange({ kind: "paths", paths: ["slow.md"] });
+      knowledge.invalidate({ kind: "paths", paths: ["slow.md"] });
       await knowledge.settle();
 
       opened.resolve();
@@ -707,7 +755,6 @@ describe("the knowledge runtime's debug trace", () => {
     const service = createVaultService({
       ignore: ignoreFromDisk(dirs.root),
       lock: identityLock,
-      notifier: noopNotifier,
       root: dirs.root,
     });
     const lines: string[] = [];
@@ -731,7 +778,7 @@ describe("the knowledge runtime's debug trace", () => {
     ]);
 
     rmSync(nodePath.join(dirs.root, "asset.png"));
-    knowledge.noteVaultChange({ kind: "paths", paths: ["asset.png", "kept.md"] });
+    knowledge.invalidate({ kind: "paths", paths: ["asset.png", "kept.md"] });
     await knowledge.settle();
     expect(lines.slice(atBoot)).toEqual([
       "asset.png: gone, removed with anything under it",

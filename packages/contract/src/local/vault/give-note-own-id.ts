@@ -1,7 +1,7 @@
 import { isDefinedError, safe } from "@orpc/client";
 import type { ContractRouterClient } from "@orpc/contract";
 import { commentsStorePath, isNoteIdKey } from "@repo/notes/comments/sidecar-schema";
-import { mintNoteId, reassignFrontmatterId } from "@repo/notes/markdown/frontmatter";
+import { reassignFrontmatterId } from "@repo/notes/markdown/frontmatter";
 
 import type { LocalContract } from "../local-contract";
 import { contentHashHex } from "./vault-schema";
@@ -60,7 +60,7 @@ export const giveNoteOwnId = async (
   if (note.error !== null) {
     return { error: note.error, kind: "failed" };
   }
-  const id = mintNoteId();
+  const id = crypto.randomUUID();
   const reassigned = reassignFrontmatterId(note.data.content, from, id);
   if (reassigned.kind !== "written") {
     return reassigned;

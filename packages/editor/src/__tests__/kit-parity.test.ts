@@ -3,24 +3,31 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ElementApi, KEYS, createSlateEditor } from "platejs";
 import type { Descendant, TElement } from "platejs";
-import { MarkdownPlugin } from "@platejs/markdown";
+import { MarkdownPlugin, defaultRules } from "@platejs/markdown";
+import { z } from "zod";
 
 import * as DIALECT_NODE_KEYS from "@repo/editor/dialect-node-keys";
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { MD_REMARK_PLUGINS } from "@repo/notes/markdown/md-plugins";
-import { MODELED_JSX_FLOW_TAGS } from "@repo/notes/markdown/remark-opaque";
 import { MD_RULES } from "@repo/editor/markdown/md-rules";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 
 const FIXTURES = fileURLToPath(new URL("fixtures/roundtrip/canonical/", import.meta.url));
 
-// dropping any of these from a kit is silent corruption, the opaque pair most of all. Every
-// dialect key and every modeled JSX tag is in by construction; the equations are named here.
+// dropping any of these from a kit is silent corruption, the opaque inline most of all. Every
+// dialect key is in by construction; Plate's own nodes the dialect spells are named here.
 const VOCABULARY_PLUGIN_KEYS = [
-  ...MODELED_JSX_FLOW_TAGS,
+  KEYS.column,
+  KEYS.columnGroup,
+  KEYS.date,
   KEYS.equation,
+  KEYS.file,
   KEYS.inlineEquation,
+  KEYS.mediaEmbed,
+  KEYS.toggle,
+  KEYS.underline,
+  KEYS.video,
   ...Object.values(DIALECT_NODE_KEYS),
 ];
 
@@ -123,6 +130,26 @@ describe("kit parity (live editor mirror)", () => {
         expect(editor.api.isVoid(el), `${label}: ${type} must be void`).toBe(true);
       }
     }
+  });
+
+  // the grammar reads no jsx and the serializer has no handler for one, so a node reaching a Plate
+  // default that answers jsx would throw the save
+  it("answers every node either editor can hold with a rule that writes no jsx", () => {
+    const answered = z.object({ type: z.string() });
+    const jsx: string[] = [];
+    for (const [key, fallback] of Object.entries(defaultRules)) {
+      const rule = MD_RULES[key] ?? fallback;
+      if (!(key in live.plugins) || rule?.serialize === undefined || rule.serialize === null) {
+        continue;
+      }
+      const node =
+        rule.mark === true ? { [key]: true, text: "x" } : { children: [{ text: "" }], type: key };
+      const written = answered.safeParse(rule.serialize(node, { editor: live }));
+      if (written.success && written.data.type.startsWith("mdxJsx")) {
+        jsx.push(key);
+      }
+    }
+    expect(jsx).toEqual([]);
   });
 
   it("the live editor serializes the canonical corpus to BASE_KIT's bytes", () => {

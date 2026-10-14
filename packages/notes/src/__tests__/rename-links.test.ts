@@ -53,7 +53,7 @@ describe("computeMoveEdits — wiki links", () => {
     expect([...result.keys()]).toEqual(["hub.md"]);
   });
 
-  it("never rewrites inside a range the editor holds verbatim", () => {
+  it("never rewrites inside a range the editor holds verbatim, nor inside latex", () => {
     const hub = [
       "[[old]]",
       "",
@@ -61,7 +61,7 @@ describe("computeMoveEdits — wiki links", () => {
       "",
       "math $$[[old]]$$ math",
       "",
-      "{ expr [[old]] expr }",
+      "{ prose [[old]] prose }",
       "",
     ].join("\n");
     const result = edits({ "hub.md": hub, "old.md": "" }, "old.md", "new.md");
@@ -73,7 +73,7 @@ describe("computeMoveEdits — wiki links", () => {
         "",
         "math $$[[old]]$$ math",
         "",
-        "{ expr [[old]] expr }",
+        "{ prose [[new]] prose }",
         "",
       ].join("\n"),
     );

@@ -34,7 +34,7 @@ import { cn } from "@repo/ui/lib/cn";
 import { platformShortcutModifier, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 
-import { askAgentAboutSelection, useAgentRequestActions } from "@repo/editor/agent-request";
+import { askAgentAboutSelection } from "@repo/editor/agent-request";
 import { CODE_MARK_SHORTCUT } from "@repo/editor/editor-shortcuts";
 import { markShortcut } from "@repo/editor/mark-shortcuts";
 import { Button } from "@repo/ui/components/button";
@@ -70,28 +70,22 @@ const keepSelection = (event: ReactMouseEvent<HTMLElement>): void => {
 
 const PRIMARY_TEXT_BUTTON = "rounded-md text-primary hover:text-primary";
 
-const AskAgentButton = ({ editor }: { editor: PlateEditor }) => {
-  const actions = useAgentRequestActions((state) => state.actions);
-  if (actions === null) {
-    return null;
-  }
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="compact"
-        leadingIcon={SparklesIcon}
-        onClick={() => {
-          askAgentAboutSelection(editor, actions);
-        }}
-        className={PRIMARY_TEXT_BUTTON}
-      >
-        Ask agent
-      </Button>
-      <Sep />
-    </>
-  );
-};
+const AskAgentButton = ({ editor }: { editor: PlateEditor }) => (
+  <>
+    <Button
+      variant="ghost"
+      size="compact"
+      leadingIcon={SparklesIcon}
+      onClick={() => {
+        askAgentAboutSelection(editor);
+      }}
+      className={PRIMARY_TEXT_BUTTON}
+    >
+      Ask agent
+    </Button>
+    <Sep />
+  </>
+);
 
 // Button styles aria-expanded but not aria-pressed, so the pressed classes ride className.
 const IconButton = ({

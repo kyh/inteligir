@@ -22,8 +22,6 @@ export interface SearchResult {
   score: number;
 }
 
-export const SEARCH_DEFAULT_LIMIT = 20;
-
 // the fields both engines rank a doc by; the formulas around them differ by design (bm25 has an
 // idf, the pure index a capped tf), the weights do not
 export const SEARCH_FIELD_WEIGHTS = { body: 1, headings: 4, title: 10 } as const;

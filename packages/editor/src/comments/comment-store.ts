@@ -4,12 +4,6 @@
 
 import { create } from "zustand";
 
-export interface CommentActions {
-  /** False means refused; the caller strips the markers it minted. */
-  create: (id: string, text: string) => Promise<boolean>;
-  open: (ids: string[]) => void;
-}
-
 export interface PendingCreate {
   id: string;
   path: string;
@@ -24,7 +18,6 @@ export interface CommentMeta {
 
 interface CommentSurfaceState {
   meta: ReadonlyMap<string, CommentMeta>;
-  actions: CommentActions | null;
   pendingCreate: PendingCreate | null;
 }
 
@@ -32,7 +25,6 @@ const EMPTY_META: CommentMeta = { knownIds: new Set<string>(), resolvedIds: new 
 const NO_META: ReadonlyMap<string, CommentMeta> = new Map();
 
 export const useCommentSurface = create<CommentSurfaceState>()(() => ({
-  actions: null,
   meta: NO_META,
   pendingCreate: null,
 }));
@@ -40,10 +32,6 @@ export const useCommentSurface = create<CommentSurfaceState>()(() => ({
 // a note with no published meta yet reads as empty, so its ranges render as orphans until the sidecar loads
 export const useCommentMeta = (path: string | null): CommentMeta =>
   useCommentSurface((state) => (path === null ? EMPTY_META : (state.meta.get(path) ?? EMPTY_META)));
-
-export const setCommentActions = (actions: CommentActions | null): void => {
-  useCommentSurface.setState({ actions });
-};
 
 export const setCommentMeta = (path: string, meta: CommentMeta): void => {
   useCommentSurface.setState((state) => ({ meta: new Map(state.meta).set(path, meta) }));

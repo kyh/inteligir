@@ -68,12 +68,12 @@ const ToolChipList = ({
     </div>
   );
 };
-ToolChipList.displayName = "ToolChipList";
 
 interface ToolChipProps extends HTMLAttributes<HTMLDivElement> {
   icon?: ToolIcon;
   label: string;
   chip: string;
+  failed?: boolean;
   mono?: boolean;
   detailMono?: boolean;
 }
@@ -82,6 +82,7 @@ const ToolChip = ({
   icon = "think",
   label,
   chip,
+  failed = false,
   mono = false,
   detailMono = false,
   className,
@@ -130,7 +131,11 @@ const ToolChip = ({
             />
           ) : null}
         </span>
-        <span className="shrink-0 text-body font-medium text-ink">{label}</span>
+        <span
+          className={cn("shrink-0 text-body font-medium", failed ? "text-destructive" : "text-ink")}
+        >
+          {label}
+        </span>
         <span
           className={cn(
             "inline-flex h-5.5 min-w-0 flex-1 items-center truncate rounded-md bg-muted px-1.5 text-caption text-ink-2",
@@ -143,17 +148,16 @@ const ToolChip = ({
 
       {expandable ? (
         <Collapse open={open} innerClassName="min-h-0">
-          <ToolChipContext.Provider value={detailContext}>
+          <ToolChipContext value={detailContext}>
             <div className="mt-0.5 mb-1 ml-2 flex flex-col gap-0.5 border-l border-line py-0.5 pl-3.5">
               {children}
             </div>
-          </ToolChipContext.Provider>
+          </ToolChipContext>
         </Collapse>
       ) : null}
     </div>
   );
 };
-ToolChip.displayName = "ToolChip";
 
 interface ToolChipDetailProps extends HTMLAttributes<HTMLSpanElement> {
   tone?: "add";
@@ -183,6 +187,5 @@ const ToolChipDetail = ({
     </span>
   );
 };
-ToolChipDetail.displayName = "ToolChipDetail";
 
 export { ToolChipList, ToolChip, ToolChipDetail };

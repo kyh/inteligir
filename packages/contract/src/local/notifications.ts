@@ -6,38 +6,29 @@ import {
   VAULT_CHANGE_KINDS,
 } from "@repo/domain/change-kinds";
 import { z } from "zod";
-import { assertUnreachable } from "./assert-unreachable";
 
 export const realtimeSubscriptionTargetSchema = z.discriminatedUnion("kind", [
-  z
-    .object({
-      kind: z.literal("vault"),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("thread-list"),
-    })
-    .strict(),
+  z.strictObject({
+    kind: z.literal("vault"),
+  }),
+  z.strictObject({
+    kind: z.literal("thread-list"),
+  }),
 ]);
 export type RealtimeSubscriptionTarget = z.infer<typeof realtimeSubscriptionTargetSchema>;
 
 // client→server frames parse strictly: an unknown field is an unknown client, closed 1008.
 // only the server→client direction is lenient (a stale tab against a newer server).
-export const subscribeMessageSchema = z
-  .object({
-    target: realtimeSubscriptionTargetSchema,
-    type: z.literal("subscribe"),
-  })
-  .strict();
+export const subscribeMessageSchema = z.strictObject({
+  target: realtimeSubscriptionTargetSchema,
+  type: z.literal("subscribe"),
+});
 export type SubscribeMessage = z.infer<typeof subscribeMessageSchema>;
 
-export const unsubscribeMessageSchema = z
-  .object({
-    target: realtimeSubscriptionTargetSchema,
-    type: z.literal("unsubscribe"),
-  })
-  .strict();
+export const unsubscribeMessageSchema = z.strictObject({
+  target: realtimeSubscriptionTargetSchema,
+  type: z.literal("unsubscribe"),
+});
 export type UnsubscribeMessage = z.infer<typeof unsubscribeMessageSchema>;
 
 export const clientMessageSchema = z.discriminatedUnion("type", [
@@ -46,19 +37,7 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
-export const realtimeSubscriptionTargetKey = (target: RealtimeSubscriptionTarget): string => {
-  switch (target.kind) {
-    case "vault": {
-      return "vault";
-    }
-    case "thread-list": {
-      return "thread-list";
-    }
-    default: {
-      return assertUnreachable(target);
-    }
-  }
-};
+export type SubscriptionKey = RealtimeSubscriptionTarget["kind"];
 
 // `strict` types the server's outgoing broadcasts and is what the bus's tests parse them with;
 // nothing parses a broadcast at runtime. a client must not parse inbound traffic with it, or a
@@ -84,14 +63,12 @@ const changedMessagePair = <
         .transform((values) => values.filter((value): value is TKind => known.has(value)))
         .readonly(),
     }),
-    strict: z
-      .object({
-        entity: z.literal(entity),
-        type: z.literal("changed"),
-        ...idFields,
-        changes: z.array(z.enum(kinds)).readonly(),
-      })
-      .strict(),
+    strict: z.strictObject({
+      entity: z.literal(entity),
+      type: z.literal("changed"),
+      ...idFields,
+      changes: z.array(z.enum(kinds)).readonly(),
+    }),
   };
 };
 
@@ -123,11 +100,9 @@ export const changedMessageSchema = z.discriminatedUnion("entity", [
 ]);
 export type ChangedMessage = z.infer<typeof changedMessageSchema>;
 
-export const helloMessageSchema = z
-  .object({
-    type: z.literal("hello"),
-  })
-  .strict();
+export const helloMessageSchema = z.strictObject({
+  type: z.literal("hello"),
+});
 export type HelloMessage = z.infer<typeof helloMessageSchema>;
 
 export const serverMessageSchema = z.union([helloMessageSchema, changedMessageSchema]);
@@ -148,21 +123,16 @@ export const serverMessageLenientSchema = z.union([
   changedMessageLenientSchema,
 ]);
 
-const VAULT_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "vault" });
-const THREAD_LIST_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "thread-list" });
-
 // `vault` is the doc list target: a doc change reaches it too
-export const subscriptionKeysForMessage = (message: ChangedMessage): string[] => {
+export const subscriptionKeysForMessage = (message: ChangedMessage): SubscriptionKey[] => {
   switch (message.entity) {
     case "vault":
     case "doc": {
-      return [VAULT_TARGET_KEY];
+      return ["vault"];
     }
     case "thread": {
-      return [THREAD_LIST_TARGET_KEY];
+      return ["thread-list"];
     }
-    default: {
-      return assertUnreachable(message);
-    }
+    // no default
   }
 };

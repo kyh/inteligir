@@ -3,7 +3,7 @@
 
 import { oc } from "@orpc/contract";
 
-import { INVALID_PATH, VAULT_REFUSAL_ERRORS } from "../local-errors";
+import { COMMENTS_REFUSAL_ERRORS, INVALID_PATH, VAULT_REFUSAL_ERRORS } from "../local-errors";
 import {
   commentsAddRequestSchema,
   commentsListRequestSchema,
@@ -18,27 +18,27 @@ export const commentsContract = {
   add: oc
     .input(commentsAddRequestSchema)
     .output(commentsResponseSchema)
-    .errors({ ...VAULT_REFUSAL_ERRORS, BAD_REQUEST: {} }),
+    .errors({ ...VAULT_REFUSAL_ERRORS, ...COMMENTS_REFUSAL_ERRORS }),
 
-  // a list against a missing note still answers its sidecar, so no NOT_FOUND here. BAD_REQUEST:
-  // folding a legacy sidecar mints an id, refused when the note's `id` is not text
+  // a list against a missing note answers empty, so no NOT_FOUND here. BAD_REQUEST: the note's
+  // `id` cannot name a store file; CONFLICT: the store it names is not a store
   list: oc
     .input(commentsListRequestSchema)
     .output(commentsResponseSchema)
-    .errors({ BAD_REQUEST: {}, CONFLICT: {}, INVALID_PATH, PAYLOAD_TOO_LARGE: {} }),
+    .errors({ ...COMMENTS_REFUSAL_ERRORS, INVALID_PATH, PAYLOAD_TOO_LARGE: {} }),
 
   remove: oc
     .input(commentsRemoveRequestSchema)
     .output(commentsRemoveResponseSchema)
-    .errors({ ...VAULT_REFUSAL_ERRORS, BAD_REQUEST: {} }),
+    .errors({ ...VAULT_REFUSAL_ERRORS, ...COMMENTS_REFUSAL_ERRORS }),
 
   reply: oc
     .input(commentsReplyRequestSchema)
     .output(commentsResponseSchema)
-    .errors({ ...VAULT_REFUSAL_ERRORS, BAD_REQUEST: {} }),
+    .errors({ ...VAULT_REFUSAL_ERRORS, ...COMMENTS_REFUSAL_ERRORS }),
 
   resolve: oc
     .input(commentsResolveRequestSchema)
     .output(commentsResponseSchema)
-    .errors({ ...VAULT_REFUSAL_ERRORS, BAD_REQUEST: {} }),
+    .errors({ ...VAULT_REFUSAL_ERRORS, ...COMMENTS_REFUSAL_ERRORS }),
 };

@@ -3,8 +3,8 @@ import type { Value } from "platejs";
 import { describe, expect, it } from "vitest";
 
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
-import { WIKI_PICKER_MAX_ROWS } from "@repo/editor/wiki-autocomplete";
-import { WIKI_INPUT_KEY } from "@repo/editor/wiki-input-key";
+import { WIKI_PICKER_MAX_ROWS } from "@repo/editor/wiki/wiki-autocomplete";
+import { WIKI_INPUT_KEY } from "@repo/editor/wiki/wiki-input-key";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 
 import { EditorHarness } from "./editor-harness";

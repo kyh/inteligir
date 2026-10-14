@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { REPO_ROOT, trackedFiles, workspaceGlobs, workspaces } from "./repo";
+import { REPO_ROOT, trackedFiles, workspaceGroups, workspaces } from "./repo";
 
 const SCANNED_FILE = /\.(?:tsx?|mts|cts|mjs|cjs|jsx?|jsonc?|md|ya?ml)$/u;
 
@@ -97,7 +97,7 @@ const WORKSPACE_NAME = /(?<reference>@repo\/[a-z0-9][a-z0-9-]*)/gu;
 // slash; a glob, a template hole or a trailing slash is a pattern, not a reference. a group must
 // start its word, so `@tauri-apps/api` names a package and no path.
 const repoPathPattern = (): RegExp => {
-  const groups = workspaceGlobs().groups.map((group) => group.replaceAll(/[^a-z0-9]/gu, ""));
+  const groups = workspaceGroups().map((group) => group.replaceAll(/[^a-z0-9]/gu, ""));
   return new RegExp(
     `(?<![\\w-])(?<reference>(?:${groups.join("|")})\\/[A-Za-z0-9._@/-]+[A-Za-z0-9_])`,
     "gu",

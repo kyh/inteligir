@@ -1,5 +1,5 @@
-// Never toDateString() (en-US locale bytes) or toISOString() (UTC-shifts across midnight), and
-// never set rawDate: its presence flips Plate's serializer to the `<date>text</date>` form.
+// Never toDateString() (en-US locale bytes) or toISOString() (UTC-shifts across midnight): the
+// chip saves its `date` as `@YYYY-MM-DD`.
 
 import { Suspense, lazy, useState } from "react";
 import { PlateElement, useEditorRef, useElement, useReadOnly } from "platejs/react";

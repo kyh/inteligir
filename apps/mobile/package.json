@@ -2,16 +2,16 @@
   "name": "@repo/mobile",
   "version": "0.6.0",
   "private": true,
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "exports": {
     "./lib/compose-runtime": "./src/lib/compose-runtime.ts",
     "./lib/node-sql-driver": "./src/lib/node-sql-driver.ts",
+    "./lib/phone-db": "./src/lib/phone-db.ts",
     "./notes/attachment-files": "./src/notes/attachment-files.ts",
     "./notes/outbox-files": "./src/notes/outbox-files.ts"
   },
   "scripts": {
     "dev": "expo start",
-    "android": "expo run:android",
     "build": "expo export --platform ios --output-dir dist",
     "editor-page": "pnpm --filter @repo/mobile-editor build",
     "eas-build-post-install": "pnpm run editor-page",
@@ -39,7 +39,6 @@
     "expo-splash-screen": "catalog:",
     "expo-sqlite": "catalog:",
     "expo-status-bar": "catalog:",
-    "expo-system-ui": "catalog:",
     "expo-updates": "catalog:",
     "react": "catalog:expo",
     "react-native": "catalog:",

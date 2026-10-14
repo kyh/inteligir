@@ -7,13 +7,15 @@ import { errnoCode } from "./errno";
 
 export const DEFAULT_STEP_TIMEOUT_MS = 5000;
 
-// the one place a budget is written; teardownStep takes a name from here, so no step carries its own number.
-// listed in teardown order, which the per-step comments explain.
+// the one place a budget is written; addTeardownStep takes a name from here, so no step carries its own number.
+// listed in teardown order, which addTeardownStep enforces and the per-step comments explain.
 export const TEARDOWN_BUDGETS_MS = {
   listener: DEFAULT_STEP_TIMEOUT_MS,
   // cloud sync writes the db and the vault, so it stops above both.
   cloud: DEFAULT_STEP_TIMEOUT_MS,
-  agent: DEFAULT_STEP_TIMEOUT_MS,
+  // a running sign-in's adapter is ended, then every session's at once, each given its own
+  // shutdown before the kill (`terminateAdapter` in @repo/agent-runtime/acp/acp-runtime).
+  agent: 12_000,
   // each running connector sign-in's vendor process is killed and its close awaited.
   connectors: 2000,
   knowledge: DEFAULT_STEP_TIMEOUT_MS,
@@ -26,11 +28,23 @@ export const TEARDOWN_BUDGETS_MS = {
 
 export type TeardownStepName = keyof typeof TEARDOWN_BUDGETS_MS;
 
-export const teardownStep = (name: TeardownStepName, run: ShutdownStep["run"]): ShutdownStep => ({
-  name,
-  run,
-  timeoutMs: TEARDOWN_BUDGETS_MS[name],
-});
+const TEARDOWN_ORDER: readonly string[] = Object.keys(TEARDOWN_BUDGETS_MS);
+
+// at the step's row in the table, whenever it is added: the lock is claimed before anything is
+// composed and the listener bound after it, yet the one closes last and the other first.
+export const addTeardownStep = (
+  steps: ShutdownStep[],
+  name: TeardownStepName,
+  run: ShutdownStep["run"],
+): void => {
+  const rank = TEARDOWN_ORDER.indexOf(name);
+  const at = steps.findIndex((step) => TEARDOWN_ORDER.indexOf(step.name) > rank);
+  steps.splice(at === -1 ? steps.length : at, 0, {
+    name,
+    run,
+    timeoutMs: TEARDOWN_BUDGETS_MS[name],
+  });
+};
 
 // so the backstop cannot land on a step's own deadline.
 const DEADLINE_SLACK_MS = 1000;
@@ -38,7 +52,8 @@ const DEADLINE_SLACK_MS = 1000;
 const deadlineFor = (budgets: readonly number[]): number =>
   budgets.reduce((total, budget) => total + budget, 0) + DEADLINE_SLACK_MS;
 
-// the supervisor derives its SIGKILL grace from this; a shorter grace lands the kill mid-flush.
+// the desktop shell's SIGKILL grace is this plus headroom (desktop-serve.ts announces it); a shorter
+// grace lands the kill mid-flush.
 export const SHUTDOWN_TIMEOUT_MS = deadlineFor(Object.values(TEARDOWN_BUDGETS_MS));
 
 export interface ShutdownStep {
@@ -101,7 +116,7 @@ export const createGracefulShutdown = (args: GracefulShutdownArgs): GracefulShut
   const runSteps = async (): Promise<ShutdownResult> => {
     const failed: string[] = [];
     const ran = new Set<ShutdownStep>();
-    // not an iterator: a step unshifted mid-run shifts every index, so one step would run twice and the new one never.
+    // not an iterator: a step inserted mid-run shifts every index behind it, so one step would run twice and the new one never.
     const nextStep = (): ShutdownStep | undefined => args.steps.find((step) => !ran.has(step));
     for (let step = nextStep(); step !== undefined; step = nextStep()) {
       ran.add(step);
@@ -193,7 +208,8 @@ export interface InstallFatalErrorHandlersArgs {
 }
 
 // node's default exits immediately, skipping the sqlite close that checkpoints
-// the WAL and the vault's pending commit; exit 1 so a supervisor can tell a crash from a quit.
+// the WAL and the vault's pending commit; exit 1 so whatever started the server can tell a crash
+// from a quit.
 export const installFatalErrorHandlers = (args: InstallFatalErrorHandlersArgs): void => {
   for (const event of FATAL_EVENTS) {
     args.target.on(event, (cause) => {

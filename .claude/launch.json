@@ -6,6 +6,15 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev:web"],
       "port": 5174
+    },
+    {
+      "name": "server",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["cli", "serve"],
+      "port": 5176,
+      "url": "http://127.0.0.1:5176",
+      "env": { "INTELIGIR_PORT": "5176" },
+      "autoPort": false
     }
   ]
 }

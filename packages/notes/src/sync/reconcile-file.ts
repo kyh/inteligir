@@ -4,7 +4,7 @@
 // here knows git, a disk or a network.
 
 import { mergeCommentStores } from "../comments/merge-comment-stores";
-import { isCommentsStorePath, isLegacyCommentsSidecarPath } from "../comments/sidecar-schema";
+import { isCommentsStorePath } from "../comments/sidecar-schema";
 import { isDocPath, isVaultMetadataPath } from "../knowledge/doc-file";
 import { removeFrontmatterId } from "../markdown/frontmatter";
 import { diff3 } from "../text/diff3";
@@ -144,8 +144,7 @@ export const reconcileFile = (input: ReconcileInput): Reconciled => {
   if (sameSide(mine, base)) {
     return keep("theirs", theirs);
   }
-  // the beside-the-note spelling holds the same entries until the boot folds it into the store
-  if (isCommentsStorePath(path) || isLegacyCommentsSidecarPath(path)) {
+  if (isCommentsStorePath(path)) {
     return reconcileCommentStore(input);
   }
   // another app's settings or the OS's litter: nobody reads a copy of `.obsidian/workspace.json`

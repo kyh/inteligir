@@ -16,13 +16,13 @@ import {
   VAULT_ASSET_MAX_BYTES,
   VAULT_FILE_MAX_BYTES,
 } from "@repo/contract/cloud/vault/vault-schema";
-import { declaredLength, refuse } from "../cloud-http";
+import { declaredLength, refuse, refuseNoDeviceCredential } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
 import { spendDeviceBudget } from "../rate-limit";
 import { commitChanges } from "./commit-changes";
 import type { CommitChangesResult, VaultChange } from "./commit-changes";
-import { vaultRegistry, vaultRepoName } from "./git-remote";
+import { vaultRegistry, vaultRepoName } from "./vault-repo";
 import { pushVaultPack } from "./receive-pack";
 
 // The Worker is a CAS and never merges: a conflict answers what the head holds, and the device
@@ -140,7 +140,7 @@ export const handleVaultCommitRoute = async (
   const db = createDb(env.DB);
   const verified = await verifyDeviceCredential(db, request.headers.get("authorization"));
   if (verified === null) {
-    return refuse("unauthorized", "No valid device credential.");
+    return refuseNoDeviceCredential();
   }
 
   if (!(await spendDeviceBudget(env, db, "vaultWrite", verified.deviceId))) {

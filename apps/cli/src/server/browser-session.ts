@@ -17,13 +17,9 @@ export const BROWSER_HANDOFF_TTL_MS = 5 * 60_000;
 
 const mintSecret = (): string => randomBytes(SECRET_BYTES).toString("base64url");
 
-// not Secure: some browsers drop a Secure cookie on plain-http loopback rather than ignoring the attribute.
-const sessionCookie = (secret: string): string =>
-  `${BROWSER_SESSION_COOKIE}=${secret}; HttpOnly; SameSite=Strict; Path=/`;
-
 export interface BrowserSession {
   mintHandoff: () => string;
-  // the Set-Cookie value for a live nonce, else null; either way the nonce is spent.
+  // the cookie's secret for a live nonce, else null; either way the nonce is spent.
   redeemHandoff: (nonce: string) => string | null;
   cookieAccepted: (presented: string) => boolean;
 }
@@ -50,7 +46,7 @@ export const createBrowserSession = (now: () => number = Date.now): BrowserSessi
     redeemHandoff: (nonce) => {
       const expiresAt = handoffs.get(nonce);
       handoffs.delete(nonce);
-      return expiresAt !== undefined && now() < expiresAt ? sessionCookie(secret) : null;
+      return expiresAt !== undefined && now() < expiresAt ? secret : null;
     },
   };
 };

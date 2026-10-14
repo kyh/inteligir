@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   frontmatterId,
   frontmatterYamlWithId,
-  mintNoteId,
   reassignFrontmatterId,
   withFrontmatterId,
 } from "../frontmatter";
@@ -13,10 +12,6 @@ describe("the note's frontmatter id", () => {
     expect(frontmatterId("---\nid: 42\n---\nx\n")).toBeNull();
     expect(frontmatterId("---\nid:\n---\nx\n")).toBeNull();
     expect(frontmatterId("x\n")).toBeNull();
-  });
-
-  it("is minted uuid-shaped, the form the id link tier resolves", () => {
-    expect(mintNoteId()).toMatch(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u);
   });
 
   it("is written first into a block, or as a new block, leaving every other line as found", () => {

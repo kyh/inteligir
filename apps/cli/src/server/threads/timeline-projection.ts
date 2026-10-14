@@ -1,15 +1,13 @@
-// rests on events being append-only per thread while the server serves (nothing
-// deletes a thread, and the one event removal, of this install's own synced
-// copies, ends in boot before any read): the parsed log only grows, so a
-// refresh reads afterSequence, and the projection served last is the base the
-// next frame diffs against.
+// rests on events being append-only per thread (nothing deletes a thread or an
+// event): the parsed log only grows, so a refresh reads afterSequence, and the
+// projection served last is the base the next frame diffs against.
 
 import type { DbConnection } from "@repo/db/connection";
 import { listStoredThreadEvents } from "@repo/db/events";
 import type { StoredThreadEvent } from "@repo/db/events";
 import type { ThreadTimeline } from "@repo/contract/local/thread-timeline";
-import { buildThreadTimeline } from "@repo/contract/local/build-thread-timeline";
 import { setMostRecent } from "../evict-oldest";
+import { buildThreadTimeline } from "./build-thread-timeline";
 
 const RESIDENT_THREADS = 8;
 // the one just served, plus the bases a client a frame or two behind asks for.

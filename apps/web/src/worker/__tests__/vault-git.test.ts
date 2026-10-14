@@ -3,15 +3,17 @@ import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
-import { packCachePrefixes, vaultRepoName } from "../vault/git-remote";
+import { packCachePrefixes, vaultRepoName } from "../vault/vault-repo";
 import { vaultStorageCap } from "../vault/receive-pack";
 import { treeListingPrefix } from "../vault/tree-listing";
 import {
+  buildHeaders,
   deviceHeaders,
+  loginDevice,
   openSocket,
   ORIGIN,
-  loginDevice,
   postAccountDelete,
+  postVaultRead,
   signUpUser,
   userIdOf,
 } from "./cloud-helpers";
@@ -27,7 +29,9 @@ const REMOTE = `${ORIGIN}/v1/git/vault.git`;
 
 describe("vault git remote auth", () => {
   it("refuses the wire without a credential, with the Basic challenge", async () => {
-    const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`);
+    const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
+      headers: buildHeaders(),
+    });
     expect(response.status).toBe(401);
     expect(response.headers.get("www-authenticate")).toContain("Basic");
   });
@@ -35,11 +39,11 @@ describe("vault git remote auth", () => {
   it("refuses an unknown credential on both carriers", async () => {
     const fake = `igd_${"0".repeat(64)}`;
     const bearer = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
-      headers: { authorization: `Bearer ${fake}` },
+      headers: { ...buildHeaders(), authorization: `Bearer ${fake}` },
     });
     expect(bearer.status).toBe(401);
     const basic = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
-      headers: { authorization: `Basic ${btoa(`x:${fake}`)}` },
+      headers: { ...buildHeaders(), authorization: `Basic ${btoa(`x:${fake}`)}` },
     });
     expect(basic.status).toBe(401);
   });
@@ -60,7 +64,7 @@ describe("vault git remote auth", () => {
     const { cookie } = await signUpUser("vault-git-basic@example.test");
     const { credential } = await loginDevice(cookie, "Laptop");
     const response = await SELF.fetch(`${REMOTE}/info/refs?service=git-receive-pack`, {
-      headers: { authorization: `Basic ${btoa(`x:${credential}`)}` },
+      headers: { ...buildHeaders(), authorization: `Basic ${btoa(`x:${credential}`)}` },
     });
     expect(response.status).toBe(200);
   });
@@ -358,9 +362,7 @@ describe("account deletion's vault half", () => {
     const repo = vaultRepoName(userId);
 
     const listingPrefix = treeListingPrefix(repo);
-    const listed = await SELF.fetch(`${ORIGIN}${VAULT_API_PATHS.tree}`, {
-      headers: deviceHeaders(credential),
-    });
+    const listed = await postVaultRead(VAULT_API_PATHS.tree, deviceHeaders(credential), {});
     expect(listed.status).toBe(200);
     const kept = await env.PACK_CACHE.list({ prefix: listingPrefix });
     expect(kept.objects).toHaveLength(1);

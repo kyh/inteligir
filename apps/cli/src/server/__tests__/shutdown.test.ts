@@ -1,9 +1,10 @@
 import { PassThrough } from "node:stream";
+import { ADAPTER_TEARDOWN_MS } from "@repo/agent-runtime/acp/acp-runtime";
 import type { DbConnection } from "@repo/db/connection";
 import { describe, expect, it, vi } from "vitest";
-import { registerListener, registerLockRelease } from "../compose";
 import { bootTestApp } from "./boot-app";
 import {
+  addTeardownStep,
   createGracefulShutdown,
   FATAL_EVENTS,
   ignoreDeadStreamErrors,
@@ -13,7 +14,6 @@ import {
   SHUTDOWN_TIMEOUT_MS,
   shutdownDeadlineMs,
   TEARDOWN_BUDGETS_MS,
-  teardownStep,
 } from "../shutdown";
 import type { FatalEvent, ShutdownStep } from "../shutdown";
 
@@ -249,8 +249,13 @@ describe("createGracefulShutdown", () => {
 describe("the exported ceiling", () => {
   it("covers every step budget the process can register", () => {
     const declared = Object.values(TEARDOWN_BUDGETS_MS).reduce((total, ms) => total + ms, 0);
-    // the supervisor's SIGKILL grace derives from this; a ceiling under the sum kills the process mid-step.
+    // the desktop shell's SIGKILL grace derives from this; a ceiling under the sum kills the process mid-step.
     expect(SHUTDOWN_TIMEOUT_MS).toBeGreaterThan(declared);
+  });
+
+  it("holds the agent step's two adapter teardowns whole", () => {
+    // a step cut short exits the server before the adapter's group is killed.
+    expect(TEARDOWN_BUDGETS_MS.agent).toBeGreaterThanOrEqual(2 * ADAPTER_TEARDOWN_MS);
   });
 });
 
@@ -464,19 +469,19 @@ describe("ignoreDeadStreamErrors", () => {
 describe("the composed teardown", () => {
   it("holds every budgeted step in the budgets table's order once the listener and the lock join", async () => {
     const { composed } = await bootTestApp();
-    registerListener(composed.teardown, async () => {});
-    registerLockRelease(composed.teardown, () => {});
+    addTeardownStep(composed.teardown, "listener", async () => {});
+    addTeardownStep(composed.teardown, "lock", () => {});
     expect(
       composed.teardown.map((step) => step.name),
-      "compose.ts must register every step TEARDOWN_BUDGETS_MS budgets in the table's own order (it is written in teardown order); registerListener must put the one step only a bound port can add at the FRONT — the listener closes the sockets before the vault flush behind it — and registerLockRelease the data dir's release at the BACK, after the db closes",
+      "compose.ts must register every step TEARDOWN_BUDGETS_MS budgets, and addTeardownStep must hold them in the table's own order (it is written in teardown order): the listener, which only a bound port can add, at the FRONT — it closes the sockets before the vault flush behind it — and the data dir's release at the BACK, after the db closes",
     ).toEqual(Object.keys(TEARDOWN_BUDGETS_MS));
   });
 
   it("releases the lock last even when it was registered before anything was composed", () => {
     const teardown: ShutdownStep[] = [];
-    registerLockRelease(teardown, () => {});
-    teardown.unshift(teardownStep("db", () => {}));
-    registerListener(teardown, async () => {});
+    addTeardownStep(teardown, "lock", () => {});
+    addTeardownStep(teardown, "db", () => {});
+    addTeardownStep(teardown, "listener", async () => {});
     expect(teardown.map((step) => step.name)).toEqual(["listener", "db", "lock"]);
   });
 

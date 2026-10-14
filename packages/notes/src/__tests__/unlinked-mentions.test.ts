@@ -122,6 +122,32 @@ describe("finding plain mentions", () => {
     );
   });
 
+  it("withholds a `:::` marker line, whose words a Link would unmake", () => {
+    const columns = ["Columns.md"];
+    const found = findUnlinkedMentions(
+      [
+        {
+          body: ":::columns\n:::column\nx\n:::\n:::\n\n> :::tabs\n> === Columns\n> y\n> :::\n",
+          path: "a.md",
+          title: "a.md",
+        },
+      ],
+      { exclude: new Set(columns), limit: 50, names: mentionNames("Columns.md", []) },
+    );
+    expect(found.total).toBe(0);
+  });
+
+  it("withholds a date chip, which spells the name of its day's daily note", () => {
+    const daily = mentionNames("notes/daily/2026-10-12.md", []);
+    const query = { exclude: new Set<string>(), limit: 50, names: daily };
+    const found = (body: string) =>
+      findUnlinkedMentions([{ body, path: "a.md", title: "a.md" }], query);
+    expect(found("Met on @2026-10-12 about the plan.\n").total).toBe(0);
+    expect(found("Met on @2026-10-12, planned 2026-10-12.\n").mentions[0]).toEqual(
+      expect.objectContaining({ before: "Met on @2026-10-12, planned ", column: 28 }),
+    );
+  });
+
   it("counts every mentioning doc past the limit", () => {
     const found = mentions({ "a.md": "Roadmap\n", "b.md": "Roadmap\n", "c.md": "Roadmap\n" }, 2);
     expect(found.mentions).toHaveLength(2);

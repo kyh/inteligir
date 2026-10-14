@@ -17,24 +17,29 @@ and its navigation stack stay native.
 ## The build
 
 `pnpm --filter @repo/mobile-editor build` writes `dist/`: `index.html`, ONE
-classic `<script defer>` and one stylesheet, relative to the page. WKWebView
-fetches a module script, and any tag marked `crossorigin`, in CORS mode, and a
-`file://` page has no origin to answer one with (vitejs/vite#14483), so the
-build is one IIFE with every dynamic import inlined (mermaid, katex, the
-calendar, the wiki chip), and `vite/classic-page.ts` rewrites vite's entry tag
-and FAILS the build on a module script, a second script or chunk, a
-`crossorigin` tag or a modulepreload link. Every woff2 is inlined into the
+classic `<script defer>` and one stylesheet, relative to the page. A `file://`
+page in WKWebView loads no module script and no `crossorigin` tag
+(`vite/classic-page.ts` says why), so the build is one IIFE with every dynamic
+import inlined (mermaid, katex, the calendar, the wiki chip), and
+`vite/classic-page.ts` rewrites vite's entry tag and FAILS the build on a
+module script, a second script or chunk, a `crossorigin` tag or a
+modulepreload link. Every woff2 is inlined into the
 stylesheet. `index.html` carries a static CSP, `apps/cli/src/server/csp.ts`'s
-with `connect-src 'none'`: the page reaches nothing, the bridge is its only
-way out. There is no dev server: the CSP refuses the inline script a Vite dev
-page injects, and the page means nothing without a native end.
+with two departures: `connect-src 'none'`, since the page reaches nothing and
+the bridge is its only way out, and no `frame-ancestors`, which a meta tag
+cannot carry. `tools/repo-guards/src/phone-page-csp.test.ts` holds the copy to
+the server's, so a directive added there fails until the page decides it. There
+is no dev server: the CSP refuses the inline script a Vite dev page injects, and
+the page means nothing without a native end.
 
 ## The bridge
 
 `src/bridge/protocol.ts` is the wire, exported as `./bridge-protocol` so the
 native end parses the same frames. Both ends ship in one binary, so it breaks
 freely: no version field. Every frame is the JSON text of one, parsed by the
-end that receives it.
+end that receives it. A path on it is refused unless it is already normal, by
+the cloud wire's own schema (`@repo/notes/knowledge/vault-path-schema`), since
+both ends address the same files.
 
 - Page to native: `ready` (the door is installed; it knows no nonce yet), then
   requests `{ id, nonce, kind, payload }` — `list`, `read`, `write` (under the
@@ -71,14 +76,16 @@ answer is parsed by the kind it answers.
 `src/host/page-host.ts` builds the editor's host over the bridge: the
 `VaultSessionPorts`, the editor's own `createGuardedVaultIo` over a
 `GuardedVaultPort` of frames, its link-resolver store and note formulas, and
-the `EditorHostIo`. Opening a note (a wiki link, a created note) writes this one
-and sends `navigate`, so the native stack pushes the next page and keeps the
-back gesture. A vanished note asks through the page's own confirm dialog, in
-the desktop's words (`@repo/editor/note/vanished-prompt`). A
-new comment is the touch toolbar's: its markers go in at Save, and the flush
-that writes them goes as `addComment` rather than `write`, so no save ever
-lands markers without their comment; a hardware chord's create, whose markers
-the autosave already wrote, sends its entry on its own.
+the `EditorHostIo` and `EditorHostActions` it installs as one host when the
+page starts; the install hands `flushOpenNote` that host's flush. Opening a
+note (a wiki link, a created note) writes this one and sends `navigate`, so the
+native stack pushes the next page and keeps the back gesture. A vanished note
+asks through the page's own confirm dialog, in the desktop's words
+(`@repo/editor/note/vanished-prompt`). A new comment is the touch toolbar's:
+its markers go in at Save, and the flush that writes them goes as `addComment`
+rather than `write`, so no save ever lands markers without their comment; a
+hardware chord's create, whose markers the autosave already wrote, sends its
+entry on its own.
 
 ## Layout
 

@@ -1,15 +1,26 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "inteligir/server/config";
+import {
+  DEV_DATA_ROOT_DIR,
+  physicalVaultDir,
+  PROD_DATA_DIR_NAME,
+  resolveAppConfig,
+  VAULT_DIR_ENV_VAR,
+  vaultDataDir,
+} from "inteligir/server/config";
 import { loopbackOrigin, SERVER_FILE_NAME } from "inteligir/server/server-file";
 import type { ServerFile } from "inteligir/server/server-file";
 import { silentOwnerSentence } from "inteligir/server/server-probe";
 import type { AskServerStatus, StatusAnswer } from "inteligir/server/server-probe";
-import { makeTempDir } from "inteligir/server/testing";
 import type { SystemStatusResponse } from "@repo/contract/local/system/system-schema";
 import { describe, expect, it } from "vitest";
-import { bootTestApp, listenTestApp, TEST_SERVER_TOKEN } from "../../server/__tests__/boot-app";
+import {
+  bootTestApp,
+  listenTestApp,
+  makeTempDir,
+  TEST_SERVER_TOKEN,
+} from "../../server/__tests__/boot-app";
 import {
   adoptServer,
   describeServerVerdict,
@@ -21,8 +32,14 @@ import type { LiveServer, ServerVerdict } from "../server-start";
 
 const scratchHome = (): string => makeTempDir("inteligir-shell-home-");
 
+// the mode a packaged shell states
+const PACKAGED: NodeJS.ProcessEnv = { NODE_ENV: "production" };
+
 interface ManagedConfig {
-  vaultDir: string;
+  agentModels?: { claude: string };
+  cloudUrl?: string;
+  port?: number;
+  vaultDir?: string;
 }
 
 const writeManagedConfig = (dataDir: string, config: ManagedConfig): void => {
@@ -33,15 +50,14 @@ const writeManagedConfig = (dataDir: string, config: ManagedConfig): void => {
 describe("resolveServerTarget", () => {
   it("takes the packaged defaults from the app's own resolution", () => {
     const homeDir = scratchHome();
-    const resolved = resolveServerTarget({
-      env: {},
-      homeDir,
-      isPackaged: true,
-    });
+    const resolved = resolveServerTarget({ env: PACKAGED, homeDir });
     expect(resolved).toEqual({
       kind: "resolved",
       target: {
-        dataDir: path.join(homeDir, PROD_DATA_DIR_NAME),
+        dataDir: vaultDataDir(
+          path.join(homeDir, PROD_DATA_DIR_NAME),
+          path.join(homeDir, "Inteligir"),
+        ),
         dataDirSource: "default",
         rootDataDir: path.join(homeDir, PROD_DATA_DIR_NAME),
         vaultDir: path.join(homeDir, "Inteligir"),
@@ -54,50 +70,63 @@ describe("resolveServerTarget", () => {
     const homeDir = scratchHome();
     const vaultDir = path.join(homeDir, "Notes");
     writeManagedConfig(path.join(homeDir, PROD_DATA_DIR_NAME), { vaultDir });
-    const resolved = resolveServerTarget({
-      env: {},
-      homeDir,
-      isPackaged: true,
-    });
+    const resolved = resolveServerTarget({ env: PACKAGED, homeDir });
     expect(resolved.kind === "resolved" && resolved.target.vaultDir).toBe(vaultDir);
     expect(resolved.kind === "resolved" && resolved.target.vaultDirSource).toBe("managed-config");
-    // not the root: a vault other than the default gets a dir of its own beneath it
-    expect(resolved.kind === "resolved" && resolved.target.dataDir).not.toBe(
-      path.join(homeDir, PROD_DATA_DIR_NAME),
+    expect(resolved.kind === "resolved" && resolved.target.dataDir).toBe(
+      vaultDataDir(path.join(homeDir, PROD_DATA_DIR_NAME), vaultDir),
     );
     expect(resolved.kind === "resolved" && resolved.target.rootDataDir).toBe(
       path.join(homeDir, PROD_DATA_DIR_NAME),
     );
   });
 
+  it("leaves a child pinned to its target's vault that target's data dir and the root's config.json", () => {
+    const homeDir = scratchHome();
+    const cloudUrl = "https://cloud.example.test";
+    writeManagedConfig(path.join(homeDir, PROD_DATA_DIR_NAME), {
+      agentModels: { claude: "claude-test" },
+      cloudUrl,
+      port: 4999,
+    });
+    const resolved = resolveServerTarget({ env: PACKAGED, homeDir });
+    if (resolved.kind !== "resolved") {
+      throw new Error(resolved.error);
+    }
+    // what the shell pins on a vault's server (`server_command` in apps/desktop/src-tauri/src/shell.rs)
+    const env = { ...PACKAGED, [VAULT_DIR_ENV_VAR]: resolved.target.vaultDir };
+    const child = resolveServerTarget({ env, homeDir });
+    expect(child.kind === "resolved" && child.target.dataDir).toBe(resolved.target.dataDir);
+    const served = resolveAppConfig({ checkoutPath: homeDir, env, homeDir });
+    expect(served.dataDir).toBe(resolved.target.dataDir);
+    expect(served.cloudUrl).toBe(cloudUrl);
+    expect(served.port).toBe(4999);
+    expect(served.agentModels.claude).toBe("claude-test");
+  });
+
   it("resolves a switch candidate as a boot would, refusing a vault that nests the data dir", () => {
     const homeDir = scratchHome();
     const candidate = resolveServerTarget({
-      env: {},
+      env: PACKAGED,
       homeDir,
-      isPackaged: true,
       vaultDir: path.join(homeDir, "Second"),
     });
+    // stored where it will land, which macOS's tmpdir, behind a symlink, shows
     expect(candidate.kind === "resolved" && candidate.target.vaultDir).toBe(
-      path.join(homeDir, "Second"),
+      physicalVaultDir(path.join(homeDir, "Second")),
     );
     expect(candidate.kind === "resolved" && candidate.target.vaultDirSource).toBe("env");
     const nested = resolveServerTarget({
-      env: {},
+      env: PACKAGED,
       homeDir,
-      isPackaged: true,
       vaultDir: path.join(homeDir, PROD_DATA_DIR_NAME, "notes"),
     });
     expect(nested.kind).toBe("refused");
   });
 
-  it("a checkout resolves the per-checkout dev instance, whatever NODE_ENV says", () => {
+  it("resolves the checkout's own dev instance unless the shell states production", () => {
     const homeDir = scratchHome();
-    const resolved = resolveServerTarget({
-      env: { NODE_ENV: "production" },
-      homeDir,
-      isPackaged: false,
-    });
+    const resolved = resolveServerTarget({ env: {}, homeDir });
     expect(resolved.kind).toBe("resolved");
     if (resolved.kind !== "resolved") {
       return;
@@ -109,9 +138,8 @@ describe("resolveServerTarget", () => {
 
   it("surfaces the app's own refusal rather than falling back to a default", () => {
     const resolved = resolveServerTarget({
-      env: { INTELIGIR_PORT: "65536" },
+      env: { ...PACKAGED, INTELIGIR_PORT: "65536" },
       homeDir: scratchHome(),
-      isPackaged: true,
     });
     expect(resolved).toEqual({
       error: "INTELIGIR_PORT must be a valid TCP port",
@@ -127,6 +155,7 @@ const serverRow = (dataDir: string, port: number, pid: number = process.pid): Se
   port,
   token: TOKEN,
   vaultDir: path.join(dataDir, "vault"),
+  version: VERSION,
 });
 
 // this process's own pid by default, so the row's owner is alive and the probe dials it.
@@ -146,9 +175,8 @@ const dataDirWithServer = (port: number | null, pid: number = process.pid): stri
 const exitedPid = (): number => spawnSync(process.execPath, ["-e", ""]).pid;
 
 const systemStatus = (dataDir: string, version: string): SystemStatusResponse => ({
-  agent: { detail: null, mode: "off", runtime: "off" },
+  agent: { mode: "off" },
   dataDir,
-  dataDirScope: "root",
   schemaVersion: 1,
   uptimeMs: 1,
   vaultDir: path.join(dataDir, "vault"),

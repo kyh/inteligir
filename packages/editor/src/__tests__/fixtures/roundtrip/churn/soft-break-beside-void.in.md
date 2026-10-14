@@ -25,5 +25,5 @@ and the next line
 press <kbd>K</kbd>
 to open it
 
-due <date value="2026-07-01" />
+due @2026-07-01
 or later

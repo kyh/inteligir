@@ -43,7 +43,7 @@ const RecordsTable = ({
   const tableContext = useMemo(() => ({ setWidth, widths }), [widths, setWidth]);
 
   return (
-    <RecordsTableContext.Provider value={tableContext}>
+    <RecordsTableContext value={tableContext}>
       <div
         ref={ref}
         // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a flex grid of divs: <section> and the table tags would drop the layout and the typed refs
@@ -67,10 +67,9 @@ const RecordsTable = ({
           {children}
         </div>
       </div>
-    </RecordsTableContext.Provider>
+    </RecordsTableContext>
   );
 };
-RecordsTable.displayName = "RecordsTable";
 
 const RecordsTableHeader = ({
   className,
@@ -89,7 +88,6 @@ const RecordsTableHeader = ({
     />
   </div>
 );
-RecordsTableHeader.displayName = "RecordsTableHeader";
 
 export interface RecordsColumnHeaderProps extends HTMLAttributes<HTMLDivElement> {
   column: string;
@@ -174,7 +172,6 @@ const RecordsColumnHeader = ({
     </div>
   );
 };
-RecordsColumnHeader.displayName = "RecordsColumnHeader";
 
 const RecordsTableBody = ({
   className,
@@ -190,7 +187,6 @@ const RecordsTableBody = ({
     {...props}
   />
 );
-RecordsTableBody.displayName = "RecordsTableBody";
 
 const RecordsRow = ({
   className,
@@ -209,7 +205,6 @@ const RecordsRow = ({
     {...props}
   />
 );
-RecordsRow.displayName = "RecordsRow";
 
 export interface RecordsCellProps extends HTMLAttributes<HTMLDivElement> {
   column: string;
@@ -249,7 +244,6 @@ const RecordsCell = ({
     </div>
   );
 };
-RecordsCell.displayName = "RecordsCell";
 
 const recordTagVariants = cva(
   "inline-flex h-5 max-w-full items-center rounded-md px-1.5 text-[11.5px] font-medium",
@@ -280,7 +274,6 @@ const RecordTag = ({
     {...props}
   />
 );
-RecordTag.displayName = "RecordTag";
 
 const RecordsAddColumn = ({
   className,
@@ -306,7 +299,6 @@ const RecordsAddColumn = ({
     </button>
   </div>
 );
-RecordsAddColumn.displayName = "RecordsAddColumn";
 
 export {
   RecordsTable,

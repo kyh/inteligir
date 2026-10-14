@@ -1,6 +1,8 @@
-//! What the CLI's desktop entry answers about the vaults (`apps/cli/src/desktop/desktop-wire.ts`):
-//! the launch, a folder's facts, a plan, a selector's write. Rust reads only what it acts on and
-//! hands the rest to the page as the CLI wrote it, where the page parses it.
+//! What the CLI's desktop entry answers about the vaults (`DoorAnswers` in
+//! `apps/cli/src/desktop/desktop-door.ts`): the launch, a folder's facts, a plan, a selector's
+//! write. Rust reads only what it acts on and hands the rest to the page as the CLI wrote it, where
+//! the page parses it. `tools/repo-guards/src/desktop-shell-wire.test.ts` holds every type here to
+//! the door's zod schemas, and parses the `fixtures/` these tests read with them.
 
 use std::collections::BTreeMap;
 
@@ -13,7 +15,7 @@ use serde_json::Value;
 pub struct Target {
     pub data_dir: String,
     pub vault_dir: String,
-    /// Where config.json lives; every vault's data dir but the default's sits beneath it.
+    /// Where config.json lives; every vault's data dir sits beneath it.
     pub root_data_dir: String,
     /// Why a switch is refused before any folder is picked (an env pin), in the CLI's words.
     pub switch_blocked: Option<String>,
@@ -80,21 +82,56 @@ mod tests {
 
     #[test]
     fn reads_the_launch_the_cli_answers() -> Result<(), serde_json::Error> {
-        let launch: Launch = serde_json::from_str(
-            r#"{
-              "env": {"PATH": "/opt/homebrew/bin:/usr/bin"},
-              "notes": [],
-              "target": {"dataDir": "/h/.inteligir", "vaultDir": "/h/Inteligir", "rootDataDir": "/h/.inteligir", "switchBlocked": null},
-              "plan": "first-run",
-              "proposal": {"name": "Inteligir", "parent": "/h"}
-            }"#,
-        )?;
+        let launch: Launch = serde_json::from_str(include_str!("../fixtures/launch.json"))?;
         assert_eq!(launch.plan, Plan::FirstRun);
         assert_eq!(launch.target.vault_dir, "/h/Inteligir");
+        assert_eq!(launch.target.switch_blocked, None);
+        assert_eq!(
+            launch.proposal,
+            Proposal {
+                name: "Inteligir".to_owned(),
+                parent: "/h".to_owned()
+            }
+        );
         assert_eq!(
             launch.env.get("PATH").map(String::as_str),
             Some("/opt/homebrew/bin:/usr/bin")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn reads_an_opening() -> Result<(), serde_json::Error> {
+        let opening: Opening = serde_json::from_str(include_str!("../fixtures/plan-open.json"))?;
+        assert_eq!(opening.vault_dir, "/h/Notes");
+        assert_eq!(opening.selector.as_deref(), Some("/h/Notes"));
+        Ok(())
+    }
+
+    #[test]
+    fn reads_the_target_a_selection_answers() -> Result<(), serde_json::Error> {
+        let target: Target = serde_json::from_str(include_str!("../fixtures/select.json"))?;
+        assert_eq!(target.root_data_dir, "/h/.inteligir");
+        assert!(target.data_dir.starts_with("/h/.inteligir/vaults/"));
+        assert!(target.switch_blocked.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn reads_a_folder_another_service_syncs() -> Result<(), serde_json::Error> {
+        let sync: FolderSync = serde_json::from_str(include_str!("../fixtures/sync.json"))?;
+        assert_eq!(sync.external_sync["kind"], "dropbox");
+        assert_eq!(
+            sync.warning.map(|warning| warning.headline).as_deref(),
+            Some("Dropbox keeps syncing this folder.")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn reads_a_handoff() -> Result<(), serde_json::Error> {
+        let handoff: Handoff = serde_json::from_str(include_str!("../fixtures/handoff.json"))?;
+        assert_eq!(handoff.url, "http://127.0.0.1:4664/?handoff=n");
         Ok(())
     }
 }

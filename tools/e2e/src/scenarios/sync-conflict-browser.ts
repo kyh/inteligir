@@ -24,7 +24,7 @@ const write = async (api: InstanceApi, content: string): Promise<void> => {
 
 export const syncConflictBrowser: Scenario = {
   description:
-    "a sync that copies another device's version aside tells the open window so, and Open shows that version",
+    "two instances + one bare remote, B's window open: B's sync meets A's same-line edit and the window says both versions were kept, naming the copy, still up past a toast's usual 4s; its Open shows A's line",
   name: "sync-conflict-browser",
   async run(ctx) {
     const remote = await ctx.bareRemote();

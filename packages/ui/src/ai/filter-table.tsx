@@ -22,7 +22,6 @@ const FilterTable = ({
 }: HTMLAttributes<HTMLDivElement> & RefAttributes<HTMLDivElement>) => (
   <div ref={ref} data-slot="filter-table" className={cn("w-full", className)} {...props} />
 );
-FilterTable.displayName = "FilterTable";
 
 const FilterChips = ({
   className,
@@ -39,7 +38,6 @@ const FilterChips = ({
     {...props}
   />
 );
-FilterChips.displayName = "FilterChips";
 
 export interface FilterChipProps extends HTMLAttributes<HTMLButtonElement> {
   active?: boolean;
@@ -84,7 +82,6 @@ const FilterChip = ({
     )}
   </button>
 );
-FilterChip.displayName = "FilterChip";
 
 export interface DataTableProps extends HTMLAttributes<HTMLDivElement> {
   columns: string;
@@ -101,7 +98,7 @@ const DataTable = ({
   ref,
   ...props
 }: DataTableProps & RefAttributes<HTMLDivElement>) => (
-  <TableContext.Provider value={useMemo(() => ({ columns }), [columns])}>
+  <TableContext value={useMemo(() => ({ columns }), [columns])}>
     <div
       ref={ref}
       // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a flex grid of divs: <section> would drop the layout and the typed ref
@@ -118,9 +115,8 @@ const DataTable = ({
     >
       <div style={{ minWidth }}>{children}</div>
     </div>
-  </TableContext.Provider>
+  </TableContext>
 );
-DataTable.displayName = "DataTable";
 
 const DataTableHeader = ({
   className,
@@ -142,7 +138,6 @@ const DataTableHeader = ({
     />
   );
 };
-DataTableHeader.displayName = "DataTableHeader";
 
 export interface DataTableRowProps extends HTMLAttributes<HTMLDivElement> {
   visible?: boolean;
@@ -175,7 +170,6 @@ const DataTableRow = ({
     </Collapse>
   );
 };
-DataTableRow.displayName = "DataTableRow";
 
 const dataTableCellVariants = cva("min-w-0", {
   defaultVariants: { tone: "secondary" },
@@ -204,7 +198,6 @@ const DataTableCell = ({
     {...props}
   />
 );
-DataTableCell.displayName = "DataTableCell";
 
 const statusPillVariants = cva(
   "inline-flex h-5 items-center rounded-[5px] px-1.5 text-[11px] font-medium",
@@ -237,7 +230,6 @@ const StatusPill = ({
     {...props}
   />
 );
-StatusPill.displayName = "StatusPill";
 
 export {
   FilterTable,

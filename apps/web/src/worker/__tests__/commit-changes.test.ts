@@ -4,7 +4,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { commitChanges } from "../vault/commit-changes";
 import type { CommitChangesResult, VaultChange, VaultConflict } from "../vault/commit-changes";
-import { vaultRegistry, vaultRepoName } from "../vault/git-remote";
+import { vaultRegistry, vaultRepoName } from "../vault/vault-repo";
 import { pushVaultPack } from "../vault/receive-pack";
 import type { VaultPackPush } from "../vault/receive-pack";
 import { encodeGitPath } from "../vault/tree-walk";

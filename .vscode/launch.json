@@ -9,6 +9,15 @@
       "cwd": "${workspaceFolder}/apps/web",
       "skipFiles": ["<node_internals>/**"],
       "sourceMaps": true
+    },
+    {
+      "name": "Server (cli serve)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "pnpm cli serve",
+      "cwd": "${workspaceFolder}",
+      "skipFiles": ["<node_internals>/**"],
+      "sourceMaps": true
     }
   ]
 }

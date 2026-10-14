@@ -1,0 +1,7 @@
+:::toggle
+summary
+
+> [!NOTE]
+> body
+
+:::

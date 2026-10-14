@@ -19,7 +19,7 @@ export const wrapBlockInToggle = (editor: PlateEditor, at: Path): void => {
     if (!entry || !ElementApi.isElement(entry[0]) || entry[0].type === KEYS.toggle) {
       return;
     }
-    // list props on the summary would serialize inside `<toggle>`.
+    // the summary would carry list props into the toggle, where no marker spells them.
     editor.tf.unsetNodes(["listStyleType", "listStart", "indent", "checked"], { at });
     editor.tf.wrapNodes({ children: [], type: KEYS.toggle }, { at });
   });
@@ -67,8 +67,8 @@ export const ToggleKit = [
           }
           insertBreak();
         },
-        // typing into a parsed `<toggle />` gives it inline children; wrap them into a paragraph.
-        // The headless gate never normalizes, so a bare `<toggle />` on disk stays byte-exact until edited.
+        // typing into an empty parsed toggle gives it inline children; wrap them into a paragraph.
+        // The headless gate never normalizes, so an empty toggle on disk stays byte-exact until edited.
         normalizeNode(entry) {
           const [node, path] = entry;
           if (

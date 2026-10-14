@@ -2,10 +2,10 @@ import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import type { StoreApi } from "zustand/vanilla";
 
-// The host as a module singleton rather than context: kit factories and paste handlers run
-// outside React, and host.ts hands components the same object. The shell implements these
-// types; declaring them beside the app's provider would put a type edge back across the
-// package boundary.
+// The host as a module singleton rather than context: kit factories, paste handlers and a deep
+// node's click run outside React or with no route to the shell's owner, and host.ts hands
+// components the same object. The shell implements these types; declaring them beside the app's
+// provider would put a type edge back across the package boundary.
 
 export interface VaultEntry {
   path: string;
@@ -49,7 +49,7 @@ export interface LinkResolver {
   targets: readonly WikiTarget[];
 }
 
-// The read half only: the host feeds the writer (`link-resolver-store.ts`). A store rather than a
+// The read half only: the host feeds the writer (`link-resolver-feed.ts`). A store rather than a
 // field because the resolver is rebuilt on every vault refresh while the actions never change, so
 // only its readers re-render.
 export type LinkResolverStore = Pick<
@@ -78,7 +78,7 @@ export type PickImageResult =
   | { readonly kind: "refused"; readonly message: string };
 
 export interface EditorHostIo {
-  actions: VaultActions;
+  vault: VaultActions;
   linkResolver: LinkResolverStore;
   readVaultFile: (payload: { path: string }) => Promise<string>;
   readVaultAsset: (payload: { path: string }) => Promise<ReadVaultAssetResult>;
@@ -95,15 +95,60 @@ export interface EditorHostIo {
   pickImage: (() => Promise<PickImageResult>) | null;
 }
 
-let installed: EditorHostIo | null = null;
+export interface CommentActions {
+  /** False means refused; the caller strips the markers it minted. */
+  create: (id: string, text: string) => Promise<boolean>;
+  open: (ids: string[]) => void;
+}
 
-export const setEditorHostIo = (io: EditorHostIo): void => {
-  installed = io;
+export interface AgentRequestActions {
+  askAboutSelection: (selectionText: string) => void;
+  /** The rail shows that tag's notes. */
+  showTag: (tag: string) => void;
+}
+
+// What the editor asks the shell for beyond the vault. Every field is required, so a host that
+// leaves one out fails to typecheck rather than drawing a button that does nothing.
+export interface EditorHostActions {
+  readonly agent: AgentRequestActions;
+  readonly comments: CommentActions;
+}
+
+export interface EditorHost {
+  readonly io: EditorHostIo;
+  readonly actions: EditorHostActions;
+}
+
+let installed: EditorHost | null = null;
+
+// The host a writer outside the note's tree flushes through (`flushOpenNote`). A disposer clears
+// it only while it still names that disposer's host, so a dispose landing after a newer install
+// keeps the newer one's flush.
+let flushing: EditorHost | null = null;
+
+// Installed once, ahead of the first render: the note the boot opens mounts hooks that read the
+// host as they render. The disposer ends the host's flush and leaves the host installed until the
+// next install replaces it, because an answer in flight when the note unmounts still reads it.
+export const installEditorHost = (host: EditorHost): (() => void) => {
+  installed = host;
+  flushing = host;
+  return () => {
+    if (flushing === host) {
+      flushing = null;
+    }
+  };
 };
 
-export const getEditorHostIo = (): EditorHostIo => {
+export const installedFlush = (): (() => Promise<boolean>) | null =>
+  flushing === null ? null : flushing.io.vault.flush;
+
+const installedHost = (): EditorHost => {
   if (installed === null) {
-    throw new Error("EditorHostIo not installed — the app must setEditorHostIo() before mounting");
+    throw new Error("no editor host installed — the app must installEditorHost() before mounting");
   }
   return installed;
 };
+
+export const getEditorHostIo = (): EditorHostIo => installedHost().io;
+
+export const getEditorHostActions = (): EditorHostActions => installedHost().actions;

@@ -260,7 +260,7 @@ describe("the device token", () => {
     const response = await bareRequest(STATUS_RPC_PATH, rpcPost({}));
     expect(response.status).toBe(401);
     expect(await response.text()).toContain("device token");
-    // the renderer tells the gate's 401 from a procedure's UNAUTHORIZED by this challenge alone.
+    // the page tells the gate's 401 from a procedure's UNAUTHORIZED by this challenge alone.
     expect(response.headers.get("www-authenticate")).toBe('Bearer realm="inteligir"');
   });
 
@@ -307,6 +307,66 @@ describe("the device token", () => {
     expect(cookieAsBearer.status).toBe(401);
   });
 
+  it("lets the header win over the cookie: a caller that set one means it", async () => {
+    const booted = await bootTestApp({ clientDir: makeUi().clientDir });
+    const secret = await signInBrowser(booted);
+
+    // the bearer's carrier takes no same-origin proof, whatever cookie rides beside it
+    const bearer = await booted.bareRequest(
+      STATUS_RPC_PATH,
+      rpcPost({
+        authorization: authorizationHeader(TEST_SERVER_TOKEN),
+        cookie: `${BROWSER_SESSION_COOKIE}=not-the-secret`,
+        "sec-fetch-site": "cross-site",
+      }),
+    );
+    expect(bearer.status).toBe(200);
+
+    const wrongBearer = await booted.bareRequest(
+      STATUS_RPC_PATH,
+      rpcPost({
+        authorization: authorizationHeader("not-the-token"),
+        cookie: `${BROWSER_SESSION_COOKIE}=${secret}`,
+        "sec-fetch-site": "same-origin",
+      }),
+    );
+    expect(wrongBearer.status).toBe(401);
+  });
+
+  it("refuses anything that is not the exact bearer", async () => {
+    const { bareRequest } = await bootTestApp();
+    for (const authorization of [
+      "Bearer ",
+      `Basic ${TEST_SERVER_TOKEN}`,
+      `bearer ${TEST_SERVER_TOKEN}`,
+      authorizationHeader(TEST_SERVER_TOKEN.slice(0, -1)),
+      authorizationHeader(`${TEST_SERVER_TOKEN}x`),
+    ]) {
+      const refused = await bareRequest(STATUS_RPC_PATH, rpcPost({ authorization }));
+      expect(refused.status, authorization).toBe(401);
+    }
+  });
+
+  it("reads the session cookie out of a header carrying several, and no other cookie", async () => {
+    const booted = await bootTestApp({ clientDir: makeUi().clientDir });
+    const secret = await signInBrowser(booted);
+    const sameOrigin = { "sec-fetch-site": "same-origin" };
+
+    const among = await booted.bareRequest(
+      STATUS_RPC_PATH,
+      rpcPost({
+        ...sameOrigin,
+        cookie: `theme=dark; ${BROWSER_SESSION_COOKIE}=${secret}; other=1`,
+      }),
+    );
+    expect(among.status).toBe(200);
+
+    for (const cookie of [`unrelated=${secret}`, "novalue", `${BROWSER_SESSION_COOKIE}=`]) {
+      const refused = await booted.bareRequest(STATUS_RPC_PATH, rpcPost({ ...sameOrigin, cookie }));
+      expect(refused.status, cookie).toBe(401);
+    }
+  });
+
   it("REFUSES the cookie from a co-resident cross-port page (SameSite does not isolate ports)", async () => {
     const booted = await bootTestApp({ clientDir: makeUi().clientDir });
     const secret = await signInBrowser(booted);
@@ -320,7 +380,7 @@ describe("the device token", () => {
     expect(crossPort.status).toBe(403);
   });
 
-  it("leaves /health outside the gate — it is a spawn probe", async () => {
+  it("leaves /health outside the gate — it is the harnesses' boot probe", async () => {
     const { bareRequest } = await bootTestApp();
     const response = await bareRequest(HEALTH_PATH);
     expect(response.status).toBe(200);
@@ -387,7 +447,7 @@ describe("the device token", () => {
     expect(first.headers.get("location")).toBe(`http://${TEST_HOST}/settings?note=a+b.md`);
     expect(first.headers.get("cache-control")).toBe("no-store");
     expect(first.headers.get("set-cookie")).toMatch(
-      new RegExp(`^${BROWSER_SESSION_COOKIE}=[\\w-]+; HttpOnly; SameSite=Strict; Path=/$`, "u"),
+      new RegExp(`^${BROWSER_SESSION_COOKIE}=[\\w-]+; Path=/; HttpOnly; SameSite=Strict$`, "u"),
     );
 
     // a spent link still lands on the page, so a browser that already signed in reloads cleanly.
@@ -395,6 +455,19 @@ describe("the device token", () => {
     expect(replayed.status).toBe(303);
     expect(replayed.headers.get("location")).toBe(`http://${TEST_HOST}/settings?note=a+b.md`);
     expect(replayed.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("sets a cookie script cannot read and a hostile page cannot send", async () => {
+    const booted = await bootTestApp({ clientDir: makeUi().clientDir });
+    const { nonce } = await booted.client.system.browserHandoff();
+    const traded = await booted.bareRequest(`/?${BROWSER_HANDOFF_PARAM}=${nonce}`);
+    const cookie = traded.headers.get("set-cookie") ?? "";
+    expect(cookie.startsWith(`${BROWSER_SESSION_COOKIE}=`)).toBe(true);
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("SameSite=Strict");
+    expect(cookie).toContain("Path=/");
+    // never `Secure`: some browsers drop a Secure cookie on plain-http loopback rather than ignoring the attribute.
+    expect(cookie).not.toContain("Secure");
   });
 
   it("keeps a handoff's redirect on this server whatever the path spells", async () => {

@@ -8,7 +8,12 @@ import {
 import { deviceNameReader, readMachineName } from "../device-name";
 import { makeTempDir } from "./temp-dir";
 
-const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
+const CREDENTIAL = {
+  credential: `igd_${"a".repeat(64)}`,
+  deviceId: "dev_1",
+  email: "owner@example.test",
+  userId: "user_1",
+};
 
 describe("what this device is called", () => {
   it("is the name it signed in under, else the machine's, read at every ask", () => {
@@ -18,10 +23,6 @@ describe("what this device is called", () => {
 
     writeDeviceCredential(dataDir, { ...CREDENTIAL, deviceName: "Studio" });
     expect(deviceName()).toBe("Studio");
-
-    // a sign-in from before the name was kept
-    writeDeviceCredential(dataDir, CREDENTIAL);
-    expect(deviceName()).toBe("Kai's Mac mini");
 
     writeFileSync(deviceCredentialPath(dataDir), "not json", "utf-8");
     expect(deviceName()).toBe("Kai's Mac mini");

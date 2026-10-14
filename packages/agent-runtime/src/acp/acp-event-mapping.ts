@@ -2,18 +2,16 @@
 // tool_call then mutated by tool_call_update, so this mapper mints the item ids. A turn holds as
 // many message and reasoning items as the agent spoke: one ends where its chunks' messageId
 // changes, or where a tool call opens (claude's adapter sends no messageId), because one id per
-// turn glued a preamble to the answer and drew both above every tool call.
+// turn would draw a preamble and its answer as one item above every tool call.
 
 import type {
   ProviderFailure,
   ThreadEventFileChange,
   ThreadEventItemStatus,
 } from "@repo/domain/provider-event";
-import type { ThreadEventScope } from "@repo/domain/thread-event-scope";
+import { turnScope } from "@repo/domain/thread-event-scope";
 import type {
-  ContentBlock,
   ContentChunk,
-  PlanEntry,
   PromptResponse,
   SessionNotification,
   ToolCallContent,
@@ -21,11 +19,7 @@ import type {
   ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
 import { z } from "zod";
-import type {
-  ProviderEvent,
-  ProviderEventItem,
-  ProviderEventPlanStep,
-} from "../vocabulary/provider-event.js";
+import type { ProviderEvent, ProviderEventItem } from "../vocabulary/provider-event.js";
 
 type StopReason = PromptResponse["stopReason"];
 
@@ -38,7 +32,6 @@ type SessionUpdateOf<Kind extends SessionUpdate["sessionUpdate"]> = Extract<
 
 export interface AcpTurnContext {
   threadId: string;
-  providerThreadId: string;
   turnId: string;
 }
 
@@ -105,19 +98,8 @@ const mapStopReason = (stopReason: StopReason): "completed" | "failed" | "interr
   }
 };
 
-const PLAN_STEP_STATUS = {
-  completed: "completed",
-  in_progress: "active",
-  pending: "pending",
-} satisfies Record<PlanEntry["status"], ProviderEventPlanStep["status"]>;
-
-const mapPlanEntry = (entry: PlanEntry): ProviderEventPlanStep => ({
-  status: PLAN_STEP_STATUS[entry.status],
-  step: entry.content,
-});
-
 // a content collection replaces the one before it (the protocol's rule): claude sends a Bash call's
-// description as content, then its output, and appending ran the two together.
+// description as content, then its output, which appending would run together.
 const replaceContent = (
   open: OpenToolCall,
   content: ToolCallContent[] | null | undefined,
@@ -225,46 +207,120 @@ const toolItem = (id: string, open: OpenToolCall): ProviderEventItem => {
 // a chunk's messageId when the adapter names one; a chunk naming none continues what is open.
 const chunkMessageId = (chunk: ContentChunk): string | null => chunk.messageId ?? null;
 
+const turnEventData = (ctx: AcpTurnContext) => ({
+  scope: turnScope(ctx.turnId),
+  threadId: ctx.threadId,
+});
+
+const MESSAGE_STREAM = {
+  deltaType: "item/agentMessage/delta",
+  idSegment: "message",
+  itemType: "agentMessage",
+} as const;
+
+const REASONING_STREAM = {
+  deltaType: "item/reasoning/textDelta",
+  idSegment: "reasoning",
+  itemType: "reasoning",
+} as const;
+
+// what the agent said, or what it thought, as one item per spoken run.
+interface TextStream {
+  // both name a message and they differ; a chunk naming none continues the open item.
+  movedPast: (messageId: string | null) => boolean;
+  append: (text: string, messageId: string | null) => ProviderEvent[];
+  close: () => ProviderEvent[];
+}
+
 interface OpenTextItem {
   id: string;
   messageId: string | null;
   text: string;
 }
 
-// the open item a chunk continues: a messageId other than the open item's starts a new one.
-const continues = (open: OpenTextItem, messageId: string | null): boolean =>
-  messageId === null || open.messageId === null || open.messageId === messageId;
+const textStream = (
+  kind: typeof MESSAGE_STREAM | typeof REASONING_STREAM,
+  ctx: AcpTurnContext,
+): TextStream => {
+  let open: OpenTextItem | null = null;
+  let count = 0;
 
-/** Whether `open` belongs to a message the stream has moved past: both name one, and they differ. */
-const movedPast = (open: OpenTextItem | null, messageId: string | null): boolean =>
-  open !== null && open.messageId !== null && messageId !== null && open.messageId !== messageId;
+  const movedPast = (messageId: string | null): boolean =>
+    open !== null && open.messageId !== null && messageId !== null && open.messageId !== messageId;
+
+  const close = (): ProviderEvent[] => {
+    const closing = open;
+    if (closing === null) {
+      return [];
+    }
+    open = null;
+    return [
+      {
+        item: { id: closing.id, text: closing.text, type: kind.itemType },
+        type: "item/completed",
+        ...turnEventData(ctx),
+      },
+    ];
+  };
+
+  const append = (text: string, messageId: string | null): ProviderEvent[] => {
+    const events: ProviderEvent[] = [];
+    let current = open;
+    if (current === null || movedPast(messageId)) {
+      events.push(...close());
+      count += 1;
+      current = { id: `${ctx.turnId}:${kind.idSegment}:${count}`, messageId, text: "" };
+      open = current;
+      events.push({
+        item: { id: current.id, text: "", type: kind.itemType },
+        type: "item/started",
+        ...turnEventData(ctx),
+      });
+    }
+    current.messageId ??= messageId;
+    current.text += text;
+    events.push({
+      delta: text,
+      itemId: current.id,
+      type: kind.deltaType,
+      ...turnEventData(ctx),
+    });
+    return events;
+  };
+
+  return { append, close, movedPast };
+};
+
+// the other stream's item ends first when the stream moved past its message.
+const speak = (stream: TextStream, other: TextStream, chunk: ContentChunk): ProviderEvent[] => {
+  if (chunk.content.type !== "text") {
+    return [];
+  }
+  const messageId = chunkMessageId(chunk);
+  return [
+    ...(other.movedPast(messageId) ? other.close() : []),
+    ...stream.append(chunk.content.text, messageId),
+  ];
+};
 
 export class AcpTurnMapper {
   readonly #ctx: AcpTurnContext;
-  #message: OpenTextItem | null = null;
-  #messageCount = 0;
-  #reasoning: OpenTextItem | null = null;
-  #reasoningCount = 0;
+  readonly #message: TextStream;
+  readonly #reasoning: TextStream;
   readonly #toolCalls = new Map<string, OpenToolCall>();
 
   constructor(ctx: AcpTurnContext) {
     this.#ctx = ctx;
+    this.#message = textStream(MESSAGE_STREAM, ctx);
+    this.#reasoning = textStream(REASONING_STREAM, ctx);
   }
 
   get turnId(): string {
     return this.#ctx.turnId;
   }
 
-  #scope(): ThreadEventScope {
-    return { kind: "turn", turnId: this.#ctx.turnId };
-  }
-
   #threadData() {
-    return {
-      providerThreadId: this.#ctx.providerThreadId,
-      scope: this.#scope(),
-      threadId: this.#ctx.threadId,
-    };
+    return turnEventData(this.#ctx);
   }
 
   started(): ProviderEvent[] {
@@ -277,11 +333,11 @@ export class AcpTurnMapper {
       case "agent_message_chunk": {
         const warning = adapterWarning(update);
         return warning === null
-          ? this.#appendMessage(update.content, chunkMessageId(update))
+          ? speak(this.#message, this.#reasoning, update)
           : [this.#notice("warning", warning)];
       }
       case "agent_thought_chunk": {
-        return this.#appendThought(update.content, chunkMessageId(update));
+        return speak(this.#reasoning, this.#message, update);
       }
       case "tool_call": {
         return this.#openToolCall(update);
@@ -289,21 +345,14 @@ export class AcpTurnMapper {
       case "tool_call_update": {
         return this.#updateToolCall(update);
       }
-      case "plan": {
-        return [
-          {
-            plan: update.entries.map(mapPlanEntry),
-            type: "turn/plan/updated",
-            ...this.#threadData(),
-          },
-        ];
-      }
       case "notice": {
         const { description, severity, title } = update;
         const message =
           description === undefined || description === null ? title : `${title}: ${description}`;
         return [this.#notice(severity, message)];
       }
+      // no pinned adapter sends a plan, even asked for a todo list, so the grammar carries none.
+      case "plan":
       case "user_message_chunk":
       case "available_commands_update":
       case "current_mode_update":
@@ -324,96 +373,6 @@ export class AcpTurnMapper {
     return { message, severity, type: "provider/notice", ...this.#threadData() };
   }
 
-  #appendMessage(content: ContentBlock, messageId: string | null): ProviderEvent[] {
-    if (content.type !== "text") {
-      return [];
-    }
-    // a thought of the message the stream moved past ends here, before the new message starts
-    const events: ProviderEvent[] = movedPast(this.#reasoning, messageId)
-      ? this.#closeReasoning()
-      : [];
-    let open = this.#message;
-    if (open === null || !continues(open, messageId)) {
-      events.push(...this.#closeMessage());
-      this.#messageCount += 1;
-      open = { id: `${this.#ctx.turnId}:message:${this.#messageCount}`, messageId, text: "" };
-      this.#message = open;
-      events.push({
-        item: { id: open.id, text: "", type: "agentMessage" },
-        type: "item/started",
-        ...this.#threadData(),
-      });
-    }
-    open.messageId ??= messageId;
-    open.text += content.text;
-    events.push({
-      delta: content.text,
-      itemId: open.id,
-      type: "item/agentMessage/delta",
-      ...this.#threadData(),
-    });
-    return events;
-  }
-
-  #appendThought(content: ContentBlock, messageId: string | null): ProviderEvent[] {
-    if (content.type !== "text") {
-      return [];
-    }
-    // likewise a message the stream moved past ends before the new thought starts
-    const events: ProviderEvent[] = movedPast(this.#message, messageId) ? this.#closeMessage() : [];
-    let open = this.#reasoning;
-    if (open === null || !continues(open, messageId)) {
-      events.push(...this.#closeReasoning());
-      this.#reasoningCount += 1;
-      open = { id: `${this.#ctx.turnId}:reasoning:${this.#reasoningCount}`, messageId, text: "" };
-      this.#reasoning = open;
-      events.push({
-        item: { content: [], id: open.id, summary: [], type: "reasoning" },
-        type: "item/started",
-        ...this.#threadData(),
-      });
-    }
-    open.messageId ??= messageId;
-    open.text += content.text;
-    events.push({
-      delta: content.text,
-      itemId: open.id,
-      type: "item/reasoning/textDelta",
-      ...this.#threadData(),
-    });
-    return events;
-  }
-
-  #closeMessage(): ProviderEvent[] {
-    const open = this.#message;
-    if (open === null) {
-      return [];
-    }
-    this.#message = null;
-    return [
-      {
-        item: { id: open.id, text: open.text, type: "agentMessage" },
-        type: "item/completed",
-        ...this.#threadData(),
-      },
-    ];
-  }
-
-  #closeReasoning(): ProviderEvent[] {
-    const open = this.#reasoning;
-    if (open === null) {
-      return [];
-    }
-    this.#reasoning = null;
-    return [
-      {
-        item: { content: [open.text], id: open.id, summary: [], type: "reasoning" },
-        type: "item/completed",
-        ...this.#threadData(),
-      },
-    ];
-  }
-
   #openToolCall(update: SessionUpdateOf<"tool_call">): ProviderEvent[] {
     const open: OpenToolCall = {
       diffs: [],
@@ -430,8 +389,8 @@ export class AcpTurnMapper {
     // a tool call ends what the agent was saying or thinking: text after it is a new item, so the
     // timeline draws each where it happened.
     return [
-      ...this.#closeReasoning(),
-      ...this.#closeMessage(),
+      ...this.#reasoning.close(),
+      ...this.#message.close(),
       {
         item: toolItem(update.toolCallId, open),
         type: "item/started",
@@ -446,21 +405,15 @@ export class AcpTurnMapper {
       return [];
     }
     applyToolCallUpdate(open, update);
-    if (open.status === "completed" || open.status === "failed") {
-      this.#toolCalls.delete(update.toolCallId);
-      return [
-        {
-          item: toolItem(update.toolCallId, open),
-          type: "item/completed",
-          ...this.#threadData(),
-        },
-      ];
+    // a running call's update lands with the item it completes as: nothing draws it before.
+    if (open.status !== "completed" && open.status !== "failed") {
+      return [];
     }
+    this.#toolCalls.delete(update.toolCallId);
     return [
       {
-        itemId: update.toolCallId,
-        message: open.title,
-        type: "item/toolCall/progress",
+        item: toolItem(update.toolCallId, open),
+        type: "item/completed",
         ...this.#threadData(),
       },
     ];
@@ -501,7 +454,7 @@ export class AcpTurnMapper {
       });
     }
     this.#toolCalls.clear();
-    events.push(...this.#closeReasoning(), ...this.#closeMessage());
+    events.push(...this.#reasoning.close(), ...this.#message.close());
     return events;
   }
 }

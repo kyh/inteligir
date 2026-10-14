@@ -11,7 +11,7 @@ import {
   withFrontmatterId,
 } from "@repo/notes/markdown/frontmatter";
 
-import { parseScan } from "../scan-parse";
+import { parseBare } from "../bare-parse";
 
 const NOTE_HEADERS = {
   "a BOM": "\uFEFF---\ntitle: t\n---\nbody\n",
@@ -26,7 +26,7 @@ const BARE_LF = /(?<!\r)\n/u;
 
 describe("the frontmatter block is the one the scan reads", () => {
   it.each(Object.entries(NOTE_HEADERS))("%s: its yaml is the scan's yaml node", (_, src) => {
-    const [first] = parseScan(src).children;
+    const [first] = parseBare(src).children;
     expect(frontmatterYaml(src)).toBe(first?.type === "yaml" ? first.value : null);
   });
 

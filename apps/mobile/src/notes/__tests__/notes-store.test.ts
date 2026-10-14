@@ -3,13 +3,15 @@ import type { CloudFetch } from "@repo/contract/cloud/client";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
 import { SYNC_API_PATHS } from "@repo/contract/cloud/sync/sync-schema";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
+import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
-import { phoneDbReady } from "../../lib/phone-db";
+import { deferred, nextTask } from "../../__tests__/async";
+import type { SignInSource } from "../../lib/sign-in-fence";
 import type { SqlDriver } from "../../lib/sql-driver";
 import { createSyncRuntime } from "../../sync/sync-runtime";
 import { createNotesStore } from "../notes-store";
-import type { CommentsRead, NotesStore, SignInSource } from "../notes-store";
+import type { CommentsRead, NotesStore } from "../notes-store";
 import { blobOid, createFakeVault, requestsOf } from "./fake-vault";
 import type { FakeVault } from "./fake-vault";
 import { openSyncStore, openTempDb, phonePorts } from "./phone-storage";
@@ -28,43 +30,18 @@ const VAULT = {
 const fakeVault = (extra: Record<string, string> = {}): FakeVault =>
   createFakeVault({ ...VAULT, ...extra });
 
-const nextTask = async (): Promise<void> => {
-  // oxlint-disable-next-line promise/avoid-new -- a macrotask: every settled promise has run by then
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, 0);
-  });
-};
-
-// a promise the test opens by hand
-interface Gate {
-  wait: Promise<void>;
-  open: () => void;
-}
-
-const openableGate = (): Gate => {
-  const opener = { open: (): void => undefined };
-  // oxlint-disable-next-line promise/avoid-new -- the resolver is handed to the test, which only a promise can do
-  const wait = new Promise<void>((resolve) => {
-    opener.open = resolve;
-  });
-  return {
-    open: () => {
-      opener.open();
-    },
-    wait,
-  };
-};
-
 const refusedAs = (code: string, message: string): Response =>
   Response.json({ error: { code, message } }, { status: code === "unauthorized" ? 401 : 404 });
 
 // the store reads under the sync runtime's session, as the composition root wires it
 const notesOver = (fetch: CloudFetch, db: SqlDriver = openTempDb()) => {
   const sync = createSyncRuntime({
+    build: TEST_BUILD,
     cloudUrl: "https://cloud.test",
     createClient: (credential) =>
       createCloudClient({
         baseUrl: "https://cloud.test",
+        build: TEST_BUILD,
         credential: credential.credential,
         fetch,
       }),
@@ -96,11 +73,7 @@ describe("the notes store", () => {
     const vault = fakeVault();
     const { store } = notesOver(vault.fetch);
     await store.refresh();
-    expect(await store.readNote("a.md")).toEqual({
-      message: "Not signed in.",
-      notFound: false,
-      ok: false,
-    });
+    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
     expect(vault.requests).toEqual([]);
     expect(store.tree.get()).toEqual({ state: "idle" });
   });
@@ -228,10 +201,9 @@ describe("the notes store", () => {
     const releases: (() => void)[] = [];
     const vault = fakeVault();
     const { signIn, store } = notesOver(async (input, init) => {
-      // oxlint-disable-next-line promise/avoid-new -- a deferred: the test releases the fetch by hand
-      await new Promise<void>((resolve) => {
-        releases.push(resolve);
-      });
+      const held = deferred();
+      releases.push(held.resolve);
+      await held.promise;
       return await vault.fetch(input, init);
     });
     signIn(CREDENTIAL, "restored");
@@ -261,14 +233,14 @@ describe("the notes store", () => {
   it("walks again for a refresh asked mid-walk, so a head that moved meanwhile is read", async () => {
     const vault = fakeVault();
     const held = { first: false };
-    const asked = openableGate();
-    const released = openableGate();
+    const asked = deferred();
+    const released = deferred();
     const { signIn, store } = notesOver(async (input, init) => {
       const response = await vault.fetch(input, init);
       if (held.first && new URL(input).pathname === VAULT_API_PATHS.tree) {
         held.first = false;
-        asked.open();
-        await released.wait;
+        asked.resolve();
+        await released.promise;
       }
       return response;
     });
@@ -277,10 +249,10 @@ describe("the notes store", () => {
 
     held.first = true;
     const walking = store.refresh();
-    await asked.wait;
+    await asked.promise;
     vault.change({ "a.md": "# a, from the mac\n" });
     const pinged = store.refresh();
-    released.open();
+    released.resolve();
     await Promise.all([walking, pinged]);
 
     expect(await store.readNote("a.md")).toMatchObject({ content: "# a, from the mac\n" });
@@ -288,7 +260,6 @@ describe("the notes store", () => {
 
   it("counts an unsent row this build cannot read, so a sign-out still asks before wiping it", async () => {
     const db = openTempDb();
-    await phoneDbReady(db);
     await db.exclusive(async (tx) => {
       await tx.run("INSERT INTO outbox (op, state, created_at) VALUES (?, 'pending', 0)", [
         JSON.stringify({ op: "a verb from a later build", path: "a.md" }),
@@ -317,20 +288,16 @@ describe("the notes store", () => {
   });
 
   it("a response from the previous sign-in never lands — the session fence", async () => {
-    const releases: (() => void)[] = [];
-    // oxlint-disable-next-line promise/avoid-new -- a deferred: the test releases the fetch by hand
-    const gate = new Promise<void>((resolve) => {
-      releases.push(resolve);
-    });
+    const gate = deferred();
     const vault = fakeVault();
     const { signIn, signOut, store } = notesOver(async (input, init) => {
-      await gate;
+      await gate.promise;
       return await vault.fetch(input, init);
     });
     signIn(CREDENTIAL, "restored");
     const pending = store.refresh();
     signOut();
-    releases[0]?.();
+    gate.resolve();
     await pending;
     expect(store.tree.get()).toEqual({ state: "idle" });
   });
@@ -354,11 +321,7 @@ describe("the notes store", () => {
     signOut();
     expect(store.tree.get()).toEqual({ state: "idle" });
     expect(store.heldFiles()).toEqual([]);
-    expect(await store.readNote("a.md")).toEqual({
-      message: "Not signed in.",
-      notFound: false,
-      ok: false,
-    });
+    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
   });
 
   it("downloads an attachment once, named by its blob, and serves the file after", async () => {
@@ -397,7 +360,7 @@ describe("the notes store under the sync session", () => {
 
     const read = await store.readNote("not-yet-mirrored.md");
 
-    expect(read).toEqual({ message: "This device was signed out.", notFound: false, ok: false });
+    expect(read).toEqual({ message: "This device was signed out.", ok: false });
     expect(sync.get()).toMatchObject({ deviceId: CREDENTIAL.deviceId, state: "unauthorized" });
   });
 
@@ -415,11 +378,7 @@ describe("the notes store under the sync session", () => {
     await sync.syncNow();
 
     expect(sync.get().state).toBe("unauthorized");
-    expect(await store.readNote("a.md")).toEqual({
-      message: "Not signed in.",
-      notFound: false,
-      ok: false,
-    });
+    expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
     expect(await store.attachmentFile("media/a.png")).toStrictEqual({
       message: "Not signed in.",
       ok: false,

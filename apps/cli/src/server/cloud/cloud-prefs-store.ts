@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { JsonFileStore } from "../json-file-store";
 
-const cloudPrefsSchema = z.object({ phoneRequests: z.boolean().optional() }).strict();
+const cloudPrefsSchema = z.strictObject({ phoneRequests: z.boolean().optional() });
 
 // read per sync pass, so turning phone requests off stops the next claim without a restart
 export class CloudPrefsStore extends JsonFileStore<typeof cloudPrefsSchema> {

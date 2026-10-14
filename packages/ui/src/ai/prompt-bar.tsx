@@ -53,7 +53,6 @@ const PromptBar = ({
     {...props}
   />
 );
-PromptBar.displayName = "PromptBar";
 
 const PromptBarSources = ({
   className,
@@ -67,7 +66,6 @@ const PromptBarSources = ({
     {...props}
   />
 );
-PromptBarSources.displayName = "PromptBarSources";
 
 export interface PromptBarSourceProps extends HTMLAttributes<HTMLSpanElement> {
   icon?: ReactNode;
@@ -106,7 +104,6 @@ const PromptBarSource = ({
     )}
   </span>
 );
-PromptBarSource.displayName = "PromptBarSource";
 
 // controlled: the Enter-to-send check reads what the field holds
 export interface PromptBarFieldProps extends Omit<
@@ -153,7 +150,6 @@ const PromptBarField = ({
     {...props}
   />
 );
-PromptBarField.displayName = "PromptBarField";
 
 const PromptBarToolbar = ({
   className,
@@ -167,7 +163,6 @@ const PromptBarToolbar = ({
     {...props}
   />
 );
-PromptBarToolbar.displayName = "PromptBarToolbar";
 
 export interface PromptBarActionProps extends HTMLAttributes<HTMLButtonElement> {
   active?: boolean;
@@ -199,7 +194,6 @@ const PromptBarAction = ({
     {children}
   </button>
 );
-PromptBarAction.displayName = "PromptBarAction";
 
 const PromptBarSend = ({
   className,
@@ -225,7 +219,6 @@ const PromptBarSend = ({
     <ArrowUpIcon size={14} strokeWidth={2.4} />
   </button>
 );
-PromptBarSend.displayName = "PromptBarSend";
 
 export interface PromptBarMenuProps {
   trigger: ReactElement;
@@ -246,7 +239,6 @@ const PromptBarMenu = ({
     </DropdownMenuContent>
   </DropdownMenu>
 );
-PromptBarMenu.displayName = "PromptBarMenu";
 
 // a row with a value is a choice inside a DropdownMenuRadioGroup; without one it is an action
 export interface PromptBarMenuItemProps extends HTMLAttributes<HTMLDivElement> {
@@ -292,7 +284,6 @@ const PromptBarMenuItem = ({
     </DropdownMenuRadioItem>
   );
 };
-PromptBarMenuItem.displayName = "PromptBarMenuItem";
 
 export {
   PromptBar,

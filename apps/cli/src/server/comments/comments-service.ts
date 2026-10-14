@@ -15,7 +15,6 @@ import { markerRootIds } from "@repo/notes/comments/marker-ids";
 import {
   commentsStorePath,
   isNoteIdKey,
-  legacyCommentsSidecarPath,
   parseSidecar,
   serializeSidecar,
 } from "@repo/notes/comments/sidecar-schema";
@@ -35,29 +34,42 @@ import { COMMENTS_THREADS_MAX } from "@repo/contract/local/comments/comments-sch
 import { ensureNoteId } from "../vault/ensure-note-id";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
-import { CommentRefusedError } from "./comment-refused-error";
-import { SidecarConflictError } from "./sidecar-conflict-error";
-import { SidecarInvalidError } from "./sidecar-invalid-error";
+
+// COMMENTS_REFUSALS is total over this union, so a code added here without a wire class fails to
+// compile there.
+export type CommentsErrorCode =
+  | "refused"
+  | "conflict"
+  // a store that does not parse, not folded to `{}`: an empty fold lets the next write erase every
+  // thread an external writer left.
+  | "invalid";
+
+export class CommentsError extends Error {
+  readonly code: CommentsErrorCode;
+
+  constructor(code: CommentsErrorCode, message: string) {
+    super(message);
+    this.name = "CommentsError";
+    this.code = code;
+  }
+}
 
 // unix seconds, the store's unit.
 export type CommentsClock = () => number;
 
 // a call's answer and every vault path it wrote on the way (the store, a note it minted an id
-// into, a legacy sidecar it folded away), so an agent's turn can commit what its shell caused.
+// into), so an agent's turn can commit what its shell caused.
 export interface CommentsWrite<T> {
   answer: T;
   wrote: string[];
 }
 
 export interface CommentsService {
-  // a read that can still write: opening a note folds its legacy sidecar in.
-  list: (path: string) => Promise<CommentsWrite<CommentsResponse>>;
+  list: (path: string) => Promise<CommentsResponse>;
   add: (args: CommentsAddRequest) => Promise<CommentsWrite<CommentsResponse>>;
   reply: (args: CommentsReplyRequest) => Promise<CommentsWrite<CommentsResponse>>;
   resolve: (args: CommentsResolveRequest) => Promise<CommentsWrite<CommentsResponse>>;
   remove: (args: CommentsRemoveRequest) => Promise<CommentsWrite<CommentsRemoveResponse>>;
-  // the beside-the-note sidecar older vaults and agents wrote, folded into the store and removed
-  migrateLegacy: (path: string) => Promise<"migrated" | "none">;
 }
 
 // an explicit projection, not a spread: the file keeps fields the contract does not declare.
@@ -124,7 +136,10 @@ const DEFAULT_SOURCE: CommentSource = "user";
 // the key names a file, so an id that cannot is refused rather than escaping the store's folder
 const keyOf = (notePath: string, id: string): string => {
   if (!isNoteIdKey(id)) {
-    throw new CommentRefusedError(`${notePath}: its id ${JSON.stringify(id)} cannot name a file`);
+    throw new CommentsError(
+      "refused",
+      `${notePath}: its id ${JSON.stringify(id)} cannot name a file`,
+    );
   }
   return id;
 };
@@ -157,17 +172,20 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
         return keyOf(notePath, outcome.id);
       }
       case "invalid": {
-        throw new CommentRefusedError(
+        throw new CommentsError(
+          "refused",
           `${notePath}: the frontmatter is not valid YAML, so no id can be written into it`,
         );
       }
       case "foreign-id": {
-        throw new CommentRefusedError(
+        throw new CommentsError(
+          "refused",
           `${notePath}: its frontmatter id ${outcome.value} is not text, and a minted id would replace it`,
         );
       }
       case "changed": {
-        throw new SidecarConflictError(
+        throw new CommentsError(
+          "conflict",
           `${notePath} changed under the id write twice; nothing was written`,
         );
       }
@@ -188,7 +206,7 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
     }
     const parsed = parseSidecar(raw);
     if (!parsed.ok) {
-      throw new SidecarInvalidError(`${path}: ${parsed.error}`);
+      throw new CommentsError("invalid", `${path}: ${parsed.error}`);
     }
     return { raw, sidecar: parsed.sidecar };
   };
@@ -217,60 +235,24 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
       const base = await readStore(noteId);
       const edited = edit(base.sidecar);
       if (!edited.ok) {
-        throw new CommentRefusedError(edited.error);
+        throw new CommentsError("refused", edited.error);
       }
       if (await swapStore(noteId, base, edited.sidecar)) {
         wrote.add(commentsStorePath(noteId));
         return edited;
       }
     }
-    throw new SidecarConflictError(
+    throw new CommentsError(
+      "conflict",
       `${commentsStorePath(noteId)} changed under the edit twice; nothing was written`,
     );
   };
 
-  // Entries merge by id with the store's own winning; the legacy file goes only if it is still
-  // the bytes that were folded; an unparseable one is reported by its own name and left, since
-  // destroying it would destroy the threads it holds.
-  const foldLegacy = async (notePath: string, note: NoteRead, wrote: Wrote): Promise<NoteRead> => {
-    const legacyPath = legacyCommentsSidecarPath(notePath);
-    let raw: string;
-    try {
-      ({ content: raw } = await vault.read(legacyPath));
-    } catch (error) {
-      if (error instanceof VaultServiceError && error.code === "not_found") {
-        return note;
-      }
-      throw error;
-    }
-    const parsed = parseSidecar(raw);
-    if (!parsed.ok) {
-      throw new SidecarInvalidError(`${legacyPath}: ${parsed.error}`);
-    }
-    let folded = note;
-    if (Object.keys(parsed.sidecar).length > 0) {
-      const id = await storeKeyOf(notePath, note, wrote);
-      folded = { content: note.content, id };
-      await commit(id, (store) => ({ ok: true, sidecar: { ...parsed.sidecar, ...store } }), wrote);
-    }
-    const removed = await vault.removeIfUnchanged(legacyPath, raw);
-    if (removed.applied) {
-      wrote.add(legacyPath);
-    }
-    return folded;
-  };
-
-  const open = async (notePath: string, wrote: Wrote): Promise<NoteRead> =>
-    await foldLegacy(notePath, await readNote(notePath), wrote);
-
   // reply, resolve and remove act on a thread that exists, so a note with no id has none of them
-  const keyOfOpen = async (
-    notePath: string,
-    wrote: Wrote,
-  ): Promise<{ note: NoteRead; key: string }> => {
-    const note = await open(notePath, wrote);
+  const keyOfCommented = async (notePath: string): Promise<{ note: NoteRead; key: string }> => {
+    const note = await readNote(notePath);
     if (note.id === null) {
-      throw new CommentRefusedError(`${notePath} has no comments`);
+      throw new CommentsError("refused", `${notePath} has no comments`);
     }
     return { key: keyOf(notePath, note.id), note };
   };
@@ -278,7 +260,7 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
   return {
     async add({ path, id, text, source = DEFAULT_SOURCE }) {
       return await tracked(async (wrote) => {
-        const note = await open(path, wrote);
+        const note = await readNote(path);
         const key = await storeKeyOf(path, note, wrote);
         const added = await commit(
           key,
@@ -290,37 +272,25 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
     },
 
     async list(path) {
-      return await tracked(async (wrote) => {
-        let note: NoteRead;
-        try {
-          note = await open(path, wrote);
-        } catch (error) {
-          if (error instanceof VaultServiceError && error.code === "not_found") {
-            return toResponse(path, foldThreads({}, null));
-          }
-          throw error;
+      let note: NoteRead;
+      try {
+        note = await readNote(path);
+      } catch (error) {
+        if (error instanceof VaultServiceError && error.code === "not_found") {
+          return toResponse(path, foldThreads({}, null));
         }
-        if (note.id === null) {
-          return answer(path, note, {});
-        }
-        const { sidecar } = await readStore(keyOf(path, note.id));
-        return answer(path, note, sidecar);
-      });
-    },
-
-    async migrateLegacy(path) {
-      const note = await readNote(path);
-      const legacyPath = legacyCommentsSidecarPath(path);
-      if ((await vault.statEntry(legacyPath)) !== "file") {
-        return "none";
+        throw error;
       }
-      await foldLegacy(path, note, new Set());
-      return "migrated";
+      if (note.id === null) {
+        return answer(path, note, {});
+      }
+      const { sidecar } = await readStore(keyOf(path, note.id));
+      return answer(path, note, sidecar);
     },
 
     async remove({ path, id }) {
       return await tracked(async (wrote) => {
-        const { note, key } = await keyOfOpen(path, wrote);
+        const { note, key } = await keyOfCommented(path);
         const deleted = await commit(key, (sidecar) => deleteThread(sidecar, id), wrote);
         return { ...answer(path, note, deleted.sidecar), removedIds: deleted.removedIds };
       });
@@ -328,7 +298,7 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
 
     async reply({ path, id, parentId, text, source = DEFAULT_SOURCE }) {
       return await tracked(async (wrote) => {
-        const { note, key } = await keyOfOpen(path, wrote);
+        const { note, key } = await keyOfCommented(path);
         const added = await commit(
           key,
           (sidecar) => addReply(sidecar, { at: now(), id, parentId, source, text }),
@@ -340,7 +310,7 @@ export const createCommentsService = (vault: VaultService, now: CommentsClock): 
 
     async resolve({ path, id, resolved, source = DEFAULT_SOURCE }) {
       return await tracked(async (wrote) => {
-        const { note, key } = await keyOfOpen(path, wrote);
+        const { note, key } = await keyOfCommented(path);
         const next = await commit(
           key,
           (sidecar) => resolveThread(sidecar, { at: now(), by: source, resolved, rootId: id }),

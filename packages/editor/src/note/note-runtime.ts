@@ -108,7 +108,6 @@ export const createNoteRuntime = (
   };
 
   return {
-    controller,
     dispose(): void {
       disposed = true;
       // a write still in flight must not drain a surface this runtime no longer owns.
@@ -125,6 +124,9 @@ export const createNoteRuntime = (
       }
       controller.edit(next);
       autosave.schedule();
+    },
+    externalChange(): void {
+      controller.externalChange();
     },
     // true once every edit made so far is on disk, including one typed while the write was in
     // flight, so a caller that disposes straight after drops nothing.
@@ -146,6 +148,7 @@ export const createNoteRuntime = (
       }
       return !dirty();
     },
+    getState: controller.getState,
     // not the controller's path, which a closed controller does not have.
     get path(): string {
       return path;
@@ -173,6 +176,7 @@ export const createNoteRuntime = (
     registerPreFlush(fn: (() => void) | null): void {
       preFlush = fn;
     },
+    subscribe: controller.subscribe,
     // false is a delete that threw, and the note stays open.
     async remove(): Promise<boolean> {
       preFlush?.();

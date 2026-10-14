@@ -1,13 +1,3 @@
-import { CAPTURE_CLAIM_TTL_MS } from "@repo/contract/cloud/captures/captures-schema";
-import type {
-  AckCapturesRequest,
-  AckCapturesResponse,
-  CaptureRequest,
-  CaptureResponse,
-  CaptureRow,
-  ClaimCapturesRequest,
-  ClaimCapturesResponse,
-} from "@repo/contract/cloud/captures/captures-schema";
 import type {
   AckDispatchesRequest,
   AckDispatchesResponse,
@@ -43,9 +33,9 @@ import {
   claimDispatchRows,
   closeApprovalRow,
   createDispatchRow,
-  DISPATCH_TABLES,
   dispatchStatuses,
   forgetDevice,
+  initDispatchTables,
   openApprovalRow,
   openApprovalRows,
 } from "./dispatch-inbox";
@@ -74,8 +64,9 @@ export interface SyncRefusal {
 
 export type SyncResult<T> = { readonly ok: true; readonly value: T } | SyncRefusal;
 
-// an event body crosses as the JSON text the log stores and compares, never as a parsed tree:
-// the Worker owns the wire's shape, and a tree would be cloned across only to be stringified
+// an event body crosses as the JSON text the push parse serialized, never as a parsed tree: the
+// log stores and compares that text and a pull splices it into its page verbatim, so a text that
+// is not json would break every page after it
 export interface StoredEvent {
   readonly createdAt: number;
   readonly deviceSeq: number;
@@ -98,8 +89,6 @@ const accepted = <T>(value: T): SyncResult<T> => ({ ok: true, value });
 
 const refused = (code: CloudErrorCode, message: string, deviceSeq?: number): SyncRefusal =>
   deviceSeq === undefined ? { code, message, ok: false } : { code, deviceSeq, message, ok: false };
-
-type AckResult = AckCapturesResponse["results"][number];
 
 const deviceTag = (deviceId: string): string => `device:${deviceId}`;
 const platformTag = (platform: DevicePlatform): string => `platform:${platform}`;
@@ -139,23 +128,12 @@ export class ThreadSyncDO extends DurableObject<Env> {
         created_at INTEGER NOT NULL,
         UNIQUE (device_id, device_seq)
       );
-      CREATE TABLE IF NOT EXISTS captures (
-        id TEXT PRIMARY KEY,
-        idempotency_key TEXT NOT NULL UNIQUE,
-        text TEXT NOT NULL,
-        created_at INTEGER NOT NULL,
-        claim_token TEXT,
-        claimed_at INTEGER
-      );
       CREATE TABLE IF NOT EXISTS account_state (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         purged_at INTEGER NOT NULL
       );
     `);
-    this.ctx.storage.sql.exec(DISPATCH_TABLES);
-    // an object older than the dispatch inbox still holds each thread's lane and title, which
-    // nothing reads: dropped on wake, or it would sit in the account's storage for good
-    this.ctx.storage.sql.exec("DROP TABLE IF EXISTS thread_meta");
+    initDispatchTables(this.ctx.storage);
   }
 
   // the tombstone refuses a call that verified its credential just before the account was
@@ -342,102 +320,28 @@ export class ThreadSyncDO extends DurableObject<Env> {
     return accepted({ hasMore, lastSeq: this.lastSeq(), rows });
   }
 
-  capture(request: CaptureRequest): SyncResult<CaptureResponse> {
-    const gone = this.tombstone();
-    if (gone !== null) {
-      return gone;
-    }
-    const { sql } = this.ctx.storage;
-    const [existing] = sql
-      .exec<{ id: string; created_at: number }>(
-        "SELECT id, created_at FROM captures WHERE idempotency_key = ?",
-        request.idempotencyKey,
-      )
-      .toArray();
-    if (existing !== undefined) {
-      // a share-sheet retry after a lost response; no ping, nothing changed
-      return accepted({ createdAt: existing.created_at, duplicate: true, id: existing.id });
-    }
-
-    const id = crypto.randomUUID();
-    const createdAt = Date.now();
-    sql.exec(
-      "INSERT INTO captures (id, idempotency_key, text, created_at) VALUES (?, ?, ?, ?)",
-      id,
-      request.idempotencyKey,
-      request.text,
-      createdAt,
-    );
-    // every socket, the capturer included: whichever device claims first applies it, and the capturer may be the only one online
-    broadcast({ type: "capture" }, this.ctx.getWebSockets());
-    return accepted({ createdAt, duplicate: false, id });
-  }
-
-  // the TTL is judged here on read, so a lapsed claim needs no alarm to reclaim
-  claimCaptures(request: ClaimCapturesRequest): SyncResult<ClaimCapturesResponse> {
-    const gone = this.tombstone();
-    if (gone !== null) {
-      return gone;
-    }
-    const now = Date.now();
-    const claimToken = crypto.randomUUID();
-    const rows = this.ctx.storage.sql
-      .exec<{ id: string; text: string; created_at: number }>(
-        `UPDATE captures SET claim_token = ?, claimed_at = ?
-         WHERE id IN (
-           SELECT id FROM captures
-           WHERE claim_token IS NULL OR claimed_at <= ?
-           ORDER BY created_at, id LIMIT ?
-         )
-         RETURNING id, text, created_at`,
-        claimToken,
-        now,
-        now - CAPTURE_CLAIM_TTL_MS,
-        request.limit,
-      )
-      .toArray();
-
-    const captures: CaptureRow[] = rows.map((row) => ({
-      createdAt: row.created_at,
-      id: row.id,
-      text: row.text,
-    }));
-    return accepted({ captures, claimToken, expiresAt: now + CAPTURE_CLAIM_TTL_MS });
-  }
-
-  // a row reclaimed since is not deleted: this device raced its own lapsed claim, and the current owner will apply it
-  ackCaptures(request: AckCapturesRequest): SyncResult<AckCapturesResponse> {
-    const gone = this.tombstone();
-    if (gone !== null) {
-      return gone;
-    }
-    const { sql } = this.ctx.storage;
-    const results = request.ids.map((id): AckResult => {
-      const deleted = sql
-        .exec<{ id: string }>(
-          "DELETE FROM captures WHERE id = ? AND claim_token = ? RETURNING id",
-          id,
-          request.claimToken,
-        )
-        .toArray();
-      if (deleted.length > 0) {
-        return { id, outcome: "deleted" };
-      }
-      const [survivor] = sql
-        .exec<{ id: string }>("SELECT id FROM captures WHERE id = ?", id)
-        .toArray();
-      return { id, outcome: survivor === undefined ? "unknown" : "reclaimed" };
-    });
-    return accepted({ results });
-  }
-
   private sendDispatchPing(fromDeviceId: string, ping: DispatchPing): void {
-    broadcast(
-      { threadId: ping.threadId, type: "dispatch" },
-      ping.to === "desktops"
-        ? this.socketsExcept(fromDeviceId, PHONE_REQUESTS_TAG)
-        : this.ctx.getWebSockets(deviceTag(ping.deviceId)),
-    );
+    switch (ping.to) {
+      case "phone-requests": {
+        broadcast(
+          { threadId: ping.threadId, type: "dispatch" },
+          this.socketsExcept(fromDeviceId, PHONE_REQUESTS_TAG),
+        );
+        return;
+      }
+      case "device": {
+        broadcast(
+          { threadId: ping.threadId, type: "dispatch" },
+          this.ctx.getWebSockets(deviceTag(ping.deviceId)),
+        );
+        return;
+      }
+      case "desktops": {
+        broadcast({ type: "dispatch" }, this.socketsExcept(fromDeviceId, platformTag("desktop")));
+        break;
+      }
+      // no default
+    }
   }
 
   createDispatch(
@@ -477,7 +381,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
     if (gone !== null) {
       return gone;
     }
-    return accepted(claimDispatchRows(this.ctx.storage.sql, deviceId, request.limit, Date.now()));
+    return accepted(claimDispatchRows(this.ctx.storage.sql, deviceId, request, Date.now()));
   }
 
   ackDispatches(request: AckDispatchesRequest): SyncResult<AckDispatchesResponse> {

@@ -4,17 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Point, TRange, Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
-import { setAgentRequestActions } from "@repo/editor/agent-request";
 import { ADD_COMMENT_SHORTCUT, COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
-import { setCommentActions } from "@repo/editor/comments/comment-store";
-import type { CommentActions } from "@repo/editor/comments/comment-store";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
-import type { PickImageResult } from "@repo/editor/host-io";
+import type { CommentActions, PickImageResult } from "@repo/editor/host-io";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
-import { GROUPS } from "@repo/editor/slash-menu";
+import { GROUPS } from "@repo/editor/slash-items";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import type { FakeEditorHostOptions } from "@repo/editor/test-support/fake-editor-host";
 import { TOUCH_ACTIONS } from "@repo/editor/touch-toolbar";
@@ -79,8 +76,6 @@ const press = (name: string): void => {
 describe("the touch toolbar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    setAgentRequestActions(null);
-    setCommentActions(null);
   });
 
   afterEach(() => {
@@ -110,27 +105,21 @@ describe("the touch toolbar", () => {
     }
   });
 
-  it("draws no image button without a picker, no Ask agent without the agent and no Comment without a host that writes one", () => {
+  it("draws Ask agent and Comment on every host, and no image button without a picker", () => {
     mount("body\n");
     const names = toolbarButtons().map((button) => button.getAttribute("aria-label"));
+    expect(names).toContain(TOUCH_ACTIONS["ask-agent"].label);
+    expect(names).toContain(ADD_COMMENT_SHORTCUT.label);
     expect(names).not.toContain(TOUCH_ACTIONS.image.label);
-    expect(names).not.toContain(TOUCH_ACTIONS["ask-agent"].label);
-    expect(names).not.toContain(ADD_COMMENT_SHORTCUT.label);
   });
 
-  it("draws each once the host has a picker, the shell an agent and the host comments", () => {
-    setAgentRequestActions({ askAboutSelection: vi.fn(), showTag: vi.fn() });
-    setCommentActions({ create: vi.fn(), open: vi.fn() });
+  it("draws the image button once the host has a picker", () => {
     mount("body\n", { pickImage: async () => await Promise.resolve({ kind: "cancelled" }) });
     const names = toolbarButtons().map((button) => button.getAttribute("aria-label"));
     expect(names).toContain(TOUCH_ACTIONS.image.label);
-    expect(names).toContain(TOUCH_ACTIONS["ask-agent"].label);
-    expect(names).toContain(ADD_COMMENT_SHORTCUT.label);
   });
 
   it("keeps the editor's focus: every press cancels its pointerdown", () => {
-    setAgentRequestActions({ askAboutSelection: vi.fn(), showTag: vi.fn() });
-    setCommentActions({ create: vi.fn(), open: vi.fn() });
     mount("body\n", { pickImage: async () => await Promise.resolve({ kind: "cancelled" }) });
     for (const button of toolbarButtons()) {
       const dispatched = fireEvent.pointerDown(button);
@@ -192,8 +181,7 @@ describe("the touch toolbar", () => {
 
 const hostAnswering = (answer: boolean) => {
   const create = vi.fn<CommentActions["create"]>(async () => await Promise.resolve(answer));
-  setCommentActions({ create, open: vi.fn() });
-  return create;
+  return { create, host: { comments: { create, open: vi.fn() } } };
 };
 
 // slate tells its listeners on a microtask, so the toolbar redraws for a selection a turn later
@@ -227,11 +215,6 @@ const commentButton = (): HTMLElement =>
   screen.getByRole("button", { name: ADD_COMMENT_SHORTCUT.label });
 
 describe("a comment from the touch toolbar", () => {
-  beforeEach(() => {
-    setAgentRequestActions(null);
-    setCommentActions(null);
-  });
-
   afterEach(() => {
     for (const unregister of unregisters.splice(0)) {
       unregister();
@@ -239,8 +222,8 @@ describe("a comment from the touch toolbar", () => {
   });
 
   it("is offered only over a selection, and never inside a code block", async () => {
-    hostAnswering(true);
-    const editor = mount("one two\n\n```\ncode here\n```\n");
+    const { host } = hostAnswering(true);
+    const editor = mount("one two\n\n```\ncode here\n```\n", host);
 
     await select(editor, { offset: 1, path: [0, 0] });
     expect(commentButton()).toHaveProperty("disabled", true);
@@ -256,8 +239,8 @@ describe("a comment from the touch toolbar", () => {
   });
 
   it("puts its markers in at Save, around the selection Comment was pressed on, and hands the host the id and the words", async () => {
-    const create = hostAnswering(true);
-    const editor = mount("one two\n");
+    const { create, host } = hostAnswering(true);
+    const editor = mount("one two\n", host);
     await selectOne(editor);
     press(ADD_COMMENT_SHORTCUT.label);
     expect(serializeNote(editor)).toBe("one two\n");
@@ -271,8 +254,8 @@ describe("a comment from the touch toolbar", () => {
   });
 
   it("strips the markers of a create the host refused", async () => {
-    const create = hostAnswering(false);
-    const editor = mount("one two\n");
+    const { create, host } = hostAnswering(false);
+    const editor = mount("one two\n", host);
     await selectOne(editor);
     press(ADD_COMMENT_SHORTCUT.label);
     await writeComment("why?", "Save");
@@ -282,8 +265,8 @@ describe("a comment from the touch toolbar", () => {
   });
 
   it("lands nothing when the note is re-seeded under the open field, and keeps the words for the next one", async () => {
-    const create = hostAnswering(true);
-    const editor = mount("one two\n");
+    const { create, host } = hostAnswering(true);
+    const editor = mount("one two\n", host);
     await selectOne(editor);
     press(ADD_COMMENT_SHORTCUT.label);
     act(() => {
@@ -302,8 +285,8 @@ describe("a comment from the touch toolbar", () => {
   });
 
   it("writes nothing when cancelled or left empty", async () => {
-    const create = hostAnswering(true);
-    const editor = mount("one two\n");
+    const { create, host } = hostAnswering(true);
+    const editor = mount("one two\n", host);
     await selectOne(editor);
     press(ADD_COMMENT_SHORTCUT.label);
     await writeComment("never mind", "Cancel");

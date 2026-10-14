@@ -9,6 +9,7 @@ import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  buildHeaders,
   deviceHeaders,
   emitted,
   loginDevice,
@@ -64,6 +65,8 @@ describe("device login", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     const logged = emitted(deviceLoginResponseSchema, await response.text());
     expect(logged.credential.startsWith("igd_")).toBe(true);
+    expect(logged.userId).toBe(userId);
+    expect(logged.email).toBe(email);
 
     const pulled = await pull(logged.credential);
     expect(pulled.status).toBe(200);
@@ -142,7 +145,7 @@ describe("device login", () => {
   it("refuses a body it cannot read as a login", async () => {
     const response = await SELF.fetch(`${ORIGIN}/v1/device/login`, {
       body: JSON.stringify({ deviceName: "Laptop", email: "login-shape@example.test" }),
-      headers: { "content-type": "application/json" },
+      headers: { ...buildHeaders(), "content-type": "application/json" },
       method: "POST",
     });
     expect(response.status).toBe(400);

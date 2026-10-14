@@ -7,7 +7,7 @@ import { cva } from "class-variance-authority";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
 import type { IconComponent } from "@repo/ui/lib/icon";
-import { useRadius } from "@repo/ui/lib/radius-context";
+import { radius } from "@repo/ui/lib/radius";
 import { useSizeVariant } from "@repo/ui/lib/size-context";
 import { isTextChild } from "@repo/ui/lib/text-children";
 import { cn } from "@repo/ui/lib/cn";
@@ -116,9 +116,9 @@ interface ButtonProps extends Omit<ButtonPrimitive.Props, "className" | "style">
 // text-box only applies to block containers, so the trim lives on the label span, not the flex root.
 const labelTrimClass = "[text-box:trim-both_cap_alphabetic]";
 
-// Text runs are trimmed; an element child (an icon, a count) is a sibling flex item beside them.
-// Inside the trimmed block an inline svg does not size the block and is pushed out of its line
-// box, which drew the icon above the label.
+// Text runs are trimmed, and an element child (an icon, a count) is a sibling flex item beside
+// them: inside the trimmed block an inline svg does not size the block and is pushed out of its
+// line box, above the label.
 const labelChildren = (children: ReactNode): ReactNode[] => {
   const nodes: ReactNode[] = Array.isArray(children) ? children : [children];
   const out: ReactNode[] = [];
@@ -244,7 +244,6 @@ const Button = ({
   const iconSize = isCompact ? 14 : 16;
   // size-* spelling on purpose: the base [&_svg:not([class*='size-'])] guard must skip the spinner.
   const spinnerSizeClass = isCompact ? "size-7" : "size-9";
-  const radius = useRadius();
   const bgClass = active ? activeBgVariants[resolvedVariant] : bgVariants[resolvedVariant];
 
   const internals = (
@@ -300,7 +299,5 @@ const Button = ({
   );
   return iconLabel === undefined ? element : <Tooltip content={iconLabel}>{element}</Tooltip>;
 };
-
-Button.displayName = "Button";
 
 export { Button, buttonVariants };

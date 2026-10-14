@@ -2,11 +2,15 @@
 // waits, and the adapter drives the vendor's login (codex opens the browser and answers once its
 // login completes). The child lives only for the sign-in, and never outlives it.
 
-import { once } from "node:events";
 import { PROTOCOL_VERSION, client } from "@agentclientprotocol/sdk";
 import type { AuthMethod, ClientConnection, InitializeRequest } from "@agentclientprotocol/sdk";
 import { z } from "zod";
-import { openAdapterChannel, spawnNodeAdapter, terminateAdapter } from "./acp-runtime.js";
+import {
+  openAdapterChannel,
+  spawnNodeAdapter,
+  terminateAdapter,
+  whenAborted,
+} from "./acp-runtime.js";
 import type { AcpAgentRuntimeOptions } from "./acp-runtime.js";
 import type { AgentSignIn, HarnessDefinition } from "./harness-registry.js";
 import { describeProviderError } from "./provider-error.js";
@@ -35,27 +39,11 @@ const SIGN_IN_INITIALIZE: InitializeRequest = {
   protocolVersion: PROTOCOL_VERSION,
 };
 
-const ABORTED = Symbol("aborted");
-
-const unlessAborted = async <T>(
-  work: Promise<T>,
-  signal: AbortSignal,
-): Promise<T | typeof ABORTED> => {
-  if (signal.aborted) {
-    return ABORTED;
-  }
-  const aborted = (async (): Promise<typeof ABORTED> => {
-    await once(signal, "abort");
-    return ABORTED;
-  })();
-  return await Promise.race([work, aborted]);
-};
-
 const withAdapter = async <T>(
   args: AdapterSignInArgs,
   work: (connection: ClientConnection) => Promise<T>,
 ): Promise<T> => {
-  const { child } = (args.spawnAdapter ?? spawnNodeAdapter)(args.harness, args.env, args.cwd);
+  const child = (args.spawnAdapter ?? spawnNodeAdapter)(args.harness, args.env, args.cwd);
   const channel = openAdapterChannel(args.harness, child);
   const connection = client({ name: "inteligir" }).connect(channel.stream);
   void (async () => {
@@ -68,22 +56,22 @@ const withAdapter = async <T>(
   }
 };
 
-// what the adapter offers under the initialize every sign-in sends; ABORTED when the signal stops it.
+// what the adapter offers under the initialize every sign-in sends; null when the signal stops it.
 const initializedMethods = async (
   connection: ClientConnection,
   signal: AbortSignal,
-): Promise<AuthMethod[] | typeof ABORTED> => {
-  const initialized = await unlessAborted(
+): Promise<AuthMethod[] | null> => {
+  const initialized = await Promise.race([
     connection.agent.request("initialize", SIGN_IN_INITIALIZE),
-    signal,
-  );
-  return initialized === ABORTED ? ABORTED : (initialized.authMethods ?? []);
+    whenAborted(signal),
+  ]);
+  return initialized === null ? null : (initialized.authMethods ?? []);
 };
 
 export const readAuthMethods = async (args: AdapterSignInArgs): Promise<AuthMethod[]> =>
   await withAdapter(args, async (connection) => {
     const methods = await initializedMethods(connection, args.signal);
-    if (methods === ABORTED) {
+    if (methods === null) {
       throw new Error(`The ${args.harness.displayName} adapter was stopped before it answered`);
     }
     return methods;
@@ -110,7 +98,7 @@ export const runAgentSignIn = async (
   try {
     return await withAdapter(args, async (connection): Promise<AgentSignInResult> => {
       const methods = await initializedMethods(connection, args.signal);
-      if (methods === ABORTED) {
+      if (methods === null) {
         return { outcome: "cancelled" };
       }
       if (!offersAgentMethod(methods, methodId)) {
@@ -119,11 +107,11 @@ export const runAgentSignIn = async (
           outcome: "failed",
         };
       }
-      const answered = await unlessAborted(
+      const answered = await Promise.race([
         connection.agent.request("authenticate", { methodId }),
-        args.signal,
-      );
-      return answered === ABORTED ? { outcome: "cancelled" } : { outcome: "signed-in" };
+        whenAborted(args.signal),
+      ]);
+      return answered === null ? { outcome: "cancelled" } : { outcome: "signed-in" };
     });
   } catch (error) {
     return args.signal.aborted

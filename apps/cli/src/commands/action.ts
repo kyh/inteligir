@@ -181,25 +181,19 @@ export const actionCommand = (deps: CliDeps) =>
         },
         meta: { description: "Actions with status, most recently active first", name: "list" },
         run: async ({ args }) => {
-          const request: ListThreadsQuery = {};
-          if (args.archived === true) {
-            request.includeArchived = true;
-          }
-          if (args.cursor !== undefined) {
-            request.cursor = args.cursor;
-          }
-          if (args.doc !== undefined) {
-            request.originDocPath = args.doc;
-          }
-          if (args.limit !== undefined) {
-            request.limit = parseBoundedInteger(args.limit, "--limit", {
-              max: THREADS_LIST_MAX_LIMIT,
-              min: 1,
-            });
-          }
-          if (args.running === true) {
-            request.running = true;
-          }
+          const request: ListThreadsQuery = {
+            cursor: args.cursor,
+            includeArchived: args.archived === true || undefined,
+            limit:
+              args.limit === undefined
+                ? undefined
+                : parseBoundedInteger(args.limit, "--limit", {
+                    max: THREADS_LIST_MAX_LIMIT,
+                    min: 1,
+                  }),
+            originDocPath: args.doc,
+            running: args.running === true || undefined,
+          };
           const api = apiFor(deps);
           const body = await api.threads.list(request);
           if (outputJson(args, body)) {

@@ -186,9 +186,6 @@ export const noteIdOfProperties = (parsed: ParsedProperties | null): string | nu
 export const frontmatterId = (content: string): string | null =>
   noteIdOfProperties(parseProperties(frontmatterYaml(content) ?? ""));
 
-// uuid-shaped, the form the resolver's id tier already answers
-export const mintNoteId = (): string => globalThis.crypto.randomUUID();
-
 // `invalid`: the frontmatter is not valid YAML, and nothing here may rewrite bytes it cannot
 // read. `foreign-id`: the note carries an `id` that is not text (a number, a date, a list);
 // someone may resolve by it, so it is reported rather than overwritten. `value` is how it reads.
