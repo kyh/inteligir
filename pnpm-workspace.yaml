@@ -4,7 +4,7 @@ packages:
   - tools/*
 
 catalog:
-  "@base-ui/react": ^1.8.0
+  "@base-ui/react": ^1.9.0
   # exact: the v2 beta breaks between patches; the four must resolve to one build
   "@orpc/client": 2.0.0-beta.42
   "@orpc/contract": 2.0.0-beta.42
@@ -17,7 +17,7 @@ catalog:
   "@agentclientprotocol/sdk": 1.5.0
   # optional peer @vitejs/plugin-react loads for `compiler: true`
   oxc-transform-react: ^0.152.0
-  "@cloudflare/vite-plugin": ^1.62.5
+  "@cloudflare/vite-plugin": ^1.63.1
   "@cloudflare/vitest-pool-workers": ^0.22.0
   "@expo/metro-runtime": ~57.0.16
   "@expo/plist": ~0.8.1
@@ -29,16 +29,16 @@ catalog:
   "@testing-library/dom": ^10.4.2
   "@testing-library/react": ^16.3.3
   # exact: the committed route tree is an artifact of the plugin version
-  "@tanstack/react-router": 1.170.38
-  "@tanstack/react-start": 1.168.56
-  "@tanstack/router-plugin": 1.168.40
+  "@tanstack/react-router": 1.170.44
+  "@tanstack/react-start": 1.169.1
+  "@tanstack/router-plugin": 1.168.45
   "@types/better-sqlite3": ^9.6.0
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
-  "@types/node": ^24.19.0
+  "@types/node": ^24.19.2
   "@types/react": 19.2.17
   "@types/react-dom": ^19.3.0
-  "@vitejs/plugin-react": ^6.1.1
+  "@vitejs/plugin-react": ^6.1.2
   # exact: 1.7.3+ drops account.issuer, which the D1 schema holds NOT NULL and unique-indexes;
   # lifting it needs a production D1 schema change first
   "@better-auth/drizzle-adapter": 1.7.2
@@ -51,26 +51,26 @@ catalog:
   drizzle-orm: 1.0.0-rc.4
   # exact: `pnpm testflight:mobile` uploads the build through it, and apps/mobile/eas.json floors
   # cli.version at this release; a bump moves both
-  eas-cli: 24.8.0
+  eas-cli: 24.12.1
   esbuild: ^0.28.2
-  expo: ~57.0.26
-  expo-constants: ~57.0.20
+  expo: ~57.0.27
+  expo-constants: ~57.0.21
   expo-crypto: ~57.0.3
   expo-file-system: ~57.0.7
-  expo-image-manipulator: ~57.0.20
+  expo-image-manipulator: ~57.0.21
   expo-image-picker: ~57.0.20
   expo-network: ~57.0.2
-  expo-router: ~57.0.24
+  expo-router: ~57.0.25
   expo-secure-store: ~57.0.4
   expo-splash-screen: ~57.0.9
-  expo-sqlite: ~57.0.3
+  expo-sqlite: ~57.0.4
   expo-status-bar: ~57.0.1
   expo-system-ui: ~57.0.4
-  expo-updates: ~57.0.24
+  expo-updates: ~57.0.25
   hono: ^4.13.13
   jsdom: ^30.1.2
-  lucide-react: ^1.52.0
-  nanoid: ^6.0.1
+  lucide-react: ^1.55.0
+  nanoid: ^6.0.2
   # held under 19.3: @react-three/fiber 9 peers react <19.3
   react: ~19.2.8
   react-dom: ~19.2.8
@@ -94,8 +94,8 @@ catalog:
   # exact: a beta, whose config API moves between releases
   cf: 1.0.0-beta.12
   # the one wrangler resolves; tools/e2e reads `cf build` output with it
-  miniflare: 5.20261001.0-alpha
-  wrangler: ^4.147.0
+  miniflare: 5.20261006.1-alpha
+  wrangler: ^4.149.0
   yaml: ^2.9.1
   zod: ^4.6.5
   zustand: ^5.0.15
@@ -119,6 +119,21 @@ update:
 
 # 24h supply-chain cooldown
 minimumReleaseAge: 1440
+# TanStack Start 1.0 (react-start 1.169.1), published inside the cooldown; drop these once they
+# are a day old and a fresh install passes without them.
+minimumReleaseAgeExclude:
+  - "@tanstack/react-router@1.170.44"
+  - "@tanstack/react-start-client@1.168.42"
+  - "@tanstack/react-start-rsc@0.1.62"
+  - "@tanstack/react-start-server@1.167.49"
+  - "@tanstack/react-start@1.169.1"
+  - "@tanstack/router-core@1.171.37"
+  - "@tanstack/router-generator@1.167.43"
+  - "@tanstack/router-plugin@1.168.45"
+  - "@tanstack/start-client-core@1.170.37"
+  - "@tanstack/start-plugin-core@1.171.52"
+  - "@tanstack/start-server-core@1.169.42"
+  - "@tanstack/start-storage-context@1.167.39"
 
 blockExoticSubdeps: true
 
@@ -148,7 +163,7 @@ patchedDependencies:
   # getPluginType resolves a throwaway plugin (two deep merges) for a key no plugin registers, and
   # the markdown serializer asks that of every mark rule on every text node: four fifths of a long
   # note's save. The patch answers from `editor.plugins`, dropped once a release does
-  "@platejs/core@53.3.14": patches/@platejs__core@53.3.14.patch
+  "@platejs/core@53.3.15": patches/@platejs__core@53.3.15.patch
   # the hosted vault is capped on what a repo cell stores, and the cell exposes no size; the patch
   # adds a `usage()` RPC over the SQLite file and the R2-held packs. Upstream takes no pull
   # requests, so it stays until a release exposes a size
@@ -156,4 +171,4 @@ patchedDependencies:
   # micromark merges a paragraph's text with one splice per line, so a long paragraph parses in time
   # quadratic in its lines; the patch is upstream's open fix (micromark/micromark#233), dropped once a
   # release carries it
-  micromark@4.0.2: patches/micromark@4.0.2.patch
+  micromark@4.0.3: patches/micromark@4.0.3.patch

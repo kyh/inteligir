@@ -993,6 +993,21 @@ to the END of its group.
   the pin over the origin. No "off" choice: a folder another service syncs is
   already the derived off.
 
+- **THE ACCOUNT REMOTE IS REACHED WHEN THERE IS NEWS, NOT EVERY MINUTE.** The
+  hosted vault bills each fetch and push as an operation, and the minute tick
+  fetched from every open Mac whether anything moved. Another device's push
+  already pings this one over the account socket, so a tick leaves the account
+  remote alone while that socket is up, the last pass that reached it ended
+  clean, the commit it just made is already there and that pass is under 15
+  minutes old (`quietTickCanWait` in `apps/cli/src/server/vault/git-engine.ts`);
+  a ping, a sign-in, a socket reconnect, the boot pass and Sync now always
+  reach it, and the tick still pushes a commit within the minute. A pass whose
+  fetched tip already holds HEAD sends no push, since an empty push still asks
+  for the refs. A tick joining a pass already running asks for no second one.
+  Rejected: dropping the tick for the account remote, which leaves a lost ping
+  unanswered until the next edit. A BYO remote pings nobody, so every tick
+  fetches it as before.
+
 ### Knowledge: index, search and links
 
 - **The knowledge index persists no stat fingerprint.** A warm reconcile over
@@ -2574,7 +2589,7 @@ to the END of its group.
 - **A DEPENDENCY'S COST WE CANNOT WAIT OUT UPSTREAM IS A pnpm PATCH, AND A TEST
   FAILS WITHOUT IT.** micromark merges a paragraph's text with one splice per
   line, and GFM's email autolink splits it at every word, so one long paragraph
-  parsed in time quadratic in its lines. `patches/micromark@4.0.2.patch` is
+  parsed in time quadratic in its lines. `patches/micromark@4.0.3.patch` is
   upstream's own open fix (micromark/micromark#233), applied through
   `patchedDependencies` in `pnpm-workspace.yaml`; a bump fails the install
   until the patch is re-cut or dropped. A workaround in `@repo/notes` was
@@ -2582,7 +2597,7 @@ to the END of its group.
   `packages/notes/src/__tests__/projection-cost.test.ts` compares a 20k-line
   paragraph's projection with an eighth of it. Residual: a paragraph dense with
   emphasis or inline nodes is still superlinear upstream, and not patched.
-  `patches/@platejs__core@53.3.14.patch` is the second: Plate resolved a
+  `patches/@platejs__core@53.3.15.patch` is the second: Plate resolved a
   throwaway plugin to answer the type of a key no plugin registers, and the
   markdown serializer asks that of every mark rule on every text node, four
   fifths of a long note's save; `packages/editor/src/__tests__/typing-budget.test.tsx`
