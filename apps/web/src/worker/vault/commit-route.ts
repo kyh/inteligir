@@ -22,7 +22,7 @@ import { verifyDeviceCredential } from "../device/device-auth";
 import { spendDeviceBudget } from "../rate-limit";
 import { commitChanges } from "./commit-changes";
 import type { CommitChangesResult, VaultChange } from "./commit-changes";
-import { vaultRegistry, vaultRepoName } from "./git-remote";
+import { vaultRegistry, vaultRepoName } from "./vault-repo";
 import { pushVaultPack } from "./receive-pack";
 
 // The Worker is a CAS and never merges: a conflict answers what the head holds, and the device

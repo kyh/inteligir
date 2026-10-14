@@ -11,7 +11,7 @@ import {
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { vaultRepoName } from "../vault/git-remote";
+import { vaultRepoName } from "../vault/vault-repo";
 import { treeListingPrefix, treeListingSlot } from "../vault/tree-listing";
 import {
   buildHeaders,

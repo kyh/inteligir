@@ -85,7 +85,8 @@ cited.
   recreate state. The Worker calls the object by RPC with the verified deviceId
   as an argument, so no forwarded header carries identity; the socket upgrade,
   which only fetch can carry, is the one exception, and its identity lands in
-  hibernation tags (`apps/web/src/worker/sync/routes.ts`, `thread-sync-do.ts`).
+  hibernation tags (`apps/web/src/worker/sync/routes.ts`, `thread-sync-stub.ts`,
+  `thread-sync-do.ts`).
 
 - **Better Auth's `baseURL` is derived per-request from the request origin, and
   sign-up is invite-gated by a Worker route in front of it.** Every hostname

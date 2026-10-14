@@ -21,7 +21,7 @@ import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
-import { threadSyncStub } from "../sync/routes";
+import { threadSyncStub } from "../sync/thread-sync-stub";
 import { emitted, floorBuild, loginDevice, ORIGIN, signUpUser, userIdOf } from "./cloud-helpers";
 
 // what each route the table calls declares it answers, so every answer is held to exactly that

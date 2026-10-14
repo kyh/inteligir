@@ -7,12 +7,12 @@ import {
   PASSWORD_MIN_LENGTH,
 } from "@repo/contract/cloud/device/device-schema";
 import { sql } from "drizzle-orm";
-import { deleteVaultGitRepo } from "../vault/git-remote";
+import { deleteVaultGitRepo } from "../vault/vault-repo";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 import { purgeDeviceRows } from "../device/login";
 import { AUTH_RATE_WINDOW_SECONDS, CALLER_IP_HEADER } from "../rate-limit";
-import { purgeThreadSync } from "../sync/routes";
+import { purgeThreadSync } from "../sync/thread-sync-stub";
 import { sendResetEmail } from "./reset-email";
 
 // Built per request: D1 is a runtime binding, not a module singleton. No baseURL config —

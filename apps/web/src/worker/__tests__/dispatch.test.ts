@@ -23,7 +23,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
 import { initDispatchTables } from "../sync/dispatch-inbox";
-import { threadSyncStub } from "../sync/routes";
+import { threadSyncStub } from "../sync/thread-sync-stub";
 import {
   awaitFrames,
   deviceHeaders,

@@ -26,7 +26,7 @@ import { refuse, refuseNoDeviceCredential } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
 import { spendDeviceBudget } from "../rate-limit";
-import { vaultRegistry, vaultRepoName } from "./git-remote";
+import { vaultRegistry, vaultRepoName } from "./vault-repo";
 import { treeListingSlot } from "./tree-listing";
 import type { TreeListingSlot } from "./tree-listing";
 import { encodeGitPath, pageTree, walkTree } from "./tree-walk";

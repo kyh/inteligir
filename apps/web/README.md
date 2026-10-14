@@ -29,12 +29,16 @@ src/
     device/          Device login and sign-up, credential verification,
                      account deletion
     sync/            ThreadSyncDO + the device-authed route chokepoint + the
-                     dispatch inbox's SQL (dispatch-inbox.ts)
+                     dispatch inbox's SQL (dispatch-inbox.ts) + the calls
+                     the rest of the Worker makes on the object
+                     (thread-sync-stub.ts)
     vault/           The hosted vault git remote (durable-git behind the
-                     wrapper) + the git-less /v1/vault/* read routes + the
-                     Worker's own commits (commit-changes.ts, planned by
-                     plan-change-set.ts over a tree listing and pushed
-                     through the cell's receive-pack like any client's)
+                     wrapper) + the repo's one name and its purge
+                     (vault-repo.ts) + the git-less /v1/vault/* read
+                     routes + the Worker's own commits (commit-changes.ts,
+                     planned by plan-change-set.ts over a tree listing and
+                     pushed through the cell's receive-pack like any
+                     client's)
     db/              Drizzle schema + client for the D1 auth database
     rate-limit.ts    The D1 fixed window every throttled route spends
     types/           The hand-authored durable-git .d.ts (it ships untyped TS

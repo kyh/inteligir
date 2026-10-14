@@ -8,8 +8,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "../db/client";
 import { inviteCode, rateLimit, session, user } from "../db/schema";
 import { deviceRateKey } from "../rate-limit";
-import { threadSyncStub } from "../sync/routes";
-import { vaultRepoName, vaultRegistry } from "../vault/git-remote";
+import { threadSyncStub } from "../sync/thread-sync-stub";
+import { vaultRepoName, vaultRegistry } from "../vault/vault-repo";
 import {
   buildHeaders,
   deviceHeaders,

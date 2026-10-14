@@ -3,7 +3,7 @@ import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it, vi } from "vitest";
-import { packCachePrefixes, vaultRepoName } from "../vault/git-remote";
+import { packCachePrefixes, vaultRepoName } from "../vault/vault-repo";
 import { vaultStorageCap } from "../vault/receive-pack";
 import { treeListingPrefix } from "../vault/tree-listing";
 import {
