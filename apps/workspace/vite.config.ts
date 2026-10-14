@@ -15,8 +15,8 @@ const PAGES = {
   "first-run": { input: "first-run.html", outDir: "dist/first-run" },
 } as const;
 
-// fixed because `tauri dev` (`devUrl`) and scripts/dev.ts both name it; clear of `pnpm dev:web`'s
-// pinned 5174, which Vite's default search from 5173 walks onto
+// fixed because `tauri dev` waits on it (`devUrl`); clear of `pnpm dev:web`'s pinned 5174, which
+// Vite's default search from 5173 walks onto
 const DEV_PORT = 31_000;
 
 export default defineConfig(({ mode }) => {
