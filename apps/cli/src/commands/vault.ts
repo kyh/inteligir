@@ -319,16 +319,18 @@ export const vaultCommand = (deps: CliDeps) =>
           name: "history",
         },
         run: async ({ args }) => {
-          const request: VaultHistoryRequest = { path: args.path };
-          if (args.skip !== undefined) {
-            request.skip = parseBoundedInteger(args.skip, "--skip", { min: 0 });
-          }
-          if (args.limit !== undefined) {
-            request.limit = parseBoundedInteger(args.limit, "--limit", {
-              max: VAULT_HISTORY_MAX_LIMIT,
-              min: 1,
-            });
-          }
+          const skip =
+            args.skip === undefined
+              ? undefined
+              : parseBoundedInteger(args.skip, "--skip", { min: 0 });
+          const limit =
+            args.limit === undefined
+              ? undefined
+              : parseBoundedInteger(args.limit, "--limit", {
+                  max: VAULT_HISTORY_MAX_LIMIT,
+                  min: 1,
+                });
+          const request: VaultHistoryRequest = { limit, path: args.path, skip };
           const api = apiFor(deps);
           const body = await api.vault.history(request);
           if (outputJson(args, body)) {

@@ -130,10 +130,7 @@ export const cloudCommand = (deps: CliDeps) =>
           const source = passwordSource(args);
           const api = apiFor(deps);
           const password = await readPassword(source);
-          const input: CloudLoginRequest = { email: args.email, password };
-          if (args.name !== undefined) {
-            input.deviceName = args.name;
-          }
+          const input: CloudLoginRequest = { deviceName: args.name, email: args.email, password };
           const body = await api.cloud.login(input);
           if (outputJson(args, body)) {
             return;

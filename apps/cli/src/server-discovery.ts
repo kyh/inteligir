@@ -16,27 +16,14 @@ export interface ResolvedServer {
   vaultDir: string;
 }
 
-export interface ResolveDataDirArgs {
-  env: NodeJS.ProcessEnv;
-  checkoutPath: string;
-  homeDir?: string;
-}
+export type ResolveDataDirArgs = ResolveAppConfigArgs;
 
 export interface ResolveServerArgs extends ResolveDataDirArgs {
   // this binary's own release, which the server must share.
   cliVersion: string;
 }
 
-export const resolveDataDir = (args: ResolveDataDirArgs): string => {
-  const configArgs: ResolveAppConfigArgs = {
-    checkoutPath: args.checkoutPath,
-    env: args.env,
-  };
-  if (args.homeDir !== undefined) {
-    configArgs.homeDir = args.homeDir;
-  }
-  return resolveAppConfig(configArgs).dataDir;
-};
+export const resolveDataDir = (args: ResolveDataDirArgs): string => resolveAppConfig(args).dataDir;
 
 const versionMismatch = (
   dataDir: string,
