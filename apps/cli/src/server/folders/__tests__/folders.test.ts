@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { ORPCError, safe } from "@orpc/client";
 import { CONNECTED_FOLDERS_MAX } from "@repo/contract/local/folders/folders-schema";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { createFoldersService, FolderRefusedError } from "../folders-service";
 import type { FolderRefusal } from "../folders-service";
@@ -27,8 +27,6 @@ beforeEach(() => {
   mkdirSync(vaultDir, { recursive: true });
   mkdirSync(refDir, { recursive: true });
 });
-
-afterEach(() => {});
 
 const service = () => createFoldersService({ dataDir, store: new FoldersStore(dataDir), vaultDir });
 

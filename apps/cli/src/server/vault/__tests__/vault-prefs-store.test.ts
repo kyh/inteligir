@@ -1,24 +1,12 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { VaultPrefsStore } from "../vault-prefs-store";
 import { JsonFileStoreError } from "../../json-file-store";
+import { makeTempDir } from "../../__tests__/temp-dir";
 
-const dirs: string[] = [];
-
-const scratch = (): string => {
-  const dir = mkdtempSync(path.join(tmpdir(), "vault-prefs-"));
-  dirs.push(dir);
-  return dir;
-};
-
-afterEach(() => {
-  for (const dir of dirs.splice(0)) {
-    rmSync(dir, { force: true, recursive: true });
-  }
-});
+const scratch = (): string => makeTempDir("vault-prefs-");
 
 describe("the vault's stored choices", () => {
   it("are no choice until written, and survive a write", () => {

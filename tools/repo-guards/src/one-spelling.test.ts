@@ -73,7 +73,7 @@ const PREDICATES: Predicate[] = [
     elsewhere: {
       "apps/cli/src/server/vault/__tests__/git-fixtures.ts":
         "the git suites' clean-repo check: asserts the whole output is EMPTY against a real repo a suite built, decoding no entry",
-      "apps/cli/src/server/vault/__tests__/git.test.ts":
+      "apps/cli/src/server/vault/__tests__/git-commit.test.ts":
         "the same emptiness assertion, made against a real repo the suite built; it decodes no entry either",
       "tools/e2e/src/scenarios/vault-sync.ts":
         "asserts the whole output is EMPTY, which decodes nothing — the scenario is checking that the sync loop left a clean tree, and a parser would only put a second reading between it and the bytes",

@@ -1,28 +1,16 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { AgentPrefsStore } from "../agent-prefs-store";
 import { JsonFileStoreError } from "../../json-file-store";
 import { createAgentsService } from "../agents-service";
 import type { AgentAccounts } from "../agent-sign-in";
 import { fakeAgentAccounts } from "../../__tests__/boot-app";
+import { makeTempDir } from "../../__tests__/temp-dir";
 
 const NOTHING_ON_PATH = { PATH: "/nonexistent-dir" };
-const dirs: string[] = [];
-
-const scratch = (): string => {
-  const dir = mkdtempSync(path.join(tmpdir(), "agent-prefs-"));
-  dirs.push(dir);
-  return dir;
-};
-
-afterEach(() => {
-  for (const dir of dirs.splice(0)) {
-    rmSync(dir, { force: true, recursive: true });
-  }
-});
+const scratch = (): string => makeTempDir("agent-prefs-");
 
 describe("the stored default", () => {
   it("is no choice until one is written, and survives a write", () => {
