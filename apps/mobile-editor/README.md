@@ -76,15 +76,16 @@ answer is parsed by the kind it answers.
 `src/host/page-host.ts` builds the editor's host over the bridge: the
 `VaultSessionPorts`, the editor's own `createGuardedVaultIo` over a
 `GuardedVaultPort` of frames, its link-resolver store and note formulas, and
-the `EditorHostIo` and `EditorHostActions` it installs with the page's store
-as one host when the page starts. Opening a note (a wiki link, a created note) writes this one
-and sends `navigate`, so the native stack pushes the next page and keeps the
-back gesture. A vanished note asks through the page's own confirm dialog, in
-the desktop's words (`@repo/editor/note/vanished-prompt`). A
-new comment is the touch toolbar's: its markers go in at Save, and the flush
-that writes them goes as `addComment` rather than `write`, so no save ever
-lands markers without their comment; a hardware chord's create, whose markers
-the autosave already wrote, sends its entry on its own.
+the `EditorHostIo` and `EditorHostActions` it installs as one host when the
+page starts; the install hands `flushOpenNote` that host's flush. Opening a
+note (a wiki link, a created note) writes this one and sends `navigate`, so the
+native stack pushes the next page and keeps the back gesture. A vanished note
+asks through the page's own confirm dialog, in the desktop's words
+(`@repo/editor/note/vanished-prompt`). A new comment is the touch toolbar's:
+its markers go in at Save, and the flush that writes them goes as `addComment`
+rather than `write`, so no save ever lands markers without their comment; a
+hardware chord's create, whose markers the autosave already wrote, sends its
+entry on its own.
 
 ## Layout
 
