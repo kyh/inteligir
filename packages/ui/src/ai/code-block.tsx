@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useMemo, useRef, useState } from "react";
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
@@ -106,7 +106,7 @@ const CodeBlockCopy = ({
   // a second copy must cancel the first reset timer
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const copy = useCallback(async () => {
+  const copy = async () => {
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
@@ -119,7 +119,7 @@ const CodeBlockCopy = ({
     } catch {
       setCopied(false);
     }
-  }, [code]);
+  };
 
   return (
     <button

@@ -272,48 +272,45 @@ export const useProximityHover = <T extends HTMLElement>(
     [containerRef, getRo, remeasure],
   );
 
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
-      const mouseX = e.clientX;
-      const mouseY = e.clientY;
+  const handleMouseMove = (e: MouseEvent) => {
+    const mouseX = e.clientX;
+    const mouseY = e.clientY;
 
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current);
+    if (rafIdRef.current !== null) {
+      cancelAnimationFrame(rafIdRef.current);
+    }
+
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      const container = containerRef.current;
+      if (!container) {
+        return;
       }
 
-      rafIdRef.current = requestAnimationFrame(() => {
-        rafIdRef.current = null;
-        const container = containerRef.current;
-        if (!container) {
-          return;
-        }
+      const containerRect = container.getBoundingClientRect();
+      const rects = itemRectsRef.current;
 
-        const containerRect = container.getBoundingClientRect();
-        const rects = itemRectsRef.current;
+      if (axis === "xy") {
+        setActiveIndex(pickIndexXY(container, containerRect, rects, mouseX, mouseY));
+        return;
+      }
 
-        if (axis === "xy") {
-          setActiveIndex(pickIndexXY(container, containerRect, rects, mouseX, mouseY));
-          return;
-        }
+      const mousePos = axis === "x" ? mouseX : mouseY;
+      setActiveIndex(pickIndexAlongAxis(container, containerRect, rects, axis, mousePos));
+    });
+  };
 
-        const mousePos = axis === "x" ? mouseX : mouseY;
-        setActiveIndex(pickIndexAlongAxis(container, containerRect, rects, axis, mousePos));
-      });
-    },
-    [axis, containerRef],
-  );
-
-  const handleMouseEnter = useCallback(() => {
+  const handleMouseEnter = () => {
     setSession((s) => s + 1);
-  }, []);
+  };
 
-  const handleMouseLeave = useCallback(() => {
+  const handleMouseLeave = () => {
     if (rafIdRef.current !== null) {
       cancelAnimationFrame(rafIdRef.current);
       rafIdRef.current = null;
     }
     setActiveIndex(null);
-  }, []);
+  };
 
   useEffect(
     () => () => {

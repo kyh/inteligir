@@ -1,7 +1,7 @@
 "use client";
 // Vendored from Beautiful UI (beautifului.dev), MIT.
 
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import type { HTMLAttributes, PointerEvent, ReactNode, RefAttributes } from "react";
 import { cva } from "class-variance-authority";
 
@@ -157,29 +157,23 @@ const InsightChart = ({
   const [hover, setHover] = useState<number | null>(null);
   const length = series[0]?.points.length ?? 0;
 
-  const paths = useMemo(
-    () => series.map((entry) => ({ d: pathFor(entry.points, 100, height, 6), id: entry.id })),
-    [series, height],
-  );
+  const paths = series.map((entry) => ({ d: pathFor(entry.points, 100, height, 6), id: entry.id }));
 
-  const scrub = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      if (length < 2) {
-        return;
-      }
-      const box = event.currentTarget.getBoundingClientRect();
-      const ratio = (event.clientX - box.left) / box.width;
-      const index = Math.min(length - 1, Math.max(0, Math.round(ratio * (length - 1))));
-      setHover(index);
-      onScrub?.(index);
-    },
-    [length, onScrub],
-  );
+  const scrub = (event: PointerEvent<HTMLDivElement>) => {
+    if (length < 2) {
+      return;
+    }
+    const box = event.currentTarget.getBoundingClientRect();
+    const ratio = (event.clientX - box.left) / box.width;
+    const index = Math.min(length - 1, Math.max(0, Math.round(ratio * (length - 1))));
+    setHover(index);
+    onScrub?.(index);
+  };
 
-  const leave = useCallback(() => {
+  const leave = () => {
     setHover(null);
     onScrub?.(null);
-  }, [onScrub]);
+  };
 
   return (
     <div

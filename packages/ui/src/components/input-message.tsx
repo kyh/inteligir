@@ -181,45 +181,37 @@ const InputMessage = ({
 
   const edgeShadow = edgeShadowFor({ clickToFocus, disabled, focusVisible, hovered });
 
-  const handleSend = useCallback(() => {
+  const handleSend = () => {
     if (!canSend) {
       return;
     }
     onSend?.(trimmed);
-  }, [canSend, onSend, trimmed]);
+  };
 
-  const handleKeyDown = useCallback(
-    (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
-      if (isImeComposing(e)) {
-        return;
-      }
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
-    },
-    [handleSend],
-  );
-
-  const handleContainerMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!clickToFocus || disabled) {
-        return;
-      }
-      const target = e.target instanceof HTMLElement ? e.target : null;
-      if (target === null || target === textareaRef.current) {
-        return;
-      }
-      if (
-        target.closest('button, a, input, select, textarea, [contenteditable], [role="button"]')
-      ) {
-        return;
-      }
+  const handleKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (isImeComposing(e)) {
+      return;
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      textareaRef.current?.focus();
-    },
-    [clickToFocus, disabled],
-  );
+      handleSend();
+    }
+  };
+
+  const handleContainerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!clickToFocus || disabled) {
+      return;
+    }
+    const target = e.target instanceof HTMLElement ? e.target : null;
+    if (target === null || target === textareaRef.current) {
+      return;
+    }
+    if (target.closest('button, a, input, select, textarea, [contenteditable], [role="button"]')) {
+      return;
+    }
+    e.preventDefault();
+    textareaRef.current?.focus();
+  };
 
   const composer = (
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- click-to-focus affordance for the textarea inside, which keeps the keyboard path

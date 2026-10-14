@@ -2,7 +2,7 @@
 
 // Not vendored: Beautiful UI's payload omits its GlideMenu primitive, so this one is original.
 
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { CSSProperties, FocusEvent, HTMLAttributes, PointerEvent } from "react";
 
 import { cn } from "@repo/ui/lib/cn";
@@ -27,7 +27,7 @@ const GlideList = ({ className, children, highlightClassName, ...props }: GlideL
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [box, setBox] = useState<HighlightBox>(HIDDEN);
 
-  const measure = useCallback((target: EventTarget | null) => {
+  const measure = (target: EventTarget | null) => {
     const host = hostRef.current;
     if (host === null || !(target instanceof Element)) {
       return;
@@ -39,30 +39,24 @@ const GlideList = ({ className, children, highlightClassName, ...props }: GlideL
     const hostBox = host.getBoundingClientRect();
     const rowBox = row.getBoundingClientRect();
     setBox({ height: rowBox.height, shown: true, top: rowBox.top - hostBox.top });
-  }, []);
+  };
 
-  const onPointerMove = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      measure(event.target);
-    },
-    [measure],
-  );
-  const onFocus = useCallback(
-    (event: FocusEvent<HTMLDivElement>) => {
-      measure(event.target);
-    },
-    [measure],
-  );
-  const clear = useCallback(() => {
+  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    measure(event.target);
+  };
+  const onFocus = (event: FocusEvent<HTMLDivElement>) => {
+    measure(event.target);
+  };
+  const clear = () => {
     setBox(HIDDEN);
-  }, []);
+  };
   // focus moving between rows blurs the list too, and would drop the pill the next focus re-draws
-  const onBlur = useCallback((event: FocusEvent<HTMLDivElement>) => {
+  const onBlur = (event: FocusEvent<HTMLDivElement>) => {
     if (event.currentTarget.contains(event.relatedTarget)) {
       return;
     }
     setBox(HIDDEN);
-  }, []);
+  };
 
   const style: CSSProperties = {
     height: box.height,
