@@ -10,6 +10,7 @@ import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema
 import { composeRuntime } from "@repo/mobile/lib/compose-runtime";
 import type { AppRuntime } from "@repo/mobile/lib/compose-runtime";
 import { openNodeSqlDriver } from "@repo/mobile/lib/node-sql-driver";
+import { openPhoneDb } from "@repo/mobile/lib/phone-db";
 import type { AttachmentFiles } from "@repo/mobile/notes/attachment-files";
 import type { OutboxFiles } from "@repo/mobile/notes/outbox-files";
 import { expect, expectEq } from "./assert";
@@ -77,7 +78,7 @@ export const phoneRuntime = async (
     build: PHONE_BUILD,
     cloudUrl: origin,
     credentials: heldCredential({ credential: login.credential, deviceId: login.deviceId }),
-    db: openNodeSqlDriver(path.join(dir, "inteligir.db")),
+    db: openPhoneDb(openNodeSqlDriver(path.join(dir, "inteligir.db"))),
     deviceName: PHONE_NAME,
     mintId: () => randomBytes(16).toString("hex"),
     mintNoteId: randomUUID,

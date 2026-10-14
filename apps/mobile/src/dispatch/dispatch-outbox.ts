@@ -11,7 +11,7 @@ import type {
   CreateDispatchRequest,
   DispatchStatus,
 } from "@repo/contract/cloud/dispatch/dispatch-schema";
-import { fencedExclusive, phoneDbReady } from "../lib/phone-db";
+import { fencedExclusive } from "../lib/phone-db";
 import type { Fence } from "../lib/phone-db";
 import type { SqlDriver } from "../lib/sql-driver";
 
@@ -59,7 +59,6 @@ export const createDispatchOutbox = (db: SqlDriver): DispatchOutbox => ({
     }),
 
   load: async () => {
-    await phoneDbReady(db);
     const raw = await db.all(
       "SELECT request, status, created_at FROM dispatch_outbox ORDER BY seq",
     );
@@ -82,7 +81,6 @@ export const createDispatchOutbox = (db: SqlDriver): DispatchOutbox => ({
     }),
 
   wipe: async () => {
-    await phoneDbReady(db);
     await db.exclusive(async (tx) => {
       await tx.run("DELETE FROM dispatch_outbox");
     });

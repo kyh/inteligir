@@ -93,25 +93,33 @@ const migratePhoneDb = async (db: SqlDriver): Promise<void> => {
 // true while the sign-in the work started under is still the one it may write for
 export type Fence = () => boolean;
 
-// every module over the one file shares its migration
-const migrations = new WeakMap<SqlDriver, Promise<void>>();
-
-// run on the first call, so a failed migration fails the call that asked rather than nobody, and
-// forgotten when it fails, so the next call tries again
-export const phoneDbReady = async (db: SqlDriver): Promise<void> => {
-  let migrated = migrations.get(db);
-  if (migrated === undefined) {
-    migrated = migratePhoneDb(db);
-    migrations.set(db, migrated);
-  }
-  try {
-    await migrated;
-  } catch (error) {
-    if (migrations.get(db) === migrated) {
-      migrations.delete(db);
+// every call through the returned driver waits out one migration, run on the first call so a
+// failed migration fails the call that asked rather than nobody, and forgotten when it fails so
+// the next call tries again. Every module over the one file shares it.
+export const openPhoneDb = (driver: SqlDriver): SqlDriver => {
+  let migrated: Promise<void> | null = null;
+  const ready = async (): Promise<void> => {
+    migrated ??= migratePhoneDb(driver);
+    const current = migrated;
+    try {
+      await current;
+    } catch (error) {
+      if (migrated === current) {
+        migrated = null;
+      }
+      throw error;
     }
-    throw error;
-  }
+  };
+  return {
+    all: async (sql, params) => {
+      await ready();
+      return await driver.all(sql, params);
+    },
+    exclusive: async (work) => {
+      await ready();
+      await driver.exclusive(work);
+    },
+  };
 };
 
 // the fence is checked again inside the transaction: a wipe queued ahead of it must win. true when
@@ -121,7 +129,6 @@ export const fencedExclusive = async (
   fence: Fence,
   work: (tx: SqlExecutor) => Promise<void>,
 ): Promise<boolean> => {
-  await phoneDbReady(db);
   const outcome = { ran: false };
   await db.exclusive(async (tx) => {
     if (!fence()) {

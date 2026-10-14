@@ -25,7 +25,7 @@ import {
   noteIdOfProperties,
   parseProperties,
 } from "@repo/notes/markdown/frontmatter";
-import { fencedExclusive, phoneDbReady } from "../lib/phone-db";
+import { fencedExclusive } from "../lib/phone-db";
 import type { Fence } from "../lib/phone-db";
 import type { SqlDriver, SqlExecutor, SqlValue } from "../lib/sql-driver";
 
@@ -500,7 +500,6 @@ const storeAnswer = async (
 
 export const createVaultMirror = (db: SqlDriver): VaultMirror => {
   const walkHead: VaultMirror["walkHead"] = async (client, fence) => {
-    await phoneDbReady(db);
     const meta = await readMeta(db);
     const mark = await readLandedMark(db);
     if (!fence()) {
@@ -546,7 +545,6 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
 
   const fillTexts: VaultMirror["fillTexts"] = async (client, walked, fence, onProgress) => {
     const { commit } = walked;
-    await phoneDbReady(db);
     const empty = await db.all(
       "SELECT path, oid FROM mirror_entries WHERE wants_text = 1 AND content IS NULL ORDER BY path",
     );
@@ -609,7 +607,6 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
     fillTexts,
 
     async readText(path) {
-      await phoneDbReady(db);
       const [row] = await db.all(
         "SELECT path, oid, pin_commit, content FROM mirror_entries WHERE path = ?",
         [path],
@@ -618,7 +615,6 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
     },
 
     async readTexts() {
-      await phoneDbReady(db);
       const rows = await db.all(
         "SELECT path, oid, pin_commit, content FROM mirror_entries WHERE content IS NOT NULL",
       );
@@ -626,7 +622,6 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
     },
 
     async snapshot() {
-      await phoneDbReady(db);
       const listed = await db.all(
         "SELECT path, oid, size, pin_commit, note_id, aliases FROM mirror_entries ORDER BY path",
       );
@@ -658,7 +653,6 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
     walkHead,
 
     async wipe() {
-      await phoneDbReady(db);
       await db.exclusive(async (tx) => {
         await tx.exec(
           "DELETE FROM mirror_entries; DELETE FROM mirror_meta; DELETE FROM mirror_landings;",

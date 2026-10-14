@@ -6,7 +6,6 @@ import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { threadScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it } from "vitest";
-import { phoneDbReady } from "../../lib/phone-db";
 import type { SqlDriver } from "../../lib/sql-driver";
 import { createSyncRuntime } from "../../sync/sync-runtime";
 import { createNotesStore } from "../notes-store";
@@ -287,7 +286,6 @@ describe("the notes store", () => {
 
   it("counts an unsent row this build cannot read, so a sign-out still asks before wiping it", async () => {
     const db = openTempDb();
-    await phoneDbReady(db);
     await db.exclusive(async (tx) => {
       await tx.run("INSERT INTO outbox (op, state, created_at) VALUES (?, 'pending', 0)", [
         JSON.stringify({ op: "a verb from a later build", path: "a.md" }),

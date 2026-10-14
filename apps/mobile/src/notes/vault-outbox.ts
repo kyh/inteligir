@@ -22,7 +22,7 @@ import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import { diff3 } from "@repo/notes/text/diff3";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
-import { fencedExclusive, phoneDbReady } from "../lib/phone-db";
+import { fencedExclusive } from "../lib/phone-db";
 import type { Fence } from "../lib/phone-db";
 import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
@@ -422,7 +422,6 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     fence: Fence,
     work: (tx: SqlExecutor) => Promise<void>,
   ): Promise<boolean> => {
-    await phoneDbReady(db);
     try {
       return await fencedExclusive(db, fence, work);
     } catch (error) {
@@ -778,7 +777,6 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
   const pass = async (): Promise<SyncOutcome> => {
     stopped = false;
     await args.resetWork();
-    await phoneDbReady(db);
     const current = session.current();
     if (current.kind !== "live") {
       return "fenced";
@@ -911,7 +909,6 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     },
 
     load: async (fence) => {
-      await phoneDbReady(db);
       const loaded = await readRows(db);
       if (fence()) {
         rows = loaded;
@@ -975,7 +972,6 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     status,
 
     unsent: async () => {
-      await phoneDbReady(db);
       const [row] = await db.all("SELECT count(*) AS count FROM outbox");
       return countSchema.parse(row).count;
     },
@@ -988,7 +984,6 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       lastError = null;
       publish();
       try {
-        await phoneDbReady(db);
         // cleared again inside: a write whose transaction was queued ahead of this one landed in
         // the cache after the line above
         await db.exclusive(async (tx) => {

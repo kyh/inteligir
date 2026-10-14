@@ -136,7 +136,8 @@ src/
                 random ids, SHA-1 and SHA-256, AppState and expo-network's
                 reconnect, plus the hooks); the database: sql-driver.ts (the port),
                 expo-sql-driver.ts (the app's), node-sql-driver.ts (the
-                tests'), phone-db.ts (every table's migrations) and
+                tests'), phone-db.ts (every table's migrations, run by the
+                driver openPhoneDb wraps before its first call) and
                 backup-exclusion.ts (over modules/backup-exclusion, the one
                 native module this app carries); the external store the
                 runtimes publish through, theme, cloud URL, and routes.ts

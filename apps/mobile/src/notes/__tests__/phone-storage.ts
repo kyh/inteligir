@@ -10,6 +10,7 @@ import type { CloudFetch } from "@repo/contract/cloud/client";
 import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { onTestFinished } from "vitest";
 import { openNodeSqlDriver } from "../../lib/node-sql-driver";
+import { openPhoneDb } from "../../lib/phone-db";
 import type { SqlDriver } from "../../lib/sql-driver";
 import { createSqliteSyncStore } from "../../sync/sqlite-sync-store";
 import { createSyncRuntime } from "../../sync/sync-runtime";
@@ -29,12 +30,12 @@ export const tempDbPath = (): string => {
   return path.join(dir, "inteligir.db");
 };
 
-export const openTempDb = (file: string = tempDbPath()) => {
-  const db = openNodeSqlDriver(file);
+export const openTempDb = (file: string = tempDbPath()): SqlDriver => {
+  const driver = openNodeSqlDriver(file);
   onTestFinished(() => {
-    db.close();
+    driver.close();
   });
-  return db;
+  return openPhoneDb(driver);
 };
 
 export const createMemoryAttachments = (): AttachmentFiles & {

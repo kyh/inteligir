@@ -47,6 +47,7 @@ import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
 import type { AppRuntime, LogoutOutcome } from "./compose-runtime";
 import { createExpoSqlDriver } from "./expo-sql-driver";
+import { openPhoneDb } from "./phone-db";
 
 let runtime: AppRuntime | null = null;
 
@@ -67,7 +68,7 @@ const build = (): AppRuntime => {
     build: { platform: "mobile", version: appVersion() },
     cloudUrl: getCloudUrl(),
     credentials: createKeychainCredentials(SecureStore),
-    db: createExpoSqlDriver("inteligir.db"),
+    db: openPhoneDb(createExpoSqlDriver("inteligir.db")),
     deviceName: defaultDeviceName(),
     mintId: () => hexFromBytes(Crypto.getRandomBytes(16)),
     mintNoteId: Crypto.randomUUID,
