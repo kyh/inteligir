@@ -119,7 +119,7 @@ pnpm cli status      # every verb drives this checkout's running instance
 pnpm cli guide       # the agent manual the app serves
 ```
 
-No bootstrap script, no Docker, no cloud account, no login. Node 24 and pnpm
+No bootstrap script, no cloud account, no login. Node 24 and pnpm
 12 (`corepack enable`; `.codex/environments/environment.toml` runs `pnpm i` for
 cloud runners). The port and the data dir are derived per CHECKOUT, so
 parallel worktrees never collide; `INTELIGIR_PORT` and `INTELIGIR_DATA_DIR`
