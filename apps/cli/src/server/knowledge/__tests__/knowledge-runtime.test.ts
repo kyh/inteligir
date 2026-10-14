@@ -362,6 +362,56 @@ describe("the knowledge runtime", () => {
     expect(knowledge.lastReconcile).toMatchObject({ projected: 1, removed: 0, unchanged: 1 });
   });
 
+  it("reconciles whole after the pass rerun over a rebuilt store fails for another reason", async () => {
+    const dirs = makeDirs();
+    writeFileSync(nodePath.join(dirs.root, "a.md"), "# A\n\nIbis notes.\n");
+    let writeDuringNextListing = false;
+    let failCraneStat = false;
+    const { service, knowledge } = bootIndexedVault(dirs, {
+      reader: (inner) => ({
+        ...inner,
+        // announced after the rerun's listing, so only its changed-paths step sees the note
+        listTree: async () => {
+          const listing = await inner.listTree();
+          if (writeDuringNextListing) {
+            writeDuringNextListing = false;
+            await inner.write("c.md", "# C\n\nCrane notes.\n");
+          }
+          return listing;
+        },
+        statEntry: async (path) => {
+          if (failCraneStat && path === "c.md") {
+            failCraneStat = false;
+            throw new Error("transient io failure");
+          }
+          return await inner.statEntry(path);
+        },
+      }),
+    });
+    await knowledge.settle();
+
+    const saboteur = createSqliteDriver(nodePath.join(dirs.dataDir, "knowledge.db"));
+    saboteur.exec("DROP TABLE files");
+    saboteur.close();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {
+      /* empty */
+    });
+    onTestFinished(() => {
+      warn.mockRestore();
+    });
+
+    writeDuringNextListing = true;
+    failCraneStat = true;
+    await service.write("b.md", "# B\n\nHeron notes.\n");
+    await expect(knowledge.search({ limit: 10, query: "heron" })).rejects.toThrow(
+      "transient io failure",
+    );
+    expect(warn).toHaveBeenCalledWith("[knowledge] pass failed:", "transient io failure");
+
+    expect(await searchPaths(knowledge, "crane")).toEqual(["c.md"]);
+    expect(await searchPaths(knowledge, "heron")).toEqual(["b.md"]);
+  });
+
   it("keeps an unreadable doc's last entry without a rebuild, and indexes it once readable", async () => {
     const dirs = makeDirs();
     writeFileSync(nodePath.join(dirs.root, "a.md"), "# A\n\nIbis notes.\n");
