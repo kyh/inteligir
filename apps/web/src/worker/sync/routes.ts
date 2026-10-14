@@ -25,9 +25,6 @@ import type { VerifiedDevice } from "../device/device-auth";
 import { SOCKET_IDENTITY_HEADERS } from "./thread-sync-do";
 import type { EventPage, SyncRefusal, SyncResult, ThreadSyncDO } from "./thread-sync-do";
 
-// The object is named from the verified userId, never from a path or body, and every body is
-// parsed here, so the object is handed typed values and the verified deviceId as an argument.
-
 export const threadSyncStub = (env: Env, userId: string): DurableObjectStub<ThreadSyncDO> =>
   env.THREAD_SYNC.getByName(`user:${userId}`);
 

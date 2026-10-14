@@ -53,8 +53,8 @@ export const account = sqliteTable(
   "account",
   {
     id: text("id").primaryKey(),
-    // required since better-auth 1.7: sign-in matches on providerId, issuer and accountId,
-    // and nothing static catches its absence — it 500s at first signup
+    // sign-in matches on providerId, issuer and accountId, and nothing static catches a missing
+    // column: it 500s at first signup
     issuer: text("issuer").notNull(),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),

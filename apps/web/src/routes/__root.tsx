@@ -52,9 +52,9 @@ const jsonLd = serializeJsonLd(siteGraph());
 const RootDocument = ({ children }: { children: React.ReactNode }) => {
   const canonical = useCanonical();
 
+  // suppressHydrationWarning: the inline script sets the theme class before hydration
+  // the theme-color metas are plain tags because HeadContent dedupes meta by name and would drop one of the pair
   return (
-    // suppressHydrationWarning: the inline script sets the theme class before hydration
-    // the theme-color metas are plain tags because HeadContent dedupes meta by name and would drop one of the pair
     <html lang="en" suppressHydrationWarning>
       <head>
         <script
@@ -115,9 +115,9 @@ export const Route = createRootRoute({
       { rel: "manifest", href: "/favicon/site.webmanifest" },
     ],
   }),
-  // shellComponent wraps errorComponent and notFoundComponent too; without it a 404 renders with no <html>, stylesheet or scripts
   // site-wide, so a cache keyed on the URL alone never reuses one Accept's response for another
   headers: varyHeaders,
+  // shellComponent wraps errorComponent and notFoundComponent too; without it a 404 renders with no <html>, stylesheet or scripts
   shellComponent: RootDocument,
   errorComponent: ErrorBoundary,
   notFoundComponent: NotFound,
