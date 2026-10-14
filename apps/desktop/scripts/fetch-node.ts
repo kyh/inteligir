@@ -36,7 +36,7 @@ const log = (line: string): void => {
   process.stdout.write(`fetch-node: ${line}\n`);
 };
 
-try {
+export const fetchNode = async (): Promise<void> => {
   const tarball = await fetchPinned(TARBALL, { cacheDir, log });
   const top = TARBALL_NAME.replace(/\.tar\.gz$/u, "");
   // staged beside the payload and swapped in whole, so an interrupted run never leaves a half tree
@@ -52,7 +52,4 @@ try {
   await rm(payloadDir, { force: true, recursive: true });
   await rename(stagingDir, payloadDir);
   log(`${TARBALL.name} -> ${path.relative(packageRoot, binaryFile)}`);
-} catch (error) {
-  process.stderr.write(`fetch-node: ${error instanceof Error ? error.message : String(error)}\n`);
-  process.exitCode = 1;
-}
+};

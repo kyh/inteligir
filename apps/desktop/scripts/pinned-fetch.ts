@@ -1,13 +1,13 @@
 // A file the pack downloads rather than installs, pinned by sha-256: the git and the node the .app
 // carries (fetch-git.ts, fetch-node.ts), each cached under its own folder of .cache.
 
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync } from "node:fs";
 import { mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { run } from "./run.ts";
 
 export interface PinnedFile {
   readonly name: string;
@@ -54,8 +54,5 @@ export const fetchPinned = async (
 
 // `members` narrows the extraction to those paths inside the tarball; none extracts it whole
 export const untar = (tarball: string, into: string, members: readonly string[] = []): void => {
-  const result = spawnSync("tar", ["-xzf", tarball, "-C", into, ...members], { stdio: "inherit" });
-  if (result.status !== 0) {
-    throw new Error(`tar -xzf ${tarball} exited ${result.status ?? result.signal}`);
-  }
+  run("tar", ["-xzf", tarball, "-C", into, ...members]);
 };

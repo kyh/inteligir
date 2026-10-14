@@ -44,24 +44,23 @@ const machOsUnder = async (dir: string): Promise<string[]> => {
 };
 
 interface ResourceTrees {
-  readonly jit: readonly string[];
-  readonly plain: readonly string[];
+  readonly jit: string;
+  readonly plain: string;
 }
 
-// `jit`: trees whose binaries may run a JavaScript engine, signed with the app's entitlements;
-// `plain`: trees of native tools, signed with none. `-` signs ad-hoc: what an unsigned pack runs
+// `jit`: the tree whose binaries may run a JavaScript engine, signed with the app's entitlements;
+// `plain`: the tree of native tools, signed with none. `-` signs ad-hoc: what an unsigned pack runs
 // on, since Apple silicon runs nothing unsigned. An ad-hoc pack carries no team, so it takes no
 // hardened runtime, whose library validation would refuse its own addons, and no timestamp, which
 // only a Developer ID can get
 export const signResources = async (
   { jit, plain }: ResourceTrees,
   identity: string,
-  hardened: boolean,
 ): Promise<number> => {
-  const options = hardened ? ["--options", "runtime", "--timestamp"] : [];
+  const options = identity === "-" ? [] : ["--options", "runtime", "--timestamp"];
   const trees = [
-    ...jit.map((dir) => ({ dir, entitlements: ["--entitlements", ENTITLEMENTS] })),
-    ...plain.map((dir) => ({ dir, entitlements: [] })),
+    { dir: jit, entitlements: ["--entitlements", ENTITLEMENTS] },
+    { dir: plain, entitlements: [] },
   ];
   let signed = 0;
   for (const { dir, entitlements } of trees) {

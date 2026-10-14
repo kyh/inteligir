@@ -5,8 +5,10 @@
 mod answer;
 mod commands;
 mod diagnostics;
+mod dialogs;
 mod door;
 mod files;
+mod first_run;
 mod launch;
 mod menu;
 mod navigation;
@@ -30,7 +32,7 @@ use crate::updater::Updates;
 /// shutdown and Ctrl-C under `tauri dev` all flush the vault's pending commit. A handler, not a
 /// blocked mask: nothing of it reaches the children the shell starts.
 #[cfg(unix)]
-fn quit_on_signals<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+fn quit_on_signals(app: &tauri::AppHandle) {
     use signal_hook::consts::{SIGINT, SIGTERM};
     use signal_hook::iterator::Signals;
     match Signals::new([SIGTERM, SIGINT]) {

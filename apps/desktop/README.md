@@ -60,7 +60,7 @@ A first run opens its own window on the page the shell carries,
 Tauri's IPC origins, which `tools/repo-guards/src/desktop-shell-wire.test.ts`
 holds it to. Its capability (`src-tauri/capabilities/first-run.json`) grants
 that window four commands and nothing else: the proposal, a picked parent, a
-picked folder, and `finish`. It keeps WebKit's default store, which no vault's
+picked folder, and `finish` (`src-tauri/src/first_run.rs`). It keeps WebKit's default store, which no vault's
 window shares, so nothing it keeps reaches a vault. The
 page offers a new vault (the default's name and place, or another folder the
 shell's picker handed out) or an existing folder of notes, with what the folder
@@ -112,8 +112,9 @@ nothing there. The suites answer those calls through Tauri's own IPC mock
 and the answer parse. The commands are granted when the shell
 opens the window, to that window and the server's exact origin alone
 (`grant_app_window` in `src-tauri/src/window.rs`), since the port is the
-server's to choose; `src-tauri/capabilities/app-window.json` grants nothing,
-and lists them only so the build keeps them (`removeUnusedCommands`). A
+server's to choose. The list it grants is
+`src-tauri/capabilities/app-window.json`, which grants nothing itself and keeps
+every command it names in the build (`removeUnusedCommands`). A
 refusal is an answer, never a rejected promise: a rejection is a fault. One
 envelope carries it, `src-tauri/src/answer.rs` in the shell and
 `apps/workspace/src/shell/shell-answer.ts` in the page, and a command that can fail only by a fault

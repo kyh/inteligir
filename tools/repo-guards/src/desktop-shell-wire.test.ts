@@ -25,7 +25,6 @@ import { readJsonFile, REPO_ROOT, sourceOf } from "./repo";
 
 const CONTRACT = "apps/workspace/src/shell/ipc-contract.ts";
 const BUILD_SCRIPT = "apps/desktop/src-tauri/build.rs";
-const COMMANDS = "apps/desktop/src-tauri/src/commands.rs";
 const LIB = "apps/desktop/src-tauri/src/lib.rs";
 const APP_CAPABILITY = "apps/desktop/src-tauri/capabilities/app-window.json";
 const FIRST_RUN_CAPABILITY = "apps/desktop/src-tauri/capabilities/first-run.json";
@@ -37,7 +36,6 @@ const CLI_BUILD = "apps/cli/scripts/build.ts";
 const TAURI_CONFIG = "apps/desktop/src-tauri/tauri.conf.json";
 const CSP = "apps/cli/src/server/csp.ts";
 const SHELL = "apps/desktop/src-tauri/src/shell.rs";
-const WINDOW = "apps/desktop/src-tauri/src/window.rs";
 const LAUNCH = "apps/desktop/src-tauri/src/launch.rs";
 const DOOR_ANSWERS = "apps/cli/src/desktop/__tests__/door-answers.ts";
 const DOOR_FIXTURES = "apps/desktop/src-tauri/fixtures";
@@ -183,16 +181,9 @@ describe("the desktop shell's wire", () => {
   });
 
   it("grants the app window its commands and the first run its own, and neither the other's", () => {
-    const appWindow = sorted(
-      allMatches(block(COMMANDS, "pub const APP_WINDOW_COMMANDS", "];"), RUST_STRING),
-    );
-    expect(
-      appWindow,
-      `${COMMANDS}'s APP_WINDOW_COMMANDS, which the shell grants the app window at runtime, and ${CONTRACT}'s APP_COMMANDS disagree\n`,
-    ).toEqual(appCommands);
     expect(
       sorted(grantedBy(APP_CAPABILITY)),
-      `${APP_CAPABILITY} keeps the app window's commands in the build, and must list exactly APP_COMMANDS\n`,
+      `${APP_CAPABILITY} is the list the shell grants the app window at runtime, and must list exactly APP_COMMANDS\n`,
     ).toEqual(appCommands);
     expect(
       sorted(grantedBy(FIRST_RUN_CAPABILITY)),
@@ -257,26 +248,6 @@ describe("the desktop shell's wire", () => {
     expect(named, `${WORKSPACE_DEV}'s UI_DEV_URL_ENV_VAR is not the CLI's\n`).toBe(
       UI_DEV_URL_ENV_VAR,
     );
-  });
-
-  it("grants the app window the core permissions its capability keeps", () => {
-    const granted = sorted(
-      allMatches(
-        block(WINDOW, "const APP_WINDOW_CORE_PERMISSIONS", "];"),
-        /"(?<name>core:[a-z:-]+)"/gu,
-      ),
-    );
-    const kept = sorted(
-      readJsonFile(
-        APP_CAPABILITY,
-        capabilitySchema,
-        "a capability with a permissions list",
-      ).permissions.filter((permission) => permission.startsWith("core:")),
-    );
-    expect(
-      granted,
-      `${WINDOW}'s APP_WINDOW_CORE_PERMISSIONS, which the shell grants at runtime, and ${APP_CAPABILITY}'s core permissions, which the build keeps, disagree\n`,
-    ).toEqual(kept);
   });
 
   it("reads every door answer by the fields the CLI writes", () => {

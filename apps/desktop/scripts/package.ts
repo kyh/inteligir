@@ -8,13 +8,16 @@
 // a checkout that never packaged would fail its typecheck for want of them.
 
 import { spawnSync } from "node:child_process";
-import type { SpawnSyncOptions } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { copyFile, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import manifest from "../package.json" with { type: "json" };
+import { fetchGit } from "./fetch-git.ts";
+import { fetchNode } from "./fetch-node.ts";
+import { run } from "./run.ts";
 import { writeRustNotices } from "./rust-notices.ts";
 import { signResources } from "./sign-resources.ts";
+import { stageServer } from "./stage-server.ts";
 
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(packageRoot, "..", "..");
@@ -34,13 +37,6 @@ const MINIMUM_MACOS = "13.5";
 
 const log = (line: string): void => {
   process.stdout.write(`package: ${line}\n`);
-};
-
-const run = (file: string, args: readonly string[], options: SpawnSyncOptions = {}): void => {
-  const result = spawnSync(file, args, { stdio: "inherit", ...options });
-  if (result.status !== 0) {
-    throw new Error(`${file} ${args.join(" ")} exited ${result.status ?? result.signal}`);
-  }
 };
 
 const readRelease = (name: string): string | null => {
@@ -118,6 +114,9 @@ if (process.platform !== "darwin") {
   throw new Error("the Mac app packs on a Mac: codesign, hdiutil and notarytool are macOS's");
 }
 
+await fetchGit();
+await fetchNode();
+
 const identity = signingIdentity();
 const signed = identity !== "-";
 const notary = signed ? notaryEnv() : null;
@@ -134,14 +133,13 @@ log(
 );
 log(updaterKey === null ? "no updater key: the app will not update itself" : "signing the update");
 
-run("node", [path.join(packageRoot, "scripts", "stage-server.ts")]);
+await stageServer();
 const resourceCount = await signResources(
   {
-    jit: [path.join(packageRoot, ".output", "server")],
-    plain: [path.join(packageRoot, "resources", "git")],
+    jit: path.join(packageRoot, ".output", "server"),
+    plain: path.join(packageRoot, "resources", "git"),
   },
   identity,
-  signed,
 );
 log(`signed ${resourceCount} binaries the resources carry`);
 const crateCount = await writeRustNotices(

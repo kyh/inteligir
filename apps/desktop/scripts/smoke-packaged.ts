@@ -113,69 +113,72 @@ const timelineSchema = z.discriminatedUnion("kind", [
 const historySchema = z.object({ revisions: z.array(z.object({ sha: z.string() })) });
 const systemStatusSchema = z.object({ dataDir: z.string(), vaultDir: z.string() });
 
-if (!existsSync(appBinary)) {
-  fail(`no packaged app at ${appDir} — run \`pnpm package:desktop\` first`);
-}
-if (!existsSync(bundledNode)) {
-  fail(`the packaged app carries no node beside the shell at ${bundledNode}`);
-}
-if (!existsSync(serverEntry)) {
-  fail(`the packaged app carries no server entry at ${serverEntry}`);
-}
-const notesSkill = path.join(runtimeRoot, "dist", "skills", "inteligir-notes", "SKILL.md");
-if (!existsSync(notesSkill)) {
-  fail(`the packaged app carries no dialect skills at ${notesSkill}`);
-}
-
-// the agent's PATH resolver refuses a bin without the execute bit, silently
-const cliBin = path.join(runtimeRoot, "bin", CLI_BIN_NAME);
-if (!existsSync(cliBin)) {
-  fail(`the packaged CLI is missing at ${cliBin}`);
-}
-try {
-  accessSync(cliBin, constants.X_OK);
-} catch {
-  fail(`the packaged CLI is not executable (${cliBin})`);
-}
-
-// the staged CLI is the package as npm would publish it, so the allowed names come from the
-// manifest's own `files`, with the README npm always adds and the dependencies it installed
-const cliManifest = cliManifestSchema.parse(
-  JSON.parse(readFileSync(path.join(runtimeRoot, "package.json"), "utf-8")),
-);
-const shippedNames = new Set([
-  "README.md",
-  "node_modules",
-  "package.json",
-  ...cliManifest.files
-    .filter((entry) => !entry.startsWith("!"))
-    .map((entry) => entry.split("/")[0]),
-]);
-const strays = readdirSync(runtimeRoot).filter((name) => !shippedNames.has(name));
-if (strays.length > 0) {
-  fail(`the packaged CLI carries what its \`files\` does not ship: ${strays.join(", ")}`);
-}
-const testDirs = readdirSync(runtimeRoot, { encoding: "utf-8", recursive: true }).filter(
-  (entry) => path.basename(entry) === TEST_DIR_NAME && !entry.startsWith("node_modules"),
-);
-if (testDirs.length > 0) {
-  fail(`the packaged CLI carries test files: ${testDirs.join(", ")}`);
-}
-log(`packaged CLI -> ${readdirSync(runtimeRoot).join(", ")}`);
-
-// git's licence obliges the pack to carry its text and say where the source is, node's its own,
-// and the shell's crates theirs
-for (const [root, name] of [
-  [bundledGitRoot, "COPYING"],
-  [bundledGitRoot, "SOURCE"],
-  [bundledNodeNotices, "LICENSE"],
-  [bundledNodeNotices, "SOURCE"],
-  [bundledRustNotices, "rust-crates.txt"],
-] as const) {
-  if (!existsSync(path.join(root, name))) {
-    fail(`the packaged app carries no ${name} at ${root}`);
+// what the pack must carry, read before anything launches
+const checkPackContents = (): void => {
+  if (!existsSync(appBinary)) {
+    fail(`no packaged app at ${appDir} — run \`pnpm package:desktop\` first`);
   }
-}
+  if (!existsSync(bundledNode)) {
+    fail(`the packaged app carries no node beside the shell at ${bundledNode}`);
+  }
+  if (!existsSync(serverEntry)) {
+    fail(`the packaged app carries no server entry at ${serverEntry}`);
+  }
+  const notesSkill = path.join(runtimeRoot, "dist", "skills", "inteligir-notes", "SKILL.md");
+  if (!existsSync(notesSkill)) {
+    fail(`the packaged app carries no dialect skills at ${notesSkill}`);
+  }
+
+  // the agent's PATH resolver refuses a bin without the execute bit, silently
+  const cliBin = path.join(runtimeRoot, "bin", CLI_BIN_NAME);
+  if (!existsSync(cliBin)) {
+    fail(`the packaged CLI is missing at ${cliBin}`);
+  }
+  try {
+    accessSync(cliBin, constants.X_OK);
+  } catch {
+    fail(`the packaged CLI is not executable (${cliBin})`);
+  }
+
+  // the staged CLI is the package as npm would publish it, so the allowed names come from the
+  // manifest's own `files`, with the README npm always adds and the dependencies it installed
+  const cliManifest = cliManifestSchema.parse(
+    JSON.parse(readFileSync(path.join(runtimeRoot, "package.json"), "utf-8")),
+  );
+  const shippedNames = new Set([
+    "README.md",
+    "node_modules",
+    "package.json",
+    ...cliManifest.files
+      .filter((entry) => !entry.startsWith("!"))
+      .map((entry) => entry.split("/")[0]),
+  ]);
+  const strays = readdirSync(runtimeRoot).filter((name) => !shippedNames.has(name));
+  if (strays.length > 0) {
+    fail(`the packaged CLI carries what its \`files\` does not ship: ${strays.join(", ")}`);
+  }
+  const testDirs = readdirSync(runtimeRoot, { encoding: "utf-8", recursive: true }).filter(
+    (entry) => path.basename(entry) === TEST_DIR_NAME && !entry.startsWith("node_modules"),
+  );
+  if (testDirs.length > 0) {
+    fail(`the packaged CLI carries test files: ${testDirs.join(", ")}`);
+  }
+  log(`packaged CLI -> ${readdirSync(runtimeRoot).join(", ")}`);
+
+  // git's licence obliges the pack to carry its text and say where the source is, node's its own,
+  // and the shell's crates theirs
+  for (const [root, name] of [
+    [bundledGitRoot, "COPYING"],
+    [bundledGitRoot, "SOURCE"],
+    [bundledNodeNotices, "LICENSE"],
+    [bundledNodeNotices, "SOURCE"],
+    [bundledRustNotices, "rust-crates.txt"],
+  ] as const) {
+    if (!existsSync(path.join(root, name))) {
+      fail(`the packaged app carries no ${name} at ${root}`);
+    }
+  }
+};
 
 const answers = async (socket: string): Promise<boolean> => {
   const probe = createConnection(socket);
@@ -188,11 +191,17 @@ const answers = async (socket: string): Promise<boolean> => {
     probe.destroy();
   }
 };
-if (await answers(SINGLE_INSTANCE_SOCKET)) {
-  fail(
-    "an Inteligir is running on this Mac, and the packaged app would hand over to it: quit it first",
-  );
-}
+
+const refuseIfAnotherInstance = async (): Promise<void> => {
+  if (await answers(SINGLE_INSTANCE_SOCKET)) {
+    fail(
+      "an Inteligir is running on this Mac, and the packaged app would hand over to it: quit it first",
+    );
+  }
+};
+
+checkPackContents();
+await refuseIfAnotherInstance();
 
 const scratch = await mkdtemp(path.join(tmpdir(), "inteligir-desktop-smoke-"));
 const port = 4900 + Math.floor(Math.random() * 90);
@@ -508,64 +517,58 @@ try {
 
   const vaultDataDirs = () => readdirSync(path.join(rootDataDir, VAULTS_DIR_NAME));
 
+  // a launch on the vault the root config.json names: its server boots on one new data dir
+  // beneath the root, which holds a database of its own and answers the vault, and its quit stops
+  // that server cleanly. answers the dir's name, for the next launch to tell its own from it
+  const expectVaultBoot = async ({
+    known,
+    label,
+    vault,
+  }: {
+    known: readonly string[];
+    label: string;
+    vault: string;
+  }): Promise<string> => {
+    launched = launchApp(selectorEnv);
+    await waitHealthy(selectorUrl);
+    const [dir, ...moreDirs] = vaultDataDirs().filter((name) => !known.includes(name));
+    if (dir === undefined || moreDirs.length > 0) {
+      fail(
+        `expected one new per-vault data dir for the ${label} under ${VAULTS_DIR_NAME}/, found ${vaultDataDirs().join(", ")}`,
+      );
+    }
+    const vaultDataDir = path.join(rootDataDir, VAULTS_DIR_NAME, dir);
+    const vaultStatus = await rpcClient(selectorUrl, readServerToken(vaultDataDir))(
+      "system/status",
+      systemStatusSchema,
+    );
+    if (vaultStatus.dataDir !== vaultDataDir || vaultStatus.vaultDir !== vault) {
+      fail(
+        `the ${label} did not get its own data dir: ${JSON.stringify({ dataDir: vaultStatus.dataDir, vaultDir: vaultStatus.vaultDir })}`,
+      );
+    }
+    if (!existsSync(path.join(vaultDataDir, "inteligir.db"))) {
+      fail(`the ${label}'s data dir holds no database of its own`);
+    }
+    log(`${label} -> ${vaultStatus.vaultDir} on ${vaultStatus.dataDir}`);
+    await stopApp(launched, vaultDataDir);
+    launched = null;
+    return dir;
+  };
+
   log(`launching under a scratch home on ${selectorUrl}: the default vault`);
-  launched = launchApp(selectorEnv);
-  await waitHealthy(selectorUrl);
-  const [defaultDir, ...strayDirs] = vaultDataDirs();
-  if (defaultDir === undefined || strayDirs.length > 0) {
-    fail(
-      `expected the default vault's data dir alone under ${VAULTS_DIR_NAME}/, found ${vaultDataDirs().join(", ")}`,
-    );
-  }
-  const defaultDataDir = path.join(rootDataDir, VAULTS_DIR_NAME, defaultDir);
-  const defaultStatus = await rpcClient(selectorUrl, readServerToken(defaultDataDir))(
-    "system/status",
-    systemStatusSchema,
-  );
-  if (
-    defaultStatus.dataDir !== defaultDataDir ||
-    defaultStatus.vaultDir !== path.join(home, PROD_VAULT_DIR_NAME)
-  ) {
-    fail(
-      `the default vault did not get its own data dir: ${JSON.stringify({ dataDir: defaultStatus.dataDir, vaultDir: defaultStatus.vaultDir })}`,
-    );
-  }
-  log(`default vault -> ${defaultStatus.vaultDir} on ${defaultStatus.dataDir}`);
-  await stopApp(launched, defaultDataDir);
-  launched = null;
+  const defaultDir = await expectVaultBoot({
+    known: [],
+    label: "default vault",
+    vault: path.join(home, PROD_VAULT_DIR_NAME),
+  });
 
   await writeFile(
     path.join(rootDataDir, CONFIG_FILE_NAME),
     `${JSON.stringify({ vaultDir: secondVault }, null, 2)}\n`,
   );
   log(`launching on the selector's vault ${secondVault}`);
-  launched = launchApp(selectorEnv);
-  await waitHealthy(selectorUrl);
-  const [secondDir, ...moreDirs] = vaultDataDirs().filter((dir) => dir !== defaultDir);
-  if (secondDir === undefined || moreDirs.length > 0) {
-    fail(
-      `expected one more per-vault data dir under ${VAULTS_DIR_NAME}/, found ${vaultDataDirs().join(", ")}`,
-    );
-  }
-  const secondDataDir = path.join(rootDataDir, VAULTS_DIR_NAME, secondDir);
-  const secondStatus = await rpcClient(selectorUrl, readServerToken(secondDataDir))(
-    "system/status",
-    systemStatusSchema,
-  );
-  if (secondStatus.dataDir !== secondDataDir || secondStatus.vaultDir !== secondVault) {
-    fail(
-      `the selector's vault did not get its own data dir: ${JSON.stringify({ dataDir: secondStatus.dataDir, vaultDir: secondStatus.vaultDir })}`,
-    );
-  }
-  if (
-    !existsSync(path.join(defaultDataDir, "inteligir.db")) ||
-    !existsSync(path.join(secondDataDir, "inteligir.db"))
-  ) {
-    fail("the two vaults do not each hold a database of their own");
-  }
-  log(`selector vault -> ${secondStatus.vaultDir} on ${secondStatus.dataDir}`);
-  await stopApp(launched, secondDataDir);
-  launched = null;
+  await expectVaultBoot({ known: [defaultDir], label: "selector's vault", vault: secondVault });
 
   log("PASS (each window loaded its page; their rendering is not checked)");
 } finally {

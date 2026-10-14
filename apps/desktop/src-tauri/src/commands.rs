@@ -1,48 +1,25 @@
-//! What a page may ask the shell, one command per row of `apps/workspace/src/shell/ipc-contract.ts`. Each
-//! answers a plain value the page parses with that row's schema. A command that can be refused
-//! answers an `Answer`, so the page shows the refusal in the shell's words; one that can fail only
-//! by a fault answers a `Result`, whose `Err` rejects.
+//! What a page may ask the shell, one command per row of
+//! `apps/workspace/src/shell/ipc-contract.ts`. Each answers a plain value the page parses with that
+//! row's schema. A command that can be refused answers an `Answer`, so the page shows the refusal
+//! in the shell's words; one that can fail only by a fault answers a `Result`, whose `Err` rejects.
 //!
-//! The app window reaches these through a capability the shell adds for the server's exact origin
-//! (`window.rs`); the first run reaches only its four, through `capabilities/first-run.json`.
+//! The app window reaches these through `capabilities/app-window.json`, which the shell grants that
+//! window for the server's exact origin alone (`window.rs`); the first run reaches only its four,
+//! through `capabilities/first-run.json`.
 
 use std::path::Path;
 
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
-use tauri_plugin_dialog::DialogExt;
+use tauri::{AppHandle, Manager, WebviewWindow};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::answer::Answer;
 use crate::diagnostics;
-use crate::launch::FolderSync;
+use crate::first_run::{self, FirstRunChoice, FirstRunState, PickFolder, PickParent};
 use crate::paths;
 use crate::shell::{self, Outcome, Shell};
 use crate::update_state::UpdateState;
 use crate::updater::{self, Updates};
 use crate::vaults::VaultsState;
-use crate::window;
-
-/// The commands the app window is granted, named as `build.rs`'s app manifest names them.
-pub const APP_WINDOW_COMMANDS: &[&str] = &[
-    "diagnostics_get_state",
-    "diagnostics_open_data_folder",
-    "diagnostics_restart",
-    "diagnostics_set_debug",
-    "diagnostics_show_log",
-    "paths_open",
-    "paths_reveal",
-    "print_page",
-    "updates_check",
-    "updates_download",
-    "updates_get_state",
-    "updates_install",
-    "vaults_forget",
-    "vaults_get_state",
-    "vaults_open",
-    "vaults_pick",
-];
 
 /// Blocking work (a door call, a dialog, a server's start) runs off the async runtime's threads.
 async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
@@ -56,20 +33,16 @@ fn no_vault() -> String {
     shell::NO_VAULT.to_owned()
 }
 
-// ---- diagnostics ----
-
 #[tauri::command]
-pub async fn diagnostics_get_state<R: Runtime>(
-    app: AppHandle<R>,
-) -> Result<diagnostics::State, String> {
+pub async fn diagnostics_get_state(app: AppHandle) -> Result<diagnostics::State, String> {
     app.state::<Shell>()
         .with_diagnostics(|diagnostics, run| diagnostics.state(run))
         .ok_or_else(no_vault)
 }
 
 #[tauri::command]
-pub async fn diagnostics_set_debug<R: Runtime>(
-    app: AppHandle<R>,
+pub async fn diagnostics_set_debug(
+    app: AppHandle,
     debug: bool,
 ) -> Result<Answer<diagnostics::State>, String> {
     app.state::<Shell>()
@@ -80,9 +53,7 @@ pub async fn diagnostics_set_debug<R: Runtime>(
 /// A relaunch is the ordinary quit, which stops the server and flushes its commit, then a start;
 /// a refused one moves nothing.
 #[tauri::command]
-pub async fn diagnostics_restart<R: Runtime>(
-    app: AppHandle<R>,
-) -> Result<Answer<diagnostics::State>, String> {
+pub async fn diagnostics_restart(app: AppHandle) -> Result<Answer<diagnostics::State>, String> {
     let answer = app
         .state::<Shell>()
         .with_diagnostics(|diagnostics, run| diagnostics.restart(run))
@@ -94,24 +65,22 @@ pub async fn diagnostics_restart<R: Runtime>(
 }
 
 #[tauri::command]
-pub async fn diagnostics_open_data_folder<R: Runtime>(app: AppHandle<R>) -> Answer {
+pub async fn diagnostics_open_data_folder(app: AppHandle) -> Answer {
     blocking(move || shell::open_data_folder(&app).into()).await
 }
 
 #[tauri::command]
-pub async fn diagnostics_show_log<R: Runtime>(app: AppHandle<R>) -> Answer {
+pub async fn diagnostics_show_log(app: AppHandle) -> Answer {
     blocking(move || shell::show_server_log(&app).into()).await
 }
 
-// ---- Reveal / Open ----
-
-fn resolved<R: Runtime>(app: &AppHandle<R>, path: &str) -> Result<std::path::PathBuf, String> {
+fn resolved(app: &AppHandle, path: &str) -> Result<std::path::PathBuf, String> {
     let target = app.state::<Shell>().target().ok_or_else(no_vault)?;
     paths::resolve_vault_entry(Path::new(&target.vault_dir), path)
 }
 
 #[tauri::command]
-pub async fn paths_reveal<R: Runtime>(app: AppHandle<R>, path: String) -> Answer {
+pub async fn paths_reveal(app: AppHandle, path: String) -> Answer {
     blocking(move || {
         resolved(&app, &path)
             .and_then(|entry| {
@@ -125,7 +94,7 @@ pub async fn paths_reveal<R: Runtime>(app: AppHandle<R>, path: String) -> Answer
 }
 
 #[tauri::command]
-pub async fn paths_open<R: Runtime>(app: AppHandle<R>, path: String) -> Answer {
+pub async fn paths_open(app: AppHandle, path: String) -> Answer {
     blocking(move || {
         resolved(&app, &path)
             .and_then(|entry| {
@@ -138,74 +107,47 @@ pub async fn paths_open<R: Runtime>(app: AppHandle<R>, path: String) -> Answer {
     .await
 }
 
-// ---- Export to PDF ----
-
-/// WKWebView answers no `window.print()`, so the page asks the shell to print the window.
 #[tauri::command]
-pub async fn print_page<R: Runtime>(window: WebviewWindow<R>) -> Answer {
+pub async fn print_page(window: WebviewWindow) -> Answer {
     window.print().map_err(|error| error.to_string()).into()
 }
 
-// ---- updates ----
-
 #[tauri::command]
-pub async fn updates_get_state<R: Runtime>(app: AppHandle<R>) -> UpdateState {
+pub async fn updates_get_state(app: AppHandle) -> UpdateState {
     app.state::<Updates>().state()
 }
 
 #[tauri::command]
-pub async fn updates_check<R: Runtime>(app: AppHandle<R>) -> UpdateState {
+pub async fn updates_check(app: AppHandle) -> UpdateState {
     updater::check(&app, "settings").await
 }
 
 #[tauri::command]
-pub async fn updates_download<R: Runtime>(app: AppHandle<R>) -> UpdateState {
+pub async fn updates_download(app: AppHandle) -> UpdateState {
     updater::download(&app).await
 }
 
 #[tauri::command]
-pub async fn updates_install<R: Runtime>(app: AppHandle<R>) -> UpdateState {
+pub async fn updates_install(app: AppHandle) -> UpdateState {
     blocking(move || updater::install(&app)).await
 }
 
-// ---- vaults ----
-
 #[tauri::command]
-pub async fn vaults_get_state<R: Runtime>(app: AppHandle<R>) -> Result<VaultsState, String> {
+pub async fn vaults_get_state(app: AppHandle) -> Result<VaultsState, String> {
     shell::vaults_state(&app).ok_or_else(no_vault)
 }
 
-fn switch_answer<R: Runtime>(app: &AppHandle<R>, outcome: Outcome) -> Answer<VaultsState> {
+fn switch_answer(app: &AppHandle, outcome: Outcome) -> Answer<VaultsState> {
     match outcome {
         Outcome::Done => shell::vaults_state(app).ok_or_else(no_vault).into(),
         Outcome::Refused(reason) | Outcome::Reported(reason) => Answer::refused(reason),
     }
 }
 
-/// The folder is the person's pick, made here: the page never names a path it was not handed.
-pub fn pick_vault_dir<R: Runtime>(app: &AppHandle<R>) -> Option<String> {
-    let mut picker = app
-        .dialog()
-        .file()
-        .set_title("Open vault")
-        .set_can_create_directories(true);
-    if let Some(parent) = app
-        .state::<Shell>()
-        .target()
-        .and_then(|target| Path::new(&target.vault_dir).parent().map(Path::to_path_buf))
-    {
-        picker = picker.set_directory(parent);
-    }
-    picker
-        .blocking_pick_folder()
-        .and_then(|picked| picked.into_path().ok())
-        .map(|path| path.to_string_lossy().into_owned())
-}
-
 #[tauri::command]
-pub async fn vaults_pick<R: Runtime>(app: AppHandle<R>) -> Answer<VaultsState> {
+pub async fn vaults_pick(app: AppHandle) -> Answer<VaultsState> {
     blocking(move || {
-        let outcome = match pick_vault_dir(&app) {
+        let outcome = match shell::pick_vault_dir(&app) {
             None => Outcome::Done,
             Some(picked) => shell::switch_vault(&app, &picked, true),
         };
@@ -216,7 +158,7 @@ pub async fn vaults_pick<R: Runtime>(app: AppHandle<R>) -> Answer<VaultsState> {
 
 /// Only a path this shell handed out comes back: the list is the page's whole vocabulary.
 #[tauri::command]
-pub async fn vaults_open<R: Runtime>(app: AppHandle<R>, path: String) -> Answer<VaultsState> {
+pub async fn vaults_open(app: AppHandle, path: String) -> Answer<VaultsState> {
     blocking(move || {
         if !shell::is_remembered(&app, &path) {
             return Answer::refused("That vault is not one the app remembers.");
@@ -227,180 +169,28 @@ pub async fn vaults_open<R: Runtime>(app: AppHandle<R>, path: String) -> Answer<
     .await
 }
 
-/// Forgetting a row cannot be refused, so it answers the state alone.
 #[tauri::command]
-pub async fn vaults_forget<R: Runtime>(
-    app: AppHandle<R>,
-    path: String,
-) -> Result<VaultsState, String> {
+pub async fn vaults_forget(app: AppHandle, path: String) -> Result<VaultsState, String> {
     shell::forget_vault(&app, &path);
     shell::vaults_state(&app).ok_or_else(no_vault)
 }
 
-// ---- the first run ----
-
-#[derive(Serialize)]
-pub struct FirstRunState {
-    #[serde(rename = "newVault")]
-    new_vault: crate::launch::Proposal,
+#[tauri::command]
+pub async fn first_run_get_state(app: AppHandle) -> Result<FirstRunState, String> {
+    first_run::state(&app)
 }
 
 #[tauri::command]
-pub async fn first_run_get_state<R: Runtime>(app: AppHandle<R>) -> Result<FirstRunState, String> {
-    app.state::<Shell>()
-        .with_first_run(|first_run| FirstRunState {
-            new_vault: first_run.proposal.clone(),
-        })
-        .ok_or_else(|| "The first run is over.".to_owned())
-}
-
-#[derive(Serialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-pub enum PickParent {
-    Cancelled,
-    #[serde(rename_all = "camelCase")]
-    Picked {
-        external_sync: Value,
-        path: String,
-    },
-}
-
-fn pick_for_first_run<R: Runtime>(
-    app: &AppHandle<R>,
-    title: &str,
-    create: bool,
-    directory: Option<String>,
-) -> Option<String> {
-    let mut picker = app
-        .dialog()
-        .file()
-        .set_title(title)
-        .set_can_create_directories(create);
-    if let Some(directory) = directory {
-        picker = picker.set_directory(directory);
-    }
-    if let Some(parent) = app.get_webview_window(window::FIRST_RUN) {
-        picker = picker.set_parent(&parent);
-    }
-    picker
-        .blocking_pick_folder()
-        .and_then(|picked| picked.into_path().ok())
-        .map(|path| path.to_string_lossy().into_owned())
+pub async fn first_run_pick_parent(app: AppHandle) -> Result<PickParent, String> {
+    blocking(move || first_run::pick_parent(&app)).await
 }
 
 #[tauri::command]
-pub async fn first_run_pick_parent<R: Runtime>(app: AppHandle<R>) -> Result<PickParent, String> {
-    blocking(move || {
-        let proposal = app
-            .state::<Shell>()
-            .with_first_run(|first_run| first_run.proposal.parent.clone());
-        let Some(picked) = pick_for_first_run(&app, "Where should the vault go?", true, proposal)
-        else {
-            return Ok(PickParent::Cancelled);
-        };
-        app.state::<Shell>()
-            .with_first_run(|first_run| first_run.parents.insert(picked.clone()));
-        // judged at the parent: the vault is not made yet, and whatever syncs the parent syncs it
-        let sync: FolderSync = shell::ask_door(&app, &["sync", &picked])?;
-        Ok(PickParent::Picked {
-            external_sync: sync.external_sync,
-            path: picked,
-        })
-    })
-    .await
-}
-
-#[derive(Serialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-pub enum PickFolder {
-    Cancelled,
-    Picked { facts: Value, path: String },
+pub async fn first_run_pick_folder(app: AppHandle) -> Result<PickFolder, String> {
+    blocking(move || first_run::pick_folder(&app)).await
 }
 
 #[tauri::command]
-pub async fn first_run_pick_folder<R: Runtime>(app: AppHandle<R>) -> Result<PickFolder, String> {
-    blocking(move || {
-        let Some(picked) = pick_for_first_run(&app, "Open a folder of notes", false, None) else {
-            return Ok(PickFolder::Cancelled);
-        };
-        app.state::<Shell>()
-            .with_first_run(|first_run| first_run.folders.insert(picked.clone()));
-        let facts: Value = shell::ask_door(&app, &["facts", &picked])?;
-        Ok(PickFolder::Picked {
-            facts,
-            path: picked,
-        })
-    })
-    .await
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "kind", rename_all = "kebab-case")]
-pub enum FirstRunChoice {
-    Create { name: String, parent: String },
-    Open { path: String },
-}
-
-/// Every folder the page names back is one handed out here, the proposal's parent or a pick.
-#[tauri::command]
-pub async fn first_run_finish<R: Runtime>(app: AppHandle<R>, choice: FirstRunChoice) -> Answer {
-    blocking(move || {
-        let shell = app.state::<Shell>();
-        let handed_out = shell.with_first_run(|first_run| match &choice {
-            FirstRunChoice::Create { parent, .. } => first_run.parents.contains(parent),
-            FirstRunChoice::Open { path } => first_run.folders.contains(path),
-        });
-        let refusal = match (&choice, handed_out) {
-            (_, None) => Some("The first run is over."),
-            (FirstRunChoice::Create { .. }, Some(false)) => {
-                Some("That location is not one the app offered.")
-            }
-            (FirstRunChoice::Open { .. }, Some(false)) => {
-                Some("That folder is not one the app offered.")
-            }
-            (_, Some(true)) => None,
-        };
-        if let Some(reason) = refusal {
-            return Answer::refused(reason);
-        }
-        let args: Vec<&str> = match &choice {
-            FirstRunChoice::Create { name, parent } => vec!["plan-create", parent, name],
-            FirstRunChoice::Open { path } => vec!["plan-open", path],
-        };
-        match shell::finish_first_run(&app, &args) {
-            Outcome::Done => Answer::Done(()),
-            Outcome::Refused(reason) | Outcome::Reported(reason) => Answer::Refused(reason),
-        }
-    })
-    .await
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_cancelled_pick_crosses_as_its_kind() -> Result<(), serde_json::Error> {
-        assert_eq!(
-            serde_json::to_value(PickParent::Cancelled)?,
-            serde_json::json!({ "kind": "cancelled" })
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn reads_the_page_s_first_run_choice() -> Result<(), serde_json::Error> {
-        let choice: FirstRunChoice =
-            serde_json::from_str(r#"{"kind":"create","name":"Notes","parent":"/h"}"#)?;
-        assert!(matches!(choice, FirstRunChoice::Create { .. }));
-        Ok(())
-    }
-
-    #[test]
-    fn the_app_window_s_commands_are_named_once_in_order() {
-        let mut sorted = APP_WINDOW_COMMANDS.to_vec();
-        sorted.sort_unstable();
-        sorted.dedup();
-        assert_eq!(sorted, APP_WINDOW_COMMANDS);
-    }
+pub async fn first_run_finish(app: AppHandle, choice: FirstRunChoice) -> Answer {
+    blocking(move || first_run::finish(&app, &choice)).await
 }
