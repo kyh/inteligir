@@ -23,46 +23,20 @@ rows. The events, threads, queue and interaction writers are vendored from bb
 
 ```
 src/
-  connection.ts       # createConnection (WAL, synchronous=NORMAL, foreign_keys, a
-                      # 5s busy_timeout); writeTransaction — the ONE spelling of
-                      # BEGIN IMMEDIATE; closeConnection, which hands free pages
-                      # back and checkpoints the -wal
-  schema.ts           # the tables: meta, threads, events, queued_thread_messages,
-                      # pending_interactions, sync_outbox, sync_state,
-                      # sync_own_devices — each constraint says why beside
-                      # itself
-  migrate.ts          # runMigrations: refuses a file migrated through generations
-                      # this build does not carry, then drizzle's migrator over
-                      # drizzle/, foreign keys OFF around it and foreign_key_check
-                      # after; returns the migration-folder count, which IS the
-                      # schema version
-  meta.ts             # getSchemaVersion — refuses a file a NEWER build upgraded
-  ids.ts              # createPrefixedId + the minters (thr_, evt_, turn_, qmsg_,
-                      # pint_, obx_) over a 32-letter alphabet minus the look-alikes
-  events.ts           # the append-only log: contiguous per-thread sequence, the
-                      # turn/started gate, synced-origin dedupe, one prepared insert
-  threads.ts          # thread rows (an origin is the note's path and its frontmatter
-                      # id, resolved by the server on read), the keyset-paged
-                      # listing, the lifecycle CAS,
-                      # setThreadProviderSession
-  queued-messages.ts  # FIFO per thread under claim tokens, released whole at boot;
-                      # a message's attachments in and out as paths
-  pending-interactions.ts
-                      # provider prompts, idempotent on (thread, requestKey); the
-                      # payload in and out as the approval grammar, the answer
-                      # as its decision enum
-  json-column.ts      # readJsonColumn: a json column through its schema, null
-                      # for bytes it refuses
-  sync-outbox.ts      # the frozen-body outbox, the device_seq high-water, the pull
-                      # cursor and its skipped-row marker, the count of rows
-                      # dropped unsent, the own device ids
-  __tests__/          # real files under a temp dir; schema-agreement.test.ts is
-                      # the migration↔schema pin (reading sqlite_master through
-                      # json-source.ts)
-drizzle/              # the committed SQL migrations, one folder per generation:
-                      # <yyyymmddhhmmss>_<name>/migration.sql + drizzle-kit's snapshot.json;
-                      # the first is the baseline, which also seeds meta and sync_state
-drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
+  connection.ts            # the one way a connection opens and a write begins
+  schema.ts                # the tables, each constraint beside its reason
+  migrate.ts               # the boot's migration pass over drizzle/
+  meta.ts                  # the schema version a file was migrated to
+  ids.ts                   # the prefixed ids every row is keyed by
+  events.ts                # a thread's append-only event log
+  threads.ts               # thread rows, their paged listing and the lifecycle CAS
+  queued-messages.ts       # messages waiting for a thread's turn
+  pending-interactions.ts  # provider prompts waiting on the user's answer
+  json-column.ts           # the one parse every json column is read back through
+  sync-outbox.ts           # what this install has yet to push, and where its pull is
+  __tests__/               # real files under a temp dir
+drizzle/                   # the committed SQL migrations, one folder per generation
+drizzle.config.ts          # where `pnpm --filter @repo/db db:generate` writes the next one
 ```
 
 ## Invariants
@@ -213,21 +187,6 @@ drizzle.config.ts     # `pnpm --filter @repo/db db:generate` writes the next one
 ## Testing
 
 `pnpm --filter @repo/db test` — vitest over real files in a temp dir
-(`__tests__/open-temp-db.ts`, disposed with the test). Pinned: boot migrates
-and bumps the version, refuses a newer build's file, refuses a file migrated
-through generations this build lacks with the wipe message and before
-touching it, opens with WAL and `synchronous=NORMAL`, hands a deleted row's
-pages back on close, refuses half of every paired column; the skipped-row
-marker keeps the lowest row and rewinds once per build change; a sign-out
-leaves the sync state row exactly as the baseline seeded it;
-contiguous sequences under interleaved writers, the turn/started gate, the
-scope CHECK at the database, a 20-event burst prepares two SELECTs and one
-INSERT, a stored row the grammar refuses left out and reported; the lifecycle
-happy path and its typed no-ops, `listThreads` walking a thousand threads a
-page at a time, each exactly once across millisecond ties and into the archived
-segment, every page answered from its partial index with no temp b-tree; FIFO
-claims across connections and same-millisecond bursts, a queued message's
-attachments read back as paths and unreadable ones as none; interaction
-idempotency, an unreadable payload read as null beside its whole neighbours.
-`schema-agreement.test.ts` spawns `drizzle-kit`, so
-it carries its own 30s budget.
+(`__tests__/open-temp-db.ts`, disposed with the test).
+`schema-agreement.test.ts` spawns `drizzle-kit`, so it carries its own 30s
+budget.

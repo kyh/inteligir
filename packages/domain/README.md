@@ -28,64 +28,19 @@ package's `ThreadEvent`.
 
 ```
 src/
-  harness.ts             # HARNESS_IDS, harnessIdSchema and HARNESS_NAMES: the
-                         # harness ids the wire takes, claude first, and the
-                         # names a person reads. `parseHarnessId` narrows a
-                         # thread's own provider id, which stays open: another
-                         # device's newer build may name one this build lacks
-  agent-shell-env.ts     # THREAD_ID_ENV_VAR, spelled once: the runtime stamps
-                         # it on every agent shell and the CLI reads it back
-  thread-status.ts       # idle|starting|active|stopping|error as ONE tuple —
-                         # the drizzle enum column and the wire schema both
-                         # read it, so a status cannot exist on one side only
-  thread-lifecycle.ts    # THREAD_LIFECYCLE: (status, event) → status as data.
-                         # `evaluateThreadLifecycleEvent` checks supersession
-                         # and turn identity BEFORE the table so a stale event
-                         # reports its true diagnosis (superseded | stale-turn |
-                         # illegal-transition). stop intent is the `stopping`
-                         # status, not a side field, and `stopping` has no
-                         # run.started cell: a queued turn cannot reactivate it
-  provider-event.ts      # the PERSISTED ThreadEvent grammar, despite the name:
-                         # five item kinds, ten event types, each with its own
-                         # scope, and nothing the mapper or the host does not
-                         # produce. `client/turn/requested` carries the
-                         # optional viewContext and contextPaths beside bb's
-                         # `text`, which stays exactly what the user typed.
-                         # `thread/meta` (title, origin note, harness) and
-                         # `thread/archived` are local: the thread's own facts,
-                         # riding its log to every device
-                         # `mergeAdjacentDeltas` stores one item's adjacent
-                         # deltas as one row, a caller's cap bounding each
-  thread-event-scope.ts  # thread | turn scope, each its own schema so an
-                         # event type names the one it takes (anything looser
-                         # than turn scope states why beside its member)
-  view-context.ts        # the screen a message left from: `doc` + path +
-                         # sha-256 revision. a single-member discriminatedUnion
-                         # so a second surface breaks every consumer at compile
-  thread-title.ts        # `deriveThreadTitle`: a thread's name from its first
-                         # message, the one reading the server's naming and
-                         # the phone's projection both run; and
-                         # `MAX_THREAD_TITLE_LENGTH`, an explicit title's bound
-                         # on the create route and on `thread/meta`
-  quote-selection.ts     # `quoteSelection`: a selection the agent is asked
-                         # about, quoted the one way the Mac's composer and
-                         # the phone's both start with
-  pending-interactions.ts  # the provider-neutral approval grammar — subjects
-                         # (command | file_change), the decision enum (its
-                         # tuple feeds the column), payload — and
-                         # `unanswerableReason`, the ONE check the answer
-                         # route's 400 gate and the runtime share (deny is
-                         # always accepted; anything else must be a decision
-                         # the request offered)
-  pending-interaction-status.ts  # pending|resolved|interrupted, the
-                         # same tuple-feeds-both-sides shape as thread-status
-  change-kinds.ts        # the invalidation vocabulary: vault, doc and thread
-                         # change kinds — pings naming a subscription target,
-                         # never payloads
-  notifier.ts            # DbNotifier, the seam writes announce through;
-                         # NotificationBuffer queues deliveries and `flushTo`
-                         # runs them AFTER commit, so no subscriber sees
-                         # rolled-back state or re-enters the db mid-transaction
+  harness.ts                     # the harness ids the wire takes, and their names
+  agent-shell-env.ts             # the thread-id env var the runtime sets and the CLI reads
+  thread-status.ts               # the one status tuple the db column and the wire share
+  thread-lifecycle.ts            # (status, event) → status, as data
+  provider-event.ts              # the PERSISTED ThreadEvent grammar, despite the name
+  thread-event-scope.ts          # the thread and turn scopes an event type names
+  view-context.ts                # the screen a message left from
+  thread-title.ts                # a thread's name from its first message, and its bound
+  quote-selection.ts             # the one way a selection is quoted to the agent
+  pending-interactions.ts        # the provider-neutral approval grammar
+  pending-interaction-status.ts  # the interaction status tuple, shared like thread-status
+  change-kinds.ts                # the invalidation vocabulary: pings, never payloads
+  notifier.ts                    # DbNotifier, the seam a write announces through
 ```
 
 Every subpath is exported by name in `package.json`; there is no barrel.
@@ -137,15 +92,6 @@ Every subpath is exported by name in `package.json`; there is no barrel.
 
 ## Testing
 
-`pnpm --filter @repo/domain test` — vitest. `provider-event.test` pins the
-scope refusals at parse, the either-scope `provider/error`, a streamed item's
-round trip, that a delta's item ref invents no kind, and that a delta merge
-never joins across a boundary, an item, a turn, a delta type or a reset, nor
-past its byte limit, escapes and split characters included. That
-a merged log folds to the same rows is fuzzed where the fold is reachable,
+`pnpm --filter @repo/domain test` — vitest. That a merged log folds to the
+same rows is fuzzed where the fold is reachable,
 `apps/cli/src/server/agents/__tests__/event-coalescer.test.ts`.
-`thread-lifecycle.test` fuzzes random event sequences inside the declared
-statuses and turn-binding invariants: every absent cell is an
-`illegal-transition` no-op, a settle naming another turn is `stale-turn`, an
-archived thread supersedes new work before the table is consulted, `stopping`
-cannot dispatch, and every reachable status can reach `idle` again.

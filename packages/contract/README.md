@@ -17,9 +17,9 @@ does not know (the first invariant below), and a shape retires once the floor
 is past every build that reads it, which costs nothing while nobody but the
 owner holds an install (`AGENTS.md` § Project Overview). That is also why
 `/cloud` is zod + REST paths and NOT oRPC, diverging from the decision record
-(#611 phase 6) deliberately: oRPC addresses a procedure by its position in the
-router, so moving the deployed wire onto it would break every install above
-the floor at once.
+(#611 phase 6) deliberately: the deployed wire is hand-owned because it must
+not break, and oRPC is beta, owning the serializer and the error shape the
+wire would hand it.
 
 The package is platform-neutral by construction (`lib: ["ES2023",
 "WebWorker"]`, `types: []`): it loads in the desktop page, on node, on workerd
@@ -30,64 +30,24 @@ here, `tools/repo-guards` a `@tauri-apps` one.
 
 ```
 src/
-  local/               the oRPC contract — ONE folder per domain
-    local-contract.ts  # the router: agents · cloud · comments · connectors ·
-                       # folders · knowledge · system · threads · vault
-    <domain>/          # each is a `<domain>-contract.ts` (rows: input, output,
-                       # and ONLY the error classes that row can raise) beside
-                       # a `<domain>-schema.ts` (the zod shapes)
-    local-errors.ts    # the custom error classes and LOCAL_ERROR_STATUS_MAP,
-                       # checked exhaustive: oRPC carries no status on an error,
-                       # and a code with no entry would answer 500 silently
-    local-routes.ts    # the paths that are NOT procedures: /health, /vault/asset
-                       # (bytes + etag + sandbox csp), /html-frame (the document
-                       # a note's html block runs in) and /ws
-    notifications.ts   # the /ws frame grammar: subscribe/unsubscribe in, hello
-                       # and `changed` pings out — never a payload
-    thread-timeline.ts # the timeline row grammar, and the delta algebra
-                       # (computeTimelineDelta / applyTimelineDelta): rows
-                       # whole, a held turn as a patch of the children that
-                       # moved; the fold that builds the rows is the server's
-  cloud/               the wire that breaks behind a floor, plus the client
-                       # runtime core
-    client-build.ts    # the build header every request carries, and the floor
-                       # compare the Worker refuses an older build by
-    cloud-errors.ts    # CLOUD_ERROR_CODES, the ONE code→status map, and which
-                       # codes end a session vs. condemn an outbox position
-    cloud-client.ts    # fetch over the paths: a refusal is a VALUE (CloudResult),
-                       # never a throw, so the sync loop switches on the code
-    cloud-origin.ts    # the production origin, the one spelling both clients
-                       # fall back to when nothing names another
-    bytes.ts           # hex/base64/sha256/constant-time compare on web-crypto
-                       # globals alone, and the utf-8 byte count the row cap
-                       # is held in — the leaf that loads everywhere
-    device/            # DEVICE_API_PATHS, the igd_ credential grammar, and
-                       # login-flow.ts — the one spelling of "join an account",
-                       # or create one (signUpDevice)
-    sync/              # SYNC_API_PATHS and the opaque-body event rows;
-                       # plan-page.ts (the ONE page planner every reader of the
-                       # merged log runs); sync-session.ts (the id-fenced
-                       # session, pullPages, the single-flight pass); sync-ws.ts
-                       # (the bare ping frames and what an upgrade says of its
-                       # device); socket-link.ts (the dial, the backoff and the
-                       # generation fence) over cloud-socket.ts (the frame
-                       # parse and the keepalive, over an injected dial);
-                       # fit-sync-event.ts (the clip
-                       # that fits an over-cap event to one row, payload text
-                       # only, so a peer's fold settles it the same)
-    dispatch/          # the dispatch inbox: a phone's `turn` any Mac may claim,
-                       # its `answer` only the asking Mac may, its `capture`
-                       # any Mac claims for Inbox.md, each claim naming the
-                       # kinds it takes, and the approvals that Mac opens for
-                       # the phone
-    account/           # the account's deletion, which asks the password
-                       # again, and both sign-up doors' shapes
-    vault/             # VAULT_API_PATHS, the hosted tree/file/files/asset
-                       # shapes and ceilings, VAULT_GIT_PATH, and the asset
-                       # media-type allowlist the desktop and Worker routes share;
-                       # vault-commit-schema.ts is the phone's write: a change
-                       # set CAS'd per path, its 409 conflict beside the
-                       # envelope, and the one collision key a Mac compares by
+  local/               the oRPC contract, one folder per domain
+    local-contract.ts  # the router every domain's rows hang from
+    <domain>/          # a `<domain>-contract.ts` of rows beside a `<domain>-schema.ts`
+    local-errors.ts    # each error code's status, which oRPC does not carry
+    local-routes.ts    # the paths that are not procedures
+    notifications.ts   # the /ws frame grammar
+    thread-timeline.ts # the timeline rows and the delta that moves them
+  cloud/               the wire that breaks behind a floor, plus the client runtime core
+    client-build.ts    # the build every request names, and the floor it is held to
+    cloud-errors.ts    # the ONE code→status map
+    cloud-client.ts    # the one client both installs call the Worker through
+    cloud-origin.ts    # the production origin both clients fall back to
+    bytes.ts           # the byte primitives, on globals every target has
+    device/            # the device credential and the one login flow
+    sync/              # the merged log's rows, its one page planner, session and socket
+    dispatch/          # the inbox a phone asks a Mac through
+    account/           # the account's deletion and the sign-up doors
+    vault/             # the hosted vault's paths and shapes, and the phone's write
 ```
 
 ## Who consumes which half
@@ -190,14 +150,7 @@ src/
 
 ## Testing
 
-`pnpm --filter @repo/contract test` — vitest, no platform. `src/cloud/__tests__/`
-pins the contract shapes and refusals (and that every answer a newer Worker
-grows still reads), the login flow, the session fence and single-flight, the
-byte primitives, the sync clip (every event type fits the cap with its envelope
-untouched), and that the cloud vault-path grammar admits exactly what
-`parseVaultPath` returns unchanged; `src/local/**/__tests__/` pin the `/ws`
-strict/lenient pair, each domain's schemas and the two comment-store
-compositions both clients run (a deleted note's restore, and a copy given its
-own id); `knowledge/__tests__/engine-mirror.test.ts` is type-level and fails
-under `tsc`, not `vitest`. The delta algebra is pinned over the projections it
+`pnpm --filter @repo/contract test` — vitest, no platform.
+`knowledge/__tests__/engine-mirror.test.ts` is type-level and fails under
+`tsc`, not `vitest`. The delta algebra is pinned over the projections it
 diffs, beside the server's fold in `apps/cli/src/server/threads/__tests__/`.
