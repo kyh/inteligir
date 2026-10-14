@@ -14,8 +14,8 @@ seams: `VaultSessionPorts` (`packages/editor/src/note/vault-session.ts`), the
 (`packages/editor/src/host-io.ts`, opened to React by `host.ts`): its
 `EditorHostIo`, which also carries the link resolver store and note formulas so
 no host writes its own, the `EditorHostActions` a deep node asks the shell
-through (Ask agent, `showTag`, a comment's create and open, all required) and
-the open note's store, installed by one `installEditorHost` call per host.
+through (Ask agent, `showTag`, a comment's create and open, all required),
+installed by one `installEditorHost` call per host.
 `node-props.ts` is the SLATE DECODE BOUNDARY: a node's dialect fields ride
 `TElement`'s open index signature, so every read arrives as `unknown` and
 becomes a domain value there alone, which is why no walk narrows structurally.
@@ -93,7 +93,7 @@ becomes a domain value there alone, which is why no walk narrows structurally.
 
 - **THE PLATE SLASH MENU IS THE INSERTION SURFACE, AND THE TOUCH TOOLBAR IS ITS
   SOFT-KEYBOARD TWIN.** Slash items are grouped data (`GROUPS` in
-  `packages/editor/src/slash-menu.tsx`); every row's markdown must re-parse to a
+  `packages/editor/src/slash-items.tsx`); every row's markdown must re-parse to a
   modeled construct and be its own fixpoint, no row excepted
   (`packages/editor/src/__tests__/slash-rows.test.ts`), and no two rows may
   write the same bytes: a second name for a construct is a keyword on its row

@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { deferred } from "@repo/editor/deferred";
 import type { Deferred } from "@repo/editor/deferred";
 import { createGuardedVaultIo } from "@repo/editor/guarded-vault-io";
@@ -14,11 +15,10 @@ import type { VaultEditorState } from "@repo/editor/vault-editor";
 import { describe, expect, it } from "vitest";
 import { FakeVault } from "./fake-vault";
 
-// every step the session takes is a promise over the fake's microtasks, so hops drain them all.
+// every step the session takes is a promise over the fake's microtasks, and one macrotask
+// runs only once they have all drained.
 const settle = async (): Promise<void> => {
-  for (let i = 0; i < 50; i += 1) {
-    await Promise.resolve();
-  }
+  await delay(0);
 };
 
 const doc = (path: string): VaultEntry => ({ kind: "doc", name: path, path });

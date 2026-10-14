@@ -124,7 +124,7 @@ const TabGroupElement = (props: PlateElementProps) => {
           </Tooltip>
         )}
       </div>
-      <ActiveTabContext.Provider value={shown}>{props.children}</ActiveTabContext.Provider>
+      <ActiveTabContext value={shown}>{props.children}</ActiveTabContext>
     </PlateElement>
   );
 };

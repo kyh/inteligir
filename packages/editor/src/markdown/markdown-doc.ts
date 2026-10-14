@@ -1,7 +1,6 @@
 // Idempotent pipeline: once roundTrip(raw) === raw, re-serializing is stable, so a rich save is
 // a minimal diff. Unmodelled constructs become opaque nodes rather than a refusal.
-// Plate's deserializeMd is banned: its htmlToJsx pre-pass corrupts code fences and it swallows
-// parse errors into degraded models.
+// Plate's deserializeMd is banned (`@repo/editor/kits/markdown-kit` says why).
 
 import { ElementApi, createSlateEditor } from "platejs";
 import type { SlateEditor, Value } from "platejs";

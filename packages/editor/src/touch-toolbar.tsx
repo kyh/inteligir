@@ -54,8 +54,8 @@ import { insertVaultImage } from "@repo/editor/kits/image-kit";
 import { indentBlocks, outdentBlocks } from "@repo/editor/kits/list-kit";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import type { MarkShortcut, MarkShortcutAction } from "@repo/editor/mark-shortcuts";
-import { GROUPS } from "@repo/editor/slash-menu";
-import type { SlashItem } from "@repo/editor/slash-menu";
+import { GROUPS } from "@repo/editor/slash-items";
+import type { SlashItem } from "@repo/editor/slash-items";
 
 export const TOUCH_ACTIONS = {
   "ask-agent": { icon: SparklesIcon, label: "Ask agent" },

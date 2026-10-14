@@ -5,16 +5,12 @@
 // the editor does.
 
 import type { Root } from "mdast";
-import remarkParse from "remark-parse";
-import { unified } from "unified";
 
-import { MD_REMARK_PLUGINS } from "./md-plugins";
+import { MD_PROCESSOR } from "./md-plugins";
 import { rebaseParsedOffsets } from "./parsed-offsets";
 
-const processor = unified().use(remarkParse).use(MD_REMARK_PLUGINS).freeze();
-
 export const parseBare = (source: string): Root => {
-  const tree = processor.parse(source);
+  const tree = MD_PROCESSOR.parse(source);
   rebaseParsedOffsets(tree, source);
   return tree;
 };

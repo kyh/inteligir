@@ -10,6 +10,8 @@ import { defaultHandlers } from "mdast-util-to-markdown";
 import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import remarkParse from "remark-parse";
+import { unified } from "unified";
 
 import { remarkContainers } from "./remark-containers";
 import { remarkInlineConstructs } from "./remark-inline-constructs";
@@ -131,3 +133,7 @@ export const MD_REMARK_PLUGINS: Plugin[] = [
   remarkContainers,
   remarkOpaqueCanonical,
 ];
+
+// the one parser over the dialect: ./parse runs its transformers over what it parses, ./bare-parse
+// stops at the parse.
+export const MD_PROCESSOR = unified().use(remarkParse).use(MD_REMARK_PLUGINS).freeze();

@@ -2,9 +2,6 @@ import type { CollectedFormula } from "@repo/notes/formulas/collect-formulas";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import type { StoreApi } from "zustand/vanilla";
 
-import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
-import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
-
 // The host as a module singleton rather than context: kit factories, paste handlers and a deep
 // node's click run outside React or with no route to the shell's owner, and host.ts hands
 // components the same object. The shell implements these types; declaring them beside the app's
@@ -52,7 +49,7 @@ export interface LinkResolver {
   targets: readonly WikiTarget[];
 }
 
-// The read half only: the host feeds the writer (`link-resolver-store.ts`). A store rather than a
+// The read half only: the host feeds the writer (`link-resolver-feed.ts`). A store rather than a
 // field because the resolver is rebuilt on every vault refresh while the actions never change, so
 // only its readers re-render.
 export type LinkResolverStore = Pick<
@@ -81,7 +78,7 @@ export type PickImageResult =
   | { readonly kind: "refused"; readonly message: string };
 
 export interface EditorHostIo {
-  actions: VaultActions;
+  vault: VaultActions;
   linkResolver: LinkResolverStore;
   readVaultFile: (payload: { path: string }) => Promise<string>;
   readVaultAsset: (payload: { path: string }) => Promise<ReadVaultAssetResult>;
@@ -106,7 +103,7 @@ export interface CommentActions {
 
 export interface AgentRequestActions {
   askAboutSelection: (selectionText: string) => void;
-  // the rail shows that tag's notes
+  /** The rail shows that tag's notes. */
   showTag: (tag: string) => void;
 }
 
@@ -120,28 +117,32 @@ export interface EditorHostActions {
 export interface EditorHost {
   readonly io: EditorHostIo;
   readonly actions: EditorHostActions;
-  // the open note's store, flushed through its host's own flush by every writer outside the
-  // note's tree (`flushOpenNote`)
-  readonly store: OpenNoteStore;
 }
 
-let installed: Omit<EditorHost, "store"> | null = null;
+let installed: EditorHost | null = null;
 
-// The one door a host comes in by, ahead of the first render: the note the boot opens mounts hooks
-// that read the host as they render. The disposer ends the store's registration and leaves the
-// host installed until the next install replaces it, because an answer in flight when the note
-// unmounts still reads it.
-export const installEditorHost = ({ actions, io, store }: EditorHost): (() => void) => {
-  installed = { actions, io };
-  store.setFlush(io.actions.flush);
-  const unregister = registerOpenNoteStore(store);
+// The host a writer outside the note's tree flushes through (`flushOpenNote`). A disposer clears
+// it only while it still names that disposer's host, so a dispose landing after a newer install
+// keeps the newer one's flush.
+let flushing: EditorHost | null = null;
+
+// Installed once, ahead of the first render: the note the boot opens mounts hooks that read the
+// host as they render. The disposer ends the host's flush and leaves the host installed until the
+// next install replaces it, because an answer in flight when the note unmounts still reads it.
+export const installEditorHost = (host: EditorHost): (() => void) => {
+  installed = host;
+  flushing = host;
   return () => {
-    store.setFlush(null);
-    unregister();
+    if (flushing === host) {
+      flushing = null;
+    }
   };
 };
 
-const installedHost = (): Omit<EditorHost, "store"> => {
+export const installedFlush = (): (() => Promise<boolean>) | null =>
+  flushing === null ? null : flushing.io.vault.flush;
+
+const installedHost = (): EditorHost => {
   if (installed === null) {
     throw new Error("no editor host installed — the app must installEditorHost() before mounting");
   }

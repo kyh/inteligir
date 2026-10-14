@@ -111,7 +111,7 @@ describe("a save that kept this device's lines over a change made elsewhere", ()
       guard: { kind: "overwrite" },
       path: note,
     });
-    getEditorHostIo().actions.editNote(note, "# Welcome\n\nintro rewritten\n");
+    getEditorHostIo().vault.editNote(note, "# Welcome\n\nintro rewritten\n");
     await act(async () => {
       await flushOpenNote();
     });

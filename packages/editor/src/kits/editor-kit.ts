@@ -28,8 +28,8 @@ import { TabsKit } from "@repo/editor/kits/tabs-kit";
 import { HeadingCollapseKit } from "@repo/editor/heading-collapse";
 import { WikiLinkKit } from "@repo/editor/kits/wiki-link-kit";
 import { SlashKit } from "@repo/editor/slash-menu";
-import { FormulaAutocompleteKit } from "@repo/editor/formula-autocomplete";
-import { WikiAutocompleteKit } from "@repo/editor/wiki-autocomplete";
+import { FormulaAutocompleteKit } from "@repo/editor/formulas/formula-autocomplete";
+import { WikiAutocompleteKit } from "@repo/editor/wiki/wiki-autocomplete";
 
 // Everything the document is made of: every node, the dialect's inputs and decorations, the
 // comment decoration and the markdown wiring. Every surface composes this whole, so a note reads

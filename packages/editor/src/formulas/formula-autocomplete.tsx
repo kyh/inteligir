@@ -20,9 +20,12 @@ import {
   InlineComboboxInput,
 } from "@repo/editor/inline-combobox";
 import { FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
-import { FORMULA_INPUT_KEY } from "@repo/editor/formula-input-key";
+import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
 import { stringProp } from "@repo/editor/node-props";
-import { completeFormulaFromPicker, insertFormulaFromPicker } from "@repo/editor/formula-insert";
+import {
+  completeFormulaFromPicker,
+  insertFormulaFromPicker,
+} from "@repo/editor/formulas/formula-insert";
 import { formulaNodeFrom, rebuildRaw } from "@repo/editor/formulas/formula-entry";
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
 

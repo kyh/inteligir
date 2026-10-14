@@ -1,7 +1,6 @@
 import { createORPCErrorFromJson } from "@orpc/client";
 import { undoKeptReasonSchema } from "@repo/contract/local/threads/threads-schema";
-import { registerOpenNoteStore } from "@repo/editor/note/open-note-flush";
-import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
+import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 import { bootThreadHarness } from "../../server/__tests__/boot-app";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { summarizeUndo, undoTurnChanges } from "@repo/workspace/app/actions/undo-turn";
@@ -30,13 +29,14 @@ const refusing = (code: string, message: string): UndoTurnApi => ({
 describe("undoing a turn", () => {
   it("lands the open note's buffer before it asks for the undo", async () => {
     const calls: string[] = [];
-    const store = createOpenNoteStore();
-    store.setFlush(async () => {
-      await Promise.resolve();
-      calls.push("flush");
-      return true;
+    const { uninstall } = installFakeEditorHost({
+      flush: async () => {
+        await Promise.resolve();
+        calls.push("flush");
+        return true;
+      },
     });
-    onTestFinished(registerOpenNoteStore(store));
+    onTestFinished(uninstall);
     const api: UndoTurnApi = {
       threads: {
         undoTurn: async () => {

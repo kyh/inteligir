@@ -18,7 +18,7 @@ const NO_RESOLVER: LinkResolver = {
   targets: [],
 };
 
-export const createLinkResolverStore = (): LinkResolverFeed => {
+export const createLinkResolverFeed = (): LinkResolverFeed => {
   let entries: readonly VaultEntry[] = [];
   let targets: readonly WikiTarget[] = [];
   const store = createStore<LinkResolver>()(() => NO_RESOLVER);

@@ -1,5 +1,5 @@
 import type { VaultEntry } from "@repo/editor/host-io";
-import { createLinkResolverStore } from "@repo/editor/link-resolver-store";
+import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
 import type { WikiTarget } from "@repo/notes/knowledge/link-graph-index";
 import { describe, expect, it } from "vitest";
 
@@ -16,9 +16,9 @@ const TARGETS: readonly WikiTarget[] = [
   { path: "Inbox.md", title: "Inbox", type: "doc" },
 ];
 
-describe("the link resolver store", () => {
+describe("the link resolver feed", () => {
   it("resolves nothing before either input arrives", () => {
-    const { store } = createLinkResolverStore();
+    const { store } = createLinkResolverFeed();
 
     expect(store.getState().resolveWikiTarget("Plan")).toBeNull();
     expect(store.getState().resolveMdTarget("Plan.md", "Inbox.md")).toBeNull();
@@ -26,7 +26,7 @@ describe("the link resolver store", () => {
   });
 
   it("resolves a note's stem and an md url from the listing alone", () => {
-    const { setListing, store } = createLinkResolverStore();
+    const { setListing, store } = createLinkResolverFeed();
 
     setListing(LISTING);
 
@@ -38,7 +38,7 @@ describe("the link resolver store", () => {
   });
 
   it("adds the targets' alias and id tiers, and carries the targets it was built over", () => {
-    const { setListing, setTargets, store } = createLinkResolverStore();
+    const { setListing, setTargets, store } = createLinkResolverFeed();
     setListing(LISTING);
 
     setTargets(TARGETS);
@@ -49,7 +49,7 @@ describe("the link resolver store", () => {
   });
 
   it("keeps each input when the other one moves", () => {
-    const { setListing, setTargets, store } = createLinkResolverStore();
+    const { setListing, setTargets, store } = createLinkResolverFeed();
     setTargets(TARGETS);
     setListing(LISTING);
 
@@ -61,7 +61,7 @@ describe("the link resolver store", () => {
   });
 
   it("hands every subscriber a new resolver on each input, so a link re-renders on it", () => {
-    const { setListing, setTargets, store } = createLinkResolverStore();
+    const { setListing, setTargets, store } = createLinkResolverFeed();
     const seen: unknown[] = [];
     store.subscribe((next) => {
       seen.push(next);

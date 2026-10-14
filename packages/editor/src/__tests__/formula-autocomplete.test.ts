@@ -3,8 +3,11 @@ import { ElementApi, createSlateEditor } from "platejs";
 import type { TElement } from "platejs";
 
 import { commitComboboxInput, consumeTriggerLead } from "@repo/editor/combobox-input";
-import { FORMULA_INPUT_KEY } from "@repo/editor/formula-input-key";
-import { completeFormulaFromPicker, insertFormulaFromPicker } from "@repo/editor/formula-insert";
+import { FORMULA_INPUT_KEY } from "@repo/editor/formulas/formula-input-key";
+import {
+  completeFormulaFromPicker,
+  insertFormulaFromPicker,
+} from "@repo/editor/formulas/formula-insert";
 import { formulaNodeFrom, rebuildRaw } from "@repo/editor/formulas/formula-entry";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { serializeNote } from "@repo/editor/markdown/markdown-doc";

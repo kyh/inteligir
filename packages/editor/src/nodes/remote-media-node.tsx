@@ -3,7 +3,7 @@
 import { PlateElement, useFocused, useSelected } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 
-import { isHttpUrl } from "@repo/editor/lib/wire";
+import { isHttpUrl } from "@repo/editor/lib/url";
 
 import { stringProp } from "@repo/editor/node-props";
 import { MediaToolbar } from "@repo/editor/nodes/media-toolbar";

@@ -95,7 +95,7 @@ describe("the guarded vault port over the local server", () => {
       onVanished: () => {},
     });
     await vi.waitFor(() => {
-      expect(runtime.controller.getState()).toMatchObject({ path: NOTE });
+      expect(runtime.getState()).toMatchObject({ path: NOTE });
     });
     const moved = "notes/roadmap.md";
 
@@ -107,7 +107,7 @@ describe("the guarded vault port over the local server", () => {
     const onDisk = await readFile(path.join(vaultDir, moved), "utf-8");
     expect(onDisk).toContain("typed during the move");
     expect(onDisk).toContain("aliases:");
-    expect(runtime.controller.getState()).toMatchObject({
+    expect(runtime.getState()).toMatchObject({
       content: onDisk,
       dirty: false,
       path: moved,

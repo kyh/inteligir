@@ -1,4 +1,4 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef } from "react";
 import { ChevronRightIcon, ReplaceIcon, SearchIcon, XIcon } from "lucide-react";
 import { NodeApi, PointApi, RangeApi, TextApi } from "platejs";
 import type {
@@ -19,6 +19,8 @@ import {
   usePluginOption,
 } from "platejs/react";
 import type { PlateLeafProps } from "platejs/react";
+import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
 
 import { findTextOffsets } from "@repo/notes/knowledge/text-matches";
 import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
@@ -92,24 +94,11 @@ const FindBarPlugin = createTPlatePlugin<PluginConfig<"findBar", FindBarOptions>
 // The element the bar hangs under, registered by whatever surface draws the Find button; the
 // editor never reaches the shell, so the shell hands it the anchor. Null while no such button is
 // on screen (zen hides it), and the bar falls back to the note column's corner.
-let anchorEl: HTMLElement | null = null;
-const anchorListeners = new Set<() => void>();
+const anchorStore = createStore<HTMLElement | null>()(() => null);
 
 export const setFindBarAnchor = (element: HTMLElement | null): void => {
-  anchorEl = element;
-  for (const listener of anchorListeners) {
-    listener();
-  }
+  anchorStore.setState(element, true);
 };
-
-const subscribeAnchor = (listener: () => void): (() => void) => {
-  anchorListeners.add(listener);
-  return () => {
-    anchorListeners.delete(listener);
-  };
-};
-
-const getFindBarAnchor = (): HTMLElement | null => anchorEl;
 
 export const getFindBarState = (editor: SlateEditor): FindBarOptions =>
   editor.getOptions(FindBarPlugin);
@@ -319,7 +308,7 @@ const OpenFindBar = () => {
   const active = usePluginOption(FindBarPlugin, "active");
   const replace = usePluginOption(FindBarPlugin, "replace");
   const replaceOpen = usePluginOption(FindBarPlugin, "replaceOpen");
-  const anchor = useSyncExternalStore(subscribeAnchor, getFindBarAnchor);
+  const anchor = useStore(anchorStore);
   const inputRef = useRef<HTMLInputElement>(null);
   // an edit moves the count and the active match without touching the options
   const counter = useEditorSelector(

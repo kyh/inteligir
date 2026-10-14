@@ -13,6 +13,8 @@ import type {
   Token,
 } from "mdast-util-from-markdown";
 import type { Options as ToMarkdownExtension } from "mdast-util-to-markdown";
+import { markdownLineEnding } from "micromark-util-character";
+import { codes } from "micromark-util-symbol";
 import type { Code, Effects, Extension as MicromarkExtension, State } from "micromark-util-types";
 import type { Plugin, Processor } from "unified";
 
@@ -48,22 +50,13 @@ declare module "micromark-util-types" {
   }
 }
 
-// micromark's own codes for EOF and the three EOL forms.
-const EOF = null;
-const CR = -5;
-const LF = -4;
-const CRLF = -3;
-const BANG = 33;
-const LEFT_BRACKET = 91;
-const RIGHT_BRACKET = 93;
-
 const wikiTokenizer = (withBang: boolean) =>
   function tokenize(effects: Effects, ok: State, nok: State): State {
     let size = 0;
 
     const close2 = (code: Code): State | undefined => {
       // single `]` in body → reject whole construct
-      if (code !== RIGHT_BRACKET) {
+      if (code !== codes.rightSquareBracket) {
         return nok(code);
       }
       effects.consume(code);
@@ -73,10 +66,10 @@ const wikiTokenizer = (withBang: boolean) =>
     };
 
     const body = (code: Code): State | undefined => {
-      if (code === EOF || code === CR || code === LF || code === CRLF || code === LEFT_BRACKET) {
+      if (code === codes.eof || markdownLineEnding(code) || code === codes.leftSquareBracket) {
         return nok(code);
       }
-      if (code === RIGHT_BRACKET) {
+      if (code === codes.rightSquareBracket) {
         // empty body
         if (size === 0) {
           return nok(code);
@@ -92,7 +85,7 @@ const wikiTokenizer = (withBang: boolean) =>
     };
 
     const open2 = (code: Code): State | undefined => {
-      if (code !== LEFT_BRACKET) {
+      if (code !== codes.leftSquareBracket) {
         return nok(code);
       }
       effects.consume(code);
@@ -102,7 +95,7 @@ const wikiTokenizer = (withBang: boolean) =>
     };
 
     const open1 = (code: Code): State | undefined => {
-      if (code !== LEFT_BRACKET) {
+      if (code !== codes.leftSquareBracket) {
         return nok(code);
       }
       if (!withBang) {
@@ -114,7 +107,7 @@ const wikiTokenizer = (withBang: boolean) =>
     };
 
     const bang = (code: Code): State | undefined => {
-      if (code !== BANG) {
+      if (code !== codes.exclamationMark) {
         return nok(code);
       }
       effects.enter("wikiEmbed");
@@ -129,8 +122,8 @@ const wikiTokenizer = (withBang: boolean) =>
 
 const wikiSyntax: MicromarkExtension = {
   text: {
-    [LEFT_BRACKET]: { name: "wikiLink", tokenize: wikiTokenizer(false) },
-    [BANG]: { name: "wikiEmbed", tokenize: wikiTokenizer(true) },
+    [codes.leftSquareBracket]: { name: "wikiLink", tokenize: wikiTokenizer(false) },
+    [codes.exclamationMark]: { name: "wikiEmbed", tokenize: wikiTokenizer(true) },
   },
 };
 
@@ -170,7 +163,6 @@ const wikiToMarkdown: ToMarkdownExtension = {
   },
 };
 
-// a function expression: remark plugins receive the processor as `this`.
 export const remarkWikiLink: Plugin = function remarkWikiLink(this: Processor): undefined {
   const data = this.data();
   (data.micromarkExtensions ??= []).push(wikiSyntax);

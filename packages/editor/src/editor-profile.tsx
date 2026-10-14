@@ -14,6 +14,6 @@ export const EditorProfileProvider = ({
 }: {
   children: ReactNode;
   profile: EditorProfile;
-}) => <EditorProfileContext.Provider value={profile}>{children}</EditorProfileContext.Provider>;
+}) => <EditorProfileContext value={profile}>{children}</EditorProfileContext>;
 
 export const useEditorProfile = (): EditorProfile => useContext(EditorProfileContext);

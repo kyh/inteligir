@@ -28,7 +28,7 @@ per-export orphan guard reads, so one more unconsumed export still fails.
   bar hangs under the top bar's Find through `setFindBarAnchor`
   (`packages/editor/src/find-bar.tsx`), since the editor never reaches the
   shell; the wiki-link preview is the HoverCard, because Popover has no hover
-  mode (`packages/editor/src/wiki-chip.tsx`); the ⌘K composer is a non-modal
+  mode (`packages/editor/src/wiki/wiki-chip.tsx`); the ⌘K composer is a non-modal
   `Dialog` whose `finalFocus` returns through the editor
   (`apps/workspace/src/app/actions/action-composer.tsx` says why). The selection
   toolbar (`packages/editor/src/selection-toolbar.tsx`) is the one exception:

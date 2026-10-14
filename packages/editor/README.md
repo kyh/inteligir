@@ -13,8 +13,8 @@ workspace above it consumes an editor rather than containing one.
 
 Deps: `@repo/notes` (the parse pipeline and the knowledge types), `@repo/ui`
 (the components). No node, and nothing of the desktop shell's. The host contract is this package's own
-`host-io.ts` (`EditorHost`: its `EditorHostIo`, its `EditorHostActions` and
-the open note's store), `note/vault-session.ts` (`VaultSessionPorts`) and
+`host-io.ts` (`EditorHost`: its `EditorHostIo` and its `EditorHostActions`),
+`note/vault-session.ts` (`VaultSessionPorts`) and
 `guarded-vault-io.ts` (`GuardedVaultPort`); a host implements all three and
 comes in through one call, `installEditorHost`, and everything above its
 store (the write policy, the link resolver, note formulas) is this package's,
@@ -29,91 +29,27 @@ table rules), inert until the host `@import`s `@repo/editor/styles.css` —
 
 ```
 src/
-  markdown-editor.tsx, editor-column.tsx, editor-chrome.tsx
-                       # the editor surface, its chrome, and the column that
-                       # shows the open note
-  editor-profile.tsx   # which hand the editor is drawn for, `desktop` (unset)
-                       # or `touch`: the kit, the outline rail, the column's
-                       # inset
-  markdown/
-    md-rules.ts        # the Slate↔mdast rules — one per node type
-    alert-marker.ts    # the `> [!NOTE]` alert grammar, spelled once: the
-                       # renderer, the serializer and turn-into read it alike
-    md-to-slate.ts     # the ONE markdown→Slate conversion, so the gate, a paste
-                       # and a template refuse the same inputs for the same reasons
-    markdown-doc.ts    # the round trip itself: parse → doc → serialize, run to
-                       # a BOUNDED FIXPOINT so a second save is a no-op, the
-                       # gate's verdict as one union (`DocAnalysis`), and
+  markdown/            # the round trip: the Slate↔mdast rules, the one
+                       # markdown→Slate conversion, the bounded fixpoint and
                        # `serializeNote`, the one way any save reaches bytes
-  dialect-node-keys.ts # every dialect node's Slate type, spelled once; a leaf, so
-                       # the kits, the rules and the walks import it without a cycle
-  kits/
-    editor-kit.ts      # CONTENT_KIT (every node, the dialect's inputs and
-                       # decorations, the comment tint, the markdown wiring)
-                       # and DESKTOP_CHROME_KIT; EDITOR_KIT, the desktop's,
-                       # is the two in that order
-    touch-editor-kit.ts
-                       # CONTENT_KIT, the rich-block lock and the touch chrome:
-                       # composed, never the desktop kit minus its pointer
-                       # chrome (drag, block menu, selection toolbar, find bar,
-                       # comment gutter)
-    rich-block-lock-kit.ts
-                       # the model guard that makes a chart, a canvas, an html
-                       # block, tabs and columns read-only: no op inside one
-                       # applies, a whole-block insert, remove or move does;
-                       # a keystroke aimed inside one is refused at beforeinput;
-                       # a host lifts it to take a deleted thread's markers out
-    base-kit.ts        # the headless mirror, for the serializer
-    markdown-kit.ts    # the markdown plugin wiring
+  kits/                # the plugin kits: CONTENT_KIT and the desktop and touch
+                       # compositions over it, the headless mirror the
+                       # serializer runs, the markdown wiring, the rich-block lock
   nodes/               # every node type as a Base (headless) + React pair
-  note/
-    open-note-store.ts, open-note-context.tsx
-                       # the open-note store (zustand) and React's door to it
-    vault-session.ts   # the open note's ORDERING, drivable without React
-    note-runtime.ts    # controller + autosave debounce + save retry + vanish
-                       # watcher + the hold a rename carries the note through
-    open-doc.ts, markdown-gate.ts, open-note-flush.ts
-                       # the open-document union, the raw/rich gate, the flush
-                       # that visits every registered store
-    vanished-prompt.ts # what every host asks of a deleted note with unsaved
-                       # edits, and says of a save that kept its lines
+  note/                # the open note: its store and React's door to it, the
+                       # session's ordering, the autosave runtime, the raw/rich
+                       # gate and the flush writers outside the note reach
   comments/            # anchored-comment markers, ranges, gutter, store
-  formulas/            # `{{…}}` pill entry, editing and recompute
+  formulas/            # `{{…}}` pills: the `{{` picker, entry, editing, recompute
+  wiki/                # `[[…]]` links: the `[[` picker, the chip, insertion, keys
   properties/          # the typed frontmatter panel
-  lib/                 # debounce, the dark-class hook, the wire helper
-  host-io.ts, host.ts  # the injected host as a MODULE SINGLETON (vault actions,
-                       # the wiki resolver store, IO, change events, what the
-                       # editor asks the shell for), installed with the open
-                       # note's store in one call, and the hooks React reads
-                       # it through
-  guarded-vault-io.ts  # the write policy every host runs over its own store:
-                       # the base each note was read as, the diff3 retry, vanished
-  link-resolver-store.ts
-                       # the resolver store a host installs, rebuilt from the
-                       # listing and the index's wiki targets
-  note-formulas.ts     # a bound ref's note found by id, read once per change
-  node-props.ts        # the Slate decode boundary: a node's dialect fields ride
-                       # TElement's open index signature, so every read arrives
-                       # unknown and becomes a domain value here, once
-  slash-menu.tsx, selection-toolbar.tsx, block-menu.tsx, block-*.tsx,
-  toc.tsx, transclusion*.ts(x), heading-collapse.tsx, find-bar.tsx,
-  embed-url-dialog.tsx, inline-combobox.tsx,
-  cursor-overlay.tsx, insert-void.ts
-                       # the in-document affordances — every surface a node can
-                       # be inserted from, and the transforms behind them
-  touch-toolbar.tsx    # the soft keyboard's toolbar: every button a row of the
-                       # table its desktop twin reads (MARK_SHORTCUTS,
-                       # EDITOR_SHORTCUTS, the slash menu's GROUPS)
-  wiki-*.ts(x)         # the `[[` picker, chips, insertion, key handling
-  formula-*.ts(x)      # the `{{` picker and its insertion
-  agent-request.ts     # Ask agent: the selection's text, handed to the host's
-                       # agent actions
-  style-hooks.ts, styles.css
-                       # the behaviour rules the host @imports, and the one
-                       # spelling of every selector hook they read
+  lib/                 # debounce, the dark-class hook, embed and url helpers
   test-support/        # the fake editor host, for any suite that mounts the
                        # editor (the desktop's included)
   __tests__/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)
+  *.ts(x)              # the editor surface and its column, the host seam
+                       # (§ Seams), the write policy, and the in-document
+                       # affordances: menus, toolbars, TOC, embeds
 ```
 
 ## Invariants
@@ -158,7 +94,7 @@ src/
 - `host-io.ts` — the injected host, `EditorHost`, as a MODULE SINGLETON
   because kit factories, paste handlers and a deep node's click run outside
   React or with no route to the shell. Its `EditorHostIo` carries the vault
-  actions, the link resolver store (the knowledge index's own `buildResolver` over
+  actions (`vault`), the link resolver store (the knowledge index's own `buildResolver` over
   the listing, for wiki targets and md urls alike, and the wiki targets it was
   built over, which the `[[` picker and the slash menu's templates list —
   subscribed to rather than read, because it moves with every refresh while the
@@ -170,14 +106,14 @@ src/
   as a paste does). Its `EditorHostActions` are what the editor asks the shell
   for (Ask agent and a `#tag` chip's `showTag`, a comment's create and open),
   every one required, so a host that leaves one out fails to typecheck rather
-  than drawing a button that does nothing. Its store is the open note's, which
-  the install registers under the host's own flush, so `flushOpenNote`
-  reaches the note on every host. The editor never reaches the
+  than drawing a button that does nothing. The install hands `flushOpenNote`
+  the host's own flush, so a writer outside the note's tree reaches the open
+  note on every host. The editor never reaches the
   server for any of it; each host installs it once, through
   `installEditorHost`, ahead of the first render
   (`apps/workspace/src/app/note/vault-provider.tsx`, and the phone's
   over its WebView bridge, `apps/mobile-editor/src/host/page-host.ts`),
-  building the resolver store with `link-resolver-store.ts` and
+  feeding the resolver store through `link-resolver-feed.ts` and
   `readNoteFormulas` with `note-formulas.ts` over its own reads, and `host.ts` is
   React's door (`useVaultActions`, `useLinkResolver`, `useWikiTargets`, and
   `useVaultLinkTarget`, which reads an md url through `mdLinkTarget` and

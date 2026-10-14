@@ -645,7 +645,6 @@ const containersToMarkdown: ToMarkdownExtension = {
   unsafe: [{ after: MARKER_LINE_TAIL, atBreak: true, character: ":", inConstruct: "phrasing" }],
 };
 
-// a function expression: remark plugins receive the processor as `this`.
 export const remarkContainers: Plugin = function remarkContainers(this: Processor): Transformer {
   const data = this.data();
   (data.toMarkdownExtensions ??= []).push(containersToMarkdown);
