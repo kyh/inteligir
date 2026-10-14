@@ -28,8 +28,11 @@ and cited.
   the same vault and fails the same way, so it loops. For the same reason only
   the store's own failure rebuilds: the driver throws `KnowledgeStoreError`
   (`@repo/notes/knowledge/sql-knowledge-store`) for every database failure, and
-  any other throw fails that pass and reconciles on the next.
-  `apps/cli/src/server/knowledge/index-pass.ts`.
+  any other throw fails that pass and reconciles on the next. The kept row, the
+  other and the reconcile after a failed pass are
+  `apps/cli/src/server/knowledge/index-pass.ts`; the rebuild on
+  `KnowledgeStoreError` alone is
+  `apps/cli/src/server/knowledge/knowledge-runtime.ts`.
 
 - **THE SCAN RUNS ON A WORKER; THE SERVER'S LOOP READS BYTES AND WRITES ROWS.**
   Projecting a 20k-line note is seconds of synchronous CPU (2.9s measured),
