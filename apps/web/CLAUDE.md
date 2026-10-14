@@ -273,7 +273,8 @@ cited.
   normalization, are refused rather than guessed, since the cell decodes names
   leniently and a Mac cannot hold both. Author and committer name the device,
   because a conflict copy names the other device from the committer.
-  `apps/web/src/worker/vault/commit-route.ts`, `commit-changes.ts`.
+  `apps/web/src/worker/vault/commit-route.ts`, `commit-changes.ts`,
+  `plan-change-set.ts`.
 
 - **THE HOSTED VAULT IS CAPPED ON WHAT THE CELL STORES, AND TAKES A PUSH OF AT
   MOST 90 MiB** (owner decision: free, about 1 GB an account, every stored

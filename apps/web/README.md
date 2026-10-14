@@ -32,8 +32,9 @@ src/
                      dispatch inbox's SQL (dispatch-inbox.ts)
     vault/           The hosted vault git remote (durable-git behind the
                      wrapper) + the git-less /v1/vault/* read routes + the
-                     Worker's own commits (commit-changes.ts, pushed through
-                     the cell's receive-pack like any client's)
+                     Worker's own commits (commit-changes.ts, planned by
+                     plan-change-set.ts over a tree listing and pushed
+                     through the cell's receive-pack like any client's)
     db/              Drizzle schema + client for the D1 auth database
     rate-limit.ts    The D1 fixed window every throttled route spends
     types/           The hand-authored durable-git .d.ts (it ships untyped TS
