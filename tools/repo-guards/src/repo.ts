@@ -1,7 +1,6 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 
 export const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");
@@ -62,83 +61,45 @@ export const readJsonFile = <T>(
   return parsed.data;
 };
 
-export interface WorkspaceGlobs {
-  // `apps/*` → `apps`: every child directory is a candidate workspace.
-  groups: string[];
-  // a bare `docs` → `docs`: the directory is the workspace.
-  standalone: string[];
-}
+const PNPM_LIST = ["ls", "--recursive", "--depth", "-1", "--json"];
 
-let cachedGlobs: WorkspaceGlobs | undefined;
+const pnpmPackagesSchema = z.array(z.looseObject({ name: z.string(), path: z.string() }));
 
-// read from pnpm's own manifest: a copy stops covering a group the day one is added, and the
-// symptom is a green run over a smaller tree. an unknown glob shape throws rather than being
-// skipped.
-export const workspaceGlobs = (): WorkspaceGlobs => {
-  if (cachedGlobs !== undefined) {
-    return cachedGlobs;
+const listedPackageDirs = (): string[] => {
+  const output = execFileSync("pnpm", PNPM_LIST, { cwd: REPO_ROOT, encoding: "utf-8" });
+  try {
+    return pnpmPackagesSchema.parse(JSON.parse(output)).map((listed) => listed.path);
+  } catch (error) {
+    throw new Error(
+      `pnpm ${PNPM_LIST.join(" ")}: expected a JSON list of packages, each with a name and a path`,
+      { cause: error },
+    );
   }
-  const parsed = z
-    .looseObject({ packages: z.array(z.unknown()) })
-    .safeParse(parseYaml(fs.readFileSync(path.join(REPO_ROOT, WORKSPACE_MANIFEST), "utf-8")));
-  if (!parsed.success) {
-    throw new Error(`${WORKSPACE_MANIFEST}: expected a "packages" list of workspace globs`);
-  }
-  const groups: string[] = [];
-  const standalone: string[] = [];
-  for (const packagesEntry of parsed.data.packages) {
-    const entry = z.string().safeParse(packagesEntry);
-    if (!entry.success) {
-      throw new Error(`${WORKSPACE_MANIFEST}: every "packages" entry must be a string`);
-    }
-    const glob = entry.data.replace(/\/+$/u, "");
-    if (glob.endsWith("/*") && !glob.slice(0, -2).includes("*")) {
-      groups.push(glob.slice(0, -2));
-    } else if (!glob.includes("*") && !glob.startsWith("!")) {
-      standalone.push(glob);
-    } else {
-      throw new Error(
-        `${WORKSPACE_MANIFEST}: cannot read the workspace glob "${entry.data}".\n` +
-          `  rule: tools/repo-guards/src/repo.ts derives every guard's tree walk from this list, and understands "<dir>/*" and a plain "<dir>" only\n` +
-          `  fix: teach workspaceGlobs() this shape — leaving it unread would silently shrink what every guard covers`,
-      );
-    }
-  }
-  cachedGlobs = { groups, standalone };
-  return cachedGlobs;
 };
 
 let cachedWorkspaces: Workspace[] | undefined;
 
+// pnpm's own answer, not a reading of its globs: a copy of its matching drifts from it, and the
+// symptom is a green run over a smaller tree. pnpm reports real paths, and lists the root too.
 export const workspaces = (): Workspace[] => {
   if (cachedWorkspaces !== undefined) {
     return cachedWorkspaces;
   }
-  const globs = workspaceGlobs();
-  const dirs: string[] = [...globs.standalone];
-  for (const group of globs.groups) {
-    const groupDir = path.join(REPO_ROOT, group);
-    if (!fs.existsSync(groupDir)) {
-      continue;
-    }
-    for (const entry of fs.readdirSync(groupDir, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        dirs.push(path.posix.join(group, entry.name));
-      }
-    }
-  }
-  const found: Workspace[] = [];
-  for (const dir of dirs) {
-    const manifestPath = path.join(REPO_ROOT, dir, "package.json");
-    if (!fs.existsSync(manifestPath)) {
-      continue;
-    }
-    const manifest = parseManifest(manifestPath);
-    found.push({ dir, manifest, name: manifest.name });
-  }
-  cachedWorkspaces = found.toSorted((a, b) => a.name.localeCompare(b.name));
+  const root = fs.realpathSync(REPO_ROOT);
+  cachedWorkspaces = listedPackageDirs()
+    .map((dir) => fs.realpathSync(dir))
+    .filter((dir) => dir !== root)
+    .map((dir) => {
+      const manifest = parseManifest(path.join(dir, "package.json"));
+      return { dir: path.relative(root, dir), manifest, name: manifest.name };
+    })
+    .toSorted((a, b) => a.name.localeCompare(b.name));
   return cachedWorkspaces;
 };
+
+// `apps/cli` → `apps`; workspace-coverage.test.ts holds every workspace one level under its group.
+export const workspaceGroups = (): string[] =>
+  [...new Set(workspaces().map((workspace) => path.dirname(workspace.dir)))].toSorted();
 
 // membership by workspaces(), never by name prefix: `inteligir` breaks the @repo/ convention and is
 // exactly the dependency a shipping surface installs.

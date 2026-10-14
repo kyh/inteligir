@@ -20,7 +20,7 @@ side.
 
 Every guard obeys three rules. It states its own rule in the failure, so the
 message is the documentation. It names the file to change. And it DERIVES every
-value it compares — the workspace list from `pnpm-workspace.yaml`, a vocabulary
+value it compares — the workspace list from pnpm itself, a vocabulary
 from its zod declaration, the route paths from the contract's constants — so a
 copy cannot drift from what it copies. What a guard cannot derive is a
 hand-written table, and there are two kinds: a pin, like `DECLARED_EDGES` in
@@ -32,8 +32,8 @@ carrying its reason, held stale-free (below).
 
 ```
 src/
-  repo.ts             # the ONE tree walk every guard shares: globs read from
-                      # pnpm-workspace.yaml, workspaces() by manifest,
+  repo.ts             # the ONE tree walk every guard shares: workspaces()
+                      # as pnpm lists them, workspaceGroups(),
                       # workspaceFiles (src/** split shipped vs test),
                       # workspaceSourceFiles (the whole workspace dir — scripts/
                       # included), styleFiles, sourceOf (full-line comments
@@ -45,7 +45,7 @@ src/
   content-security-policy.ts
                       # a policy read as a map of directives, so the first
                       # run's and the phone page's compare to the server's
-  *.test.ts           # one guard per file — the table below
+  *.test.ts           # one guard per file — the list below
 ```
 
 The walk skips `node_modules`, `dist`, `coverage` and every dot-directory, so a
@@ -72,7 +72,7 @@ One per file; its header and its failure message state the rule in full.
 - `compiled-hook-shapes.test.ts`: no react source defines a `use*` hook inside another function.
 - `appearance-tokens.test.ts`: every `--editor-*` token written is read, declared, and falls back to the stylesheet default.
 - `page-prefs.test.ts`: a storage key is spelled only in the workspace's `PREFS` table, or an `ELSEWHERE` row.
-- `workspace-coverage.test.ts`: every `package.json` on disk is reached by a `pnpm-workspace.yaml` glob.
+- `workspace-coverage.test.ts`: every `package.json` on disk is a pnpm workspace, one level under its group.
 - `script-naming.test.ts`: a root script's workspace suffix and every `--filter` name a real workspace.
 - `catalog-spelling.test.ts`: a dependency two manifests name is `catalog:`, or a `DECLARED_SPLITS` row.
 - `tailwind-source.test.ts`: every `@source` glob's static base exists.
@@ -117,7 +117,7 @@ subpath after the name is not resolved) or a path anchored on a workspace group
 
 - **A guard states its rule in the failure**, names the file to change and
   says the fix. The message is the documentation; a green run needs none.
-- **Every compared value is derived.** Workspaces from the manifest,
+- **Every compared value is derived.** Workspaces from pnpm,
   vocabularies from their zod declarations, paths from the contract, the env
   contract from `config.ts`. A hand-written table is a pin or a reasoned
   exception, never a copy of something the tree already says.
