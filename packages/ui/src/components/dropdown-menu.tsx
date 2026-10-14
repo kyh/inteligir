@@ -16,14 +16,10 @@ import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import { useHighlighted, useHighlightStore, useRowOrder } from "@repo/ui/hooks/use-row-order";
 import type { HighlightStore } from "@repo/ui/hooks/use-row-order";
-import { radiusMap } from "@repo/ui/lib/radius-context";
+import { radius } from "@repo/ui/lib/radius";
 import { SizeProvider, useSize } from "@repo/ui/lib/size-context";
 import type { SizeVariant } from "@repo/ui/lib/size-context";
 import { Elevated } from "@repo/ui/lib/elevated";
-
-// popups ignore the global radius context: the pill radius distorts perceived padding at this
-// scale and makes the corner shadow asymmetric.
-const radius = radiusMap.rounded;
 
 interface DropdownItemsContextValue {
   // a row hands the popup its element; the popup keeps the ordering, since only it can read the
@@ -210,7 +206,6 @@ const DropdownMenuContent = ({
               hoverRect={activeIndex === null ? null : (itemRects[activeIndex] ?? null)}
               focusRect={focusedIndex === null ? null : (itemRects[focusedIndex] ?? null)}
               session={session}
-              radius={radius}
             />
             {children}
           </Menu.Popup>

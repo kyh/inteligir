@@ -3,7 +3,6 @@
 // with the app window once that vault's server is up.
 
 import { MotionPolicy } from "@repo/ui/lib/motion-policy";
-import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
@@ -67,19 +66,17 @@ const FirstRunPage = () => {
   return (
     <ThemeProvider theme={theme} setTheme={setTheme}>
       <MotionPolicy>
-        <RadiusProvider radius="rounded">
-          <SizeProvider size="compact">
-            <main className="flex min-h-dvh items-center justify-center bg-surface p-8 text-ink">
-              {underShell() ? (
-                <FirstRun />
-              ) : (
-                <p className="text-body text-muted-foreground">
-                  Open the Inteligir app to set up your notes.
-                </p>
-              )}
-            </main>
-          </SizeProvider>
-        </RadiusProvider>
+        <SizeProvider size="compact">
+          <main className="flex min-h-dvh items-center justify-center bg-surface p-8 text-ink">
+            {underShell() ? (
+              <FirstRun />
+            ) : (
+              <p className="text-body text-muted-foreground">
+                Open the Inteligir app to set up your notes.
+              </p>
+            )}
+          </main>
+        </SizeProvider>
       </MotionPolicy>
     </ThemeProvider>
   );

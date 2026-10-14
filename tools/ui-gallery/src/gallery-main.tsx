@@ -4,7 +4,6 @@ import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { MotionPolicy } from "@repo/ui/lib/motion-policy";
-import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 import type { Theme } from "@repo/ui/lib/theme";
@@ -18,15 +17,13 @@ const Gallery = () => {
   return (
     <ThemeProvider theme={theme} setTheme={setTheme}>
       <MotionPolicy>
-        <RadiusProvider radius="rounded">
-          <SizeProvider size="compact">
-            <TooltipProvider>
-              <GalleryPage />
-              <ConfirmDialogHost />
-              <Toaster position="bottom-right" />
-            </TooltipProvider>
-          </SizeProvider>
-        </RadiusProvider>
+        <SizeProvider size="compact">
+          <TooltipProvider>
+            <GalleryPage />
+            <ConfirmDialogHost />
+            <Toaster position="bottom-right" />
+          </TooltipProvider>
+        </SizeProvider>
       </MotionPolicy>
     </ThemeProvider>
   );

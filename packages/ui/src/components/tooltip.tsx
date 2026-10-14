@@ -10,7 +10,7 @@ import { cn } from "@repo/ui/lib/cn";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import { PopupExit } from "@repo/ui/lib/popup-exit";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useRadius } from "@repo/ui/lib/radius-context";
+import { radius } from "@repo/ui/lib/radius";
 import { spring } from "@repo/ui/lib/springs";
 
 const DEFAULT_DELAY = 200;
@@ -68,7 +68,6 @@ const Tooltip = ({
 }: TooltipProps) => {
   const [internalOpen, setInternalOpen] = React.useState(false);
   const open = forceOpen ?? internalOpen;
-  const radius = useRadius();
   const hasAmbientProvider = React.useContext(TooltipGroupContext);
 
   const slideOffset = slideOffsets[side];

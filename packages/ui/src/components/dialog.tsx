@@ -12,7 +12,7 @@ import { Elevated } from "@repo/ui/lib/elevated";
 import { motionProps, motionStyle } from "@repo/ui/lib/motion-style";
 import { PopupExit } from "@repo/ui/lib/popup-exit";
 import type { MotionConflictHandler } from "@repo/ui/lib/motion-style";
-import { useRadius } from "@repo/ui/lib/radius-context";
+import { radius } from "@repo/ui/lib/radius";
 import { useSize } from "@repo/ui/lib/size-context";
 import { spring } from "@repo/ui/lib/springs";
 import { cn } from "@repo/ui/lib/cn";
@@ -46,7 +46,6 @@ interface DialogCardProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionCon
 }
 
 const DialogCard = ({ popupProps, exiting, className, style, ...props }: DialogCardProps) => {
-  const radius = useRadius();
   const { style: baseStyle, ...rest } = motionProps(popupProps);
   // centering rides CSS translate utilities, not motion x/y, so a consumer className can
   // override one axis

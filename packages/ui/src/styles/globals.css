@@ -129,6 +129,8 @@
   --chart-4: oklch(0.37 0.013 285.805);
   --chart-5: oklch(0.274 0.006 286.033);
   --radius: 0.625rem;
+  /* lib/radius.ts's input corner, for the plain CSS that cannot import it */
+  --input-radius: 8px;
 
   --surface-1: #fafafa;
   --surface-2: #fcfcfc;
@@ -301,11 +303,11 @@
     @apply font-sans;
   }
 
-  /* the radius tracks the custom property RadiusProvider publishes on <html> */
+  /* a focused element takes the inputs' corner */
   :focus-visible {
     outline: 1px solid var(--focus-ring);
     outline-offset: 2px;
-    border-radius: var(--input-radius, 8px);
+    border-radius: var(--input-radius);
   }
   a:focus-visible {
     border-radius: 2px;

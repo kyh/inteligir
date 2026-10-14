@@ -32,15 +32,11 @@ import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import type { ItemRect } from "@repo/ui/hooks/use-proximity-hover";
 import { useHighlighted, useHighlightStore, useRowOrder } from "@repo/ui/hooks/use-row-order";
 import type { HighlightStore } from "@repo/ui/hooks/use-row-order";
-import { radiusMap } from "@repo/ui/lib/radius-context";
+import { radius } from "@repo/ui/lib/radius";
 import { spring } from "@repo/ui/lib/springs";
 import { useSize } from "@repo/ui/lib/size-context";
 import { useIsoLayoutEffect } from "@repo/ui/lib/use-iso-layout-effect";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
-
-// popups keep the smaller radii whatever the app is shaped: pill rows inside a square panel
-// distort the concentric fit of the hover fill.
-const radius = radiusMap.rounded;
 
 // the store's null snapshot, spelled once so no reader needs an assertion for it
 const NO_ROW: HTMLElement | null = null;
@@ -464,7 +460,6 @@ const CommandList = ({ className, children, ...props }: ComponentProps<"div">) =
         hoverRect={fill?.rect ?? null}
         focusRect={null}
         session={fill?.session ?? 0}
-        radius={radius}
       />
       {children}
     </div>

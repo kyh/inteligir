@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@repo/ui/lib/theme";
-import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
 import { createContext, useContext, useEffect, useState } from "react";
 import { workspaceSocketUrl } from "@repo/contract/local/routes";
@@ -120,15 +119,13 @@ export const WorkspaceProvider = ({ children }: { children: React.ReactNode }) =
 
   return (
     <ThemeProvider theme={theme} setTheme={chooseTheme}>
-      <RadiusProvider radius="rounded">
-        <SizeProvider size="compact">
-          <AppearanceProvider>
-            <QueryClientProvider client={runtime.queryClient}>
-              <WorkspaceContext value={runtime.contextValue}>{children}</WorkspaceContext>
-            </QueryClientProvider>
-          </AppearanceProvider>
-        </SizeProvider>
-      </RadiusProvider>
+      <SizeProvider size="compact">
+        <AppearanceProvider>
+          <QueryClientProvider client={runtime.queryClient}>
+            <WorkspaceContext value={runtime.contextValue}>{children}</WorkspaceContext>
+          </QueryClientProvider>
+        </AppearanceProvider>
+      </SizeProvider>
     </ThemeProvider>
   );
 };

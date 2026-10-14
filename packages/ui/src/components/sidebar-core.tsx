@@ -24,7 +24,7 @@ import { cssVars } from "@repo/ui/lib/css-vars";
 import { cn } from "@repo/ui/lib/cn";
 import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useRadius } from "@repo/ui/lib/radius-context";
+import { radius } from "@repo/ui/lib/radius";
 import { useSize } from "@repo/ui/lib/size-context";
 import { useRaisedSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import type { SurfaceLevel } from "@repo/ui/lib/surface-context";
@@ -391,56 +391,53 @@ const SidebarPeek = ({
   setIsPeeking,
   side,
   width,
-}: SidebarPeekProps) => {
-  const radius = useRadius();
-  return (
-    <>
-      <button
-        type="button"
-        aria-label="Peek sidebar"
-        aria-expanded={isPeeking}
+}: SidebarPeekProps) => (
+  <>
+    <button
+      type="button"
+      aria-label="Peek sidebar"
+      aria-expanded={isPeeking}
+      className={cn(
+        "group/peek-strip absolute inset-y-0 z-40 w-3 cursor-pointer outline-none",
+        side === "left" ? "left-0" : "right-0",
+      )}
+      onClick={() => {
+        setIsPeeking(true);
+      }}
+    >
+      <span
+        aria-hidden="true"
         className={cn(
-          "group/peek-strip absolute inset-y-0 z-40 w-3 cursor-pointer outline-none",
+          "absolute inset-y-0 w-px bg-border opacity-0 transition-opacity duration-80 group-hover/peek-strip:opacity-100 group-focus-visible/peek-strip:opacity-100",
           side === "left" ? "left-0" : "right-0",
         )}
-        onClick={() => {
-          setIsPeeking(true);
-        }}
-      >
-        <span
-          aria-hidden="true"
+      />
+    </button>
+    <AnimatePresence>
+      {isPeeking && (
+        <motion.div
+          data-sidebar="peek"
           className={cn(
-            "absolute inset-y-0 w-px bg-border opacity-0 transition-opacity duration-80 group-hover/peek-strip:opacity-100 group-focus-visible/peek-strip:opacity-100",
-            side === "left" ? "left-0" : "right-0",
+            "absolute inset-y-2 z-50 flex flex-col overflow-hidden",
+            side === "left" ? "left-2" : "right-2",
+            radius.container,
+            surfaceClasses(floatingLevel, 3),
           )}
-        />
-      </button>
-      <AnimatePresence>
-        {isPeeking && (
-          <motion.div
-            data-sidebar="peek"
-            className={cn(
-              "absolute inset-y-2 z-50 flex flex-col overflow-hidden",
-              side === "left" ? "left-2" : "right-2",
-              radius.container,
-              surfaceClasses(floatingLevel, 3),
-            )}
-            style={{ width: `calc(${width} - 1rem)` }}
-            initial={{ x: side === "left" ? "-108%" : "108%" }}
-            animate={{ x: 0 }}
-            exit={{
-              transition: spring.moderate.exit,
-              x: side === "left" ? "-108%" : "108%",
-            }}
-            transition={spring.moderate}
-          >
-            <SurfaceProvider value={floatingLevel}>{children}</SurfaceProvider>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
-  );
-};
+          style={{ width: `calc(${width} - 1rem)` }}
+          initial={{ x: side === "left" ? "-108%" : "108%" }}
+          animate={{ x: 0 }}
+          exit={{
+            transition: spring.moderate.exit,
+            x: side === "left" ? "-108%" : "108%",
+          }}
+          transition={spring.moderate}
+        >
+          <SurfaceProvider value={floatingLevel}>{children}</SurfaceProvider>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </>
+);
 
 interface SidebarPanelProps {
   children: ReactNode;
@@ -461,7 +458,6 @@ const SidebarPanel = ({
   width,
   widthTransition,
 }: SidebarPanelProps) => {
-  const radius = useRadius();
   const closedX = side === "left" ? "-100%" : "100%";
   // closed, the panel is slid off-screen rather than unmounted, so inert is what takes its
   // controls out of the tab order and the accessibility tree
@@ -510,10 +506,7 @@ const SidebarPanel = ({
         )}
         style={
           variant === "floating"
-            ? cssVars({
-                "--rail-fade-end": `${(radius.bgRadius >= 20 ? 24 : 12) + 24}px`,
-                "--rail-fade-start": `${radius.bgRadius >= 20 ? 24 : 12}px`,
-              })
+            ? cssVars({ "--rail-fade-end": "36px", "--rail-fade-start": "12px" })
             : undefined
         }
       />
@@ -686,7 +679,6 @@ const SidebarGroupLabel = ({
   ...props
 }: SidebarGroupLabelProps & RefAttributes<HTMLElement>) => {
   const size = useSize();
-  const radius = useRadius();
   const { text, rest } = splitLeadingText(children);
   const labelContent = text ? (
     <>
@@ -755,25 +747,22 @@ const SidebarGroupAction = ({
   className,
   ref,
   ...props
-}: SidebarGroupActionProps & RefAttributes<HTMLButtonElement>) => {
-  const radius = useRadius();
-  return (
-    <button
-      ref={ref}
-      type="button"
-      data-sidebar="group-action"
-      className={cn(
-        "flex size-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground outline-none",
-        "transition-colors duration-80 hover:bg-muted/60 hover:text-foreground focus-visible:text-foreground",
-        "focus-visible:ring-1 focus-visible:ring-focus-ring",
-        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        radius.item,
-        className,
-      )}
-      {...props}
-    />
-  );
-};
+}: SidebarGroupActionProps & RefAttributes<HTMLButtonElement>) => (
+  <button
+    ref={ref}
+    type="button"
+    data-sidebar="group-action"
+    className={cn(
+      "flex size-6 shrink-0 cursor-pointer items-center justify-center text-muted-foreground outline-none",
+      "transition-colors duration-80 hover:bg-muted/60 hover:text-foreground focus-visible:text-foreground",
+      "focus-visible:ring-1 focus-visible:ring-focus-ring",
+      "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+      radius.item,
+      className,
+    )}
+    {...props}
+  />
+);
 
 // The scrolling region between the header and whatever sits under it: a plain column, so a
 // consumer's list keeps its own height and the column scrolls.

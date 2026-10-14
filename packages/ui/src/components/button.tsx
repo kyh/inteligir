@@ -7,7 +7,7 @@ import { cva } from "class-variance-authority";
 
 import { Tooltip } from "@repo/ui/components/tooltip";
 import type { IconComponent } from "@repo/ui/lib/icon";
-import { useRadius } from "@repo/ui/lib/radius-context";
+import { radius } from "@repo/ui/lib/radius";
 import { useSizeVariant } from "@repo/ui/lib/size-context";
 import { isTextChild } from "@repo/ui/lib/text-children";
 import { cn } from "@repo/ui/lib/cn";
@@ -244,7 +244,6 @@ const Button = ({
   const iconSize = isCompact ? 14 : 16;
   // size-* spelling on purpose: the base [&_svg:not([class*='size-'])] guard must skip the spinner.
   const spinnerSizeClass = isCompact ? "size-7" : "size-9";
-  const radius = useRadius();
   const bgClass = active ? activeBgVariants[resolvedVariant] : bgVariants[resolvedVariant];
 
   const internals = (

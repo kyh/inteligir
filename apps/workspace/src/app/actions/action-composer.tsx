@@ -7,7 +7,7 @@ import { InputMessage } from "@repo/ui/components/input-message";
 import { cn } from "@repo/ui/lib/cn";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { isImeComposing } from "@repo/ui/lib/ime";
-import { useRadius } from "@repo/ui/lib/radius-context";
+import { radius } from "@repo/ui/lib/radius";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { toast } from "@repo/ui/components/sonner";
 import { XIcon } from "lucide-react";
@@ -58,7 +58,6 @@ const SignInFirst = ({
   children: ReactNode;
   onFieldShown: () => void;
 }) => {
-  const radius = useRadius();
   const need = useSignInNeed(null);
   const fieldShown = need.kind === "none";
   const showField = useEffectEvent(onFieldShown);

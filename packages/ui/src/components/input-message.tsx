@@ -13,7 +13,7 @@ import type {
 import { cn } from "@repo/ui/lib/cn";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { isImeComposing } from "@repo/ui/lib/ime";
-import { useRadius } from "@repo/ui/lib/radius-context";
+import { radius } from "@repo/ui/lib/radius";
 import { SizeProvider, useSize } from "@repo/ui/lib/size-context";
 import type { SizeVariant } from "@repo/ui/lib/size-context";
 import { ArrowUpIcon } from "lucide-react";
@@ -111,7 +111,6 @@ const InputMessage = ({
   ref,
   ...props
 }: InputMessageProps & RefAttributes<HTMLDivElement>) => {
-  const radius = useRadius();
   const compactStep = useSize(size).variant === "compact";
   const step = compactStep ? compactSteps : comfortableSteps;
 

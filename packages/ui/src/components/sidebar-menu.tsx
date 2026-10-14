@@ -11,7 +11,7 @@ import type {
 } from "react";
 import { cn } from "@repo/ui/lib/cn";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useRadius } from "@repo/ui/lib/radius-context";
+import { radius } from "@repo/ui/lib/radius";
 import { SizeProvider, useSize } from "@repo/ui/lib/size-context";
 import type { SizeVariant } from "@repo/ui/lib/size-context";
 import { ProximityOverlays } from "@repo/ui/hooks/proximity-overlays";
@@ -430,7 +430,6 @@ const SidebarMenuButton = ({
 }: SidebarMenuButtonProps & RefAttributes<HTMLButtonElement>) => {
   const scope = useContext(MenuScopeContext);
   const item = useContext(MenuItemContext);
-  const radius = useRadius();
   const sizeClasses = useSize();
 
   const setActive = item?.setActive;
@@ -497,25 +496,22 @@ const SidebarMenuAction = ({
   className,
   ref,
   ...props
-}: SidebarMenuActionProps & RefAttributes<HTMLButtonElement>) => {
-  const radius = useRadius();
-  return (
-    <button
-      ref={ref}
-      type="button"
-      data-sidebar="menu-action"
-      className={cn(
-        "absolute top-1/2 right-1 z-20 flex size-6 shrink-0 -translate-y-1/2 items-center justify-center text-muted-foreground outline-none",
-        "transition-[color,opacity] duration-80 hover:text-foreground focus-visible:text-foreground",
-        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        showOnHover &&
-          "opacity-0 group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100",
-        radius.item,
-        className,
-      )}
-      {...props}
-    />
-  );
-};
+}: SidebarMenuActionProps & RefAttributes<HTMLButtonElement>) => (
+  <button
+    ref={ref}
+    type="button"
+    data-sidebar="menu-action"
+    className={cn(
+      "absolute top-1/2 right-1 z-20 flex size-6 shrink-0 -translate-y-1/2 items-center justify-center text-muted-foreground outline-none",
+      "transition-[color,opacity] duration-80 hover:text-foreground focus-visible:text-foreground",
+      "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+      showOnHover &&
+        "opacity-0 group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100",
+      radius.item,
+      className,
+    )}
+    {...props}
+  />
+);
 
 export { SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction };

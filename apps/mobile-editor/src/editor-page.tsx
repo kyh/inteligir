@@ -12,7 +12,6 @@ import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { MotionPolicy } from "@repo/ui/lib/motion-policy";
-import { RadiusProvider } from "@repo/ui/lib/radius-context";
 import { SizeProvider } from "@repo/ui/lib/size-context";
 import { ThemeProvider } from "@repo/ui/lib/theme";
 
@@ -61,27 +60,25 @@ const keepSystemTheme = (): void => {
 
 export const EditorPage = ({ init, store }: { init: PageInit; store: OpenNoteStore }) => (
   <ThemeProvider theme="system" setTheme={keepSystemTheme}>
-    <RadiusProvider radius="rounded">
-      <SizeProvider size="compact">
-        <MotionPolicy>
-          <TooltipProvider>
-            <OpenNoteStoreProvider store={store}>
-              <EditorProfileProvider profile="touch">
-                <main
-                  data-editor-scroller=""
-                  className="h-dvh overflow-y-auto pt-[env(safe-area-inset-top)]"
-                >
-                  <PhoneColumn />
-                </main>
-                <FocusOnOpen focus={init.focus} path={init.path} />
-              </EditorProfileProvider>
-            </OpenNoteStoreProvider>
-            <ConfirmDialogHost />
-            <Toaster position="top-center" />
-          </TooltipProvider>
-        </MotionPolicy>
-      </SizeProvider>
-    </RadiusProvider>
+    <SizeProvider size="compact">
+      <MotionPolicy>
+        <TooltipProvider>
+          <OpenNoteStoreProvider store={store}>
+            <EditorProfileProvider profile="touch">
+              <main
+                data-editor-scroller=""
+                className="h-dvh overflow-y-auto pt-[env(safe-area-inset-top)]"
+              >
+                <PhoneColumn />
+              </main>
+              <FocusOnOpen focus={init.focus} path={init.path} />
+            </EditorProfileProvider>
+          </OpenNoteStoreProvider>
+          <ConfirmDialogHost />
+          <Toaster position="top-center" />
+        </TooltipProvider>
+      </MotionPolicy>
+    </SizeProvider>
   </ThemeProvider>
 );
 

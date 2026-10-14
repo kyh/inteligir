@@ -5,7 +5,7 @@ import type { HTMLAttributes, RefAttributes } from "react";
 import { cva } from "class-variance-authority";
 import type { VariantProps } from "class-variance-authority";
 
-import { useRadius } from "@repo/ui/lib/radius-context";
+import { radius } from "@repo/ui/lib/radius";
 import { useSizeVariant } from "@repo/ui/lib/size-context";
 import { cn } from "@repo/ui/lib/cn";
 
@@ -72,7 +72,6 @@ const Badge = ({
   ref,
   ...props
 }: BadgeProps & RefAttributes<HTMLSpanElement>) => {
-  const radius = useRadius();
   const contextSize = useSizeVariant();
   const size: BadgeSize = sizeProp ?? (contextSize === "compact" ? "compact" : "default");
   const colorValue = badgeColors[color];
