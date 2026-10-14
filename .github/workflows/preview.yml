@@ -5,9 +5,8 @@
 # GitHub deployment in "Preview – inteligir-web". Closing the PR deletes the Preview.
 #
 # workflow_run, not pull_request, for the reason Deploy gives: a preview of a red tree is noise.
-# It also keeps this out of the CI-parity sweep, which reads every pull_request workflow as a
-# gate. workflow_run runs with secrets against PR code, so it is limited to this repo's own
-# branches; a fork's PR never reaches the build.
+# workflow_run runs with secrets against PR code, so it is limited to this repo's own branches; a
+# fork's PR never reaches the build.
 #
 # Needs, beyond Deploy's CLOUDFLARE_API_TOKEN: the token also granted D1: Edit and Workers R2
 # Storage: Edit, the CLOUDFLARE_ACCOUNT_ID secret, and once, from a machine:

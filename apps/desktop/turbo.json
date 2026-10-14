@@ -35,12 +35,9 @@
       // server with no error anywhere. esbuild rebuilds it in milliseconds; iterating on the
       // server itself is `pnpm cli serve` in its own terminal, which this shell adopts.
       "dependsOn": ["^build"],
-      // turbo runs in strict env mode and strips anything unnamed. The shell resolves its target
-      // through the server's own `resolveAppConfig`, so the set it needs is that module's whole
-      // table and not the port alone — stripping INTELIGIR_DATA_DIR alone would have the window
-      // verify a responder against the wrong data directory. Held against `ENV_VAR_NAMES` by
-      // tools/repo-guards/src/turbo-passthrough.test.ts, which derives its scope from who calls
-      // that function.
+      // strict env mode strips anything unnamed, and the shell resolves its target through the
+      // server's `resolveAppConfig`, so it needs that module's whole table. Held against
+      // `ENV_VAR_NAMES` by tools/repo-guards/src/turbo-passthrough.test.ts.
       "passThroughEnv": [
         "INTELIGIR_AGENT",
         "INTELIGIR_CLAUDE_MODEL",

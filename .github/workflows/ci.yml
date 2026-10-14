@@ -79,11 +79,10 @@ jobs:
 
       - name: E2E
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # outside verify on purpose (tools/e2e/package.json): it boots real instances and drives them
-        # over the wire, because every unit can pass while the composition fails.
-        # "E2E browser" installed the browser, "E2E shell driver" the shell's WebDriver, and
-        # xvfb-run gives the shell's window the display the runner lacks, so a scenario that skips is
-        # a broken setup: --no-skip fails it instead of passing it behind a green step
+        # outside verify on purpose: it boots real instances and drives them over the wire, because
+        # every unit can pass while the composition fails. The two steps above provide the browser
+        # and the shell's WebDriver and xvfb-run the display, so a skip is a broken setup, and
+        # --no-skip fails it rather than passing it behind a green step
         run: xvfb-run -a pnpm e2e --no-skip
 
   # the app ships only as a macOS arm64 .app, and the suites meet APFS, FSEvents and a tmpdir
@@ -128,9 +127,10 @@ jobs:
 
       - name: Smoke desktop
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        # minutes of packaging per run, and only a macOS host can pack or boot the .app, so it stays
-        # out of verify, which runs on every platform. ad-hoc whatever the runner's keychain holds; it reaches scripts/package.ts only because
-        # apps/desktop/turbo.json passes it through turbo's strict env
+        # only a macOS host can pack or boot the .app, and packing takes minutes, so it stays out of
+        # verify, which runs on every platform
         env:
+          # ad-hoc whatever the runner's keychain holds; it reaches scripts/package.ts only because
+          # apps/desktop/turbo.json passes it through turbo's strict env
           INTELIGIR_PACK_UNSIGNED: 1
         run: pnpm smoke:desktop

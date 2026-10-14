@@ -22,7 +22,6 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
-    // Not implied by `strict`; the switch-statement sibling above already is on.
     "noImplicitReturns": true,
     "exactOptionalPropertyTypes": true
   }

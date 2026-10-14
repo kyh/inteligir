@@ -430,8 +430,7 @@ cited.
 - **A PR PREVIEW IS A WORKER PREVIEW DRIVEN BY ACTIONS, not Workers Builds**,
   and it binds preview-only resources. Workers Builds would deploy on push and
   could not wait for CI, so previews ride `workflow_run` after CI like Deploy
-  does (which also keeps them out of the CI-parity sweep), limited to this
-  repo's branches because that trigger holds secrets. A preview inherits no
+  does, limited to this repo's branches because that trigger holds secrets. A preview inherits no
   binding, so `apps/web/cloudflare.config.ts` binds each, when `isPreview`,
   against `inteligir-auth-preview` / `inteligir-vault-preview`; pointing a
   preview at the production D1 was rejected, since PR code would write real

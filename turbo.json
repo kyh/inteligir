@@ -2,19 +2,12 @@
   "$schema": "https://turborepo.dev/schema.json",
   "agentGuidance": false,
   "ui": "tui",
-  // Every workspace's tsconfig extends tsconfig.base.json, so the repo-wide
-  // compiler settings (strict, noUncheckedIndexedAccess,
-  // exactOptionalPropertyTypes) are a real input to `typecheck` — but turbo
-  // only hashes files inside a workspace, so without this entry the base
-  // config is in NO task hash. Loosening a compiler setting then leaves every
-  // typecheck hash byte-identical, and CI restores `.turbo` from a
-  // branch-prefix key — the gate serves a green typecheck it never re-ran.
+  // every tsconfig extends the base, but turbo hashes only files inside a workspace: without this,
+  // loosening a compiler setting leaves every typecheck key unchanged, and CI, restoring `.turbo`
+  // from a branch-prefix key, serves a green typecheck it never re-ran
   "globalDependencies": ["tsconfig.base.json"],
-  // The local cache has no ceiling by default and this repo builds under
-  // worktrees, which SHARE one cache dir — so every parallel branch adds
-  // entries and nothing ever removes them (measured: 172 GB / 16,725 entries).
-  // Eviction runs in a background thread at the start of `turbo run`, so it
-  // costs the build nothing.
+  // worktrees share one cache dir and turbo never evicts by default; eviction runs in the
+  // background at the start of `turbo run`
   "cacheMaxSize": "10GB",
   "cacheMaxAge": "14d",
   // Deploy asks `turbo query affected` whether the Worker changed. Without this flag a changed
@@ -30,26 +23,18 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      // What the builds actually emit: vite/wrangler -> dist/. tsbuildinfo
-      // belongs to `typecheck` (tsc --noEmit, incremental), not here —
-      // declaring it as a build output caches the wrong artifact.
+      // tsbuildinfo is typecheck's output: declared here, it would cache the wrong artifact
       "outputs": ["dist/**"]
     },
-    // `dev` never exits (vite watchers), so it is declared persistent. This
-    // changes nothing under `turbo watch dev` — a non-exiting task is never
-    // restarted either way — but it makes a future `dependsOn: ["dev"]` a hard
-    // error instead of a hang.
+    // `dev` never exits, so persistent: a task that depends on it is an error rather than a hang
     "dev": {
       "cache": false,
       "persistent": true
     },
     "typecheck": {
       "dependsOn": ["^topo"],
-      // tsc runs incremental (tsconfig.base.json `tsBuildInfoFile`), so the
-      // incremental state IS this task's output — cache it or every restore
-      // re-checks from cold. A glob, because a workspace with several programs
-      // writes one file each (the workspace's tsbuildinfo.config.json,
-      // tsbuildinfo.suites.json and tsbuildinfo.page.json).
+      // tsc runs incremental, so its state is this task's output, or every restore re-checks from
+      // cold; a glob, because a workspace with several programs writes one file each
       "outputs": [".cache/tsbuildinfo*.json"]
     },
     // the shell's Rust is the one workspace with a formatter of its own (oxfmt has the rest), and
@@ -73,22 +58,17 @@
     },
     "test": {
       "dependsOn": ["^topo"],
-      // Every vitest.config.ts caps its own maxWorkers because this task runs
-      // the suites in parallel (the root `test` and `verify` scripts run four
-      // tasks at once, or TEST_CONCURRENCY): uncapped pools exhaust the
-      // machine and kill workers mid-run.
+      // the suites run in parallel (four at once, or TEST_CONCURRENCY), so every vitest.config.ts
+      // caps its own maxWorkers: uncapped pools exhaust the machine and kill workers mid-run
       "cache": false,
       // the macOS CI job's opt-out of the editor's typing budget
       // (packages/editor/vitest.config.ts says why)
       "passThroughEnv": ["SKIP_TYPING_BUDGET"]
     }
   },
-  // NODE_ENV is HASHED, not passed through: vite keeps an ambient NODE_ENV,
-  // so `development` emits React's dev build, and the unpackaged desktop
-  // shell hands `development` to its server and from there to every agent
-  // shell. An agent's `pnpm build` would otherwise store a dev bundle under
-  // the production key, in the cache every worktree shares. globalEnv still
-  // passes it through.
+  // NODE_ENV is hashed, not only passed through: vite emits React's dev build under an ambient
+  // `development`, which the unpackaged shell hands every agent shell, so an agent's build would
+  // otherwise store a dev bundle under the production key in the cache every worktree shares
   "globalEnv": ["NODE_ENV"],
   "globalPassThroughEnv": ["CI", "npm_lifecycle_event"]
 }
