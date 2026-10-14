@@ -100,7 +100,8 @@ of what was asked rather than a statement about the screen, survives the queue.
 Mac's agent anything: a turn any Mac may claim, or the answer to an **approval**
 a Mac opened for a phone-started turn, which only that Mac may claim. A dispatch
 is not a thread event: once a Mac takes a turn in, the thread's request row
-carries the dispatch id, and the log is the record from then on. Locally the
+carries the dispatch id (while the thread is busy, the queued message carries it
+until it becomes that row), and the log is the record from then on. Locally the
 word also names a runtime handing a turn to its provider
 (`apps/cli/src/server/agents/runtime-manager.ts`); the two never meet.
 

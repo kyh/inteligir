@@ -303,20 +303,21 @@ cited.
   build that would read it as another, and the phone mints the id, so a resend
   is one row. The Mac's apply runs the send's own decision, so a request starts,
   queues or is refused as a message typed there would, and no table records a
-  claim: the request row carrying the dispatch id is the ledger, so a lapsed
-  claim handed over again, or one another Mac ran, acks with no second turn (Say
-  the delivery guarantee you implement, above). A thread whose turn another
-  device runs is refused, since the request would wait on a queue a remote
-  settle never drains; a signed-out agent is delivered, and its error is what
-  the phone reads. A new thread binds its note by an id read, never minted,
-  because a mint waits on the vault's lock and a claim held past its lapse runs
-  on a second Mac. Rejected: the `thread_meta` lane, which carried no message
-  and no claim, so two Macs would both run it, and which every desktop push
-  overwrote; and the phone as a log pusher, which would give it an outbox and a
-  `deviceSeq` of its own. Residual: a follow-up one Mac claims on a thread
-  another Mac ran opens a fresh provider session there.
+  claim: the request row, or while the thread is busy the queued message,
+  carrying the dispatch id is the ledger, so a lapsed claim handed over again,
+  or one another Mac ran, acks with no second turn (Say the delivery guarantee
+  you implement, above). A thread whose turn another device runs is refused,
+  since the request would wait on a queue a remote settle never drains; a
+  signed-out agent is delivered, and its error is what the phone reads. A new
+  thread binds its note by an id read, never minted, because a mint waits on the
+  vault's lock and a claim held past its lapse runs on a second Mac. Rejected:
+  the `thread_meta` lane, which carried no message and no claim, so two Macs
+  would both run it, and which every desktop push overwrote; and the phone as a
+  log pusher, which would give it an outbox and a `deviceSeq` of its own.
+  Residual: a follow-up one Mac claims on a thread another Mac ran opens a fresh
+  provider session there.
   `apps/web/src/worker/sync/dispatch-inbox.ts`,
-  `apps/cli/src/server/cloud/dispatches.ts`.
+  `apps/cli/src/server/cloud/dispatches.ts`, `packages/db/src/events.ts`.
 
 - **A CAPTURE RIDES THE SAME INBOX**: a line for `Inbox.md`, kept on the phone
   until a Mac says it wrote it, so one typed offline is sent after a relaunch.
