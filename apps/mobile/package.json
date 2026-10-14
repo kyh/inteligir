@@ -2,7 +2,7 @@
   "name": "@repo/mobile",
   "version": "0.6.0",
   "private": true,
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "exports": {
     "./lib/compose-runtime": "./src/lib/compose-runtime.ts",
     "./lib/node-sql-driver": "./src/lib/node-sql-driver.ts",

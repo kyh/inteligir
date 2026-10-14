@@ -122,6 +122,13 @@ src/
                         list and the open note
     comments-view.tsx   a note's comment threads in a sheet over the editor,
                         each with Reply, Resolve (or Reopen) and Delete
+    use-note-editor.ts  the note screen's editor, made once per mount: the
+                        page in the bundle, its ports and the bridge's host,
+                        with the flush on every way out (leaving the screen,
+                        the back gesture's start, the app leaving the
+                        foreground)
+    use-sheet-comments.ts the comments sheet's threads, read each time it
+                        opens, and its edits, which read them again in place
   lib/          the composition root: compose-runtime.ts (platform-free and
                 unit-tested: the restore, sign-out, revocation and resume)
                 and app-runtime.ts (its binding to the Keychain, the
@@ -134,6 +141,8 @@ src/
                 native module this app carries); the external store the
                 runtimes publish through, theme, cloud URL, and routes.ts
                 (every push to a note or a thread and the params it carries)
+  ui/           text-button.tsx: a label that acts, with no frame of its own,
+                sized by the text it sits by, shared by the screens
   app/          expo-router screens: sign-in, thread list + quick capture, a
                 thread view with its composer, pending requests and approval
                 cards, the notes list (New note; Rename and Delete on a long

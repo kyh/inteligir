@@ -24,6 +24,7 @@ import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 import type { Theme } from "@/lib/theme";
 import type { RefusedCapture } from "@/dispatch/dispatch-projection";
 import type { SyncStatus } from "@/sync/sync-runtime";
+import { TextButton } from "@/ui/text-button";
 
 const styles = StyleSheet.create({
   bodyText: { fontSize: 16, textAlign: "center" },
@@ -113,16 +114,13 @@ const RefusedCaptureRow = ({ refused }: { refused: RefusedCapture }) => {
         <Text style={[styles.captionText, styles.shrink, { color: theme.destructive }]}>
           {refused.message}
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          hitSlop={SPACE.sm}
-          style={({ pressed }) => pressed && styles.pressed70}
+        <TextButton
+          fontSize={14}
+          label="Dismiss"
           onPress={() => {
             void dismissDispatch(refused.id);
           }}
-        >
-          <Text style={[styles.smallLabel, { color: theme.foreground }]}>Dismiss</Text>
-        </Pressable>
+        />
       </View>
     </View>
   );

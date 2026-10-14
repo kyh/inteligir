@@ -1,11 +1,4 @@
-import {
-  router,
-  Stack,
-  useFocusEffect,
-  useLocalSearchParams,
-  useNavigation,
-  useRoute,
-} from "expo-router";
+import { router, Stack, useLocalSearchParams, useNavigation, useRoute } from "expo-router";
 import type { NativeStackNavigationProp } from "expo-router";
 import {
   useHeaderHeight,
@@ -13,45 +6,28 @@ import {
   usePreventRemove,
 } from "expo-router/react-navigation";
 import type { ParamListBase } from "expo-router/react-navigation";
-import { useCallback, useEffect, useState } from "react";
-import {
-  Alert,
-  AppState,
-  KeyboardAvoidingView,
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, KeyboardAvoidingView, Linking, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import type { PageInit } from "@repo/mobile-editor/bridge-protocol";
 import { docStem } from "@repo/notes/knowledge/doc-file";
-import { createEditorHost, loadVerdict, openWindowVerdict } from "@/editor/editor-host";
+import { loadVerdict, openWindowVerdict } from "@/editor/editor-host";
 import type { LoadVerdict } from "@/editor/editor-host";
 import type { EditorRoute, PageEditorState } from "@/editor/editor-ports";
-import { editorPageSource } from "@/editor/page-source";
-import {
-  createNoteEditorPorts,
-  deleteNote,
-  mintBridgeNonce,
-  readNote,
-  readNoteComments,
-} from "@/lib/app-runtime";
+import { deleteNote } from "@/lib/app-runtime";
 import { firstParam, openNote, openThread } from "@/lib/routes";
 import type { ThreadParams } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
-import { NOTE_GONE } from "@/notes/comment-ops";
-import type { CommentOutcome } from "@/notes/comment-ops";
 import { CommentsSheet } from "@/notes/comments-view";
-import type { CommentEdits } from "@/notes/comments-view";
 import { confirmDeleteNote } from "@/notes/confirm-delete-note";
-import type { CommentsRead } from "@/notes/notes-store";
 import { OutboxBanner } from "@/notes/outbox-banner";
+import { useNoteEditor } from "@/notes/use-note-editor";
+import { useSheetComments } from "@/notes/use-sheet-comments";
+import type { SheetRequest } from "@/notes/use-sheet-comments";
+import { TextButton } from "@/ui/text-button";
 
 const styles = StyleSheet.create({
-  action: { fontSize: 16, fontWeight: "600" },
   banner: { paddingHorizontal: SPACE.lg, paddingTop: SPACE.sm },
   failed: {
     alignItems: "center",
@@ -60,7 +36,6 @@ const styles = StyleSheet.create({
     paddingVertical: 96,
   },
   failedText: { fontSize: 16, textAlign: "center" },
-  pressed: { opacity: 0.7 },
   screen: { flex: 1 },
   status: { fontSize: 16, paddingHorizontal: SPACE.xxl, paddingVertical: 96, textAlign: "center" },
 });
@@ -119,12 +94,6 @@ const unsavedLine = (error: SaveError): string =>
     ? "This note was deleted while it had edits that are not saved."
     : `Your last edits couldn't be saved: ${error.message}`;
 
-// the note's comments, folded against the markers its text holds now
-const loadComments = async (path: string): Promise<CommentsRead> => {
-  const read = await readNote(path);
-  return read.ok ? await readNoteComments(read) : { message: read.message, ok: false };
-};
-
 // One note in the desktop's editor: the page the app bundle carries, in a WebView that reaches the
 // phone only through the bridge (editor-host.ts) and loads nothing but itself. Leaving the screen
 // or the app writes what the page holds first.
@@ -136,18 +105,15 @@ const NoteScreen = () => {
   const route = useRoute();
   const navigation = useNavigation<NativeStackNavigationProp<ParamListBase>>();
   const depth = useNavigationState((state) => depthOf(state.routes, route.key));
-  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [source] = useState(editorPageSource);
   const [opened, setOpened] = useState<string | null>(path);
-  const [sheet, setSheet] = useState<{ ids: readonly string[] | null } | null>(null);
-  const [comments, setComments] = useState<CommentsRead | null>(null);
+  const [sheet, setSheet] = useState<SheetRequest | null>(null);
   const [released, setReleased] = useState(false);
   const [saveError, setSaveError] = useState<SaveError | null>(null);
   const [openFailed, setOpenFailed] = useState<string | null>(null);
 
-  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [ports] = useState(() =>
-    createNoteEditorPorts({
+  const { host, ports, source } = useNoteEditor(
+    { focus: focusOf(firstParam(params.focus)), path },
+    {
       editorState: (state) => {
         setSaveError(state.saveError);
       },
@@ -160,32 +126,12 @@ const NoteScreen = () => {
       showComments: (ids) => {
         setSheet({ ids });
       },
-    }),
-  );
-  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
-  const [host] = useState(() =>
-    createEditorHost({
-      init: { focus: focusOf(firstParam(params.focus)), path },
-      mintNonce: mintBridgeNonce,
-      onEvent: ports.handle,
-      pageUrl: source?.uri ?? "",
-      ports: ports.requests,
-    }),
+    },
   );
   // the WebView's ref, one function for the screen's life: a fresh one each render would detach
   // the view and attach it again, and a detach forgets the loaded page
   const { attach: attachView } = host;
-
-  useEffect(() => ports.watch(host.send), [ports, host]);
-
-  useFocusEffect(
-    useCallback(
-      () => () => {
-        void host.flush();
-      },
-      [host],
-    ),
-  );
+  const { comments, edits: commentEdits } = useSheetComments(sheet, opened, ports.comments);
 
   // A save the page could not make is held only by the page, so leaving then asks first. An
   // ordinary edit inside the autosave's pause needs no ask: the flush on the way out writes it.
@@ -204,29 +150,6 @@ const NoteScreen = () => {
       ]);
     })();
   });
-
-  // the back gesture starts here, while the page still runs
-  useEffect(
-    () =>
-      navigation.addListener("transitionStart", (event) => {
-        if (event.data.closing) {
-          void host.flush();
-        }
-      }),
-    [navigation, host],
-  );
-
-  // `inactive` comes first on the way out (the app switcher, a call), while the page still runs
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", (state) => {
-      if (state !== "active") {
-        void host.flush();
-      }
-    });
-    return () => {
-      subscription.remove();
-    };
-  }, [host]);
 
   const deep = depth >= RELEASE_DEPTH;
   useEffect(() => {
@@ -248,51 +171,6 @@ const NoteScreen = () => {
       setReleased(false);
     };
   }, [deep, host]);
-
-  useEffect(() => {
-    if (sheet === null || opened === null) {
-      return;
-    }
-    let live = true;
-    void (async () => {
-      const threads = await loadComments(opened);
-      if (live) {
-        setComments(threads);
-      }
-    })();
-    return () => {
-      live = false;
-      setComments(null);
-    };
-  }, [sheet, opened]);
-
-  // an edit is on the phone once it answers, so the sheet reads the store again in place rather
-  // than going back to Loading under the field being typed in
-  const editComments = async (
-    change: (path: string) => Promise<CommentOutcome>,
-  ): Promise<CommentOutcome> => {
-    if (opened === null) {
-      return { kind: "refused", message: NOTE_GONE };
-    }
-    const outcome = await change(opened);
-    if (outcome.kind === "done") {
-      setComments(await loadComments(opened));
-    }
-    return outcome;
-  };
-  const commentEdits: CommentEdits = {
-    reply: async (rootId, text) =>
-      await editComments(async (notePath) => await ports.comments.reply(notePath, rootId, text)),
-    remove: async (rootId) =>
-      await editComments(async (notePath) => {
-        const removed = await ports.comments.remove(notePath, rootId);
-        return removed.kind === "done" ? { kind: "done" } : removed;
-      }),
-    resolve: async (rootId, resolved) =>
-      await editComments(
-        async (notePath) => await ports.comments.resolve(notePath, rootId, resolved),
-      ),
-  };
 
   const deleteOpened = (): void => {
     if (opened === null) {
@@ -400,14 +278,7 @@ const NoteScreen = () => {
             <Text style={[styles.failedText, { color: theme.mutedForeground }]}>
               {`Couldn't open this note: ${openFailed}`}
             </Text>
-            <Pressable
-              accessibilityRole="button"
-              hitSlop={SPACE.sm}
-              style={({ pressed }) => pressed && styles.pressed}
-              onPress={loadPageAgain}
-            >
-              <Text style={[styles.action, { color: theme.foreground }]}>Retry</Text>
-            </Pressable>
+            <TextButton fontSize={16} label="Retry" onPress={loadPageAgain} />
           </View>
         )}
       </KeyboardAvoidingView>
