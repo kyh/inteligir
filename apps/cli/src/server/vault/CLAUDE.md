@@ -69,23 +69,26 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   it: a pathspec is a glob, so `[a].md` names `a.md` too and a commit scoped to
   one note would stage its neighbour; a user's hook can refuse, stall or rewrite
   an engine commit, rebase or push, where `--no-verify` reaches only pre-commit
-  and commit-msg; a signing policy stalls or refuses an engine commit; a
-  recorded resolution replays over a verdict; and hidden untracked files would
-  hide an engine commit's paths and hold every sync behind it. Residual: a
-  git-lfs vault's upload is a pre-push hook too, so it does not run. Before the
-  listen the bootstrap stages only the starter notes it seeded into a folder it
-  created, and an opened folder's first commit is empty, since staging a large
-  folder there outran the shell's readiness wait. A pass concludes one outcome,
-  and a path two devices changed is never one of them: a detached HEAD says
-  `detached`, never `clean`; a refused push says `rejected`, never `offline`,
-  and a build below the floor runs no network step again in that process; a pass
-  that fails with no verdict says it stalled, never `clean` or `dirty`. Each
-  verdict carries its own message, so the error shown is the verdict's and the
-  two cannot drift; a push that lost a race to another device's reports no
-  error, since the tree already says unpushed and the next pass rebases. Every
-  git the vault runs goes through one injected runner, which a suite builds over
-  a hermetic config, never an env threaded through each layer.
-  `apps/cli/src/server/vault/git-run.ts`, `git-bootstrap.ts`.
+  and commit-msg; a signing policy stalls or refuses an engine commit; and a
+  recorded resolution replays over a verdict. Untracked files are a status
+  read's own flag: each passes `--untracked-files=normal`, because
+  `status.showUntrackedFiles=no` would hide an engine commit's paths and hold
+  every sync behind it. Residual: a git-lfs vault's upload is a pre-push hook
+  too, so it does not run. Before the listen the bootstrap stages only the
+  starter notes it seeded into a folder it created, and an opened folder's first
+  commit is empty, since staging a large folder there outran the shell's
+  readiness wait. A pass concludes one outcome, and a path two devices changed
+  is never one of them: a detached HEAD says `detached`, never `clean`; a
+  refused push says `rejected`, never `offline`, and a build below the floor
+  runs no network step again in that process; a pass that fails with no verdict
+  says it stalled, never `clean` or `dirty`. Each verdict carries its own
+  message, so the error shown is the verdict's and the two cannot drift; a push
+  that lost a race to another device's reports no error, since the tree already
+  says unpushed and the next pass rebases. Every git the vault runs goes through
+  one injected runner, which a suite builds over a hermetic config, never an env
+  threaded through each layer.
+  `apps/cli/src/server/vault/git-run.ts`, `git-porcelain.ts`,
+  `git-bootstrap.ts`.
 
 - **WHERE A PASTE LANDS IS A STORED VAULT CHOICE, and the host resolves it, not
   the editor.** The choice (the root, beside the note, or one folder, default
