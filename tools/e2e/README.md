@@ -157,7 +157,7 @@ accounts on any EXTERNAL service — hosted-vault-sync signs up a real account,
 but against its own scratch Miniflare Worker (apps/web's build output, state
 under the scenario's scratch dir; secrets are passed as text bindings, so no
 `.dev.vars` is needed). The one setup step beyond `pnpm install` is the
-browser binary every browser scenario needs: `npm i -g agent-browser@X.Y.Z &&
+browser binary every browser scenario needs: `pnpm add -g agent-browser@X.Y.Z &&
 agent-browser install` (Linux: `--with-deps`), at the version
 `.github/workflows/ci.yml` pins so a local run drives the browser CI drives.
 The desktop shell opens a real window, so CI runs the suite under `xvfb-run -a`,

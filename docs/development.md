@@ -130,23 +130,21 @@ miniflare's Durable Objects. Sign-up is invite-only and there is no seeded accou
 
 ## Where state lives
 
-| What                                          | Where                                                  |
-| --------------------------------------------- | ------------------------------------------------------ |
-| The product (`pnpm dev`)                      | derived port 21000–28999 (hash of checkout root)       |
-| The server in an agent's preview (`server` in | 5176 (pinned — `INTELIGIR_PORT`, never probed)         |
-| `.claude/launch.json`, `pnpm cli serve`)      |                                                        |
-| The page's vite dev server                    | 31000 (pinned — `strictPort`; `tauri dev` waits)       |
-| The vault selector, config.json               | `~/.inteligir-dev/<hash>/data/` (prod: `~/.inteligir`) |
-| Each vault's SQLite and sign-in               | `<that dir>/vaults/<hash of its physical path>/`       |
-| Folders, agent, vault and phone-request prefs | JSON files beside them (the app writes these)          |
-| Connectors                                    | the agent's own: `~/.claude.json`, `~/.codex`          |
-| The desktop's server log                      | `<data dir>/logs/server.log` (+ one `.1`)              |
-| The desktop's own folder (recent vaults,      | `desktop/` beside config.json                          |
-| the debug choice, Linux's web stores)         |                                                        |
-| Site + cloud Worker (`pnpm dev:web`)          | 5174 (pinned — `strictPort`)                           |
-| UI gallery (`pnpm dev:gallery`)               | 5175 (pinned — `strictPort`)                           |
-| Accounts, sessions, devices, invites          | D1 (local file under `apps/web/.wrangler`)             |
-| Thread log, dispatch inbox, hosted vault      | Durable Objects (same `.wrangler` dir)                 |
+| What                                              | Where                                                                              |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| The product (`pnpm dev`)                          | derived port 21000–28999 (hash of checkout root)                                   |
+| An agent's preview server (`.claude/launch.json`) | 5176 (pinned — `INTELIGIR_PORT`, never probed)                                     |
+| The page's vite dev server                        | 31000 (pinned — `strictPort`; `tauri dev` waits)                                   |
+| Site + cloud Worker (`pnpm dev:web`)              | 5174 (pinned — `strictPort`)                                                       |
+| UI gallery (`pnpm dev:gallery`)                   | 5175 (pinned — `strictPort`)                                                       |
+| The vault selector, config.json                   | `~/.inteligir-dev/<hash>/data/` (prod: `~/.inteligir`)                             |
+| Each vault's SQLite and sign-in                   | `<that dir>/vaults/<hash of its physical path>/`                                   |
+| Folders, agent, vault and phone-request prefs     | JSON files beside them (the app writes these)                                      |
+| Connectors                                        | the agent's own: `~/.claude.json`, `~/.codex`                                      |
+| The desktop's server log                          | `<data dir>/logs/server.log` (+ one `.1`)                                          |
+| The desktop's own folder                          | `desktop/` beside config.json: recent vaults, the debug choice, Linux's web stores |
+| Accounts, sessions, devices, invites              | D1 (local file under `apps/web/.wrangler`)                                         |
+| Thread log, dispatch inbox, hosted vault          | Durable Objects (same `.wrangler` dir)                                             |
 
 ## Quality gates
 

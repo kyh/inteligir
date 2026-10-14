@@ -174,11 +174,9 @@ pnpm format:fix && pnpm verify
 
 `format:fix` runs FIRST and never after the gates; `verify` (`typecheck`,
 `lint`, `knip`, `format`, `test`, `build`, one turbo run that reports every
-red task) is check-only for that reason. CI runs `pnpm verify` and adds the
-scenario suite and a macOS job (`test` where the app ships, and
-`pnpm smoke:desktop` on an unsigned pack), each extra step with its reason
-beside it in `.github/workflows/ci.yml`, so run `pnpm e2e` too before claiming
-a green CI. Releasing is the owner's: a change whose proof needs a device, an
+red task) is check-only for that reason. CI runs `pnpm verify` plus the steps
+it cannot (`docs/development.md` § Quality gates), so run `pnpm e2e` too before
+claiming a green CI. Releasing is the owner's: a change whose proof needs a device, an
 account or a credential adds its check to `docs/releasing.md` § 5, under its
 surface.
 
@@ -263,7 +261,8 @@ A citation of `CLAUDE.md § X` names the bullet or group titled X in whichever
 of these files holds it: `git grep -F 'X' -- '*CLAUDE.md'` finds it.
 
 **Before raising a "new" finding**, read the decision record and the `note`
-issues, the declines register: #877, #881, #788, #645, #674, #603 (Moss
-parity) and #705 (the CodeMirror trade); #446, #453, #472 and #474 decline
-findings against the hosted architecture this one replaced. A decline that
+issues, the declines register (every `note` issue titled "do not re-raise"
+among them): #902, #877, #881, #788, #645, #674, #485 (agent-native), #603
+(Moss parity) and #705 (the CodeMirror trade); #446, #453, #472 and #474
+decline findings against the hosted architecture this one replaced. A decline that
 weighs a migration's cost or an older install yields to the no-users premise.

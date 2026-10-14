@@ -54,138 +54,38 @@ worktree under `.claude` is never read as this commit's tree.
 
 ## The guards
 
-| file                           | the rule it derives, and refuses                                          |
-| ------------------------------ | ------------------------------------------------------------------------- |
-| `dep-dag.test.ts`              | The workspace DAG from BOTH sides: every workspace has a `DECLARED_EDGES` |
-|                                | row; shipped imports match it (an undeclared edge and a dead edge both    |
-|                                | fail); every import, a test's and a script's or config's included, is in  |
-|                                | the importer's manifest, which knip skips for a private workspace (knip   |
-|                                | refuses the reverse, a listed workspace nothing imports); no cycles; and  |
-|                                | a workspace reaches another by its package name alone, so a relative path |
-|                                | into one fails rather than slipping past every check here. Then           |
-|                                | platform reach, beside `oxlint.config.ts`'s node and react rule per       |
-|                                | package: only `@repo/workspace` reaches `@tauri-apps`, `@repo/domain`     |
-|                                | declares only zod, no package imports an app,                             |
-|                                | every `CLOUD_ONLY_CLIENTS` row (`@repo/web`, `@repo/mobile`, each with    |
-|                                | why it ships apart) reaches `@repo/contract/cloud/*` and nothing else of  |
-|                                | the contract, `src/cloud` never reaches `src/local` and a third bucket    |
-|                                | under `packages/contract/src` fails, and the Worker imports no package    |
-|                                | whose shipped graph reaches `node:`.                                      |
-| `dangling-references.test.ts`  | Every `@repo/*` name and every group-anchored path written in a tracked   |
-|                                | source, config, markdown or yaml file resolves to a workspace or a path   |
-|                                | on disk. What it reads is stated in its own section below.                |
-| `ws-change-kinds.test.ts`      | Every kind in `@repo/domain/change-kinds` is fired by a `notifyVault`,    |
-|                                | `notifyDoc` or `notifyThread` call in shipped source outside              |
-|                                | `packages/domain`, and every fired kind is declared.                      |
-| `domain-dispatch.test.ts`      | One total dispatch per vocabulary: a shipped file quoting EVERY member    |
-|                                | (vault sync state, thread status, pending-interaction status, thread and  |
-|                                | vault change kinds) is a table, and must be the declaration or a          |
-|                                | `dispatchedIn` row saying what it decides that the others do not. The     |
-|                                | members are read from the declarations themselves.                        |
-| `one-spelling.test.ts`         | One spelling per cross-cutting predicate: "is path P under root R?" is    |
-|                                | `apps/cli/src/server/path-containment.ts`, "what does                     |
-|                                | `git status --porcelain` say?" is                                         |
-|                                | `apps/cli/src/server/vault/git-porcelain.ts`; a re-spelling needs an      |
-|                                | `elsewhere` row. Detection is textual and a lower bound — the shapes      |
-|                                | these were actually re-spelled in.                                        |
-| `route-paths.test.ts`          | Every non-procedure route path (the local `/rpc`, `/health`,              |
-|                                | `/vault/asset` and `/html-frame`; the cloud `VAULT_API_PATHS`) is         |
-|                                | spelled only at its contract home. The sweep covers `scripts/`, where the |
-|                                | smokes that drift live; tests are excluded, because a test deriving its   |
-|                                | URL from the contract could not catch the contract moving.                |
-| `turbo-passthrough.test.ts`    | Every workspace whose shipped source calls `resolveAppConfig` has a       |
-|                                | `turbo.json` whose config-running tasks name exactly `ENV_VAR_NAMES` from |
-|                                | `inteligir/server/config` — strict env mode strips the rest silently.     |
-| `turbo-cache-keys.test.ts`     | Every cached turbo task a workspace with workspace dependencies runs      |
-|                                | carries a `^` edge in its effective `dependsOn` (the root's, the          |
-|                                | override, or both through `$TURBO_EXTENDS$`) — turbo hashes another       |
-|                                | workspace's files into a key only through one, so without it an edit to   |
-|                                | a bundled package replays stale output. `^topo` is the edge where `^self` |
-|                                | would cycle; a `WITHOUT_DEPENDENCY_EDGE` row carries its reason. And a    |
-|                                | relative import that leaves every workspace (`/privacy`'s                 |
-|                                | `docs/privacy.md`) is named in its build's `inputs` as `$TURBO_ROOT$/…`.  |
-| `desktop-shell-wire.test.ts`   | The words the Rust shell shares with the TypeScript page and CLI, read    |
-|                                | from both sides: every command a page asks is named once in `build.rs`,   |
-|                                | handled in `lib.rs`, and granted by its window's capability (the app      |
-|                                | window's is the list the shell grants at runtime); the update event, the  |
-|                                | server's ready marker, the CLI entry the shell runs, the env names it     |
-|                                | pins on a child and the one `apps/workspace/scripts/dev.ts` names its     |
-|                                | Vite under match; and each serde type in `launch.rs` reads the fields of  |
-|                                | its door answer's zod schema (`inteligir/desktop/door-answers`), which    |
-|                                | parses the `apps/desktop/src-tauri/fixtures/` the cargo tests read.       |
-| `phone-page-csp.test.ts`       | The phone editor page's meta CSP (`apps/mobile-editor/index.html`) is     |
-|                                | `csp.ts`'s for a page with no socket, apart from a `PAGE_DEPARTURES` row  |
-|                                | with its reason (`connect-src 'none'`, no `frame-ancestors`), so a        |
-|                                | directive the server adds fails until the phone decides it; a row naming  |
-|                                | a directive the server no longer spells fails too.                        |
-| `ui-orphan-exports.test.ts`    | PER EXPORT under `@repo/ui`'s wildcard-exported roots: a consumer outside |
-|                                | the gallery, an `AWAITING_CONSUMER` file (held whole, and not itself a    |
-|                                | consumer) or an `ALLOWED_EXPORTS` row with its reason. `export *` is      |
-|                                | refused as un-attributable.                                               |
-| `gallery-coverage.test.ts`     | Every component under the demoed roots is imported by the gallery         |
-|                                | (`pnpm dev:gallery`) or is a `NOT_DEMOED` row; `hooks` and `lib` are      |
-|                                | declared non-component roots.                                             |
-| `type-roles.test.ts`           | The chrome under `apps/workspace/src`, `packages/editor/src`,             |
-|                                | `packages/ui/src/components` and `packages/ui/src/ai` (minus              |
-|                                | `AWAITING_CONSUMER`) draws text only in the five roles; a fixed note size |
-|                                | is a `PROSE_SIZES` row with its reason.                                   |
-| `compiled-hook-shapes.test.ts` | No react-importing source defines a `use*` hook inside another function — |
-|                                | the React Compiler hoists its closures to module scope and reports no     |
-|                                | diagnostic. The scanner is self-tested against braces in strings,         |
-|                                | comments and template holes.                                              |
-| `appearance-tokens.test.ts`    | The `--editor-*` funnel: the `dial()` rows in `appearance-options.ts`     |
-|                                | write only tokens something reads, every read resolves to a `globals.css` |
-|                                | declaration, every declaration is read, `--editor-width` carries no       |
-|                                | fallback, and every fallback spells the stylesheet default exactly.       |
-| `page-prefs.test.ts`           | Storage is read and written by key only in the workspace's `PREFS` table  |
-|                                | (`apps/workspace/src/app/prefs.ts`), and no other file spells one         |
-|                                | of its keys, which are read off the table's own rows; a store that is not |
-|                                | the shell's is an `ELSEWHERE` row with its reason.                        |
-| `workspace-coverage.test.ts`   | The walk's globs come from `pnpm-workspace.yaml` and their count matches  |
-|                                | the raw text; every `package.json` on disk is reached by one; every       |
-|                                | discovered workspace still has its manifest.                              |
-| `script-naming.test.ts`        | A root script suffixed with a workspace directory drives that workspace;  |
-|                                | every `--filter` target is a workspace.                                   |
-| `catalog-spelling.test.ts`     | A dependency two or more manifests name is spelled `catalog:`; a          |
-|                                | deliberate split is a `DECLARED_SPLITS` row with its reason.              |
-| `tailwind-source.test.ts`      | Every `@source "…"` glob's static base is a directory that exists         |
-|                                | relative to the stylesheet — Tailwind answers a missing base with an      |
-|                                | empty scan, no error.                                                     |
-| `workerd-compat-date.test.ts`  | `apps/web/compatibility.ts`'s `compatibilityDate` is the OLDEST workerd   |
-|                                | date `pnpm-lock.yaml` resolves — a workerd cannot emulate a date it       |
-|                                | predates.                                                                 |
-| `durable-git-stub.test.ts`     | The header of `apps/web/src/worker/types/durable-git.d.ts` names the      |
-|                                | durable-git version `pnpm-lock.yaml` resolves — tsc checks the Worker     |
-|                                | against that hand-written stub and never reads the package it bundles.    |
-| `d1-unique-index.test.ts`      | The schema every `d1-http` drizzle config pushes declares no `.unique()`  |
-|                                | column modifier — drizzle-kit 1.0 plans it as a table recreate, and D1's  |
-|                                | DROP cascade-wipes the children. Uniques are named `uniqueIndex` rows.    |
-| `agent-skills.test.ts`         | Every skill directory has a `SKILL.md` naming itself; the hub's Focused   |
-|                                | Contracts index lists every other skill and no phantom; the file the CLI  |
-|                                | resolver probes exists — a renamed probe answers null, not an error.      |
-| `control-bytes.test.ts`        | No tracked source, markdown, config or sql file carries a raw control     |
-|                                | byte other than tab, LF and CR — git diffs a file holding a NUL as        |
-|                                | binary and ripgrep skips it. A string literal spells it as an escape.     |
-| `changelog.test.ts`            | `CHANGELOG.md` is titled, every section is `## Unreleased` (top only) or  |
-|                                | `## <version> — <date>`, releases run newest first, and the newest names  |
-|                                | `apps/desktop`'s version — a release's notes are its top section. The     |
-|                                | release-notes script, run over staged trees and the real one, prints that |
-|                                | section only when it is titled for the package's version.                 |
-| `release-versions.test.ts`     | The CLI, the desktop and the phone manifests carry one version, and the   |
-|                                | phone's EAS build installs with the pnpm, the node major and at least the |
-|                                | eas-cli the repo pins — a release ships three artifacts as one product.   |
-| `ime-enter.test.ts`            | A source under `packages/ui/src`, `packages/editor/src` or                |
-|                                | `apps/workspace/src` that tests a key against Enter imports               |
-|                                | `isImeComposing`, or is                                                   |
-|                                | a `NOT_A_TEXT_FIELD` row — the Enter that commits an IME candidate is not |
-|                                | the user's, and no unit suite types through a composition.                |
-| `privacy-routes.test.ts`       | Every `/v1/` string literal in tracked non-test source under              |
-|                                | `packages/contract/src/cloud` has a row under `docs/privacy.md`'s "Every  |
-|                                | address the app talks to", and every backticked `/v1/` route there is     |
-|                                | still declared — the page promises every address the app talks to.        |
-| `decisions-index.test.ts`      | `AGENTS.md` § Decisions indexes every tracked `CLAUDE.md` below the root  |
-|                                | and no file that is gone, holds no decision of its own, and the root      |
-|                                | `CLAUDE.md` is exactly `@AGENTS.md`.                                      |
+One per file; its header and its failure message state the rule in full.
+
+- `dep-dag.test.ts`: imports match `DECLARED_EDGES` from both sides, and each package reaches only what its platform allows.
+- `dangling-references.test.ts`: every `@repo/*` name and group-anchored path in a tracked file resolves (what it reads: below).
+- `ws-change-kinds.test.ts`: every declared change kind is fired, and every fired kind declared.
+- `domain-dispatch.test.ts`: a file quoting every member of a vocabulary is its declaration or a `dispatchedIn` row.
+- `one-spelling.test.ts`: path containment and porcelain parsing are spelled once, or in an `elsewhere` row.
+- `route-paths.test.ts`: a non-procedure route path is spelled only at its contract home.
+- `turbo-passthrough.test.ts`: a workspace that reads `resolveAppConfig` passes exactly `ENV_VAR_NAMES` through turbo.
+- `turbo-cache-keys.test.ts`: a cached task over workspace deps has a `^` edge, and an import outside every workspace is a build input.
+- `desktop-shell-wire.test.ts`: the words the Rust shell shares with the page and the CLI match on both sides.
+- `phone-page-csp.test.ts`: the phone page's CSP is the server's, apart from a `PAGE_DEPARTURES` row.
+- `ui-orphan-exports.test.ts`: every `@repo/ui` export has a consumer outside the gallery, or a reasoned row.
+- `gallery-coverage.test.ts`: every component under the demoed roots is in the gallery, or a `NOT_DEMOED` row.
+- `type-roles.test.ts`: chrome draws text only in the five type roles, or a `PROSE_SIZES` row.
+- `compiled-hook-shapes.test.ts`: no react source defines a `use*` hook inside another function.
+- `appearance-tokens.test.ts`: every `--editor-*` token written is read, declared, and falls back to the stylesheet default.
+- `page-prefs.test.ts`: a storage key is spelled only in the workspace's `PREFS` table, or an `ELSEWHERE` row.
+- `workspace-coverage.test.ts`: every `package.json` on disk is reached by a `pnpm-workspace.yaml` glob.
+- `script-naming.test.ts`: a root script's workspace suffix and every `--filter` name a real workspace.
+- `catalog-spelling.test.ts`: a dependency two manifests name is `catalog:`, or a `DECLARED_SPLITS` row.
+- `tailwind-source.test.ts`: every `@source` glob's static base exists.
+- `workerd-compat-date.test.ts`: the Worker's `compatibilityDate` is the oldest workerd date the lockfile resolves.
+- `durable-git-stub.test.ts`: the durable-git stub's header names the version the lockfile resolves.
+- `d1-unique-index.test.ts`: no `d1-http` schema declares `.unique()`; a unique is a `uniqueIndex` row.
+- `agent-skills.test.ts`: every skill names itself, the hub indexes every skill, and the CLI's probe file exists.
+- `control-bytes.test.ts`: no tracked text file carries a raw control byte other than tab, LF and CR.
+- `changelog.test.ts`: `CHANGELOG.md` runs newest first, its top release naming the desktop's version.
+- `release-versions.test.ts`: the CLI, desktop and phone carry one version, and EAS builds with the repo's pins.
+- `ime-enter.test.ts`: a source testing a key against Enter imports `isImeComposing`, or is a `NOT_A_TEXT_FIELD` row.
+- `privacy-routes.test.ts`: every cloud `/v1/` route has a row in `docs/privacy.md`, and every row a route.
+- `decisions-index.test.ts`: `AGENTS.md` § Decisions indexes every nested `CLAUDE.md`, and the root one is `@AGENTS.md`.
 
 Every exception table — `ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`,
 `dispatchedIn`, `elsewhere`, `ELSEWHERE`, `WITHOUT_DEPENDENCY_EDGE`,
