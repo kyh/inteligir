@@ -328,6 +328,14 @@ const SidebarRail = ({
   };
 
   const semibold = { fontVariationSettings: fontWeights.semibold };
+  const railClasses = cn(
+    "absolute inset-y-0 z-20 w-2 cursor-col-resize outline-none",
+    // positioned from the prop, not group-data selectors, so a className offset can win the merge
+    side === "left" ? "right-0" : "left-0",
+    "after:absolute after:inset-y-0 after:w-px after:bg-transparent hover:after:bg-foreground/25 after:transition-colors after:duration-80",
+    side === "left" ? "after:right-0" : "after:left-0",
+    className,
+  );
 
   return (
     <Tooltip
@@ -360,14 +368,7 @@ const SidebarRail = ({
         onPointerUp={onPointerUp}
         onPointerCancel={onDragInterrupted}
         onLostPointerCapture={onDragInterrupted}
-        className={cn(
-          "absolute inset-y-0 z-20 w-2 cursor-col-resize outline-none",
-          // positioned from the prop, not group-data selectors, so a className offset can win the merge
-          side === "left" ? "right-0" : "left-0",
-          "after:absolute after:inset-y-0 after:w-px after:bg-transparent hover:after:bg-foreground/25 after:transition-colors after:duration-80",
-          side === "left" ? "after:right-0" : "after:left-0",
-          className,
-        )}
+        className={railClasses}
         {...props}
       />
     </Tooltip>
@@ -562,6 +563,17 @@ const SidebarShell = ({
   const floatingLevel = useRaisedSurface(1);
   const openTransition = open ? spring.moderate : spring.moderate.exit;
   const widthTransition = isResizing ? { duration: 0 } : openTransition;
+  const shellClasses = cn(
+    // no bare `group`: it would fire every descendant's group-hover on rail hover
+    "peer shrink-0 sticky top-0 h-svh",
+    // while peek is armed the 0-width shell must not clip the edge strip or the overlay card, and
+    // must rise above the inset (a later sibling)
+    peekEnabled ? "z-40" : "overflow-hidden",
+    // flex order decides the side, so Sidebar can stay before SidebarInset in the DOM
+    side === "right" && "order-last",
+    MOBILE.hidden,
+    className,
+  );
 
   return (
     <motion.div
@@ -571,17 +583,7 @@ const SidebarShell = ({
       data-collapsible={open ? "" : "offcanvas"}
       data-variant={variant}
       data-side={side}
-      className={cn(
-        // no bare `group`: it would fire every descendant's group-hover on rail hover
-        "peer shrink-0 sticky top-0 h-svh",
-        // while peek is armed the 0-width shell must not clip the edge strip or the overlay
-        // card, and must rise above the inset (a later sibling)
-        peekEnabled ? "z-40" : "overflow-hidden",
-        // flex order decides the side, so Sidebar can stay before SidebarInset in the DOM
-        side === "right" && "order-last",
-        MOBILE.hidden,
-        className,
-      )}
+      className={shellClasses}
       initial={false}
       animate={{ width: open ? width : "0rem" }}
       transition={widthTransition}

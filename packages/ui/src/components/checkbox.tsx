@@ -52,6 +52,9 @@ type CheckboxProps = CheckboxPrimitive.Root.Props & {
   size?: SizeVariant;
 };
 
+// invisible ::after padding widens the small square's hit target
+const HIT_TARGET = "after:absolute after:-inset-x-3 after:-inset-y-2";
+
 const Checkbox = ({ className, size, ...props }: CheckboxProps) => {
   const compact = useSize(size).variant === "compact";
   return (
@@ -61,8 +64,7 @@ const Checkbox = ({ className, size, ...props }: CheckboxProps) => {
         "relative shrink-0 cursor-pointer appearance-none bg-transparent p-0 outline-none",
         "border-[1.5px] border-solid border-border transition-colors duration-80",
         "hover:border-neutral-400 dark:hover:border-neutral-500",
-        // Invisible ::after padding widens the small square's hit target.
-        "after:absolute after:-inset-x-3 after:-inset-y-2",
+        HIT_TARGET,
         "focus-visible:ring-1 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         "data-disabled:pointer-events-none data-disabled:opacity-50",
         compact ? "h-[14px] w-[14px] rounded-[4px]" : "h-[16px] w-[16px] rounded-[5px]",

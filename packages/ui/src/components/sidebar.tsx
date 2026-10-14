@@ -68,14 +68,15 @@ const SidebarSheet = ({ side, open, onClose, children }: SidebarSheetProps) => {
           render={(popupProps, state) => {
             const exiting = state.transitionStatus === "ending";
             const { style: baseStyle, ref: baseRef, ...rest } = motionProps(popupProps);
+            // merge, don't replace: the primitive needs its own handle on the panel
+            const panelRefs = composeRefs(panelRef, baseRef);
             return (
               <PopupExit exiting={exiting}>
                 <Elevated
                   {...rest}
                   offset={2}
                   shadowLevel={3}
-                  // merge, don't replace: the primitive needs its own handle on the panel
-                  ref={composeRefs(panelRef, baseRef)}
+                  ref={panelRefs}
                   tabIndex={-1}
                   data-sidebar="sidebar"
                   data-mobile="true"

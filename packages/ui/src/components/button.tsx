@@ -116,9 +116,9 @@ interface ButtonProps extends Omit<ButtonPrimitive.Props, "className" | "style">
 // text-box only applies to block containers, so the trim lives on the label span, not the flex root.
 const labelTrimClass = "[text-box:trim-both_cap_alphabetic]";
 
-// Text runs are trimmed; an element child (an icon, a count) is a sibling flex item beside them.
-// Inside the trimmed block an inline svg does not size the block and is pushed out of its line
-// box, which drew the icon above the label.
+// Text runs are trimmed, and an element child (an icon, a count) is a sibling flex item beside
+// them: inside the trimmed block an inline svg does not size the block and is pushed out of its
+// line box, above the label.
 const labelChildren = (children: ReactNode): ReactNode[] => {
   const nodes: ReactNode[] = Array.isArray(children) ? children : [children];
   const out: ReactNode[] = [];

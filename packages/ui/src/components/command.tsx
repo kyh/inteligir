@@ -1,16 +1,8 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-// Fluid's command menu: one field over every action, type / arrow / Enter. The field keeps DOM
-// focus the whole time and points at the highlighted row through aria-activedescendant, so the
-// list needs no primitive of its own — the one thing a primitive would add, the modal shell, is
-// the repo's own Dialog. The highlight is the proximity pill every other popup here draws, moved
-// by the pointer through `useProximityHover` and by the arrows through `setActiveIndex`.
-//
-// Rows are children, not data: each page of the palette already owns its own filtering and its
-// own row shapes, and a data array would be a second answer to what a row is. A row therefore
-// does not answer for its own position — the list reads document order through `useRowOrder`,
-// the registry `dropdown-menu.tsx` and `sidebar-menu.tsx` share.
+// Rows are children, not data: each palette page owns its filtering and its row shapes. The field
+// keeps DOM focus and points at the highlighted row through aria-activedescendant.
 
 import {
   createContext,
@@ -53,9 +45,22 @@ const radius = radiusMap.rounded;
 // the store's null snapshot, spelled once so no reader needs an assertion for it
 const NO_ROW: HTMLElement | null = null;
 
-// ---------------------------------------------------------------------------
-// The registry
-// ---------------------------------------------------------------------------
+// Opens where a panel at its cap height sits centered, and keeps that top edge, so the field stays
+// put while the rows under it filter down. Below 580px of window height the cap is 76dvh and the
+// top lands on 12dvh.
+const PANEL_PLACEMENT =
+  "top-[max(12dvh,calc(50dvh-220px))] flex max-h-[min(440px,76dvh)] w-[calc(100%-2rem)] max-w-[560px] translate-y-0 flex-col overflow-hidden p-0";
+
+// rounded-none: the global :focus-visible rule hands a focused element the shape radius, and a
+// text input clips its caret to its corners
+const FIELD_CLASSES =
+  "min-w-0 flex-1 rounded-none bg-transparent font-[inherit] text-subtitle text-foreground outline-none placeholder:text-muted-foreground";
+
+// a row click must not blur the field: the palette is driven from the keyboard, and the click has
+// already picked
+const keepFieldFocus = (event: ReactMouseEvent): void => {
+  event.preventDefault();
+};
 
 // what a row is, read at the moment it is picked rather than when it registered
 interface RowMeta {
@@ -99,10 +104,6 @@ interface CommandFillValue {
 }
 
 const CommandFillContext = createContext<CommandFillValue | null>(null);
-
-// ---------------------------------------------------------------------------
-// CommandDialog — the modal shell, and the root that owns the registry
-// ---------------------------------------------------------------------------
 
 interface CommandDialogProps extends Omit<
   ComponentProps<typeof Dialog>,
@@ -314,21 +315,15 @@ const CommandDialog = ({
     ],
   );
 
+  // the sr-only title and description sit inside the content: Base UI puts them inside the Popup,
+  // and as siblings they would render while the palette is closed
   return (
     <Dialog onOpenChange={onOpenChange} {...props}>
       <DialogContent
         showCloseButton={false}
         initialFocus={initialFocus}
-        // Opens where a panel at its cap height sits centered, and keeps that top edge, so the
-        // field stays put while the rows under it filter down. Below 580px of window height the
-        // cap is 76dvh and the top lands on 12dvh.
-        className={cn(
-          "top-[max(12dvh,calc(50dvh-220px))] flex max-h-[min(440px,76dvh)] w-[calc(100%-2rem)] max-w-[560px] translate-y-0 flex-col overflow-hidden p-0",
-          className,
-        )}
+        className={cn(PANEL_PLACEMENT, className)}
       >
-        {/* the sr-only header sits inside the content: Base UI puts Title and Description inside
-            the Popup, and as a sibling it would render while the palette is closed */}
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <DialogDescription className="sr-only">{description}</DialogDescription>
         <CommandContext value={ctx}>
@@ -338,11 +333,6 @@ const CommandDialog = ({
     </Dialog>
   );
 };
-
-// ---------------------------------------------------------------------------
-// CommandInput — the field. Keeps focus; the arrows and Enter act on the list
-// through aria-activedescendant.
-// ---------------------------------------------------------------------------
 
 interface CommandInputProps extends Omit<
   ComponentProps<"input">,
@@ -440,21 +430,12 @@ const CommandInput = ({
           onValueChange(event.target.value);
         }}
         onKeyDown={handleKeyDown}
-        // rounded-none: the global :focus-visible rule hands a focused element the shape radius,
-        // and a text input clips its caret to its corners
-        className={cn(
-          "min-w-0 flex-1 rounded-none bg-transparent font-[inherit] text-subtitle text-foreground outline-none placeholder:text-muted-foreground",
-          className,
-        )}
+        className={cn(FIELD_CLASSES, className)}
         {...props}
       />
     </div>
   );
 };
-
-// ---------------------------------------------------------------------------
-// CommandList — the scrolling rows under the field's divider, and the pill
-// ---------------------------------------------------------------------------
 
 const CommandList = ({ className, children, ...props }: ComponentProps<"div">) => {
   const { listId, rowCount, setListNode } = useCommand();
@@ -472,11 +453,7 @@ const CommandList = ({ className, children, ...props }: ComponentProps<"div">) =
       onMouseEnter={fill?.onMouseEnter}
       onMouseMove={fill?.onMouseMove}
       onMouseLeave={fill?.onMouseLeave}
-      // a row click must not blur the field: the palette is driven from the keyboard, and the
-      // click has already picked
-      onMouseDown={(event) => {
-        event.preventDefault();
-      }}
+      onMouseDown={keepFieldFocus}
       className={cn(
         "relative flex max-h-72 min-h-0 flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto border-t border-border/60 p-1 outline-none data-[empty]:p-0",
         className,
@@ -494,10 +471,6 @@ const CommandList = ({ className, children, ...props }: ComponentProps<"div">) =
   );
 };
 
-// ---------------------------------------------------------------------------
-// CommandEmpty — stands in for the rows when nothing matches
-// ---------------------------------------------------------------------------
-
 const CommandEmpty = ({ className, ...props }: ComponentProps<"div">) => {
   const { rowCount } = useCommand();
   if (rowCount > 0) {
@@ -514,10 +487,6 @@ const CommandEmpty = ({ className, ...props }: ComponentProps<"div">) => {
     />
   );
 };
-
-// ---------------------------------------------------------------------------
-// CommandGroup — a heading over a contiguous run of rows
-// ---------------------------------------------------------------------------
 
 interface CommandGroupProps extends ComponentProps<"div"> {
   heading?: string;
@@ -547,10 +516,6 @@ const CommandGroup = ({ className, heading, children, ...props }: CommandGroupPr
     </div>
   );
 };
-
-// ---------------------------------------------------------------------------
-// CommandItem — one row
-// ---------------------------------------------------------------------------
 
 interface CommandItemProps extends Omit<ComponentProps<"div">, "onSelect"> {
   disabled?: boolean;
@@ -588,6 +553,8 @@ const CommandItem = ({
 
   const isActive = useHighlighted(highlight, (active) => rowEl !== null && active === rowEl);
 
+  // the control height is fixed so a trimmed label cannot shrink the row, and shrink-0 because the
+  // list is a flex column
   return (
     // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the keyboard path is the field's: it holds focus and runs this row through aria-activedescendant
     <div
@@ -608,8 +575,6 @@ const CommandItem = ({
         }
       }}
       className={cn(
-        // fixed height so a trimmed label cannot shrink the row; shrink-0 because the list is a
-        // flex column
         "relative z-10 flex shrink-0 cursor-pointer items-center outline-none select-none",
         sizeClasses.control,
         sizeClasses.gap,
@@ -628,10 +593,6 @@ const CommandItem = ({
     </div>
   );
 };
-
-// ---------------------------------------------------------------------------
-// CommandShortcut — the caps at a row's trailing edge
-// ---------------------------------------------------------------------------
 
 // one box per key; a chord can repeat a cap, so the position is part of the key
 const Caps = ({ caps }: { caps: readonly string[] }) => (
@@ -665,13 +626,8 @@ const CommandShortcut = ({ className, caps, ...props }: CommandShortcutProps) =>
   </kbd>
 );
 
-// ---------------------------------------------------------------------------
-// CommandFooter — the hint strip under the list: what the keys do here. The
-// Enter hint names the highlighted row, so it reads as the thing Enter does
-// rather than a generic "Run", and it sits at the trailing edge so its
-// changing width never moves the other hints.
-// ---------------------------------------------------------------------------
-
+// the Enter hint names the highlighted row, so it reads as the thing Enter does rather than a
+// generic "Run", and sits at the trailing edge so its changing width never moves the other hints
 const HINTS: readonly { label: string; caps: readonly string[] }[] = [
   { caps: ["↑", "↓"], label: "Select" },
   { caps: ["Esc"], label: "Close" },
