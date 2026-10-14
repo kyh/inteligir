@@ -9,6 +9,7 @@ import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { deferred } from "../../__tests__/async";
 import type { SqlDriver } from "../../lib/sql-driver";
 import type { NotesStore } from "../notes-store";
 import { blobOid, createFakeVault, FAKE_PHONE_DEVICE, networkOver, requestsOf } from "./fake-vault";
@@ -39,26 +40,6 @@ const readText = async (store: NotesStore, path: string): Promise<string> => {
 const mirroredOid = async (db: SqlDriver, path: string): Promise<string | null> => {
   const [row] = await db.all("SELECT oid FROM mirror_entries WHERE path = ?", [path]);
   return row === undefined ? null : z.object({ oid: z.string() }).parse(row).oid;
-};
-
-// a promise the test opens by hand
-interface Gate {
-  wait: Promise<void>;
-  open: () => void;
-}
-
-const gate = (): Gate => {
-  const opener = { open: (): void => undefined };
-  // oxlint-disable-next-line promise/avoid-new -- the resolver is handed to the test, which only a promise can do
-  const wait = new Promise<void>((resolve) => {
-    opener.open = resolve;
-  });
-  return {
-    open: () => {
-      opener.open();
-    },
-    wait,
-  };
 };
 
 describe("the phone's outbox", () => {
@@ -359,8 +340,8 @@ describe("the phone's outbox", () => {
   it("keeps a landed row when a refresh that listed the tree before the landing applies after it", async () => {
     const vault = createFakeVault({ "a.md": "# a\n", "b.md": "# b\n" });
     const held = { tree: false };
-    const asked = gate();
-    const released = gate();
+    const asked = deferred();
+    const released = deferred();
     // the listing is taken at the head the request reached, and answered only once released
     const fetch: CloudFetch = async (input, init) => {
       const response = await vault.fetch(input, init);
@@ -370,8 +351,8 @@ describe("the phone's outbox", () => {
         url.pathname === VAULT_API_PATHS.tree &&
         vaultTreeQuerySchema.parse(JSON.parse(z.string().parse(init?.body))).after === undefined
       ) {
-        asked.open();
-        await released.wait;
+        asked.resolve();
+        await released.promise;
       }
       return response;
     };
@@ -383,12 +364,12 @@ describe("the phone's outbox", () => {
     vault.change({ "b.md": "# b\nfrom the mac\n" });
     held.tree = true;
     const refreshing = store.refresh();
-    await asked.wait;
+    await asked.promise;
     await store.write("a.md", "# a\nfrom the phone\n", { base: "# a\n", kind: "expected" });
     await store.drain();
     expect(vault.files()["a.md"]).toBe("# a\nfrom the phone\n");
 
-    released.open();
+    released.resolve();
     await refreshing;
 
     expect(await mirroredOid(db, "a.md")).toBe(blobOid("# a\nfrom the phone\n"));
@@ -399,14 +380,14 @@ describe("the phone's outbox", () => {
   it("takes a listing newer than a landing it disagrees with once a later walk lists it too", async () => {
     const vault = createFakeVault({ "a.md": "# a\n", "b.md": "# b\n" });
     const held = { tree: false };
-    const asked = gate();
-    const released = gate();
+    const asked = deferred();
+    const released = deferred();
     // the first page is taken at the head the vault holds once it is released
     const fetch: CloudFetch = async (input, init) => {
       if (held.tree && new URL(input).pathname === VAULT_API_PATHS.tree) {
         held.tree = false;
-        asked.open();
-        await released.wait;
+        asked.resolve();
+        await released.promise;
       }
       return await vault.fetch(input, init);
     };
@@ -416,11 +397,11 @@ describe("the phone's outbox", () => {
 
     held.tree = true;
     const refreshing = store.refresh();
-    await asked.wait;
+    await asked.promise;
     await store.write("a.md", "# a\nfrom the phone\n", { base: "# a\n", kind: "expected" });
     await store.drain();
     vault.change({ "a.md": "# a\nfrom the mac\n" });
-    released.open();
+    released.resolve();
     await refreshing;
     expect(await readText(store, "a.md")).toBe("# a\nfrom the phone\n");
 

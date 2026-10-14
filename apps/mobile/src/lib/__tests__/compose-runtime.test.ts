@@ -21,7 +21,6 @@ import { agentMessage, createFakeCloud, logRow, ok } from "../../sync/__tests__/
 import type { FakeCloud } from "../../sync/__tests__/fakes";
 import { composeRuntime } from "../compose-runtime";
 import type { CredentialStore } from "../compose-runtime";
-import type { ReadableStore } from "../external-store";
 import type { SqlDriver } from "../sql-driver";
 
 const CRED = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_self" };
@@ -41,22 +40,6 @@ const OUTDATED: CloudResult<PullResponse> = {
   failure: { code: "client-outdated", deviceSeq: null, kind: "refused", message: "update" },
   ok: false,
 };
-
-const until = async <T>(store: ReadableStore<T>, done: (value: T) => boolean): Promise<T> =>
-  // oxlint-disable-next-line promise/avoid-new -- the value arrives as a store notification, which only a promise can hand to an await
-  await new Promise((resolve) => {
-    let unsubscribe: (() => void) | null = null;
-    const check = (): void => {
-      const value = store.get();
-      if (!done(value)) {
-        return;
-      }
-      unsubscribe?.();
-      resolve(value);
-    };
-    unsubscribe = store.subscribe(check);
-    check();
-  });
 
 const keychain = (stored: DeviceCredential | null, overrides: Partial<CredentialStore> = {}) => {
   const calls: string[] = [];
@@ -157,7 +140,9 @@ type Runtime = ReturnType<typeof runtimeOver>;
 // signed in and mirrored, with the image downloaded, so a wipe has something of each to take
 const mirrorOnce = async (rt: Runtime): Promise<void> => {
   await rt.start();
-  await until(rt.notes.tree, (tree) => tree.state === "ready" && tree.progress === null);
+  await vi.waitFor(() => {
+    expect(rt.notes.tree.get()).toMatchObject({ progress: null, state: "ready" });
+  });
   await rt.notes.refresh();
   expect(await rt.notes.attachmentFile("media/photo.png")).toMatchObject({ ok: true });
 };
@@ -185,7 +170,9 @@ const threadCloud = (): FakeCloud => {
 // signed in and pulled once, so a wipe has a thread to take
 const pulledOnce = async (rt: Runtime): Promise<void> => {
   await rt.start();
-  await until(rt.sync, (status) => status.state === "signed-in" && status.cursor === 1);
+  await vi.waitFor(() => {
+    expect(rt.sync.get()).toMatchObject({ cursor: 1, state: "signed-in" });
+  });
   expect(rt.store.snapshotThread("thr_x")?.events).toHaveLength(1);
 };
 
@@ -197,7 +184,9 @@ describe("the composed runtime", () => {
     await rt.start();
 
     expect(rt.sync.get()).toMatchObject({ deviceId: CRED.deviceId, state: "signed-in" });
-    await until(rt.notes.tree, (tree) => tree.state === "ready");
+    await vi.waitFor(() => {
+      expect(rt.notes.tree.get()).toMatchObject({ state: "ready" });
+    });
   });
 
   it("ends restoring as signed out when nothing is stored", async () => {
@@ -228,7 +217,9 @@ describe("the composed runtime", () => {
     const storage = phoneStorage();
     const rt = runtimeOver(cloud, credentials.store, storage);
     await mirrorOnce(rt);
-    await until(rt.sync, (status) => status.state === "signed-in" && status.lastSyncedAt !== null);
+    await vi.waitFor(() => {
+      expect(rt.sync.get()).toMatchObject({ lastSyncedAt: expect.any(Number), state: "signed-in" });
+    });
 
     cloud.pullResults.push(UNAUTHORIZED);
     await rt.sync.syncNow();
@@ -248,7 +239,9 @@ describe("the composed runtime", () => {
     const storage = phoneStorage();
     const rt = runtimeOver(cloud, credentials.store, storage);
     await mirrorOnce(rt);
-    await until(rt.sync, (status) => status.state === "signed-in" && status.lastSyncedAt !== null);
+    await vi.waitFor(() => {
+      expect(rt.sync.get()).toMatchObject({ lastSyncedAt: expect.any(Number), state: "signed-in" });
+    });
     const held = await heldRows(storage.db);
 
     cloud.pullResults.push(OUTDATED);
@@ -268,7 +261,9 @@ describe("the composed runtime", () => {
     });
     const rt = runtimeOver(createFakeCloud(), credentials.store);
     await rt.start();
-    await until(rt.notes.tree, (tree) => tree.state === "ready");
+    await vi.waitFor(() => {
+      expect(rt.notes.tree.get()).toMatchObject({ state: "ready" });
+    });
 
     await rt.logout();
 
@@ -284,7 +279,9 @@ describe("the composed runtime", () => {
     const cloud = createFakeCloud();
     const rt = runtimeOver(cloud, keychain(CRED).store);
     await rt.start();
-    await until(rt.sync, (status) => status.state === "signed-in" && status.lastSyncedAt !== null);
+    await vi.waitFor(() => {
+      expect(rt.sync.get()).toMatchObject({ lastSyncedAt: expect.any(Number), state: "signed-in" });
+    });
 
     cloud.pullResults.push(
       ok({
@@ -302,7 +299,9 @@ describe("the composed runtime", () => {
     );
     rt.resume();
 
-    await until(rt.sync, (status) => status.state === "signed-in" && status.cursor === 1);
+    await vi.waitFor(() => {
+      expect(rt.sync.get()).toMatchObject({ cursor: 1, state: "signed-in" });
+    });
     expect(rt.store.snapshotThread("thr_x")?.events).toHaveLength(1);
   });
 
@@ -359,7 +358,9 @@ describe("the phone's note mirror across sign-ins", () => {
       db: openTempDb(file),
     });
     await relaunched.start();
-    await until(relaunched.notes.tree, (tree) => tree.state === "ready");
+    await vi.waitFor(() => {
+      expect(relaunched.notes.tree.get()).toMatchObject({ state: "ready" });
+    });
 
     expect(await relaunched.notes.readNote("note.md")).toMatchObject({ content: "# note\n" });
     expect(await heldRows(first.db)).toBe(1);

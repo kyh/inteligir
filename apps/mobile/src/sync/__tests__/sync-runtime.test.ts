@@ -10,6 +10,7 @@ import { MAX_PULL_PAGES_PER_PASS } from "@repo/contract/cloud/sync/sync-session"
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "@repo/contract/cloud/sync/sync-ws";
 import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { deferred } from "../../__tests__/async";
 import { openSyncStore } from "../../notes/__tests__/phone-storage";
 import { createSyncRuntime } from "../sync-runtime";
 import type { SyncRuntime, SyncStatus } from "../sync-runtime";
@@ -44,24 +45,26 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+// told on the notification itself, not polled: a status a 5ms poll moves past would be missed
 const published = async (
   runtime: SyncRuntime,
   done: (status: SyncStatus) => boolean,
-): Promise<SyncStatus> =>
-  // oxlint-disable-next-line promise/avoid-new -- the status arrives as a store notification, which only a promise can hand to an await
-  await new Promise((resolve) => {
-    let unsubscribe: (() => void) | null = null;
-    const check = (): void => {
-      const status = runtime.get();
-      if (!done(status)) {
-        return;
-      }
-      unsubscribe?.();
-      resolve(status);
-    };
-    unsubscribe = runtime.subscribe(check);
-    check();
-  });
+): Promise<SyncStatus> => {
+  const seen = deferred<SyncStatus>();
+  const check = (): void => {
+    const status = runtime.get();
+    if (done(status)) {
+      seen.resolve(status);
+    }
+  };
+  const unsubscribe = runtime.subscribe(check);
+  check();
+  try {
+    return await seen.promise;
+  } finally {
+    unsubscribe();
+  }
+};
 
 describe("the sync runtime", () => {
   it("is restoring until a credential is handed over, and makes no request meanwhile", async () => {

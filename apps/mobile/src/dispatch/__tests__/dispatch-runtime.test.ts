@@ -6,6 +6,7 @@ import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { deferred } from "../../__tests__/async";
 import type { SqlDriver } from "../../lib/sql-driver";
 import { openSyncStore, openTempDb, tempDbPath } from "../../notes/__tests__/phone-storage";
 import { createFakeCloud, logRow } from "../../sync/__tests__/fakes";
@@ -345,11 +346,8 @@ describe("the phone's requests to a Mac", () => {
 
   it("does not let a refusal heard under an earlier sign-in end the one that replaced it", async () => {
     const inbox = createFakeInbox();
-    const releases: ((answer: CloudResult<CreateDispatchResponse>) => void)[] = [];
-    // oxlint-disable-next-line promise/avoid-new -- a deferred: the test answers the create by hand, after the sign-in changed under it
-    inbox.hold = new Promise((resolve) => {
-      releases.push(resolve);
-    });
+    const created = deferred<CloudResult<CreateDispatchResponse>>();
+    inbox.hold = created.promise;
     const { dispatch, sync } = phoneOver(inbox, openTempDb());
     await dispatch.askAgent({ text: "under the first sign-in", threadId: "thr_a" });
     await vi.waitFor(() => {
@@ -358,7 +356,7 @@ describe("the phone's requests to a Mac", () => {
 
     sync.setCredential(OTHER_CRED);
     dispatch.reset("signed-in");
-    releases.shift()?.({
+    created.resolve({
       failure: { code: "unauthorized", deviceSeq: null, kind: "refused", message: "revoked" },
       ok: false,
     });

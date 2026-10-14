@@ -3,6 +3,7 @@ import type { DeviceLoginResponse } from "@repo/contract/cloud/device/device-sch
 import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { deferred } from "../../__tests__/async";
 import { createLoginStore } from "../login-store";
 
 const LOGGED_IN: DeviceLoginResponse = {
@@ -30,32 +31,16 @@ const loginRefused: CloudFetch = async () =>
     { status: 401 },
   );
 
-const noop = (): void => {};
-
 // released from outside, so a test can look at the state while the login is in flight
 const heldLogin = () => {
-  let markReached: () => void = noop;
-  let release: () => void = noop;
-  // oxlint-disable-next-line promise/avoid-new -- a deferred: the test releases the login by hand
-  const reached = new Promise<void>((resolve) => {
-    markReached = resolve;
-  });
-  // oxlint-disable-next-line promise/avoid-new -- a deferred: the test releases the login by hand
-  const released = new Promise<void>((resolve) => {
-    release = resolve;
-  });
+  const reached = deferred();
+  const released = deferred();
   const fetch: CloudFetch = async () => {
-    markReached();
-    await released;
+    reached.resolve();
+    await released.promise;
     return Response.json(LOGGED_IN);
   };
-  return {
-    fetch,
-    reached,
-    release: () => {
-      release();
-    },
-  };
+  return { fetch, reached: reached.promise, release: released.resolve };
 };
 
 const harness = (args: {
