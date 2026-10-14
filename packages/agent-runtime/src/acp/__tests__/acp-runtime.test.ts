@@ -86,14 +86,18 @@ describe("closing a thread", () => {
 
 describe("an idle session", () => {
   it("has its child ended once it has run no turn for the runtime's idle bound", async () => {
-    const stderr: [string, string | undefined][] = [];
+    const diagnostics: string[] = [];
+    const stderr: string[] = [];
     const runtime = createAcpAgentRuntime({
       idleSession: { afterMs: 50, everyMs: 20 },
+      onDiagnostic: (message) => {
+        diagnostics.push(message);
+      },
       onEvent: () => {
         /* empty */
       },
-      onStderr: (line, threadId) => {
-        stderr.push([line, threadId]);
+      onStderr: (line) => {
+        stderr.push(line);
       },
       spawnAdapter: (_harness, env) =>
         spawn(process.execPath, [FAKE_AGENT], {
@@ -115,10 +119,10 @@ describe("an idle session", () => {
       { timeout: 10_000 },
     );
     await vi.waitFor(() => {
-      expect(stderr).toContainEqual([
+      expect(diagnostics).toContainEqual(
         expect.stringMatching(/^reaped idle agent session for thread thr_1 after \d+ms$/u),
-        "thr_1",
-      ]);
+      );
     });
+    expect(stderr).not.toContainEqual(expect.stringMatching(/reaped/u));
   });
 });

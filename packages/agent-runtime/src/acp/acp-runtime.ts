@@ -76,6 +76,9 @@ export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
     | undefined;
   // every frame traded with an adapter, as `traceFrames` redacts it; absent, nothing is tapped.
   debugLog?: ((line: string) => void) | undefined;
+  // what the runtime itself did to a session, kept off onStderr so a host's log can tell it from
+  // what the adapter process wrote.
+  onDiagnostic?: ((message: string) => void) | undefined;
   // a session with no turn for `afterMs` has its child ended, checked every `everyMs`; absent, none
   // is.
   idleSession?: { afterMs: number; everyMs: number } | undefined;
@@ -603,9 +606,8 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
       if (session.turn === null && idleForMs >= afterMs) {
         await destroyAdapter(session.adapter);
         const { threadId } = session.adapter;
-        options.onStderr?.(
+        options.onDiagnostic?.(
           `reaped idle agent session for thread ${threadId} after ${idleForMs}ms`,
-          threadId,
         );
       }
     }
@@ -623,7 +625,9 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
             try {
               await reapIdleSessions(idleSession.afterMs);
             } catch (error) {
-              options.onStderr?.(`idle session reaping failed: ${describeProviderError(error)}`);
+              options.onDiagnostic?.(
+                `idle session reaping failed: ${describeProviderError(error)}`,
+              );
             }
           })();
         }, idleSession.everyMs);
@@ -658,9 +662,8 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
           });
           return { loaded: true, providerThreadId };
         } catch (error) {
-          options.onStderr?.(
+          options.onDiagnostic?.(
             `session/load failed for thread "${args.threadId}" (${describeProviderError(error)}); starting fresh`,
-            args.threadId,
           );
           return await newSession(adapter);
         }

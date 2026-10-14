@@ -163,6 +163,9 @@ export class AcpTurnDriver implements TurnDriver {
       onActivity: (threadId) => {
         this.noteTurnActivity(threadId);
       },
+      onDiagnostic: (message) => {
+        this.debug(message);
+      },
       onEvent: (event) => {
         this.onRuntimeEvent(event);
       },
