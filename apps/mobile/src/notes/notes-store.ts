@@ -25,7 +25,7 @@ import type { SqlDriver } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import type { AttachmentFiles } from "./attachment-files";
 import { blobOid, isTextOp, leavesAt, opPaths, rebaseEdit, textBlobOid } from "./outbox-ops";
-import type { CommentOp, GuardedText, OutboxRow, Sha1 } from "./outbox-ops";
+import type { CommentOp, GuardedText, OutboxRow, Sha1, VaultOp } from "./outbox-ops";
 import type { OutboxFiles } from "./outbox-files";
 import { createVaultOutbox, STAGED_FILE_GONE } from "./vault-outbox";
 import type { OutboxStatus } from "./vault-outbox";
@@ -180,6 +180,12 @@ export interface NotesStore {
 }
 
 type LiveSession = Extract<ReturnType<SessionPort["current"]>, { kind: "live" }>;
+
+interface QueuedWrite {
+  fence: Fence;
+  // throws when the sign-in the write began under has ended
+  enqueue: (op: VaultOp) => Promise<void>;
+}
 
 interface Listing {
   files: ReadonlyMap<string, OverlayEntry>;
@@ -469,13 +475,22 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     }
   };
 
-  const liveFence = (): Fence => {
-    const fence = signIn.live();
-    if (fence === null) {
-      throw new Error(NOT_SIGNED_IN);
-    }
-    return fence;
-  };
+  const queued = async <T>(work: (write: QueuedWrite) => Promise<T>): Promise<T> =>
+    await writing(async () => {
+      await signIn.ready();
+      const fence = signIn.live();
+      if (fence === null) {
+        throw new Error(NOT_SIGNED_IN);
+      }
+      return await work({
+        enqueue: async (op) => {
+          if (!(await outbox.enqueue(op, fence))) {
+            throw new Error(NOT_SIGNED_IN);
+          }
+        },
+        fence,
+      });
+    });
 
   // a note an unsent rename moved away or an unsent delete removed is gone here, whatever the
   // mirror still holds
@@ -603,16 +618,12 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   };
 
   const create: NotesStore["create"] = async (path, content) =>
-    await writing(async () => {
-      await signIn.ready();
-      const fence = liveFence();
+    await queued(async ({ enqueue }) => {
       if (isTakenHere(path)) {
         return { kind: "exists" };
       }
       expectOwn(path, content);
-      if (!(await outbox.enqueue({ content, op: "create", path }, fence))) {
-        throw new Error(NOT_SIGNED_IN);
-      }
+      await enqueue({ content, op: "create", path });
       return { kind: "created" };
     });
 
@@ -640,9 +651,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     content: string,
     base: string,
   ): Promise<GuardedWriteResult> =>
-    await writing(async () => {
-      await signIn.ready();
-      const fence = liveFence();
+    await queued(async ({ enqueue, fence }) => {
       const held = await heldNote(path);
       if (held.kind === "missing") {
         return held;
@@ -662,13 +671,8 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
           const now = await heldNote(path);
           return now.kind === "missing" ? now : { current: now.content, kind: "changed" };
         }
-      } else if (
-        !(await outbox.enqueue(
-          { baseContent: held.content, baseOid: held.oid, content, op: "write", path },
-          fence,
-        ))
-      ) {
-        throw new Error(NOT_SIGNED_IN);
+      } else {
+        await enqueue({ baseContent: held.content, baseOid: held.oid, content, op: "write", path });
       }
       return { kind: "written" };
     });
@@ -706,9 +710,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   };
 
   const rename: NotesStore["rename"] = async (from, to, edits = NO_EDITS) =>
-    await writing(async () => {
-      await signIn.ready();
-      const fence = liveFence();
+    await queued(async ({ enqueue }) => {
       if (listing?.files.has(from) !== true) {
         return { kind: "vanished" };
       }
@@ -727,29 +729,20 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
           : rebaseEdit(edits.note.expected, edits.note.content, base.content);
       const content = carried === base.content ? null : carried;
       const rewrites = await heldRewrites(edits, new Set([from, to]), skipped);
-      if (
-        !(await outbox.enqueue(
-          {
-            baseContent: base.content,
-            baseOid: base.oid,
-            content,
-            from,
-            op: "rename",
-            rewrites,
-            to,
-          },
-          fence,
-        ))
-      ) {
-        throw new Error(NOT_SIGNED_IN);
-      }
+      await enqueue({
+        baseContent: base.content,
+        baseOid: base.oid,
+        content,
+        from,
+        op: "rename",
+        rewrites,
+        to,
+      });
       return { kind: "renamed", skipped };
     });
 
   const remove: NotesStore["remove"] = async (path, stores = []) => {
-    await writing(async () => {
-      await signIn.ready();
-      const fence = liveFence();
+    await queued(async ({ enqueue }) => {
       if (listing?.files.has(path) !== true) {
         return;
       }
@@ -764,32 +757,19 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
           storeBases.push({ baseOid: held.oid, path: store });
         }
       }
-      if (
-        !(await outbox.enqueue(
-          { baseOid: base.oid, op: "remove", path, stores: storeBases },
-          fence,
-        ))
-      ) {
-        throw new Error(NOT_SIGNED_IN);
-      }
+      await enqueue({ baseOid: base.oid, op: "remove", path, stores: storeBases });
     });
   };
 
   const putAsset: NotesStore["putAsset"] = async (path, bytes) =>
-    await writing(async () => {
-      await signIn.ready();
-      const fence = liveFence();
+    await queued(async ({ enqueue }) => {
       if (isTakenHere(path)) {
         return { kind: "exists" };
       }
       // named by the blob, so the same bytes staged twice are one file
       const stagedFile = `${await blobOid(args.sha1, bytes)}${extnamePath(path)}`;
       await outbox.stage(stagedFile, bytes);
-      if (
-        !(await outbox.enqueue({ op: "putAsset", path, size: bytes.length, stagedFile }, fence))
-      ) {
-        throw new Error(NOT_SIGNED_IN);
-      }
+      await enqueue({ op: "putAsset", path, size: bytes.length, stagedFile });
       return { kind: "created" };
     });
 
@@ -822,9 +802,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   // read, planned and queued under the write lock, so no write lands between the texts the edit
   // was made from and the row that carries it
   const editComments: NotesStore["editComments"] = async ({ anchor, edit, path }) =>
-    await writing(async () => {
-      await signIn.ready();
-      const fence = liveFence();
+    await queued(async ({ enqueue }) => {
       const note = goneHere(path) ? null : await heldText(path);
       if (note === null) {
         return { kind: "vanished" };
@@ -853,9 +831,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
           : { baseContent: note.content, baseOid: note.oid, content: key.content, path };
       expectOwn(path, key.content);
       expectOwn(store.path, store.content);
-      if (!(await outbox.enqueue({ anchored, op: "comment", store }, fence))) {
-        throw new Error(NOT_SIGNED_IN);
-      }
+      await enqueue({ anchored, op: "comment", store });
       return { kind: "edited", note: key.content };
     });
 
