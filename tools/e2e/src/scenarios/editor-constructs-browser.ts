@@ -39,15 +39,13 @@ const PROBE = `JSON.stringify({
   table: !!document.querySelector('${EDITOR} table'),
 })`;
 
-const probeSchema = z
-  .object({
-    blockquotes: z.number(),
-    bold: z.boolean(),
-    checkboxes: z.number(),
-    fence: z.boolean(),
-    table: z.boolean(),
-  })
-  .strict();
+const probeSchema = z.strictObject({
+  blockquotes: z.number(),
+  bold: z.boolean(),
+  checkboxes: z.number(),
+  fence: z.boolean(),
+  table: z.boolean(),
+});
 
 export const editorConstructsBrowser: Scenario = {
   description:

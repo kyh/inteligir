@@ -129,7 +129,7 @@ cited.
   undeclared field, and an unknown refusal code reads as a fault to retry, never
   a verdict on the credential: strict readers made every additive change a new
   route and turned a stale client's `unauthorized` into `malformed`, so a
-  revoked device kept retrying. Requests stay `.strict()`, since only the
+  revoked device kept retrying. Requests stay `z.strictObject`, since only the
   always-newest Worker parses them, and the Worker's tests parse every answer
   through its declared schema, because a stripping client would let a leaked
   column through. The tolerant reader is forward negotiation only, so every

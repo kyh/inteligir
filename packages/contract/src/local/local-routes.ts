@@ -15,10 +15,10 @@ export const HTML_FRAME_PATH = "/html-frame";
 
 export const WS_PATH = "/ws";
 
-export const healthResponseSchema = z.object({ ok: z.literal(true) }).strict();
+export const healthResponseSchema = z.strictObject({ ok: z.literal(true) });
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
-export const vaultAssetQuerySchema = z.object({ path: z.string().min(1) }).strict();
+export const vaultAssetQuerySchema = z.strictObject({ path: z.string().min(1) });
 
 export const vaultAssetUrl = (origin: string, path: string): string =>
   `${origin}${VAULT_ASSET_PATH}?path=${encodeURIComponent(path)}`;

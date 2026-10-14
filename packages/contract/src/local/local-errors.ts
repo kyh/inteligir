@@ -42,11 +42,10 @@ export const LIMIT_REACHED = {
 export const CAS_MISMATCH = {
   data: z.object({
     current: z
-      .object({
+      .strictObject({
         content: z.string(),
         hash: contentHashSchema,
       })
-      .strict()
       .optional(),
   }),
   message: "The file changed since it was read",

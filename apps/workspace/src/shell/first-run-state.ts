@@ -12,38 +12,32 @@ const folderPathSchema = z.string().min(1);
 
 // a new vault's parent is a folder the shell handed out (the proposal, or a pick), so `finish`
 // names nothing the page made up
-export const firstRunStateSchema = z
-  .object({
-    newVault: z.object({ name: z.string().min(1), parent: folderPathSchema }).strict(),
-  })
-  .strict();
+export const firstRunStateSchema = z.strictObject({
+  newVault: z.strictObject({ name: z.string().min(1), parent: folderPathSchema }),
+});
 export type FirstRunState = z.infer<typeof firstRunStateSchema>;
 
-const cancelledSchema = z.object({ kind: z.literal("cancelled") }).strict();
+const cancelledSchema = z.strictObject({ kind: z.literal("cancelled") });
 
 export const pickParentAnswerSchema = z.discriminatedUnion("kind", [
   cancelledSchema,
-  z
-    .object({
-      // where the vault would land, so a service syncing it is said before the vault is made
-      externalSync: externalSyncSchema.nullable(),
-      kind: z.literal("picked"),
-      path: folderPathSchema,
-    })
-    .strict(),
+  z.strictObject({
+    // where the vault would land, so a service syncing it is said before the vault is made
+    externalSync: externalSyncSchema.nullable(),
+    kind: z.literal("picked"),
+    path: folderPathSchema,
+  }),
 ]);
 export type PickParentAnswer = z.infer<typeof pickParentAnswerSchema>;
 
 export const pickFolderAnswerSchema = z.discriminatedUnion("kind", [
   cancelledSchema,
-  z
-    .object({ facts: folderFactsSchema, kind: z.literal("picked"), path: folderPathSchema })
-    .strict(),
+  z.strictObject({ facts: folderFactsSchema, kind: z.literal("picked"), path: folderPathSchema }),
 ]);
 
 export const firstRunChoiceSchema = z.discriminatedUnion("kind", [
   // the name as typed: the CLI trims and judges it, as the page did before it asked
-  z.object({ kind: z.literal("create"), name: z.string(), parent: folderPathSchema }).strict(),
-  z.object({ kind: z.literal("open"), path: folderPathSchema }).strict(),
+  z.strictObject({ kind: z.literal("create"), name: z.string(), parent: folderPathSchema }),
+  z.strictObject({ kind: z.literal("open"), path: folderPathSchema }),
 ]);
 export type FirstRunChoice = z.infer<typeof firstRunChoiceSchema>;

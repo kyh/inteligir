@@ -12,9 +12,9 @@ export const ACCOUNT_API_PATHS = {
 
 // asked with a device credential, which alone would let whoever holds a stolen one end the
 // account: the password is asked again
-export const deleteAccountRequestSchema = z
-  .object({ password: deviceLoginRequestSchema.shape.password })
-  .strict();
+export const deleteAccountRequestSchema = z.strictObject({
+  password: deviceLoginRequestSchema.shape.password,
+});
 export type DeleteAccountRequest = z.infer<typeof deleteAccountRequestSchema>;
 
 export const deleteAccountResponseSchema = z.object({ deleted: z.literal(true) });
@@ -36,22 +36,18 @@ export const AUTH_API_PATHS = {
 } as const;
 
 // the invite code is the gate's to refuse, so an empty one reads as a code that will not work
-export const signUpRequestSchema = z
-  .object({
-    email: z.string().trim().min(1),
-    inviteCode: z.string().trim(),
-    name: z.string().trim().min(1),
-    password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
-  })
-  .strict();
+export const signUpRequestSchema = z.strictObject({
+  email: z.string().trim().min(1),
+  inviteCode: z.string().trim(),
+  name: z.string().trim().min(1),
+  password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
+});
 export type SignUpRequest = z.infer<typeof signUpRequestSchema>;
 
 // the app's door to the same gate: its fields, the device's name, and the email folded as login
 // folds it. here, not beside the login row: this file imports device-schema, not the reverse.
-export const deviceSignUpRequestSchema = signUpRequestSchema
-  .extend({
-    deviceName: deviceLoginRequestSchema.shape.deviceName,
-    email: deviceLoginRequestSchema.shape.email,
-  })
-  .strict();
+export const deviceSignUpRequestSchema = signUpRequestSchema.extend({
+  deviceName: deviceLoginRequestSchema.shape.deviceName,
+  email: deviceLoginRequestSchema.shape.email,
+});
 export type DeviceSignUpRequest = z.infer<typeof deviceSignUpRequestSchema>;

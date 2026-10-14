@@ -15,16 +15,14 @@ import { hermeticGitEnv } from "../server/vault/__tests__/git-test-env";
 import { runCliForTest } from "./run-cli";
 
 const envelopeSchema = z.object({ error: z.string().min(1), message: z.string() });
-const selectionSchema = z
-  .object({
-    dataDir: z.string(),
-    externalSync: externalSyncSchema.nullable(),
-    previousVaultDir: z.string(),
-    remote: z.string().nullable(),
-    running: z.object({ baseUrl: z.string() }).nullable(),
-    vaultDir: z.string(),
-  })
-  .strict();
+const selectionSchema = z.strictObject({
+  dataDir: z.string(),
+  externalSync: externalSyncSchema.nullable(),
+  previousVaultDir: z.string(),
+  remote: z.string().nullable(),
+  running: z.object({ baseUrl: z.string() }).nullable(),
+  vaultDir: z.string(),
+});
 
 // no server: the leaf never dials one, and a dial would be the bug
 const NO_SERVER = "http://127.0.0.1:1";

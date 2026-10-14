@@ -13,73 +13,61 @@ export {
 } from "@repo/contract/cloud/device/device-schema";
 
 export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
-  z
-    .object({
-      cloudUrl: z.url(),
-      // the last sign-out's revoke, refused or unreachable: the credential is gone here and still
-      // live in the cloud until another device revokes it
-      revokeError: z.string().nullable(),
-      state: z.literal("signed-out"),
-    })
-    .strict(),
-  z
-    .object({
-      accountEmail: z.string().min(1),
-      cloudUrl: z.url(),
-      // latency, not correctness: the timer still pulls without the socket
-      connected: z.boolean(),
-      cursor: z.number().int().nonnegative(),
-      deviceId: z.string().min(1),
-      // queued events deleted without reaching the log, since this sign-in; lastError says the
-      // latest refusal, and the next good pass clears it
-      dropped: z.number().int().nonnegative(),
-      lastError: z.string().nullable(),
-      lastSyncedAt: z.number().int().nullable(),
-      pending: z.number().int().nonnegative(),
-      state: z.literal("signed-in"),
-    })
-    .strict(),
+  z.strictObject({
+    cloudUrl: z.url(),
+    // the last sign-out's revoke, refused or unreachable: the credential is gone here and still
+    // live in the cloud until another device revokes it
+    revokeError: z.string().nullable(),
+    state: z.literal("signed-out"),
+  }),
+  z.strictObject({
+    accountEmail: z.string().min(1),
+    cloudUrl: z.url(),
+    // latency, not correctness: the timer still pulls without the socket
+    connected: z.boolean(),
+    cursor: z.number().int().nonnegative(),
+    deviceId: z.string().min(1),
+    // queued events deleted without reaching the log, since this sign-in; lastError says the
+    // latest refusal, and the next good pass clears it
+    dropped: z.number().int().nonnegative(),
+    lastError: z.string().nullable(),
+    lastSyncedAt: z.number().int().nullable(),
+    pending: z.number().int().nonnegative(),
+    state: z.literal("signed-in"),
+  }),
   // distinct from signed-out: the fix is a sign-in, which replaces the refused credential. no
   // timer or socket runs here either
-  z
-    .object({
-      cloudUrl: z.url(),
-      detail: z.string().min(1),
-      deviceId: z.string().min(1),
-      state: z.literal("unauthorized"),
-    })
-    .strict(),
+  z.strictObject({
+    cloudUrl: z.url(),
+    detail: z.string().min(1),
+    deviceId: z.string().min(1),
+    state: z.literal("unauthorized"),
+  }),
   // the cloud refused this build, not the credential: the fix is an update, which signs in as the
   // same device. nothing runs here either
-  z
-    .object({
-      cloudUrl: z.url(),
-      deviceId: z.string().min(1),
-      state: z.literal("outdated"),
-    })
-    .strict(),
+  z.strictObject({
+    cloudUrl: z.url(),
+    deviceId: z.string().min(1),
+    state: z.literal("outdated"),
+  }),
 ]);
 export type CloudStatusResponse = z.infer<typeof cloudStatusResponseSchema>;
 
 // the account's devices still signed in; `current` is this one, which signs out rather than
 // being revoked from here, since a sign-out also clears what it has queued
-export const cloudDeviceSchema = z
-  .object({
-    createdAt: z.number().int(),
-    current: z.boolean(),
-    id: z.string().min(1),
-    lastSeenAt: z.number().int().nullable(),
-    name: z.string(),
-  })
-  .strict();
+export const cloudDeviceSchema = z.strictObject({
+  createdAt: z.number().int(),
+  current: z.boolean(),
+  id: z.string().min(1),
+  lastSeenAt: z.number().int().nullable(),
+  name: z.string(),
+});
 export type CloudDevice = z.infer<typeof cloudDeviceSchema>;
 
-export const cloudDevicesResponseSchema = z
-  .object({ devices: z.array(cloudDeviceSchema) })
-  .strict();
+export const cloudDevicesResponseSchema = z.strictObject({ devices: z.array(cloudDeviceSchema) });
 export type CloudDevicesResponse = z.infer<typeof cloudDevicesResponseSchema>;
 
-export const cloudRevokeDeviceResponseSchema = z.object({ revoked: z.literal(true) }).strict();
+export const cloudRevokeDeviceResponseSchema = z.strictObject({ revoked: z.literal(true) });
 export type CloudRevokeDeviceResponse = z.infer<typeof cloudRevokeDeviceResponseSchema>;
 
 // where a person removes a device this one could not: the Worker's devices page
@@ -94,7 +82,7 @@ export const cloudForgotPasswordPageUrl = (cloudUrl: string): string =>
 
 // what this Mac lets the account's other devices ask of it, stored in its own data dir.
 // phoneRequests: whether it takes a phone's requests to run the agent; on as it ships.
-export const cloudPrefsSchema = z.object({ phoneRequests: z.boolean() }).strict();
+export const cloudPrefsSchema = z.strictObject({ phoneRequests: z.boolean() });
 export type CloudPrefs = z.infer<typeof cloudPrefsSchema>;
 
 // absent means the server's own hostname. imported, not restated: a name accepted here and refused at
@@ -104,12 +92,10 @@ const localDeviceNameSchema = deviceLoginRequestSchema.shape.deviceName.optional
 // the cloud's own email and password fields, so a value refused there is refused here first
 export const cloudLoginRequestSchema = deviceLoginRequestSchema
   .pick({ email: true, password: true })
-  .extend({ deviceName: localDeviceNameSchema })
-  .strict();
+  .extend({ deviceName: localDeviceNameSchema });
 export type CloudLoginRequest = z.infer<typeof cloudLoginRequestSchema>;
 
 export const cloudSignUpRequestSchema = deviceSignUpRequestSchema
   .pick({ email: true, inviteCode: true, name: true, password: true })
-  .extend({ deviceName: localDeviceNameSchema })
-  .strict();
+  .extend({ deviceName: localDeviceNameSchema });
 export type CloudSignUpRequest = z.infer<typeof cloudSignUpRequestSchema>;

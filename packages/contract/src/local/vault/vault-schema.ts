@@ -22,32 +22,26 @@ export const vaultPathSchema = z.string().transform((value, ctx) => {
 // no `size`: it costs an lstat per file per walk and changes on every save, which defeats
 // react-query's structural sharing and re-renders the whole workspace.
 export const vaultEntrySchema = z.discriminatedUnion("kind", [
-  z
-    .object({
-      kind: z.literal("dir"),
-      path: z.string().min(1),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("file"),
-      // absent when the stat failed; the row still lists.
-      modifiedMs: z.number().optional(),
-      path: z.string().min(1),
-    })
-    .strict(),
+  z.strictObject({
+    kind: z.literal("dir"),
+    path: z.string().min(1),
+  }),
+  z.strictObject({
+    kind: z.literal("file"),
+    // absent when the stat failed; the row still lists.
+    modifiedMs: z.number().optional(),
+    path: z.string().min(1),
+  }),
 ]);
 export type VaultEntry = z.infer<typeof vaultEntrySchema>;
 
-export const vaultTreeResponseSchema = z
-  .object({
-    // depth-first, parents before children, folders before files.
-    entries: z.array(vaultEntrySchema),
-    // split from `root` by the server: a client splitting on "/" shows a whole windows path.
-    name: z.string().min(1),
-    root: z.string().min(1),
-  })
-  .strict();
+export const vaultTreeResponseSchema = z.strictObject({
+  // depth-first, parents before children, folders before files.
+  entries: z.array(vaultEntrySchema),
+  // split from `root` by the server: a client splitting on "/" shows a whole windows path.
+  name: z.string().min(1),
+  root: z.string().min(1),
+});
 export type VaultTreeResponse = z.infer<typeof vaultTreeResponseSchema>;
 
 // utf-16 code units on the write schema, bytes on the read side; a bound, not a byte-exact quota.
@@ -68,80 +62,69 @@ export const contentHashBytesHex = async (
 // and one table keeps both routes accepting the same images.
 export { assetMediaType } from "@repo/contract/cloud/vault/vault-schema";
 
-export const vaultReadRequestSchema = z.object({ path: vaultPathSchema }).strict();
+export const vaultReadRequestSchema = z.strictObject({ path: vaultPathSchema });
 export type VaultReadRequest = z.infer<typeof vaultReadRequestSchema>;
 
-export const vaultReadResponseSchema = z
-  .object({
-    content: z.string(),
-    path: z.string().min(1),
-  })
-  .strict();
+export const vaultReadResponseSchema = z.strictObject({
+  content: z.string(),
+  path: z.string().min(1),
+});
 export type VaultReadResponse = z.infer<typeof vaultReadResponseSchema>;
 
 // lands in a `<sha>:<path>` argv slot, so git's revision grammar (`@{…}`, `^{}`, a leading `-`)
 // must be unexpressible. 64 rather than 40: a sha-256 repo names its objects in 64.
 export const vaultRevisionShaSchema = z.string().regex(/^[0-9a-f]{7,64}$/u);
 
-export const vaultRevisionSchema = z
-  .object({
-    authorEmail: z.string(),
-    // read off the author by the server, so no client matches an email: the app's own save of
-    // the user's edits, an agent's turn, or anyone else (another device, a person's own git).
-    authorKind: z.enum(["app", "agent", "external"]),
-    authorName: z.string(),
-    // git's `%aI`.
-    authoredAt: z.string().min(1),
-    // the path at this revision: `--follow` crosses renames, and this is the path that reads
-    // the bytes back.
-    path: z.string().min(1),
-    renamedFrom: z.string().min(1).optional(),
-    sha: vaultRevisionShaSchema,
-    subject: z.string(),
-  })
-  .strict();
+export const vaultRevisionSchema = z.strictObject({
+  authorEmail: z.string(),
+  // read off the author by the server, so no client matches an email: the app's own save of
+  // the user's edits, an agent's turn, or anyone else (another device, a person's own git).
+  authorKind: z.enum(["app", "agent", "external"]),
+  authorName: z.string(),
+  // git's `%aI`.
+  authoredAt: z.string().min(1),
+  // the path at this revision: `--follow` crosses renames, and this is the path that reads
+  // the bytes back.
+  path: z.string().min(1),
+  renamedFrom: z.string().min(1).optional(),
+  sha: vaultRevisionShaSchema,
+  subject: z.string(),
+});
 export type VaultRevision = z.infer<typeof vaultRevisionSchema>;
 
 export const VAULT_HISTORY_DEFAULT_LIMIT = 50;
 export const VAULT_HISTORY_MAX_LIMIT = 200;
 
-export const vaultHistoryRequestSchema = z
-  .object({
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(VAULT_HISTORY_MAX_LIMIT)
-      .default(VAULT_HISTORY_DEFAULT_LIMIT),
-    path: vaultPathSchema,
-    skip: z.number().int().min(0).default(0),
-  })
-  .strict();
+export const vaultHistoryRequestSchema = z.strictObject({
+  limit: z.number().int().min(1).max(VAULT_HISTORY_MAX_LIMIT).default(VAULT_HISTORY_DEFAULT_LIMIT),
+  path: vaultPathSchema,
+  skip: z.number().int().min(0).default(0),
+});
 export type VaultHistoryRequest = z.input<typeof vaultHistoryRequestSchema>;
 
 // no `total`: a paginated log has no honest count of the rest.
-export const vaultHistoryResponseSchema = z
-  .object({ revisions: z.array(vaultRevisionSchema) })
-  .strict();
+export const vaultHistoryResponseSchema = z.strictObject({
+  revisions: z.array(vaultRevisionSchema),
+});
 export type VaultHistoryResponse = z.infer<typeof vaultHistoryResponseSchema>;
 
 // `path` as of that revision, so a pre-rename revision is readable.
-export const vaultRevisionRequestSchema = z
-  .object({ path: vaultPathSchema, sha: vaultRevisionShaSchema })
-  .strict();
+export const vaultRevisionRequestSchema = z.strictObject({
+  path: vaultPathSchema,
+  sha: vaultRevisionShaSchema,
+});
 export type VaultRevisionRequest = z.infer<typeof vaultRevisionRequestSchema>;
 
-export const vaultRevisionResponseSchema = z.object({ content: z.string() }).strict();
+export const vaultRevisionResponseSchema = z.strictObject({ content: z.string() });
 export type VaultRevisionResponse = z.infer<typeof vaultRevisionResponseSchema>;
 
 // no paths commits the whole dirty tree, a running agent turn's writes included; a caller
 // checkpointing one note names it, so the turn's writes stay for the turn's own commit.
 export const vaultCommitRequestSchema = z
-  .object({ paths: z.array(vaultPathSchema).min(1) })
-  .strict()
+  .strictObject({ paths: z.array(vaultPathSchema).min(1) })
   .optional();
 
-export const vaultCommitResponseSchema = z.object({ files: z.number().int().min(0) }).strict();
+export const vaultCommitResponseSchema = z.strictObject({ files: z.number().int().min(0) });
 export type VaultCommitResponse = z.infer<typeof vaultCommitResponseSchema>;
 
 // required, so last-writer-wins is a choice a caller spells rather than what it gets by
@@ -149,50 +132,42 @@ export type VaultCommitResponse = z.infer<typeof vaultCommitResponseSchema>;
 // from, and a mismatch answers CAS_MISMATCH with the current content; `absent` is a create, and
 // never a hash of bytes not yet on disk, which no file could match.
 const vaultWriteGuardSchema = z.discriminatedUnion("kind", [
-  z.object({ hash: contentHashSchema, kind: z.literal("expected") }).strict(),
-  z.object({ kind: z.literal("absent") }).strict(),
-  z.object({ kind: z.literal("overwrite") }).strict(),
+  z.strictObject({ hash: contentHashSchema, kind: z.literal("expected") }),
+  z.strictObject({ kind: z.literal("absent") }),
+  z.strictObject({ kind: z.literal("overwrite") }),
 ]);
 export type VaultWriteGuard = z.infer<typeof vaultWriteGuardSchema>;
 
-export const vaultWriteRequestSchema = z
-  .object({
-    content: z.string().max(VAULT_MAX_CONTENT_LENGTH),
-    guard: vaultWriteGuardSchema,
-    path: vaultPathSchema,
-  })
-  .strict();
+export const vaultWriteRequestSchema = z.strictObject({
+  content: z.string().max(VAULT_MAX_CONTENT_LENGTH),
+  guard: vaultWriteGuardSchema,
+  path: vaultPathSchema,
+});
 export type VaultWriteRequest = z.infer<typeof vaultWriteRequestSchema>;
 
-export const vaultWriteResponseSchema = z.object({ path: z.string().min(1) }).strict();
+export const vaultWriteResponseSchema = z.strictObject({ path: z.string().min(1) });
 export type VaultWriteResponse = z.infer<typeof vaultWriteResponseSchema>;
 
-export const vaultRenameRequestSchema = z
-  .object({
-    from: vaultPathSchema,
-    to: vaultPathSchema,
-  })
-  .strict();
+export const vaultRenameRequestSchema = z.strictObject({
+  from: vaultPathSchema,
+  to: vaultPathSchema,
+});
 export type VaultRenameRequest = z.infer<typeof vaultRenameRequestSchema>;
 
 export const vaultRenameSkipReasonSchema = z.enum(["changed", "not_found", "unreadable"]);
 export type VaultRenameSkipReason = z.infer<typeof vaultRenameSkipReasonSchema>;
 
-export const vaultRenameResponseSchema = z
-  .object({
-    path: z.string().min(1),
-    rewritten: z.array(z.string().min(1)),
-    // a skip never fails the rename: the moved doc's recorded alias keeps those links resolving.
-    skipped: z.array(
-      z
-        .object({
-          path: z.string().min(1),
-          reason: vaultRenameSkipReasonSchema,
-        })
-        .strict(),
-    ),
-  })
-  .strict();
+export const vaultRenameResponseSchema = z.strictObject({
+  path: z.string().min(1),
+  rewritten: z.array(z.string().min(1)),
+  // a skip never fails the rename: the moved doc's recorded alias keeps those links resolving.
+  skipped: z.array(
+    z.strictObject({
+      path: z.string().min(1),
+      reason: vaultRenameSkipReasonSchema,
+    }),
+  ),
+});
 export type VaultRenameResponse = z.infer<typeof vaultRenameResponseSchema>;
 
 // gates the write and the read alike, and must not exceed the cloud route's own ceiling: an
@@ -204,23 +179,21 @@ export const vaultDirSchema = z.union([z.literal(""), vaultPathSchema]);
 
 // the bytes ride as a Blob, which the rpc link sends as a multipart part rather than as base64
 // inside the json body. the cap is the handler's, so an oversized file answers PAYLOAD_TOO_LARGE.
-export const vaultAssetWriteRequestSchema = z
-  .object({
-    baseName: z.string().min(1),
-    dir: vaultDirSchema,
-    file: z.instanceof(Blob).refine((file) => file.size > 0, "an attachment holds no bytes"),
-  })
-  .strict();
+export const vaultAssetWriteRequestSchema = z.strictObject({
+  baseName: z.string().min(1),
+  dir: vaultDirSchema,
+  file: z.instanceof(Blob).refine((file) => file.size > 0, "an attachment holds no bytes"),
+});
 export type VaultAssetWriteRequest = z.infer<typeof vaultAssetWriteRequestSchema>;
 
-export const vaultAssetWriteResponseSchema = z.object({ path: z.string().min(1) }).strict();
+export const vaultAssetWriteResponseSchema = z.strictObject({ path: z.string().min(1) });
 export type VaultAssetWriteResponse = z.infer<typeof vaultAssetWriteResponseSchema>;
 
 // where a pasted image lands: the vault root, the note's own folder, or one named folder
 export const attachmentLocationSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("root") }).strict(),
-  z.object({ kind: z.literal("beside-note") }).strict(),
-  z.object({ kind: z.literal("folder"), path: vaultPathSchema }).strict(),
+  z.strictObject({ kind: z.literal("root") }),
+  z.strictObject({ kind: z.literal("beside-note") }),
+  z.strictObject({ kind: z.literal("folder"), path: vaultPathSchema }),
 ]);
 export type AttachmentLocation = z.infer<typeof attachmentLocationSchema>;
 
@@ -229,54 +202,48 @@ export const DEFAULT_ATTACHMENT_LOCATION: AttachmentLocation = {
   path: DEFAULT_ATTACHMENTS_FOLDER,
 };
 
-export const vaultPrefsResponseSchema = z
-  .object({ attachments: attachmentLocationSchema })
-  .strict();
+export const vaultPrefsResponseSchema = z.strictObject({ attachments: attachmentLocationSchema });
 export type VaultPrefsResponse = z.infer<typeof vaultPrefsResponseSchema>;
 
-export const vaultSetPrefsRequestSchema = z
-  .object({ attachments: attachmentLocationSchema })
-  .strict();
+export const vaultSetPrefsRequestSchema = z.strictObject({ attachments: attachmentLocationSchema });
 export type VaultSetPrefsRequest = z.infer<typeof vaultSetPrefsRequestSchema>;
 
-export const vaultMkdirRequestSchema = z.object({ path: vaultPathSchema }).strict();
+export const vaultMkdirRequestSchema = z.strictObject({ path: vaultPathSchema });
 export type VaultMkdirRequest = z.infer<typeof vaultMkdirRequestSchema>;
 
-export const vaultMkdirResponseSchema = z.object({ path: z.string().min(1) }).strict();
+export const vaultMkdirResponseSchema = z.strictObject({ path: z.string().min(1) });
 export type VaultMkdirResponse = z.infer<typeof vaultMkdirResponseSchema>;
 
 // doc paths no longer on disk. `sha` names the revision whose tree still holds the bytes — the
 // deleting commit's parent, or HEAD for a deletion the auto-commit has not flushed yet — so a
 // restore is `revision` read plus an `absent` write. latest deletion per path, newest first.
-export const vaultDeletedEntrySchema = z
-  .object({
-    // git's `%aI` of the deleting commit; the read time for an unflushed deletion.
-    deletedAt: z.string().min(1),
-    path: z.string().min(1),
-    sha: vaultRevisionShaSchema,
-  })
-  .strict();
+export const vaultDeletedEntrySchema = z.strictObject({
+  // git's `%aI` of the deleting commit; the read time for an unflushed deletion.
+  deletedAt: z.string().min(1),
+  path: z.string().min(1),
+  sha: vaultRevisionShaSchema,
+});
 export type VaultDeletedEntry = z.infer<typeof vaultDeletedEntrySchema>;
 
 export const VAULT_DELETED_MAX_ENTRIES = 200;
 
-export const vaultDeletedResponseSchema = z
-  .object({ entries: z.array(vaultDeletedEntrySchema).max(VAULT_DELETED_MAX_ENTRIES) })
-  .strict();
+export const vaultDeletedResponseSchema = z.strictObject({
+  entries: z.array(vaultDeletedEntrySchema).max(VAULT_DELETED_MAX_ENTRIES),
+});
 export type VaultDeletedResponse = z.infer<typeof vaultDeletedResponseSchema>;
 
-export const vaultDeleteRequestSchema = z.object({ path: vaultPathSchema }).strict();
+export const vaultDeleteRequestSchema = z.strictObject({ path: vaultPathSchema });
 export type VaultDeleteRequest = z.infer<typeof vaultDeleteRequestSchema>;
 
-export const vaultDeleteResponseSchema = z.object({ ok: z.literal(true) }).strict();
+export const vaultDeleteResponseSchema = z.strictObject({ ok: z.literal(true) });
 export type VaultDeleteResponse = z.infer<typeof vaultDeleteResponseSchema>;
 
 // a path two devices changed at once, settled by a sync here or by the device a pull came from:
 // which version stayed at `path`, and where the other went. `at` is when this device learned of
 // it. every surface words it through `describeSyncConflict` (`@repo/notes/sync/conflict-copy`).
 export const vaultSyncConflictSchema = z.discriminatedUnion("kind", [
-  syncConflictCopiedSchema.extend({ at: z.number().int() }).strict(),
-  syncConflictKeptEditSchema.extend({ at: z.number().int() }).strict(),
+  syncConflictCopiedSchema.extend({ at: z.number().int() }),
+  syncConflictKeptEditSchema.extend({ at: z.number().int() }),
 ]);
 export type VaultSyncConflict = z.infer<typeof vaultSyncConflictSchema>;
 
@@ -289,13 +256,13 @@ export const VAULT_SYNC_CONFLICTS_MAX = 20;
 // `cloud-storage` is a File Provider folder this build has no name for; `provider` is the one its
 // folder carries.
 export const externalSyncSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("icloud-drive") }).strict(),
-  z.object({ kind: z.literal("icloud-desktop-documents") }).strict(),
-  z.object({ kind: z.literal("dropbox") }).strict(),
-  z.object({ kind: z.literal("google-drive") }).strict(),
-  z.object({ kind: z.literal("onedrive") }).strict(),
-  z.object({ kind: z.literal("cloud-storage"), provider: z.string().min(1) }).strict(),
-  z.object({ kind: z.literal("obsidian-sync") }).strict(),
+  z.strictObject({ kind: z.literal("icloud-drive") }),
+  z.strictObject({ kind: z.literal("icloud-desktop-documents") }),
+  z.strictObject({ kind: z.literal("dropbox") }),
+  z.strictObject({ kind: z.literal("google-drive") }),
+  z.strictObject({ kind: z.literal("onedrive") }),
+  z.strictObject({ kind: z.literal("cloud-storage"), provider: z.string().min(1) }),
+  z.strictObject({ kind: z.literal("obsidian-sync") }),
 ]);
 export type ExternalSync = z.infer<typeof externalSyncSchema>;
 
@@ -349,10 +316,10 @@ const remoteFields = {
 };
 
 const remoteState = <State extends string>(state: State) =>
-  z.object({ state: z.literal(state), ...remoteFields, ...syncStatusFields }).strict();
+  z.strictObject({ state: z.literal(state), ...remoteFields, ...syncStatusFields });
 
 export const vaultStatusResponseSchema = z.discriminatedUnion("state", [
-  z.object({ state: z.literal("no-remote"), ...syncStatusFields }).strict(),
+  z.strictObject({ state: z.literal("no-remote"), ...syncStatusFields }),
   // a rebase or merge even its own abort could not clear; `lastError` names the manual recovery
   // and no pass runs while broken.
   remoteState("broken"),
@@ -394,7 +361,7 @@ export type VaultStatusResponse = z.infer<typeof vaultStatusResponseSchema>;
 // where a vault syncs, as a person chooses it: the account's hosted vault, or a git server of their
 // own by its url. no "off": a folder another service syncs is already the derived off.
 export const vaultSetRemoteRequestSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("account") }).strict(),
-  z.object({ kind: z.literal("remote"), url: remoteUrlSchema }).strict(),
+  z.strictObject({ kind: z.literal("account") }),
+  z.strictObject({ kind: z.literal("remote"), url: remoteUrlSchema }),
 ]);
 export type VaultSetRemoteRequest = z.infer<typeof vaultSetRemoteRequestSchema>;

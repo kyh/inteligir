@@ -10,17 +10,15 @@ export type AgentMode = z.infer<typeof agentModeSchema>;
 // words.
 export const agentStatusSchema = z.discriminatedUnion("mode", [
   z.discriminatedUnion("runtime", [
-    z.object({ mode: z.literal("acp"), runtime: z.literal("ready") }).strict(),
-    z
-      .object({
-        detail: z.string().min(1),
-        mode: z.literal("acp"),
-        runtime: z.literal("unavailable"),
-      })
-      .strict(),
+    z.strictObject({ mode: z.literal("acp"), runtime: z.literal("ready") }),
+    z.strictObject({
+      detail: z.string().min(1),
+      mode: z.literal("acp"),
+      runtime: z.literal("unavailable"),
+    }),
   ]),
-  z.object({ mode: z.literal("scripted") }).strict(),
-  z.object({ mode: z.literal("off") }).strict(),
+  z.strictObject({ mode: z.literal("scripted") }),
+  z.strictObject({ mode: z.literal("off") }),
 ]);
 export type AgentStatus = z.infer<typeof agentStatusSchema>;
 
@@ -30,20 +28,18 @@ export const agentStatusLine = (agent: AgentStatus): string =>
     ? `acp, unavailable — ${agent.detail}`
     : agent.mode;
 
-export const guideResponseSchema = z.object({ markdown: z.string().min(1) }).strict();
+export const guideResponseSchema = z.strictObject({ markdown: z.string().min(1) });
 export type GuideResponse = z.infer<typeof guideResponseSchema>;
 
-export const systemStatusResponseSchema = z
-  .object({
-    agent: agentStatusSchema,
-    dataDir: z.string().min(1),
-    schemaVersion: z.number().int().min(1),
-    uptimeMs: z.number().min(0),
-    vaultDir: z.string().min(1),
-    version: z.string().min(1),
-  })
-  .strict();
+export const systemStatusResponseSchema = z.strictObject({
+  agent: agentStatusSchema,
+  dataDir: z.string().min(1),
+  schemaVersion: z.number().int().min(1),
+  uptimeMs: z.number().min(0),
+  vaultDir: z.string().min(1),
+  version: z.string().min(1),
+});
 export type SystemStatusResponse = z.infer<typeof systemStatusResponseSchema>;
 
-export const browserHandoffResponseSchema = z.object({ nonce: z.string().min(1) }).strict();
+export const browserHandoffResponseSchema = z.strictObject({ nonce: z.string().min(1) });
 export type BrowserHandoffResponse = z.infer<typeof browserHandoffResponseSchema>;

@@ -3,4 +3,4 @@
 
 import { z } from "zod";
 
-export const pathActionRequestSchema = z.object({ path: z.string().min(1) }).strict();
+export const pathActionRequestSchema = z.strictObject({ path: z.string().min(1) });

@@ -34,19 +34,17 @@ const eventTextSchema = z
     return text;
   });
 
-export const syncEventInputSchema = z
-  .object({
-    createdAt: z.number().int().nonnegative(),
-    deviceSeq: z.number().int().nonnegative(),
-    event: eventTextSchema,
-    threadId: threadIdSchema,
-  })
-  .strict();
+export const syncEventInputSchema = z.strictObject({
+  createdAt: z.number().int().nonnegative(),
+  deviceSeq: z.number().int().nonnegative(),
+  event: eventTextSchema,
+  threadId: threadIdSchema,
+});
 export type SyncEventInput = z.input<typeof syncEventInputSchema>;
 
-export const pushRequestSchema = z
-  .object({ events: z.array(syncEventInputSchema).max(PUSH_MAX_EVENTS) })
-  .strict();
+export const pushRequestSchema = z.strictObject({
+  events: z.array(syncEventInputSchema).max(PUSH_MAX_EVENTS),
+});
 export type PushRequest = z.input<typeof pushRequestSchema>;
 
 export const pushResponseSchema = z.object({

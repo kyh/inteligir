@@ -22,121 +22,105 @@ export const KNOWLEDGE_PROBLEMS_MAX_LIMIT = 200;
 export const KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT = 50;
 
 // q is the raw box text, parsed engine-side so a typed tag: term and a composed one resolve alike
-export const knowledgeSearchRequestSchema = z
-  .object({
-    limit: z.number().int().min(1).max(KNOWLEDGE_SEARCH_MAX_LIMIT).default(SEARCH_DEFAULT_LIMIT),
-    q: z.string(),
-  })
-  .strict();
+export const knowledgeSearchRequestSchema = z.strictObject({
+  limit: z.number().int().min(1).max(KNOWLEDGE_SEARCH_MAX_LIMIT).default(SEARCH_DEFAULT_LIMIT),
+  q: z.string(),
+});
 export type KnowledgeSearchRequest = z.input<typeof knowledgeSearchRequestSchema>;
 
-export const searchResultSchema = z
-  .object({
-    path: z.string().min(1),
-    score: z.number(),
-    snippet: z.string(),
-    title: z.string(),
-  })
-  .strict();
+export const searchResultSchema = z.strictObject({
+  path: z.string().min(1),
+  score: z.number(),
+  snippet: z.string(),
+  title: z.string(),
+});
 export type SearchResultWire = z.infer<typeof searchResultSchema>;
 
-export const knowledgeSearchResponseSchema = z
-  .object({ results: z.array(searchResultSchema) })
-  .strict();
+export const knowledgeSearchResponseSchema = z.strictObject({
+  results: z.array(searchResultSchema),
+});
 export type KnowledgeSearchResponse = z.infer<typeof knowledgeSearchResponseSchema>;
 
 // the literal scan, not the ranked search: every occurrence, with the line it sits on.
 // one line of text: a needle spanning a terminator cannot be found per line, so it is refused
-export const knowledgeMatchesRequestSchema = z
-  .object({
-    caseSensitive: z.boolean().default(false),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(KNOWLEDGE_MATCHES_MAX_LIMIT)
-      .default(KNOWLEDGE_MATCHES_DEFAULT_LIMIT),
-    q: z
-      .string()
-      .min(1)
-      .max(200)
-      .refine((value) => !/[\r\n]/u.test(value), { message: "q must be one line" }),
-    wholeWord: z.boolean().default(false),
-  })
-  .strict();
+export const knowledgeMatchesRequestSchema = z.strictObject({
+  caseSensitive: z.boolean().default(false),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(KNOWLEDGE_MATCHES_MAX_LIMIT)
+    .default(KNOWLEDGE_MATCHES_DEFAULT_LIMIT),
+  q: z
+    .string()
+    .min(1)
+    .max(200)
+    .refine((value) => !/[\r\n]/u.test(value), { message: "q must be one line" }),
+  wholeWord: z.boolean().default(false),
+});
 export type KnowledgeMatchesRequest = z.input<typeof knowledgeMatchesRequestSchema>;
 
-export const vaultMatchSchema = z
-  .object({
-    after: z.string(),
-    before: z.string(),
-    // utf-16 offset inside the line
-    column: z.number().int().min(0),
-    length: z.number().int().min(1),
-    // 1-based
-    line: z.number().int().min(1),
-    // this match's index among the doc's matches, in document order: what a jump lands on
-    ordinal: z.number().int().min(0),
-    path: z.string().min(1),
-    text: z.string(),
-    title: z.string(),
-  })
-  .strict();
+export const vaultMatchSchema = z.strictObject({
+  after: z.string(),
+  before: z.string(),
+  // utf-16 offset inside the line
+  column: z.number().int().min(0),
+  length: z.number().int().min(1),
+  // 1-based
+  line: z.number().int().min(1),
+  // this match's index among the doc's matches, in document order: what a jump lands on
+  ordinal: z.number().int().min(0),
+  path: z.string().min(1),
+  text: z.string(),
+  title: z.string(),
+});
 export type VaultMatchWire = z.infer<typeof vaultMatchSchema>;
 
-export const knowledgeMatchesResponseSchema = z
-  .object({
-    matches: z.array(vaultMatchSchema).max(KNOWLEDGE_MATCHES_MAX_LIMIT),
-    total: z.number().int().min(0),
-  })
-  .strict();
+export const knowledgeMatchesResponseSchema = z.strictObject({
+  matches: z.array(vaultMatchSchema).max(KNOWLEDGE_MATCHES_MAX_LIMIT),
+  total: z.number().int().min(0),
+});
 export type KnowledgeMatchesResponse = z.infer<typeof knowledgeMatchesResponseSchema>;
 
 // a note that names this one in prose without linking it: the stem or an alias as a whole
 // word, outside code, links, urls and frontmatter. one row per note, on its first mention
-export const knowledgeUnlinkedMentionsRequestSchema = z
-  .object({
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(KNOWLEDGE_UNLINKED_MAX_LIMIT)
-      .default(KNOWLEDGE_UNLINKED_DEFAULT_LIMIT),
-    path: vaultPathSchema,
-  })
-  .strict();
+export const knowledgeUnlinkedMentionsRequestSchema = z.strictObject({
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(KNOWLEDGE_UNLINKED_MAX_LIMIT)
+    .default(KNOWLEDGE_UNLINKED_DEFAULT_LIMIT),
+  path: vaultPathSchema,
+});
 export type KnowledgeUnlinkedMentionsRequest = z.input<
   typeof knowledgeUnlinkedMentionsRequestSchema
 >;
 
-export const unlinkedMentionSchema = z
-  .object({
-    after: z.string(),
-    before: z.string(),
-    // utf-16 offset inside the line
-    column: z.number().int().min(0),
-    // every plain mention in that note, this one included
-    count: z.number().int().min(1),
-    length: z.number().int().min(1),
-    // 1-based
-    line: z.number().int().min(1),
-    path: z.string().min(1),
-    text: z.string(),
-    title: z.string(),
-  })
-  .strict();
+export const unlinkedMentionSchema = z.strictObject({
+  after: z.string(),
+  before: z.string(),
+  // utf-16 offset inside the line
+  column: z.number().int().min(0),
+  // every plain mention in that note, this one included
+  count: z.number().int().min(1),
+  length: z.number().int().min(1),
+  // 1-based
+  line: z.number().int().min(1),
+  path: z.string().min(1),
+  text: z.string(),
+  title: z.string(),
+});
 export type UnlinkedMentionWire = z.infer<typeof unlinkedMentionSchema>;
 
-export const knowledgeUnlinkedMentionsResponseSchema = z
-  .object({
-    // the wiki target a Link writes, resolving back to `path` even where the bare name is
-    // another note's; null when no wiki link can name the note
-    linkTarget: z.string().min(1).nullable(),
-    mentions: z.array(unlinkedMentionSchema).max(KNOWLEDGE_UNLINKED_MAX_LIMIT),
-    path: z.string().min(1),
-    total: z.number().int().min(0),
-  })
-  .strict();
+export const knowledgeUnlinkedMentionsResponseSchema = z.strictObject({
+  // the wiki target a Link writes, resolving back to `path` even where the bare name is
+  // another note's; null when no wiki link can name the note
+  linkTarget: z.string().min(1).nullable(),
+  mentions: z.array(unlinkedMentionSchema).max(KNOWLEDGE_UNLINKED_MAX_LIMIT),
+  path: z.string().min(1),
+  total: z.number().int().min(0),
+});
 export type KnowledgeUnlinkedMentionsResponse = z.infer<
   typeof knowledgeUnlinkedMentionsResponseSchema
 >;
@@ -146,152 +130,130 @@ export type LinkKindWire = z.infer<typeof linkKindSchema>;
 
 // what the graph cannot resolve: five families, each capped on its own with its own total.
 // the limit applies per family; dailies and templates count as orphans only when asked
-export const knowledgeProblemsRequestSchema = z
-  .object({
-    includeConventionFolders: z.boolean().default(false),
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(KNOWLEDGE_PROBLEMS_MAX_LIMIT)
-      .default(KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT),
-  })
-  .strict();
+export const knowledgeProblemsRequestSchema = z.strictObject({
+  includeConventionFolders: z.boolean().default(false),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(KNOWLEDGE_PROBLEMS_MAX_LIMIT)
+    .default(KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT),
+});
 export type KnowledgeProblemsRequest = z.input<typeof knowledgeProblemsRequestSchema>;
 
 // once per source and target, on the first line it appears
-export const unresolvedLinkRowSchema = z
-  .object({
-    embed: z.boolean(),
-    kind: linkKindSchema,
-    line: z.number().int().min(1),
-    snippet: z.string(),
-    sourcePath: z.string().min(1),
-    sourceTitle: z.string(),
-    target: z.string().min(1),
-  })
-  .strict();
+export const unresolvedLinkRowSchema = z.strictObject({
+  embed: z.boolean(),
+  kind: linkKindSchema,
+  line: z.number().int().min(1),
+  snippet: z.string(),
+  sourcePath: z.string().min(1),
+  sourceTitle: z.string(),
+  target: z.string().min(1),
+});
 export type UnresolvedLinkRowWire = z.infer<typeof unresolvedLinkRowSchema>;
 
-export const orphanRowSchema = z.object({ path: z.string().min(1), title: z.string() }).strict();
+export const orphanRowSchema = z.strictObject({ path: z.string().min(1), title: z.string() });
 export type OrphanRowWire = z.infer<typeof orphanRowSchema>;
 
-export const duplicateStemRowSchema = z
-  .object({ paths: z.array(z.string().min(1)).min(2), stem: z.string().min(1) })
-  .strict();
+export const duplicateStemRowSchema = z.strictObject({
+  paths: z.array(z.string().min(1)).min(2),
+  stem: z.string().min(1),
+});
 export type DuplicateStemRowWire = z.infer<typeof duplicateStemRowSchema>;
 
 // one frontmatter `id` carried by several notes, which then share one comment store
-export const duplicateIdRowSchema = z
-  .object({ id: z.string().min(1), paths: z.array(z.string().min(1)).min(2) })
-  .strict();
+export const duplicateIdRowSchema = z.strictObject({
+  id: z.string().min(1),
+  paths: z.array(z.string().min(1)).min(2),
+});
 export type DuplicateIdRowWire = z.infer<typeof duplicateIdRowSchema>;
 
 const problemFamilySchema = <Row extends z.ZodType>(row: Row) =>
-  z
-    .object({
-      rows: z.array(row).max(KNOWLEDGE_PROBLEMS_MAX_LIMIT),
-      total: z.number().int().min(0),
-    })
-    .strict();
+  z.strictObject({
+    rows: z.array(row).max(KNOWLEDGE_PROBLEMS_MAX_LIMIT),
+    total: z.number().int().min(0),
+  });
 
-export const knowledgeProblemsResponseSchema = z
-  .object({
-    duplicateIds: problemFamilySchema(duplicateIdRowSchema),
-    duplicateStems: problemFamilySchema(duplicateStemRowSchema),
-    missingEmbeds: problemFamilySchema(unresolvedLinkRowSchema),
-    orphans: problemFamilySchema(orphanRowSchema),
-    unresolvedLinks: problemFamilySchema(unresolvedLinkRowSchema),
-  })
-  .strict();
+export const knowledgeProblemsResponseSchema = z.strictObject({
+  duplicateIds: problemFamilySchema(duplicateIdRowSchema),
+  duplicateStems: problemFamilySchema(duplicateStemRowSchema),
+  missingEmbeds: problemFamilySchema(unresolvedLinkRowSchema),
+  orphans: problemFamilySchema(orphanRowSchema),
+  unresolvedLinks: problemFamilySchema(unresolvedLinkRowSchema),
+});
 export type KnowledgeProblemsResponse = z.infer<typeof knowledgeProblemsResponseSchema>;
 
-export const backlinkEntrySchema = z
-  .object({
-    alias: z.string().exactOptional(),
-    embed: z.boolean(),
-    kind: linkKindSchema,
-    // 1-based
-    line: z.number().int().min(1),
-    snippet: z.string(),
-    sourcePath: z.string().min(1),
-  })
-  .strict();
+export const backlinkEntrySchema = z.strictObject({
+  alias: z.string().exactOptional(),
+  embed: z.boolean(),
+  kind: linkKindSchema,
+  // 1-based
+  line: z.number().int().min(1),
+  snippet: z.string(),
+  sourcePath: z.string().min(1),
+});
 export type BacklinkEntryWire = z.infer<typeof backlinkEntrySchema>;
 
-export const wikiTargetSchema = z
-  .object({
-    aliases: z.array(z.string()).exactOptional(),
-    id: z.string().min(1).exactOptional(),
-    path: z.string().min(1),
-    pinned: z.boolean().exactOptional(),
-    title: z.string(),
-    type: z.enum(["doc", "asset"]),
-  })
-  .strict();
+export const wikiTargetSchema = z.strictObject({
+  aliases: z.array(z.string()).exactOptional(),
+  id: z.string().min(1).exactOptional(),
+  path: z.string().min(1),
+  pinned: z.boolean().exactOptional(),
+  title: z.string(),
+  type: z.enum(["doc", "asset"]),
+});
 
 export type WikiTargetWire = z.infer<typeof wikiTargetSchema>;
 
-export const knowledgeWikiTargetsResponseSchema = z
-  .object({ targets: z.array(wikiTargetSchema) })
-  .strict();
+export const knowledgeWikiTargetsResponseSchema = z.strictObject({
+  targets: z.array(wikiTargetSchema),
+});
 export type KnowledgeWikiTargetsResponse = z.infer<typeof knowledgeWikiTargetsResponseSchema>;
 
-export const knowledgeBacklinksRequestSchema = z.object({ path: vaultPathSchema }).strict();
+export const knowledgeBacklinksRequestSchema = z.strictObject({ path: vaultPathSchema });
 export type KnowledgeBacklinksRequest = z.infer<typeof knowledgeBacklinksRequestSchema>;
 
-export const knowledgeBacklinksResponseSchema = z
-  .object({
-    backlinks: z.array(backlinkEntrySchema).max(KNOWLEDGE_BACKLINKS_MAX),
-    path: z.string().min(1),
-    total: z.number().int().min(0),
-  })
-  .strict();
+export const knowledgeBacklinksResponseSchema = z.strictObject({
+  backlinks: z.array(backlinkEntrySchema).max(KNOWLEDGE_BACKLINKS_MAX),
+  path: z.string().min(1),
+  total: z.number().int().min(0),
+});
 export type KnowledgeBacklinksResponse = z.infer<typeof knowledgeBacklinksResponseSchema>;
 
 // a limit and no total: a ranked top-n has no honest count of the rest
-export const knowledgeRelatedRequestSchema = z
-  .object({
-    limit: z.number().int().min(1).max(KNOWLEDGE_RELATED_MAX_LIMIT).default(RELATED_DEFAULT_LIMIT),
-    path: vaultPathSchema,
-  })
-  .strict();
+export const knowledgeRelatedRequestSchema = z.strictObject({
+  limit: z.number().int().min(1).max(KNOWLEDGE_RELATED_MAX_LIMIT).default(RELATED_DEFAULT_LIMIT),
+  path: vaultPathSchema,
+});
 export type KnowledgeRelatedRequest = z.input<typeof knowledgeRelatedRequestSchema>;
 
-export const relatedNoteSchema = z
-  .object({
-    path: z.string().min(1),
-    // printed verbatim by every surface: a ranked list with no reason is one nobody can check
-    reasons: z.array(z.string()),
-    score: z.number(),
-    title: z.string(),
-  })
-  .strict();
+export const relatedNoteSchema = z.strictObject({
+  path: z.string().min(1),
+  // printed verbatim by every surface: a ranked list with no reason is one nobody can check
+  reasons: z.array(z.string()),
+  score: z.number(),
+  title: z.string(),
+});
 export type RelatedNoteWire = z.infer<typeof relatedNoteSchema>;
 
-export const knowledgeRelatedResponseSchema = z
-  .object({
-    path: z.string().min(1),
-    related: z.array(relatedNoteSchema).max(KNOWLEDGE_RELATED_MAX_LIMIT),
-  })
-  .strict();
+export const knowledgeRelatedResponseSchema = z.strictObject({
+  path: z.string().min(1),
+  related: z.array(relatedNoteSchema).max(KNOWLEDGE_RELATED_MAX_LIMIT),
+});
 export type KnowledgeRelatedResponse = z.infer<typeof knowledgeRelatedResponseSchema>;
 
-export const tagCountSchema = z
-  .object({
-    count: z.number().int().min(1),
-    tag: z.string().min(1),
-  })
-  .strict();
+export const tagCountSchema = z.strictObject({
+  count: z.number().int().min(1),
+  tag: z.string().min(1),
+});
 export type TagCountWire = z.infer<typeof tagCountSchema>;
 
-export const knowledgeTagsResponseSchema = z
-  .object({
-    // most-used first, so the cap keeps the tags that matter
-    tags: z.array(tagCountSchema).max(KNOWLEDGE_TAGS_MAX),
-    total: z.number().int().min(0),
-  })
-  .strict();
+export const knowledgeTagsResponseSchema = z.strictObject({
+  // most-used first, so the cap keeps the tags that matter
+  tags: z.array(tagCountSchema).max(KNOWLEDGE_TAGS_MAX),
+  total: z.number().int().min(0),
+});
 export type KnowledgeTagsResponse = z.infer<typeof knowledgeTagsResponseSchema>;
 
 // the inline grammar's own name rule, so a rename can only write a tag the scan would read back
@@ -301,51 +263,41 @@ export const KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT = 100;
 export const KNOWLEDGE_TAG_NOTES_MAX_LIMIT = 500;
 
 // a listing, not a search: the tag's family by path, paged, with the whole count
-export const knowledgeTagNotesRequestSchema = z
-  .object({
-    limit: z
-      .number()
-      .int()
-      .min(1)
-      .max(KNOWLEDGE_TAG_NOTES_MAX_LIMIT)
-      .default(KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT),
-    offset: z.number().int().min(0).default(0),
-    tag: tagNameSchema,
-  })
-  .strict();
+export const knowledgeTagNotesRequestSchema = z.strictObject({
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(KNOWLEDGE_TAG_NOTES_MAX_LIMIT)
+    .default(KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT),
+  offset: z.number().int().min(0).default(0),
+  tag: tagNameSchema,
+});
 export type KnowledgeTagNotesRequest = z.input<typeof knowledgeTagNotesRequestSchema>;
 
-export const knowledgeTagNotesResponseSchema = z
-  .object({
-    paths: z.array(z.string().min(1)).max(KNOWLEDGE_TAG_NOTES_MAX_LIMIT),
-    tag: z.string().min(1),
-    total: z.number().int().min(0),
-  })
-  .strict();
+export const knowledgeTagNotesResponseSchema = z.strictObject({
+  paths: z.array(z.string().min(1)).max(KNOWLEDGE_TAG_NOTES_MAX_LIMIT),
+  tag: z.string().min(1),
+  total: z.number().int().min(0),
+});
 export type KnowledgeTagNotesResponse = z.infer<typeof knowledgeTagNotesResponseSchema>;
 
-export const knowledgeRenameTagRequestSchema = z
-  .object({
-    from: tagNameSchema,
-    to: tagNameSchema,
-  })
-  .strict();
+export const knowledgeRenameTagRequestSchema = z.strictObject({
+  from: tagNameSchema,
+  to: tagNameSchema,
+});
 export type KnowledgeRenameTagRequest = z.infer<typeof knowledgeRenameTagRequestSchema>;
 
 // the note rename's shape: a skip never fails the rename, and a changed doc keeps its bytes
-export const knowledgeRenameTagResponseSchema = z
-  .object({
-    from: z.string().min(1),
-    rewritten: z.array(z.string().min(1)),
-    skipped: z.array(
-      z
-        .object({
-          path: z.string().min(1),
-          reason: vaultRenameSkipReasonSchema,
-        })
-        .strict(),
-    ),
-    to: z.string().min(1),
-  })
-  .strict();
+export const knowledgeRenameTagResponseSchema = z.strictObject({
+  from: z.string().min(1),
+  rewritten: z.array(z.string().min(1)),
+  skipped: z.array(
+    z.strictObject({
+      path: z.string().min(1),
+      reason: vaultRenameSkipReasonSchema,
+    }),
+  ),
+  to: z.string().min(1),
+});
 export type KnowledgeRenameTagResponse = z.infer<typeof knowledgeRenameTagResponseSchema>;

@@ -549,8 +549,11 @@ describe("vault commands", () => {
     });
     expect(given.code).toBe(0);
     const { id } = z
-      .object({ comments: z.literal("copied"), id: z.uuid(), path: z.literal("notes/copy.md") })
-      .strict()
+      .strictObject({
+        comments: z.literal("copied"),
+        id: z.uuid(),
+        path: z.literal("notes/copy.md"),
+      })
       .parse(JSON.parse(given.stdout));
     expect(state.vault.get("notes/copy.md")).toBe(copy.replace(shared, id));
     expect(state.vault.get(`.inteligir/comments/${id}.json`)).toBe(storeBytes);

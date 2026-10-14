@@ -9,9 +9,9 @@ const versionSchema = z.string().min(1);
 
 // what one click does next, with the version it acts on
 const updateActionSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("check") }).strict(),
-  z.object({ action: z.literal("download"), version: versionSchema }).strict(),
-  z.object({ action: z.literal("install"), version: versionSchema }).strict(),
+  z.strictObject({ action: z.literal("check") }),
+  z.strictObject({ action: z.literal("download"), version: versionSchema }),
+  z.strictObject({ action: z.literal("install"), version: versionSchema }),
 ]);
 export type UpdateAction = z.infer<typeof updateActionSchema>;
 

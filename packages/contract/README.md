@@ -72,7 +72,7 @@ src/
   strips a field it does not declare, so a newer Worker may add one and this
   build reads on; a refusal code it does not know reads as `internal`, a fault
   to retry in the Worker's own words, never a verdict on the credential.
-  Requests stay `.strict()`: only the always-newest Worker parses them. The
+  Requests stay `z.strictObject`: only the always-newest Worker parses them. The
   Worker's tests hold every answer to exactly the declared shape (`emitted` in
   `apps/web/src/worker/__tests__/cloud-helpers.ts`), since a stripping client
   would let a leaked column through. A field that changes what a row MEANS (a
@@ -119,7 +119,7 @@ src/
   the literal strings behind `@repo/contract/local/routes` and `VAULT_API_PATHS`
   and refuses a second spelling outside the file that owns it.
 - **The `/ws` frame grammar is strict outbound, lenient inbound.** The
-  `.strict()` schemas type what the server broadcasts and are what its tests
+  `z.strictObject` schemas type what the server broadcasts and are what its tests
   parse the frames with; no broadcast is parsed at runtime. A client parses
   with the lenient twin, or a long-lived tab against a newer server drops whole
   messages over an additive change. Client→server frames stay strict: an

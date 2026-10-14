@@ -32,9 +32,11 @@ const PROBE = `JSON.stringify({
   remoteImages: [...document.querySelectorAll('${EDITOR} img')].filter((img) => /^https?:/iu.test(img.getAttribute('src') ?? '')).length,
 })`;
 
-const probeSchema = z
-  .object({ cards: z.number(), frames: z.number(), remoteImages: z.number() })
-  .strict();
+const probeSchema = z.strictObject({
+  cards: z.number(),
+  frames: z.number(),
+  remoteImages: z.number(),
+});
 
 const LISTEN = `(() => { window.inteligirHtmlRan = false; addEventListener('message', (event) => { if (event.data === '${RAN}') { window.inteligirHtmlRan = true; } }); return 'listening'; })()`;
 

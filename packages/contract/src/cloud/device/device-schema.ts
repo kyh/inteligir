@@ -32,13 +32,11 @@ export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 128;
 
 // the email is folded the way better auth stores it, so a caller's capitals never miss the account
-export const deviceLoginRequestSchema = z
-  .object({
-    deviceName: z.string().trim().min(1).max(DEVICE_NAME_MAX_LENGTH),
-    email: z.string().trim().toLowerCase().pipe(z.email()),
-    password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
-  })
-  .strict();
+export const deviceLoginRequestSchema = z.strictObject({
+  deviceName: z.string().trim().min(1).max(DEVICE_NAME_MAX_LENGTH),
+  email: z.string().trim().toLowerCase().pipe(z.email()),
+  password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH),
+});
 export type DeviceLoginRequest = z.infer<typeof deviceLoginRequestSchema>;
 
 // what the login route answers besides bad-request; a client switches on these and nothing else
@@ -69,7 +67,7 @@ const deviceCredentialFields = {
   credential: z.string().regex(DEVICE_CREDENTIAL_PATTERN),
   deviceId: z.string().min(1),
 };
-export const deviceCredentialSchema = z.object(deviceCredentialFields).strict();
+export const deviceCredentialSchema = z.strictObject(deviceCredentialFields);
 export type DeviceCredential = z.infer<typeof deviceCredentialSchema>;
 
 // the account rides the answer that mints the credential, so a client knows whose vault it syncs
@@ -95,11 +93,9 @@ export const listDevicesResponseSchema = z.object({
 });
 export type ListDevicesResponse = z.infer<typeof listDevicesResponseSchema>;
 
-export const revokeDeviceRequestSchema = z
-  .object({
-    deviceId: z.string().min(1),
-  })
-  .strict();
+export const revokeDeviceRequestSchema = z.strictObject({
+  deviceId: z.string().min(1),
+});
 export type RevokeDeviceRequest = z.infer<typeof revokeDeviceRequestSchema>;
 
 // also the sign-out's answer: that route is this revoke with the credential naming the device

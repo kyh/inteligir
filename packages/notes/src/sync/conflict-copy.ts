@@ -75,26 +75,22 @@ export const parseConflictCopyPath = (copyPath: string): ConflictCopyName | null
 };
 
 // The one spelling of a report, which the local wire extends with when this device learned of it.
-export const syncConflictCopiedSchema = z
-  .object({
-    // whose version the copy holds
-    copyDevice: z.string(),
-    copyPath: z.string().min(1),
-    // whose version stayed at `path`
-    keptDevice: z.string(),
-    kind: z.literal("copied"),
-    path: z.string().min(1),
-  })
-  .strict();
+export const syncConflictCopiedSchema = z.strictObject({
+  // whose version the copy holds
+  copyDevice: z.string(),
+  copyPath: z.string().min(1),
+  // whose version stayed at `path`
+  keptDevice: z.string(),
+  kind: z.literal("copied"),
+  path: z.string().min(1),
+});
 
-export const syncConflictKeptEditSchema = z
-  .object({
-    deletedDevice: z.string(),
-    keptDevice: z.string(),
-    kind: z.literal("kept-edit"),
-    path: z.string().min(1),
-  })
-  .strict();
+export const syncConflictKeptEditSchema = z.strictObject({
+  deletedDevice: z.string(),
+  keptDevice: z.string(),
+  kind: z.literal("kept-edit"),
+  path: z.string().min(1),
+});
 
 export const syncConflictReportSchema = z.discriminatedUnion("kind", [
   syncConflictCopiedSchema,

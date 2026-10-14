@@ -93,9 +93,9 @@ const captureFields = {
 };
 
 export const createDispatchRequestSchema = z.discriminatedUnion("kind", [
-  z.object({ id: dispatchIdSchema, kind: z.literal("turn"), ...turnFields }).strict(),
-  z.object({ id: dispatchIdSchema, kind: z.literal("answer"), ...answerFields }).strict(),
-  z.object({ id: dispatchIdSchema, kind: z.literal("capture"), ...captureFields }).strict(),
+  z.strictObject({ id: dispatchIdSchema, kind: z.literal("turn"), ...turnFields }),
+  z.strictObject({ id: dispatchIdSchema, kind: z.literal("answer"), ...answerFields }),
+  z.strictObject({ id: dispatchIdSchema, kind: z.literal("capture"), ...captureFields }),
 ]);
 export type CreateDispatchRequest = z.infer<typeof createDispatchRequestSchema>;
 
@@ -117,12 +117,10 @@ export const createDispatchResponseSchema = z.object({
 });
 export type CreateDispatchResponse = z.infer<typeof createDispatchResponseSchema>;
 
-export const claimDispatchesRequestSchema = z
-  .object({
-    kinds: z.array(dispatchKindSchema).min(1).max(dispatchKindSchema.options.length),
-    limit: z.number().int().min(1).max(DISPATCH_MAX_PENDING).default(DISPATCH_CLAIM_DEFAULT_LIMIT),
-  })
-  .strict();
+export const claimDispatchesRequestSchema = z.strictObject({
+  kinds: z.array(dispatchKindSchema).min(1).max(dispatchKindSchema.options.length),
+  limit: z.number().int().min(1).max(DISPATCH_MAX_PENDING).default(DISPATCH_CLAIM_DEFAULT_LIMIT),
+});
 export type ClaimDispatchesRequest = z.infer<typeof claimDispatchesRequestSchema>;
 
 export const claimedDispatchSchema = z.discriminatedUnion("kind", [
@@ -157,23 +155,19 @@ export const claimDispatchesResponseSchema = z.object({
 export type ClaimDispatchesResponse = z.infer<typeof claimDispatchesResponseSchema>;
 
 export const dispatchResultSchema = z.discriminatedUnion("outcome", [
-  z.object({ id: dispatchIdSchema, outcome: z.literal("delivered") }).strict(),
-  z
-    .object({
-      id: dispatchIdSchema,
-      message: z.string().trim().min(1).max(DISPATCH_MESSAGE_MAX_CHARS),
-      outcome: z.literal("refused"),
-    })
-    .strict(),
+  z.strictObject({ id: dispatchIdSchema, outcome: z.literal("delivered") }),
+  z.strictObject({
+    id: dispatchIdSchema,
+    message: z.string().trim().min(1).max(DISPATCH_MESSAGE_MAX_CHARS),
+    outcome: z.literal("refused"),
+  }),
 ]);
 export type DispatchResult = z.infer<typeof dispatchResultSchema>;
 
-export const ackDispatchesRequestSchema = z
-  .object({
-    claimToken: z.string().min(1),
-    results: z.array(dispatchResultSchema).min(1).max(DISPATCH_MAX_PENDING),
-  })
-  .strict();
+export const ackDispatchesRequestSchema = z.strictObject({
+  claimToken: z.string().min(1),
+  results: z.array(dispatchResultSchema).min(1).max(DISPATCH_MAX_PENDING),
+});
 export type AckDispatchesRequest = z.infer<typeof ackDispatchesRequestSchema>;
 
 // recorded: this claim settled the row, a replayed ack included; reclaimed: the claim lapsed and
@@ -191,9 +185,9 @@ export const ackDispatchesResponseSchema = z.object({
 });
 export type AckDispatchesResponse = z.infer<typeof ackDispatchesResponseSchema>;
 
-export const dispatchStatusRequestSchema = z
-  .object({ ids: z.array(dispatchIdSchema).min(1).max(DISPATCH_MAX_PENDING) })
-  .strict();
+export const dispatchStatusRequestSchema = z.strictObject({
+  ids: z.array(dispatchIdSchema).min(1).max(DISPATCH_MAX_PENDING),
+});
 export type DispatchStatusRequest = z.infer<typeof dispatchStatusRequestSchema>;
 
 export const dispatchStatusResponseSchema = z.object({
@@ -206,7 +200,7 @@ export const dispatchStatusResponseSchema = z.object({
 });
 export type DispatchStatusResponse = z.infer<typeof dispatchStatusResponseSchema>;
 
-export const cancelDispatchRequestSchema = z.object({ id: dispatchIdSchema }).strict();
+export const cancelDispatchRequestSchema = z.strictObject({ id: dispatchIdSchema });
 export type CancelDispatchRequest = z.infer<typeof cancelDispatchRequestSchema>;
 
 // cancelled: removed before any Mac held it; claimed: a Mac holds it now; settled: delivered or
@@ -222,14 +216,12 @@ export const approvalPayloadSchema = approvalPendingInteractionPayloadSchema.ref
 );
 
 // the Mac mints the id, so reopening after a restart is the same row
-export const openApprovalRequestSchema = z
-  .object({
-    id: dispatchIdSchema,
-    payload: approvalPayloadSchema,
-    threadId: threadIdSchema,
-    turnId: turnIdSchema,
-  })
-  .strict();
+export const openApprovalRequestSchema = z.strictObject({
+  id: dispatchIdSchema,
+  payload: approvalPayloadSchema,
+  threadId: threadIdSchema,
+  turnId: turnIdSchema,
+});
 export type OpenApprovalRequest = z.infer<typeof openApprovalRequestSchema>;
 
 // open: waiting for an answer; answered: an answer is on its way to the Mac; closed: settled by
@@ -243,7 +235,7 @@ export const openApprovalResponseSchema = z.object({
 });
 export type OpenApprovalResponse = z.infer<typeof openApprovalResponseSchema>;
 
-export const closeApprovalRequestSchema = z.object({ id: dispatchIdSchema }).strict();
+export const closeApprovalRequestSchema = z.strictObject({ id: dispatchIdSchema });
 export type CloseApprovalRequest = z.infer<typeof closeApprovalRequestSchema>;
 
 export const closeApprovalResponseSchema = z.object({ outcome: z.enum(["closed", "unknown"]) });

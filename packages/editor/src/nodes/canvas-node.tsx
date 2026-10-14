@@ -24,22 +24,20 @@ import {
 
 const CELL = 6;
 
-const labelSchema = z
-  .object({
-    col: z
-      .number()
-      .int()
-      .min(0)
-      .max(CANVAS_COLS - 1),
-    id: z.string().min(1),
-    row: z
-      .number()
-      .int()
-      .min(0)
-      .max(CANVAS_ROWS - 1),
-    text: z.string().min(1),
-  })
-  .strict();
+const labelSchema = z.strictObject({
+  col: z
+    .number()
+    .int()
+    .min(0)
+    .max(CANVAS_COLS - 1),
+  id: z.string().min(1),
+  row: z
+    .number()
+    .int()
+    .min(0)
+    .max(CANVAS_ROWS - 1),
+  text: z.string().min(1),
+});
 
 export type CanvasParse =
   | { ok: true; grid: boolean[][]; labels: z.infer<typeof labelSchema>[] }

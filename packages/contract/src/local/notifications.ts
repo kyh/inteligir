@@ -9,35 +9,27 @@ import { z } from "zod";
 import { assertUnreachable } from "./assert-unreachable";
 
 export const realtimeSubscriptionTargetSchema = z.discriminatedUnion("kind", [
-  z
-    .object({
-      kind: z.literal("vault"),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal("thread-list"),
-    })
-    .strict(),
+  z.strictObject({
+    kind: z.literal("vault"),
+  }),
+  z.strictObject({
+    kind: z.literal("thread-list"),
+  }),
 ]);
 export type RealtimeSubscriptionTarget = z.infer<typeof realtimeSubscriptionTargetSchema>;
 
 // client→server frames parse strictly: an unknown field is an unknown client, closed 1008.
 // only the server→client direction is lenient (a stale tab against a newer server).
-export const subscribeMessageSchema = z
-  .object({
-    target: realtimeSubscriptionTargetSchema,
-    type: z.literal("subscribe"),
-  })
-  .strict();
+export const subscribeMessageSchema = z.strictObject({
+  target: realtimeSubscriptionTargetSchema,
+  type: z.literal("subscribe"),
+});
 export type SubscribeMessage = z.infer<typeof subscribeMessageSchema>;
 
-export const unsubscribeMessageSchema = z
-  .object({
-    target: realtimeSubscriptionTargetSchema,
-    type: z.literal("unsubscribe"),
-  })
-  .strict();
+export const unsubscribeMessageSchema = z.strictObject({
+  target: realtimeSubscriptionTargetSchema,
+  type: z.literal("unsubscribe"),
+});
 export type UnsubscribeMessage = z.infer<typeof unsubscribeMessageSchema>;
 
 export const clientMessageSchema = z.discriminatedUnion("type", [
@@ -84,14 +76,12 @@ const changedMessagePair = <
         .transform((values) => values.filter((value): value is TKind => known.has(value)))
         .readonly(),
     }),
-    strict: z
-      .object({
-        entity: z.literal(entity),
-        type: z.literal("changed"),
-        ...idFields,
-        changes: z.array(z.enum(kinds)).readonly(),
-      })
-      .strict(),
+    strict: z.strictObject({
+      entity: z.literal(entity),
+      type: z.literal("changed"),
+      ...idFields,
+      changes: z.array(z.enum(kinds)).readonly(),
+    }),
   };
 };
 
@@ -123,11 +113,9 @@ export const changedMessageSchema = z.discriminatedUnion("entity", [
 ]);
 export type ChangedMessage = z.infer<typeof changedMessageSchema>;
 
-export const helloMessageSchema = z
-  .object({
-    type: z.literal("hello"),
-  })
-  .strict();
+export const helloMessageSchema = z.strictObject({
+  type: z.literal("hello"),
+});
 export type HelloMessage = z.infer<typeof helloMessageSchema>;
 
 export const serverMessageSchema = z.union([helloMessageSchema, changedMessageSchema]);

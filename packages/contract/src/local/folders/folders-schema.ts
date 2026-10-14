@@ -9,17 +9,15 @@ export const CONNECTED_FOLDERS_MAX = 32;
 // absoluteness is judged server-side against its own platform's rules
 export const connectedFolderPathSchema = z.string().min(1).max(1024);
 
-export const connectedFoldersResponseSchema = z
-  .object({ folders: z.array(connectedFolderPathSchema) })
-  .strict();
+export const connectedFoldersResponseSchema = z.strictObject({
+  folders: z.array(connectedFolderPathSchema),
+});
 export type ConnectedFoldersResponse = z.infer<typeof connectedFoldersResponseSchema>;
 
-export const connectedFolderAddRequestSchema = z
-  .object({ path: connectedFolderPathSchema })
-  .strict();
+export const connectedFolderAddRequestSchema = z.strictObject({ path: connectedFolderPathSchema });
 export type ConnectedFolderAddRequest = z.infer<typeof connectedFolderAddRequestSchema>;
 
-export const connectedFolderRemoveRequestSchema = z
-  .object({ path: connectedFolderPathSchema })
-  .strict();
+export const connectedFolderRemoveRequestSchema = z.strictObject({
+  path: connectedFolderPathSchema,
+});
 export type ConnectedFolderRemoveRequest = z.infer<typeof connectedFolderRemoveRequestSchema>;
