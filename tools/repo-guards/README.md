@@ -88,7 +88,7 @@ One per file; its header and its failure message state the rule in full.
 - `decisions-index.test.ts`: `AGENTS.md` § Decisions indexes every nested `CLAUDE.md`, and the root one is `@AGENTS.md`.
 
 Every exception table — `ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`,
-`dispatchedIn`, `elsewhere`, `ELSEWHERE`, `WITHOUT_DEPENDENCY_EDGE`,
+`dispatchedIn`, `elsewhere`, `ELSEWHERE`,
 `DECLARED_SPLITS`, `DATA_FILES`, `DELIBERATE_NON_REFERENCES`, `PROSE_SIZES`,
 `NOT_A_TEXT_FIELD` — has a companion assertion that no row is STALE: a row
 whose subject is gone, or whose gap has closed, fails too. An allowance that
