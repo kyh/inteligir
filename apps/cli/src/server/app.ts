@@ -15,10 +15,13 @@ import {
 } from "@repo/contract/local/routes";
 import { onError, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
+import { constantTimeEqual } from "@repo/contract/cloud/bytes";
 import { Hono } from "hono";
 import type { Context, MiddlewareHandler } from "hono";
+import { getCookie, setCookie } from "hono/cookie";
 import { AGENT_THREAD_HEADER, agentThreadIdOf } from "./agent-thread-header";
 import { isSameOriginBrowserRequest } from "./browser-request";
+import { BROWSER_SESSION_COOKIE } from "./browser-session";
 import { documentSecurityHeaders } from "./csp";
 import { ERROR_STATUS_MAP, errorStatus } from "./error-status";
 import { HTML_FRAME_DOCUMENT, HTML_FRAME_HEADERS } from "./html-block-frame";
@@ -27,8 +30,7 @@ import type { UpgradedSocket } from "./listen";
 import { loopbackRequestOrigin } from "./loopback-origin";
 import type { AppServices } from "./orpc";
 import { localRouter } from "./root-router";
-import { presentedCredential, tokenAccepted } from "./server-file";
-import type { PresentedCredential } from "./server-file";
+import { BEARER_PREFIX } from "./server-file";
 import { SIGNED_OUT_PAGE, SIGNED_OUT_PAGE_HEADERS } from "./signed-out-page";
 import { forwardToUiDevServer } from "./ui-dev-server";
 import { handleVaultAsset } from "./vault/asset-route";
@@ -58,7 +60,6 @@ interface AppEnv {
 const staticCacheControl =
   (cacheControl: string): MiddlewareHandler<AppEnv> =>
   async (c, next) => {
-    // oxlint-disable-next-line node/callback-return -- hono's next() resolves after the downstream handlers; the header is stamped on their response
     await next();
     if (c.get("staticFilePath") !== undefined) {
       c.res.headers.set("cache-control", cacheControl);
@@ -70,6 +71,10 @@ const SERVER_FAULT_STATUS = 500;
 
 const isOrpcError = (cause: unknown): cause is ORPCError<string, unknown> =>
   cause instanceof ORPCError;
+
+// the bearer proves the caller read the data dir; the cookie holds the browser's own secret and
+// is ambient, so only it needs the same-origin check.
+type TokenCarrier = "header" | "cookie";
 
 type UiSource = { kind: "dev"; origin: string } | { kind: "bundle"; dir: string } | null;
 
@@ -98,25 +103,22 @@ export const createApp = (args: CreateAppArgs) => {
       return c.text("This server answers only to 127.0.0.1 and localhost", 421);
     }
     c.set("requestOrigin", origin);
-    // oxlint-disable-next-line node/callback-return -- hono's `next` continues the chain and answers nothing; a middleware returns a Response only to short-circuit
     await next();
     return undefined;
   });
 
-  // each carrier has its own secret: the bearer never rides a cookie, and the browser's cookie is no bearer.
-  const acceptedCredential = (c: Context): PresentedCredential | null => {
-    const credential = presentedCredential({
-      authorization: c.req.header("authorization"),
-      cookie: c.req.header("cookie"),
-    });
-    if (credential === null) {
-      return null;
+  // each carrier has its own secret: the bearer never rides a cookie, and the browser's cookie is no
+  // bearer. the header wins: a caller that set one means it.
+  const acceptedCredential = (c: Context): TokenCarrier | null => {
+    const authorization = c.req.header("authorization");
+    if (authorization?.startsWith(BEARER_PREFIX) === true) {
+      const token = authorization.slice(BEARER_PREFIX.length).trim();
+      return constantTimeEqual(args.serverToken, token) ? "header" : null;
     }
-    const accepted =
-      credential.carrier === "header"
-        ? tokenAccepted(args.serverToken, credential.token)
-        : args.context.browserSession.cookieAccepted(credential.token);
-    return accepted ? credential : null;
+    const cookie = getCookie(c, BROWSER_SESSION_COOKIE);
+    return cookie !== undefined && args.context.browserSession.cookieAccepted(cookie)
+      ? "cookie"
+      : null;
   };
 
   // one gate at the http boundary: two of the three surfaces it protects are not procedures.
@@ -124,13 +126,13 @@ export const createApp = (args: CreateAppArgs) => {
   // credential). a cookie is ambient and loopback "site" ignores the port, so a co-resident page on
   // another 127.0.0.1 port carries it: a cookie-authed request must also prove same-origin.
   const requireServerToken: MiddlewareHandler = async (c, next): Promise<Response | undefined> => {
-    const credential = acceptedCredential(c);
-    if (credential === null) {
+    const carrier = acceptedCredential(c);
+    if (carrier === null) {
       c.header("WWW-Authenticate", 'Bearer realm="inteligir"');
       return c.text("This request carried no valid inteligir device token", 401);
     }
     if (
-      credential.carrier === "cookie" &&
+      carrier === "cookie" &&
       !isSameOriginBrowserRequest({
         host: c.req.header("host"),
         origin: c.req.header("origin"),
@@ -139,7 +141,6 @@ export const createApp = (args: CreateAppArgs) => {
     ) {
       return c.text("This cross-origin request cannot use the session cookie", 403);
     }
-    // oxlint-disable-next-line node/callback-return -- hono's `next` continues the chain and answers nothing; a middleware returns a Response only to short-circuit
     await next();
     return undefined;
   };
@@ -215,16 +216,20 @@ export const createApp = (args: CreateAppArgs) => {
     ): Promise<Response | undefined> => {
       const nonce = c.req.query(BROWSER_HANDOFF_PARAM);
       if (nonce === undefined) {
-        // oxlint-disable-next-line node/callback-return -- hono's `next` continues the chain and answers nothing; a middleware returns a Response only to short-circuit
         await next();
         return undefined;
       }
       const target = new URL(c.req.url);
       target.searchParams.delete(BROWSER_HANDOFF_PARAM);
-      const cookie = args.context.browserSession.redeemHandoff(nonce);
+      const secret = args.context.browserSession.redeemHandoff(nonce);
       c.header("cache-control", STATIC_NO_STORE_CACHE_CONTROL);
-      if (cookie !== null) {
-        c.header("set-cookie", cookie);
+      if (secret !== null) {
+        // not Secure: some browsers drop a Secure cookie on plain-http loopback rather than ignoring the attribute.
+        setCookie(c, BROWSER_SESSION_COOKIE, secret, {
+          httpOnly: true,
+          path: "/",
+          sameSite: "Strict",
+        });
       }
       return c.redirect(`${c.get("requestOrigin")}${target.pathname}${target.search}`, 303);
     };
@@ -238,7 +243,6 @@ export const createApp = (args: CreateAppArgs) => {
       if (acceptedCredential(c) === null) {
         return c.body(SIGNED_OUT_PAGE, 401, SIGNED_OUT_PAGE_HEADERS);
       }
-      // oxlint-disable-next-line node/callback-return -- hono's `next` continues the chain and answers nothing; a middleware returns a Response only to short-circuit
       await next();
       return undefined;
     };
@@ -247,7 +251,6 @@ export const createApp = (args: CreateAppArgs) => {
     // reads the same file for deep links. the ws origin is the one the caller reached: a
     // connect-src naming the configured port refuses this app's own socket on a probed dev bind.
     const documentHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
-      // oxlint-disable-next-line node/callback-return -- hono's next() resolves after the downstream handlers; the headers are stamped on their response
       await next();
       if (!(c.res.headers.get("content-type") ?? "").includes("text/html")) {
         return;

@@ -1,16 +1,12 @@
 import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { BROWSER_SESSION_COOKIE } from "../browser-session";
 import {
-  authorizationHeader,
   loopbackOrigin,
   mintServerToken,
-  presentedCredential,
   readServerFile,
   removeServerFile,
   SERVER_FILE_NAME,
-  tokenAccepted,
   writeServerFile,
 } from "../server-file";
 import { makeTempDir } from "./temp-dir";
@@ -76,43 +72,5 @@ describe("the server file", () => {
     const token = mintServerToken();
     writeServerFile(dataDir, { ...ROW, token });
     expect(readFileSync(path.join(dataDir, SERVER_FILE_NAME), "utf-8")).toContain(token);
-  });
-});
-
-describe("what a request presents", () => {
-  it("reads the bearer, and prefers it over a cookie", () => {
-    expect(
-      presentedCredential({ authorization: authorizationHeader("header-tok"), cookie: undefined }),
-    ).toEqual({ carrier: "header", token: "header-tok" });
-    expect(
-      presentedCredential({
-        authorization: authorizationHeader("header-tok"),
-        cookie: `${BROWSER_SESSION_COOKIE}=cookie-tok`,
-      }),
-    ).toEqual({ carrier: "header", token: "header-tok" });
-  });
-
-  it("reads the cookie out of a header carrying several", () => {
-    expect(
-      presentedCredential({
-        authorization: undefined,
-        cookie: `theme=dark; ${BROWSER_SESSION_COOKIE}=cookie-tok; other=1`,
-      }),
-    ).toEqual({ carrier: "cookie", token: "cookie-tok" });
-  });
-
-  it("is null for anything that is not a credential", () => {
-    for (const authorization of [undefined, "Bearer ", "Basic abc", "bearer lowercase"]) {
-      expect(presentedCredential({ authorization, cookie: undefined })).toBeNull();
-    }
-    expect(presentedCredential({ authorization: undefined, cookie: "unrelated=1" })).toBeNull();
-    expect(presentedCredential({ authorization: undefined, cookie: "novalue" })).toBeNull();
-  });
-
-  it("accepts only the exact token", () => {
-    expect(tokenAccepted("abc", "abc")).toBe(true);
-    expect(tokenAccepted("abc", "abd")).toBe(false);
-    expect(tokenAccepted("abc", "ab")).toBe(false);
-    expect(tokenAccepted("abc", null)).toBe(false);
   });
 });

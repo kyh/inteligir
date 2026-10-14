@@ -52,6 +52,12 @@ export default defineConfig({
       files: ["apps/cli/src/server/**"],
       rules: { "unicorn/require-post-message-target-origin": "off" },
     },
+    {
+      // Hono's middleware awaits next() to run the rest of the chain, then reads or stamps the
+      // response it left; the rule assumes Express's call-and-return callback.
+      files: ["apps/cli/src/server/app.ts"],
+      rules: { "node/callback-return": "off" },
+    },
     platformPurity(
       "packages/agent-runtime",
       REACT,

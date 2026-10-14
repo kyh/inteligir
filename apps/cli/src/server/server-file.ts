@@ -7,8 +7,6 @@ import { chmodSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
-import { constantTimeEqual } from "@repo/contract/cloud/bytes";
-import { BROWSER_SESSION_COOKIE } from "./browser-session";
 import { errnoCode } from "./errno";
 import { LOOPBACK_HOST } from "./loopback-origin";
 import { stagedWriteFileSync } from "./staged-write";
@@ -21,7 +19,7 @@ const SERVER_FILE_MODE = 0o600;
 
 const TOKEN_BYTES = 32;
 
-const BEARER_PREFIX = "Bearer ";
+export const BEARER_PREFIX = "Bearer ";
 
 // lenient about extra keys: a newer build's file must not brick an older reader.
 const serverFileSchema = z.object({
@@ -77,47 +75,5 @@ export const removeServerFile = (dataDir: string, token: string): void => {
   }
   rmSync(serverFilePath(dataDir), { force: true });
 };
-
-// the bearer proves the caller read the data dir; the cookie holds the browser's own secret and
-// is ambient, so only it needs the same-origin check.
-export type TokenCarrier = "header" | "cookie";
-
-export interface PresentedCredential {
-  token: string;
-  carrier: TokenCarrier;
-}
-
-const cookieValue = (header: string | undefined, name: string): string | null => {
-  if (header === undefined) {
-    return null;
-  }
-  for (const pair of header.split(";")) {
-    const separator = pair.indexOf("=");
-    if (separator === -1) {
-      continue;
-    }
-    if (pair.slice(0, separator).trim() === name) {
-      return pair.slice(separator + 1).trim();
-    }
-  }
-  return null;
-};
-
-// the header wins: a caller that set one means it.
-export const presentedCredential = (headers: {
-  authorization: string | undefined;
-  cookie: string | undefined;
-}): PresentedCredential | null => {
-  const { authorization } = headers;
-  if (authorization !== undefined && authorization.startsWith(BEARER_PREFIX)) {
-    const value = authorization.slice(BEARER_PREFIX.length).trim();
-    return value.length === 0 ? null : { carrier: "header", token: value };
-  }
-  const cookie = cookieValue(headers.cookie, BROWSER_SESSION_COOKIE);
-  return cookie === null ? null : { carrier: "cookie", token: cookie };
-};
-
-export const tokenAccepted = (expected: string, presented: string | null): boolean =>
-  presented !== null && constantTimeEqual(expected, presented);
 
 export const authorizationHeader = (token: string): string => `${BEARER_PREFIX}${token}`;
