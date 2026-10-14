@@ -17,6 +17,7 @@ import {
   loginDevice,
   ORIGIN,
   PASSWORD,
+  postAccountDelete,
   postSignOut,
   refusalCodeOf,
   sessionHeaders,
@@ -25,18 +26,7 @@ import {
 } from "./cloud-helpers";
 import { pushVaultFiles, ZERO_OID } from "./git-pack";
 
-const DELETE = `${ORIGIN}${ACCOUNT_API_PATHS.delete}`;
 const ACCOUNT = `${ORIGIN}${ACCOUNT_API_PATHS.account}`;
-
-const postDelete = async (
-  authorization: Record<string, string>,
-  password: string,
-): Promise<Response> =>
-  await SELF.fetch(DELETE, {
-    body: JSON.stringify({ password }),
-    headers: { ...authorization, "content-type": "application/json" },
-    method: "POST",
-  });
 
 const userExists = async (userId: string): Promise<boolean> =>
   (await createDb(env.DB).select().from(user).where(eq(user.id, userId)).get()) !== undefined;
@@ -51,10 +41,10 @@ const inviteOf = async (email: string) =>
 describe("deleting the account from a device", () => {
   it("re-checks the password and deletes everything the account holds", async () => {
     const email = "delete-from-app@example.test";
-    const { bearer } = await signUpUser(email);
-    const laptop = await loginDevice(bearer, "Laptop");
-    const phone = await loginDevice(bearer, "Phone");
-    const userId = await userIdOf(bearer);
+    const { cookie } = await signUpUser(email);
+    const laptop = await loginDevice(cookie, "Laptop");
+    const phone = await loginDevice(cookie, "Phone");
+    const userId = await userIdOf(cookie);
     const invite = await inviteOf(email);
     expect(invite).toBeDefined();
 
@@ -82,7 +72,7 @@ describe("deleting the account from a device", () => {
     });
     expect(captured.status).toBe(200);
 
-    const deletion = await postDelete(deviceHeaders(laptop.credential), PASSWORD);
+    const deletion = await postAccountDelete(deviceHeaders(laptop.credential), PASSWORD);
     expect(deletion.status).toBe(200);
     expect(emitted(deleteAccountResponseSchema, await deletion.text())).toEqual({
       deleted: true,
@@ -121,11 +111,11 @@ describe("deleting the account from a device", () => {
   });
 
   it("refuses a wrong password as invalid-credentials, and deletes nothing", async () => {
-    const { bearer } = await signUpUser("delete-wrong-password@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
-    const userId = await userIdOf(bearer);
+    const { cookie } = await signUpUser("delete-wrong-password@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
+    const userId = await userIdOf(cookie);
 
-    const refused = await postDelete(deviceHeaders(credential), "not-the-password");
+    const refused = await postAccountDelete(deviceHeaders(credential), "not-the-password");
     expect(refused.status).toBe(401);
     expect(await refusalCodeOf(refused)).toBe("invalid-credentials");
 
@@ -137,25 +127,25 @@ describe("deleting the account from a device", () => {
       .from(session)
       .where(eq(session.userId, userId))
       .all();
-    // the sign-up's own session, which the test holds as its bearer
+    // the sign-up's own session, which the test holds as its cookie
     expect(sessions).toHaveLength(1);
   });
 
   it("refuses a caller with no device credential, and deletes nothing", async () => {
-    const { bearer } = await signUpUser("delete-no-credential@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
-    const revoked = await loginDevice(bearer, "Old Phone");
+    const { cookie } = await signUpUser("delete-no-credential@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
+    const revoked = await loginDevice(cookie, "Old Phone");
     const signedOut = await postSignOut(deviceHeaders(revoked.credential));
     expect(signedOut.status).toBe(200);
-    const userId = await userIdOf(bearer);
+    const userId = await userIdOf(cookie);
 
     const callers = [
-      { caller: "a browser session", headers: sessionHeaders(bearer) },
+      { caller: "a browser session", headers: sessionHeaders(cookie) },
       { caller: "a revoked credential", headers: deviceHeaders(revoked.credential) },
       { caller: "no credential", headers: {} },
     ];
     for (const { caller, headers } of callers) {
-      const refused = await postDelete(headers, PASSWORD);
+      const refused = await postAccountDelete(headers, PASSWORD);
       expect(refused.status, caller).toBe(401);
       expect(await refusalCodeOf(refused), caller).toBe("unauthorized");
     }
@@ -163,6 +153,27 @@ describe("deleting the account from a device", () => {
     expect(await userExists(userId)).toBe(true);
     const account = await SELF.fetch(ACCOUNT, { headers: deviceHeaders(credential) });
     expect(account.status).toBe(200);
+  });
+});
+
+describe("Better Auth's own deletion routes", () => {
+  it("answer 404 to a fresh browser session, and the account survives", async () => {
+    const { cookie } = await signUpUser("delete-through-better-auth@example.test");
+    const userId = await userIdOf(cookie);
+
+    const deletion = await SELF.fetch(`${ORIGIN}/api/auth/delete-user`, {
+      body: "{}",
+      headers: { ...sessionHeaders(cookie), "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(deletion.status).toBe(404);
+    const callback = await SELF.fetch(`${ORIGIN}/api/auth/delete-user/callback?token=any`, {
+      headers: sessionHeaders(cookie),
+    });
+    expect(callback.status).toBe(404);
+
+    expect(await userExists(userId)).toBe(true);
+    expect(await userIdOf(cookie)).toBe(userId);
   });
 });
 
@@ -178,16 +189,16 @@ describe("the deletion's per-device budget", () => {
   });
 
   it("refuses the device past its window before checking the password", async () => {
-    const { bearer } = await signUpUser("delete-budget@example.test");
-    const { credential, deviceId } = await loginDevice(bearer, "Laptop");
-    const userId = await userIdOf(bearer);
+    const { cookie } = await signUpUser("delete-budget@example.test");
+    const { credential, deviceId } = await loginDevice(cookie, "Laptop");
+    const userId = await userIdOf(cookie);
     const spent = { count: 1_000_000, lastRequest: Date.now() };
     await createDb(env.DB)
       .insert(rateLimit)
       .values({ id: crypto.randomUUID(), key: deviceRateKey("accountDelete", deviceId), ...spent })
       .onConflictDoUpdate({ set: spent, target: rateLimit.key });
 
-    const refused = await postDelete(deviceHeaders(credential), PASSWORD);
+    const refused = await postAccountDelete(deviceHeaders(credential), PASSWORD);
     expect(refused.status).toBe(429);
     expect(await refusalCodeOf(refused)).toBe("rate-limited");
     expect(await userExists(userId)).toBe(true);

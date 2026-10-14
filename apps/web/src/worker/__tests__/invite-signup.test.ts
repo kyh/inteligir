@@ -7,11 +7,39 @@ import { eq } from "drizzle-orm";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
+import { cookieHeaderOf } from "./cloud-helpers";
 
 const ORIGIN = "https://inteligir-web.workers.dev";
 const PASSWORD = "test-password-1234";
+
+const UNUSED_AUTH_ROUTES = [
+  ["GET", "/account-info"],
+  ["POST", "/change-email"],
+  ["POST", "/change-password"],
+  ["POST", "/delete-user"],
+  ["GET", "/delete-user/callback"],
+  ["POST", "/get-access-token"],
+  ["POST", "/link-social"],
+  ["GET", "/list-accounts"],
+  ["GET", "/list-sessions"],
+  ["POST", "/refresh-token"],
+  ["POST", "/revoke-other-sessions"],
+  ["POST", "/revoke-session"],
+  ["POST", "/revoke-sessions"],
+  ["POST", "/send-verification-email"],
+  ["POST", "/sign-in/social"],
+  ["POST", "/unlink-account"],
+  ["POST", "/update-session"],
+  ["POST", "/update-user"],
+  ["GET", "/verify-email"],
+  ["POST", "/verify-password"],
+] as const;
+
+const signInBodySchema = z.looseObject({ token: z.string() });
+const sessionSchema = z.looseObject({ user: z.looseObject({ email: z.string() }) });
 
 const mintCode = async (code: string): Promise<void> => {
   await createDb(env.DB).insert(inviteCode).values({ code });
@@ -38,7 +66,7 @@ describe("invite-gated sign-up", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("set-auth-token")).not.toBeNull();
+    expect(response.headers.get("set-auth-token")).toBeNull();
     expect(response.headers.getSetCookie().some((c) => c.includes("session_token="))).toBe(true);
 
     const row = await readCode("INVITE-OK");
@@ -149,7 +177,28 @@ describe("invite-gated sign-up", () => {
     expect(signIn.status).not.toBe(200);
   });
 
-  it("still signs an invited account back in through Better Auth", async () => {
+  it("answers 404 on each Better Auth route no client calls, even to a signed-in browser", async () => {
+    await mintCode("INVITE-SURFACE");
+    const signedUp = await signUp({
+      email: "surface@example.test",
+      inviteCode: "INVITE-SURFACE",
+      name: "Surface",
+      password: PASSWORD,
+    });
+    expect(signedUp.status).toBe(200);
+    const headers = { cookie: cookieHeaderOf(signedUp), origin: ORIGIN };
+
+    for (const [method, path] of UNUSED_AUTH_ROUTES) {
+      const response = await SELF.fetch(`${ORIGIN}/api/auth${path}`, {
+        body: method === "POST" ? "{}" : null,
+        headers: { ...headers, "content-type": "application/json" },
+        method,
+      });
+      expect(response.status, `${method} ${path}`).toBe(404);
+    }
+  });
+
+  it("signs an invited account back in through Better Auth, into a cookie and nothing else", async () => {
     await mintCode("INVITE-RETURNS");
     const signedUp = await signUp({
       email: "grace@example.test",
@@ -165,5 +214,16 @@ describe("invite-gated sign-up", () => {
       method: "POST",
     });
     expect(signIn.status).toBe(200);
+    expect(signIn.headers.get("set-auth-token")).toBeNull();
+    const { token } = signInBodySchema.parse(await signIn.json());
+
+    const asBearer = await SELF.fetch(`${ORIGIN}/api/auth/get-session`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(await asBearer.json()).toBeNull();
+    const asCookie = await SELF.fetch(`${ORIGIN}/api/auth/get-session`, {
+      headers: { cookie: cookieHeaderOf(signIn) },
+    });
+    expect(sessionSchema.parse(await asCookie.json()).user.email).toBe("grace@example.test");
   });
 });

@@ -105,12 +105,12 @@ pnpm --filter @repo/web db:push
 pnpm --filter @repo/web db:studio
 ```
 
-Then `/app/sign-up` takes the invite code. Signing up returns 200 with a
-`set-auth-token` header — that bearer is what a NON-browser client carries; a
-browser carries the session cookie instead. The app takes the same code: start
-it with `INTELIGIR_CLOUD_URL=http://localhost:5174`, open Settings › Account (or
-Sign in… in the rail's sync menu), choose Create an account, and the account is
-created and that instance signed in to it in one step
+Then `/app/sign-up` takes the invite code. Signing up returns 200 and sets
+Better Auth's session cookie, the one credential a browser holds; a script
+sends that cookie back. The app takes the same code and holds a device
+credential instead: start it with `INTELIGIR_CLOUD_URL=http://localhost:5174`,
+open Settings › Account (or Sign in… in the rail's sync menu), choose Create an
+account, and the account is created and that instance signed in to it in one step
 (`POST /v1/device/sign-up`). A code is spent by either door, so mint one per
 account.
 

@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # reviewers, wait timers and branch policy hang off the environment in repo settings
+    # the environment names the deployment and its URL
     environment:
       name: production
       url: https://inteligir.com

@@ -2,7 +2,6 @@ import { betterAuth } from "better-auth";
 // the adapter better-auth re-exports reads `db._.fullSchema`, gone in drizzle 1.0; relations-v2
 // reads `db._.relations`, which `createDb` populates.
 import { drizzleAdapter } from "@better-auth/drizzle-adapter/relations-v2";
-import { bearer } from "better-auth/plugins";
 import {
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
@@ -19,12 +18,33 @@ import { sendResetEmail } from "./reset-email";
 // Built per request: D1 is a runtime binding, not a module singleton. No baseURL config —
 // it is derived from the request origin, so localhost, preview and prod need none.
 
-const trustedOrigins = (env: Env): string[] => {
-  const extra = env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",")
-    .map((origin) => origin.trim())
-    .filter((origin) => origin !== "");
-  return extra ?? [];
-};
+// The HTTP router's alone: auth.api still calls each. The site calls sign-in, get-session and the
+// reset pair, and the invite gate forwards sign-up; a route no client calls is surface with no
+// user. Sign-out stays, since ending a session is never a risk. Deletion's one door is
+// /v1/account/delete (../device/account.ts), which asks the password again, where Better Auth's
+// own route settles for a fresh session.
+const DISABLED_PATHS = [
+  "/account-info",
+  "/change-email",
+  "/change-password",
+  "/delete-user",
+  "/delete-user/callback",
+  "/get-access-token",
+  "/link-social",
+  "/list-accounts",
+  "/list-sessions",
+  "/refresh-token",
+  "/revoke-other-sessions",
+  "/revoke-session",
+  "/revoke-sessions",
+  "/send-verification-email",
+  "/sign-in/social",
+  "/unlink-account",
+  "/update-session",
+  "/update-user",
+  "/verify-email",
+  "/verify-password",
+];
 
 // redeemed_at stays set: clearing it would hand a working sign-up to whoever still holds the
 // code. Case-insensitive because the gate stores the address as typed and Better Auth lowercases it.
@@ -44,6 +64,7 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
     },
     baseURL,
     database: drizzleAdapter(createDb(env.DB), { provider: "sqlite" }),
+    disabledPaths: DISABLED_PATHS,
     emailAndPassword: {
       disableSignUp,
       enabled: true,
@@ -59,7 +80,6 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
         await sendResetEmail(env, user.email, url);
       },
     },
-    plugins: [bearer()],
     // D1 storage: the default in-memory store is per isolate, so the limit multiplies across isolates and resets on recycle
     rateLimit: {
       // a session read proves nothing about a password, and every route guard and hover preload
@@ -72,7 +92,6 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
       window: AUTH_RATE_WINDOW_SECONDS,
     },
     secret: env.BETTER_AUTH_SECRET,
-    trustedOrigins: trustedOrigins(env),
     user: {
       deleteUser: {
         // beforeDelete, not afterDelete: a failure aborts the deletion and the account survives to

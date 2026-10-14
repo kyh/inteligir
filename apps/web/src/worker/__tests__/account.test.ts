@@ -19,8 +19,8 @@ describe("the account row", () => {
   });
 
   it("answers the credential's own account email", async () => {
-    const { bearer } = await signUpUser("whoami@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("whoami@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
     const response = await SELF.fetch(ACCOUNT, { headers: deviceHeaders(credential) });
     expect(response.status).toBe(200);
     const account = emitted(accountResponseSchema, await response.text());

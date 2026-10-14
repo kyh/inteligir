@@ -33,7 +33,7 @@ const readAccount = async (db: Db, verified: VerifiedDevice): Promise<Response> 
 };
 
 // the app holds a device credential and no browser session, which is all Better Auth's own
-// delete-user takes: the password mints one here, and deleteUser runs under it, so its
+// deleteUser takes: the password mints one here, and deleteUser runs under its cookie, so its
 // beforeDelete order and tombstone stay the one purge path
 const deleteAccount = async (
   request: Request,
@@ -60,12 +60,9 @@ const deleteAccount = async (
   }
   try {
     // no password in the body: the sign-in just checked it, and the session it minted is fresh
-    await auth.api.deleteUser({
-      body: {},
-      headers: new Headers({ authorization: `Bearer ${signedIn.token}` }),
-    });
+    await auth.api.deleteUser({ body: {}, headers: signedIn.sessionCookie });
   } finally {
-    // a deletion that aborted leaves the sign-in's session behind, a bearer nobody holds
+    // a deletion that aborted leaves the sign-in's session behind, a cookie nobody holds
     await db.delete(session).where(eq(session.token, signedIn.token));
   }
   const response: DeleteAccountResponse = { deleted: true };

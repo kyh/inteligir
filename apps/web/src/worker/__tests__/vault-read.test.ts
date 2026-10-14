@@ -49,12 +49,12 @@ const getRead = async (
   });
 
 const loginAndPush = async (email: string, files: Parameters<typeof pushVaultFiles>[2]) => {
-  const { bearer } = await signUpUser(email);
-  const { credential } = await loginDevice(bearer, "Laptop");
+  const { cookie } = await signUpUser(email);
+  const { credential } = await loginDevice(cookie, "Laptop");
   const pushed = await pushVaultFiles(credential, "vault: initialize", files, ZERO_OID);
   expect(pushed.response.status).toBe(200);
   expect(await pushed.response.text()).toContain("unpack ok");
-  return { bearer, commit: pushed.commit, credential };
+  return { cookie, commit: pushed.commit, credential };
 };
 
 // the phone's paging: the first page resolves the head, every later one pins what it answered.
@@ -95,8 +95,8 @@ describe("vault read rows", () => {
   });
 
   it("answers not-found for an account with no hosted vault — without creating one", async () => {
-    const { bearer } = await signUpUser("vault-read-none@example.test");
-    const { credential } = await loginDevice(bearer, "Laptop");
+    const { cookie } = await signUpUser("vault-read-none@example.test");
+    const { credential } = await loginDevice(cookie, "Laptop");
     const tree = await readTree(credential, {});
     expect(tree.status).toBe(404);
     expect(await refusalCodeOf(tree)).toBe("not-found");
@@ -128,11 +128,11 @@ describe("vault read rows", () => {
   });
 
   it("keeps the head's listing once, and pages a many-folder vault from it", async () => {
-    const { bearer, commit, credential } = await loginAndPush(
+    const { cookie, commit, credential } = await loginAndPush(
       "vault-read-kept@example.test",
       MANY_FOLDERS.map((path) => ({ content: `# ${path}\n`, path })),
     );
-    const slot = treeListingSlot(env.PACK_CACHE, vaultRepoName(await userIdOf(bearer)));
+    const slot = treeListingSlot(env.PACK_CACHE, vaultRepoName(await userIdOf(cookie)));
 
     expect(await pageWholeTree(credential, 1)).toEqual({ commits: [commit], paths: MANY_FOLDERS });
     const kept = await slot.read(commit);
@@ -147,11 +147,11 @@ describe("vault read rows", () => {
   });
 
   it("walks a pinned page the slot does not hold, and leaves the slot to the newer head", async () => {
-    const { bearer, commit, credential } = await loginAndPush(
+    const { cookie, commit, credential } = await loginAndPush(
       "vault-read-walked@example.test",
       MANY_FOLDERS.map((path) => ({ content: `# ${path}\n`, path })),
     );
-    const slot = treeListingSlot(env.PACK_CACHE, vaultRepoName(await userIdOf(bearer)));
+    const slot = treeListingSlot(env.PACK_CACHE, vaultRepoName(await userIdOf(cookie)));
     const newerHead = "b".repeat(40);
     await slot.write(newerHead, []);
 
@@ -164,10 +164,10 @@ describe("vault read rows", () => {
   });
 
   it("walks again over a listing kept in an older shape, and keeps it with oids", async () => {
-    const { bearer, commit, credential } = await loginAndPush("vault-read-old-slot@example.test", [
+    const { cookie, commit, credential } = await loginAndPush("vault-read-old-slot@example.test", [
       { content: "# a\n", path: "a.md" },
     ]);
-    const repo = vaultRepoName(await userIdOf(bearer));
+    const repo = vaultRepoName(await userIdOf(cookie));
     const slot = treeListingSlot(env.PACK_CACHE, repo);
     const filled = await readTree(credential, {});
     expect(filled.status).toBe(200);
@@ -274,7 +274,7 @@ describe("vault read rows", () => {
       { content: "alpha's note\n", path: "secret.md" },
     ]);
     const beta = await signUpUser("vault-read-beta@example.test");
-    const betaDevice = await loginDevice(beta.bearer, "Laptop");
+    const betaDevice = await loginDevice(beta.cookie, "Laptop");
 
     const asBeta = await readFile(betaDevice.credential, { path: "secret.md", ref: alpha.commit });
     expect(asBeta.status).toBe(404);
@@ -416,7 +416,7 @@ describe("the vault batch route", () => {
       { content: "alpha's note\n", path: "secret.md" },
     ]);
     const beta = await signUpUser("vault-batch-beta@example.test");
-    const betaDevice = await loginDevice(beta.bearer, "Phone");
+    const betaDevice = await loginDevice(beta.cookie, "Phone");
     const asBeta = await postFiles(deviceHeaders(betaDevice.credential), {
       paths: ["secret.md"],
       ref: alpha.commit,
@@ -495,7 +495,7 @@ describe("the vault asset route", () => {
       { content: PNG_BYTES, path: "secret.png" },
     ]);
     const beta = await signUpUser("vault-asset-beta@example.test");
-    const betaDevice = await loginDevice(beta.bearer, "Laptop");
+    const betaDevice = await loginDevice(beta.cookie, "Laptop");
     const asBeta = await readAsset(betaDevice.credential, {
       path: "secret.png",
       ref: alpha.commit,
@@ -549,8 +549,8 @@ describe("the GET form a stale install still sends", () => {
     expect(anonymous.status).toBe(401);
     expect(await refusalCodeOf(anonymous)).toBe("unauthorized");
 
-    const { bearer } = await signUpUser("vault-read-stale-none@example.test");
-    const { credential } = await loginDevice(bearer, "Phone");
+    const { cookie } = await signUpUser("vault-read-stale-none@example.test");
+    const { credential } = await loginDevice(cookie, "Phone");
     const noVault = await getRead(VAULT_API_PATHS.tree, credential, {});
     expect(noVault.status).toBe(404);
     expect(await refusalCodeOf(noVault)).toBe("not-found");
