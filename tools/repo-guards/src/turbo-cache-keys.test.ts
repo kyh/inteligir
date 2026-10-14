@@ -90,6 +90,24 @@ const dryRun = (): DryRunTask[] => {
 const workspaceNamed = (name: string): Workspace | undefined =>
   workspaces().find((workspace) => workspace.name === name);
 
+const ownDependsOnSchema = z.looseObject({ dependsOn: z.array(z.string()).optional() });
+
+// a workspace's turbo.json spells the list only where its own task declares one: an override of
+// just inputs or outputs inherits the root's dependsOn, and the fix lands there.
+const dependsOnConfig = (workspace: Workspace, task: string): string => {
+  const config = workspaceTurboConfig(workspace);
+  if (config === null) {
+    return ROOT_CONFIG;
+  }
+  const own = ownDependsOnSchema.optional().safeParse(turboTaskBodies(config).get(task));
+  if (!own.success) {
+    throw new Error(
+      `${config}: tasks.${task} must be an object whose dependsOn is an array of strings`,
+    );
+  }
+  return own.data?.dependsOn === undefined ? ROOT_CONFIG : config;
+};
+
 interface JudgedTask {
   task: DryRunTask;
   workspace: Workspace;
@@ -126,7 +144,7 @@ describe("every cached turbo task hashes the workspaces it depends on", () => {
       violations.push(
         `UNHASHED DEPENDENCIES  ${task.taskId}\n` +
           `  rule: turbo puts another workspace's files in a task's cache key only through a "^" edge — without one, an edit confined to ${dependencies.join(", ")} is a cache hit that replays stale output\n` +
-          `  at ${workspaceTurboConfig(workspace) ?? ROOT_CONFIG} tasks.${task.task}.dependsOn (resolved: ${JSON.stringify(dependsOn)})\n` +
+          `  at ${dependsOnConfig(workspace, task.task)} tasks.${task.task}.dependsOn (resolved: ${JSON.stringify(dependsOn)})\n` +
           `  fix: add "^${task.task}", or "^topo" where that would be a cycle`,
       );
     }
