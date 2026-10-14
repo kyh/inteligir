@@ -1,19 +1,18 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  // knip's plugins (vitest, vite, TanStack Router, expo-router, package.json scripts) find the
+  // tests, routes and scripts, so an entry here is a file none of them can see. A `project` glob
+  // stays only where it names CSS, which knip's default project leaves out.
   // packages/* export every file as a subpath, so knip reads each as an entry and trusts its
   // exports; includeEntryExports turns reporting back on where the exports are not the API
   "workspaces": {
-    ".": {},
     "apps/cli": {
       "entry": [
         "src/index.ts",
-        "src/**/__tests__/**/*.test.{ts,tsx}",
         "src/desktop/desktop-entry.ts",
         "src/server/vault/watcher/parcel-child-entry.ts",
-        "src/server/knowledge/projection-worker.ts",
-        "scripts/*.ts"
+        "src/server/knowledge/projection-worker.ts"
       ],
-      "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
       // the ACP adapters are resolved with require from the running bundle, never imported
       "ignoreDependencies": [
         "@agentclientprotocol/claude-agent-acp",
@@ -25,7 +24,6 @@
     },
     "apps/desktop": {
       "entry": ["scripts/*.ts"],
-      "project": ["scripts/*.ts"],
       // a build output and a dev server, never a module: src-tauri/tauri.conf.json embeds its
       // first-run page and runs its Vite under `tauri dev`
       "ignoreDependencies": ["@repo/workspace"]
@@ -33,85 +31,52 @@
     "apps/workspace": {
       // the first-run page is a build of its own (vite.config.ts), and first-run.html's script is
       // read by knip's vite plugin only from index.html
-      "entry": [
-        "scripts/*.ts",
-        "src/first-run/first-run-main.tsx",
-        "src/routes/**/*.tsx",
-        "src/**/__tests__/**/*.test.{ts,tsx}"
-      ],
+      "entry": ["src/first-run/first-run-main.tsx"],
       "project": ["src/**/*.{ts,tsx,css}", "scripts/*.ts"],
       "ignoreDependencies": ["tailwindcss"]
     },
     "apps/mobile": {
       // expo reads fingerprint.config.js by its name when it fingerprints the native build
-      "entry": ["src/app/**/*.tsx", "src/**/__tests__/**/*.test.ts", "fingerprint.config.js"],
-      "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"],
+      "entry": ["fingerprint.config.js"],
       // linked natively; knip's expo plugin counts it only while `updates` is on, and app.config.js
       // leaves it off until the EAS project is committed
       "ignoreDependencies": ["expo-updates"]
     },
     "apps/mobile-editor": {
-      "entry": ["src/**/__tests__/**/*.test.{ts,tsx}", "vite/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx,css}", "vite/**/*.ts"]
     },
     "apps/web": {
-      "entry": [
-        "cloudflare.config.ts",
-        "src/routes/**/*.tsx",
-        "src/worker/index.ts",
-        "src/worker/__tests__/**/*.test.ts"
-      ],
+      "entry": ["cloudflare.config.ts", "src/worker/index.ts"],
       "project": ["src/**/*.{ts,tsx,css}"],
       "ignore": ["src/worker/types/durable-git.d.ts"],
       // `cloudflare:` is a workerd built-in module scheme, not a package
       "ignoreDependencies": ["cloudflare", "tailwindcss"]
     },
     "packages/notes": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
       "includeEntryExports": true,
       "ignoreExportsUsedInFile": true
     },
     "packages/editor": {
-      "entry": ["src/**/__tests__/**/*.test.{ts,tsx}"],
-      "project": ["src/**/*.{ts,tsx}"],
       "includeEntryExports": true,
       "ignoreExportsUsedInFile": true
     },
     "packages/domain": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
       "includeEntryExports": true,
       "ignoreExportsUsedInFile": true
     },
     "packages/agent-runtime": {
       // the fake vendors are spawned by path, never imported
-      "entry": ["src/**/__tests__/**/*.test.ts", "src/test-support/*.mjs", "scripts/*.ts"],
-      "project": ["src/**/*.{ts,mjs}", "scripts/*.ts"]
-    },
-    "packages/contract": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
-    },
-    "packages/db": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
+      "entry": ["src/test-support/*.mjs"]
     },
     "tools/e2e": {
-      // spawned by path from cloud-worker.ts
-      "entry": ["src/harness/worker-host.ts"],
-      "project": ["src/**/*.ts"]
+      // spawned by path: the Worker host from cloud-worker.ts, the fake vendor from its scenario
+      "entry": ["src/harness/worker-host.ts", "src/fixtures/*.mjs"]
     },
     "tools/ui-gallery": {
       // the entry is index.html's script, which knip's vite plugin reads
       "project": ["src/**/*.{tsx,css}"]
     },
-    "tools/repo-guards": {
-      "entry": ["src/**/*.test.ts"],
-      "project": ["src/**/*.ts"]
-    },
     "packages/ui": {
-      "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
       "includeEntryExports": true,
       "ignoreExportsUsedInFile": true

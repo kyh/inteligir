@@ -141,8 +141,8 @@ subpath after the name is not resolved) or a path anchored on a workspace group
    assertion.
 3. Fail with the rule, the file and the fix, and assert the sweep found its
    anchor.
-4. Knip reads `src/**/*.test.ts` as this workspace's entries (`knip.json`), so
-   a helper module is reachable only from a test.
+4. Knip's vitest plugin reads `src/**/*.test.ts` as this workspace's entries,
+   so a helper module is reachable only from a test.
 
 ## Running
 
