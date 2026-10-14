@@ -47,7 +47,7 @@ const RadiusProvider = ({ children, radius }: { children: ReactNode; radius: Rad
     document.documentElement.style.setProperty("--input-radius", `${radiusMap[radius].bgRadius}px`);
   }, [radius]);
 
-  return <RadiusContext.Provider value={radiusMap[radius]}>{children}</RadiusContext.Provider>;
+  return <RadiusContext value={radiusMap[radius]}>{children}</RadiusContext>;
 };
 
 export { RadiusProvider, useRadius, radiusMap };

@@ -36,7 +36,6 @@ const ContextCardList = ({
     {children}
   </div>
 );
-ContextCardList.displayName = "ContextCardList";
 
 export interface ContextCardListHeadingProps extends HTMLAttributes<HTMLDivElement> {
   count?: ReactNode;
@@ -63,7 +62,6 @@ const ContextCardListHeading = ({
     )}
   </div>
 );
-ContextCardListHeading.displayName = "ContextCardListHeading";
 
 export interface ContextCardProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   title: ReactNode;
@@ -100,7 +98,6 @@ const ContextCard = ({
     {children}
   </div>
 );
-ContextCard.displayName = "ContextCard";
 
 const ContextCardBody = ({
   className,
@@ -114,7 +111,6 @@ const ContextCardBody = ({
     {...props}
   />
 );
-ContextCardBody.displayName = "ContextCardBody";
 
 export interface ContextCardSourceProps extends HTMLAttributes<HTMLButtonElement> {
   kind?: ReactNode;
@@ -149,6 +145,5 @@ const ContextCardSource = ({
     </button>
   </div>
 );
-ContextCardSource.displayName = "ContextCardSource";
 
 export { ContextCardList, ContextCardListHeading, ContextCard, ContextCardBody, ContextCardSource };

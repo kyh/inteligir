@@ -97,17 +97,15 @@ const DropdownMenu = ({
   const ctx = useMemo(() => ({ open }), [open]);
 
   const root = (
-    <DropdownMenuContext.Provider value={ctx}>
+    <DropdownMenuContext value={ctx}>
       <Menu.Root open={open} onOpenChange={handleOpenChange} disabled={disabled} modal={modal}>
         {children}
       </Menu.Root>
-    </DropdownMenuContext.Provider>
+    </DropdownMenuContext>
   );
 
   return size ? <SizeProvider size={size}>{root}</SizeProvider> : root;
 };
-
-DropdownMenu.displayName = "DropdownMenu";
 
 const DropdownMenuTrigger = Menu.Trigger;
 
@@ -188,7 +186,7 @@ const DropdownMenuContent = ({
         anchor={anchor}
         className="z-50 outline-none"
       >
-        <DropdownItemsContext.Provider value={itemsCtx}>
+        <DropdownItemsContext value={itemsCtx}>
           <Menu.Popup
             ref={composeRefs<HTMLDivElement>(containerRef, ref)}
             render={(popupProps, state) => {
@@ -244,13 +242,11 @@ const DropdownMenuContent = ({
             />
             {children}
           </Menu.Popup>
-        </DropdownItemsContext.Provider>
+        </DropdownItemsContext>
       </Menu.Positioner>
     </Menu.Portal>
   );
 };
-
-DropdownMenuContent.displayName = "DropdownMenuContent";
 
 const DropdownMenuLabel = ({
   className,
@@ -271,8 +267,6 @@ const DropdownMenuLabel = ({
   );
 };
 
-DropdownMenuLabel.displayName = "DropdownMenuLabel";
-
 const DropdownMenuSeparator = ({
   className,
   ref,
@@ -286,8 +280,6 @@ const DropdownMenuSeparator = ({
     {...props}
   />
 );
-
-DropdownMenuSeparator.displayName = "DropdownMenuSeparator";
 
 type MenuRowVariant = "default" | "destructive";
 

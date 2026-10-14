@@ -23,7 +23,6 @@ const FineTuneCard = ({
     {...props}
   />
 );
-FineTuneCard.displayName = "FineTuneCard";
 
 export interface FineTuneSectionProps extends HTMLAttributes<HTMLDivElement> {
   label?: ReactNode;
@@ -48,7 +47,6 @@ const FineTuneSection = ({
     <div className="flex flex-wrap items-center gap-1.5">{children}</div>
   </div>
 );
-FineTuneSection.displayName = "FineTuneSection";
 
 // a step's own precision, so 0.1 + 0.2 lands on 0.3 rather than 0.30000000000000004
 const decimalsOf = (value: number): number => String(value).split(".")[1]?.length ?? 0;
@@ -203,7 +201,6 @@ const SegmentGroup = ({
     {...props}
   />
 );
-SegmentGroup.displayName = "SegmentGroup";
 
 export interface SegmentOptionProps extends HTMLAttributes<HTMLButtonElement> {
   active?: boolean;
@@ -228,7 +225,6 @@ const SegmentOption = ({
     {...props}
   />
 );
-SegmentOption.displayName = "SegmentOption";
 
 const FineTuneMenu = ({
   className,
@@ -242,7 +238,6 @@ const FineTuneMenu = ({
     </GlideList>
   </div>
 );
-FineTuneMenu.displayName = "FineTuneMenu";
 
 export interface FineTuneMenuItemProps extends HTMLAttributes<HTMLButtonElement> {
   meta?: ReactNode;
@@ -273,7 +268,6 @@ const FineTuneMenuItem = ({
     )}
   </button>
 );
-FineTuneMenuItem.displayName = "FineTuneMenuItem";
 
 export {
   FineTuneCard,

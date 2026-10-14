@@ -120,7 +120,7 @@ const TaskList = ({
 }: TaskListProps & RefAttributes<HTMLDivElement>) => {
   const context = useMemo(() => ({ list: variant === "list" }), [variant]);
   return (
-    <TaskListContext.Provider value={context}>
+    <TaskListContext value={context}>
       <div
         ref={ref}
         data-slot="task-list"
@@ -129,10 +129,9 @@ const TaskList = ({
       >
         {children}
       </div>
-    </TaskListContext.Provider>
+    </TaskListContext>
   );
 };
-TaskList.displayName = "TaskList";
 
 type TaskItemProps = HTMLAttributes<HTMLDivElement>;
 
@@ -153,7 +152,7 @@ const TaskItem = ({
     [open, toggle, expandable],
   );
   return (
-    <TaskItemContext.Provider value={context}>
+    <TaskItemContext value={context}>
       <div
         ref={ref}
         data-slot="task-item"
@@ -169,10 +168,9 @@ const TaskItem = ({
       >
         {children}
       </div>
-    </TaskItemContext.Provider>
+    </TaskItemContext>
   );
 };
-TaskItem.displayName = "TaskItem";
 
 // onClick is omitted: a forwarded one would replace the toggle while aria-expanded still promised it
 interface TaskItemRowProps extends Omit<HTMLAttributes<HTMLButtonElement>, "onSelect" | "onClick"> {
@@ -221,7 +219,6 @@ const TaskItemRow = ({
     </button>
   );
 };
-TaskItemRow.displayName = "TaskItemRow";
 
 const TaskItemLabel = ({
   className,
@@ -238,7 +235,6 @@ const TaskItemLabel = ({
     {children}
   </span>
 );
-TaskItemLabel.displayName = "TaskItemLabel";
 
 const TaskStatusLabel = ({
   className,
@@ -255,7 +251,6 @@ const TaskStatusLabel = ({
     {children}
   </span>
 );
-TaskStatusLabel.displayName = "TaskStatusLabel";
 
 const TaskItemDetails = ({
   className,
@@ -285,7 +280,6 @@ const TaskItemDetails = ({
     </Collapse>
   );
 };
-TaskItemDetails.displayName = "TaskItemDetails";
 
 interface TaskDetailProps extends HTMLAttributes<HTMLDivElement> {
   meta?: string;
@@ -310,7 +304,6 @@ const TaskDetail = ({
     )}
   </div>
 );
-TaskDetail.displayName = "TaskDetail";
 
 export {
   TaskList,

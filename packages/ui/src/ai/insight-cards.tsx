@@ -19,7 +19,6 @@ const InsightCardGrid = ({
     {...props}
   />
 );
-InsightCardGrid.displayName = "InsightCardGrid";
 
 const InsightCard = ({
   className,
@@ -36,7 +35,6 @@ const InsightCard = ({
     {...props}
   />
 );
-InsightCard.displayName = "InsightCard";
 
 export interface InsightCardHeaderProps extends HTMLAttributes<HTMLDivElement> {
   actions?: ReactNode;
@@ -59,7 +57,6 @@ const InsightCardHeader = ({
     {actions}
   </div>
 );
-InsightCardHeader.displayName = "InsightCardHeader";
 
 const insightDeltaVariants = cva("text-[12px] font-medium tabular-nums", {
   defaultVariants: { direction: "flat" },
@@ -99,7 +96,6 @@ const InsightCardMetric = ({
     )}
   </div>
 );
-InsightCardMetric.displayName = "InsightCardMetric";
 
 export interface InsightSeries {
   id: string;
@@ -241,7 +237,6 @@ const InsightChart = ({
     </div>
   );
 };
-InsightChart.displayName = "InsightChart";
 
 const InsightChartTooltip = ({
   className,
@@ -259,7 +254,6 @@ const InsightChartTooltip = ({
     {...props}
   />
 );
-InsightChartTooltip.displayName = "InsightChartTooltip";
 
 export interface InsightChartTooltipRowProps extends HTMLAttributes<HTMLDivElement> {
   value?: ReactNode;
@@ -282,7 +276,6 @@ const InsightChartTooltipRow = ({
     <span className="font-medium text-ink tabular-nums">{value}</span>
   </div>
 );
-InsightChartTooltipRow.displayName = "InsightChartTooltipRow";
 
 export interface InsightChartLegendItemProps extends HTMLAttributes<HTMLSpanElement> {
   index?: number;
@@ -316,7 +309,6 @@ const InsightChartLegendItem = ({
     {children}
   </span>
 );
-InsightChartLegendItem.displayName = "InsightChartLegendItem";
 
 export {
   InsightCardGrid,

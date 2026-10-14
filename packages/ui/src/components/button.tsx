@@ -301,6 +301,4 @@ const Button = ({
   return iconLabel === undefined ? element : <Tooltip content={iconLabel}>{element}</Tooltip>;
 };
 
-Button.displayName = "Button";
-
 export { Button, buttonVariants };

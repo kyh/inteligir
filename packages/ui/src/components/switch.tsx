@@ -285,6 +285,4 @@ const Switch = ({
   );
 };
 
-Switch.displayName = "Switch";
-
 export { Switch };

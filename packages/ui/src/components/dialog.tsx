@@ -143,7 +143,6 @@ const DialogContent = ({
     </DialogPrimitive.Portal>
   );
 };
-DialogContent.displayName = "DialogContent";
 
 interface DialogPopupProps extends Omit<HTMLAttributes<HTMLDivElement>, MotionConflictHandler> {
   // the element the popup mounts in, so a dialog serving one region floats inside it
@@ -193,7 +192,6 @@ const DialogPopup = ({
     />
   </DialogPrimitive.Portal>
 );
-DialogPopup.displayName = "DialogPopup";
 
 const DialogHeader = ({ className, ...props }: HTMLAttributes<HTMLDivElement>) => (
   <div className={cn("mb-4 flex flex-col gap-1.5", className)} {...props} />
@@ -211,7 +209,6 @@ const DialogTitle = ({
     {...props}
   />
 );
-DialogTitle.displayName = "DialogTitle";
 
 const DialogDescription = ({
   className,
@@ -224,7 +221,6 @@ const DialogDescription = ({
     {...props}
   />
 );
-DialogDescription.displayName = "DialogDescription";
 
 export {
   Dialog,

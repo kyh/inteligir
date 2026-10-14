@@ -191,6 +191,5 @@ const Sidebar = ({
     </SidebarShell>
   );
 };
-Sidebar.displayName = "Sidebar";
 
 export { Sidebar };

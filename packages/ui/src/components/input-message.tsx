@@ -307,6 +307,4 @@ const InputMessage = ({
   return size ? <SizeProvider size={size}>{composer}</SizeProvider> : composer;
 };
 
-InputMessage.displayName = "InputMessage";
-
 export { InputMessage };

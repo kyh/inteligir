@@ -79,7 +79,10 @@
     "packages/ui": {
       "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
       "includeEntryExports": true,
-      "ignoreExportsUsedInFile": true
+      "ignoreExportsUsedInFile": true,
+      // src/ai is held ahead of its consumers by owner decision, export by export, in the orphan
+      // guard (tools/repo-guards/src/ui-orphan-exports.test.ts), which counts no gallery demo
+      "ignoreIssues": { "src/ai/**": ["exports"] }
     }
   }
 }

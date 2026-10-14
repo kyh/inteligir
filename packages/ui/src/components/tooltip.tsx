@@ -26,11 +26,11 @@ interface TooltipProviderProps {
 }
 
 const TooltipProvider = ({ children, delay = DEFAULT_DELAY }: TooltipProviderProps) => (
-  <TooltipGroupContext.Provider value={true}>
+  <TooltipGroupContext value={true}>
     <TooltipPrimitive.Provider delay={delay} timeout={SKIP_DELAY_TIMEOUT}>
       {children}
     </TooltipPrimitive.Provider>
-  </TooltipGroupContext.Provider>
+  </TooltipGroupContext>
 );
 
 type TooltipSide = "top" | "right" | "bottom" | "left";

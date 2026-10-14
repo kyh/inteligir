@@ -295,7 +295,6 @@ const SidebarMenu = ({
 
   return size ? <SizeProvider size={size}>{content}</SizeProvider> : content;
 };
-SidebarMenu.displayName = "SidebarMenu";
 
 type SidebarMenuItemProps = LiHTMLAttributes<HTMLLIElement>;
 
@@ -353,7 +352,6 @@ const SidebarMenuItem = ({
     </MenuItemContext>
   );
 };
-SidebarMenuItem.displayName = "SidebarMenuItem";
 
 // element children render outside the text-box-trimmed span, which would clip an inline SVG
 const MenuRowLabel = ({
@@ -486,7 +484,6 @@ const SidebarMenuButton = ({
     </button>
   );
 };
-SidebarMenuButton.displayName = "SidebarMenuButton";
 
 interface SidebarMenuActionProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   // hidden until the row is hovered or holds focus, or its popup is open
@@ -520,6 +517,5 @@ const SidebarMenuAction = ({
     />
   );
 };
-SidebarMenuAction.displayName = "SidebarMenuAction";
 
 export { SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuAction };

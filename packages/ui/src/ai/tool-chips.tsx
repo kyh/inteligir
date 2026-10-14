@@ -68,7 +68,6 @@ const ToolChipList = ({
     </div>
   );
 };
-ToolChipList.displayName = "ToolChipList";
 
 interface ToolChipProps extends HTMLAttributes<HTMLDivElement> {
   icon?: ToolIcon;
@@ -149,17 +148,16 @@ const ToolChip = ({
 
       {expandable ? (
         <Collapse open={open} innerClassName="min-h-0">
-          <ToolChipContext.Provider value={detailContext}>
+          <ToolChipContext value={detailContext}>
             <div className="mt-0.5 mb-1 ml-2 flex flex-col gap-0.5 border-l border-line py-0.5 pl-3.5">
               {children}
             </div>
-          </ToolChipContext.Provider>
+          </ToolChipContext>
         </Collapse>
       ) : null}
     </div>
   );
 };
-ToolChip.displayName = "ToolChip";
 
 interface ToolChipDetailProps extends HTMLAttributes<HTMLSpanElement> {
   tone?: "add";
@@ -189,6 +187,5 @@ const ToolChipDetail = ({
     </span>
   );
 };
-ToolChipDetail.displayName = "ToolChipDetail";
 
 export { ToolChipList, ToolChip, ToolChipDetail };

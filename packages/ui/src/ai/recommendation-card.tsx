@@ -54,7 +54,6 @@ const ConfidenceMeter = ({
     ))}
   </span>
 );
-ConfidenceMeter.displayName = "ConfidenceMeter";
 
 const RecommendationCard = ({
   className,
@@ -71,7 +70,6 @@ const RecommendationCard = ({
     {...props}
   />
 );
-RecommendationCard.displayName = "RecommendationCard";
 
 export interface RecommendationCardHeaderProps extends HTMLAttributes<HTMLDivElement> {
   body?: ReactNode;
@@ -96,7 +94,6 @@ const RecommendationCardHeader = ({
     )}
   </div>
 );
-RecommendationCardHeader.displayName = "RecommendationCardHeader";
 
 export interface RecommendationAlternativesProps extends HTMLAttributes<HTMLDivElement> {
   open?: boolean;
@@ -125,7 +122,6 @@ const RecommendationAlternatives = ({
     </div>
   </Collapse>
 );
-RecommendationAlternatives.displayName = "RecommendationAlternatives";
 
 export interface RecommendationAlternativeProps extends HTMLAttributes<HTMLButtonElement> {
   meter?: ReactNode;
@@ -156,7 +152,6 @@ const RecommendationAlternative = ({
     {note === undefined ? null : <span className="shrink-0 text-[11px] text-ink-3">{note}</span>}
   </button>
 );
-RecommendationAlternative.displayName = "RecommendationAlternative";
 
 export interface RecommendationCardFooterProps extends HTMLAttributes<HTMLDivElement> {
   actions?: ReactNode;
@@ -184,7 +179,6 @@ const RecommendationCardFooter = ({
     )}
   </div>
 );
-RecommendationCardFooter.displayName = "RecommendationCardFooter";
 
 export {
   RecommendationCard,

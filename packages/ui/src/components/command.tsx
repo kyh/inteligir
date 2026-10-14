@@ -331,9 +331,9 @@ const CommandDialog = ({
             the Popup, and as a sibling it would render while the palette is closed */}
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <DialogDescription className="sr-only">{description}</DialogDescription>
-        <CommandContext.Provider value={ctx}>
-          <CommandFillContext.Provider value={fill}>{children}</CommandFillContext.Provider>
-        </CommandContext.Provider>
+        <CommandContext value={ctx}>
+          <CommandFillContext value={fill}>{children}</CommandFillContext>
+        </CommandContext>
       </DialogContent>
     </Dialog>
   );

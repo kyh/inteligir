@@ -112,6 +112,4 @@ const Badge = ({
   );
 };
 
-Badge.displayName = "Badge";
-
 export { Badge };

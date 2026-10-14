@@ -25,4 +25,4 @@ export const SurfaceProvider = ({
 }: {
   value: SurfaceLevel;
   children: ReactNode;
-}) => <SurfaceContext.Provider value={value}>{children}</SurfaceContext.Provider>;
+}) => <SurfaceContext value={value}>{children}</SurfaceContext>;

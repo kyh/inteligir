@@ -224,7 +224,7 @@ const SidebarProvider = ({
   );
 
   return (
-    <SidebarContext.Provider value={value}>
+    <SidebarContext value={value}>
       <div
         ref={ref}
         data-slot="sidebar-wrapper"
@@ -238,10 +238,9 @@ const SidebarProvider = ({
       >
         {children}
       </div>
-    </SidebarContext.Provider>
+    </SidebarContext>
   );
 };
-SidebarProvider.displayName = "SidebarProvider";
 
 // literal map so Tailwind's scanner emits the utilities; standard breakpoints also hide the shell by
 // CSS before hydration, non-standard ones rely on the JS isMobile branch alone
@@ -398,7 +397,6 @@ const SidebarRail = ({
     </Tooltip>
   );
 };
-SidebarRail.displayName = "SidebarRail";
 
 interface SidebarPeekProps {
   children: ReactNode;
@@ -705,7 +703,6 @@ const SidebarShell = ({
     </motion.div>
   );
 };
-SidebarShell.displayName = "SidebarShell";
 
 type SidebarInsetProps = HTMLAttributes<HTMLElement>;
 
@@ -735,7 +732,6 @@ const SidebarInset = ({
     />
   );
 };
-SidebarInset.displayName = "SidebarInset";
 
 type SidebarSectionProps = HTMLAttributes<HTMLDivElement>;
 
@@ -751,7 +747,6 @@ const SidebarHeader = ({
     {...props}
   />
 );
-SidebarHeader.displayName = "SidebarHeader";
 
 const SidebarFooter = ({
   className,
@@ -765,7 +760,6 @@ const SidebarFooter = ({
     {...props}
   />
 );
-SidebarFooter.displayName = "SidebarFooter";
 
 // A titled run of rows: the label, its actions overlaid at the label's trailing edge, then a
 // menu or any list.
@@ -781,7 +775,6 @@ const SidebarGroup = ({
     {...props}
   />
 );
-SidebarGroup.displayName = "SidebarGroup";
 
 // HTMLElement, not HTMLDivElement: with an onClick the label is a <button>
 type SidebarGroupLabelProps = HTMLAttributes<HTMLElement>;
@@ -843,7 +836,6 @@ const SidebarGroupLabel = ({
     </div>
   );
 };
-SidebarGroupLabel.displayName = "SidebarGroupLabel";
 
 // the cluster over the label's trailing edge, inset to the rows' action axis
 const SidebarGroupActions = ({
@@ -858,7 +850,6 @@ const SidebarGroupActions = ({
     {...props}
   />
 );
-SidebarGroupActions.displayName = "SidebarGroupActions";
 
 type SidebarGroupActionProps = ButtonHTMLAttributes<HTMLButtonElement>;
 
@@ -886,7 +877,6 @@ const SidebarGroupAction = ({
     />
   );
 };
-SidebarGroupAction.displayName = "SidebarGroupAction";
 
 // The scrolling region between the header and whatever sits under it: a plain column, so a
 // consumer's list keeps its own height and the column scrolls.
@@ -902,7 +892,6 @@ const SidebarContent = ({
     {...props}
   />
 );
-SidebarContent.displayName = "SidebarContent";
 
 export {
   SidebarProvider,

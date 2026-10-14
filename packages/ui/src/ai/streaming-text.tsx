@@ -101,7 +101,6 @@ const StreamingText = ({
   ) : (
     <StreamingFrame shown={text} caret={streaming} {...frame} />
   );
-StreamingText.displayName = "StreamingText";
 
 interface StreamingActionProps extends HTMLAttributes<HTMLButtonElement> {
   label: string;
@@ -129,6 +128,5 @@ const StreamingAction = ({
     {children}
   </button>
 );
-StreamingAction.displayName = "StreamingAction";
 
 export { StreamingText, StreamingAction };
