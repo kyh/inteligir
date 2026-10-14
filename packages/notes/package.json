@@ -19,6 +19,7 @@
     "./formulas/resolve-graph": "./src/formulas/resolve-graph.ts",
     "./iso-date": "./src/iso-date.ts",
     "./knowledge/asset-name": "./src/knowledge/asset-name.ts",
+    "./knowledge/default-limits": "./src/knowledge/default-limits.ts",
     "./knowledge/doc-file": "./src/knowledge/doc-file.ts",
     "./knowledge/knowledge-index": "./src/knowledge/knowledge-index.ts",
     "./knowledge/link-extract": "./src/knowledge/link-extract.ts",

@@ -4,9 +4,8 @@
 // response carries `total`, and `array.length < total` is the truncation test; no second flag
 // can disagree with the arrays.
 
+import { RELATED_DEFAULT_LIMIT, SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/default-limits";
 import { LINK_KINDS } from "@repo/notes/knowledge/link-kinds";
-import { RELATED_DEFAULT_LIMIT } from "@repo/notes/knowledge/related-notes";
-import { SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/search-query";
 import { isTagName, TAG_NAME_RULE } from "@repo/notes/knowledge/tag-grammar";
 import { z } from "zod";
 import { vaultPathSchema, vaultRenameSkipReasonSchema } from "../vault/vault-schema";

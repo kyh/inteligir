@@ -5,6 +5,7 @@
 
 import { LinkGraphIndex } from "./link-graph-index";
 import type { BacklinkEntry, ForwardLinkEntry, WikiTarget } from "./link-graph-index";
+import { SEARCH_DEFAULT_LIMIT } from "./default-limits";
 import { docStem } from "./doc-file";
 import { projectDoc } from "./projection";
 import { relatedNotes } from "./related-notes";
@@ -12,7 +13,7 @@ import type { RelatedNoteEntry, RelatedNotesOpts } from "./related-notes";
 import { searchFieldsOf } from "./search-columns";
 import { SearchIndex } from "./search-index";
 import { searchExcerpt } from "./search-excerpt";
-import { planSearchQuery, SEARCH_DEFAULT_LIMIT } from "./search-query";
+import { planSearchQuery } from "./search-query";
 import type { SearchQueryTerm, SearchResult } from "./search-query";
 import type { TagCount } from "./tag-index";
 import { notesInTagFamily } from "./tag-notes";

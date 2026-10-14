@@ -1,6 +1,7 @@
 // Direct neighbours (linked to, linking here) are excluded: the panels already
 // surface them, and Related is the ring the user has not wired up.
 
+import { RELATED_DEFAULT_LIMIT } from "./default-limits";
 import { isStopword, tokenize } from "./search-query";
 import type { SearchQueryOptions } from "./search-query";
 
@@ -31,8 +32,6 @@ export type LexicalSearch = (
 
 // a title word is finished, so it never matches as a prefix
 const TITLE_WORD: SearchQueryOptions = { typing: false };
-
-export const RELATED_DEFAULT_LIMIT = 8;
 
 // one shared link outranks one shared tag; lexical is capped below two shared links
 // so title-word coincidence never drowns a structural connection
