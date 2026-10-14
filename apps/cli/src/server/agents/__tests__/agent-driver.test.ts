@@ -5,7 +5,7 @@ import type { AcpAgentRuntimeOptions } from "@repo/agent-runtime/acp/acp-runtime
 import { systemStatusResponseSchema } from "@repo/contract/local/system/system-schema";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
-import { defaultHarnessId, resolveAgentDriver } from "../agent-driver";
+import { resolveAgentDriver } from "../agent-driver";
 import { bootTestApp, makeTempDir } from "../../__tests__/boot-app";
 import {
   awaitThreadStatus,
@@ -32,13 +32,15 @@ const spawnFakeAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (_harness, env)
 const bootAcp = async (env: NodeJS.ProcessEnv) =>
   await bootTestApp({
     agent: { detail: "placeholder", mode: "acp", runtime: "unavailable" },
-    makeDriver: ({ db, bus, vault, vaultDir }) =>
+    makeDriver: ({ db, bus, vault, vaultDir, sink }) =>
       resolveAgentDriver({
         config: { agent: "acp", agentModels: NO_MODELS, vaultDir },
         db,
+        defaultHarness: () => "claude",
         env,
         notifier: bus,
         sessionFacts: () => fakeSessionFacts(),
+        sink,
         spawnAdapter: spawnFakeAdapter,
         vault,
       }),
@@ -72,20 +74,17 @@ describe("agent driver resolution", () => {
     expect(refusal?.message).toBe(reinstall);
   });
 
-  it("starts a new thread on claude with nothing chosen, whatever PATH holds", () => {
-    expect(defaultHarnessId(null)).toBe("claude");
-    expect(defaultHarnessId("codex")).toBe("codex");
-  });
-
   it("the off mode reads as off on /system/status", async () => {
     const harness = await bootTestApp({
       agent: { mode: "off" },
-      makeDriver: ({ db, bus, vault, vaultDir }) =>
+      makeDriver: ({ db, bus, vault, vaultDir, sink }) =>
         resolveAgentDriver({
           config: { agent: "off", agentModels: NO_MODELS, vaultDir },
           db,
+          defaultHarness: () => "claude",
           notifier: bus,
           sessionFacts: () => fakeSessionFacts(),
+          sink,
           vault,
         }),
     });

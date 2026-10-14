@@ -2,7 +2,7 @@ import type { AgentRuntime } from "@repo/agent-runtime/types";
 import type { createAcpAgentRuntime } from "@repo/agent-runtime/acp/acp-runtime";
 import { describe, expect, it, vi } from "vitest";
 import path from "node:path";
-import { createAcpRuntimeManager } from "../runtime-manager";
+import { AcpTurnDriver } from "../runtime-manager";
 import { bootTestApp } from "../../__tests__/boot-app";
 import { createThread, fakeSessionFacts, PROVIDER_WAIT } from "./agent-test-harness";
 
@@ -20,7 +20,6 @@ const recordingCreateRuntime =
         await Promise.resolve();
       },
       hasThread: () => false,
-      reapIdleProviderSessions: async () => await Promise.resolve({ reapedSessions: [] }),
       resumeThread: async () => await Promise.resolve({ loaded: true, providerThreadId: "prov_1" }),
       runTurn: async () => {
         await Promise.resolve();
@@ -38,8 +37,8 @@ describe("ACP runtime shell env wiring", () => {
     const recorded: RuntimeOptions[] = [];
     const harness = await bootTestApp({
       agent: { mode: "acp", runtime: "ready" },
-      makeDriver: ({ db, bus, vault, vaultDir }) => {
-        const manager = createAcpRuntimeManager({
+      makeDriver: ({ db, bus, vault, vaultDir, sink }) => ({
+        driver: new AcpTurnDriver(sink, {
           createRuntime: recordingCreateRuntime(recorded),
           db,
           defaultProviderId: () => "claude",
@@ -47,18 +46,11 @@ describe("ACP runtime shell env wiring", () => {
           hostEnv: { PATH: "/usr/bin" },
           models: { claude: null, codex: null },
           notifier: bus,
-          reapIntervalMs: null,
           sessionFacts: () =>
             fakeSessionFacts({ cliBinDir: "/repo/apps/cli/bin", dataDir: "/instances/one/data" }),
           vaultDir,
-        });
-        return {
-          createTurnDriver: manager.createTurnDriver,
-          dispose: async () => {
-            await manager.dispose();
-          },
-        };
-      },
+        }),
+      }),
     });
 
     const threadId = await createThread(harness.client);

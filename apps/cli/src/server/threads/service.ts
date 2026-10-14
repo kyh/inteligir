@@ -59,16 +59,14 @@ import type { DispatchedTurn, DispatchOutcome, SendDecision, SendOutcome } from 
 import { archiveInTransaction, requestStopInTransaction } from "./thread-stop";
 import type { InterruptOutcome, StopOutcome } from "./thread-stop";
 import { ThreadTimelineProjector } from "./timeline-projection";
-import { TurnDriverUnavailableError } from "./turn-driver";
-import type { CreateTurnDriver, TurnDriver, ProviderEventSink } from "./turn-driver";
+import { TurnDriverUnavailableError, unavailableTurnDriver } from "./turn-driver";
+import type { TurnDriver, ProviderEventSink } from "./turn-driver";
 
 export type AnswerInteractionOutcome =
   | { kind: "resolved"; interaction: PendingInteraction }
   | { kind: "not-found" }
   | { kind: "already-resolved" }
   | { kind: "invalid-resolution"; message: string };
-
-export { ThreadEventThreadIdMismatchError } from "./thread-event-mismatch-error";
 
 // inside the transaction that writes the events: an event is owed to the account's log exactly when it is in the local one.
 export interface ThreadSyncHooks {
@@ -78,7 +76,6 @@ export interface ThreadSyncHooks {
 export interface ThreadServiceArgs {
   db: DbConnection;
   notifier: DbNotifier;
-  createTurnDriver: CreateTurnDriver;
   origins: ThreadOrigins;
   sync?: ThreadSyncHooks;
 }
@@ -86,7 +83,8 @@ export interface ThreadServiceArgs {
 export class ThreadService implements ProviderEventSink {
   private readonly db: DbConnection;
   private readonly notifier: DbNotifier;
-  private readonly driver: TurnDriver;
+  // until a driver is attached, a send is refused as with no agent.
+  private driver: TurnDriver = unavailableTurnDriver;
   private readonly timelines: ThreadTimelineProjector;
   private readonly origins: ThreadOrigins;
   private readonly sync: ThreadSyncHooks | null;
@@ -97,7 +95,11 @@ export class ThreadService implements ProviderEventSink {
     this.origins = args.origins;
     this.sync = args.sync ?? null;
     this.timelines = new ThreadTimelineProjector(args.db);
-    this.driver = args.createTurnDriver(this);
+  }
+
+  // after construction: a driver reports through this service, so it is built on it.
+  attachDriver(driver: TurnDriver): void {
+    this.driver = driver;
   }
 
   // a method rather than constructor work because it writes. it settles and frees, and never

@@ -173,7 +173,7 @@ const boot = async (
       openSocket: createCloudSocketOpener((url, headers) => new WebSocket(url, { headers })),
     },
     config,
-    driver: ({ config: driverConfig, db, bus, vault, folders, agentPrefs }) => {
+    driver: ({ config: driverConfig, db, bus, vault, folders, agentPrefs, sink }) => {
       const cliBinDir = options.cliBinDir ?? resolveCliBinDir();
       const skillsDir = resolveSkillsDir();
       const driverArgs: ResolveAgentDriverArgs = {
@@ -181,13 +181,14 @@ const boot = async (
         db,
         debugLog: debugLog(driverConfig.debug, "acp"),
         notifier: bus,
-        preferredProviderId: () => agentPrefs.read().defaultHarness ?? null,
+        defaultHarness: () => agentPrefs.defaultHarness(),
         sessionFacts: () => ({
           cliBinDir,
           connectedDirs: folders.list(),
           dataDir: driverConfig.dataDir,
           skillsDir,
         }),
+        sink,
         vault,
       };
       return resolveAgentDriver(driverArgs);

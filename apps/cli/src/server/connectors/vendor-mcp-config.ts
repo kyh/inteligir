@@ -1,7 +1,5 @@
-// the default agent's own MCP config, read and edited through that vendor's bundled binary, one port
-// per harness: the servers Settings shows are the ones a session of that agent loads, since there is
-// no second registry. Every spawn is the one vendor spawn policy (`../agents/vendor-process.ts`),
-// never in the vault: a vendor reads project config from its cwd.
+// every spawn is the one vendor spawn policy (`../agents/vendor-process.ts`), never in the vault: a
+// vendor reads project config from its cwd.
 
 import { PassThrough } from "node:stream";
 import type { HarnessId } from "@repo/domain/harness";

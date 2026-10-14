@@ -17,7 +17,6 @@ export type VendorAccount =
   | { state: "signed-out" }
   | { state: "unknown"; detail: string };
 
-// one finished run of a vendor binary.
 export interface VendorExit {
   code: number;
   stdout: string;
@@ -48,7 +47,6 @@ export interface AgentSignIn {
 }
 export type SignInMethod = TerminalSignIn | AgentSignIn;
 
-// the claude SDK's filesystem setting tiers.
 type ClaudeSettingSource = "user" | "project" | "local";
 
 interface HarnessSessionMeta {
@@ -87,12 +85,8 @@ export interface HarnessDefinition {
   typedFailures: boolean;
 }
 
-const resolveAdapterEntry = (specifier: string): string => require.resolve(specifier);
-
-const CLAUDE_ADAPTER_ENTRY = resolveAdapterEntry(
-  "@agentclientprotocol/claude-agent-acp/dist/index.js",
-);
-const CODEX_ADAPTER_ENTRY = resolveAdapterEntry("@agentclientprotocol/codex-acp/dist/index.js");
+const CLAUDE_ADAPTER_ENTRY = require.resolve("@agentclientprotocol/claude-agent-acp/dist/index.js");
+const CODEX_ADAPTER_ENTRY = require.resolve("@agentclientprotocol/codex-acp/dist/index.js");
 
 const glibcReportSchema = z.object({ header: z.object({ glibcVersionRuntime: z.string() }) });
 

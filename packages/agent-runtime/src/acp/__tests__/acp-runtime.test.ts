@@ -83,3 +83,42 @@ describe("closing a thread", () => {
     expect(runtime.hasThread("thr_1")).toBe(false);
   });
 });
+
+describe("an idle session", () => {
+  it("has its child ended once it has run no turn for the runtime's idle bound", async () => {
+    const stderr: [string, string | undefined][] = [];
+    const runtime = createAcpAgentRuntime({
+      idleSession: { afterMs: 50, everyMs: 20 },
+      onEvent: () => {
+        /* empty */
+      },
+      onStderr: (line, threadId) => {
+        stderr.push([line, threadId]);
+      },
+      spawnAdapter: (_harness, env) =>
+        spawn(process.execPath, [FAKE_AGENT], {
+          detached: true,
+          env,
+          stdio: ["pipe", "pipe", "pipe"],
+        }),
+      workspacePath: process.cwd(),
+    });
+    onTestFinished(async () => {
+      await runtime.shutdown();
+    });
+    await runtime.startThread({ providerId: "codex", threadId: "thr_1" });
+
+    await vi.waitFor(
+      () => {
+        expect(runtime.hasThread("thr_1")).toBe(false);
+      },
+      { timeout: 10_000 },
+    );
+    await vi.waitFor(() => {
+      expect(stderr).toContainEqual([
+        expect.stringMatching(/^reaped idle agent session for thread thr_1 after \d+ms$/u),
+        "thr_1",
+      ]);
+    });
+  });
+});

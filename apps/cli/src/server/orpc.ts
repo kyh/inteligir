@@ -7,7 +7,6 @@ import { localContract } from "@repo/contract/local";
 import type { AgentStatus } from "@repo/contract/local/system/system-schema";
 import type { ORPCError } from "@orpc/server";
 import { implement } from "@orpc/server";
-import type { RecordAgentWrites } from "./agents/agent-driver";
 import type { AgentsService } from "./agents/agents-service";
 import type { BrowserSession } from "./browser-session";
 import type { CommentsService } from "./comments/comments-service";
@@ -18,6 +17,7 @@ import type { FoldersService } from "./folders/folders-service";
 import type { RenameTag } from "./knowledge/knowledge-router";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import type { ThreadService } from "./threads/service";
+import type { RecordAgentWrites } from "./threads/turn-driver";
 import type { TurnUndo } from "./threads/turn-undo";
 import type { VaultPrefsStore } from "./vault/vault-prefs-store";
 import type { VaultRuntime } from "./vault/vault-runtime";
@@ -67,7 +67,10 @@ export const attributeWrites = (context: AppContext, paths: readonly string[]): 
   }
 };
 
-// an unnamed refusal is rethrown as it came — a 500, rather than a class the contract row does not declare.
+// for a refusal class whose wire code is shared across routes and the HTTP surfaces that are not
+// procedures (`vault-refusals.ts`); a refusal one route alone raises maps through that handler's
+// own `errors`. an unnamed refusal is rethrown as it came — a 500, rather than a class the
+// contract row does not declare.
 export const refusing = (translate: (cause: unknown) => ORPCError<string, unknown> | null) =>
   base.middleware(async ({ next }) => {
     try {

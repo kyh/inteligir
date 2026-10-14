@@ -79,37 +79,29 @@ export const createInteractionWaiters = (deps: InteractionWaitersDeps): Interact
       if (row.status === "interrupted") {
         return { decision: "deny" };
       }
-      // oxlint-disable-next-line promise/avoid-new -- bridges the approval that arrives on another request, or the timeout
-      return await new Promise<PendingInteractionResolution>((resolve) => {
-        let settled = false;
-        const settle = (resolution: PendingInteractionResolution): void => {
-          if (settled) {
-            return;
-          }
-          settled = true;
+      // the approval arrives on another request, or the timeout answers it.
+      const { promise, resolve } = Promise.withResolvers<PendingInteractionResolution>();
+      const timer = setTimeout(() => {
+        if (waitersByInteractionId.delete(row.id)) {
+          interruptPendingInteraction(deps.db, deps.notifier, {
+            id: row.id,
+            threadId: create.threadId,
+          });
+          resolve({ decision: "deny" });
+          deps.onWaitSettled(create.threadId);
+        }
+      }, INTERACTION_TIMEOUT_MS);
+      timer.unref();
+      waitersByInteractionId.set(row.id, {
+        payload,
+        resolve: (resolution) => {
+          clearTimeout(timer);
           resolve(resolution);
-        };
-        const timer = setTimeout(() => {
-          if (waitersByInteractionId.delete(row.id)) {
-            interruptPendingInteraction(deps.db, deps.notifier, {
-              id: row.id,
-              threadId: create.threadId,
-            });
-            settle({ decision: "deny" });
-            deps.onWaitSettled(create.threadId);
-          }
-        }, INTERACTION_TIMEOUT_MS);
-        timer.unref();
-        waitersByInteractionId.set(row.id, {
-          payload,
-          resolve: (resolution) => {
-            clearTimeout(timer);
-            settle(resolution);
-            deps.onWaitSettled(create.threadId);
-          },
-          threadId: create.threadId,
-        });
+          deps.onWaitSettled(create.threadId);
+        },
+        threadId: create.threadId,
       });
+      return await promise;
     },
 
     resolve(interaction) {

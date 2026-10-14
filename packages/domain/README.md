@@ -95,10 +95,10 @@ Every subpath is exported by name in `package.json`; there is no barrel.
 - **Two grammars share the word "event"; only this one is durable.**
   `@repo/agent-runtime/vocabulary/provider-event` is what a provider adapter
   may EMIT; `provider-event.ts` here is what the `events` table STORES and a
-  client replays. `apps/cli/src/server/agents/event-mapping.ts` is the one
+  client replays. `apps/cli/src/server/agents/runtime-manager.ts` is the one
   place that narrows the first onto the second, every kind the mapper emits but
-  an adapter's notice, which the runtime manager writes to the agent log
-  instead; nothing is re-shaped. The shared leaves (file change, item status,
+  an adapter's notice, which the turn driver writes to the agent log instead;
+  nothing is re-shaped. The shared leaves (file change, item status,
   scope) are one type here so a narrowing assigns them; a field-by-field
   respelling would mean the two had drifted. A shape bb already names is
   re-vendored from bb, not invented.

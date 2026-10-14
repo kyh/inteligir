@@ -94,8 +94,8 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and comments.
   in `apps/cli/src/server/config.ts`). The read strips a config.json key it does
   not name rather than refusing it: the window cannot edit that file, so a
   refusal is a boot nothing in the app repairs.
-  `apps/cli/src/server/agents/agent-prefs-store.ts`, `defaultHarnessId` in
-  `agent-driver.ts`, `harnessReadiness` in
+  `AgentPrefsStore.defaultHarness` in
+  `apps/cli/src/server/agents/agent-prefs-store.ts`, `harnessReadiness` in
   `@repo/contract/local/agents/agents-schema`.
 
 - **CONNECTORS ARE THE DEFAULT AGENT'S OWN MCP CONFIG**: one registry, the

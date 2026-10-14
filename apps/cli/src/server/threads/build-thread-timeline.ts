@@ -24,44 +24,8 @@ import type {
   ThreadEventTurnStatus,
 } from "@repo/domain/provider-event";
 
-const itemStatusToRowStatus = (status: ThreadEventItemStatus): TimelineRowStatus => {
-  switch (status) {
-    case "pending": {
-      return "pending";
-    }
-    case "completed": {
-      return "completed";
-    }
-    case "failed": {
-      return "error";
-    }
-    case "interrupted": {
-      return "interrupted";
-    }
-    default: {
-      const exhaustive: never = status;
-      return exhaustive;
-    }
-  }
-};
-
-const turnStatusToRowStatus = (status: ThreadEventTurnStatus): TimelineRowStatus => {
-  switch (status) {
-    case "completed": {
-      return "completed";
-    }
-    case "failed": {
-      return "error";
-    }
-    case "interrupted": {
-      return "interrupted";
-    }
-    default: {
-      const exhaustive: never = status;
-      return exhaustive;
-    }
-  }
-};
+const toRowStatus = (status: ThreadEventItemStatus | ThreadEventTurnStatus): TimelineRowStatus =>
+  status === "failed" ? "error" : status;
 
 interface ItemAccumulator {
   threadId: string;
@@ -176,7 +140,7 @@ const projectItem = (
         ...base,
         kind: "work",
         result: snapshot.result === undefined ? null : JSON.stringify(snapshot.result),
-        status: itemStatusToRowStatus(snapshot.status),
+        status: toRowStatus(snapshot.status),
         toolArgs: snapshot.arguments ?? null,
         toolName: snapshot.tool,
         workKind: "tool",
@@ -191,7 +155,7 @@ const projectItem = (
         command: snapshot.command,
         cwd: snapshot.cwd,
         kind: "work",
-        status: itemStatusToRowStatus(snapshot.status),
+        status: toRowStatus(snapshot.status),
         workKind: "command",
       };
       return row;
@@ -202,7 +166,7 @@ const projectItem = (
         approvalStatus: snapshot.approvalStatus,
         changes: toTimelineFileChanges(snapshot.changes),
         kind: "work",
-        status: itemStatusToRowStatus(snapshot.status),
+        status: toRowStatus(snapshot.status),
         workKind: "file-change",
       };
       return row;
@@ -285,7 +249,7 @@ export const buildThreadTimeline = (events: readonly StoredThreadEvent[]): Threa
     if (!turn) {
       return;
     }
-    turn.status = turnStatusToRowStatus(status);
+    turn.status = toRowStatus(status);
     turn.completedAt = entry.createdAt;
     turn.ownSeqEnd = entry.sequence;
   };
@@ -402,7 +366,8 @@ export const buildThreadTimeline = (events: readonly StoredThreadEvent[]): Threa
       (left, right) => left.seq - right.seq,
     );
     // own plus children's, not every turn-scoped event: a streaming assistant message is
-    // turn-scoped but lands top-level, and counting it moved this row per token, resending the subtree
+    // turn-scoped but lands top-level, and counting it would move this row per token, resending the
+    // subtree
     let sourceSeqEnd = turn.ownSeqEnd;
     for (const child of children) {
       sourceSeqEnd = Math.max(sourceSeqEnd, child.row.sourceSeqEnd);

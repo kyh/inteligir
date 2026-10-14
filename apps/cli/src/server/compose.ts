@@ -6,7 +6,6 @@
 import { closeConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
-import { defaultHarnessId } from "./agents/agent-driver";
 import type { ResolvedAgentDriver } from "./agents/agent-driver";
 import { AgentPrefsStore } from "./agents/agent-prefs-store";
 import type { AgentAccounts } from "./agents/agent-sign-in";
@@ -37,6 +36,7 @@ import { teardownStep } from "./shutdown";
 import type { ShutdownStep, TeardownStepName } from "./shutdown";
 import { ThreadService } from "./threads/service";
 import { createThreadOrigins } from "./threads/thread-origins";
+import type { ProviderEventSink } from "./threads/turn-driver";
 import { createTurnUndo } from "./threads/turn-undo";
 import { folderExternalSync } from "./vault/folder-facts";
 import { processGit } from "./vault/git-run";
@@ -63,6 +63,7 @@ interface ComposeDriverDeps {
   vault: VaultRuntime;
   folders: FoldersService;
   agentPrefs: AgentPrefsStore;
+  sink: ProviderEventSink;
 }
 
 export interface ComposePorts {
@@ -175,24 +176,12 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   const agentPrefs = new AgentPrefsStore(config.dataDir);
   const connectors = createConnectorsService({
     configs: ports.connectors ?? createVendorMcpConfigs({ cwd: config.dataDir, env: process.env }),
-    defaultHarness: () => defaultHarnessId(agentPrefs.read().defaultHarness ?? null),
+    defaultHarness: () => agentPrefs.defaultHarness(),
   });
   register("connectors", async () => {
     await connectors.dispose();
   });
 
-  const agentDriver = args.driver({
-    agentPrefs,
-    bus,
-    config,
-    db,
-    folders,
-    vault,
-  });
-  register("agent", async () => {
-    await args.accounts.dispose();
-    await agentDriver.dispose();
-  });
   const agents = createAgentsService({
     accounts: args.accounts,
     env: process.env,
@@ -224,9 +213,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   }
   const cloud = createCloudRuntime(cloudArgs);
   cloudRef = cloud;
-  register("cloud", async () => {
-    await cloud.dispose();
-  });
   // an approval is raised by the agent runtime and settled by the thread service or its turn's
   // end; the bus hears every one of them, so a phone-started turn's reaches the phone whoever wrote
   // it. a disposed runtime schedules nothing, so the listener outlives it harmlessly.
@@ -236,11 +222,28 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     }
   });
   const threads = new ThreadService({
-    createTurnDriver: agentDriver.createTurnDriver,
     db,
     notifier: bus,
     origins: createThreadOrigins(vault.service, knowledge),
     sync: cloud,
+  });
+  const { driver: turnDriver, status: agentStatus } = args.driver({
+    agentPrefs,
+    bus,
+    config,
+    db,
+    folders,
+    sink: threads,
+    vault,
+  });
+  threads.attachDriver(turnDriver);
+  register("agent", async () => {
+    await args.accounts.dispose();
+    await turnDriver.dispose?.();
+  });
+  // after the agent's step, so the cloud stops first; it starts nothing before cloud.start().
+  register("cloud", async () => {
+    await cloud.dispose();
   });
   // crash recovery writes (settles turns, frees claims, enqueues), so it runs in boot order, not in the constructor.
   threads.boot();
@@ -269,13 +272,15 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     connectors,
     folders,
     knowledge,
-    recordAgentWrites: agentDriver.recordAgentWrites,
+    recordAgentWrites: (threadId, paths) => {
+      turnDriver.recordAgentWrites?.(threadId, paths);
+    },
     renameNote: async (from: string, to: string) =>
       await renameNoteWithLinkRewrite({ from, knowledge, service: vault.service, to }),
     renameTag: async (from: string, to: string) =>
       await renameTagAcrossVault({ from, knowledge, service: vault.service, to }),
     system: {
-      agent: agentDriver.status,
+      agent: agentStatus,
       dataDir: config.dataDir,
       schemaVersion,
       servesUi: args.servesUi,

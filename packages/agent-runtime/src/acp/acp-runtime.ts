@@ -22,13 +22,12 @@ import type {
   SessionNotification,
   Stream,
 } from "@agentclientprotocol/sdk";
+import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
 import type { HarnessId } from "@repo/domain/harness";
 import type { PendingInteractionResolution } from "@repo/domain/pending-interactions";
 import type {
   AgentRuntime,
   AgentRuntimeOptions,
-  ReapIdleProviderSessionsArgs,
-  ReapIdleProviderSessionsResult,
   ResumeThreadArgs,
   ResumeThreadResult,
   RunTurnArgs,
@@ -41,7 +40,6 @@ import type { ProviderEvent } from "../vocabulary/provider-event.js";
 import { AcpTurnMapper } from "./acp-event-mapping.js";
 import { toApprovalPayload, toPermissionOutcome } from "./acp-permission-mapping.js";
 import { traceFrames } from "./frame-trace.js";
-import { buildThreadShellEnvironment } from "../thread-shell-environment.js";
 import { HARNESSES, VaultConfigRefusedError, harnessHostEnv } from "./harness-registry.js";
 import type { HarnessDefinition, HarnessModels } from "./harness-registry.js";
 import {
@@ -69,13 +67,18 @@ export interface AcpAgentRuntimeOptions extends AgentRuntimeOptions {
   models?: HarnessModels;
   // spawned detached, as `spawnNodeAdapter` does: the teardown kills the adapter's process group,
   // and only a group of its own holds what the adapter starts and nothing of the host's.
-  spawnAdapter?: (
-    harness: HarnessDefinition,
-    env: Record<string, string>,
-    cwd: string,
-  ) => ChildProcessWithoutNullStreams;
+  spawnAdapter?:
+    | ((
+        harness: HarnessDefinition,
+        env: Record<string, string>,
+        cwd: string,
+      ) => ChildProcessWithoutNullStreams)
+    | undefined;
   // every frame traded with an adapter, as `traceFrames` redacts it; absent, nothing is tapped.
   debugLog?: ((line: string) => void) | undefined;
+  // a session with no turn for `afterMs` has its child ended, checked every `everyMs`; absent, none
+  // is.
+  idleSession?: { afterMs: number; everyMs: number } | undefined;
 }
 
 interface AdapterExit {
@@ -100,12 +103,10 @@ export const adapterSpawnEnv = (
   options: AdapterSpawnEnvOptions,
 ): AgentRuntimeShellEnvironment => {
   const env = harnessHostEnv(harness, options.hostEnv);
-  Object.assign(
-    env,
-    options.threadId === null
-      ? options.shellEnv
-      : buildThreadShellEnvironment({ baseShellEnv: options.shellEnv, threadId: options.threadId }),
-  );
+  Object.assign(env, options.shellEnv);
+  if (options.threadId !== null) {
+    env[THREAD_ID_ENV_VAR] = options.threadId;
+  }
   // a value the host already set wins: it names an install the user chose.
   for (const [key, value] of Object.entries(harness.adapterEnv)) {
     env[key] ??= value;
@@ -152,7 +153,8 @@ const killGroup = (child: ChildProcessWithoutNullStreams): void => {
 };
 
 // stdin's end first, on which both pinned adapters stop their own child and exit, where codex-acp's
-// SIGTERM skips that. SIGTERM once the grace passes, then SIGKILL to the group.
+// SIGTERM skips that. SIGTERM once the grace passes, then SIGKILL to the group. A host that dies
+// needs none of this: each adapter leads a group of its own, and the host's death closes its stdin.
 export const terminateAdapter = async (
   child: ChildProcessWithoutNullStreams,
   gone: Promise<unknown>,
@@ -268,7 +270,6 @@ export const openAdapterChannel = (
   return { exited, gone, stream: ndJsonStream(stdinWeb, identity.readable) };
 };
 
-// the host closed the thread while its adapter was still being opened.
 export class ThreadClosedError extends Error {
   constructor(threadId: string) {
     super(`Thread "${threadId}" was closed before its adapter opened`);
@@ -278,7 +279,8 @@ export class ThreadClosedError extends Error {
 
 const CANCELLED_PERMISSION: RequestPermissionResponse = { outcome: { outcome: "cancelled" } };
 
-const whenAborted = async (signal: AbortSignal): Promise<null> => {
+// raced against a request, so the request's own settle always has a handler.
+export const whenAborted = async (signal: AbortSignal): Promise<null> => {
   if (!signal.aborted) {
     await once(signal, "abort");
   }
@@ -394,13 +396,9 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     }
   };
 
-  const kill = async (adapter: AcpAdapter): Promise<void> => {
-    await terminateAdapter(adapter.child, adapter.gone);
-  };
-
   const destroyAdapter = async (adapter: AcpAdapter): Promise<void> => {
     detach(adapter);
-    await kill(adapter);
+    await terminateAdapter(adapter.child, adapter.gone);
   };
 
   const cancelPrompt = async (session: AcpSession, turn: AcpTurn): Promise<void> => {
@@ -434,7 +432,7 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
         delay(ADAPTER_STOP_GRACE_MS, null, { ref: false }),
       ]);
     }
-    await kill(adapter);
+    await terminateAdapter(adapter.child, adapter.gone);
   };
 
   const closeGeneration = (threadId: string): number => closeGenerations.get(threadId) ?? 0;
@@ -596,6 +594,41 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     }
   };
 
+  const reapIdleSessions = async (afterMs: number): Promise<void> => {
+    const nowMs = Date.now();
+    // snapshot: destroyAdapter mutates the map mid-iteration.
+    const live = [...sessions.values()];
+    for (const session of live) {
+      const idleForMs = nowMs - session.idleSinceMs;
+      if (session.turn === null && idleForMs >= afterMs) {
+        await destroyAdapter(session.adapter);
+        const { threadId } = session.adapter;
+        options.onStderr?.(
+          `reaped idle agent session for thread ${threadId} after ${idleForMs}ms`,
+          threadId,
+        );
+      }
+    }
+  };
+
+  const { idleSession } = options;
+  const reapTimer =
+    idleSession === undefined
+      ? null
+      : setInterval(() => {
+          if (shuttingDown) {
+            return;
+          }
+          void (async () => {
+            try {
+              await reapIdleSessions(idleSession.afterMs);
+            } catch (error) {
+              options.onStderr?.(`idle session reaping failed: ${describeProviderError(error)}`);
+            }
+          })();
+        }, idleSession.everyMs);
+  reapTimer?.unref();
+
   const runtime: AgentRuntime = {
     async cancelTurn(threadId: string): Promise<void> {
       const session = sessions.get(threadId);
@@ -610,31 +643,6 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
 
     hasThread(threadId: string): boolean {
       return sessions.has(threadId);
-    },
-
-    async reapIdleProviderSessions(
-      args: ReapIdleProviderSessionsArgs,
-    ): Promise<ReapIdleProviderSessionsResult> {
-      const reaped: ReapIdleProviderSessionsResult["reapedSessions"] = [];
-      // snapshot: destroyAdapter mutates the map mid-iteration.
-      const live = [...sessions.values()];
-      for (const session of live) {
-        if (session.turn !== null) {
-          continue;
-        }
-        const idleForMs = args.nowMs - session.idleSinceMs;
-        if (idleForMs < args.idleForMs) {
-          continue;
-        }
-        await destroyAdapter(session.adapter);
-        reaped.push({
-          idleForMs,
-          providerId: session.adapter.harness.id,
-          providerThreadId: session.providerThreadId,
-          threadId: session.adapter.threadId,
-        });
-      }
-      return { reapedSessions: reaped };
     },
 
     async resumeThread(args: ResumeThreadArgs): Promise<ResumeThreadResult> {
@@ -677,6 +685,9 @@ export const createAcpAgentRuntime = (options: AcpAgentRuntimeOptions): AgentRun
     },
 
     async shutdown(): Promise<void> {
+      if (reapTimer !== null) {
+        clearInterval(reapTimer);
+      }
       shuttingDown = true;
       await Promise.all(
         [...adapters.values()].map(async (adapter) => {

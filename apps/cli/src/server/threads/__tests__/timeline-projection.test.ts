@@ -13,7 +13,6 @@ import type { ThreadTimeline } from "@repo/contract/local/thread-timeline";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type * as BuildThreadTimeline from "../build-thread-timeline";
 import { ThreadService } from "../service";
-import { unavailableTurnDriver } from "../turn-driver";
 import { makeTempDir } from "../../__tests__/temp-dir";
 import { pathOnlyOrigins } from "../../__tests__/path-only-origins";
 
@@ -57,7 +56,6 @@ const openService = () => {
   return {
     db,
     service: new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db,
       notifier: noopNotifier,
       origins: pathOnlyOrigins,

@@ -7,7 +7,6 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { bootThreadHarness } from "../../__tests__/boot-app";
 import type { BootedTestApp } from "../../__tests__/boot-app";
 import { ThreadService } from "../../threads/service";
-import { unavailableTurnDriver } from "../../threads/turn-driver";
 import { createCloudRuntime } from "../sync-runtime";
 import type { CloudRuntime } from "../sync-runtime";
 import { FAKE_ACCOUNT, FakeCloud } from "./fake-cloud";
@@ -71,7 +70,6 @@ const rebootCloud = async (
   });
   runtime.attach(
     new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db: install.db,
       notifier: new NotificationBuffer(),
       origins: pathOnlyOrigins,
@@ -256,7 +254,6 @@ describe("two installs against one account", () => {
     expect(pulled.thread.status).toBe("active");
 
     const rebooted = new ThreadService({
-      createTurnDriver: () => unavailableTurnDriver,
       db: b.db,
       notifier: new NotificationBuffer(),
       origins: pathOnlyOrigins,

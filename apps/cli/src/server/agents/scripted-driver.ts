@@ -7,7 +7,6 @@ import { messageOf } from "../error-message";
 import type { GitEngine } from "../vault/git-engine";
 import type { VaultService } from "../vault/vault-service";
 import type {
-  CreateTurnDriver,
   ProviderEventSink,
   TurnDriver,
   TurnDriverStartArgs,
@@ -26,11 +25,9 @@ export interface ScriptedDriverDeps {
 
 export const scriptedNotePath = (threadId: string): string => `Agent/${threadId}.md`;
 
-class ScriptedTurnDriver implements TurnDriver {
+export class ScriptedTurnDriver implements TurnDriver {
   private readonly sink: ProviderEventSink;
   private readonly deps: ScriptedDriverDeps;
-  // tests await this to know the async tail (write, commit, complete) landed.
-  lastTurn: Promise<void> = Promise.resolve();
 
   constructor(sink: ProviderEventSink, deps: ScriptedDriverDeps) {
     this.sink = sink;
@@ -48,7 +45,7 @@ class ScriptedTurnDriver implements TurnDriver {
       { scope, threadId: args.threadId, type: "turn/started" },
       ...agentMessageEvents({ itemId, scope, text, threadId: args.threadId }),
     ]);
-    this.lastTurn = this.runFileHalf(args, scope);
+    void this.runFileHalf(args, scope);
   }
 
   // a scripted turn has no provider to cancel, and its file half always reports the turn's end.
@@ -115,8 +112,3 @@ class ScriptedTurnDriver implements TurnDriver {
     }
   }
 }
-
-export const createScriptedTurnDriverFactory =
-  (deps: ScriptedDriverDeps): CreateTurnDriver =>
-  (sink) =>
-    new ScriptedTurnDriver(sink, deps);

@@ -31,7 +31,6 @@ import { setMostRecent } from "../evict-oldest";
 import { providerFailureMessage } from "../threads/provider-failure";
 import { TurnDriverUnavailableError } from "../threads/turn-driver";
 import type {
-  CreateTurnDriver,
   ProviderEventSink,
   TurnDriver,
   TurnDriverStartArgs,
@@ -44,8 +43,6 @@ import { toInstructions } from "./agent-instructions";
 import { toShellEnv } from "./agent-shell-env";
 import type { AgentSessionFacts } from "./agent-shell-env";
 import { ProviderEventCoalescer } from "./event-coalescer";
-import { mapProviderEvent } from "./event-mapping";
-import type { PersistedProviderEvent } from "./event-mapping";
 import { createInteractionWaiters } from "./interaction-waiters";
 import type { InteractionWaiters } from "./interaction-waiters";
 import { turnPromptInput } from "./view-context-prompt";
@@ -55,6 +52,10 @@ const instructionsHash = (instructions: string): string =>
 
 const unshippedHarnessDetail = (id: string): string =>
   `This action runs on an agent this copy of inteligir does not have ("${id}") — update inteligir to continue it`;
+
+// the persisted grammar takes every kind the mapper emits but an adapter's notice, which the agent
+// log alone reads until one earns a renderer.
+type PersistedProviderEvent = Exclude<ProviderEvent, { type: "provider/notice" }>;
 
 // the runtime reports a refusal in its adapter's words and the host words it for the person, so
 // the one persisted message names the harness this turn ran on.
@@ -68,8 +69,7 @@ type FileChangeProviderItem = Extract<
   { type: "fileChange" }
 >;
 
-const DEFAULT_REAP_INTERVAL_MS = 60_000;
-const DEFAULT_IDLE_REAP_MS = 10 * 60_000;
+const IDLE_SESSION = { afterMs: 10 * 60_000, everyMs: 60_000 };
 
 // idle time, not wall time: a streaming turn is working and a parked approval has its own clock.
 // what is left is a provider that accepted a turn and went silent, which no other path settles.
@@ -86,7 +86,7 @@ const RESIDENT_INSTRUCTION_HASHES = 512;
 // as a brake to someone watching the vault change.
 const DEFAULT_STOP_GRACE_MS = 5000;
 
-export interface AcpRuntimeManagerDeps {
+export interface AcpTurnDriverDeps {
   db: DbConnection;
   notifier: DbNotifier;
   vaultDir: string;
@@ -104,21 +104,12 @@ export interface AcpRuntimeManagerDeps {
   spawnAdapter?: AcpAgentRuntimeOptions["spawnAdapter"];
   createRuntime?: typeof createAcpAgentRuntime;
   // null disables.
-  reapIntervalMs?: number | null;
-  // null disables.
   turnIdleTimeoutMs?: number | null;
   // how long a cancelled turn has to end itself before its session is closed.
   stopGraceMs?: number;
   onDebug?: (message: string) => void;
   // INTELIGIR_DEBUG's acp trace, beside onDebug's always-on log.
   debugLog?: DebugLog | undefined;
-}
-
-export interface AcpRuntimeManager {
-  createTurnDriver: CreateTurnDriver;
-  // a write the agent made through the server lands in its turn's commit like one its tools reported.
-  recordAgentWrites: (threadId: string, paths: readonly string[]) => void;
-  dispose: () => Promise<void>;
 }
 
 // a started turn the user stopped carries the timer that closes its session if it never ends.
@@ -135,12 +126,11 @@ interface ActiveTurn {
   lastEventAt: number;
 }
 
-class AcpTurnDriver implements TurnDriver {
+export class AcpTurnDriver implements TurnDriver {
   private readonly sink: ProviderEventSink;
-  private readonly deps: AcpRuntimeManagerDeps;
+  private readonly deps: AcpTurnDriverDeps;
   private readonly resolveVaultPath: VaultPathResolver;
-  private runtime: AgentRuntime | null = null;
-  private reapTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly runtime: AgentRuntime;
   private readonly events = new ProviderEventCoalescer((threadId, batch) => {
     this.sink.ingestProviderEvents(threadId, batch);
   });
@@ -152,7 +142,7 @@ class AcpTurnDriver implements TurnDriver {
   private watchdogTimer: ReturnType<typeof setInterval> | null = null;
   private disposed = false;
 
-  constructor(sink: ProviderEventSink, deps: AcpRuntimeManagerDeps) {
+  constructor(sink: ProviderEventSink, deps: AcpTurnDriverDeps) {
     this.sink = sink;
     this.deps = deps;
     this.resolveVaultPath = createVaultPathResolver(deps.vaultDir);
@@ -165,6 +155,25 @@ class AcpTurnDriver implements TurnDriver {
       onWaitSettled: (threadId) => {
         this.noteTurnActivity(threadId);
       },
+    });
+    this.runtime = (deps.createRuntime ?? createAcpAgentRuntime)({
+      debugLog: deps.debugLog,
+      idleSession: IDLE_SESSION,
+      models: deps.models,
+      onActivity: (threadId) => {
+        this.noteTurnActivity(threadId);
+      },
+      onEvent: (event) => {
+        this.onRuntimeEvent(event);
+      },
+      onInteractiveRequest: async (request) => await this.onInteractiveRequest(request),
+      onStderr: (line) => {
+        this.debug(`agent: ${line}`);
+      },
+      // spread: AgentShellEnv is an interface, which a string record does not take.
+      shellEnv: () => ({ ...toShellEnv(deps.sessionFacts(), deps.hostEnv) }),
+      spawnAdapter: deps.spawnAdapter,
+      workspacePath: deps.vaultDir,
     });
     const budgetMs = deps.turnIdleTimeoutMs ?? DEFAULT_TURN_IDLE_TIMEOUT_MS;
     if (deps.turnIdleTimeoutMs !== null) {
@@ -183,59 +192,15 @@ class AcpTurnDriver implements TurnDriver {
     this.deps.onDebug?.(message);
   }
 
-  private ensureRuntime(): AgentRuntime {
-    if (this.disposed) {
-      throw new Error("The agent runtime manager is disposed");
-    }
-    if (this.runtime !== null) {
-      return this.runtime;
-    }
-    const createRuntime = this.deps.createRuntime ?? createAcpAgentRuntime;
-    const runtimeOptions: AcpAgentRuntimeOptions = {
-      debugLog: this.deps.debugLog,
-      onActivity: (threadId) => {
-        this.noteTurnActivity(threadId);
-      },
-      onEvent: (event) => {
-        this.onRuntimeEvent(event);
-      },
-      onInteractiveRequest: async (request) => await this.onInteractiveRequest(request),
-      onStderr: (line) => {
-        this.debug(`agent: ${line}`);
-      },
-      workspacePath: this.deps.vaultDir,
-    };
-    runtimeOptions.shellEnv = () => ({
-      ...toShellEnv(this.deps.sessionFacts(), this.deps.hostEnv),
-    });
-    runtimeOptions.models = this.deps.models;
-    if (this.deps.spawnAdapter !== undefined) {
-      runtimeOptions.spawnAdapter = this.deps.spawnAdapter;
-    }
-    const runtime = createRuntime(runtimeOptions);
-    this.runtime = runtime;
-    const { reapIntervalMs } = this.deps;
-    if (reapIntervalMs !== null) {
-      this.reapTimer = setInterval(() => {
-        void (async () => {
-          try {
-            const result = await runtime.reapIdleProviderSessions({
-              idleForMs: DEFAULT_IDLE_REAP_MS,
-              nowMs: Date.now(),
-            });
-            for (const reaped of result.reapedSessions) {
-              this.debug(
-                `reaped idle agent session for thread ${reaped.threadId} after ${reaped.idleForMs}ms`,
-              );
-            }
-          } catch (error) {
-            this.debug(`idle session reaping failed: ${messageOf(error)}`);
-          }
-        })();
-      }, reapIntervalMs ?? DEFAULT_REAP_INTERVAL_MS);
-      this.reapTimer.unref();
-    }
-    return runtime;
+  // fire and forget: a failure is the agent log's to read, never the caller's to handle.
+  private background(what: string, work: Promise<unknown>): void {
+    void (async () => {
+      try {
+        await work;
+      } catch (error) {
+        this.debug(`${what} failed: ${messageOf(error)}`);
+      }
+    })();
   }
 
   startTurn(args: TurnDriverStartArgs): void {
@@ -275,7 +240,7 @@ class AcpTurnDriver implements TurnDriver {
     try {
       await this.dispatchTurn(args, harness);
     } catch (error) {
-      // a disposed manager leaves its turns to the next boot's recovery; a turn the watchdog settled
+      // a disposed driver leaves its turns to the next boot's recovery; a turn the watchdog settled
       // mid-dispatch is already failed, and failing it here would fail the turn that replaced it.
       if (this.disposed || !this.isDispatching(args)) {
         this.debug(
@@ -297,6 +262,9 @@ class AcpTurnDriver implements TurnDriver {
   // a dispatch resumes after every await into a thread that may have moved on; one whose turn was
   // settled meanwhile stops rather than opening a session or prompting a turn nobody awaits.
   private assertDispatching(args: TurnDriverStartArgs): void {
+    if (this.disposed) {
+      throw new Error("The agent runtime manager is disposed");
+    }
     if (!this.isDispatching(args)) {
       throw new Error(`Turn ${args.turnId} settled before its dispatch finished`);
     }
@@ -306,19 +274,10 @@ class AcpTurnDriver implements TurnDriver {
   // trusted to have kept the instructions it was handed.
   private abandonProviderSession(threadId: string): void {
     this.instructionHashes.delete(threadId);
-    const { runtime } = this;
-    if (runtime === null) {
-      return;
-    }
-    void (async () => {
-      try {
-        await runtime.closeThread(threadId);
-      } catch (error) {
-        this.debug(
-          `closing the provider session for thread ${threadId} failed: ${messageOf(error)}`,
-        );
-      }
-    })();
+    this.background(
+      `closing the provider session for thread ${threadId}`,
+      this.runtime.closeThread(threadId),
+    );
   }
 
   private noteTurnActivity(threadId: string): void {
@@ -359,13 +318,12 @@ class AcpTurnDriver implements TurnDriver {
     // never writes into a rebase's checkout window.
     await this.turnsByThreadId.get(args.threadId)?.writes.ready;
     this.assertDispatching(args);
-    const runtime = this.ensureRuntime();
     // acp's session/new carries no instructions field, so a turn's prompt is the only channel.
-    const instructions = runtime.hasThread(args.threadId)
+    const instructions = this.runtime.hasThread(args.threadId)
       ? undefined
-      : await this.openThreadSession(runtime, args, harness);
+      : await this.openThreadSession(args, harness);
     this.assertDispatching(args);
-    await runtime.runTurn({
+    await this.runtime.runTurn({
       input: turnPromptInput(args, instructions),
       threadId: args.threadId,
       turnId: args.turnId,
@@ -392,7 +350,6 @@ class AcpTurnDriver implements TurnDriver {
   }
 
   private async openThreadSession(
-    runtime: AgentRuntime,
     args: TurnDriverStartArgs,
     providerId: HarnessId,
   ): Promise<string | undefined> {
@@ -400,7 +357,7 @@ class AcpTurnDriver implements TurnDriver {
     const persisted = getThread(this.deps.db, threadId)?.providerThreadId ?? null;
     if (persisted !== null) {
       try {
-        const resumed = await runtime.resumeThread({
+        const resumed = await this.runtime.resumeThread({
           providerId,
           providerThreadId: persisted,
           threadId,
@@ -420,7 +377,7 @@ class AcpTurnDriver implements TurnDriver {
       }
       this.assertDispatching(args);
     }
-    const started = await runtime.startThread({ providerId, threadId });
+    const started = await this.runtime.startThread({ providerId, threadId });
     setThreadProviderSession(this.deps.db, {
       providerId,
       providerThreadId: started.providerThreadId,
@@ -458,24 +415,10 @@ class AcpTurnDriver implements TurnDriver {
     state.phase.stopDeadline.unref();
     // the cancel first: it answers the agent's open permission requests cancelled, and the
     // waiters' deny below only clears the cards.
-    this.cancelProviderTurn(threadId);
+    this.background(`cancelling the turn on thread ${threadId}`, this.runtime.cancelTurn(threadId));
     this.waiters.cancel(threadId);
     interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
     return "settling";
-  }
-
-  private cancelProviderTurn(threadId: string): void {
-    const { runtime } = this;
-    if (runtime === null) {
-      return;
-    }
-    void (async () => {
-      try {
-        await runtime.cancelTurn(threadId);
-      } catch (error) {
-        this.debug(`cancelling the turn on thread ${threadId} failed: ${messageOf(error)}`);
-      }
-    })();
   }
 
   // an agent that never answered the cancel: closing its session is what stops it, and a closed
@@ -542,15 +485,15 @@ class AcpTurnDriver implements TurnDriver {
       this.debug(`adapter notice for thread ${threadId}: ${event.severity}: ${event.message}`);
       return;
     }
-    const mapped = mapProviderEvent(wordFailure(event, state.harness));
+    const persisted: ThreadEvent = wordFailure(event, state.harness);
     if (event.type === "turn/completed") {
       // settle before ingest: the ingest transaction drains the queue and can synchronously
       // dispatch the next turn through startTurn, which must find this one released.
       this.settleTurn(threadId);
-      this.sink.ingestProviderEvents(threadId, [mapped]);
+      this.sink.ingestProviderEvents(threadId, [persisted]);
       return;
     }
-    this.events.push(threadId, mapped);
+    this.events.push(threadId, persisted);
   }
 
   private onTurnStarted(
@@ -565,7 +508,7 @@ class AcpTurnDriver implements TurnDriver {
       return;
     }
     state.phase = { kind: "started", stopDeadline: null };
-    this.events.push(threadId, mapProviderEvent(event));
+    this.events.push(threadId, event);
   }
 
   private vaultPathsOf(changes: FileChangeProviderItem["changes"]): string[] {
@@ -613,15 +556,7 @@ class AcpTurnDriver implements TurnDriver {
     this.turnsByThreadId.delete(threadId);
     this.waiters.cancel(threadId);
     interruptOpenPendingInteractions(this.deps.db, this.deps.notifier, threadId);
-    void this.finishWrites(threadId, state.writes);
-  }
-
-  private async finishWrites(threadId: string, writes: AgentTurnWrites): Promise<void> {
-    try {
-      await writes.finish();
-    } catch (error) {
-      this.debug(`settling the write set for thread ${threadId} failed: ${messageOf(error)}`);
-    }
+    this.background(`settling the write set for thread ${threadId}`, state.writes.finish());
   }
 
   // turn-scoped and classed like a refused prompt's: the settle finds the class on the turn's own
@@ -663,38 +598,11 @@ class AcpTurnDriver implements TurnDriver {
   async dispose(): Promise<void> {
     this.disposed = true;
     this.events.flushAll();
-    if (this.reapTimer !== null) {
-      clearInterval(this.reapTimer);
-      this.reapTimer = null;
-    }
     if (this.watchdogTimer !== null) {
       clearInterval(this.watchdogTimer);
       this.watchdogTimer = null;
     }
     this.waiters.cancel();
-    if (this.runtime !== null) {
-      await this.runtime.shutdown();
-      this.runtime = null;
-    }
+    await this.runtime.shutdown();
   }
 }
-
-export const createAcpRuntimeManager = (deps: AcpRuntimeManagerDeps): AcpRuntimeManager => {
-  let driver: AcpTurnDriver | null = null;
-  return {
-    createTurnDriver: (sink) => {
-      // a second driver over the same manager would leave the first running unreachably and undisposed.
-      if (driver !== null) {
-        throw new Error("createTurnDriver was already called on this runtime manager");
-      }
-      driver = new AcpTurnDriver(sink, deps);
-      return driver;
-    },
-    async dispose() {
-      await driver?.dispose();
-    },
-    recordAgentWrites(threadId, paths) {
-      driver?.recordAgentWrites(threadId, paths);
-    },
-  };
-};
