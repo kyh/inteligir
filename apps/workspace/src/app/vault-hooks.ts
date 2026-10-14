@@ -1,7 +1,6 @@
 // Mutations do not invalidate: the server announces every vault mutation on
 // the ws bus.
 
-import { useCallback } from "react";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import type { RenameResult } from "@repo/editor/note/vault-session";
@@ -297,9 +296,9 @@ export const useSyncNow = (): SyncNowHandle => {
     }),
   );
   const inFlight = useIsMutating({ mutationKey: orpc.vault.syncNow.mutationKey() }) > 0;
-  const syncNow = useCallback((): void => {
+  const syncNow = (): void => {
     mutate();
-  }, [mutate]);
+  };
   return { inFlight, syncNow };
 };
 

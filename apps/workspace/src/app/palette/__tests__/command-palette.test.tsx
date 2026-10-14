@@ -20,7 +20,7 @@ import type {
   KnowledgeProblemsResponse,
   KnowledgeSearchResponse,
 } from "@repo/contract/local/knowledge/knowledge-schema";
-import { ChangeBatch } from "../../workspace-context";
+import { ChangeBatch } from "../../change-batch";
 import type { CommandPalette, PaletteActions, PaletteNote } from "../command-palette";
 import {
   defaultRequest,

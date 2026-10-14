@@ -56,7 +56,7 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   `limit`, no `total`) and fetched only while unfolded. A change sweeps
   `orpc.knowledge.key()` whole, because a link into a note lives in another
   note's bytes, except that `content-changed` skips the vault-wide
-  `knowledge.unlinkedMentions` (`app/workspace-context.tsx`).
+  `knowledge.unlinkedMentions` (`app/change-batch.ts`).
 
 ## Agents and threads
 
@@ -76,7 +76,8 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   rather than missed (`undo-turn.ts`). "Ask agent" seeds the composer through
   the editor host's agent actions (`packages/editor/src/host-io.ts`), so the
   editor never imports the shell.
-  `apps/workspace/src/app/actions/actions-panel.tsx` and `action-composer.tsx`.
+  `apps/workspace/src/app/actions/actions-panel.tsx`, `action-detail.tsx` and
+  `action-composer.tsx`.
 
 ## Desktop workspace surfaces
 
@@ -96,7 +97,8 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   agent's spinner and Settings, because a strip across the whole window was a
   second bar under a rail that already had a bottom; its account row runs the
   one `useCloudSession` (`app/cloud-session.ts`) Settings › Account runs too,
-  and offers Sync now and no second sync for actions, which sync on their own.
+  and offers Sync now and no second sync for actions, which sync on their own
+  (`sidebar/sync-row.tsx`).
   The view is the workspace's (`railView` in `app/prefs.ts`), because a `#tag`
   chip, a create and "Deleted notes…" each switch it. THERE IS NO FOLDER SCOPE:
   the breadcrumb REVEALS rather than narrows, opening the way to that folder in
@@ -169,7 +171,8 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   (`packages/editor/src/host-io.ts`) and lists through the rail's own tree query
   (`apps/workspace/src/app/vault-hooks.ts`). A reconnect sweeps every family the
   bus reaches, which is why no window-focus re-walk backs it up.
-  `apps/workspace/src/app/workspace-context.tsx` and
+  `apps/workspace/src/app/change-batch.ts`, `app/actions/thread-hooks.ts`,
+  `app/workspace-context.tsx`, which flushes the batch per frame, and
   `apps/workspace/src/app/__tests__/changed-message.test.ts`.
 
 - **THE NOTE STORE OWNS THE OPEN NOTE, THE URL MIRRORS IT, AND SETTINGS COVERS A

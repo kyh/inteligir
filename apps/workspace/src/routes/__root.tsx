@@ -1,8 +1,6 @@
 // Mounted above every route so /settings and back keeps the one QueryClient
 // and socket, but not above RouterProvider: RenderCrash is the router's
 // defaultErrorComponent, so a provider outside it throws with no boundary.
-// The confirm and toast hosts live here because a host mounted by one route
-// leaves every other route's confirm() pending forever.
 
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";

@@ -8,7 +8,7 @@ import { THREAD_CHANGE_KINDS, VAULT_CHANGE_KINDS } from "@repo/domain/change-kin
 import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
 import { describe, expect, it, vi } from "vitest";
 import { orpc } from "../api";
-import { ChangeBatch, sweepAfterReconnect } from "../workspace-context";
+import { ChangeBatch, sweepAfterReconnect } from "../change-batch";
 
 interface Applied {
   invalidated: readonly unknown[][];

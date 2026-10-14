@@ -68,7 +68,7 @@ const VOCABULARIES: Vocabulary[] = [
     dispatchedIn: {
       "apps/workspace/src/app/actions/thread-hooks.ts":
         "which kinds move the TIMELINE, and therefore earn a delta fetch — the one thread surface the query sweep does not cover, so a kind nobody weighed here is a row the user never sees; a table rather than a list, because the answer for a new kind is a decision and not a default",
-      "apps/workspace/src/app/workspace-context.tsx":
+      "apps/workspace/src/app/change-batch.ts":
         "which kinds move the cached thread LIST and which move a thread's DETAIL, and therefore earn a refetch — beside the vault kinds' invalidations because this file is the client's one answer to what a frame invalidates, and not in thread-hooks because a streamed turn's events-appended moves neither: refetching both per frame is the cost these tables exist to refuse",
     },
     members: THREAD_CHANGE_KINDS,
@@ -79,7 +79,7 @@ const VOCABULARIES: Vocabulary[] = [
     dispatchedIn: {
       "apps/cli/src/server/vault/vault-runtime.ts":
         "the PRODUCER — the seam where the git engine's status changes and the watcher's batches become kinds on the bus, which is the only place that decides which kind a vault event is",
-      "apps/workspace/src/app/workspace-context.tsx":
+      "apps/workspace/src/app/change-batch.ts":
         "the client's ONE answer to which queries each kind invalidates; a kind weighed nowhere here is a frame the screen ignores",
     },
     members: VAULT_CHANGE_KINDS,

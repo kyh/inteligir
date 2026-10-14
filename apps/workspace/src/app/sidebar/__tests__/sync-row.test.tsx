@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { orpc } from "../../api";
 import { UPDATE_TO_SYNC } from "../../vault-hooks";
 import { createWorkspaceQueryClient } from "../../workspace-context";
-import { SyncRow } from "../sidebar";
+import { SyncRow } from "../sync-row";
 import { stubRpc } from "../../__tests__/rpc-stub";
 
 const SIGNED_OUT: CloudStatusResponse = {

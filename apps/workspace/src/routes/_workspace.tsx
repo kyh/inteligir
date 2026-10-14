@@ -1,7 +1,6 @@
-// A pathless layout, so the workspace stays mounted under Settings: a round trip keeps the open
-// note, its undo history, the composer and zen, and never re-walks the vault. The child draws in
-// a full-window layer here rather than in its own component, so its crash boundary lands in the
-// layer too instead of below a workspace it left inert.
+// CLAUDE.md § THE NOTE STORE OWNS THE OPEN NOTE. The child draws in a full-window layer here
+// rather than in its own component, so its crash boundary lands in the layer too instead of below
+// a workspace it left inert.
 
 import { createFileRoute, Outlet, useMatch, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";

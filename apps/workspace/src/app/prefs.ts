@@ -1,6 +1,4 @@
-// What this window remembers across a reload: one row per stored key, whose schema decodes the
-// stored string and encodes the value back, so a key's reader and its writer cannot disagree on
-// its bytes. Bytes a row cannot decode read as its fallback, like a key never written.
+// CLAUDE.md § A PAGE PREFERENCE IS A ROW
 
 import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "@repo/ui/components/sidebar-core";
 import { parseTheme } from "@repo/ui/lib/theme";
@@ -122,6 +120,7 @@ export const usePref = <Value>(
   row: PagePref<Value, Value>,
 ): readonly [Value, (next: Value) => void] => {
   const [value, setValue] = useState(() => readPref(row));
+  // as stable as useState's own setter: callers hold it in memos that an effect reads
   const choose = useCallback(
     (next: Value): void => {
       writePref(row, next);

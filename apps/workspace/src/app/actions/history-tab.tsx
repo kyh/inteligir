@@ -143,6 +143,7 @@ const RevisionDetail = ({
     retry: false,
   });
   const content = revisionQuery.data?.content ?? null;
+  // by hand: read past the hooks below, so the compiler leaves it bare and re-diffs per render
   const rows = useMemo(
     () => (content === null ? null : diffRows(current, content)),
     [current, content],

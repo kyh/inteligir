@@ -7,20 +7,16 @@ import { defineConfig } from "vite";
 const here = import.meta.dirname;
 const src = path.resolve(here, "src");
 
-// Two pages, each its own build. The app page is what every vault's server answers: the CLI stages
-// it as its UI (apps/cli/scripts/build.ts), and the shell's window loads it from that server's
-// own origin. The first run opens before any server exists, so the shell embeds that page alone
-// (`frontendDist` in apps/desktop/src-tauri/tauri.conf.json) rather than carrying the app page
-// twice.
+// Two builds: the CLI stages the app page for every vault's server to answer
+// (apps/cli/scripts/build.ts), and the shell embeds the first-run page alone (`frontendDist` in
+// apps/desktop/src-tauri/tauri.conf.json), since the first run opens before any server exists.
 const PAGES = {
   app: { input: "index.html", outDir: "dist/app" },
   "first-run": { input: "first-run.html", outDir: "dist/first-run" },
 } as const;
 
-// `tauri dev` waits on it (`devUrl`), and a dev server forwards the app page's files to it
-// (scripts/dev.ts names it to one), so the window or the tab keeps its server's origin and still
-// reloads in place. Clear of `pnpm dev:web`'s pinned 5174: Vite's default search from 5173 walks
-// onto it.
+// fixed because `tauri dev` (`devUrl`) and scripts/dev.ts both name it; clear of `pnpm dev:web`'s
+// pinned 5174, which Vite's default search from 5173 walks onto
 const DEV_PORT = 31_000;
 
 export default defineConfig(({ mode }) => {
