@@ -134,7 +134,7 @@ describe("naming a sync state", () => {
     }
   });
 
-  it.each(["app/sidebar/sidebar.tsx", "app/settings/settings-page.tsx"])(
+  it.each(["app/sidebar/sync-row.tsx", "app/settings/settings-page.tsx"])(
     "%s writes none of the sentences itself",
     (relative) => {
       const source = readFileSync(path.join(REPO_ROOT, "apps/workspace/src", relative), "utf-8");
