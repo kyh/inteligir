@@ -116,7 +116,7 @@ export interface DispatchRuntimeArgs {
   threads: Pick<SyncStore, "snapshotThread" | "snapshotThreads" | "subscribeThreads">;
   // a delivered request, and a running turn's reply, arrive through the log
   pull: () => void;
-  // 16 random bytes as hex: the contract's dispatch id
+  // 16 random bytes as hex: a dispatch's id, and a new thread's
   mintId: () => string;
   // null never polls on a timer
   pollIntervalMs?: number | null;

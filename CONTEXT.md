@@ -50,6 +50,46 @@ meets a concurrent write merges into the buffer and makes no copy
 (`packages/editor/src/vault-editor.ts`), because the person is looking at the
 note and its History holds the rest.
 
+## The phone's write queue
+
+The phone's unsent edits (`apps/mobile/src/notes/vault-outbox.ts`) have five
+words of their own, used across the outbox, the mirror and the reconcile.
+
+**fence** — a check that the sign-in a piece of work began under is still the
+one it may write for (`Fence` in `apps/mobile/src/lib/phone-db.ts`, made by
+`apps/mobile/src/lib/sign-in-fence.ts`). Work reads it after every await, and
+`fencedExclusive` again inside the transaction, so a wipe queued ahead of a
+write wins. A sign-out, a revocation and a new sign-in each make every earlier
+fence fall. Not a lock: nothing waits on a fence, and work under one that fell
+ends without writing.
+
+**settle** — the one change set an outbox row goes as, kept on the row
+(`settle` in `apps/mobile/src/notes/outbox-ops.ts`): a **pin**, or the set
+reconciling a stale one made (`apps/mobile/src/notes/outbox-reconcile.ts`),
+with the vault's version it was reconciled against and the text it was made
+from. A row with no settle goes as its own intent. Not a **turn** settling,
+which is a thread's turn ending, and not a refresh's `settled`
+(`apps/mobile/src/notes/vault-mirror.ts`), which says the tree it listed agrees
+with every write the phone landed since.
+
+**pin** — a text row's first set, kept as its **settle** before it is sent
+(`pinText` in `apps/mobile/src/notes/vault-outbox.ts`): a resend after a lost
+answer is that same set, which the vault answers as already held, and a text
+coalesced meanwhile lands rebased onto it rather than reconciled against the
+phone's own write.
+
+**land** — a set the vault committed, moved into the phone's mirror in the
+transaction that retires its row (`landInMirror` in
+`apps/mobile/src/notes/vault-mirror.ts`), each path it moved stamped so a
+refresh that listed the tree before the landing leaves those rows alone. A
+text written while the set was out stays queued as a write over what landed.
+
+**park** — an outbox row the vault refused for a reason no resend passes, kept
+with its bytes until the user retries it, saves a text or a photo as new, or
+discards it (`PARKING_CODES` in `apps/mobile/src/notes/vault-outbox.ts`). The
+rows on other paths go on, and a row sharing a path with it waits behind it.
+Not unreachable, which stops the whole queue and parks nothing.
+
 ## The agent
 
 The four words below are one chain and are constantly swapped for each other.

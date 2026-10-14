@@ -19,137 +19,23 @@ wire.
 
 ```
 src/
-  sync/         the RN sync client (pure, unit-tested)
-    sync-store.ts          the storage PORT (pull cursor + applied thread log)
-    sqlite-sync-store.ts   its one implementation, in the phone's database: a
-                           planned page (@repo/contract/cloud/sync/plan-page plans
-                           it) lands as one transaction, and a restore reads
-                           the threads back (unit-tested against node:sqlite)
-    sync-runtime.ts        the pull loop over the contract's own session machine
-                           (@repo/contract/cloud/sync/sync-session); publishes the
-                           status store the screens subscribe to (`restoring`
-                           until the boot read ends), lends that session to
-                           every other read under the sign-in, and holds the
-                           account's socket (@repo/contract/cloud/sync/socket-link)
-                           while signed in and in the foreground
-    rn-socket-dial.ts      React Native's WebSocket with the bearer on the
-                           upgrade, the one platform line of the shared opener;
-                           only the app's composition imports it
-    live-turns.ts          what a running turn has streamed and not settled,
-                           folded from the deltas the store drops, in memory
-                           alone
-    thread-projection.ts   fold a thread's events into display rows, its
-                           stated title, its archive, whether a turn is
-                           running and which of the phone's requests it holds,
-                           once per snapshot; the list puts archived threads
-                           last, as the desktop does
-  dispatch/     asking a Mac's agent from the phone (pure, unit-tested against
-                node:sqlite and a fake inbox)
-    dispatch-outbox.ts     the phone's requests, durable in SQLite from the tap
-                           that asks one: the body frozen as sent and the
-                           cloud's last answer
-    dispatch-runtime.ts    sends them under the sync runtime's session, polls
-                           their fate while one waits and the app is in the
-                           foreground, lists and answers a phone-started
-                           turn's approvals, and hands each request to the log
-                           once a pulled request carries its id
-    dispatch-projection.ts what the screens draw beside the log: the pending
-                           rows, a thread only this phone holds so far, the
-                           approval cards, and each state's words
-  credential/   the device credential at rest
-    credential-codec.ts        parse/serialize + the wire pattern
-    secure-store-credential.ts expo-secure-store adapter (Keychain/Keystore)
-                               behind the composition root's CredentialStore,
-                               which keeps the login's bearer alone
+  sync/         the RN client of @repo/contract/cloud's thread sync: the pull loop,
+                the threads in SQLite and a running turn's live fold; rn-socket-dial.ts
+                is its one platform line, which only the app's composition imports
+  dispatch/     asking a Mac's agent: the durable requests, their runtime, and what
+                the screens draw beside the log
+  credential/   the device credential at rest, in the Keychain (expo-secure-store)
   login/        signing this phone in to an account
-    login-store.ts      the screen's state machine (idle | signing-in | failed)
-                        over the contract's login flow
-                        (@repo/contract/cloud/device/login-flow)
-    device-name.ts      the name this phone offers the device list
-  editor/       the note screen's editor: the @repo/mobile-editor page in a
-                WebView, the phone answering its bridge
-    editor-host.ts      the native end of the bridge: frames only from the
-                        page's own document and under its load's nonce, the
-                        one policy for what the WebView may load, the bounded
-                        flush (pure, unit-tested)
-    editor-ports.ts     what the page asks, answered over the notes store and
-                        the file verbs: the guarded write handed to the
-                        store, attachments on demand, the change feed, and
-                        where a page event leads (platform-free, unit-tested
-                        against the fake vault)
-    page-source.ts      the page in the app bundle (page-folder.ts: the
-                        folder's name, which plugins/with-editor-page.js puts
-                        it under)
-  notes/        the vault read surface over the /v1/vault rows
-    vault-mirror.ts     every note's text in SQLite: the tree diffed by oid,
-                        the changed texts fetched in pinned batches (pure over
-                        the SQL port, unit-tested against node:sqlite)
-    notes-store.ts      the listing, reads and the write surface
-                        (shaped like @repo/editor's GuardedVaultPort, plus
-                        rename and putAsset) over the mirror and the outbox,
-                        under the sync runtime's session (pure, unit-tested)
-    vault-outbox.ts     the phone's unsent edits, durable in SQLite and sent
-                        oldest first as change sets (outbox-ops.ts: what a row
-                        holds; outbox-reconcile.ts: a stale set settled with
-                        @repo/notes' reconcileFile; vault-overlay.ts: the rows
-                        laid over the mirror; pure, unit-tested against
-                        node:sqlite and a fake vault that CASes like the Worker)
-    file-ops.ts         create, rename, delete and add a photo over the notes
-                        store, planned with the rules the server runs
-                        (@repo/notes' plan-rename, store-removal, asset-name;
-                        platform-free, unit-tested and run by the scenario suite)
-    comment-ops.ts      add, reply, resolve and delete over the notes store, by
-                        the server's rules (@repo/notes' comment-threads,
-                        comment-key), signed as the user; a new comment's
-                        markers come from the editor page and land with its
-                        entry, and a deleted thread's go through the page's
-                        editor (platform-free, unit-tested and run by the
-                        scenario suite)
-    photo-ingest.ts     the camera or the library → a JPEG at most 2048px on
-                        its long edge, re-encoded without EXIF (the native half;
-                        photo-plan.ts is the pure one: the size, the name, the
-                        embed line)
-    outbox-files.ts     the staged-attachment port, and excludedFromBackup,
-                        which flags its folder out of the iCloud backup before
-                        every stage; expo-outbox-files.ts is its
-                        expo-file-system adapter
-    attachment-files.ts the attachment-file port; expo-attachment-files.ts
-                        is its expo-file-system adapter
-    outbox-notices.ts   the unsent edits that need the user: a parked change
-                        with Retry, Save as new note and Discard, and a
-                        conflict in describeSyncConflict's words (pure,
-                        unit-tested); outbox-banner.tsx draws them above the
-                        list and the open note
-    comments-view.tsx   a note's comment threads in a sheet over the editor,
-                        each with Reply, Resolve (or Reopen) and Delete
-    use-note-editor.ts  the note screen's editor, made once per mount: the
-                        page in the bundle, its ports and the bridge's host,
-                        with the flush on every way out (leaving the screen,
-                        the back gesture's start, the app leaving the
-                        foreground)
-    use-sheet-comments.ts the comments sheet's threads, read each time it
-                        opens, and its edits, which read them again in place
-  lib/          the composition root: compose-runtime.ts (platform-free and
-                unit-tested: the restore, sign-out, revocation and resume)
-                and app-runtime.ts (its binding to the Keychain, the
-                database, the attachment and outbox files, expo-crypto's
-                random ids, SHA-1 and SHA-256, AppState and expo-network's
-                reconnect, plus the hooks); the database: sql-driver.ts (the port),
-                expo-sql-driver.ts (the app's), node-sql-driver.ts (the
-                tests'), phone-db.ts (every table's migrations, run by the
-                driver openPhoneDb wraps before its first call) and
-                backup-exclusion.ts (over modules/backup-exclusion, the one
-                native module this app carries); the external store the
-                runtimes publish through, theme, cloud URL, and routes.ts
-                (every push to a note or a thread and the params it carries)
-  ui/           text-button.tsx: a label that acts, with no frame of its own,
-                sized by the text it sits by, shared by the screens
-  app/          expo-router screens: sign-in, thread list + quick capture, a
-                thread view with its composer, pending requests and approval
-                cards, the notes list (New note; Rename and Delete on a long
-                press) + the note in the editor (Ask agent, Comments and
-                Delete in its header); _layout.tsx holds the splash and the
-                route guard
+  editor/       the @repo/mobile-editor page in a WebView, the phone answering its bridge
+  notes/        the vault on the phone: the mirror, the notes store, the outbox and the
+                file and comment verbs; photo-ingest.ts and the expo-*-files.ts
+                adapters are its native halves
+  lib/          the composition root (compose-runtime.ts, platform-free; app-runtime.ts,
+                its binding to the device), the SQL port with phone-db.ts's
+                migrations, and backup-exclusion.ts over modules/backup-exclusion, the
+                one native module this app carries
+  ui/           controls the screens share
+  app/          expo-router screens; _layout.tsx holds the splash and the route guard
 plugins/        with-editor-page.js: the built page into the app bundle
 ```
 

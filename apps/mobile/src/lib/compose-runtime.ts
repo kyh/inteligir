@@ -35,26 +35,20 @@ export interface CredentialStore {
 
 export interface ComposeRuntimeArgs {
   cloudUrl: string;
-  // what this app says it is on every request, its sign-in's included
   build: ClientBuild;
   credentials: CredentialStore;
-  // opened once for the app's life; a restore keeps what it holds, every other sign-in wipes it
+  // openPhoneDb's, opened once for the app's life; a restore keeps what it holds, every other
+  // sign-in wipes it
   db: SqlDriver;
   attachments: AttachmentFiles;
   outboxFiles: OutboxFiles;
   sha1: Sha1;
-  // the name the phone signs in as, which its conflict reports and copies go by
   deviceName: string;
-  // 16 random bytes as hex: a dispatch's id and a new thread's
   mintId: () => string;
-  // the phone's random bytes, which a comment reply's id is minted from
   randomBytes: (length: number) => Uint8Array;
-  // a note's new frontmatter id, uuid-shaped, for its first comment made here
   mintNoteId: () => string;
   sync?: Omit<SyncRuntimeArgs, "build" | "cloudUrl" | "onDispatchPing" | "onVaultPing" | "store">;
-  // the first wait after a failed send of the phone's edits; null never retries on a timer
-  retryBaseMs?: number | null;
-  // how often a waiting request's fate is asked; null never polls on a timer
+  retryBaseMs?: CreateNotesStoreArgs["retryBaseMs"];
   dispatchPollIntervalMs?: DispatchRuntimeArgs["pollIntervalMs"];
 }
 

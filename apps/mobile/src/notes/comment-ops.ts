@@ -1,8 +1,5 @@
-// The phone's comment verbs over the notes store, each an edit of the note's comment store by the
-// rules the server runs (@repo/notes/comments/comment-threads), signed as the user. A new comment
-// is the editor page's: its markers are already in the note's text, which lands in the same change
-// set as its entry. A deleted thread's markers are the page's to take out, as the desktop's editor
-// takes them once its server answers. Platform-free: the scenario suite runs it under node.
+// Each verb edits the note's comment store by the rules the server runs
+// (@repo/notes/comments/comment-threads). Platform-free: the scenario suite runs it under node.
 
 import {
   addReply,

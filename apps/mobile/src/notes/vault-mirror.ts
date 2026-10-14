@@ -1,9 +1,6 @@
-// every note's text, held on the phone in SQLite so the notes open offline. A refresh diffs the
-// hosted tree against the rows by blob oid and fetches only what changed, forty paths to a request
-// pinned to the listing's commit. The mirrored commit advances only once every wanted row holds its
-// text, so a refresh cut short resumes from the rows still empty. A write the phone lands moves its
-// rows at once and stamps them, and a refresh that listed the tree before that landing leaves them
-// alone. Pure over the SQL port and the cloud client; the store decides what the screens see.
+// A refresh diffs the hosted tree against the rows by blob oid and fetches only what changed, forty
+// paths to a request pinned to the listing's commit. Pure over the SQL port and the cloud client;
+// the store decides what the screens see.
 
 import { z } from "zod";
 import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
@@ -177,7 +174,6 @@ const movedRowSchema = z.object({
   size: z.number(),
 });
 
-// what the resolver reads off a note: its frontmatter id and aliases
 export const noteFactsOf = (content: string): NoteFacts => {
   const yaml = frontmatterYaml(content);
   const properties = yaml === null ? null : parseProperties(yaml);
@@ -190,7 +186,6 @@ const payloadOf = (content: string): TextPayload => {
   return { aliases: JSON.stringify(facts.aliases), content, note_id: facts.noteId };
 };
 
-// a note or a comment store: a file whose text the phone reads
 export const holdsText = (path: string): boolean => isDocPath(path) || isCommentsStorePath(path);
 
 const wantsText = (entry: Pick<TreeEntry, "path" | "size">): boolean =>
@@ -460,8 +455,7 @@ export const landOnRows = (
   return [...byPath.values()].toSorted((a, b) => (a.path < b.path ? -1 : 1));
 };
 
-// the rows a landed write leaves, stamped so a refresh listed before it cannot put them back. Runs
-// inside the caller's transaction, beside the outbox rows it settles.
+// runs inside the caller's transaction, beside the outbox rows it retires
 export const landInMirror = async (
   tx: SqlExecutor,
   landings: readonly MirrorLanding[],

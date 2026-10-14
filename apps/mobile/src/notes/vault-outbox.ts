@@ -1,10 +1,6 @@
-// the phone's writes, durable in its database before a write resolves, sent to the hosted vault
-// oldest first, one change set per row, through the guarded route. A row the vault refuses as stale
-// is settled here with the desktop's own verdict (outbox-reconcile.ts), and that settle is kept on
-// the row before it is sent, so an answer lost after the vault applied it is resent as the same set,
-// which the vault answers as already held. A landing moves the mirror's rows in the transaction that
-// retires the row. Unreachable stops the queue and keeps it; a refusal no resend passes parks that
-// row with its bytes and lets the rows on other paths go; nothing here ever drops the user's text.
+// A row the vault refuses as stale is settled with the desktop's own verdict (outbox-reconcile.ts),
+// and that settle is kept on the row before it is sent, so an answer lost after the vault applied it
+// is resent as the same set, which the vault answers as already held.
 
 import { z } from "zod";
 import { base64FromBytes, utf8ByteLength } from "@repo/contract/cloud/bytes";
@@ -51,7 +47,7 @@ const MAX_SETS_PER_PASS = 25;
 
 const MAX_RETRY_MS = 5 * 60 * 1000;
 
-// refusals no resend passes: the row parks and the rows on other paths go on
+// the refusals that park a row, each with the words its notice says
 const PARKING_CODES: ReadonlyMap<CloudErrorCode, string> = new Map([
   ["file-too-large", "This is too large to save to your vault from your phone."],
   ["bad-request", "Your vault could not take this change."],
@@ -219,7 +215,7 @@ const parkedOf = (row: OutboxRow, reason: string): ParkedChange => {
 const textPut = (op: TextOp): VaultChangeRequest =>
   putText(op.path, op.op === "write" ? op.baseOid : null, op.content);
 
-// the one put of a text row's own text, kept as a settle is while the vault may hold it
+// what a pin keeps as a text row's settle
 const firstSetOf = (op: TextOp): Settle => ({
   against: null,
   changes: [textPut(op)],
@@ -487,7 +483,6 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     };
   };
 
-  // the landings and the row's retirement are one transaction; a text written since stays queued
   const settleRow = async (
     fence: Fence,
     row: OutboxRow,
@@ -714,10 +709,6 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     fence: Fence,
     queued: OutboxRow,
   ): Promise<SendOutcome> => {
-    // a text row's first set is kept on the row as a settle is, before it is sent: a resend after
-    // a lost answer is then that same set, which the vault answers as already held, and a text
-    // coalesced meanwhile lands rebased onto it rather than reconciled against the phone's own
-    // write
     const pinned =
       queued.settle === null && isTextOp(queued.op)
         ? await pinText(fence, queued, (now) => now.settle !== null)

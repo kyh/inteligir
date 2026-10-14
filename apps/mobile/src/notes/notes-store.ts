@@ -28,7 +28,7 @@ import { blobOid, isTextOp, leavesAt, opPaths, rebaseEdit, textBlobOid } from ".
 import type { CommentOp, GuardedText, OutboxRow, Sha1, VaultOp } from "./outbox-ops";
 import type { OutboxFiles } from "./outbox-files";
 import { createVaultOutbox, STAGED_FILE_GONE } from "./vault-outbox";
-import type { OutboxStatus } from "./vault-outbox";
+import type { CreateVaultOutboxArgs, OutboxStatus } from "./vault-outbox";
 import { landOnRows, createVaultMirror } from "./vault-mirror";
 import type { MirrorLanding, MirrorProgress, MirrorRow, MirrorText } from "./vault-mirror";
 import { overlayEntries } from "./vault-overlay";
@@ -126,7 +126,6 @@ export type CommentEditOutcome =
   | { kind: "vanished" }
   | { kind: "refused"; message: string };
 
-// a listed file with the frontmatter facts its held text carries
 export interface HeldFile {
   path: string;
   noteId: string | null;
@@ -198,12 +197,10 @@ export interface CreateNotesStoreArgs {
   attachments: AttachmentFiles;
   outboxFiles: OutboxFiles;
   sha1: Sha1;
-  // the name this phone's conflict reports and copies go by
   deviceName: string;
   // a note's new frontmatter id, uuid-shaped, for its first comment made here
   mintNoteId: () => string;
-  // the first wait after a failed send, doubling; null never retries on a timer
-  retryBaseMs?: number | null;
+  retryBaseMs?: CreateVaultOutboxArgs["retryBaseMs"];
 }
 
 const storageMessage = (cause: unknown): string =>
@@ -236,9 +233,7 @@ const versionOf = (entry: OverlayEntry | undefined): string => {
 const lastRowOn = (rows: readonly OutboxRow[], path: string): OutboxRow | undefined =>
   rows.findLast((row) => opPaths(row.op).includes(path));
 
-// every await is followed by a fence: the session's, so a response from an earlier sign-in or one
-// the cloud has since refused never lands, and a wipe generation, so a write started before a
-// sign-out or a revocation never lands either.
+// every await is followed by the sign-in's fence
 export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   const { attachments, session } = args;
   const mirror = createVaultMirror(args.db);

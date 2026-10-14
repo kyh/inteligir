@@ -42,7 +42,6 @@ export interface EditorPortsArgs {
   fileOps: FileOps;
   comments: CommentOps;
   pickImage: () => Promise<PhotoIngest>;
-  // a file the phone holds, as base64
   readBase64: (uri: string) => Promise<string>;
   revisionOf: (content: string) => Promise<string>;
   newThreadId: () => string;

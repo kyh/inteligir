@@ -1,5 +1,4 @@
-// a row the vault refused as stale, settled with the desktop's own verdict: `reconcileFile` from
-// @repo/notes decides what each path holds and names any copy, and this module only turns its
+// `reconcileFile` decides what each path holds and names any copy; this module only turns its
 // answer into the one change set the phone sends next. Every round reconciles the row's intent
 // against the newest conflict, so a head that moved again is met again.
 
