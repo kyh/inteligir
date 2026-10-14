@@ -1,7 +1,7 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
@@ -14,7 +14,7 @@ import { parseRemoteUrl, VAULT_REMOTE_PIN_ENV_VAR } from "@repo/contract/local/v
 import { DEBUG_NAMESPACES, parseDebugNamespaces } from "./debug-log";
 import type { DebugNamespace } from "./debug-log";
 import { resolveDevDefaultPort, resolveDevInstanceId } from "./dev-instance";
-import { errnoCode } from "./errno";
+import { readJsonFile } from "./json-file-store";
 import { assertVaultAndDataDirDisjoint } from "./path-containment";
 import { stagedWriteFileSync } from "./staged-write";
 import type { SlowReads } from "./vault/slow-reads";
@@ -289,28 +289,26 @@ const managedConfigFileSchema = managedConfigSchema.loose();
 
 const readManagedConfigFile = (dataDir: string): z.infer<typeof managedConfigFileSchema> => {
   const configPath = path.join(dataDir, CONFIG_FILE_NAME);
-  let raw: string;
-  try {
-    raw = readFileSync(configPath, "utf-8");
-  } catch (error) {
-    if (errnoCode(error) === "ENOENT") {
+  const read = readJsonFile(configPath, managedConfigFileSchema);
+  switch (read.kind) {
+    case "ok": {
+      return read.value;
+    }
+    case "absent": {
       return {};
     }
-    throw error;
+    case "unreadable": {
+      throw read.error;
+    }
+    case "malformed": {
+      throw new Error(
+        read.issue === "json"
+          ? `${configPath} is not valid JSON`
+          : `${configPath} does not match the ${CONFIG_FILE_NAME} shape:\n${z.prettifyError(read.error)}`,
+      );
+    }
+    // no default
   }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error(`${configPath} is not valid JSON`);
-  }
-  const verdict = managedConfigFileSchema.safeParse(parsed);
-  if (!verdict.success) {
-    throw new Error(
-      `${configPath} does not match the ${CONFIG_FILE_NAME} shape:\n${z.prettifyError(verdict.error)}`,
-    );
-  }
-  return verdict.data;
 };
 
 type ManagedConfig = z.infer<typeof managedConfigSchema>;

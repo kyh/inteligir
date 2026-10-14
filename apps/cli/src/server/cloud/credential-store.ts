@@ -2,12 +2,12 @@
 // vault (a git repo pushed to a remote the user chose). the mode is re-applied
 // on every write: writeFileSync's mode is ignored for an existing file.
 
-import { readFileSync, rmSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { stagedWriteFileSync } from "../staged-write";
 import nodePath from "node:path";
 import { deviceLoginResponseSchema } from "@repo/contract/cloud/device/device-schema";
 import { z } from "zod";
-import { errnoCode } from "../errno";
+import { readJsonFile } from "../json-file-store";
 
 export const DEVICE_CREDENTIAL_FILE_NAME = "device-credential";
 
@@ -26,23 +26,11 @@ export const deviceCredentialPath = (dataDir: string): string =>
   nodePath.join(dataDir, DEVICE_CREDENTIAL_FILE_NAME);
 
 export const readDeviceCredential = (dataDir: string): DeviceCredential | null => {
-  let raw: string;
-  try {
-    raw = readFileSync(deviceCredentialPath(dataDir), "utf-8");
-  } catch (error) {
-    if (errnoCode(error) === "ENOENT" || errnoCode(error) === "EACCES") {
-      return null;
-    }
-    throw error;
+  const read = readJsonFile(deviceCredentialPath(dataDir), storedCredentialSchema);
+  if (read.kind === "unreadable" && read.code !== "EACCES") {
+    throw read.error;
   }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  const result = storedCredentialSchema.safeParse(parsed);
-  return result.success ? result.data : null;
+  return read.kind === "ok" ? read.value : null;
 };
 
 // the only plaintext copy anywhere: a torn write reads back as "never signed in".

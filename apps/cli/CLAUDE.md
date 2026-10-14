@@ -10,9 +10,11 @@ The server process, its credential and boot, and the binary around it.
 leaf that is a client of a running one. Every leaf takes `--json` and is
 EXECUTED by the fitness test against the refusal path, except the rows in
 `EXCLUDED_COMMANDS` (`apps/cli/src/__tests__/json-flag-enforcement.test.ts`),
-each with its reason. Every app-written file in the data dir is a
-`json-file-store.ts` over `staged-write.ts`; `config.json` is read at boot and
-never written by the app except its `vaultDir`, the selector a switch rewrites
+each with its reason. Every app-written JSON file in the data dir is read
+through `readJsonFile` in `json-file-store.ts` and written through
+`staged-write.ts`, and `JsonFileStore` is the per-use store over the two;
+`config.json` is read at boot and never written by the app except its
+`vaultDir`, the selector a switch rewrites
 (`apps/cli/src/server/vault-switch.ts`). The build inlines every workspace
 package (they export TS source) and stages as content the migrations, the
 dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.

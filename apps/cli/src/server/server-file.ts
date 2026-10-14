@@ -3,11 +3,11 @@
 // shutdown; a crash leaves it behind on purpose, so the dial fails rather than
 // looking like "never started".
 
-import { chmodSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
-import { errnoCode } from "./errno";
+import { readJsonFile } from "./json-file-store";
 import { LOOPBACK_HOST } from "./loopback-origin";
 import { stagedWriteFileSync } from "./staged-write";
 
@@ -43,29 +43,17 @@ const serverFilePath = (dataDir: string): string => path.join(dataDir, SERVER_FI
 export const mintServerToken = (): string => randomBytes(TOKEN_BYTES).toString("base64url");
 
 export const writeServerFile = (dataDir: string, value: ServerFile): void => {
-  mkdirSync(dataDir, { recursive: true });
   stagedWriteFileSync(serverFilePath(dataDir), `${JSON.stringify(value, null, 2)}\n`, {
     mode: SERVER_FILE_MODE,
   });
-  chmodSync(serverFilePath(dataDir), SERVER_FILE_MODE);
 };
 
 export const readServerFile = (dataDir: string): ServerFile | null => {
-  let raw: string;
-  try {
-    raw = readFileSync(serverFilePath(dataDir), "utf-8");
-  } catch (error) {
-    const code = errnoCode(error);
-    if (code === "ENOENT" || code === "EACCES") {
-      return null;
-    }
-    throw error;
+  const read = readJsonFile(serverFilePath(dataDir), serverFileSchema);
+  if (read.kind === "unreadable" && read.code !== "EACCES") {
+    throw read.error;
   }
-  try {
-    return serverFileSchema.parse(JSON.parse(raw));
-  } catch {
-    return null;
-  }
+  return read.kind === "ok" ? read.value : null;
 };
 
 // only this boot's own row: a row minted by another boot is that server's address, not ours to retract.
