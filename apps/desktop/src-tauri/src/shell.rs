@@ -7,6 +7,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use tauri::{AppHandle, Manager};
@@ -271,6 +272,20 @@ fn working_dir(bundled: bool, node: &NodeRuntime) -> PathBuf {
         .map_or_else(|| PathBuf::from("/"), Path::to_path_buf)
 }
 
+/// What a vault's server runs: the door's entry, pinned to the target's vault so a selector
+/// rewritten since cannot move it. The data dir is the CLI's to derive from the root and that
+/// vault, as the target's was: a pinned one is the root too, and the child would read config.json
+/// from the vault's own dir, where nothing writes one.
+fn server_command(door: &Door, target: &Target, debug: bool) -> Command {
+    let mut args = vec!["serve"];
+    if debug {
+        args.push("--debug");
+    }
+    let mut command = door.command(&args);
+    command.env(VAULT_DIR_ENV_VAR, &target.vault_dir);
+    command
+}
+
 /// Said once and fatal: the app has nothing to show without a vault.
 fn fail_start(app: &AppHandle, reason: &str) {
     eprintln!("[desktop] Inteligir failed to start: {reason}");
@@ -355,16 +370,7 @@ pub fn boot_vault(app: &AppHandle, target: Target, path: &str) -> Result<(), Str
     let launched = shell.launched()?;
     let door = &launched.door;
     let debug = shell.debug_choice();
-    let mut args = vec!["serve"];
-    if debug {
-        args.push("--debug");
-    }
-    let mut command = door.command(&args);
-    // pinned to the target's vault, so a selector rewritten since cannot move it. Never the data
-    // dir, which the CLI derives from the root and that vault as the target's was: a pinned one is
-    // the root too, and the child would read config.json from the vault's own dir, where nothing
-    // writes one
-    command.env(VAULT_DIR_ENV_VAR, &target.vault_dir);
+    let mut command = server_command(door, &target, debug);
     // under `tauri dev` the server answers the page's files from Vite, so an edit reloads in place
     // while the window keeps its server's origin (apps/cli/src/server/ui-dev-server.ts)
     if tauri::is_dev()
@@ -741,6 +747,8 @@ pub fn open_in_browser(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsStr;
+
     use super::*;
     use crate::launch::Proposal;
 
@@ -773,6 +781,47 @@ mod tests {
             server: Server::Adopted,
             window: "vault-1".to_owned(),
         })
+    }
+
+    fn door_with(env: &[(&str, &str)]) -> Door {
+        Door {
+            runtime: NodeRuntime {
+                node: PathBuf::from("/bin/node"),
+                cli_dir: PathBuf::from("/cli"),
+            },
+            env: env
+                .iter()
+                .map(|&(name, value)| (name.into(), value.into()))
+                .collect(),
+            cwd: PathBuf::from("/h"),
+        }
+    }
+
+    fn env_of<'a>(command: &'a Command, name: &str) -> Option<&'a OsStr> {
+        command
+            .get_envs()
+            .find_map(|(key, value)| (key == name).then_some(value).flatten())
+    }
+
+    #[test]
+    fn a_vault_s_server_is_pinned_to_its_vault_and_left_to_derive_its_data_dir() {
+        let door = door_with(&[("PATH", "/usr/bin")]);
+        let command = server_command(&door, &target("/h/Notes"), false);
+        assert_eq!(
+            env_of(&command, VAULT_DIR_ENV_VAR),
+            Some(OsStr::new("/h/Notes"))
+        );
+        assert_eq!(env_of(&command, "PATH"), Some(OsStr::new("/usr/bin")));
+        assert_eq!(env_of(&command, DATA_DIR_ENV_VAR), None);
+
+        let pinned = door_with(&[(DATA_DIR_ENV_VAR, "/pin")]);
+        assert_eq!(
+            env_of(
+                &server_command(&pinned, &target("/h/Notes"), false),
+                DATA_DIR_ENV_VAR
+            ),
+            Some(OsStr::new("/pin"))
+        );
     }
 
     #[test]

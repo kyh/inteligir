@@ -93,7 +93,7 @@ describe("resolveServerTarget", () => {
     if (resolved.kind !== "resolved") {
       throw new Error(resolved.error);
     }
-    // what the shell pins on a vault's server (`boot_vault` in apps/desktop/src-tauri/src/shell.rs)
+    // what the shell pins on a vault's server (`server_command` in apps/desktop/src-tauri/src/shell.rs)
     const env = { ...PACKAGED, [VAULT_DIR_ENV_VAR]: resolved.target.vaultDir };
     const child = resolveServerTarget({ env, homeDir });
     expect(child.kind === "resolved" && child.target.dataDir).toBe(resolved.target.dataDir);
