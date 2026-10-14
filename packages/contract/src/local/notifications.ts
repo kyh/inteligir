@@ -6,7 +6,6 @@ import {
   VAULT_CHANGE_KINDS,
 } from "@repo/domain/change-kinds";
 import { z } from "zod";
-import { assertUnreachable } from "./assert-unreachable";
 
 export const realtimeSubscriptionTargetSchema = z.discriminatedUnion("kind", [
   z.strictObject({
@@ -38,19 +37,7 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
-export const realtimeSubscriptionTargetKey = (target: RealtimeSubscriptionTarget): string => {
-  switch (target.kind) {
-    case "vault": {
-      return "vault";
-    }
-    case "thread-list": {
-      return "thread-list";
-    }
-    default: {
-      return assertUnreachable(target);
-    }
-  }
-};
+export type SubscriptionKey = RealtimeSubscriptionTarget["kind"];
 
 // `strict` types the server's outgoing broadcasts and is what the bus's tests parse them with;
 // nothing parses a broadcast at runtime. a client must not parse inbound traffic with it, or a
@@ -136,21 +123,16 @@ export const serverMessageLenientSchema = z.union([
   changedMessageLenientSchema,
 ]);
 
-const VAULT_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "vault" });
-const THREAD_LIST_TARGET_KEY = realtimeSubscriptionTargetKey({ kind: "thread-list" });
-
 // `vault` is the doc list target: a doc change reaches it too
-export const subscriptionKeysForMessage = (message: ChangedMessage): string[] => {
+export const subscriptionKeysForMessage = (message: ChangedMessage): SubscriptionKey[] => {
   switch (message.entity) {
     case "vault":
     case "doc": {
-      return [VAULT_TARGET_KEY];
+      return ["vault"];
     }
     case "thread": {
-      return [THREAD_LIST_TARGET_KEY];
+      return ["thread-list"];
     }
-    default: {
-      return assertUnreachable(message);
-    }
+    // no default
   }
 };
