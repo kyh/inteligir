@@ -93,8 +93,8 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   booted suites call the same composition. `ThreadService.boot()` is called from
   it because crash recovery writes. The seams: `vault/git-run` / `git-porcelain`
   / `git-refs` / `git-bootstrap` / `git-commits` / `git-engine`;
-  `cloud/sync-pass` / `sync-cadence` (the socket link is the client core's,
-  shared with the phone);
+  `cloud/sync-pass` / `sync-cadence` / `account-calls` (the socket link is the
+  client core's, shared with the phone);
   `agents/interaction-waiters` beside a watchdog that sweeps per-turn timestamps
   rather than re-arming a timer per frame; `writeTransaction` in
   `@repo/db/connection` as the one spelling of `BEGIN IMMEDIATE`. `serve.ts`

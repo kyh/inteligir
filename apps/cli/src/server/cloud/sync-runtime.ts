@@ -5,11 +5,9 @@
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import { createCloudClient, describeCloudFailure } from "@repo/contract/cloud/client";
 import type {
-  CloudClient,
   CloudEndpoint,
   CloudFailure,
   CloudFetch,
-  CloudResult,
   CreateCloudClientArgs,
 } from "@repo/contract/cloud/client";
 import { normalizeDeviceName } from "@repo/contract/cloud/device/device-schema";
@@ -18,12 +16,11 @@ import type {
   DeviceCredentialStore,
   LoginOutcome as DeviceLoginOutcome,
 } from "@repo/contract/cloud/device/login-flow";
-import { CREDENTIAL_REFUSED_CODES, SYNC_TERMINAL_CODES } from "@repo/contract/cloud/errors";
-import type { CloudErrorCode } from "@repo/contract/cloud/errors";
+import { CREDENTIAL_REFUSED_CODES } from "@repo/contract/cloud/errors";
 import type { CloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
 import { createSocketLink } from "@repo/contract/cloud/sync/socket-link";
 import { createSingleFlight, createSyncSession } from "@repo/contract/cloud/sync/sync-session";
-import type { SyncOutcome, SyncSession } from "@repo/contract/cloud/sync/sync-session";
+import type { SyncOutcome } from "@repo/contract/cloud/sync/sync-session";
 import type { DbConnection, DbTransaction } from "@repo/db/connection";
 import {
   countSyncOutbox,
@@ -37,12 +34,13 @@ import type { ThreadEvent } from "@repo/domain/provider-event";
 import type {
   CloudDevicesResponse,
   CloudLoginRequest,
-  CloudRevokeDeviceResponse,
   CloudSignUpRequest,
   CloudStatusResponse,
 } from "@repo/contract/local/cloud/cloud-schema";
 import type { DebugLog } from "../debug-log";
 import { messageOf } from "../error-message";
+import { createAccountCalls, SHUTTING_DOWN } from "./account-calls";
+import type { AccountCallOutcome, RevokeDeviceOutcome } from "./account-calls";
 import {
   clearDeviceCredential,
   readDeviceCredential,
@@ -95,25 +93,6 @@ export interface CloudRuntimeArgs {
 export type LoginOutcome =
   | { kind: "logged-in"; status: CloudStatusResponse }
   | Extract<DeviceLoginOutcome, { kind: "refused" }>;
-
-// a call a person asks of the account over this device's live sign-in. `not-live`: none to ask
-// with, or the cloud refused its credential just now, which ends the session as a pass's refusal would
-type AccountCallOutcome<TValue> =
-  | { kind: "answered"; value: TValue }
-  | { kind: "not-live"; message: string }
-  | { kind: "failed"; failure: CloudFailure };
-
-type RevokeDeviceOutcome = AccountCallOutcome<CloudRevokeDeviceResponse> | { kind: "this-device" };
-
-const NOT_SIGNED_IN = "This Mac isn't signed in to an account.";
-const SIGNED_OUT_BY_ACCOUNT = "This Mac was signed out of your account.";
-const SIGN_IN_CHANGED = "This Mac's sign-in changed while that was asked. Try again.";
-const UPDATE_TO_SYNC = "This version of Inteligir can't sync anymore. Update it to keep syncing.";
-const SHUTTING_DOWN: CloudFailure = { kind: "unreachable", message: "This app is shutting down." };
-
-// what a terminal refusal of a call a person asked says: a sign-in ended, or a build the cloud refuses
-const endedBecause = (code: CloudErrorCode): string =>
-  code === "client-outdated" ? UPDATE_TO_SYNC : SIGNED_OUT_BY_ACCOUNT;
 
 export interface CloudRuntime {
   status: () => CloudStatusResponse;
@@ -325,37 +304,6 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     return outcome;
   };
 
-  // over the session's own client, fenced like a pass: an answer that lands after a sign-out or a
-  // sign-in may speak for an account this device has left, and only a terminal refusal reaches
-  // recordFailure, since any other is this call's alone and not the sync's last error
-  const accountCall = async <TValue>(
-    call: (live: {
-      client: CloudClient;
-      credential: DeviceCredential;
-    }) => Promise<CloudResult<TValue>>,
-  ): Promise<AccountCallOutcome<TValue>> => {
-    const current = session.current();
-    if (!disposed && current.kind === "outdated") {
-      return { kind: "not-live", message: UPDATE_TO_SYNC };
-    }
-    if (disposed || current.kind !== "live") {
-      return { kind: "not-live", message: NOT_SIGNED_IN };
-    }
-    const result = await call(current);
-    if (!sessionAlive(current.id)) {
-      return { kind: "not-live", message: SIGN_IN_CHANGED };
-    }
-    if (result.ok) {
-      return { kind: "answered", value: result.value };
-    }
-    const { failure } = result;
-    if (failure.kind === "refused" && SYNC_TERMINAL_CODES.has(failure.code)) {
-      recordFailure(failure);
-      return { kind: "not-live", message: endedBecause(failure.code) };
-    }
-    return { failure, kind: "failed" };
-  };
-
   const passDeps: SyncPassDeps = {
     build: args.build,
     db: args.db,
@@ -490,85 +438,19 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
     return status();
   };
 
-  // its own client, as a sign-out's: the deletion revokes this very credential first, and a pass
-  // that meets it ends the session, which aborts every request the session's client carries
-  const deleteAbort = new AbortController();
-  // the credential a deletion went out on whose answer never came back: the cloud may have
-  // carried it out, and then a retry meets only that deletion's own revocation
-  let unansweredDelete: string | null = null;
-
-  // no sign-out: every device row went with the account, so none is left to revoke
-  const forgetDeletedAccount = (): CloudStatusResponse => {
-    unansweredDelete = null;
-    revokeError = null;
-    return forgetSignIn();
-  };
-
-  const deleteFromLiveSession = async (
-    asked: Extract<SyncSession<DeviceCredential>, { kind: "live" }>,
-    password: string,
-  ): Promise<AccountCallOutcome<CloudStatusResponse>> => {
-    const retried = asked.credential.credential === unansweredDelete;
-    const client = createCloudClient(clientArgs(asked.credential.credential, deleteAbort.signal));
-    const result = await client.deleteAccount(password);
-    if (disposed) {
-      return { failure: SHUTTING_DOWN, kind: "failed" };
-    }
-    const now = session.current();
-    // live still, or refused since by a pass that met the deletion's own revocation
-    const sameSignIn =
-      now.kind !== "off" && now.credential.credential === asked.credential.credential;
-    if (result.ok) {
-      return sameSignIn
-        ? { kind: "answered", value: forgetDeletedAccount() }
-        : { kind: "answered", value: status() };
-    }
-    const { failure } = result;
-    if (failure.kind !== "refused") {
-      unansweredDelete = asked.credential.credential;
-    } else if (!SYNC_TERMINAL_CODES.has(failure.code)) {
-      // the cloud checks the credential before anything it refuses past the build floor, so the
-      // account is there
-      unansweredDelete = null;
-    }
-    if (!sessionAlive(asked.id)) {
-      if (now.kind === "outdated") {
-        return { kind: "not-live", message: UPDATE_TO_SYNC };
-      }
-      if (sameSignIn && retried) {
-        return { kind: "answered", value: forgetDeletedAccount() };
-      }
-      return { kind: "not-live", message: sameSignIn ? SIGNED_OUT_BY_ACCOUNT : SIGN_IN_CHANGED };
-    }
-    if (failure.kind === "refused" && SYNC_TERMINAL_CODES.has(failure.code)) {
-      // the floor answers before the credential is read, so its refusal says nothing of the account
-      if (retried && failure.code !== "client-outdated") {
-        return { kind: "answered", value: forgetDeletedAccount() };
-      }
-      recordFailure(failure);
-      return { kind: "not-live", message: endedBecause(failure.code) };
-    }
-    return { failure, kind: "failed" };
-  };
-
-  const deleteAccount = async (
-    password: string,
-  ): Promise<AccountCallOutcome<CloudStatusResponse>> => {
-    const asked = session.current();
-    if (disposed || asked.kind === "off") {
-      return { kind: "not-live", message: NOT_SIGNED_IN };
-    }
-    // the floor refuses whatever this build sends, a retry of an unanswered deletion included
-    if (asked.kind === "outdated") {
-      return { kind: "not-live", message: UPDATE_TO_SYNC };
-    }
-    if (asked.kind !== "live") {
-      return asked.credential.credential === unansweredDelete
-        ? { kind: "answered", value: forgetDeletedAccount() }
-        : { kind: "not-live", message: NOT_SIGNED_IN };
-    }
-    return await deleteFromLiveSession(asked, password);
-  };
+  const accountCalls = createAccountCalls({
+    clientArgs,
+    // no sign-out: every device row went with the account, so none is left to revoke
+    forgetDeletedAccount: () => {
+      revokeError = null;
+      return forgetSignIn();
+    },
+    isDisposed: () => disposed,
+    recordFailure,
+    session,
+    sessionAlive,
+    status,
+  });
 
   // login and sign-up both end in a credential this device adopts, through the one store, which
   // keeps the name it joined under: the vault's commits carry it.
@@ -600,35 +482,14 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       sink = next;
     },
 
-    deleteAccount,
+    deleteAccount: accountCalls.deleteAccount,
 
-    async devices() {
-      return await accountCall(async ({ client, credential }) => {
-        const result = await client.listDevices();
-        if (!result.ok) {
-          return result;
-        }
-        const devices = result.value.devices.flatMap((device) =>
-          device.revokedAt === null
-            ? [
-                {
-                  createdAt: device.createdAt,
-                  current: device.id === credential.deviceId,
-                  id: device.id,
-                  lastSeenAt: device.lastSeenAt,
-                  name: device.name,
-                },
-              ]
-            : [],
-        );
-        return { ok: true, value: { devices } };
-      });
-    },
+    devices: accountCalls.devices,
 
     async dispose() {
       disposed = true;
       haltTransport();
-      deleteAbort.abort();
+      accountCalls.dispose();
       // without the abort the teardown budget is a hope: the pass would wait out
       // every round trip and keep writing.
       session.abort();
@@ -696,15 +557,7 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       return forgetSignIn();
     },
 
-    async revokeDevice(deviceId) {
-      // refused before any request: this device leaves through a sign-out, which also forgets its
-      // credential and its queue, where a revoke would leave both behind, refused
-      const current = session.current();
-      if (current.kind !== "off" && current.credential.deviceId === deviceId) {
-        return { kind: "this-device" };
-      }
-      return await accountCall(async ({ client }) => await client.revokeDevice(deviceId));
-    },
+    revokeDevice: accountCalls.revokeDevice,
 
     async signUp(request) {
       return await joinAccount(

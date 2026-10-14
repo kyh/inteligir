@@ -77,7 +77,7 @@ cited.
   and reads a retry that meets only that credential's refusal as the account
   gone. No CLI verb: the password is a person's to type.
   `apps/web/src/worker/device/account.ts`,
-  `apps/cli/src/server/cloud/sync-runtime.ts`.
+  `apps/cli/src/server/cloud/account-calls.ts`.
 
 - **Cloud state names its Durable Object from a VERIFIED credential.** Account
   deletion revokes credentials first, then purges, then writes a tombstone every
