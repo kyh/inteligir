@@ -30,9 +30,9 @@ catalog:
   "@testing-library/react": ^16.3.3
   "@tanstack/react-query": ^5.104.1
   # exact: the committed route tree is an artifact of the plugin version
-  "@tanstack/react-router": 1.170.42
-  "@tanstack/react-start": 1.168.61
-  "@tanstack/router-plugin": 1.168.43
+  "@tanstack/react-router": 1.170.44
+  "@tanstack/react-start": 1.169.1
+  "@tanstack/router-plugin": 1.168.45
   "@types/better-sqlite3": ^9.6.0
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
@@ -119,6 +119,21 @@ update:
 
 # 24h supply-chain cooldown
 minimumReleaseAge: 1440
+# TanStack Start 1.0 (react-start 1.169.1), published inside the cooldown; drop these once they
+# are a day old and a fresh install passes without them.
+minimumReleaseAgeExclude:
+  - "@tanstack/react-router@1.170.44"
+  - "@tanstack/react-start-client@1.168.42"
+  - "@tanstack/react-start-rsc@0.1.62"
+  - "@tanstack/react-start-server@1.167.49"
+  - "@tanstack/react-start@1.169.1"
+  - "@tanstack/router-core@1.171.37"
+  - "@tanstack/router-generator@1.167.43"
+  - "@tanstack/router-plugin@1.168.45"
+  - "@tanstack/start-client-core@1.170.37"
+  - "@tanstack/start-plugin-core@1.171.52"
+  - "@tanstack/start-server-core@1.169.42"
+  - "@tanstack/start-storage-context@1.167.39"
 
 blockExoticSubdeps: true
 
