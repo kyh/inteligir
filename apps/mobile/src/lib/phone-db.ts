@@ -117,25 +117,20 @@ export const openPhoneDb = (driver: SqlDriver): SqlDriver => {
     },
     exclusive: async (work) => {
       await ready();
-      await driver.exclusive(work);
+      return await driver.exclusive(work);
     },
   };
 };
 
-// the fence is checked again inside the transaction: a wipe queued ahead of it must win. true when
+export type Fenced<T> = { ran: true; value: T } | { ran: false };
+
+// the fence is checked again inside the transaction: a wipe queued ahead of it must win. `ran` when
 // `work` ran and committed
-export const fencedExclusive = async (
+export const fencedExclusive = async <T>(
   db: SqlDriver,
   fence: Fence,
-  work: (tx: SqlExecutor) => Promise<void>,
-): Promise<boolean> => {
-  const outcome = { ran: false };
-  await db.exclusive(async (tx) => {
-    if (!fence()) {
-      return;
-    }
-    await work(tx);
-    outcome.ran = true;
-  });
-  return outcome.ran;
-};
+  work: (tx: SqlExecutor) => Promise<T>,
+): Promise<Fenced<T>> =>
+  await db.exclusive(async (tx) =>
+    fence() ? { ran: true, value: await work(tx) } : { ran: false },
+  );

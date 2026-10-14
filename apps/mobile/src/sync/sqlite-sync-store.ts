@@ -208,7 +208,7 @@ export const createSqliteSyncStore = (args: CreateSqliteSyncStoreArgs): SyncStor
             await writePage(tx, write, written);
           },
         );
-        if (!landed || generation !== started) {
+        if (!landed.ran || generation !== started) {
           return;
         }
         if (write.threads.size === 0) {

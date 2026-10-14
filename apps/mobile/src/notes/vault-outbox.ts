@@ -23,7 +23,7 @@ import { diff3 } from "@repo/notes/text/diff3";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
 import { fencedExclusive } from "../lib/phone-db";
-import type { Fence } from "../lib/phone-db";
+import type { Fence, Fenced } from "../lib/phone-db";
 import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import {
@@ -365,10 +365,6 @@ const mineOf = (row: OutboxRow): string | null => {
 
 type SendOutcome = "landed" | "parked" | "again" | "stop" | "fenced";
 
-interface CoalesceVerdict {
-  value: "coalesced" | "stale";
-}
-
 // a note too large to ride a conflict inline is read at the conflict's head; past the wire's cap
 // it is bytes no merge reads
 const readVaultText =
@@ -418,10 +414,10 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
   };
 
   // the cache is read back whole when the transaction fails, since its work may have moved it
-  const mutate = async (
+  const mutate = async <T>(
     fence: Fence,
-    work: (tx: SqlExecutor) => Promise<void>,
-  ): Promise<boolean> => {
+    work: (tx: SqlExecutor) => Promise<T>,
+  ): Promise<Fenced<T>> => {
     try {
       return await fencedExclusive(db, fence, work);
     } catch (error) {
@@ -514,7 +510,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
         replaceRow(remainder);
       }
     });
-    if (!landed) {
+    if (!landed.ran) {
       return false;
     }
     await keepLanded(fence, row.op);
@@ -535,10 +531,10 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
         replaceRow(next);
       }
     });
-    if (landed) {
+    if (landed.ran) {
       changed([]);
     }
-    return landed;
+    return landed.ran;
   };
 
   const changesToSend = async (
@@ -636,7 +632,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
             replaceRow(kept);
           }
         });
-        if (!saved) {
+        if (!saved.ran) {
           return "fenced";
         }
         // a retarget changes what the row lays over the mirror
@@ -668,18 +664,17 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     row: OutboxRow,
     keep: (now: OutboxRow) => boolean,
   ): Promise<OutboxRow | null> => {
-    const pinned = { row };
-    const saved = await mutate(fence, async (tx) => {
+    const pinned = await mutate(fence, async (tx) => {
       const now = await readRow(tx, row.seq);
       if (now === null || !isTextOp(now.op) || keep(now)) {
-        return;
+        return row;
       }
       const next: OutboxRow = { ...now, settle: firstSetOf(now.op) };
       await saveRow(tx, next);
       replaceRow(next);
-      pinned.row = next;
+      return next;
     });
-    return saved ? pinned.row : null;
+    return pinned.ran ? pinned.value : null;
   };
 
   // a pinned first set the user has written past since: the head says whether it ever reached the
@@ -845,11 +840,10 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
 
   return {
     coalesce: async (seq, expected, content, fence) => {
-      const verdict: CoalesceVerdict = { value: "stale" };
-      const landed = await mutate(fence, async (tx) => {
+      const verdict = await mutate(fence, async (tx): Promise<"coalesced" | "stale"> => {
         const now = await readRow(tx, seq);
         if (now === null || !isTextOp(now.op) || now.op.content !== expected) {
-          return;
+          return "stale";
         }
         // a parked settle was refused, so none of it is in the vault to land again
         const next: OutboxRow = {
@@ -860,9 +854,9 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
         };
         await saveRow(tx, next);
         replaceRow(next);
-        verdict.value = "coalesced";
+        return "coalesced";
       });
-      if (!landed) {
+      if (!verdict.ran) {
         return "fenced";
       }
       if (verdict.value === "coalesced") {
@@ -878,12 +872,11 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       if (fence === null || row === undefined) {
         return;
       }
-      if (
-        await mutate(fence, async (tx) => {
-          await tx.run("DELETE FROM outbox WHERE seq = ?", [seq]);
-          dropRow(seq);
-        })
-      ) {
+      const discarded = await mutate(fence, async (tx) => {
+        await tx.run("DELETE FROM outbox WHERE seq = ?", [seq]);
+        dropRow(seq);
+      });
+      if (discarded.ran) {
         await releaseStaged(row.op);
         changed([]);
         void drain();
@@ -901,11 +894,11 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       const landed = await mutate(fence, async (tx) => {
         rows = [...rows, await insertRow(tx, op, Date.now())];
       });
-      if (landed) {
+      if (landed.ran) {
         changed([]);
         void drain();
       }
-      return landed;
+      return landed.ran;
     },
 
     load: async (fence) => {
@@ -955,7 +948,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
         dropRow(seq);
         rows = [...rows, await insertRow(tx, copy, row.createdAt)];
       });
-      if (!landed) {
+      if (!landed.ran) {
         return null;
       }
       changed([]);

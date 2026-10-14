@@ -58,19 +58,19 @@ const heldEvents = async (db: SqlDriver): Promise<number> => {
 // the SQL port with the cursor's write refused, as a full disk would refuse it partway through a page
 const refusingCursor = (db: SqlDriver): SqlDriver => ({
   ...db,
-  exclusive: async (work) => {
-    await db.exclusive(async (tx) => {
-      await work({
-        ...tx,
-        run: async (sql, params) => {
-          if (sql.includes("thread_sync")) {
-            throw new Error("disk full");
-          }
-          await tx.run(sql, params);
-        },
-      });
-    });
-  },
+  exclusive: async (work) =>
+    await db.exclusive(
+      async (tx) =>
+        await work({
+          ...tx,
+          run: async (sql, params) => {
+            if (sql.includes("thread_sync")) {
+              throw new Error("disk full");
+            }
+            await tx.run(sql, params);
+          },
+        }),
+    ),
 });
 
 describe("the synced threads on disk", () => {

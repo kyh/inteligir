@@ -29,16 +29,18 @@ export const openNodeSqlDriver = (path: string): SqlDriver & { close: () => void
     close: () => {
       db.close();
     },
-    exclusive: async (work) =>
+    exclusive: async <T>(work: (tx: SqlExecutor) => Promise<T>): Promise<T> =>
       await serial(async () => {
         db.exec("BEGIN IMMEDIATE");
+        let value: T;
         try {
-          await work(direct);
+          value = await work(direct);
         } catch (error) {
           db.exec("ROLLBACK");
           throw error;
         }
         db.exec("COMMIT");
+        return value;
       }),
   };
 };

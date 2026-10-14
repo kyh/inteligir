@@ -534,12 +534,13 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
     if (after !== undefined) {
       return { kind: "too-large" };
     }
-    const applied = { settled: false };
-    const landed = await fencedExclusive(db, fence, async (tx) => {
-      applied.settled = await applyTree(tx, commit, entries, mark);
-    });
-    return landed
-      ? { commit, firstMirror: meta.mirrored === null, kind: "applied", settled: applied.settled }
+    const landed = await fencedExclusive(
+      db,
+      fence,
+      async (tx) => await applyTree(tx, commit, entries, mark),
+    );
+    return landed.ran
+      ? { commit, firstMirror: meta.mirrored === null, kind: "applied", settled: landed.value }
       : { kind: "fenced" };
   };
 
@@ -573,7 +574,12 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
       if (answer.commit !== commit || settled === 0) {
         return { kind: "incomplete" };
       }
-      if (!(await fencedExclusive(db, fence, async (tx) => await storeAnswer(tx, answer, oidOf)))) {
+      const stored = await fencedExclusive(
+        db,
+        fence,
+        async (tx) => await storeAnswer(tx, answer, oidOf),
+      );
+      if (!stored.ran) {
         return { kind: "fenced" };
       }
       queue.push(...answer.deferred);
@@ -585,22 +591,18 @@ export const createVaultMirror = (db: SqlDriver): VaultMirror => {
       onProgress(progress);
     }
 
-    const verdict = { complete: false };
-    const landed = await fencedExclusive(db, fence, async (tx) => {
+    const landed = await fencedExclusive(db, fence, async (tx): Promise<FillOutcome> => {
       const counts = await readCounts(tx);
       const meta = await readMeta(tx);
       if (counts.fetched < counts.total || meta.tree !== commit) {
-        return;
+        return { kind: "incomplete" };
       }
       if (walked.settled) {
         await tx.run("UPDATE mirror_meta SET mirrored_commit = tree_commit WHERE id = 1");
       }
-      verdict.complete = true;
+      return { kind: "complete" };
     });
-    if (!landed) {
-      return { kind: "fenced" };
-    }
-    return verdict.complete ? { kind: "complete" } : { kind: "incomplete" };
+    return landed.ran ? landed.value : { kind: "fenced" };
   };
 
   return {

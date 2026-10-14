@@ -13,7 +13,7 @@ import type {
 } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { fencedExclusive } from "../lib/phone-db";
 import type { Fence } from "../lib/phone-db";
-import type { SqlDriver } from "../lib/sql-driver";
+import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 
 export interface DispatchRow {
   request: CreateDispatchRequest;
@@ -44,9 +44,18 @@ const rowOf = (columns: z.infer<typeof columnsSchema>): DispatchRow => ({
   status: columns.status === null ? null : dispatchStatusSchema.parse(JSON.parse(columns.status)),
 });
 
+const writeFenced = async (
+  db: SqlDriver,
+  fence: Fence,
+  work: (tx: SqlExecutor) => Promise<void>,
+): Promise<boolean> => {
+  const written = await fencedExclusive(db, fence, work);
+  return written.ran;
+};
+
 export const createDispatchOutbox = (db: SqlDriver): DispatchOutbox => ({
   add: async (row, fence) =>
-    await fencedExclusive(db, fence, async (tx) => {
+    await writeFenced(db, fence, async (tx) => {
       await tx.run(
         "INSERT INTO dispatch_outbox (id, request, status, created_at) VALUES (?, ?, ?, ?)",
         [
@@ -66,14 +75,14 @@ export const createDispatchOutbox = (db: SqlDriver): DispatchOutbox => ({
   },
 
   remove: async (ids, fence) =>
-    await fencedExclusive(db, fence, async (tx) => {
+    await writeFenced(db, fence, async (tx) => {
       for (const id of ids) {
         await tx.run("DELETE FROM dispatch_outbox WHERE id = ?", [id]);
       }
     }),
 
   setStatus: async (id, status, fence) =>
-    await fencedExclusive(db, fence, async (tx) => {
+    await writeFenced(db, fence, async (tx) => {
       await tx.run("UPDATE dispatch_outbox SET status = ? WHERE id = ?", [
         JSON.stringify(status),
         id,
