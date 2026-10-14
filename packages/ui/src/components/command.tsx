@@ -1,8 +1,10 @@
 "use client";
 // Vendored from Fluid Functionalism (github.com/mickadesign/fluid-functionalism), MIT.
 
-// Rows are children, not data: each palette page owns its filtering and its row shapes. The field
-// keeps DOM focus and points at the highlighted row through aria-activedescendant.
+// Rows are children, not data: each palette page owns its filtering and its row shapes, and a data
+// array would be a second answer to what a row is. The field keeps DOM focus and points at the
+// highlighted row through aria-activedescendant, so the list needs no Base UI primitive: the one
+// thing it would add, the modal shell, is the repo's own Dialog.
 
 import {
   createContext,
