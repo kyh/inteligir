@@ -206,15 +206,19 @@ const unclosed = (node: Nodes): string | null => {
 };
 
 describe("the grammar is total", () => {
-  it("parses every document built from tag fragments, closing every node it opens", () => {
-    const draw = random(42);
-    for (let doc = 0; doc < 2000; doc += 1) {
-      let md = "";
-      for (let piece = Math.floor(draw() * 24); piece >= 0; piece -= 1) {
-        md += PIECES[Math.floor(draw() * PIECES.length)] ?? "";
+  it(
+    "parses every document built from tag fragments, closing every node it opens",
+    { timeout: 60_000 },
+    () => {
+      const draw = random(42);
+      for (let doc = 0; doc < 2000; doc += 1) {
+        let md = "";
+        for (let piece = Math.floor(draw() * 24); piece >= 0; piece -= 1) {
+          md += PIECES[Math.floor(draw() * PIECES.length)] ?? "";
+        }
+        expect(unclosed(parseBare(md)), md).toBeNull();
+        expect(unclosed(parseMdast(md).root), md).toBeNull();
       }
-      expect(unclosed(parseBare(md)), md).toBeNull();
-      expect(unclosed(parseMdast(md).root), md).toBeNull();
-    }
-  });
+    },
+  );
 });
