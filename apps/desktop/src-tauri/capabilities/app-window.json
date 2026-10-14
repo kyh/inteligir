@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "app-window",
-  "description": "The app window's permissions, which the shell reads when it opens the window and grants for that window and the server's exact origin alone (src/window.rs), since the port is the server's to choose. This file itself grants them to no page; the build keeps every command it names.",
+  "description": "The app window's permissions, which the shell reads when it opens the window and grants for that window and the server's exact origin alone (src/window.rs), since the port is the server's to choose. This file itself grants them to no page; the build keeps every command it names. Beside the shell's commands it takes four of Tauri's own: core:event listen and unlisten, for the page's update-state event, and core:window start-dragging and internal-toggle-maximize, which Tauri's data-tauri-drag-region script calls when the title bar's drag strip is dragged or double-clicked, so no page code names either.",
   "windows": ["vault-*"],
   "local": false,
   "remote": { "urls": [] },
