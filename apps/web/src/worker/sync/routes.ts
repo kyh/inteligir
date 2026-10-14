@@ -18,8 +18,7 @@ import {
   SYNC_WS_PHONE_REQUESTS_PARAM,
   SYNC_WS_PLATFORM_PARAM,
 } from "@repo/contract/cloud/sync/sync-ws";
-import type { z } from "zod";
-import { refuse } from "../cloud-http";
+import { refuse, refuseNoDeviceCredential, withBody } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
 import type { VerifiedDevice } from "../device/device-auth";
@@ -76,26 +75,12 @@ const openSocket = async ({ device, request, stub, url }: SyncCall): Promise<Res
   return await stub.fetch(new Request("https://thread-sync/ws", { headers }));
 };
 
-const withBody =
-  <S extends z.ZodType>(
-    schema: S,
-    usage: string,
-    run: (call: SyncCall, body: z.infer<S>) => Promise<Response>,
-  ) =>
-  async (call: SyncCall): Promise<Response> => {
-    const body = schema.safeParse(await call.request.json().catch(() => null));
-    return body.success ? await run(call, body.data) : refuse("bad-request", usage);
-  };
-
 const SYNC_ROUTES = new Map<string, (call: SyncCall) => Promise<Response>>([
   [
     `POST ${SYNC_API_PATHS.push}`,
-    async ({ device, request, stub }) => {
-      const body = pushRequestSchema.safeParse(await request.json().catch(() => null));
-      return body.success
-        ? answer(await stub.push(device.deviceId, body.data.events))
-        : refuse("bad-request", "Malformed push batch.");
-    },
+    withBody(pushRequestSchema, "Malformed push batch.", async ({ device, stub }, body) =>
+      answer(await stub.push(device.deviceId, body.events)),
+    ),
   ],
   [
     `GET ${SYNC_API_PATHS.pull}`,
@@ -173,7 +158,7 @@ export const handleSyncRoutes = async (request: Request, env: Env, url: URL): Pr
     request.headers.get("authorization"),
   );
   if (device === null) {
-    return refuse("unauthorized", "No valid device credential.");
+    return refuseNoDeviceCredential();
   }
 
   return await route({ device, request, stub: threadSyncStub(env, device.userId), url });

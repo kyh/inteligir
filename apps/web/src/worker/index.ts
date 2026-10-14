@@ -11,7 +11,7 @@ import { logUnhandled } from "./log";
 import { handleSyncRoutes } from "./sync/routes";
 import { handleVaultCommitRoute } from "./vault/commit-route";
 import { handleVaultGitRemote } from "./vault/git-remote";
-import { handleVaultReadRoutes } from "./vault/read-routes";
+import { handleVaultReadRoutes, isVaultReadPath } from "./vault/read-routes";
 
 // Durable Object classes must be exported from the entry the runtime loads: this file for tests, ./server.ts for deploy
 export { ThreadSyncDO } from "./sync/thread-sync-do";
@@ -66,13 +66,8 @@ const route = async (request: Request, env: Env, ctx: ExecutionContext): Promise
     return await handleVaultCommitRoute(request, env, ctx);
   }
 
-  if (
-    url.pathname === VAULT_API_PATHS.tree ||
-    url.pathname === VAULT_API_PATHS.file ||
-    url.pathname === VAULT_API_PATHS.files ||
-    url.pathname === VAULT_API_PATHS.asset
-  ) {
-    return await handleVaultReadRoutes(request, env, url);
+  if (isVaultReadPath(url.pathname)) {
+    return await handleVaultReadRoutes(request, env, url.pathname);
   }
 
   if (url.pathname === ACCOUNT_API_PATHS.delete) {

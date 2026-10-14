@@ -21,7 +21,8 @@ import type {
   VaultTreeQuery,
 } from "@repo/contract/cloud/vault/vault-schema";
 import type { RepoCell } from "durable-git";
-import { refuse } from "../cloud-http";
+import type { z } from "zod";
+import { refuse, refuseNoDeviceCredential } from "../cloud-http";
 import { createDb } from "../db/client";
 import { verifyDeviceCredential } from "../device/device-auth";
 import { spendDeviceBudget } from "../rate-limit";
@@ -243,60 +244,60 @@ const answerAsset = async (
   });
 };
 
-type VaultRead =
-  | { route: "tree"; query: VaultTreeQuery }
-  | { route: "file"; query: VaultFileQuery }
-  | { route: "files"; query: VaultFilesRequest }
-  | { route: "asset"; query: VaultAssetQuery };
+interface ReadRoute<Q extends { readonly ref?: string | undefined }> {
+  readonly schema: z.ZodType<Q>;
+  readonly usage: string;
+  readonly answer: (
+    stub: DurableObjectStub<RepoCell>,
+    query: Q,
+    env: Env,
+    repo: string,
+  ) => Promise<Response>;
+}
 
-type ParsedRead = { ok: true; read: VaultRead } | { ok: false; message: string };
+interface VaultReadQueries {
+  readonly [VAULT_API_PATHS.tree]: VaultTreeQuery;
+  readonly [VAULT_API_PATHS.file]: VaultFileQuery;
+  readonly [VAULT_API_PATHS.files]: VaultFilesRequest;
+  readonly [VAULT_API_PATHS.asset]: VaultAssetQuery;
+}
 
-const parseRead = async (request: Request, url: URL): Promise<ParsedRead | null> => {
-  const input: unknown = await request.json().catch(() => null);
-  switch (url.pathname) {
-    case VAULT_API_PATHS.tree: {
-      const query = vaultTreeQuerySchema.safeParse(input);
-      return query.success
-        ? { ok: true, read: { query: query.data, route: "tree" } }
-        : {
-            message: `Send {"ref": <sha>, "after": <path>, "limit": <1..${String(VAULT_TREE_MAX_ENTRIES)}>}, each optional.`,
-            ok: false,
-          };
-    }
-    case VAULT_API_PATHS.file: {
-      const query = vaultFileQuerySchema.safeParse(input);
-      return query.success
-        ? { ok: true, read: { query: query.data, route: "file" } }
-        : { message: 'Send {"path": <vault-relative path>, "ref": <sha, optional>}.', ok: false };
-    }
-    case VAULT_API_PATHS.files: {
-      const query = vaultFilesRequestSchema.safeParse(input);
-      return query.success
-        ? { ok: true, read: { query: query.data, route: "files" } }
-        : {
-            message: `Send {"ref": <sha>, "paths": [1..${String(VAULT_FILES_MAX_PATHS)} unique vault-relative paths]}.`,
-            ok: false,
-          };
-    }
-    case VAULT_API_PATHS.asset: {
-      const query = vaultAssetQuerySchema.safeParse(input);
-      return query.success
-        ? { ok: true, read: { query: query.data, route: "asset" } }
-        : {
-            message: 'Send {"path": <vault-relative path>, "ref": <sha>}, both required.',
-            ok: false,
-          };
-    }
-    default: {
-      return null;
-    }
-  }
+type VaultReadPath = keyof VaultReadQueries;
+
+// a mapped type, so indexing it by a generic path keeps each row's schema paired with its answer
+type VaultReadRoutes = { readonly [P in VaultReadPath]: ReadRoute<VaultReadQueries[P]> };
+
+const VAULT_READS: VaultReadRoutes = {
+  [VAULT_API_PATHS.tree]: {
+    answer: async (stub, query, env, repo) =>
+      await answerTree(stub, treeListingSlot(env.PACK_CACHE, repo), query),
+    schema: vaultTreeQuerySchema,
+    usage: `Send {"ref": <sha>, "after": <path>, "limit": <1..${String(VAULT_TREE_MAX_ENTRIES)}>}, each optional.`,
+  },
+  [VAULT_API_PATHS.file]: {
+    answer: answerFile,
+    schema: vaultFileQuerySchema,
+    usage: 'Send {"path": <vault-relative path>, "ref": <sha, optional>}.',
+  },
+  [VAULT_API_PATHS.files]: {
+    answer: answerFiles,
+    schema: vaultFilesRequestSchema,
+    usage: `Send {"ref": <sha>, "paths": [1..${String(VAULT_FILES_MAX_PATHS)} unique vault-relative paths]}.`,
+  },
+  [VAULT_API_PATHS.asset]: {
+    answer: answerAsset,
+    schema: vaultAssetQuerySchema,
+    usage: 'Send {"path": <vault-relative path>, "ref": <sha>}, both required.',
+  },
 };
 
-export const handleVaultReadRoutes = async (
+export const isVaultReadPath = (pathname: string): pathname is VaultReadPath =>
+  Object.hasOwn(VAULT_READS, pathname);
+
+export const handleVaultReadRoutes = async <P extends VaultReadPath>(
   request: Request,
   env: Env,
-  url: URL,
+  path: P,
 ): Promise<Response> => {
   if (request.method !== "POST") {
     return refuse("bad-request", "Send the read as a POST with a JSON body.");
@@ -305,47 +306,28 @@ export const handleVaultReadRoutes = async (
   const db = createDb(env.DB);
   const verified = await verifyDeviceCredential(db, request.headers.get("authorization"));
   if (verified === null) {
-    return refuse("unauthorized", "No valid device credential.");
+    return refuseNoDeviceCredential();
   }
 
   if (!(await spendDeviceBudget(env, db, "vaultRead", verified.deviceId))) {
     return refuse("rate-limited", "Too many vault reads from this device — wait a minute.");
   }
 
-  const parsed = await parseRead(request, url);
-  if (parsed === null) {
-    return refuse("not-found", "No such route.");
+  const route = VAULT_READS[path];
+  const query = route.schema.safeParse(await request.json().catch(() => null));
+  if (!query.success) {
+    return refuse("bad-request", route.usage);
   }
-  if (!parsed.ok) {
-    return refuse("bad-request", parsed.message);
-  }
-  const { read } = parsed;
 
   const repo = vaultRepoName(verified.userId);
   // getByName on the repo namespace creates a cell, and a BYO-remote phone polls the unpinned tree
   // forever; the registry answers "no vault" without materializing one per poll. A read pinned to
   // a ref skips it, since only a read that passed it answers a ref.
-  if (read.query.ref === undefined) {
+  if (query.data.ref === undefined) {
     const info = await vaultRegistry(env).get(repo);
     if (info === null) {
       return refuse("not-found", "This account has no hosted vault yet.");
     }
   }
-  const stub = env.REPO.getByName(repo);
-
-  switch (read.route) {
-    case "tree": {
-      return await answerTree(stub, treeListingSlot(env.PACK_CACHE, repo), read.query);
-    }
-    case "file": {
-      return await answerFile(stub, read.query);
-    }
-    case "files": {
-      return await answerFiles(stub, read.query);
-    }
-    case "asset": {
-      return await answerAsset(stub, read.query);
-    }
-    // no default
-  }
+  return await route.answer(env.REPO.getByName(repo), query.data, env, repo);
 };

@@ -16,7 +16,7 @@ import type { LoginFailure } from "./login";
 import { signUpDevice } from "./sign-up";
 import { createAuth, createSignUpAuth } from "../auth/auth";
 import { signUpBodyRefusal } from "../auth/invite";
-import { jsonNoStore, refuse } from "../cloud-http";
+import { jsonNoStore, refuse, refuseNoDeviceCredential } from "../cloud-http";
 import { createDb } from "../db/client";
 import type { Db } from "../db/client";
 import { device } from "../db/schema";
@@ -123,7 +123,7 @@ export const handleDeviceRoutes = async (
   if (route === `POST ${DEVICE_API_PATHS.signOut}`) {
     const verified = await verifyDeviceCredential(db, request.headers.get("authorization"));
     if (verified === null) {
-      return refuse("unauthorized", "No valid device credential.");
+      return refuseNoDeviceCredential();
     }
     // a dashboard revoke landing after the verify already did the rest: signed out either way
     await revokeDevice(env, db, verified);
@@ -133,12 +133,9 @@ export const handleDeviceRoutes = async (
 
   const userId = await accountUserId(request, env, db, url.origin);
   if (userId === null) {
-    return refuse(
-      "unauthorized",
-      carriesDeviceCredential(request.headers.get("authorization"))
-        ? "No valid device credential."
-        : "Sign in first.",
-    );
+    return carriesDeviceCredential(request.headers.get("authorization"))
+      ? refuseNoDeviceCredential()
+      : refuse("unauthorized", "Sign in first.");
   }
 
   if (route === `GET ${DEVICE_API_PATHS.list}`) {

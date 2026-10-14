@@ -5,7 +5,7 @@ import {
 import type { DeleteAccountResponse } from "@repo/contract/cloud/account/account-schema";
 import { eq } from "drizzle-orm";
 import { createAuth } from "../auth/auth";
-import { refuse } from "../cloud-http";
+import { refuse, refuseNoDeviceCredential } from "../cloud-http";
 import { createDb } from "../db/client";
 import type { Db } from "../db/client";
 import { session, user } from "../db/schema";
@@ -68,7 +68,7 @@ export const handleAccountRoute = async (
   const db = createDb(env.DB);
   const verified = await verifyDeviceCredential(db, request.headers.get("authorization"));
   if (verified === null) {
-    return refuse("unauthorized", "No valid device credential.");
+    return refuseNoDeviceCredential();
   }
   return await deleteAccount(request, env, db, url.origin, verified);
 };
