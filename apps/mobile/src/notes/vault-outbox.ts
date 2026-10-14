@@ -24,6 +24,7 @@ import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
 import { fencedExclusive } from "../lib/phone-db";
 import type { Fence, Fenced } from "../lib/phone-db";
+import type { SignInFence } from "../lib/sign-in-fence";
 import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import {
@@ -95,10 +96,9 @@ export interface CreateVaultOutboxArgs {
   db: SqlDriver;
   files: OutboxFiles;
   session: SessionPort;
-  fenceFor: (sessionId: number) => Fence;
-  // the store's last reset: a pass waits it out, so a wipe has cleared the rows of the sign-in it
+  // the store's: a pass waits out its last reset, so a wipe has cleared the rows of the sign-in it
   // ended before the next sign-in's pass reads them
-  resetWork: () => Promise<void>;
+  signIn: SignInFence;
   // the name conflict reports and copies tell this phone by
   thisDevice: string;
   // whether a path is taken on this phone, ignoring case
@@ -771,12 +771,12 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
 
   const pass = async (): Promise<SyncOutcome> => {
     stopped = false;
-    await args.resetWork();
+    await args.signIn.ready();
     const current = session.current();
     if (current.kind !== "live") {
       return "fenced";
     }
-    const fence = args.fenceFor(current.id);
+    const fence = args.signIn.fenceFor(current.id);
     const rounds = new Map<number, number>();
     for (let sets = 0; sets < MAX_SETS_PER_PASS; sets += 1) {
       if (!fence()) {
@@ -824,12 +824,6 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     }
   };
 
-  // a user's own action on a parked row, under the sign-in that is live now
-  const liveFence = (): Fence | null => {
-    const current = session.current();
-    return current.kind === "live" ? args.fenceFor(current.id) : null;
-  };
-
   // `Plan.md` is kept as `Plan 2.md`, the way a create steps past a taken name
   const freeNameBeside = (path: string): string => {
     const name = basenamePath(path);
@@ -867,7 +861,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     },
 
     discard: async (seq) => {
-      const fence = liveFence();
+      const fence = args.signIn.live();
       const row = rows.find((candidate) => candidate.seq === seq);
       if (fence === null || row === undefined) {
         return;
@@ -910,7 +904,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     },
 
     retry: async (seq) => {
-      const fence = liveFence();
+      const fence = args.signIn.live();
       if (fence === null) {
         return;
       }
@@ -931,7 +925,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     rows: () => rows,
 
     saveAsNew: async (seq) => {
-      const fence = liveFence();
+      const fence = args.signIn.live();
       const row = rows.find((candidate) => candidate.seq === seq);
       if (fence === null || row === undefined) {
         return null;

@@ -18,6 +18,8 @@ import { messageOf } from "../lib/error-message";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
 import type { Fence } from "../lib/phone-db";
+import { createSignInFence, NOT_SIGNED_IN } from "../lib/sign-in-fence";
+import type { SignInSource } from "../lib/sign-in-fence";
 import { createSerialLock } from "../lib/sql-driver";
 import type { SqlDriver } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
@@ -31,8 +33,6 @@ import { landOnRows, createVaultMirror } from "./vault-mirror";
 import type { MirrorLanding, MirrorProgress, MirrorRow, MirrorText } from "./vault-mirror";
 import { overlayEntries } from "./vault-overlay";
 import type { OverlayEntry } from "./vault-overlay";
-
-const NOT_SIGNED_IN = "Not signed in.";
 
 const INCOMPLETE = "Some notes did not download. Pull down to try again.";
 
@@ -132,10 +132,6 @@ export interface HeldFile {
   noteId: string | null;
   aliases: readonly string[];
 }
-
-// restored: the boot read of a credential whose rows are on disk. signed-in: nothing on disk is
-// this sign-in's.
-export type SignInSource = "restored" | "signed-in";
 
 export interface NotesStore {
   // drops what the previous sign-in held. null is no sign-in, or one the cloud refused, and wipes
@@ -244,20 +240,14 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   // the mirror's rows as the last snapshot read them, with every landing since laid on
   let mirrorRows: readonly MirrorRow[] | null = null;
   let landings = 0;
-  let generation = 0;
-  // the last reset's own work, which a refresh waits out: a wipe must land before the walk reads
-  // the mirrored commit, and a restore's rows before the walk's replace them
-  let resetWork: Promise<void> = Promise.resolve();
+  // a refresh waits out the last reset's work: a wipe must land before the walk reads the mirrored
+  // commit, and a restore's rows before the walk's replace them
+  const signIn = createSignInFence(session);
   const refreshing = createSingleFlight();
   const tree = createExternalStore<NotesTreeState>({ state: "idle" });
   const watchers = new Map<string, { version: string; listeners: Set<() => void> }>();
   // one write at a time, so the row a write joins is the row it read
   const writing = createSerialLock();
-
-  const fenceFor = (sessionId: number): Fence => {
-    const started = generation;
-    return () => session.fenced(sessionId) && generation === started;
-  };
 
   const notifyWatchers = (): void => {
     for (const [path, watcher] of watchers) {
@@ -307,15 +297,11 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
   const outbox = createVaultOutbox({
     db: args.db,
-    fenceFor,
     files: args.outboxFiles,
     isTaken: (path) => listing?.taken.has(vaultCollisionKey(path)) === true,
     // the staged name is the blob's, as the attachment cache names it
     keepLanded: async (file, bytes) => {
       await attachments.save(file, bytes);
-    },
-    resetWork: async () => {
-      await resetWork;
     },
     onChange: (rows, landed) => {
       if (landed.length > 0) {
@@ -329,6 +315,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     },
     retryBaseMs: args.retryBaseMs === undefined ? DEFAULT_RETRY_BASE_MS : args.retryBaseMs,
     session,
+    signIn,
     thisDevice: args.deviceName,
   });
 
@@ -396,8 +383,8 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   };
 
   const walkAndFill = async (current: LiveSession): Promise<void> => {
-    const fence = fenceFor(current.id);
-    await resetWork;
+    const fence = signIn.fenceFor(current.id);
+    await signIn.ready();
     if (!fence()) {
       return;
     }
@@ -446,7 +433,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
   // a mirror that cannot be read or written is a failure of this phone, never of the cloud's
   const guarded = async (current: LiveSession): Promise<void> => {
-    const fence = fenceFor(current.id);
+    const fence = signIn.fenceFor(current.id);
     try {
       await walkAndFill(current);
     } catch (error) {
@@ -457,7 +444,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   };
 
   const hydrate = async (sessionId: number): Promise<void> => {
-    const fence = fenceFor(sessionId);
+    const fence = signIn.fenceFor(sessionId);
     try {
       await outbox.load(fence);
       await publishListing(fence, null);
@@ -483,11 +470,11 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   };
 
   const liveFence = (): Fence => {
-    const current = session.current();
-    if (current.kind !== "live") {
+    const fence = signIn.live();
+    if (fence === null) {
       throw new Error(NOT_SIGNED_IN);
     }
-    return fenceFor(current.id);
+    return fence;
   };
 
   // a note an unsent rename moved away or an unsent delete removed is gone here, whatever the
@@ -506,7 +493,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     if (current.kind !== "live") {
       return { message: NOT_SIGNED_IN, notFound: false, ok: false };
     }
-    const fence = fenceFor(current.id);
+    const fence = signIn.fenceFor(current.id);
     const mirrorPath = row?.path ?? path;
     let held: MirrorText | null;
     try {
@@ -551,7 +538,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   };
 
   const readFile = async (path: string): Promise<FileRead> => {
-    await resetWork;
+    await signIn.ready();
     const entry = listing?.files.get(path);
     if (entry?.source.kind === "text") {
       return { content: entry.source.text, ok: true, path };
@@ -617,7 +604,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
   const create: NotesStore["create"] = async (path, content) =>
     await writing(async () => {
-      await resetWork;
+      await signIn.ready();
       const fence = liveFence();
       if (isTakenHere(path)) {
         return { kind: "exists" };
@@ -654,7 +641,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     base: string,
   ): Promise<GuardedWriteResult> =>
     await writing(async () => {
-      await resetWork;
+      await signIn.ready();
       const fence = liveFence();
       const held = await heldNote(path);
       if (held.kind === "missing") {
@@ -720,7 +707,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
   const rename: NotesStore["rename"] = async (from, to, edits = NO_EDITS) =>
     await writing(async () => {
-      await resetWork;
+      await signIn.ready();
       const fence = liveFence();
       if (listing?.files.has(from) !== true) {
         return { kind: "vanished" };
@@ -761,7 +748,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
   const remove: NotesStore["remove"] = async (path, stores = []) => {
     await writing(async () => {
-      await resetWork;
+      await signIn.ready();
       const fence = liveFence();
       if (listing?.files.has(path) !== true) {
         return;
@@ -790,7 +777,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
   const putAsset: NotesStore["putAsset"] = async (path, bytes) =>
     await writing(async () => {
-      await resetWork;
+      await signIn.ready();
       const fence = liveFence();
       if (isTakenHere(path)) {
         return { kind: "exists" };
@@ -836,7 +823,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   // was made from and the row that carries it
   const editComments: NotesStore["editComments"] = async ({ anchor, edit, path }) =>
     await writing(async () => {
-      await resetWork;
+      await signIn.ready();
       const fence = liveFence();
       const note = goneHere(path) ? null : await heldText(path);
       if (note === null) {
@@ -882,7 +869,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       if (entry === undefined || entry.source.kind === "text") {
         return { message: "This attachment is not in your vault.", ok: false };
       }
-      const fence = fenceFor(current.id);
+      const fence = signIn.fenceFor(current.id);
       try {
         if (entry.source.kind === "staged") {
           const uri = await outbox.stagedUri(entry.source.file);
@@ -914,7 +901,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     create,
 
     async drain() {
-      await resetWork;
+      await signIn.ready();
       await outbox.drain();
     },
 
@@ -930,7 +917,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
           })),
 
     async noteTexts() {
-      await resetWork;
+      await signIn.ready();
       const listed = listing;
       if (listed === null) {
         return new Map();
@@ -1018,23 +1005,17 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     rename,
 
     reset(next) {
-      generation += 1;
+      signIn.restart(next, { hydrate, wipe });
       listing = null;
       mirrorRows = null;
       tree.set({ state: "idle" });
-      if (next !== "restored") {
-        resetWork = wipe();
-        return;
-      }
-      const current = session.current();
-      resetWork = current.kind === "live" ? hydrate(current.id) : Promise.resolve();
     },
 
     tree,
 
     // counted on disk, so rows a load could not read still ask before a sign-out discards them
     async unsentCount() {
-      await resetWork;
+      await signIn.ready();
       return await outbox.unsent();
     },
 

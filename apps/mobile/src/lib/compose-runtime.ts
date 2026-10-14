@@ -14,7 +14,7 @@ import type { CommentOps } from "../notes/comment-ops";
 import { createFileOps } from "../notes/file-ops";
 import type { FileOps } from "../notes/file-ops";
 import { createNotesStore } from "../notes/notes-store";
-import type { CreateNotesStoreArgs, NotesStore, SignInSource } from "../notes/notes-store";
+import type { CreateNotesStoreArgs, NotesStore } from "../notes/notes-store";
 import type { Sha1 } from "../notes/outbox-ops";
 import type { OutboxFiles } from "../notes/outbox-files";
 import { createLiveTurns } from "../sync/live-turns";
@@ -24,6 +24,7 @@ import { createSyncRuntime } from "../sync/sync-runtime";
 import type { SyncRuntime, SyncRuntimeArgs } from "../sync/sync-runtime";
 import type { SyncStore } from "../sync/sync-store";
 import { messageOf } from "./error-message";
+import type { SignInSource } from "./sign-in-fence";
 import type { SqlDriver } from "./sql-driver";
 
 export interface CredentialStore {

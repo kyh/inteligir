@@ -25,9 +25,10 @@ import { messageOf } from "../lib/error-message";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
 import type { Fence } from "../lib/phone-db";
+import { createSignInFence, NOT_SIGNED_IN } from "../lib/sign-in-fence";
+import type { SignInSource } from "../lib/sign-in-fence";
 import { createSerialLock } from "../lib/sql-driver";
 import type { SqlDriver } from "../lib/sql-driver";
-import type { SignInSource } from "../notes/notes-store";
 import type { SessionPort } from "../sync/sync-runtime";
 import type { SyncStore } from "../sync/sync-store";
 import { projectThread } from "../sync/thread-projection";
@@ -36,7 +37,6 @@ import type { DispatchRow } from "./dispatch-outbox";
 
 export const DISPATCH_STATUS_POLL_MS = 10_000;
 
-const NOT_SIGNED_IN = "Not signed in.";
 // the cloud no longer holds a row it took: cancelled, pruned, or its phone revoked
 const NO_LONGER_WAITING = "This request is no longer waiting for your Mac.";
 const APPROVAL_GONE = "That request is no longer waiting for an answer.";
@@ -247,24 +247,13 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
   let desktops: DesktopsOnline | null = null;
   // why an unsent row's last try did not reach the cloud; not kept across a relaunch
   const errors = new Map<string, string>();
-  let generation = 0;
-  let resetWork: Promise<void> = Promise.resolve();
+  const signIn = createSignInFence(session);
   let active = true;
   let timer: ReturnType<typeof setInterval> | null = null;
   const flight = createSingleFlight();
   // a cancel waits out a pass: a resend landing after the cancel would bring the row back
   const serial = createSerialLock();
   const state = createExternalStore<DispatchState>(EMPTY_STATE);
-
-  const fenceFor = (sessionId: number): Fence => {
-    const started = generation;
-    return () => session.fenced(sessionId) && generation === started;
-  };
-
-  const liveFence = (): Fence | null => {
-    const current = session.current();
-    return current.kind === "live" ? fenceFor(current.id) : null;
-  };
 
   const inLog = ({ request }: DispatchRow): boolean => {
     if (request.kind !== "turn") {
@@ -428,12 +417,12 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
 
   const pass = async (): Promise<SyncOutcome> =>
     await serial(async () => {
-      await resetWork;
+      await signIn.ready();
       const current = session.current();
       if (current.kind !== "live") {
         return "fenced";
       }
-      const fence = fenceFor(current.id);
+      const fence = signIn.fenceFor(current.id);
       let outcome: SyncOutcome = "caught-up";
       for (const step of [sendUnsent, pollStatus, pollApprovals]) {
         const stepped = await step(current.client, fence);
@@ -509,8 +498,8 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
         ok: false,
       };
     }
-    await resetWork;
-    const fence = liveFence();
+    await signIn.ready();
+    const fence = signIn.live();
     if (fence === null) {
       return { message: NOT_SIGNED_IN, ok: false };
     }
@@ -529,7 +518,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
   };
 
   const cancelOne = async (id: string): Promise<CancelOutcome> => {
-    await resetWork;
+    await signIn.ready();
     const current = session.current();
     if (!rows.some((row) => row.request.id === id)) {
       return { ok: true };
@@ -537,7 +526,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     if (current.kind !== "live") {
       return { message: NOT_SIGNED_IN, ok: false };
     }
-    const fence = fenceFor(current.id);
+    const fence = signIn.fenceFor(current.id);
     const result = await current.client.cancelDispatch(id);
     if (!fence()) {
       return { message: NOT_SIGNED_IN, ok: false };
@@ -573,7 +562,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
   };
 
   const hydrate = async (sessionId: number): Promise<void> => {
-    const fence = fenceFor(sessionId);
+    const fence = signIn.fenceFor(sessionId);
     try {
       const loaded = await outbox.load();
       if (fence()) {
@@ -595,10 +584,10 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
   };
 
   threads.subscribeThreads(() => {
-    const fence = liveFence();
+    const fence = signIn.live();
     if (fence !== null) {
       void (async () => {
-        await resetWork;
+        await signIn.ready();
         try {
           await dropLanded(fence);
         } catch (error) {
@@ -672,8 +661,8 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     },
 
     dismiss: async (id) => {
-      await resetWork;
-      const fence = liveFence();
+      await signIn.ready();
+      const fence = signIn.live();
       const row = rows.find((candidate) => candidate.request.id === id);
       if (fence === null || row === undefined || !settled(row)) {
         return;
@@ -693,19 +682,13 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     newThreadId: () => `thr_${args.mintId()}`,
 
     reset(next) {
-      generation += 1;
+      signIn.restart(next, { hydrate, wipe });
       rows = [];
       approvals = [];
       desktops = null;
       errors.clear();
       clearTimer();
       publish();
-      if (next !== "restored") {
-        resetWork = wipe();
-        return;
-      }
-      const current = session.current();
-      resetWork = current.kind === "live" ? hydrate(current.id) : Promise.resolve();
     },
 
     resume() {
@@ -723,7 +706,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     },
 
     async unclaimedCount() {
-      await resetWork;
+      await signIn.ready();
       return rows.filter((row) => noMacHasIt(phaseOf(row.status, null))).length;
     },
   };

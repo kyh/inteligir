@@ -253,10 +253,11 @@ the boot RESTORE keeps them — that launch is what the mirror exists for. Which
 transition it is comes from the composition root, which knows, rather than
 from comparing bearers inside the store. Every await re-checks the session,
 and a wipe bumps a generation every write re-checks inside its transaction,
-so a batch that started before the wipe never lands. The database has ONE
-`user_version` (`lib/phone-db.ts`): a table another module adds is a step
-there. Until the first build EAS makes, the schema is one step edited in
-place; from that build on, a step is appended, never edited.
+so a batch that started before the wipe never lands; the notes store and the
+dispatch runtime each hold that fence as a `lib/sign-in-fence.ts`. The
+database has ONE `user_version` (`lib/phone-db.ts`): a table another module
+adds is a step there. Until the first build EAS makes, the schema is one step
+edited in place; from that build on, a step is appended, never edited.
 
 ## Unsent edits
 
