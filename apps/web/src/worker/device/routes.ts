@@ -94,7 +94,7 @@ export const handleDeviceRoutes = async (
     if (!body.success) {
       return refuse("bad-request", "Send { email, password, deviceName }.");
     }
-    const result = await loginDevice(db, env.DB, createAuth(env, url.origin), body.data);
+    const result = await loginDevice(db, createAuth(env, url.origin), body.data);
     if (!result.loggedIn) {
       return refuse(result.failure, LOGIN_FAILURE_MESSAGE[result.failure]);
     }
@@ -113,7 +113,7 @@ export const handleDeviceRoutes = async (
         signUpBodyRefusal(body.error, "Send { name, email, password, inviteCode, deviceName }."),
       );
     }
-    const result = await signUpDevice(db, env.DB, createSignUpAuth(env, url.origin), body.data);
+    const result = await signUpDevice(db, createSignUpAuth(env, url.origin), body.data);
     if (!result.signedUp) {
       return refuse(result.failure, result.message);
     }

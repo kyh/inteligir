@@ -11,7 +11,8 @@ import {
   writePack,
 } from "../vault/git-objects";
 import type { GitObject, GitTreeEntry } from "../vault/git-objects";
-import { FLUSH_PKT, pktLine, receivePackBody } from "../vault/receive-pack";
+import { FLUSH_PKT, pktLine } from "../vault/pkt-line";
+import { receivePackBody } from "../vault/receive-pack";
 import { encodeGitPath } from "../vault/tree-walk";
 import { deviceHeaders, ORIGIN } from "./cloud-helpers";
 

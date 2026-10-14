@@ -33,9 +33,9 @@ import {
   claimDispatchRows,
   closeApprovalRow,
   createDispatchRow,
-  DISPATCH_TABLES,
   dispatchStatuses,
   forgetDevice,
+  initDispatchTables,
   openApprovalRow,
   openApprovalRows,
 } from "./dispatch-inbox";
@@ -133,7 +133,7 @@ export class ThreadSyncDO extends DurableObject<Env> {
         purged_at INTEGER NOT NULL
       );
     `);
-    this.ctx.storage.sql.exec(DISPATCH_TABLES);
+    initDispatchTables(this.ctx.storage);
   }
 
   // the tombstone refuses a call that verified its credential just before the account was

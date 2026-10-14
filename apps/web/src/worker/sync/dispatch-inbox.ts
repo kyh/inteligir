@@ -31,19 +31,14 @@ import type { z } from "zod";
 // a settled row outlives the phone's last status poll by far; one it lost track of reads unknown
 const DISPATCH_RETENTION_MS = 24 * 60 * 60_000;
 
-// CREATE TABLE IF NOT EXISTS never alters a table an account object already holds, so every live
-// object keeps the columns its first wake made: a capture, which has no thread, stores '' under the
-// NOT NULL thread_id they hold, and a claim reads a row's thread from its body
-export const DISPATCH_TABLES = `
+const DISPATCH_TABLES = `
   CREATE TABLE IF NOT EXISTS dispatches (
     id TEXT PRIMARY KEY,
     kind TEXT NOT NULL,
-    thread_id TEXT NOT NULL,
     from_device_id TEXT NOT NULL,
     to_device_id TEXT,
     approval_id TEXT,
     body TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
     claim_token TEXT,
     claimed_at INTEGER,
     state TEXT NOT NULL,
@@ -61,6 +56,20 @@ export const DISPATCH_TABLES = `
     closed_at INTEGER
   );
 `;
+
+// IF NOT EXISTS never alters a table an object already holds, so every change to DISPATCH_TABLES
+// bumps this, and an object holding another version drops both tables on its next wake: an older
+// shape's rows are replaced, never migrated, and a dropped request reads unknown
+const DISPATCH_TABLES_VERSION = 2;
+const DISPATCH_TABLES_VERSION_KEY = "dispatch-tables-version";
+
+export const initDispatchTables = ({ kv, sql }: DurableObjectStorage): void => {
+  if (kv.get(DISPATCH_TABLES_VERSION_KEY) !== DISPATCH_TABLES_VERSION) {
+    sql.exec("DROP TABLE IF EXISTS dispatches; DROP TABLE IF EXISTS dispatch_approvals");
+    kv.put(DISPATCH_TABLES_VERSION_KEY, DISPATCH_TABLES_VERSION);
+  }
+  sql.exec(DISPATCH_TABLES);
+};
 
 const ALREADY_ANSWERED = "That request was already answered.";
 const NO_LONGER_WAITING = "That request is no longer waiting.";
@@ -172,16 +181,14 @@ const insertDispatch = (
 ): void => {
   sql.exec(
     `INSERT INTO dispatches
-       (id, kind, thread_id, from_device_id, to_device_id, approval_id, body, created_at, state, message, settled_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, kind, from_device_id, to_device_id, approval_id, body, state, message, settled_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.claimed.id,
     row.claimed.kind,
-    row.claimed.kind === "capture" ? "" : row.claimed.threadId,
     row.fromDeviceId,
     row.toDeviceId,
     row.approvalId,
     JSON.stringify(row.claimed),
-    row.claimed.createdAt,
     row.settled === null ? "pending" : "refused",
     row.settled?.message ?? null,
     row.settled?.at ?? null,
@@ -315,7 +322,7 @@ export const claimDispatchRows = (
 ): ClaimDispatchesResponse => {
   prune(sql, now);
   const claimToken = crypto.randomUUID();
-  // rowid is insertion order, where two turns sent within one millisecond share a created_at;
+  // rowid is insertion order, where two turns sent within one millisecond share a createdAt;
   // RETURNING follows no ORDER BY, and a thread's turns must reach the Mac in the order asked.
   // the kinds are the request's parsed enum, so only their placeholders reach the text
   const rows = sql

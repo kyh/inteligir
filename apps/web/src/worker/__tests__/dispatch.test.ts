@@ -22,6 +22,7 @@ import { runInDurableObject, SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
+import { initDispatchTables } from "../sync/dispatch-inbox";
 import { threadSyncStub } from "../sync/routes";
 import {
   awaitFrames,
@@ -302,32 +303,10 @@ describe("a phone's turn", () => {
   });
 });
 
-// the oldest inbox table a live account object holds, which no wake alters
-const OLDEST_DISPATCHES_TABLE = `
-  CREATE TABLE dispatches (
-    id TEXT PRIMARY KEY,
-    kind TEXT NOT NULL,
-    thread_id TEXT NOT NULL,
-    from_device_id TEXT NOT NULL,
-    to_device_id TEXT,
-    approval_id TEXT,
-    body TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    claim_token TEXT,
-    claimed_at INTEGER,
-    state TEXT NOT NULL,
-    message TEXT,
-    settled_at INTEGER
-  );
-`;
-
 describe("a phone's capture", () => {
-  it("lands in the oldest inbox table a live account object holds", async () => {
-    const { mac, phone, stub } = await account("capture-oldest-table@example.test");
-    await runInDurableObject(stub, (_instance, state) => {
-      state.storage.sql.exec(`DROP TABLE dispatches; ${OLDEST_DISPATCHES_TABLE}`);
-    });
-    const sent = capture("remember the old table");
+  it("is claimed as the phone sent it, with no thread", async () => {
+    const { mac, phone } = await account("capture-claim@example.test");
+    const sent = capture("remember the milk");
 
     expect(await create(phone.credential, sent)).toEqual({
       dispatch: { id: sent.id, state: "waiting" },
@@ -362,6 +341,42 @@ describe("a phone's capture", () => {
       const response = await post(mac.credential, DISPATCH_API_PATHS.claim, body);
       expect(await refusal(response)).toEqual({ code: "bad-request", status: 400 });
     }
+  });
+});
+
+describe("the dispatch inbox's tables", () => {
+  it("keep their rows across a wake while their version stands", async () => {
+    const { phone, stub } = await account("inbox-tables-kept@example.test");
+    const kept = turn("thr_kept", "still waiting");
+    await create(phone.credential, kept);
+
+    await runInDurableObject(stub, (_instance, state) => {
+      initDispatchTables(state.storage);
+    });
+    expect(await statesOf(phone.credential, [kept.id])).toEqual([
+      { id: kept.id, state: "waiting" },
+    ]);
+  });
+
+  it("are replaced on the wake of an object that kept no version of them", async () => {
+    const { mac, phone, stub } = await account("inbox-tables-replaced@example.test");
+    const stale = mintId();
+    await runInDurableObject(stub, (_instance, state) => {
+      const { kv, sql } = state.storage;
+      for (const key of Array.from(kv.list(), ([name]) => name)) {
+        kv.delete(key);
+      }
+      sql.exec(
+        "DROP TABLE dispatches; CREATE TABLE dispatches (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL)",
+      );
+      sql.exec("INSERT INTO dispatches VALUES (?, 'thr_stale')", stale);
+      initDispatchTables(state.storage);
+    });
+    const sent = capture("lands in the current shape");
+
+    expect(await statesOf(phone.credential, [stale])).toEqual([{ id: stale, state: "unknown" }]);
+    await create(phone.credential, sent);
+    expect(await claimedRows(mac.credential)).toEqual([{ ...sent, createdAt: expect.any(Number) }]);
   });
 });
 

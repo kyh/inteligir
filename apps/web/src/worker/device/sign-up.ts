@@ -49,7 +49,6 @@ const refusalOf = (error: APIError): SignUpResult | null => {
 
 export const signUpDevice = async (
   db: Db,
-  d1: D1Database,
   auth: SignUpAuth,
   args: DeviceSignUpRequest,
 ): Promise<SignUpResult> => {
@@ -70,7 +69,7 @@ export const signUpDevice = async (
     }
     return refusal;
   }
-  const minted = await mintDeviceCredential(db, d1, {
+  const minted = await mintDeviceCredential(db, {
     deviceName: args.deviceName,
     sessionToken: signedUp.token,
     user: signedUp.user,
