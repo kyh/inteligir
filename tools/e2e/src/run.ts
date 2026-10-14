@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { parseArgs } from "node:util";
 import { shellBinary } from "./harness/desktop-shell";
 import { buildProcessEnv, describeExecError, exec } from "./harness/exec";
 import { ScenarioSkipError } from "./harness/scenario-skip-error";
@@ -122,28 +123,29 @@ interface CliOptions {
   noSkip: boolean;
 }
 
-const parseArgs = (argv: readonly string[]): CliOptions => {
-  const options: CliOptions = { keep: false, list: false, noSkip: false, only: [] };
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === "--keep") {
-      options.keep = true;
-    } else if (arg === "--no-skip") {
-      options.noSkip = true;
-    } else if (arg === "--list") {
-      options.list = true;
-    } else if (arg === "--only") {
-      const value = argv[index + 1];
-      if (value === undefined) {
-        throw new Error(`--only needs a value\n${USAGE}`);
-      }
-      options.only.push(...value.split(",").map((name) => name.trim()));
-      index += 1;
-    } else {
-      throw new Error(`unknown argument "${arg ?? ""}"\n${USAGE}`);
-    }
+const parseCliOptions = (argv: string[]): CliOptions => {
+  try {
+    const { values } = parseArgs({
+      allowPositionals: false,
+      args: argv,
+      options: {
+        keep: { default: false, type: "boolean" },
+        list: { default: false, type: "boolean" },
+        "no-skip": { default: false, type: "boolean" },
+        only: { default: [], multiple: true, type: "string" },
+      },
+      strict: true,
+    });
+    return {
+      keep: values.keep,
+      list: values.list,
+      noSkip: values["no-skip"],
+      only: values.only.flatMap((value) => value.split(",").map((name) => name.trim())),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${message}\n${USAGE}`, { cause: error });
   }
-  return options;
 };
 
 const selectScenarios = (options: CliOptions): readonly Scenario[] => {
@@ -323,7 +325,7 @@ const buildShell = async (repoRoot: string): Promise<void> => {
 };
 
 const main = async (): Promise<number> => {
-  const options = parseArgs(process.argv.slice(2));
+  const options = parseCliOptions(process.argv.slice(2));
   if (options.list) {
     for (const scenario of SCENARIOS) {
       console.log(`${scenario.name}  —  ${scenario.description}`);
