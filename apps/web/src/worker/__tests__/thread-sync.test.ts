@@ -51,9 +51,9 @@ const event = (
   threadId,
 });
 
-const capture = async (credential: string, text: string): Promise<Response> =>
+const ask = async (credential: string, text: string): Promise<Response> =>
   await SELF.fetch(`${ORIGIN}${DISPATCH_API_PATHS.dispatch}`, {
-    body: JSON.stringify({ id: "c".repeat(32), kind: "capture", text }),
+    body: JSON.stringify({ id: "c".repeat(32), kind: "turn", text, threadId: "th_1" }),
     headers: { ...deviceHeaders(credential), "content-type": "application/json" },
     method: "POST",
   });
@@ -314,8 +314,8 @@ describe("account deletion", () => {
     const { cookie, password } = await signUpUser("delete-me@example.test");
     const { credential } = await loginDevice(cookie, "Laptop");
     await push(credential, { events: [event("th_1", 1, "to be purged")] });
-    const captured = await capture(credential, "to be purged too");
-    expect(captured.status).toBe(200);
+    const asked = await ask(credential, "to be purged too");
+    expect(asked.status).toBe(200);
     const page = await pull(credential, 0);
     expect(page.lastSeq).toBe(1);
 

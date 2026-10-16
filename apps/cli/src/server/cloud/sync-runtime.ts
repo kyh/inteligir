@@ -47,7 +47,6 @@ import {
   writeDeviceCredential,
 } from "./credential-store";
 import type { DeviceCredential } from "./credential-store";
-import type { InboxVault } from "./dispatches";
 import { enqueueThreadEvents } from "./outbox";
 import { createSyncCadence } from "./sync-cadence";
 import type { SyncCadenceArgs } from "./sync-cadence";
@@ -76,7 +75,6 @@ export interface CloudRuntimeArgs {
   build: string;
   /** the name a sign-in that names none gives this device (`readMachineName`). */
   machineName: string;
-  vault: InboxVault;
   transport?: CloudTransport;
   /** the vault ping's handler; also kicked once after a login so the derived remote syncs now. */
   onVaultPing?: () => void;
@@ -317,7 +315,6 @@ export const createCloudRuntime = (args: CloudRuntimeArgs): CloudRuntime => {
       lastError = message;
     },
     sink: () => sink,
-    vault: args.vault,
   };
 
   const runPass = async (): Promise<SyncOutcome> => {

@@ -11,10 +11,6 @@ import { diff3 } from "../text/diff3";
 import { conflictCopyPath } from "./conflict-copy";
 import type { SyncConflictReport } from "./conflict-copy";
 
-// The root one alone: the app appends phone captures to it from every signed-in desktop, so two
-// appends are two captures, never a conflict. A nested Inbox.md is a note like any other.
-export const CAPTURE_INBOX_PATH = "Inbox.md";
-
 export type FileSide =
   | { readonly kind: "absent" }
   | { readonly kind: "text"; readonly text: string }
@@ -167,10 +163,6 @@ export const reconcileFile = (input: ReconcileInput): Reconciled => {
   }
   if (mine.kind === "text" && theirs.kind === "text") {
     const baseText = base.kind === "text" ? base.text : "";
-    if (path === CAPTURE_INBOX_PATH) {
-      const union = diff3(baseText, mine.text, theirs.text, { overlap: "union" });
-      return resolved(settle(union.merged, mine, theirs));
-    }
     const { conflicted, merged } = diff3(baseText, mine.text, theirs.text);
     const stays = settle(merged, mine, theirs);
     return conflicted ? withCopyOfTheirs(input, stays, theirs) : resolved(stays);

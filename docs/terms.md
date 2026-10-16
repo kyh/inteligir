@@ -76,8 +76,8 @@ royalty-free license to use that feedback freely, in any manner and for any
 purpose, without attribution. Please do not submit any feedback that you
 consider proprietary or confidential.
 
-2.7 **Your Content.** Your notes, attachments, comments, quick captures and
-conversations with the agent ("**Your Content**") belong to you. Your notes are
+2.7 **Your Content.** Your notes, attachments, comments and conversations with
+the agent ("**Your Content**") belong to you. Your notes are
 files in a folder on your Mac, and they stay there whatever happens to your
 account or to the Site. When you sync Your Content through our cloud, you grant
 us a limited, non-exclusive, worldwide, royalty-free license to host, store,

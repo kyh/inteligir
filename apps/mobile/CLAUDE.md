@@ -40,8 +40,8 @@ The phone: its editor page, its offline store and queue, and how it ships.
 - **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
   `SyncRuntime`, the login flow and the dispatch runtime publish stores the
   screens subscribe to, so a poll pass, a revocation, a refused login and where
-  a request to a Mac stands are shown; a refused request or capture keeps its
-  words and the reason until dismissed. A sign-in is ONE session: every runtime reads under
+  a request to a Mac stands are shown; a refused request keeps its words and the
+  reason until dismissed. A sign-in is ONE session: every runtime reads under
   `SyncRuntime`'s, so a revocation any request hears ends the sign-in for all,
   and each checks its fence before recording a refusal, so one heard under an
   earlier sign-in never ends the next

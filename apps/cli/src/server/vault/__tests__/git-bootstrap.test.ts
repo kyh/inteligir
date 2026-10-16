@@ -4,7 +4,6 @@ import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
-import { CAPTURE_INBOX_PATH } from "@repo/notes/sync/reconcile-file";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { ensureVaultRepo, SEED_COMMIT_KEY } from "../git-bootstrap";
 import type { EnsureVaultRepoArgs } from "../git-bootstrap";
@@ -88,25 +87,6 @@ describe("ensureVaultRepo", () => {
     expect(exclude.split("\n").filter((line) => line === `${VAULT_TMP_PREFIX}*`)).toHaveLength(1);
     await writeFile(path.join(root, `${VAULT_TMP_PREFIX}staged`), "mid-write\n", "utf-8");
     await expectCleanRepo(root);
-  });
-
-  it("marks the root capture inbox, and only it, merge=union, once however many boots", async () => {
-    const root = scratchDir("inteligir-git-inbox-attr-");
-    await ensureVaultRepo({ git, root });
-    await ensureVaultRepo({ git, root });
-
-    const line = `/${CAPTURE_INBOX_PATH} merge=union`;
-    const attributes = await readFile(await gitDirPath(root, "info/attributes"), "utf-8");
-    expect(attributes.split("\n").filter((entry) => entry === line)).toHaveLength(1);
-    const nested = path.join("notes", CAPTURE_INBOX_PATH);
-    const { stdout } = await git.run(root, [
-      "check-attr",
-      "merge",
-      "--",
-      CAPTURE_INBOX_PATH,
-      nested,
-    ]);
-    expect(stdout).toBe(`${CAPTURE_INBOX_PATH}: merge: union\n${nested}: merge: unspecified\n`);
   });
 });
 
@@ -285,7 +265,6 @@ describe("the bootstrap port", () => {
     expect(fake.calls.map((call) => call.args.slice(0, 2).join(" "))).toEqual([
       "clone --",
       "init -b",
-      "rev-parse --git-path",
       "rev-parse --git-path",
       "rev-parse --verify",
       "add -A",

@@ -134,16 +134,6 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   replays every local commit and has nowhere to keep the other version.
   `apps/cli/src/server/vault/git-merge.ts`.
 
-- **`Inbox.md` MERGES BY UNION.** Two desktops each appending a phone capture to
-  the root `Inbox.md` between syncs overlap on a file the app wrote itself, and
-  without union the merge would copy the inbox aside over a conflict nobody
-  made. Every boot makes sure `info/attributes` holds `/Inbox.md merge=union`:
-  local, never a committed `.gitattributes`, because the vault's files are the
-  user's. Residual: a bullet one device deleted beside the other's append comes
-  back. `apps/cli/src/server/vault/git-bootstrap.ts`, beside
-  `@repo/notes/sync/reconcile-file`, whose verdict unions the same file for a
-  writer that runs no git.
-
 - **AN UNTOUCHED STARTER VAULT YIELDS TO A REMOTE THAT HAS HISTORY**, so a
   second Mac signing in never merges its seed into the account's notes: the two
   histories are unrelated, so a starter the user edited elsewhere is added on

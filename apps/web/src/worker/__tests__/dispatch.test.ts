@@ -71,11 +71,7 @@ const create = async (credential: string, request: CreateDispatchRequest) =>
 const claim = async (credential: string) =>
   await answered(
     claimDispatchesResponseSchema,
-    await post(
-      credential,
-      DISPATCH_API_PATHS.claim,
-      JSON.stringify({ kinds: ["turn", "answer", "capture"] }),
-    ),
+    await post(credential, DISPATCH_API_PATHS.claim, JSON.stringify({ kinds: ["turn", "answer"] })),
   );
 
 const claimedRows = async (credential: string) => {
@@ -118,8 +114,6 @@ const turn = (threadId: string, text: string): CreateDispatchRequest => ({
   text,
   threadId,
 });
-
-const capture = (text: string): CreateDispatchRequest => ({ id: mintId(), kind: "capture", text });
 
 const approvalOn = (threadId: string): OpenApprovalRequest => ({
   id: mintId(),
@@ -282,6 +276,14 @@ describe("a phone's turn", () => {
     }
   });
 
+  it("refuses a claim that names no kind", async () => {
+    const { mac } = await account("dispatch-kindless@example.test");
+    for (const body of ["{}", JSON.stringify({ kinds: [] })]) {
+      const response = await post(mac.credential, DISPATCH_API_PATHS.claim, body);
+      expect(await refusal(response)).toEqual({ code: "bad-request", status: 400 });
+    }
+  });
+
   it("prunes a settled row a day on, at the next create", async () => {
     const { mac, phone, stub } = await account("dispatch-prune@example.test");
     const old = turn("thr_old", "long done");
@@ -300,47 +302,6 @@ describe("a phone's turn", () => {
 
     await create(phone.credential, turn("thr_new", "fresh"));
     expect(await statesOf(phone.credential, [old.id])).toEqual([{ id: old.id, state: "unknown" }]);
-  });
-});
-
-describe("a phone's capture", () => {
-  it("is claimed as the phone sent it, with no thread", async () => {
-    const { mac, phone } = await account("capture-claim@example.test");
-    const sent = capture("remember the milk");
-
-    expect(await create(phone.credential, sent)).toEqual({
-      dispatch: { id: sent.id, state: "waiting" },
-      duplicate: false,
-    });
-    expect(await claimedRows(mac.credential)).toEqual([{ ...sent, createdAt: expect.any(Number) }]);
-  });
-
-  it("pings every Mac, phone requests on or off, and never a phone", async () => {
-    const { mac, otherMac, phone } = await account("capture-audience@example.test");
-    const macWs = await openSocket(mac.credential, "desktop", TAKES_PHONE_REQUESTS);
-    const quietMacWs = await openSocket(otherMac.credential, "desktop");
-    const phoneWs = await openSocket(phone.credential, "mobile");
-
-    await create(phone.credential, capture("remember the thing"));
-    await awaitFrames(macWs, [{ type: "dispatch" }]);
-    await awaitFrames(quietMacWs, [{ type: "dispatch" }]);
-
-    // a later turn's frame: the capture's, had the phone been sent one, would sit before it
-    await create(phone.credential, turn("thr_after", "and then this"));
-    await awaitFrames(macWs, [{ type: "dispatch" }, { threadId: "thr_after", type: "dispatch" }]);
-    expect(phoneWs.frames).toEqual([]);
-
-    macWs.socket.close();
-    quietMacWs.socket.close();
-    phoneWs.socket.close();
-  });
-
-  it("refuses a claim that names no kind", async () => {
-    const { mac } = await account("capture-kindless@example.test");
-    for (const body of ["{}", JSON.stringify({ kinds: [] })]) {
-      const response = await post(mac.credential, DISPATCH_API_PATHS.claim, body);
-      expect(await refusal(response)).toEqual({ code: "bad-request", status: 400 });
-    }
   });
 });
 
@@ -372,7 +333,7 @@ describe("the dispatch inbox's tables", () => {
       sql.exec("INSERT INTO dispatches VALUES (?, 'thr_stale')", stale);
       initDispatchTables(state.storage);
     });
-    const sent = capture("lands in the current shape");
+    const sent = turn("thr_fresh", "lands in the current shape");
 
     expect(await statesOf(phone.credential, [stale])).toEqual([{ id: stale, state: "unknown" }]);
     await create(phone.credential, sent);

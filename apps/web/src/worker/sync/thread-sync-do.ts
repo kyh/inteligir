@@ -334,10 +334,6 @@ export class ThreadSyncDO extends DurableObject<Env> {
           { threadId: ping.threadId, type: "dispatch" },
           this.ctx.getWebSockets(deviceTag(ping.deviceId)),
         );
-        return;
-      }
-      case "desktops": {
-        broadcast({ type: "dispatch" }, this.socketsExcept(fromDeviceId, platformTag("desktop")));
         break;
       }
       // no default

@@ -8,15 +8,13 @@ import { exceedsUtf8Bytes } from "../bytes";
 import { threadIdSchema } from "../sync/sync-schema";
 import { vaultPathSchema } from "../vault/vault-schema";
 
-// The phone reaches a Mac through this inbox because it never pushes to the thread log. Three
+// The phone reaches a Mac through this inbox because it never pushes to the thread log. Two
 // kinds of row ride it from the phone: a `turn`, which any Mac may claim and the first claim wins;
-// an `answer` to an approval, which only the Mac that asked may claim; and a `capture`, a line
-// for the vault's Inbox.md, which any Mac claims whether or not it takes the phone's turns. The
-// approvals themselves ride the other way, opened by that Mac and listed for the phone. Delivery
-// is at-least-once to a claimant and a row is settled only by the claim that holds it, so a Mac's
-// apply of a turn or an answer must be exactly-once on the dispatch id; a capture, whose line
-// carries no id, lands again only when its ack never reached the inbox. An unclaimed row waits
-// until a Mac claims it or the phone cancels it.
+// and an `answer` to an approval, which only the Mac that asked may claim. The approvals
+// themselves ride the other way, opened by that Mac and listed for the phone. Delivery is
+// at-least-once to a claimant and a row is settled only by the claim that holds it, so a Mac's
+// apply of either must be exactly-once on the dispatch id. An unclaimed row waits until a Mac
+// claims it or the phone cancels it.
 
 export { answerableDecisions } from "@repo/domain/pending-interactions";
 
@@ -46,7 +44,7 @@ export const APPROVAL_MAX_BYTES = 16 * 1024;
 
 // a claim names the kinds its Mac applies, so a kind a newer phone sends never reaches a build
 // that would read it as another
-export const dispatchKindSchema = z.enum(["turn", "answer", "capture"]);
+export const dispatchKindSchema = z.enum(["turn", "answer"]);
 export type DispatchKind = z.infer<typeof dispatchKindSchema>;
 
 // minted by the client, 128 random bits: the id is the idempotency key, so a resend is one row
@@ -88,20 +86,15 @@ const answerFields = {
   decision: pendingInteractionApprovalDecisionSchema,
 };
 
-const captureFields = {
-  text: z.string().trim().min(1).max(DISPATCH_MAX_CHARS),
-};
-
 export const createDispatchRequestSchema = z.discriminatedUnion("kind", [
   z.strictObject({ id: dispatchIdSchema, kind: z.literal("turn"), ...turnFields }),
   z.strictObject({ id: dispatchIdSchema, kind: z.literal("answer"), ...answerFields }),
-  z.strictObject({ id: dispatchIdSchema, kind: z.literal("capture"), ...captureFields }),
 ]);
 export type CreateDispatchRequest = z.infer<typeof createDispatchRequestSchema>;
 
 // waiting: no live claim; claimed: a Mac holds it now; delivered: a Mac took it, into the thread
-// (run or queued) or into Inbox.md; refused: a Mac would not, and says why; unknown: cancelled,
-// pruned or never sent
+// (run or queued) or to the question it answers; refused: a Mac would not, and says why; unknown:
+// cancelled, pruned or never sent
 export const dispatchStatusSchema = z.discriminatedUnion("state", [
   z.object({
     id: dispatchIdSchema,
@@ -136,12 +129,6 @@ export const claimedDispatchSchema = z.discriminatedUnion("kind", [
     kind: z.literal("answer"),
     threadId: threadIdSchema,
     ...answerFields,
-  }),
-  z.object({
-    createdAt: createdAtSchema,
-    id: dispatchIdSchema,
-    kind: z.literal("capture"),
-    ...captureFields,
   }),
 ]);
 export type ClaimedDispatch = z.infer<typeof claimedDispatchSchema>;

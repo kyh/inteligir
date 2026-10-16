@@ -91,12 +91,6 @@ const answer = (id: string, approvalId: string, decision: Decision): CreateDispa
   kind: "answer",
 });
 
-const capture = (id: string, text: string): CreateDispatchRequest => ({
-  id,
-  kind: "capture",
-  text,
-});
-
 const PAYLOAD: OpenApprovalRequest["payload"] = {
   availableDecisions: ["allow_once", "deny"],
   kind: "approval",
@@ -375,6 +369,18 @@ const TURN_SCENARIOS: readonly InboxScenario[] = [
       { id: dispatchId(2), state: "unknown" },
     ],
   ),
+  scenario(
+    "hands a turn only to a claim that names turns",
+    async ({ signIn }) => {
+      const phone = await signIn("Phone");
+      const mac = await signIn("Mac");
+      answered(await phone.client.createDispatch(turn(dispatchId(1), "thr_turn", "tidy this")));
+      const toAnswers = await claimKinds(mac, ["answer"]);
+      const toTurns = await claimKinds(mac, ["turn"]);
+      return { toAnswers: ids(toAnswers.dispatches), toTurns: ids(toTurns.dispatches) };
+    },
+    { toAnswers: [], toTurns: [dispatchId(1)] },
+  ),
 ];
 
 const APPROVAL_SCENARIOS: readonly InboxScenario[] = [
@@ -586,59 +592,4 @@ const APPROVAL_SCENARIOS: readonly InboxScenario[] = [
   ),
 ];
 
-const CAPTURE_SCENARIOS: readonly InboxScenario[] = [
-  scenario(
-    "hands a capture, as sent, only to a claim that names captures, and a turn only to one that names turns",
-    async ({ signIn }) => {
-      const phone = await signIn("Phone");
-      const mac = await signIn("Mac");
-      const declining = await signIn("Declining Mac");
-      answered(await phone.client.createDispatch(turn(dispatchId(1), "thr_turn", "tidy this")));
-      const created = answered(
-        await phone.client.createDispatch(capture(dispatchId(2), "buy oat milk")),
-      );
-      const toDeclining = await claimKinds(declining, ["capture"]);
-      const toMac = await claimKinds(mac, ["turn", "answer"]);
-      answered(
-        await declining.client.ackDispatches({
-          claimToken: toDeclining.claimToken,
-          results: [{ id: dispatchId(2), outcome: "delivered" }],
-        }),
-      );
-      return {
-        created,
-        settled: await statesOf(phone, [dispatchId(2)]),
-        toDeclining: toDeclining.dispatches.map(stamped),
-        toMac: ids(toMac.dispatches),
-      };
-    },
-    {
-      created: { dispatch: { id: dispatchId(2), state: "waiting" }, duplicate: false },
-      settled: [{ id: dispatchId(2), state: "delivered" }],
-      toDeclining: [{ createdAt: true, id: dispatchId(2), kind: "capture", text: "buy oat milk" }],
-      toMac: [dispatchId(1)],
-    },
-  ),
-  scenario(
-    "stores a resent capture once, and refuses one with no words",
-    async ({ signIn }) => {
-      const phone = await signIn("Phone");
-      const mac = await signIn("Mac");
-      const request = capture(dispatchId(1), "one thought");
-      const first = answered(await phone.client.createDispatch(request));
-      const again = answered(await phone.client.createDispatch(request));
-      return {
-        blank: verdictOf(await phone.client.createDispatch(capture(dispatchId(2), "   "))),
-        claimed: await claimedIds(mac),
-        duplicates: [first.duplicate, again.duplicate],
-      };
-    },
-    { blank: "bad-request", claimed: [dispatchId(1)], duplicates: [false, true] },
-  ),
-];
-
-export const INBOX_SCENARIOS: readonly InboxScenario[] = [
-  ...TURN_SCENARIOS,
-  ...APPROVAL_SCENARIOS,
-  ...CAPTURE_SCENARIOS,
-];
+export const INBOX_SCENARIOS: readonly InboxScenario[] = [...TURN_SCENARIOS, ...APPROVAL_SCENARIOS];

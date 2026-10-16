@@ -193,7 +193,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
       void vault.git.syncNow();
     },
     phoneRequests: () => cloudPrefs.phoneRequests(),
-    vault: vault.service,
   };
   if (args.cloudTransport !== undefined) {
     cloudArgs.transport = args.cloudTransport;

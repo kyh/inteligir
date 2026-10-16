@@ -1,7 +1,6 @@
 // what the screens draw of the phone's requests beside the synced log: a pending message until the
-// log's request carrying its id replaces it, a thread that so far exists only on this phone, a
-// Mac's question waiting on the phone's answer, and the captures on their way to Inbox.md. Pure,
-// so the copy and the merge run under test.
+// log's request carrying its id replaces it, a thread that so far exists only on this phone, and a
+// Mac's question waiting on the phone's answer. Pure, so the copy and the merge run under test.
 
 import type { ApprovalRow } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { answerableDecisions } from "@repo/domain/pending-interactions";
@@ -14,7 +13,6 @@ import { UNTITLED_THREAD } from "../sync/thread-projection";
 import type { ThreadProjection } from "../sync/thread-projection";
 import type {
   AnswerDispatch,
-  CaptureDispatch,
   DesktopsOnline,
   DispatchPhase,
   DispatchState,
@@ -107,9 +105,6 @@ const isTurn = (dispatch: DispatchState["dispatches"][number]): dispatch is Turn
 
 const isAnswer = (dispatch: DispatchState["dispatches"][number]): dispatch is AnswerDispatch =>
   dispatch.kind === "answer";
-
-const isCapture = (dispatch: DispatchState["dispatches"][number]): dispatch is CaptureDispatch =>
-  dispatch.kind === "capture";
 
 // the filter is here as well as in the runtime, which drops a row only once its delete commits: a
 // render between the pull and that commit would otherwise draw the message twice
@@ -211,40 +206,4 @@ export const threadListEntries = (
 export const localThreadTitle = (pending: readonly TurnDispatch[]): string | null => {
   const [first] = pending;
   return first === undefined ? null : (deriveThreadTitle(first.text) ?? UNTITLED_THREAD);
-};
-
-export interface RefusedCapture {
-  id: string;
-  text: string;
-  message: string;
-}
-
-export interface PendingCaptures {
-  // what the home screen says of the captures no Mac holds yet; null when none waits
-  caption: string | null;
-  // oldest first, kept for the user to copy before dismissing them
-  refused: readonly RefusedCapture[];
-}
-
-const countOf = (count: number): string =>
-  count === 1 ? "1 capture" : `${String(count)} captures`;
-
-// any open Mac takes a capture, whether or not it takes the phone's requests, so the count of Macs
-// listening says nothing here
-export const pendingCaptures = (state: DispatchState): PendingCaptures => {
-  const captures = state.dispatches.filter(isCapture);
-  const unsent = captures.filter((capture) => capture.phase.kind === "unsent").length;
-  const waiting = captures.filter((capture) => capture.phase.kind === "waiting").length;
-  let caption: string | null = null;
-  if (unsent > 0) {
-    caption = `${countOf(unsent)} not sent yet — retrying`;
-  } else if (waiting > 0) {
-    caption = `${countOf(waiting)} waiting for your Mac`;
-  }
-  return {
-    caption,
-    refused: captures.flatMap(({ id, phase, text }) =>
-      phase.kind === "refused" ? [{ id, message: phase.message, text }] : [],
-    ),
-  };
 };

@@ -88,8 +88,7 @@ describe("every request an install sends names its build", () => {
         results: [{ id: ID, outcome: "delivered" }],
       }),
     cancelDispatch: async (client) => await client.cancelDispatch(ID),
-    claimDispatches: async (client) =>
-      await client.claimDispatches({ kinds: ["capture"], limit: 5 }),
+    claimDispatches: async (client) => await client.claimDispatches({ kinds: ["turn"], limit: 5 }),
     closeApproval: async (client) => await client.closeApproval(ID),
     createDispatch: async (client) =>
       await client.createDispatch({ approvalId: ID, decision: "deny", id: ID, kind: "answer" }),

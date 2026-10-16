@@ -45,7 +45,7 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/e2e": ["@repo/contract", "@repo/mobile", "@repo/mobile-editor", "inteligir"],
     // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
     "@repo/editor": ["@repo/notes", "@repo/ui"],
-    // a partial cloud client: reads the thread log and produces captures, never pushes or claims,
+    // a partial cloud client: reads the thread log and asks a Mac, never pushes or claims,
     // and writes the vault only through the guarded commit route. the @repo/notes edge is the
     // dialect's own parse, link resolver and the one conflict verdict its write queue settles
     // with; the @repo/mobile-editor edge is the editor page's wire alone (EDITOR_PAGE_CLIENTS

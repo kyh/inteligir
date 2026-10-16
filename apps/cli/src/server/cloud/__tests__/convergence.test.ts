@@ -66,7 +66,6 @@ const rebootCloud = async (
     db: install.db,
     onDebug: () => {},
     transport: { fetch: cloud.fetch, pollIntervalMs: null },
-    vault: install.vault.service,
   });
   runtime.attach(
     new ThreadService({

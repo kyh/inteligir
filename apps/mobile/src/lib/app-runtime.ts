@@ -6,16 +6,8 @@ import { File } from "expo-file-system";
 import { addNetworkStateListener } from "expo-network";
 import * as SecureStore from "expo-secure-store";
 import { createKeychainCredentials } from "../credential/secure-store-credential";
-import {
-  pendingCaptures,
-  threadDispatches,
-  threadListEntries,
-} from "../dispatch/dispatch-projection";
-import type {
-  PendingCaptures,
-  ThreadDispatches,
-  ThreadListEntry,
-} from "../dispatch/dispatch-projection";
+import { threadDispatches, threadListEntries } from "../dispatch/dispatch-projection";
+import type { ThreadDispatches, ThreadListEntry } from "../dispatch/dispatch-projection";
 import type {
   AskAgentRequest,
   CancelOutcome,
@@ -252,16 +244,8 @@ export const useDispatches = (threadId: string): ThreadDispatches => {
   );
 };
 
-export const usePendingCaptures = (): PendingCaptures => {
-  const dispatches = useDispatchState();
-  return useMemo(() => pendingCaptures(dispatches), [dispatches]);
-};
-
 export const askAgent = async (request: AskAgentRequest): Promise<DispatchOutcome> =>
   await getRuntime().dispatch.askAgent(request);
-
-export const capture = async (text: string): Promise<DispatchOutcome> =>
-  await getRuntime().dispatch.capture(text);
 
 export const answerApproval = async (
   approvalId: string,

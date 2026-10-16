@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { commentsStorePath, parseSidecar, serializeSidecar } from "../../comments/sidecar-schema";
 import type { CommentEntry, CommentSidecar } from "../../comments/sidecar-schema";
 import { takenIgnoringCase } from "../../knowledge/doc-file";
-import { CAPTURE_INBOX_PATH, reconcileFile } from "../reconcile-file";
+import { reconcileFile } from "../reconcile-file";
 import type { FileSide, ReconcileInput } from "../reconcile-file";
 
 const HERE = "Kai’s MacBook";
@@ -249,37 +249,6 @@ describe("reconcileFile", () => {
           theirs: text("{ not json"),
         }),
       ).toEqual({ copy: null, report: null, stays: { kind: "mine" } });
-    });
-  });
-
-  describe("the capture inbox", () => {
-    it("keeps both devices' appends, mine first, with no copy", () => {
-      const base = doc("# Inbox", "", "- first");
-      expect(
-        reconcile({
-          base: text(base),
-          mine: text(doc("# Inbox", "", "- first", "- captured here")),
-          path: CAPTURE_INBOX_PATH,
-          theirs: text(doc("# Inbox", "", "- first", "- captured there")),
-        }),
-      ).toEqual({
-        copy: null,
-        report: null,
-        stays: {
-          kind: "merged",
-          text: doc("# Inbox", "", "- first", "- captured here", "- captured there"),
-        },
-      });
-    });
-
-    it("merges a nested Inbox.md like any note", () => {
-      const result = reconcile({
-        base: text(doc("- first")),
-        mine: text(doc("- first", "- here")),
-        path: `notes/${CAPTURE_INBOX_PATH}`,
-        theirs: text(doc("- first", "- there")),
-      });
-      expect(result.copy?.path).toBe("notes/Inbox (conflict, Kai’s iPhone).md");
     });
   });
 });

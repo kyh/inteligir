@@ -260,10 +260,6 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   the 60s poll would land it (the account's socket upgraded from the device,
   React Native's headers argument carrying the bearer), and ends as the
   settled reply.
-- **Capture.** Passing: a quick capture lands in `Inbox.md` on the Mac. In
-  airplane mode, capture a line, force-quit the app, turn airplane mode off and
-  open it. Passing: `Inbox.md` on the Mac holds the line once, and the count of
-  captures waiting under the box clears.
 - **Sign out.** With an edit still unsent (airplane mode), Sign out. Passing: it
   asks first and names the count; confirmed, the sign-in screen shows.
 - **Revoke.** Sign the phone in again, then Revoke it in Settings › Account on
