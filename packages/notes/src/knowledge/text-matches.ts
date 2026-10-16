@@ -1,6 +1,6 @@
 // Literal occurrences, not the search engine's tokens: FTS5 cannot answer where inside a
-// line a hit sits, and a replace must touch exactly the bytes the rows showed. One matcher
-// serves the listing and the rewrite, so the two cannot disagree.
+// line a hit sits, and a jump must land on exactly the bytes the row showed. One matcher
+// serves the listing and the find bar, so the two cannot disagree.
 
 import { splitLinesKeepingTerminators } from "../text/source-lines";
 
@@ -43,11 +43,6 @@ export type VaultMatch = TextMatch & {
 export interface VaultMatches {
   matches: VaultMatch[];
   total: number;
-}
-
-export interface TextReplacement {
-  text: string;
-  count: number;
 }
 
 const EXCERPT_BEFORE = 40;
@@ -93,32 +88,6 @@ export const findLineMatches = (parts: readonly string[], pattern: RegExp): Text
     }
   }
   return found;
-};
-
-// a function replacement: a `$1` typed into the replace box is text, not a group reference
-export const replaceTextMatches = (
-  text: string,
-  needle: string,
-  replacement: string,
-  options: TextMatchOptions,
-): TextReplacement => {
-  if (needle === "") {
-    return { count: 0, text };
-  }
-  const pattern = matcher(needle, options);
-  const parts = splitLinesKeepingTerminators(text);
-  let count = 0;
-  // the callback form, not a replacement string: `$&` and friends in `replacement` are literal here
-  const substitute = (): string => {
-    count += 1;
-    return replacement;
-  };
-  for (let index = 0; index < parts.length; index += 2) {
-    const line = parts[index] ?? "";
-    pattern.lastIndex = 0;
-    parts[index] = line.replace(pattern, substitute);
-  }
-  return { count, text: parts.join("") };
 };
 
 export const excerptAround = (

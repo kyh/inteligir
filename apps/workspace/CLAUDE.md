@@ -117,13 +117,12 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
 
 - **THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P.** The palette lists every note
   and every command in one field, and the search that is not a lookup opens from
-  inside it: "Search across the vault…" (the literal scan with its replace). ⌘F
-  IS NOT ONE OF THEM: it searches within the open note, so it keeps its own
-  chord and its own bar. There is no ⌘O, no ⌘⇧F, no quick-open page and no rail
-  search field: four ways to type a note's name was three too many, each a
-  different set of rows for the same question. The rail's Search button's
-  tooltip spells ⌘P from the table (`app/global-shortcuts.ts`), never as a
-  literal.
+  inside it: "Search across the vault…" (the literal scan). ⌘F IS NOT ONE OF
+  THEM: it searches within the open note, so it keeps its own chord and its own
+  bar. There is no ⌘O, no ⌘⇧F, no quick-open page and no rail search field: four
+  ways to type a note's name was three too many, each a different set of rows
+  for the same question. The rail's Search button's tooltip spells ⌘P from the
+  table (`app/global-shortcuts.ts`), never as a literal.
 
 - **A NOTE'S FACTS ARE READ WHERE THEY ARE CHEAP, and the count rides the
   serializer.** The Metadata tab's "About" block is folded by default because

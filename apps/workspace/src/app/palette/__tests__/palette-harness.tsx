@@ -83,7 +83,6 @@ export const makeActions = () =>
     openNote: vi.fn<PaletteActions["openNote"]>(),
     openSettings: vi.fn<PaletteActions["openSettings"]>(),
     openThread: vi.fn<PaletteActions["openThread"]>(),
-    replaceAll: vi.fn<PaletteActions["replaceAll"]>(async () => {}),
     syncNow: vi.fn<PaletteActions["syncNow"]>(),
   }) satisfies PaletteActions;
 

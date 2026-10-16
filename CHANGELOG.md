@@ -32,6 +32,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 
 - **Unlinked mentions.** Related, in the panel's Metadata tab, no longer lists notes that name this one without linking to it, and the Link button beside them is gone. To find the notes that name this one, search for its name, and type `[[` where it is written to make it a link.
 - **Problems.** The Problems page in ⌘P is gone, with its lists of links that lead nowhere, missing images, notes nothing links to, and notes that share a name or an `id`. A link to a note that does not exist still shows dashed where you wrote it, and a missing image still shows as missing; Related, in the Metadata tab, still lists the notes that link to this one. If you duplicate a note in Finder, ask the agent to give the copy an `id` of its own, so the two stop sharing their comments.
+- **Replace across the vault.** Search across the vault… in ⌘P still lists every match, with match case and whole word, but no longer replaces them. To change a word in many notes, ask the agent, and Undo changes takes the whole edit back; to replace within one note, open it and press ⌥⌘F.
 
 ### Fixed
 

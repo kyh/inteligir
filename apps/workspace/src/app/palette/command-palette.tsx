@@ -56,7 +56,6 @@ import {
 import { SearchPage } from "./search-page";
 import { ShortcutsPage } from "./shortcuts-page";
 import { ThreadsPage } from "./threads-page";
-import type { ReplaceProgressPort, VaultReplaceRequest } from "./vault-replace";
 
 // the open note and every verb that needs one, so no row can be offered without its note
 export interface PaletteNote {
@@ -83,8 +82,6 @@ export interface PaletteActions {
   moveNote: (path: string, toDir: string) => void;
   // `needle` and `options` are the search the row was listed by, so its ordinal counts among them
   openMatch: (match: VaultMatchWire, needle: string, options: TextMatchOptions) => void;
-  // settles when the run is over, cancelled or declined included; the palette shows it running
-  replaceAll: (request: VaultReplaceRequest, port: ReplaceProgressPort) => Promise<void>;
   goToHeading: (heading: HeadingItem) => void;
 }
 
@@ -403,7 +400,6 @@ export const CommandPalette = ({
   const templatePaths = entries
     .filter((entry) => entry.kind === "file" && isTemplatePath(entry.path))
     .map((entry) => entry.path);
-  const handleReplaceAll = actions.replaceAll;
 
   const body = (): React.ReactElement => {
     switch (page.page) {
@@ -511,7 +507,6 @@ export const CommandPalette = ({
                 actions.openMatch(match, needle, options);
               });
             }}
-            onReplaceAll={handleReplaceAll}
           />
         );
       }

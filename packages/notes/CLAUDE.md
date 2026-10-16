@@ -67,20 +67,16 @@ node is rather than discriminating structurally at each visit.
   `apps/cli/src/server/knowledge/rename-tag.ts`,
   `apps/workspace/src/app/sidebar/tag-scope.tsx`.
 
-- **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, and a replace
-  rewrites exactly what the rows showed.** FTS5 cannot say where inside a line a
-  hit sits, so `knowledge.matches` (the palette's "Search across the vault…",
-  `inteligir matches`) scans bodies with ONE matcher,
-  `@repo/notes/knowledge/text-matches`, which the listing, the rewrite and the
-  find bar's jump all run; the store only pre-narrows by ascii substrings
-  (`docTexts`), because LIKE folds ascii case alone. A replace is a per-file
-  write with the hash of the bytes it read, and a mismatch is REPORTED by name,
-  never diff3-merged: the user named exact bytes
-  (`apps/workspace/src/app/palette/vault-replace.ts`). A cut listing, or one
-  that no longer answers the box, cannot replace
-  (`apps/workspace/src/app/palette/search-page.tsx`), and a run honours a cancel
-  between notes, never inside one. The jump lands by ordinal among the note's
-  matches, because a markdown column is not a Slate offset.
+- **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX.** FTS5 cannot say
+  where inside a line a hit sits, so `knowledge.matches` (the palette's "Search
+  across the vault…", `inteligir matches`) scans bodies with ONE matcher,
+  `@repo/notes/knowledge/text-matches`, which the listing and the find bar's
+  jump both run; the store only pre-narrows by ascii substrings (`docTexts`),
+  because LIKE folds ascii case alone. The scan finds and never rewrites: a
+  change across many notes is the agent's, whose turn History and Undo already
+  cover (`apps/workspace/src/app/palette/search-page.tsx`). The jump lands by
+  ordinal among the note's matches, because a markdown column is not a Slate
+  offset.
 
 - **AN MD URL HAS ONE READING, AND THE EDITOR RESOLVES IT WITH THE INDEX'S
   RESOLVER.** `mdLinkTarget` (`@repo/notes/knowledge/link-extract`) is how the

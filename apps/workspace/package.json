@@ -13,7 +13,6 @@
     "./app/actions/undo-turn": "./src/app/actions/undo-turn.ts",
     "./app/agents/agent-sign-in": "./src/app/agents/agent-sign-in.tsx",
     "./app/note/guarded-vault-io": "./src/app/note/guarded-vault-io.ts",
-    "./app/palette/vault-replace": "./src/app/palette/vault-replace.ts",
     "./app/prefs": "./src/app/prefs.ts",
     "./app/settings/advanced-section": "./src/app/settings/advanced-section.tsx",
     "./app/settings/agents-section": "./src/app/settings/agents-section.tsx",

@@ -16,7 +16,7 @@ import type {
   KnowledgeSearchResponse,
 } from "@repo/contract/local/knowledge/knowledge-schema";
 import { ChangeBatch } from "../../change-batch";
-import type { CommandPalette, PaletteActions, PaletteNote } from "../command-palette";
+import type { CommandPalette, PaletteNote } from "../command-palette";
 import {
   defaultRequest,
   makeActions,
@@ -147,8 +147,6 @@ describe("pinning from the palette", () => {
 const searchBox = (): HTMLElement => screen.getByPlaceholderText("Search notes or commands…");
 
 const vaultSearchBox = (): HTMLElement => screen.getByPlaceholderText("Search across the vault…");
-
-const replaceButton = (): HTMLElement => screen.getByRole("button", { name: "Replace all" });
 
 const indexHit = (path: string, title = ""): KnowledgeSearchResponse["results"][number] => ({
   path,
@@ -593,14 +591,22 @@ describe("the search page", () => {
 
   it("hands a pick the toggles its listing was read with, so the ordinal counts among them", async () => {
     const { actions } = renderPalette({
-      fakes: { matches: twoMatches(2) },
+      fakes: {
+        // whole word drops the second row, so its listing is told apart from the loose one
+        matches: (request) => {
+          const listing = twoMatches(2)(request);
+          return request.wholeWord === true
+            ? { matches: listing.matches.slice(0, 1), total: 1 }
+            : listing;
+        },
+      },
       request: { nonce: 1, page: "search" },
     });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
     await rows().findByText("again");
     fireEvent.click(screen.getByLabelText("Whole word"));
     await waitFor(() => {
-      expect(replaceButton()).toHaveProperty("disabled", false);
+      expect(rows().queryByText("again")).toBeNull();
     });
     const [first] = rows().getAllByText("big");
     if (first === undefined) {
@@ -612,133 +618,6 @@ describe("the search page", () => {
       "big",
       { caseSensitive: false, wholeWord: true },
     );
-  });
-
-  it("replaces across the listed notes with the toggles it shows", async () => {
-    const { actions } = renderPalette({
-      fakes: { matches: twoMatches(2) },
-      request: { nonce: 1, page: "search" },
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await rows().findByText("again");
-    fireEvent.click(screen.getByLabelText("Match case"));
-    fireEvent.change(screen.getByLabelText("Replace with"), { target: { value: "huge" } });
-    // the toggle re-keys the listing, and the replace waits for the rows that answer it
-    await waitFor(() => {
-      expect(replaceButton()).toHaveProperty("disabled", false);
-    });
-    fireEvent.click(replaceButton());
-    const [call] = actions.replaceAll.mock.calls;
-    expect(call?.[0]).toEqual({
-      needle: "big",
-      options: { caseSensitive: true, wholeWord: false },
-      paths: ["notes/ideas.md"],
-      replacement: "huge",
-    });
-    expect(call?.[1].signal).toBeInstanceOf(AbortSignal);
-  });
-
-  it("offers no replace while a flipped toggle's listing is in flight", async () => {
-    const wholeWordListing = deferred<null>();
-    const { actions } = renderPalette({
-      fakes: {
-        matches: async (request) => {
-          if (request.wholeWord === true) {
-            await wholeWordListing.promise;
-          }
-          return twoMatches(2)(request);
-        },
-      },
-      request: { nonce: 1, page: "search" },
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await rows().findByText("again");
-    expect(replaceButton()).toHaveProperty("disabled", false);
-    fireEvent.click(screen.getByLabelText("Whole word"));
-    // the last listing stays up while the new one is read, but it no longer answers the toggles
-    expect(rows().getByText("again")).toBeDefined();
-    expect(replaceButton()).toHaveProperty("disabled", true);
-    fireEvent.click(replaceButton());
-    expect(actions.replaceAll).not.toHaveBeenCalled();
-    wholeWordListing.resolve(null);
-    await waitFor(() => {
-      expect(replaceButton()).toHaveProperty("disabled", false);
-    });
-    fireEvent.click(replaceButton());
-    expect(actions.replaceAll.mock.calls[0]?.[0].options).toEqual({
-      caseSensitive: false,
-      wholeWord: true,
-    });
-  });
-
-  it("offers no replace while the box is ahead of its listing", async () => {
-    const { actions } = renderPalette({
-      fakes: { matches: twoMatches(2) },
-      request: { nonce: 1, page: "search" },
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await rows().findByText("again");
-    fireEvent.change(vaultSearchBox(), { target: { value: "bigger" } });
-    expect(replaceButton()).toHaveProperty("disabled", true);
-    await waitFor(() => {
-      expect(replaceButton()).toHaveProperty("disabled", false);
-    });
-    fireEvent.click(replaceButton());
-    expect(actions.replaceAll.mock.calls[0]?.[0].needle).toBe("bigger");
-  });
-
-  it("cancels a running replace when the palette closes", async () => {
-    const run = deferred<null>();
-    const replaceAll = vi.fn<PaletteActions["replaceAll"]>(async () => {
-      await run.promise;
-    });
-    const { onOpenChange, props, rerender } = renderPalette({
-      actions: { ...makeActions(), replaceAll },
-      fakes: { matches: twoMatches(2) },
-      request: { nonce: 1, page: "search" },
-    });
-    // the workspace closes the palette when it asks to close
-    onOpenChange.mockImplementation((open) => {
-      rerender({ ...props, open });
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await rows().findByText("again");
-    fireEvent.click(replaceButton());
-    const handed = replaceAll.mock.calls[0]?.[1];
-    expect(handed?.signal?.aborted).toBe(false);
-    fireEvent.keyDown(vaultSearchBox(), { key: "Escape" });
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-    expect(handed?.signal?.aborted).toBe(true);
-    run.resolve(null);
-  });
-
-  it("shows the run's count while it lasts, and Cancel aborts the signal it handed out", async () => {
-    const run = deferred<null>();
-    let port: Parameters<PaletteActions["replaceAll"]>[1] | null = null;
-    const replaceAll = vi.fn<PaletteActions["replaceAll"]>(async (_request, handed) => {
-      port = handed;
-      await run.promise;
-    });
-    renderPalette({
-      actions: { ...makeActions(), replaceAll },
-      fakes: { matches: twoMatches(2) },
-      request: { nonce: 1, page: "search" },
-    });
-    fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
-    await rows().findByText("again");
-    fireEvent.click(replaceButton());
-    expect(screen.getByText("Replacing… 0 of 1 notes")).toBeDefined();
-    if (port === null) {
-      throw new Error("the palette handed out no port");
-    }
-    const handed: Parameters<PaletteActions["replaceAll"]>[1] = port;
-    fireEvent.click(screen.getByText("Cancel"));
-    expect(handed.signal?.aborted).toBe(true);
-    expect(screen.getByText("Stopping…")).toBeDefined();
-    run.resolve(null);
-    await waitFor(() => {
-      expect(screen.queryByText(/Replacing…/u)).toBeNull();
-    });
   });
 
   it("drops the last listing when the scan refuses, and says so", async () => {
@@ -764,16 +643,14 @@ describe("the search page", () => {
     expect(logged).toHaveBeenCalled();
   });
 
-  it("refuses to replace while the listing is cut, and says so", async () => {
-    const { actions } = renderPalette({
+  it("says when the listing is cut", async () => {
+    renderPalette({
       fakes: { matches: twoMatches(5) },
       request: { nonce: 1, page: "search" },
     });
     fireEvent.change(vaultSearchBox(), { target: { value: "big" } });
     await rows().findByText("again");
     expect(rows().getByText(/2 of 5 matches shown/u)).toBeDefined();
-    fireEvent.click(replaceButton());
-    expect(actions.replaceAll).not.toHaveBeenCalled();
   });
 });
 

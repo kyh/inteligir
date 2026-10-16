@@ -6,8 +6,6 @@ import type { ViewContextSource } from "./thread-activity";
 import type { VaultMatchWire } from "@repo/contract/local/knowledge/knowledge-schema";
 import type { Thread } from "@repo/contract/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
-import { confirm } from "@repo/ui/components/confirm-dialog";
-import { plural } from "@repo/ui/lib/plural";
 import { toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -47,8 +45,6 @@ import type { PinNoteApi } from "./note/pin-note";
 import { VaultProvider } from "./note/vault-provider";
 import { CommandPalette } from "./palette/command-palette";
 import type { PaletteActions, PaletteEntry, PaletteRequest } from "./palette/command-palette";
-import { replaceInVault, summarizeReplace } from "./palette/vault-replace";
-import type { ReplaceProgressPort, VaultReplaceRequest } from "./palette/vault-replace";
 import { Sidebar } from "@repo/ui/components/sidebar";
 import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar-core";
 import type { SidebarActions } from "@repo/ui/components/sidebar-core";
@@ -115,27 +111,6 @@ const pinAndReport = async (api: PinNoteApi, path: string, pinned: boolean): Pro
 
 const setPinned = (path: string, pinned: boolean): void => {
   void pinAndReport(client, path, pinned);
-};
-
-// settles when the run is over, so the palette can show it running and offer the cancel
-const replaceAll = async (
-  request: VaultReplaceRequest,
-  port: ReplaceProgressPort,
-): Promise<void> => {
-  const noteCount = request.paths.length;
-  const confirmed = await confirm({
-    body: `Every match of "${request.needle}" becomes "${request.replacement}". A note stays recoverable from its History.`,
-    confirmLabel: "Replace all",
-    title: `Replace in ${plural(noteCount, "note")}?`,
-  });
-  if (!confirmed) {
-    return;
-  }
-  // the open note's buffer lands first, so its file is not the one that "changed since read"
-  await flushOpenNote();
-  const outcomes = await replaceInVault(client, request, port);
-  const summary = summarizeReplace(outcomes, noteCount - outcomes.length);
-  toast[summary.tone](summary.message);
 };
 
 export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => {
@@ -525,7 +500,6 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
       onOpenSettings();
     },
     openThread,
-    replaceAll,
     syncNow,
   };
 

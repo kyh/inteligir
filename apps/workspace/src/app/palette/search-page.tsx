@@ -1,15 +1,13 @@
-import { Button } from "@repo/ui/components/button";
 import { CommandEmpty, CommandGroup, CommandItem } from "@repo/ui/components/command";
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/cn";
 import { KNOWLEDGE_MATCHES_DEFAULT_LIMIT } from "@repo/contract/local/knowledge/knowledge-schema";
 import type { VaultMatchWire } from "@repo/contract/local/knowledge/knowledge-schema";
 import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { orpc } from "../api";
 import { PalettePage, SEARCH_DEBOUNCE_MS, useDebounced } from "./palette-page";
-import type { ReplaceProgressPort, VaultReplaceRequest } from "./vault-replace";
 
 interface MatchGroup {
   path: string;
@@ -60,28 +58,15 @@ const SearchToggle = ({
   </Tooltip>
 );
 
-// the run in flight: its counts, and the controller the Cancel button aborts
-interface ReplaceRun {
-  done: number;
-  total: number;
-  cancelled: boolean;
-  controller: AbortController;
-}
-
 export interface SearchPageProps {
   open: boolean;
   query: string;
   onOpenMatch: (match: VaultMatchWire, needle: string, options: TextMatchOptions) => void;
-  // settles when the run is over, cancelled or declined included; the page shows it running
-  onReplaceAll: (request: VaultReplaceRequest, port: ReplaceProgressPort) => Promise<void>;
 }
 
-export const SearchPage = ({ open, query, onOpenMatch, onReplaceAll }: SearchPageProps) => {
-  const queryClient = useQueryClient();
+export const SearchPage = ({ open, query, onOpenMatch }: SearchPageProps) => {
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [wholeWord, setWholeWord] = useState(false);
-  const [replacement, setReplacement] = useState("");
-  const [replaceRun, setReplaceRun] = useState<ReplaceRun | null>(null);
   const settledQuery = useDebounced(query, SEARCH_DEBOUNCE_MS);
 
   const input = {
@@ -104,48 +89,10 @@ export const SearchPage = ({ open, query, onOpenMatch, onReplaceAll }: SearchPag
     retry: false,
   });
 
-  // A run outlives no palette: a close, however it comes, cancels it between notes, and the
-  // summary counts what the close left untouched.
-  const runController = replaceRun?.controller;
-  useEffect(() => {
-    if (!open || runController === undefined) {
-      return;
-    }
-    return () => {
-      runController.abort();
-    };
-  }, [open, runController]);
-
-  const startReplace = (request: VaultReplaceRequest): void => {
-    const controller = new AbortController();
-    setReplaceRun({ cancelled: false, controller, done: 0, total: request.paths.length });
-    // The cleanup must run whether the run finished, was cancelled or was declined, and React
-    // Compiler cannot lower the `try`/`finally` that would say the same thing with `await`.
-    /* oxlint-disable promise/prefer-await-to-then -- see above */
-    void onReplaceAll(request, {
-      onProgress: (done, total) => {
-        setReplaceRun((current) => (current === null ? null : { ...current, done, total }));
-      },
-      signal: controller.signal,
-    }).finally(() => {
-      setReplaceRun(null);
-      // the listing re-reads what the rewrite left, so the replaced needle shows as gone
-      void queryClient.invalidateQueries({ queryKey: orpc.knowledge.matches.key() });
-    });
-    /* oxlint-enable promise/prefer-await-to-then */
-  };
-
   const result = settledQuery === "" ? undefined : vaultMatches.data;
   const matches = result?.matches ?? [];
   const total = result?.total ?? 0;
-  // a cut listing names some of the notes a replace would touch, not all of them
   const truncated = matches.length < total;
-  const paths = [...new Set(matches.map((match) => match.path))];
-  // A replace rewrites what the rows showed, so they must answer `input`: no toggle's or keystroke's
-  // read still pending behind them, and no refetch about to move them.
-  const listingIsCurrent =
-    !vaultMatches.isPlaceholderData && !vaultMatches.isFetching && settledQuery === query;
-  const canReplace = listingIsCurrent && matches.length > 0 && !truncated && replaceRun === null;
 
   const emptySentence = (): string => {
     if (query === "") {
@@ -160,72 +107,26 @@ export const SearchPage = ({ open, query, onOpenMatch, onReplaceAll }: SearchPag
   return (
     <PalettePage
       toolbar={
-        <>
-          <div className="flex items-center gap-1 px-2 pt-1.5">
-            <SearchToggle
-              pressed={caseSensitive}
-              label="Match case"
-              onToggle={() => {
-                setCaseSensitive((current) => !current);
-              }}
-            >
-              Aa
-            </SearchToggle>
-            <SearchToggle
-              pressed={wholeWord}
-              label="Whole word"
-              onToggle={() => {
-                setWholeWord((current) => !current);
-              }}
-            >
-              ab
-            </SearchToggle>
-            <input
-              aria-label="Replace with"
-              placeholder="Replace with…"
-              value={replacement}
-              onChange={(event) => {
-                setReplacement(event.target.value);
-              }}
-              className="ml-1 h-7 min-w-0 flex-1 rounded-md bg-input/50 px-2 text-subtitle outline-none placeholder:text-muted-foreground"
-            />
-            <Button
-              variant="secondary"
-              size="compact"
-              disabled={!canReplace}
-              onClick={() => {
-                startReplace({
-                  needle: input.q,
-                  options: inputOptions,
-                  paths,
-                  replacement,
-                });
-              }}
-            >
-              Replace all
-            </Button>
-          </div>
-          {replaceRun === null ? null : (
-            <div className="flex items-center gap-2 px-3 pt-1.5 text-body text-muted-foreground">
-              <span aria-live="polite" className="tabular-nums">
-                Replacing… {replaceRun.done} of {replaceRun.total} notes
-              </span>
-              <Button
-                variant="ghost"
-                size="compact"
-                disabled={replaceRun.cancelled}
-                onClick={() => {
-                  replaceRun.controller.abort();
-                  setReplaceRun((current) =>
-                    current === null ? null : { ...current, cancelled: true },
-                  );
-                }}
-              >
-                {replaceRun.cancelled ? "Stopping…" : "Cancel"}
-              </Button>
-            </div>
-          )}
-        </>
+        <div className="flex items-center gap-1 px-2 pt-1.5">
+          <SearchToggle
+            pressed={caseSensitive}
+            label="Match case"
+            onToggle={() => {
+              setCaseSensitive((current) => !current);
+            }}
+          >
+            Aa
+          </SearchToggle>
+          <SearchToggle
+            pressed={wholeWord}
+            label="Whole word"
+            onToggle={() => {
+              setWholeWord((current) => !current);
+            }}
+          >
+            ab
+          </SearchToggle>
+        </div>
       }
     >
       <CommandEmpty>{emptySentence()}</CommandEmpty>
@@ -258,7 +159,7 @@ export const SearchPage = ({ open, query, onOpenMatch, onReplaceAll }: SearchPag
       ))}
       {truncated ? (
         <p className="px-3 py-2 text-body text-muted-foreground">
-          {matches.length} of {total} matches shown. Narrow the search to replace.
+          {matches.length} of {total} matches shown. Narrow the search to see the rest.
         </p>
       ) : null}
     </PalettePage>
