@@ -204,3 +204,17 @@ describe("setFrontmatterPinned", () => {
     expect(pinnedFrontmatterYaml("x: 1", false)).toEqual({ kind: "unchanged" });
   });
 });
+
+describe("removeFrontmatterId", () => {
+  it("drops the id and keeps every other key byte-exact", () => {
+    expect(removeFrontmatterId("---\nid: abc\ntags: [a, b]\n---\n# Hi\n")).toBe(
+      "---\ntags: [a, b]\n---\n# Hi\n",
+    );
+  });
+
+  it("drops the block when id was its only key, and leaves a note without one alone", () => {
+    expect(removeFrontmatterId("---\nid: abc\n---\n# Hi\n")).toBe("# Hi\n");
+    expect(removeFrontmatterId("---\ntags: [a]\n---\n# Hi\n")).toBe("---\ntags: [a]\n---\n# Hi\n");
+    expect(removeFrontmatterId("# Hi\n")).toBe("# Hi\n");
+  });
+});

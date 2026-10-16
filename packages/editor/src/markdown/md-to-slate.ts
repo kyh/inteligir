@@ -1,5 +1,5 @@
-// The one markdown→Slate conversion, so the gate, a paste and a template refuse the same inputs
-// for the same reasons. BASE_KIT-free on purpose: markdown-kit's paste parser runs it, and the
+// The one markdown→Slate conversion, so the gate and a paste refuse the same inputs for the same
+// reasons. BASE_KIT-free on purpose: markdown-kit's paste parser runs it, and the
 // kit is part of BASE_KIT.
 
 import { getMergedOptionsDeserialize, mdastToSlate } from "@platejs/markdown";

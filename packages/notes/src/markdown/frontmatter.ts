@@ -264,8 +264,8 @@ export const reassignFrontmatterId = (
   return { content: replaceFrontmatterYaml(content, lines.join("\n")), kind: "written" };
 };
 
-// a note minted from a template must not inherit the template's identity: two notes with one
-// `id:` make the `[[Title|uuid]]` tier ambiguous.
+// a copy of a note, such as a sync conflict's, must not inherit the note's identity: two notes
+// with one `id:` make the `[[Title|uuid]]` tier ambiguous.
 export const removeFrontmatterId = (content: string): string => {
   const yaml = frontmatterYaml(content);
   if (yaml === null) {

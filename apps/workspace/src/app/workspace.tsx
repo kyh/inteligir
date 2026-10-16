@@ -25,20 +25,15 @@ import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { EditorColumn } from "@repo/editor/editor-column";
 import { hideFindBar, jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
-import { insertTemplate } from "@repo/editor/insert-template";
 import { getLiveEditor, whenLiveEditor } from "@repo/editor/live-editor";
 import { collectHeadings, goToHeading } from "@repo/editor/toc";
 import type { HeadingItem } from "@repo/editor/toc";
-import { removeFrontmatterId } from "@repo/notes/markdown/frontmatter";
-import { DAILY_TEMPLATE_PATH } from "@repo/notes/templates/folders";
-import { expandTemplate } from "@repo/notes/templates/placeholders";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { openDocPath } from "@repo/editor/note/open-doc";
 import { backTarget, createOpenNoteStore, forwardTarget } from "@repo/editor/note/open-note-store";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { exportNoteAsPdf } from "./note/export-pdf";
 import type { EditorHostActions, VaultActions } from "@repo/editor/host-io";
-import { dailyNoteFromTemplate, dailyNotePath, dailyNoteTemplate } from "./note/daily";
 import { readNoteViewContext } from "./note/note-view-context";
 import { setNotePinned } from "./note/pin-note";
 import type { PinNoteApi } from "./note/pin-note";
@@ -277,8 +272,8 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   }, []);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
-  const createNote = async (path: string, content = ""): Promise<void> => {
-    await actionsRef.current?.createFile(path, content);
+  const createNote = async (path: string): Promise<void> => {
+    await actionsRef.current?.createFile(path);
   };
 
   const newUntitledNote = (parentDir: string): void => {
@@ -297,45 +292,6 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   const openMatch = (match: VaultMatchWire, needle: string, options: TextMatchOptions): void => {
     setOpenNote(match.path);
     void jumpWhenLive(match.path, needle, match.ordinal, options);
-  };
-
-  // the template is read on every ⌘D rather than looked up in the tree, which can be stale; a
-  // refused read keeps the built-in shape, so the day's note opens either way.
-  const openDailyNote = (): void => {
-    const now = new Date();
-    void (async () => {
-      let content = dailyNoteTemplate(now);
-      try {
-        const template = await client.vault.read({ path: DAILY_TEMPLATE_PATH });
-        content = dailyNoteFromTemplate(template.content, now);
-      } catch {
-        // no template in this vault
-      }
-      // Create-exclusive rather than checking the tree first, which can be stale.
-      await createNote(dailyNotePath(now), content);
-    })();
-  };
-
-  const newNoteFromTemplate = (templatePath: string): void => {
-    void (async () => {
-      let template: string;
-      try {
-        ({ content: template } = await client.vault.read({ path: templatePath }));
-      } catch {
-        toast.error("Could not read the template.");
-        return;
-      }
-      const path = untitledNotePath("", treeQuery.data);
-      const body = expandTemplate(template, { now: new Date(), title: docStem(path) });
-      await createNote(path, removeFrontmatterId(body));
-    })();
-  };
-
-  const insertTemplateIntoNote = (templatePath: string): void => {
-    const editor = openLiveEditor(noteStore);
-    if (editor !== null) {
-      void insertTemplate(editor, templatePath);
-    }
   };
 
   const { syncNow, inFlight: syncInFlight } = useSyncNow();
@@ -437,10 +393,6 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
         onOpenSettings();
         break;
       }
-      case "open-daily-note": {
-        openDailyNote();
-        break;
-      }
       case "toggle-zen": {
         setZen((current) => !current);
         break;
@@ -473,7 +425,6 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     },
     moveNote: treeOps.moveEntry,
     newNote: newUntitledNote,
-    newNoteFromTemplate,
     note:
       openPath === null
         ? null
@@ -482,7 +433,6 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
               void exportNoteAsPdf(docStem(openPath));
             },
             findInNote,
-            insertTemplate: insertTemplateIntoNote,
             listHeadings: listOpenHeadings,
             path: openPath,
             pinned: openPinned,
@@ -490,7 +440,6 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
               setPinned(openPath, !openPinned);
             },
           },
-    openDailyNote,
     openDeletedNotes: () => {
       chooseRailView("deleted");
     },

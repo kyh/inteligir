@@ -101,22 +101,6 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   `packages/editor/src/slash-items.tsx`,
   `packages/editor/src/touch-toolbar.tsx`.
 
-- **TEMPLATES ARE A FOLDER, AND PLACEHOLDERS EXPAND ON THE TEMPLATE'S OWN
-  BYTES.** A template is a doc under `templates/` (a fixed convention like the
-  daily folder, no setting); `templates/Daily.md` shapes the daily note. Exactly
-  three placeholders, `{{date}}`, `{{time}}`, `{{title}}`, replaced in place on
-  the raw markdown, so the formula grammar never sees them and every other
-  `{{…}}` is a pill left byte-exact. The title is a file name, which can spell
-  markdown and yaml, so it is escaped for where it lands, and only as much as
-  the next parse needs. Rejected: escaping every punctuation mark, which writes
-  `Mike\'s` into the file, and re-serializing the template, which restyles bytes
-  the author wrote. That expansion loads both parsers, so the folder names live
-  apart from it (`@repo/notes/templates/folders`), where the contract and every
-  command-line verb read them. A note minted from a template drops the
-  template's `id:`, because two notes with one id make the uuid link tier
-  ambiguous. `@repo/notes/templates/placeholders`,
-  `packages/editor/src/insert-template.ts`.
-
 - **A BINDING IS SPELLED FROM THE TABLE ITS LISTENER READS, never as a
   literal.** Five tables own every chord and each handler walks its own; the
   marks' table builds Plate's own shortcut config, so Plate's defaults never

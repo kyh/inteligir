@@ -338,15 +338,9 @@ describe("commands", () => {
 
   it("filters commands by the query", () => {
     renderPalette();
-    fireEvent.change(searchBox(), { target: { value: "daily" } });
-    expect(rows().getByText("Daily note")).toBeDefined();
+    fireEvent.change(searchBox(), { target: { value: "deleted" } });
+    expect(rows().getByText("Deleted notes")).toBeDefined();
     expect(rows().queryByText("Settings")).toBeNull();
-  });
-
-  it("runs the daily note command", () => {
-    const { actions } = renderPalette();
-    fireEvent.click(rows().getByText("Daily note"));
-    expect(actions.openDailyNote).toHaveBeenCalled();
   });
 
   it("hides Sync now without a remote and shows it with one", () => {
@@ -434,37 +428,6 @@ describe("a page switch", () => {
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect(vaultSearchBox()).toBe(field);
     expect(document.activeElement).toBe(field);
-  });
-});
-
-const TEMPLATE: VaultEntry = { kind: "file", path: "templates/Meeting.md" };
-
-describe("the template pages", () => {
-  it("lists templates by stem and creates a note from the picked one", () => {
-    const { actions, onOpenChange } = renderPalette({ entries: [...ENTRIES, TEMPLATE] });
-    fireEvent.click(rows().getByText("New note from template…"));
-    expect(onOpenChange).not.toHaveBeenCalledWith(false);
-    fireEvent.click(rows().getByText("Meeting"));
-    expect(actions.newNoteFromTemplate).toHaveBeenCalledWith("templates/Meeting.md");
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("offers Insert template only over an open note, and inserts the picked one", () => {
-    renderPalette({ entries: [...ENTRIES, TEMPLATE] });
-    expect(rows().queryByText("Insert template…")).toBeNull();
-    cleanup();
-    const note = makeNote();
-    const { actions } = renderPalette({ entries: [...ENTRIES, TEMPLATE], note });
-    fireEvent.click(rows().getByText("Insert template…"));
-    fireEvent.click(rows().getByText("Meeting"));
-    expect(note.insertTemplate).toHaveBeenCalledWith("templates/Meeting.md");
-    expect(actions.newNoteFromTemplate).not.toHaveBeenCalled();
-  });
-
-  it("says where templates come from when the folder is empty", () => {
-    renderPalette();
-    fireEvent.click(rows().getByText("New note from template…"));
-    expect(rows().getByText(/No templates yet/u)).toBeDefined();
   });
 });
 
@@ -687,12 +650,12 @@ describe("the keyboard shortcuts page", () => {
 
 describe("a command's binding", () => {
   it("is the global table's row, not a literal", () => {
-    renderPalette();
-    expect(chords()).toContainEqual(["⌘", "D"]);
+    renderPalette({ note: makeNote() });
+    expect(chords()).toContainEqual(["⌘", "F"]);
     expect(chords()).toContainEqual(["⌘", ","]);
     cleanup();
-    renderPalette({ modifier: "ctrl" });
-    expect(chords()).toContainEqual(["Ctrl", "D"]);
+    renderPalette({ modifier: "ctrl", note: makeNote() });
+    expect(chords()).toContainEqual(["Ctrl", "F"]);
     expect(chords()).toContainEqual(["Ctrl", ","]);
   });
 });

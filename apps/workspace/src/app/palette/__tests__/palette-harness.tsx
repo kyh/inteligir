@@ -75,9 +75,7 @@ export const makeActions = () =>
     goToHeading: vi.fn<PaletteActions["goToHeading"]>(),
     moveNote: vi.fn<PaletteActions["moveNote"]>(),
     newNote: vi.fn<PaletteActions["newNote"]>(),
-    newNoteFromTemplate: vi.fn<PaletteActions["newNoteFromTemplate"]>(),
     note: null,
-    openDailyNote: vi.fn<PaletteActions["openDailyNote"]>(),
     openDeletedNotes: vi.fn<PaletteActions["openDeletedNotes"]>(),
     openMatch: vi.fn<PaletteActions["openMatch"]>(),
     openNote: vi.fn<PaletteActions["openNote"]>(),
@@ -91,7 +89,6 @@ export const makeNote = (path = "Welcome.md") =>
   ({
     exportPdf: vi.fn<PaletteNote["exportPdf"]>(),
     findInNote: vi.fn<PaletteNote["findInNote"]>(),
-    insertTemplate: vi.fn<PaletteNote["insertTemplate"]>(),
     listHeadings: vi.fn<PaletteNote["listHeadings"]>(() => []),
     path,
     pinned: false,

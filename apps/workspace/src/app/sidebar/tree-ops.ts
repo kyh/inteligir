@@ -38,7 +38,7 @@ export const planMove = (from: string, toDir: string): MoveVerdict => {
 
 interface TreeOpsDeps {
   actions: RefObject<TreeVaultActions | null>;
-  createNote: (path: string, content?: string) => Promise<void>;
+  createNote: (path: string) => Promise<void>;
   setPinned: (path: string, pinned: boolean) => void;
 }
 

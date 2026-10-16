@@ -10,7 +10,6 @@ export type GlobalShortcutAction =
   | "find-in-note"
   | "open-headings"
   | "open-settings"
-  | "open-daily-note"
   | "toggle-zen"
   | "toggle-rail"
   | "toggle-panel";
@@ -42,7 +41,6 @@ export const GLOBAL_SHORTCUTS: readonly GlobalShortcut[] = [
   { action: "open-palette", key: "p", label: "Command palette" },
   { action: "open-headings", key: "o", label: "Go to heading", shift: true },
   { action: "find-in-note", key: "f", label: "Find in note" },
-  { action: "open-daily-note", key: "d", label: "Daily note" },
   { action: "toggle-zen", key: "\\", label: "Zen mode" },
   { action: "open-settings", key: ",", label: "Settings" },
   // bare: ⌘[ and ⌘] are the browser's history keys

@@ -156,7 +156,6 @@ The palette's Keyboard shortcuts page lists every shortcut.
 | ----------------------------- | -------------------- |
 | Ask the agent                 | `⌘K`                 |
 | Command palette and search    | `⌘P`                 |
-| Daily note                    | `⌘D`                 |
 | Comment on the selection      | `⌘⇧A`                |
 | Find in this note             | `⌘F`                 |
 | Go to heading                 | `⌘⇧O`                |

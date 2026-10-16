@@ -4,7 +4,7 @@ import {
   syncConflictCopiedSchema,
   syncConflictKeptEditSchema,
 } from "@repo/notes/sync/conflict-copy";
-import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/folders";
+import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/knowledge/asset-name";
 import { z } from "zod";
 import { remoteUrlSchema } from "./remote-url";
 

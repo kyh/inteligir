@@ -13,7 +13,7 @@ import {
 } from "@repo/contract/cloud/vault/vault-schema";
 import { utf8ByteLength } from "@repo/contract/cloud/bytes";
 import { commentStoresFreedBy } from "@repo/notes/comments/store-removal";
-import { freeAssetPath } from "@repo/notes/knowledge/asset-name";
+import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPath } from "@repo/notes/knowledge/asset-name";
 import {
   docExtension,
   docStem,
@@ -30,7 +30,6 @@ import { moveCandidates } from "@repo/notes/knowledge/rename-candidates";
 import { computeMoveEdits } from "@repo/notes/knowledge/rename-links";
 import { dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
-import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/templates/folders";
 import { NOTE_GONE } from "./comment-ops";
 import type { HeldFile, NotesStore, RenameEdits } from "./notes-store";
 

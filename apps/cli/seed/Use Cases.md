@@ -79,16 +79,16 @@ A decision note earns its keep months later, when someone asks why.
 
 ## Weekly Review
 
-Daily notes catch the week as it happens; a review turns them into something you can act on.
+A note for the week catches it as it happens; a review turns it into something you can act on.
 
-**Write** a daily note each day with ⌘D: what you did, what got in the way, what comes next. A few lines is enough. Make a note named Daily in a folder named templates, and every new daily note starts from it.
+**Write** a few lines in the week's note each day, under the day's date: what you did, what got in the way, what comes next.
 
-**Ask the agent** at the end of the week, from a new note:
+**Ask the agent** at the end of the week, from that note:
 
-> Read my daily notes from this week and write a review: what got done, what\
-> slipped and why, and three priorities for next week. Link each point to its day.
+> Read this week's entries and write a review at the top: what got done, what\
+> slipped and why, and three priorities for next week.
 
-**Then** keep the reviews together in one folder, and read last month's before you plan the next.
+**Then** keep each week's note in one folder, and read last month's before you plan the next.
 
 ---
 

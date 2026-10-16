@@ -96,8 +96,8 @@ src/
   React or with no route to the shell. Its `EditorHostIo` carries the vault
   actions (`vault`), the link resolver store (the knowledge index's own `buildResolver` over
   the listing, for wiki targets and md urls alike, and the wiki targets it was
-  built over, which the `[[` picker and the slash menu's templates list —
-  subscribed to rather than read, because it moves with every refresh while the
+  built over, which the `[[` picker lists — subscribed to rather than read,
+  because it moves with every refresh while the
   actions never do), vault reads, asset bytes in and out, the knowledge queries,
   and the change events that invalidate them, plus what only some hosts have:
   a frame to run an html block in (`htmlFrameUrl`, null hides Run) and a

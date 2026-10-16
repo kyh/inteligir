@@ -13,21 +13,18 @@ import type { Thread } from "@repo/contract/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
-import { isTemplatePath } from "@repo/notes/templates/folders";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import type { HeadingItem } from "@repo/editor/toc";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArchiveRestoreIcon,
-  CalendarIcon,
   FilePlusIcon,
   FileTextIcon,
   FolderIcon,
   FolderInputIcon,
   HeadingIcon,
   KeyboardIcon,
-  LayoutTemplateIcon,
   MessagesSquareIcon,
   PinIcon,
   PinOffIcon,
@@ -50,7 +47,6 @@ import {
   matchesQuery,
   PalettePage,
   SEARCH_DEBOUNCE_MS,
-  TemplateRows,
   useDebounced,
 } from "./palette-page";
 import { SearchPage } from "./search-page";
@@ -63,7 +59,6 @@ export interface PaletteNote {
   pinned: boolean;
   togglePin: () => void;
   findInNote: () => void;
-  insertTemplate: (templatePath: string) => void;
   exportPdf: () => void;
   // the outline, walked once as its page opens
   listHeadings: () => readonly HeadingItem[];
@@ -72,8 +67,6 @@ export interface PaletteNote {
 export interface PaletteActions {
   openNote: (path: string) => void;
   newNote: (parentDir: string) => void;
-  newNoteFromTemplate: (templatePath: string) => void;
-  openDailyNote: () => void;
   openThread: (threadId: string) => void;
   syncNow: () => void;
   openSettings: () => void;
@@ -98,11 +91,7 @@ export type PaletteEntry =
 // palette on it, so each open mounts fresh and no state from the last open needs resetting.
 export type PaletteRequest = PaletteEntry & { nonce: number };
 
-type Page =
-  | PaletteEntry
-  | {
-      page: "new-note-folder" | "new-note-template" | "insert-template" | "threads" | "shortcuts";
-    };
+type Page = PaletteEntry | { page: "new-note-folder" | "threads" | "shortcuts" };
 
 // what the one dialog says around a page
 interface PageChrome {
@@ -118,20 +107,10 @@ const PAGE_CHROME: Record<Exclude<Page["page"], "move-to-folder">, PageChrome> =
     placeholder: "Go to heading…",
     title: "Go to heading",
   },
-  "insert-template": {
-    description: "Pick the template to insert at the cursor",
-    placeholder: "Insert which template?",
-    title: "Insert template",
-  },
   "new-note-folder": {
     description: "Pick the folder for the new note",
     placeholder: "New note in which folder?",
     title: "New note in folder",
-  },
-  "new-note-template": {
-    description: "Pick the template the new note starts from",
-    placeholder: "New note from which template?",
-    title: "New note from template",
   },
   root: {
     description: "Open a note or run a command",
@@ -203,15 +182,6 @@ const noteCommands = (note: PaletteNote, goTo: (next: Page) => void): StaticComm
     run: note.findInNote,
   },
   {
-    icon: <LayoutTemplateIcon />,
-    id: "insert-template",
-    keepOpen: true,
-    label: "Insert template…",
-    run: () => {
-      goTo({ page: "insert-template" });
-    },
-  },
-  {
     binding: "open-headings",
     icon: <HeadingIcon />,
     id: "go-to-heading",
@@ -266,24 +236,6 @@ const rootCommands = (
     label: "New note in folder…",
     run: () => {
       goTo({ page: "new-note-folder" });
-    },
-  },
-  {
-    icon: <LayoutTemplateIcon />,
-    id: "new-note-from-template",
-    keepOpen: true,
-    label: "New note from template…",
-    run: () => {
-      goTo({ page: "new-note-template" });
-    },
-  },
-  {
-    binding: "open-daily-note",
-    icon: <CalendarIcon />,
-    id: "daily-note",
-    label: "Daily note",
-    run: () => {
-      actions.openDailyNote();
     },
   },
   {
@@ -397,9 +349,6 @@ export const CommandPalette = ({
   };
 
   const folders = vaultFolders(entries);
-  const templatePaths = entries
-    .filter((entry) => entry.kind === "file" && isTemplatePath(entry.path))
-    .map((entry) => entry.path);
 
   const body = (): React.ReactElement => {
     switch (page.page) {
@@ -522,36 +471,6 @@ export const CommandPalette = ({
               });
             }}
           />
-        );
-      }
-      case "new-note-template": {
-        return (
-          <PalettePage>
-            <TemplateRows
-              templatePaths={templatePaths}
-              query={query}
-              onPick={(path) => {
-                run(() => {
-                  actions.newNoteFromTemplate(path);
-                });
-              }}
-            />
-          </PalettePage>
-        );
-      }
-      case "insert-template": {
-        return (
-          <PalettePage>
-            <TemplateRows
-              templatePaths={templatePaths}
-              query={query}
-              onPick={(path) => {
-                run(() => {
-                  actions.note?.insertTemplate(path);
-                });
-              }}
-            />
-          </PalettePage>
         );
       }
       case "new-note-folder": {
