@@ -551,6 +551,9 @@ try {
       fail(`the ${label}'s data dir holds no database of its own`);
     }
     log(`${label} -> ${vaultStatus.vaultDir} on ${vaultStatus.dataDir}`);
+    // the shell holds its server as the open vault's only once the window exists, so a quit sent
+    // between a healthy server and that window has no server to stop
+    await waitWindowLoaded(launched);
     await stopApp(launched, vaultDataDir);
     launched = null;
     return dir;
