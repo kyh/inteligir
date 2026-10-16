@@ -2,7 +2,6 @@ import { copyFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { agentShellCli } from "../harness/agent-shell-cli";
-import type { AgentShellCli } from "../harness/agent-shell-cli";
 import { expect, expectEq } from "../harness/assert";
 import { readOrNull } from "../harness/exec";
 import { pollUntil } from "../harness/poll";
@@ -22,11 +21,6 @@ const turnChangesOutputSchema = z.looseObject({
   turns: z.array(z.looseObject({ paths: z.array(z.string()), state: z.string() })),
 });
 const undoOutputSchema = z.looseObject({ reverted: z.array(z.string()) });
-const duplicateIdRowSchema = z.looseObject({ id: z.string(), paths: z.array(z.string()) });
-type DuplicateIdRow = z.infer<typeof duplicateIdRowSchema>;
-const problemsOutputSchema = z.looseObject({
-  duplicateIds: z.looseObject({ rows: z.array(duplicateIdRowSchema) }),
-});
 const newIdOutputSchema = z.looseObject({ comments: z.literal("copied"), id: z.string() });
 
 const SHARED_NOTE = "notes/shared.md";
@@ -34,14 +28,9 @@ const SHARED_COPY = "notes/shared copy.md";
 const SHARED_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
 const SHARED_CONTENT = `---\ntitle: Shared\nid: ${SHARED_ID}\n---\n# Shared\n`;
 
-const duplicateIds = async (cli: AgentShellCli): Promise<DuplicateIdRow[]> => {
-  const problems = await cli("problems", "--json");
-  return problemsOutputSchema.parse(JSON.parse(problems.stdout)).duplicateIds.rows;
-};
-
 export const cliDrive: Scenario = {
   description:
-    "the CLI drives a real instance, and the env an agent's shell would get resolves against this checkout: vault write and read, search, action new, wait, show, changes and undo, and status; a byte copy's shared id is listed, and `vault new-id` gives it its own on the same line with a copy of the store",
+    "the CLI drives a real instance, and the env an agent's shell would get resolves against this checkout: vault write and read, search, action new, wait, show, changes and undo, and status; `vault new-id` gives a byte copy that shares its original's id one of its own on the same line, with a copy of the store",
   name: "cli-drive",
   // bin/inteligir runs src/ under tsx in a checkout; the bundle is built-cli-boot's to test, and
   // the packed tarball pnpm smoke:cli's.
@@ -142,23 +131,9 @@ export const cliDrive: Scenario = {
     const storeBytes = await readFile(sharedStore, "utf-8");
     // Finder's duplicate: the same bytes, landed beside the app rather than through it
     await copyFile(original, path.join(app.vaultDir, SHARED_COPY));
-    const sharing = (rows: DuplicateIdRow[]): boolean =>
-      rows.some((row) => row.id === SHARED_ID && row.paths.includes(SHARED_COPY));
-    await pollUntil(async () => await duplicateIds(cli), sharing, {
-      deadlineMs: SEARCH_DEADLINE_MS,
-      describe: (rows) => `problems never listed the copy's shared id: ${JSON.stringify(rows)}`,
-    });
     const given = await cli("vault", "new-id", SHARED_COPY, "--json");
     const newId = newIdOutputSchema.parse(JSON.parse(given.stdout)).id;
     expect(newId !== SHARED_ID, "the copy answers an id of its own");
-    await pollUntil(
-      async () => await duplicateIds(cli),
-      (rows) => rows.length === 0,
-      {
-        deadlineMs: SEARCH_DEADLINE_MS,
-        describe: (rows) => `problems still lists shared ids: ${JSON.stringify(rows)}`,
-      },
-    );
     expectEq(
       await readFile(path.join(app.vaultDir, SHARED_COPY), "utf-8"),
       originalBytes.replace(SHARED_ID, newId),

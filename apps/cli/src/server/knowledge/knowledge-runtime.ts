@@ -18,8 +18,6 @@ import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-stor
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import { bodyPrefilters, collectVaultMatches } from "@repo/notes/knowledge/text-matches";
 import type { TextMatchOptions, VaultMatches } from "@repo/notes/knowledge/text-matches";
-import { collectVaultProblems } from "@repo/notes/knowledge/vault-problems";
-import type { VaultProblems, VaultProblemsOptions } from "@repo/notes/knowledge/vault-problems";
 import { normalizePath } from "@repo/notes/knowledge/vault-path";
 import { searchVaultNotes } from "@repo/notes/knowledge/vault-search";
 import { createCoalescingTimer } from "../coalescing-timer";
@@ -62,8 +60,6 @@ export interface KnowledgeRuntime {
   }) => Promise<VaultMatches>;
   backlinks: (path: string) => Promise<BacklinkEntry[]>;
   wikiTargets: () => Promise<WikiTarget[]>;
-  // what the resolver cannot answer, from the index alone
-  problems: (options: VaultProblemsOptions) => Promise<VaultProblems>;
   // every doc whose frontmatter `id` is this one, by path
   noteIdOwners: (id: string) => Promise<string[]>;
   // the doc whose frontmatter `id` this is: `lastPath` while it still is, else the id tier's own
@@ -247,11 +243,6 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     async pathForNoteId(id, lastPath) {
       await settle();
       return graph.pathForNoteId(id, normalizePath(lastPath));
-    },
-
-    async problems(options) {
-      await settle();
-      return collectVaultProblems(graph, options);
     },
 
     // the ranked read: the probe runs once per title token and keeps only the score, so search's excerpts would be wasted.

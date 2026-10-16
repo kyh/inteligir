@@ -72,7 +72,6 @@
     "./lib/embed-url": "./src/lib/embed-url.ts",
     "./lib/url": "./src/lib/url.ts",
     "./lib/use-dark-class": "./src/lib/use-dark-class.ts",
-    "./link-locate": "./src/link-locate.ts",
     "./link-resolver-feed": "./src/link-resolver-feed.ts",
     "./live-editor": "./src/live-editor.ts",
     "./mark-shortcuts": "./src/mark-shortcuts.ts",

@@ -82,23 +82,12 @@ node is rather than discriminating structurally at each visit.
   between notes, never inside one. The jump lands by ordinal among the note's
   matches, because a markdown column is not a Slate offset.
 
-- **A PROBLEM IS THE RESOLVER'S VERDICT, never a scan's.** `knowledge.problems`
-  (the palette's Problems page, `inteligir problems`) reads the resolved graph
-  alone: unresolved links, missing embeds, orphans, and a link name
-  (`wikiLinkName`) or frontmatter `id` two docs share, a tie the resolver is
-  quietly breaking. Every row disappears with the sweep that fixes it, so none
-  is stale. Daily notes and templates are orphans by design and left out unless
-  asked (`@repo/notes/templates/folders` spells the folders). A row lands
-  on the link ELEMENT (`packages/editor/src/link-locate.ts`), since the find bar
-  cannot see a wiki chip's label, a prop of an inline void.
-  `@repo/notes/knowledge/vault-problems.ts`.
-
 - **AN MD URL HAS ONE READING, AND THE EDITOR RESOLVES IT WITH THE INDEX'S
   RESOLVER.** `mdLinkTarget` (`@repo/notes/knowledge/link-extract`) is how the
   scan reads an md url, and the editor reads a link's or an image's url through
   it and resolves it from the note it is written in with the index's own
   `buildResolver` (`packages/editor/src/link-resolver-feed.ts`), so the image
-  Problems calls missing is the one drawn missing and a vault url opens in the
+  the index cannot resolve is the one drawn missing and a vault url opens in the
   app; only an http(s) url reaches the browser. An image the resolver misses
   falls back to a root path, because a pasted asset is on disk before the
   listing that would resolve it. `useVaultLinkTarget` in

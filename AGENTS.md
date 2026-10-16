@@ -257,7 +257,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 
 - [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, and the open note's saves and renames
 - [`packages/ui/CLAUDE.md`](packages/ui/CLAUDE.md) — floating surfaces, type roles, popup motion, row order, the orphan guard
-- [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — Knowledge: the scan, search, links, tags and problems
+- [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — Knowledge: the scan, search, links and tags
 - [`packages/agent-runtime/CLAUDE.md`](packages/agent-runtime/CLAUDE.md) — the provider grammar, and what a session may load from the vault
 - [`apps/cli/CLAUDE.md`](apps/cli/CLAUDE.md) — the server process: its lock, composition, credential, shutdown, CSP, database, and a vault's data dir
 - [`apps/cli/src/server/vault/CLAUDE.md`](apps/cli/src/server/vault/CLAUDE.md) — Vault: writes, git and containment

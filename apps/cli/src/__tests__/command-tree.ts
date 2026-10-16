@@ -40,7 +40,6 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["matches", ["matches", "Hello"]],
   ["backlinks", ["backlinks", "notes/hello.md"]],
   ["related", ["related", "notes/hello.md"]],
-  ["problems", ["problems"]],
   ["tags", ["tags"]],
   ["tag rename", ["tag", "rename", "project", "work"]],
   ["tag notes", ["tag", "notes", "project", "--limit", "10"]],

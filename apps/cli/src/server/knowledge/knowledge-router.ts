@@ -40,14 +40,6 @@ const backlinks = base.knowledge.backlinks.handler(async ({ context, input }) =>
   };
 });
 
-const problems = base.knowledge.problems.handler(
-  async ({ context, input }) =>
-    await context.knowledge.problems({
-      includeConventionFolders: input.includeConventionFolders,
-      limit: input.limit,
-    }),
-);
-
 const related = base.knowledge.related.handler(async ({ context, input }) => ({
   path: input.path,
   related: await context.knowledge.relatedNotes(input.path, input.limit),
@@ -72,7 +64,6 @@ const renameTag = base.knowledge.renameTag.handler(async ({ context, input }) =>
 export const knowledgeRouter = {
   backlinks,
   matches,
-  problems,
   related,
   renameTag,
   search,

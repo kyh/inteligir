@@ -16,8 +16,6 @@ export const KNOWLEDGE_BACKLINKS_MAX = 500;
 export const KNOWLEDGE_TAGS_MAX = 1000;
 export const KNOWLEDGE_MATCHES_MAX_LIMIT = 500;
 export const KNOWLEDGE_MATCHES_DEFAULT_LIMIT = 200;
-export const KNOWLEDGE_PROBLEMS_MAX_LIMIT = 200;
-export const KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT = 50;
 
 // q is the raw box text, parsed engine-side so a typed tag: term and a composed one resolve alike
 export const knowledgeSearchRequestSchema = z.strictObject({
@@ -82,62 +80,6 @@ export type KnowledgeMatchesResponse = z.infer<typeof knowledgeMatchesResponseSc
 
 export const linkKindSchema = z.enum(LINK_KINDS);
 export type LinkKindWire = z.infer<typeof linkKindSchema>;
-
-// what the graph cannot resolve: five families, each capped on its own with its own total.
-// the limit applies per family; dailies and templates count as orphans only when asked
-export const knowledgeProblemsRequestSchema = z.strictObject({
-  includeConventionFolders: z.boolean().default(false),
-  limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(KNOWLEDGE_PROBLEMS_MAX_LIMIT)
-    .default(KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT),
-});
-export type KnowledgeProblemsRequest = z.input<typeof knowledgeProblemsRequestSchema>;
-
-// once per source and target, on the first line it appears
-export const unresolvedLinkRowSchema = z.strictObject({
-  embed: z.boolean(),
-  kind: linkKindSchema,
-  line: z.number().int().min(1),
-  snippet: z.string(),
-  sourcePath: z.string().min(1),
-  sourceTitle: z.string(),
-  target: z.string().min(1),
-});
-export type UnresolvedLinkRowWire = z.infer<typeof unresolvedLinkRowSchema>;
-
-export const orphanRowSchema = z.strictObject({ path: z.string().min(1), title: z.string() });
-export type OrphanRowWire = z.infer<typeof orphanRowSchema>;
-
-export const duplicateStemRowSchema = z.strictObject({
-  paths: z.array(z.string().min(1)).min(2),
-  stem: z.string().min(1),
-});
-export type DuplicateStemRowWire = z.infer<typeof duplicateStemRowSchema>;
-
-// one frontmatter `id` carried by several notes, which then share one comment store
-export const duplicateIdRowSchema = z.strictObject({
-  id: z.string().min(1),
-  paths: z.array(z.string().min(1)).min(2),
-});
-export type DuplicateIdRowWire = z.infer<typeof duplicateIdRowSchema>;
-
-const problemFamilySchema = <Row extends z.ZodType>(row: Row) =>
-  z.strictObject({
-    rows: z.array(row).max(KNOWLEDGE_PROBLEMS_MAX_LIMIT),
-    total: z.number().int().min(0),
-  });
-
-export const knowledgeProblemsResponseSchema = z.strictObject({
-  duplicateIds: problemFamilySchema(duplicateIdRowSchema),
-  duplicateStems: problemFamilySchema(duplicateStemRowSchema),
-  missingEmbeds: problemFamilySchema(unresolvedLinkRowSchema),
-  orphans: problemFamilySchema(orphanRowSchema),
-  unresolvedLinks: problemFamilySchema(unresolvedLinkRowSchema),
-});
-export type KnowledgeProblemsResponse = z.infer<typeof knowledgeProblemsResponseSchema>;
 
 export const backlinkEntrySchema = z.strictObject({
   alias: z.string().exactOptional(),

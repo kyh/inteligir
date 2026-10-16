@@ -39,7 +39,7 @@ export interface VaultActions {
 }
 
 // The knowledge index's resolver over the listing, so a link the editor draws lands where the
-// index (and so Problems and a rename) says it does. Identity changes when the listing or aliases
+// index (and so backlinks and a rename) says it does. Identity changes when the listing or aliases
 // refresh, so a link re-renders on that alone.
 export interface LinkResolver {
   resolveWikiTarget: (target: string, alias?: string) => string | null;

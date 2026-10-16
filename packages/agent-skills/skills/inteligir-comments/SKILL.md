@@ -41,8 +41,7 @@ into a note that has none, and refuses a note whose `id` is not text, such as
 Copying a note copies its `id`, and two notes with one `id` share one store:
 run `inteligir vault new-id <copy>` on the copy, which gives it its own id and
 a copy of the store. Never delete its `id:` line, because its anchors' bodies
-live only under that id (`inteligir problems` lists every `id` more than one
-note carries).
+live only under that id.
 
 | Field        | Required    | Contract                                            |
 | ------------ | ----------- | --------------------------------------------------- |

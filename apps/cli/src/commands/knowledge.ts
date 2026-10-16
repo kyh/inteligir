@@ -1,13 +1,10 @@
 import {
   KNOWLEDGE_MATCHES_MAX_LIMIT,
-  KNOWLEDGE_PROBLEMS_MAX_LIMIT,
   KNOWLEDGE_RELATED_MAX_LIMIT,
   KNOWLEDGE_SEARCH_MAX_LIMIT,
 } from "@repo/contract/local/knowledge/knowledge-schema";
 import type {
   KnowledgeMatchesRequest,
-  KnowledgeProblemsRequest,
-  KnowledgeProblemsResponse,
   KnowledgeRelatedRequest,
   KnowledgeSearchRequest,
 } from "@repo/contract/local/knowledge/knowledge-schema";
@@ -111,84 +108,6 @@ export const backlinksCommand = (deps: CliDeps) =>
           ? [`(${body.total - body.backlinks.length} more not shown)`]
           : []),
       ]);
-    },
-  });
-
-const problemFamilyLines = <Row>(
-  heading: string,
-  family: { rows: readonly Row[]; total: number },
-  line: (row: Row) => string,
-): string[] => {
-  if (family.total === 0) {
-    return [];
-  }
-  return [
-    `${heading} (${family.total})`,
-    ...family.rows.map((row) => `  ${line(row)}`),
-    ...(family.rows.length < family.total
-      ? [`  (${family.total - family.rows.length} more not shown)`]
-      : []),
-  ];
-};
-
-const problemLines = (body: KnowledgeProblemsResponse): string[] => [
-  ...problemFamilyLines(
-    "Unresolved links",
-    body.unresolvedLinks,
-    (row) => `[[${row.target}]]  ${row.sourcePath}:${row.line}`,
-  ),
-  ...problemFamilyLines(
-    "Missing embeds",
-    body.missingEmbeds,
-    (row) => `${row.target}  ${row.sourcePath}:${row.line}`,
-  ),
-  ...problemFamilyLines("Orphans", body.orphans, (row) => `${row.path}  ${row.title}`),
-  ...problemFamilyLines(
-    "Duplicate stems",
-    body.duplicateStems,
-    (row) => `${row.stem}  ${row.paths.join(", ")}`,
-  ),
-  ...problemFamilyLines(
-    "Duplicate ids",
-    body.duplicateIds,
-    (row) => `${row.id}  ${row.paths.join(", ")}`,
-  ),
-];
-
-export const problemsCommand = (deps: CliDeps) =>
-  defineCommand({
-    args: {
-      "include-conventions": {
-        description: "Count daily notes and templates as orphans too",
-        type: "boolean",
-      },
-      limit: {
-        description: `Maximum rows per family (1–${KNOWLEDGE_PROBLEMS_MAX_LIMIT})`,
-        type: "string",
-      },
-      ...jsonArg,
-    },
-    meta: {
-      description: "Dangling links, missing embeds, orphan notes, duplicate stems and ids",
-      name: "problems",
-    },
-    run: async ({ args }) => {
-      const limit = parseLimit(args.limit, KNOWLEDGE_PROBLEMS_MAX_LIMIT);
-      const api = apiFor(deps);
-      const request: KnowledgeProblemsRequest = {
-        includeConventionFolders: args["include-conventions"] === true || undefined,
-        limit,
-      };
-      const body = await api.knowledge.problems(request);
-      if (outputJson(args, body)) {
-        return;
-      }
-      const lines = problemLines(body);
-      if (lines.length === 0) {
-        out.info("No problems.");
-        return;
-      }
-      writeLines(lines);
     },
   });
 

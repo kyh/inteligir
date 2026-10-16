@@ -19,8 +19,6 @@ import type { TagCount } from "./tag-index";
 import { notesInTagFamily } from "./tag-notes";
 import { collectVaultMatches } from "./text-matches";
 import type { TextMatchOptions, VaultMatches } from "./text-matches";
-import { collectVaultProblems } from "./vault-problems";
-import type { VaultProblems, VaultProblemsOptions } from "./vault-problems";
 
 export class KnowledgeIndex {
   private readonly linkGraph = new LinkGraphIndex();
@@ -60,10 +58,6 @@ export class KnowledgeIndex {
 
   forwardLinks(path: string): ForwardLinkEntry[] {
     return this.linkGraph.forwardLinks(path);
-  }
-
-  problems(options: VaultProblemsOptions): VaultProblems {
-    return collectVaultProblems(this.linkGraph, options);
   }
 
   wikiTargets(): WikiTarget[] {

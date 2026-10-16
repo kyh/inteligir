@@ -27,7 +27,6 @@ const GUIDES = ["Getting Started.md", "Use Cases.md", "Welcome.md"];
 // `inteligir` names the command, where a fence's `inteligir-chart` names a block
 const MACHINERY =
   /\b(?:git|repo(?:sitory)?|commit|remote|cli|terminal|command line|vim|script|npx|mcp|coding agent)\b|(?<!`)`inteligir[\s`]|\binteligir command\b/iu;
-const NO_PROBLEMS = { rows: [], total: 0 };
 
 const machineryLines = (text: string): string[] =>
   text.split("\n").filter((line) => MACHINERY.test(line));
@@ -83,8 +82,8 @@ describe("seed vault", () => {
     );
   });
 
-  // a new vault's Problems page is what a new user finds there
-  it("reports one problem, Kitchen Sink's deliberately dashed link", () => {
+  // a link that leads nowhere draws dashed, and a new user reads every one of these notes
+  it("resolves every link but Kitchen Sink's deliberately dashed one", () => {
     const index = new KnowledgeIndex();
     for (const file of seedFiles) {
       if (isDocPath(file)) {
@@ -93,16 +92,22 @@ describe("seed vault", () => {
         index.setOther(file);
       }
     }
-    const { unresolvedLinks, ...others } = index.problems({ limit: 20 });
-    expect(unresolvedLinks.rows.map(({ sourcePath, target }) => ({ sourcePath, target }))).toEqual([
-      { sourcePath: "Kitchen Sink.md", target: "Field Notes" },
-    ]);
-    expect(others).toEqual({
-      duplicateIds: NO_PROBLEMS,
-      duplicateStems: NO_PROBLEMS,
-      missingEmbeds: NO_PROBLEMS,
-      orphans: NO_PROBLEMS,
+    const dangling = seedFiles.filter(isDocPath).flatMap((file) =>
+      index
+        .forwardLinks(file)
+        .filter((link) => link.targetPath === null)
+        .map((link) => ({ sourcePath: file, target: link.target })),
+    );
+    expect(dangling).toEqual([{ sourcePath: "Kitchen Sink.md", target: "Field Notes" }]);
+  });
+
+  // two notes on one id would share one comment store and one `[[Title|uuid]]` identity
+  it("gives every note an id of its own", () => {
+    const ids = docs.flatMap((name) => {
+      const id = frontmatterId(readFileSync(path.join(seedDir, name), "utf-8"));
+      return id === null ? [] : [id];
     });
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("the resolver finds this same directory from the source layout", () => {

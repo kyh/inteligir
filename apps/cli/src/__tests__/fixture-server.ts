@@ -345,12 +345,6 @@ const knowledgeRouter = {
       input.limit,
     ),
   ),
-  problems: base.knowledge.problems.handler(({ context, input }) =>
-    indexOf(context.vault).problems({
-      includeConventionFolders: input.includeConventionFolders,
-      limit: input.limit,
-    }),
-  ),
   related: base.knowledge.related.handler(({ context, input }) => ({
     path: input.path,
     related: context.related.slice(0, input.limit),

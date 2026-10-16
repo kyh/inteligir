@@ -64,7 +64,7 @@ const mdUrlText = (sourcePath: string, targetPath: string, oldRaw: string): stri
 
 // the span covers the target alone, so its escapes are decided in the company of the link's own
 // anchor and alias, and the parser's range cuts the target back out. null when no body carries
-// the target (a bracket in a path): the link stays as written, for Problems to report
+// the target (a bracket in a path): the link stays as written, and draws dashed where it is written
 const wikiSpanText = (link: ExtractedLink, target: string): string | null => {
   const body = serializeWikiBody({ alias: link.alias, anchor: link.anchor, target });
   const range = body === null ? undefined : parseWikiBodyRange(body).targetRange;

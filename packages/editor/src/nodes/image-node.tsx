@@ -1,7 +1,7 @@
 // A vault src is fetched through the host's asset route into an object URL; the media type rides
 // the Blob, so this file owns no extension table that could drift from the routes'. The src is
 // resolved as the knowledge index resolves it, so a moved note's re-based url still loads and an
-// image Problems calls missing is the one drawn missing.
+// image the index cannot resolve is the one drawn missing.
 
 import { useEffect, useState } from "react";
 import { NodeApi } from "platejs";

@@ -1,23 +1,18 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { Thread } from "@repo/contract/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
-import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
-import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
-import { frontmatterId } from "@repo/notes/markdown/frontmatter";
-import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
-import { toast } from "@repo/ui/components/sonner";
 import { hotkeyCaps } from "@repo/ui/lib/hotkey-spelling";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../../global-shortcuts";
 import type {
   KnowledgeMatchesRequest,
   KnowledgeMatchesResponse,
-  KnowledgeProblemsResponse,
   KnowledgeSearchResponse,
 } from "@repo/contract/local/knowledge/knowledge-schema";
 import { ChangeBatch } from "../../change-batch";
@@ -29,7 +24,7 @@ import {
   renderWithQueries,
   stubPaletteFetch,
 } from "./palette-harness";
-import type { FakeVault, PaletteFakes } from "./palette-harness";
+import type { PaletteFakes } from "./palette-harness";
 
 const ENTRIES: VaultEntry[] = [
   { kind: "dir", path: "notes" },
@@ -148,8 +143,6 @@ describe("pinning from the palette", () => {
     expect(rows().queryByText("Unpin note")).toBeNull();
   });
 });
-
-const EMPTY_FAMILY = { rows: [], total: 0 };
 
 const searchBox = (): HTMLElement => screen.getByPlaceholderText("Search notes or commands…");
 
@@ -781,164 +774,6 @@ describe("the search page", () => {
     expect(rows().getByText(/2 of 5 matches shown/u)).toBeDefined();
     fireEvent.click(replaceButton());
     expect(actions.replaceAll).not.toHaveBeenCalled();
-  });
-});
-
-const SHARED_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
-// a Finder duplicate: the same bytes, the same id, the anchors' bodies in the one store
-const PLAN_COPY = `---\ntitle: Plan\nid: ${SHARED_ID}\n---\n%%i:c1:start%%Plan%%i:c1:end%%\n`;
-const SHARED_STORE_BYTES = '{\n  "c1": { "text": "kept", "createdAt": 1, "updatedAt": 1 }\n}\n';
-
-const copiedVault = (): FakeVault => ({
-  files: new Map([
-    ["Plan.md", PLAN_COPY],
-    ["Plan copy.md", PLAN_COPY],
-    [`.inteligir/comments/${SHARED_ID}.json`, SHARED_STORE_BYTES],
-  ]),
-  log: [],
-});
-
-const someProblems = (): KnowledgeProblemsResponse => ({
-  duplicateIds: {
-    rows: [{ id: SHARED_ID, paths: ["Plan.md", "Plan copy.md"] }],
-    total: 1,
-  },
-  duplicateStems: {
-    rows: [{ paths: ["Guide.md", "a/Guide.md"], stem: "Guide" }],
-    total: 1,
-  },
-  missingEmbeds: EMPTY_FAMILY,
-  orphans: { rows: [{ path: "Lonely.md", title: "Lonely" }], total: 1 },
-  unresolvedLinks: {
-    rows: [
-      {
-        embed: false,
-        kind: "wiki",
-        line: 3,
-        snippet: "See [[Nowhere]].",
-        sourcePath: "Welcome.md",
-        sourceTitle: "Welcome",
-        target: "Nowhere",
-      },
-    ],
-    total: 3,
-  },
-});
-
-describe("the problems page", () => {
-  it("lists each family with its count, and a link row lands on that link", async () => {
-    const { actions, onOpenChange } = renderPalette({ fakes: { problems: someProblems } });
-    fireEvent.click(rows().getByText("Problems"));
-    expect(await rows().findByText("Unresolved links · 3")).toBeDefined();
-    expect(rows().getByText("Orphans · 1")).toBeDefined();
-    expect(rows().getByText("Duplicate stems · 1")).toBeDefined();
-    expect(rows().getByText("Duplicate ids · 1")).toBeDefined();
-    expect(rows().queryByText(/Missing embeds/u)).toBeNull();
-    expect(rows().getByText(/2 more not shown/u)).toBeDefined();
-    fireEvent.click(rows().getByText("[[Nowhere]] in Welcome"));
-    expect(actions.openProblemLink).toHaveBeenCalledWith("Welcome.md", "Nowhere");
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("opens an orphan or a duplicate as a note, and filters rows by the query", async () => {
-    const { actions } = renderPalette({ fakes: { problems: someProblems } });
-    fireEvent.click(rows().getByText("Problems"));
-    await rows().findByText("Lonely");
-    fireEvent.change(screen.getByPlaceholderText("Filter problems…"), {
-      target: { value: "a/guide" },
-    });
-    expect(rows().queryByText("Lonely")).toBeNull();
-    fireEvent.click(rows().getByText("a/Guide.md"));
-    expect(actions.openNote).toHaveBeenCalledWith("a/Guide.md");
-    expect(actions.openProblemLink).not.toHaveBeenCalled();
-  });
-
-  it("names each note sharing an id, and gives the one picked its own, comments and all", async () => {
-    const vault = copiedVault();
-    let reads = 0;
-    const success = vi.spyOn(toast, "success");
-    const { actions } = renderPalette({
-      fakes: {
-        problems: () => {
-          reads += 1;
-          return someProblems();
-        },
-        vault,
-      },
-    });
-    render(<ConfirmDialogHost />);
-    fireEvent.click(rows().getByText("Problems"));
-    await rows().findByText("Duplicate ids · 1");
-    expect(rows().getAllByText(SHARED_ID)).toHaveLength(2);
-    const copyRow = rows().getByText("Plan copy.md").closest<HTMLElement>("[data-command-item]");
-    expect(copyRow?.dataset.commandAction).toBe("Give its own id");
-
-    fireEvent.click(rows().getByText("Plan copy.md"));
-    const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByText("Give Plan copy.md its own id?")).toBeDefined();
-    expect(within(dialog).getByText(/stays with Plan\.md/u)).toBeDefined();
-    expect(within(dialog).getByText(/its comments come with it/u)).toBeDefined();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Give its own id" }));
-
-    await waitFor(() => {
-      expect(vault.log).toHaveLength(2);
-    });
-    const id = frontmatterId(vault.files.get("Plan copy.md") ?? "");
-    expect(id).not.toBe(SHARED_ID);
-    expect(vault.files.get("Plan copy.md")).toBe(PLAN_COPY.replace(SHARED_ID, id ?? ""));
-    expect(vault.files.get(`.inteligir/comments/${id ?? ""}.json`)).toBe(SHARED_STORE_BYTES);
-    expect(vault.files.get("Plan.md")).toBe(PLAN_COPY);
-    expect(vault.log).toEqual([`write .inteligir/comments/${id ?? ""}.json`, "write Plan copy.md"]);
-    await waitFor(() => {
-      expect(reads).toBe(2);
-    });
-    expect(success).toHaveBeenCalledWith(
-      "Plan copy.md has its own id now, and its comments came with it.",
-    );
-    expect(actions.openNote).not.toHaveBeenCalled();
-  });
-
-  it("writes nothing when the confirm is declined", async () => {
-    const vault = copiedVault();
-    renderPalette({ fakes: { problems: someProblems, vault } });
-    render(<ConfirmDialogHost />);
-    fireEvent.click(rows().getByText("Problems"));
-    fireEvent.click(await rows().findByText("Plan copy.md"));
-    const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
-    await waitFor(() => {
-      expect(screen.queryByRole("alertdialog")).toBeNull();
-    });
-    expect(vault.log).toEqual([]);
-    expect(vault.files.get("Plan copy.md")).toBe(PLAN_COPY);
-  });
-
-  it("lands the open note's unsaved edits before it rewrites that note", async () => {
-    const vault = copiedVault();
-    const { uninstall } = installFakeEditorHost({
-      flush: async () => {
-        vault.log.push("flush");
-        return true;
-      },
-    });
-    onTestFinished(uninstall);
-    renderPalette({ fakes: { problems: someProblems, vault }, note: makeNote("Plan copy.md") });
-    render(<ConfirmDialogHost />);
-    fireEvent.click(rows().getByText("Problems"));
-    fireEvent.click(await rows().findByText("Plan copy.md"));
-    const dialog = await screen.findByRole("alertdialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Give its own id" }));
-
-    await waitFor(() => {
-      expect(vault.log).toHaveLength(3);
-    });
-    expect(vault.log[0]).toBe("flush");
-  });
-
-  it("says when the vault is clean", async () => {
-    renderPalette();
-    fireEvent.click(rows().getByText("Problems"));
-    expect(await rows().findByText(/No problems:/u)).toBeDefined();
   });
 });
 

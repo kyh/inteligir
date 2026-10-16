@@ -8,23 +8,13 @@ import type { BacklinkEntry, WikiTarget } from "@repo/notes/knowledge/link-graph
 import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import type { VaultMatch } from "@repo/notes/knowledge/text-matches";
-import type {
-  DuplicateIdRow,
-  DuplicateStemRow,
-  OrphanRow,
-  UnresolvedLinkRow,
-} from "@repo/notes/knowledge/vault-problems";
 import { describe, expectTypeOf, it } from "vitest";
 import type {
   BacklinkEntryWire,
-  DuplicateIdRowWire,
-  DuplicateStemRowWire,
   LinkKindWire,
-  OrphanRowWire,
   RelatedNoteWire,
   SearchResultWire,
   TagCountWire,
-  UnresolvedLinkRowWire,
   VaultMatchWire,
   WikiTargetWire,
 } from "../knowledge-schema";
@@ -42,12 +32,5 @@ describe("each knowledge wire row is its engine type", () => {
   it("the literal scan's rows", () => {
     // the engine spells VaultMatch as an intersection, which only the branded comparison flattens
     expectTypeOf<VaultMatchWire>().branded.toEqualTypeOf<VaultMatch>();
-  });
-
-  it("the problems report's rows", () => {
-    expectTypeOf<UnresolvedLinkRowWire>().toEqualTypeOf<UnresolvedLinkRow>();
-    expectTypeOf<OrphanRowWire>().toEqualTypeOf<OrphanRow>();
-    expectTypeOf<DuplicateStemRowWire>().toEqualTypeOf<DuplicateStemRow>();
-    expectTypeOf<DuplicateIdRowWire>().toEqualTypeOf<DuplicateIdRow>();
   });
 });

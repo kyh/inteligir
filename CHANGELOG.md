@@ -31,6 +31,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 ### Removed
 
 - **Unlinked mentions.** Related, in the panel's Metadata tab, no longer lists notes that name this one without linking to it, and the Link button beside them is gone. To find the notes that name this one, search for its name, and type `[[` where it is written to make it a link.
+- **Problems.** The Problems page in ⌘P is gone, with its lists of links that lead nowhere, missing images, notes nothing links to, and notes that share a name or an `id`. A link to a note that does not exist still shows dashed where you wrote it, and a missing image still shows as missing; Related, in the Metadata tab, still lists the notes that link to this one. If you duplicate a note in Finder, ask the agent to give the copy an `id` of its own, so the two stop sharing their comments.
 
 ### Fixed
 
@@ -55,6 +56,7 @@ What changed in Inteligir, the desktop app and the `inteligir` command line, new
 ### On the command line
 
 - **`inteligir unlinked` is gone.** Find the notes that name a note with `inteligir search <name>`, and write `[[name]]` where it appears to link it.
+- **`inteligir problems` is gone.** `inteligir backlinks <path>` still lists the notes linking into a note, and `inteligir vault new-id <copy>` still gives a copied note an `id` of its own.
 - **`inteligir vault status` names the reason that still holds.** `lastError` is now always the current state's own message: a pass that reaches the remote clears an older one, a merge that still cannot be combined says so again, and a push that lost a race to another device's reports none.
 - **Every vault's data dir is its own.** The default vault's (`~/Inteligir`'s) now sits beneath `~/.inteligir/vaults/` like any other's, keyed by the folder's physical path, so a folder reached through a symlink or typed in another case is one vault with one data dir. `inteligir status` no longer marks a data dir as the vault's own, and its `--json` drops `dataDirScope`.
 - **A folder past the connected-folders limit is refused as the limit.** `inteligir folders add` answers `LIMIT_REACHED` once 32 folders are connected, where it answered `INVALID_PATH`, which now means only a path that cannot be connected.

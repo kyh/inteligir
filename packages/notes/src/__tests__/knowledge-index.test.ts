@@ -97,7 +97,6 @@ describe("KnowledgeIndex — case-colliding paths", () => {
     expect(targets).toEqual(["Note.md", "note.md", "Note.md"]);
     expect(index.backlinks("Note.md")).toHaveLength(2);
     expect(index.backlinks("note.md")).toHaveLength(1);
-    expect(index.problems({ limit: 10 }).unresolvedLinks.rows).toEqual([]);
   });
 });
 
@@ -109,7 +108,8 @@ describe("KnowledgeIndex — incremental updates", () => {
     expect(index.backlinks("missing note.md")).toEqual([
       expect.objectContaining({ sourcePath: "wiki/hub.md" }),
     ]);
-    expect(index.problems({ limit: 10 }).unresolvedLinks.rows).toEqual([]);
+    const forward = index.forwardLinks("wiki/hub.md");
+    expect(forward.find((f) => f.target === "missing note")?.targetPath).toBe("missing note.md");
   });
 
   it("turns links dangling when their target is removed", () => {

@@ -5,7 +5,6 @@
 
 import {
   KNOWLEDGE_MATCHES_MAX_LIMIT,
-  KNOWLEDGE_PROBLEMS_MAX_LIMIT,
   KNOWLEDGE_RELATED_MAX_LIMIT,
   KNOWLEDGE_SEARCH_MAX_LIMIT,
   KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
@@ -124,10 +123,14 @@ rather than dropped. Quote an argument that holds spaces
   Feed a row to \`vault restore <path> <sha>\` to bring it back.
 - \`inteligir vault mkdir <path>\` — create a folder.
 - \`inteligir vault new-id <path>\` — give a note that shares another's
-  frontmatter \`id\` (a copied file, as \`problems\` lists it) an id of its own.
-  The note takes a new id on the same line and a copy of the comment store kept
-  under the old one, so both notes keep every thread and diverge from here; the
-  note keeping the old id keeps its \`[[Title|uuid]]\` links and its actions.
+  frontmatter \`id\` an id of its own. A copied file (\`cp\`, Finder's
+  duplicate) keeps its original's \`id\`, so the two share one comment store and
+  one \`[[Title|uuid]]\` identity until this runs on the copy. Never delete the
+  copy's \`id:\` line instead: its comment anchors would lose the bodies the
+  store keeps under that id. The note takes a new id on the same line and a copy
+  of the comment store kept under the old one, so both notes keep every thread
+  and diverge from here; the note keeping the old id keeps its
+  \`[[Title|uuid]]\` links and its actions.
   \`--json\` answers the \`path\`, the new \`id\` and \`comments\` (\`copied\`, or
   \`none\` when there was no store). A note that changed since it was read is
   refused as \`CAS_MISMATCH\` and left as it was: run it again.
@@ -170,17 +173,6 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   it scans the bytes: no stemming, no ranking. \`--case-sensitive\` and
   \`--whole-word\` narrow; \`--limit <n>\` caps rows (1–${KNOWLEDGE_MATCHES_MAX_LIMIT}).
 - \`inteligir backlinks <path>\` — the notes linking INTO a note.
-- \`inteligir problems\` — what the graph cannot resolve: wiki links to notes
-  that do not exist (with the source and line), embeds of missing files, notes
-  nothing links to, stems spelled at more than one path, and frontmatter \`id\`s
-  carried by more than one note. A copied file (\`cp\`, Finder's duplicate)
-  keeps its original's \`id\`, so the two share one comment store and one
-  \`[[Title|uuid]]\` identity; run \`inteligir vault new-id <copy>\` on the copy.
-  Never delete its \`id:\` line: its comment anchors would lose the bodies the
-  store keeps under that id. Daily notes and
-  templates are orphans by design and are left out unless
-  \`--include-conventions\` is given. \`--limit <n>\` caps each family
-  (1–${KNOWLEDGE_PROBLEMS_MAX_LIMIT}).
 - \`inteligir related <path>\` — notes connected to a note WITHOUT linking to
   it: shared link targets, shared tags, similar text. Each row is followed by
   the reasons it is there. \`--limit <n>\` caps results (1–${KNOWLEDGE_RELATED_MAX_LIMIT}).

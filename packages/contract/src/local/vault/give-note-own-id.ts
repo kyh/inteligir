@@ -45,10 +45,10 @@ const copyCommentStore = async (api: OwnIdApi, from: string, to: string): Promis
 };
 
 // A copy made outside the app (Finder's duplicate, `cp`) carries its original's `id:`, so the two
-// share one comment store and one `[[Title|uuid]]` identity. Run by both clients on the copy the
-// user or the agent names: it takes a new id and a copy of the store, so both notes keep every
-// thread and diverge from here, and the note keeping `from` keeps the links and actions made with
-// it. Deleting the `id:` line instead strands the copy's anchors, whose bodies live in the store.
+// share one comment store and one `[[Title|uuid]]` identity. Run by `inteligir vault new-id` on the
+// copy the agent names: it takes a new id and a copy of the store, so both notes keep every thread
+// and diverge from here, and the note keeping `from` keeps the links and actions made with it.
+// Deleting the `id:` line instead strands the copy's anchors, whose bodies live in the store.
 // The store lands before the note, because a note whose anchors have no bodies strands its
 // threads where a store no note carries is only left over; a refused note write takes it back.
 export const giveNoteOwnId = async (

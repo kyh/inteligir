@@ -28,7 +28,6 @@ import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
 import { EditorColumn } from "@repo/editor/editor-column";
 import { hideFindBar, jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
 import { insertTemplate } from "@repo/editor/insert-template";
-import { scrollToLinkTarget } from "@repo/editor/link-locate";
 import { getLiveEditor, whenLiveEditor } from "@repo/editor/live-editor";
 import { collectHeadings, goToHeading } from "@repo/editor/toc";
 import type { HeadingItem } from "@repo/editor/toc";
@@ -105,13 +104,6 @@ const jumpWhenLive = async (
 const openLiveEditor = (noteStore: OpenNoteStore) => {
   const { openPath } = noteStore.state();
   return openPath === null ? null : getLiveEditor(openPath);
-};
-
-const showLinkWhenLive = async (sourcePath: string, target: string): Promise<void> => {
-  const editor = await whenLiveEditor(sourcePath, LIVE_EDITOR_WAIT_MS);
-  if (editor !== null && !scrollToLinkTarget(editor, target)) {
-    jumpToFindMatch(editor, target, 0);
-  }
 };
 
 const pinAndReport = async (api: PinNoteApi, path: string, pinned: boolean): Promise<void> => {
@@ -332,12 +324,6 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     void jumpWhenLive(match.path, needle, match.ordinal, options);
   };
 
-  // the link element itself when the note still carries it; else the find bar shows the target
-  const openProblemLink = (sourcePath: string, target: string): void => {
-    setOpenNote(sourcePath);
-    void showLinkWhenLive(sourcePath, target);
-  };
-
   // the template is read on every ⌘D rather than looked up in the tree, which can be stale; a
   // refused read keeps the built-in shape, so the day's note opens either way.
   const openDailyNote = (): void => {
@@ -535,7 +521,6 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     },
     openMatch,
     openNote: setOpenNote,
-    openProblemLink,
     openSettings: () => {
       onOpenSettings();
     },

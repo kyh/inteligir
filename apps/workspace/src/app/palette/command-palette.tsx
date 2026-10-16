@@ -36,7 +36,6 @@ import {
   SettingsIcon,
   PrinterIcon,
   TextSearchIcon,
-  TriangleAlertIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { bindingCapsFor } from "../global-shortcuts";
@@ -54,7 +53,6 @@ import {
   TemplateRows,
   useDebounced,
 } from "./palette-page";
-import { ProblemsPage } from "./problems-page";
 import { SearchPage } from "./search-page";
 import { ShortcutsPage } from "./shortcuts-page";
 import { ThreadsPage } from "./threads-page";
@@ -88,8 +86,6 @@ export interface PaletteActions {
   // settles when the run is over, cancelled or declined included; the palette shows it running
   replaceAll: (request: VaultReplaceRequest, port: ReplaceProgressPort) => Promise<void>;
   goToHeading: (heading: HeadingItem) => void;
-  // opens the source note and lands on the link written against `target`
-  openProblemLink: (sourcePath: string, target: string) => void;
 }
 
 // the pages an entry point opens onto; ⌘P is the one that opens the root, a move names the entry
@@ -108,13 +104,7 @@ export type PaletteRequest = PaletteEntry & { nonce: number };
 type Page =
   | PaletteEntry
   | {
-      page:
-        | "new-note-folder"
-        | "new-note-template"
-        | "insert-template"
-        | "threads"
-        | "shortcuts"
-        | "problems";
+      page: "new-note-folder" | "new-note-template" | "insert-template" | "threads" | "shortcuts";
     };
 
 // what the one dialog says around a page
@@ -145,12 +135,6 @@ const PAGE_CHROME: Record<Exclude<Page["page"], "move-to-folder">, PageChrome> =
     description: "Pick the template the new note starts from",
     placeholder: "New note from which template?",
     title: "New note from template",
-  },
-  problems: {
-    description: "What the vault's links cannot resolve",
-    placeholder: "Filter problems…",
-    title: "Problems",
-    wide: true,
   },
   root: {
     description: "Open a note or run a command",
@@ -345,15 +329,6 @@ const rootCommands = (
     },
   },
   {
-    icon: <TriangleAlertIcon />,
-    id: "problems",
-    keepOpen: true,
-    label: "Problems",
-    run: () => {
-      goTo({ page: "problems" });
-    },
-  },
-  {
     icon: <KeyboardIcon />,
     id: "keyboard-shortcuts",
     keepOpen: true,
@@ -521,24 +496,6 @@ export const CommandPalette = ({
               </CommandGroup>
             ) : null}
           </PalettePage>
-        );
-      }
-      case "problems": {
-        return (
-          <ProblemsPage
-            open={open}
-            query={query}
-            onOpenNote={(path) => {
-              run(() => {
-                actions.openNote(path);
-              });
-            }}
-            onOpenLink={(sourcePath, target) => {
-              run(() => {
-                actions.openProblemLink(sourcePath, target);
-              });
-            }}
-          />
         );
       }
       case "shortcuts": {

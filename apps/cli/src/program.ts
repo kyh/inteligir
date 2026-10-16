@@ -28,7 +28,6 @@ import { interactionsCommand } from "./commands/interactions";
 import {
   backlinksCommand,
   matchesCommand,
-  problemsCommand,
   relatedCommand,
   searchCommand,
   tagsCommand,
@@ -66,7 +65,6 @@ export const buildProgram = (deps: CliDeps): CommandDef =>
       interactions: interactionsCommand(deps),
       matches: matchesCommand(deps),
       open: openCommand(deps),
-      problems: problemsCommand(deps),
       related: relatedCommand(deps),
       search: searchCommand(deps),
       serve: serveCommand(),
