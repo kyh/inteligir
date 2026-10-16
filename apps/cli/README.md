@@ -85,7 +85,7 @@ agent shells are given.
 `serve` · `open` · `vault
 list|read|history|revision|restore|write|rename|delete|deleted|mkdir|new-id|attachments|remote|open|status|sync`
 · `search` (`tag:` terms pass through) · `matches` · `backlinks` · `related` ·
-`unlinked` · `problems` · `tags` · `tag notes|rename` · `action
+`problems` · `tags` · `tag notes|rename` · `action
 list|new|send|show|stop|wait|archive|changes|undo` · `comment list|add|reply|resolve|remove` ·
 `interactions list|answer` · `agents list|default` · `folders
 list|add|remove` · `cloud status|login|sync` · `status` · `guide`.

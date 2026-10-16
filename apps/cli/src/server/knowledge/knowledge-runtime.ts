@@ -18,12 +18,6 @@ import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-stor
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import { bodyPrefilters, collectVaultMatches } from "@repo/notes/knowledge/text-matches";
 import type { TextMatchOptions, VaultMatches } from "@repo/notes/knowledge/text-matches";
-import {
-  findUnlinkedMentions,
-  mentionLinkTarget,
-  mentionNames,
-} from "@repo/notes/knowledge/unlinked-mentions";
-import type { LinkableMentions } from "@repo/notes/knowledge/unlinked-mentions";
 import { collectVaultProblems } from "@repo/notes/knowledge/vault-problems";
 import type { VaultProblems, VaultProblemsOptions } from "@repo/notes/knowledge/vault-problems";
 import { normalizePath } from "@repo/notes/knowledge/vault-path";
@@ -68,8 +62,6 @@ export interface KnowledgeRuntime {
   }) => Promise<VaultMatches>;
   backlinks: (path: string) => Promise<BacklinkEntry[]>;
   wikiTargets: () => Promise<WikiTarget[]>;
-  // notes naming this one in prose without a link, one row per note on its first mention
-  unlinkedMentions: (path: string, limit: number) => Promise<LinkableMentions>;
   // what the resolver cannot answer, from the index alone
   problems: (options: VaultProblemsOptions) => Promise<VaultProblems>;
   // every doc whose frontmatter `id` is this one, by path
@@ -313,24 +305,6 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     async tags() {
       await settle();
       return graph.tags();
-    },
-
-    // the literal scan again, over the stem and the aliases; ascii names let the store
-    // pre-narrow to the docs holding one of them
-    async unlinkedMentions(path, limit) {
-      const normalized = normalizePath(path);
-      return await readThroughIndex("unlinked mentions", () => {
-        const names = mentionNames(normalized, graph.aliasesOf(normalized));
-        const exclude = new Set([
-          normalized,
-          ...graph.backlinks(normalized).map((backlink) => backlink.sourcePath),
-        ]);
-        const docs = store.docTexts(bodyPrefilters(names));
-        return {
-          ...findUnlinkedMentions(docs, { exclude, limit, names }),
-          linkTarget: mentionLinkTarget(normalized, (name) => graph.resolveWiki(name)),
-        };
-      });
     },
 
     async wikiTargets() {

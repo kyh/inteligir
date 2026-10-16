@@ -3,7 +3,6 @@ import {
   KNOWLEDGE_PROBLEMS_MAX_LIMIT,
   KNOWLEDGE_RELATED_MAX_LIMIT,
   KNOWLEDGE_SEARCH_MAX_LIMIT,
-  KNOWLEDGE_UNLINKED_MAX_LIMIT,
 } from "@repo/contract/local/knowledge/knowledge-schema";
 import type {
   KnowledgeMatchesRequest,
@@ -11,10 +10,7 @@ import type {
   KnowledgeProblemsResponse,
   KnowledgeRelatedRequest,
   KnowledgeSearchRequest,
-  KnowledgeUnlinkedMentionsRequest,
-  KnowledgeUnlinkedMentionsResponse,
 } from "@repo/contract/local/knowledge/knowledge-schema";
-import { serializeWikiBody } from "@repo/notes/markdown/remark-wiki-link";
 import { defineCommand } from "citty";
 import { parseBoundedInteger } from "../args";
 import { apiFor } from "../context";
@@ -23,13 +19,6 @@ import { jsonArg, out, outputJson, writeLines } from "../output";
 
 const parseLimit = (rawValue: string | undefined, max: number): number | undefined =>
   rawValue === undefined ? undefined : parseBoundedInteger(rawValue, "--limit", { max, min: 1 });
-
-// the bare stem may be another note's, so the rows are only actionable beside the link that names this one,
-// spelled as the writer escapes it (`[[Issue\#42]]`).
-const linkLine = (body: KnowledgeUnlinkedMentionsResponse): string => {
-  const wikiBody = body.linkTarget === null ? null : serializeWikiBody({ target: body.linkTarget });
-  return wikiBody === null ? `no wiki link can name ${body.path}` : `link as [[${wikiBody}]]`;
-};
 
 export const searchCommand = (deps: CliDeps) =>
   defineCommand({
@@ -120,42 +109,6 @@ export const backlinksCommand = (deps: CliDeps) =>
         ),
         ...(body.backlinks.length < body.total
           ? [`(${body.total - body.backlinks.length} more not shown)`]
-          : []),
-      ]);
-    },
-  });
-
-export const unlinkedCommand = (deps: CliDeps) =>
-  defineCommand({
-    args: {
-      limit: { description: `Maximum notes (1–${KNOWLEDGE_UNLINKED_MAX_LIMIT})`, type: "string" },
-      path: { description: "The vault-relative path", required: true, type: "positional" },
-      ...jsonArg,
-    },
-    meta: { description: "Notes naming a note in prose without linking it", name: "unlinked" },
-    run: async ({ args }) => {
-      const limit = parseLimit(args.limit, KNOWLEDGE_UNLINKED_MAX_LIMIT);
-      const api = apiFor(deps);
-      const request: KnowledgeUnlinkedMentionsRequest = { limit, path: args.path };
-      const body = await api.knowledge.unlinkedMentions(request);
-      if (outputJson(args, body)) {
-        return;
-      }
-      if (body.mentions.length === 0) {
-        out.info("No unlinked mentions.");
-        return;
-      }
-      // columns count from 1 here, as editors do; the wire's are offsets
-      writeLines([
-        linkLine(body),
-        ...body.mentions.map(
-          (mention) =>
-            `${mention.path}:${mention.line}:${mention.column + 1}  ${mention.before}${mention.text}${mention.after}${
-              mention.count > 1 ? `  (${mention.count} mentions)` : ""
-            }`,
-        ),
-        ...(body.mentions.length < body.total
-          ? [`(${body.total - body.mentions.length} more notes not shown)`]
           : []),
       ]);
     },

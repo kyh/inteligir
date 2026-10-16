@@ -57,7 +57,7 @@ Type `[[` to link a note. Links keep working when you rename or move a note, and
 
 Tag a note by writing a word after `#`, like #guide, and click the tag to see every note that carries it.
 
-Open **Related** in the **Metadata** tab of the right panel for both halves of the picture: notes that link here, counted, and notes the app thinks belong with this one, each with its reason. It also lists notes that mention this one without linking to it, with a button that turns the mention into a link.
+Open **Related** in the **Metadata** tab of the right panel for both halves of the picture: notes that link here, counted, and notes the app thinks belong with this one, each with its reason.
 
 ## Blocks Worth Knowing
 

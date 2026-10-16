@@ -10,7 +10,6 @@ import {
   KNOWLEDGE_SEARCH_MAX_LIMIT,
   KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
   KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
-  KNOWLEDGE_UNLINKED_MAX_LIMIT,
 } from "@repo/contract/local/knowledge/knowledge-schema";
 import {
   THREADS_LIST_DEFAULT_LIMIT,
@@ -171,14 +170,6 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   it scans the bytes: no stemming, no ranking. \`--case-sensitive\` and
   \`--whole-word\` narrow; \`--limit <n>\` caps rows (1–${KNOWLEDGE_MATCHES_MAX_LIMIT}).
 - \`inteligir backlinks <path>\` — the notes linking INTO a note.
-- \`inteligir unlinked <path>\` — notes that name a note in prose (its stem or
-  an alias, as a whole word) without linking it, one row per note as
-  \`path:line:column\` with the sentence; code, links, urls and frontmatter do
-  not count. To make one a link, wrap the text as \`[[<linkTarget>]]\`
-  (\`[[<linkTarget>|as written]]\` when the prose differs), where
-  \`linkTarget\` is on \`--json\` and the first line prints the link ready to
-  write; the bare title may name another note. \`--limit <n>\` caps rows
-  (1–${KNOWLEDGE_UNLINKED_MAX_LIMIT}).
 - \`inteligir problems\` — what the graph cannot resolve: wiki links to notes
   that do not exist (with the source and line), embeds of missing files, notes
   nothing links to, stems spelled at more than one path, and frontmatter \`id\`s

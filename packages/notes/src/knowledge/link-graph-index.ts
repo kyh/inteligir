@@ -202,10 +202,6 @@ export class LinkGraphIndex {
     return this.docs.get(path)?.title ?? null;
   }
 
-  aliasesOf(path: string): readonly string[] {
-    return this.docs.get(path)?.aliases ?? [];
-  }
-
   resolveWiki(target: string): string | null {
     return this.ensureResolved().resolver.resolveWiki(target);
   }

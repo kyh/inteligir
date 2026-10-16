@@ -40,11 +40,6 @@ const backlinks = base.knowledge.backlinks.handler(async ({ context, input }) =>
   };
 });
 
-const unlinkedMentions = base.knowledge.unlinkedMentions.handler(async ({ context, input }) => ({
-  path: input.path,
-  ...(await context.knowledge.unlinkedMentions(input.path, input.limit)),
-}));
-
 const problems = base.knowledge.problems.handler(
   async ({ context, input }) =>
     await context.knowledge.problems({
@@ -83,6 +78,5 @@ export const knowledgeRouter = {
   search,
   tagNotes,
   tags,
-  unlinkedMentions,
   wikiTargets,
 };

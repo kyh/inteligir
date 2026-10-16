@@ -1,25 +1,19 @@
 // no dedup between backlinks and suggestions: the scorer excludes direct neighbours by construction.
 
-import type { UnlinkedMentionWire } from "@repo/contract/local/knowledge/knowledge-schema";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { COMMENT_MARKER_STRIP_RE } from "@repo/notes/markdown/remark-inline-constructs";
 import { wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@repo/ui/components/button";
-import { toast } from "@repo/ui/components/sonner";
+import { useQuery } from "@tanstack/react-query";
 import { plural } from "@repo/ui/lib/plural";
 
-import { client, orpc } from "../api";
+import { orpc } from "../api";
 import { PREFS, usePref } from "../prefs";
 import { FoldSection } from "../fold-section";
-import { linkMentionInNote, linkMentionMessage } from "./link-mention";
 
 export interface RelatedRow {
   path: string;
   label: string;
   detail: string;
-  // a second verb beside opening the note, drawn as its own button
-  action?: { label: string; run: () => void };
 }
 
 export const plainSnippet = (snippet: string): string =>
@@ -62,13 +56,6 @@ export const linkedMentionsSummary = (shown: number, total: number): string => {
   return shown < total ? `${counted} (${shown} shown)` : counted;
 };
 
-export const unlinkedMentionDetail = (mention: UnlinkedMentionWire): string => {
-  const sentence = plainSnippet(`${mention.before}${mention.text}${mention.after}`);
-  return mention.count > 1
-    ? `Mentions ${String(mention.count)}× · ${sentence}`
-    : `Mentions · ${sentence}`;
-};
-
 // suggestions fetch only while open: that read settles the index and runs a lexical probe per title token.
 const useRelatedRows = (docPath: string, open: boolean) => {
   const backlinksQuery = useQuery(
@@ -78,11 +65,7 @@ const useRelatedRows = (docPath: string, open: boolean) => {
     ...orpc.knowledge.related.queryOptions({ input: { path: docPath } }),
     enabled: open,
   });
-  const unlinkedQuery = useQuery({
-    ...orpc.knowledge.unlinkedMentions.queryOptions({ input: { path: docPath } }),
-    enabled: open,
-  });
-  return { backlinksQuery, relatedQuery, unlinkedQuery };
+  return { backlinksQuery, relatedQuery };
 };
 
 export const RelatedRows = ({
@@ -103,36 +86,22 @@ export const RelatedRows = ({
       </p>
     ) : (
       <ul className="space-y-0.5">
-        {rows.map((row) => {
-          const { action } = row;
-          return (
-            <li key={row.path + row.detail} className="flex items-center gap-1">
-              <button
-                type="button"
-                className="min-w-0 flex-1 rounded-md px-1.5 py-1 text-left hover:bg-surface-raised"
-                onClick={() => {
-                  onOpenDoc(row.path);
-                }}
-              >
-                <span className="block truncate text-subtitle" title={row.path}>
-                  {row.label}
-                </span>
-                <span className="block truncate text-body text-muted-foreground">{row.detail}</span>
-              </button>
-              {action === undefined ? null : (
-                <Button
-                  variant="tertiary"
-                  size="compact"
-                  onClick={() => {
-                    action.run();
-                  }}
-                >
-                  {action.label}
-                </Button>
-              )}
-            </li>
-          );
-        })}
+        {rows.map((row) => (
+          <li key={row.path + row.detail}>
+            <button
+              type="button"
+              className="w-full min-w-0 rounded-md px-1.5 py-1 text-left hover:bg-surface-raised"
+              onClick={() => {
+                onOpenDoc(row.path);
+              }}
+            >
+              <span className="block truncate text-subtitle" title={row.path}>
+                {row.label}
+              </span>
+              <span className="block truncate text-body text-muted-foreground">{row.detail}</span>
+            </button>
+          </li>
+        ))}
       </ul>
     )}
     {suggestionsFailed ? (
@@ -151,25 +120,11 @@ export const RelatedInline = ({
   onOpenDoc: (path: string) => void;
 }) => {
   const [open, setOpen] = usePref(PREFS.relatedOpen);
-  const queryClient = useQueryClient();
-  const { backlinksQuery, relatedQuery, unlinkedQuery } = useRelatedRows(docPath, open);
+  const { backlinksQuery, relatedQuery } = useRelatedRows(docPath, open);
 
   const backlinks = backlinksQuery.data?.backlinks ?? [];
   const backlinkTotal = backlinksQuery.data?.total ?? 0;
   const related = relatedQuery.data?.related ?? [];
-  const unlinked = unlinkedQuery.data?.mentions ?? [];
-  const linkTarget = unlinkedQuery.data?.linkTarget ?? null;
-
-  // the sweep on files-changed moves the row to backlinks; the refetch here only shortens the wait
-  const link = (mention: UnlinkedMentionWire, target: string): void => {
-    void (async () => {
-      const outcome = await linkMentionInNote(client, mention, target);
-      toast[outcome.kind === "written" ? "success" : "error"](
-        linkMentionMessage(outcome, mention.path),
-      );
-      void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
-    })();
-  };
 
   const rows: RelatedRow[] = [
     ...groupBacklinks(backlinks).map((group) => ({
@@ -185,31 +140,13 @@ export const RelatedInline = ({
       label: entry.title,
       path: entry.path,
     })),
-    ...unlinked.map((mention) => {
-      const row: RelatedRow = {
-        detail: unlinkedMentionDetail(mention),
-        label: docStem(mention.path),
-        path: mention.path,
-      };
-      if (linkTarget !== null) {
-        row.action = {
-          label: "Link",
-          run: () => {
-            link(mention, linkTarget);
-          },
-        };
-      }
-      return row;
-    }),
   ];
 
   const settledEmpty =
     backlinksQuery.data !== undefined &&
     backlinkTotal === 0 &&
     (relatedQuery.isSuccess || relatedQuery.isError) &&
-    related.length === 0 &&
-    (unlinkedQuery.isSuccess || unlinkedQuery.isError) &&
-    unlinked.length === 0;
+    related.length === 0;
 
   return (
     <FoldSection
@@ -223,7 +160,7 @@ export const RelatedInline = ({
       <RelatedRows
         rows={rows}
         settledEmpty={settledEmpty}
-        suggestionsFailed={relatedQuery.isError || unlinkedQuery.isError}
+        suggestionsFailed={relatedQuery.isError}
         onOpenDoc={onOpenDoc}
       />
     </FoldSection>

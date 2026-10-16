@@ -788,42 +788,6 @@ describe("the knowledge runtime's debug trace", () => {
   });
 });
 
-describe("unlinked mentions", () => {
-  it("names the notes that spell this one in prose, and drops one once it links", async () => {
-    const { service, knowledge } = bootIndexedVault(makeDirs());
-    await service.write("Roadmap.md", "---\naliases: [the plan]\n---\n# Roadmap\n");
-    await service.write("a.md", "We revisit the roadmap on Monday.\n");
-    await service.write("b.md", "Follow the plan.\n");
-    await service.write("c.md", "See [[Roadmap]] and the roadmap again.\n");
-    await service.write("d.md", "`roadmap` in code only.\n");
-
-    const found = await knowledge.unlinkedMentions("Roadmap.md", 10);
-    expect(found.total).toBe(2);
-    expect(found.mentions.map((mention) => [mention.path, mention.text])).toEqual([
-      ["a.md", "roadmap"],
-      ["b.md", "the plan"],
-    ]);
-
-    await service.write("a.md", "We revisit the [[Roadmap|roadmap]] on Monday.\n");
-    const after = await knowledge.unlinkedMentions("Roadmap.md", 10);
-    expect(after.mentions.map((mention) => mention.path)).toEqual(["b.md"]);
-    const backlinks = await knowledge.backlinks("Roadmap.md");
-    expect(backlinks.map((b) => b.sourcePath).toSorted()).toEqual(["a.md", "c.md"]);
-  });
-
-  it("answers the target a Link writes, qualified when the bare name is another note's", async () => {
-    const { service, knowledge } = bootIndexedVault(makeDirs());
-    await service.write("Plan.md", "# Plan\n");
-    await service.write("zz/Plan.md", "# The other plan\n");
-    await service.write("zz/Solo.md", "# Solo\n");
-
-    const shadowed = await knowledge.unlinkedMentions("zz/Plan.md", 10);
-    const unique = await knowledge.unlinkedMentions("zz/Solo.md", 10);
-    expect(shadowed.linkTarget).toBe("zz/Plan");
-    expect(unique.linkTarget).toBe("Solo");
-  });
-});
-
 describe("vault problems", () => {
   it("lists a dangling link once with its source, and drops it once the note exists", async () => {
     const { service, knowledge } = bootIndexedVault(makeDirs());

@@ -1,5 +1,4 @@
 import { partialMatchKey, QueryClient } from "@tanstack/react-query";
-import type { QueryKey } from "@tanstack/react-query";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/contract/local/notifications";
 import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
@@ -338,32 +337,6 @@ describe("a thread change", () => {
     expect(applied.threads).toEqual([
       { changes: ["interactions-changed"], entity: "thread", type: "changed" },
     ]);
-  });
-});
-
-describe("the unlinked-mentions scan", () => {
-  it("is the one knowledge query a content change leaves alone", () => {
-    const queryClient = new QueryClient();
-    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
-    const batch = new ChangeBatch();
-    batch.add(contentChanged("a.md"));
-    batch.apply(
-      queryClient,
-      () => {},
-      () => {},
-    );
-    // the predicate reads the key alone; the cache builds its Query from the same key
-    const keys: readonly QueryKey[] = [
-      orpc.knowledge.backlinks.key({ input: { path: "a.md" } }),
-      orpc.knowledge.unlinkedMentions.key({ input: { path: "a.md" } }),
-    ];
-    const seen = invalidateQueries.mock.calls.flatMap(([filters]) =>
-      keys.map((queryKey) => {
-        const query = queryClient.getQueryCache().build(queryClient, { queryKey });
-        return filters?.predicate === undefined || filters.predicate(query);
-      }),
-    );
-    expect(seen).toEqual([true, false]);
   });
 });
 

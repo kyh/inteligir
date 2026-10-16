@@ -50,13 +50,12 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
 ## Knowledge: index, search and links
 
 - **RELATED IS ONE PANEL SECTION**: backlinks first because they are counted,
-  then the scorer's rows with their reasons, then unlinked mentions
+  then the scorer's rows with their reasons
   (`apps/workspace/src/app/actions/related-section.tsx`). Outgoing links stay
   absent (they are on screen); no graph view; the route is search-shaped (a
   `limit`, no `total`) and fetched only while unfolded. A change sweeps
   `orpc.knowledge.key()` whole, because a link into a note lives in another
-  note's bytes, except that `content-changed` skips the vault-wide
-  `knowledge.unlinkedMentions` (`app/change-batch.ts`).
+  note's bytes (`app/change-batch.ts`).
 
 ## Agents and threads
 

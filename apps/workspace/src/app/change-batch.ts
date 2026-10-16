@@ -1,4 +1,3 @@
-import { partialMatchKey } from "@tanstack/react-query";
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import type { ThreadChangeKind, VaultChangeKind } from "@repo/domain/change-kinds";
@@ -12,9 +11,6 @@ export type VaultChangeListener = (event: VaultChangedEvent) => void;
 
 // An undefined `id` is a synthetic sweep: any thread may have changed.
 export type ThreadListener = (message: ThreadChangedMessage) => void;
-
-const isUnlinkedMentionsQuery = (queryKey: readonly unknown[]): boolean =>
-  partialMatchKey(queryKey, orpc.knowledge.unlinkedMentions.key());
 
 // Total over the kinds, like thread-hooks' MOVES_THE_TIMELINE. A streamed turn is hundreds of
 // events-appended frames that move no list row and no detail field: the timeline's delta fetch is
@@ -161,13 +157,8 @@ export class ChangeBatch {
       // The note's bytes are not query state, so content-changed goes to the
       // open note's reader alone; a query alongside bought a second read of the
       // same bytes. Knowledge is swept whole: this doc's links are some other
-      // note's backlinks, and which note is not knowable here. The one exception
-      // is the vault-wide prose scan behind unlinked mentions, which would re-read
-      // every doc body per autosave; it waits for files-changed or a refold.
-      void queryClient.invalidateQueries({
-        predicate: (query) => !isUnlinkedMentionsQuery(query.queryKey),
-        queryKey: orpc.knowledge.key(),
-      });
+      // note's backlinks, and which note is not knowable here.
+      void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
       // a comment added to a note that already has a store rewrites the store and names no row.
       if ([...this.contentChanged.keys()].some(isCommentsStorePath)) {
         void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });

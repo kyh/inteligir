@@ -659,23 +659,6 @@ describe("knowledge commands", () => {
     );
   });
 
-  it("leads the unlinked rows with the link that names the note, path-qualified where the stem is another's", async () => {
-    const state = makeFixtureState();
-    state.vault.set("Idea.md", "# Root\n");
-    state.vault.set("projects/Idea.md", "# Nested\n");
-    state.vault.set("notes/mention.md", "An idea worth having.\n");
-    const server = await boot(state);
-
-    const human = await runCliForTest({
-      argv: ["unlinked", "projects/Idea.md"],
-      baseUrl: server.baseUrl,
-    });
-    expect(human.code).toBe(0);
-    expect(human.stdout).toBe(
-      "link as [[projects/Idea]]\nnotes/mention.md:1:4  An idea worth having.\n",
-    );
-  });
-
   it("says a note has no related notes rather than printing nothing", async () => {
     const state = seededState();
     state.related = [];

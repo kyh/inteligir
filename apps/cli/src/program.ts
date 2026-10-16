@@ -29,7 +29,6 @@ import {
   backlinksCommand,
   matchesCommand,
   problemsCommand,
-  unlinkedCommand,
   relatedCommand,
   searchCommand,
   tagsCommand,
@@ -74,7 +73,6 @@ export const buildProgram = (deps: CliDeps): CommandDef =>
       status: statusCommand(deps),
       tag: tagCommand(deps),
       tags: tagsCommand(deps),
-      unlinked: unlinkedCommand(deps),
       vault: vaultCommand(deps),
     },
   });

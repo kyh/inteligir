@@ -68,17 +68,6 @@ const matcher = (needle: string, options: TextMatchOptions): RegExp => {
   );
 };
 
-// several needles as one whole-word, any-case pattern, longest first: an alternation takes the
-// first alternative that matches, so where two overlap (`Plan` inside `Plan B`) the longer takes
-// the site and the shorter is not counted again inside it. null for no needle
-export const anyWholeWordMatcher = (needles: readonly string[]): RegExp | null => {
-  const alternatives = needles
-    .filter((needle) => needle !== "")
-    .toSorted((a, b) => b.length - a.length)
-    .map(escapeRegExp);
-  return alternatives.length === 0 ? null : new RegExp(wholeWord(alternatives.join("|")), "giu");
-};
-
 const hitsIn = (pattern: RegExp, text: string): TextOffset[] => {
   pattern.lastIndex = 0;
   const found: TextOffset[] = [];

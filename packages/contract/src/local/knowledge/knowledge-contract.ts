@@ -18,8 +18,6 @@ import {
   knowledgeTagNotesRequestSchema,
   knowledgeTagNotesResponseSchema,
   knowledgeTagsResponseSchema,
-  knowledgeUnlinkedMentionsRequestSchema,
-  knowledgeUnlinkedMentionsResponseSchema,
   knowledgeWikiTargetsResponseSchema,
 } from "./knowledge-schema";
 
@@ -39,10 +37,6 @@ export const knowledgeContract = {
   tagNotes: oc.input(knowledgeTagNotesRequestSchema).output(knowledgeTagNotesResponseSchema),
 
   tags: oc.output(knowledgeTagsResponseSchema),
-
-  unlinkedMentions: oc
-    .input(knowledgeUnlinkedMentionsRequestSchema)
-    .output(knowledgeUnlinkedMentionsResponseSchema),
 
   wikiTargets: oc.output(knowledgeWikiTargetsResponseSchema),
 };

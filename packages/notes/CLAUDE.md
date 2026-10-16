@@ -82,18 +82,6 @@ node is rather than discriminating structurally at each visit.
   between notes, never inside one. The jump lands by ordinal among the note's
   matches, because a markdown column is not a Slate offset.
 
-- **AN UNLINKED MENTION IS THE STEM OR AN ALIAS IN PROSE, and Link rewrites the
-  bytes the row showed.** `knowledge.unlinkedMentions` (`inteligir unlinked`)
-  runs the literal matcher over the target's names as whole words, longest
-  first; one row per note, excluding notes already linking here. A hit inside
-  code, math, a link, a url, frontmatter, an html tag, a comment marker, a date
-  chip or a `:::` marker line is withheld by the scan's own line regexes as well
-  as the editor's verbatim ranges (math, and what it carries as source). Not
-  the H1: `[[H1 text]]` resolves to nothing. Link wraps exactly that site
-  through a guarded write, targeting the route's `linkTarget`, because the bare
-  stem may be another note's. `@repo/notes/knowledge/unlinked-mentions.ts`,
-  `apps/workspace/src/app/actions/link-mention.ts`.
-
 - **A PROBLEM IS THE RESOLVER'S VERDICT, never a scan's.** `knowledge.problems`
   (the palette's Problems page, `inteligir problems`) reads the resolved graph
   alone: unresolved links, missing embeds, orphans, and a link name

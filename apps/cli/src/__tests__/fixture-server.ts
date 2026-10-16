@@ -14,12 +14,6 @@ import type {
 } from "@repo/contract/local/knowledge/knowledge-schema";
 import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import { collectVaultMatches } from "@repo/notes/knowledge/text-matches";
-import { buildResolver } from "@repo/notes/knowledge/link-resolve";
-import {
-  findUnlinkedMentions,
-  mentionLinkTarget,
-  mentionNames,
-} from "@repo/notes/knowledge/unlinked-mentions";
 import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
 import type { AgentsStatusResponse } from "@repo/contract/local/agents/agents-schema";
 import { RPC_PREFIX } from "@repo/contract/local/routes";
@@ -382,19 +376,6 @@ const knowledgeRouter = {
   tags: base.knowledge.tags.handler(({ context }) => ({
     tags: context.tags,
     total: context.tags.length,
-  })),
-  // the real scan over the fixture vault, excluding what the fixture's backlinks already link
-  unlinkedMentions: base.knowledge.unlinkedMentions.handler(({ context, input }) => ({
-    linkTarget: mentionLinkTarget(input.path, buildResolver(context.vault.keys()).resolveWiki),
-    path: input.path,
-    ...findUnlinkedMentions(
-      [...context.vault].map(([path, body]) => ({ body, path, title: docStem(path) })),
-      {
-        exclude: new Set([input.path, ...context.backlinks.map((entry) => entry.sourcePath)]),
-        limit: input.limit,
-        names: mentionNames(input.path, []),
-      },
-    ),
   })),
   wikiTargets: base.knowledge.wikiTargets.handler(() => ({ targets: [] })),
 };

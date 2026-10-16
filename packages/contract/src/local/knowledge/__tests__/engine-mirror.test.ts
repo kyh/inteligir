@@ -8,7 +8,6 @@ import type { BacklinkEntry, WikiTarget } from "@repo/notes/knowledge/link-graph
 import type { RelatedNoteEntry } from "@repo/notes/knowledge/related-notes";
 import type { TagCount } from "@repo/notes/knowledge/tag-index";
 import type { VaultMatch } from "@repo/notes/knowledge/text-matches";
-import type { UnlinkedMention } from "@repo/notes/knowledge/unlinked-mentions";
 import type {
   DuplicateIdRow,
   DuplicateStemRow,
@@ -25,7 +24,6 @@ import type {
   RelatedNoteWire,
   SearchResultWire,
   TagCountWire,
-  UnlinkedMentionWire,
   UnresolvedLinkRowWire,
   VaultMatchWire,
   WikiTargetWire,
@@ -44,7 +42,6 @@ describe("each knowledge wire row is its engine type", () => {
   it("the literal scan's rows", () => {
     // the engine spells VaultMatch as an intersection, which only the branded comparison flattens
     expectTypeOf<VaultMatchWire>().branded.toEqualTypeOf<VaultMatch>();
-    expectTypeOf<UnlinkedMentionWire>().toEqualTypeOf<UnlinkedMention>();
   });
 
   it("the problems report's rows", () => {

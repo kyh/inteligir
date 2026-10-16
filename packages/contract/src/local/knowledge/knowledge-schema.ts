@@ -16,8 +16,6 @@ export const KNOWLEDGE_BACKLINKS_MAX = 500;
 export const KNOWLEDGE_TAGS_MAX = 1000;
 export const KNOWLEDGE_MATCHES_MAX_LIMIT = 500;
 export const KNOWLEDGE_MATCHES_DEFAULT_LIMIT = 200;
-export const KNOWLEDGE_UNLINKED_MAX_LIMIT = 200;
-export const KNOWLEDGE_UNLINKED_DEFAULT_LIMIT = 50;
 export const KNOWLEDGE_PROBLEMS_MAX_LIMIT = 200;
 export const KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT = 50;
 
@@ -81,49 +79,6 @@ export const knowledgeMatchesResponseSchema = z.strictObject({
   total: z.number().int().min(0),
 });
 export type KnowledgeMatchesResponse = z.infer<typeof knowledgeMatchesResponseSchema>;
-
-// a note that names this one in prose without linking it: the stem or an alias as a whole
-// word, outside code, links, urls and frontmatter. one row per note, on its first mention
-export const knowledgeUnlinkedMentionsRequestSchema = z.strictObject({
-  limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(KNOWLEDGE_UNLINKED_MAX_LIMIT)
-    .default(KNOWLEDGE_UNLINKED_DEFAULT_LIMIT),
-  path: vaultPathSchema,
-});
-export type KnowledgeUnlinkedMentionsRequest = z.input<
-  typeof knowledgeUnlinkedMentionsRequestSchema
->;
-
-export const unlinkedMentionSchema = z.strictObject({
-  after: z.string(),
-  before: z.string(),
-  // utf-16 offset inside the line
-  column: z.number().int().min(0),
-  // every plain mention in that note, this one included
-  count: z.number().int().min(1),
-  length: z.number().int().min(1),
-  // 1-based
-  line: z.number().int().min(1),
-  path: z.string().min(1),
-  text: z.string(),
-  title: z.string(),
-});
-export type UnlinkedMentionWire = z.infer<typeof unlinkedMentionSchema>;
-
-export const knowledgeUnlinkedMentionsResponseSchema = z.strictObject({
-  // the wiki target a Link writes, resolving back to `path` even where the bare name is
-  // another note's; null when no wiki link can name the note
-  linkTarget: z.string().min(1).nullable(),
-  mentions: z.array(unlinkedMentionSchema).max(KNOWLEDGE_UNLINKED_MAX_LIMIT),
-  path: z.string().min(1),
-  total: z.number().int().min(0),
-});
-export type KnowledgeUnlinkedMentionsResponse = z.infer<
-  typeof knowledgeUnlinkedMentionsResponseSchema
->;
 
 export const linkKindSchema = z.enum(LINK_KINDS);
 export type LinkKindWire = z.infer<typeof linkKindSchema>;

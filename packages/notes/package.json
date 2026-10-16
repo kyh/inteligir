@@ -43,7 +43,6 @@
     "./knowledge/tag-grammar": "./src/knowledge/tag-grammar.ts",
     "./knowledge/tag-notes": "./src/knowledge/tag-notes.ts",
     "./knowledge/text-matches": "./src/knowledge/text-matches.ts",
-    "./knowledge/unlinked-mentions": "./src/knowledge/unlinked-mentions.ts",
     "./knowledge/vault-ignore": "./src/knowledge/vault-ignore.ts",
     "./knowledge/vault-path": "./src/knowledge/vault-path.ts",
     "./knowledge/vault-path-schema": "./src/knowledge/vault-path-schema.ts",
