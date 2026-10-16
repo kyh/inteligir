@@ -125,11 +125,13 @@ rather than dropped. Quote an argument that holds spaces
 - \`inteligir vault new-id <path>\` — give a note that shares another's
   frontmatter \`id\` an id of its own. A copied file (\`cp\`, Finder's
   duplicate) keeps its original's \`id\`, so the two share one comment store and
-  one \`[[Title|uuid]]\` identity until this runs on the copy. Never delete the
-  copy's \`id:\` line instead: its comment anchors would lose the bodies the
-  store keeps under that id. The note takes a new id on the same line and a copy
-  of the comment store kept under the old one, so both notes keep every thread
-  and diverge from here; the note keeping the old id keeps its
+  one \`[[Title|uuid]]\` identity until this runs on the copy. To find a note's
+  copies, read its \`id\` and run \`inteligir matches <id>\`: each row on an
+  \`id:\` line is a note carrying it, and a row elsewhere is a link to it.
+  Never delete the copy's \`id:\` line instead: its comment anchors would lose
+  the bodies the store keeps under that id. The note takes a new id on the same
+  line and a copy of the comment store kept under the old one, so both notes
+  keep every thread and diverge from here; the note keeping the old id keeps its
   \`[[Title|uuid]]\` links and its actions.
   \`--json\` answers the \`path\`, the new \`id\` and \`comments\` (\`copied\`, or
   \`none\` when there was no store). A note that changed since it was read is

@@ -95,7 +95,7 @@ node is rather than discriminating structurally at each visit.
   (`wikiLinkName` in `@repo/notes/knowledge/doc-file`), and the resolver keys
   that same name, so a `.txt` note links as `[[todo.txt]]`; letting every doc
   extension go was rejected to keep Obsidian's reading and the pinned resolver.
-  The `[[` picker, Link, extract and a rename take their target from
+  The `[[` picker, extract and a rename take their target from
   `wikiTargetForPath` (`@repo/notes/knowledge/link-resolve`: the name when it
   resolves back, else the path), but a rename's candidate predicate refuses the
   bare name unless no other file answers to it (`answersOnly` in

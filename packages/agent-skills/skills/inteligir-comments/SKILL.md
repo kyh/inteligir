@@ -40,8 +40,9 @@ into a note that has none, and refuses a note whose `id` is not text, such as
 `id: 42`, rather than replace it). It is a JSON object keyed by comment id.
 Copying a note copies its `id`, and two notes with one `id` share one store:
 run `inteligir vault new-id <copy>` on the copy, which gives it its own id and
-a copy of the store. Never delete its `id:` line, because its anchors' bodies
-live only under that id.
+a copy of the store. `inteligir matches <id>` finds the copies: each row on an
+`id:` line is a note carrying that id. Never delete its `id:` line, because its
+anchors' bodies live only under that id.
 
 | Field        | Required    | Contract                                            |
 | ------------ | ----------- | --------------------------------------------------- |

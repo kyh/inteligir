@@ -278,8 +278,8 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     return result.kind === "refused" ? null : result.path;
   };
 
-  const createFile = async (rawPath: string, content = ""): Promise<void> => {
-    const path = await createFileAt(rawPath, content);
+  const createFile = async (rawPath: string): Promise<void> => {
+    const path = await createFileAt(rawPath);
     if (path !== null) {
       openFile(path);
     }

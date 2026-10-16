@@ -26,7 +26,7 @@ export const matchesQuery = (label: string, query: string): boolean =>
   label.toLowerCase().includes(query.trim().toLowerCase());
 
 export interface PalettePageProps {
-  // between the field and the list: the search page's toggles and replace row
+  // between the field and the list: the search page's match-case and whole-word toggles
   toolbar?: React.ReactNode;
   children: React.ReactNode;
 }

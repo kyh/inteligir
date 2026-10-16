@@ -28,7 +28,7 @@ export interface VaultActions {
   /** Drains the serialize debounce before a save/rename/delete; keyed by path for the same reason as editNote. */
   registerNoteSerializeFlush: (path: string, flush: () => void) => void;
   /** Open-or-create: an existing file opens untouched, so naming a note that exists opens it. */
-  createFile: (path: string, content?: string) => Promise<void>;
+  createFile: (path: string) => Promise<void>;
   /** Creates without opening; an existing file counts as success. */
   createFileAt: (path: string, seedContent?: string) => Promise<string | null>;
   /** Creates without opening, exclusively: a caller moving bytes into the file would drop them if an existing one counted as success. */

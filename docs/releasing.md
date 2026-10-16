@@ -73,6 +73,12 @@ On main, clean, at the commit to ship:
 2. Retitle `CHANGELOG.md`'s `## Unreleased` as `## <version> — <YYYY-MM-DD>`,
    and read the section once as a user would: it is the GitHub release's body,
    word for word.
+3. When the comment on `MIN_CLIENT_BUILD` (`apps/web/cloudflare.config.ts`)
+   says the next release owes the floor, set it to `<version>` and drop that
+   line. Every checkout since the last release reports the last release's
+   version, so a change that retires a `/cloud` shape those checkouts read
+   cannot raise the floor past them, and the comment names the shape this
+   release retires.
 
 ## 2. Gates
 

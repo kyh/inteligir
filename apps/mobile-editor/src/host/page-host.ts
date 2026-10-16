@@ -231,8 +231,8 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
 
   const vault: VaultActions = {
     ...session.actions,
-    createFile: async (rawPath, content) => {
-      const created = await session.actions.createFileAt(rawPath, content);
+    createFile: async (rawPath) => {
+      const created = await session.actions.createFileAt(rawPath);
       if (created !== null) {
         navigate(created);
       }
