@@ -1,13 +1,15 @@
 # AGENTS.md
 
-**inteligir** is Obsidian where an agent edits your notes with you: a Mac app
-for general knowledge workers, not developers, on Apple silicon, that nobody
-uses yet. The vault is a folder of markdown files on the user's own disk; one
+**inteligir** is a library of everything you save, with an agent that files
+and edits it with you: links, articles, images, PDFs and your own markdown
+notes, one app in place of a bookmark manager like Raindrop and a notes app
+like Obsidian. It is a Mac app for general knowledge workers, not developers,
+on Apple silicon, that nobody uses yet. The vault is a folder of markdown files
+on the user's own disk, and every item in the library is one of them; one
 local Node process owns that vault, indexes it, answers one API and drives the
 agent that edits those same files. The only hosted piece is a Cloudflare
 Worker carrying the marketing site, accounts, cross-device sync, the dispatch
-inbox a phone asks a Mac and hands it captures through, and the account's
-hosted vault.
+inbox a phone asks a Mac through, and the account's hosted vault.
 
 This is the root guide for every coding agent; `CLAUDE.md` imports it. Each
 workspace's durable decisions live in a `CLAUDE.md` beside its code
@@ -40,9 +42,18 @@ The premises every change builds from, each with its reason:
   the vendor's, with the vendor's own sign-in, beats a second one beside it.
 - **Dictation is the operating system's**, because the Mac's and the phone
   keyboard's are already there and cost the app no speech model.
-- **Every feature is core.** Nothing sits behind a tier or a flag, and nothing
-  already built is cut for the persona: the persona changes the words.
-- **An account is optional, and offered.** Without one the app is a local notes
+- **Every item is one markdown file.** A link is a note whose frontmatter holds
+  its url, site and saved date and whose body is the page's readable text; an
+  image or PDF is the original file beside a note that embeds it; a note the
+  user writes is an item too. One shape is what lets search, History, sync,
+  the phone and the agent's verbs work on every item without a second store.
+- **Saving calls no model.** The Mac's own server fetches a page's title, cover
+  and text, and the agent files, tags and summarizes only when asked, because
+  a save should be instant and free.
+- **Every feature is core, and a feature serves saving, reading or writing or
+  goes.** Nothing sits behind a tier or a flag; a feature that serves none of
+  the three is removed, never hidden, and the persona changes the words.
+- **An account is optional, and offered.** Without one the app is a local library
   app that makes no cloud request; with one it syncs, and the hosted vault is
   free up to about 1 GB.
 - **No users yet, so every format may change.** Nobody but the owner holds an
@@ -73,9 +84,9 @@ same editor over the hosted vault, offline, asking a Mac to run the agent.
 [#611](https://github.com/kyh/inteligir/issues/611) and
 [#889](https://github.com/kyh/inteligir/issues/889)**: what was chosen, and
 what was rejected and why. Where two disagree the later wins. Where any of
-them, or a decision bullet, assumes a developer at the keyboard, this overview
-wins, and the change that touches that code rewrites the bullet in the same
-commit.
+them, or a decision bullet, assumes a developer at the keyboard, or a notes
+app whose window is always one open note, this overview wins, and the change
+that touches that code rewrites the bullet in the same commit.
 
 ## Map
 
