@@ -391,20 +391,40 @@ const hintCover = async (
   );
 };
 
-// the write, under the file's own compare-and-swap; null when it could not land
+type Landing =
+  | { kind: "landed"; path: string }
+  // the file is gone, or its block does not parse
+  | { kind: "lost" }
+  // another fill read the page while this one ran
+  | { kind: "overtaken"; path: string };
+
+// an item whose page was read and whose text holds that article
+const isRead = (content: string): boolean => {
+  const facts = itemFactsOf(content);
+  return facts.fetchedMs !== null && facts.fetchError === null;
+};
+
+// the write, under the file's own compare-and-swap. A fill that began on an unread item gives way
+// when another fill (a refresh, a copy asked for from Info) read the page first: its failure would
+// mark the article unread, so the next refresh added it twice, and its file would sit beside the
+// one already embedded. A link fill lands on top, since it reads a read item as a refresh does
 const land = async (
   context: FillContext,
   target: FillTarget,
   writing: Writing,
-): Promise<Located | null> => {
+  startedRead: boolean,
+): Promise<Landing> => {
   for (let attempt = 0; attempt < CAS_TRIES; attempt += 1) {
     const current = await locate(context, target);
     if (current === null) {
-      return null;
+      return { kind: "lost" };
+    }
+    if (!startedRead && writing.kind !== "link" && isRead(current.content)) {
+      return { kind: "overtaken", path: current.path };
     }
     const composed = compose(current.content, writing);
     if (composed === null) {
-      return null;
+      return { kind: "lost" };
     }
     const placed =
       target.itemId === null
@@ -417,10 +437,10 @@ const land = async (
           });
     const outcome = await context.core.write(current.path, placed.content, current.hash);
     if (outcome === "written") {
-      return { content: placed.content, hash: "", path: current.path };
+      return { kind: "landed", path: current.path };
     }
   }
-  return null;
+  return { kind: "lost" };
 };
 
 const linkWriting = (
@@ -577,8 +597,7 @@ export const fillItem = async (context: FillContext, target: FillTarget): Promis
   if (target.origin !== "refresh" && !isItemStub(startFacts)) {
     return { kind: "dropped", path: start.path, wrote: [] };
   }
-  // an item whose page was read and whose text holds that article
-  const wasRead = startFacts.fetchedMs !== null && startFacts.fetchError === null;
+  const wasRead = isRead(start.content);
   const read = await readPage(context, target);
   if (target.signal.aborted) {
     return { kind: "aborted" };
@@ -619,10 +638,14 @@ export const fillItem = async (context: FillContext, target: FillTarget): Promis
     await takeBack(context, added);
     return { kind: "aborted" };
   }
-  const landed = await land(context, target, writing);
-  if (landed === null) {
+  const landed = await land(context, target, writing, wasRead);
+  if (landed.kind !== "landed") {
     await takeBack(context, added);
-    return { kind: "dropped", path: target.path, wrote };
+    return {
+      kind: "dropped",
+      path: landed.kind === "overtaken" ? landed.path : target.path,
+      wrote,
+    };
   }
   return {
     fill: fillOf(writing),

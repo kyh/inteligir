@@ -124,4 +124,87 @@ describe("the fill queue", () => {
       "https://example.org/a",
     ]);
   });
+
+  it("stops a fill that runs past its deadline and tries the row again, freeing its slot", async () => {
+    let now = 1_000_000;
+    const timers: { at: number; run: () => void }[] = [];
+    const clock: CaptureClock = {
+      now: () => now,
+      setTimer: (ms, run) => {
+        const timer = { at: now + ms, run };
+        timers.push(timer);
+        return () => {
+          timers.splice(timers.indexOf(timer), 1);
+        };
+      },
+    };
+    const advance = (ms: number): void => {
+      now += ms;
+      for (const timer of timers.filter((entry) => entry.at <= now)) {
+        timers.splice(timers.indexOf(timer), 1);
+        timer.run();
+      }
+    };
+    const rescheduled: { itemId: string; attempts: number; notBefore: number }[] = [];
+    const started: string[] = [];
+    const queue = createFillQueue({
+      clock,
+      copyAfter: async () => await Promise.resolve({ kind: "aborted" }),
+      core: {
+        commitPaths: async () => {},
+        creatorOf: async () => await Promise.resolve(null),
+        read: async () => await Promise.resolve(null),
+        syncNow: async () => {},
+        syncsWithAccount: async () => await Promise.resolve(false),
+      },
+      debug: () => {},
+      // a dial that never ends on its own: only the signal stops it
+      fillRow: async (target, signal) => {
+        started.push(target.itemId ?? "");
+        const stopped = Promise.withResolvers<FillOutcome>();
+        signal.addEventListener("abort", () => {
+          stopped.resolve({ kind: "aborted" });
+        });
+        return await stopped.promise;
+      },
+      knowledge: {
+        itemStubs: async () => await Promise.resolve([]),
+        pathForNoteId: async () => await Promise.resolve(null),
+      },
+      store: {
+        ...memoryStore(),
+        reschedule: (itemId, attempts, notBefore) => {
+          rescheduled.push({ attempts, itemId, notBefore });
+        },
+      },
+      takeSupplied: () => null,
+    });
+    for (const index of [1, 2, 3]) {
+      queue.add({
+        coverHint: null,
+        itemId: `own-${String(index)}`,
+        keepCopy: false,
+        origin: "own",
+        path: `Unsorted/${String(index)}.md`,
+        url: `https://site${String(index)}.test/a`,
+      });
+    }
+    await settleTurns();
+    expect(started).toEqual(["own-1", "own-2"]);
+    const waiting = queue.waitFor("own-1", 10 * 60_000);
+    advance(4 * 60_000);
+    await settleTurns();
+    expect(rescheduled).toEqual([]);
+    advance(60_000);
+    await settleTurns();
+    expect(rescheduled.map((row) => [row.itemId, row.attempts])).toEqual([
+      ["own-1", 1],
+      ["own-2", 1],
+    ]);
+    expect(rescheduled[0]?.notBefore).toBe(now + 60_000);
+    expect(await waiting).toMatchObject({ fill: { state: "pending" }, path: "Unsorted/1.md" });
+    // the freed slots go to the row that was waiting behind them
+    expect(started).toEqual(["own-1", "own-2", "own-3"]);
+    await queue.dispose();
+  });
 });

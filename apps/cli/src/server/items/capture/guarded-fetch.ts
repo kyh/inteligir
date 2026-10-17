@@ -13,7 +13,8 @@ import { request as httpsRequest } from "node:https";
 import type { LookupFunction } from "node:net";
 import { isIP } from "node:net";
 import { networkInterfaces } from "node:os";
-import type { Readable } from "node:stream";
+import { pipeline } from "node:stream";
+import type { Readable, Transform } from "node:stream";
 import { getCACertificates, rootCertificates } from "node:tls";
 import { createBrotliDecompress, createGunzip, createUnzip } from "node:zlib";
 
@@ -190,18 +191,31 @@ const parseContentType = (header: string | undefined) => {
   };
 };
 
-const decodedStream = (response: IncomingMessage): Readable => {
-  const encoding = (response.headers["content-encoding"] ?? "").trim().toLowerCase();
+const decoderOf = (encoding: string): Transform | null => {
   if (encoding === "gzip" || encoding === "x-gzip") {
-    return response.pipe(createGunzip());
+    return createGunzip();
   }
   if (encoding === "deflate") {
-    return response.pipe(createUnzip());
+    return createUnzip();
   }
-  if (encoding === "br") {
-    return response.pipe(createBrotliDecompress());
+  return encoding === "br" ? createBrotliDecompress() : null;
+};
+
+// the body as the site meant it. A decoder is joined by `pipeline`, never `pipe`: a body cut off
+// or held past the deadline destroys the response, and only `pipeline` carries that to the
+// decoder, so the read ends rather than waiting on a decoder nothing will ever end
+const decodedStream = (response: IncomingMessage): Readable => {
+  const decoder = decoderOf((response.headers["content-encoding"] ?? "").trim().toLowerCase());
+  if (decoder === null) {
+    return response;
   }
-  return response;
+  // pipeline destroys the decoder with the response's error, which the read then throws
+  // oxlint-disable-next-line promise/prefer-await-to-callbacks -- only the callback form hands back the decoder to read
+  return pipeline(response, decoder, (error) => {
+    if (error instanceof Error) {
+      decoder.destroy(error);
+    }
+  });
 };
 
 type BodyRead =

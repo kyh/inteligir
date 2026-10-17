@@ -12,7 +12,8 @@ Saving links, pages and files as items, and filling a saved link from its page.
   literal is vetted before the dial, since node skips the lookup for one; an
   IPv6 address that carries an IPv4 one (mapped, compatible, translated, NAT64,
   6to4, Teredo) is judged as that address; every redirect hop (at most five) and
-  every subresource is checked again. This Mac (and `localhost` by name, before
+  every subresource is checked again; a compressed body is decoded through
+  `pipeline`, so a body cut off or held past the deadline ends the read. This Mac (and `localhost` by name, before
   any lookup), link-local and reserved space are refused, so is the server's own
   port on any address, and so is an answer mixing private and public addresses;
   an address one of this Mac's interfaces holds that would read as public (its
@@ -34,8 +35,10 @@ Saving links, pages and files as items, and filling a saved link from its page.
   30 s replaces; the runner hands it one job at a time, as it reads them, so a
   job's 30 s are its own and the jobs behind one that wedged or crashed it go to
   a fresh worker rather than failing with it; `fetch` is refused before any job
-  runs, nothing under `fill/`
-  imports a socket, and every byte it reads the host fetched through the guard.
+  runs, nothing the entry reaches imports a socket, a resolver or a process
+  (the suite walks its imports here and the build reads the bundle's own,
+  `FILL_WORKER_REFUSED_BUILTINS` in `apps/cli/scripts/build.ts`), and every
+  byte it reads the host fetched through the guard.
   A page that breaks the extractor answers `failed` rather than taking the
   thread down, and a page nested past 256 elements skips the extractor for the
   text rung. Rejected: parsing on the server's own thread (a hostile page's
@@ -81,7 +84,9 @@ Saving links, pages and files as items, and filling a saved link from its page.
   not give, and renames a provisional, untracked stub of this Mac's to the
   page's title before that write, with no alias. The pending fills are rows of
   the vault's own database (`pending_fills`), written per transition; transient
-  failures retry after 1, 10 and 60 minutes and a restart picks every row up.
+  failures retry after 1, 10 and 60 minutes, a fill still running after five
+  minutes is stopped and retried on that schedule, so a dial that never ends
+  holds no slot, and a restart picks every row up.
   Rejected: a claim through the dispatch inbox (a new /cloud protocol), filling
   every pending stub at boot, a 15-minute wait for a phone's share (it has no
   other filler), and a JSON pending file (rewritten whole on every transition of
@@ -97,7 +102,9 @@ Saving links, pages and files as items, and filling a saved link from its page.
   since `fetch-error` marks the text unread and a refresh would add the article
   twice; for the same reason a refresh (or a copy) of an item already read that
   cannot read its page again leaves the file as it is and answers the failure
-  (`unread`). Rejected: a failed state in the database alone (the phone and
+  (`unread`), and a fill that began on an unread item gives way when another
+  fill read the page while it ran, writing neither its failure nor a second
+  file at the link (`land` in `apps/cli/src/server/items/capture/fill-item.ts`). Rejected: a failed state in the database alone (the phone and
   another Mac would see a stub forever). `apps/cli/src/server/items/capture/fill-sentences.ts`.
 
 - **A SAVE OF A URL THE LIBRARY HOLDS ADDS WHAT IT CARRIES** (tags, a selection

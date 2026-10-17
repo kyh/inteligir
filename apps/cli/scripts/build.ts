@@ -210,6 +210,20 @@ if (workerInputs.length === 0 || workerRefused.length > 0) {
   );
 }
 
+// the worker reaches no network and starts no process: node's own modules stay external to the
+// bundle, so they are read from what the bundle itself imports, whichever module asked for them
+const FILL_WORKER_REFUSED_BUILTINS =
+  /^(?:node:)?(?:http|https|http2|net|tls|dns|dgram|child_process|cluster)(?:\/|$)/u;
+const workerBuiltins = Object.entries(fillWorker.metafile.outputs)
+  .filter(([name]) => name.endsWith(FILL_WORKER_OUTFILE))
+  .flatMap(([, output]) => output.imports.map((imported) => imported.path))
+  .filter((imported) => FILL_WORKER_REFUSED_BUILTINS.test(imported));
+if (workerBuiltins.length > 0) {
+  throw new Error(
+    `the fill worker imports a network or process module: ${[...new Set(workerBuiltins)].join(", ")}`,
+  );
+}
+
 await cp(path.join(repoRoot, "packages", "db", "drizzle"), path.join(distDir, "drizzle"), {
   recursive: true,
 });

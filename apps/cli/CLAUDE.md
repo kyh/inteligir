@@ -247,4 +247,6 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   (`SERVER_REFUSED_ANYWHERE`), and refuses React, the renderers and `@repo/ui`
   among the inputs that put bytes in the worker (`FILL_WORKER_REFUSED`), each
   package named by its own store directory, never another package's peer
-  suffix.
+  suffix, and node's network and process modules among what the worker's
+  bundle imports (`FILL_WORKER_REFUSED_BUILTINS`), since node's own modules
+  stay external and a package's import of one names no input.

@@ -2,7 +2,7 @@
 // and the clock the suite's own (capture-harness.ts): what a save writes, what its fill writes and
 // when, who fills whose stubs, and what a save of a held url adds.
 
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import nodePath from "node:path";
 
 import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
@@ -544,6 +544,61 @@ describe("a refresh", () => {
     const after = suite.onDisk(first.path);
     expect(after.split("Apps are ephemeral.")).toHaveLength(2);
     expect(after).toMatch(/\[Copy of the page\]\(assets\/pages\/[0-9a-f]{16}\.html\)/u);
+  });
+});
+
+// the queue's fill holds on the page; the person's refresh from Info reads it first
+const overtaken = async (then: Parameters<CaptureSuite["fetcher"]["routes"]["set"]>[1]) => {
+  const suite = await bootCapture({ routes: { [PAGE]: { html: PAGE_HTML } } });
+  const held = suite.fetcher.hold(PAGE);
+  const saved = await suite.capture.saveLink({ keepCopy: false, url: PAGE, wait: false });
+  await held.reached;
+  const refreshed = await suite.capture.refresh({
+    keepCopy: false,
+    path: saved.path,
+    text: "keep",
+    wait: true,
+  });
+  expect(refreshed.fill).toEqual({ state: "filled" });
+  const read = suite.onDisk(refreshed.path);
+  suite.fetcher.routes.set(PAGE, then);
+  held.release();
+  await vi.waitFor(() => {
+    expect(pendingRows(suite)).toEqual([]);
+  });
+  return { read, refreshed, suite };
+};
+
+describe("a refresh made while the item's first fill runs", () => {
+  it("keeps the item read when the first fill then fails, so the next refresh adds the article once", async () => {
+    const { read, refreshed, suite } = await overtaken({
+      failure: { kind: "status", reason: "not found", status: 404, transient: false },
+    });
+    const after = suite.onDisk(refreshed.path);
+    expect(after).toBe(read);
+    expect(itemFactsOf(after).fetchError).toBeNull();
+    suite.fetcher.routes.set(PAGE, { html: PAGE_HTML });
+    await suite.capture.refresh({
+      keepCopy: false,
+      path: refreshed.path,
+      text: "keep",
+      wait: true,
+    });
+    expect(suite.onDisk(refreshed.path).split("Apps are ephemeral.")).toHaveLength(2);
+  });
+
+  it("embeds no second file when the first fill then finds one at the link", async () => {
+    const { read, refreshed, suite } = await overtaken({
+      bytes: pngOf(640, 400),
+      mediaType: "image/png",
+    });
+    expect(suite.onDisk(refreshed.path)).toBe(read);
+    expect(itemFactsOf(read).kind).toBe("link");
+    // the file it saved is taken back, since nothing embeds it
+    const pictures = readdirSync(suite.harness.vaultDir, { recursive: true })
+      .map(String)
+      .filter((path) => path.endsWith(".png") && !path.startsWith(".git"));
+    expect(pictures).toEqual([]);
   });
 });
 

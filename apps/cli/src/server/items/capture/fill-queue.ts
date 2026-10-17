@@ -6,7 +6,8 @@
 // phone or foreign fill at a time, which syncs before it fetches (and drops a stub another device
 // filled meanwhile) and commits and syncs after it writes. A save and a phone's share go ahead of
 // an import and another device's stubs, so a save made during an import is filled at once. A
-// transient failure tries again after 1, 10 and 60 minutes; the fourth is said in the file.
+// transient failure tries again after 1, 10 and 60 minutes; the fourth is said in the file. A fill
+// still running after five minutes is stopped and tried again on that same schedule.
 
 import { createHash } from "node:crypto";
 
@@ -27,6 +28,9 @@ const FOREIGN_WAIT_MS = 15 * MINUTE;
 const PHONE_SHUFFLE_MS = MINUTE;
 const SYNC_COALESCE_MS = MINUTE;
 const FILLS_AT_ONCE = 2;
+// one fill's whole time: past it the fill is aborted and the row tried again later, so a dial that
+// never ends cannot hold a slot for the life of the process
+const ROW_DEADLINE_MS = 5 * MINUTE;
 // a cheap pass over the index's stubs for ones this Mac has no row for, and a full one that also
 // drops the rows whose stub stopped being one
 const SWEEP_POLL_MS = 10_000;
@@ -351,7 +355,11 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
     return { ...copied, wrote: [...outcome.wrote, ...copied.wrote] };
   };
 
-  const runRow = async (row: PendingFill, controller: AbortController): Promise<void> => {
+  const runRow = async (
+    row: PendingFill,
+    controller: AbortController,
+    overran: () => boolean,
+  ): Promise<void> => {
     const elsewhere = isElsewhere(row.origin);
     try {
       if (elsewhere) {
@@ -388,8 +396,14 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
           }
         },
       );
-      const outcome = await withCopyAfter(row, filled, controller.signal);
-      settle(rows.get(row.itemId) ?? row, outcome);
+      const copied = await withCopyAfter(row, filled, controller.signal);
+      const current = rows.get(row.itemId) ?? row;
+      // a fill the deadline stopped is put off like a transient failure
+      const outcome: FillOutcome =
+        copied.kind === "aborted" && overran()
+          ? { kind: "retry", path: current.path, wrote: [] }
+          : copied;
+      settle(current, outcome);
       if (elsewhere && outcome.kind === "written") {
         await deps.core.commitPaths(outcome.wrote);
         lastSyncAt = null;
@@ -427,10 +441,16 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
     const elsewhere = isElsewhere(row.origin);
     busyHosts.add(host);
     elsewhereBusy ||= elsewhere;
+    let overran = false;
+    const cancelDeadline = clock.setTimer(ROW_DEADLINE_MS, () => {
+      overran = true;
+      controller.abort();
+    });
     const done = (async () => {
       try {
-        await runRow(row, controller);
+        await runRow(row, controller, () => overran);
       } finally {
+        cancelDeadline();
         running.delete(row.itemId);
         busyHosts.delete(host);
         if (elsewhere) {

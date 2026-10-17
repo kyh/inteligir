@@ -6,7 +6,8 @@ import { once } from "node:events";
 import { createServer } from "node:http";
 import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
-import { gzipSync } from "node:zlib";
+import { randomBytes } from "node:crypto";
+import { brotliCompressSync, deflateSync, gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -369,6 +370,50 @@ describe("the guarded fetch", () => {
     expect(refused.ok).toBe(false);
     expect(!refused.ok && refused.failure.kind).toBe("too-large");
   });
+
+  // a compressed body that stops partway: the decoder must end with the response it reads
+  const ENCODED = {
+    br: brotliCompressSync,
+    deflate: deflateSync,
+    gzip: gzipSync,
+  } as const;
+  const partly =
+    (encoding: keyof typeof ENCODED, then: "stall" | "reset"): Handler =>
+    (_request, response) => {
+      // random bytes do not compress, so the first kilobyte is a fraction of the stream
+      const encoded = ENCODED[encoding](randomBytes(256 * 1024));
+      response.writeHead(200, { "content-encoding": encoding, "content-type": "text/html" });
+      response.write(encoded.subarray(0, 1024), () => {
+        if (then === "reset") {
+          response.socket?.destroy();
+        }
+      });
+    };
+
+  it.each(["gzip", "deflate", "br"] as const)(
+    "times out a %s body that stalls partway, within the deadline",
+    async (encoding) => {
+      const site = await listen(partly(encoding, "stall"));
+      const startedAt = Date.now();
+      const result = await guard({ policy: loopbackIs("public"), requestTimeoutMs: 300 }).fetch(
+        page(site.url("/")),
+      );
+      expect(result).toEqual({ failure: { kind: "timeout" }, ok: false });
+      expect(Date.now() - startedAt).toBeLessThan(3000);
+    },
+  );
+
+  it.each(["gzip", "deflate", "br"] as const)(
+    "answers unreachable for a %s body whose connection resets partway",
+    async (encoding) => {
+      const site = await listen(partly(encoding, "reset"));
+      const result = await guard({ policy: loopbackIs("public"), requestTimeoutMs: 5000 }).fetch(
+        page(site.url("/")),
+      );
+      expect(result.ok).toBe(false);
+      expect(!result.ok && result.failure.kind).toBe("unreachable");
+    },
+  );
 
   it("refuses a declared size over the cap before reading it", async () => {
     const site = await listen((_request, response) => {
