@@ -1,11 +1,11 @@
 import {
-  assetMediaType,
   DEFAULT_ATTACHMENT_LOCATION,
+  takesBytes,
   VAULT_ASSET_MAX_BYTES,
 } from "@repo/contract/local/vault/vault-schema";
 import type { VaultRenameResponse } from "@repo/contract/local/vault/vault-schema";
 import { VAULT_REMOTE_PIN_ENV_VAR } from "@repo/contract/local/vault/remote-url";
-import { ORPCError } from "@orpc/server";
+import { joinPath } from "@repo/notes/knowledge/vault-path";
 import { attributeWrites, base, refusing } from "../orpc";
 import { removeEntry } from "./remove-entry";
 import { vaultWireError } from "./vault-refusals";
@@ -14,6 +14,10 @@ import { guardRefusalError } from "./write-guard";
 export type RenameNote = (from: string, to: string) => Promise<VaultRenameResponse>;
 
 const vaultRefusals = refusing(vaultWireError);
+
+// what a byte write says of a path that takes text: a doc is written as text, and the app's own
+// stores are its own
+const NOT_A_FILE_MESSAGE = "a note is saved as text, not as a file";
 
 const tree = base.vault.tree.handler(async ({ context }) => await context.vault.service.listTree());
 
@@ -50,10 +54,10 @@ const write = base.vault.write.use(vaultRefusals).handler(async ({ context, inpu
 const assetWrite = base.vault.assetWrite
   .use(vaultRefusals)
   .handler(async ({ context, input, errors }) => {
-    if (assetMediaType(input.baseName) === null) {
-      throw errors.INVALID_PATH({
-        message: `${input.baseName} is not an image type this vault serves`,
-      });
+    // what lands is a file, never a doc, a highlight store or a dot-folder's own file, wherever
+    // the folder is
+    if (!takesBytes(input.baseName) || !takesBytes(joinPath(input.dir, input.baseName))) {
+      throw errors.INVALID_PATH({ message: NOT_A_FILE_MESSAGE });
     }
     if (input.file.size > VAULT_ASSET_MAX_BYTES) {
       throw errors.PAYLOAD_TOO_LARGE({
@@ -94,15 +98,36 @@ const commitNow = base.vault.commitNow.handler(async ({ context, input }) => {
 
 const status = base.vault.status.handler(async ({ context }) => await context.vault.git.status());
 
-// PIVOT-STUB(S2): a file's bytes at a revision, exactly (§2.6)
-const revisionBytes = base.vault.revisionBytes.handler(() => {
-  throw new ORPCError("NOT_IMPLEMENTED", { message: "PIVOT-STUB(S2)" });
-});
+// an octet-stream Blob: nothing renders it, and the client hands it straight to createFile
+const revisionBytes = base.vault.revisionBytes
+  .use(vaultRefusals)
+  .handler(async ({ context, input }) => {
+    const bytes = await context.vault.git.revisionBytes(input.path, input.sha);
+    return new Blob([new Uint8Array(bytes)], { type: "application/octet-stream" });
+  });
 
-// PIVOT-STUB(S2): a deleted file's byte-exact restore under an `absent` guard (§2.6)
-const createFile = base.vault.createFile.handler(() => {
-  throw new ORPCError("NOT_IMPLEMENTED", { message: "PIVOT-STUB(S2)" });
-});
+// the byte twin of a write's `absent` guard: exactly this path, or refused
+const createFile = base.vault.createFile
+  .use(vaultRefusals)
+  .handler(async ({ context, input, errors }) => {
+    if (!takesBytes(input.path)) {
+      throw errors.INVALID_PATH({ message: NOT_A_FILE_MESSAGE });
+    }
+    if (input.file.size > VAULT_ASSET_MAX_BYTES) {
+      throw errors.PAYLOAD_TOO_LARGE({
+        message: `${input.path} is ${String(input.file.size)} bytes; the cap is ${String(VAULT_ASSET_MAX_BYTES)}`,
+      });
+    }
+    const bytes = new Uint8Array(await input.file.arrayBuffer());
+    const written = await context.vault.service.writeBytesGuarded(input.path, bytes, {
+      kind: "absent",
+    });
+    if (!written.applied) {
+      throw errors.ALREADY_EXISTS({ message: `A file already exists at ${input.path}` });
+    }
+    attributeWrites(context, [written.path]);
+    return { path: written.path };
+  });
 
 const syncNow = base.vault.syncNow.handler(
   async ({ context }) => await context.vault.git.syncNow(),

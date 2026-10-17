@@ -1,5 +1,6 @@
 import { isDeviceCommitEmail, WORKER_COMMITTER_EMAIL } from "@repo/contract/cloud/vault/vault-git";
 import {
+  VAULT_ASSET_MAX_BYTES,
   VAULT_DELETED_MAX_ENTRIES,
   VAULT_MAX_CONTENT_LENGTH,
 } from "@repo/contract/local/vault/vault-schema";
@@ -219,6 +220,38 @@ export const readNoteRevision = async (
     throw absent();
   }
   return blob.stdout;
+};
+
+// a file's exact bytes at a revision: what a byte restore and a binary undo put back. `readBlob`
+// reads stdout as bytes, since a decoding would turn every byte of a file that is not text into
+// U+FFFD. the size is read first, so a blob over the cap a restore could write is never inflated.
+export const readRevisionBytes = async (
+  run: RunGitCommand,
+  readBlob: (object: string) => Promise<Uint8Array>,
+  path: string,
+  sha: string,
+): Promise<Uint8Array> => {
+  const object = `${sha}:${path}`;
+  const absent = (): VaultServiceError =>
+    new VaultServiceError("not_found", `${path} does not exist at ${sha}`);
+  const sized = await run(["cat-file", "-s", object]).catch(() => null);
+  if (sized === null) {
+    throw absent();
+  }
+  if (Math.trunc(Number(sized.stdout.trim())) > VAULT_ASSET_MAX_BYTES) {
+    throw new VaultServiceError(
+      "too_large",
+      `${path} at ${sha} is over the ${String(VAULT_ASSET_MAX_BYTES)}-byte file cap`,
+    );
+  }
+  // a size that reads but no blob: the path names a folder at that revision.
+  const type = await run(["cat-file", "-t", object]).catch(() => null);
+  if (type?.stdout.trim() !== "blob") {
+    throw absent();
+  }
+  return await readBlob(object).catch(() => {
+    throw absent();
+  });
 };
 
 const DELETION_LOG_FORMAT = "%H%x00%P%x00%aI";

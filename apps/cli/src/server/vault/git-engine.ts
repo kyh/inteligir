@@ -24,6 +24,7 @@ import {
   readIsTracked,
   readNoteHistory,
   readNoteRevision,
+  readRevisionBytes,
   readTurnCommits,
 } from "./git-history";
 import type { NoteHistoryPage, TurnCommit } from "./git-history";
@@ -137,6 +138,15 @@ export interface GitEngine {
   dispose: () => Promise<void>;
 }
 
+// a revision's exact bytes, for a file that is not text: what a byte restore and a binary undo put
+// back. its own interface, beside the engine's, because only those two read it; the agent driver,
+// the watchdog and the items core take the engine without it.
+export interface GitRevisionBytes {
+  revisionBytes: (path: string, sha: string) => Promise<Uint8Array>;
+}
+
+export type VaultGit = GitEngine & GitRevisionBytes;
+
 type SetOriginOutcome = "set" | "pinned";
 
 // the tips a merge failed outright between: while neither moves, another try fails the same way.
@@ -205,7 +215,7 @@ type SyncOutcome =
 
 const NO_OUTCOME = { kind: "none", message: null } as const satisfies SyncOutcome;
 
-export const createGitEngine = (args: GitEngineArgs): GitEngine => {
+export const createGitEngine = (args: GitEngineArgs): VaultGit => {
   const { git, root } = args;
   const maxPushBytes = args.maxPushBytes ?? VAULT_GIT_MAX_PUSH_BYTES;
   const externalSync = args.externalSync ?? null;
@@ -972,6 +982,14 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
     },
     async revision(notePath, sha) {
       return await readNoteRevision(run, notePath, sha);
+    },
+    async revisionBytes(filePath, sha) {
+      return await readRevisionBytes(
+        run,
+        async (object) => await git.readBlob(root, object),
+        filePath,
+        sha,
+      );
     },
     runExclusive: withRepoLock,
     setOrigin,

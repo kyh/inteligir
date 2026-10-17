@@ -162,7 +162,13 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   `tools/repo-guards/src/phone-page-csp.test.ts`. NOTHING REMOTE LOADS IN A
   NOTE: a remote embed is a beacon on every open, so it draws as a card
   (`packages/editor/src/nodes/remote-content-card.tsx`); widening the policy is
-  a privacy decision. AN HTML BLOCK'S RUN IS A FRAME WITH A POLICY OF ITS OWN,
+  a privacy decision. A LIBRARY FILE IS SERVED WITH A POLICY OF ITS OWN: a PDF
+  gets `default-src 'none'; object-src 'self'; style-src 'unsafe-inline';
+  frame-ancestors 'self'`, because a sandbox blanks WebKit's PDF viewer, and
+  every other kind is sandboxed; a page copy is its own route under a
+  script-less sandbox, and thumbnails are a data-dir cache. Rejected: pdf.js
+  (`worker-src`, about 2 MB) (`apps/cli/src/server/vault/asset-route.ts`).
+  AN HTML BLOCK'S RUN IS A FRAME WITH A POLICY OF ITS OWN,
   `sandbox allow-scripts; default-src 'none'`
   (`apps/cli/src/server/html-block-frame.ts`); dropping Run was the rejected
   alternative, since interaction is what the block is for. `pnpm dev` stamps no

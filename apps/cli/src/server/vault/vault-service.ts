@@ -249,6 +249,28 @@ type ConditionalWriteResult =
   | { applied: true; path: string }
   | { applied: false; reason: "changed" | "not_found" };
 
+// a file's bytes are compared whole: a byte write is a restore or an undo of a file at most the
+// asset cap, so the read costs what the write does
+export type BytesWriteGuard = { kind: "absent" } | { kind: "expected"; bytes: Uint8Array };
+
+export type BytesWriteResult =
+  | { applied: true; path: string }
+  | { applied: false; reason: "exists" | "changed" | "not_found" };
+
+// an asset's identity for a revalidation and a range: its size and mtime, which the etag spells
+export interface VaultAssetStat {
+  path: string;
+  etag: string;
+  size: number;
+  mtimeMs: number;
+}
+
+// `end` inclusive, as a range header spells it
+export interface VaultByteSpan {
+  start: number;
+  end: number;
+}
+
 export interface VaultService {
   listTree: () => Promise<VaultTreeResponse>;
   statEntry: (path: string) => Promise<"file" | "dir" | null>;
@@ -262,9 +284,16 @@ export interface VaultService {
   // a read takes a slot of the process's fs budget (read-slots.ts) while the bytes are opened;
   // absent, its lane is foreground, and a job nobody waits on says background.
   read: (path: string, lane?: ReadLane) => Promise<{ path: string; content: string }>;
-  statAsset: (path: string) => Promise<{ path: string; etag: string }>;
+  statAsset: (path: string) => Promise<VaultAssetStat>;
   readBytes: (
     path: string,
+    lane?: ReadLane,
+  ) => Promise<{ path: string; bytes: Uint8Array<ArrayBuffer>; etag: string }>;
+  // one span of an asset, read off a handle rather than the whole file: a player asks for its
+  // file in pieces, and a seek near the end needs none of what comes before
+  readByteRange: (
+    path: string,
+    span: VaultByteSpan,
     lane?: ReadLane,
   ) => Promise<{ path: string; bytes: Uint8Array<ArrayBuffer>; etag: string }>;
   writeAsset: (dir: string, baseName: string, bytes: Uint8Array) => Promise<{ path: string }>;
@@ -283,6 +312,15 @@ export interface VaultService {
   rename: (from: string, to: string) => Promise<{ path: string }>;
   remove: (path: string) => Promise<void>;
   removeIfUnchanged: (path: string, expected: string) => Promise<ConditionalWriteResult>;
+  // the byte twins of a guarded write and a conditional remove, for a file that is not text: a
+  // restore creates it at exactly its path, and an undo puts back or takes away exactly the
+  // bytes a turn left, comparing bytes, never a decoding of them
+  writeBytesGuarded: (
+    path: string,
+    bytes: Uint8Array,
+    guard: BytesWriteGuard,
+  ) => Promise<BytesWriteResult>;
+  removeBytesIfUnchanged: (path: string, expected: Uint8Array) => Promise<ConditionalWriteResult>;
   createDir: (path: string) => Promise<{ path: string }>;
 }
 
@@ -300,6 +338,28 @@ const readOrNotFound = async <T>(relPath: string, read: () => Promise<T>): Promi
     throw isGone(error) ? notFound(relPath) : error;
   }
 };
+
+const readBytesOrNull = async (absPath: string): Promise<Buffer | null> => {
+  try {
+    return await readFile(absPath);
+  } catch (error) {
+    if (isGone(error)) {
+      return null;
+    }
+    throw error;
+  }
+};
+
+// a copy, not the read's Buffer: its backing store is node's shared pool, which a Response body
+// will not take.
+const ownedBytes = (buffer: Buffer): Uint8Array<ArrayBuffer> => {
+  const bytes = new Uint8Array(buffer.byteLength);
+  bytes.set(buffer);
+  return bytes;
+};
+
+const sameBytes = (held: Buffer, expected: Uint8Array): boolean =>
+  held.byteLength === expected.byteLength && held.equals(expected);
 
 const readTextOrNull = async (absPath: string): Promise<string | null> => {
   try {
@@ -436,7 +496,7 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
       );
     }
     const etag = `"${stats.size.toString(16)}-${Math.trunc(stats.mtimeMs).toString(16)}"`;
-    return { absPath, etag, relPath };
+    return { absPath, etag, mtimeMs: stats.mtimeMs, relPath, size: stats.size };
   };
 
   // the whole vault, or the folder `under` (nothing when it is not a listed folder); the root
@@ -558,10 +618,38 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
         await args.stallRead?.(relPath);
         return await readOrNotFound(relPath, async () => await readFile(absPath));
       });
-      // a copy, not the read's Buffer: its backing store is node's shared pool, which a
-      // Response body will not take.
-      const bytes = new Uint8Array(buffer.byteLength);
-      bytes.set(buffer);
+      return { bytes: ownedBytes(buffer), etag, path: relPath };
+    },
+
+    async readByteRange(requestedPath, span, lane = "foreground") {
+      const { relPath, absPath, etag } = await resolveAsset(requestedPath);
+      const length = Math.max(0, span.end - span.start + 1);
+      const bytes = await readSlots.hold(lane, async () => {
+        await args.stallRead?.(relPath);
+        return await readOrNotFound(relPath, async () => {
+          const handle = await open(absPath, "r");
+          try {
+            const target = new Uint8Array(length);
+            let filled = 0;
+            // a short read is a file that shrank since the stat: what it still holds is the span
+            while (filled < length) {
+              const { bytesRead } = await handle.read(
+                target,
+                filled,
+                length - filled,
+                span.start + filled,
+              );
+              if (bytesRead === 0) {
+                break;
+              }
+              filled += bytesRead;
+            }
+            return filled === length ? target : target.slice(0, filled);
+          } finally {
+            await handle.close();
+          }
+        });
+      });
       return { bytes, etag, path: relPath };
     },
 
@@ -588,6 +676,26 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
           return { applied: false, reason: "not_found" };
         }
         if (current !== expected) {
+          return { applied: false, reason: "changed" };
+        }
+        await rm(absPath);
+        await fsyncDirBestEffort(path.dirname(absPath));
+        args.onMutated?.([{ fingerprint: ABSENT_ENTRY, kind: "entry", path: relPath }]);
+        return { applied: true, path: relPath };
+      });
+    },
+
+    async removeBytesIfUnchanged(requestedPath, expected) {
+      return await lock(async (): Promise<ConditionalWriteResult> => {
+        const { relPath, absPath, stats } = await contained(requestedPath);
+        if (stats === null || stats.isDirectory()) {
+          return { applied: false, reason: "not_found" };
+        }
+        const held = await readBytesOrNull(absPath);
+        if (held === null) {
+          return { applied: false, reason: "not_found" };
+        }
+        if (!sameBytes(held, expected)) {
           return { applied: false, reason: "changed" };
         }
         await rm(absPath);
@@ -640,8 +748,8 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
     },
 
     async statAsset(requestedPath) {
-      const { relPath, etag } = await resolveAsset(requestedPath);
-      return { etag, path: relPath };
+      const { relPath, etag, mtimeMs, size } = await resolveAsset(requestedPath);
+      return { etag, mtimeMs, path: relPath, size };
     },
 
     async statEntry(requestedPath) {
@@ -687,6 +795,30 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
           await performAtomicWrite(relPath, absPath, bytes, null);
           return { path: relPath };
         }
+      });
+    },
+
+    async writeBytesGuarded(requestedPath, bytes, guard) {
+      return await lock(async (): Promise<BytesWriteResult> => {
+        const { relPath, absPath, stats: existing } = await contained(requestedPath);
+        if (existing?.isDirectory() === true) {
+          throw new VaultServiceError("conflict", `A folder already exists at ${relPath}`);
+        }
+        if (guard.kind === "absent") {
+          if (existing !== null) {
+            return { applied: false, reason: "exists" };
+          }
+        } else {
+          const held = existing === null ? null : await readBytesOrNull(absPath);
+          if (held === null) {
+            return { applied: false, reason: "not_found" };
+          }
+          if (!sameBytes(held, guard.bytes)) {
+            return { applied: false, reason: "changed" };
+          }
+        }
+        await performAtomicWrite(relPath, absPath, bytes, existing);
+        return { applied: true, path: relPath };
       });
     },
 

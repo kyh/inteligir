@@ -81,14 +81,7 @@ describe("the vault contract's declared errors", () => {
     ).toEqual([]);
   });
 
-  // PIVOT-STUB(S2): both rows answer NOT_IMPLEMENTED until their handlers land (§2.6); delete
-  // this table with them
-  const AWAITING_HANDLER = new Set(["createFile", "revisionBytes"]);
-
   it.each(rows)("row %s declares only classes its handler can raise", (row, procedure) => {
-    if (AWAITING_HANDLER.has(row)) {
-      return;
-    }
     const declared = Object.keys(procedure["~orpc"].errorMap);
     const block = blocks.get(row) ?? "";
     const producible = producibleCodes(block);

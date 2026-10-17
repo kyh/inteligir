@@ -221,6 +221,81 @@ describe("the vault routes", () => {
     expect(new Uint8Array(onDisk)).toEqual(new Uint8Array(await PNG.arrayBuffer()));
   });
 
+  it("stores any file as an attachment, and refuses a name that is a note's", async () => {
+    const booted = await bootTestApp();
+    const { client } = await listenTestApp(booted);
+    const bytes = new Uint8Array([0, 1, 2, 255, 254]);
+    for (const baseName of ["paper.pdf", "archive.zip", "clip.mp4"]) {
+      const written = await client.vault.assetWrite({
+        baseName,
+        dir: "assets",
+        file: new Blob([bytes]),
+      });
+      expect(written).toEqual({ path: `assets/${baseName}` });
+      const onDisk = await readFile(path.join(booted.vaultDir, "assets", baseName));
+      expect(new Uint8Array(onDisk)).toEqual(bytes);
+    }
+    for (const [baseName, dir] of [
+      ["note.md", "assets"],
+      ["x.png", ".inteligir"],
+      ["store.json", ".inteligir/annotations"],
+    ] as const) {
+      const [refused] = await safe(
+        client.vault.assetWrite({ baseName, dir, file: new Blob([bytes]) }),
+      );
+      expect(isDefinedError(refused) && refused.code, baseName).toBe("INVALID_PATH");
+      expect(isDefinedError(refused) && refused.message).toBe(
+        "a note is saved as text, not as a file",
+      );
+    }
+  });
+
+  it("reads a file's exact bytes at a revision, and creates one only where nothing stands", async () => {
+    const booted = await bootTestApp();
+    const { client } = await listenTestApp(booted);
+    // not text: a nul, a lone continuation byte and the bytes a utf-8 decode would replace
+    const bytes = new Uint8Array([137, 80, 78, 71, 0, 0x80, 0xff, 0xfe, 13, 10]);
+    await mkdir(path.join(booted.vaultDir, "assets"), { recursive: true });
+    await writeFile(path.join(booted.vaultDir, "assets", "shot.png"), bytes);
+    await booted.vault.git.commitNow();
+    const { revisions } = await client.vault.history({ path: "assets/shot.png" });
+    const [revision] = revisions;
+    const sha = revision?.sha ?? "";
+
+    const read = await client.vault.revisionBytes({ path: "assets/shot.png", sha });
+    expect(new Uint8Array(await read.arrayBuffer())).toEqual(bytes);
+
+    const [absent] = await safe(client.vault.revisionBytes({ path: "assets/gone.png", sha }));
+    expect(isDefinedError(absent) && absent.code).toBe("NOT_FOUND");
+    const [folder] = await safe(client.vault.revisionBytes({ path: "assets", sha }));
+    expect(isDefinedError(folder) && folder.code).toBe("NOT_FOUND");
+
+    const [taken] = await safe(
+      client.vault.createFile({ file: new Blob([bytes]), path: "assets/shot.png" }),
+    );
+    expect(isDefinedError(taken) && taken.code).toBe("ALREADY_EXISTS");
+
+    expect(await client.vault.createFile({ file: read, path: "assets/restored copy.png" })).toEqual(
+      { path: "assets/restored copy.png" },
+    );
+    const restored = await readFile(path.join(booted.vaultDir, "assets", "restored copy.png"));
+    expect(new Uint8Array(restored)).toEqual(bytes);
+
+    const [doc] = await safe(client.vault.createFile({ file: new Blob([bytes]), path: "a.md" }));
+    expect(isDefinedError(doc) && doc.code).toBe("INVALID_PATH");
+    const [inFile] = await safe(
+      client.vault.createFile({ file: new Blob([bytes]), path: "assets/shot.png/x.png" }),
+    );
+    expect(isDefinedError(inFile) && inFile.code).toBe("CONFLICT");
+    const [big] = await safe(
+      client.vault.createFile({
+        file: new Blob([new Uint8Array(VAULT_ASSET_MAX_BYTES + 1)]),
+        path: "assets/big.bin",
+      }),
+    );
+    expect(isDefinedError(big) && big.code).toBe("PAYLOAD_TOO_LARGE");
+  });
+
   it("refuses a vault nested in the data dir at composition time", async () => {
     const instanceDir = makeTempDir("inteligir-vault-routes-");
     await expect(
@@ -392,13 +467,13 @@ describe("the vault routes", () => {
     expect(revalidated.status).toBe(304);
   });
 
-  it("refuses an asset whose extension is not an image type it serves", async () => {
+  it("refuses an asset whose extension is not a file type it serves", async () => {
     const { request, vaultDir } = await bootTestApp();
     await writeFile(path.join(vaultDir, "page.html"), "<script>alert(1)</script>", "utf-8");
 
     const refused = await request(`${VAULT_ASSET_PATH}?path=page.html`);
     expect(refused.status).toBe(400);
-    expect(await refused.text()).toContain("not an image type this vault serves");
+    expect(await refused.text()).toContain("not a file type this library serves");
 
     const missing = await request(`${VAULT_ASSET_PATH}?path=absent.png`);
     expect(missing.status).toBe(404);

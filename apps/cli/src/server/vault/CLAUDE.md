@@ -101,6 +101,23 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   `apps/cli/src/server/vault/vault-prefs-store.ts`,
   `@repo/contract/local/vault/attachment-location`.
 
+- **THE ASSET ROUTE ANSWERS BYTE RANGES AND A POLICY PER KIND.** A player asks
+  for its file in pieces, and AVFoundation plays nothing until its `bytes=0-1`
+  probe answers 206, so one range is answered 206 with its `content-range`, a
+  range past the end 416, a HEAD with the length and no body, and a list of
+  ranges or a stale `if-range` whole, read off a handle rather than the whole
+  file. What is served is the shared media table's (images, PDF, video,
+  audio), never what a file may be stored as: an archive is an item's original
+  and is never served, and an `.html` is a page copy, served only by its own
+  route under a script-less sandbox. A PDF alone has no sandbox, because one
+  blanks WebKit's viewer; every other kind is sandboxed, which is what keeps an
+  svg's script from running when its url is opened as a document. A thumbnail
+  is a data-dir cache, never a second file in the library, bounded and shared
+  per key. Rejected: pdf.js, which needs `worker-src` and about 2 MB, and a
+  srcdoc page copy, which inherits the window's origin.
+  `apps/cli/src/server/vault/asset-route.ts`, `byte-range.ts`,
+  `page-copy-route.ts`, `thumb-route.ts`.
+
 - **A SYNC PASS HOLDS THE REPO LOCK ONLY FOR ITS LOCAL STEPS.** The fetch and
   the push run unlocked between locked local steps: held across the network, the
   lock made every save and every turn start wait out a dropped connection's
