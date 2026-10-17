@@ -70,8 +70,16 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
       "@repo/notes",
       "@repo/ui",
     ],
-    // the server reaches no page: no @repo/ui, no @repo/editor, no react.
-    inteligir: ["@repo/agent-runtime", "@repo/contract", "@repo/db", "@repo/domain", "@repo/notes"],
+    // the server reaches no page: no @repo/ui and no react; its one @repo/editor import is the
+    // fill worker's headless markdown fixpoint (EDITOR_FROM_SERVER).
+    inteligir: [
+      "@repo/agent-runtime",
+      "@repo/contract",
+      "@repo/db",
+      "@repo/domain",
+      "@repo/editor",
+      "@repo/notes",
+    ],
   }),
 );
 
@@ -104,6 +112,15 @@ const EDITOR_PAGE_CLIENTS = new Map<string, string>([
     "React Native under Metro and TypeScript 6, hosting the page in a WebView from the app bundle",
   ],
 ]);
+
+// The server's one reach into the editor: a saved page is written as the editor's own fixpoint, so
+// the fill worker runs the headless markdown pipeline in its own thread. Anything else of the
+// editor in the server is the page's React in a node process, and anything outside the worker's
+// folder lands it in the main bundle every verb loads.
+const EDITOR_FROM_SERVER = {
+  dir: "apps/cli/src/server/items/capture/fill/",
+  specifier: "@repo/editor/markdown/markdown-doc",
+} as const;
 
 const edgesFrom = (workspace: Workspace, files: readonly string[]): Map<string, string[]> => {
   const edges = new Map<string, string[]>();
@@ -417,6 +434,30 @@ describe("platform purity", () => {
               `  rule: ${name} reaches ${EDITOR_PAGE_WIRE} alone — ${why}`,
           );
         }
+      }
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("the server reaches the editor only from the fill worker, and only its markdown fixpoint", () => {
+    const server = workspaces().find((candidate) => candidate.name === "inteligir");
+    if (server === undefined) {
+      throw new Error("inteligir is not a workspace");
+    }
+    const violations: string[] = [];
+    // shipped source alone: the workspace UI's booted suites live here and drive the page whole
+    for (const file of workspaceFiles(server).shipped) {
+      for (const specifier of importsOf(file)) {
+        if (resolveWorkspace(specifier)?.name !== "@repo/editor") {
+          continue;
+        }
+        if (file.startsWith(EDITOR_FROM_SERVER.dir) && specifier === EDITOR_FROM_SERVER.specifier) {
+          continue;
+        }
+        violations.push(
+          `EDITOR IN THE SERVER  ${file} imports "${specifier}"\n` +
+            `  rule: only files under ${EDITOR_FROM_SERVER.dir} reach @repo/editor, and only ${EDITOR_FROM_SERVER.specifier} — the fill worker's headless fixpoint, in a thread of its own`,
+        );
       }
     }
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);

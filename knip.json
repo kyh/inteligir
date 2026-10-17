@@ -11,7 +11,8 @@
         "src/index.ts",
         "src/desktop/desktop-entry.ts",
         "src/server/vault/watcher/parcel-child-entry.ts",
-        "src/server/knowledge/projection-worker.ts"
+        "src/server/knowledge/projection-worker.ts",
+        "src/server/items/capture/item-fill-worker.ts"
       ],
       // the ACP adapters are resolved with require from the running bundle, never imported
       "ignoreDependencies": [

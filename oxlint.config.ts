@@ -76,7 +76,7 @@ export default defineConfig({
     platformPurity(
       "packages/editor",
       NODE,
-      "@repo/editor is browser-only: Plate/Slate in the page, never in the Node process",
+      "@repo/editor imports no node module: it runs in the page, and its headless kits in the fill worker's DOM-shimmed thread (apps/cli/src/server/items/capture/fill/)",
     ),
     platformPurity(
       "apps/mobile-editor",

@@ -3,7 +3,7 @@ import nodePath from "node:path";
 import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 import { describe, expect, it } from "vitest";
 import { bootIndexedVault, makeVaultDirs } from "../../knowledge/__tests__/indexed-vault";
-import { removeEntryWithAnnotations } from "../remove-with-annotations";
+import { removeEntry } from "../remove-entry";
 
 const NOTE_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
 const STORE = annotationsStorePath(NOTE_ID);
@@ -11,9 +11,7 @@ const NOTE = `---\nid: ${NOTE_ID}\n---\n%%i:c1:start%%x%%i:c1:end%%\n`;
 const STORE_BYTES = '{\n  "c1": { "text": "kept", "createdAt": 1, "updatedAt": 1 }\n}\n';
 
 const boot = () => {
-  const { knowledge, root, service } = bootIndexedVault(
-    makeVaultDirs("inteligir-remove-with-annotations-"),
-  );
+  const { knowledge, root, service } = bootIndexedVault(makeVaultDirs("inteligir-remove-entry-"));
   const storeOnDisk = (): boolean => existsSync(nodePath.join(root, STORE));
   return { knowledge, service, storeOnDisk };
 };
@@ -25,11 +23,11 @@ describe("a delete takes a note's annotation store only when no other note carri
     await service.write("Plan copy.md", NOTE);
     await service.write(STORE, STORE_BYTES);
 
-    await removeEntryWithAnnotations(service, "Plan copy.md", knowledge);
+    await removeEntry(service, "Plan copy.md", knowledge);
     const kept = await service.read(STORE);
     expect(kept.content).toBe(STORE_BYTES);
 
-    await removeEntryWithAnnotations(service, "Plan.md", knowledge);
+    await removeEntry(service, "Plan.md", knowledge);
     expect(storeOnDisk()).toBe(false);
   });
 
@@ -39,7 +37,7 @@ describe("a delete takes a note's annotation store only when no other note carri
     await service.write("box/deeper/Plan copy.md", NOTE);
     await service.write(STORE, STORE_BYTES);
 
-    await removeEntryWithAnnotations(service, "box", knowledge);
+    await removeEntry(service, "box", knowledge);
     expect(storeOnDisk()).toBe(false);
   });
 
@@ -49,7 +47,7 @@ describe("a delete takes a note's annotation store only when no other note carri
     await service.write("Plan.md", NOTE);
     await service.write(STORE, STORE_BYTES);
 
-    await removeEntryWithAnnotations(service, "box", knowledge);
+    await removeEntry(service, "box", knowledge);
     expect(storeOnDisk()).toBe(true);
   });
 });

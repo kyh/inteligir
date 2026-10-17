@@ -46,6 +46,24 @@ describe("rename with link rewrite", () => {
     expect(backlinks.map((entry) => entry.sourcePath).toSorted()).toEqual(["a.md", "b.md"]);
   });
 
+  it("with alias false rewrites the links and keeps the old stem as no alias", async () => {
+    const { root, service, knowledge } = boot();
+    const stub = "---\nkind: link\nurl: https://stephango.com/file-over-app\n---\n";
+    await service.write("Unsorted/stephango.com - file over app.md", stub);
+    await service.write("a.md", "Read [[stephango.com - file over app]] later.\n");
+
+    const result = await renameNoteWithLinkRewrite({
+      alias: false,
+      from: "Unsorted/stephango.com - file over app.md",
+      knowledge,
+      service,
+      to: "Unsorted/File over app.md",
+    });
+    expect(result).toEqual({ path: "Unsorted/File over app.md", rewritten: ["a.md"], skipped: [] });
+    expect(readFileSync(path.join(root, "a.md"), "utf-8")).toBe("Read [[File over app]] later.\n");
+    expect(readFileSync(path.join(root, "Unsorted", "File over app.md"), "utf-8")).toBe(stub);
+  });
+
   it("qualifies links a shadowing rename would steal", async () => {
     const { root, service, knowledge } = boot();
     await service.write("a/note.md", "# A note\n");

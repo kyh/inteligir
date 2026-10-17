@@ -4,6 +4,7 @@
 import type { DbNotifier } from "@repo/domain/notifier";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import { messageOf } from "../error-message";
+import type { ItemsService } from "../items/items-service";
 import type { GitEngine } from "../vault/git-engine";
 import type { VaultService } from "../vault/vault-service";
 import type {
@@ -19,6 +20,8 @@ import { turnPromptInput } from "./view-context-prompt";
 export interface ScriptedDriverDeps {
   vault: VaultService;
   git: GitEngine;
+  // what a `save <target>` line of the turn's text saves through, inside the turn
+  items: Pick<ItemsService, "saveLink" | "saveFile">;
   notifier: DbNotifier;
   onError?: (message: string) => void;
 }
@@ -75,6 +78,9 @@ export class ScriptedTurnDriver implements TurnDriver {
       const notePath = scriptedNotePath(args.threadId);
       const written = await this.deps.vault.write(notePath, `# Agent note\n\n${args.text}\n`);
       turnCommit.recordPaths([written.path]);
+      // PIVOT-STUB(S3): each `save <target>` line of the text saves through this.deps.items here, its
+      // `wrote` recorded in the turn's commit and listed in one fileChange (§12.4 point 9); until
+      // then a save line is echoed like any text and saves nothing
       this.sink.ingestProviderEvents(args.threadId, [
         {
           item: {

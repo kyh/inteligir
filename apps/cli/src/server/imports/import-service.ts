@@ -6,6 +6,11 @@ import type {
   ImportSource,
   ImportsPlanResponse,
 } from "@repo/contract/local/imports/imports-schema";
+import type { AnnotationsService } from "../annotations/annotations-service";
+import type { ItemCore } from "../items/item-core";
+import type { ItemsService } from "../items/items-service";
+import type { KnowledgeRuntime } from "../knowledge/knowledge-runtime";
+import type { GitEngine } from "../vault/git-engine";
 import { ImportsError } from "./imports-error";
 
 export interface ImportService {
@@ -21,6 +26,13 @@ export interface ImportService {
 }
 
 export interface ImportServiceDeps {
+  // the items service's own core, so an import and a save of one url share its lock
+  core: ItemCore;
+  items: Pick<ItemsService, "enqueueFill">;
+  annotations: Pick<AnnotationsService, "addUnanchored">;
+  knowledge: Pick<KnowledgeRuntime, "settle" | "findByUrl">;
+  // a batch commits as one, under a hold that keeps the auto-commit off its paths
+  git: Pick<GitEngine, "holdCommits" | "commitPaths">;
   // bus.notifyVault(["import-changed"]), each time a job's counts or state move
   notify: () => void;
   dataDir: string;

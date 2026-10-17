@@ -1,4 +1,4 @@
-import { isDeviceCommitEmail } from "@repo/contract/cloud/vault/vault-git";
+import { isDeviceCommitEmail, WORKER_COMMITTER_EMAIL } from "@repo/contract/cloud/vault/vault-git";
 import {
   VAULT_DELETED_MAX_ENTRIES,
   VAULT_MAX_CONTENT_LENGTH,
@@ -161,6 +161,37 @@ export const readNoteHistory = async (
     path,
   ]);
   return parseFollowLog(stdout, path);
+};
+
+// whether git's index holds the path. a vault with no repo, or a git that fails, answers untracked:
+// the caller's question is only whether this device may still treat the file as its own draft.
+export const readIsTracked = async (run: RunGitCommand, path: string): Promise<boolean> => {
+  const listed = await run(["ls-files", "--error-unmatch", "--", path]).catch(() => null);
+  return listed !== null;
+};
+
+// who made the commit that added the path: the Worker commits every phone change set under its own
+// address, so that committer is the phone; null when no commit added it or there is no repo.
+export const readCreatorOf = async (
+  run: RunGitCommand,
+  path: string,
+): Promise<"phone" | "device" | null> => {
+  // --no-show-signature: log.showSignature=true prints gpg lines ahead of the format output.
+  const logged = await run([
+    "log",
+    "--no-show-signature",
+    "--diff-filter=A",
+    "-n",
+    "1",
+    "--format=%ce",
+    "--",
+    path,
+  ]).catch(() => null);
+  const committer = logged?.stdout.trim() ?? "";
+  if (committer === "") {
+    return null;
+  }
+  return committer === WORKER_COMMITTER_EMAIL ? "phone" : "device";
 };
 
 export const readNoteRevision = async (

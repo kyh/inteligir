@@ -262,6 +262,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`apps/cli/CLAUDE.md`](apps/cli/CLAUDE.md) — the server process: its lock, composition, credential, shutdown, CSP, database, and a vault's data dir
 - [`apps/cli/src/server/vault/CLAUDE.md`](apps/cli/src/server/vault/CLAUDE.md) — Vault: writes, git and containment
 - [`apps/cli/src/server/knowledge/CLAUDE.md`](apps/cli/src/server/knowledge/CLAUDE.md) — the index's persistence, its worker and its read deadline
+- [`apps/cli/src/server/items/CLAUDE.md`](apps/cli/src/server/items/CLAUDE.md) — Items: capture and fill
 - [`apps/cli/src/server/agents/CLAUDE.md`](apps/cli/src/server/agents/CLAUDE.md) — Agents and threads
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sync and accounts
 - [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, store, queue and annotations, and how it ships

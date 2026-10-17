@@ -24,6 +24,7 @@ import type { VendorMcpConfigs } from "../connectors/vendor-mcp-config";
 import { SignInInProgressError } from "../agents/agent-sign-in";
 import type { AgentAccounts, SigningIn } from "../agents/agent-sign-in";
 import type { AppConfig } from "../config";
+import type { ItemsService } from "../items/items-service";
 import { createInlineProjector } from "../knowledge/__tests__/inline-projector";
 import { closeServer } from "../listen";
 import { localRouter } from "../root-router";
@@ -167,6 +168,7 @@ export interface BootTestAppOptions {
     vault: VaultRuntime;
     vaultDir: string;
     sink: ProviderEventSink;
+    items: Pick<ItemsService, "saveLink" | "saveFile">;
   }) => {
     driver: TurnDriver;
     // absent, `agent` answers every request.
@@ -264,6 +266,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
       const made = options.makeDriver?.({
         bus: deps.bus,
         db: deps.db,
+        items: deps.items,
         sink: deps.sink,
         vault: deps.vault,
         vaultDir,

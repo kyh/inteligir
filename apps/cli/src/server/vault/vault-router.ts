@@ -6,8 +6,8 @@ import {
 import type { VaultRenameResponse } from "@repo/contract/local/vault/vault-schema";
 import { VAULT_REMOTE_PIN_ENV_VAR } from "@repo/contract/local/vault/remote-url";
 import { ORPCError } from "@orpc/server";
-import { removeEntryWithAnnotations } from "../annotations/remove-with-annotations";
 import { attributeWrites, base, refusing } from "../orpc";
+import { removeEntry } from "./remove-entry";
 import { vaultWireError } from "./vault-refusals";
 import { guardRefusalError } from "./write-guard";
 
@@ -83,10 +83,7 @@ const deleted = base.vault.deleted.handler(async ({ context }) => ({
 
 const remove = base.vault.remove.use(vaultRefusals).handler(async ({ context, input }) => {
   // `add -A` stages a deletion under a pathspec, a folder's included.
-  attributeWrites(
-    context,
-    await removeEntryWithAnnotations(context.vault.service, input.path, context.knowledge),
-  );
+  attributeWrites(context, await removeEntry(context.vault.service, input.path, context.knowledge));
   return { ok: true } as const;
 });
 

@@ -32,6 +32,9 @@ const refusalCode = async (work: Promise<unknown>): Promise<AnnotationsErrorCode
   return null;
 };
 
+// the suite's notes never move, so no lookup by id is asked
+const NO_KNOWLEDGE = { pathForNoteId: async () => await Promise.resolve(null) };
+
 const boot = () => {
   const root = nodePath.join(makeTempDir("inteligir-annotations-"), "vault");
   mkdirSync(root, { recursive: true });
@@ -41,10 +44,14 @@ const boot = () => {
     root,
   });
   let tick = 0;
-  const annotations = createAnnotationsService(vault, () => {
-    const at = AT + tick;
-    tick += 1;
-    return at;
+  const annotations = createAnnotationsService({
+    knowledge: NO_KNOWLEDGE,
+    now: () => {
+      const at = AT + tick;
+      tick += 1;
+      return at;
+    },
+    service: vault,
   });
   return { annotations, root, vault };
 };
@@ -404,7 +411,14 @@ describe("the store write is a compare-and-swap", () => {
       writeFileSync(nodePath.join(root, STORE), serializeAnnotationStore({}));
     }
     const raced = racedVault({ landing, root, storePath: STORE, vault });
-    return { annotations: createAnnotationsService(raced, () => AT), root };
+    return {
+      annotations: createAnnotationsService({
+        knowledge: NO_KNOWLEDGE,
+        now: () => AT,
+        service: raced,
+      }),
+      root,
+    };
   };
 
   it("keeps an entry that landed between the read and the write, by re-folding over it", async () => {
@@ -456,5 +470,64 @@ describe("the store write is a compare-and-swap", () => {
       annotations.add({ id: "ours", path: "plan.md", quote: "the passage", text: "ours" }),
     ).rejects.toThrow(/already exists/u);
     expect(storeOnDisk(root, "plan.md").ours?.text).toBe("the other writer used our id");
+  });
+});
+
+describe("roots stored before the item's text can hold them", () => {
+  const STUB_ID = "0e5b3c1a-9a51-4f0e-8a0c-0b7f9d3a2c11";
+  const STUB = [
+    "---",
+    `id: ${STUB_ID}`,
+    "kind: link",
+    "url: https://stephango.com/file-over-app",
+    "saved: 2026-10-17T09:12:30Z",
+    "---",
+    "",
+  ].join("\n");
+
+  it("creates the store by the item's id, keeps each quote and date, and adds an id only once", async () => {
+    const { root, annotations } = boot();
+    writeFileSync(nodePath.join(root, "stub.md"), STUB);
+    const entry = {
+      createdAt: AT - 60,
+      id: "h1",
+      quote: "file over app",
+      source: "external" as const,
+      text: "",
+    };
+
+    const first = await annotations.addUnanchored({ entries: [entry], itemId: STUB_ID });
+    expect(first).toEqual({
+      answer: { path: annotationsStorePath(STUB_ID) },
+      wrote: [annotationsStorePath(STUB_ID)],
+    });
+    await annotations.addUnanchored({
+      entries: [
+        { ...entry, text: "again" },
+        { ...entry, id: "h2", quote: "apps are ephemeral" },
+      ],
+      itemId: STUB_ID,
+    });
+
+    const listed = await annotations.list("stub.md");
+    expect(
+      listed.annotations.map(({ id, quote, root: entryRoot, state }) => ({
+        createdAt: entryRoot.createdAt,
+        id,
+        quote,
+        state,
+        text: entryRoot.text,
+      })),
+    ).toEqual([
+      { createdAt: AT - 60, id: "h1", quote: "file over app", state: "waiting", text: "" },
+      { createdAt: AT - 60, id: "h2", quote: "apps are ephemeral", state: "waiting", text: "" },
+    ]);
+  });
+
+  it("refuses an item id that cannot name a store", async () => {
+    const { annotations } = boot();
+    expect(await refusalCode(annotations.addUnanchored({ entries: [], itemId: "../escape" }))).toBe(
+      "refused",
+    );
   });
 });

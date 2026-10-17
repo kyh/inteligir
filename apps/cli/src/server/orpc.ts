@@ -18,6 +18,7 @@ import type { ImportService } from "./imports/import-service";
 import type { ItemsService } from "./items/items-service";
 import type { RenameTag } from "./knowledge/knowledge-router";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
+import type { ImageDownscale } from "./media/image-downscale";
 import type { ThreadService } from "./threads/service";
 import type { RecordAgentWrites } from "./threads/turn-driver";
 import type { TurnUndo } from "./threads/turn-undo";
@@ -48,6 +49,8 @@ export interface AppContext {
   cloud: CloudRuntime;
   cloudPrefs: CloudPrefsStore;
   connectors: ConnectorsService;
+  // the one downscaler, a grid thumbnail's and a cover's, so the system's image tool runs one queue
+  downscale: ImageDownscale;
   folders: FoldersService;
   imports: ImportService;
   items: ItemsService;

@@ -54,7 +54,7 @@
   "scripts": {
     "build": "node scripts/build.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts && tsc --noEmit -p src/workspace",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts && tsc --noEmit -p src/workspace && tsc --noEmit -p src/server/items/capture/fill",
     "smoke": "node scripts/smoke.ts"
   },
   "dependencies": {

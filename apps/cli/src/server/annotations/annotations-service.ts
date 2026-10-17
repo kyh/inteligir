@@ -33,6 +33,7 @@ import type {
 } from "@repo/contract/local/annotations/annotations-schema";
 import { ANNOTATIONS_MAX } from "@repo/contract/local/annotations/annotations-schema";
 
+import type { KnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import { ensureNoteId } from "../vault/ensure-note-id";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
@@ -59,7 +60,7 @@ export class AnnotationsError extends Error {
 }
 
 // unix seconds, the store's unit.
-export type AnnotationsClock = () => number;
+type AnnotationsClock = () => number;
 
 // a call's answer and every vault path it wrote on the way (the store, a note it minted an id
 // into), so an agent's turn can commit what its shell caused.
@@ -68,12 +69,46 @@ export interface AnnotationsWrite<T> {
   wrote: string[];
 }
 
+// a root the import or a capture stores before the item's text can hold its markers
+interface UnanchoredEntry {
+  id: string;
+  quote: string;
+  text: string;
+  source: AnnotationSource;
+  // unix seconds
+  createdAt: number;
+}
+
 export interface AnnotationsService {
   list: (path: string) => Promise<AnnotationsResponse>;
+  // with `place`, the markers are written around the quote's occurrence in the item's text
   add: (args: AnnotationsAddRequest) => Promise<AnnotationsWrite<AnnotationsResponse>>;
   edit: (args: AnnotationsEditRequest) => Promise<AnnotationsWrite<AnnotationsResponse>>;
   reply: (args: AnnotationsReplyRequest) => Promise<AnnotationsWrite<AnnotationsResponse>>;
+  // `stripMarkers` also takes the removed ids' markers out of the item's text
   remove: (args: AnnotationsRemoveRequest) => Promise<AnnotationsWrite<AnnotationsRemoveResponse>>;
+  // store-only: unanchored roots with a quote, keyed by the item's id, the store created if absent;
+  // an id the store already holds is kept as it is, so a resumed import adds nothing twice
+  addUnanchored: (args: {
+    itemId: string;
+    entries: readonly UnanchoredEntry[];
+  }) => Promise<AnnotationsWrite<{ path: string }>>;
+  // the waiting roots of `itemId` placed into `content`; `final` appends what found no passage
+  // under a Highlights section. pure over the store it reads: the caller writes `content` under its
+  // own compare-and-swap
+  placeWaiting: (args: {
+    path: string;
+    itemId: string | null;
+    content: string;
+    final: boolean;
+  }) => Promise<{ content: string; placed: string[] }>;
+}
+
+export interface AnnotationsServiceDeps {
+  service: VaultService;
+  // where an item is now, by its id
+  knowledge: Pick<KnowledgeRuntime, "pathForNoteId">;
+  now: AnnotationsClock;
 }
 
 // an explicit projection, not a spread: the file keeps fields the contract does not declare.
@@ -173,10 +208,35 @@ const tracked = async <T>(work: (wrote: Wrote) => Promise<T>): Promise<Annotatio
   return { answer: result, wrote: [...wrote] };
 };
 
-export const createAnnotationsService = (
-  vault: VaultService,
-  now: AnnotationsClock,
-): AnnotationsService => {
+// the root's entries in order, those the store already holds left out
+const withUnanchored = (
+  store: AnnotationStore,
+  entries: readonly UnanchoredEntry[],
+): EditApplied | EditRefused => {
+  let next = store;
+  for (const entry of entries) {
+    if (next[entry.id] !== undefined) {
+      continue;
+    }
+    const added = addRoot(next, {
+      at: entry.createdAt,
+      id: entry.id,
+      quote: entry.quote,
+      source: entry.source,
+      text: entry.text,
+    });
+    if (!added.ok) {
+      return added;
+    }
+    next = added.store;
+  }
+  return { ok: true, store: next };
+};
+
+export const createAnnotationsService = ({
+  service: vault,
+  now,
+}: AnnotationsServiceDeps): AnnotationsService => {
   const readNote = async (notePath: string): Promise<NoteRead> => {
     const { content } = await vault.read(notePath);
     return { content, id: frontmatterId(content) };
@@ -278,7 +338,11 @@ export const createAnnotationsService = (
   };
 
   return {
-    async add({ path, id, quote, text, source = DEFAULT_SOURCE }) {
+    async add({ path, id, place, quote, text, source = DEFAULT_SOURCE }) {
+      if (place !== undefined) {
+        // PIVOT-STUB(S3): the entry first, then the markers around the quote's occurrence (§9.4)
+        throw new AnnotationsError("refused", "PIVOT-STUB(S3)");
+      }
       return await tracked(async (wrote) => {
         const note = await readNote(path);
         const key = await storeKeyOf(path, note, wrote);
@@ -288,6 +352,14 @@ export const createAnnotationsService = (
           wrote,
         );
         return answer(path, note, added.store);
+      });
+    },
+
+    async addUnanchored({ itemId, entries }) {
+      return await tracked(async (wrote) => {
+        const key = keyOf(annotationsStorePath(itemId), itemId);
+        await commit(key, (store) => withUnanchored(store, entries), wrote);
+        return { path: annotationsStorePath(key) };
       });
     },
 
@@ -320,6 +392,7 @@ export const createAnnotationsService = (
       return answer(path, note, entries);
     },
 
+    // PIVOT-STUB(S3): `stripMarkers` is ignored until the markers can be spliced out (§9.5)
     async remove({ path, id }) {
       return await tracked(async (wrote) => {
         const { note, key } = await keyOfAnnotated(path);
@@ -327,6 +400,9 @@ export const createAnnotationsService = (
         return { ...answer(path, note, deleted.store), removedIds: deleted.removedIds };
       });
     },
+
+    // PIVOT-STUB(S3): places nothing until the quotes can be matched in the text (§9.4)
+    placeWaiting: async ({ content }) => await Promise.resolve({ content, placed: [] }),
 
     async reply({ path, id, parentId, text, source = DEFAULT_SOURCE }) {
       return await tracked(async (wrote) => {

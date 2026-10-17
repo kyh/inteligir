@@ -9,7 +9,7 @@ import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { describe, expect, it } from "vitest";
 import { bootThreadHarness } from "../../__tests__/boot-app";
 import type { ThreadHarness } from "../../__tests__/boot-app";
-import { removeEntryWithAnnotations } from "../../annotations/remove-with-annotations";
+import { removeEntry } from "../../vault/remove-entry";
 import { beginAgentTurnWrites } from "../agent-commits";
 import type { AgentTurnWrites } from "../agent-commits";
 import { undoTurnChanges } from "../../threads/turn-undo";
@@ -295,11 +295,7 @@ describe("undoing a turn", () => {
     const threadId = await createThread(harness.client);
     const turn = await startTurn(harness, threadId);
     turn.writes.recordPaths(
-      await removeEntryWithAnnotations(
-        harness.vault.service,
-        "a.md",
-        harness.composed.context.knowledge,
-      ),
+      await removeEntry(harness.vault.service, "a.md", harness.composed.context.knowledge),
     );
     await settle(harness, turn);
 

@@ -9,8 +9,10 @@ import {
   HEALTH_PATH,
   HTML_FRAME_PATH,
   MEDIA_TOKEN_PARAM,
+  PAGE_COPY_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
+  VAULT_THUMB_PATH,
   websocketOrigin,
   WS_PATH,
 } from "@repo/contract/local/routes";
@@ -35,6 +37,8 @@ import { BEARER_PREFIX } from "./server-file";
 import { SIGNED_OUT_PAGE, SIGNED_OUT_PAGE_HEADERS } from "./signed-out-page";
 import { forwardToUiDevServer } from "./ui-dev-server";
 import { handleVaultAsset } from "./vault/asset-route";
+import { handlePageCopy } from "./vault/page-copy-route";
+import { handleVaultThumb } from "./vault/thumb-route";
 import type { WsBus } from "./ws-bus";
 
 export interface CreateAppArgs {
@@ -210,10 +214,21 @@ export const createApp = (args: CreateAppArgs) => {
 
   app.get(HEALTH_PATH, (c) => c.json({ ok: true } as const));
 
+  // the three byte routes, each body bytes with a policy of its own
   app.get(
     VAULT_ASSET_PATH,
     requireMediaRequest,
     async (c) => await handleVaultAsset(c, args.context.vault.service),
+  );
+  app.get(PAGE_COPY_PATH, requireMediaRequest, (c) =>
+    handlePageCopy(c, args.context.vault.service),
+  );
+  app.get(VAULT_THUMB_PATH, requireMediaRequest, (c) =>
+    handleVaultThumb(c, {
+      dataDir: args.context.system.dataDir,
+      downscale: args.context.downscale,
+      service: args.context.vault.service,
+    }),
   );
 
   app.get(

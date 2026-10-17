@@ -3,8 +3,10 @@ import {
   HEALTH_PATH,
   HTML_FRAME_PATH,
   MEDIA_TOKEN_PARAM,
+  PAGE_COPY_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
+  VAULT_THUMB_PATH,
   WS_PATH,
 } from "@repo/contract/local/routes";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -30,6 +32,8 @@ const DECLARED_ROUTES = new Map<string, string>([
     key("GET", VAULT_ASSET_PATH),
     "a file's raw BYTES, with an ETag and a 304 on if-none-match — none of which survives an RPC envelope",
   ],
+  [key("GET", PAGE_COPY_PATH), "its body is bytes with its own CSP"],
+  [key("GET", VAULT_THUMB_PATH), "its body is bytes with its own CSP"],
   [key("GET", WS_PATH), "the invalidation bus: subscribe and ping, no payload, by decision"],
 ]);
 
@@ -141,7 +145,14 @@ describe.each([
 
 // the byte routes, the only ones that read the boot's media token: AVFoundation's loader inside
 // WKWebView may send a video's range requests with neither Sec-Fetch-Site nor Origin.
-const MEDIA_ROUTES = [`${VAULT_ASSET_PATH}?path=clip.png`];
+const MEDIA_ROUTES = [
+  `${VAULT_ASSET_PATH}?path=clip.png`,
+  `${PAGE_COPY_PATH}?path=${encodeURIComponent("assets/pages/0123456789abcdef.html")}`,
+  `${VAULT_THUMB_PATH}?path=clip.png&w=320`,
+];
+
+// past the gate, whatever the handler then answers for the file
+const REFUSED_AT_THE_GATE = [401, 403];
 
 // every other route a browser's cookie reaches, which must keep refusing a header-less request
 const COOKIE_ROUTES = [
@@ -170,15 +181,22 @@ describe("the media token", () => {
     const { cookie, mediaToken, statusOf } = await signedIn();
     for (const route of MEDIA_ROUTES) {
       const named = `${route}&${MEDIA_TOKEN_PARAM}=${encodeURIComponent(mediaToken)}`;
-      expect(await statusOf(named, { headers: { cookie } }), route).toBe(200);
+      expect(REFUSED_AT_THE_GATE, route).not.toContain(
+        await statusOf(named, { headers: { cookie } }),
+      );
       expect(await statusOf(route, { headers: { cookie } }), route).toBe(403);
       const wrong = `${route}&${MEDIA_TOKEN_PARAM}=not-the-token`;
       expect(await statusOf(wrong, { headers: { cookie } }), route).toBe(403);
       // the token is no credential: without the cookie it is refused like any request
       expect(await statusOf(named), route).toBe(401);
       const sameOrigin = { cookie, "sec-fetch-site": "same-origin" };
-      expect(await statusOf(route, { headers: sameOrigin }), route).toBe(200);
+      expect(REFUSED_AT_THE_GATE, route).not.toContain(
+        await statusOf(route, { headers: sameOrigin }),
+      );
     }
+    const [asset = ""] = MEDIA_ROUTES;
+    const named = `${asset}&${MEDIA_TOKEN_PARAM}=${encodeURIComponent(mediaToken)}`;
+    expect(await statusOf(named, { headers: { cookie } })).toBe(200);
   });
 
   it("is read by no other route: a header-less cookie request stays refused there", async () => {

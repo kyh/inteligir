@@ -20,7 +20,7 @@ import { noopNotifier } from "@repo/domain/notifier";
 import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import { VaultPathError, VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
-import { removeEntryWithAnnotations } from "../../annotations/remove-with-annotations";
+import { removeEntry } from "../remove-entry";
 import { snapshotDocs } from "../../knowledge/snapshot-docs";
 import { BACKGROUND_READ_SLOTS, READ_SLOTS, REQUEST_READ_SLOTS } from "../read-slots";
 import { slowReadStall } from "../slow-reads";
@@ -708,7 +708,11 @@ describe("the read budget", () => {
     for (const file of [...evicted, ...linked, "gone/a.md", "gone/b.md"]) {
       await service.write(file, `# ${file}\n`);
     }
-    const knowledge = { noteIdOwners: async () => await Promise.resolve([]) };
+    const knowledge = {
+      backlinks: async () => await Promise.resolve([]),
+      linkedFiles: async () => await Promise.resolve([]),
+      noteIdOwners: async () => await Promise.resolve([]),
+    };
 
     const background = Promise.all(
       evicted.map(async (file) => await service.read(file, "background")),
@@ -718,7 +722,7 @@ describe("the read budget", () => {
     });
     const [snapshot, removed] = await Promise.all([
       snapshotDocs(service, linked),
-      removeEntryWithAnnotations(service, "gone", knowledge),
+      removeEntry(service, "gone", knowledge),
     ]);
     expect([...snapshot.docs.keys()]).toEqual(linked);
     expect(removed).toEqual(["gone"]);

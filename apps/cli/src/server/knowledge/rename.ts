@@ -21,6 +21,9 @@ export interface RenameNoteArgs {
   knowledge: KnowledgeRuntime;
   from: string;
   to: string;
+  // false: the links are rewritten and the old stem is kept as no alias. a fill's rename of a stub
+  // nobody named is the one caller: a provisional name is not a name to keep. default true
+  alias?: boolean;
 }
 
 // a concurrent edit in the window loses the alias, never its content.
@@ -68,7 +71,7 @@ export const renameNoteWithLinkRewrite = async (
 
   const renamed = await service.rename(fromPath, toPath);
   const moves = movesOf(source, allFiles, renamed.path);
-  const alias = renameAlias(source, renamed.path);
+  const alias = args.alias === false ? null : renameAlias(source, renamed.path);
 
   const edits = await knowledge.renameEdits({ aliasEntries, allFiles, docs, idEntries, moves });
   const rewritten: string[] = [];

@@ -29,6 +29,7 @@
     "./items/item-url": "./src/items/item-url.ts",
     "./items/library-index": "./src/items/library-index.ts",
     "./knowledge/asset-name": "./src/knowledge/asset-name.ts",
+    "./knowledge/attachment-removal": "./src/knowledge/attachment-removal.ts",
     "./knowledge/default-limits": "./src/knowledge/default-limits.ts",
     "./knowledge/doc-file": "./src/knowledge/doc-file.ts",
     "./knowledge/knowledge-index": "./src/knowledge/knowledge-index.ts",

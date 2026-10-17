@@ -27,10 +27,13 @@ import { createFoldersService } from "./folders/folders-service";
 import type { FoldersService } from "./folders/folders-service";
 import { FoldersStore } from "./folders/folders-store";
 import { createImportService } from "./imports/import-service";
+import type { CapturePorts } from "./items/capture/capture-ports";
 import { createItemsService } from "./items/items-service";
+import type { ItemsService } from "./items/items-service";
 import { createKnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import type { KnowledgeRuntime, KnowledgeRuntimeArgs } from "./knowledge/knowledge-runtime";
 import { createProjectionWorker } from "./knowledge/projector";
+import { createImageDownscale } from "./media/image-downscale";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { renameTagAcrossVault } from "./knowledge/rename-tag";
 import { openDatabase } from "./open-database";
@@ -57,6 +60,8 @@ interface ComposeDriverDeps {
   folders: FoldersService;
   agentPrefs: AgentPrefsStore;
   sink: ProviderEventSink;
+  // the scripted driver's save, run inside its turn as an agent's shell would run `inteligir save`
+  items: Pick<ItemsService, "saveLink" | "saveFile">;
 }
 
 export interface ComposePorts {
@@ -67,6 +72,8 @@ export interface ComposePorts {
   // what this device is called before any sign-in names it; unset, the machine's own name.
   machineName?: string;
   vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "git" | "remote">>;
+  // a suite's fetcher, lookup and clock for the capture; passed through untouched
+  items?: CapturePorts;
 }
 
 export interface ComposeRuntimeArgs {
@@ -93,6 +100,8 @@ export interface ComposedRuntime {
   // each step is added as its resource comes up, so a boot that throws (EADDRINUSE
   // with the watcher forked and the db open) is still torn down by the caller.
   teardown: ShutdownStep[];
+  // serve.ts calls it once the port is bound: a fill refuses this server's own address
+  setOwnPort: (port: number) => void;
 }
 
 export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<ComposedRuntime> => {
@@ -166,12 +175,49 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   });
   knowledgeRef = knowledge;
 
-  const items = createItemsService();
+  const annotations = createAnnotationsService({
+    knowledge,
+    now: () => Math.floor(Date.now() / 1000),
+    service: vault.service,
+  });
+  const downscale = createImageDownscale({ platform: process.platform });
+  // unset until serve.ts has bound the port, and a booted suite's app is never bound
+  let ownPortRef: number | null = null;
+  // before the agent driver, which the scripted one takes
+  const items = createItemsService({
+    annotations,
+    dataDir: config.dataDir,
+    db,
+    debugLog: debugLog(config.debug, "items"),
+    downscale,
+    git: vault.git,
+    knowledge,
+    newId: () => crypto.randomUUID(),
+    now: () => new Date(),
+    ownPort: () => ownPortRef,
+    ports: ports.items,
+    prefs: vaultPrefs,
+    renameNote: async (from, to) =>
+      await renameNoteWithLinkRewrite({
+        alias: false,
+        from,
+        knowledge,
+        service: vault.service,
+        to,
+      }),
+    service: vault.service,
+    version: args.version,
+  });
   addTeardownStep(teardown, "items", async () => {
     await items.dispose();
   });
   const imports = createImportService({
+    annotations,
+    core: items.core,
     dataDir: config.dataDir,
+    git: vault.git,
+    items,
+    knowledge,
     newId: () => crypto.randomUUID(),
     notify: () => {
       bus.notifyVault(["import-changed"]);
@@ -249,6 +295,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     config,
     db,
     folders,
+    items,
     sink: threads,
     vault,
   });
@@ -277,8 +324,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     console.warn(`[items] boot skipped: ${messageOf(error)}`);
   }
 
-  const annotations = createAnnotationsService(vault.service, () => Math.floor(Date.now() / 1000));
-
   // last, once every service it announces through exists; the bus has no clients before a socket is injected.
   cloud.start();
 
@@ -289,6 +334,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     cloud,
     cloudPrefs,
     connectors,
+    downscale,
     folders,
     imports,
     items,
@@ -324,5 +370,14 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     vaultPrefs,
   };
 
-  return { bus, context, db, externalSync, teardown };
+  return {
+    bus,
+    context,
+    db,
+    externalSync,
+    setOwnPort: (port) => {
+      ownPortRef = port;
+    },
+    teardown,
+  };
 };

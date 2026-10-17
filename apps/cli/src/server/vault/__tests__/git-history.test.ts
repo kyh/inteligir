@@ -16,7 +16,9 @@ import {
   cachedDeletionLog,
   parseDeletionLog,
   parseFollowLog,
+  readCreatorOf,
   readDeletedNotes,
+  readIsTracked,
   readNoteHistory,
   readNoteRevision,
   readTurnCommits,
@@ -223,6 +225,50 @@ describe("readNoteHistory", () => {
   it("answers an empty page for a path git has never seen", async () => {
     const { run } = await makeVault();
     expect(await readNoteHistory(run, "Never.md", { limit: 50, skip: 0 })).toEqual([]);
+  });
+});
+
+describe("who added a path, and whether git holds it", () => {
+  it("answers untracked and no creator until a commit adds the path, read literally", async () => {
+    const { root, run, runAs, commit } = await makeVault();
+    await writeFile(nodePath.join(root, "[x].md"), "stub\n", "utf-8");
+    await writeFile(nodePath.join(root, "x.md"), "other\n", "utf-8");
+    expect(await readIsTracked(run, "[x].md")).toBe(false);
+    expect(await readCreatorOf(run, "[x].md")).toBeNull();
+
+    await run(["add", "--", "x.md"]);
+    await runAs(["commit", "-m", "vault: update x.md"]);
+    // a glob would answer for x.md
+    expect(await readIsTracked(run, "[x].md")).toBe(false);
+    expect(await readCreatorOf(run, "[x].md")).toBeNull();
+
+    await commit("vault: update [x].md");
+    expect(await readIsTracked(run, "[x].md")).toBe(true);
+    expect(await readCreatorOf(run, "[x].md")).toBe("device");
+  });
+
+  it("names the phone when the Worker committed the add, whatever later edits it", async () => {
+    const { root, run, commit } = await makeVault();
+    await writeFile(nodePath.join(root, "Shared.md"), "from the phone\n", "utf-8");
+    await run(["add", "-A"]);
+    await git.run(root, ["commit", "-m", vaultCommitSubject(["Shared.md"])], {
+      env: {
+        GIT_AUTHOR_EMAIL: deviceCommitEmail("dev_1"),
+        GIT_AUTHOR_NAME: "Kai's iPhone",
+        GIT_COMMITTER_EMAIL: WORKER_COMMITTER_EMAIL,
+        GIT_COMMITTER_NAME: "Kai's iPhone",
+      },
+    });
+    await writeFile(nodePath.join(root, "Shared.md"), "filled on a Mac\n", "utf-8");
+    await commit("vault: update Shared.md");
+    expect(await readCreatorOf(run, "Shared.md")).toBe("phone");
+  });
+
+  it("answers untracked with no repo at all", async () => {
+    const root = makeTempDir("inteligir-no-repo-");
+    const run = async (args: readonly string[]) => await git.run(root, args);
+    expect(await readIsTracked(run, "a.md")).toBe(false);
+    expect(await readCreatorOf(run, "a.md")).toBeNull();
   });
 });
 
