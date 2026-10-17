@@ -22,24 +22,36 @@ describe("embeds and links, spelled as the editor writes them", () => {
 describe("bodyOf and withBody", () => {
   it.each([
     ["---\nid: x\n---\nhi\n", "hi\n"],
+    ["---\nid: x\n---\n\nhi\n", "hi\n"],
+    ["---\nid: x\n---\n\n\nhi\n", "\nhi\n"],
     ["---\nid: x\n---\n", ""],
     ["---\nid: x\n---", ""],
     ["plain\n", "plain\n"],
     ["﻿plain", "plain"],
     ["﻿---\r\nid: x\r\n---\r\nbody\r\n", "body\r\n"],
+    ["﻿---\r\nid: x\r\n---\r\n\r\nbody\r\n", "body\r\n"],
   ])("bodyOf(%j)", (content, expected) => {
     expect(bodyOf(content)).toBe(expected);
   });
 
   it.each([
-    ["---\nid: x\n---\nold\n", "new\n", "---\nid: x\n---\nnew\n"],
+    ["---\nid: x\n---\nold\n", "new\n", "---\nid: x\n---\n\nnew\n"],
+    ["---\nid: x\n---\n\nold\n", "new\n", "---\nid: x\n---\n\nnew\n"],
     ["---\nid: x\n---\nold\n", "", "---\nid: x\n---\n"],
-    ["---\nid: x\n---", "new\n", "---\nid: x\n---\nnew\n"],
+    ["---\nid: x\n---", "new\n", "---\nid: x\n---\n\nnew\n"],
     ["old", "new", "new"],
     ["﻿old", "new", "﻿new"],
-    ["﻿---\r\nid: x\r\n---\r\nold\r\n", "new\r\n", "﻿---\r\nid: x\r\n---\r\nnew\r\n"],
+    ["﻿---\r\nid: x\r\n---\r\nold\r\n", "new\r\n", "﻿---\r\nid: x\r\n---\r\n\r\nnew\r\n"],
   ])("withBody(%j, %j)", (content, body, expected) => {
     expect(withBody(content, body)).toBe(expected);
+  });
+
+  it("reads back the body it wrote, under a block or none", () => {
+    for (const content of ["---\nid: x\n---\nold\n", "old\n", "---\nid: x\n---"]) {
+      for (const body of ["new\n", "a\n\nb\n", ""]) {
+        expect(bodyOf(withBody(content, body))).toBe(body);
+      }
+    }
   });
 });
 

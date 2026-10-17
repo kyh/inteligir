@@ -77,7 +77,7 @@ describe("the exact bytes of §1.4", () => {
 
   it("a phone stub with a note, its tracking parameters dropped", () => {
     expect(phoneStub).toBe(
-      "---\nid: 7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17\nkind: link\nurl: https://stephango.com/file-over-app\nsaved: 2026-10-17T09:12:30Z\n---\nFor Tuesday.\n",
+      "---\nid: 7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17\nkind: link\nurl: https://stephango.com/file-over-app\nsaved: 2026-10-17T09:12:30Z\n---\n\nFor Tuesday.\n",
     );
   });
 
@@ -112,6 +112,7 @@ describe("the exact bytes of §1.4", () => {
         "fetched: 2026-10-17T09:12:33Z",
         "description: If you want to create digital artifacts that last, they must be files you can control, in formats that are easy to retrieve and read.",
         "---",
+        "",
         "![](assets/covers/3f9a0c2b1d4e5f60.jpg)",
         "",
         "For Tuesday.",
@@ -154,14 +155,16 @@ describe("the exact bytes of §1.4", () => {
         { id: "i", kind: "image", saved: "2026-10-17T09:12:30Z" },
         `${embedMarkdown("assets/IMG_2041.png")}\n`,
       ),
-    ).toBe("---\nid: i\nkind: image\nsaved: 2026-10-17T09:12:30Z\n---\n![](assets/IMG_2041.png)\n");
+    ).toBe(
+      "---\nid: i\nkind: image\nsaved: 2026-10-17T09:12:30Z\n---\n\n![](assets/IMG_2041.png)\n",
+    );
     expect(
       composeItemFile(
         { id: "i", kind: "pdf", saved: "2026-10-17T09:12:30Z" },
         `${embedMarkdown("assets/Lecture notes.pdf")}\n`,
       ),
     ).toBe(
-      "---\nid: i\nkind: pdf\nsaved: 2026-10-17T09:12:30Z\n---\n![](<assets/Lecture notes.pdf>)\n",
+      "---\nid: i\nkind: pdf\nsaved: 2026-10-17T09:12:30Z\n---\n\n![](<assets/Lecture notes.pdf>)\n",
     );
   });
 });
@@ -183,7 +186,7 @@ describe("composeItemFile", () => {
         "body\n",
       ),
     ).toBe(
-      "---\nid: i\nkind: link\nurl: https://a.com/\nsaved: 2026-10-17T09:12:30Z\ndescription: One line.\ntags:\n  - reading\n  - a/b\npinned: true\n---\nbody\n",
+      "---\nid: i\nkind: link\nurl: https://a.com/\nsaved: 2026-10-17T09:12:30Z\ndescription: One line.\ntags:\n  - reading\n  - a/b\npinned: true\n---\n\nbody\n",
     );
   });
 

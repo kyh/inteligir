@@ -165,7 +165,7 @@ describe("a saved file", () => {
     const wrapper = onDisk(harness, saved.path);
     expect(wrapper).toContain("kind: pdf\nurl: https://example.com/report.pdf\n");
     expect(wrapper).toContain("tags:\n  - work\n");
-    expect(wrapper.endsWith("---\n![](<assets/Annual report.pdf>)\n")).toBe(true);
+    expect(wrapper.endsWith("---\n\n![](<assets/Annual report.pdf>)\n")).toBe(true);
     expect(readFileSync(nodePath.join(harness.vaultDir, "assets", "Annual report.pdf"))).toEqual(
       Buffer.from([37, 80, 68, 70]),
     );

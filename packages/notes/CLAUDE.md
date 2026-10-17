@@ -23,7 +23,10 @@ node is rather than discriminating structurally at each visit.
   (`withItemFields` in `@repo/notes/items/item-frontmatter`, over
   `replaceTopLevelKey`) that leaves every other byte of the block alone and
   puts an added key in its compose position, so two Macs filling one stub
-  write the same bytes. There is no `title:` key: the filename is the title,
+  write the same bytes. A body sits one blank line under the block, the
+  editor's own spelling (`composeItemFile`, and `withBody` in
+  `@repo/notes/items/item-body`), so every item a writer makes is the editor's
+  fixpoint and opens rich (`packages/editor/src/__tests__/item-embed-spelling.test.ts`). There is no `title:` key: the filename is the title,
   and a page's title becomes one through `itemNameFromTitle`
   (`@repo/notes/items/item-name`). A stub is an app-made url item whose page
   is unread, which needs the `id` and `saved` every writer stamps

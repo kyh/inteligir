@@ -29,14 +29,26 @@ export const linkMarkdown = (text: string, path: string): string =>
 const bodyStart = (content: string): number =>
   frontmatterEnd(content) ?? (content.startsWith(BOM) ? BOM.length : 0);
 
-// the text after the frontmatter block; "" when there is none
-export const bodyOf = (content: string): string => content.slice(bodyStart(content));
+// the editor writes one blank line between a frontmatter block and the body after it
+// (packages/editor's canonical/frontmatter-*.md fixtures), so a writer does too and a reader
+// takes it as the block's, never the body's
+const SEPARATING_LINE = /^\r?\n/u;
 
-// the frontmatter's bytes kept exactly and the body replaced; an empty body leaves the block alone
+// the text after the frontmatter block and the blank line under it; "" when there is none
+export const bodyOf = (content: string): string => {
+  const body = content.slice(bodyStart(content));
+  return frontmatterEnd(content) === null ? body : body.replace(SEPARATING_LINE, "");
+};
+
+// the frontmatter's bytes kept exactly and the body (as bodyOf answers it) replaced, one blank line
+// under the block as the editor writes it; an empty body leaves the block alone
 export const withBody = (content: string, body: string): string => {
   const head = content.slice(0, bodyStart(content));
-  const needsBreak = body !== "" && head !== "" && !head.endsWith("\n") && head !== BOM;
-  return `${head}${needsBreak ? "\n" : ""}${body}`;
+  if (body === "" || frontmatterEnd(content) === null) {
+    return `${head}${body}`;
+  }
+  const eol = head.endsWith("\r\n") ? "\r\n" : "\n";
+  return `${head.endsWith("\n") ? head : `${head}${eol}`}${eol}${body}`;
 };
 
 const COPY_LINK_TEXT = "Copy of the page";

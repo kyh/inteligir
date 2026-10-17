@@ -183,7 +183,8 @@ const keyLine = (key: string, value: string): string => `${key}: ${scalar(value)
 const writtenValue = (key: ItemKey, value: string | null | undefined): string | null =>
   value === undefined || value === null || (key === "kind" && value === "note") ? null : value;
 
-// `id`, then ITEM_KEYS in order, then `tags` as a block list, then `pinned`; absent values skipped
+// `id`, then ITEM_KEYS in order, then `tags` as a block list, then `pinned`; absent values
+// skipped, and a body below a blank line
 export type ItemFileFields = ItemFieldPatch & {
   id?: string;
   tags?: readonly string[];
@@ -208,7 +209,11 @@ export const composeItemFile = (fields: ItemFileFields, body: string): string =>
   if (fields.pinned === true) {
     lines.push(`${PINNED_KEY}: true`);
   }
-  return lines.length === 0 ? body : `---\n${lines.join("\n")}\n---\n${body}`;
+  if (lines.length === 0) {
+    return body;
+  }
+  // one blank line under the block, as the editor writes it, so the item is its own fixpoint
+  return `---\n${lines.join("\n")}\n---\n${body === "" ? "" : "\n"}${body}`;
 };
 
 export type WithItemFieldsVerdict =
