@@ -18,3 +18,27 @@ dials `com.inteligir.desktop.dev` and carries the committed key and the
 loopback hosts, `--mode store` dials `com.inteligir.desktop`.
 `pnpm package:extension` writes the Web Store zip and the unpacked store build
 under `.output/`.
+
+## The pieces
+
+```
+src/manifest.ts              the MV3 manifest, one function of the build's flavor
+src/background/background.ts the service worker: the menus, the pages' requests, the badge
+src/background/ask-host.ts   one connectNative per request, Chrome's errors as reasons
+src/background/save-tab.ts   a tab's capture, and the save it asks for
+src/background/menus.ts      what each right-click item saves
+src/capture/                 the script executeScript injects: the rendered DOM, cloned
+src/popup/                   the toolbar's popup: the save, Keep a copy of the page, Open Inteligir
+src/welcome/                 the page an install opens: which library it reached
+src/messages.ts              what the pages ask the worker, and its answers
+src/outcome-copy.ts          every sentence the popup, the welcome page and the badge say
+```
+
+The pages ask the worker, the worker asks the host, and the host asks the app:
+the wire to the host is `@repo/contract/browser`, versioned on its own, and the
+extension imports nothing else of the contract but the production origin its
+download link names. `pnpm dev:extension` (`docs/development.md` § Browser
+extension) writes this checkout's door and rebuilds `dist/` on every change;
+`pnpm --filter @repo/extension test` runs the suites under jsdom, the pages
+compiled as they ship, and `pnpm e2e --only browser-extension` loads the dev
+build in a real Chromium against a running app.
