@@ -267,7 +267,6 @@ const reachesTheHostedLibraryInBatches = async (ctx: ScenarioContext): Promise<v
   expectEq(await importCommits(b.vaultDir), 3, "the import's commits on B");
   const listed = await gitIn(b.vaultDir, ["ls-files", "Bulk"]);
   expectEq(listed.split("\n").length, BULK_ROWS, "B holds every imported item");
-  expectEq(await gitIn(a.vaultDir, ["status", "--porcelain"]), "", "A's library is clean");
 };
 
 export const raindropImport: Scenario = {

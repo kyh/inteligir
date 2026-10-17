@@ -8,6 +8,7 @@
 // strong or emphasis run, inline code, an html tag, a wiki link) is atomic: an edge inside it
 // widens to its edge. Code, math and frontmatter are not text.
 
+import { z } from "zod";
 import { ANNOTATION_ID_PATTERN } from "@repo/notes/annotations/store-schema";
 import { MD_PROCESSOR } from "@repo/notes/markdown/md-plugins";
 import {
@@ -27,8 +28,15 @@ interface MdNode {
   value?: string;
   body?: string;
   depth?: number;
-  data?: { escapes?: readonly number[] } | undefined;
+  // unknown: each node kind's data has its own shape, read through TEXT_DATA
+  data?: unknown;
 }
+
+// a text node's data: which characters of its value a backslash escape wrote
+// (`@repo/notes/markdown/text-escapes`)
+const TEXT_DATA = z.object({ escapes: z.array(z.number().int()).optional() });
+const escapesOf = (node: MdNode): Set<number> =>
+  new Set(TEXT_DATA.safeParse(node.data).data?.escapes);
 
 // the dialect's own spellings, matched in a text's value as its transform matches them
 const MARKER_RE = new RegExp(
@@ -64,7 +72,7 @@ const SILENT_INLINES = new Set([
   "definition",
 ]);
 
-export interface MarkerSpan {
+interface MarkerSpan {
   // indexes into the projection's text: the first start marker, the last end marker
   start: number | null;
   end: number | null;
@@ -93,7 +101,7 @@ export interface PassageProjection {
   markerSpans: readonly MarkerBytes[];
 }
 
-export interface MarkerBytes {
+interface MarkerBytes {
   start: number;
   end: number;
   ids: string;
@@ -390,7 +398,7 @@ const pushAtomic = (
       noteMarkerBytes(builder, own);
     }
     const value = node.value ?? "";
-    for (const segment of segmentsOf(value, new Set(node.data?.escapes), inLink)) {
+    for (const segment of segmentsOf(value, escapesOf(node), inLink)) {
       if (segment.kind === "marker") {
         mark(builder, segment.ids, segment.edge);
         continue;
@@ -502,7 +510,7 @@ const textContext = (
   const value = node.value ?? "";
   return {
     aligned,
-    escapes: new Set(node.data?.escapes),
+    escapes: escapesOf(node),
     structural: structuralIndexes(value, builder.source, start, builder.leads.get(node) ?? 0),
     value,
   };
