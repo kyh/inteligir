@@ -24,8 +24,6 @@ import {
   knowledgeRenameTagResponseSchema,
   knowledgeSearchRequestSchema,
   knowledgeSearchResponseSchema,
-  knowledgeTagNotesRequestSchema,
-  knowledgeTagNotesResponseSchema,
   knowledgeTagsResponseSchema,
   knowledgeWikiTargetsResponseSchema,
 } from "./knowledge-schema";
@@ -40,8 +38,6 @@ export const knowledgeContract = {
   renameTag: oc.input(knowledgeRenameTagRequestSchema).output(knowledgeRenameTagResponseSchema),
 
   search: oc.input(knowledgeSearchRequestSchema).output(knowledgeSearchResponseSchema),
-
-  tagNotes: oc.input(knowledgeTagNotesRequestSchema).output(knowledgeTagNotesResponseSchema),
 
   tags: oc.output(knowledgeTagsResponseSchema),
 

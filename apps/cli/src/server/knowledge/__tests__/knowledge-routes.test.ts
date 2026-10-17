@@ -8,7 +8,6 @@ import {
   knowledgeScopesResponseSchema,
   knowledgeRelatedResponseSchema,
   knowledgeSearchResponseSchema,
-  knowledgeTagNotesResponseSchema,
   knowledgeTagsResponseSchema,
 } from "@repo/contract/local/knowledge/knowledge-schema";
 import { describe, expect, it } from "vitest";
@@ -67,15 +66,16 @@ describe("the knowledge routes", () => {
       path: "c.md",
     });
 
-    const whole = knowledgeTagNotesResponseSchema.parse(
-      await client.knowledge.tagNotes({ tag: "work" }),
-    );
-    expect(whole).toEqual({ paths: ["a.md", "b.md"], tag: "work", total: 2 });
+    const whole = await client.knowledge.itemPaths({ sort: "title", tag: "work" });
+    expect(whole).toEqual({ paths: ["a.md", "b.md"], total: 2 });
 
-    const page = knowledgeTagNotesResponseSchema.parse(
-      await client.knowledge.tagNotes({ limit: 1, offset: 1, tag: "work" }),
-    );
-    expect(page).toEqual({ paths: ["b.md"], tag: "work", total: 2 });
+    const page = await client.knowledge.itemPaths({
+      limit: 1,
+      offset: 1,
+      sort: "title",
+      tag: "work",
+    });
+    expect(page).toEqual({ paths: ["b.md"], total: 2 });
   });
 
   it("ranks related notes with the reasons they are related", async () => {

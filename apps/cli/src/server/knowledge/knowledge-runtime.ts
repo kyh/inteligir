@@ -82,12 +82,6 @@ export interface KnowledgeRuntime {
   pathForNoteId: (id: string, lastPath: string) => Promise<string | null>;
   relatedNotes: (path: string, limit: number) => Promise<RelatedNoteEntry[]>;
   tags: () => Promise<TagCount[]>;
-  // the tag's family by path: a page of it and the whole count
-  tagNotes: (
-    tag: string,
-    limit: number,
-    offset: number,
-  ) => Promise<{ paths: string[]; total: number }>;
   // pre-move path to post-move path: one entry for a note, one per file under a folder
   renameCandidates: (moves: ReadonlyMap<string, string>) => Promise<string[]>;
   // every doc holding the tag or one nested under it, computed with no reads
@@ -362,12 +356,6 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     },
 
     settle,
-
-    async tagNotes(tag, limit, offset) {
-      await settle();
-      const all = notesInTagFamily(graph, tag);
-      return { paths: all.slice(offset, offset + limit), total: all.length };
-    },
 
     async tagRenameCandidates(from) {
       await settle();
