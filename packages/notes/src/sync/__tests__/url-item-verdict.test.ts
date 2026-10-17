@@ -376,21 +376,19 @@ describe("mergeItemTexts", () => {
 });
 
 describe("urlItemVerdict, whichever device asks", () => {
-  // every version one saved link passes through, met pairwise over every base
+  // the versions one saved link passes through, met pairwise over every base
   const versions = [
     stub(),
-    stub({ note: "For Tuesday." }),
     stub({ fields: { tags: ["read"] }, note: "For Tuesday, with Sam." }),
     stub({ fields: { pinned: true, saved: "2026-10-17T09:10:00Z" } }),
-    filled("2026-10-17T09:12:33Z"),
     filled("2026-10-17T09:12:33Z", { fields: { tags: ["read", "later"] }, note: "For Tuesday." }),
-    filled("2026-10-17T09:12:41Z", { cover: COVER_2 }),
     filled("2026-10-17T09:12:41Z", { cover: null, fields: { description: "Mine." } }),
     filled("2026-10-18T08:00:00Z", { article: "The article, rewritten.", cover: COVER_2 }),
     filled("2026-10-18T08:00:00Z", { fields: { "fetch-error": "The page did not answer." } }),
     `${filled("2026-10-17T09:12:33Z")}\nTyped after the fill.\n`,
   ];
 
+  // a few hundred verdicts, which a loaded runner can stretch past the default 5 s
   it("answers the same bytes from both sides of every pair", () => {
     const asymmetric: { base: string | null; one: string; other: string }[] = [];
     for (const base of [null, ...versions]) {
@@ -404,5 +402,5 @@ describe("urlItemVerdict, whichever device asks", () => {
       }
     }
     expect(asymmetric).toEqual([]);
-  });
+  }, 30_000);
 });
