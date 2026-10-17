@@ -7,6 +7,8 @@ import path from "node:path";
 import { createCloudClient } from "@repo/contract/cloud/client";
 import type { CloudFetch } from "@repo/contract/cloud/client";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
+import { libraryCards } from "@repo/mobile/library/library-view";
+import type { LibraryCard } from "@repo/mobile/library/library-view";
 import { composeRuntime } from "@repo/mobile/lib/compose-runtime";
 import type { AppRuntime } from "@repo/mobile/lib/compose-runtime";
 import { openNodeSqlDriver } from "@repo/mobile/lib/node-sql-driver";
@@ -126,3 +128,11 @@ export const readPhoneNote = async (phone: AppRuntime, notePath: string): Promis
   expect(read.ok, `the phone reads ${notePath}: ${read.ok ? "" : read.message}`);
   return read.content;
 };
+
+// the card the phone's Library draws for one item, as its All view lists it
+export const cardAt = (phone: AppRuntime, wanted: string): LibraryCard | undefined =>
+  libraryCards(phone.notes.heldFiles(), {
+    kinds: new Set(),
+    query: "",
+    scope: { kind: "all" },
+  }).find((card) => card.path === wanted);

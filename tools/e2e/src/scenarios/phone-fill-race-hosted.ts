@@ -5,7 +5,7 @@ import { expect, expectEq } from "../harness/assert";
 import { signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { gitIn } from "../harness/exec";
-import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
+import { conflictCopies, hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
 import { drained, phoneRuntime, readPhoneNote, untilMirrored } from "../harness/phone-runtime";
 import { reserveFreePorts } from "../harness/ports";
 import type { Scenario } from "../harness/scenario";
@@ -51,14 +51,6 @@ const fillOn = async (mac: AppInstance, stub: string, fetched: string, seed: num
   const filled = fillOf(stub, fetched, cover.path);
   await mac.api.vault.write({ content: filled, guard: { kind: "overwrite" }, path: ITEM });
   return { cover: cover.path, filled };
-};
-
-const conflictCopies = async (mac: AppInstance): Promise<string> => {
-  const tracked = await gitIn(mac.vaultDir, ["ls-files"]);
-  return tracked
-    .split("\n")
-    .filter((file) => file.includes("(conflict,"))
-    .join(", ");
 };
 
 export const phoneFillRaceHosted: Scenario = {

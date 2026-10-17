@@ -1,14 +1,17 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { libraryCards } from "@repo/mobile/library/library-view";
-import type { LibraryCard } from "@repo/mobile/library/library-view";
-import type { AppRuntime } from "@repo/mobile/lib/compose-runtime";
 import { expect, expectEq } from "../harness/assert";
 import { signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { gitIn } from "../harness/exec";
 import { hostedVaultEnv, signInOwner, syncUntil } from "../harness/hosted-vault";
-import { drained, phoneRuntime, readPhoneNote, untilMirrored } from "../harness/phone-runtime";
+import {
+  cardAt,
+  drained,
+  phoneRuntime,
+  readPhoneNote,
+  untilMirrored,
+} from "../harness/phone-runtime";
 import { pollUntil } from "../harness/poll";
 import { reserveFreePorts } from "../harness/ports";
 import type { Scenario } from "../harness/scenario";
@@ -32,13 +35,6 @@ const coverBytes = (): Uint8Array =>
     0xff,
     0xd9,
   ]);
-
-const cardAt = (phone: AppRuntime, wanted: string): LibraryCard | undefined =>
-  libraryCards(phone.notes.heldFiles(), {
-    kinds: new Set(),
-    query: "",
-    scope: { kind: "all" },
-  }).find((card) => card.path === wanted);
 
 // the stub's frontmatter, key by key, as the phone wrote it: one plain value per line
 const keysOf = (text: string): Map<string, string> => {

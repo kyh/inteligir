@@ -103,8 +103,12 @@ workspace and Settings selectors (`selectors.ts`); `gitIn` and `readOrNull`
 (`agent-shell-cli.ts`); the account's sign-up and device routes against a dev
 Worker (`cloud-account.ts`); `NO_AUTO_SYNC` and the one strict sync pass,
 `syncExpectClean` (`vault-sync.ts`); the owner's sign-in and a signed-in
-instance's explicit sync against the hosted vault (`hosted-vault.ts`); and the
-phone's own runtime, logged in as `PHONE_NAME` (`phone-runtime.ts`).
+instance's explicit sync against the hosted vault (`hosted-vault.ts`); the
+phone's own runtime, logged in as `PHONE_NAME` (`phone-runtime.ts`); the page
+server a save's fetch may read, on this machine's own network address
+(`lan-fixture.ts`); the browser extension's door and its worker's save
+(`native-host-fixture.ts`); and the PNG reader for what a frame or a thumbnail
+draws (`png-pixels.ts`).
 
 ## Adding a scenario
 
@@ -174,6 +178,14 @@ display passes as skipped scenarios behind a green step. So a run whose
 environment was provisioned passes `--no-skip`, and every skip, the browser's
 and the display's alike, becomes a FAIL carrying the reason it would have
 skipped with.
+
+A scenario whose save must read a page serves it from `lan-fixture.ts`, on the
+first address of this machine that the guarded fetch reads from (private or
+public space, by the guard's own `classifyAddress`); a machine with none, such
+as a sandbox whose only address is in reserved space, skips that scenario at
+the fixture's start with "no usable LAN address". It is the one way such a
+scenario skips, and the guard is never widened for it: a CI runner's private
+address runs them all.
 
 The runner's suite-start build is what stages `apps/cli/dist/ui`; the harness
 still refuses to boot without it, because a server with no workspace UI

@@ -10,6 +10,9 @@ import {
   EXTENSION_ID,
   EXTENSION_ORIGIN,
 } from "@repo/contract/browser/extension-identity";
+import { z } from "zod";
+import { parseEval } from "./agent-browser";
+import type { AgentBrowser } from "./agent-browser";
 
 export interface NativeHostFixture {
   // what the scenario's browser launches with on every call: the profile and the dev build
@@ -70,3 +73,47 @@ export const installNativeHostFixture = async (
     ],
   };
 };
+
+// what the extension's pages hear from its worker (apps/extension/src/messages.ts)
+const extensionOutcomeSchema = z.discriminatedUnion("kind", [
+  z.object({ created: z.boolean(), kind: z.literal("saved"), path: z.string(), title: z.string() }),
+  z.object({ appVersion: z.string(), kind: z.literal("hello"), library: z.string() }),
+  z.object({ kind: z.literal("opened") }),
+  z.object({ detail: z.string(), kind: z.literal("refused"), reason: z.string() }),
+  // the eval's own answer when the article's tab is not open
+  z.object({ kind: z.literal("no-tab") }),
+]);
+export type ExtensionOutcome = z.infer<typeof extensionOutcomeSchema>;
+
+// from an extension page, as the popup asks: the worker captures the page's tab (the one loopback
+// tab, which the dev build may script without a click) and asks the host. `select` first selects
+// the element of that id in the tab, as a person would before saving
+export const saveFromWorker = async (
+  browser: AgentBrowser,
+  select: string | null,
+): Promise<ExtensionOutcome> =>
+  parseEval(
+    await browser(
+      [
+        "eval",
+        `(async () => {
+          const [tab] = await chrome.tabs.query({ url: "http://127.0.0.1/*" });
+          if (tab === undefined) return JSON.stringify({ kind: "no-tab" });
+          const select = ${JSON.stringify(select)};
+          if (select !== null) {
+            await chrome.scripting.executeScript({
+              args: [select],
+              func: (id) => {
+                const node = document.getElementById(id);
+                if (node !== null) window.getSelection()?.selectAllChildren(node);
+              },
+              target: { tabId: tab.id },
+            });
+          }
+          return JSON.stringify(await chrome.runtime.sendMessage({ tabId: tab.id, type: "save" }));
+        })()`,
+      ],
+      90_000,
+    ),
+    extensionOutcomeSchema,
+  );

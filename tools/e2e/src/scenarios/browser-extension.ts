@@ -10,10 +10,9 @@ import type { Server } from "node:http";
 import { once } from "node:events";
 import path from "node:path";
 import { z } from "zod";
-import { parseEval, untilBodyHolds } from "../harness/agent-browser";
-import type { AgentBrowser } from "../harness/agent-browser";
+import { untilBodyHolds } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
-import { installNativeHostFixture } from "../harness/native-host-fixture";
+import { installNativeHostFixture, saveFromWorker } from "../harness/native-host-fixture";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 
@@ -34,17 +33,6 @@ const ARTICLE = [
   "</article></body></html>",
 ].join("\n");
 
-// what the extension's pages hear from its worker (apps/extension/src/messages.ts)
-const outcomeSchema = z.discriminatedUnion("kind", [
-  z.object({ created: z.boolean(), kind: z.literal("saved"), path: z.string(), title: z.string() }),
-  z.object({ appVersion: z.string(), kind: z.literal("hello"), library: z.string() }),
-  z.object({ kind: z.literal("opened") }),
-  z.object({ detail: z.string(), kind: z.literal("refused"), reason: z.string() }),
-  // the eval's own answer when the article's tab is not open
-  z.object({ kind: z.literal("no-tab") }),
-]);
-type Outcome = z.infer<typeof outcomeSchema>;
-
 const boundAddressSchema = z.object({ port: z.number().int() });
 
 const startArticleServer = async (): Promise<{ server: Server; url: string }> => {
@@ -62,35 +50,6 @@ const startArticleServer = async (): Promise<{ server: Server; url: string }> =>
   const { port } = boundAddressSchema.parse(server.address());
   return { server, url: `http://127.0.0.1:${String(port)}${ARTICLE_PATH}` };
 };
-
-// from an extension page, as the popup asks: the worker captures the article's tab and asks the
-// host. `select` first selects the passage in that tab, as a person would before saving
-const saveFromWorker = async (browser: AgentBrowser, select: string | null): Promise<Outcome> =>
-  parseEval(
-    await browser(
-      [
-        "eval",
-        `(async () => {
-          const [tab] = await chrome.tabs.query({ url: "http://127.0.0.1/*" });
-          if (tab === undefined) return JSON.stringify({ kind: "no-tab" });
-          const select = ${JSON.stringify(select)};
-          if (select !== null) {
-            await chrome.scripting.executeScript({
-              args: [select],
-              func: (id) => {
-                const node = document.getElementById(id);
-                if (node !== null) window.getSelection()?.selectAllChildren(node);
-              },
-              target: { tabId: tab.id },
-            });
-          }
-          return JSON.stringify(await chrome.runtime.sendMessage({ tabId: tab.id, type: "save" }));
-        })()`,
-      ],
-      90_000,
-    ),
-    outcomeSchema,
-  );
 
 export const browserExtension: Scenario = {
   description:
