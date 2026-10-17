@@ -5,7 +5,11 @@ import {
   serializeAnnotationStore,
 } from "../../annotations/store-schema";
 import type { AnnotationEntry, AnnotationStore } from "../../annotations/store-schema";
+import { composeLinkBody } from "../../items/item-body";
+import { composeItemFile } from "../../items/item-frontmatter";
+import type { ItemFileFields } from "../../items/item-frontmatter";
 import { takenIgnoringCase } from "../../knowledge/doc-file";
+import { diff3 } from "../../text/diff3";
 import { reconcileFile } from "../reconcile-file";
 import type { FileSide, ReconcileInput } from "../reconcile-file";
 
@@ -255,5 +259,72 @@ describe("reconcileFile", () => {
         }),
       ).toEqual({ copy: null, report: null, stays: { kind: "mine" } });
     });
+  });
+});
+
+describe("reconcileFile over two versions of one saved link", () => {
+  const url = "https://stephango.com/file-over-app";
+  const fields = (extra: ItemFileFields = {}): ItemFileFields => ({
+    id: "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17",
+    kind: "link",
+    saved: "2026-10-17T09:12:30Z",
+    url,
+    ...extra,
+  });
+  const fill = (fetched: string, cover: string, extra: ItemFileFields = {}): string =>
+    composeItemFile(
+      fields({ fetched, site: "Steph Ango", ...extra }),
+      composeLinkBody({ article: "File over app is a philosophy.", copy: null, cover, note: "" }),
+    );
+  const path = "Unsorted/File over app.md";
+
+  it("settles two Macs' fills of one stub on the earlier one, with no copy where diff3 would make one", () => {
+    const base = composeItemFile(fields(), "");
+    const early = fill("2026-10-17T09:12:33Z", "assets/covers/3f9a0c2b1d4e5f60.jpg");
+    const late = fill("2026-10-17T09:12:41Z", "assets/covers/9c1d0a7b6e5f4c3d.jpg");
+    expect(diff3(base, late, early).conflicted).toBe(true);
+    expect(reconcile({ base: text(base), mine: text(late), path, theirs: text(early) })).toEqual({
+      copy: null,
+      report: null,
+      stays: { kind: "theirs" },
+    });
+    expect(reconcile({ base: text(base), mine: text(early), path, theirs: text(late) })).toEqual({
+      copy: null,
+      report: null,
+      stays: { kind: "mine" },
+    });
+  });
+
+  it("keeps both a refresh and a tag edit that raced it, whichever device asks", () => {
+    const base = fill("2026-10-17T09:12:33Z", "assets/covers/3f9a0c2b1d4e5f60.jpg");
+    const tagged = fill("2026-10-17T09:12:33Z", "assets/covers/3f9a0c2b1d4e5f60.jpg", {
+      tags: ["read"],
+    });
+    const refreshed = fill("2026-10-18T08:00:00Z", "assets/covers/9c1d0a7b6e5f4c3d.jpg");
+    const both = fill("2026-10-18T08:00:00Z", "assets/covers/9c1d0a7b6e5f4c3d.jpg", {
+      tags: ["read"],
+    });
+    for (const [mine, theirs] of [
+      [tagged, refreshed],
+      [refreshed, tagged],
+    ] as const) {
+      expect(reconcile({ base: text(base), mine: text(mine), path, theirs: text(theirs) })).toEqual(
+        { copy: null, report: null, stays: { kind: "merged", text: both } },
+      );
+    }
+  });
+
+  it("leaves a file that is not a doc to the line merge", () => {
+    const base = composeItemFile(fields(), "");
+    const early = fill("2026-10-17T09:12:33Z", "assets/covers/3f9a0c2b1d4e5f60.jpg");
+    const late = fill("2026-10-17T09:12:41Z", "assets/covers/9c1d0a7b6e5f4c3d.jpg");
+    expect(
+      reconcile({
+        base: text(base),
+        mine: text(late),
+        path: "Unsorted/link.yaml",
+        theirs: text(early),
+      }).copy,
+    ).not.toBeNull();
   });
 });

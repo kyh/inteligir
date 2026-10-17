@@ -90,6 +90,30 @@ node is rather than discriminating structurally at each visit.
   comments name, which is two spellings forever.
   `@repo/notes/annotations/store-schema`.
 
+## Sync
+
+- **TWO VERSIONS OF ONE SAVED LINK SETTLE ON ONE TEXT, WHICHEVER DEVICE
+  ASKS.** The verdict looks at a pair only when both read as a url item (or as
+  the image or PDF a fill turned a link into) with one url key, over a base
+  that has that key or none. A side's fill mark is its `fetched` as written.
+  When both changed it, and differently, the winner comes from one total
+  order (a fetched side, then the earlier fetch, then the earlier save, then
+  the smaller text) and the loser's edits since base ride onto it: its tag and
+  alias adds and removes, its own keys through the line cut, the earlier
+  `saved`, its `id` when the winner has none, and an unfetched loser's note
+  where the fill carried the stub's. When one side changed it, the filler's
+  text takes the editor's edits the same way, its body by diff3 or, against a
+  first fill, the editor's note in place of the stub's; only a text-replacing
+  refresh against a person's body edit answers null and falls to the copy.
+  Every rule is phrased by role and every diff3 runs in one orientation, so
+  both askers land the same bytes and no copy is made. One verdict runs in
+  reconcile-file (the desktop's sync merge and the phone's queue) and in the
+  editor's merges (`mergeItemTexts`). Rejected: a Worker lease so only one Mac
+  fills (a new /cloud protocol for what a pure verdict settles), and renaming
+  on fill (git cannot pair the rename with a concurrent phone edit).
+  `@repo/notes/sync/url-item-verdict`,
+  `packages/notes/src/sync/__tests__/url-item-verdict.test.ts`.
+
 ## Knowledge: index, search and links
 
 - **Stemming is a SHADOW of the indexed text, never a rewrite of it.** Literal

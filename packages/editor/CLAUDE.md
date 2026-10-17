@@ -227,7 +227,12 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   it answers one hunk, which diff3 reads as one changed region. Conflicting on
   every over-budget merge is rejected: it would warn when nothing was lost. A
   conflicted merge's toast opens that note's History (owner decision).
-  `@repo/notes/text/line-diff`, `packages/editor/src/vault-editor.ts`.
+  `rebase` and the 409 retry ask `mergeItemTexts` before diff3, so an open
+  item whose page a fill or a Refresh rewrote under the person's typing lands
+  the fill's keys and the typed lines with no overlap said, as the sync and the
+  phone's queue would (`@repo/notes/sync/url-item-verdict`).
+  `@repo/notes/text/line-diff`, `packages/editor/src/vault-editor.ts`,
+  `packages/editor/src/guarded-vault-io.ts`.
 
 - **A RENAME HOLDS THE OPEN NOTE THROUGH THE MOVE, NEVER LETS GO OF IT.** The
   session suspends the note's controller across the move: edits still land in
