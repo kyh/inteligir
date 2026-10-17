@@ -25,6 +25,7 @@ import { AttachmentsRow } from "./attachments-row";
 import { ConnectorsSection } from "./connectors-section";
 import { FilingRulesRow } from "./filing-rules-row";
 import { FoldersSection } from "./folders-section";
+import { BrowserExtensionRow } from "./browser-extension-row";
 import { ImportRow } from "./import-row";
 import { ChoiceRow, Row, SectionHeading } from "./settings-chrome";
 import { SpellcheckRow } from "./spellcheck-row";
@@ -135,6 +136,7 @@ export const SettingsPage = ({ onBack }: { onBack: () => void }) => {
                 </span>
               </Row>
               <AttachmentsRow />
+              <BrowserExtensionRow />
               <ImportRow />
               <VaultsRow />
             </dl>

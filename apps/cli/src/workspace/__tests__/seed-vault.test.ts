@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { EXTENSION_STORE_URL } from "@repo/contract/browser/extension-identity";
 import { analyzeMarkdown, toCanonical } from "@repo/editor/markdown/markdown-doc";
 import { annotationStoreSchema } from "@repo/notes/annotations/store-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
@@ -198,6 +199,13 @@ describe("seed vault", () => {
       return id === null ? [] : [id];
     });
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  // the store's own address, so the id the owner swaps in once the listing is public reaches them
+  it("links the browser extension wherever the starter notes promise it", () => {
+    for (const file of ["Welcome.md", "Guides/Getting Started.md"]) {
+      expect(read(file), file).toContain(`[Inteligir extension](${EXTENSION_STORE_URL})`);
+    }
   });
 
   it("the resolver finds this same directory from the source layout", () => {

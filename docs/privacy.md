@@ -264,10 +264,12 @@ The apps also hold to these, plainly:
   travels wherever your library syncs.
 - **The browser extension.** The Inteligir extension for Chrome, Arc, Brave,
   Edge and Vivaldi reads the page you are on only when you click Save or choose Save from
-  the right-click menu. It hands the page's address, title, text and (when you
-  ask) a copy of the page to the Inteligir app on the same Mac, over the
+  the right-click menu. It hands the page as it is shown (its address, its
+  title and its HTML without its scripts, with the styles it is drawn in when
+  you ask for a copy of the page) to the Inteligir app on the same Mac, over the
   browser's native messaging, and to nothing else. It sends nothing to us or to
-  anyone. It never reads form fields.
+  anyone. Nothing you typed into the page goes with it: form fields and every
+  box you type into, such as an email you are writing, are emptied first.
 - **Sharing from your iPhone.** Sharing a page to Inteligir saves its address,
   its title and any text you shared into your library, like any other edit on
   the phone. The phone fetches nothing from the page; your Mac fills it in.

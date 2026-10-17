@@ -8,7 +8,7 @@ pinned: true
 
 inteligir is one library for everything you save and write: links and articles, pictures, PDFs and other files, and your own notes. Each item is an ordinary file in a folder on this Mac, and all of it belongs to you.
 
-**Save.** Paste a link anywhere in the window, drop links and files onto it, click the Inteligir extension in your browser, or share from your iPhone. Your Mac reads each page's title, picture and text itself, so a save is instant and asks no model.
+**Save.** Paste a link anywhere in the window, drop links and files onto it, click the [Inteligir extension](https://chromewebstore.google.com/detail/biedbnmohmigikheljajjdmhhdgnibom) in your browser, or share from your iPhone. Your Mac reads each page's title, picture and text itself, so a save is instant and asks no model.
 
 **Organize.** New saves wait in **Unsorted**. Move them into folders and tag them, or choose **Tidy my library** and the agent files them for you, following your filing rules. The menu beside it has **Edit filing rules…**, where you write them in your own words.
 

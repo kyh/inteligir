@@ -33,6 +33,10 @@ const PASSAGE = "Plain text has been readable for fifty years.";
 const SECOND_TITLE = "A second page worth keeping";
 const DEADLINE_MS = 30_000;
 const FILL_DEADLINE_MS = 60_000;
+// how long the page may be held from the paste to its release: the auto-commit commits the stub
+// 15 s after its write (AUTO_COMMIT_QUIET_MS) and the fill renames only an untracked stub, so the
+// release leaves the fill 3 s to read the page and rename it before that commit
+const HOLD_BUDGET_MS = 12_000;
 
 const ARTICLE = [
   "<!doctype html>",
@@ -135,24 +139,32 @@ const untilDisk = async (
     describe: (text) => `${what}; ${vaultPath} holds:\n${text}`,
   });
 
-const untilItemParam = async (browser: AgentBrowser, wanted: string): Promise<void> => {
+const untilItemParam = async (
+  browser: AgentBrowser,
+  wanted: string,
+  deadlineMs = FILL_DEADLINE_MS,
+): Promise<void> => {
   await pollUntil(
     async () => await openItemParam(browser),
     (param) => param === wanted,
     {
-      deadlineMs: FILL_DEADLINE_MS,
+      deadlineMs,
       describe: (param) => `the url names ${String(param)}, not ${wanted}`,
     },
   );
 };
 
 // the stub the paste made, by its url: its path is a name the url gave it until the fill renames it
-const pastedStub = async (app: AppInstance, url: string): Promise<string> => {
+const pastedStub = async (
+  app: AppInstance,
+  url: string,
+  deadlineMs = DEADLINE_MS,
+): Promise<string> => {
   const { items } = await pollUntil(
     async () => await app.api.knowledge.findByUrl({ url }),
     (found) => found.items.length === 1,
     {
-      deadlineMs: DEADLINE_MS,
+      deadlineMs,
       describe: (found) => `the pasted link is ${String(found.items.length)} items`,
     },
   );
@@ -161,32 +173,48 @@ const pastedStub = async (app: AppInstance, url: string): Promise<string> => {
   return stub.path;
 };
 
+interface HeldPaste {
+  provisional: string;
+  // when the paste wrote the stub, from which the hold's budget runs
+  pastedAt: number;
+}
+
+// what is left of the hold's budget, or a failure that names the window it guards
+const holdLeft = (pastedAt: number, step: string): number => {
+  const left = HOLD_BUDGET_MS - (Date.now() - pastedAt);
+  expect(
+    left > 0,
+    `the page was held ${String(Date.now() - pastedAt)} ms by ${step}, past the ${String(HOLD_BUDGET_MS)} ms the scenario allows: the auto-commit commits the stub 15 s after the paste, and the fill renames only an untracked stub`,
+  );
+  return left;
+};
+
 const pasteAndOpenWhileHeld = async (
   ctx: ScenarioContext,
   app: AppInstance,
   browser: AgentBrowser,
   lan: LanFixture,
-): Promise<string> => {
+): Promise<HeldPaste> => {
   ctx.log("a link pasted into the library is a pending card, and opens on its placeholder");
   // the page is held until a second request asks for it, which the scenario makes once the item
-  // is open; the hold is a few seconds, well inside the fetch's own deadline and the auto-commit's
-  // quiet window, so the stub is still this Mac's own and untracked when the fill renames it
+  // is open; every step inside the hold waits only what is left of its budget
   lan.gate("/essay", 2);
   await browser(["click", LIBRARY_TITLE]);
+  const pastedAt = Date.now();
   await browser(["eval", pasteScript(lan.url("/essay"))]);
-  const provisional = await pastedStub(app, lan.url("/essay"));
-  await browser(["wait", libraryCard(provisional)], DEADLINE_MS);
+  const provisional = await pastedStub(app, lan.url("/essay"), holdLeft(pastedAt, "the paste"));
+  await browser(["wait", libraryCard(provisional)], holdLeft(pastedAt, "the stub"));
   const cardText = await browser(["get", "text", libraryCard(provisional)]);
   expect(cardText.includes("Filling in…"), `the pasted card is not pending: ${cardText}`);
   await browser(["dblclick", libraryCard(provisional)]);
-  await browser(["wait", '[data-item-stage="pending"]'], DEADLINE_MS);
-  await untilItemParam(browser, provisional);
+  await browser(["wait", '[data-item-stage="pending"]'], holdLeft(pastedAt, "the card"));
+  await untilItemParam(browser, provisional, holdLeft(pastedAt, "the placeholder"));
   expectEq(
     parseEval(await browser(["eval", RECORD_STAGES]), z.string()),
     "recording",
     "the stage recorder",
   );
-  return provisional;
+  return { pastedAt, provisional };
 };
 
 const followsTheRename = async (
@@ -194,9 +222,10 @@ const followsTheRename = async (
   app: AppInstance,
   browser: AgentBrowser,
   lan: LanFixture,
-  provisional: string,
+  { pastedAt, provisional }: HeldPaste,
 ): Promise<void> => {
   ctx.log("the page answers: the stub is renamed to its title under the open item, then filled");
+  holdLeft(pastedAt, "the stage recorder");
   const released = await fetch(lan.url("/essay"));
   expectEq(released.status, 200, "the fixture's answer to the request that releases the page");
   await untilItemParam(browser, ITEM);
@@ -403,8 +432,8 @@ export const libraryIntegrated: Scenario = {
       const app = await ctx.boot({ name: "solo" });
       const browser = await ctx.browser("library-integrated");
       await browser.openWorkspace(app);
-      const provisional = await pasteAndOpenWhileHeld(ctx, app, browser, lan);
-      await followsTheRename(ctx, app, browser, lan, provisional);
+      const held = await pasteAndOpenWhileHeld(ctx, app, browser, lan);
+      await followsTheRename(ctx, app, browser, lan, held);
       await highlightsAPassage(ctx, app, browser);
       await infoKeepsACopy(ctx, app, browser);
       await popupResaveKeepsACopy(ctx, app, lan);

@@ -364,6 +364,10 @@ Brave and Edge, the released app installed and its first run finished.
   Inteligir for Mac.
 - **No privacy prompt.** Passing: no macOS prompt names the browser, through
   every check above.
+- **The store link**, once the listing is public. Passing: Settings › Library's
+  Get the Inteligir extension, the site's Save from anywhere link and the
+  starter notes' link (Welcome, Getting Started) each open the extension's Web
+  Store page.
 
 ### The iPhone app, on the internal build
 
@@ -450,6 +454,12 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **The library.** Passing: a 2,000-item library scrolls with covers; an
   offline launch shows placeholders for covers not yet seen; the picture and
   PDF viewers open; and a bare highlight made on the phone shows on the Mac.
+- **A page's copy and a file inside an item.** On the Mac, Keep a copy of the
+  page on a saved article; on the phone, open the item and tap Copy of the
+  page. Passing: the copy opens in the viewer as the page looked, nothing in it
+  runs and a tap on its links goes nowhere. In a note that embeds a PDF, tap
+  the file card's Open. Passing: the PDF viewer opens; a card for any other
+  file says it opens on your Mac.
 - **An update reaches an installed build.** While the internal build is the
   only one out, `pnpm hotfix:mobile` from the release commit, then open the app
   twice. Passing: `pnpm --filter @repo/mobile exec eas update:insights <group id>`

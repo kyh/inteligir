@@ -7,7 +7,8 @@ The browser extension: what it captures, what it may reach, and its wire to the 
 
 - **THE EXTENSION CAPTURES, THE MAC EXTRACTS.** A save sends the rendered DOM,
   cloned in the page's isolated world: no script but structured data
-  (`application/ld+json`), no form value typed or prefilled, each image at the
+  (`application/ld+json`), no form value typed or prefilled and every rich text
+  box (`contenteditable`, `role="textbox"`) emptied, each image at the
   `currentSrc` the browser chose, a `<base>` at the page's own base, and, for
   Keep a copy of the page, every readable sheet's CSSOM rules and adopted sheets
   frozen in place; past `CAPTURE_HTML_MAX_CHARS` it sends none and the Mac reads

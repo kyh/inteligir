@@ -97,6 +97,9 @@ const ZOD_ONLY_LEAVES = ["@repo/domain"];
 // @repo/contract/cloud breaks only behind the client build floor (MIN_CLIENT_BUILD) and
 // @repo/contract/local breaks freely, so a workspace that ships apart from the desktop bundle
 // reaches the cloud entry alone; each row says why it ships apart.
+// the extension's identity: constants that import nothing and change only with its store listing, so
+// a cloud-only client may link the store with them (the site's "Save from anywhere")
+const EXTENSION_IDENTITY_ENTRY = "@repo/contract/browser/extension-identity";
 const CLOUD_ONLY_CLIENTS = new Map<string, string>([
   ["@repo/web", "it serves the cloud wire and only the cloud wire"],
   [
@@ -407,12 +410,15 @@ describe("platform purity", () => {
           if (!specifier.startsWith("@repo/contract/")) {
             continue;
           }
-          if (specifier.startsWith("@repo/contract/cloud/")) {
+          if (
+            specifier.startsWith("@repo/contract/cloud/") ||
+            specifier === EXTENSION_IDENTITY_ENTRY
+          ) {
             continue;
           }
           violations.push(
             `LOCAL CONTRACT IN A CLOUD-ONLY CLIENT  ${file} imports "${specifier}"\n` +
-              `  rule: ${name} reaches @repo/contract/cloud/* alone — ${why}`,
+              `  rule: ${name} reaches @repo/contract/cloud/* (and the extension's identity) alone — ${why}`,
           );
         }
       }

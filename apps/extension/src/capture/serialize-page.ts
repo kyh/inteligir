@@ -1,6 +1,7 @@
 // the page as the person sees it, for the Mac to read: the rendered DOM cloned, never the markup
 // the server first sent, since a page built by script has nothing in that. The clone carries no
-// script but structured data, no typed form value, each image at the source the browser chose,
+// script but structured data, nothing typed into the page (no form value, no rich text box's
+// words), each image at the source the browser chose,
 // and a base so its relative links resolve where the page did. The Mac extracts the article; the
 // page is never read here.
 
@@ -33,8 +34,12 @@ const dropScripts = (clone: Element): void => {
   }
 };
 
+// a box a person types rich text into (a mail being written, a message, a comment) is part of the
+// DOM a clone copies, so it is emptied, as an editor that names itself a textbox is
+const EDITABLE = '[contenteditable]:not([contenteditable="false" i]), [role="textbox"]';
+
 // what a person typed lives in properties a clone never copies; a value the markup prefilled is
-// dropped too, so no field's content leaves the page
+// dropped too, and every rich text box emptied, so no field's content leaves the page
 const dropFormValues = (clone: Element): void => {
   for (const input of clone.querySelectorAll("input")) {
     if (!LABELLED_INPUT_TYPES.has(input.getAttribute("type")?.trim().toLowerCase() ?? "")) {
@@ -43,6 +48,9 @@ const dropFormValues = (clone: Element): void => {
   }
   for (const textarea of clone.querySelectorAll("textarea")) {
     textarea.textContent = "";
+  }
+  for (const editable of clone.querySelectorAll(EDITABLE)) {
+    editable.replaceChildren();
   }
 };
 

@@ -66,6 +66,25 @@ describe("the captured page", () => {
     );
   });
 
+  it("empties every box a person types rich text into, keeping the page's own text", () => {
+    const doc = pageOf(
+      [
+        "<article><p>The article.</p></article>",
+        '<div contenteditable="true"><p>Dear Sam, half a reply</p></div>',
+        '<div contenteditable=""><b>a comment</b></div>',
+        '<div contenteditable="plaintext-only">a message</div>',
+        '<div role="textbox">a field drawn by script</div>',
+        '<div contenteditable="FALSE">kept, not editable</div>',
+      ].join(""),
+    );
+    const html = serializePage(doc, null, OPTIONS).html ?? "";
+    expect(html).toContain("The article.");
+    expect(html).toContain("kept, not editable");
+    for (const typed of ["half a reply", "a comment", "a message", "a field drawn by script"]) {
+      expect(html).not.toContain(typed);
+    }
+  });
+
   it("pins each image to the source the browser chose", () => {
     const doc = pageOf('<img src="placeholder.gif" srcset="small.jpg 1x, large.jpg 2x"><img>');
     const [chosen] = doc.querySelectorAll("img");

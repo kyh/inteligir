@@ -1,3 +1,5 @@
+import { EXTENSION_STORE_URL } from "@repo/contract/browser/extension-identity";
+
 import { siteConfig } from "@/lib/site-config";
 
 // each page's markdown is its one source: the route renders it as HTML and answers it as-is to an
@@ -15,8 +17,9 @@ edits it with you.
 
 ## Save from anywhere
 
-- **From your browser.** The ${name} extension for Chrome, Arc, Brave and Edge saves the page
-  you're on with one click, or a link, an image or a selection from the right-click menu.
+- **From your browser.** [The ${name} extension](${EXTENSION_STORE_URL}) for Chrome, Arc, Brave and
+  Edge saves the page you're on with one click, or a link, an image or a selection from the
+  right-click menu.
 - **From the window.** Paste a link, or drag links and files onto the app. Files up to 10 MB are
   kept as they are.
 - **From your iPhone.** Share a page or a link to ${name} from any app, even offline, and your Mac

@@ -36,7 +36,11 @@ export const installNativeHostFixture = async (
   const profileDir = path.join(args.scratchDir, "browser-profile");
   const manifestDir = path.join(profileDir, "NativeMessagingHosts");
   const launcher = path.join(args.scratchDir, "native-host", "inteligir-native-host");
-  // the built bundle, as the app's launcher runs it: what ships, and no loader to start per save
+  // the built bundle, as the app's launcher runs it: what ships, and no loader to start per save.
+  // A dev host, never the packaged one: a packaged host with no server opens the app installed on
+  // this Mac and waits 30 s for it, so a run on the owner's Mac would start their own app on their
+  // own library, and a step that stopped the server would test another path than CI's (whose
+  // openApp answers false); the open-and-wait path is run-native-host.test.ts's
   const cliEntry = path.join(args.repoRoot, "apps", "cli", "dist", "index.js");
   await mkdir(manifestDir, { recursive: true });
   await mkdir(path.dirname(launcher), { recursive: true });
@@ -44,7 +48,7 @@ export const installNativeHostFixture = async (
     launcher,
     [
       "#!/bin/sh",
-      `exec /usr/bin/env -i HOME="$HOME" NODE_ENV='production' INTELIGIR_DATA_DIR=${quote(args.dataDir)} ${quote(process.execPath)} ${quote(cliEntry)} native-host "$@"`,
+      `exec /usr/bin/env -i HOME="$HOME" INTELIGIR_DATA_DIR=${quote(args.dataDir)} ${quote(process.execPath)} ${quote(cliEntry)} native-host "$@"`,
       "",
     ].join("\n"),
   );

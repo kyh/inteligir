@@ -63,7 +63,9 @@ src/
   runs the turns. It reaches nothing under `/local` either, pinned by
   the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as apps/web: a phone
   install may be months stale against the deployed Worker.
-- **apps/workspace** compiles against `/local` alone.
+- **apps/workspace** compiles against `/local` alone, and the extension's
+  identity (`browser/extension-identity`) for the store link Settings shows,
+  as the site does.
 
 ## Invariants
 

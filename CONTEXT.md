@@ -283,8 +283,10 @@ choose which vault folder the next server opens
 
 **Items** — the cards the library lists, each one markdown file, or a bare
 file no note embeds (`@repo/notes/items/library-index`); "Agent edited N items"
-and "Undid the agent's changes to N items" count paths a turn changed, less the
-annotation stores. Not docs: a doc is a file classification, and a bare image
+and "Undid the agent's changes to N items" count a turn's items by
+`turnItemPaths` (`@repo/notes/items/turn-items`): each move once, at the path
+it made, a cover, an original or a page copy with the item that embeds it, and
+no dot-path at all. Not docs: a doc is a file classification, and a bare image
 is an item that is no doc.
 
 **Unsorted** — the rail's row and the folder a save lands in when the window
