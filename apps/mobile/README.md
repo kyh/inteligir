@@ -131,7 +131,7 @@ answer stored in its own transaction and only onto a row still naming the
 answer's oid. The mirrored commit moves only once every wanted row holds its
 text, so a refresh cut short resumes from the empty rows. So a cold launch
 shows the list and opens every note before any request, and a refresh that
-fails keeps the list it has and says why above it. "Loading your vault…"
+fails keeps the list it has and says why above it. "Loading your library…"
 shows only on a FIRST mirror, with its count.
 
 The listing (paths, aliases and ids, which the editor page's own resolver
@@ -262,7 +262,7 @@ The phone asks a Mac's agent through the dispatch inbox: it posts a
 claims one, and a Mac runs the turn and writes it to the log. Ask agent on a
 note opens a new thread under an id the phone mints (`thr_` and 16 random
 bytes), and its first message names the note as the thread's origin and the
-sha-256 of the bytes the note screen showed as its view context's revision.
+sha-256 of the bytes the item screen showed as its view context's revision.
 
 - **A request is durable before it is sent.** Send writes the row to
   `dispatch_outbox` with an id minted here, the body frozen as it will be
@@ -390,7 +390,7 @@ pnpm --filter @repo/mobile dev                                              # ag
 EXPO_PUBLIC_CLOUD_URL=http://localhost:5174 pnpm --filter @repo/mobile dev  # against `pnpm dev:web`
 ```
 
-The note screen's editor is `@repo/mobile-editor`'s built page, carried in the
+The item screen's editor is `@repo/mobile-editor`'s built page, carried in the
 app bundle by `plugins/with-editor-page.js`, so it changes only with a new
 native build: `pnpm --filter @repo/mobile ios` builds the page first, and
 `pnpm --filter @repo/mobile editor-page` rebuilds it alone. Metro serves the

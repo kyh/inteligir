@@ -165,7 +165,7 @@ describe("the notes store", () => {
 
     expect(store.tree.get()).toEqual({
       ...ready,
-      refreshError: "This vault is too large for the notes list.",
+      refreshError: "This library is too large to list on your phone.",
     });
   });
 

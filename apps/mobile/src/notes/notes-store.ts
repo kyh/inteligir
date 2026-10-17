@@ -438,7 +438,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         return;
       }
       case "too-large": {
-        refreshFailed("This vault is too large for the notes list.");
+        refreshFailed("This library is too large to list on your phone.");
         return;
       }
       case "current": {
