@@ -272,7 +272,7 @@ export const createFileOps = (store: FileOpsStore, deps: FileOpsDeps = {}): File
           };
         }
         case "exists": {
-          return { kind: "refused", message: `A note named ${docStem(to)} is already here.` };
+          return { kind: "refused", message: `Something named ${docStem(to)} is already here.` };
         }
         case "vanished": {
           return { kind: "refused", message: NOTE_GONE };

@@ -162,7 +162,7 @@ describe("renaming a note on the phone", () => {
     const { fileOps } = await phone(vault);
     expect(await fileOps.rename("plan.md", "a/b")).toStrictEqual({
       kind: "refused",
-      message: "Note names can't contain / or \\.",
+      message: "Names can't contain / or \\.",
     });
     expect(await fileOps.rename("plan.md", "[draft]")).toMatchObject({ kind: "refused" });
     expect(requestsOf(vault, "commit")).toStrictEqual([]);

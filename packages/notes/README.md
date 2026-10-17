@@ -1,7 +1,8 @@
 # @repo/notes
 
-The pure, platform-neutral domain core: the knowledge engine
-(links/tags/search) over one markdown scan.
+The pure, platform-neutral domain core: the item model (what a saved link, a
+file and a note are as one markdown file) and the knowledge engine
+(links/tags/search and the library listing) over one markdown scan.
 
 ## Why it exists
 
@@ -87,6 +88,21 @@ src/
                        # keeps a BOM and the note's line ending) + the
                        # typed-property ADT (YAML it cannot represent is
                        # preserved byte-exactly)
+  items/               # what an item is, as one markdown file
+    item-kind.ts       # the kinds, a file's kind by its extension, the
+                       # library's own folders and the refusal sentences
+                       # every client says
+    item-url.ts        # a url's ONE key and its cleaned spelling, with no
+                       # platform URL
+    item-frontmatter.ts, item-body.ts  # the facts' reader, the line-cut
+                       # writes of them, and a link's composed body
+    item-files.ts      # a cover, an original and a page copy, computed from
+                       # the first embeds and links every time
+    item-name.ts, item-stub.ts, item-tags.ts, item-time.ts  # a page's
+                       # title as a name, a stub's text, tag edits, and the
+                       # one time spelling
+    library-index.ts   # the library listing: every doc and every bare
+                       # media file, sorted, filtered and counted in memory
   annotations/         # the %%i:id:start/end%% markers' store: highlights,
                        # notes and replies, marker ids, the store schema, and
                        # the entry-wise merge two devices' stores take and
@@ -104,6 +120,8 @@ src/
                        # desktop's sync and the phone's write queue both run
     conflict-copy.ts   # the copy's name, its parse, and the one sentence
                        # every surface says about it
+    url-item-verdict.ts  # two versions of one saved link settled on one
+                       # text, whichever device asks, before any line merge
 ```
 
 ## Invariants

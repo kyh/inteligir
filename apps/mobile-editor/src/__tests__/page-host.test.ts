@@ -154,10 +154,12 @@ describe("each port is one frame kind, and its answer comes back as the port's o
       });
     });
     expect(kinds[0]).toBe("write");
+    // a note the page makes says when it was saved, as every note the phone makes does
+    const stamped = /^---\nsaved: \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\n---\n\n- one\n$/u;
     expect(phone.requests("write").map((frame) => frame.payload)).toEqual([
-      { content: "- one\n", guard: { kind: "absent" }, path: "Ideas.md" },
+      { content: expect.stringMatching(stamped), guard: { kind: "absent" }, path: "Ideas.md" },
     ]);
-    expect(phone.files.get("Ideas.md")).toBe("- one\n");
+    expect(phone.files.get("Ideas.md")).toMatch(stamped);
   });
 
   // each re-lists after it, since a row moved
@@ -289,7 +291,9 @@ describe("leaving the note", () => {
     await vi.waitFor(() => {
       expect(phone.events("navigate").map((frame) => frame.path)).toEqual(["Someday.md"]);
     });
-    expect(phone.files.get("Someday.md")).toBe("");
+    expect(phone.files.get("Someday.md")).toMatch(
+      /^---\nsaved: \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\n---\n$/u,
+    );
   });
 });
 
@@ -417,12 +421,12 @@ describe("a new annotation", () => {
         ? { ok: true, result: { current: `${ANCHORED}More.\n`, kind: "changed" } }
         : null;
     expect(await create("c3", "Why here?")).toBe(false);
-    expect(refused).toHaveBeenLastCalledWith("This note changed on your phone. Try again.");
+    expect(refused).toHaveBeenLastCalledWith("This item changed on your phone. Try again.");
 
     phone.answer = (request) =>
       request.kind === "addAnnotation" ? { ok: true, result: { kind: "missing" } } : null;
     expect(await create("c3", "Why here?")).toBe(false);
-    expect(refused).toHaveBeenLastCalledWith("This note is no longer on your phone.");
+    expect(refused).toHaveBeenLastCalledWith("This item is no longer on your phone.");
   });
 
   it("fails when the phone refuses its entry", async () => {

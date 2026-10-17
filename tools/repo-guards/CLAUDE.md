@@ -14,8 +14,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   (`packages/db/src/__tests__/schema-agreement.test.ts`), the per-export orphan
   guard and the type-role guard over `@repo/ui`, the CLI guide and its `--json`
   flags, the editor's buffer invariant, and the words on every surface a person
-  reads (the window, the phone, the editor, `@repo/ui`, the extension and the
-  shell's Rust), where "vault" and the engine's words are Settings ›
+  reads (the window, the phone, the editor, `@repo/ui`, the extension, the
+  shell's Rust and the sentences `@repo/notes` spells for them), where "vault" and the engine's words are Settings ›
   Advanced's alone (`tools/repo-guards/src/product-words.test.ts`, a textual
   lower bound over quoted literals and JSX text, like `one-spelling.test.ts`).
   If coverage is ever added,

@@ -22,6 +22,14 @@ const SURFACES = [
 
 const RUST_UI_DIR = "apps/desktop/src-tauri/src";
 
+// the sentences @repo/notes spells for every surface to show, since the phone reaches no /local
+// module: a name's refusal, a conflict copy's name, a file's refusal
+const SENTENCE_MODULES = [
+  "packages/notes/src/knowledge/note-name.ts",
+  "packages/notes/src/sync/conflict-copy.ts",
+  "packages/notes/src/items/item-kind.ts",
+] as const;
+
 // Settings › Advanced, the one place that shows the engine's raw state (AGENTS.md)
 const EXEMPT = new Set(["apps/workspace/src/app/settings/advanced-section.tsx"]);
 
@@ -211,7 +219,7 @@ const surfaceFiles = (): string[] => {
     .readdirSync(path.join(REPO_ROOT, RUST_UI_DIR))
     .filter((name) => name.endsWith(".rs"))
     .map((name) => `${RUST_UI_DIR}/${name}`);
-  return [...scripts, ...rust].filter((file) => !EXEMPT.has(file)).toSorted();
+  return [...scripts, ...SENTENCE_MODULES, ...rust].filter((file) => !EXEMPT.has(file)).toSorted();
 };
 
 const allHits = (): Hit[] =>

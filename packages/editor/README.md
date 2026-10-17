@@ -141,7 +141,7 @@ src/
   the column. The desktop sets none; a touch host sets `touch` and gets the
   touch kit, no outline rail and a narrower inset.
 - `live-editor.ts` — the path-keyed registry the shell reaches a mounted
-  editor through (the pin, annotations, the Metadata tab's properties). A render
+  editor through (the pin, annotations, Info's properties). A render
   SUBSCRIBES — `useLiveEditor`, or `subscribeLiveEditors` for a snapshot of
   the document — and never reads: the editor registers after the render that
   asked for it, and the compiler memoizes a render-time read on its inputs,

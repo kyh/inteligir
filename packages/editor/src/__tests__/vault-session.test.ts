@@ -13,7 +13,12 @@ import type {
 } from "@repo/editor/note/vault-session";
 import type { VaultEditorState } from "@repo/editor/vault-editor";
 import { describe, expect, it } from "vitest";
+
 import { FakeVault } from "./fake-vault";
+
+// the clock a created note's `saved` reads, and the header it writes
+const SAVED_AT = Date.UTC(2026, 9, 17, 9, 12, 30);
+const SAVED_HEADER = "---\nsaved: 2026-10-17T09:12:30Z\n---\n\n";
 
 // every step the session takes is a promise over the fake's microtasks, and one macrotask
 // runs only once they have all drained.
@@ -91,6 +96,7 @@ const harness = (options: HarnessOptions = {}) => {
       asked.push(path);
       return options.vanishedChoice ?? "discard";
     },
+    now: () => SAVED_AT,
     boot: async () => {
       await options.bootGate;
       const { openAtBoot } = options;
@@ -157,9 +163,18 @@ describe("createFileAt", () => {
   it("creates a genuinely new note through the port's create, never its write", async () => {
     const { session, vault, notices } = await started();
     await expect(session.actions.createFileAt("Fresh", "# Fresh\n")).resolves.toBe("Fresh.md");
-    expect(vault.files.get("Fresh.md")).toBe("# Fresh\n");
+    expect(vault.files.get("Fresh.md")).toBe(`${SAVED_HEADER}# Fresh\n`);
     expect(vault.writes).toBe(0);
     expect(notices).toEqual([]);
+  });
+
+  it("says when every note it makes was saved, unless its seed brings a header of its own", async () => {
+    const { session, vault } = await started();
+    await session.actions.createFileAt("From a link");
+    expect(vault.files.get("From a link.md")).toBe(`${SAVED_HEADER.trimEnd()}\n`);
+    const own = "---\nsaved: 2026-01-02T03:04:05Z\n---\n\nMine.\n";
+    await session.actions.createFileAt("Mine", own);
+    expect(vault.files.get("Mine.md")).toBe(own);
   });
 
   it("gives a title the default extension, whatever dots it holds, and keeps a doc extension", async () => {
@@ -202,7 +217,7 @@ describe("createNewFileAt", () => {
       kind: "created",
       path: "notes/Fresh.md",
     });
-    expect(vault.files.get("notes/Fresh.md")).toBe("# Fresh\n");
+    expect(vault.files.get("notes/Fresh.md")).toBe(`${SAVED_HEADER}# Fresh\n`);
     vault.create = async () => await Promise.reject(new Error("disk full"));
     await expect(session.actions.createNewFileAt("Other", "")).resolves.toEqual({
       kind: "refused",

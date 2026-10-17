@@ -70,7 +70,7 @@ export const DeleteAccountDialog = ({
               ))}
             </ul>
           </div>
-          <p className="text-body">Your notes on this Mac and their history stay here.</p>
+          <p className="text-body">Your library on this Mac and its history stay here.</p>
           <LabelledField
             id={passwordId}
             label="Password"

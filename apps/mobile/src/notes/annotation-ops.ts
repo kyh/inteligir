@@ -40,7 +40,7 @@ export interface AnnotationOpsArgs {
   randomBytes: (length: number) => Uint8Array;
 }
 
-export const NOTE_GONE = "This note is no longer on your phone.";
+export const NOTE_GONE = "This item is no longer on your phone.";
 
 // an edit, a reply or a delete anchors nothing, so no text of the note is expected and none can
 // have moved
@@ -50,7 +50,7 @@ const outcomeOf = (edited: AnnotationEditOutcome): AnnotationOutcome => {
       return { kind: "done" };
     }
     case "changed": {
-      return { kind: "refused", message: "This note changed on your phone. Try again." };
+      return { kind: "refused", message: "This item changed on your phone. Try again." };
     }
     case "vanished": {
       return { kind: "refused", message: NOTE_GONE };

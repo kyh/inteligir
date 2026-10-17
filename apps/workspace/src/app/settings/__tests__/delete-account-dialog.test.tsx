@@ -38,7 +38,7 @@ describe("the delete-account dialog", () => {
     expect(screen.getByText("Your online library")).toBeDefined();
     expect(screen.getByText("Your synced conversations with the agent")).toBeDefined();
     expect(screen.getByText(/every device, this Mac included/u)).toBeDefined();
-    expect(screen.getByText("Your notes on this Mac and their history stay here.")).toBeDefined();
+    expect(screen.getByText("Your library on this Mac and its history stay here.")).toBeDefined();
   });
 
   it("deletes nothing until a password is typed, then hands it over as typed", async () => {

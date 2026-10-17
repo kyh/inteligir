@@ -110,7 +110,7 @@ const WikiInputElement = (props: PlateElementProps) => {
       >
         <InlineComboboxInput />
         <InlineComboboxContent>
-          <InlineComboboxEmpty>No notes found</InlineComboboxEmpty>
+          <InlineComboboxEmpty>Nothing found</InlineComboboxEmpty>
           <InlineComboboxGroup>
             {notes.map(itemFor)}
             {createBody !== null && (

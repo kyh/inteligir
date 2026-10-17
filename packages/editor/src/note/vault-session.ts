@@ -13,7 +13,9 @@ import { createNoteRuntime } from "@repo/editor/note/note-runtime";
 import type { NoteRuntime } from "@repo/editor/note/note-runtime";
 import type { SaveError, VaultEditorState, VaultIO } from "@repo/editor/vault-editor";
 import { isDocPath, withDocExtension } from "@repo/notes/knowledge/doc-file";
-import { frontmatterId } from "@repo/notes/markdown/frontmatter";
+import { frontmatterId, frontmatterYaml } from "@repo/notes/markdown/frontmatter";
+import { composeItemFile } from "@repo/notes/items/item-frontmatter";
+import { formatItemTime } from "@repo/notes/items/item-time";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
@@ -46,6 +48,8 @@ export interface VaultSessionPorts {
   // vanished under a clean buffer: a move the page did not make (a fill's rename, an agent's
   // rename) is followed rather than dropped to the library. Unset, a vanish closes the item.
   findMoved?: (path: string, id: string) => Promise<string | null>;
+  // the clock a created note's `saved` is read from; unset, the system's
+  now?: () => number;
 }
 
 export interface VaultSession {
@@ -320,6 +324,13 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     runtime.registerPreFlush(preFlush);
   };
 
+  // every item the app makes says when it was saved: a seed that brings no header of its own (a
+  // [[link]]'s Create, an extract) gains one with `saved`; one that brings a header wrote its own
+  const stampedSeed = (seedContent: string): string =>
+    frontmatterYaml(seedContent) === null
+      ? composeItemFile({ saved: formatItemTime((ports.now ?? Date.now)()) }, seedContent)
+      : seedContent;
+
   // the create is exclusive, so a file already at the path is answered, never overwritten.
   const createNewFileAt = async (
     rawPath: string,
@@ -335,7 +346,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
       return { kind: "refused" };
     }
     const { path } = verdict;
-    const outcome = await ports.note.create(path, seedContent).catch(() => null);
+    const outcome = await ports.note.create(path, stampedSeed(seedContent)).catch(() => null);
     if (outcome === null) {
       ports.notify(`Couldn't create ${path}.`);
       return { kind: "refused" };

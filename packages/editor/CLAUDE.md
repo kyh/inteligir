@@ -152,7 +152,9 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   exclusive create before touching the buffer, because create-or-reuse would
   count an existing file as success and the blocks would leave for a note that
   never received them; blocks anchoring an annotation are refused, since its
-  entry would stay behind. The removal and the `[[link]]` land in one flush, so one
+  entry would stay behind. Like every note the session creates from a seed with
+  no header of its own (a `[[link]]`'s Create among them), it says when it was
+  `saved` (`packages/editor/src/note/vault-session.ts`). The removal and the `[[link]]` land in one flush, so one
   undo restores both; the created file stays, because the vault has no
   transaction and a note that exists is truer than an edit that never happened.
   `packages/editor/src/extract-note.ts`.

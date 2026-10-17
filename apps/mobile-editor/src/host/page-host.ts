@@ -308,8 +308,8 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       if (result.kind !== "written") {
         toast.error(
           result.kind === "missing"
-            ? "This note is no longer on your phone."
-            : "This note changed on your phone. Try again.",
+            ? "This item is no longer on your phone."
+            : "This item changed on your phone. Try again.",
         );
         return false;
       }

@@ -22,9 +22,10 @@ ends in a doc extension, so a `.txt` in the vault is indexed and linkable but
 minted only by name. It is also WIDER than what a link may leave off: `.md`
 alone, so a `.txt` note links as `[[todo.txt]]`.
 
-**note** — a doc as a user and the knowledge surfaces address it: the filename
-IS the title, there is no slug layer (`@repo/notes/knowledge/note-name`). A name
-may not hold `[` or `]`, which would end a link to it.
+**note** — an item of kind `note`: a doc whose `kind:` is missing or unknown,
+the text a person writes. Its filename IS its title, there is no slug layer.
+Every item's name follows one rule, `@repo/notes/knowledge/note-name`, whatever
+its kind: a name may not hold `[` or `]`, which would end a link to it.
 
 **line** — a line's content EXCLUDES its terminator, whichever flavor (`\r\n`,
 `\r`, `\n`), stated once in `@repo/notes`' `text/source-lines`. A second reading

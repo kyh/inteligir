@@ -39,7 +39,7 @@ Open the **Annotations** tab in the right panel to see every highlight with its 
 
 ## Writing
 
-**New note** sits beside **Add** at the top of the library. Select text for the formatting toolbar, or type `/` for the block menu.
+**New note** is in the **Add** menu at the top of the library. Select text for the formatting toolbar, or type `/` for the block menu.
 
 - **Bold**, _italic_, ~~strikethrough~~
 - <mark data-color="yellow">Highlight</mark> and <u>underline</u>
@@ -118,7 +118,7 @@ The `/` menu holds more — toggles, columns, equations, diagrams — and [[Kitc
 
 ### Properties
 
-Properties are short facts about an item, kept at its top. Edit a note's under **Properties** in the **Info** tab; a saved page's address, description and tags are right in **Info**.
+Properties are short facts about an item, kept at its top. Edit a note's under **More properties** in the **Info** tab; a saved page's address, description and tags are right in **Info**.
 
 | Property      | For                          |
 | ------------- | ---------------------------- |

@@ -26,8 +26,10 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
 - **EVERY VAULT GETS ITS OWN DATA DIR, AND A SWITCH IS A NEW CHILD, A NEW
   SESSION AND A NEW WINDOW.** Every vault, the default included, lives in
   `<root>/vaults/<sha256(physical path)[:16]>/`, derived once in `config.ts`
-  unless `INTELIGIR_DATA_DIR` pins one; the root holds only `config.json`, the
-  selector the shell and `inteligir serve` both read. A folder is ONE vault
+  unless `INTELIGIR_DATA_DIR` pins one; the root holds `config.json`, the
+  selector the shell and `inteligir serve` both read, and `native-host/`, the
+  browsers' door the desktop app writes at each boot
+  (`apps/cli/src/desktop/native-hosts.ts`). A folder is ONE vault
   however it is spelled, because the key is `physicalVaultDir`: every symlink
   followed through the nearest existing ancestor, so a vault not made yet keys
   the dir it keeps once it is, and "is the default", "already open", "inside the
@@ -135,6 +137,25 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   is port-agnostic, which is why it is not the bearer and dies with the boot.
   `apps/cli/src/server/server-file.ts`, `browser-session.ts`,
   `browser-request.ts` and the guard in `app.ts`.
+
+- **THE BROWSER'S DOOR IS `inteligir native-host`, AN ADAPTER FROM /browser TO
+  /local THAT NEVER TOUCHES THE LIBRARY.** Chrome starts it per save with the
+  extension's origin as its first argument, and only the one origin the
+  committed key derives may drive it (`EXTENSION_ORIGIN`); every message is
+  Chrome's framing, a length in the machine's byte order and UTF-8 JSON, one at
+  a time in order, nothing else ever written to stdout, and a frame past the
+  cap ends the stream (`apps/cli/src/native-host/frames.ts`). A save finds the
+  server through the data dir as every verb does; a packaged app that is not
+  running is opened behind the browser (`open -g -b`) and waited for up to
+  30 s, so a save from a quit app still lands, a dev server is never waited for,
+  and a Mac whose first run is still waiting on the person (`planLaunch`'s
+  `first-run`) answers `not-set-up` and brings the app to the front. Rejected:
+  the host writing the library itself (a second writer beside the server, with
+  none of its guards, its index or its commits), and a host held open for the
+  extension worker's life (`apps/extension/CLAUDE.md` § ONE `connectNative` PER
+  SAVE). `apps/cli/src/native-host/run-native-host.ts`,
+  `apps/cli/src/native-host/reach-server.ts`,
+  `apps/cli/src/native-host/open-app.ts`.
 
 - **Shutdown is ORDERED, per-step TIME-BOXED, and its exit code is the truth.**
   Writers stop, the vault flush runs, handles close; each step has its own
