@@ -50,15 +50,96 @@ meets a concurrent write merges into the buffer and makes no copy
 (`packages/editor/src/vault-editor.ts`), because the person is looking at the
 note and its History holds the rest.
 
-**annotation** — a highlighted passage of a note and an optional note on it,
+**annotation** — a highlighted passage of an item and an optional note on it,
 with replies under it: markers `%%i:<ids>:start%%…%%i:<ids>:end%%` around the
-passage in the note's bytes, and one entry per id in the store keyed by the
-note's frontmatter `id`, `.inteligir/annotations/<id>.json`
+passage in the item's bytes, and one entry per id in the store keyed by the
+item's frontmatter `id`, `.inteligir/annotations/<id>.json`
 (`@repo/notes/annotations/store-schema`; folded against the markers by
-`@repo/notes/annotations/annotation-threads`). A root records the `quote` it
-was made on, and a root whose `text` is `""` is a bare highlight. Not an html
-or code comment, which the dialect keeps as the note's own bytes, and not a
-task: it has no resolved state, and stays until it is removed.
+`@repo/notes/annotations/annotation-threads`). A root whose `text` is `""` is a
+bare highlight. Not an html or code comment, which the dialect keeps as the
+note's own bytes, and not a task: it has no resolved state, and stays until it
+is removed. An unanchored root is **waiting** on a stub, whose fill places it,
+and **missing** on any other item; the state is derived per answer, never
+stored (`@repo/contract/local/annotations/annotations-schema`).
+
+**quote vs passage** — two texts of one highlight. The **quote** is what the
+root recorded when it was made, the plain text clipped by `clipQuote`
+(`@repo/notes/annotations/store-schema`), and it never changes: a card shows
+it, the phone shows it, and a waiting highlight is placed by it. The
+**passage** is the text between its markers in the item as it reads now
+(`apps/cli/src/server/annotations/annotations-service.ts`), `null` while
+unanchored; an edit inside the highlight changes the passage and leaves the
+quote.
+
+## The library
+
+**library** — the vault folder, as the person sees it: everything they saved
+and wrote, one file per item. The product says library; code, the CLI's
+`vault` group, wire paths and env vars keep `vault`, the engine's word.
+
+**item** — one card the library lists: every doc, and every bare file. A link,
+a video, an image's wrapper and a note the person wrote are all one markdown
+file whose facts are frontmatter keys, read by `readItemFacts` and written as
+line cuts by `withItemFields` (`@repo/notes/items/item-frontmatter`). Not a
+doc: a doc is a file classification (what the index projects), an item is what
+the grid draws, and a bare image is an item that is no doc. Listed by
+`@repo/notes/items/library-index`, which the knowledge runtime holds.
+
+**kind** — what an item is: `note`, `link`, `video`, `audio`, `image`, `pdf`
+or `file` (`ITEM_KINDS` in `@repo/notes/items/item-kind`). A doc's kind is its
+`kind:` key, and a missing or unknown one is a note; a bare file's is its
+extension's (`fileKindOf`); a saved url's is `kindForUrl`
+(`@repo/notes/items/item-url`). `link`, `video` and `audio` are the url kinds,
+the only ones a stub can be.
+
+**Unsorted** — the folder a save lands in when it names none
+(`UNSORTED_FOLDER` in `@repo/notes/items/item-kind`). A real directory, not a
+state: an item stays Unsorted until it is moved, whatever it is tagged.
+
+**filing rules** — what the person wrote for the agent about their library, in
+the library's own `AGENTS.md` (`LIBRARY_RULES_PATH` in
+`@repo/notes/items/item-kind`), which the grid hides and every agent session
+reads last (`apps/cli/src/server/agents/agent-instructions.ts`). Tidy my
+library files and tags by them. Not the repo's `AGENTS.md`.
+
+**stub** — an app-made url item whose page is not read yet: a url kind, a web
+`url`, no `fetched`, and the `id` and `saved` every app writer stamps
+(`isItemStub` in `@repo/notes/items/item-frontmatter`). A link note an opened
+folder already held is not a stub, so no Mac fills it unasked. Built by
+`@repo/notes/items/item-stub`.
+
+**fill** — what the Mac's server adds to a stub once it reads the page: the
+fill-owned keys (`site`, `author`, `published`, `description`, `fetched`, or
+`fetched` with `fetch-error` when the page could not be read), the cover
+embed, and the article text after the stub's own body. It calls no model and
+never writes `url` or `saved` (`apps/cli/src/server/items/capture/`). A save's
+answer says the fill's state: `pending`, `filled` or `failed`
+(`itemFillSchema` in `@repo/contract/local/items/items-schema`).
+
+**cover** — an item's picture: the first image its body embeds, computed at
+every read (`itemFilesOf` in `@repo/notes/items/item-files`), never a
+frontmatter path. A fill's cover is stored by its hash under `assets/covers/`
+(`COVERS_DIR`). Not an image item: a cover is part of the item that embeds it,
+and is never a card of its own.
+
+**bare file** — a media file no doc embeds, which the library lists as an item
+of its own (`bare` on the listing's row, `@repo/notes/items/library-index`). A
+saved file is not bare: it gets a small wrapper note that embeds it, and that
+note is the item.
+
+**url key** — the one key two spellings of one link share: the scheme, `www.`,
+a default port, tracking parameters and a non-route fragment dropped, the host
+folded, the query sorted (`urlKey` in `@repo/notes/items/item-url`). A save
+dedupes by it and `item find` matches by it. Not what `url:` holds: that is
+`cleanUrl`, which drops only the userinfo and the tracking parameters, and
+the key is never stored.
+
+**page copy** — "Keep a copy of the page": a single-file, script-free HTML
+snapshot of a saved page, stored by its hash under `assets/pages/`
+(`PAGES_DIR` in `@repo/notes/items/item-kind`) and linked from the item's
+body, opt-in per item. It is served by its own sandboxed route
+(`PAGE_COPY_PATH` in `@repo/contract/local/routes`), never the asset route.
+Not the article text, which every fill writes into the item itself.
 
 ## The phone's write queue
 

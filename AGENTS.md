@@ -78,6 +78,8 @@ verb but `vault open` is a client of a running one. The CLI is the agent's
 door and the developer's, which is how an agent drives the product from bash;
 nothing the user does needs a terminal. `apps/mobile` is the iPhone app: the
 same editor over the hosted vault, offline, asking a Mac to run the agent.
+`apps/extension` is the browser's Save, talking only to the Mac app on the same
+machine through `inteligir native-host`.
 
 **The decision record is GitHub issues
 [#542](https://github.com/kyh/inteligir/issues/542),
@@ -97,8 +99,9 @@ apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the serve
 apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, dispatch, hosted vault
 apps/mobile             @repo/mobile — the iPhone app: notes in the editor page, offline, and asking a Mac's agent
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
+apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save, handing the page to the Mac app
 packages/domain         @repo/domain — zod-only leaf vocabulary
-packages/contract       @repo/contract — ONE contract, TWO entries: /local and /cloud
+packages/contract       @repo/contract — ONE contract, THREE entries: /local, /cloud and /browser
 packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
 packages/notes          @repo/notes — the pure, platform-neutral domain
 packages/editor         @repo/editor — the Plate WYSIWYG over the fixpoint serializer
@@ -244,6 +247,12 @@ is in the file named.
 - **A value has one spelling**: a key binding comes from the table its listener
   reads (`packages/editor/CLAUDE.md`), a page preference is a `PREFS` row
   (`apps/workspace/CLAUDE.md`).
+- **/browser breaks only behind its own version**: the extension ships on the
+  Web Store's cadence and the host adapts it to /local
+  (`apps/extension/CLAUDE.md`).
+- **A library scope has one spelling**: `@repo/domain/library-scope`, read by
+  the page's pref, the items listing and the view context
+  (`apps/workspace/CLAUDE.md`).
 
 ## Decisions
 
@@ -257,7 +266,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 
 - [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, and the open note's saves and renames
 - [`packages/ui/CLAUDE.md`](packages/ui/CLAUDE.md) — floating surfaces, type roles, popup motion, row order, the orphan guard
-- [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — Annotations, and Knowledge: the scan, search, links and tags
+- [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — Items, annotations, and Knowledge: the scan, search, links and tags
 - [`packages/agent-runtime/CLAUDE.md`](packages/agent-runtime/CLAUDE.md) — the provider grammar, and what a session may load from the vault
 - [`apps/cli/CLAUDE.md`](apps/cli/CLAUDE.md) — the server process: its lock, composition, credential, shutdown, CSP, database, and a vault's data dir
 - [`apps/cli/src/server/vault/CLAUDE.md`](apps/cli/src/server/vault/CLAUDE.md) — Vault: writes, git and containment

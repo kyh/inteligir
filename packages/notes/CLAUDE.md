@@ -77,10 +77,15 @@ node is rather than discriminating structurally at each visit.
   it was made), `createdAt` and `updatedAt` in unix seconds, `source`, and a
   reply's `parentId`. The fold lists the roots in the order their markers open
   and the unanchored after them by creation (`foldAnnotations` in
-  `@repo/notes/annotations/annotation-threads`). There is no resolve: an
-  annotation stays until it is removed. Rejected: resolve, because a reading
-  mark is not a task, and keeping the comments name, which is two spellings
-  forever. `@repo/notes/annotations/store-schema`.
+  `@repo/notes/annotations/annotation-threads`). An unanchored root is
+  waiting on a stub, since the fill places it by its quote, and missing on any
+  other item, whose text will never place it; the state is derived from the
+  markers and the stub rule on every answer, never stored, because a stored
+  claim is wrong the first time the text and the store are written in either
+  order. There is no resolve: an annotation stays until it is removed.
+  Rejected: resolve, because a reading mark is not a task, and keeping the
+  comments name, which is two spellings forever.
+  `@repo/notes/annotations/store-schema`.
 
 ## Knowledge: index, search and links
 
