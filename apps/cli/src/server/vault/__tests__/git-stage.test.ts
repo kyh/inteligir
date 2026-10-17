@@ -60,6 +60,18 @@ describe("planStaging", () => {
     expect(plan.untrack).toEqual([{ bytes: 11 * MiB, path: "grown.bin" }]);
   });
 
+  it("leaves out what is under a left-out folder, as a pathspec of it would match", () => {
+    const plan = planStaging(
+      [
+        { bytes: null, indexed: true, path: "Removed/a.md" },
+        { bytes: 3, indexed: false, path: "Removed/deeper/b.png" },
+        { bytes: 3, indexed: false, path: "Removed copy/c.md" },
+      ],
+      { leaveOut: new Set(["Removed"]) },
+    );
+    expect(plan.stage).toEqual(["Removed copy/c.md"]);
+  });
+
   it("always takes a commit's first file, whatever the budget", () => {
     const plan = planStaging([{ bytes: 5, indexed: false, path: "a" }], { budgetBytes: 1 });
     expect(plan.stage).toEqual(["a"]);

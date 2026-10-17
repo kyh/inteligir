@@ -4,6 +4,7 @@ import { identityEnv } from "./git-run";
 import type { CommitAuthor, RunGitCommand } from "./git-run";
 import {
   applyStaging,
+  coveredBy,
   HISTORY_FILE_MAX_BYTES,
   planStaging,
   readStagingEntries,
@@ -152,15 +153,14 @@ export const createAutoCommit = (args: AutoCommitArgs): AutoCommit => {
   }
 
   const coversFor = (scope: CommitScope): ((path: string) => boolean) => {
-    if (scope.paths === undefined) {
-      const { leaveOut } = scope;
-      return leaveOut === undefined ? () => true : (path) => !leaveOut.has(path);
+    if (scope.paths !== undefined) {
+      return coveredBy(new Set(scope.paths));
     }
-    const named = new Set(scope.paths);
-    return (path) => {
-      const segments = path.split("/");
-      return segments.some((_, index) => named.has(segments.slice(0, index + 1).join("/")));
-    };
+    if (scope.leaveOut === undefined) {
+      return () => true;
+    }
+    const leftOut = coveredBy(scope.leaveOut);
+    return (path) => !leftOut(path);
   };
 
   // one plan per commit: the files that outgrew the cap leave history in a commit of their own,

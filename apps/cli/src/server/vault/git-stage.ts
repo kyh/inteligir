@@ -46,9 +46,22 @@ export interface StagingPlan {
 export interface StagingLimits {
   budgetBytes?: number;
   capBytes?: number;
-  // paths this commit must not stage (a live turn's claims at its start)
+  // paths this commit must not stage, and what is under them (a live turn's claims at its start)
   leaveOut?: ReadonlySet<string>;
 }
+
+// whether the path is one of `named` or under one of them, as a pathspec matches a folder
+export const coveredBy =
+  (named: ReadonlySet<string>) =>
+  (filePath: string): boolean => {
+    const segments = filePath.split("/");
+    for (let depth = 1; depth <= segments.length; depth += 1) {
+      if (named.has(segments.slice(0, depth).join("/"))) {
+        return true;
+      }
+    }
+    return false;
+  };
 
 export const planStaging = (
   entries: readonly StagingEntry[],
@@ -58,8 +71,9 @@ export const planStaging = (
   const cap = limits.capBytes ?? HISTORY_FILE_MAX_BYTES;
   const plan: StagingPlan = { rest: [], stage: [], tooLarge: [], untrack: [] };
   let spent = 0;
+  const leftOut = limits.leaveOut === undefined ? () => false : coveredBy(limits.leaveOut);
   for (const entry of entries) {
-    if (limits.leaveOut?.has(entry.path) === true) {
+    if (leftOut(entry.path)) {
       continue;
     }
     if (entry.bytes === null) {
@@ -99,19 +113,6 @@ const sizeOnDisk = async (root: string, filePath: string): Promise<number | null
 // past this many paths a scoped read lists the whole tree and keeps the named ones, so no
 // argument list bounds what a commit can name
 const ARGV_PATHSPEC_MAX = 200;
-
-// whether the path is one of `named` or under one of them, as a pathspec matches a folder
-const coveredBy =
-  (named: ReadonlySet<string>) =>
-  (filePath: string): boolean => {
-    const segments = filePath.split("/");
-    for (let depth = 1; depth <= segments.length; depth += 1) {
-      if (named.has(segments.slice(0, depth).join("/"))) {
-        return true;
-      }
-    }
-    return false;
-  };
 
 // every dirty path under `paths` (all of them when absent), one entry each. untracked files are
 // listed one by one (`all`), never folded into their folder, so each is measured. --no-renames:
