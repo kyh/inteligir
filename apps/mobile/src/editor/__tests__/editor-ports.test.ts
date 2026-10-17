@@ -193,7 +193,7 @@ describe("what the editor page asks of the phone", () => {
     });
     expect(notices).toStrictEqual([]);
     expect(await editor.requests.rename({ from: "notes/Moved.md", to: "Moved.md" })).toStrictEqual({
-      error: "A note moves to another folder from your Mac.",
+      error: "An item moves to another folder from your Mac.",
       ok: false,
     });
   });

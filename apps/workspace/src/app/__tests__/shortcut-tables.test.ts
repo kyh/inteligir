@@ -4,6 +4,7 @@ import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { describe, expect, it } from "vitest";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../global-shortcuts";
+import { LIBRARY_SHORTCUTS, libraryShortcutHotkey } from "../library/library-keys";
 
 const editorChords = [
   ...MARK_SHORTCUTS,
@@ -30,5 +31,25 @@ describe("the shortcut tables", () => {
   it("claim each chord once within a table", () => {
     expect(duplicates(globalChords)).toEqual([]);
     expect(duplicates(editorChords)).toEqual([]);
+  });
+
+  it("give the library no chord the window's table claims, which would run both", () => {
+    const shared = LIBRARY_SHORTCUTS.map(libraryShortcutHotkey).filter((chord) =>
+      globalChords.includes(chord),
+    );
+    expect(
+      shared,
+      "A chord in both LIBRARY_SHORTCUTS (library/library-keys.ts) and GLOBAL_SHORTCUTS (global-shortcuts.ts) fires twice. Give it one owner:",
+    ).toEqual([]);
+  });
+
+  it("claim each library chord once where its listener reads it", () => {
+    for (const where of ["grid", "item", "window"] as const) {
+      expect(
+        duplicates(
+          LIBRARY_SHORTCUTS.filter((row) => row.where === where).map(libraryShortcutHotkey),
+        ),
+      ).toEqual([]);
+    }
   });
 });

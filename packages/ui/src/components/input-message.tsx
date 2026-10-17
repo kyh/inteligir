@@ -33,6 +33,8 @@ interface InputMessageProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChan
   topSlot?: ReactNode;
   rightSlot?: ReactNode;
   disabled?: boolean;
+  // a send with nothing typed is one too: a named action carries the message by itself
+  sendsEmpty?: boolean;
   minRows?: number;
   maxRows?: number;
   clickToFocus?: boolean;
@@ -44,6 +46,10 @@ interface InputMessageProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChan
     "value" | "onChange" | "disabled" | "placeholder"
   >;
 }
+
+// a message goes once it holds something, or with nothing when the caller says that is a message
+const sendable = (trimmed: string, disabled: boolean, sendsEmpty: boolean | undefined): boolean =>
+  !disabled && (sendsEmpty === true || trimmed.length > 0);
 
 interface StepClasses {
   icon: string;
@@ -100,6 +106,7 @@ const InputMessage = ({
   topSlot,
   rightSlot,
   disabled = false,
+  sendsEmpty,
   minRows = 1,
   maxRows = 8,
   clickToFocus = true,
@@ -177,7 +184,7 @@ const InputMessage = ({
   }, [resizeTextarea]);
 
   const trimmed = value.trim();
-  const canSend = !disabled && trimmed.length > 0;
+  const canSend = sendable(trimmed, disabled, sendsEmpty);
 
   const edgeShadow = edgeShadowFor({ clickToFocus, disabled, focusVisible, hovered });
 

@@ -1,7 +1,6 @@
 // Where the app window opens after a first run: the agent, then an account, each skippable, drawn
-// over the workspace like Settings so the vault is already loading underneath. The step rides the
-// url, so Back returns to the one before. Finishing carries the `?note=` the workspace mirrored
-// from its boot, which prefers Welcome.md when the vault has one.
+// over the workspace like Settings so the library is already loading underneath. The step rides
+// the url, so Back returns to the one before. Finishing lands on the library.
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
@@ -28,10 +27,7 @@ const Welcome = () => {
         ) : (
           <AccountStep
             onNext={() => {
-              void navigate({
-                search: ({ note }) => (note === undefined ? {} : { note }),
-                to: "/",
-              });
+              void navigate({ search: {}, to: "/" });
             }}
           />
         )}

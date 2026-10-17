@@ -54,11 +54,6 @@ const related = base.knowledge.related.handler(async ({ context, input }) => ({
   related: await context.knowledge.relatedNotes(input.path, input.limit),
 }));
 
-const tagNotes = base.knowledge.tagNotes.handler(async ({ context, input }) => {
-  const page = await context.knowledge.tagNotes(input.tag, input.limit, input.offset);
-  return { tag: input.tag, ...page };
-});
-
 const tags = base.knowledge.tags.handler(async ({ context }) => {
   const found = await context.knowledge.tags();
   return { tags: found.slice(0, KNOWLEDGE_TAGS_MAX), total: found.length };
@@ -153,7 +148,6 @@ export const knowledgeRouter = {
   related,
   renameTag,
   search,
-  tagNotes,
   tags,
   wikiTargets,
 };

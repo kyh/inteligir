@@ -31,11 +31,12 @@ export type OutboxNotice =
 
 type ParkedChange = OutboxStatus["parked"][number];
 
-// a reply or a resolve changes the annotation store alone, whose file name is the note's id
-const commentTitle = (path: string | undefined): string =>
+// a note on a highlight, a reply or a delete changes the annotation store alone, whose file name
+// is the item's id
+const annotationTitle = (path: string | undefined): string =>
   path === undefined || isAnnotationsStorePath(path)
-    ? "A comment is not in your vault yet"
-    : `A comment on ${docStem(path)} is not in your vault yet`;
+    ? "An annotation is not in your vault yet"
+    : `An annotation on ${docStem(path)} is not in your vault yet`;
 
 const titleOf = (parked: ParkedChange): string => {
   const [path] = parked.paths;
@@ -49,7 +50,7 @@ const titleOf = (parked: ParkedChange): string => {
         : `${docStem(path)} was not deleted from your vault`;
     }
     case "annotation": {
-      return commentTitle(path);
+      return annotationTitle(path);
     }
     case "write":
     case "create":

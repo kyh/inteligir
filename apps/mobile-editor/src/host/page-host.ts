@@ -315,7 +315,7 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       }
       return true;
     } catch (error) {
-      toast.error(`Couldn't add the comment — ${messageOf(error)}`);
+      toast.error(`Couldn't add the highlight — ${messageOf(error)}`);
       return false;
     } finally {
       if (anchoring === pending) {
@@ -364,7 +364,7 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       removeAnnotationMarkers(editor, ids);
     });
     if (!(await session.actions.flush().catch(() => false))) {
-      toast.error("Couldn't save this note after deleting the comment.");
+      toast.error("Couldn't save this item after deleting the annotation.");
     }
   };
 

@@ -357,26 +357,27 @@ const reconcileAnnotation = async (
   };
 };
 
-// a delete of a note another device edited keeps the edit, and its annotation stores with it; a
-// annotation store or a dot-entry gets whatever reconcileFile answers for it. A store another device
-// wrote since still goes with a note that goes, as the server takes it whatever it holds.
+// a delete of a note another device edited keeps the edit, and what would have gone alongside it
+// (its annotation store, the files only it linked) with it; an annotation store or a dot-entry gets
+// whatever reconcileFile answers for it. A file another device wrote since still goes with a note
+// that goes, as the server takes it whatever it holds.
 const reconcileRemove = async (
   op: Extract<VaultOp, { op: "remove" }>,
   conflict: VaultCommitConflict,
   ctx: ReconcileContext,
 ): Promise<Resolution> => {
   const byPath = new Map(conflict.conflicts.map((entry) => [entry.path, entry]));
-  const stores = op.stores.flatMap((store) => {
-    const current = byPath.get(store.path)?.current;
+  const alongside = op.alongside.flatMap((file) => {
+    const current = byPath.get(file.path)?.current;
     if (current === undefined) {
-      return [store];
+      return [file];
     }
-    return current === null ? [] : [{ ...store, baseOid: current.oid }];
+    return current === null ? [] : [{ ...file, baseOid: current.oid }];
   });
   const entry = byPath.get(op.path);
   if (entry === undefined) {
-    return op.stores.some((store) => byPath.has(store.path))
-      ? { kind: "retarget", op: { ...op, stores }, unlinked: [] }
+    return op.alongside.some((file) => byPath.has(file.path))
+      ? { kind: "retarget", op: { ...op, alongside }, unlinked: [] }
       : parked(NOT_KEPT_HERE);
   }
   const theirs = await theirsAt(entry, conflict.head, ctx);
@@ -397,8 +398,8 @@ const reconcileRemove = async (
     if (against !== null) {
       changes.push({ base: against.oid, op: "delete", path: op.path });
     }
-    for (const store of stores) {
-      changes.push({ base: store.baseOid, op: "delete", path: store.path });
+    for (const file of alongside) {
+      changes.push({ base: file.baseOid, op: "delete", path: file.path });
     }
   }
   return settled(op.path, verdict, against, changes, null);

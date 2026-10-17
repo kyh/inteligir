@@ -11,6 +11,7 @@ import { hotkeyCaps, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { GLOBAL_SHORTCUTS, globalShortcutHotkey } from "../global-shortcuts";
+import { LIBRARY_SHORTCUTS, libraryShortcutHotkey } from "../library/library-keys";
 import { matchesQuery, PalettePage } from "./palette-page";
 
 interface ShortcutRow {
@@ -39,6 +40,10 @@ const shortcutGroups = (
   {
     heading: "Everywhere",
     rows: GLOBAL_SHORTCUTS.map((row) => shortcutRow(row, globalShortcutHotkey(row), modifier)),
+  },
+  {
+    heading: "In the library",
+    rows: LIBRARY_SHORTCUTS.map((row) => shortcutRow(row, libraryShortcutHotkey(row), modifier)),
   },
   {
     heading: "In the note",

@@ -9,7 +9,7 @@ import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { AppInstance } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR, PALETTE_INPUT, SIDEBAR } from "../harness/selectors";
+import { EDITOR, PALETTE_INPUT, SIDEBAR, libraryCard } from "../harness/selectors";
 
 const MOUNT_DEADLINE_MS = 60_000;
 // a late async failure must not slip in after the error sweep.
@@ -119,8 +119,11 @@ export const browserSmoke: Scenario = {
     await freshBrowser.close();
 
     const agentBrowser = await ctx.browser("smoke");
-    ctx.log(`opening ${app.baseUrl}/: the SPA mounts and the virgin-boot note opens`);
+    ctx.log(`opening ${app.baseUrl}/: the SPA mounts on the library, and its Welcome card opens`);
     await agentBrowser.openWorkspace(app);
+    await agentBrowser(["wait", libraryCard("Welcome.md")], MOUNT_DEADLINE_MS);
+    await agentBrowser(["dblclick", libraryCard("Welcome.md")]);
+    await agentBrowser(["wait", EDITOR], MOUNT_DEADLINE_MS);
 
     const title = await agentBrowser(["get", "title"]);
     expect(title === "inteligir", `document title is ${JSON.stringify(title)}`);

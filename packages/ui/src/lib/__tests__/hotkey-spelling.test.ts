@@ -25,7 +25,16 @@ describe("the caps of a chord", () => {
     expect(hotkeyCaps("mod+p", "meta")).toEqual(["⌘", "P"]);
     expect(hotkeyCaps("ctrl+alt+shift+mod+k", "meta")).toEqual(["⌃", "⌥", "⇧", "⌘", "K"]);
     expect(hotkeyCaps("mod+shift+f", "ctrl")).toEqual(["Ctrl", "Shift", "F"]);
-    expect(hotkeyCaps("mod+enter", "meta")).toEqual(["⌘", "Enter"]);
+    expect(hotkeyCaps("mod+enter", "meta")).toEqual(["⌘", "↩"]);
+  });
+
+  it("draws a named key as its glyph on every keyboard", () => {
+    expect(hotkeyCaps("shift+down", "meta")).toEqual(["⇧", "↓"]);
+    expect(hotkeyCaps("left", "ctrl")).toEqual(["←"]);
+    expect(hotkeyCaps("mod+backspace", "meta")).toEqual(["⌘", "⌫"]);
+    expect(hotkeyCaps("escape", "ctrl")).toEqual(["Esc"]);
+    expect(spellHotkey("space", "meta")).toBe("Space");
+    expect(spellHotkey("mod+shift+h", "meta")).toBe("⇧⌘H");
   });
 
   it("folds mod into Ctrl off a mac, where they are one key", () => {

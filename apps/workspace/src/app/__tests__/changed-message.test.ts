@@ -90,43 +90,18 @@ describe("a doc change", () => {
     expect(applied.invalidated).toEqual([[...orpc.knowledge.key()], [...orpc.annotations.key()]]);
   });
 
-  it("moves the edited note to now in the cached listing, and no other row", () => {
-    const tree: VaultTreeResponse = {
-      entries: [
-        { kind: "dir", path: "notes" },
-        { kind: "file", modifiedMs: 1, path: "notes/edited.md" },
-        { kind: "file", modifiedMs: 1, path: "notes/untouched.md" },
-      ],
-      name: "vault",
-      root: "/vault",
-    };
-    const before = Date.now();
-    const applied = applyBatch([contentChanged("notes/edited.md")], (queryClient) => {
-      queryClient.setQueryData(orpc.vault.tree.queryKey(), tree);
-    });
-
-    const patched = applied.queryClient.getQueryData(orpc.vault.tree.queryKey());
-    const modified = new Map(
-      patched?.entries.flatMap((entry) =>
-        entry.kind === "file" ? [[entry.path, entry.modifiedMs]] : [],
-      ),
-    );
-    expect(modified.get("notes/edited.md")).toBeGreaterThanOrEqual(before);
-    expect(modified.get("notes/untouched.md")).toBe(1);
-    expect(applied.invalidated).not.toContainEqual([...orpc.vault.tree.key()]);
-  });
-
-  it("leaves the cached listing as it was when the doc is not in it", () => {
+  it("leaves the cached listing as it was: no surface reads a row's modified time from it", () => {
     const tree: VaultTreeResponse = {
       entries: [{ kind: "file", modifiedMs: 1, path: "a.md" }],
       name: "vault",
       root: "/vault",
     };
-    const applied = applyBatch([contentChanged("elsewhere.md")], (queryClient) => {
+    const applied = applyBatch([contentChanged("a.md")], (queryClient) => {
       queryClient.setQueryData(orpc.vault.tree.queryKey(), tree);
     });
 
     expect(applied.queryClient.getQueryData(orpc.vault.tree.queryKey())).toBe(tree);
+    expect(applied.invalidated).not.toContainEqual([...orpc.vault.tree.key()]);
   });
 });
 

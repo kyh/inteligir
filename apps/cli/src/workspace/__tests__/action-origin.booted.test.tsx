@@ -33,7 +33,7 @@ const bufferNoteId = (): string | null => {
 describe("an action composed over a note with no id", () => {
   it("gives the note its id before the view context is read, so the revision names the file", async () => {
     const harness = await bootWorkspace({
-      note: NOTE,
+      item: NOTE,
       seed: async (booted) => {
         await booted.client.vault.write({
           content: "# Plans\n\nFirst line.\n",
@@ -72,7 +72,7 @@ describe("an action composed over a note with no id", () => {
 
   it("keeps the id it minted through an undo", async () => {
     const harness = await bootWorkspace({
-      note: NOTE,
+      item: NOTE,
       seed: async (booted) => {
         await booted.client.vault.write({
           content: "# Plans\n\nFirst line.\n",

@@ -164,29 +164,6 @@ export type KnowledgeTagsResponse = z.infer<typeof knowledgeTagsResponseSchema>;
 // spelled beside the item schemas, which a save's tags parse with too
 export { tagNameSchema } from "../items/items-schema";
 
-export const KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT = 100;
-export const KNOWLEDGE_TAG_NOTES_MAX_LIMIT = 500;
-
-// a listing, not a search: the tag's family by path, paged, with the whole count
-export const knowledgeTagNotesRequestSchema = z.strictObject({
-  limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(KNOWLEDGE_TAG_NOTES_MAX_LIMIT)
-    .default(KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT),
-  offset: z.number().int().min(0).default(0),
-  tag: tagNameSchema,
-});
-export type KnowledgeTagNotesRequest = z.input<typeof knowledgeTagNotesRequestSchema>;
-
-export const knowledgeTagNotesResponseSchema = z.strictObject({
-  paths: z.array(z.string().min(1)).max(KNOWLEDGE_TAG_NOTES_MAX_LIMIT),
-  tag: z.string().min(1),
-  total: z.number().int().min(0),
-});
-export type KnowledgeTagNotesResponse = z.infer<typeof knowledgeTagNotesResponseSchema>;
-
 export const knowledgeRenameTagRequestSchema = z.strictObject({
   from: tagNameSchema,
   to: tagNameSchema,

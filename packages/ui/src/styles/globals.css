@@ -91,6 +91,9 @@
   --color-ink-3: var(--ink-3);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+
+  --color-highlight: var(--highlight);
+  --color-highlight-hover: var(--highlight-hover);
 }
 
 :root {
@@ -170,6 +173,10 @@
     0 48px 48px -24px var(--shadow-color), 0 96px 96px -48px var(--shadow-color);
 
   /* --overlay is the tint direction: black on light surfaces, white on dark */
+  /* a highlighted passage: yellow-200 at 70%, and a stronger yellow-300 under the pointer */
+  --highlight: oklch(0.945 0.129 101.54 / 0.7);
+  --highlight-hover: oklch(0.905 0.182 98.111 / 0.85);
+
   --overlay: 0 0 0;
   --hover: rgb(var(--overlay) / 0.04);
   --active: rgb(var(--overlay) / 0.07);
@@ -260,6 +267,10 @@
     0 6px 6px -3px var(--dm-drop), 0 12px 12px -6px var(--dm-drop),
     0 24px 24px -12px var(--dm-drop), 0 48px 48px -24px var(--dm-drop),
     0 96px 96px -48px var(--dm-drop);
+
+  /* yellow-400 at 25% on a dark page, 38% under the pointer */
+  --highlight: oklch(0.852 0.199 91.936 / 0.25);
+  --highlight-hover: oklch(0.852 0.199 91.936 / 0.38);
 
   --overlay: 255 255 255;
   --hover: rgb(var(--overlay) / 0.06);

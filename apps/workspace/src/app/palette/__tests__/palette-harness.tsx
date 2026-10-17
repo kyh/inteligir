@@ -72,8 +72,10 @@ export const defaultRequest: PaletteRequest = { nonce: 1, page: "root" };
 // open. A test spreads its own over the ones it asserts on.
 export const makeActions = () =>
   ({
+    addFiles: vi.fn<PaletteActions["addFiles"]>(),
     goToHeading: vi.fn<PaletteActions["goToHeading"]>(),
-    moveNote: vi.fn<PaletteActions["moveNote"]>(),
+    importRaindrop: vi.fn<PaletteActions["importRaindrop"]>(),
+    moveItems: vi.fn<PaletteActions["moveItems"]>(),
     newNote: vi.fn<PaletteActions["newNote"]>(),
     note: null,
     openDeletedNotes: vi.fn<PaletteActions["openDeletedNotes"]>(),
@@ -81,6 +83,9 @@ export const makeActions = () =>
     openNote: vi.fn<PaletteActions["openNote"]>(),
     openSettings: vi.fn<PaletteActions["openSettings"]>(),
     openThread: vi.fn<PaletteActions["openThread"]>(),
+    saveLink: vi.fn<PaletteActions["saveLink"]>(),
+    showResults: vi.fn<PaletteActions["showResults"]>(),
+    startTidy: vi.fn<PaletteActions["startTidy"]>(),
     syncNow: vi.fn<PaletteActions["syncNow"]>(),
   }) satisfies PaletteActions;
 
@@ -92,6 +97,7 @@ export const makeNote = (path = "Welcome.md") =>
     listHeadings: vi.fn<PaletteNote["listHeadings"]>(() => []),
     path,
     pinned: false,
+    source: null,
     togglePin: vi.fn<PaletteNote["togglePin"]>(),
   }) satisfies PaletteNote;
 

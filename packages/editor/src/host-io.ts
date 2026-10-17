@@ -23,6 +23,8 @@ export type CreateNewFileResult =
 export interface VaultActions {
   /** A failed flush of the current note refuses to navigate. */
   openFile: (path: string) => void;
+  /** Leaves the open item for the library, written first as a switch to another item would be. */
+  closeFile: () => void;
   /** Keyed by path: a teardown or surface switch can emit after the open note changed, and those bytes must no-op. */
   editNote: (path: string, content: string) => void;
   /** Drains the serialize debounce before a save/rename/delete; keyed by path for the same reason as editNote. */

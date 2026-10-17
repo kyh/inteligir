@@ -94,7 +94,11 @@ export const phoneFileOpsHosted: Scenario = {
     ctx.log("A syncs and holds every one of them");
     await syncUntil(a.api, "A pulling the phone's changes", "clean");
     const onA = (file: string): string => path.join(a.vaultDir, file);
-    expectEq(await readFile(onA("Untitled.md"), "utf-8"), "", "the new note on A");
+    const untitled = await readFile(onA("Untitled.md"), "utf-8");
+    expect(
+      /^---\nsaved: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\n---\n$/u.test(untitled),
+      `the new note on A says when the phone saved it: ${JSON.stringify(untitled)}`,
+    );
     expectEq(
       await readFile(onA(HUB), "utf-8"),
       "See [[Roadmap]] for the details.\n",

@@ -75,7 +75,8 @@ export const bindingCapsFor = (
   return hotkey === null ? [] : hotkeyCaps(hotkey, modifier);
 };
 
-const takesText = (target: EventTarget | null): boolean =>
+// a field, a text area or the editor: where a bare key types rather than commands
+export const isTextEntryTarget = (target: EventTarget | null): boolean =>
   target instanceof HTMLElement &&
   (target.isContentEditable ||
     target instanceof HTMLInputElement ||
@@ -92,7 +93,7 @@ export const globalShortcutFor = (
   }
   const key = event.key.toLowerCase();
   if (!event.metaKey && !event.ctrlKey) {
-    if (takesText(event.target)) {
+    if (isTextEntryTarget(event.target)) {
       return null;
     }
     return (

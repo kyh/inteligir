@@ -51,13 +51,20 @@ describe("bytes already in storage", () => {
     ["inteligir.sidebar-width", "9999", PREFS.sidebarWidth, SIDEBAR_MAX_WIDTH],
     ["inteligir.sidebar-width", "wide", PREFS.sidebarWidth, 260],
     ["inteligir.panel-width", "280", PREFS.panelWidth, 280],
-    ["inteligir.rail-view", "deleted", PREFS.railView, "deleted"],
-    ["inteligir.rail-view", "tags", PREFS.railView, "files"],
-    ["inteligir.tree-sort", "modified", PREFS.treeSort, "modified"],
-    ["inteligir.tree-sort", "size", PREFS.treeSort, "name"],
+    ["inteligir.library-sort", "title", PREFS.librarySort, "title"],
+    ["inteligir.library-sort", "size", PREFS.librarySort, "saved"],
+    ["inteligir.rail-tags-open", "false", PREFS.railTagsOpen, false],
+    ["inteligir.rail-tags-open", "closed", PREFS.railTagsOpen, true],
+    [
+      "inteligir.library-scope",
+      '{"kind":"folder","path":"Reading"}',
+      PREFS.libraryScope,
+      { kind: "folder", path: "Reading" },
+    ],
+    ["inteligir.library-scope", '{"kind":"tag","tag":""}', PREFS.libraryScope, { kind: "all" }],
+    ["inteligir.library-scope", "unsorted", PREFS.libraryScope, { kind: "all" }],
     ["inteligir.theme", "dark", PREFS.theme, "dark"],
     ["inteligir.theme", "sepia", PREFS.theme, "system"],
-    ["inteligir.last-open-note", "Notes/a.md", PREFS.lastOpenNote, "Notes/a.md"],
     ["inteligir.spellcheck", "false", PREFS.spellcheck, false],
     ["inteligir.spellcheck", '{"enabled":false}', PREFS.spellcheck, true],
     [
@@ -95,10 +102,10 @@ describe("a write", () => {
     writePref(PREFS.panelOpen, true);
     writePref(PREFS.relatedOpen, false);
     writePref(PREFS.sidebarWidth, 300.4);
-    writePref(PREFS.railView, "recent");
-    writePref(PREFS.treeSort, "modified");
+    writePref(PREFS.librarySort, "modified");
+    writePref(PREFS.libraryScope, { kind: "unsorted" });
+    writePref(PREFS.railTagsOpen, false);
     writePref(PREFS.theme, "light");
-    writePref(PREFS.lastOpenNote, "Notes/a.md");
     writePref(PREFS.spellcheck, false);
     writePref(PREFS.appearance, { ...APPEARANCE_DEFAULTS, size: "small" });
     writePref(PREFS.syncConflictSeenAt, 1_790_000_000_000);
@@ -106,10 +113,10 @@ describe("a write", () => {
     expect(stored("inteligir.panel-open")).toBe("true");
     expect(stored("inteligir.related-open")).toBe("false");
     expect(stored("inteligir.sidebar-width")).toBe("300");
-    expect(stored("inteligir.rail-view")).toBe("recent");
-    expect(stored("inteligir.tree-sort")).toBe("modified");
+    expect(stored("inteligir.library-sort")).toBe("modified");
+    expect(stored("inteligir.library-scope")).toBe('{"kind":"unsorted"}');
+    expect(stored("inteligir.rail-tags-open")).toBe("false");
     expect(stored("inteligir.theme")).toBe("light");
-    expect(stored("inteligir.last-open-note")).toBe("Notes/a.md");
     expect(stored("inteligir.sync-conflict-seen-at")).toBe("1790000000000");
     expect(stored("inteligir.spellcheck")).toBe("false");
     expect(JSON.parse(stored("inteligir.appearance") ?? "null")).toEqual({
@@ -119,9 +126,9 @@ describe("a write", () => {
   });
 
   it("forgets a key, which then reads as the fallback", () => {
-    writePref(PREFS.lastOpenNote, "Notes/a.md");
-    forgetPref(PREFS.lastOpenNote);
-    expect(stored("inteligir.last-open-note")).toBeNull();
-    expect(readPref(PREFS.lastOpenNote)).toBeNull();
+    writePref(PREFS.syncConflictSeenAt, 1_790_000_000_000);
+    forgetPref(PREFS.syncConflictSeenAt);
+    expect(stored("inteligir.sync-conflict-seen-at")).toBeNull();
+    expect(readPref(PREFS.syncConflictSeenAt)).toBeNull();
   });
 });

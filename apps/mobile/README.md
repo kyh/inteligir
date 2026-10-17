@@ -30,12 +30,19 @@ src/
   notes/        the vault on the phone: the mirror, the notes store, the outbox and the
                 file and annotation verbs; photo-ingest.ts and the expo-*-files.ts
                 adapters are its native halves
+  items/        saving a link or a thought (item-ops.ts), what a share hands over and the
+                inbox that saves it, and an item's Info sheet
+  library/      the Library's cards by scope, kind and query, its rows, and the covers
+                from the attachment cache (expo-cover-thumbs.ts is the native half)
   lib/          the composition root (compose-runtime.ts, platform-free; app-runtime.ts,
                 its binding to the device), the SQL port with phone-db.ts's
                 migrations, and backup-exclusion.ts over modules/backup-exclusion, the
                 one native module this app carries
   ui/           controls the screens share
-  app/          expo-router screens; _layout.tsx holds the splash and the route guard
+  app/          expo-router screens: index.tsx is the Library, item/ an item in the editor,
+                view/ an image or a PDF full size, threads.tsx and thread/ the agent;
+                _layout.tsx holds the splash, the share provider and the route guard, and
+                +native-intent.ts lands the share extension's handoff on the Library
 plugins/        with-editor-page.js: the built page into the app bundle
 ```
 
@@ -124,7 +131,7 @@ answer stored in its own transaction and only onto a row still naming the
 answer's oid. The mirrored commit moves only once every wanted row holds its
 text, so a refresh cut short resumes from the empty rows. So a cold launch
 shows the list and opens every note before any request, and a refresh that
-fails keeps the list it has and says why above it. "Loading your vault…"
+fails keeps the list it has and says why above it. "Loading your library…"
 shows only on a FIRST mirror, with its count.
 
 The listing (paths, aliases and ids, which the editor page's own resolver
@@ -144,6 +151,36 @@ dispatch runtime each hold that fence as a `lib/sign-in-fence.ts`. The
 database has ONE `user_version` (`lib/phone-db.ts`): a table another module
 adds is a step there. Until the first build EAS makes, the schema is one step
 edited in place; from that build on, a step is appended, never edited.
+
+## The library
+
+Home is the Library: every item the phone holds, newest save first, narrowed
+by a scope from the menu (All, Unsorted, a folder, a tag), the kind chips and
+the header's search over titles, sites and links. Each row is a card the mirror
+read once from the item's text as it landed (`item` in `mirror_entries`): its
+facts, its first embeds and page-copy link, and its tags. The cover and the
+original are resolved per listing over the held paths (`library/library-view.ts`),
+and a cover draws from the attachment cache, or from a 320 px JPEG made once
+beside an original over 512 KB (`library/cover-thumbs.ts`), so a list loads
+nothing remote. A link no Mac has read yet says "Details arrive from your Mac".
+
+- **Saving is one create.** The field over the list and a share from another app
+  both make ONE outbox `create` in `Unsorted/` (`items/item-ops.ts`): a link is
+  a stub (`linkStubText`: a minted id, its kind, the cleaned url, when it was
+  saved, and the note as its body), named by the share's title or the link,
+  and a link the library already holds answers where it is; a thought is a
+  note named by its first line. The Worker takes it like any write, and a Mac
+  that sees the stub reads its page within a minute.
+- **A share is the app's save.** The share extension ("Save to Inteligir")
+  only hands the page, the link or the text to the app through the App Group;
+  `items/share-inbox.tsx` saves it, opens it, and only then lets it go, so a
+  share made signed out waits for the sign-in.
+- **Two versions of one link settle by themselves.** A phone edit of a stub a
+  Mac filled meanwhile (a tag, a note) meets it in `reconcileFile`, which asks
+  the url-item verdict first: one text, both changes, no copy.
+- **A delete takes what only it shows.** Deleting an image item takes its
+  picture too, in the same change set, when no other item links it and every
+  held item's text is on the phone (`notes/file-ops.ts`).
 
 ## Unsent edits
 
@@ -225,7 +262,7 @@ The phone asks a Mac's agent through the dispatch inbox: it posts a
 claims one, and a Mac runs the turn and writes it to the log. Ask agent on a
 note opens a new thread under an id the phone mints (`thr_` and 16 random
 bytes), and its first message names the note as the thread's origin and the
-sha-256 of the bytes the note screen showed as its view context's revision.
+sha-256 of the bytes the item screen showed as its view context's revision.
 
 - **A request is durable before it is sent.** Send writes the row to
   `dispatch_outbox` with an id minted here, the body frozen as it will be
@@ -353,7 +390,7 @@ pnpm --filter @repo/mobile dev                                              # ag
 EXPO_PUBLIC_CLOUD_URL=http://localhost:5174 pnpm --filter @repo/mobile dev  # against `pnpm dev:web`
 ```
 
-The note screen's editor is `@repo/mobile-editor`'s built page, carried in the
+The item screen's editor is `@repo/mobile-editor`'s built page, carried in the
 app bundle by `plugins/with-editor-page.js`, so it changes only with a new
 native build: `pnpm --filter @repo/mobile ios` builds the page first, and
 `pnpm --filter @repo/mobile editor-page` rebuilds it alone. Metro serves the

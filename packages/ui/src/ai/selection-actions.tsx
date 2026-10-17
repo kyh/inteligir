@@ -1,5 +1,6 @@
 "use client";
-// Vendored from Beautiful UI (beautifului.dev), MIT.
+// Vendored from Beautiful UI (beautifului.dev), MIT. Its result card is cut: no surface shows a
+// transformed selection, and the library's selection strip is the bar alone.
 
 import type { HTMLAttributes, ReactNode, RefAttributes } from "react";
 import { ChevronRightIcon } from "lucide-react";
@@ -24,7 +25,7 @@ const SelectionActions = ({
   />
 );
 
-export interface SelectionActionProps extends HTMLAttributes<HTMLButtonElement> {
+interface SelectionActionProps extends HTMLAttributes<HTMLButtonElement> {
   icon?: ReactNode;
   hasMenu?: boolean;
 }
@@ -42,7 +43,7 @@ const SelectionAction = ({
     type="button"
     data-slot="selection-action"
     className={cn(
-      "flex h-7 items-center gap-1.5 rounded-lg px-2 text-[12.5px] font-medium text-ink",
+      "flex h-7 items-center gap-1.5 rounded-lg px-2 text-body font-medium text-ink",
       "transition-colors duration-100 hover:bg-hover",
       "outline-none focus-visible:ring-1 focus-visible:ring-focus-ring",
       "[&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-ink-2",
@@ -78,94 +79,4 @@ const Shimmer = ({
   <span ref={ref} data-slot="shimmer" className={cn("bui-shimmer-text", className)} {...props} />
 );
 
-const SelectionResult = ({
-  className,
-  ref,
-  ...props
-}: HTMLAttributes<HTMLDivElement> & RefAttributes<HTMLDivElement>) => (
-  <div
-    ref={ref}
-    data-slot="selection-result"
-    className={cn(
-      "w-full overflow-hidden rounded-xl bg-surface-raised shadow-surface-2",
-      "animate-in fade-in slide-in-from-top-1 duration-200",
-      className,
-    )}
-    {...props}
-  />
-);
-
-export interface SelectionResultHeaderProps extends HTMLAttributes<HTMLDivElement> {
-  icon?: ReactNode;
-}
-
-const SelectionResultHeader = ({
-  className,
-  children,
-  icon,
-  ref,
-  ...props
-}: SelectionResultHeaderProps & RefAttributes<HTMLDivElement>) => (
-  <div
-    ref={ref}
-    data-slot="selection-result-header"
-    className={cn(
-      "flex items-center gap-1.5 border-b border-line px-3 py-2 text-[12px] font-medium text-ink-2",
-      "[&_svg]:size-3.5 [&_svg]:shrink-0",
-      className,
-    )}
-    {...props}
-  >
-    {icon}
-    {children}
-  </div>
-);
-
-const SelectionResultBody = ({
-  className,
-  ref,
-  ...props
-}: HTMLAttributes<HTMLDivElement> & RefAttributes<HTMLDivElement>) => (
-  <div
-    ref={ref}
-    data-slot="selection-result-body"
-    className={cn("px-3 py-2.5 text-[13px] leading-relaxed text-ink", className)}
-    {...props}
-  />
-);
-
-export interface SelectionResultFooterProps extends HTMLAttributes<HTMLDivElement> {
-  actions?: ReactNode;
-}
-
-const SelectionResultFooter = ({
-  className,
-  children,
-  actions,
-  ref,
-  ...props
-}: SelectionResultFooterProps & RefAttributes<HTMLDivElement>) => (
-  <div
-    ref={ref}
-    data-slot="selection-result-footer"
-    className={cn(
-      "flex items-center justify-between gap-3 border-t border-line px-3 py-2",
-      className,
-    )}
-    {...props}
-  >
-    <span className="text-[11.5px] text-ink-3">{children}</span>
-    {actions === undefined ? null : <span className="flex items-center gap-1.5">{actions}</span>}
-  </div>
-);
-
-export {
-  SelectionActions,
-  SelectionAction,
-  SelectionActionsSeparator,
-  Shimmer,
-  SelectionResult,
-  SelectionResultHeader,
-  SelectionResultBody,
-  SelectionResultFooter,
-};
+export { SelectionActions, SelectionAction, SelectionActionsSeparator, Shimmer };

@@ -7,6 +7,7 @@
     "./lib/compose-runtime": "./src/lib/compose-runtime.ts",
     "./lib/node-sql-driver": "./src/lib/node-sql-driver.ts",
     "./lib/phone-db": "./src/lib/phone-db.ts",
+    "./library/library-view": "./src/library/library-view.ts",
     "./notes/attachment-files": "./src/notes/attachment-files.ts",
     "./notes/outbox-files": "./src/notes/outbox-files.ts"
   },

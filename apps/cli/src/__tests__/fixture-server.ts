@@ -516,15 +516,6 @@ const knowledgeRouter = {
   search: base.knowledge.search.handler(({ context, input }) => ({
     results: input.q.length === 0 ? [] : context.searchResults,
   })),
-  tagNotes: base.knowledge.tagNotes.handler(({ context, input }) => {
-    const all = indexOf(context.vault).notesInTagFamily(input.tag);
-    const { offset } = input;
-    return {
-      paths: all.slice(offset, offset + input.limit),
-      tag: input.tag,
-      total: all.length,
-    };
-  }),
   tags: base.knowledge.tags.handler(({ context }) => ({
     tags: context.tags,
     total: context.tags.length,

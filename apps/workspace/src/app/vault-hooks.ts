@@ -39,10 +39,6 @@ export const usePinnedPaths = (): ReadonlySet<string> => {
   return new Set(targets.filter((target) => target.pinned === true).map((target) => target.path));
 };
 
-// a listing by path, not a search: the family's first `limit` notes and the whole count
-export const useNotesWithTag = (tag: string, limit: number) =>
-  useQuery(orpc.knowledge.tagNotes.queryOptions({ input: { limit, tag } }));
-
 export const useVaultStatus = () => useQuery(orpc.vault.status.queryOptions());
 
 // No change kind names this query, so it re-reads on every mount.
@@ -54,6 +50,18 @@ export const useSystemStatus = () =>
 export const readMediaToken = async (queryClient: QueryClient): Promise<string> => {
   const { mediaToken } = await queryClient.ensureQueryData(orpc.system.status.queryOptions());
   return mediaToken;
+};
+
+// where the page's byte routes answer, and the token they take
+export interface MediaOrigin {
+  readonly origin: string;
+  readonly token: string;
+}
+
+// null until the status has answered once: no byte-route url is built without its token
+export const useMediaOrigin = (): MediaOrigin | null => {
+  const { data } = useQuery(orpc.system.status.queryOptions());
+  return data === undefined ? null : { origin: window.location.origin, token: data.mediaToken };
 };
 
 // Every sentence here is the user's, never the engine's: its own error text names git's

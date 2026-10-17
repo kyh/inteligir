@@ -16,6 +16,7 @@ import type {
 import { Input } from "@repo/ui/components/input";
 import { isImeComposing } from "@repo/ui/lib/ime";
 
+import { ITEM_KEYS } from "@repo/notes/items/item-kind";
 import { subscribeLiveEditors } from "@repo/editor/live-editor";
 import { readFrontmatterRaw, writeFrontmatterRaw } from "@repo/editor/properties/properties-node";
 import {
@@ -234,6 +235,10 @@ const applyEdit = (
   }
 };
 
+const HIDDEN_KEYS: ReadonlySet<string> = new Set<string>([...ITEM_KEYS, "id"]);
+
+const isShownProperty = (prop: TypedProperty): boolean => !HIDDEN_KEYS.has(prop.key);
+
 export const PropertiesPanel = ({ editor }: { editor: SlateEditor }) => {
   // outside the Plate tree, so no useEditorSelector: the live-editor channel carries its edits
   const raw = useSyncExternalStore(subscribeLiveEditors, () => readFrontmatterRaw(editor));
@@ -243,7 +248,8 @@ export const PropertiesPanel = ({ editor }: { editor: SlateEditor }) => {
   );
   const [overrides, setOverrides] = useState<Record<string, PropertyType>>({});
 
-  const properties = parsed?.kind === "valid" ? parsed.properties : [];
+  // the item's own keys and its id are Info's, which reads them from the index
+  const properties = parsed?.kind === "valid" ? parsed.properties.filter(isShownProperty) : [];
   const invalid = parsed?.kind === "invalid";
 
   const commit = (edit: PropertyEdit) => {

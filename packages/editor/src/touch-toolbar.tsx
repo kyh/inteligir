@@ -27,8 +27,8 @@ import {
   KeyboardOffIcon,
   Link2Icon,
   ListIndentDecreaseIcon,
+  HighlighterIcon,
   ListIndentIncreaseIcon,
-  MessageSquarePlusIcon,
   Redo2Icon,
   SparklesIcon,
   UnderlineIcon,
@@ -42,13 +42,11 @@ import type { IconComponent } from "@repo/ui/lib/icon";
 
 import { askAgentAboutSelection } from "@repo/editor/agent-request";
 import {
-  ADD_ANNOTATION_SHORTCUT,
-  anchorNewAnnotation,
-  saveNewAnnotation,
-  selectionQuote,
-  selectionTakesAnnotation,
+  HIGHLIGHT_SHORTCUT,
+  highlightSelection,
+  noteHighlight,
+  selectionTakesHighlight,
 } from "@repo/editor/annotations/annotation-kit";
-import { removeAnnotationMarkers } from "@repo/editor/annotations/annotation-markers";
 import { CODE_MARK_SHORTCUT, runEditorShortcut } from "@repo/editor/editor-shortcuts";
 import { getEditorHostIo } from "@repo/editor/host-io";
 import type { PickImageResult } from "@repo/editor/host-io";
@@ -186,8 +184,8 @@ const ActionButton = ({
   );
 };
 
-// what the selection can be handed to: the agent, and a new annotation the host writes. The
-// annotation's field takes the row, so its markers go in only once there is text to write beside them.
+// what the selection can be handed to: the agent, and a highlight the host writes. The highlight's
+// note field takes the row first, so its markers go in once, as it is submitted, note or none.
 const SelectionButtons = ({
   editor,
   onAnnotate,
@@ -196,7 +194,7 @@ const SelectionButtons = ({
   onAnnotate: () => void;
 }) => {
   const expanded = useSelectionExpanded();
-  const annotatable = useEditorSelector(selectionTakesAnnotation, []);
+  const highlightable = useEditorSelector(selectionTakesHighlight, []);
   return (
     <>
       <ActionButton
@@ -207,32 +205,25 @@ const SelectionButtons = ({
         }}
       />
       <ToolbarButton
-        label={ADD_ANNOTATION_SHORTCUT.label}
-        disabled={!annotatable}
+        label={HIGHLIGHT_SHORTCUT.label}
+        disabled={!highlightable}
         onPress={onAnnotate}
       >
-        <MessageSquarePlusIcon />
+        <HighlighterIcon />
       </ToolbarButton>
       <Sep />
     </>
   );
 };
 
-// A refused create strips the markers it went in with, as the desktop's popover does, and the host
-// says why.
-const annotateOn = (editor: PlateEditor, at: TRange, text: string): void => {
+// The desktop's one gesture on the range the field was opened over: the highlight, then its note
+// when one was typed. A refused highlight strips the markers it went in with, and the host says why.
+const highlightOn = (editor: PlateEditor, at: TRange, text: string): void => {
   editor.tf.select(at);
-  const quote = selectionQuote(editor);
-  const id = anchorNewAnnotation(editor);
-  if (id === null) {
-    return;
+  const started = highlightSelection(editor);
+  if (started !== null) {
+    void noteHighlight(started.created, started.id, text);
   }
-  void (async () => {
-    const created = await saveNewAnnotation(id, quote, text);
-    if (!created) {
-      removeAnnotationMarkers(editor, [id]);
-    }
-  })();
 };
 
 // Never rejects: the press has already happened, so a rejection would reach nobody.
@@ -255,8 +246,8 @@ const pickImageInto = async (
   }
 };
 
-// a field that takes the row: a link's address, or an annotation's note
-type PromptKind = "link" | "annotation";
+// a field that takes the row: a link's address, or a highlight's optional note
+type PromptKind = "link" | "highlight";
 
 interface PromptField {
   readonly icon: IconComponent;
@@ -269,14 +260,14 @@ interface PromptField {
   >;
 }
 
-// the annotation's words are the desktop popover's
+// the note is optional, so the submit names the highlight it makes either way
 const PROMPT_FIELDS = {
-  annotation: {
-    icon: MessageSquarePlusIcon,
-    input: { enterKeyHint: "send", type: "text" },
-    label: "Comment",
-    placeholder: "Comment…",
-    submit: "Save",
+  highlight: {
+    icon: HighlighterIcon,
+    input: { enterKeyHint: "done", type: "text" },
+    label: "Note",
+    placeholder: "Add a note (optional)",
+    submit: "Highlight",
   },
   link: {
     icon: Link2Icon,
@@ -358,21 +349,24 @@ const TouchToolbar = () => {
     }
   };
 
-  const closePrompt = ({ at, kind }: OpenPrompt, value: string): void => {
+  // `value` null is a cancel; an empty highlight submit is a bare highlight, an empty link nothing
+  const closePrompt = ({ at, kind }: OpenPrompt, value: string | null): void => {
     const range = at.unref();
     setPrompt(null);
     setDraft(null);
-    if (value === "") {
+    if (value === null || (value === "" && kind === "link")) {
       return;
     }
     if (range === null) {
-      setDraft({ kind, value });
-      toast.warning("The note changed — select the text again.");
+      if (value !== "") {
+        setDraft({ kind, value });
+      }
+      toast.warning("The item changed — select the text again.");
     } else if (kind === "link") {
       editor.tf.select(range);
       upsertLink(editor, { skipValidation: true, url: value });
     } else {
-      annotateOn(editor, range, value);
+      highlightOn(editor, range, value);
     }
   };
 
@@ -388,7 +382,7 @@ const TouchToolbar = () => {
             <SelectionButtons
               editor={editor}
               onAnnotate={() => {
-                openPrompt("annotation");
+                openPrompt("highlight");
               }}
             />
             {MARK_SHORTCUTS.map((row) => (
@@ -460,7 +454,7 @@ const TouchToolbar = () => {
           kind={prompt.kind}
           initialValue={draft?.kind === prompt.kind ? draft.value : ""}
           onCancel={() => {
-            closePrompt(prompt, "");
+            closePrompt(prompt, null);
             editor.tf.focus();
           }}
           onSubmit={(value) => {

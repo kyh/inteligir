@@ -3,16 +3,19 @@ import { skip } from "./assert";
 import { describeExecError, exec } from "./exec";
 import type { AppInstance } from "./instance";
 import { pollUntil } from "./poll";
-import { EDITOR, SIDEBAR } from "./selectors";
+import { LIBRARY_GRID, SIDEBAR } from "./selectors";
 
 export type AgentBrowser = (args: readonly string[], timeoutMs?: number) => Promise<string>;
 
 interface OpenWorkspaceOptions {
   path?: string;
+  // what the page shows once it is ready: the library's grid, which the window opens on, unless
+  // the path opened an item (`/?item=…`), whose caller names the editor or its viewer instead
+  ready?: string;
 }
 
 interface ScenarioBrowserControls {
-  // signs the browser in through a fresh handoff and returns once the rail and the editor mounted.
+  // signs the browser in through a fresh handoff and returns once the rail and `ready` mounted.
   openWorkspace: (app: AppInstance, options?: OpenWorkspaceOptions) => Promise<void>;
   close: () => Promise<void>;
 }
@@ -66,6 +69,36 @@ export const clickButtonIn = async (
     { deadlineMs, describe: (outcome) => `the ${name} button in ${scope} stayed ${outcome}` },
   );
 };
+
+// a row whose text runs on past its name (a rail row's count, a chip's), found by how it starts
+const pressStartingWith = (scope: string, prefix: string): string => `(() => {
+  const root = document.querySelector(${JSON.stringify(scope)});
+  const button = root ? [...root.querySelectorAll("button")].find((el) => el.textContent.trim().startsWith(${JSON.stringify(prefix)})) : null;
+  if (!button) return "missing";
+  if (button.disabled) return "disabled";
+  button.click();
+  return "clicked";
+})()`;
+
+export const clickStartingWith = async (
+  browser: AgentBrowser,
+  scope: string,
+  prefix: string,
+  deadlineMs = 30_000,
+): Promise<void> => {
+  await pollUntil(
+    async () => parseEval(await browser(["eval", pressStartingWith(scope, prefix)]), z.string()),
+    (outcome) => outcome === "clicked",
+    { deadlineMs, describe: (outcome) => `the ${prefix} row in ${scope} stayed ${outcome}` },
+  );
+};
+
+// the query the page's url carries: the open item, or none on the library
+export const openItemParam = async (browser: AgentBrowser): Promise<string | null> =>
+  parseEval(
+    await browser(["eval", `String(new URLSearchParams(location.search).get("item") ?? "")`]),
+    z.string(),
+  ) || null;
 
 export const untilBodyHolds = async (
   browser: AgentBrowser,
@@ -139,7 +172,7 @@ export const createScenarioBrowser = (
       const url = await app.browserUrl(options.path ?? "/");
       await run(["open", url], 60_000);
       await run(["wait", SIDEBAR], 90_000);
-      await run(["wait", EDITOR], 90_000);
+      await run(["wait", options.ready ?? LIBRARY_GRID], 90_000);
     },
   };
   return Object.assign(run, controls);

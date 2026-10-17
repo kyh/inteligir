@@ -66,6 +66,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     };
 
   const vault: VaultActions = {
+    closeFile: recordVoid("closeFile"),
     createFile: record("createFile", Promise.resolve()),
     createFileAt: async (path, seedContent) => {
       calls.push({ action: "createFileAt", args: [path, seedContent] });
