@@ -45,6 +45,7 @@ export interface LibraryViewProps {
   insetTitleBar: boolean;
   add: Omit<LibraryAddActions, "newNote"> & { newNote: (folder: string) => void };
   onTidy?: (() => void) | undefined;
+  onEditFilingRules?: (() => void) | undefined;
   onRenameTag: (tag: string) => void;
   actions: LibraryItemActions;
   onRestored: (path: string) => void;
@@ -131,6 +132,7 @@ export const LibraryView = ({
   insetTitleBar,
   add,
   onTidy,
+  onEditFilingRules,
   onRenameTag,
   actions,
   onRestored,
@@ -254,6 +256,7 @@ export const LibraryView = ({
           },
         }}
         onTidy={tidyShown ? onTidy : undefined}
+        onEditFilingRules={onEditFilingRules}
         onRenameTag={onRenameTag}
       />
       {strip()}

@@ -15,6 +15,7 @@ import type {
 import type { ItemRowWire } from "@repo/contract/local/items/items-schema";
 
 import { client, orpc } from "../api";
+import { isUrlItem } from "./item-labels";
 
 export const LIBRARY_WINDOW = 100;
 
@@ -128,6 +129,20 @@ export const useItemRow = (path: string | null) =>
     enabled: path !== null,
     select: (body) => body.items.find((row) => row.path === path) ?? null,
   });
+
+// the web address of an item that came from one (a link, a video, a sound), null for any other
+export const useItemSourceUrl = (path: string | null): string | null => {
+  const row = useItemRow(path).data ?? null;
+  return row !== null && isUrlItem(row) ? row.url : null;
+};
+
+const NO_FILTER: LibraryFilter = { kind: null, q: null, scope: { kind: "all" }, sort: "saved" };
+
+// how many the listing holds, from its first window, which the grid shares through the cache
+export const useListingTotal = (filter: LibraryFilter | null, enabled: boolean): number => {
+  const head = useLibraryWindow(filter ?? NO_FILTER, 0, enabled && filter !== null);
+  return head.data?.total ?? 0;
+};
 
 export const useLibraryScopes = () => useQuery(orpc.knowledge.scopes.queryOptions());
 

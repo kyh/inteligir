@@ -104,7 +104,7 @@ describe("the headings page", () => {
 
   it("says so with no note open, and hides the root command", () => {
     renderPalette({ request: { nonce: 1, outline: [], page: "headings" } });
-    expect(rows().getByText("Open a note to jump to its headings.")).toBeDefined();
+    expect(rows().getByText("Open an item to jump to its headings.")).toBeDefined();
     cleanup();
     renderPalette();
     expect(rows().queryByText("Go to heading…")).toBeNull();
@@ -127,26 +127,27 @@ describe("pinning from the palette", () => {
   it("offers the one verb the open note needs, and runs it", () => {
     const note = makeNote();
     const { onOpenChange } = renderPalette({ note });
-    expect(rows().queryByText("Unpin note")).toBeNull();
-    fireEvent.click(rows().getByText("Pin note"));
+    expect(rows().queryByText("Unpin")).toBeNull();
+    fireEvent.click(rows().getByText("Pin"));
     expect(note.togglePin).toHaveBeenCalledTimes(1);
     expect(onOpenChange).toHaveBeenCalledWith(false);
     cleanup();
     renderPalette({ note: { ...makeNote(), pinned: true } });
-    expect(rows().queryByText("Pin note")).toBeNull();
-    expect(rows().getByText("Unpin note")).toBeDefined();
+    expect(rows().queryByText("Pin")).toBeNull();
+    expect(rows().getByText("Unpin")).toBeDefined();
   });
 
   it("offers neither with no note open", () => {
     renderPalette();
-    expect(rows().queryByText("Pin note")).toBeNull();
-    expect(rows().queryByText("Unpin note")).toBeNull();
+    expect(rows().queryByText("Pin")).toBeNull();
+    expect(rows().queryByText("Unpin")).toBeNull();
   });
 });
 
-const searchBox = (): HTMLElement => screen.getByPlaceholderText("Search notes or commands…");
+const searchBox = (): HTMLElement =>
+  screen.getByPlaceholderText("Search your library or run a command…");
 
-const vaultSearchBox = (): HTMLElement => screen.getByPlaceholderText("Search across the vault…");
+const vaultSearchBox = (): HTMLElement => screen.getByPlaceholderText("Search inside every item…");
 
 const indexHit = (path: string, title = ""): KnowledgeSearchResponse["results"][number] => ({
   path,
@@ -339,7 +340,7 @@ describe("commands", () => {
   it("filters commands by the query", () => {
     renderPalette();
     fireEvent.change(searchBox(), { target: { value: "deleted" } });
-    expect(rows().getByText("Deleted notes")).toBeDefined();
+    expect(rows().getByText("Deleted")).toBeDefined();
     expect(rows().queryByText("Settings")).toBeNull();
   });
 
@@ -424,7 +425,7 @@ describe("a page switch", () => {
     await waitFor(() => {
       expect(document.activeElement).toBe(field);
     });
-    fireEvent.click(rows().getByText("Search across the vault…"));
+    fireEvent.click(rows().getByText("Search inside every item…"));
     expect(screen.getByRole("dialog")).toBe(dialog);
     expect(vaultSearchBox()).toBe(field);
     expect(document.activeElement).toBe(field);
@@ -522,7 +523,7 @@ const twoMatches =
 describe("the search page", () => {
   it("is reached from the root's command and from the page a shortcut names", () => {
     renderPalette();
-    fireEvent.click(rows().getByText("Search across the vault…"));
+    fireEvent.click(rows().getByText("Search inside every item…"));
     expect(vaultSearchBox()).toBeDefined();
     cleanup();
     renderPalette({ request: { nonce: 1, page: "search" } });
@@ -657,5 +658,48 @@ describe("a command's binding", () => {
     renderPalette({ modifier: "ctrl", note: makeNote() });
     expect(chords()).toContainEqual(["Ctrl", "F"]);
     expect(chords()).toContainEqual(["Ctrl", ","]);
+  });
+});
+
+describe("the palette over the library", () => {
+  it("hands what the field holds to the grid as its filter, so ⌘P stays the one search", async () => {
+    const { actions } = renderPalette({
+      fakes: { search: () => ({ results: [indexHit("notes/ideas.md", "Big Ideas")] }) },
+    });
+    fireEvent.change(searchBox(), { target: { value: "big" } });
+    fireEvent.click(await rows().findByText("Show all results in the library"));
+    expect(actions.showResults).toHaveBeenCalledWith("big");
+  });
+
+  it("offers no grid filter while the field is empty", () => {
+    renderPalette();
+    expect(rows().queryByText("Show all results in the library")).toBeNull();
+  });
+
+  it.each([
+    ["Add files…", "addFiles"],
+    ["Tidy my library", "startTidy"],
+    ["Import from Raindrop…", "importRaindrop"],
+  ] as const)("runs %s", (label, verb) => {
+    const { actions } = renderPalette();
+    fireEvent.click(rows().getByText(label));
+    expect(actions[verb]).toHaveBeenCalledOnce();
+  });
+
+  it("offers a saved page's own verbs only for an item that came from a web address", () => {
+    const source = {
+      keepCopy: vi.fn<() => void>(),
+      openOriginal: vi.fn<() => void>(),
+      refresh: vi.fn<() => void>(),
+    };
+    renderPalette({ note: { ...makeNote("Unsorted/Page.md"), source } });
+    fireEvent.click(rows().getByText("Keep a copy of the page"));
+    expect(source.keepCopy).toHaveBeenCalledOnce();
+    cleanup();
+
+    renderPalette({ note: makeNote() });
+    expect(rows().queryByText("Keep a copy of the page")).toBeNull();
+    expect(rows().queryByText("Refresh from the page")).toBeNull();
+    expect(rows().queryByText("Open original")).toBeNull();
   });
 });

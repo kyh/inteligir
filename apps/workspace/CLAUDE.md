@@ -7,8 +7,9 @@ page's own preferences. `AGENTS.md` § Decisions says how a bullet is written an
 
 `src/app/workspace.tsx` owns the library, the open item, the rail, the palette
 and the panel; `app/library/` the grid, its scope and selection, a save from the
-window, Quick Look and the bulk verbs; `app/item/` the item view, its stages and
-its top bar; `app/note/` the guarded writes; `app/palette/` the ⌘P pages;
+window, Quick Look, the bulk verbs, Tidy my library and the way into a Raindrop
+import; `app/import/` the import's confirming dialog; `app/item/` the item view,
+its stages and its top bar; `app/note/` the guarded writes; `app/palette/` the ⌘P pages;
 `app/sidebar/` the rail's scopes (the library, its folders, its tags and
 Deleted); `app/agents/` the one agent sign-in ⌘K,
 the panel, Settings and onboarding all draw; `app/settings/` the Settings layer,
@@ -72,20 +73,34 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
 
 - **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL** (the
   surfaces declined beside it are #645's register). An action is an ordinary
-  thread attached to the note it was composed over (AN ACTION'S ORIGIN, in
-  `apps/cli/src/server/agents/CLAUDE.md`). The agent edits the vault directly
-  and anchored comments are the review channel; the panel's Info | Annotations |
-  Actions | History tabs are the subject's facts and fields, review, transcript
-  and revision. Each settled reply ends with the notes
-  its turn edited and Undo changes, and a finish toast ("Agent edited N notes",
-  Undo) sits outside the panel; a `changes-committed` frame names its thread,
-  never its turn, since the bus carries no payload, so the toast diffs a
-  thread's turns against what it last read
-  (`apps/workspace/src/app/actions/turn-finish-toast.ts`). Both undos flush the
-  open note first, so a line inside the autosave debounce is merged around
-  rather than missed (`undo-turn.ts`). "Ask agent" seeds the composer through
-  the editor host's agent actions (`packages/editor/src/host-io.ts`), so the
-  editor never imports the shell.
+  thread attached to the item it was composed over (AN ACTION'S ORIGIN, in
+  `apps/cli/src/server/agents/CLAUDE.md`). The agent edits the library directly
+  and highlights are the review channel; the panel's Info | Annotations |
+  Actions | History tabs are the subject's facts and fields, its highlights,
+  transcript and revisions. With no item open the composer's subject is the
+  library: ONE detachable chip for the grid's selection ("3 items", "All in
+  Unsorted") or, with nothing selected, its scope, and the send carries the
+  library view context (scope, chip, search, how many are selected and the
+  first 200 names), read as the send leaves, ⌘A's names from the listing
+  (`readViewContext` in `apps/workspace/src/app/workspace.tsx`); the thread's
+  attribution names the screen and the count, never the names
+  (`apps/workspace/src/app/actions/timeline-rows.tsx`). TIDY MY LIBRARY IS THE
+  COMPOSER OPENED ON A PRESET (A NAMED ACTION IS A PRESET ON THE SEND), its chip
+  above an optional field, sent from Unsorted with nothing typed if need be;
+  the header, ⌘P and the Unsorted row's menu open it, and "Edit filing rules…"
+  opens the library's AGENTS.md, written from the starter rules when the
+  library has none (`apps/workspace/src/app/library/tidy-library.ts`). Rejected:
+  a seeded prompt in the field, which a person could edit into something the
+  server's block no longer matched, and "Share with agent", which copied
+  engine words. Each settled reply ends with the items its turn edited and
+  Undo changes, and a finish toast ("Agent edited N notes", Undo) sits outside
+  the panel; a `changes-committed` frame names its thread, never its turn, since
+  the bus carries no payload, so the toast diffs a thread's turns against what
+  it last read (`apps/workspace/src/app/actions/turn-finish-toast.ts`). Both
+  undos flush the open item first, so a line inside the autosave debounce is
+  merged around rather than missed (`undo-turn.ts`). "Ask agent" seeds the
+  composer through the editor host's agent actions
+  (`packages/editor/src/host-io.ts`), so the editor never imports the shell.
   `apps/workspace/src/app/actions/actions-panel.tsx`, `action-detail.tsx` and
   `action-composer.tsx`.
 
@@ -129,7 +144,9 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
 
 - **THERE IS ONE SEARCH SURFACE, AND IT IS ⌘P.** The palette lists every note
   and every command in one field, and the search that is not a lookup opens from
-  inside it: "Search across the vault…" (the literal scan). ⌘F IS NOT ONE OF
+  inside it: "Search inside every item…" (the literal scan), and "Show all
+  results in the library", which hands what the field holds to the grid as its
+  filter, so the grid needs no search field of its own. ⌘F IS NOT ONE OF
   THEM: it searches within the open note, so it keeps its own chord and its own
   bar. There is no ⌘O, no ⌘⇧F, no quick-open page and no rail search field: four
   ways to type a note's name was three too many, each a different set of rows
@@ -194,8 +211,10 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   (`apps/workspace/src/app/library/library-items.ts`), never an infinite query
   whose every page refetches on one change, and it unmounts while an item is
   open, its scroll kept by the workspace, so a sweep then refetches the item's
-  rows alone. A reconnect sweeps every family the bus reaches, which is why no
-  window-focus re-walk backs it up.
+  rows alone. A content change moves no listing row, since nothing
+  reads a row's modified time from the tree, and an `import-changed` refetches
+  the import's status alone. A reconnect sweeps every family the bus reaches,
+  which is why no window-focus re-walk backs it up.
   `apps/workspace/src/app/change-batch.ts`, `app/actions/thread-hooks.ts`,
   `app/workspace-context.tsx`, which flushes the batch per frame, and
   `apps/workspace/src/app/__tests__/changed-message.test.ts`.

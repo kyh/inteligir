@@ -1,6 +1,6 @@
 import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
 import type { RouterHistory } from "@tanstack/react-router";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { bootTestApp } from "../../server/__tests__/boot-app";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,6 +21,15 @@ const card = async (path: string): Promise<HTMLElement> => {
     throw new Error(`the library draws no card for ${path}`);
   }
   return found;
+};
+
+// Settings' own way back, which the item under it, covered inert, also names
+const settingsBack = (): HTMLElement => {
+  const main = screen.getByRole("heading", { name: "Settings" }).closest("main");
+  if (!(main instanceof HTMLElement)) {
+    throw new Error("Settings draws no main");
+  }
+  return within(main).getByRole("button", { name: "Back to library" });
 };
 
 // the item the window shows, by the item view's own mark; null is the library
@@ -135,7 +144,7 @@ describe("Settings over the workspace", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(sidebarState("left")).toBe("expanded");
 
-    fireEvent.click(screen.getByRole("button", { name: "Back to notes" }));
+    fireEvent.click(settingsBack());
     await waitFor(() => {
       expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
     });
@@ -173,7 +182,7 @@ describe("Settings over the workspace", () => {
     expect(router.state.location.pathname).toBe("/settings");
     expect(screen.getByRole("heading", { name: "Settings" })).toBeDefined();
 
-    fireEvent.click(screen.getByRole("button", { name: "Back to notes" }));
+    fireEvent.click(settingsBack());
     await waitFor(() => {
       expect(shownItem()).toBe("gamma.md");
     });

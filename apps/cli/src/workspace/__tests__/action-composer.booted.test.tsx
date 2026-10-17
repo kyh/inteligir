@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { InertSocket } from "@repo/workspace/test-support/inert-socket";
 import { WorkspaceProvider } from "@repo/workspace/app/workspace-context";
 import { ActionComposer } from "@repo/workspace/app/actions/action-composer";
+import type { ComposerSelection } from "@repo/workspace/app/actions/action-composer";
+import type { ActionPreset } from "@repo/domain/action-preset";
 import { routePageFetch } from "./booted-fetch";
 import { bootThreadHarness, fakeAgentAccounts } from "../../server/__tests__/boot-app";
 import type { AgentStatus } from "@repo/contract/local/system/system-schema";
@@ -47,6 +49,8 @@ const mountComposer = (seed: string | null = null): void => {
         open
         onOpenChange={() => {}}
         seed={seed}
+        preset={null}
+        selection={null}
         docPath={null}
         readViewContext={noViewContext}
         onLaunched={() => {}}
@@ -166,6 +170,8 @@ describe("the composer under a refused first send", () => {
           open
           onOpenChange={onOpenChange}
           seed={null}
+          preset={null}
+          selection={null}
           docPath={null}
           readViewContext={noViewContext}
           onLaunched={onLaunched}
@@ -214,6 +220,8 @@ describe("the composer under a refused first send", () => {
           open={open}
           onOpenChange={() => {}}
           seed={null}
+          preset={null}
+          selection={null}
           docPath={docPath}
           readViewContext={noViewContext}
           onLaunched={onLaunched}
@@ -266,6 +274,8 @@ describe("the composer's @-mentions", () => {
           open
           onOpenChange={() => {}}
           seed={null}
+          preset={null}
+          selection={null}
           docPath={null}
           readViewContext={noViewContext}
           onLaunched={() => {}}
@@ -300,5 +310,160 @@ describe("the composer's @-mentions", () => {
     const stored = timeline.kind === "full" ? timeline.timeline.rows[0] : undefined;
     expect(stored?.kind === "conversation" && stored.text).toBe("compare with the goals");
     expect(stored?.kind === "conversation" && stored.contextPaths).toEqual(["Plans.md"]);
+  });
+});
+
+const LIBRARY_CONTEXT = {
+  paths: ["Unsorted/a.md", "Unsorted/b.md"],
+  scope: { kind: "unsorted" },
+  selected: 2,
+  surface: "library",
+} as const;
+
+const composerOverLibrary = (
+  selection: ComposerSelection | null,
+  preset: ActionPreset | null = null,
+  onLaunched: (threadId: string) => void = () => {},
+) => (
+  <WorkspaceProvider>
+    <ActionComposer
+      open
+      onOpenChange={() => {}}
+      seed={null}
+      preset={preset}
+      docPath={null}
+      selection={selection}
+      readViewContext={async () =>
+        await Promise.resolve({ ...LIBRARY_CONTEXT, paths: [...LIBRARY_CONTEXT.paths] })
+      }
+      onLaunched={onLaunched}
+      container={noteColumn}
+    />
+  </WorkspaceProvider>
+);
+
+const bootManual = async () => {
+  const harness = await bootThreadHarness({ mode: "manual" });
+  vi.stubGlobal("WebSocket", InertSocket);
+  routePageFetch(harness);
+  return harness;
+};
+
+describe("the composer over the library", () => {
+  it("names the selection in one chip and sends the library's view with the message", async () => {
+    const harness = await bootManual();
+    render(
+      composerOverLibrary({
+        all: false,
+        paths: ["Unsorted/a.md", "Unsorted/b.md"],
+        scope: { kind: "unsorted" },
+        total: 2,
+      }),
+    );
+
+    expect(await screen.findByText("2 items")).toBeDefined();
+    const field = screen.getByRole("combobox", { name: "Ask the agent" });
+    expect(field.getAttribute("placeholder")).toBe("Ask the agent… @ mentions an item");
+    fireEvent.change(field, { target: { value: "Which of these are recipes?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(harness.driver.startedTurns).toHaveLength(1);
+    });
+    expect(harness.driver.startedTurns[0]?.viewContext).toEqual(LIBRARY_CONTEXT);
+  });
+
+  it("names the scope while nothing is selected, and every item of it under ⌘A", async () => {
+    await bootManual();
+    const view = render(
+      composerOverLibrary({ all: false, paths: [], scope: { kind: "unsorted" }, total: 0 }),
+    );
+    expect(await screen.findByText("Unsorted")).toBeDefined();
+
+    view.rerender(
+      composerOverLibrary({ all: true, paths: [], scope: { kind: "unsorted" }, total: 40 }),
+    );
+    expect(await screen.findByText("All in Unsorted")).toBeDefined();
+  });
+
+  it("says that only the first 200 go along when more are selected", async () => {
+    await bootManual();
+    render(
+      composerOverLibrary({
+        all: true,
+        paths: [],
+        scope: { kind: "all" },
+        total: 8512,
+      }),
+    );
+    expect(
+      await screen.findByText(
+        "The first 200 selected items go with your message, along with the view you're in",
+      ),
+    ).toBeDefined();
+  });
+
+  it("sends no view once the chip is detached", async () => {
+    const harness = await bootManual();
+    render(composerOverLibrary({ all: false, paths: ["a.md"], scope: { kind: "all" }, total: 1 }));
+    fireEvent.click(await screen.findByRole("button", { name: "Detach the library" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Ask the agent" }), {
+      target: { value: "Hello" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(harness.driver.startedTurns).toHaveLength(1);
+    });
+    expect(harness.driver.startedTurns[0]?.viewContext).toBeUndefined();
+  });
+});
+
+describe("the composer opened on Tidy my library", () => {
+  it("sends the preset with nothing typed, from Unsorted, and stores the label as the text", async () => {
+    const harness = await bootManual();
+    const onLaunched = vi.fn<(threadId: string) => void>();
+    render(
+      composerOverLibrary(
+        { all: false, paths: [], scope: { kind: "all" }, total: 0 },
+        "tidy-library",
+        onLaunched,
+      ),
+    );
+
+    expect(await screen.findByText("Tidy my library")).toBeDefined();
+    const field = screen.getByRole("combobox", { name: "Ask the agent" });
+    expect(field.getAttribute("placeholder")).toBe("Anything the rules don't say…");
+    expect(screen.queryByText("All items")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(onLaunched).toHaveBeenCalledTimes(1);
+    });
+    const [turn] = harness.driver.startedTurns;
+    expect(turn?.preset).toBe("tidy-library");
+    expect(turn?.text).toBe("Tidy my library");
+    expect(turn?.viewContext).toEqual({
+      paths: [],
+      scope: { kind: "unsorted" },
+      selected: 0,
+      surface: "library",
+    });
+  });
+
+  it("becomes an ordinary ask once its chip is removed", async () => {
+    await bootManual();
+    render(
+      composerOverLibrary(
+        { all: false, paths: [], scope: { kind: "all" }, total: 0 },
+        "tidy-library",
+      ),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Remove Tidy my library" }));
+    expect(
+      screen.getByRole("combobox", { name: "Ask the agent" }).getAttribute("placeholder"),
+    ).toBe("Ask the agent… @ mentions an item");
+    expect(screen.getByRole("button", { name: "Send" })).toHaveProperty("disabled", true);
   });
 });

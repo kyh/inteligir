@@ -60,7 +60,7 @@ const NoActionsYet = ({ modifier }: { modifier: ShortcutModifier }) =>
   ) : (
     <div className="space-y-3 p-3">
       <p className="text-subtitle text-muted-foreground">
-        No actions yet. Sign in to ask the agent to work on your notes.
+        No actions yet. Sign in to ask the agent to work on your library.
       </p>
       <AgentSignIn />
     </div>
@@ -179,14 +179,14 @@ export const ActionsPanel = ({
             {noteActions.length > 0 ? (
               <>
                 <p className="px-2 pt-1 pb-0.5 text-caption font-medium text-muted-foreground uppercase">
-                  This note
+                  This item
                 </p>
                 <TaskList variant="list">
                   {noteActions.map((thread) => (
                     <ActionRow key={thread.id} thread={thread} onSelect={onSelectThread} />
                   ))}
                 </TaskList>
-                <ShowMoreActions pages={noteQuery} label="Show more for this note" />
+                <ShowMoreActions pages={noteQuery} label="Show more for this item" />
               </>
             ) : null}
             {otherActions.length > 0 || recentQuery.hasNextPage ? (

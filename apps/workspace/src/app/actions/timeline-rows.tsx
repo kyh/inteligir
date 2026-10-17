@@ -1,4 +1,5 @@
-import type { ViewContext } from "@repo/domain/view-context";
+import type { LibraryViewContext, ViewContext } from "@repo/domain/view-context";
+import { isItemKind } from "@repo/notes/items/item-kind";
 import type {
   TimelineErrorRow,
   TimelineFileChange,
@@ -19,6 +20,8 @@ import { Undo2Icon } from "lucide-react";
 import { memo } from "react";
 import type { ReactNode } from "react";
 
+import { KIND_CHIP_LABELS, formatCount } from "../library/item-labels";
+import { scopeTitle } from "../library/library-header";
 import { NoteBadge } from "./note-badge";
 import { turnNotePaths } from "./undo-turn";
 
@@ -30,13 +33,21 @@ const CHANGE_MARKS = {
 
 const firstLine = (text: string): string => text.split("\n", 1)[0] ?? "";
 
-const ViewContextAttribution = ({ context }: { context: ViewContext }) =>
-  // PIVOT-STUB(W): the library's scope and selection count, in the request's attribution (§6.7)
-  context.surface === "library" ? null : (
-    <div className="max-w-[85%] truncate px-3 text-body text-muted-foreground">
-      {context.resource}
-    </div>
-  );
+// "Unsorted · PDFs · “q” · 3 selected": the screen the message left from, never the selection's
+// names, which the thread's event does not carry
+export const libraryAttribution = (context: LibraryViewContext): string =>
+  [
+    scopeTitle(context.scope),
+    ...(context.kinds ?? []).map((kind) => (isItemKind(kind) ? KIND_CHIP_LABELS[kind] : kind)),
+    ...(context.q === undefined ? [] : [`“${context.q}”`]),
+    ...(context.selected === 0 ? [] : [`${formatCount(context.selected)} selected`]),
+  ].join(" · ");
+
+const ViewContextAttribution = ({ context }: { context: ViewContext }) => (
+  <div className="max-w-[85%] truncate px-3 text-body text-muted-foreground">
+    {context.surface === "library" ? libraryAttribution(context) : context.resource}
+  </div>
+);
 
 const ContextPathChips = ({ paths }: { paths: readonly string[] }) => (
   <div className="flex max-w-[85%] flex-wrap justify-end gap-1">

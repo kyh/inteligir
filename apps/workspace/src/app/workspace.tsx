@@ -5,8 +5,10 @@ import { composeItemFile } from "@repo/notes/items/item-frontmatter";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import { formatItemTime } from "@repo/notes/items/item-time";
 import { quoteSelection } from "@repo/domain/quote-selection";
+import type { ActionPreset } from "@repo/domain/action-preset";
 import type { LibraryScope } from "@repo/domain/library-scope";
-import type { ViewContext } from "@repo/domain/view-context";
+import { LIBRARY_SELECTION_MAX } from "@repo/domain/view-context";
+import type { LibraryViewContext, ViewContext } from "@repo/domain/view-context";
 import type { ViewContextSource } from "./thread-activity";
 import type { VaultMatchWire } from "@repo/contract/local/knowledge/knowledge-schema";
 import type { Thread } from "@repo/contract/local/threads/threads-schema";
@@ -22,6 +24,7 @@ import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import { client, failed, orpc } from "./api";
 import { ActionComposer } from "./actions/action-composer";
+import type { ComposerSelection } from "./actions/action-composer";
 import { ActionsPanel } from "./actions/actions-panel";
 import type { PanelTab } from "./actions/actions-panel";
 import type { AnnotationFocus } from "./actions/annotations-tab";
@@ -51,19 +54,33 @@ import { useWindowCapture } from "./library/capture/window-capture";
 import { NameDialog, TagDialog } from "./library/item-dialogs";
 import type { NameDialogRequest, TagDialogRequest } from "./library/item-dialogs";
 import type { LibraryItemActions } from "./library/item-menu";
-import { useLibraryScopes } from "./library/library-items";
+import {
+  filterRequest,
+  useItemSourceUrl,
+  useLibraryScopes,
+  useListingTotal,
+} from "./library/library-items";
 import type { LibraryFilter } from "./library/library-items";
+import { useTidyEntry } from "./library/tidy-library";
 import { createLibrarySelection, selectionCount } from "./library/library-selection";
 import type { LibrarySelection } from "./library/library-selection";
 import { LibraryView, selectionPaths } from "./library/library-view";
+import { RaindropImport } from "./library/raindrop-import";
+import type { RaindropImportHandle } from "./library/raindrop-import";
 import { RenameTagDialog } from "./library/rename-tag-dialog";
+import { subscribeOpenRequests } from "./open-requests";
 import { readNoteViewContext } from "./note/note-view-context";
 import { retagItems } from "./note/item-frontmatter";
 import { setNotePinned } from "./note/pin-note";
 import type { PinNoteApi } from "./note/pin-note";
 import { VaultProvider } from "./note/vault-provider";
 import { CommandPalette } from "./palette/command-palette";
-import type { PaletteActions, PaletteEntry, PaletteRequest } from "./palette/command-palette";
+import type {
+  PaletteActions,
+  PaletteEntry,
+  PaletteRequest,
+  PaletteSource,
+} from "./palette/command-palette";
 import { Sidebar } from "@repo/ui/components/sidebar";
 import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar-core";
 import type { SidebarActions } from "@repo/ui/components/sidebar-core";
@@ -207,6 +224,46 @@ const panelSubjectOf = (
   return { kind: "scope", scope };
 };
 
+// what a message from the library is about, drawn as the composer's one chip
+const composerSelectionOf = (
+  filter: LibraryFilter | null,
+  selected: LibrarySelection,
+  listingTotal: number,
+): ComposerSelection | null => {
+  if (filter === null) {
+    return null;
+  }
+  const subject: ComposerSelection = {
+    all: selected.all,
+    paths: [...selected.selected].slice(0, LIBRARY_SELECTION_MAX),
+    scope: filter.scope,
+    total: selectionCount(selected, listingTotal),
+  };
+  if (filter.kind !== null) {
+    subject.kinds = [filter.kind];
+  }
+  if (filter.q !== null) {
+    subject.q = filter.q;
+  }
+  return subject;
+};
+
+// a saved page's own verbs in ⌘P: the same calls Info and the card's menu make
+const paletteSourceOf = (path: string, url: string | null): PaletteSource | null =>
+  url === null
+    ? null
+    : {
+        keepCopy: () => {
+          void refreshItem(path, { keepCopy: true });
+        },
+        openOriginal: () => {
+          window.open(url, "_blank", "noopener");
+        },
+        refresh: () => {
+          void refreshItem(path, {});
+        },
+      };
+
 // a viewer's original is no doc: ⌘K and the panel's doc tabs bind to docs alone
 const docOf = (path: string | null): string | null =>
   path !== null && isDocPath(path) ? path : null;
@@ -250,6 +307,8 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
   const threadsQuery = useThreads();
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerSeed, setComposerSeed] = useState<string | null>(null);
+  // the named action ⌘K was opened on, if any; an ordinary open clears it
+  const [composerPreset, setComposerPreset] = useState<ActionPreset | null>(null);
   const [zen, setZen] = useState(false);
   // Narrow selectors only: the store settles on every keystroke.
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
@@ -275,6 +334,8 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
   const [sort, setSort] = usePref(PREFS.librarySort);
   const libraryFilter: LibraryFilter | null =
     scope.kind === "deleted" ? null : { kind, q, scope, sort };
+  // the grid's own first window, shared through the cache: how many a ⌘A stands for
+  const listingTotal = useListingTotal(libraryFilter, openPath === null);
 
   // a new scope is a new listing: the selection, the chip, the search and the scroll go with it
   const setScope = useCallback(
@@ -353,8 +414,44 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
     revealPanel({ tab: "actions", threadId });
   };
 
+  // CLAUDE.md § THE AGENT SURFACE: with no item open the message is about the library, its scope
+  // and its selection, ⌘A's names read from the listing; with one open, about that item, a viewer
+  // included, since a viewer opens its doc as any item does
+  const readLibraryContext = async (): Promise<LibraryViewContext | null> => {
+    if (libraryFilter === null) {
+      return null;
+    }
+    const { all, selected: chosen } = selection.store.getState();
+    let paths: readonly string[] = [...chosen].slice(0, LIBRARY_SELECTION_MAX);
+    let total = chosen.size;
+    if (all) {
+      const listed = await client.knowledge.itemPaths({
+        ...filterRequest(libraryFilter),
+        limit: LIBRARY_SELECTION_MAX,
+        offset: 0,
+      });
+      ({ paths, total } = listed);
+    }
+    const context: LibraryViewContext = {
+      paths: [...paths],
+      scope: libraryFilter.scope,
+      selected: total,
+      surface: "library",
+    };
+    if (libraryFilter.kind !== null) {
+      context.kinds = [libraryFilter.kind];
+    }
+    if (libraryFilter.q !== null) {
+      context.q = libraryFilter.q;
+    }
+    return context;
+  };
+
   const readViewContext: ViewContextSource = async (): Promise<ViewContext | null> => {
-    const { editor } = noteStore.state();
+    const { editor, openPath: shown } = noteStore.state();
+    if (shown === null) {
+      return await readLibraryContext();
+    }
     if (editor.kind === "closed") {
       return null;
     }
@@ -452,6 +549,13 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
   const [tagRequest, setTagRequest] = useState<TagDialogRequest | null>(null);
   const [nameRequest, setNameRequest] = useState<NameDialogRequest | null>(null);
   const addFilesRef = useRef<HTMLInputElement | null>(null);
+  const raindropRef = useRef<RaindropImportHandle | null>(null);
+  const importRaindrop = (): void => {
+    raindropRef.current?.choose();
+  };
+
+  // an item a surface over the workspace (Settings) asked to open, opened under it
+  useEffect(() => subscribeOpenRequests(openItem), [openItem]);
 
   // a note the page makes says when it came in, as every item the app makes does
   const createNote = async (path: string): Promise<void> => {
@@ -486,6 +590,8 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
   const { syncNow, inFlight: syncInFlight } = useSyncNow();
 
   const pinnedPaths = usePinnedPaths();
+  // the open item's web address, when it came from one, for the palette's page verbs
+  const sourceUrl = useItemSourceUrl(openDoc);
   const openPinned = openDoc !== null && pinnedPaths.has(openDoc);
 
   const treeOps = useTreeOps({
@@ -547,10 +653,17 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
     })();
   };
 
+  const openComposer = (preset: ActionPreset | null): void => {
+    setComposerSeed(null);
+    setComposerPreset(preset);
+    setComposerOpen(true);
+  };
+
+  const tidy = useTidyEntry({ actions: actionsRef, openComposer, openItem });
+
   const itemActions: LibraryItemActions = {
     askAgent: () => {
-      setComposerSeed(null);
-      setComposerOpen(true);
+      openComposer(null);
     },
     keepCopy: (path) => {
       void refreshItem(path, { keepCopy: true });
@@ -624,6 +737,9 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
 
   const subject = panelSubjectOf(openPath, selected, scope);
 
+  const composerSelection =
+    openPath === null ? composerSelectionOf(libraryFilter, selected, listingTotal) : null;
+
   const navigate = useNavigate();
   // Settings covers a workspace that stays mounted, so no unmount settles a title mid-rename or
   // an edit inside the autosave debounce: the blur and the flush stand in for it. The palette and
@@ -653,6 +769,7 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
       agent: {
         askAboutSelection: (selectionText) => {
           setComposerSeed(quoteSelection(selectionText));
+          setComposerPreset(null);
           setComposerOpen(true);
         },
         // a `#tag` chip shows the library scoped to the tag
@@ -704,6 +821,7 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
     switch (action) {
       case "open-action-composer": {
         setComposerSeed(null);
+        setComposerPreset(null);
         setComposerOpen((current) => !current);
         break;
       }
@@ -751,6 +869,9 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
   const treeEntries = treeQuery.data?.entries ?? EMPTY_ENTRIES;
 
   const paletteActions: PaletteActions = {
+    addFiles: () => {
+      addFilesRef.current?.click();
+    },
     goToHeading: (heading) => {
       const editor = openLiveEditor(noteStore);
       if (editor !== null) {
@@ -770,6 +891,7 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
             listHeadings: listOpenHeadings,
             path: openDoc,
             pinned: openPinned,
+            source: paletteSourceOf(openDoc, sourceUrl),
             togglePin: () => {
               setPinned(openDoc, !openPinned);
             },
@@ -783,9 +905,19 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
       onOpenSettings();
     },
     openThread,
+    importRaindrop,
     saveLink: (url) => {
       saveInto({ files: [], refused: [], urls: [{ title: null, url }] }, captureDir(scope));
     },
+    // ⌘P stays the one search field: the grid takes what it holds as its filter
+    showResults: (text) => {
+      goToLibrary();
+      setKind(null);
+      setQ(text);
+      selection.apply({ kind: "clear" });
+      scrollMemory.setState(0, true);
+    },
+    startTidy: tidy.startTidy,
     syncNow,
   };
 
@@ -837,6 +969,9 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
               }}
               onNewNoteIn={newNoteIn}
               onSaveInto={saveInto}
+              onTidy={() => {
+                tidy.startTidy();
+              }}
               onRenameTag={setRenamingTag}
               onOpenSearch={() => {
                 openPalette({ page: "root" });
@@ -894,10 +1029,17 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
                           title: "New folder",
                         });
                       },
+                      importRaindrop,
                       newNote: newNoteIn,
                       saveLink: () => {
                         openPalette({ page: "save-link" });
                       },
+                    }}
+                    onTidy={() => {
+                      tidy.startTidy();
+                    }}
+                    onEditFilingRules={() => {
+                      tidy.editFilingRules();
                     }}
                     onRenameTag={setRenamingTag}
                     actions={itemActions}
@@ -940,7 +1082,9 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
                     }
                   }}
                   seed={composerSeed}
+                  preset={composerPreset}
                   docPath={openDoc}
+                  selection={composerSelection}
                   readViewContext={readViewContext}
                   onLaunched={openThread}
                   container={noteColumnRef}
@@ -956,7 +1100,7 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
                   onSelectThread={setPanelThreadId}
                   onOpenDoc={openItem}
                   subject={subject}
-                  selectionCount={selectionCount(selected, scopesQuery.data?.total ?? 0)}
+                  selectionCount={selectionCount(selected, listingTotal)}
                   infoActions={infoActions}
                   modifier={shortcutModifier}
                 />
@@ -1002,6 +1146,7 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
           }
         }}
       />
+      <RaindropImport handleRef={raindropRef} />
       <TagDialog
         request={tagRequest}
         onClose={() => {

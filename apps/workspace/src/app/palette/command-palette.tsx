@@ -19,26 +19,34 @@ import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import type { HeadingItem } from "@repo/editor/toc";
 import { useQuery } from "@tanstack/react-query";
 import {
+  ArchiveIcon,
   ArchiveRestoreIcon,
   BookmarkPlusIcon,
+  ExternalLinkIcon,
   FilePlusIcon,
   FileTextIcon,
   FolderIcon,
   FolderInputIcon,
   HeadingIcon,
+  ImportIcon,
   KeyboardIcon,
+  LibraryIcon,
   MessagesSquareIcon,
+  PaperclipIcon,
   PinIcon,
   PinOffIcon,
   RefreshCwIcon,
+  RotateCwIcon,
   SearchIcon,
   SettingsIcon,
   PrinterIcon,
+  SparklesIcon,
   TextSearchIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { bindingCapsFor } from "../global-shortcuts";
 import type { GlobalShortcutAction } from "../global-shortcuts";
+import { TIDY_LABEL } from "../library/tidy-library";
 import { planMove } from "../sidebar/tree-ops";
 import { orpc } from "../api";
 import { vaultFolders } from "../vault-hooks";
@@ -56,7 +64,14 @@ import { SearchPage } from "./search-page";
 import { ShortcutsPage } from "./shortcuts-page";
 import { ThreadsPage } from "./threads-page";
 
-// the open note and every verb that needs one, so no row can be offered without its note
+// a saved page's own verbs, offered only for an item that came from a web address
+export interface PaletteSource {
+  keepCopy: () => void;
+  refresh: () => void;
+  openOriginal: () => void;
+}
+
+// the open item and every verb that needs one, so no row can be offered without its item
 export interface PaletteNote {
   path: string;
   pinned: boolean;
@@ -65,12 +80,18 @@ export interface PaletteNote {
   exportPdf: () => void;
   // the outline, walked once as its page opens
   listHeadings: () => readonly HeadingItem[];
+  source: PaletteSource | null;
 }
 
 export interface PaletteActions {
   openNote: (path: string) => void;
   // a link the field holds, saved into the scope the library shows
   saveLink: (url: string) => void;
+  addFiles: () => void;
+  // the grid filtered by what the field holds: ⌘P stays the one search field
+  showResults: (q: string) => void;
+  startTidy: () => void;
+  importRaindrop: () => void;
   newNote: (parentDir: string) => void;
   openThread: (threadId: string) => void;
   syncNow: () => void;
@@ -118,8 +139,8 @@ const PAGE_CHROME: Record<Exclude<Page["page"], "move-to-folder">, PageChrome> =
     title: "New note in folder",
   },
   root: {
-    description: "Open a note or run a command",
-    placeholder: "Search notes or commands…",
+    description: "Open an item or run a command",
+    placeholder: "Search your library or run a command…",
     title: "Command palette",
   },
   "save-link": {
@@ -129,8 +150,8 @@ const PAGE_CHROME: Record<Exclude<Page["page"], "move-to-folder">, PageChrome> =
   },
   search: {
     description: "Every match, with the line it sits on",
-    placeholder: "Search across the vault…",
-    title: "Search the vault",
+    placeholder: "Search inside every item…",
+    title: "Search inside items",
     wide: true,
   },
   shortcuts: {
@@ -171,9 +192,9 @@ export interface CommandPaletteProps {
 
 const headingsEmptySentence = (note: PaletteNote | null, rowCount: number): string => {
   if (note === null) {
-    return "Open a note to jump to its headings.";
+    return "Open an item to jump to its headings.";
   }
-  return rowCount === 0 ? "This note has no headings." : "No heading matches.";
+  return rowCount === 0 ? "This item has no headings." : "No heading matches.";
 };
 
 interface StaticCommand {
@@ -185,6 +206,28 @@ interface StaticCommand {
   keepOpen?: boolean;
   run: () => void;
 }
+
+// the same three calls Info and the card's menu make
+const sourceCommands = (source: PaletteSource): StaticCommand[] => [
+  {
+    icon: <ExternalLinkIcon />,
+    id: "open-original",
+    label: "Open original",
+    run: source.openOriginal,
+  },
+  {
+    icon: <ArchiveIcon />,
+    id: "keep-copy",
+    label: "Keep a copy of the page",
+    run: source.keepCopy,
+  },
+  {
+    icon: <RotateCwIcon />,
+    id: "refresh-from-page",
+    label: "Refresh from the page",
+    run: source.refresh,
+  },
+];
 
 const noteCommands = (note: PaletteNote, goTo: (next: Page) => void): StaticCommand[] => [
   {
@@ -213,7 +256,7 @@ const noteCommands = (note: PaletteNote, goTo: (next: Page) => void): StaticComm
   {
     icon: note.pinned ? <PinOffIcon /> : <PinIcon />,
     id: "pin-note",
-    label: note.pinned ? "Unpin note" : "Pin note",
+    label: note.pinned ? "Unpin" : "Pin",
     run: note.togglePin,
   },
   {
@@ -225,6 +268,7 @@ const noteCommands = (note: PaletteNote, goTo: (next: Page) => void): StaticComm
       goTo({ page: "move-to-folder", subjects: [note.path] });
     },
   },
+  ...(note.source === null ? [] : sourceCommands(note.source)),
 ];
 
 // Every verb the root page can run, in the order it lists them; the open note's are one block,
@@ -241,6 +285,14 @@ const rootCommands = (
     label: "Save link…",
     run: () => {
       goTo({ page: "save-link" });
+    },
+  },
+  {
+    icon: <PaperclipIcon />,
+    id: "add-files",
+    label: "Add files…",
+    run: () => {
+      actions.addFiles();
     },
   },
   {
@@ -264,9 +316,25 @@ const rootCommands = (
     icon: <SearchIcon />,
     id: "search-vault",
     keepOpen: true,
-    label: "Search across the vault…",
+    label: "Search inside every item…",
     run: () => {
       goTo({ page: "search" });
+    },
+  },
+  {
+    icon: <SparklesIcon />,
+    id: "tidy-library",
+    label: TIDY_LABEL,
+    run: () => {
+      actions.startTidy();
+    },
+  },
+  {
+    icon: <ImportIcon />,
+    id: "import-raindrop",
+    label: "Import from Raindrop…",
+    run: () => {
+      actions.importRaindrop();
     },
   },
   ...(actions.note === null ? [] : noteCommands(actions.note, goTo)),
@@ -294,7 +362,7 @@ const rootCommands = (
   {
     icon: <ArchiveRestoreIcon />,
     id: "deleted-notes",
-    label: "Deleted notes",
+    label: "Deleted",
     run: () => {
       actions.openDeletedNotes();
     },
@@ -400,8 +468,8 @@ export const CommandPalette = ({
                 </CommandItem>
               </CommandGroup>
             ) : null}
-            {noteHits.length > 0 ? (
-              <CommandGroup heading="Notes">
+            {noteHits.length > 0 || typedLink !== "" ? (
+              <CommandGroup heading="Items">
                 {noteHits.map((hit) => (
                   <CommandItem
                     key={hit.path}
@@ -421,6 +489,19 @@ export const CommandPalette = ({
                     )}
                   </CommandItem>
                 ))}
+                {typedLink === "" ? null : (
+                  <CommandItem
+                    action="Show all results in the library"
+                    onSelect={() => {
+                      run(() => {
+                        actions.showResults(typedLink);
+                      });
+                    }}
+                  >
+                    <LibraryIcon />
+                    Show all results in the library
+                  </CommandItem>
+                )}
               </CommandGroup>
             ) : null}
             {visibleCommands.length > 0 ? (

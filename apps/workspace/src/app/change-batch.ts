@@ -5,7 +5,6 @@ import type { ThreadChangeKind, VaultChangeKind } from "@repo/domain/change-kind
 import type { VaultChangedEvent } from "@repo/editor/host-io";
 import { isAnnotationsStorePath } from "@repo/notes/annotations/store-schema";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/contract/local/notifications";
-import type { VaultEntry, VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import { orpc } from "./api";
 
 export type VaultChangeListener = (event: VaultChangedEvent) => void;
@@ -59,26 +58,6 @@ const movesAny = (
   table: Record<ThreadChangeKind, boolean>,
   kinds: ReadonlySet<ThreadChangeKind>,
 ): boolean => [...kinds].some((kind) => table[kind]);
-
-// content-changed moves no row, so the listing is patched rather than re-walked; without it the
-// recents, sorted by modifiedMs, never move for a note being edited. Each doc carries the time its
-// frame arrived, which from a loopback server is the write's own to within a frame.
-const touchModified = (
-  tree: VaultTreeResponse | undefined,
-  modifiedAt: ReadonlyMap<string, number>,
-): VaultTreeResponse | undefined => {
-  const stamped = (entry: VaultEntry): VaultEntry => {
-    if (entry.kind !== "file") {
-      return entry;
-    }
-    const modifiedMs = modifiedAt.get(entry.path);
-    return modifiedMs === undefined ? entry : { ...entry, modifiedMs };
-  };
-  if (tree === undefined || tree.entries.every((entry) => stamped(entry) === entry)) {
-    return tree;
-  }
-  return { ...tree, entries: tree.entries.map(stamped) };
-};
 
 // every doc and asset the library holds (about 7.5 MB at 50k items), so it moves only on
 // targets-changed, which the server says when a settle added, removed or renamed a path or changed
@@ -137,8 +116,8 @@ export class ChangeBatch {
   private readonly vaultKinds = new Set<VaultChangeKind>();
   // null once a files-changed frame named no paths: every note re-checks.
   private movedPaths: Set<string> | null = new Set();
-  // stamped on arrival, not at the flush: a hidden window defers the flush, never the write.
-  private readonly contentChanged = new Map<string, number>();
+  // the docs whose bytes moved in place since the last flush
+  private readonly contentChanged = new Set<string>();
   private readonly threads = new Map<string | undefined, Set<ThreadChangeKind>>();
 
   add(message: ChangedMessage): void {
@@ -160,7 +139,7 @@ export class ChangeBatch {
       }
       case "doc": {
         if (message.changes.includes("content-changed")) {
-          this.contentChanged.set(message.id, Date.now());
+          this.contentChanged.add(message.id);
         }
         break;
       }
@@ -183,15 +162,13 @@ export class ChangeBatch {
   // whose content changed in the same flush rides it, so the open note reloads once.
   private vaultChangedEvents(): VaultChangedEvent[] {
     if (!this.vaultKinds.has("files-changed")) {
-      return [...this.contentChanged.keys()].map((path): VaultChangedEvent => ({
+      return [...this.contentChanged].map((path): VaultChangedEvent => ({
         kind: "content",
         path,
       }));
     }
     const paths =
-      this.movedPaths === null
-        ? null
-        : [...new Set([...this.movedPaths, ...this.contentChanged.keys()])];
+      this.movedPaths === null ? null : [...new Set([...this.movedPaths, ...this.contentChanged])];
     return [{ kind: "files", paths }];
   }
 
@@ -211,8 +188,8 @@ export class ChangeBatch {
       // same bytes. Knowledge is swept whole but for the targets: this doc's
       // links are some other note's backlinks, and which note is not knowable here.
       sweepKnowledge(queryClient);
-      // a comment added to a note that already has a store rewrites the store and names no row.
-      if ([...this.contentChanged.keys()].some(isAnnotationsStorePath)) {
+      // a highlight added to an item that already has a store rewrites the store and names no row.
+      if ([...this.contentChanged].some(isAnnotationsStorePath)) {
         void queryClient.invalidateQueries({ queryKey: orpc.annotations.key() });
       }
     }
@@ -225,11 +202,6 @@ export class ChangeBatch {
     }
     if (this.vaultKinds.has("targets-changed")) {
       refetchTargets(queryClient);
-    }
-    if (this.contentChanged.size > 0) {
-      queryClient.setQueryData(orpc.vault.tree.queryKey(), (tree) =>
-        touchModified(tree, this.contentChanged),
-      );
     }
     for (const event of this.vaultChangedEvents()) {
       emitVaultChange(event);

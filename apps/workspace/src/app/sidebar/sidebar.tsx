@@ -30,6 +30,7 @@ import { hasInsetTitleBar } from "../title-bar";
 import { useVaultTree } from "../vault-hooks";
 import { FolderTree } from "./folder-tree";
 import { RailReadFailed } from "./rail-read-failed";
+import { ImportRow } from "./import-row";
 import { DeletedRow, ScopeRows } from "./scope-rows";
 import { SyncRow } from "./sync-row";
 import { TagList } from "./tag-list";
@@ -227,6 +228,11 @@ export const SidebarRailContent = ({
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        <ImportRow
+          onShowLibrary={() => {
+            onScope({ kind: "all" });
+          }}
+        />
         <div className="flex items-center gap-1 pr-1.5">
           <SyncRow
             onSyncNow={onSyncNow}

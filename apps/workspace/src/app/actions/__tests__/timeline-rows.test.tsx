@@ -12,7 +12,12 @@ import type {
 import type { TurnChanges } from "@repo/contract/local/threads/threads-schema";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TimelineRowView, TurnChangesFooter, turnFooterSlots } from "../timeline-rows";
+import {
+  TimelineRowView,
+  TurnChangesFooter,
+  libraryAttribution,
+  turnFooterSlots,
+} from "../timeline-rows";
 
 afterEach(cleanup);
 
@@ -228,6 +233,35 @@ it("attributes a user message to what the sender was looking at", () => {
   expect(view.container.textContent).toContain("make this shorter");
   expect(view.container.textContent).toContain("Notes/Plans.md");
   expect(view.container.textContent).not.toContain("a".repeat(64));
+});
+
+it("attributes a message sent from the library to the scope and the count, never the names", () => {
+  const view = render(
+    <List
+      rows={[
+        userRow({
+          paths: [],
+          scope: { kind: "unsorted" },
+          selected: 3,
+          surface: "library",
+        }),
+      ]}
+    />,
+  );
+  expect(view.getByText("Unsorted · 3 selected")).toBeTruthy();
+});
+
+it("spells the library's narrowing in the attribution", () => {
+  expect(
+    libraryAttribution({
+      kinds: ["pdf"],
+      paths: [],
+      q: "tax",
+      scope: { kind: "tag", tag: "finance" },
+      selected: 0,
+      surface: "library",
+    }),
+  ).toBe("#finance · PDFs · “tax”");
 });
 
 it("renders a message with no context as the bubble alone", () => {

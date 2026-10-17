@@ -14,6 +14,7 @@ import {
 import {
   ArrowDownUpIcon,
   CheckIcon,
+  ChevronDownIcon,
   FilePlusIcon,
   FolderPlusIcon,
   ImportIcon,
@@ -21,6 +22,7 @@ import {
   PaperclipIcon,
   PencilIcon,
   PlusIcon,
+  ScrollTextIcon,
   SparklesIcon,
 } from "lucide-react";
 
@@ -28,6 +30,7 @@ import { PanelToggle, TopbarLead, TopbarShell } from "../topbar-lead";
 import type { TopbarLeadProps } from "../topbar-lead";
 import { formatCount } from "./item-labels";
 import type { LibrarySort } from "./library-items";
+import { TIDY_LABEL } from "./tidy-library";
 
 export const scopeTitle = (scope: LibraryScope): string => {
   switch (scope.kind) {
@@ -81,6 +84,8 @@ export interface LibraryHeaderProps {
   add: LibraryAddActions;
   // shown while something is Unsorted or untagged
   onTidy?: (() => void) | undefined;
+  // the rules Tidy files by, offered beside it
+  onEditFilingRules?: (() => void) | undefined;
   onRenameTag: (tag: string) => void;
 }
 
@@ -93,6 +98,7 @@ export const LibraryHeader = ({
   onSortChange,
   add,
   onTidy,
+  onEditFilingRules,
   onRenameTag,
 }: LibraryHeaderProps) => (
   <TopbarShell insetTitleBar={insetTitleBar} railOpen={lead.railOpen}>
@@ -141,9 +147,32 @@ export const LibraryHeader = ({
         </DropdownMenu>
       )}
       {onTidy === undefined ? null : (
-        <Button variant="ghost" size="compact" leadingIcon={SparklesIcon} onClick={onTidy}>
-          Tidy my library
-        </Button>
+        <div className="flex items-center">
+          <Button variant="ghost" size="compact" leadingIcon={SparklesIcon} onClick={onTidy}>
+            {TIDY_LABEL}
+          </Button>
+          {onEditFilingRules === undefined ? null : (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="ghost" size="icon-compact" aria-label="More for tidying">
+                    <ChevronDownIcon />
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => {
+                    onEditFilingRules();
+                  }}
+                >
+                  <ScrollTextIcon />
+                  Edit filing rules…
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       )}
       <DropdownMenu>
         <DropdownMenuTrigger

@@ -165,7 +165,7 @@ describe("the action list", () => {
     mountPanel({ docPath: "notes/a.md", threadId: null });
 
     expect(await screen.findByText("The old one")).toBeDefined();
-    expect(screen.getByText("This note")).toBeDefined();
+    expect(screen.getByText("This item")).toBeDefined();
   });
 
   it("leaves an archived action out", async () => {
