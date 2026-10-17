@@ -136,7 +136,7 @@ describe("annotations service", () => {
     expect(annotation?.state).toBe("anchored");
     expect(annotation?.root.quote).toBe("the passage");
     expect(annotation?.quote).toBe("the passage");
-    expect(annotation?.passage).toBeNull();
+    expect(annotation?.passage).toBe("layout");
     expect(annotation?.replies.map((reply) => reply.id)).toEqual(["c1-r1"]);
     expect(annotation?.root.source).toBe("user");
 

@@ -43,7 +43,21 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   grammar has one spelling (`@repo/notes/annotations/store-schema`). A deleted
   note's store goes with it unless a byte copy still carries that id, one rule
   the server's delete and the phone's both ask, and a restore brings both back.
+  A highlight made away from the editor (the CLI, a browser's selection, an
+  import, a fill) is placed by its quote: `add` with `place` writes the entry
+  first and the markers second, each under its own CAS, so a crash between them
+  leaves a highlight that reads as missing, never markers no entry explains; a
+  passage the text does not hold is refused before anything is written, and a
+  note that changed twice under the markers takes the entry back out. The
+  markers are only spliced into the bytes, so taking them out gives the input
+  back and two Macs placing one quote write the same bytes; an edge never splits
+  what the editor reads as one piece, and a quote the text no longer holds goes
+  under `## Highlights` once its fill is final. `remove` with `stripMarkers`
+  takes the store's entry first and its markers second, keeping another id on a
+  shared pair. Rejected: an anchor of offsets beside the text (every edit moves
+  it) and a fuzzy match (two Macs would pick two passages).
   `apps/cli/src/server/annotations/annotations-service.ts`,
+  `apps/cli/src/server/annotations/place-quotes.ts`,
   `@repo/notes/annotations/store-removal`.
 
 - **A BYTE COPY IS RE-KEYED AND ITS STORE FORKED, never stripped of its id.**

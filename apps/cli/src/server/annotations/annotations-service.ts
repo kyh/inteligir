@@ -34,6 +34,9 @@ import type {
 import { ANNOTATIONS_MAX } from "@repo/contract/local/annotations/annotations-schema";
 
 import type { KnowledgeRuntime } from "../knowledge/knowledge-runtime";
+import { annotationPassages } from "./passage-text";
+import { placeQuotes, stripAnnotationMarkers } from "./place-quotes";
+import type { PendingQuote } from "./place-quotes";
 import { ensureNoteId } from "../vault/ensure-note-id";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
@@ -142,19 +145,18 @@ const stateOf = (anchored: boolean, onStub: boolean): AnnotationState => {
 const toResponse = (
   path: string,
   folded: AnnotationFold,
-  onStub: boolean,
+  facts: { onStub: boolean; passages: ReadonlyMap<string, string> },
 ): AnnotationsResponse => ({
   orphanMarkers: folded.orphanMarkers,
   path,
   strayIds: folded.strayIds,
   annotations: folded.annotations.slice(0, ANNOTATIONS_MAX).map((annotation) => ({
     id: annotation.id,
-    // PIVOT-STUB(S3): the live text between the markers (§9.3)
-    passage: null,
+    passage: facts.passages.get(annotation.id) ?? null,
     quote: annotation.root.quote ?? null,
     replies: annotation.replies.map((reply) => ({ entry: toWire(reply.entry), id: reply.id })),
     root: toWire(annotation.root),
-    state: stateOf(annotation.anchored, onStub),
+    state: stateOf(annotation.anchored, facts.onStub),
   })),
   total: folded.annotations.length,
 });
@@ -193,11 +195,37 @@ const keyOf = (notePath: string, id: string): string => {
 };
 
 const answer = (notePath: string, note: NoteRead, entries: AnnotationStore): AnnotationsResponse =>
-  toResponse(
-    notePath,
-    foldAnnotations(entries, markerRootIds(note.content)),
-    isItemStub(itemFactsOf(note.content)),
-  );
+  toResponse(notePath, foldAnnotations(entries, markerRootIds(note.content)), {
+    onStub: isItemStub(itemFactsOf(note.content)),
+    passages: annotationPassages(note.content),
+  });
+
+const PASSAGE_NOT_FOUND = "That passage isn't in the item's text.";
+
+// the roots still waiting for their passage: a quote, and no markers in the text yet, oldest first
+// so every Mac places one item's highlights in one order
+const waitingRoots = (store: AnnotationStore, content: string): PendingQuote[] => {
+  const anchored = markerRootIds(content);
+  return Object.entries(store)
+    .filter(
+      ([id, entry]) =>
+        entry.parentId === undefined && entry.quote !== undefined && !anchored.has(id),
+    )
+    .toSorted(([a, left], [b, right]) => left.createdAt - right.createdAt || a.localeCompare(b))
+    .map(([id, entry]) => ({ id, quote: entry.quote ?? "" }));
+};
+
+const holdsPassage = (
+  content: string,
+  request: { id: string; place: { occurrence: number }; quote: string },
+): boolean =>
+  placeQuotes(
+    content,
+    [{ id: request.id, occurrence: request.place.occurrence, quote: request.quote }],
+    {
+      final: false,
+    },
+  ).placed.includes(request.id);
 
 // the paths one call wrote, gathered as each write lands.
 type Wrote = Set<string>;
@@ -328,6 +356,72 @@ export const createAnnotationsService = ({
     );
   };
 
+  // the markers spliced around the quote's passage under the note's compare-and-swap, retried once
+  // when the note changed; a passage gone or a second change takes the entry back out
+  const placeMarkers = async (
+    request: {
+      id: string;
+      key: string;
+      path: string;
+      place: { occurrence: number };
+      quote: string;
+    },
+    wrote: Wrote,
+  ): Promise<NoteRead> => {
+    const { id, key, path, place, quote } = request;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const current = await readNote(path);
+      const placement = placeQuotes(
+        current.content,
+        [{ id, occurrence: place.occurrence, quote }],
+        {
+          final: false,
+        },
+      );
+      if (!placement.placed.includes(id)) {
+        await commit(key, (entries) => deleteAnnotation(entries, id), wrote);
+        throw new AnnotationsError("passage-not-found", PASSAGE_NOT_FOUND);
+      }
+      if (placement.content === current.content) {
+        return current;
+      }
+      const written = await vault.writeIfUnchanged(path, current.content, placement.content);
+      if (written.applied) {
+        wrote.add(path);
+        return { content: placement.content, id: current.id };
+      }
+    }
+    await commit(key, (entries) => deleteAnnotation(entries, id), wrote);
+    throw new AnnotationsError(
+      "conflict",
+      `${path} changed under the highlight twice; nothing was written`,
+    );
+  };
+
+  // the removed ids' markers spliced out of the note under its compare-and-swap, retried once
+  const stripFrom = async (
+    path: string,
+    ids: readonly string[],
+    wrote: Wrote,
+  ): Promise<NoteRead> => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const current = await readNote(path);
+      const stripped = stripAnnotationMarkers(current.content, ids);
+      if (stripped === current.content) {
+        return current;
+      }
+      const written = await vault.writeIfUnchanged(path, current.content, stripped);
+      if (written.applied) {
+        wrote.add(path);
+        return { content: stripped, id: current.id };
+      }
+    }
+    throw new AnnotationsError(
+      "conflict",
+      `${path} changed under the removal twice; the highlight is gone but its marks are still in the text`,
+    );
+  };
+
   // edit, reply and remove act on an annotation that exists, so a note with no id has none of them
   const keyOfAnnotated = async (notePath: string): Promise<{ note: NoteRead; key: string }> => {
     const note = await readNote(notePath);
@@ -339,19 +433,23 @@ export const createAnnotationsService = ({
 
   return {
     async add({ path, id, place, quote, text, source = DEFAULT_SOURCE }) {
-      if (place !== undefined) {
-        // PIVOT-STUB(S3): the entry first, then the markers around the quote's occurrence (§9.4)
-        throw new AnnotationsError("refused", "PIVOT-STUB(S3)");
-      }
       return await tracked(async (wrote) => {
         const note = await readNote(path);
+        // a passage the text does not hold is refused before anything is written
+        if (place !== undefined && !holdsPassage(note.content, { id, place, quote })) {
+          throw new AnnotationsError("passage-not-found", PASSAGE_NOT_FOUND);
+        }
         const key = await storeKeyOf(path, note, wrote);
         const added = await commit(
           key,
           (entries) => addRoot(entries, { at: now(), id, quote, source, text }),
           wrote,
         );
-        return answer(path, note, added.store);
+        if (place === undefined) {
+          return answer(path, note, added.store);
+        }
+        const placed = await placeMarkers({ id, key, path, place, quote }, wrote);
+        return answer(path, placed, added.store);
       });
     },
 
@@ -381,7 +479,10 @@ export const createAnnotationsService = ({
         note = await readNote(path);
       } catch (error) {
         if (error instanceof VaultServiceError && error.code === "not_found") {
-          return toResponse(path, foldAnnotations({}, null), false);
+          return toResponse(path, foldAnnotations({}, null), {
+            onStub: false,
+            passages: new Map(),
+          });
         }
         throw error;
       }
@@ -392,17 +493,36 @@ export const createAnnotationsService = ({
       return answer(path, note, entries);
     },
 
-    // PIVOT-STUB(S3): `stripMarkers` is ignored until the markers can be spliced out (§9.5)
-    async remove({ path, id }) {
+    async remove({ path, id, stripMarkers }) {
       return await tracked(async (wrote) => {
         const { note, key } = await keyOfAnnotated(path);
         const deleted = await commit(key, (entries) => deleteAnnotation(entries, id), wrote);
-        return { ...answer(path, note, deleted.store), removedIds: deleted.removedIds };
+        const current = stripMarkers ? await stripFrom(path, deleted.removedIds, wrote) : note;
+        return { ...answer(path, current, deleted.store), removedIds: deleted.removedIds };
       });
     },
 
-    // PIVOT-STUB(S3): places nothing until the quotes can be matched in the text (§9.4)
-    placeWaiting: async ({ content }) => await Promise.resolve({ content, placed: [] }),
+    async placeWaiting({ content, final, itemId }) {
+      if (itemId === null || !isNoteIdKey(itemId)) {
+        return { content, placed: [] };
+      }
+      let store: AnnotationStore;
+      try {
+        ({ entries: store } = await readStore(itemId));
+      } catch (error) {
+        // a store that does not parse places nothing, and the fill's own write still lands
+        if (error instanceof AnnotationsError) {
+          return { content, placed: [] };
+        }
+        throw error;
+      }
+      const pending = waitingRoots(store, content);
+      if (pending.length === 0) {
+        return { content, placed: [] };
+      }
+      const placement = placeQuotes(content, pending, { final });
+      return { content: placement.content, placed: [...placement.placed, ...placement.appended] };
+    },
 
     async reply({ path, id, parentId, text, source = DEFAULT_SOURCE }) {
       return await tracked(async (wrote) => {
