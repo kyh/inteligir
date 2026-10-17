@@ -7,7 +7,7 @@ import type { PlateElementProps } from "platejs/react";
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
 import { cn } from "@repo/ui/lib/cn";
 
-import { COMMENT_MARKER_KEY, FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
+import { ANNOTATION_MARKER_KEY, FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { stringProp } from "@repo/editor/node-props";
 import { convertFormulaToText, FormulaEditPopover } from "@repo/editor/formulas/formula-edit";
@@ -18,12 +18,12 @@ const formulaPillBasePlugin = createSlatePlugin({
   node: { isElement: true, isInline: true, isVoid: true },
 });
 
-const commentMarkerBasePlugin = createSlatePlugin({
-  key: COMMENT_MARKER_KEY,
+const annotationMarkerBasePlugin = createSlatePlugin({
+  key: ANNOTATION_MARKER_KEY,
   node: { isElement: true, isInline: true, isVoid: true },
 });
 
-export const InlineConstructsBaseKit = [formulaPillBasePlugin, commentMarkerBasePlugin];
+export const InlineConstructsBaseKit = [formulaPillBasePlugin, annotationMarkerBasePlugin];
 
 /* oxlint-disable jsx-a11y/click-events-have-key-events, jsx-a11y/prefer-tag-over-role --
    the pill is a Slate inline void, deliberately out of the tab order, and this package reserves a
@@ -69,8 +69,8 @@ const FormulaPillElement = (props: PlateElementProps) => {
 
 /* oxlint-enable jsx-a11y/click-events-have-key-events, jsx-a11y/prefer-tag-over-role */
 
-// Renders nothing: the anchor is plumbing for the comment surface, not prose.
-const CommentMarkerElement = (props: PlateElementProps) => (
+// Renders nothing: the anchor is plumbing for the annotation surface, not prose.
+const AnnotationMarkerElement = (props: PlateElementProps) => (
   <PlateElement {...props} as="span" className="inline-block">
     <span contentEditable={false} aria-hidden className="sr-only" />
     {props.children}
@@ -149,5 +149,5 @@ export const InlineConstructsKit = [
         },
       },
     })),
-  commentMarkerBasePlugin.withComponent(CommentMarkerElement),
+  annotationMarkerBasePlugin.withComponent(AnnotationMarkerElement),
 ];

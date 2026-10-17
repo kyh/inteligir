@@ -1,4 +1,4 @@
-// A new note steps past a taken name, a delete leaves a comment store another note carries the id
+// A new note steps past a taken name, a delete leaves an annotation store another note carries the id
 // of, and a photo lands under a free name in the attachments folder. Platform-free: the scenario
 // suite runs it under node.
 
@@ -12,7 +12,7 @@ import {
   VAULT_FILE_MAX_BYTES,
 } from "@repo/contract/cloud/vault/vault-schema";
 import { utf8ByteLength } from "@repo/contract/cloud/bytes";
-import { commentStoresFreedBy } from "@repo/notes/comments/store-removal";
+import { annotationStoresFreedBy } from "@repo/notes/annotations/store-removal";
 import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPath } from "@repo/notes/knowledge/asset-name";
 import {
   docExtension,
@@ -30,7 +30,7 @@ import { moveCandidates } from "@repo/notes/knowledge/rename-candidates";
 import { computeMoveEdits } from "@repo/notes/knowledge/rename-links";
 import { dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
-import { NOTE_GONE } from "./comment-ops";
+import { NOTE_GONE } from "./annotation-ops";
 import type { HeldFile, NotesStore, RenameEdits } from "./notes-store";
 
 export type FileOpsStore = Pick<
@@ -195,7 +195,7 @@ export const createFileOps = (store: FileOpsStore): FileOps => ({
   async remove(path) {
     const files = store.heldFiles();
     const noteId = files.find((file) => file.path === path)?.noteId ?? null;
-    const stores = commentStoresFreedBy([{ noteId, path }], (id) =>
+    const stores = annotationStoresFreedBy([{ noteId, path }], (id) =>
       files.filter((file) => file.noteId === id).map((file) => file.path),
     );
     await store.remove(path, stores);

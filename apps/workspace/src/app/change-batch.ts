@@ -2,7 +2,7 @@ import type { QueryClient, QueryKey } from "@tanstack/react-query";
 import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import type { ThreadChangeKind, VaultChangeKind } from "@repo/domain/change-kinds";
 import type { VaultChangedEvent } from "@repo/editor/host-io";
-import { isCommentsStorePath } from "@repo/notes/comments/sidecar-schema";
+import { isAnnotationsStorePath } from "@repo/notes/annotations/store-schema";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/contract/local/notifications";
 import type { VaultEntry, VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import { orpc } from "./api";
@@ -152,7 +152,7 @@ export class ChangeBatch {
       void queryClient.invalidateQueries({ queryKey: orpc.vault.tree.key() });
       void queryClient.invalidateQueries({ queryKey: orpc.vault.deleted.key() });
       void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
-      void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
+      void queryClient.invalidateQueries({ queryKey: orpc.annotations.key() });
     } else if (this.contentChanged.size > 0) {
       // The note's bytes are not query state, so content-changed goes to the
       // open note's reader alone; a query alongside bought a second read of the
@@ -160,8 +160,8 @@ export class ChangeBatch {
       // note's backlinks, and which note is not knowable here.
       void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
       // a comment added to a note that already has a store rewrites the store and names no row.
-      if ([...this.contentChanged.keys()].some(isCommentsStorePath)) {
-        void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
+      if ([...this.contentChanged.keys()].some(isAnnotationsStorePath)) {
+        void queryClient.invalidateQueries({ queryKey: orpc.annotations.key() });
       }
     }
     if (this.vaultKinds.has("sync-status-changed")) {
@@ -219,7 +219,7 @@ export class ChangeBatch {
 const BUS_SWEPT_FAMILIES: readonly QueryKey[] = [
   orpc.vault.key(),
   orpc.knowledge.key(),
-  orpc.comments.key(),
+  orpc.annotations.key(),
   orpc.threads.key(),
   orpc.cloud.status.key(),
 ];

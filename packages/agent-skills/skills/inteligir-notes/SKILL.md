@@ -20,7 +20,7 @@ need one — they are listed at the bottom.
 2. **Bytes round-trip.** Every construct below survives an open-and-save
    unchanged. A construct spelled wrong does not error — it stays literal text,
    which is a silent failure. Follow the grammar exactly.
-3. **Preserve what you did not come to change.** Frontmatter keys, comment
+3. **Preserve what you did not come to change.** Frontmatter keys, annotation
    markers, formula identities, and unfamiliar syntax all stay as found.
 
 ## Layout
@@ -30,7 +30,7 @@ vault/
   Some Note.md
   Projects/Roadmap.md            # folders nest freely
   assets/diagram.png             # images and media
-  .inteligir/comments/<id>.json  # a note's comments, keyed by its frontmatter id
+  .inteligir/annotations/<id>.json  # a note's annotations, keyed by its frontmatter id
 ```
 
 The title is the filename, not a frontmatter field and not the H1. Renaming a
@@ -54,7 +54,7 @@ never invent, copy, or reassign one.
 | Source, logs, literal text, ASCII diagrams        | Fenced code                         | An image of text                             |
 | Rough spatial sketch with position and connectors | Canvas                              | Canvas for a generic diagram — use ASCII     |
 | Real interaction that must be clicked             | HTML block                          | Rebuilding tables, tabs, or callouts in HTML |
-| A question needing an answer                      | Comment                             | A `TODO:` line in the body                   |
+| A question needing an answer                      | Annotation                          | A `TODO:` line in the body                   |
 | A value reused or computed                        | Formula pill                        | Retyping the number                          |
 
 When two fit, take the one that reads faster.
@@ -204,7 +204,7 @@ otherwise read the marker as one of its own lines, and after a marker that a
 
 Code — inline or fenced — is inert: nothing inside it is parsed as a construct,
 which is how you write an example of any syntax on this page. In prose, a
-backslash before a date, a pill, a comment marker or a `:::` line keeps it
+backslash before a date, a pill, an annotation marker or a `:::` line keeps it
 plain text: `\@2026-08-22`, `\{{2+2}}`, `\:::`.
 
 Raw HTML beyond `<mark>`, `<u>`, and an existing preserved `<blockquote>`
@@ -216,7 +216,7 @@ belongs in an `inteligir-html` fence.
 - Frontmatter: `inteligir-frontmatter`
 - Links, embeds, media: `inteligir-links`
 - Formulas and variables: `inteligir-formulas`
-- Comments and the sidecar: `inteligir-comments`
+- Annotations and their store: `inteligir-annotations`
 - Canvas: `inteligir-canvas`
 - HTML blocks: `inteligir-html`
 
@@ -224,6 +224,6 @@ belongs in an `inteligir-html` fence.
 
 - Frontmatter (if any) opens the file, one H1 follows, then the body.
 - Every construct is spelled exactly as above — a callout is an alert.
-- Frontmatter, comment markers, and formula identities you did not come to
+- Frontmatter, annotation markers, and formula identities you did not come to
   change are byte-identical to what you found.
 - Nothing outside the vault's `.md` files and `assets/` was created.

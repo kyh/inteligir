@@ -7,7 +7,7 @@ export const shareWithAgentText = (
 How to edit this vault:
 - The vault is a git repo of plain markdown files; edit this note's file directly — the file is the source of truth.
 - Frontmatter (YAML between --- fences) is the only property store; preserve keys you do not understand byte-exactly.
-- Notes use the inteligir markdown dialect: [[wiki links]], {{formula}} pills, comment anchors (%%i:id:start%%…%%i:id:end%% pairs around the text a comment is about), and inteligir-* fenced blocks.
+- Notes use the inteligir markdown dialect: [[wiki links]], {{formula}} pills, annotation markers (%%i:id:start%%…%%i:id:end%% pairs around the passage an annotation is about), and inteligir-* fenced blocks.
 - Keep both anchors of a pair and HTML comment markers byte-exact; never reflow or strip them.
 - Wiki links resolve by exact path, then file name (without its extension), then path suffix, then frontmatter aliases, never by the note's H1; renaming a note breaks inbound [[links]] unless they are rewritten too.
 - Unsure about a dialect construct? Write plain CommonMark instead of guessing.

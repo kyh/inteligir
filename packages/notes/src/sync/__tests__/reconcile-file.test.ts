@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { commentsStorePath, parseSidecar, serializeSidecar } from "../../comments/sidecar-schema";
-import type { CommentEntry, CommentSidecar } from "../../comments/sidecar-schema";
+import {
+  annotationsStorePath,
+  parseAnnotationStore,
+  serializeAnnotationStore,
+} from "../../annotations/store-schema";
+import type { AnnotationEntry, AnnotationStore } from "../../annotations/store-schema";
 import { takenIgnoringCase } from "../../knowledge/doc-file";
 import { reconcileFile } from "../reconcile-file";
 import type { FileSide, ReconcileInput } from "../reconcile-file";
@@ -11,7 +15,7 @@ const THERE = "Kai’s iPhone";
 const text = (value: string): FileSide => ({ kind: "text", text: value });
 const opaque = (ref: string): FileSide => ({ kind: "opaque", ref });
 const absent: FileSide = { kind: "absent" };
-const store = (sidecar: CommentSidecar): FileSide => text(serializeSidecar(sidecar));
+const store = (entries: AnnotationStore): FileSide => text(serializeAnnotationStore(entries));
 
 const doc = (...lines: string[]): string => `${lines.join("\n")}\n`;
 
@@ -189,7 +193,7 @@ describe("reconcileFile", () => {
     ).toEqual({ copy: null, report: null, stays: { kind: "mine" } });
   });
 
-  it("reconciles a json file named like a comment store beside a note as the user's own text", () => {
+  it("reconciles a json file named like an annotation store beside a note as the user's own text", () => {
     const result = reconcile({
       base: text('{\n  "topic": "budget"\n}\n'),
       mine: text('{\n  "topic": "budget, mine"\n}\n'),
@@ -205,17 +209,17 @@ describe("reconcileFile", () => {
     expect(result.report?.kind).toBe("copied");
   });
 
-  describe("the comment store", () => {
-    const path = commentsStorePath("7d1c");
+  describe("the annotation store", () => {
+    const path = annotationsStorePath("7d1c");
     const AT = 1_707_900_000;
-    const root: CommentEntry = {
+    const root: AnnotationEntry = {
       createdAt: AT,
       source: "user",
       text: "Why Friday?",
       updatedAt: AT,
     };
 
-    it("keeps both devices' new comments and never makes a copy", () => {
+    it("keeps both devices' new annotations and never makes a copy", () => {
       const result = reconcile({
         base: store({ c1: root }),
         mine: store({ c1: root, m1: { ...root, text: "mine" } }),
@@ -225,8 +229,9 @@ describe("reconcileFile", () => {
       expect(result.copy).toBeNull();
       expect(result.report).toBeNull();
       expect(result.stays.kind).toBe("merged");
-      const merged = result.stays.kind === "merged" ? parseSidecar(result.stays.text) : null;
-      expect(merged?.ok === true ? Object.keys(merged.sidecar) : null).toEqual(["c1", "m1", "t1"]);
+      const merged =
+        result.stays.kind === "merged" ? parseAnnotationStore(result.stays.text) : null;
+      expect(merged?.ok === true ? Object.keys(merged.store) : null).toEqual(["c1", "m1", "t1"]);
     });
 
     it("keeps the store whole beside a deletion, since the note it belongs to reports", () => {

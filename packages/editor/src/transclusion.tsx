@@ -14,7 +14,7 @@ import { cn } from "@repo/ui/lib/cn";
 import {
   CANVAS_BLOCK_KEY,
   CHART_BLOCK_KEY,
-  COMMENT_MARKER_KEY,
+  ANNOTATION_MARKER_KEY,
   FORMULA_PILL_KEY,
   FRONTMATTER_KEY,
   HTML_BLOCK_KEY,
@@ -222,7 +222,7 @@ const HrStatic = (props: SlateElementProps) => (
 );
 
 // renders no text, as live; inline, because the default <div> would break the line it sits in.
-const CommentMarkerStatic = (props: SlateElementProps) => <SlateElement {...props} as="span" />;
+const AnnotationMarkerStatic = (props: SlateElementProps) => <SlateElement {...props} as="span" />;
 
 const FrontmatterStatic = (props: SlateElementProps) => (
   <SlateElement {...props} className="hidden">
@@ -299,7 +299,7 @@ export const STATIC_COMPONENTS: ReadonlyMap<string, (props: SlateElementProps) =
     ["img", ImageStatic],
     ["hr", HrStatic],
     [FORMULA_PILL_KEY, FormulaPillStatic],
-    [COMMENT_MARKER_KEY, CommentMarkerStatic],
+    [ANNOTATION_MARKER_KEY, AnnotationMarkerStatic],
     [CHART_BLOCK_KEY, richBlockStatic("chart")],
     [CANVAS_BLOCK_KEY, richBlockStatic("canvas")],
     [HTML_BLOCK_KEY, richBlockStatic("html")],

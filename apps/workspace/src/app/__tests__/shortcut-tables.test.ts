@@ -1,4 +1,4 @@
-import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
+import { ANNOTATION_SHORTCUTS } from "@repo/editor/annotations/annotation-kit";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
@@ -9,7 +9,7 @@ const editorChords = [
   ...MARK_SHORTCUTS,
   ...EDITOR_SHORTCUTS,
   ...FIND_BAR_SHORTCUTS,
-  ...COMMENT_SHORTCUTS,
+  ...ANNOTATION_SHORTCUTS,
 ].map((row) => row.hotkey);
 const globalChords = GLOBAL_SHORTCUTS.map(globalShortcutHotkey);
 
@@ -23,7 +23,7 @@ describe("the shortcut tables", () => {
     const shared = globalChords.filter((chord) => editorChords.includes(chord));
     expect(
       shared,
-      "A chord in both GLOBAL_SHORTCUTS (global-shortcuts.ts) and the editor's tables (mark-shortcuts.ts, editor-shortcuts.ts, find-bar.tsx, comment-kit.tsx) fires twice. Give it one owner:",
+      "A chord in both GLOBAL_SHORTCUTS (global-shortcuts.ts) and the editor's tables (mark-shortcuts.ts, editor-shortcuts.ts, find-bar.tsx, annotation-kit.tsx) fires twice. Give it one owner:",
     ).toEqual([]);
   });
 

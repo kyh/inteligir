@@ -70,7 +70,7 @@ The phone: its editor page, its offline store and queue, and how it ships.
   as is the outbox's folder of staged photos, whose rows that file holds
   (`excludedFromBackup` in `apps/mobile/src/notes/outbox-files.ts`). A row per
   file the tree names holds its oid, the commit its blob first appeared at (so
-  an attachment is fetched once), and for a note or a comment store its text
+  an attachment is fetched once), and for a note or an annotation store its text
   with the frontmatter id and aliases, so the resolver's alias and uuid tiers
   answer on the phone. The commit advances only when no wanted row is empty, so
   a refresh cut short resumes. Rejected: a body cache keyed `(commit, path)`
@@ -121,8 +121,8 @@ The phone: its editor page, its offline store and queue, and how it ships.
   move takes; a rewritten note another device changed first keeps its bytes and
   is named (`reconcileRename` in `apps/mobile/src/notes/outbox-reconcile.ts`),
   and the old stem's alias still answers its link. A delete carries the note's
-  comment store, so a note the vault keeps because another device edited it
-  keeps its comments. Notes only: no folder verbs on the phone in 0.6 (owner
+  annotation store, so a note the vault keeps because another device edited it
+  keeps its annotations. Notes only: no folder verbs on the phone in 0.6 (owner
   decision). A photo is a JPEG at most 2048px on its long edge
   (`apps/mobile/src/notes/photo-ingest.ts`): a HEIC is no asset type the vault
   takes and the Mac's editor cannot draw it, and the re-encode writes no EXIF,
@@ -130,31 +130,32 @@ The phone: its editor page, its offline store and queue, and how it ships.
   their own, which could land a rename without the links it moved, and a typed
   name cleaned up rather than refused, which shows a title that was never saved.
 
-- **A PHONE COMMENT IS ITS MARKERS AND ITS ENTRY IN ONE CHANGE SET** (owner
-  decision: the phone comments and replies). The touch toolbar's Comment puts
+- **A PHONE ANNOTATION IS ITS MARKERS AND ITS ENTRY IN ONE CHANGE SET** (owner
+  decision: the phone annotates and replies). The touch toolbar's Comment puts
   the kit's markers in only at Save, and the page's flush that writes them goes
-  as `addComment`, not `write`, carrying the comment
+  as `addAnnotation`, not `write`, carrying the highlight's bare entry and its
+  quote, and the note follows as `editAnnotation`, a row of the store alone
   (`apps/mobile-editor/src/host/page-host.ts`); the phone plans the entry under
-  its write lock and queues the note and its store as ONE `comment` row
-  (`editComments` in `apps/mobile/src/notes/notes-store.ts`), a note without an
-  id minting one by the desktop's line cut (`@repo/notes/comments/comment-key`),
-  every entry signed `user`. A reply, a resolve and a delete are rows of the
-  store alone (`apps/mobile/src/notes/comment-ops.ts`); a deleted thread's
-  markers go as the desktop's do, through the page's live editor and its next
-  write (`commentsRemoved`). The page draws its ranges by the note's threads and
-  which are resolved, as the desktop's editor does: the editor ports send
-  `commentMeta` when the page opens a note, after each of the phone's own
-  comment verbs, and when a pull changes the note's store or its id
+  its write lock and queues the note and its store as ONE `annotation` row
+  (`editAnnotations` in `apps/mobile/src/notes/notes-store.ts`), a note without an
+  id minting one by the desktop's line cut (`@repo/notes/annotations/annotation-key`),
+  every entry signed `user`. A note, a reply and a delete are rows of the
+  store alone (`apps/mobile/src/notes/annotation-ops.ts`); a deleted
+  annotation's markers go as the desktop's do, through the page's live editor
+  and its next write (`annotationsRemoved`). The page draws its ranges by the
+  note's annotations, as the desktop's editor does: the editor ports send
+  `annotationMeta` when the page opens a note, after each of the phone's own
+  annotation verbs, and when a pull changes the note's store or its id
   (`apps/mobile/src/editor/editor-ports.ts`). A stale set is settled per path
-  (`reconcileComment` in `apps/mobile/src/notes/outbox-reconcile.ts`): the note
-  as a write is, and the store by its entries, so a comment another device made
-  meanwhile keeps both threads. Rejected: markers in at the field's opening, as
+  (`reconcileAnnotation` in `apps/mobile/src/notes/outbox-reconcile.ts`): the note
+  as a write is, and the store by its entries, so an annotation another device
+  made meanwhile keeps both. Rejected: markers in at the field's opening, as
   the desktop's popover does, which the 600ms autosave writes long before there
-  is a comment, so a pull could find markers with nothing behind them; and a
+  is an annotation, so a pull could find markers with nothing behind them; and a
   store write in a row of its own after the note's, which is the same gap.
   Residual: a hardware chord's create lands its entry in a set of its own; and
-  when two devices each give one id-less note its first comment at once, the
-  other's thread waits under an id no note carries.
+  when two devices each give one id-less note its first annotation at once, the
+  other's waits under an id no note carries.
 
 ## Repo guards, vendoring and tooling
 

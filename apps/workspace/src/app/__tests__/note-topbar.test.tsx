@@ -35,8 +35,8 @@ const copiedAfterClick = async (
         onFindInNote={vi.fn<() => void>()}
         onOpenFolder={vi.fn<() => void>()}
         insetTitleBar={false}
-        commentCount={0}
-        onOpenComments={vi.fn<() => void>()}
+        annotationCount={0}
+        onOpenAnnotations={vi.fn<() => void>()}
         onExportPdf={vi.fn<() => void>()}
       />
     </SidebarProvider>,
@@ -81,8 +81,8 @@ describe("the note's name in the bar", () => {
           onFindInNote={vi.fn<() => void>()}
           onOpenFolder={vi.fn<() => void>()}
           insetTitleBar={false}
-          commentCount={0}
-          onOpenComments={vi.fn<() => void>()}
+          annotationCount={0}
+          onOpenAnnotations={vi.fn<() => void>()}
           onExportPdf={vi.fn<() => void>()}
         />
       </SidebarProvider>,
@@ -107,8 +107,8 @@ describe("the folder breadcrumb", () => {
           onFindInNote={vi.fn<() => void>()}
           onOpenFolder={onOpenFolder}
           insetTitleBar={false}
-          commentCount={0}
-          onOpenComments={vi.fn<() => void>()}
+          annotationCount={0}
+          onOpenAnnotations={vi.fn<() => void>()}
           onExportPdf={vi.fn<() => void>()}
         />
       </SidebarProvider>,

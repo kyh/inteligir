@@ -12,12 +12,12 @@ they are not a developer. Talk to them in plain language about their notes. Do n
 commits, the terminal or the command line unless they ask, and never ask them to run a command.`;
 
 export const CLI_POINTER_INSTRUCTIONS = `The \`inteligir\` CLI drives this notes app from your shell: vault file CRUD, \
-full-text search, agent actions and comments. INTELIGIR_DATA_DIR and INTELIGIR_THREAD_ID \
+full-text search, agent actions and annotations. INTELIGIR_DATA_DIR and INTELIGIR_THREAD_ID \
 are set in your environment. Run \`inteligir guide\` for the manual; every \
 command takes \`--json\`.`;
 
 const SKILLS_POINTER_INSTRUCTIONS = `Notes in this vault use the inteligir markdown dialect \
-(wiki links, {{formula}} pills, %%i:id%% comment anchors, inteligir-* fenced blocks). \
+(wiki links, {{formula}} pills, %%i:id%% annotation markers, inteligir-* fenced blocks). \
 The dialect's own skills live in $INTELIGIR_SKILLS_DIR — read the relevant \
 SKILL.md there (inteligir-notes first) before authoring or editing constructs, and \
 follow it exactly; the app parses what it specifies.`;

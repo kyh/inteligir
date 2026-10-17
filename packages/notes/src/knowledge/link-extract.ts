@@ -582,7 +582,7 @@ const scanBody = (source: string, tree: Nodes, mode: ScanMode): BodyScan => {
       case "code":
       case "column":
       case "columnGroup":
-      case "commentMarker":
+      case "annotationMarker":
       case "date":
       case "delete":
       case "emphasis":

@@ -28,7 +28,7 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // a leaf: content (markdown served to agents), imported as files.
     "@repo/agent-skills": [],
     // the @repo/notes edge is the parser-free grammars the contract validates against (vault-path,
-    // sidecar-schema, tag-grammar, link-kinds); widening it to a remark-carrying module drags
+    // store-schema, tag-grammar, link-kinds); widening it to a remark-carrying module drags
     // remark into every client bundle, which "the contract's @repo/notes edge" below walks for.
     "@repo/contract": ["@repo/domain", "@repo/notes"],
     // below the wire: an edge to @repo/contract would drag @orpc/contract and the contract's notes edge

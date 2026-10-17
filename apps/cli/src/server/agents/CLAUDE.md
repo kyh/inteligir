@@ -1,6 +1,6 @@
 # Decisions: agents and threads
 
-Turns, threads, the agent's commits and undo, sign-in, connectors and comments.
+Turns, threads, the agent's commits and undo, sign-in, connectors and annotations.
 `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Agents and threads
@@ -32,23 +32,23 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and comments.
   after it arrived. `apps/cli/src/server/agents/agent-commits.ts`,
   `apps/cli/src/server/vault/turn-trailers.ts`.
 
-- **A COMMENT STORE IS ONE DOT-FOLDER KEYED BY THE NOTE'S ID, ITS WRITE IS A
-  CAS, AND EVERY ENTRY CARRIES ITS AUTHOR'S `source`; the cloud was rejected for
-  it.** Keyed by the note's frontmatter `id`, so a rename or move anywhere
+- **AN ANNOTATION STORE IS ONE DOT-FOLDER KEYED BY THE ITEM'S ID, ITS WRITE IS
+  A CAS, AND EVERY ENTRY CARRIES ITS AUTHOR'S `source`; the cloud was rejected
+  for it.** Keyed by the item's frontmatter `id`, so a rename or move anywhere
   (Finder, a pull, an agent's `mv`) strands nothing and one commit carries a
   note's anchors and bodies together; bodies in a cloud table would drift from
-  the anchors in the note's bytes and need an account. A comment on a note
+  the anchors in the note's bytes and need an account. An annotation on a note
   without an id mints one through a guarded note write; a read writes nothing,
-  and an `id` that is not text is refused, never overwritten. The comment-id
-  grammar has one spelling (`@repo/notes/comments/sidecar-schema`). A deleted
+  and an `id` that is not text is refused, never overwritten. The annotation-id
+  grammar has one spelling (`@repo/notes/annotations/store-schema`). A deleted
   note's store goes with it unless a byte copy still carries that id, one rule
   the server's delete and the phone's both ask, and a restore brings both back.
-  `apps/cli/src/server/comments/comments-service.ts`,
-  `@repo/notes/comments/store-removal`.
+  `apps/cli/src/server/annotations/annotations-service.ts`,
+  `@repo/notes/annotations/store-removal`.
 
 - **A BYTE COPY IS RE-KEYED AND ITS STORE FORKED, never stripped of its id.**
   Giving a copy its own id copies the store under the new id first, then moves
-  the copy's `id:` line under the CAS, so both notes keep every thread and the
+  the copy's `id:` line under the CAS, so both notes keep every annotation and the
   one keeping the old id keeps its `[[Title|uuid]]` links and actions. Deleting
   the copy's `id:` line was rejected: its anchors' bodies live only under that
   id. `@repo/contract/local/vault/give-note-own-id`.
@@ -153,7 +153,7 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and comments.
 - **AN ACTION'S ORIGIN IS ITS NOTE'S ID, and the path is only the fallback.**
   Rebinding the stored path on the rename route was rejected: Finder, an agent's
   `mv` and a pull never reach that route. The create stores the note's `id`
-  beside the path, minting one through the comment store's guarded step. A
+  beside the path, minting one through the annotation store's guarded step. A
   phone's request reads the id and never mints one, so over a note with none its
   thread is bound by path alone, and a boot binds each such path to its note's
   id once the note has one. A read prefers the stored path while it still
@@ -200,8 +200,8 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and comments.
   CAS and a write racing the undo is kept and named. A path a running turn
   claimed is `busy`, and a turn still running or already undone is refused. The
   undo commits as the engine, never as the agent's turn, so an agent undoing an
-  earlier turn from inside a later one does not commit the undo as its own. A
-  COMMENT STORE IS TAKEN BACK ENTRY BY ENTRY, never as lines, which can break
+  earlier turn from inside a later one does not commit the undo as its own. AN
+  ANNOTATION STORE IS TAKEN BACK ENTRY BY ENTRY, never as lines, which can break
   its json: an entry goes or comes back only while it is as the turn left it. It
   is wired beside the thread service rather than inside it, which would hand
   that service the vault's git and writes.

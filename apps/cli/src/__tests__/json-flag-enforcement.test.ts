@@ -47,13 +47,12 @@ const seedFixture = (state: FixtureState): void => {
     { path: "notes/nearby.md", reasons: ["shares #project"], score: 3, title: "Nearby" },
   ];
   state.threads.length = 0;
-  state.comments.set("notes/hello.md", [
+  state.annotations.set("notes/hello.md", [
     {
       anchored: false,
+      id: "c1",
       replies: [],
-      resolved: false,
-      root: { createdAt: 1, source: "user", text: "seeded", updatedAt: 1 },
-      rootId: "c1",
+      root: { createdAt: 1, quote: "hello", source: "user", text: "seeded", updatedAt: 1 },
     },
   ]);
   state.threads.push({

@@ -9,7 +9,7 @@ and an `exports` map.
 ## Why it exists
 
 The agent edits the vault with its own shell, and the dialect — `[[wiki
-links]]`, `{{formula}}` pills, `%%i:id%%` comment anchors, the `inteligir-*`
+links]]`, `{{formula}}` pills, `%%i:id%%` annotation markers, the `inteligir-*`
 fences — is not something a model guesses right. Content the agent consumes
 lives in files it reads with its own tools, never inlined into a prompt (the
 rule behind the "agent memory is removed" decision in
@@ -37,8 +37,8 @@ skills/
                                   # external links, embeds and vault media
   inteligir-formulas/SKILL.md     # {{source|display|meta}} pills and named
                                   # variables: grammar, identity, references
-  inteligir-comments/SKILL.md     # %%i:id:start/end%% markers, the
-                                  # .inteligir/comments store, attribution
+  inteligir-annotations/SKILL.md  # %%i:id:start/end%% markers, the
+                                  # .inteligir/annotations store, attribution
   inteligir-canvas/SKILL.md       # inteligir-canvas fences: when a sketch is the
                                   # answer, and the exact grid payload
   inteligir-html/SKILL.md         # inteligir-html fences: the shell, the sandbox

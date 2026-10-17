@@ -1,6 +1,6 @@
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
-import { restoreCommentStore } from "@repo/contract/local/vault/restore-comment-store";
+import { restoreAnnotationStore } from "@repo/contract/local/vault/restore-annotation-store";
 import type { VaultDeletedEntry } from "@repo/contract/local/vault/vault-schema";
 import {
   DropdownMenu,
@@ -34,17 +34,17 @@ export const DeletedNotes = ({ onOpenNote }: { onOpenNote: (path: string) => voi
         guard: { kind: "absent" },
         path: entry.path,
       });
-      const comments = await restoreCommentStore(client, content, entry.sha);
-      return { comments, path };
+      const annotations = await restoreAnnotationStore(client, content, entry.sha);
+      return { annotations, path };
     },
     onError: (error, entry) => {
       failed(error, `Could not restore ${entry.path}.`);
     },
-    // the note is back whatever became of its comments, so it opens either way.
-    onSuccess: ({ comments, path }) => {
-      if (comments.kind === "failed") {
+    // the note is back whatever became of its annotations, so it opens either way.
+    onSuccess: ({ annotations, path }) => {
+      if (annotations.kind === "failed") {
         toast.warning(
-          `Restored ${path}, but not its comments: ${refusalMessage(comments.error, "the comment store was refused")}`,
+          `Restored ${path}, but not its comments: ${refusalMessage(annotations.error, "the comment store was refused")}`,
         );
       }
       void queryClient.invalidateQueries({ queryKey: orpc.vault.deleted.key() });

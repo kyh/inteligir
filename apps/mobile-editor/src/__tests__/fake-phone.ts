@@ -64,9 +64,13 @@ const answerFromVault =
       }
       // the note lands as a write does; the comment's entry is the phone's store's, which a case
       // reads off the request
-      case "addComment": {
+      case "addAnnotation": {
         const { base, content, path } = request.payload;
         return writeAnswer(files, { content, guard: { base, kind: "expected" }, path });
+      }
+      // a store write alone, which a case reads off the request
+      case "editAnnotation": {
+        return ok({ kind: "done" });
       }
       case "remove": {
         files.delete(request.payload.path);

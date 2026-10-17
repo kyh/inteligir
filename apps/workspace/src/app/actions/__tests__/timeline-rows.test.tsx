@@ -244,7 +244,7 @@ it("draws the notes a message attached under its bubble, apart from the text", (
 });
 
 const turnChanges = (state: TurnChanges["state"]): TurnChanges => ({
-  paths: ["Plans.md", ".inteligir/comments/note-1.json", "Ideas.md"],
+  paths: ["Plans.md", ".inteligir/annotations/note-1.json", "Ideas.md"],
   state,
   turnId: "turn_1",
 });
@@ -264,7 +264,7 @@ describe("a turn's changes footer", () => {
     expect(view.getByText("Edited 2 notes")).toBeTruthy();
     expect(view.getByText("Plans.md")).toBeTruthy();
     expect(view.getByText("Ideas.md")).toBeTruthy();
-    expect(view.queryByText(".inteligir/comments/note-1.json")).toBeNull();
+    expect(view.queryByText(".inteligir/annotations/note-1.json")).toBeNull();
     fireEvent.click(view.getByRole("button", { name: "Undo changes" }));
     expect(onUndo).toHaveBeenCalledWith("turn_1");
   });

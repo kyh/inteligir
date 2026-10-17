@@ -86,7 +86,7 @@ agent shells are given.
 list|read|history|revision|restore|write|rename|delete|deleted|mkdir|new-id|attachments|remote|open|status|sync`
 · `search` (`tag:` terms pass through) · `matches` · `backlinks` · `related` ·
 `tags` · `tag notes|rename` · `action
-list|new|send|show|stop|wait|archive|changes|undo` · `comment list|add|reply|resolve|remove` ·
+list|new|send|show|stop|wait|archive|changes|undo` · `annotation list|add|edit|reply|remove` ·
 `interactions list|answer` · `agents list|default` · `folders
 list|add|remove` · `cloud status|login|sync` · `status` · `guide`.
 

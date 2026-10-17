@@ -22,7 +22,7 @@ import {
   formatAttachmentLocation,
   parseAttachmentLocation,
 } from "@repo/contract/local/vault/attachment-location";
-import type { CommentStoreRestore } from "@repo/contract/local/vault/restore-comment-store";
+import type { AnnotationStoreRestore } from "@repo/contract/local/vault/restore-annotation-store";
 import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { parseBoundedInteger } from "../args";
 import { defineCommand } from "citty";
@@ -414,7 +414,7 @@ export const vaultCommand = (deps: CliDeps) =>
         },
         meta: {
           description:
-            "Give a note that shares another's id (a copied file) its own, with a copy of its comments",
+            "Give a note that shares another's id (a copied file) its own, with a copy of its annotations",
           name: "new-id",
         },
         run: async ({ args }) => {
@@ -449,12 +449,12 @@ export const vaultCommand = (deps: CliDeps) =>
               failureFrom(result.error, "UNEXPECTED"),
             );
           }
-          const body = { comments: result.comments, id: result.id, path: args.path };
+          const body = { annotations: result.annotations, id: result.id, path: args.path };
           if (outputJson(args, body)) {
             return;
           }
           out.success(
-            `${args.path} has its own id, ${result.id}${result.comments === "copied" ? ", and a copy of its comments" : ""}`,
+            `${args.path} has its own id, ${result.id}${result.annotations === "copied" ? ", and a copy of its annotations" : ""}`,
           );
         },
       }),
@@ -607,26 +607,26 @@ export const vaultCommand = (deps: CliDeps) =>
             throw current.error;
           }
           const body = await api.vault.write({ content: revision.content, guard, path: args.path });
-          let comments: CommentStoreRestore = { kind: "none" };
+          let annotations: AnnotationStoreRestore = { kind: "none" };
           if (guard.kind === "absent") {
             // dynamic import: it reads frontmatter, and a static one would load yaml before every
             // client verb reads argv (the build refuses that, scripts/build.ts).
-            const { restoreCommentStore } =
-              await import("@repo/contract/local/vault/restore-comment-store");
-            comments = await restoreCommentStore(api, revision.content, args.sha);
+            const { restoreAnnotationStore } =
+              await import("@repo/contract/local/vault/restore-annotation-store");
+            annotations = await restoreAnnotationStore(api, revision.content, args.sha);
           }
-          if (comments.kind === "failed") {
+          if (annotations.kind === "failed") {
             // the note is back either way, so the failure keeps the store refusal's own class, like a send's.
             throw new CliExitError(
-              `Restored ${body.path} to ${args.sha}, but not its comments: ${getErrorMessage(comments.error)}`,
-              failureFrom(comments.error, "UNEXPECTED"),
+              `Restored ${body.path} to ${args.sha}, but not its annotations: ${getErrorMessage(annotations.error)}`,
+              failureFrom(annotations.error, "UNEXPECTED"),
             );
           }
-          if (outputJson(args, { ...body, comments: comments.kind })) {
+          if (outputJson(args, { ...body, annotations: annotations.kind })) {
             return;
           }
           out.success(
-            `Restored ${body.path} to ${args.sha}${comments.kind === "restored" ? ", with its comments" : ""}`,
+            `Restored ${body.path} to ${args.sha}${annotations.kind === "restored" ? ", with its annotations" : ""}`,
           );
         },
       }),

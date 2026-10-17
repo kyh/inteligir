@@ -19,12 +19,12 @@ import { deleteNote } from "@/lib/app-runtime";
 import { firstParam, openNote, openThread } from "@/lib/routes";
 import type { ThreadParams } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
-import { CommentsSheet } from "@/notes/comments-view";
+import { AnnotationsSheet } from "@/notes/annotations-view";
 import { confirmDeleteNote } from "@/notes/confirm-delete-note";
 import { OutboxBanner } from "@/notes/outbox-banner";
 import { useNoteEditor } from "@/notes/use-note-editor";
-import { useSheetComments } from "@/notes/use-sheet-comments";
-import type { SheetRequest } from "@/notes/use-sheet-comments";
+import { useSheetAnnotations } from "@/notes/use-sheet-annotations";
+import type { SheetRequest } from "@/notes/use-sheet-annotations";
 import { TextButton } from "@/ui/text-button";
 
 const styles = StyleSheet.create({
@@ -123,7 +123,7 @@ const NoteScreen = () => {
       },
       openFailed: setOpenFailed,
       opened: setOpened,
-      showComments: (ids) => {
+      showAnnotations: (ids) => {
         setSheet({ ids });
       },
     },
@@ -131,7 +131,11 @@ const NoteScreen = () => {
   // the WebView's ref, one function for the screen's life: a fresh one each render would detach
   // the view and attach it again, and a detach forgets the loaded page
   const { attach: attachView } = host;
-  const { comments, edits: commentEdits } = useSheetComments(sheet, opened, ports.comments);
+  const { annotations, edits: annotationEdits } = useSheetAnnotations(
+    sheet,
+    opened,
+    ports.annotations,
+  );
 
   // A save the page could not make is held only by the page, so leaving then asks first. An
   // ordinary edit inside the autosave's pause needs no ask: the flush on the way out writes it.
@@ -282,9 +286,9 @@ const NoteScreen = () => {
           </View>
         )}
       </KeyboardAvoidingView>
-      <CommentsSheet
-        comments={comments}
-        edits={commentEdits}
+      <AnnotationsSheet
+        annotations={annotations}
+        edits={annotationEdits}
         ids={sheet?.ids ?? null}
         visible={sheet !== null}
         onClose={() => {

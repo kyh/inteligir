@@ -105,11 +105,11 @@ describe("the undo's summary", () => {
     );
   });
 
-  it("counts notes, never the comment stores the undo also took back", () => {
+  it("counts notes, never the annotation stores the undo also took back", () => {
     expect(
       summarizeUndo({
         kept: [],
-        reverted: ["a.md", ".inteligir/comments/1c9a5b76-4e2d-4f4b-9a63-7e1f2b8c0d44.json"],
+        reverted: ["a.md", ".inteligir/annotations/1c9a5b76-4e2d-4f4b-9a63-7e1f2b8c0d44.json"],
       }).message,
     ).toBe("Undid the agent's changes to 1 note.");
   });

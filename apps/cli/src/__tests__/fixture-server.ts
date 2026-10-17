@@ -3,7 +3,7 @@ import { implement, ORPCError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/node";
 import { localContract } from "@repo/contract/local";
 import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schema";
-import type { CommentThreadWire } from "@repo/contract/local/comments/comments-schema";
+import type { AnnotationWire } from "@repo/contract/local/annotations/annotations-schema";
 import type { ConnectorsResponse } from "@repo/contract/local/connectors/connectors-schema";
 import type { ConnectedFoldersResponse } from "@repo/contract/local/folders/folders-schema";
 import type {
@@ -77,7 +77,7 @@ export interface FixtureState {
   folders: ConnectedFoldersResponse;
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
-  comments: Map<string, CommentThreadWire[]>;
+  annotations: Map<string, AnnotationWire[]>;
   guideMarkdown: string;
   agent: AgentStatus;
   vaultStatus: VaultStatusResponse;
@@ -129,9 +129,9 @@ export const makeRevision = (
 
 export const makeFixtureState = (): FixtureState => ({
   agent: { mode: "acp", runtime: "ready" },
+  annotations: new Map(),
   backlinks: [],
   cloud: { cloudUrl: FIXTURE_CLOUD_URL, revokeError: null, state: "signed-out" },
-  comments: new Map(),
   concurrentWrite: null,
   dataDir: "/fixture/data",
   failWith: null,
@@ -177,9 +177,9 @@ const deriveTree = (vault: Map<string, string>): VaultEntry[] => {
 const findThread = (state: FixtureState, threadId: string): FixtureThread | undefined =>
   state.threads.find((entry) => entry.thread.id === threadId);
 
-const commentsBody = (state: FixtureState, path: string) => {
-  const threads = state.comments.get(path) ?? [];
-  return { orphanMarkers: [], path, strayIds: [], threads, total: threads.length };
+const annotationsBody = (state: FixtureState, path: string) => {
+  const annotations = state.annotations.get(path) ?? [];
+  return { annotations, orphanMarkers: [], path, strayIds: [], total: annotations.length };
 };
 
 const base = implement(localContract).$context<FixtureState>();
@@ -240,48 +240,55 @@ const cloudRouter = {
   syncNow: base.cloud.syncNow.handler(({ context }) => context.cloud),
 };
 
-const commentsRouter = {
-  add: base.comments.add.handler(({ context, input }) => {
-    const threads = context.comments.get(input.path) ?? [];
-    threads.push({
+const annotationsRouter = {
+  add: base.annotations.add.handler(({ context, input }) => {
+    const annotations = context.annotations.get(input.path) ?? [];
+    annotations.push({
       anchored: false,
+      id: input.id,
       replies: [],
-      resolved: false,
-      root: { createdAt: 1, source: input.source ?? "user", text: input.text, updatedAt: 1 },
-      rootId: input.id,
+      root: {
+        createdAt: 1,
+        quote: input.quote,
+        source: input.source ?? "user",
+        text: input.text,
+        updatedAt: 1,
+      },
     });
-    context.comments.set(input.path, threads);
-    return commentsBody(context, input.path);
+    context.annotations.set(input.path, annotations);
+    return annotationsBody(context, input.path);
   }),
-  list: base.comments.list.handler(({ context, input }) => commentsBody(context, input.path)),
-  remove: base.comments.remove.handler(({ context, input, errors }) => {
-    const threads = context.comments.get(input.path) ?? [];
-    const remaining = threads.filter((row) => row.rootId !== input.id);
-    if (remaining.length === threads.length) {
-      throw errors.NOT_FOUND({ message: `no thread ${input.id}` });
+  edit: base.annotations.edit.handler(({ context, input, errors }) => {
+    const annotation = (context.annotations.get(input.path) ?? []).find(
+      (row) => row.id === input.id,
+    );
+    if (annotation === undefined) {
+      throw errors.BAD_REQUEST({ message: `no annotation ${input.id}` });
     }
-    context.comments.set(input.path, remaining);
-    return { ...commentsBody(context, input.path), removedIds: [input.id] };
+    annotation.root = { ...annotation.root, text: input.text, updatedAt: 2 };
+    return annotationsBody(context, input.path);
   }),
-  reply: base.comments.reply.handler(({ context, input, errors }) => {
-    const threads = context.comments.get(input.path) ?? [];
-    const thread = threads.find((row) => row.rootId === input.parentId);
-    if (thread === undefined) {
-      throw errors.NOT_FOUND({ message: `no thread ${input.parentId}` });
+  list: base.annotations.list.handler(({ context, input }) => annotationsBody(context, input.path)),
+  remove: base.annotations.remove.handler(({ context, input, errors }) => {
+    const annotations = context.annotations.get(input.path) ?? [];
+    const remaining = annotations.filter((row) => row.id !== input.id);
+    if (remaining.length === annotations.length) {
+      throw errors.NOT_FOUND({ message: `no annotation ${input.id}` });
     }
-    thread.replies.push({
+    context.annotations.set(input.path, remaining);
+    return { ...annotationsBody(context, input.path), removedIds: [input.id] };
+  }),
+  reply: base.annotations.reply.handler(({ context, input, errors }) => {
+    const annotations = context.annotations.get(input.path) ?? [];
+    const annotation = annotations.find((row) => row.id === input.parentId);
+    if (annotation === undefined) {
+      throw errors.NOT_FOUND({ message: `no annotation ${input.parentId}` });
+    }
+    annotation.replies.push({
       entry: { createdAt: 2, source: input.source ?? "user", text: input.text, updatedAt: 2 },
       id: input.id,
     });
-    return commentsBody(context, input.path);
-  }),
-  resolve: base.comments.resolve.handler(({ context, input, errors }) => {
-    const thread = (context.comments.get(input.path) ?? []).find((row) => row.rootId === input.id);
-    if (thread === undefined) {
-      throw errors.NOT_FOUND({ message: `no thread ${input.id}` });
-    }
-    thread.resolved = input.resolved;
-    return commentsBody(context, input.path);
+    return annotationsBody(context, input.path);
   }),
 };
 
@@ -631,8 +638,8 @@ const fixtureRouter = base
   })
   .router({
     agents: agentsRouter,
+    annotations: annotationsRouter,
     cloud: cloudRouter,
-    comments: commentsRouter,
     connectors: connectorsRouter,
     folders: foldersRouter,
     knowledge: knowledgeRouter,

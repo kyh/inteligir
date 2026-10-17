@@ -12,9 +12,9 @@ export const INVALID_PATH = {
   message: "That path is not one this vault can address",
 } as const;
 
-// the classes a VaultServiceError maps to (vault-refusals.ts is typed against these keys); a
-// comment-store row spreads them whole. PAYLOAD_TOO_LARGE is reachable from a comment store past
-// the vault's read cap.
+// the classes a VaultServiceError maps to (vault-refusals.ts is typed against these keys); an
+// annotation-store row spreads them whole. PAYLOAD_TOO_LARGE is reachable from an annotation store
+// past the vault's read cap.
 export const VAULT_REFUSAL_ERRORS = {
   CONFLICT: {},
   INVALID_PATH,
@@ -22,9 +22,9 @@ export const VAULT_REFUSAL_ERRORS = {
   PAYLOAD_TOO_LARGE: {},
 } as const;
 
-// the classes a CommentsError maps to (comments-router.ts is typed against these keys); every
-// comments row spreads them.
-export const COMMENTS_REFUSAL_ERRORS = {
+// the classes an AnnotationsError maps to (annotations-router.ts is typed against these keys);
+// every annotations row spreads them.
+export const ANNOTATIONS_REFUSAL_ERRORS = {
   BAD_REQUEST: {},
   CONFLICT: {},
 } as const;

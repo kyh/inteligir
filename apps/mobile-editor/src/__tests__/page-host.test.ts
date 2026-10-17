@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { useCommentSurface } from "@repo/editor/comments/comment-store";
+import { useAnnotationSurface } from "@repo/editor/annotations/annotation-store";
 import { getEditorHostActions } from "@repo/editor/host-io";
 import type { VaultChangedEvent } from "@repo/editor/host-io";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
@@ -295,52 +295,47 @@ describe("leaving the note", () => {
 
 describe("what the editor asks the shell for", () => {
   // a tag has no screen on the phone, so it says nothing
-  it("reaches the native end: Ask agent and a comment, never a tag", async () => {
+  it("reaches the native end: Ask agent and an annotation, never a tag", async () => {
     const { phone } = await openHost();
     const before = phone.sent.length;
-    const { agent, comments } = getEditorHostActions();
+    const { agent, annotations } = getEditorHostActions();
     agent.askAboutSelection("Hello there.");
     agent.showTag("errands");
-    comments.open(["c1", "c2"]);
+    annotations.open(["c1", "c2"]);
 
     expect(phone.sent.slice(before).map((frame) => frame.type)).toEqual([
       "askAgent",
-      "showComments",
+      "showAnnotations",
     ]);
     expect(phone.events("askAgent")).toEqual([
       { nonce: PHONE_NONCE, path: "Note.md", selection: "Hello there.", type: "askAgent" },
     ]);
-    expect(phone.events("showComments")).toEqual([
-      { ids: ["c1", "c2"], nonce: PHONE_NONCE, type: "showComments" },
+    expect(phone.events("showAnnotations")).toEqual([
+      { ids: ["c1", "c2"], nonce: PHONE_NONCE, type: "showAnnotations" },
     ]);
   });
 });
 
-const metaOf = (path: string) => useCommentSurface.getState().meta.get(path);
+const metaOf = (path: string) => useAnnotationSurface.getState().meta.get(path);
 
-describe("what the phone tells the page of its comments", () => {
-  it("draws the note's ranges by the threads the phone names, and forgets them with the page", async () => {
+describe("what the phone tells the page of its annotations", () => {
+  it("draws the note's ranges by the annotations the phone names, and forgets them with the page", async () => {
     const { host, phone } = await openHost();
     phone.deliver({
       knownIds: ["c1", "c2"],
       nonce: PHONE_NONCE,
       path: "Note.md",
-      resolvedIds: ["c2"],
-      type: "commentMeta",
+      type: "annotationMeta",
     });
-    expect(metaOf("Note.md")).toEqual({
-      knownIds: new Set(["c1", "c2"]),
-      resolvedIds: new Set(["c2"]),
-    });
+    expect(metaOf("Note.md")).toEqual({ knownIds: new Set(["c1", "c2"]) });
 
     phone.deliver({
       knownIds: ["c1"],
       nonce: PHONE_NONCE,
       path: "Note.md",
-      resolvedIds: [],
-      type: "commentMeta",
+      type: "annotationMeta",
     });
-    expect(metaOf("Note.md")?.resolvedIds).toEqual(new Set());
+    expect(metaOf("Note.md")).toEqual({ knownIds: new Set(["c1"]) });
 
     host.stop();
     started = null;
@@ -350,37 +345,37 @@ describe("what the phone tells the page of its comments", () => {
 
 const ANCHORED = "# Note\n\n%%i:c3:start%%Hello%%i:c3:end%% there.\n";
 
-// what the editor's comment surface calls on Save
-const create = async (id: string, text: string): Promise<boolean> =>
-  await getEditorHostActions().comments.create(id, text);
+// what the editor's annotation surface calls on Save
+const create = async (id: string, quote: string): Promise<boolean> =>
+  await getEditorHostActions().annotations.create(id, quote);
 
-describe("a new comment", () => {
+describe("a new annotation", () => {
   it("rides the save that writes its markers, so the phone lands both as one change set", async () => {
     const { host, phone } = await openHost();
     host.io.vault.editNote("Note.md", ANCHORED);
 
-    expect(await create("c3", "Why here?")).toBe(true);
+    expect(await create("c3", "Hello")).toBe(true);
     expect(phone.requests("write")).toEqual([]);
-    expect(phone.requests("addComment").map((frame) => frame.payload)).toEqual([
-      { base: NOTE, content: ANCHORED, id: "c3", path: "Note.md", text: "Why here?" },
+    expect(phone.requests("addAnnotation").map((frame) => frame.payload)).toEqual([
+      { base: NOTE, content: ANCHORED, id: "c3", path: "Note.md", quote: "Hello" },
     ]);
     expect(phone.files.get("Note.md")).toBe(ANCHORED);
   });
 
-  it("merges a note the phone finds changed and carries the comment on the retry", async () => {
+  it("merges a note the phone finds changed and carries the annotation on the retry", async () => {
     const { host, phone } = await openHost({ "Note.md": "one\n\nHello there.\n" });
     phone.files.set("Note.md", "one\n\nHello there.\n\nfrom the Mac\n");
     host.io.vault.editNote("Note.md", "one\n\n%%i:c3:start%%Hello%%i:c3:end%% there.\n");
 
-    expect(await create("c3", "Why here?")).toBe(true);
-    const [first, retry] = phone.requests("addComment").map((frame) => frame.payload);
+    expect(await create("c3", "Hello")).toBe(true);
+    const [first, retry] = phone.requests("addAnnotation").map((frame) => frame.payload);
     expect(first?.base).toBe("one\n\nHello there.\n");
     expect(retry).toEqual({
       base: "one\n\nHello there.\n\nfrom the Mac\n",
       content: "one\n\n%%i:c3:start%%Hello%%i:c3:end%% there.\n\nfrom the Mac\n",
       id: "c3",
       path: "Note.md",
-      text: "Why here?",
+      quote: "Hello",
     });
   });
 
@@ -389,9 +384,9 @@ describe("a new comment", () => {
     host.io.vault.editNote("Note.md", ANCHORED);
     await host.io.vault.flush();
 
-    expect(await create("c3", "Why here?")).toBe(true);
-    expect(phone.requests("addComment").map((frame) => frame.payload)).toEqual([
-      { base: ANCHORED, content: ANCHORED, id: "c3", path: "Note.md", text: "Why here?" },
+    expect(await create("c3", "Hello")).toBe(true);
+    expect(phone.requests("addAnnotation").map((frame) => frame.payload)).toEqual([
+      { base: ANCHORED, content: ANCHORED, id: "c3", path: "Note.md", quote: "Hello" },
     ]);
 
     host.io.vault.editNote("Note.md", `${ANCHORED}More.\n`);
@@ -407,7 +402,7 @@ describe("a new comment", () => {
     host.io.vault.editNote("Note.md", "---\nid: 42\n---\n%%i:c3:start%%Hello%%i:c3:end%% there.\n");
 
     expect(await create("c3", "Why here?")).toBe(false);
-    expect(phone.requests("addComment")).toEqual([]);
+    expect(phone.requests("addAnnotation")).toEqual([]);
     expect(phone.requests("write")).toEqual([]);
   });
 
@@ -418,14 +413,14 @@ describe("a new comment", () => {
     const refused = vi.spyOn(toast, "error");
 
     phone.answer = (request) =>
-      request.kind === "addComment"
+      request.kind === "addAnnotation"
         ? { ok: true, result: { current: `${ANCHORED}More.\n`, kind: "changed" } }
         : null;
     expect(await create("c3", "Why here?")).toBe(false);
     expect(refused).toHaveBeenLastCalledWith("This note changed on your phone. Try again.");
 
     phone.answer = (request) =>
-      request.kind === "addComment" ? { ok: true, result: { kind: "missing" } } : null;
+      request.kind === "addAnnotation" ? { ok: true, result: { kind: "missing" } } : null;
     expect(await create("c3", "Why here?")).toBe(false);
     expect(refused).toHaveBeenLastCalledWith("This note is no longer on your phone.");
   });
@@ -435,10 +430,34 @@ describe("a new comment", () => {
     host.io.vault.editNote("Note.md", ANCHORED);
     await host.io.vault.flush();
     phone.answer = (request) =>
-      request.kind === "addComment"
+      request.kind === "addAnnotation"
         ? { error: "The comments could not be read.", ok: false }
         : null;
 
     expect(await create("c3", "Why here?")).toBe(false);
+  });
+});
+
+describe("a note on an annotation", () => {
+  it("is a store write alone, asked of the phone for the open note", async () => {
+    const { phone } = await openHost();
+
+    expect(await getEditorHostActions().annotations.edit("c3", "Why here?")).toBe(true);
+    expect(phone.requests("editAnnotation").map((frame) => frame.payload)).toEqual([
+      { id: "c3", path: "Note.md", text: "Why here?" },
+    ]);
+    expect(phone.requests("write")).toEqual([]);
+  });
+
+  it("says why the phone refused it", async () => {
+    const { phone } = await openHost();
+    const refused = vi.spyOn(toast, "error");
+    phone.answer = (request) =>
+      request.kind === "editAnnotation"
+        ? { ok: true, result: { kind: "refused", message: "This note has no comments." } }
+        : null;
+
+    expect(await getEditorHostActions().annotations.edit("c3", "Why here?")).toBe(false);
+    expect(refused).toHaveBeenLastCalledWith("This note has no comments.");
   });
 });

@@ -1,7 +1,7 @@
 // no dedup between backlinks and suggestions: the scorer excludes direct neighbours by construction.
 
 import { docStem } from "@repo/notes/knowledge/doc-file";
-import { COMMENT_MARKER_STRIP_RE } from "@repo/notes/markdown/remark-inline-constructs";
+import { ANNOTATION_MARKER_STRIP_RE } from "@repo/notes/markdown/remark-inline-constructs";
 import { wikiLinkLabel } from "@repo/notes/markdown/remark-wiki-link";
 import { useQuery } from "@tanstack/react-query";
 import { plural } from "@repo/ui/lib/plural";
@@ -20,7 +20,7 @@ export const plainSnippet = (snippet: string): string =>
   snippet
     .replaceAll(/!?\[\[(?<body>[^\]]+)\]\]/gu, (_match, body: string) => wikiLinkLabel(body))
     .replaceAll(/\{\{(?<body>[^{}]*)\}\}/gu, (_match, body: string) => body.split("|")[1] ?? "")
-    .replaceAll(COMMENT_MARKER_STRIP_RE, "")
+    .replaceAll(ANNOTATION_MARKER_STRIP_RE, "")
     .replace(/^[\s>#*-]+/u, "")
     .replaceAll(/\s+/gu, " ")
     .trim();

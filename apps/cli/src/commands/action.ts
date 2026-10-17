@@ -356,7 +356,7 @@ export const actionCommand = (deps: CliDeps) =>
             args.turn === undefined
               ? "; it stays the newest turn to undo, so pass --turn to undo an earlier one"
               : "";
-          // asked, not inferred: a comment store taken back in part is named kept, yet it was written.
+          // asked, not inferred: an annotation store taken back in part is named kept, yet it was written.
           if (
             body.reverted.length === 0 &&
             body.kept.length > 0 &&

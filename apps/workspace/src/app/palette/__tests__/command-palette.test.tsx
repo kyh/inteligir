@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-libra
 import type { Thread } from "@repo/contract/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
+import { ANNOTATION_SHORTCUTS } from "@repo/editor/annotations/annotation-kit";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { hotkeyCaps } from "@repo/ui/lib/hotkey-spelling";
@@ -630,7 +630,7 @@ describe("the keyboard shortcuts page", () => {
       ...MARK_SHORTCUTS,
       ...EDITOR_SHORTCUTS,
       ...FIND_BAR_SHORTCUTS,
-      ...COMMENT_SHORTCUTS,
+      ...ANNOTATION_SHORTCUTS,
     ]) {
       expect(rows().getByText(row.label)).toBeDefined();
       expect(chords()).toContainEqual(hotkeyCaps(row.hotkey, "meta"));

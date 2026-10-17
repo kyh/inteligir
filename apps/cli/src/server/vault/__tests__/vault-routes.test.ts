@@ -4,11 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDefinedError, safe, toORPCError } from "@orpc/client";
 import { vaultChangedMessageSchema } from "@repo/contract/local/notifications";
-import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
+import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 import { VAULT_ASSET_PATH, vaultAssetUrl } from "@repo/contract/local/routes";
 import { knowledgeSearchResponseSchema } from "@repo/contract/local/knowledge/knowledge-schema";
 import { giveNoteOwnId } from "@repo/contract/local/vault/give-note-own-id";
-import { restoreCommentStore } from "@repo/contract/local/vault/restore-comment-store";
+import { restoreAnnotationStore } from "@repo/contract/local/vault/restore-annotation-store";
 import {
   VAULT_ASSET_MAX_BYTES,
   VAULT_MAX_CONTENT_LENGTH,
@@ -475,9 +475,9 @@ describe("a starter vault meeting a remote with history", () => {
   });
 });
 
-describe("a note's comment store goes with the note", () => {
+describe("a note's annotation store goes with the note", () => {
   const NOTE_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
-  const STORE = `.inteligir/comments/${NOTE_ID}.json`;
+  const STORE = `.inteligir/annotations/${NOTE_ID}.json`;
   const NOTE = `---\nid: ${NOTE_ID}\n---\n%%i:c1:start%%x%%i:c1:end%%\n`;
 
   it("is removed with the note, and the deleted-notes restore brings both back", async () => {
@@ -487,7 +487,12 @@ describe("a note's comment store goes with the note", () => {
       guard: { kind: "overwrite" },
       path: "notes/keep.md",
     });
-    await client.comments.add({ id: "c1", path: "notes/keep.md", text: "kept" });
+    await client.annotations.add({
+      id: "c1",
+      path: "notes/keep.md",
+      quote: "the passage",
+      text: "kept",
+    });
     await vault.git.commitNow();
 
     await client.vault.remove({ path: "notes/keep.md" });
@@ -505,15 +510,15 @@ describe("a note's comment store goes with the note", () => {
       guard: { kind: "absent" },
       path: "notes/keep.md",
     });
-    expect(await restoreCommentStore(client, note.content, sha)).toEqual({ kind: "restored" });
+    expect(await restoreAnnotationStore(client, note.content, sha)).toEqual({ kind: "restored" });
 
-    const listed = await client.comments.list({ path: "notes/keep.md" });
-    expect(listed.threads.map((thread) => thread.rootId)).toEqual(["c1"]);
+    const listed = await client.annotations.list({ path: "notes/keep.md" });
+    expect(listed.annotations.map((annotation) => annotation.id)).toEqual(["c1"]);
 
     // the server's own refusals are the ones the composition reads as "kept" and "none".
-    expect(await restoreCommentStore(client, note.content, sha)).toEqual({ kind: "kept" });
+    expect(await restoreAnnotationStore(client, note.content, sha)).toEqual({ kind: "kept" });
     const otherNote = note.content.replace(NOTE_ID, "never-commented");
-    expect(await restoreCommentStore(client, otherNote, sha)).toEqual({ kind: "none" });
+    expect(await restoreAnnotationStore(client, otherNote, sha)).toEqual({ kind: "none" });
   });
 
   it("stays while a copy still carries the id", async () => {
@@ -523,7 +528,12 @@ describe("a note's comment store goes with the note", () => {
       guard: { kind: "overwrite" },
       path: "notes/keep.md",
     });
-    await client.comments.add({ id: "c1", path: "notes/keep.md", text: "kept" });
+    await client.annotations.add({
+      id: "c1",
+      path: "notes/keep.md",
+      quote: "the passage",
+      text: "kept",
+    });
     await client.vault.write({
       content: NOTE,
       guard: { kind: "overwrite" },
@@ -532,18 +542,23 @@ describe("a note's comment store goes with the note", () => {
 
     await client.vault.remove({ path: "notes/keep copy.md" });
 
-    const listed = await client.comments.list({ path: "notes/keep.md" });
-    expect(listed.threads.map((thread) => thread.rootId)).toEqual(["c1"]);
+    const listed = await client.annotations.list({ path: "notes/keep.md" });
+    expect(listed.annotations.map((annotation) => annotation.id)).toEqual(["c1"]);
   });
 
-  it("is copied for a copy given its own id, so the two notes' threads diverge", async () => {
+  it("is copied for a copy given its own id, so the two notes' annotations diverge", async () => {
     const { client } = await bootTestApp();
     await client.vault.write({
       content: NOTE,
       guard: { kind: "overwrite" },
       path: "notes/keep.md",
     });
-    await client.comments.add({ id: "c1", path: "notes/keep.md", text: "kept" });
+    await client.annotations.add({
+      id: "c1",
+      path: "notes/keep.md",
+      quote: "the passage",
+      text: "kept",
+    });
     await client.vault.write({
       content: NOTE,
       guard: { kind: "absent" },
@@ -554,25 +569,32 @@ describe("a note's comment store goes with the note", () => {
     if (given.kind !== "done") {
       throw new Error(`expected done, got ${given.kind}`);
     }
-    expect(given.comments).toBe("copied");
+    expect(given.annotations).toBe("copied");
     const copy = await client.vault.read({ path: "notes/keep copy.md" });
     expect(copy.content).toBe(NOTE.replace(NOTE_ID, given.id));
-    const copiedStore = await client.vault.read({ path: `.inteligir/comments/${given.id}.json` });
+    const copiedStore = await client.vault.read({
+      path: `.inteligir/annotations/${given.id}.json`,
+    });
     const sharedStore = await client.vault.read({ path: STORE });
     expect(copiedStore.content).toBe(sharedStore.content);
 
-    await client.comments.add({ id: "c2", path: "notes/keep copy.md", text: "only the copy" });
+    await client.annotations.add({
+      id: "c2",
+      path: "notes/keep copy.md",
+      quote: "the passage",
+      text: "only the copy",
+    });
     await client.vault.remove({ path: "notes/keep.md" });
     const [gone] = await safe(client.vault.read({ path: STORE }));
     expect(isDefinedError(gone) && gone.code).toBe("NOT_FOUND");
-    const listed = await client.comments.list({ path: "notes/keep copy.md" });
-    expect(listed.threads.map((thread) => thread.rootId).toSorted()).toEqual(["c1", "c2"]);
+    const listed = await client.annotations.list({ path: "notes/keep copy.md" });
+    expect(listed.annotations.map((annotation) => annotation.id).toSorted()).toEqual(["c1", "c2"]);
   });
 
   it("goes for every note under a removed folder, and a note without an id has none to remove", async () => {
     const { client } = await bootTestApp();
     await client.vault.write({ content: NOTE, guard: { kind: "overwrite" }, path: "box/a.md" });
-    await client.comments.add({ id: "c1", path: "box/a.md", text: "a" });
+    await client.annotations.add({ id: "c1", path: "box/a.md", quote: "the passage", text: "a" });
     await client.vault.write({
       content: "no id\n",
       guard: { kind: "overwrite" },
@@ -599,7 +621,7 @@ describe("a note's comment store goes with the note", () => {
     expect(await client.vault.remove({ path: "huge.txt" })).toEqual({ ok: true });
 
     await client.vault.write({ content: NOTE, guard: { kind: "overwrite" }, path: "box/a.md" });
-    await client.comments.add({ id: "c1", path: "box/a.md", text: "a" });
+    await client.annotations.add({ id: "c1", path: "box/a.md", quote: "the passage", text: "a" });
     await writeFile(path.join(vaultDir, "box", "huge.txt"), oversized);
 
     expect(await client.vault.remove({ path: "box" })).toEqual({ ok: true });
@@ -720,12 +742,12 @@ describe("choosing where the vault syncs", { timeout: 30_000 }, () => {
   });
 });
 
-describe("the comments routes", () => {
+describe("the annotations routes", () => {
   it("answers a list of a note whose id cannot name a store with the declared BAD_REQUEST", async () => {
     const { client, vaultDir } = await bootTestApp();
     await writeFile(path.join(vaultDir, "plan.md"), "---\nid: ../escape\n---\nnote\n");
 
-    const [refused] = await safe(client.comments.list({ path: "plan.md" }));
+    const [refused] = await safe(client.annotations.list({ path: "plan.md" }));
 
     expect(isDefinedError(refused) && refused.code).toBe("BAD_REQUEST");
   });
@@ -733,11 +755,11 @@ describe("the comments routes", () => {
   it("answers a list over an unparseable store with the declared CONFLICT", async () => {
     const { client, vaultDir } = await bootTestApp();
     await writeFile(path.join(vaultDir, "plan.md"), "---\nid: 7d1c\n---\nnote\n");
-    const store = path.join(vaultDir, commentsStorePath("7d1c"));
+    const store = path.join(vaultDir, annotationsStorePath("7d1c"));
     await mkdir(path.dirname(store), { recursive: true });
     await writeFile(store, "{broken");
 
-    const [refused] = await safe(client.comments.list({ path: "plan.md" }));
+    const [refused] = await safe(client.annotations.list({ path: "plan.md" }));
 
     expect(isDefinedError(refused) && refused.code).toBe("CONFLICT");
   });

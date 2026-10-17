@@ -100,7 +100,7 @@ Select text and press ⌘⇧A to comment on exactly that phrase. Comments sit be
 - %%i:onboarding-user-comment:start%%Your own comments stay editable — leave yourself a review note and revise it later.%%i:onboarding-user-comment:end%%
 - %%i:onboarding-agent-comment:start%%The agent can leave comments too, and its own are labelled as its own.%%i:onboarding-agent-comment:end%%
 
-Open the **Comments** tab in the right panel to reply or resolve. Resolving keeps the thread and its history; it does not erase the conversation.
+Open the **Comments** tab in the right panel to reply, or to delete a comment once it has done its job.
 
 ## The Agent
 

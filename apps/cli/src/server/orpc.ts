@@ -9,7 +9,7 @@ import type { ORPCError } from "@orpc/server";
 import { implement } from "@orpc/server";
 import type { AgentsService } from "./agents/agents-service";
 import type { BrowserSession } from "./browser-session";
-import type { CommentsService } from "./comments/comments-service";
+import type { AnnotationsService } from "./annotations/annotations-service";
 import type { CloudPrefsStore } from "./cloud/cloud-prefs-store";
 import type { CloudRuntime } from "./cloud/sync-runtime";
 import type { ConnectorsService } from "./connectors/connectors-service";
@@ -39,10 +39,10 @@ export interface AppContext {
   // per request: the thread whose agent shell sent it (`agent-thread-header.ts`), else null.
   agentThreadId: string | null;
   agents: AgentsService;
+  annotations: AnnotationsService;
   browserSession: BrowserSession;
   cloud: CloudRuntime;
   cloudPrefs: CloudPrefsStore;
-  comments: CommentsService;
   connectors: ConnectorsService;
   folders: FoldersService;
   knowledge: KnowledgeRuntime;

@@ -11,7 +11,7 @@ import { AgentPrefsStore } from "./agents/agent-prefs-store";
 import type { AgentAccounts } from "./agents/agent-sign-in";
 import { createAgentsService } from "./agents/agents-service";
 import { createBrowserSession } from "./browser-session";
-import { createCommentsService } from "./comments/comments-service";
+import { createAnnotationsService } from "./annotations/annotations-service";
 import { CloudPrefsStore } from "./cloud/cloud-prefs-store";
 import { createCloudRuntime } from "./cloud/sync-runtime";
 import type { CloudRuntime, CloudRuntimeArgs, CloudTransport } from "./cloud/sync-runtime";
@@ -243,17 +243,17 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     }
   })();
 
-  const comments = createCommentsService(vault.service, () => Math.floor(Date.now() / 1000));
+  const annotations = createAnnotationsService(vault.service, () => Math.floor(Date.now() / 1000));
 
   // last, once every service it announces through exists; the bus has no clients before a socket is injected.
   cloud.start();
 
   const context: AppServices = {
     agents,
+    annotations,
     browserSession: createBrowserSession(),
     cloud,
     cloudPrefs,
-    comments,
     connectors,
     folders,
     knowledge,

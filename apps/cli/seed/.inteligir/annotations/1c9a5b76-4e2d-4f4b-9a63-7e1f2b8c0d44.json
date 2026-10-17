@@ -1,0 +1,16 @@
+{
+  "seed-open-thread": {
+    "text": "A comment: reply to it, or delete it, from the Comments tab.",
+    "quote": "sentence carries a comment thread",
+    "createdAt": 1787788800,
+    "updatedAt": 1787788800,
+    "source": "user"
+  },
+  "seed-agent-thread": {
+    "text": "The agent's comments are labelled as its own.",
+    "quote": "one carries the agent's",
+    "createdAt": 1787788800,
+    "updatedAt": 1787788800,
+    "source": "agent"
+  }
+}

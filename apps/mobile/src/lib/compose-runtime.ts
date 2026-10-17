@@ -9,8 +9,8 @@ import type { DispatchRuntime, DispatchRuntimeArgs } from "../dispatch/dispatch-
 import { createLoginStore } from "../login/login-store";
 import type { LoginStore } from "../login/login-store";
 import type { AttachmentFiles } from "../notes/attachment-files";
-import { createCommentOps } from "../notes/comment-ops";
-import type { CommentOps } from "../notes/comment-ops";
+import { createAnnotationOps } from "../notes/annotation-ops";
+import type { AnnotationOps } from "../notes/annotation-ops";
 import { createFileOps } from "../notes/file-ops";
 import type { FileOps } from "../notes/file-ops";
 import { createNotesStore } from "../notes/notes-store";
@@ -65,7 +65,7 @@ export interface AppRuntime {
   sync: SyncRuntime;
   notes: NotesStore;
   fileOps: FileOps;
-  comments: CommentOps;
+  annotations: AnnotationOps;
   dispatch: DispatchRuntime;
   login: LoginStore;
   // reads the stored credential once and ends `restoring` either way
@@ -180,7 +180,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   let started = false;
 
   return {
-    comments: createCommentOps({
+    annotations: createAnnotationOps({
       now: () => Math.floor(Date.now() / 1000),
       randomBytes: args.randomBytes,
       store: notes,

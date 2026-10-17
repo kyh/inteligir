@@ -44,8 +44,8 @@ export interface NoteTopbarProps {
   onFindInNote: () => void;
   // a breadcrumb segment reveals that folder in the rail's Files view
   onOpenFolder: (folder: string) => void;
-  commentCount: number;
-  onOpenComments: () => void;
+  annotationCount: number;
+  onOpenAnnotations: () => void;
   onExportPdf: () => void;
 }
 
@@ -76,8 +76,8 @@ export const NoteTopbar = ({
   onForward,
   onFindInNote,
   onOpenFolder,
-  commentCount,
-  onOpenComments,
+  annotationCount,
+  onOpenAnnotations,
   onExportPdf,
 }: NoteTopbarProps) => {
   const segments =
@@ -179,13 +179,15 @@ export const NoteTopbar = ({
         <Button
           variant="ghost"
           size="icon-compact"
-          aria-label={`Comments${commentCount > 0 ? ` (${String(commentCount)} open)` : ""}`}
+          aria-label={`Comments${annotationCount > 0 ? ` (${String(annotationCount)})` : ""}`}
           disabled={path === null}
-          onClick={onOpenComments}
-          className={cn(commentCount > 0 && "w-auto gap-1 px-1.5")}
+          onClick={onOpenAnnotations}
+          className={cn(annotationCount > 0 && "w-auto gap-1 px-1.5")}
         >
           <MessageSquareTextIcon />
-          {commentCount > 0 ? <span className="text-body tabular-nums">{commentCount}</span> : null}
+          {annotationCount > 0 ? (
+            <span className="text-body tabular-nums">{annotationCount}</span>
+          ) : null}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger

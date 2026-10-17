@@ -8,7 +8,7 @@ import type { FakeVault, Network } from "./fake-vault";
 import { launchPhone } from "./phone-storage";
 
 const ID = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
-const STORE = `.inteligir/comments/${ID}.json`;
+const STORE = `.inteligir/annotations/${ID}.json`;
 const WITH_ID = `---\nid: ${ID}\n---\n# Plan\n`;
 const COMMENTS = '{"c1":{"createdAt":1,"source":"user","text":"why?","updatedAt":1}}\n';
 

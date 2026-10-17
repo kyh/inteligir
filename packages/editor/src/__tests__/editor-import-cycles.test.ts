@@ -9,7 +9,7 @@ import path from "node:path";
 
 const EDITOR = path.resolve(import.meta.dirname, "..");
 
-// every root: EDITOR_KIT pulls in the reach-back surface (host, comment store, slash menu) base-kit
+// every root: EDITOR_KIT pulls in the reach-back surface (host, annotation store, slash menu) base-kit
 // never sees, and the touch kit its own (the keyboard toolbar)
 const ENTRIES = ["kits/base-kit.ts", "kits/editor-kit.ts", "kits/touch-editor-kit.ts"] as const;
 

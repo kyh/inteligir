@@ -3,7 +3,7 @@
 // queue settled, told in the sentence the outbox kept from describeSyncConflict. Pure, so the words
 // and the actions each row offers run under test; outbox-banner.tsx draws them.
 
-import { isCommentsStorePath } from "@repo/notes/comments/sidecar-schema";
+import { isAnnotationsStorePath } from "@repo/notes/annotations/store-schema";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import type { OutboxStatus } from "./vault-outbox";
 
@@ -31,9 +31,9 @@ export type OutboxNotice =
 
 type ParkedChange = OutboxStatus["parked"][number];
 
-// a reply or a resolve changes the comment store alone, whose file name is the note's id
+// a reply or a resolve changes the annotation store alone, whose file name is the note's id
 const commentTitle = (path: string | undefined): string =>
-  path === undefined || isCommentsStorePath(path)
+  path === undefined || isAnnotationsStorePath(path)
     ? "A comment is not in your vault yet"
     : `A comment on ${docStem(path)} is not in your vault yet`;
 
@@ -48,7 +48,7 @@ const titleOf = (parked: ParkedChange): string => {
         ? "A note was not deleted from your vault"
         : `${docStem(path)} was not deleted from your vault`;
     }
-    case "comment": {
+    case "annotation": {
       return commentTitle(path);
     }
     case "write":
@@ -71,7 +71,7 @@ const discardOf = (parked: ParkedChange): string => {
     case "write":
     case "create":
     case "putAsset":
-    case "comment": {
+    case "annotation": {
       return "It has not reached your vault, and discarding deletes it.";
     }
     // no default

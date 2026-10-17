@@ -15,7 +15,7 @@ import { reconcileFile } from "@repo/notes/sync/reconcile-file";
 import type { FileSide, Reconciled } from "@repo/notes/sync/reconcile-file";
 import { putText, rebaseEdit, rewritePuts } from "./outbox-ops";
 import type {
-  CommentOp,
+  AnnotationOp,
   OutboxRow,
   RenameOp,
   Settle,
@@ -45,7 +45,7 @@ export interface ReconcileContext {
 // `local`: the vault already holds the answer, so nothing is sent. `retarget`: the row's own change
 // again, over what the vault holds now: a rename moves the version there and leaves out the links
 // it could not rewrite (`unlinked` names the notes another device changed first), a delete takes
-// the comment stores as they are now.
+// the annotation stores as they are now.
 export type Resolution =
   | { kind: "send"; settle: Settle }
   | {
@@ -255,7 +255,7 @@ const reconcileText = async (
 // still holds. It goes even where the head already holds what it writes, so its landing comes back.
 const storePut = async (
   row: OutboxRow,
-  store: CommentOp["store"],
+  store: AnnotationOp["store"],
   entry: VaultConflict | undefined,
   conflict: VaultCommitConflict,
   ctx: ReconcileContext,
@@ -295,14 +295,14 @@ const storePut = async (
   };
 };
 
-// A comment edit that met a head another device moved: its store merges by entries, so a comment
+// An annotation edit that met a head another device moved: its store merges by entries, so an annotation
 // both devices made keeps both threads, and the note it anchored in is settled as a write is, its
 // copy and its report included. The note's side is the settle's `against`: named by the conflict,
 // held from the last round, or on the first its own base, which a conflict that names only the
 // store says the head still holds.
-const reconcileComment = async (
+const reconcileAnnotation = async (
   row: OutboxRow,
-  op: CommentOp,
+  op: AnnotationOp,
   conflict: VaultCommitConflict,
   ctx: ReconcileContext,
 ): Promise<Resolution> => {
@@ -357,8 +357,8 @@ const reconcileComment = async (
   };
 };
 
-// a delete of a note another device edited keeps the edit, and its comment stores with it; a
-// comment store or a dot-entry gets whatever reconcileFile answers for it. A store another device
+// a delete of a note another device edited keeps the edit, and its annotation stores with it; a
+// annotation store or a dot-entry gets whatever reconcileFile answers for it. A store another device
 // wrote since still goes with a note that goes, as the server takes it whatever it holds.
 const reconcileRemove = async (
   op: Extract<VaultOp, { op: "remove" }>,
@@ -521,8 +521,8 @@ export const resolveConflict = async (
     case "remove": {
       return await reconcileRemove(op, conflict, ctx);
     }
-    case "comment": {
-      return await reconcileComment(row, op, conflict, ctx);
+    case "annotation": {
+      return await reconcileAnnotation(row, op, conflict, ctx);
     }
     case "putAsset": {
       return parked("A file with this name is already in your vault.");

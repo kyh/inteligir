@@ -37,7 +37,7 @@ const mountDetail = (threadId: string): void => {
         docPath={null}
         tab="actions"
         onTabChange={noop}
-        commentFocus={null}
+        annotationFocus={null}
         selectedThreadId={threadId}
         onSelectThread={noop}
         onOpenDoc={noop}

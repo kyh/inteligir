@@ -7,11 +7,11 @@ import type {
   VaultSyncConflict,
 } from "@repo/contract/local/vault/vault-schema";
 import {
-  commentsStorePath,
-  parseSidecar,
-  serializeSidecar,
-} from "@repo/notes/comments/sidecar-schema";
-import type { CommentEntry } from "@repo/notes/comments/sidecar-schema";
+  annotationsStorePath,
+  parseAnnotationStore,
+  serializeAnnotationStore,
+} from "@repo/notes/annotations/store-schema";
+import type { AnnotationEntry } from "@repo/notes/annotations/store-schema";
 import { removeFrontmatterId } from "@repo/notes/markdown/frontmatter";
 import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";
@@ -307,30 +307,38 @@ describe("a pass that meets another device's edit", { timeout: 30_000 }, () => {
     await expectCleanRepo(b.root);
   });
 
-  it("unions two devices' comments on one note, and copies nothing", async () => {
-    const store = commentsStorePath("3f0c9a52-shared");
+  it("unions two devices' annotations on one note, and copies nothing", async () => {
+    const store = annotationsStorePath("3f0c9a52-shared");
     const at = 1_707_900_000;
-    const entry = (text: string): CommentEntry => ({
+    const entry = (text: string): AnnotationEntry => ({
       createdAt: at,
       source: "user",
       text,
       updatedAt: at,
     });
     const { a, b } = await sharedPair();
-    await commitFile(a, store, serializeSidecar({ c1: entry("Why Friday?") }));
+    await commitFile(a, store, serializeAnnotationStore({ c1: entry("Why Friday?") }));
     expect(await syncState(a.engine)).toBe("clean");
     expect(await syncState(b.engine)).toBe("clean");
 
-    await commitFile(a, store, serializeSidecar({ a1: entry("from A"), c1: entry("Why Friday?") }));
+    await commitFile(
+      a,
+      store,
+      serializeAnnotationStore({ a1: entry("from A"), c1: entry("Why Friday?") }),
+    );
     expect(await syncState(a.engine)).toBe("clean");
-    await commitFile(b, store, serializeSidecar({ b1: entry("from B"), c1: entry("Why Friday?") }));
+    await commitFile(
+      b,
+      store,
+      serializeAnnotationStore({ b1: entry("from B"), c1: entry("Why Friday?") }),
+    );
 
     const merged = await b.engine.syncNow();
     expect(merged.state).toBe("clean");
     expect(merged.conflicts).toEqual([]);
     expect(await conflictCopies(b.root)).toEqual([]);
-    const parsed = parseSidecar(await readVault(b, store));
-    expect(parsed.ok ? Object.keys(parsed.sidecar).toSorted() : parsed.error).toEqual([
+    const parsed = parseAnnotationStore(await readVault(b, store));
+    expect(parsed.ok ? Object.keys(parsed.store).toSorted() : parsed.error).toEqual([
       "a1",
       "b1",
       "c1",

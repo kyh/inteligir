@@ -50,6 +50,16 @@ meets a concurrent write merges into the buffer and makes no copy
 (`packages/editor/src/vault-editor.ts`), because the person is looking at the
 note and its History holds the rest.
 
+**annotation** — a highlighted passage of a note and an optional note on it,
+with replies under it: markers `%%i:<ids>:start%%…%%i:<ids>:end%%` around the
+passage in the note's bytes, and one entry per id in the store keyed by the
+note's frontmatter `id`, `.inteligir/annotations/<id>.json`
+(`@repo/notes/annotations/store-schema`; folded against the markers by
+`@repo/notes/annotations/annotation-threads`). A root records the `quote` it
+was made on, and a root whose `text` is `""` is a bare highlight. Not an html
+or code comment, which the dialect keeps as the note's own bytes, and not a
+task: it has no resolved state, and stays until it is removed.
+
 ## The phone's write queue
 
 The phone's unsent edits (`apps/mobile/src/notes/vault-outbox.ts`) have five

@@ -20,7 +20,7 @@ import { noopNotifier } from "@repo/domain/notifier";
 import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import { VaultPathError, VAULT_TMP_PREFIX } from "@repo/notes/knowledge/vault-path";
-import { removeEntryWithComments } from "../../comments/remove-with-comments";
+import { removeEntryWithAnnotations } from "../../annotations/remove-with-annotations";
 import { snapshotDocs } from "../../knowledge/snapshot-docs";
 import { BACKGROUND_READ_SLOTS, READ_SLOTS, REQUEST_READ_SLOTS } from "../read-slots";
 import { slowReadStall } from "../slow-reads";
@@ -718,7 +718,7 @@ describe("the read budget", () => {
     });
     const [snapshot, removed] = await Promise.all([
       snapshotDocs(service, linked),
-      removeEntryWithComments(service, "gone", knowledge),
+      removeEntryWithAnnotations(service, "gone", knowledge),
     ]);
     expect([...snapshot.docs.keys()]).toEqual(linked);
     expect(removed).toEqual(["gone"]);

@@ -471,7 +471,7 @@ describe("vault commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(restore.code).toBe(0);
-    expect(JSON.parse(restore.stdout)).toEqual({ comments: "none", path: "notes/hello.md" });
+    expect(JSON.parse(restore.stdout)).toEqual({ annotations: "none", path: "notes/hello.md" });
     expect(state.vault.get("notes/hello.md")).toBe("# Hello\n");
     expect(state.vaultLog).toEqual(["commitNow notes/hello.md", "write notes/hello.md"]);
 
@@ -489,9 +489,9 @@ describe("vault commands", () => {
     expect(state.vault.get("notes/hello.md")).toBe("# Concurrent\n");
   });
 
-  it("brings a deleted note's comments back with it, and fails naming them when they cannot come back", async () => {
+  it("brings a deleted note's annotations back with it, and fails naming them when they cannot come back", async () => {
     const noteId = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
-    const store = `.inteligir/comments/${noteId}.json`;
+    const store = `.inteligir/annotations/${noteId}.json`;
     const state = seededState();
     state.revisions.set("notes/gone.md", [
       {
@@ -512,13 +512,13 @@ describe("vault commands", () => {
       baseUrl: server.baseUrl,
     });
     expect(restore.stdout).toBe(
-      `✔ Restored notes/gone.md to ${FIXTURE_REVISION_SHA}, with its comments\n`,
+      `✔ Restored notes/gone.md to ${FIXTURE_REVISION_SHA}, with its annotations\n`,
     );
     expect(state.vault.get(store)).toBe('{"threads":[]}\n');
 
     state.vault.delete("notes/gone.md");
     state.vault.delete(store);
-    state.vault.set(".inteligir/comments", "a file where the store's folder goes\n");
+    state.vault.set(".inteligir/annotations", "a file where the store's folder goes\n");
     const stranded = await runCliForTest({
       argv: ["vault", "restore", "notes/gone.md", FIXTURE_REVISION_SHA, "--json"],
       baseUrl: server.baseUrl,
@@ -527,15 +527,15 @@ describe("vault commands", () => {
     expect(stranded.stdout).toBe("");
     expect(JSON.parse(stranded.stderr)).toEqual({
       error: "CONFLICT",
-      message: `Restored notes/gone.md to ${FIXTURE_REVISION_SHA}, but not its comments: A file shadows a parent folder of ${store}`,
+      message: `Restored notes/gone.md to ${FIXTURE_REVISION_SHA}, but not its annotations: A file shadows a parent folder of ${store}`,
     });
     expect(state.vault.has("notes/gone.md")).toBe(true);
     expect(state.vault.has(store)).toBe(false);
   });
 
-  it("gives a copy its own id with a copy of its comments, and refuses one that moved after the read", async () => {
+  it("gives a copy its own id with a copy of its annotations, and refuses one that moved after the read", async () => {
     const shared = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
-    const store = `.inteligir/comments/${shared}.json`;
+    const store = `.inteligir/annotations/${shared}.json`;
     const storeBytes = '{\n  "c1": { "text": "kept", "createdAt": 1, "updatedAt": 1 }\n}\n';
     const copy = `---\ntitle: Copy\nid: ${shared}\n---\n# Copy\n`;
     const state = seededState();
@@ -550,13 +550,13 @@ describe("vault commands", () => {
     expect(given.code).toBe(0);
     const { id } = z
       .strictObject({
-        comments: z.literal("copied"),
+        annotations: z.literal("copied"),
         id: z.uuid(),
         path: z.literal("notes/copy.md"),
       })
       .parse(JSON.parse(given.stdout));
     expect(state.vault.get("notes/copy.md")).toBe(copy.replace(shared, id));
-    expect(state.vault.get(`.inteligir/comments/${id}.json`)).toBe(storeBytes);
+    expect(state.vault.get(`.inteligir/annotations/${id}.json`)).toBe(storeBytes);
     expect(state.vault.get(store)).toBe(storeBytes);
 
     state.vault.set("notes/twin.md", copy);
@@ -1157,26 +1157,26 @@ describe("open", () => {
 });
 
 const sourcesOn = (state: FixtureState) =>
-  (state.comments.get("notes/hello.md") ?? []).flatMap((thread) => [
-    thread.root.source,
-    ...thread.replies.map((reply) => reply.entry.source),
+  (state.annotations.get("notes/hello.md") ?? []).flatMap((annotation) => [
+    annotation.root.source,
+    ...annotation.replies.map((reply) => reply.entry.source),
   ]);
 
 const addedIdSchema = z.object({ id: z.string() });
 
-describe("comment verbs sign their entries", () => {
+describe("annotation verbs sign their entries", () => {
   it("signs `agent` inside an agent shell and `user` from a plain one", async () => {
     const state = seededState();
     const server = await boot(state);
 
     const fromAgent = await runCliForTest({
-      argv: ["comment", "add", "notes/hello.md", "Needs a second pass"],
+      argv: ["annotation", "add", "notes/hello.md", "hello", "--note", "Needs a second pass"],
       baseUrl: server.baseUrl,
       env: { INTELIGIR_THREAD_ID: "thr_ctx" },
     });
     expect(fromAgent.code).toBe(0);
     const fromShell = await runCliForTest({
-      argv: ["comment", "add", "notes/hello.md", "I agree"],
+      argv: ["annotation", "add", "notes/hello.md", "Hello"],
       baseUrl: server.baseUrl,
     });
     expect(fromShell.code).toBe(0);
@@ -1189,7 +1189,7 @@ describe("comment verbs sign their entries", () => {
     const server = await boot(state);
 
     const added = await runCliForTest({
-      argv: ["comment", "add", "notes/hello.md", "scripted", "--source", "external", "--json"],
+      argv: ["annotation", "add", "notes/hello.md", "Hello", "--source", "external", "--json"],
       baseUrl: server.baseUrl,
       env: { INTELIGIR_THREAD_ID: "thr_ctx" },
     });
@@ -1197,7 +1197,7 @@ describe("comment verbs sign their entries", () => {
     const rootId = addedIdSchema.parse(JSON.parse(added.stdout)).id;
 
     const replied = await runCliForTest({
-      argv: ["comment", "reply", "notes/hello.md", rootId, "and again", "--source", "user"],
+      argv: ["annotation", "reply", "notes/hello.md", rootId, "and again", "--source", "user"],
       baseUrl: server.baseUrl,
       env: { INTELIGIR_THREAD_ID: "thr_ctx" },
     });
@@ -1210,11 +1210,35 @@ describe("comment verbs sign their entries", () => {
     const state = seededState();
     const server = await boot(state);
     const result = await runCliForTest({
-      argv: ["comment", "add", "notes/hello.md", "x", "--source", "robot"],
+      argv: ["annotation", "add", "notes/hello.md", "x", "--source", "robot"],
       baseUrl: server.baseUrl,
     });
     expect(result.code).not.toBe(0);
     expect(sourcesOn(state)).toEqual([]);
+  });
+});
+
+describe("annotation add and edit", () => {
+  it("records the quote, starts with no note, and takes the note through edit", async () => {
+    const state = seededState();
+    const server = await boot(state);
+
+    const added = await runCliForTest({
+      argv: ["annotation", "add", "notes/hello.md", "Hello", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(added.code).toBe(0);
+    const { id } = addedIdSchema.parse(JSON.parse(added.stdout));
+    const [root] = (state.annotations.get("notes/hello.md") ?? []).map((row) => row.root);
+    expect(root?.quote).toBe("Hello");
+    expect(root?.text).toBe("");
+
+    const edited = await runCliForTest({
+      argv: ["annotation", "edit", "notes/hello.md", id, "Say it louder"],
+      baseUrl: server.baseUrl,
+    });
+    expect(edited.stdout).toBe(`Updated ${id}.\n`);
+    expect(state.annotations.get("notes/hello.md")?.[0]?.root.text).toBe("Say it louder");
   });
 });
 

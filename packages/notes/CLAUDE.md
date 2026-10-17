@@ -11,6 +11,21 @@ random bytes and fresh ids) is injected.
 `markdown/mdast-nodes.ts` is the mdast NARROWING boundary: a walk asks it what a
 node is rather than discriminating structurally at each visit.
 
+## Annotations
+
+- **AN ANNOTATION IS A HIGHLIGHT AND AN OPTIONAL NOTE, STORED BY THE ITEM'S
+  ID.** Its markers, `%%i:<id>[,<id>…]:start%%…%%i:<ids>:end%%`, wrap the
+  passage in the item's own bytes, and its entries live in
+  `.inteligir/annotations/<item id>.json`, a record keyed by entry id: `text`
+  (`""` is a bare highlight), `quote` on a root (the passage's plain text when
+  it was made), `createdAt` and `updatedAt` in unix seconds, `source`, and a
+  reply's `parentId`. The fold lists the roots in the order their markers open
+  and the unanchored after them by creation (`foldAnnotations` in
+  `@repo/notes/annotations/annotation-threads`). There is no resolve: an
+  annotation stays until it is removed. Rejected: resolve, because a reading
+  mark is not a task, and keeping the comments name, which is two spellings
+  forever. `@repo/notes/annotations/store-schema`.
+
 ## Knowledge: index, search and links
 
 - **Stemming is a SHADOW of the indexed text, never a rewrite of it.** Literal

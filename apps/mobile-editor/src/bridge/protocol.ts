@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 
-import { commentIdSchema } from "@repo/notes/comments/sidecar-schema";
+import { annotationIdSchema } from "@repo/notes/annotations/store-schema";
 import { normalVaultPathSchema } from "@repo/notes/knowledge/vault-path-schema";
 
 // Native reaches the page only by calling this, through `injectJavaScript`: a message event is
@@ -62,17 +62,29 @@ const noPayload = z.strictObject({});
 // the `absent` guard, as `GuardedVaultPort` spells it, and a note is read the same way whether it
 // is the open one or one an embed shows.
 const REQUEST_SCHEMAS = {
-  // the open note's write under the `expected` guard, carrying a new comment on the text it
-  // anchors: the phone lands the note and the comment's entry as one change set
-  addComment: {
+  // the open note's write under the `expected` guard, carrying a new highlight on the passage it
+  // anchors: the phone lands the note and the annotation's bare entry as one change set
+  addAnnotation: {
     payload: z.strictObject({
       base: z.string(),
       content: z.string(),
-      id: commentIdSchema,
+      id: annotationIdSchema,
       path: normalVaultPathSchema,
-      text: z.string().min(1),
+      quote: z.string().min(1),
     }),
     result: z.discriminatedUnion("kind", [writtenSchema, changedSchema, missingSchema]),
+  },
+  // the note on an annotation the store holds: a store write alone, the note's text untouched
+  editAnnotation: {
+    payload: z.strictObject({
+      id: annotationIdSchema,
+      path: normalVaultPathSchema,
+      text: z.string(),
+    }),
+    result: z.discriminatedUnion("kind", [
+      z.strictObject({ kind: z.literal("done") }),
+      z.strictObject({ kind: z.literal("refused"), message: z.string() }),
+    ]),
   },
   list: {
     payload: noPayload,
@@ -151,7 +163,8 @@ const saveErrorSchema = z.discriminatedUnion("kind", [
 
 export const pageFrameSchema = z.discriminatedUnion("type", [
   z.discriminatedUnion("kind", [
-    requestFrame("addComment", REQUEST_SCHEMAS.addComment.payload),
+    requestFrame("addAnnotation", REQUEST_SCHEMAS.addAnnotation.payload),
+    requestFrame("editAnnotation", REQUEST_SCHEMAS.editAnnotation.payload),
     requestFrame("list", REQUEST_SCHEMAS.list.payload),
     requestFrame("pickImage", REQUEST_SCHEMAS.pickImage.payload),
     requestFrame("read", REQUEST_SCHEMAS.read.payload),
@@ -188,7 +201,7 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
   z.strictObject({
     ids: z.array(z.string().min(1)).min(1),
     nonce: nonceSchema,
-    type: z.literal("showComments"),
+    type: z.literal("showAnnotations"),
   }),
   // the page has flushed and asks the native stack to open this note, which keeps the back gesture
   z.strictObject({ nonce: nonceSchema, path: normalVaultPathSchema, type: z.literal("navigate") }),
@@ -242,20 +255,19 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
   // write the open note's edits now (the screen is leaving, the app is backgrounding); answered by
   // a `flushed` frame with the same id
   z.strictObject({ id: idSchema, nonce: nonceSchema, type: z.literal("flush") }),
-  // what the note's comment ranges are drawn by: every thread its store holds, and which of them
-  // are resolved; sent when the page opens the note and whenever the note or its store changes
+  // what the note's annotation ranges are drawn by: every annotation its store holds; sent when the
+  // page opens the note and whenever the note or its store changes
   z.strictObject({
-    knownIds: z.array(commentIdSchema),
+    knownIds: z.array(annotationIdSchema),
     nonce: nonceSchema,
     path: normalVaultPathSchema,
-    resolvedIds: z.array(commentIdSchema),
-    type: z.literal("commentMeta"),
+    type: z.literal("annotationMeta"),
   }),
-  // threads deleted on the phone, whose markers the page takes out of the open note and writes
+  // annotations deleted on the phone, whose markers the page takes out of the open note and writes
   z.strictObject({
-    ids: z.array(commentIdSchema).min(1),
+    ids: z.array(annotationIdSchema).min(1),
     nonce: nonceSchema,
-    type: z.literal("commentsRemoved"),
+    type: z.literal("annotationsRemoved"),
   }),
 ]);
 

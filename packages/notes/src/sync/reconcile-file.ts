@@ -3,8 +3,8 @@
 // the same words. Bytes in, bytes out: the caller reads the sides and lands the answer, so nothing
 // here knows git, a disk or a network.
 
-import { mergeCommentStores } from "../comments/merge-comment-stores";
-import { isCommentsStorePath } from "../comments/sidecar-schema";
+import { mergeAnnotationStores } from "../annotations/merge-annotation-stores";
+import { isAnnotationsStorePath } from "../annotations/store-schema";
 import { isDocPath, isVaultMetadataPath } from "../knowledge/doc-file";
 import { removeFrontmatterId } from "../markdown/frontmatter";
 import { diff3 } from "../text/diff3";
@@ -111,14 +111,14 @@ const withCopyOfTheirs = (
 // reads would be comments nobody sees. Beside a deletion the present store stays whole: the note
 // it belongs to carries the report, and a store cut down to its edited entries would leave the
 // kept note's other anchors with no bodies.
-const reconcileCommentStore = ({ base, mine, theirs }: ReconcileInput): Reconciled => {
+const reconcileAnnotationStore = ({ base, mine, theirs }: ReconcileInput): Reconciled => {
   if (mine.kind === "absent") {
     return keep("theirs", theirs);
   }
   if (theirs.kind === "absent" || mine.kind !== "text" || theirs.kind !== "text") {
     return keep("mine", mine);
   }
-  const merged = mergeCommentStores({
+  const merged = mergeAnnotationStores({
     base: base.kind === "text" ? base.text : null,
     mine: mine.text,
     theirs: theirs.text,
@@ -128,7 +128,7 @@ const reconcileCommentStore = ({ base, mine, theirs }: ReconcileInput): Reconcil
     : resolved(settle(merged.text, mine, theirs));
 };
 
-// Asked in this order: identical sides, a change on one side only, the comment store, every
+// Asked in this order: identical sides, a change on one side only, the annotation store, every
 // other dot-folder, an edit beside a deletion (the edit stays), two texts (a line merge whose
 // overlaps keep mine and copy theirs whole), and anything else both changed (mine stays, theirs
 // is copied).
@@ -140,8 +140,8 @@ export const reconcileFile = (input: ReconcileInput): Reconciled => {
   if (sameSide(mine, base)) {
     return keep("theirs", theirs);
   }
-  if (isCommentsStorePath(path)) {
-    return reconcileCommentStore(input);
+  if (isAnnotationsStorePath(path)) {
+    return reconcileAnnotationStore(input);
   }
   // another app's settings or the OS's litter: nobody reads a copy of `.obsidian/workspace.json`
   if (isVaultMetadataPath(path)) {

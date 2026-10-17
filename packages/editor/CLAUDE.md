@@ -14,7 +14,7 @@ seams: `VaultSessionPorts` (`packages/editor/src/note/vault-session.ts`), the
 (`packages/editor/src/host-io.ts`, opened to React by `host.ts`): its
 `EditorHostIo`, which also carries the link resolver store and note formulas so
 no host writes its own, the `EditorHostActions` a deep node asks the shell
-through (Ask agent, `showTag`, a comment's create and open, all required),
+through (Ask agent, `showTag`, an annotation's create, edit and open, all required),
 installed by one `installEditorHost` call per host.
 `node-props.ts` is the SLATE DECODE BOUNDARY: a node's dialect fields ride
 `TElement`'s open index signature, so every read arrives as `unknown` and
@@ -49,12 +49,12 @@ becomes a domain value there alone, which is why no walk narrows structurally.
 
 - **NOTES SPEAK THE INTELIGIR DIALECT**: `[[Title]]` / `[[Title#H]]` /
   `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe starts the
-  alias), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%` comment
-  anchors, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub alerts (`>
+  alias), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%` annotation
+  markers, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub alerts (`>
   [!NOTE]` through `> [!CAUTION]`) as THE callout, `inteligir-chart` /
   `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
   `:::columns` containers, and `![](url)` embeds, all valid markdown, all
-  round-tripping. Pills, dates, comment anchors and `:::` lines are read from
+  round-tripping. Pills, dates, annotation markers and `:::` lines are read from
   finished text, so a backslash before one's first character keeps it text
   (`\@2026-08-22`), and the serializer writes that escape before a text the next
   parse would read as one, so text a person types stays text. Only a web url
@@ -132,8 +132,8 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   is one nothing refreshes. "Extract to new note" creates the note through the
   exclusive create before touching the buffer, because create-or-reuse would
   count an existing file as success and the blocks would leave for a note that
-  never received them; blocks anchoring a comment are refused, since the thread
-  would stay behind. The removal and the `[[link]]` land in one flush, so one
+  never received them; blocks anchoring an annotation are refused, since its
+  entry would stay behind. The removal and the `[[link]]` land in one flush, so one
   undo restores both; the created file stays, because the vault has no
   transaction and a note that exists is truer than an edit that never happened.
   `packages/editor/src/extract-note.ts`.
@@ -172,13 +172,13 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   The gate backs it: a save may split a line but never join two.
   `packages/editor/src/markdown/md-rules.ts`, `markdown-doc.ts`.
 
-- **COMMENT MARKERS PAIR ACROSS THE DOCUMENT, AND THE TINT IS ONE ROOT
-  DECORATION.** A block comment is a marker line above a fence and another below
-  it, so markers pair in document order over the whole note. Rejected: pairing
-  per block, which draws a two-paragraph comment as two orphans, and refusing a
+- **ANNOTATION MARKERS PAIR ACROSS THE DOCUMENT, AND THE TINT IS ONE ROOT
+  DECORATION.** A block annotation is a marker line above a fence and another
+  below it, so markers pair in document order over the whole note. Rejected:
+  pairing per block, which draws a two-paragraph annotation as two orphans, and refusing a
   selection that crosses blocks. The ranges are returned for the root alone,
   because a per-text decoration leaves an untouched middle block with a stale
-  tint. `packages/editor/src/comments/comment-ranges.ts`.
+  tint. `packages/editor/src/annotations/annotation-ranges.ts`.
 
 - **TYPING IN A LONG NOTE WALKS IT ONLY THROUGH A RECORDED BUDGET, AND THE
   BUDGET FINDS ITS PASSES.** In a 10k-line note a keystroke, a caret move and

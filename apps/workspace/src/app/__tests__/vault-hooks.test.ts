@@ -245,7 +245,7 @@ describe("naming a new note", () => {
 
 const LISTING: VaultEntry[] = [
   { kind: "dir", path: ".inteligir" },
-  { kind: "file", path: ".inteligir/comments/7d1c.json" },
+  { kind: "file", path: ".inteligir/annotations/7d1c.json" },
   { kind: "dir", path: ".obsidian" },
   { kind: "file", path: ".obsidian/app.json" },
   { kind: "dir", path: "notes" },

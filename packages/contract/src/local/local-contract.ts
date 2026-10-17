@@ -1,8 +1,8 @@
 // both ends ship in one bundle, so this half may break freely; @repo/contract/cloud may never.
 
 import { agentsContract } from "./agents/agents-contract";
+import { annotationsContract } from "./annotations/annotations-contract";
 import { cloudContract } from "./cloud/cloud-contract";
-import { commentsContract } from "./comments/comments-contract";
 import { connectorsContract } from "./connectors/connectors-contract";
 import { foldersContract } from "./folders/folders-contract";
 import { knowledgeContract } from "./knowledge/knowledge-contract";
@@ -12,8 +12,8 @@ import { vaultContract } from "./vault/vault-contract";
 
 export const localContract = {
   agents: agentsContract,
+  annotations: annotationsContract,
   cloud: cloudContract,
-  comments: commentsContract,
   connectors: connectorsContract,
   folders: foldersContract,
   knowledge: knowledgeContract,

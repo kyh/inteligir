@@ -74,7 +74,7 @@ describe("an entry that shows something in the closed panel", () => {
     });
   });
 
-  it("leaves zen for a comment click, onto the Comments tab", async () => {
+  it("leaves zen for an annotation click, onto the Comments tab", async () => {
     await bootWorkspace();
     fireEvent.keyDown(window, chord("\\"));
     await waitFor(() => {
@@ -82,7 +82,7 @@ describe("an entry that shows something in the closed panel", () => {
     });
 
     act(() => {
-      getEditorHostActions().comments.open(["c1"]);
+      getEditorHostActions().annotations.open(["c1"]);
     });
 
     await waitFor(() => {

@@ -95,9 +95,11 @@ export interface EditorHostIo {
   pickImage: (() => Promise<PickImageResult>) | null;
 }
 
-export interface CommentActions {
-  /** False means refused; the caller strips the markers it minted. */
-  create: (id: string, text: string) => Promise<boolean>;
+export interface AnnotationActions {
+  /** A highlight's entry around the markers just minted, `quote` its passage's text. False means refused; the caller strips the markers it minted. */
+  create: (id: string, quote: string) => Promise<boolean>;
+  /** The note on an annotation that exists. False means refused. */
+  edit: (id: string, text: string) => Promise<boolean>;
   open: (ids: string[]) => void;
 }
 
@@ -111,7 +113,7 @@ export interface AgentRequestActions {
 // leaves one out fails to typecheck rather than drawing a button that does nothing.
 export interface EditorHostActions {
   readonly agent: AgentRequestActions;
-  readonly comments: CommentActions;
+  readonly annotations: AnnotationActions;
 }
 
 export interface EditorHost {

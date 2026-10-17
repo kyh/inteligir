@@ -5,11 +5,11 @@
 
 import { bytesFromBase64 } from "@repo/contract/cloud/bytes";
 import { assetMediaType } from "@repo/contract/cloud/vault/vault-schema";
-import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
+import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 import { docStem, isDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 import type { RequestResult } from "@repo/mobile-editor/bridge-protocol";
-import type { CommentOps } from "../notes/comment-ops";
+import type { AnnotationOps } from "../notes/annotation-ops";
 import type { FileOps } from "../notes/file-ops";
 import { linksKeptLine } from "../notes/file-ops";
 import type { HeldFile, NotesStore } from "../notes/notes-store";
@@ -18,7 +18,7 @@ import type { EditorNativeEvent, EditorPageEvent, EditorRequestPorts } from "./e
 
 type VaultChangedEvent = Extract<EditorNativeEvent, { type: "vaultChanged" }>["event"];
 
-type CommentMetaEvent = Extract<EditorNativeEvent, { type: "commentMeta" }>;
+type AnnotationMetaEvent = Extract<EditorNativeEvent, { type: "annotationMeta" }>;
 
 type WikiTargetRow = RequestResult<"wikiTargets">["targets"][number];
 
@@ -37,16 +37,16 @@ export type EditorRoute =
 export interface EditorPortsArgs {
   store: Pick<
     NotesStore,
-    "attachmentFile" | "heldFiles" | "readComments" | "readNote" | "tree" | "watchPath" | "write"
+    "attachmentFile" | "heldFiles" | "readAnnotations" | "readNote" | "tree" | "watchPath" | "write"
   >;
   fileOps: FileOps;
-  comments: CommentOps;
+  annotations: AnnotationOps;
   pickImage: () => Promise<PhotoIngest>;
   readBase64: (uri: string) => Promise<string>;
   revisionOf: (content: string) => Promise<string>;
   newThreadId: () => string;
   go: (route: EditorRoute) => void;
-  showComments: (ids: readonly string[]) => void;
+  showAnnotations: (ids: readonly string[]) => void;
   // the note the page shows; null once it was deleted and the page shows none
   opened: (path: string | null) => void;
   // the note the page was opened on could not be read, in the phone's words
@@ -61,11 +61,11 @@ export interface EditorPorts {
   readonly handle: (event: EditorPageEvent) => void;
   // a new thread about `path`, as the header's Ask agent and the page's both open one
   readonly askAgent: (path: string, selection: string) => Promise<void>;
-  // the comment sheet's verbs, each telling the page what its ranges are drawn by once it lands,
-  // and a deleted thread's markers to take out
-  readonly comments: Pick<CommentOps, "reply" | "resolve" | "remove">;
+  // the annotation sheet's verbs, each telling the page what its ranges are drawn by once it lands,
+  // and a deleted annotation's markers to take out
+  readonly annotations: Pick<AnnotationOps, "reply" | "remove">;
   // tells `listener` what moved under the page: the listing, the bytes of every note it read, and
-  // the open note's comments. the returned stop ends every watch this began
+  // the open note's annotations. the returned stop ends every watch this began
   readonly watch: (listener: (event: EditorNativeEvent) => void) => () => void;
 }
 
@@ -110,34 +110,31 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
     listener?.({ event, type: "vaultChanged" });
   };
 
-  // the note the page shows, the comments last sent for it, and the watches that send them again
+  // the note the page shows, the annotations last sent for it, and the watches that send them again
   let openPath: string | null = null;
   let sentMeta: string | null = null;
   let metaSeq = 0;
   let metaWatches: (() => void)[] = [];
 
   // an unreadable store sends nothing, so the ranges keep what they last showed
-  const sendCommentMeta = async (): Promise<void> => {
+  const sendAnnotationMeta = async (): Promise<void> => {
     const path = openPath;
     if (path === null || listener === null) {
       return;
     }
     metaSeq += 1;
     const seq = metaSeq;
-    let meta: CommentMetaEvent;
+    let meta: AnnotationMetaEvent;
     try {
       const read = await store.readNote(path);
-      const comments = read.ok ? await store.readComments(read) : null;
-      if (comments === null || !comments.ok) {
+      const annotations = read.ok ? await store.readAnnotations(read) : null;
+      if (annotations === null || !annotations.ok) {
         return;
       }
       meta = {
-        knownIds: comments.threads.map((thread) => thread.rootId),
+        knownIds: annotations.annotations.map((annotation) => annotation.id),
         path,
-        resolvedIds: comments.threads
-          .filter((thread) => thread.resolved)
-          .map((thread) => thread.rootId),
-        type: "commentMeta",
+        type: "annotationMeta",
       };
     } catch {
       return;
@@ -159,11 +156,11 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
   const noteIdOf = (path: string): string | null =>
     store.heldFiles().find((file) => file.path === path)?.noteId ?? null;
 
-  // the comments are the store's that the note's id names: a change to that store from elsewhere
+  // the annotations are the store's that the note's id names: a change to that store from elsewhere
   // reads them again, and a note whose id changed is followed to its new store. an edit of the
   // note's text alone changes neither. an edit made here is no change to a watcher, so each of the
-  // phone's own comment verbs tells the page itself
-  const followComments = (): void => {
+  // phone's own annotation verbs tells the page itself
+  const followAnnotations = (): void => {
     stopMetaWatches();
     const path = openPath;
     if (path === null || listener === null) {
@@ -173,23 +170,23 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
     metaWatches.push(
       store.watchPath(path, () => {
         if (noteIdOf(path) !== noteId) {
-          followComments();
-          void sendCommentMeta();
+          followAnnotations();
+          void sendAnnotationMeta();
         }
       }),
     );
     if (noteId !== null) {
       metaWatches.push(
-        store.watchPath(commentsStorePath(noteId), () => {
-          void sendCommentMeta();
+        store.watchPath(annotationsStorePath(noteId), () => {
+          void sendAnnotationMeta();
         }),
       );
     }
   };
 
-  const refreshComments = (): void => {
-    followComments();
-    void sendCommentMeta();
+  const refreshAnnotations = (): void => {
+    followAnnotations();
+    void sendAnnotationMeta();
   };
 
   // a read is what the page shows, so a change to those bytes other than its own write is told
@@ -213,21 +210,21 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
   };
 
   const requests: EditorRequestPorts = {
-    // the page's write under the `expected` guard, with the new comment its markers anchor; a
-    // first comment mints the note an id, which the page is told of as a change to the note
-    addComment: async ({ base, content, id, path, text }) => {
-      const added = await args.comments.add({
+    // the page's write under the `expected` guard, with the new annotation its markers anchor; a
+    // first annotation mints the note an id, which the page is told of as a change to the note
+    addAnnotation: async ({ base, content, id, path, quote }) => {
+      const added = await args.annotations.add({
         anchor: { content, expected: base },
         id,
         path,
-        text,
+        quote,
       });
       switch (added.kind) {
         case "edited": {
           if (added.note !== content) {
             emit({ kind: "content", path });
           }
-          refreshComments();
+          refreshAnnotations();
           return { kind: "written" };
         }
         case "changed": {
@@ -243,6 +240,14 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
       }
     },
 
+    // the note on an annotation the store holds, which leaves the note's text alone
+    editAnnotation: async ({ id, path, text }) => {
+      const edited = await args.annotations.edit(path, id, text);
+      if (edited.kind === "done") {
+        refreshAnnotations();
+      }
+      return edited;
+    },
     list: async () => await Promise.resolve({ paths: store.heldFiles().map((file) => file.path) }),
 
     pickImage: async () => await args.pickImage(),
@@ -316,30 +321,23 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
     });
   };
 
-  const comments: EditorPorts["comments"] = {
+  const annotations: EditorPorts["annotations"] = {
     remove: async (path, rootId) => {
-      const removed = await args.comments.remove(path, rootId);
+      const removed = await args.annotations.remove(path, rootId);
       if (removed.kind === "done") {
         if (removed.removedIds.length > 0) {
-          listener?.({ ids: [...removed.removedIds], type: "commentsRemoved" });
+          listener?.({ ids: [...removed.removedIds], type: "annotationsRemoved" });
         }
-        refreshComments();
+        refreshAnnotations();
       }
       return removed;
     },
     reply: async (path, rootId, text) => {
-      const replied = await args.comments.reply(path, rootId, text);
+      const replied = await args.annotations.reply(path, rootId, text);
       if (replied.kind === "done") {
-        refreshComments();
+        refreshAnnotations();
       }
       return replied;
-    },
-    resolve: async (path, rootId, resolved) => {
-      const changed = await args.comments.resolve(path, rootId, resolved);
-      if (changed.kind === "done") {
-        refreshComments();
-      }
-      return changed;
     },
   };
 
@@ -364,15 +362,15 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
         void askAgent(event.path, event.selection);
         return;
       }
-      case "showComments": {
-        args.showComments(event.ids);
+      case "showAnnotations": {
+        args.showAnnotations(event.ids);
         return;
       }
       case "opened": {
-        // a page loaded again holds no comments until it is told them
+        // a page loaded again holds no annotations until it is told them
         openPath = event.path;
         sentMeta = null;
-        refreshComments();
+        refreshAnnotations();
         args.opened(event.path);
       }
       // no default
@@ -381,7 +379,7 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
 
   const watch: EditorPorts["watch"] = (next) => {
     listener = next;
-    followComments();
+    followAnnotations();
     let known = store.tree.get().state === "ready" ? factsOf(store.heldFiles()) : null;
     const unsubscribe = store.tree.subscribe(() => {
       if (store.tree.get().state !== "ready") {
@@ -406,5 +404,5 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
     };
   };
 
-  return { askAgent, comments, handle, requests, watch };
+  return { askAgent, annotations, handle, requests, watch };
 };

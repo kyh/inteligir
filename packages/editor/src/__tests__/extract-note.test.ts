@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createPlateEditor } from "platejs/react";
 import type { TElement, Value } from "platejs";
 
-import { insertCommentMarkers } from "@repo/editor/comments/comment-markers";
+import { insertAnnotationMarkers } from "@repo/editor/annotations/annotation-markers";
 import type { CreateNewFileResult } from "@repo/editor/host-io";
 import { EDITOR_KIT } from "@repo/editor/kits/editor-kit";
 import { parseMarkdown } from "@repo/editor/markdown/markdown-doc";
@@ -162,7 +162,7 @@ describe("the extract", () => {
     const { calls } = installFakeEditorHost();
     const editor = editorOver([h2("Plan"), p("marked text")], "Source.md");
     editor.tf.select({ anchor: { offset: 0, path: [1, 0] }, focus: { offset: 6, path: [1, 0] } });
-    insertCommentMarkers(editor, "c1");
+    insertAnnotationMarkers(editor, "c1");
     const before = JSON.stringify(editor.children);
     selectAll(editor);
 

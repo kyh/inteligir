@@ -8,16 +8,16 @@ import type { DbConnection } from "@repo/db/connection";
 import { getThread } from "@repo/db/threads";
 import type { DbNotifier } from "@repo/domain/notifier";
 import { isThreadRunning } from "@repo/domain/thread-status";
-import { commentStoreKey } from "@repo/notes/comments/comment-key";
-import { markerRootIds } from "@repo/notes/comments/marker-ids";
-import { revertCommentEntries } from "@repo/notes/comments/revert-entries";
+import { annotationStoreKey } from "@repo/notes/annotations/annotation-key";
+import { markerRootIds } from "@repo/notes/annotations/marker-ids";
+import { revertAnnotationEntries } from "@repo/notes/annotations/revert-entries";
 import {
-  commentsStoreNoteId,
-  commentsStorePath,
-  parseSidecar,
-  serializeSidecar,
-} from "@repo/notes/comments/sidecar-schema";
-import type { CommentSidecar } from "@repo/notes/comments/sidecar-schema";
+  annotationsStoreItemId,
+  annotationsStorePath,
+  parseAnnotationStore,
+  serializeAnnotationStore,
+} from "@repo/notes/annotations/store-schema";
+import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import { frontmatterId, withFrontmatterId } from "@repo/notes/markdown/frontmatter";
 import { revertEdit, turnEditOf } from "@repo/notes/text/revert-edit";
@@ -120,13 +120,13 @@ const readSpan = async (
   return { after: after.text, before: before.text, current: current.text };
 };
 
-type ParsedStore = { ok: true; sidecar: CommentSidecar | null } | { ok: false };
+type ParsedStore = { ok: true; store: AnnotationStore | null } | { ok: false };
 
 const parseStore = (text: string | null): ParsedStore => {
   if (text === null) {
-    return { ok: true, sidecar: null };
+    return { ok: true, store: null };
   }
-  const parsed = parseSidecar(text);
+  const parsed = parseAnnotationStore(text);
   return parsed.ok ? parsed : { ok: false };
 };
 
@@ -161,14 +161,14 @@ type LandableVerdict = Exclude<RevertVerdict, { kind: "unchanged" } | { kind: "k
 // null: nothing to write
 const storeVerdict = (
   current: string | null,
-  sidecar: CommentSidecar | null,
+  next: AnnotationStore | null,
 ): LandableVerdict | null => {
   if (current === null) {
-    return sidecar === null ? null : { content: serializeSidecar(sidecar), kind: "recreate" };
+    return next === null ? null : { content: serializeAnnotationStore(next), kind: "recreate" };
   }
-  return sidecar === null
+  return next === null
     ? { expected: current, kind: "remove" }
-    : { content: serializeSidecar(sidecar), expected: current, kind: "write" };
+    : { content: serializeAnnotationStore(next), expected: current, kind: "write" };
 };
 
 // the id a change wrote into a note that had none, when it can key a store
@@ -176,7 +176,7 @@ const idMintedBy = (before: string | null, after: string | null): string | null 
   if (before === null || after === null || frontmatterId(before) !== null) {
     return null;
   }
-  return commentStoreKey(after);
+  return annotationStoreKey(after);
 };
 
 type Landed =
@@ -306,7 +306,7 @@ const revertNote = async (pass: UndoPass, span: PathSpan): Promise<void> => {
   }
 };
 
-// a comment store is json, which a line merge can leave unparseable, so it is taken back entry by
+// an annotation store is json, which a line merge can leave unparseable, so it is taken back entry by
 // entry instead, against the notes that carry the id it is keyed by.
 const revertStore = async (
   pass: UndoPass,
@@ -332,13 +332,13 @@ const revertStore = async (
     pass.kept.push({ path: span.path, reason: "unreadable" });
     return;
   }
-  const entries = revertCommentEntries({
-    after: after.sidecar,
-    before: before.sidecar,
-    current: current.sidecar,
+  const entries = revertAnnotationEntries({
+    after: after.store,
+    before: before.store,
+    current: current.store,
     markerIds: await markerIdsIn(pass.service, await knowledge.noteIdOwners(noteId)),
   });
-  const verdict = entries.kind === "reverted" ? storeVerdict(sides.current, entries.sidecar) : null;
+  const verdict = entries.kind === "reverted" ? storeVerdict(sides.current, entries.store) : null;
   if (verdict !== null) {
     await land(pass, span.path, verdict, entries.kept);
   } else if (entries.kept) {
@@ -346,11 +346,11 @@ const revertStore = async (
   }
 };
 
-// the comments list finds a store by its note's id alone, so a note whose revert took back the id
+// the annotations list finds a store by its note's id alone, so a note whose revert took back the id
 // the turn minted takes it again while a store keyed by it is still there.
 const refileMintedIds = async (pass: UndoPass): Promise<void> => {
   for (const [noteId, notePath] of pass.minted) {
-    if ((await pass.service.statEntry(commentsStorePath(noteId))) !== "file") {
+    if ((await pass.service.statEntry(annotationsStorePath(noteId))) !== "file") {
       continue;
     }
     const now = await readCurrent(pass.service, notePath);
@@ -382,7 +382,7 @@ interface UndoTurnArgs {
 // any other edit, which git revert would bypass; and three-way, since a byte restore to the
 // turn's parent would drop every edit made since. nothing hands the writes to a running turn, so
 // an agent undoing an earlier turn from inside a later one does not commit the undo as its own.
-// comment stores go after the notes, because whether an entry the turn added may go depends on
+// annotation stores go after the notes, because whether an entry the turn added may go depends on
 // the markers its note carries once the note's own revert has landed.
 export const undoTurnChanges = async (args: UndoTurnArgs): Promise<UndoTurnOutcome> => {
   const { git, service, threadId, turnId } = args;
@@ -424,7 +424,7 @@ export const undoTurnChanges = async (args: UndoTurnArgs): Promise<UndoTurnOutco
     };
     const stores: { span: PathSpan; noteId: string }[] = [];
     for (const span of turnSpans(commits, turnId)) {
-      const noteId = commentsStoreNoteId(span.path);
+      const noteId = annotationsStoreItemId(span.path);
       if (noteId === null) {
         await revertNote(pass, span);
       } else {

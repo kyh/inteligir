@@ -12,7 +12,7 @@ import type { Scenario } from "../harness/scenario";
 const PLAN = "notes/plan.md";
 const HUB = "hub.md";
 const OLD = "notes/old.md";
-const COMMENTS_DIR = ".inteligir/comments";
+const ANNOTATIONS_DIR = ".inteligir/annotations";
 const PHOTO_NAME = "Photo 2026-09-26 14.30.05.jpg";
 
 // a JPEG's own start and end around a phone photo's worth of bytes: the vault reads the name, and
@@ -29,20 +29,20 @@ const exists = async (file: string): Promise<boolean> => {
   }
 };
 
-const commentStores = async (vaultDir: string): Promise<string[]> => {
-  const dir = path.join(vaultDir, COMMENTS_DIR);
+const annotationStores = async (vaultDir: string): Promise<string[]> => {
+  const dir = path.join(vaultDir, ANNOTATIONS_DIR);
   return (await exists(dir)) ? await readdir(dir) : [];
 };
 
 export const phoneFileOpsHosted: Scenario = {
   description:
-    "the phone's own runtime creates a note, renames one another note links to, deletes one with a comment and adds a photo; after A syncs, A holds the rewritten link, the old name as the note's alias, no comment store and the photo's bytes",
+    "the phone's own runtime creates a note, renames one another note links to, deletes one with an annotation and adds a photo; after A syncs, A holds the rewritten link, the old name as the note's alias, no annotation store and the photo's bytes",
   name: "phone-file-ops-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
     const worker = await ctx.cloudWorker();
 
-    ctx.log("creating the account; A signs in and pushes a linked note and one with a comment");
+    ctx.log("creating the account; A signs in and pushes a linked note and one with an annotation");
     await signUp(worker.origin);
     const a = await ctx.boot({ extraEnv: hostedVaultEnv(worker.origin), name: "a" });
     await signInOwner(a, "A", "E2E Device A");
@@ -53,13 +53,13 @@ export const phoneFileOpsHosted: Scenario = {
     ]) {
       await a.api.vault.write({ ...note, guard: { kind: "overwrite" } });
     }
-    // the starter vault ships comment stores of its own, so the note's is the one the comment adds
-    const seeded = new Set(await commentStores(a.vaultDir));
-    await a.api.comments.add({ id: "c1", path: OLD, text: "Still true?" });
-    const stores = await commentStores(a.vaultDir);
+    // the starter vault ships annotation stores of its own, so the note's is the one the annotation adds
+    const seeded = new Set(await annotationStores(a.vaultDir));
+    await a.api.annotations.add({ id: "c1", path: OLD, quote: "A thought.", text: "Still true?" });
+    const stores = await annotationStores(a.vaultDir);
     const added = stores.filter((name) => !seeded.has(name));
-    expectEq(added.length, 1, "the comment stores A's comment added");
-    const store = `${COMMENTS_DIR}/${added[0] ?? ""}`;
+    expectEq(added.length, 1, "the annotation stores A's annotation added");
+    const store = `${ANNOTATIONS_DIR}/${added[0] ?? ""}`;
     await syncUntil(a.api, "A after its notes", "clean");
 
     ctx.log("the phone signs in and mirrors the vault");
@@ -107,9 +107,9 @@ export const phoneFileOpsHosted: Scenario = {
     );
     expect(!(await exists(onA(PLAN))), "the old name is gone from A");
     expect(!(await exists(onA(OLD))), "the deleted note is gone from A");
-    expect(!(await exists(onA(store))), "the deleted note's comment store is gone from A");
-    const kept = await commentStores(a.vaultDir);
-    expectEq(kept.toSorted(), [...seeded].toSorted(), "the other notes' comment stores on A");
+    expect(!(await exists(onA(store))), "the deleted note's annotation store is gone from A");
+    const kept = await annotationStores(a.vaultDir);
+    expectEq(kept.toSorted(), [...seeded].toSorted(), "the other notes' annotation stores on A");
     expect(
       Buffer.from(await readFile(onA(`assets/${PHOTO_NAME}`))).equals(Buffer.from(photo)),
       "the photo's bytes on A",

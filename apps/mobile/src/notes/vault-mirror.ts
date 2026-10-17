@@ -14,7 +14,7 @@ import type {
   VaultTreeResponse,
 } from "@repo/contract/cloud/vault/vault-schema";
 import { utf8ByteLength } from "@repo/contract/cloud/bytes";
-import { isCommentsStorePath } from "@repo/notes/comments/sidecar-schema";
+import { isAnnotationsStorePath } from "@repo/notes/annotations/store-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { frontmatterAliases } from "@repo/notes/knowledge/link-extract";
 import {
@@ -186,7 +186,7 @@ const payloadOf = (content: string): TextPayload => {
   return { aliases: JSON.stringify(facts.aliases), content, note_id: facts.noteId };
 };
 
-export const holdsText = (path: string): boolean => isDocPath(path) || isCommentsStorePath(path);
+export const holdsText = (path: string): boolean => isDocPath(path) || isAnnotationsStorePath(path);
 
 const wantsText = (entry: Pick<TreeEntry, "path" | "size">): boolean =>
   holdsText(entry.path) && entry.size <= VAULT_FILE_MAX_BYTES;

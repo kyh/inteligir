@@ -4,7 +4,7 @@ import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema"
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
 import type { VaultChangedEvent } from "@repo/editor/host-io";
 import { THREAD_CHANGE_KINDS, VAULT_CHANGE_KINDS } from "@repo/domain/change-kinds";
-import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
+import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 import { describe, expect, it, vi } from "vitest";
 import { orpc } from "../api";
 import { ChangeBatch, sweepAfterReconnect } from "../change-batch";
@@ -83,11 +83,11 @@ describe("a doc change", () => {
     expect(applied.invalidated).toEqual([[...orpc.knowledge.key()]]);
   });
 
-  it("refreshes the comments when the doc is a comment store", () => {
+  it("refreshes the annotations when the doc is an annotation store", () => {
     // the second comment on a note rewrites an existing store: no files-changed follows it.
-    const applied = apply(contentChanged(commentsStorePath("note-id")));
+    const applied = apply(contentChanged(annotationsStorePath("note-id")));
 
-    expect(applied.invalidated).toEqual([[...orpc.knowledge.key()], [...orpc.comments.key()]]);
+    expect(applied.invalidated).toEqual([[...orpc.knowledge.key()], [...orpc.annotations.key()]]);
   });
 
   it("moves the edited note to now in the cached listing, and no other row", () => {
@@ -143,7 +143,7 @@ describe("a vault change", () => {
       [...orpc.vault.tree.key()],
       [...orpc.vault.deleted.key()],
       [...orpc.knowledge.key()],
-      [...orpc.comments.key()],
+      [...orpc.annotations.key()],
       [...orpc.threads.list.key()],
       [...orpc.threads.get.key()],
       [...orpc.threads.turnChanges.key()],
@@ -345,7 +345,7 @@ describe("a reconnect", () => {
     // one frame per flush: in a shared flush files-changed would stand in for the doc branch.
     const everyFrame = [
       apply({ changes: VAULT_CHANGE_KINDS, entity: "vault", type: "changed" }),
-      apply(contentChanged(commentsStorePath("note-id"))),
+      apply(contentChanged(annotationsStorePath("note-id"))),
       apply(threadChanged("t1", THREAD_CHANGE_KINDS)),
       apply({ changes: THREAD_CHANGE_KINDS, entity: "thread", type: "changed" }),
     ].flatMap((applied) => applied.invalidated);
@@ -355,7 +355,7 @@ describe("a reconnect", () => {
       (frameKey) => !swept.some((sweptKey) => partialMatchKey(frameKey, sweptKey)),
     );
     expect(uncovered).toEqual([]);
-    expect(swept).toContainEqual([...orpc.comments.key()]);
+    expect(swept).toContainEqual([...orpc.annotations.key()]);
   });
 
   it("tells every note and every thread to re-check", () => {

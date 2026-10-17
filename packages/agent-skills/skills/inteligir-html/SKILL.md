@@ -10,7 +10,7 @@ a sandboxed frame. Use it for behavior someone must click — a prototype, a sta
 machine, a control worth trying before the team commits to it.
 
 **Do not rebuild what the editor already has.** Tables, tabs, toggles,
-columns, callouts, checklists, charts, and comments are real blocks: they are
+columns, callouts, checklists, charts, and annotations are real blocks: they are
 searchable, they round-trip, and they read as text in every other markdown
 tool. An HTML copy of one is a dead end.
 

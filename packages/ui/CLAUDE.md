@@ -22,7 +22,7 @@ per-export orphan guard reads, so one more unconsumed export still fails.
 - **EVERY FLOATING SURFACE IS A BASE UI PRIMITIVE THROUGH `@repo/ui`, never a
   hand-positioned div**, which owns no dismissal, flipping, layering or focus
   and drifts on scroll. A selection-anchored surface hands the Positioner a
-  virtual anchor (`comments/comment-kit.tsx`, `block-menu.tsx`). Base UI is
+  virtual anchor (`annotations/annotation-kit.tsx`, `block-menu.tsx`). Base UI is
   reached only through `@repo/ui` (the one exception is `inline-combobox.tsx`),
   and a missing primitive is added there first, with a gallery demo. The find
   bar hangs under the top bar's Find through `setFindBarAnchor`

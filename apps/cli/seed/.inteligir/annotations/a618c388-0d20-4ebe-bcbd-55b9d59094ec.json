@@ -1,0 +1,16 @@
+{
+  "onboarding-user-comment": {
+    "text": "Your own comments: leave yourself a quick note while reviewing a draft.",
+    "quote": "Your own comments stay editable — leave yourself a review note and revise it later.",
+    "createdAt": 1787788800,
+    "updatedAt": 1787788800,
+    "source": "user"
+  },
+  "onboarding-agent-comment": {
+    "text": "The agent's comments are labelled as its own, so you always know who wrote what.",
+    "quote": "The agent can leave comments too, and its own are labelled as its own.",
+    "createdAt": 1787788860,
+    "updatedAt": 1787788860,
+    "source": "agent"
+  }
+}

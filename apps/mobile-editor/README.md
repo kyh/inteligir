@@ -44,18 +44,18 @@ both ends address the same files.
 - Page to native: `ready` (the door is installed; it knows no nonce yet), then
   requests `{ id, nonce, kind, payload }` — `list`, `read`, `write` (under the
   `absent` or `expected` guard, the base TEXT the native end compares with its
-  store), `addComment` (the open note's write that carries a new comment, so
-  the phone lands the note and the comment's entry as one change set),
-  `remove`, `rename`, `readAsset`, `writeAsset` (bytes as base64),
+  store), `addAnnotation` (the open note's write that carries a new highlight,
+  so the phone lands the note and the annotation's entry as one change set),
+  `editAnnotation` (an annotation's note, a write of the store alone), `remove`, `rename`, `readAsset`, `writeAsset` (bytes as base64),
   `wikiTargets`, `pickImage` — and events: `opened`, `openFailed` (the note
   could not be read, so the screen says why and offers a fresh load),
   `editorState` (dirty and why a save failed, sent only when either changes,
-  which the screen asks about before letting the note go), `showComments`,
+  which the screen asks about before letting the note go), `showAnnotations`,
   `navigate`, `askAgent`, `flushed`.
 - Native to page: `init { nonce, path, focus }`, `response { id, ok }`,
-  `vaultChanged`, `flush` (answered by `flushed` with its id), `commentMeta`
-  (the note's threads and which are resolved, which its ranges are drawn by)
-  and `commentsRemoved` (threads deleted on the phone, whose markers the page
+  `vaultChanged`, `flush` (answered by `flushed` with its id), `annotationMeta`
+  (the note's annotations, which its ranges are drawn by) and
+  `annotationsRemoved` (annotations deleted on the phone, whose markers the page
   takes out and writes, from inside a locked block too). The page follows the
   phone's appearance through `prefers-color-scheme`, so no frame carries a
   theme.
@@ -67,7 +67,7 @@ which calls the door `connectPageBridge` installs on `window`, non-writable and
 non-configurable (`src/bridge/page-bridge.ts`): a message event is one a child
 frame's `parent.postMessage` could forge. The first well-formed `init` sets the
 nonce; a frame without it, or with another load's, is dropped, as is anything
-malformed. A rename, a remove, a new comment and a pasted file wait as long as
+malformed. A rename, a remove, a new annotation, its note and a pasted file wait as long as
 the phone takes, since the phone still lands one it answers late, and the
 photo picker waits on the user; every other request times out after
 `REQUEST_TIMEOUT_MS` (a write is guarded, so its retry finds what landed). An
@@ -81,11 +81,11 @@ page starts; the install hands `flushOpenNote` that host's flush. Opening a
 note (a wiki link, a created note) writes this one and sends `navigate`, so the
 native stack pushes the next page and keeps the back gesture. A vanished note
 asks through the page's own confirm dialog, in the desktop's words
-(`@repo/editor/note/vanished-prompt`). A new comment is the touch toolbar's:
-its markers go in at Save, and the flush that writes them goes as `addComment`
-rather than `write`, so no save ever lands markers without their comment; a
-hardware chord's create, whose markers the autosave already wrote, sends its
-entry on its own.
+(`@repo/editor/note/vanished-prompt`). A new annotation is the touch toolbar's:
+its markers go in at Save, and the flush that writes them goes as `addAnnotation`
+rather than `write`, so no save ever lands markers without their entry, and the
+note typed with it follows as `editAnnotation`; a hardware chord's create, whose
+markers the autosave already wrote, sends its entry on its own.
 
 ## Layout
 

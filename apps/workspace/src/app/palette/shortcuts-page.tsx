@@ -4,7 +4,7 @@ import {
   CommandItem,
   CommandShortcut,
 } from "@repo/ui/components/command";
-import { COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
+import { ANNOTATION_SHORTCUTS } from "@repo/editor/annotations/annotation-kit";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
 import { FIND_BAR_SHORTCUTS } from "@repo/editor/find-bar";
 import { hotkeyCaps, spellHotkey } from "@repo/ui/lib/hotkey-spelling";
@@ -42,9 +42,12 @@ const shortcutGroups = (
   },
   {
     heading: "In the note",
-    rows: [...MARK_SHORTCUTS, ...EDITOR_SHORTCUTS, ...FIND_BAR_SHORTCUTS, ...COMMENT_SHORTCUTS].map(
-      (row) => shortcutRow(row, row.hotkey, modifier),
-    ),
+    rows: [
+      ...MARK_SHORTCUTS,
+      ...EDITOR_SHORTCUTS,
+      ...FIND_BAR_SHORTCUTS,
+      ...ANNOTATION_SHORTCUTS,
+    ].map((row) => shortcutRow(row, row.hotkey, modifier)),
   },
 ];
 

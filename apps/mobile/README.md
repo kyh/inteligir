@@ -28,7 +28,7 @@ src/
   login/        signing this phone in to an account
   editor/       the @repo/mobile-editor page in a WebView, the phone answering its bridge
   notes/        the vault on the phone: the mirror, the notes store, the outbox and the
-                file and comment verbs; photo-ingest.ts and the expo-*-files.ts
+                file and annotation verbs; photo-ingest.ts and the expo-*-files.ts
                 adapters are its native halves
   lib/          the composition root (compose-runtime.ts, platform-free; app-runtime.ts,
                 its binding to the device), the SQL port with phone-db.ts's
@@ -113,7 +113,7 @@ native module `modules/backup-exclusion`, and so is the outbox's folder of
 staged photos (`excludedFromBackup` in `notes/outbox-files.ts`), flagged before
 every stage, since the rows naming them live in that database. The mirror (`notes/vault-mirror.ts`)
 keeps a row per file the hosted tree names — path, blob oid, size, the commit
-its blob first appeared at, and for a note or a comment store its text with
+its blob first appeared at, and for a note or an annotation store its text with
 the frontmatter id and aliases read once as it lands. A refresh walks the tree
 at head, stops after one page when head is the mirrored commit, and otherwise
 applies the whole listing in one transaction: a row whose oid is unchanged is
@@ -152,7 +152,7 @@ A write lands on the phone the moment it is durable in the `outbox` table
 resolves links over see it from then on (`notes/vault-overlay.ts`): a pending
 edit reads as the note, a create and a staged photo list before the vault holds them, a rename
 moves the row and rewrites the links naming it now, a delete hides the
-note and its comment store, and a comment reads as its store and its note.
+note and its annotation store, and an annotation reads as its store and its note.
 The rows are sent oldest first,
 one change set per row, to `POST /v1/vault/commit`, on every write, on resume,
 when expo-network says the phone is back online, and on a backoff after a
@@ -193,20 +193,21 @@ failure, one pass at a time (`createSingleFlight` from
   the phone's own link graph with `@repo/notes/knowledge/plan-rename`, the
   server's rules; a note another device changed first keeps its bytes and is
   named, and the alias still answers its link. A delete carries the note's
-  comment store unless another note carries its id
-  (`@repo/notes/comments/store-removal`), so a note the vault keeps, because
-  another device edited it, keeps its comments too.
-- **A comment is one set too** (`notes/comment-ops.ts`). A new one is the
-  editor page's save that writes its markers, which carries it (`addComment`
-  on the bridge): the store plans its entry under the write lock from the
-  texts the phone holds and queues the note and its comment store as ONE
-  `comment` row, minting a note without an id one by the desktop's line cut.
-  A reply, a resolve and a delete are the store alone; a deleted thread's
-  markers go through the page's editor and its next write, as the desktop's
-  do. The editor ports tell the page each thread its note's store holds and
-  which are resolved (`commentMeta`), so its ranges draw as the desktop's. A
-  stale set settles the note as a write and the store by its entries, so a
-  comment another device made meanwhile keeps both threads.
+  annotation store unless another note carries its id
+  (`@repo/notes/annotations/store-removal`), so a note the vault keeps, because
+  another device edited it, keeps its annotations too.
+- **An annotation is one set too** (`notes/annotation-ops.ts`). A new one is
+  the editor page's save that writes its markers, which carries its bare entry
+  and quote (`addAnnotation` on the bridge): the store plans its entry under
+  the write lock from the texts the phone holds and queues the note and its
+  annotation store as ONE `annotation` row, minting a note without an id one
+  by the desktop's line cut. Its note (`editAnnotation`), a reply and a delete
+  are the store alone; a deleted annotation's markers go through the page's
+  editor and its next write, as the desktop's do. The editor ports tell the
+  page each annotation its note's store holds (`annotationMeta`), so its
+  ranges draw as the desktop's. A stale set settles the note as a write and
+  the store by its entries, so an annotation another device made meanwhile
+  keeps both.
 - **A photo lands in the default attachments folder** (`assets/`), since the
   Mac's attachment choice lives in its own data folder, under a free name
   (`@repo/notes/knowledge/asset-name`), as a JPEG: the Mac's editor cannot
@@ -314,7 +315,7 @@ that is signed in.
   a sign-out and a refused credential close it for good), the live fold (a
   turn's deltas, an item settling, a turn ending, a reset), and the
   composition's restore, sign-out, revocation and resume, the file verbs (a rename's rewritten link and alias,
-  a note changed under it, a delete's comment store, a new note stepping past
+  a note changed under it, a delete's annotation store, a new note stepping past
   a taken name, a photo's size and cap), the editor page's native end (every
   frame kind to its port, a foreign document's, another load's and a
   malformed frame dropped, a flush held until the page answers, the load

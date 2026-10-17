@@ -44,7 +44,7 @@ Rules worth the keystrokes:
 - A `#` anchor matches the heading loosely (case and spacing are forgiven). If
   two headings collide, link the section a different way rather than shipping an
   ambiguous anchor.
-- Wiki links do not render inside comment text. In a comment, name the note in
+- Wiki links do not render inside an annotation's text. In an annotation, name the note in
   prose.
 
 ## External Links

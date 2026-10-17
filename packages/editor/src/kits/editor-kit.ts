@@ -18,8 +18,8 @@ import { OpaqueKit } from "@repo/editor/kits/opaque-kit";
 import { TableKit } from "@repo/editor/kits/table-kit";
 import { TagChipKit } from "@repo/editor/kits/tag-chip-kit";
 import { ToggleKit } from "@repo/editor/kits/toggle-kit";
-import { CommentGutterKit } from "@repo/editor/comments/comment-gutter";
-import { CommentKit } from "@repo/editor/comments/comment-kit";
+import { AnnotationGutterKit } from "@repo/editor/annotations/annotation-gutter";
+import { AnnotationKit } from "@repo/editor/annotations/annotation-kit";
 import { EditorShortcutsKit } from "@repo/editor/editor-shortcuts";
 import { FindBarKit } from "@repo/editor/find-bar";
 import { RichBlocksKit } from "@repo/editor/kits/rich-blocks-kit";
@@ -52,7 +52,7 @@ export const CONTENT_KIT = [
   ...WikiLinkKit,
   ...InlineConstructsKit,
   ...RichBlocksKit,
-  ...CommentKit,
+  ...AnnotationKit,
   ...TabsKit,
   ...WikiAutocompleteKit,
   ...FormulaAutocompleteKit,
@@ -64,7 +64,7 @@ export const CONTENT_KIT = [
 // A later plugin's aboveNodes wraps an earlier one's, so the gutter stays inside the fold that
 // hides its block, and both inside the drag handle.
 export const DESKTOP_CHROME_KIT = [
-  ...CommentGutterKit,
+  ...AnnotationGutterKit,
   ...HeadingCollapseKit,
   ...SlashKit,
   ...EditorShortcutsKit,

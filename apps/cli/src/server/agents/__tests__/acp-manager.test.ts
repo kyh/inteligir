@@ -13,7 +13,7 @@ import { turnScope } from "@repo/domain/thread-event-scope";
 import { listStoredThreadEvents } from "@repo/db/events";
 import { listQueuedThreadMessages } from "@repo/db/queued-messages";
 import { getThread, setThreadProviderSession } from "@repo/db/threads";
-import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
+import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { isDefinedError, safe } from "@orpc/client";
 import { describe, expect, it, vi } from "vitest";
@@ -374,7 +374,7 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     expect(head.files).toEqual(["cli-note.md"]);
   });
 
-  it("stages a delete and a comment the agent made through the CLI in its turn's commit", async () => {
+  it("stages a delete and an annotation the agent made through the CLI in its turn's commit", async () => {
     const harness = await bootWithManager("approval");
     const { port } = await listenTestApp(harness);
     for (const note of ["gone.md", "plan.md"]) {
@@ -399,7 +399,12 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
       }),
     });
     await agentApi.vault.remove({ path: "gone.md" });
-    await agentApi.comments.add({ id: "c1", path: "plan.md", text: "from the agent" });
+    await agentApi.annotations.add({
+      id: "c1",
+      path: "plan.md",
+      quote: "the passage",
+      text: "from the agent",
+    });
 
     await harness.client.threads.answerInteraction({
       decision: "allow_once",
@@ -415,7 +420,7 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     const { content } = await harness.client.vault.read({ path: "plan.md" });
     const noteId = frontmatterId(content);
     expect(noteId).not.toBeNull();
-    expect(head.files).toEqual([commentsStorePath(noteId ?? ""), "gone.md", "plan.md"]);
+    expect(head.files).toEqual([annotationsStorePath(noteId ?? ""), "gone.md", "plan.md"]);
   });
 
   it("round-trips an approval through pending_interactions and the answer route", async () => {

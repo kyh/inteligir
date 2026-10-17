@@ -39,7 +39,7 @@ src/
   note/                # the open note: its store and React's door to it, the
                        # session's ordering, the autosave runtime, the raw/rich
                        # gate and the flush writers outside the note reach
-  comments/            # anchored-comment markers, ranges, gutter, store
+  annotations/         # annotation markers, ranges, gutter, store
   formulas/            # `{{…}}` pills: the `{{` picker, entry, editing, recompute
   wiki/                # `[[…]]` links: the `[[` picker, the chip, insertion, keys
   properties/          # the typed frontmatter panel
@@ -104,7 +104,8 @@ src/
   native photo picker that writes what it picks (`pickImage`, null hides the
   touch toolbar's image button; a picked path lands through `insertVaultImage`,
   as a paste does). Its `EditorHostActions` are what the editor asks the shell
-  for (Ask agent and a `#tag` chip's `showTag`, a comment's create and open),
+  for (Ask agent and a `#tag` chip's `showTag`, an annotation's create, edit
+  and open),
   every one required, so a host that leaves one out fails to typecheck rather
   than drawing a button that does nothing. The install hands `flushOpenNote`
   the host's own flush, so a writer outside the note's tree reaches the open
@@ -140,7 +141,7 @@ src/
   the column. The desktop sets none; a touch host sets `touch` and gets the
   touch kit, no outline rail and a narrower inset.
 - `live-editor.ts` — the path-keyed registry the shell reaches a mounted
-  editor through (the pin, comments, the Metadata tab's properties). A render
+  editor through (the pin, annotations, the Metadata tab's properties). A render
   SUBSCRIBES — `useLiveEditor`, or `subscribeLiveEditors` for a snapshot of
   the document — and never reads: the editor registers after the render that
   asked for it, and the compiler memoizes a render-time read on its inputs,

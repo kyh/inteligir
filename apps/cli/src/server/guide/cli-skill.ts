@@ -111,7 +111,7 @@ rather than dropped. Quote an argument that holds spaces
   survive as their own revision) and writes against the base it read, so a
   concurrent write is refused rather than overwritten; a deleted note is
   created afresh, and refused if something reappeared at its path. A deleted
-  note's comments come back with it (\`--json\`'s \`comments\` says
+  note's annotations come back with it (\`--json\`'s \`annotations\` says
   \`restored\`, \`kept\` when a store already sits at its id, or \`none\`); when
   they cannot, the note stays restored and the command fails in the refusal's
   own class, its message naming the note. Prefer this over piping
@@ -124,16 +124,16 @@ rather than dropped. Quote an argument that holds spaces
 - \`inteligir vault mkdir <path>\` — create a folder.
 - \`inteligir vault new-id <path>\` — give a note that shares another's
   frontmatter \`id\` an id of its own. A copied file (\`cp\`, Finder's
-  duplicate) keeps its original's \`id\`, so the two share one comment store and
+  duplicate) keeps its original's \`id\`, so the two share one annotation store and
   one \`[[Title|uuid]]\` identity until this runs on the copy. To find a note's
   copies, read its \`id\` and run \`inteligir matches <id>\`: each row on an
   \`id:\` line is a note carrying it, and a row elsewhere is a link to it.
-  Never delete the copy's \`id:\` line instead: its comment anchors would lose
+  Never delete the copy's \`id:\` line instead: its annotation markers would lose
   the bodies the store keeps under that id. The note takes a new id on the same
-  line and a copy of the comment store kept under the old one, so both notes
-  keep every thread and diverge from here; the note keeping the old id keeps its
+  line and a copy of the annotation store kept under the old one, so both notes
+  keep every annotation and diverge from here; the note keeping the old id keeps its
   \`[[Title|uuid]]\` links and its actions.
-  \`--json\` answers the \`path\`, the new \`id\` and \`comments\` (\`copied\`, or
+  \`--json\` answers the \`path\`, the new \`id\` and \`annotations\` (\`copied\`, or
   \`none\` when there was no store). A note that changed since it was read is
   refused as \`CAS_MISMATCH\` and left as it was: run it again.
 - \`inteligir vault open <dir>\` — select the vault the next \`inteligir serve\`
@@ -247,26 +247,30 @@ id=$(inteligir action new "Summarize notes/inbox.md" --json | jq -r .thread.id)
 inteligir action wait "$id" && inteligir action show "$id"
 \`\`\`
 
-## Comments — the review channel
+## Annotations — highlights and notes on a note's text
 
-Anchored comments live in \`.inteligir/comments/<note-id>.json\`, keyed by
-the note's frontmatter \`id\` (minted on the first comment); the
-\`%%i:id:start%%…%%i:id:end%%\` body markers wrap the ranges they are
-about (the inteligir-comments skill states the grammar — follow it when
-editing files directly).
+An annotation is a highlighted passage and an optional note on it, with
+replies under it. Annotations live in \`.inteligir/annotations/<note-id>.json\`,
+keyed by the note's frontmatter \`id\` (minted on the first annotation); the
+\`%%i:id:start%%…%%i:id:end%%\` body markers wrap the passages they are
+about (the inteligir-annotations skill states the grammar — follow it when
+editing files directly). There is no resolve: remove an annotation once it
+has done its job.
 
-- \`inteligir comment list <path>\` — a note's comment threads, replies and
-  resolution state.
-- \`inteligir comment add <path> <text>\` — start a thread in the store. It
-  is UNANCHORED until markers wrap a range in the note body.
-- \`inteligir comment reply <path> <parent-id> <text>\` — reply in a thread.
-- \`inteligir comment resolve <path> <id>\` — resolve a thread
-  (\`--reopen\` reverses it).
-- Each of those three signs its entry: \`agent\` inside an agent shell
+- \`inteligir annotation list <path>\` — a note's annotations, their quotes,
+  notes and replies, and whether markers anchor each.
+- \`inteligir annotation add <path> <quote>\` — add an annotation recording
+  the passage's text (\`--note <text>\` gives it a note). It is UNANCHORED
+  until markers wrap that passage in the note body.
+- \`inteligir annotation edit <path> <id> <text>\` — rewrite an annotation's
+  note or a reply (\`""\` takes a note away and keeps the highlight).
+- \`inteligir annotation reply <path> <parent-id> <text>\` — reply under an
+  annotation.
+- Each of those four signs its entry: \`agent\` inside an agent shell
   (\`INTELIGIR_THREAD_ID\` set), \`user\` otherwise;
   \`--source <user|agent|external>\` overrides.
-- \`inteligir comment remove <path> <id>\` — delete a thread's entries; the
-  answer names the marker ids you still owe the note body.
+- \`inteligir annotation remove <path> <id>\` — delete an annotation's
+  entries; the answer names the marker ids you still owe the note body.
 
 ## Connected folders — reference context you are pointed at
 

@@ -10,12 +10,12 @@ import { toast } from "@repo/ui/components/sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
-import { client, orpc } from "./api";
+import { client, failed, orpc } from "./api";
 import { ActionComposer } from "./actions/action-composer";
 import { ActionsPanel } from "./actions/actions-panel";
 import type { PanelTab } from "./actions/actions-panel";
-import type { CommentFocus } from "./actions/comments-tab";
-import { useNoteComments, useNoteCommentMeta } from "./actions/comment-hooks";
+import type { AnnotationFocus } from "./actions/annotations-tab";
+import { useNoteAnnotations, useNoteAnnotationMeta } from "./actions/annotation-hooks";
 import { NoteTopbar } from "./note-topbar";
 import { NoteFooter } from "./note-footer";
 import { useThreads } from "./actions/thread-hooks";
@@ -73,7 +73,7 @@ const EMPTY_THREADS: readonly Thread[] = [];
 // what the panel is asked to show; a comments reveal with no focus keeps the last one
 type PanelReveal =
   | { tab: "actions"; threadId: string }
-  | { tab: "comments"; focus?: readonly string[] }
+  | { tab: "annotations"; focus?: readonly string[] }
   | { tab: "history" };
 
 // a note that never mounts (a refused open) must not leave a jump waiting forever
@@ -141,7 +141,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [noteStore] = useState(createOpenNoteStore);
   const openPath = useStore(noteStore.store, (state) => state.openPath);
-  // Trails `openPath` across a switch; the comment tint keys on it.
+  // Trails `openPath` across a switch; the annotation tint keys on it.
   const loadedPath = useStore(noteStore.store, (state) => openDocPath(state.openDoc));
   const back = useStore(noteStore.store, backTarget);
   const forward = useStore(noteStore.store, forwardTarget);
@@ -157,12 +157,10 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   const [panelOpen, setPanelOpen] = usePref(PREFS.panelOpen);
   const [panelTab, setPanelTab] = useState<PanelTab>("actions");
   // Here, not in the panel: the top bar's badge counts while the panel is collapsed.
-  const commentsQuery = useNoteComments(openPath);
-  const openCommentCount = (commentsQuery.data?.threads ?? []).filter(
-    (thread) => !thread.resolved,
-  ).length;
+  const annotationsQuery = useNoteAnnotations(openPath);
+  const annotationCount = annotationsQuery.data?.total ?? 0;
 
-  useNoteCommentMeta(loadedPath);
+  useNoteAnnotationMeta(loadedPath);
 
   const [railOpen, setRailOpen] = useState(true);
   // a provider's own toggle and the table's key both land here: showing either side leaves zen
@@ -186,7 +184,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   const railActionsRef = useRef<SidebarActions | null>(null);
   const panelActionsRef = useRef<SidebarActions | null>(null);
 
-  const [commentFocus, setCommentFocus] = useState<CommentFocus | null>(null);
+  const [annotationFocus, setAnnotationFocus] = useState<AnnotationFocus | null>(null);
   // One verb for every entry that shows something in the panel: it starts closed, so an entry
   // that only picks its tab or thread shows nothing.
   const revealPanel = useCallback(
@@ -195,9 +193,9 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
       setPanelTab(target.tab);
       if (target.tab === "actions") {
         setPanelThreadId(target.threadId);
-      } else if (target.tab === "comments" && target.focus !== undefined) {
+      } else if (target.tab === "annotations" && target.focus !== undefined) {
         const ids = target.focus;
-        setCommentFocus((current) => ({ ids, nonce: (current?.nonce ?? 0) + 1 }));
+        setAnnotationFocus((current) => ({ ids, nonce: (current?.nonce ?? 0) + 1 }));
       }
     },
     [showPanel],
@@ -342,24 +340,39 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
           setSelectedTag(tag);
         },
       },
-      comments: {
+      annotations: {
         // flushed before adding: the route derives `anchored` from disk
-        create: async (id, text) => {
+        create: async (id, quote) => {
           const { openPath: path } = noteStore.state();
           if (path === null) {
             return false;
           }
           await flushOpenNote();
           try {
-            await client.comments.add({ id, path, text });
+            await client.annotations.add({ id, path, quote });
           } catch {
             return false;
           }
-          void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
+          void queryClient.invalidateQueries({ queryKey: orpc.annotations.key() });
           return true;
         },
+        edit: async (id, text) => {
+          const { openPath: path } = noteStore.state();
+          if (path === null) {
+            return false;
+          }
+          let edited = true;
+          try {
+            await client.annotations.edit({ id, path, text });
+          } catch (error) {
+            failed(error, "The note on that highlight was refused.");
+            edited = false;
+          }
+          void queryClient.invalidateQueries({ queryKey: orpc.annotations.key() });
+          return edited;
+        },
         open: (ids) => {
-          revealPanel({ focus: ids, tab: "comments" });
+          revealPanel({ focus: ids, tab: "annotations" });
         },
       },
     }),
@@ -550,9 +563,9 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
                       revealInTree(folder);
                       showRail(true);
                     }}
-                    commentCount={openCommentCount}
-                    onOpenComments={() => {
-                      revealPanel({ tab: "comments" });
+                    annotationCount={annotationCount}
+                    onOpenAnnotations={() => {
+                      revealPanel({ tab: "annotations" });
                     }}
                     onExportPdf={() => {
                       const { openPath: path } = noteStore.state();
@@ -590,7 +603,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
                   docPath={openPath}
                   tab={panelTab}
                   onTabChange={setPanelTab}
-                  commentFocus={commentFocus}
+                  annotationFocus={annotationFocus}
                   selectedThreadId={panelThreadId}
                   onSelectThread={setPanelThreadId}
                   onOpenDoc={setOpenNote}

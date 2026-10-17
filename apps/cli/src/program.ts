@@ -37,7 +37,7 @@ import { statusCommand } from "./commands/status";
 import { tagCommand } from "./commands/tag";
 import { cloudCommand } from "./commands/cloud";
 import { actionCommand } from "./commands/action";
-import { commentCommand } from "./commands/comment";
+import { annotationCommand } from "./commands/annotation";
 import { serveCommand } from "./commands/serve";
 import { vaultCommand } from "./commands/vault";
 import { describeContext } from "./context";
@@ -57,9 +57,9 @@ export const buildProgram = (deps: CliDeps): CommandDef =>
     subCommands: {
       action: actionCommand(deps),
       agents: agentsCommand(deps),
+      annotation: annotationCommand(deps),
       backlinks: backlinksCommand(deps),
       cloud: cloudCommand(deps),
-      comment: commentCommand(deps),
       folders: foldersCommand(deps),
       guide: guideCommand(deps),
       interactions: interactionsCommand(deps),

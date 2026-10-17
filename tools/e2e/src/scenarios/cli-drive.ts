@@ -21,7 +21,7 @@ const turnChangesOutputSchema = z.looseObject({
   turns: z.array(z.looseObject({ paths: z.array(z.string()), state: z.string() })),
 });
 const undoOutputSchema = z.looseObject({ reverted: z.array(z.string()) });
-const newIdOutputSchema = z.looseObject({ comments: z.literal("copied"), id: z.string() });
+const newIdOutputSchema = z.looseObject({ annotations: z.literal("copied"), id: z.string() });
 
 const SHARED_NOTE = "notes/shared.md";
 const SHARED_COPY = "notes/shared copy.md";
@@ -123,11 +123,11 @@ export const cliDrive: Scenario = {
 
     ctx.log("a byte copy shares its original's id until vault new-id gives it one of its own");
     await cli("vault", "write", SHARED_NOTE, "--content", SHARED_CONTENT, "--if-absent");
-    await cli("comment", "add", SHARED_NOTE, "The first thread");
-    await cli("comment", "add", SHARED_NOTE, "The second thread");
+    await cli("annotation", "add", SHARED_NOTE, "Shared", "--note", "The first note");
+    await cli("annotation", "add", SHARED_NOTE, "Shared", "--note", "The second note");
     const original = path.join(app.vaultDir, SHARED_NOTE);
     const originalBytes = await readFile(original, "utf-8");
-    const sharedStore = path.join(app.vaultDir, ".inteligir", "comments", `${SHARED_ID}.json`);
+    const sharedStore = path.join(app.vaultDir, ".inteligir", "annotations", `${SHARED_ID}.json`);
     const storeBytes = await readFile(sharedStore, "utf-8");
     // Finder's duplicate: the same bytes, landed beside the app rather than through it
     await copyFile(original, path.join(app.vaultDir, SHARED_COPY));
@@ -141,9 +141,12 @@ export const cliDrive: Scenario = {
     );
     expectEq(await readFile(original, "utf-8"), originalBytes, "the original is untouched");
     expectEq(
-      await readFile(path.join(app.vaultDir, ".inteligir", "comments", `${newId}.json`), "utf-8"),
+      await readFile(
+        path.join(app.vaultDir, ".inteligir", "annotations", `${newId}.json`),
+        "utf-8",
+      ),
       storeBytes,
-      "the copy's comment store is the original's, byte for byte",
+      "the copy's annotation store is the original's, byte for byte",
     );
     expectEq(await readFile(sharedStore, "utf-8"), storeBytes, "the original keeps its own");
 

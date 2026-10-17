@@ -1,7 +1,7 @@
 // what the phone shows is the mirror with every unsent row laid over it, oldest first: a pending
 // edit reads as the note, a create and a staged photo list before the vault holds them, a rename
-// moves the row and rewrites the links naming it now, a delete hides the note and its comment
-// store, and a comment edit reads as its store and the note it anchored in. A parked row is laid
+// moves the row and rewrites the links naming it now, a delete hides the note and its annotation
+// store, and an annotation edit reads as its store and the note it anchored in. A parked row is laid
 // over too, since its bytes are the user's until they discard them.
 
 import { utf8ByteLength } from "@repo/contract/cloud/bytes";
@@ -70,7 +70,7 @@ const lay = (entries: Map<string, OverlayEntry>, op: VaultOp): void => {
       }
       break;
     }
-    case "comment": {
+    case "annotation": {
       if (op.anchored !== null) {
         entries.set(op.anchored.path, textEntry(op.anchored.path, op.anchored.content));
       }

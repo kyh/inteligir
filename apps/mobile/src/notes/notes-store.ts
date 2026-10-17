@@ -1,13 +1,13 @@
-import { commentKeyOf, commentStoreKey } from "@repo/notes/comments/comment-key";
-import { foldThreads } from "@repo/notes/comments/comment-threads";
-import type { AddResult, CommentThread } from "@repo/notes/comments/comment-threads";
-import { markerRootIds } from "@repo/notes/comments/marker-ids";
+import { annotationKeyOf, annotationStoreKey } from "@repo/notes/annotations/annotation-key";
+import { foldAnnotations } from "@repo/notes/annotations/annotation-threads";
+import type { AddResult, AnnotationThread } from "@repo/notes/annotations/annotation-threads";
+import { markerRootIds } from "@repo/notes/annotations/marker-ids";
 import {
-  commentsStorePath,
-  parseSidecar,
-  serializeSidecar,
-} from "@repo/notes/comments/sidecar-schema";
-import type { CommentSidecar } from "@repo/notes/comments/sidecar-schema";
+  annotationsStorePath,
+  parseAnnotationStore,
+  serializeAnnotationStore,
+} from "@repo/notes/annotations/store-schema";
+import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { extnamePath } from "@repo/notes/knowledge/vault-path";
 import { describeCloudFailure } from "@repo/contract/cloud/client";
@@ -25,7 +25,7 @@ import type { SqlDriver } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import type { AttachmentFiles } from "./attachment-files";
 import { blobOid, isTextOp, leavesAt, opPaths, rebaseEdit, textBlobOid } from "./outbox-ops";
-import type { CommentOp, GuardedText, OutboxRow, Sha1, VaultOp } from "./outbox-ops";
+import type { AnnotationOp, GuardedText, OutboxRow, Sha1, VaultOp } from "./outbox-ops";
 import type { OutboxFiles } from "./outbox-files";
 import { createVaultOutbox, STAGED_FILE_GONE } from "./vault-outbox";
 import type { CreateVaultOutboxArgs, OutboxStatus } from "./vault-outbox";
@@ -38,7 +38,7 @@ const INCOMPLETE = "Some notes did not download. Pull down to try again.";
 
 const UNREADABLE_NOTE = "This note has not downloaded to your phone yet.";
 
-const UNREADABLE_COMMENTS = "This note's comments could not be read.";
+const UNREADABLE_ANNOTATIONS = "This note's comments could not be read.";
 
 // an account whose hosted vault no Mac has pushed yet answers 404 until one does
 const NO_HOSTED_VAULT = "Your notes aren't here yet — open inteligir on your Mac while signed in.";
@@ -71,9 +71,9 @@ export interface NoteText {
 
 export type NoteRead = ({ ok: true } & NoteText) | { ok: false; message: string };
 
-// a note without an id, or with no store yet, has no comments; only an unreadable store is a failure
-export type CommentsRead =
-  | { ok: true; threads: readonly CommentThread[] }
+// a note without an id, or with no store yet, has no annotations; only an unreadable store is a failure
+export type AnnotationsRead =
+  | { ok: true; annotations: readonly AnnotationThread[] }
   | { ok: false; message: string };
 
 type AttachmentRead = { ok: true; uri: string } | { ok: false; message: string };
@@ -110,17 +110,17 @@ export interface RenameEdits {
 
 const NO_EDITS: RenameEdits = { note: null, rewrites: [] };
 
-// one change to a note's comment store, planned from the texts the phone holds when it is queued:
-// `anchor` is the note's new text with a new comment's markers in it, computed from the text it
-// `expected` the note to hold, and null for a reply or a resolve, which leave the note alone
-interface CommentEdit {
+// one change to a note's annotation store, planned from the texts the phone holds when it is queued:
+// `anchor` is the note's new text with a new annotation's markers in it, computed from the text it
+// `expected` the note to hold, and null for a reply, an edit or a delete, which leave the note alone
+interface AnnotationEdit {
   path: string;
   anchor: { expected: string; content: string } | null;
-  edit: (sidecar: CommentSidecar) => AddResult;
+  edit: (entries: AnnotationStore) => AddResult;
 }
 
-// `note`: the note's text on the phone now, which an id minted for its first comment adds to
-export type CommentEditOutcome =
+// `note`: the note's text on the phone now, which an id minted for its first annotation adds to
+export type AnnotationEditOutcome =
   | { kind: "edited"; note: string }
   | { kind: "changed"; current: string }
   | { kind: "vanished" }
@@ -149,7 +149,7 @@ export interface NotesStore {
   create: (path: string, content: string) => Promise<CreateOutcome>;
   // the move and its edits are one change set
   rename: (from: string, to: string, edits?: RenameEdits) => Promise<RenameOutcome>;
-  // the note and the comment `stores` that go with it are one change set
+  // the note and the annotation `stores` that go with it are one change set
   remove: (path: string, stores?: readonly string[]) => Promise<void>;
   putAsset: (path: string, bytes: Uint8Array) => Promise<CreateOutcome>;
   // every file the phone lists, unsent changes laid over; none before the first listing
@@ -170,10 +170,10 @@ export interface NotesStore {
     dismiss: (noticeId: number) => void;
   };
   // the store at the id of a note the caller already read, folded against that read's markers
-  readComments: (note: NoteText) => Promise<CommentsRead>;
+  readAnnotations: (note: NoteText) => Promise<AnnotationsRead>;
   // the store's edit and the note's anchored text, one change set; a note without an id takes one
-  // with its first comment
-  editComments: (edit: CommentEdit) => Promise<CommentEditOutcome>;
+  // with its first annotation
+  editAnnotations: (edit: AnnotationEdit) => Promise<AnnotationEditOutcome>;
   // the bytes on this phone, downloaded on the first ask
   attachmentFile: (path: string) => Promise<AttachmentRead>;
 }
@@ -198,7 +198,7 @@ export interface CreateNotesStoreArgs {
   outboxFiles: OutboxFiles;
   sha1: Sha1;
   deviceName: string;
-  // a note's new frontmatter id, uuid-shaped, for its first comment made here
+  // a note's new frontmatter id, uuid-shaped, for its first annotation made here
   mintNoteId: () => string;
   retryBaseMs?: CreateVaultOutboxArgs["retryBaseMs"];
 }
@@ -588,7 +588,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         return { content: op.content, oid: await textBlobOid(args.sha1, op.content) };
       }
       case "rename":
-      case "comment": {
+      case "annotation": {
         return await leavesAt(args.sha1, op, path);
       }
       case "putAsset": {
@@ -771,32 +771,32 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   // the store's text after the edit, from what the phone holds of it: nothing where it lists none
   const editedStore = async (
     path: string,
-    edit: CommentEdit["edit"],
+    edit: AnnotationEdit["edit"],
   ): Promise<
-    | { kind: "planned"; store: CommentOp["store"] }
-    | Extract<CommentEditOutcome, { kind: "refused" }>
+    | { kind: "planned"; store: AnnotationOp["store"] }
+    | Extract<AnnotationEditOutcome, { kind: "refused" }>
   > => {
     const held = listing?.files.has(path) === true ? await heldText(path) : null;
-    let base: CommentOp["store"]["base"] = null;
+    let base: AnnotationOp["store"]["base"] = null;
     if (held !== null) {
       if (held.content === null) {
-        return { kind: "refused", message: UNREADABLE_COMMENTS };
+        return { kind: "refused", message: UNREADABLE_ANNOTATIONS };
       }
       base = { content: held.content, oid: held.oid };
     }
-    const parsed = base === null ? null : parseSidecar(base.content);
+    const parsed = base === null ? null : parseAnnotationStore(base.content);
     if (parsed !== null && !parsed.ok) {
-      return { kind: "refused", message: `${UNREADABLE_COMMENTS} ${parsed.error}` };
+      return { kind: "refused", message: `${UNREADABLE_ANNOTATIONS} ${parsed.error}` };
     }
-    const edited = edit(parsed?.sidecar ?? {});
+    const edited = edit(parsed?.store ?? {});
     return edited.ok
-      ? { kind: "planned", store: { base, content: serializeSidecar(edited.sidecar), path } }
+      ? { kind: "planned", store: { base, content: serializeAnnotationStore(edited.store), path } }
       : { kind: "refused", message: edited.error };
   };
 
   // read, planned and queued under the write lock, so no write lands between the texts the edit
   // was made from and the row that carries it
-  const editComments: NotesStore["editComments"] = async ({ anchor, edit, path }) =>
+  const editAnnotations: NotesStore["editAnnotations"] = async ({ anchor, edit, path }) =>
     await queued(async ({ enqueue }) => {
       const note = goneHere(path) ? null : await heldText(path);
       if (note === null) {
@@ -808,14 +808,14 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       if (anchor !== null && anchor.expected !== note.content) {
         return { current: note.content, kind: "changed" };
       }
-      const key = commentKeyOf(
+      const key = annotationKeyOf(
         anchor?.content ?? note.content,
         anchor === null ? null : args.mintNoteId,
       );
       if (key.kind === "refused") {
         return key;
       }
-      const planned = await editedStore(commentsStorePath(key.id), edit);
+      const planned = await editedStore(annotationsStorePath(key.id), edit);
       if (planned.kind === "refused") {
         return planned;
       }
@@ -826,7 +826,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
           : { baseContent: note.content, baseOid: note.oid, content: key.content, path };
       expectOwn(path, key.content);
       expectOwn(store.path, store.content);
-      await enqueue({ anchored, op: "comment", store });
+      await enqueue({ anchored, op: "annotation", store });
       return { kind: "edited", note: key.content };
     });
 
@@ -876,7 +876,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       await outbox.drain();
     },
 
-    editComments,
+    editAnnotations,
 
     heldFiles: () =>
       listing === null
@@ -922,27 +922,29 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
 
     putAsset,
 
-    async readComments(note) {
-      const id = commentStoreKey(note.content);
+    async readAnnotations(note) {
+      const id = annotationStoreKey(note.content);
       if (id === null) {
-        return { ok: true, threads: [] };
+        return { annotations: [], ok: true };
       }
-      const storePath = commentsStorePath(id);
+      const storePath = annotationsStorePath(id);
       // the mirror names every path its tree held; a store it does not name is none
       if (listing !== null && !listing.files.has(storePath)) {
-        return { ok: true, threads: [] };
+        return { annotations: [], ok: true };
       }
       const store = await readFile(storePath);
       if (!store.ok) {
-        return store.notFound ? { ok: true, threads: [] } : { message: store.message, ok: false };
+        return store.notFound
+          ? { annotations: [], ok: true }
+          : { message: store.message, ok: false };
       }
-      const parsed = parseSidecar(store.content);
+      const parsed = parseAnnotationStore(store.content);
       if (!parsed.ok) {
         return { message: `The comments could not be read: ${parsed.error}`, ok: false };
       }
       return {
+        annotations: foldAnnotations(parsed.store, markerRootIds(note.content)).annotations,
         ok: true,
-        threads: foldThreads(parsed.sidecar, markerRootIds(note.content)).threads,
       };
     },
 

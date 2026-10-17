@@ -21,17 +21,17 @@ import { useNoteThreads, useThreads } from "./thread-hooks";
 import { ActionDetail } from "./action-detail";
 import { NoteMetadataTab } from "./metadata-tab";
 import type { NoteMetadataActions } from "./metadata-tab";
-import { CommentsTab } from "./comments-tab";
-import type { CommentFocus } from "./comments-tab";
+import { AnnotationsTab } from "./annotations-tab";
+import type { AnnotationFocus } from "./annotations-tab";
 import { HistoryTab } from "./history-tab";
 import { bindingFor } from "../global-shortcuts";
 
-export type PanelTab = "actions" | "comments" | "history" | "metadata";
+export type PanelTab = "actions" | "annotations" | "history" | "metadata";
 
-const PANEL_TABS: readonly PanelTab[] = ["actions", "comments", "history", "metadata"];
+const PANEL_TABS: readonly PanelTab[] = ["actions", "annotations", "history", "metadata"];
 const PANEL_TAB_LABELS = {
   actions: "Actions",
-  comments: "Comments",
+  annotations: "Comments",
   history: "History",
   metadata: "Metadata",
 } satisfies Record<PanelTab, string>;
@@ -42,7 +42,7 @@ export interface ActionsPanelProps {
   modifier: ShortcutModifier;
   tab: PanelTab;
   onTabChange: (tab: PanelTab) => void;
-  commentFocus: CommentFocus | null;
+  annotationFocus: AnnotationFocus | null;
   selectedThreadId: string | null;
   onSelectThread: (threadId: string | null) => void;
   onOpenDoc: (path: string) => void;
@@ -122,7 +122,7 @@ export const ActionsPanel = ({
   docPath,
   tab,
   onTabChange,
-  commentFocus,
+  annotationFocus,
   selectedThreadId,
   onSelectThread,
   onOpenDoc,
@@ -156,8 +156,8 @@ export const ActionsPanel = ({
           ))}
         </TabsList>
       </div>
-      <TabsContent value="comments">
-        <CommentsTab docPath={docPath} focus={commentFocus} modifier={modifier} />
+      <TabsContent value="annotations">
+        <AnnotationsTab docPath={docPath} focus={annotationFocus} modifier={modifier} />
       </TabsContent>
       <TabsContent value="history">
         <HistoryTab key={docPath} docPath={docPath} />

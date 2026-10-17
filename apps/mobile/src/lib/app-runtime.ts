@@ -22,7 +22,7 @@ import type { LoginRequest, LoginState } from "../login/login-store";
 import { createExpoAttachmentFiles } from "../notes/expo-attachment-files";
 import { createExpoOutboxFolder } from "../notes/expo-outbox-files";
 import type { CreatedNote, RenamedNote } from "../notes/file-ops";
-import type { CommentsRead, NoteRead, NoteText, NotesTreeState } from "../notes/notes-store";
+import type { AnnotationsRead, NoteRead, NoteText, NotesTreeState } from "../notes/notes-store";
 import { excludedFromBackup } from "../notes/outbox-files";
 import { ingestPhoto } from "../notes/photo-ingest";
 import type { OutboxStatus } from "../notes/vault-outbox";
@@ -119,8 +119,8 @@ export const refreshNotes = async (): Promise<void> => {
 export const readNote = async (path: string): Promise<NoteRead> =>
   await getRuntime().notes.readNote(path);
 
-export const readNoteComments = async (note: NoteText): Promise<CommentsRead> =>
-  await getRuntime().notes.readComments(note);
+export const readNoteAnnotations = async (note: NoteText): Promise<AnnotationsRead> =>
+  await getRuntime().notes.readAnnotations(note);
 
 export const createNote = async (dir: string): Promise<CreatedNote> =>
   await getRuntime().fileOps.create(dir);
@@ -145,13 +145,13 @@ const noteRevision = async (content: string): Promise<string> =>
 export const createNoteEditorPorts = (
   screen: Pick<
     EditorPortsArgs,
-    "editorState" | "go" | "notify" | "openFailed" | "opened" | "showComments"
+    "editorState" | "go" | "notify" | "openFailed" | "opened" | "showAnnotations"
   >,
 ): EditorPorts => {
   const rt = getRuntime();
   return createEditorPorts({
     ...screen,
-    comments: rt.comments,
+    annotations: rt.annotations,
     fileOps: rt.fileOps,
     newThreadId: () => rt.dispatch.newThreadId(),
     pickImage: async () => await ingestPhoto(rt.fileOps),

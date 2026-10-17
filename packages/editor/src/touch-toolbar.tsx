@@ -1,6 +1,6 @@
 // A soft keyboard carries no chord and a finger makes no hover, so every mark, turn-into and
 // indent a hardware keyboard reaches is a button here. Each row is named by the table its desktop
-// twin reads (the mark chords, the editor's shortcuts, the slash menu, the comment chord), so a
+// twin reads (the mark chords, the editor's shortcuts, the slash menu, the annotation chord), so a
 // rename lands on both surfaces at once; only what no table holds is spelled in TOUCH_ACTIONS.
 // In-flow chrome, not a popup: pinned to the bottom of a viewport the host sizes above the
 // keyboard and holds at scale 1, since iOS zooms into a field whose text is under 16px and the
@@ -42,13 +42,15 @@ import type { IconComponent } from "@repo/ui/lib/icon";
 
 import { askAgentAboutSelection } from "@repo/editor/agent-request";
 import {
-  ADD_COMMENT_SHORTCUT,
-  anchorNewComment,
-  selectionTakesComment,
-} from "@repo/editor/comments/comment-kit";
-import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
+  ADD_ANNOTATION_SHORTCUT,
+  anchorNewAnnotation,
+  saveNewAnnotation,
+  selectionQuote,
+  selectionTakesAnnotation,
+} from "@repo/editor/annotations/annotation-kit";
+import { removeAnnotationMarkers } from "@repo/editor/annotations/annotation-markers";
 import { CODE_MARK_SHORTCUT, runEditorShortcut } from "@repo/editor/editor-shortcuts";
-import { getEditorHostActions, getEditorHostIo } from "@repo/editor/host-io";
+import { getEditorHostIo } from "@repo/editor/host-io";
 import type { PickImageResult } from "@repo/editor/host-io";
 import { insertVaultImage } from "@repo/editor/kits/image-kit";
 import { indentBlocks, outdentBlocks } from "@repo/editor/kits/list-kit";
@@ -184,17 +186,17 @@ const ActionButton = ({
   );
 };
 
-// what the selection can be handed to: the agent, and a new comment the host writes. The comment's
-// field takes the row, so its markers go in only once there is text to write beside them.
+// what the selection can be handed to: the agent, and a new annotation the host writes. The
+// annotation's field takes the row, so its markers go in only once there is text to write beside them.
 const SelectionButtons = ({
   editor,
-  onComment,
+  onAnnotate,
 }: {
   editor: PlateEditor;
-  onComment: () => void;
+  onAnnotate: () => void;
 }) => {
   const expanded = useSelectionExpanded();
-  const commentable = useEditorSelector(selectionTakesComment, []);
+  const annotatable = useEditorSelector(selectionTakesAnnotation, []);
   return (
     <>
       <ActionButton
@@ -204,7 +206,11 @@ const SelectionButtons = ({
           askAgentAboutSelection(editor);
         }}
       />
-      <ToolbarButton label={ADD_COMMENT_SHORTCUT.label} disabled={!commentable} onPress={onComment}>
+      <ToolbarButton
+        label={ADD_ANNOTATION_SHORTCUT.label}
+        disabled={!annotatable}
+        onPress={onAnnotate}
+      >
         <MessageSquarePlusIcon />
       </ToolbarButton>
       <Sep />
@@ -214,18 +220,17 @@ const SelectionButtons = ({
 
 // A refused create strips the markers it went in with, as the desktop's popover does, and the host
 // says why.
-const commentOn = (editor: PlateEditor, at: TRange, text: string): void => {
+const annotateOn = (editor: PlateEditor, at: TRange, text: string): void => {
   editor.tf.select(at);
-  const id = anchorNewComment(editor);
+  const quote = selectionQuote(editor);
+  const id = anchorNewAnnotation(editor);
   if (id === null) {
     return;
   }
   void (async () => {
-    const created = await getEditorHostActions()
-      .comments.create(id, text)
-      .catch(() => false);
+    const created = await saveNewAnnotation(id, quote, text);
     if (!created) {
-      removeCommentMarkers(editor, [id]);
+      removeAnnotationMarkers(editor, [id]);
     }
   })();
 };
@@ -250,8 +255,8 @@ const pickImageInto = async (
   }
 };
 
-// a field that takes the row: a link's address, or a comment's text
-type PromptKind = "link" | "comment";
+// a field that takes the row: a link's address, or an annotation's note
+type PromptKind = "link" | "annotation";
 
 interface PromptField {
   readonly icon: IconComponent;
@@ -264,9 +269,9 @@ interface PromptField {
   >;
 }
 
-// the comment's words are the desktop popover's
+// the annotation's words are the desktop popover's
 const PROMPT_FIELDS = {
-  comment: {
+  annotation: {
     icon: MessageSquarePlusIcon,
     input: { enterKeyHint: "send", type: "text" },
     label: "Comment",
@@ -367,7 +372,7 @@ const TouchToolbar = () => {
       editor.tf.select(range);
       upsertLink(editor, { skipValidation: true, url: value });
     } else {
-      commentOn(editor, range, value);
+      annotateOn(editor, range, value);
     }
   };
 
@@ -382,8 +387,8 @@ const TouchToolbar = () => {
           <div className="flex min-w-0 flex-1 items-center overflow-x-auto px-1">
             <SelectionButtons
               editor={editor}
-              onComment={() => {
-                openPrompt("comment");
+              onAnnotate={() => {
+                openPrompt("annotation");
               }}
             />
             {MARK_SHORTCUTS.map((row) => (
