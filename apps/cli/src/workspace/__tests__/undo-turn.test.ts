@@ -105,6 +105,19 @@ describe("the undo's summary", () => {
     );
   });
 
+  it("counts a moved item once, and never the cover that rode with it", () => {
+    expect(
+      summarizeUndo({
+        kept: [],
+        reverted: [
+          "Reading/File over app.md",
+          "Unsorted/File over app.md",
+          "assets/covers/0123456789abcdef.jpg",
+        ],
+      }).message,
+    ).toBe("Undid the agent's changes to 1 item.");
+  });
+
   it("counts notes, never the annotation stores the undo also took back", () => {
     expect(
       summarizeUndo({

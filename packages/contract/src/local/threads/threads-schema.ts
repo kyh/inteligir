@@ -325,6 +325,9 @@ export const turnChangeStateSchema = z.enum(["applied", "undone"]);
 export type TurnChangeState = z.infer<typeof turnChangeStateSchema>;
 
 export const turnChangesSchema = z.strictObject({
+  // the items the turn changed, as a person counts them (`@repo/notes/items/turn-items`): each
+  // move once, at the path it made, and no cover, original or page copy beside its item
+  items: z.array(z.string().min(1)),
   // every path the turn's commit added, edited or deleted; a move is the path it left and the
   // path it made.
   paths: z.array(z.string().min(1)),

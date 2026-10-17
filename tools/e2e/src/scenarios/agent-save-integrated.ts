@@ -30,7 +30,12 @@ const DEADLINE_MS = 30_000;
 const threadOutputSchema = z.looseObject({ thread: z.looseObject({ id: z.string() }) });
 const turnChangesOutputSchema = z.looseObject({
   turns: z.array(
-    z.looseObject({ paths: z.array(z.string()), state: z.string(), turnId: z.string() }),
+    z.looseObject({
+      items: z.array(z.string()),
+      paths: z.array(z.string()),
+      state: z.string(),
+      turnId: z.string(),
+    }),
   ),
 });
 const undoOutputSchema = z.looseObject({
@@ -85,6 +90,8 @@ export const agentSaveIntegrated: Scenario = {
     const [turn] = turns;
     expectEq(turn?.state, "applied", "the turn's state");
     expectEq(sorted(turn?.paths ?? []), sorted([note, WRAPPER, ORIGINAL]), "the turn's paths");
+    // a person counts the note and the picture: the original rides the item that embeds it
+    expectEq(sorted(turn?.items ?? []), sorted([note, WRAPPER]), "the turn's items");
 
     ctx.log("the wrapper is an image item embedding its original, which is the PNG byte for byte");
     const wrapper = await readFile(path.join(app.vaultDir, WRAPPER), "utf-8");

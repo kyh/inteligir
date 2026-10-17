@@ -278,6 +278,7 @@ it("draws the notes a message attached under its bubble, apart from the text", (
 });
 
 const turnChanges = (state: TurnChanges["state"]): TurnChanges => ({
+  items: ["Plans.md", "Ideas.md"],
   paths: ["Plans.md", ".inteligir/annotations/note-1.json", "Ideas.md"],
   state,
   turnId: "turn_1",

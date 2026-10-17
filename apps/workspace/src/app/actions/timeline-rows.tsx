@@ -23,7 +23,6 @@ import type { ReactNode } from "react";
 import { KIND_CHIP_LABELS, formatCount } from "../library/item-labels";
 import { scopeTitle } from "../library/library-header";
 import { NoteBadge } from "./note-badge";
-import { turnNotePaths } from "./undo-turn";
 
 const CHANGE_MARKS = {
   add: "+",
@@ -267,7 +266,7 @@ const TurnChangesFooterContent = ({ status, changes, undo, onUndo }: TurnChanges
   if (status === "pending" || changes === undefined) {
     return null;
   }
-  const paths = turnNotePaths(changes);
+  const paths = changes.items;
   if (paths.length === 0) {
     return null;
   }

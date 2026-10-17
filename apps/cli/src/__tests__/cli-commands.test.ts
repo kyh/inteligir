@@ -820,8 +820,13 @@ describe("action commands", () => {
   it("lists what each turn changed, oldest first, and says so when none did", async () => {
     const state = seededState();
     const turnChanges: TurnChanges[] = [
-      { paths: ["notes/a.md", "notes/[b].md"], state: "undone", turnId: "turn_1" },
-      { paths: ["notes/a.md"], state: "applied", turnId: "turn_2" },
+      {
+        items: ["notes/a.md", "notes/[b].md"],
+        paths: ["notes/a.md", "notes/[b].md"],
+        state: "undone",
+        turnId: "turn_1",
+      },
+      { items: ["notes/a.md"], paths: ["notes/a.md"], state: "applied", turnId: "turn_2" },
     ];
     state.threads.push(
       {
@@ -878,9 +883,14 @@ describe("action commands", () => {
         thread: makeThread({ id: "thr_1" }),
         timeline: EMPTY_TIMELINE,
         turnChanges: [
-          { paths: ["notes/a.md"], state: "applied", turnId: "turn_1" },
-          { paths: ["notes/a.md", "notes/b.md"], state: "applied", turnId: "turn_2" },
-          { paths: ["notes/c.md"], state: "undone", turnId: "turn_3" },
+          { items: ["notes/a.md"], paths: ["notes/a.md"], state: "applied", turnId: "turn_1" },
+          {
+            items: ["notes/a.md", "notes/b.md"],
+            paths: ["notes/a.md", "notes/b.md"],
+            state: "applied",
+            turnId: "turn_2",
+          },
+          { items: ["notes/c.md"], paths: ["notes/c.md"], state: "undone", turnId: "turn_3" },
         ],
         turnUndo: {
           kept: [{ path: "notes/b.md", reason: "edited-since" }],
@@ -891,7 +901,9 @@ describe("action commands", () => {
         pendingInteractions: [],
         thread: makeThread({ id: "thr_2" }),
         timeline: EMPTY_TIMELINE,
-        turnChanges: [{ paths: ["notes/d.md"], state: "applied", turnId: "turn_4" }],
+        turnChanges: [
+          { items: ["notes/d.md"], paths: ["notes/d.md"], state: "applied", turnId: "turn_4" },
+        ],
       },
     );
     const server = await boot(state);
@@ -947,8 +959,8 @@ describe("action commands", () => {
       thread: makeThread({ id: "thr_1" }),
       timeline: EMPTY_TIMELINE,
       turnChanges: [
-        { paths: ["notes/a.md"], state: "applied", turnId: "turn_1" },
-        { paths: ["notes/b.md"], state: "applied", turnId: "turn_2" },
+        { items: ["notes/a.md"], paths: ["notes/a.md"], state: "applied", turnId: "turn_1" },
+        { items: ["notes/b.md"], paths: ["notes/b.md"], state: "applied", turnId: "turn_2" },
       ],
       turnUndo: { kept: [{ path: "notes/b.md", reason: "edited-since" }], reverted: [] },
     });

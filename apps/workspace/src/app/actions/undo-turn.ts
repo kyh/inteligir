@@ -2,12 +2,12 @@
 // both run, and the one wording of what came back and what was left.
 
 import type {
-  TurnChanges,
   UndoKeptReason,
   UndoTurnRequest,
   UndoTurnResponse,
 } from "@repo/contract/local/threads/threads-schema";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
+import { turnItemPaths } from "@repo/notes/items/turn-items";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
@@ -21,10 +21,6 @@ export interface UndoTurnApi {
 type UndoTurnOutcome =
   | { kind: "undone"; changes: UndoTurnResponse }
   | { kind: "refused"; message: string };
-
-// a turn's commit can carry annotation stores and other dot-entries; what it changed is its notes.
-export const turnNotePaths = (turn: TurnChanges): string[] =>
-  turn.paths.filter((path) => !isVaultMetadataPath(path));
 
 const UNDO_REFUSED = "The agent's changes could not be undone.";
 
@@ -73,9 +69,10 @@ interface UndoSummary {
 }
 
 export const summarizeUndo = (changes: UndoTurnResponse): UndoSummary => {
-  // an undo reverts the turn's annotation stores too; the user counts items
+  // an undo reverts the turn's annotation stores, covers and both ends of a move too; the user
+  // counts items, by the rule the toast and the reply count them by
   const kept = changes.kept.filter((row) => !isVaultMetadataPath(row.path));
-  const reverted = changes.reverted.filter((path) => !isVaultMetadataPath(path));
+  const reverted = turnItemPaths(changes.reverted.map((path) => ({ change: null, path })));
   const undid =
     reverted.length > 0 ? `Undid the agent's changes to ${plural(reverted.length, "item")}.` : null;
   const [only] = kept;

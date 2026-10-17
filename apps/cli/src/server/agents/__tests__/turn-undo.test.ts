@@ -146,7 +146,9 @@ describe("undoing a turn", () => {
     const [latest] = await harness.vault.git.history("b.md", { limit: 1, skip: 0 });
     expect(latest).toMatchObject({ authorName: "inteligir", subject: "vault: undo agent changes" });
     expect(await harness.client.threads.turnChanges({ threadId })).toEqual({
-      turns: [{ paths: ["a.md", "b.md"], state: "undone", turnId: turn.turnId }],
+      turns: [
+        { items: ["a.md", "b.md"], paths: ["a.md", "b.md"], state: "undone", turnId: turn.turnId },
+      ],
     });
   });
 

@@ -321,7 +321,9 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
   turns changed, oldest first, each turn \`applied\` or \`undone\`. A turn counts
   the files it reported writing (its file changes and its own \`inteligir\`
   writes), never an edit made beside it; a turn that changed nothing is not
-  listed.
+  listed. Under \`--json\` each turn also carries \`items\`, what the person is
+  told it changed: each move once, at the path it made, and no cover or
+  original beside the item that embeds it.
 - \`inteligir action undo <id> [--turn <turnId>]\` — take back what one turn
   changed (by default the newest turn not yet undone), keeping every edit made
   since: each note it changed goes back to how it was before that turn, with

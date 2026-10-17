@@ -879,7 +879,7 @@ describe("a write the provider reports", { timeout: 20_000 }, () => {
     }, PROVIDER_WAIT);
     expect(head.files).toEqual(["agent.md"]);
     expect(await harness.client.threads.turnChanges({ threadId })).toEqual({
-      turns: [{ paths: ["agent.md"], state: "applied", turnId }],
+      turns: [{ items: ["agent.md"], paths: ["agent.md"], state: "applied", turnId }],
     });
   });
 });

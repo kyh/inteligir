@@ -94,7 +94,10 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   server's block no longer matched, and "Share with agent", which copied
   engine words. Each settled reply ends with the items its turn edited and
   Undo changes, and a finish toast ("Agent edited N items", Undo) sits outside
-  the panel; a `changes-committed` frame names its thread, never its turn, since
+  the panel, both counting a turn's items as a person does, the undo's own
+  sentence too: each move once at the path it made, and no cover or original
+  beside the item that embeds it (the turn's `items`, by
+  `packages/notes/src/items/turn-items.ts`), never its raw paths; a `changes-committed` frame names its thread, never its turn, since
   the bus carries no payload, so the toast diffs a thread's turns against what
   it last read (`apps/workspace/src/app/actions/turn-finish-toast.ts`). Both
   undos flush the open item first, so a line inside the autosave debounce is

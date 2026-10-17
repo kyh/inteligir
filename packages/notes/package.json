@@ -28,6 +28,7 @@
     "./items/item-time": "./src/items/item-time.ts",
     "./items/item-url": "./src/items/item-url.ts",
     "./items/library-index": "./src/items/library-index.ts",
+    "./items/turn-items": "./src/items/turn-items.ts",
     "./knowledge/asset-name": "./src/knowledge/asset-name.ts",
     "./knowledge/attachment-removal": "./src/knowledge/attachment-removal.ts",
     "./knowledge/default-limits": "./src/knowledge/default-limits.ts",

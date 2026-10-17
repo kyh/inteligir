@@ -10,7 +10,7 @@ import { plural } from "@repo/ui/lib/plural";
 import { useEffect, useEffectEvent } from "react";
 import { client } from "../api";
 import { useWorkspace } from "../workspace-context";
-import { reportUndo, turnNotePaths, undoTurnChanges } from "./undo-turn";
+import { reportUndo, undoTurnChanges } from "./undo-turn";
 import type { UndoTurnApi } from "./undo-turn";
 
 export interface FinishedTurn {
@@ -116,7 +116,7 @@ export const createTurnFinishWatch = (ports: TurnFinishPorts): TurnFinishWatch =
       return;
     }
     announced.add(turn.turnId);
-    const notePaths = turnNotePaths(turn);
+    const notePaths = turn.items;
     if (notePaths.length > 0) {
       ports.announce({ notePaths, threadId, turnId: turn.turnId });
     }

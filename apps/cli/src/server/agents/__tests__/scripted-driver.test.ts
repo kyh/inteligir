@@ -116,8 +116,8 @@ describe("a thread's turn changes", () => {
     const agentNote = scriptedNotePath(threadId);
     expect(await harness.client.threads.turnChanges({ threadId })).toEqual({
       turns: [
-        { paths: [agentNote], state: "applied", turnId: first },
-        { paths: [agentNote], state: "applied", turnId: second },
+        { items: [agentNote], paths: [agentNote], state: "applied", turnId: first },
+        { items: [agentNote], paths: [agentNote], state: "applied", turnId: second },
       ],
     });
 

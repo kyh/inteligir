@@ -101,7 +101,9 @@ const seedFixture = (state: FixtureState): void => {
     ],
     thread: makeThread({ id: "thr_1", status: "idle" }),
     timeline: EMPTY_TIMELINE,
-    turnChanges: [{ paths: ["notes/hello.md"], state: "applied", turnId: "turn_1" }],
+    turnChanges: [
+      { items: ["notes/hello.md"], paths: ["notes/hello.md"], state: "applied", turnId: "turn_1" },
+    ],
   });
 };
 

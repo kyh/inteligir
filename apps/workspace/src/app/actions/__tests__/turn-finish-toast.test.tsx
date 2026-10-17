@@ -7,6 +7,7 @@ import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
 import { Toaster, toast } from "@repo/ui/components/sonner";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { turnItemPaths } from "@repo/notes/items/turn-items";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { stubRpc } from "../../__tests__/rpc-stub";
 import { ScriptedSocket } from "../../__tests__/scripted-socket";
@@ -31,13 +32,19 @@ const frame = (threadId: string, changes: readonly ThreadChangeKind[]): ThreadCh
 const RAN = frame("thr_1", ["events-appended"]);
 const COMMITTED = frame("thr_1", ["changes-committed"]);
 
+// the items as the server counts them, every path edited in place
+const itemsOf = (paths: readonly string[]): string[] =>
+  turnItemPaths(paths.map((path) => ({ change: "modified", path })));
+
 const applied = (turnId: string, paths: readonly string[]): TurnChanges => ({
+  items: itemsOf(paths),
   paths: [...paths],
   state: "applied",
   turnId,
 });
 
 const undone = (turnId: string, paths: readonly string[]): TurnChanges => ({
+  items: itemsOf(paths),
   paths: [...paths],
   state: "undone",
   turnId,
