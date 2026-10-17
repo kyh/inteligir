@@ -62,6 +62,18 @@ and cited.
   in memory anyway), and a `listDirs` walk per call, since the rail asks on
   every files-changed frame. `apps/cli/src/server/knowledge/knowledge-runtime.ts`.
 
+- **A TARGET CHANGE IS ITS OWN KIND.** The runtime says `targets-changed`
+  only when a settle added, removed or renamed a path or changed a doc's
+  aliases or id (`onTargetsChanged`, read once per pass from
+  `LinkGraphIndex.takeTargetsChanged`), and the page refetches
+  `knowledge.wikiTargets` only then, at most once per 5 s, leaving it out of
+  the knowledge sweep a body edit or a listing change makes, because that
+  answer holds every doc and asset (about 7.5 MB at 50k items) and a fill
+  storm is one body change per item. Rejected: the knowledge-family sweep on
+  every content change, which refetched every target per keystroke and per
+  fill. `apps/cli/src/server/knowledge/knowledge-runtime.ts`,
+  `apps/workspace/src/app/change-batch.ts`.
+
 - **A DOC WHOSE READ HAS NOT ANSWERED IN 2S IS DEFERRED, NOT AWAITED, AND EVERY
   VAULT READ OPENS INSIDE THE VAULT SERVICE'S BUDGET.** On storage that fetches
   or wakes (an on-demand placeholder, a sleeping disk, a network mount) one open

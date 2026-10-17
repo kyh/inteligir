@@ -1,4 +1,4 @@
-// every row answers the fresh folded listing, not a delta: `anchored` derives from the note's
+// every row answers the fresh folded listing, not a delta: `state` derives from the item's
 // current markers, which a caller holding a stale fold cannot recompute
 
 import { oc } from "@orpc/contract";
@@ -17,6 +17,8 @@ import {
 const WRITE_ERRORS = { ...VAULT_REFUSAL_ERRORS, ...ANNOTATIONS_REFUSAL_ERRORS };
 
 export const annotationsContract = {
+  // BAD_REQUEST with `place`: the quote is not in the item's text ("That passage isn't in the
+  // item's text.")
   add: oc.input(annotationsAddRequestSchema).output(annotationsResponseSchema).errors(WRITE_ERRORS),
 
   // BAD_REQUEST: no entry has that id

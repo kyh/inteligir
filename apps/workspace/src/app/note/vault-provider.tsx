@@ -12,7 +12,13 @@ import type {
 import { createLinkResolverFeed } from "@repo/editor/link-resolver-feed";
 import { createNoteFormulas } from "@repo/editor/note-formulas";
 import type { NoteFormulas } from "@repo/editor/note-formulas";
-import { readVaultTree, readWikiTargets, renameVaultEntry, useWikiTargets } from "../vault-hooks";
+import {
+  readMediaToken,
+  readVaultTree,
+  readWikiTargets,
+  renameVaultEntry,
+  useWikiTargets,
+} from "../vault-hooks";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { confirmVanished, mergeConflictLine } from "@repo/editor/note/vanished-prompt";
@@ -219,7 +225,8 @@ export const VaultProvider = ({
       // A plain fetch, not a procedure: the ETag and sandbox CSP do not
       // survive an RPC envelope.
       readVaultAsset: async ({ path }) => {
-        const response = await fetch(vaultAssetUrl(window.location.origin, path));
+        const mediaToken = await readMediaToken(queryClient);
+        const response = await fetch(vaultAssetUrl(window.location.origin, path, mediaToken));
         if (!response.ok) {
           return { error: `asset ${String(response.status)}`, ok: false };
         }
@@ -239,7 +246,7 @@ export const VaultProvider = ({
       },
     };
     return installEditorHost({ actions: hostActions, io });
-  }, [vaultChanges, port, session, store, hostActions]);
+  }, [vaultChanges, port, session, store, hostActions, queryClient]);
 
   useEffect(() => {
     void session.start();

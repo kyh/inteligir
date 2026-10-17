@@ -73,6 +73,12 @@ export const DISPATCH_FAILED = {
   message: "The agent runtime refused the turn",
 } as const;
 
+// a file `imports.plan` cannot read as the source it was told; `reason` says which way it failed
+export const IMPORT_UNREADABLE = {
+  data: z.object({ reason: z.enum(["not-csv", "no-url-column", "empty"]) }),
+  message: "This file isn't a Raindrop export",
+} as const;
+
 // the status map is checked exhaustive against this: a code with no entry would default to 500 silently
 const LOCAL_ERRORS = {
   ALREADY_EXISTS,
@@ -80,6 +86,7 @@ const LOCAL_ERRORS = {
   ARCHIVED,
   CAS_MISMATCH,
   DISPATCH_FAILED,
+  IMPORT_UNREADABLE,
   INVALID_PATH,
   INVALID_RESOLUTION,
   LIMIT_REACHED,
@@ -93,6 +100,7 @@ export const LOCAL_ERROR_STATUS_MAP = {
   ARCHIVED: 409,
   CAS_MISMATCH: 409,
   DISPATCH_FAILED: 503,
+  IMPORT_UNREADABLE: 400,
   INVALID_PATH: 400,
   INVALID_RESOLUTION: 400,
   LIMIT_REACHED: 409,

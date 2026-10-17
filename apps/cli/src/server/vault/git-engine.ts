@@ -817,6 +817,8 @@ export const createGitEngine = (args: GitEngineArgs): GitEngine => {
       externalSync,
       lastError: autoCommit.flushError() ?? verdict.message,
       lastSyncAt,
+      // PIVOT-STUB(S2): the files over the cap no commit stages (§2.6)
+      tooLarge: { count: 0, files: [] },
     };
     if (remote === null) {
       return { ...statusFields, state: "no-remote" };

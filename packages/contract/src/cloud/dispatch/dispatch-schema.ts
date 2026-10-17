@@ -2,7 +2,7 @@ import {
   approvalPendingInteractionPayloadSchema,
   pendingInteractionApprovalDecisionSchema,
 } from "@repo/domain/pending-interactions";
-import { viewContextSchema } from "@repo/domain/view-context";
+import { docViewContextSchema } from "@repo/domain/view-context";
 import { z } from "zod";
 import { exceedsUtf8Bytes } from "../bytes";
 import { threadIdSchema } from "../sync/sync-schema";
@@ -56,8 +56,9 @@ const turnIdSchema = z.string().min(1).max(128);
 const createdAtSchema = z.number().int().nonnegative();
 
 // the resource reaches a Mac's prompt with no further check, so it is held to the vault path
-// grammar here; the revision is the sha-256 of the bytes the phone showed
-const wireViewContextSchema = viewContextSchema.superRefine((value, ctx) => {
+// grammar here; the revision is the sha-256 of the bytes the phone showed. a doc alone: the phone
+// has no library grid to describe, so the library surface never rides this wire.
+const wireViewContextSchema = docViewContextSchema.superRefine((value, ctx) => {
   if (!vaultPathSchema.safeParse(value.resource).success) {
     ctx.addIssue({
       code: "custom",

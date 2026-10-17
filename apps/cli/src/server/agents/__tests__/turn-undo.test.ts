@@ -259,7 +259,7 @@ describe("undoing a turn", () => {
     // the anchor goes with the turn; the id the kept annotation is filed under stays
     expect(onDisk(harness, "a.md")).toBe(withId);
     const { annotations } = await harness.client.annotations.list({ path: "a.md" });
-    expect(annotations).toMatchObject([{ anchored: false, id: "a1", replies: [{ id: "u1" }] }]);
+    expect(annotations).toMatchObject([{ id: "a1", replies: [{ id: "u1" }], state: "missing" }]);
     const [latest] = await harness.vault.git.history("a.md", { limit: 1, skip: 0 });
     if (latest === undefined) {
       throw new Error("a.md has no history");
@@ -309,7 +309,7 @@ describe("undoing a turn", () => {
     });
     expect(onDisk(harness, "a.md")).toBe(THREADED);
     const { annotations } = await harness.client.annotations.list({ path: "a.md" });
-    expect(annotations).toMatchObject([{ anchored: true, id: "c1" }]);
+    expect(annotations).toMatchObject([{ id: "c1", state: "anchored" }]);
   });
 
   it("refuses a turn already undone, a turn still running and one it holds no change of", async () => {

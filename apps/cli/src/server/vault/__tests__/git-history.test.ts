@@ -335,6 +335,8 @@ describe("readDeletedNotes", () => {
     expect(entries).toEqual([
       {
         deletedAt: anIsoTimestamp,
+        heldBy: null,
+        kind: "doc",
         path: "Gone.md",
         sha: created?.sha,
       },
@@ -351,7 +353,9 @@ describe("readDeletedNotes", () => {
     const entries = await readDeleted(run, root);
     const headRef = await run(["rev-parse", "HEAD"]);
     const head = headRef.stdout.trim();
-    expect(entries).toEqual([{ deletedAt: anIsoTimestamp, path: "Fresh.md", sha: head }]);
+    expect(entries).toEqual([
+      { deletedAt: anIsoTimestamp, heldBy: null, kind: "doc", path: "Fresh.md", sha: head },
+    ]);
     expect(Number.isNaN(Date.parse(entries[0]?.deletedAt ?? ""))).toBe(false);
     expect(await readNoteRevision(run, "Fresh.md", head)).toBe("fresh\n");
   });

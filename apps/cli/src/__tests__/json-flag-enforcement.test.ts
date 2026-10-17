@@ -49,10 +49,12 @@ const seedFixture = (state: FixtureState): void => {
   state.threads.length = 0;
   state.annotations.set("notes/hello.md", [
     {
-      anchored: false,
       id: "c1",
+      passage: null,
+      quote: "hello",
       replies: [],
       root: { createdAt: 1, quote: "hello", source: "user", text: "seeded", updatedAt: 1 },
+      state: "missing",
     },
   ]);
   state.threads.push({

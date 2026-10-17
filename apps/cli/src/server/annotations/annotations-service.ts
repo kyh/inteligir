@@ -19,9 +19,11 @@ import {
   serializeAnnotationStore,
 } from "@repo/notes/annotations/store-schema";
 import type { AnnotationSource, AnnotationStore } from "@repo/notes/annotations/store-schema";
+import { isItemStub, itemFactsOf } from "@repo/notes/items/item-frontmatter";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import type {
   AnnotationEntryWire,
+  AnnotationState,
   AnnotationsAddRequest,
   AnnotationsEditRequest,
   AnnotationsRemoveRequest,
@@ -42,7 +44,9 @@ export type AnnotationsErrorCode =
   | "conflict"
   // a store that does not parse, not folded to `{}`: an empty fold lets the next write erase every
   // thread an external writer left.
-  | "invalid";
+  | "invalid"
+  // `add` with `place`: the quote is nowhere in the item's text
+  | "passage-not-found";
 
 export class AnnotationsError extends Error {
   readonly code: AnnotationsErrorCode;
@@ -91,15 +95,31 @@ const toWire = (entry: AnnotationStore[string]): AnnotationEntryWire => {
   return wire;
 };
 
-const toResponse = (path: string, folded: AnnotationFold): AnnotationsResponse => ({
+// an unanchored root on a stub is waiting, since its fill will place it; on any other item it is
+// missing for good
+const stateOf = (anchored: boolean, onStub: boolean): AnnotationState => {
+  if (anchored) {
+    return "anchored";
+  }
+  return onStub ? "waiting" : "missing";
+};
+
+const toResponse = (
+  path: string,
+  folded: AnnotationFold,
+  onStub: boolean,
+): AnnotationsResponse => ({
   orphanMarkers: folded.orphanMarkers,
   path,
   strayIds: folded.strayIds,
   annotations: folded.annotations.slice(0, ANNOTATIONS_MAX).map((annotation) => ({
-    anchored: annotation.anchored,
     id: annotation.id,
+    // PIVOT-STUB(S3): the live text between the markers (§9.3)
+    passage: null,
+    quote: annotation.root.quote ?? null,
     replies: annotation.replies.map((reply) => ({ entry: toWire(reply.entry), id: reply.id })),
     root: toWire(annotation.root),
+    state: stateOf(annotation.anchored, onStub),
   })),
   total: folded.annotations.length,
 });
@@ -138,7 +158,11 @@ const keyOf = (notePath: string, id: string): string => {
 };
 
 const answer = (notePath: string, note: NoteRead, entries: AnnotationStore): AnnotationsResponse =>
-  toResponse(notePath, foldAnnotations(entries, markerRootIds(note.content)));
+  toResponse(
+    notePath,
+    foldAnnotations(entries, markerRootIds(note.content)),
+    isItemStub(itemFactsOf(note.content)),
+  );
 
 // the paths one call wrote, gathered as each write lands.
 type Wrote = Set<string>;
@@ -285,7 +309,7 @@ export const createAnnotationsService = (
         note = await readNote(path);
       } catch (error) {
         if (error instanceof VaultServiceError && error.code === "not_found") {
-          return toResponse(path, foldAnnotations({}, null));
+          return toResponse(path, foldAnnotations({}, null), false);
         }
         throw error;
       }

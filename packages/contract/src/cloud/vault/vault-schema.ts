@@ -5,7 +5,13 @@ import { z } from "zod";
 // must hide what the local engine would never list
 export { isIgnoredEntryName } from "@repo/notes/knowledge/vault-path";
 export { normalVaultPathSchema as vaultPathSchema } from "@repo/notes/knowledge/vault-path-schema";
-export { assetMediaType, VAULT_ASSET_MEDIA_TYPES } from "./vault-asset-media-types";
+export {
+  assetKind,
+  assetMediaType,
+  takesBytes,
+  VAULT_ASSET_MEDIA_TYPES,
+} from "./vault-asset-media-types";
+export type { AssetKind } from "./vault-asset-media-types";
 
 export const VAULT_API_PATHS = {
   asset: "/v1/vault/asset",
@@ -27,8 +33,10 @@ export const VAULT_FILES_MAX_PATHS = 40;
 // file, which always crosses so no note is deferred forever
 export const VAULT_FILES_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 
-// equals the desktop asset route's cap; enforced from the tree's entry size before the blob
-// crosses the repo cell's rpc, whose own message bound would fail opaquely
+// the one spelling of a stored file's cap, which the desktop's routes re-export and an item's
+// original is held to (ITEM_FILE_MAX_BYTES, held equal by a contract test); enforced from the
+// tree's entry size before the blob crosses the repo cell's rpc, whose own message bound would
+// fail opaquely
 export const VAULT_ASSET_MAX_BYTES = 10 * 1024 * 1024;
 
 export const gitOidSchema = z.string().regex(/^[0-9a-f]{40}$/u, "must be a full lowercase git oid");

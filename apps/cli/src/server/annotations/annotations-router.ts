@@ -10,6 +10,7 @@ import type { AnnotationsErrorCode, AnnotationsWrite } from "./annotations-servi
 const ANNOTATIONS_REFUSALS = {
   conflict: "CONFLICT",
   invalid: "CONFLICT",
+  "passage-not-found": "BAD_REQUEST",
   refused: "BAD_REQUEST",
 } as const satisfies Record<AnnotationsErrorCode, keyof typeof ANNOTATIONS_REFUSAL_ERRORS>;
 

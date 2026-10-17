@@ -80,7 +80,7 @@ export const viewContextBrowser: Scenario = {
     expect(sent !== undefined, "the user's message is not on the timeline");
     expectEq(sent.text, MESSAGE, "the stored message text");
     const context = sent.viewContext;
-    expect(context !== null, "the send carried no view context");
+    expect(context?.surface === "doc", "the send carried no doc view context");
     expectEq(context.resource, DOC_PATH, "the doc the user was looking at");
     // the flush before the send is what makes the revision name the bytes on disk.
     expectEq(

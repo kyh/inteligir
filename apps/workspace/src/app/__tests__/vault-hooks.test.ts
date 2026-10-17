@@ -96,6 +96,7 @@ const SYNC_FIELDS = {
   externalSync: null,
   lastError: null,
   lastSyncAt: null,
+  tooLarge: { count: 0, files: [] },
 };
 const REMOTE = {
   remote: "git@example.com:vault.git",
@@ -220,6 +221,7 @@ describe("a folder another service syncs", () => {
       externalSync,
       lastError: GIT_STDERR,
       lastSyncAt: null,
+      tooLarge: { count: 0, files: [] },
       state: "no-remote",
     };
     expect(syncStateLabel(status)).toBe(label);

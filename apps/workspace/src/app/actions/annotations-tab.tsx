@@ -147,7 +147,7 @@ const AnnotationCard = ({
           <AnnotationRow id={row.id} entry={row.entry} asOfMs={asOfMs} />
         </div>
       ))}
-      {annotation.anchored ? null : (
+      {annotation.state === "anchored" ? null : (
         <p className="px-2 pb-1 text-caption text-amber-600">No marker in the note body.</p>
       )}
       <div className="flex items-center gap-1 border-t border-line/60 p-1.5">

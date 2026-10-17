@@ -76,6 +76,7 @@ import {
 import type { VaultCommitRequest } from "../vault/vault-commit-schema";
 import {
   assetMediaType,
+  takesBytes,
   VAULT_API_PATHS,
   VAULT_ASSET_MEDIA_TYPES,
   VAULT_FILES_MAX_PATHS,
@@ -1003,18 +1004,51 @@ describe("vault read rows", () => {
 
   it("pins the asset allowlist WHOLE — growth is additive, removal waits on the build floor", () => {
     // hand-listed on purpose: removing an entry 400s every phone above the floor whose notes embed it
-    expect(Object.fromEntries(VAULT_ASSET_MEDIA_TYPES)).toEqual({
-      ".apng": "image/apng",
-      ".avif": "image/avif",
-      ".bmp": "image/bmp",
-      ".gif": "image/gif",
-      ".ico": "image/x-icon",
-      ".jpeg": "image/jpeg",
-      ".jpg": "image/jpeg",
-      ".png": "image/png",
-      ".svg": "image/svg+xml",
-      ".webp": "image/webp",
+    expect(
+      Object.fromEntries(
+        [...VAULT_ASSET_MEDIA_TYPES].map(([extension, row]) => [
+          extension,
+          `${row.kind} ${row.mediaType}`,
+        ]),
+      ),
+    ).toEqual({
+      ".aac": "audio audio/aac",
+      ".apng": "image image/apng",
+      ".avif": "image image/avif",
+      ".bmp": "image image/bmp",
+      ".flac": "audio audio/flac",
+      ".gif": "image image/gif",
+      ".ico": "image image/x-icon",
+      ".jpeg": "image image/jpeg",
+      ".jpg": "image image/jpeg",
+      ".m4a": "audio audio/mp4",
+      ".m4v": "video video/x-m4v",
+      ".mov": "video video/quicktime",
+      ".mp3": "audio audio/mpeg",
+      ".mp4": "video video/mp4",
+      ".pdf": "pdf application/pdf",
+      ".png": "image image/png",
+      ".svg": "image image/svg+xml",
+      ".wav": "audio audio/wav",
+      ".webm": "video video/webm",
+      ".webp": "image image/webp",
     });
+  });
+
+  it("stores bytes at any path but a doc's and the app's own, which is wider than it serves", () => {
+    for (const path of ["assets/archive.zip", "assets/IMG.HEIC", "media/a.png", "x.pdf"]) {
+      expect(takesBytes(path), path).toBe(true);
+    }
+    for (const path of [
+      "notes/a.md",
+      "notes/a.TXT",
+      ".inteligir/annotations/abc.json",
+      ".obsidian/workspace.json",
+      "notes/.DS_Store",
+    ]) {
+      expect(takesBytes(path), path).toBe(false);
+    }
+    expect(assetMediaType("assets/archive.zip")).toBeNull();
   });
 });
 

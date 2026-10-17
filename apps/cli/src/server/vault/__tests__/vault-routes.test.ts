@@ -360,6 +360,7 @@ describe("the vault routes", () => {
       externalSync: { kind: "icloud-drive" },
       lastError: null,
       lastSyncAt: null,
+      tooLarge: { count: 0, files: [] },
       state: "no-remote",
     };
     expect(await client.vault.status()).toEqual(expected);
@@ -407,12 +408,12 @@ describe("the vault routes", () => {
     const { request, vaultDir } = await bootTestApp();
     await writeFile(path.join(vaultDir, "my picture.png"), "png-bytes", "utf-8");
 
-    const encoded = vaultAssetUrl("", "my picture.png");
-    expect(encoded).toBe(`${VAULT_ASSET_PATH}?path=my%20picture.png`);
+    const encoded = vaultAssetUrl("", "my picture.png", "token");
+    expect(encoded).toBe(`${VAULT_ASSET_PATH}?path=my%20picture.png&m=token`);
     const spaced = await request(encoded);
     expect(spaced.status).toBe(200);
 
-    const traversal = await request(vaultAssetUrl("", "../escape.png"));
+    const traversal = await request(vaultAssetUrl("", "../escape.png", "token"));
     expect(traversal.status).toBe(400);
   });
 

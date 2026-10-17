@@ -30,11 +30,13 @@ const CHANGE_MARKS = {
 
 const firstLine = (text: string): string => text.split("\n", 1)[0] ?? "";
 
-const ViewContextAttribution = ({ context }: { context: ViewContext }) => (
-  <div className="max-w-[85%] truncate px-3 text-body text-muted-foreground">
-    {context.resource}
-  </div>
-);
+const ViewContextAttribution = ({ context }: { context: ViewContext }) =>
+  // PIVOT-STUB(W): the library's scope and selection count, in the request's attribution (§6.7)
+  context.surface === "library" ? null : (
+    <div className="max-w-[85%] truncate px-3 text-body text-muted-foreground">
+      {context.resource}
+    </div>
+  );
 
 const ContextPathChips = ({ paths }: { paths: readonly string[] }) => (
   <div className="flex max-w-[85%] flex-wrap justify-end gap-1">

@@ -21,9 +21,8 @@ const sourceFor = (deps: CliDeps, override: AnnotationSource | undefined): Annot
   override ?? (isAgentShell(deps.env) ? "agent" : "user");
 
 const describeAnnotation = (annotation: AnnotationWire): string[] => {
-  const status = annotation.anchored ? "anchored" : "unanchored";
-  const quote = annotation.root.quote === undefined ? "" : ` "${annotation.root.quote}"`;
-  const head = `${annotation.id} [${status}]${quote} ${annotation.root.source ?? "unknown"}: ${annotation.root.text}`;
+  const quote = annotation.quote === null ? "" : ` "${annotation.quote}"`;
+  const head = `${annotation.id} [${annotation.state}]${quote} ${annotation.root.source ?? "unknown"}: ${annotation.root.text}`;
   const replies = annotation.replies.map(
     (reply) => `  ↳ ${reply.id} ${reply.entry.source ?? "unknown"}: ${reply.entry.text}`,
   );

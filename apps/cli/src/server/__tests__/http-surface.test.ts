@@ -1,13 +1,17 @@
 import {
+  BROWSER_HANDOFF_PARAM,
   HEALTH_PATH,
   HTML_FRAME_PATH,
+  MEDIA_TOKEN_PARAM,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
   WS_PATH,
 } from "@repo/contract/local/routes";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import nodePath from "node:path";
 import { describe, expect, it } from "vitest";
+import { BROWSER_SESSION_COOKIE } from "../browser-session";
 import { bootTestApp } from "./boot-app";
 import { makeTempDir } from "./temp-dir";
 
@@ -24,7 +28,7 @@ const DECLARED_ROUTES = new Map<string, string>([
   ],
   [
     key("GET", VAULT_ASSET_PATH),
-    "an image's raw BYTES, with an ETag and a 304 on if-none-match — none of which survives an RPC envelope",
+    "a file's raw BYTES, with an ETag and a 304 on if-none-match — none of which survives an RPC envelope",
   ],
   [key("GET", WS_PATH), "the invalidation bus: subscribe and ping, no payload, by decision"],
 ]);
@@ -132,5 +136,65 @@ describe.each([
     // a walk that found nothing would satisfy one direction vacuously.
     expect(mounted.size).toBeGreaterThan(0);
     expect(mounted.has(key("GET", HEALTH_PATH))).toBe(true);
+  });
+});
+
+// the byte routes, the only ones that read the boot's media token: AVFoundation's loader inside
+// WKWebView may send a video's range requests with neither Sec-Fetch-Site nor Origin.
+const MEDIA_ROUTES = [`${VAULT_ASSET_PATH}?path=clip.png`];
+
+// every other route a browser's cookie reaches, which must keep refusing a header-less request
+const COOKIE_ROUTES = [
+  {
+    init: { body: JSON.stringify({ json: {} }), method: "POST" },
+    path: `${RPC_PREFIX}/system/status`,
+  },
+];
+
+const signedIn = async () => {
+  const booted = await bootTestApp({ clientDir: stagedBundle() });
+  await writeFile(nodePath.join(booted.vaultDir, "clip.png"), "png-bytes", "utf-8");
+  const { nonce } = await booted.client.system.browserHandoff();
+  const traded = await booted.bareRequest(`/?${BROWSER_HANDOFF_PARAM}=${nonce}`);
+  const [cookie = ""] = (traded.headers.get("set-cookie") ?? "").split(";");
+  const { mediaToken } = await booted.client.system.status();
+  const statusOf = async (url: string, init?: RequestInit): Promise<number> => {
+    const response = await booted.bareRequest(url, init);
+    return response.status;
+  };
+  return { cookie, mediaToken, statusOf };
+};
+
+describe("the media token", () => {
+  it("lets a byte route take a header-less cookie request that names it, and only that", async () => {
+    const { cookie, mediaToken, statusOf } = await signedIn();
+    for (const route of MEDIA_ROUTES) {
+      const named = `${route}&${MEDIA_TOKEN_PARAM}=${encodeURIComponent(mediaToken)}`;
+      expect(await statusOf(named, { headers: { cookie } }), route).toBe(200);
+      expect(await statusOf(route, { headers: { cookie } }), route).toBe(403);
+      const wrong = `${route}&${MEDIA_TOKEN_PARAM}=not-the-token`;
+      expect(await statusOf(wrong, { headers: { cookie } }), route).toBe(403);
+      // the token is no credential: without the cookie it is refused like any request
+      expect(await statusOf(named), route).toBe(401);
+      const sameOrigin = { cookie, "sec-fetch-site": "same-origin" };
+      expect(await statusOf(route, { headers: sameOrigin }), route).toBe(200);
+    }
+  });
+
+  it("is read by no other route: a header-less cookie request stays refused there", async () => {
+    const { cookie, mediaToken, statusOf } = await signedIn();
+    for (const { path, init } of COOKIE_ROUTES) {
+      const named = `${path}?${MEDIA_TOKEN_PARAM}=${encodeURIComponent(mediaToken)}`;
+      const headers = { "content-type": "application/json", cookie };
+      expect(await statusOf(named, { ...init, headers }), path).toBe(403);
+    }
+  });
+
+  it("is minted per boot, apart from the cookie's secret", async () => {
+    const first = await signedIn();
+    const second = await signedIn();
+    expect(first.mediaToken).not.toBe(second.mediaToken);
+    expect(first.cookie).not.toContain(first.mediaToken);
+    expect(first.cookie.startsWith(`${BROWSER_SESSION_COOKIE}=`)).toBe(true);
   });
 });

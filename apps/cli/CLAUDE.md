@@ -123,8 +123,14 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   call with nothing saying why (`apps/workspace/src/app/signed-out-state.ts`).
   The cookie, being ambient, must also prove same-origin, because loopback
   "site" ignores the port, and EVERY REQUEST MUST NAME 127.0.0.1 OR localhost AS
-  ITS HOST, so a rebinding page gets nothing. Residual: a cookie is
-  port-agnostic, which is why it is not the bearer and dies with the boot.
+  ITS HOST, so a rebinding page gets nothing. The byte routes alone (an
+  item's file, its thumbnail, its page copy) also take a cookie request that
+  carries neither `Sec-Fetch-Site` nor `Origin` when its `m` parameter is the
+  boot's media token, which `system.status` answers, because AVFoundation's
+  loader inside WKWebView may send neither on a video's range requests; the
+  token alone is no credential, and no other route reads it
+  (`requireMediaRequest` in `apps/cli/src/server/app.ts`). Residual: a cookie
+  is port-agnostic, which is why it is not the bearer and dies with the boot.
   `apps/cli/src/server/server-file.ts`, `browser-session.ts`,
   `browser-request.ts` and the guard in `app.ts`.
 
@@ -134,7 +140,10 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   listener step closes websockets by name (`wss.clients`), because an upgraded
   socket is detached from the HTTP server's tracking and one open tab can stall
   the teardown. The step list is re-read before every step, so a boot still
-  composing when the signal lands adds what it brings up.
+  composing when the signal lands adds what it brings up. Imports and items
+  stop before knowledge and the vault flush, since an import hands fills to
+  items and a fill writes the vault and settles knowledge, each a row of
+  `TEARDOWN_BUDGETS_MS`, whose order is the teardown's.
   `apps/cli/src/server/shutdown.ts` and `listen.ts`.
 
 - **THE CSP IS STATIC, and a plain Vite SPA is what buys it.** The page injects

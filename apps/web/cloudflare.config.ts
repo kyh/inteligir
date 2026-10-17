@@ -30,7 +30,10 @@ const worker = defineWorker({
 // until its release raises the version; raise it to retire a wire shape every older build reads.
 // OWED BY THE NEXT RELEASE, which sets it to its own version (docs/releasing.md § 1): the `capture`
 // dispatch kind is retired, and every checkout that reports 0.6.0 names it in each claim, which
-// this Worker refuses as a bad request rather than as outdated
+// this Worker refuses as a bad request rather than as outdated; the `client/turn/requested`
+// event's view context gains the library surface, which an older build skips as an unparsed row;
+// and the vault's media table gains PDF, video and audio rows, whose commits an older build
+// cannot serve
 const MIN_CLIENT_BUILD = "0.6.0";
 
 const durableObjects = {

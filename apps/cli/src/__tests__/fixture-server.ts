@@ -6,7 +6,13 @@ import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schem
 import type { AnnotationWire } from "@repo/contract/local/annotations/annotations-schema";
 import type { ConnectorsResponse } from "@repo/contract/local/connectors/connectors-schema";
 import type { ConnectedFoldersResponse } from "@repo/contract/local/folders/folders-schema";
-import type { ItemRowWire } from "@repo/contract/local/items/items-schema";
+import type { ImportJob, ImportsPlanResponse } from "@repo/contract/local/imports/imports-schema";
+import { fileTooLargeMessage } from "@repo/contract/local/items/items-schema";
+import type {
+  ItemFill,
+  ItemRowWire,
+  ItemSaveResponse,
+} from "@repo/contract/local/items/items-schema";
 import type {
   BacklinkEntryWire,
   KnowledgeItemPathsRequest,
@@ -14,13 +20,25 @@ import type {
   SearchResultWire,
   TagCountWire,
 } from "@repo/contract/local/knowledge/knowledge-schema";
-import { UNSORTED_FOLDER } from "@repo/notes/items/item-kind";
+import {
+  fileKindOf,
+  ITEM_FILE_MAX_BYTES,
+  UNSORTED_FOLDER,
+  URL_ITEM_KINDS,
+} from "@repo/notes/items/item-kind";
 import type { ItemKind } from "@repo/notes/items/item-kind";
+import { itemNameFromTitle, itemStem } from "@repo/notes/items/item-name";
 import { parseItemTime } from "@repo/notes/items/item-time";
-import { siteMatches, urlKey } from "@repo/notes/items/item-url";
+import { cleanUrl, kindForUrl, siteMatches, urlHost, urlKey } from "@repo/notes/items/item-url";
 import { tagInFamily } from "@repo/notes/knowledge/rename-tags";
-import { isVaultMetadataPath, docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
-import { dirnamePath } from "@repo/notes/knowledge/vault-path";
+import {
+  isVaultMetadataPath,
+  docStem,
+  freePath,
+  isDocPath,
+  takenIgnoringCase,
+} from "@repo/notes/knowledge/doc-file";
+import { basenamePath, dirnamePath, extnamePath } from "@repo/notes/knowledge/vault-path";
 import { collectVaultMatches } from "@repo/notes/knowledge/text-matches";
 import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
 import { searchBodyOf } from "@repo/notes/knowledge/search-columns";
@@ -50,6 +68,11 @@ import { guardRefusalError, judgeGuard } from "../server/vault/write-guard";
 export const FIXTURE_SERVER_TOKEN = "fixture-server-token";
 
 export const FIXTURE_HANDOFF_NONCE = "fixture-handoff";
+
+const FIXTURE_MEDIA_TOKEN = "fixture-media-token";
+
+// every item a save adds says it was saved then
+const FIXTURE_SAVED = "2026-10-17T09:12:30Z";
 
 const FIXTURE_CLOUD_URL = "https://cloud.fixture";
 
@@ -87,8 +110,13 @@ export interface FixtureState {
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
   annotations: Map<string, AnnotationWire[]>;
-  // the library listing's rows, filtered and paged by the knowledge item handlers as the index's
+  // the library listing's rows, filtered and paged by the knowledge item handlers as the index's;
+  // a save appends one, pending
   items: ItemRowWire[];
+  // what imports.plan answers; null, the file reads as no export at all
+  importPlan: ImportsPlanResponse | null;
+  // the latest import job, which imports.status answers
+  importJob: ImportJob | null;
   guideMarkdown: string;
   agent: AgentStatus;
   vaultStatus: VaultStatusResponse;
@@ -148,6 +176,8 @@ export const makeFixtureState = (): FixtureState => ({
   failWith: null,
   folders: { folders: [] },
   guideMarkdown: "# Fixture guide\n\nBe kind to the vault.\n",
+  importJob: null,
+  importPlan: null,
   items: [],
   nextCreatedThreadId: "thr_created_1",
   refuseSend: null,
@@ -166,6 +196,7 @@ export const makeFixtureState = (): FixtureState => ({
     externalSync: null,
     lastError: null,
     lastSyncAt: null,
+    tooLarge: { count: 0, files: [] },
     state: "no-remote",
   },
 });
@@ -253,11 +284,17 @@ const cloudRouter = {
 };
 
 const annotationsRouter = {
-  add: base.annotations.add.handler(({ context, input }) => {
+  // with `place`, the quote must be in the file's bytes, and the highlight is anchored on it
+  add: base.annotations.add.handler(({ context, input, errors }) => {
+    const placed = input.place !== undefined;
+    if (placed && !(context.vault.get(input.path) ?? "").includes(input.quote)) {
+      throw errors.BAD_REQUEST({ message: "That passage isn't in the item's text." });
+    }
     const annotations = context.annotations.get(input.path) ?? [];
     annotations.push({
-      anchored: false,
       id: input.id,
+      passage: placed ? input.quote : null,
+      quote: input.quote,
       replies: [],
       root: {
         createdAt: 1,
@@ -266,6 +303,7 @@ const annotationsRouter = {
         text: input.text,
         updatedAt: 1,
       },
+      state: placed ? "anchored" : "missing",
     });
     context.annotations.set(input.path, annotations);
     return annotationsBody(context, input.path);
@@ -539,6 +577,7 @@ const systemRouter = {
     const status: SystemStatusResponse = {
       agent: context.agent,
       dataDir: context.dataDir,
+      mediaToken: FIXTURE_MEDIA_TOKEN,
       schemaVersion: 3,
       uptimeMs: 65_000,
       vaultDir: "/fixture/vault",
@@ -667,6 +706,193 @@ const threadsRouter = {
   }),
 };
 
+const fillOf = (row: ItemRowWire): ItemFill => {
+  if (row.pending) {
+    return { state: "pending" };
+  }
+  return row.fetchError === null
+    ? { state: "filled" }
+    : { message: row.fetchError, state: "failed" };
+};
+
+const itemRow = (path: string, fields: Partial<ItemRowWire>): ItemRowWire => ({
+  author: null,
+  bare: false,
+  copy: null,
+  cover: null,
+  description: null,
+  fetchError: null,
+  fetched: null,
+  file: null,
+  fileBytes: null,
+  folder: dirnamePath(path),
+  host: null,
+  kind: "note",
+  modifiedMs: null,
+  path,
+  pending: false,
+  pinned: false,
+  preview: "",
+  published: null,
+  saved: FIXTURE_SAVED,
+  site: null,
+  tags: [],
+  title: docStem(path),
+  url: null,
+  ...fields,
+});
+
+const freeItemPath = (state: FixtureState, folder: string, stem: string): string =>
+  freePath(
+    folder,
+    stem,
+    ".md",
+    takenIgnoringCase([...state.vault.keys(), ...state.items.map((row) => row.path)]),
+  );
+
+// a url the library holds answers that item; any other is a pending stub in the folder named
+interface UrlSave {
+  folder: string | undefined;
+  tags: readonly string[] | undefined;
+  title: string | null;
+  url: string;
+}
+
+const saveUrl = (state: FixtureState, save: UrlSave): ItemSaveResponse => {
+  const key = urlKey(save.url);
+  const existing = state.items.find((row) => row.url !== null && urlKey(row.url) === key);
+  if (existing !== undefined) {
+    return { fill: fillOf(existing), outcome: "exists", path: existing.path };
+  }
+  const path = freeItemPath(state, save.folder ?? UNSORTED_FOLDER, itemStem(save.title, save.url));
+  state.items.push(
+    itemRow(path, {
+      host: urlHost(save.url),
+      kind: kindForUrl(save.url),
+      pending: true,
+      tags: [...(save.tags ?? [])],
+      url: cleanUrl(save.url),
+    }),
+  );
+  state.vaultLog.push(`save ${path}`);
+  return { fill: { state: "pending" }, outcome: "created", path };
+};
+
+const sameTag = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+
+const itemsRouter = {
+  refresh: base.items.refresh.handler(({ context, input, errors }) => {
+    const row = context.items.find((each) => each.path === input.path);
+    if (row === undefined) {
+      throw errors.NOT_FOUND({ message: `${input.path} is not an item` });
+    }
+    if (row.url === null || !URL_ITEM_KINDS.some((kind) => kind === row.kind)) {
+      throw errors.BAD_REQUEST({ message: "Only a saved link can be refreshed." });
+    }
+    return { fill: fillOf(row), path: row.path };
+  }),
+  saveFile: base.items.saveFile.handler(({ context, input, errors }) => {
+    if (input.file.size > ITEM_FILE_MAX_BYTES) {
+      throw errors.PAYLOAD_TOO_LARGE({ message: fileTooLargeMessage(input.name, input.file.size) });
+    }
+    if (isDocPath(input.name) || isVaultMetadataPath(input.name)) {
+      throw errors.INVALID_PATH({ message: "a note is saved as text, not as a file" });
+    }
+    const name = basenamePath(input.name);
+    const stem = itemNameFromTitle(name.slice(0, name.length - extnamePath(name).length));
+    const path = freeItemPath(context, input.folder ?? UNSORTED_FOLDER, stem ?? "File");
+    context.items.push(
+      itemRow(path, {
+        file: `assets/${name}`,
+        fileBytes: input.file.size,
+        kind: fileKindOf(name) ?? "file",
+        tags: [...(input.tags ?? [])],
+        url: input.url === undefined ? null : cleanUrl(input.url),
+      }),
+    );
+    context.vaultLog.push(`save ${path}`);
+    return { fill: { state: "filled" }, outcome: "created", path };
+  }),
+  saveLink: base.items.saveLink.handler(({ context, input }) =>
+    saveUrl(context, {
+      folder: input.folder,
+      tags: input.tags,
+      title: input.title ?? null,
+      url: input.url,
+    }),
+  ),
+  savePage: base.items.savePage.handler(({ context, input }) =>
+    saveUrl(context, {
+      folder: input.folder,
+      tags: input.tags,
+      title: input.page.title === "" ? null : input.page.title,
+      url: input.page.url,
+    }),
+  ),
+  tag: base.items.tag.handler(({ context, input }) => ({
+    results: input.paths.map((path) => {
+      const row = context.items.find((each) => each.path === path);
+      if (row === undefined) {
+        return { inline: [], outcome: "missing" as const, path };
+      }
+      const kept = row.tags.filter((tag) => !input.remove.some((gone) => sameTag(gone, tag)));
+      const added = input.add.filter((tag) => !kept.some((held) => sameTag(held, tag)));
+      const next = [...kept, ...added];
+      const changed = next.length !== row.tags.length || added.length > 0;
+      row.tags = next;
+      return { inline: [], outcome: changed ? ("changed" as const) : ("unchanged" as const), path };
+    }),
+  })),
+};
+
+// a start answers its job running, and the status after it finished: one poll sees it done
+const importsRouter = {
+  cancel: base.imports.cancel.handler(({ context, input, errors }) => {
+    const job = context.importJob;
+    if (job?.id !== input.id) {
+      throw errors.NOT_FOUND({ message: "No import is running" });
+    }
+    if (job.state === "running") {
+      context.importJob = { ...job, finishedAt: 1_700_000_001_000, state: "cancelled" };
+    }
+    return { job: context.importJob ?? job };
+  }),
+  plan: base.imports.plan.handler(({ context, errors }) => {
+    if (context.importPlan === null) {
+      throw errors.IMPORT_UNREADABLE({
+        data: { reason: "not-csv" },
+        message: "This file isn't a Raindrop export",
+      });
+    }
+    return context.importPlan;
+  }),
+  start: base.imports.start.handler(({ context, input, errors }) => {
+    if (context.importJob?.state === "running") {
+      throw errors.CONFLICT({ message: "An import is already running." });
+    }
+    const plan = context.importPlan;
+    if (plan?.planId !== input.planId) {
+      throw errors.NOT_FOUND({ message: "That import plan is gone; choose the file again." });
+    }
+    context.importPlan = null;
+    const job: ImportJob = {
+      added: plan.items,
+      alreadySaved: plan.alreadySaved,
+      finishedAt: null,
+      highlights: plan.highlights,
+      id: `import_${plan.planId}`,
+      message: null,
+      source: "raindrop",
+      startedAt: 1_700_000_000_000,
+      state: "running",
+      total: plan.items,
+    };
+    context.importJob = { ...job, finishedAt: 1_700_000_001_000, state: "done" };
+    return { job };
+  }),
+  status: base.imports.status.handler(({ context }) => ({ job: context.importJob })),
+};
+
 const parentFolders = (path: string): string[] => {
   const segments = path.split("/");
   return segments.slice(1).map((_, index) => segments.slice(0, index + 1).join("/"));
@@ -676,6 +902,15 @@ const vaultRouter = {
   assetWrite: base.vault.assetWrite.handler(({ input }) => ({
     path: `${input.dir}/${input.baseName}`,
   })),
+  // a file is held as its text: the fixture keeps one map for every path
+  createFile: base.vault.createFile.handler(async ({ context, input, errors }) => {
+    if (context.vault.has(input.path)) {
+      throw errors.ALREADY_EXISTS({ message: `${input.path} already exists` });
+    }
+    context.vault.set(input.path, await input.file.text());
+    context.vaultLog.push(`createFile ${input.path}`);
+    return { path: input.path };
+  }),
   commitNow: base.vault.commitNow.handler(({ context, input }) => {
     context.vaultLog.push(input === undefined ? "commitNow" : `commitNow ${input.paths.join(" ")}`);
     return { files: 0 };
@@ -688,7 +923,15 @@ const vaultRouter = {
         const [newest] = rows;
         return newest === undefined
           ? []
-          : [{ deletedAt: newest.revision.authoredAt, path, sha: newest.revision.sha }];
+          : [
+              {
+                deletedAt: newest.revision.authoredAt,
+                heldBy: null,
+                kind: isDocPath(path) ? ("doc" as const) : ("file" as const),
+                path,
+                sha: newest.revision.sha,
+              },
+            ];
       }),
   })),
   history: base.vault.history.handler(({ context, input }) => ({
@@ -732,6 +975,15 @@ const vaultRouter = {
     }
     return { content: row.content };
   }),
+  revisionBytes: base.vault.revisionBytes.handler(({ context, input, errors }) => {
+    const row = (context.revisions.get(input.path) ?? []).find(
+      ({ revision }) => revision.sha === input.sha,
+    );
+    if (row === undefined) {
+      throw errors.NOT_FOUND({ message: `${input.path} does not exist at ${input.sha}` });
+    }
+    return new Blob([row.content], { type: "application/octet-stream" });
+  }),
   setPrefs: base.vault.setPrefs.handler(({ context, input }) => {
     context.vaultPrefs = { attachments: input.attachments };
     return context.vaultPrefs;
@@ -739,8 +991,9 @@ const vaultRouter = {
   // the status a choice leaves, signed out as a scratch data dir is: the account is no remote
   // until a sign-in, and a url is the vault's own origin, not yet synced.
   setRemote: base.vault.setRemote.handler(({ context, input }) => {
-    const { conflicts, device, externalSync, lastError, lastSyncAt } = context.vaultStatus;
-    const fields = { conflicts, device, externalSync, lastError, lastSyncAt };
+    const { conflicts, device, externalSync, lastError, lastSyncAt, tooLarge } =
+      context.vaultStatus;
+    const fields = { conflicts, device, externalSync, lastError, lastSyncAt, tooLarge };
     return input.kind === "account"
       ? { ...fields, state: "no-remote" }
       : { ...fields, remote: input.url, remoteSource: "explicit", state: "dirty" };
@@ -788,6 +1041,8 @@ const fixtureRouter = base
     cloud: cloudRouter,
     connectors: connectorsRouter,
     folders: foldersRouter,
+    imports: importsRouter,
+    items: itemsRouter,
     knowledge: knowledgeRouter,
     system: systemRouter,
     threads: threadsRouter,

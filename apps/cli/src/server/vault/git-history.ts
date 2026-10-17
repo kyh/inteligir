@@ -276,10 +276,17 @@ export const readDeletedNotes = async (
   const records = await deletionLog(head);
 
   const readAt = new Date().toISOString();
+  // PIVOT-STUB(S2): docs only, none held; every deleted file and what held it (§2.6)
+  const doc = { heldBy: null, kind: "doc" } as const;
   const candidates: VaultDeletedEntry[] = [
-    ...unflushed.map((path) => ({ deletedAt: readAt, path, sha: head })),
+    ...unflushed.map((path) => ({ ...doc, deletedAt: readAt, path, sha: head })),
     ...records.flatMap((record) =>
-      record.paths.map((path) => ({ deletedAt: record.deletedAt, path, sha: record.parent })),
+      record.paths.map((path) => ({
+        ...doc,
+        deletedAt: record.deletedAt,
+        path,
+        sha: record.parent,
+      })),
     ),
   ];
   const seen = new Set<string>();

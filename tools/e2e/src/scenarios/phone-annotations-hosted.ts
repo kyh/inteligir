@@ -75,7 +75,7 @@ export const phoneAnnotationsHosted: Scenario = {
     expect(
       first.annotations.length === 1 &&
         first.annotations[0]?.id === "phone1" &&
-        first.annotations[0].anchored &&
+        first.annotations[0].state === "anchored" &&
         first.annotations[0].root.quote === "line one" &&
         first.annotations[0].root.text === "From the phone" &&
         first.annotations[0].root.source === "user",
@@ -119,7 +119,7 @@ export const phoneAnnotationsHosted: Scenario = {
     const byRoot = new Map(all.annotations.map((annotation) => [annotation.id, annotation]));
     expectEq([...byRoot.keys()].toSorted(), ["mac1", "phone1", "phone2"], "A's annotations");
     expect(
-      [...byRoot.values()].every((annotation) => annotation.anchored),
+      [...byRoot.values()].every((annotation) => annotation.state === "anchored"),
       `every annotation is anchored on A: ${JSON.stringify(all.annotations)}`,
     );
     expectEq(

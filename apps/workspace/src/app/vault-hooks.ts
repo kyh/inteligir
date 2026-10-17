@@ -49,6 +49,13 @@ export const useVaultStatus = () => useQuery(orpc.vault.status.queryOptions());
 export const useSystemStatus = () =>
   useQuery({ ...orpc.system.status.queryOptions(), staleTime: 0 });
 
+// the boot's media token every byte-route url carries; read from the cached status, which a
+// reconnect (a new boot, a new token) sweeps
+export const readMediaToken = async (queryClient: QueryClient): Promise<string> => {
+  const { mediaToken } = await queryClient.ensureQueryData(orpc.system.status.queryOptions());
+  return mediaToken;
+};
+
 // Every sentence here is the user's, never the engine's: its own error text names git's
 // machinery, so the rail and a toast never show it, and Settings › Advanced shows it raw.
 const SYNC_PAUSED = "Sync paused";

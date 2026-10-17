@@ -6,6 +6,8 @@ import { annotationsRouter } from "./annotations/annotations-router";
 import { cloudRouter } from "./cloud/cloud-router";
 import { connectorsRouter } from "./connectors/connectors-router";
 import { foldersRouter } from "./folders/folders-router";
+import { importsRouter } from "./imports/imports-router";
+import { itemsRouter } from "./items/items-router";
 import { knowledgeRouter } from "./knowledge/knowledge-router";
 import { base } from "./orpc";
 import { systemRouter } from "./system/system-router";
@@ -18,6 +20,8 @@ export const localRouter = base.router({
   cloud: cloudRouter,
   connectors: connectorsRouter,
   folders: foldersRouter,
+  imports: importsRouter,
+  items: itemsRouter,
   knowledge: knowledgeRouter,
   system: systemRouter,
   threads: threadsRouter,

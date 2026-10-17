@@ -57,9 +57,11 @@ describe("an action composed over a note with no id", () => {
 
     const { content } = await harness.client.vault.read({ path: NOTE });
     expect(frontmatterId(content)).not.toBeNull();
-    expect(harness.driver.startedTurns[0]?.viewContext?.revision).toBe(
-      await contentHashHex(content),
-    );
+    expect(harness.driver.startedTurns[0]?.viewContext).toEqual({
+      resource: NOTE,
+      revision: await contentHashHex(content),
+      surface: "doc",
+    });
 
     // the id the editor wrote is the one the thread holds: a move the rename route never saw
     // still finds the note

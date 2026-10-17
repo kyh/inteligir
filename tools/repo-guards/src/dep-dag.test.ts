@@ -422,7 +422,7 @@ describe("platform purity", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("@repo/contract's cloud entry never reaches into its local entry", () => {
+  it("@repo/contract's cloud entry never reaches into its local entry, and its browser entry reaches only zod", () => {
     // a file under src/cloud reaching src/local by relative path is invisible to the cloud-only
     // pin above; the sanctioned crossing is the other direction (local reusing a cloud constant).
     const contract = workspaces().find((candidate) => candidate.name === "@repo/contract");
@@ -431,13 +431,37 @@ describe("platform purity", () => {
     }
     const cloudDir = path.join(contract.dir, "src", "cloud");
     const localDir = path.join(contract.dir, "src", "local");
+    const browserDir = path.join(contract.dir, "src", "browser");
     const files = workspaceFiles(contract);
     const violations: string[] = [];
+    const shipped = new Set(files.shipped);
     for (const file of [...files.shipped, ...files.test]) {
+      if (file.startsWith(`${browserDir}/`)) {
+        // the extension's whole reach into the contract, so what ships of it carries nothing but
+        // zod; its suites may reach node to derive what it states
+        for (const specifier of shipped.has(file) ? importsOf(file) : []) {
+          if (specifier !== "zod" && !specifier.startsWith(".")) {
+            violations.push(
+              `BROWSER REACHES PAST ZOD  ${file} imports "${specifier}"\n` +
+                `  rule: @repo/contract/browser is the extension's one wire — it imports zod and its own browser/ modules, so the extension bundle carries no other package`,
+            );
+          }
+          if (
+            specifier.startsWith(".") &&
+            !path.join(path.dirname(file), specifier).startsWith(`${browserDir}/`)
+          ) {
+            violations.push(
+              `BROWSER REACHES PAST ITS BUCKET  ${file} imports "${specifier}"\n` +
+                `  rule: @repo/contract/browser imports only its own browser/ modules; /local imports it, never the other way`,
+            );
+          }
+        }
+        continue;
+      }
       if (!file.startsWith(`${cloudDir}/`) && !file.startsWith(`${localDir}/`)) {
         violations.push(
           `THIRD BUCKET  ${file}\n` +
-            `  rule: every file under packages/contract/src lives in src/cloud or src/local — a third bucket is a file this guard never reads`,
+            `  rule: every file under packages/contract/src lives in src/cloud, src/local or src/browser — a fourth bucket is a file this guard never reads`,
         );
         continue;
       }

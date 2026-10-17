@@ -5,6 +5,7 @@ import {
 } from "@repo/contract/local/vault/vault-schema";
 import type { VaultRenameResponse } from "@repo/contract/local/vault/vault-schema";
 import { VAULT_REMOTE_PIN_ENV_VAR } from "@repo/contract/local/vault/remote-url";
+import { ORPCError } from "@orpc/server";
 import { removeEntryWithAnnotations } from "../annotations/remove-with-annotations";
 import { attributeWrites, base, refusing } from "../orpc";
 import { vaultWireError } from "./vault-refusals";
@@ -96,6 +97,16 @@ const commitNow = base.vault.commitNow.handler(async ({ context, input }) => {
 
 const status = base.vault.status.handler(async ({ context }) => await context.vault.git.status());
 
+// PIVOT-STUB(S2): a file's bytes at a revision, exactly (§2.6)
+const revisionBytes = base.vault.revisionBytes.handler(() => {
+  throw new ORPCError("NOT_IMPLEMENTED", { message: "PIVOT-STUB(S2)" });
+});
+
+// PIVOT-STUB(S2): a deleted file's byte-exact restore under an `absent` guard (§2.6)
+const createFile = base.vault.createFile.handler(() => {
+  throw new ORPCError("NOT_IMPLEMENTED", { message: "PIVOT-STUB(S2)" });
+});
+
 const syncNow = base.vault.syncNow.handler(
   async ({ context }) => await context.vault.git.syncNow(),
 );
@@ -131,6 +142,7 @@ const setPrefs = base.vault.setPrefs.handler(async ({ context, input, errors }) 
 export const vaultRouter = {
   assetWrite,
   commitNow,
+  createFile,
   deleted,
   history,
   mkdir,
@@ -139,6 +151,7 @@ export const vaultRouter = {
   remove,
   rename,
   revision,
+  revisionBytes,
   setPrefs,
   setRemote,
   status,

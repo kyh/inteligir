@@ -13,6 +13,8 @@ import { stubRpc } from "../../__tests__/rpc-stub";
 
 const GONE: VaultDeletedEntry = {
   deletedAt: "2026-09-01T10:00:00.000Z",
+  heldBy: null,
+  kind: "doc",
   path: "notes/gone.md",
   sha: "0123456789abcdef0123456789abcdef01234567",
 };

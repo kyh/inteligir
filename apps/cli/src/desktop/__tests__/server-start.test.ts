@@ -177,6 +177,7 @@ const exitedPid = (): number => spawnSync(process.execPath, ["-e", ""]).pid;
 const systemStatus = (dataDir: string, version: string): SystemStatusResponse => ({
   agent: { mode: "off" },
   dataDir,
+  mediaToken: "media-token",
   schemaVersion: 1,
   uptimeMs: 1,
   vaultDir: path.join(dataDir, "vault"),

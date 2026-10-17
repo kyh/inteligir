@@ -14,6 +14,8 @@ import type { CloudPrefsStore } from "./cloud/cloud-prefs-store";
 import type { CloudRuntime } from "./cloud/sync-runtime";
 import type { ConnectorsService } from "./connectors/connectors-service";
 import type { FoldersService } from "./folders/folders-service";
+import type { ImportService } from "./imports/import-service";
+import type { ItemsService } from "./items/items-service";
 import type { RenameTag } from "./knowledge/knowledge-router";
 import type { KnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import type { ThreadService } from "./threads/service";
@@ -29,6 +31,8 @@ interface SystemFacts {
   vaultDir: string;
   schemaVersion: number;
   startedAt: number;
+  // this boot's media token (MEDIA_TOKEN_PARAM), which only the byte routes read
+  mediaToken: string;
   // false in a checkout whose UI was never built: no page answers a browser.
   servesUi: boolean;
   // read per request: a bundled runtime removed from under a running app is the next answer.
@@ -45,6 +49,8 @@ export interface AppContext {
   cloudPrefs: CloudPrefsStore;
   connectors: ConnectorsService;
   folders: FoldersService;
+  imports: ImportService;
+  items: ItemsService;
   knowledge: KnowledgeRuntime;
   recordAgentWrites: RecordAgentWrites;
   renameNote: RenameNote;

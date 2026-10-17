@@ -50,6 +50,7 @@ const fakeGitEngine = (): GitEngine => ({
       externalSync: null,
       lastError: null,
       lastSyncAt: null,
+      tooLarge: { count: 0, files: [] },
       state: "no-remote",
     }),
   syncNow: async () =>
@@ -59,6 +60,7 @@ const fakeGitEngine = (): GitEngine => ({
       externalSync: null,
       lastError: null,
       lastSyncAt: null,
+      tooLarge: { count: 0, files: [] },
       state: "no-remote",
     }),
   turnCommits: async () => await Promise.resolve([]),

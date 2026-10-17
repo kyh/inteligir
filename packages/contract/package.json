@@ -5,6 +5,7 @@
   "description": "The API contract between the app, its local server and the cloud Worker.",
   "type": "module",
   "exports": {
+    "./browser/browser-wire": "./src/browser/browser-wire.ts",
     "./cloud/account/account-schema": "./src/cloud/account/account-schema.ts",
     "./cloud/bytes": "./src/cloud/bytes.ts",
     "./cloud/client": "./src/cloud/cloud-client.ts",
@@ -33,6 +34,7 @@
     "./local/connectors/connectors-schema": "./src/local/connectors/connectors-schema.ts",
     "./local/errors": "./src/local/local-errors.ts",
     "./local/folders/folders-schema": "./src/local/folders/folders-schema.ts",
+    "./local/imports/imports-schema": "./src/local/imports/imports-schema.ts",
     "./local/items/items-schema": "./src/local/items/items-schema.ts",
     "./local/knowledge/knowledge-schema": "./src/local/knowledge/knowledge-schema.ts",
     "./local/notifications": "./src/local/notifications.ts",
@@ -44,6 +46,7 @@
     "./local/vault/give-note-own-id": "./src/local/vault/give-note-own-id.ts",
     "./local/vault/remote-url": "./src/local/vault/remote-url.ts",
     "./local/vault/restore-annotation-store": "./src/local/vault/restore-annotation-store.ts",
+    "./local/vault/restore-held-files": "./src/local/vault/restore-held-files.ts",
     "./local/vault/vault-folder": "./src/local/vault/vault-folder.ts",
     "./local/vault/vault-schema": "./src/local/vault/vault-schema.ts"
   },

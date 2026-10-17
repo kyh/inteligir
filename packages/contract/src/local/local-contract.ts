@@ -5,6 +5,8 @@ import { annotationsContract } from "./annotations/annotations-contract";
 import { cloudContract } from "./cloud/cloud-contract";
 import { connectorsContract } from "./connectors/connectors-contract";
 import { foldersContract } from "./folders/folders-contract";
+import { importsContract } from "./imports/imports-contract";
+import { itemsContract } from "./items/items-contract";
 import { knowledgeContract } from "./knowledge/knowledge-contract";
 import { systemContract } from "./system/system-contract";
 import { threadsContract } from "./threads/threads-contract";
@@ -16,6 +18,8 @@ export const localContract = {
   cloud: cloudContract,
   connectors: connectorsContract,
   folders: foldersContract,
+  imports: importsContract,
+  items: itemsContract,
   knowledge: knowledgeContract,
   system: systemContract,
   threads: threadsContract,

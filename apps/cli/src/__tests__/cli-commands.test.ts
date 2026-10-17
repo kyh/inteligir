@@ -321,6 +321,7 @@ describe("vault commands", () => {
       externalSync: null,
       lastError: null,
       lastSyncAt: null,
+      tooLarge: { count: 0, files: [] },
       state: "no-remote",
     });
   });
@@ -350,6 +351,7 @@ describe("vault commands", () => {
       externalSync: null,
       lastError: null,
       lastSyncAt: null,
+      tooLarge: { count: 0, files: [] },
       remote: "https://cloud.test/v1/git/vault.git",
       remoteSource: "account",
       state: "clean",
@@ -425,6 +427,7 @@ describe("vault commands", () => {
       externalSync: null,
       lastError: null,
       lastSyncAt: null,
+      tooLarge: { count: 0, files: [] },
       remote: own,
       remoteSource: "pinned",
       state: "clean",

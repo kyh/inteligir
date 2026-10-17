@@ -54,8 +54,9 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   (`apps/workspace/src/app/actions/related-section.tsx`). Outgoing links stay
   absent (they are on screen); no graph view; the route is search-shaped (a
   `limit`, no `total`) and fetched only while unfolded. A change sweeps
-  `orpc.knowledge.key()` whole, because a link into a note lives in another
-  note's bytes (`app/change-batch.ts`).
+  `orpc.knowledge.key()` whole but for the link targets, which move only on
+  `targets-changed` (A TARGET CHANGE IS ITS OWN KIND), because a link into a
+  note lives in another note's bytes (`app/change-batch.ts`).
 
 ## Agents and threads
 

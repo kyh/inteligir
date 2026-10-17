@@ -25,6 +25,7 @@ const REJECTED: VaultStatusResponse = {
   externalSync: null,
   lastError: GIT_STDERR,
   lastSyncAt: null,
+  tooLarge: { count: 0, files: [] },
   remote: "https://example.com/vault.git",
   remoteSource: "explicit",
   state: "rejected",
@@ -82,6 +83,7 @@ const SIGNED_OUT: VaultStatusResponse = {
   externalSync: null,
   lastError: null,
   lastSyncAt: null,
+  tooLarge: { count: 0, files: [] },
   state: "no-remote",
 };
 
@@ -200,6 +202,7 @@ describe("the thread sync, raw", () => {
 const SYSTEM: SystemStatusResponse = {
   agent: { mode: "acp", runtime: "ready" },
   dataDir: "/home/me/.inteligir",
+  mediaToken: "media-token",
   schemaVersion: 7,
   uptimeMs: 42_000,
   vaultDir: "/home/me/Inteligir",

@@ -126,8 +126,10 @@ describe("annotations service", () => {
 
     expect(listed.total).toBe(1);
     const [annotation] = listed.annotations;
-    expect(annotation?.anchored).toBe(true);
+    expect(annotation?.state).toBe("anchored");
     expect(annotation?.root.quote).toBe("the passage");
+    expect(annotation?.quote).toBe("the passage");
+    expect(annotation?.passage).toBeNull();
     expect(annotation?.replies.map((reply) => reply.id)).toEqual(["c1-r1"]);
     expect(annotation?.root.source).toBe("user");
 
@@ -226,10 +228,10 @@ describe("annotations service", () => {
     await vault.rename("plan.md", "renamed.md");
     const listed = await annotations.list("renamed.md");
     expect(listed.total).toBe(1);
-    expect(listed.annotations[0]?.anchored).toBe(true);
+    expect(listed.annotations[0]?.state).toBe("anchored");
   });
 
-  it("derives anchored=false for a root the body never marks, and flags orphan markers", async () => {
+  it("calls a root the body never marks missing, and flags orphan markers", async () => {
     const { root, annotations } = boot();
     writeFileSync(
       nodePath.join(root, "plan.md"),
@@ -242,8 +244,33 @@ describe("annotations service", () => {
       text: "floating",
     });
     const listed = await annotations.list("plan.md");
-    expect(listed.annotations[0]?.anchored).toBe(false);
+    expect(listed.annotations[0]?.state).toBe("missing");
     expect(listed.orphanMarkers).toEqual(["ghost"]);
+  });
+
+  it("calls an unmarked root on a stub waiting, since the stub's fill will place it", async () => {
+    const { root, annotations } = boot();
+    writeFileSync(
+      nodePath.join(root, "stub.md"),
+      [
+        "---",
+        "id: 0e5b3c1a-9a51-4f0e-8a0c-0b7f9d3a2c11",
+        "kind: link",
+        "url: https://stephango.com/file-over-app",
+        "saved: 2026-10-17T09:12:30Z",
+        "---",
+        "",
+      ].join("\n"),
+    );
+    const { answer } = await annotations.add({
+      id: "w1",
+      path: "stub.md",
+      quote: "file over app",
+      text: "",
+    });
+    expect(answer.annotations.map(({ id, state }) => ({ id, state }))).toEqual([
+      { id: "w1", state: "waiting" },
+    ]);
   });
 
   it("remove deletes the whole chain and answers which ids died", async () => {
@@ -251,7 +278,11 @@ describe("annotations service", () => {
     writeFileSync(nodePath.join(root, "plan.md"), "%%i:c1:start%%x%%i:c1:end%%\n");
     await annotations.add({ id: "c1", path: "plan.md", quote: "the passage", text: "root" });
     await annotations.reply({ id: "r1", parentId: "c1", path: "plan.md", text: "reply" });
-    const { answer: removed } = await annotations.remove({ id: "c1", path: "plan.md" });
+    const { answer: removed } = await annotations.remove({
+      id: "c1",
+      path: "plan.md",
+      stripMarkers: false,
+    });
     expect(removed.removedIds.toSorted()).toEqual(["c1", "r1"]);
     expect(removed.total).toBe(0);
     expect(storeRaw(root, "plan.md")).toBe("{}\n");

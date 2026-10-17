@@ -365,3 +365,80 @@ describe("a reconnect", () => {
     expect(threads).toEqual([{ changes: THREAD_CHANGE_KINDS, entity: "thread", type: "changed" }]);
   });
 });
+
+describe("the library's own kinds", () => {
+  const wikiTargetsKey = [...orpc.knowledge.wikiTargets.key()];
+
+  it("refetches the import's status on import-changed, and no knowledge", () => {
+    const applied = apply({ changes: ["import-changed"], entity: "vault", type: "changed" });
+
+    expect(applied.invalidated).toEqual([[...orpc.imports.status.key()]]);
+  });
+
+  it("refetches the link targets on targets-changed alone", () => {
+    const applied = apply({ changes: ["targets-changed"], entity: "vault", type: "changed" });
+
+    expect(applied.invalidated).toEqual([wikiTargetsKey]);
+  });
+
+  it("keeps the targets out of the knowledge sweep a body edit or a listing change makes", () => {
+    const frames: ChangedMessage[] = [
+      contentChanged("notes/open.md"),
+      { changes: ["files-changed"], entity: "vault", type: "changed" },
+    ];
+    for (const frame of frames) {
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(orpc.knowledge.wikiTargets.queryKey(), { targets: [] });
+      queryClient.setQueryData(orpc.knowledge.tags.queryKey(), { tags: [], total: 0 });
+      const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
+      const batch = new ChangeBatch();
+      batch.add(frame);
+      batch.apply(queryClient, vi.fn(), vi.fn());
+
+      const sweep = invalidateQueries.mock.calls
+        .map(([filters]) => filters)
+        .find((filters) => partialMatchKey([...(filters?.queryKey ?? [])], orpc.knowledge.key()));
+      const swept = queryClient
+        .getQueryCache()
+        .findAll({ queryKey: orpc.knowledge.key() })
+        .filter((query) => sweep?.predicate?.(query) ?? true)
+        .map((query) => [...query.queryKey]);
+      expect(swept).toEqual([[...orpc.knowledge.tags.queryKey()]]);
+    }
+  });
+
+  it("refetches the targets at most once per five seconds, folding the frames between", () => {
+    vi.useFakeTimers();
+    try {
+      const queryClient = new QueryClient();
+      const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
+      const frame = (): void => {
+        const batch = new ChangeBatch();
+        batch.add({ changes: ["targets-changed"], entity: "vault", type: "changed" });
+        batch.apply(queryClient, vi.fn(), vi.fn());
+      };
+      const refetches = (): number => invalidateQueries.mock.calls.length;
+
+      frame();
+      expect(refetches()).toBe(1);
+      vi.advanceTimersByTime(1000);
+      frame();
+      vi.advanceTimersByTime(1000);
+      frame();
+      expect(refetches()).toBe(1);
+      vi.advanceTimersByTime(3000);
+      expect(refetches()).toBe(2);
+      vi.advanceTimersByTime(10_000);
+      expect(refetches()).toBe(2);
+      frame();
+      expect(refetches()).toBe(3);
+      expect(
+        invalidateQueries.mock.calls.every(([filters]) =>
+          partialMatchKey([...(filters?.queryKey ?? [])], wikiTargetsKey),
+        ),
+      ).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

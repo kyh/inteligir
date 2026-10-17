@@ -3,6 +3,7 @@
 // vendor account probe are injected (`cloudTransport`, `driver`, `accounts`) rather than imported,
 // and serve.ts supplies the real ones.
 
+import { randomBytes } from "node:crypto";
 import { closeConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
@@ -25,6 +26,8 @@ import { messageOf } from "./error-message";
 import { createFoldersService } from "./folders/folders-service";
 import type { FoldersService } from "./folders/folders-service";
 import { FoldersStore } from "./folders/folders-store";
+import { createImportService } from "./imports/import-service";
+import { createItemsService } from "./items/items-service";
 import { createKnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import type { KnowledgeRuntime, KnowledgeRuntimeArgs } from "./knowledge/knowledge-runtime";
 import { createProjectionWorker } from "./knowledge/projector";
@@ -150,6 +153,10 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     },
     dataDir: config.dataDir,
     debugLog: debugLog(config.debug, "knowledge"),
+    // a body edit, every fill's and every keystroke's, moves no link target, so it says nothing
+    onTargetsChanged: () => {
+      bus.notifyVault(["targets-changed"]);
+    },
     projector: ports.knowledge?.projector ?? createProjectionWorker(),
     vault: vault.service,
     vaultRoot: config.vaultDir,
@@ -158,6 +165,22 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     await knowledge.dispose();
   });
   knowledgeRef = knowledge;
+
+  const items = createItemsService();
+  addTeardownStep(teardown, "items", async () => {
+    await items.dispose();
+  });
+  const imports = createImportService({
+    dataDir: config.dataDir,
+    newId: () => crypto.randomUUID(),
+    notify: () => {
+      bus.notifyVault(["import-changed"]);
+    },
+    now: () => new Date(),
+  });
+  addTeardownStep(teardown, "imports", async () => {
+    await imports.dispose();
+  });
 
   const folders = createFoldersService({
     dataDir: config.dataDir,
@@ -246,6 +269,13 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
       console.warn(`[threads] origin repair skipped: ${messageOf(error)}`);
     }
   })();
+  // off the critical path too: a pending fill or a stopped import is picked up where it was left
+  try {
+    items.boot();
+    imports.boot();
+  } catch (error) {
+    console.warn(`[items] boot skipped: ${messageOf(error)}`);
+  }
 
   const annotations = createAnnotationsService(vault.service, () => Math.floor(Date.now() / 1000));
 
@@ -260,6 +290,8 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     cloudPrefs,
     connectors,
     folders,
+    imports,
+    items,
     knowledge,
     recordAgentWrites: (threadId, paths) => {
       turnDriver.recordAgentWrites?.(threadId, paths);
@@ -271,6 +303,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     system: {
       agent: agentStatus,
       dataDir: config.dataDir,
+      // distinct from the cookie's secret, and per boot like it: it rides byte-route urls, so it
+      // is no credential alone (requireMediaRequest in app.ts)
+      mediaToken: randomBytes(32).toString("base64url"),
       schemaVersion,
       servesUi: args.servesUi,
       startedAt: Date.now(),

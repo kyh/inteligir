@@ -8,6 +8,7 @@ const NO_REMOTE: VaultStatusResponse = {
   externalSync: null,
   lastError: null,
   lastSyncAt: null,
+  tooLarge: { count: 0, files: [] },
   state: "no-remote",
 };
 
