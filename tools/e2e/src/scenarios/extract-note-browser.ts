@@ -90,8 +90,10 @@ export const extractNoteBrowser: Scenario = {
           `the extract never landed: ${EXTRACTED} ${notes.extracted === null ? "absent" : "present"}; source:\n${notes.source}`,
       },
     );
+    // the block under the header every note the app makes carries, saying when it was saved
     expect(
-      landed.extracted === `${SECOND}\n`,
+      /^---\nsaved: \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\n---\n\n/u.test(landed.extracted ?? "") &&
+        landed.extracted?.endsWith(`\n\n${SECOND}\n`) === true,
       `the extracted note is not the block:\n${String(landed.extracted)}`,
     );
     expect(landed.source.includes(FIRST), `the first paragraph was lost:\n${landed.source}`);
