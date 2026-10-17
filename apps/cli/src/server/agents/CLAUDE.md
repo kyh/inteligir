@@ -29,7 +29,12 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   turn, since the canonicalizing save-back leaves no sound per-writer split; a
   crash mid-turn leaves its writes to the boot sweep, so that turn cannot be
   undone; a thread pulled from another device lists only what was committed
-  after it arrived. `apps/cli/src/server/agents/agent-commits.ts`,
+  after it arrived. A scripted turn runs each `save <target>` line of its text
+  through the items service and records what the save wrote in the turn's set,
+  because the scripted driver hears no external shell's writes; this is how an
+  e2e proves that an agent's save, cover and original included, joins its turn
+  and leaves with its Undo (`apps/cli/src/server/agents/scripted-driver.ts`).
+  `apps/cli/src/server/agents/agent-commits.ts`,
   `apps/cli/src/server/vault/turn-trailers.ts`.
 
 - **AN ANNOTATION STORE IS ONE DOT-FOLDER KEYED BY THE ITEM'S ID, ITS WRITE IS
@@ -71,17 +76,38 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   What the user was looking at travels on the send
   (`@repo/domain/view-context`), never as a thread column or a server-side
   "current view" that has no owner, so navigating away mid-turn changes nothing.
+  It has two surfaces: the open item (`doc`), or the library (`library`): the
+  scope the grid shows, its kinds and its search, and the selection, its count
+  and up to 200 of its paths, which the prompt names as what "these" means.
   There is no tool: the agent can already read the file, and the one thing a
   tool could add, a live selection, cannot be made honest. A queued send carries
-  none. `apps/cli/src/server/agents/view-context-prompt.ts`.
+  none, and the phone's dispatch carries `doc` alone, since the phone has no
+  grid. The thread event records the library context WITHOUT its paths,
+  because the event rides the thread sync under a 64 KiB cap and only the prompt
+  reads them (`apps/cli/src/server/threads/thread-send.ts`).
+  `apps/cli/src/server/agents/view-context-prompt.ts`.
 
 - **AN @-MENTION RIDES THE SEND AS `contextPaths`, NEVER AS TEXT.** The stored
   message is exactly what the user typed, so the timeline, the phone and a
   thread's title read the message rather than a prefix the desktop glued on; the
   server names the notes in a block of its own. UNLIKE the view context, a
   queued send KEEPS them: a mention is part of what the user asked, not a
-  statement about a screen since left.
-  `@repo/contract/local/threads/threads-schema`.
+  statement about a screen since left. A mention names an item; the grid's
+  selection is a view context instead, because it is a statement about the
+  screen. `@repo/contract/local/threads/threads-schema`.
+
+- **A NAMED ACTION IS A PRESET ON THE SEND, NOT A PROMPT IN THE TEXT.** Tidy my
+  library is `preset: "tidy-library"`: the stored text is what was typed, or
+  the preset's label when nothing was, and the server composes the procedure
+  as a block of its own (file and tag everything in Unsorted and untagged,
+  following the library's filing rules, in batches of 100 until none is left),
+  worded for what the session holds. The preset survives the queue in a column
+  of its own and is never in the thread event. Rejected: a seeded composer
+  prompt (the person's words would be ours, and the timeline and the phone
+  would show a page of instructions), a `library.tidy` procedure (a second
+  agent entry beside the send), and an agent run per save (it spends the
+  person's plan on every bookmark).
+  `apps/cli/src/server/agents/action-preset-prompt.ts`.
 
 - **THE DEFAULT HARNESS IS A STORED CHOICE, read per thread start**, in the data
   dir and not config.json, which is read once at boot and never written by the
@@ -110,7 +136,9 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   beside them is two answers to one question. The pattern stays: content the
   agent consumes lives in files it reads with its own shell. The dialect skills
   ride `INTELIGIR_SKILLS_DIR` with a three-sentence pointer on the first turn,
-  never the spec inlined.
+  never the spec inlined. The library's own AGENTS.md is the person's filing
+  rules: it closes the instructions under a header that says so, and the Tidy
+  block follows it when it is there.
 
 - **ONE SET OF SESSION FACTS, TWO PROJECTIONS, AND A LOADED SESSION IS HANDED
   ONLY THE INSTRUCTIONS IT DOES NOT HOLD.** The shell env and the prompt are
@@ -119,8 +147,12 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   `session/new` carries no instructions, so they ride a turn's prompt, and a
   loaded session gets them again only when they differ from the last set its
   thread was handed. Claude's `_meta.systemPrompt` is not used: it is one
-  harness's channel. `apps/cli/src/server/agents/agent-shell-env.ts`,
-  `runtime-manager.ts`.
+  harness's channel. The prompt's blocks read the same facts as
+  `PromptFacts` (`promptFactsFor` in
+  `apps/cli/src/server/agents/agent-instructions.ts`): the preset and library
+  blocks name `inteligir` commands only when `cliBinDir` resolved, and the Tidy
+  block cites the filing rules only when the library has them.
+  `apps/cli/src/server/agents/agent-shell-env.ts`, `runtime-manager.ts`.
 
 - **THE HOST CLOSES A PROVIDER SESSION IT GIVES UP ON, AND A CHILD'S DEATH FAILS
   ITS TURN THROUGH THE PROMPT.** The watchdog and a failed dispatch close the
@@ -174,7 +206,8 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   carries the id, so a byte copy never takes the binding. The composer mints the
   open note's id through the live editor, because a server mint under the buffer
   would make the revision name bytes no longer on disk, and outside the undo
-  history, because an undo would unbind the action just sent.
+  history, because an undo would unbind the action just sent. An action sent
+  from the library has no origin doc: its subject is the view it was sent from.
   `apps/cli/src/server/threads/thread-origins.ts`,
   `apps/workspace/src/app/note/open-note-id.ts`.
 

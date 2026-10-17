@@ -16,6 +16,9 @@ import {
   sendMessage,
 } from "./agent-test-harness";
 import { hermeticGitEnv } from "../../vault/__tests__/git-test-env";
+import type { ItemsService } from "../../items/items-service";
+import type { VaultService } from "../../vault/vault-service";
+import { makeTempDir } from "../../__tests__/temp-dir";
 import { undoCommitMessage } from "../../vault/turn-trailers";
 
 const gitIn = (vaultDir: string, args: readonly string[]): string =>
@@ -35,7 +38,13 @@ const gitIn = (vaultDir: string, args: readonly string[]): string =>
 const gitLogHead = (vaultDir: string): string =>
   gitIn(vaultDir, ["log", "-1", "--format=%an%n%ae%n%cn%n%s%n%(trailers)"]);
 
-const bootScripted = async (): Promise<BootedTestApp> =>
+// the save a scripted turn's `save` line runs: the booted items service, or a stand-in for a link
+// (a booted app's fetcher never answers, so a link's waited save would wait out its bound)
+type DriverItems = Pick<ItemsService, "saveLink" | "saveFile">;
+
+const bootScripted = async (
+  wrapItems: (items: DriverItems, vault: VaultService) => DriverItems = (items) => items,
+): Promise<BootedTestApp> =>
   await bootTestApp({
     agent: { mode: "scripted" },
     makeDriver: ({ db, bus, items, vault, vaultDir, sink }) => {
@@ -47,7 +56,7 @@ const bootScripted = async (): Promise<BootedTestApp> =>
         },
         db,
         defaultHarness: () => "claude",
-        items,
+        items: wrapItems(items, vault.service),
         notifier: bus,
         sessionFacts: () => fakeSessionFacts(),
         sink,
@@ -135,5 +144,66 @@ describe("a thread's turn changes", () => {
 
     const [missing] = await safe(harness.client.threads.turnChanges({ threadId: "thr_missing" }));
     expect(isDefinedError(missing) && missing.code).toBe("NOT_FOUND");
+  });
+});
+
+const committedPaths = (vaultDir: string): string[] =>
+  gitIn(vaultDir, ["show", "--name-only", "--format=", "HEAD"])
+    .split("\n")
+    .filter((line) => line !== "")
+    .toSorted();
+
+describe("a scripted turn's save lines", () => {
+  const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>';
+
+  it("saves a file named by its absolute path, and every path it wrote joins the turn's commit", async () => {
+    const harness = await bootScripted();
+    const file = path.join(makeTempDir("inteligir-save-line-"), "diagram.svg");
+    writeFileSync(file, SVG);
+    const threadId = await createThread(harness.client);
+    const turnId = await runTurn(harness, threadId, `File this.\nsave ${file}`);
+
+    const fileChange = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId)).find(
+      (row) => row.kind === "work" && row.workKind === "file-change",
+    );
+    expect(fileChange).toMatchObject({ status: "completed", turnId });
+    expect(committedPaths(harness.vaultDir)).toEqual(
+      [scriptedNotePath(threadId), "Unsorted/diagram.md", "assets/diagram.svg"].toSorted(),
+    );
+    expect(gitLogHead(harness.vaultDir)).toContain(`Turn: ${turnId}`);
+    expect(readFileSync(path.join(harness.vaultDir, "assets", "diagram.svg"), "utf-8")).toBe(SVG);
+    expect(await harness.client.threads.turnChanges({ threadId })).toMatchObject({
+      turns: [{ state: "applied", turnId }],
+    });
+  });
+
+  it("saves a web link through the items service, waiting for its fill", async () => {
+    const asked: string[] = [];
+    const harness = await bootScripted((items, vault) => ({
+      saveFile: items.saveFile,
+      async saveLink(input) {
+        asked.push(`${input.url} wait=${String(input.wait)}`);
+        const { path: written } = await vault.write("Unsorted/example.com.md", "a link\n");
+        return { fill: { state: "pending" }, outcome: "created", path: written, wrote: [written] };
+      },
+    }));
+    const threadId = await createThread(harness.client);
+    await runTurn(harness, threadId, "save https://example.com/\nsave not-a-target");
+    expect(asked).toEqual(["https://example.com/ wait=true"]);
+    expect(committedPaths(harness.vaultDir)).toEqual(
+      [scriptedNotePath(threadId), "Unsorted/example.com.md"].toSorted(),
+    );
+  });
+
+  it("fails the turn with the save's own words when the save fails", async () => {
+    const harness = await bootScripted();
+    const threadId = await createThread(harness.client);
+    const missing = path.join(makeTempDir("inteligir-save-line-"), "gone.png");
+    const turnId = await sendMessage(harness.client, threadId, `save ${missing}`);
+    await awaitThreadStatus(harness.client, threadId, "error");
+    const rows = flattenTimelineRows(await fetchTimelineRows(harness.client, threadId));
+    const error = rows.find((row) => row.kind === "error");
+    expect(error).toMatchObject({ message: "Scripted turn failed", turnId });
+    expect(error?.kind === "error" ? error.detail : null).toContain("gone.png");
   });
 });

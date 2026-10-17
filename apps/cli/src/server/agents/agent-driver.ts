@@ -14,6 +14,7 @@ import type { AppConfig } from "../config";
 import type { DebugLog } from "../debug-log";
 import type { ItemsService } from "../items/items-service";
 import type { VaultRuntime } from "../vault/vault-runtime";
+import { promptFactsFor } from "./agent-instructions";
 import { createBoundedAgentLog } from "./agent-log";
 import type { AgentSessionFacts } from "./agent-shell-env";
 import { AcpTurnDriver } from "./runtime-manager";
@@ -65,6 +66,7 @@ export const resolveAgentDriver = (args: ResolveAgentDriverArgs): ResolvedAgentD
       items: args.items,
       notifier: args.notifier,
       onError: onDebug,
+      promptFacts: () => promptFactsFor(args.sessionFacts(), args.config.vaultDir),
       vault: args.vault.service,
     };
     return { driver: new ScriptedTurnDriver(args.sink, scripted), status: () => ({ mode }) };
