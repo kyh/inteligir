@@ -56,8 +56,8 @@ export interface KnowledgeRuntimeArgs {
   debugLog?: DebugLog | undefined;
   // the attachments pref's folder when it names one, which the rail's folder tree leaves out
   attachmentsFolder?: () => string | null;
-  // told once after each pass that added, removed or renamed a path or moved a doc's aliases or
-  // id: what the bus announces as `targets-changed`
+  // told once after each pass that added, removed or renamed a path or moved a doc's aliases, id,
+  // pin or title: what the bus announces as `targets-changed`
   onTargetsChanged?: () => void;
 }
 

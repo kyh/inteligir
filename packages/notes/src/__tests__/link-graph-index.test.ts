@@ -132,6 +132,26 @@ describe("LinkGraphIndex — target changes", () => {
     expect(graph.takeTargetsChanged()).toBe(false);
   });
 
+  it("marks a doc's title or pin moving, since its targets row carries both", () => {
+    const graph = new LinkGraphIndex();
+    graph.applyDoc("a.md", projectDoc("a.md", "# A\n"));
+    graph.takeTargetsChanged();
+
+    graph.applyDoc("a.md", projectDoc("a.md", "---\npinned: true\n---\n\n# A\n"));
+    expect(graph.takeTargetsChanged()).toBe(true);
+    expect(graph.wikiTargets()[0]?.pinned).toBe(true);
+    graph.applyDoc("a.md", projectDoc("a.md", "---\npinned: true\n---\n\n# A\n\nMore text.\n"));
+    expect(graph.takeTargetsChanged()).toBe(false);
+
+    graph.applyDoc("a.md", projectDoc("a.md", "# A, renamed in its heading\n"));
+    expect(graph.takeTargetsChanged()).toBe(true);
+    expect(graph.wikiTargets()[0]).toEqual({
+      path: "a.md",
+      title: "A, renamed in its heading",
+      type: "doc",
+    });
+  });
+
   it("resolves over the live resolver as it moves", () => {
     const graph = new LinkGraphIndex();
     graph.applyDoc("hub.md", projectDoc("hub.md", "[[target]]\n"));

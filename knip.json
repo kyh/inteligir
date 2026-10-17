@@ -46,8 +46,10 @@
       // expo reads fingerprint.config.js by its name when it fingerprints the native build
       "entry": ["fingerprint.config.js"],
       // linked natively; knip's expo plugin counts it only while `updates` is on, and app.config.js
-      // leaves it off until the EAS project is committed. PIVOT-STUB(I): expo-share-intent is
-      // held until M's share extension names it in app.config.js
+      // leaves it off until the EAS project is committed. expo-linking, autolinked as
+      // expo-share-intent's peer, needs no row: the expo plugin counts it, and a row draws a hint.
+      // PIVOT-STUB(I): expo-share-intent is held until M's share extension names it in
+      // app.config.js
       "ignoreDependencies": ["expo-share-intent", "expo-updates"]
     },
     "apps/extension": {

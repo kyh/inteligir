@@ -39,9 +39,8 @@ export interface ItemCoreDeps {
   newId: () => string;
 }
 
-// freeDocPath against one listing plus the names it handed out. exported when its first caller
-// outside this file (the import's per-batch namer) names it
-type FolderNamer = (stem: string) => string;
+// freeDocPath against one listing plus the names it handed out: the import's per-batch namer
+export type FolderNamer = (stem: string) => string;
 
 export interface ItemCore {
   now: () => Date;

@@ -37,7 +37,7 @@ interface MoveState {
 
 export const treeOpsBrowser: Scenario = {
   description:
-    "the rail opens on Files; the tree's row menu pins a note into its frontmatter, and a drag moves it into a folder with its image still loading",
+    "the rail opens on Files; the tree's row menu pins a note into its frontmatter and then offers Unpin, and a drag moves it into a folder with its image still loading",
   name: "tree-ops-browser",
   async run(ctx) {
     const app = await ctx.boot({
@@ -70,6 +70,29 @@ export const treeOpsBrowser: Scenario = {
       },
     );
     expect(pinned.endsWith(DOC), `the pin rewrote more than the frontmatter:\n${pinned}`);
+
+    // the pinned set is read from the link targets, which a pin's settle announces as
+    // targets-changed: the row's verb must follow the bytes without a reload
+    ctx.log("the row menu then offers Unpin");
+    await pollUntil(
+      async () => {
+        await agentBrowser(["click", rowActions(NOTE)]);
+        const labels = parseEval(
+          await agentBrowser([
+            "eval",
+            `JSON.stringify([...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent?.trim() ?? ""))`,
+          ]),
+          z.array(z.string()),
+        );
+        await agentBrowser(["press", "Escape"]);
+        return labels;
+      },
+      (labels) => labels.includes("Unpin"),
+      {
+        deadlineMs: DISK_DEADLINE_MS,
+        describe: (labels) => `the row menu never offered Unpin: ${labels.join(", ")}`,
+      },
+    );
 
     ctx.log(`dragging ${NOTE} onto ${FOLDER}/ moves it`);
     await agentBrowser(["drag", treeRow(NOTE), treeRow(FOLDER)]);

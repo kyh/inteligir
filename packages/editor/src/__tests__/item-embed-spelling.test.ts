@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import { analyzeMarkdown } from "@repo/editor/markdown/markdown-doc";
 import { composeLinkBody, embedMarkdown } from "@repo/notes/items/item-body";
-import { composeItemFile } from "@repo/notes/items/item-frontmatter";
+import { composeItemFile, withItemFields } from "@repo/notes/items/item-frontmatter";
+import { linkStubText } from "@repo/notes/items/item-stub";
+import { addFrontmatterTags } from "@repo/notes/items/item-tags";
 
 // An item's writers (the save, the fill, the phone, the import) spell its cover, its original
 // and its page copy through @repo/notes/items/item-body, and the editor must read every such file
@@ -161,5 +163,25 @@ describe("an item as its writers spell it is the editor's own fixpoint", () => {
       `${embedMarkdown("assets/Lecture notes (week 2).pdf")}\n`,
     );
     expect(analyzeMarkdown(wrapper)).toEqual({ kind: "canonical" });
+  });
+
+  it("writes the first block on a plain note the editor's way, by a field or a tag", () => {
+    const note = "Hello, a note the person wrote.\n";
+    expect(analyzeMarkdown(note)).toEqual({ kind: "canonical" });
+    const described = withItemFields(note, { description: "A short line." });
+    expect(described.kind).toBe("written");
+    if (described.kind === "written") {
+      expect(analyzeMarkdown(described.content)).toEqual({ kind: "canonical" });
+    }
+    const tagged = addFrontmatterTags(note, ["reading"]);
+    expect(tagged).not.toBeNull();
+    if (tagged !== null) {
+      expect(analyzeMarkdown(tagged)).toEqual({ kind: "canonical" });
+    }
+  });
+
+  it("trims a shared note into a stub's body", () => {
+    const stub = linkStubText({ id: ID, note: "  For Tuesday.  \n", saved: 0, url: URL_SAVED });
+    expect(analyzeMarkdown(stub)).toEqual({ kind: "canonical" });
   });
 });

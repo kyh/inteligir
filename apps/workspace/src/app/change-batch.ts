@@ -82,7 +82,8 @@ const touchModified = (
 
 // every doc and asset the library holds (about 7.5 MB at 50k items), so it moves only on
 // targets-changed, which the server says when a settle added, removed or renamed a path or changed
-// a doc's aliases or id; a body edit, every fill's and every keystroke's, says only content-changed.
+// a doc's aliases, id, pin or title, every field of its row (the pinned set is read from it); any
+// other body edit, most of every fill's and every keystroke's, says only content-changed.
 const isWikiTargets = (query: Query): boolean =>
   partialMatchKey(query.queryKey, orpc.knowledge.wikiTargets.key());
 

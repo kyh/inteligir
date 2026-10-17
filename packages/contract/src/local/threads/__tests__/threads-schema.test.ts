@@ -1,7 +1,10 @@
 import type { LibraryViewContext, ViewContext } from "@repo/domain/view-context";
 import { describe, expect, it } from "vitest";
+import { EVENT_MAX_BYTES } from "../../../cloud/sync/sync-schema";
+import { KNOWLEDGE_ITEMS_QUERY_MAX } from "../../knowledge/knowledge-schema";
 import {
   encodeThreadListCursor,
+  LIBRARY_CONTEXT_RECORD_MAX_BYTES,
   listThreadsQuerySchema,
   sendMessageRequestSchema,
 } from "../threads-schema";
@@ -65,9 +68,25 @@ describe("a send's view context", () => {
     ["a path outside the vault", { paths: ["../a.md"] }],
     ["an item named twice", { paths: ["Reading/a.md", "Reading//a.md"] }],
     ["fewer selected than it names", { selected: 1 }],
+    ["a kind named twice", { kinds: ["link", "link"] }],
+    ["a q longer than a listing takes", { q: "w".repeat(KNOWLEDGE_ITEMS_QUERY_MAX + 1) }],
+    ["a tag too long to record", { scope: { kind: "tag", tag: "t".repeat(5000) } }],
   ];
   it.each(refusals)("refuses %s", (_reason, change) => {
     expect(send({ ...library, ...change }).success).toBe(false);
+  });
+
+  it("holds what the event records of the screen to a few KB under the sync's cap", () => {
+    expect(LIBRARY_CONTEXT_RECORD_MAX_BYTES * 8).toBeLessThan(EVENT_MAX_BYTES);
+    const longest: LibraryViewContext = {
+      kinds: ["note", "link", "video", "audio", "image", "pdf", "file"],
+      paths: [],
+      q: "w".repeat(KNOWLEDGE_ITEMS_QUERY_MAX),
+      scope: { kind: "folder", path: Array.from({ length: 4 }, () => "f".repeat(250)).join("/") },
+      selected: 50_000,
+      surface: "library",
+    };
+    expect(send(longest).success).toBe(true);
   });
 });
 

@@ -6,7 +6,7 @@ import type { ItemFileFields } from "./item-frontmatter";
 import { formatItemTime } from "./item-time";
 import { cleanUrl, kindForUrl } from "./item-url";
 
-// `note` becomes the body ("" for none); `saved` is epoch ms
+// `note`, trimmed, becomes the body ("" for none); `saved` is epoch ms
 export const linkStubText = (s: {
   id: string;
   url: string;
@@ -25,6 +25,7 @@ export const linkStubText = (s: {
   }
   return composeItemFile(
     fields,
-    composeLinkBody({ article: "", copy: null, cover: null, note: s.note }),
+    // trimmed whole, so a share's indented or padded note lands as the editor would write it
+    composeLinkBody({ article: "", copy: null, cover: null, note: s.note.trim() }),
   );
 };

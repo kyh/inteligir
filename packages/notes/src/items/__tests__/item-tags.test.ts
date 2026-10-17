@@ -4,7 +4,9 @@ import { addFrontmatterTags, removeFrontmatterTags } from "../item-tags";
 
 describe("addFrontmatterTags", () => {
   it.each([
-    ["body\n", ["a"], "---\ntags:\n  - a\n---\nbody\n"],
+    ["body\n", ["a"], "---\ntags:\n  - a\n---\n\nbody\n"],
+    ["body\r\n", ["a"], "---\r\ntags:\r\n  - a\r\n---\r\n\r\nbody\r\n"],
+    ["", ["a"], "---\ntags:\n  - a\n---\n"],
     ["---\nid: x\n---\n", ["a", "b"], "---\nid: x\ntags:\n  - a\n  - b\n---\n"],
     [
       "---\ntags:\n    - a\nother: 1\n---\n",
@@ -36,7 +38,7 @@ describe("addFrontmatterTags", () => {
   });
 
   it("adds a tag once when asked for it twice", () => {
-    expect(addFrontmatterTags("x", ["a", "A"])).toBe("---\ntags:\n  - a\n---\nx");
+    expect(addFrontmatterTags("x", ["a", "A"])).toBe("---\ntags:\n  - a\n---\n\nx");
   });
 
   it("refuses an invalid block and a tags value that is not a list", () => {
@@ -57,6 +59,7 @@ describe("removeFrontmatterTags", () => {
     ["---\ntags: [a, '#b', 5]\n---\n", ["b"], "---\ntags: [a, 5]\n---\n"],
     ["---\nid: x\ntags: [a, b]\n---\n", ["a", "b"], "---\nid: x\n---\n"],
     ["---\ntags:\n  - a\n---\nbody\n", ["a"], "body\n"],
+    ["---\ntags:\n  - a\n---\n\nbody\n", ["a"], "body\n"],
     ["---\ntags: a\nid: x\n---\n", ["a"], "---\nid: x\n---\n"],
     ["---\r\ntags:\r\n  - a\r\n  - b\r\n---\r\n", ["a"], "---\r\ntags:\r\n  - b\r\n---\r\n"],
   ])("%j − %j", (content, tags, expected) => {

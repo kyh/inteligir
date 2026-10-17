@@ -6,6 +6,7 @@ import { COVERS_DIR } from "@repo/notes/items/item-kind";
 import { describe, expect, it } from "vitest";
 
 import { bootTestApp } from "../../__tests__/boot-app";
+import type { FolderNamer } from "../item-core";
 import { ItemsError } from "../items-error";
 
 const PNG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -31,12 +32,20 @@ describe("the item core", () => {
   it("hands out names from one listing, never the same twice", async () => {
     const { core, harness } = await bootCore();
     await harness.vault.service.write("Unsorted/Talk.md", "taken\n");
-    const name = await core.folderNamer("Unsorted");
+    const name: FolderNamer = await core.folderNamer("Unsorted");
     expect([name("Talk"), name("Talk"), name("Other")]).toEqual([
       "Unsorted/Talk 2.md",
       "Unsorted/Talk 3.md",
       "Unsorted/Other.md",
     ]);
+    // a namer is the import's per-batch listing: createDoc takes its names in place of a fresh one
+    const named = await core.createDoc({
+      content: "named\n",
+      folder: "Unsorted",
+      name,
+      stem: "Talk",
+    });
+    expect(named.path).toBe("Unsorted/Talk 4.md");
     expect(await core.freePath("", "Talk")).toBe("Talk.md");
   });
 

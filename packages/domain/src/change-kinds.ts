@@ -1,8 +1,9 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors.
 
 // import-changed: an import job's counts or state moved. targets-changed: a settle added,
-// removed or renamed a path, or changed a doc's aliases or id, so the set of link targets moved; a
-// body edit does not, which is every fill's and every keystroke's change.
+// removed or renamed a path, or changed a doc's aliases, id, pin or title (its first heading), so
+// the link targets' rows moved; any other body edit does not, which is most of every fill's and
+// every keystroke's change.
 export const VAULT_CHANGE_KINDS = [
   "files-changed",
   "sync-status-changed",

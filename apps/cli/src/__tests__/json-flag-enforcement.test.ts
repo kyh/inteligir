@@ -59,8 +59,8 @@ const seedFixture = (state: FixtureState): void => {
       url: FIXTURE_ITEM_URL,
     }),
   ];
-  state.imports.job = null;
-  state.imports.plan = {
+  state.importJob = null;
+  state.importPlan = {
     alreadySaved: 0,
     droppedTags: [],
     duplicates: 0,

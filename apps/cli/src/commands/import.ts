@@ -26,7 +26,7 @@ const count = (value: number): string => value.toLocaleString("en-US");
 const plural = (value: number, one: string, many: string): string =>
   `${count(value)} ${value === 1 ? one : many}`;
 
-// the import dialog's sentence (the page's summary is the same)
+// the import dialog's summary, word for word (the page says the same)
 const describePlan = (plan: ImportsPlanResponse): string =>
   [
     `${plural(plan.items, "link", "links")} in ${plural(plan.folderCount, "folder", "folders")},`,
@@ -36,9 +36,7 @@ const describePlan = (plan: ImportsPlanResponse): string =>
           `${count(plan.alreadySaved)} ${plan.alreadySaved === 1 ? "is" : "are"} already in your library and stay as they are.`,
         ]
       : []),
-    ...(plan.skippedCount > 0
-      ? [`${count(plan.skippedCount)} rows have no web link and are left out.`]
-      : []),
+    ...(plan.items > 0 ? ["Each page's text and picture fill in over the next while."] : []),
   ].join(" ");
 
 const describeJob = (job: ImportJob): string => {
@@ -166,10 +164,9 @@ export const importCommand = (deps: CliDeps) =>
           if (!json) {
             writeLines([describePlan(plan)]);
           }
+          // the job is the answer however it ended: a failed one says so in its state and message,
+          // as a save whose page could not be read answers its item
           const job = args.wait ? await followJob(api, started.job, json) : started.job;
-          if (job.state === "failed") {
-            throw new CliExitError(describeJob(job), { code: "UNEXPECTED" });
-          }
           if (outputJson(args, { job })) {
             return;
           }

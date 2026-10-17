@@ -154,12 +154,14 @@ const MEDIA_ROUTES = [
 // past the gate, whatever the handler then answers for the file
 const REFUSED_AT_THE_GATE = [401, 403];
 
-// every other route a browser's cookie reaches, which must keep refusing a header-less request
-const COOKIE_ROUTES = [
+// every other route a browser's cookie reaches, which must keep refusing a header-less request:
+// the procedures and the invalidation bus's socket
+const COOKIE_ROUTES: { init: RequestInit; path: string }[] = [
   {
     init: { body: JSON.stringify({ json: {} }), method: "POST" },
     path: `${RPC_PREFIX}/system/status`,
   },
+  { init: { method: "GET" }, path: WS_PATH },
 ];
 
 const signedIn = async () => {

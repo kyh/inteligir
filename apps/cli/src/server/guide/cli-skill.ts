@@ -128,7 +128,9 @@ page.
   their tags, notes and highlights. A link the library already holds stays as
   it is. It prints what it will do, then waits for the job, printing its
   progress on stderr; \`--dry-run\` prints the plan and imports nothing, and
-  \`--no-wait\` answers once the job starts. Each page fills in afterwards.
+  \`--no-wait\` answers once the job starts. The job is the answer however it
+  ends (\`--json\`: \`{"job":…}\`): one that stopped on an error says \`failed\`
+  in its \`state\` and why in its \`message\`. Each page fills in afterwards.
 - \`inteligir import status\` — the latest import, running or ended.
 - \`inteligir import cancel\` — stop the running import; the items it already
   added stay.

@@ -12,6 +12,8 @@ import type { DocViewContext, LibraryViewContext, ViewContext } from "@repo/doma
 import { isItemKind } from "@repo/notes/items/item-kind";
 import { isTagName } from "@repo/notes/knowledge/tag-grammar";
 import { z } from "zod";
+import { utf8ByteLength } from "@repo/contract/cloud/bytes";
+import { KNOWLEDGE_ITEMS_QUERY_MAX } from "../knowledge/knowledge-schema";
 import { threadTimelineSchema, timelineDeltaSchema } from "../thread-timeline";
 import { contentHashSchema, vaultPathSchema } from "../vault/vault-schema";
 
@@ -210,6 +212,11 @@ const readLibraryScope = (scope: LibraryScope): WireRead<LibraryScope> => {
   }
 };
 
+// what the request event keeps of a library context (every field but the paths, which
+// thread-send.ts drops) rides the thread sync beside the typed text under the event's 64 KiB cap,
+// and only the text is clipped to fit, so the rest is held to a few KB here
+export const LIBRARY_CONTEXT_RECORD_MAX_BYTES = 4096;
+
 const readLibraryContext = (value: LibraryViewContext): WireRead<LibraryViewContext> => {
   const scope = readLibraryScope(value.scope);
   if (!scope.ok) {
@@ -217,6 +224,15 @@ const readLibraryContext = (value: LibraryViewContext): WireRead<LibraryViewCont
   }
   if (value.kinds !== undefined && !value.kinds.every(isItemKind)) {
     return refused("viewContext.kinds names a kind no item has", ["kinds"]);
+  }
+  if (value.kinds !== undefined && new Set(value.kinds).size !== value.kinds.length) {
+    return refused("viewContext.kinds names a kind twice", ["kinds"]);
+  }
+  if (value.q !== undefined && value.q.length > KNOWLEDGE_ITEMS_QUERY_MAX) {
+    return refused("viewContext.q is longer than a listing's search", ["q"]);
+  }
+  if (utf8ByteLength(JSON.stringify({ ...value, paths: [] })) > LIBRARY_CONTEXT_RECORD_MAX_BYTES) {
+    return refused("viewContext is too large to record on the thread", []);
   }
   const paths: string[] = [];
   for (const [index, raw] of value.paths.entries()) {

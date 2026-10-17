@@ -10,14 +10,13 @@ import { scanDoc } from "../knowledge/link-extract";
 import {
   frontmatterYaml,
   parseProperties,
-  replaceFrontmatterYaml,
   replaceTopLevelKey,
   TAGS_KEY,
   yamlScalarText,
   yamlStringEntries,
 } from "../markdown/frontmatter";
 import { splitLines } from "../text/source-lines";
-import { itemFactsOf } from "./item-frontmatter";
+import { itemFactsOf, replaceItemYaml } from "./item-frontmatter";
 
 // `#a` and `a` name one tag, in any case
 const tagKey = (written: string): string =>
@@ -159,7 +158,7 @@ export const addFrontmatterTags = (content: string, tags: readonly string[]): st
     }
     // no default
   }
-  return next === null ? null : replaceFrontmatterYaml(content, next);
+  return next === null ? null : replaceItemYaml(content, next);
 };
 
 // the yaml with the flow list's chosen items cut out, separators with them
@@ -265,7 +264,7 @@ export const removeFrontmatterTags = (
   if (kept === null) {
     return { content: null, inline: [] };
   }
-  const next = yaml === null || kept === yaml ? content : replaceFrontmatterYaml(content, kept);
+  const next = yaml === null || kept === yaml ? content : replaceItemYaml(content, kept);
   // a saved page's hashtags are the page's, not the person's: only a note's count as tags
   const written =
     itemFactsOf(next).kind === "note" ? new Set(scanDoc(next).tags.map(tagKey)) : new Set();

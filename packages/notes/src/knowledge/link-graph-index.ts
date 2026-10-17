@@ -154,7 +154,8 @@ export class LinkGraphIndex {
   private resolved: ResolvedState | null = null;
   private readonly pendingDocs = new Set<string>();
   private nextSeq = 0;
-  // a path was added or removed, or a doc's aliases or id moved, since the last take
+  // a path was added or removed, or a doc's aliases, id, title or pin moved, since the last take:
+  // every field a wikiTargets row carries
   private targetsMoved = false;
 
   private allocateSeq(): number {
@@ -181,6 +182,11 @@ export class LinkGraphIndex {
       sameStrings(prior.aliases, projection.aliases) &&
       prior.noteId === projection.noteId
     ) {
+      // no link resolves by a title or a pin, but the targets answer carries both: the page's
+      // pinned set and the link pickers' titles are read from it
+      if (prior.title !== projection.title || prior.pinned !== projection.pinned) {
+        this.targetsMoved = true;
+      }
       if (this.resolved !== null) {
         this.pendingDocs.add(path);
       }
@@ -245,8 +251,8 @@ export class LinkGraphIndex {
     this.library.setStat(path, stat);
   }
 
-  // whether the set of link targets moved since the last take, and resets it: what the server
-  // announces as `targets-changed`
+  // whether a link target's row (its path, aliases, id, pin or title) moved since the last take,
+  // and resets it: what the server announces as `targets-changed`
   takeTargetsChanged(): boolean {
     const moved = this.targetsMoved;
     this.targetsMoved = false;

@@ -214,13 +214,15 @@ export const KNOWLEDGE_ITEM_PATHS_MAX = 50_000;
 export const KNOWLEDGE_FIND_BY_URL_MAX = 50;
 // q narrows to this many ranked hits
 export const KNOWLEDGE_ITEMS_SEARCH_MAX = 500;
+// the longest q a listing (and a library view context, which names one) takes
+export const KNOWLEDGE_ITEMS_QUERY_MAX = 500;
 
 const itemFilterFields = {
   // with subfolders: that folder and below
   folder: libraryFolderSchema.optional(),
   kinds: z.array(itemKindSchema).min(1).max(ITEM_KINDS.length).optional(),
   // the ranked search, top KNOWLEDGE_ITEMS_SEARCH_MAX
-  q: z.string().trim().min(1).max(500).optional(),
+  q: z.string().trim().min(1).max(KNOWLEDGE_ITEMS_QUERY_MAX).optional(),
   // saved (else modified) at or after
   since: itemTimeSchema.optional(),
   site: z.string().trim().min(1).max(253).optional(),

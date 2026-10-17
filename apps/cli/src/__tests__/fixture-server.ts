@@ -116,14 +116,12 @@ export interface FixtureState {
   // the library listing's rows, filtered and paged by the knowledge item handlers as the index's;
   // a save appends one, pending
   items: ItemRowWire[];
-  // nested, since a handler's context is a shallow copy of this state: a field it reassigns at the
-  // top would be lost after the call
-  imports: {
-    // the latest import job, which imports.status answers
-    job: ImportJob | null;
-    // what imports.plan answers; null, the file reads as no export at all
-    plan: ImportsPlanResponse | null;
-  };
+  // the latest import job, which imports.status answers
+  importJob: ImportJob | null;
+  // what imports.plan answers; null, the file reads as no export at all
+  importPlan: ImportsPlanResponse | null;
+  // the sentence a started job ends failed with; null, it ends done
+  importFailure: string | null;
   guideMarkdown: string;
   agent: AgentStatus;
   vaultStatus: VaultStatusResponse;
@@ -183,7 +181,9 @@ export const makeFixtureState = (): FixtureState => ({
   failWith: null,
   folders: { folders: [] },
   guideMarkdown: "# Fixture guide\n\nBe kind to the vault.\n",
-  imports: { job: null, plan: null },
+  importFailure: null,
+  importJob: null,
+  importPlan: null,
   items: [],
   nextCreatedThreadId: "thr_created_1",
   refuseSend: null,
@@ -853,36 +853,38 @@ const itemsRouter = {
   })),
 };
 
-// a start answers its job running, and the status after it finished: one poll sees it done
-const importsRouter = {
-  cancel: base.imports.cancel.handler(({ context, input, errors }) => {
-    const { job } = context.imports;
+// a start answers its job running, and the status after it finished: one poll sees it done. The
+// rows close over the state itself, since a handler's context is a shallow copy of it and a job
+// reassigned on the copy would be gone by the next call.
+const importsRouterFor = (state: FixtureState) => ({
+  cancel: base.imports.cancel.handler(({ input, errors }) => {
+    const job = state.importJob;
     if (job?.id !== input.id) {
       throw errors.NOT_FOUND({ message: "No import is running" });
     }
     if (job.state === "running") {
-      context.imports.job = { ...job, finishedAt: 1_700_000_001_000, state: "cancelled" };
+      state.importJob = { ...job, finishedAt: 1_700_000_001_000, state: "cancelled" };
     }
-    return { job: context.imports.job ?? job };
+    return { job: state.importJob ?? job };
   }),
-  plan: base.imports.plan.handler(({ context, errors }) => {
-    if (context.imports.plan === null) {
+  plan: base.imports.plan.handler(({ errors }) => {
+    if (state.importPlan === null) {
       throw errors.IMPORT_UNREADABLE({
         data: { reason: "not-csv" },
         message: "This file isn't a Raindrop export",
       });
     }
-    return context.imports.plan;
+    return state.importPlan;
   }),
-  start: base.imports.start.handler(({ context, input, errors }) => {
-    if (context.imports.job?.state === "running") {
+  start: base.imports.start.handler(({ input, errors }) => {
+    if (state.importJob?.state === "running") {
       throw errors.CONFLICT({ message: "An import is already running." });
     }
-    const { plan } = context.imports;
+    const plan = state.importPlan;
     if (plan?.planId !== input.planId) {
       throw errors.NOT_FOUND({ message: "That import plan is gone; choose the file again." });
     }
-    context.imports.plan = null;
+    state.importPlan = null;
     const job: ImportJob = {
       added: plan.items,
       alreadySaved: plan.alreadySaved,
@@ -895,11 +897,14 @@ const importsRouter = {
       state: "running",
       total: plan.items,
     };
-    context.imports.job = { ...job, finishedAt: 1_700_000_001_000, state: "done" };
+    state.importJob =
+      state.importFailure === null
+        ? { ...job, finishedAt: 1_700_000_001_000, state: "done" }
+        : { ...job, finishedAt: 1_700_000_001_000, message: state.importFailure, state: "failed" };
     return { job };
   }),
-  status: base.imports.status.handler(({ context }) => ({ job: context.imports.job })),
-};
+  status: base.imports.status.handler(() => ({ job: state.importJob })),
+});
 
 const parentFolders = (path: string): string[] => {
   const segments = path.split("/");
@@ -1035,27 +1040,28 @@ const vaultRouter = {
 };
 
 // a middleware rather than a handler interceptor, so the refusal reaches the client as an ORPCError like a real one.
-const fixtureRouter = base
-  .use(({ context, next }) => {
-    const failure = context.failWith;
-    if (failure !== null) {
-      throw new ORPCError(failure.code, { message: failure.message });
-    }
-    return next();
-  })
-  .router({
-    agents: agentsRouter,
-    annotations: annotationsRouter,
-    cloud: cloudRouter,
-    connectors: connectorsRouter,
-    folders: foldersRouter,
-    imports: importsRouter,
-    items: itemsRouter,
-    knowledge: knowledgeRouter,
-    system: systemRouter,
-    threads: threadsRouter,
-    vault: vaultRouter,
-  });
+const fixtureRouterFor = (state: FixtureState) =>
+  base
+    .use(({ context, next }) => {
+      const failure = context.failWith;
+      if (failure !== null) {
+        throw new ORPCError(failure.code, { message: failure.message });
+      }
+      return next();
+    })
+    .router({
+      agents: agentsRouter,
+      annotations: annotationsRouter,
+      cloud: cloudRouter,
+      connectors: connectorsRouter,
+      folders: foldersRouter,
+      imports: importsRouterFor(state),
+      items: itemsRouter,
+      knowledge: knowledgeRouter,
+      system: systemRouter,
+      threads: threadsRouter,
+      vault: vaultRouter,
+    });
 
 export interface FixtureServer {
   baseUrl: string;
@@ -1063,7 +1069,7 @@ export interface FixtureServer {
 }
 
 export const serveFixture = async (state: FixtureState): Promise<FixtureServer> => {
-  const handler = new RPCHandler(fixtureRouter);
+  const handler = new RPCHandler(fixtureRouterFor(state));
   const server = createServer((request, response) => {
     if (request.headers.authorization !== `Bearer ${FIXTURE_SERVER_TOKEN}`) {
       response.writeHead(401, { "content-type": "text/plain" });

@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, rm, truncate, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { importsJobResponseSchema } from "@repo/contract/local/imports/imports-schema";
 import { fileTooLargeMessage } from "@repo/contract/local/items/items-schema";
 import { browserHandoffUrl } from "@repo/contract/local/routes";
 import type { ThreadTimeline } from "@repo/contract/local/thread-timeline";
@@ -2140,21 +2141,21 @@ const RAINDROP_PLAN = {
 describe("import", () => {
   it("prints the plan on a dry run and imports nothing", async () => {
     const state = libraryState();
-    state.imports.plan = RAINDROP_PLAN;
+    state.importPlan = RAINDROP_PLAN;
     const server = await boot(state);
     const dry = await runCliForTest({
       argv: ["import", "raindrop", FIXTURE_RAINDROP_PATH, "--dry-run"],
       baseUrl: server.baseUrl,
     });
     expect(dry.stdout).toBe(
-      "8,416 links in 34 folders, with 210 tags and 1,240 highlights. 96 are already in your library and stay as they are.\n",
+      "8,416 links in 34 folders, with 210 tags and 1,240 highlights. 96 are already in your library and stay as they are. Each page's text and picture fill in over the next while.\n",
     );
-    expect(state.imports.job).toBeNull();
+    expect(state.importJob).toBeNull();
   });
 
   it("runs the import, follows it to its end, and says what it added", async () => {
     const state = libraryState();
-    state.imports.plan = RAINDROP_PLAN;
+    state.importPlan = RAINDROP_PLAN;
     const server = await boot(state);
     const run = await runCliForTest({
       argv: ["import", "raindrop", FIXTURE_RAINDROP_PATH],
@@ -2167,6 +2168,32 @@ describe("import", () => {
 
     const status = await runCliForTest({ argv: ["import", "status"], baseUrl: server.baseUrl });
     expect(status.stdout).toBe("Imported 8,416 items from Raindrop (96 already saved)\n");
+  });
+
+  it("answers a job that ended failed as its final job, in --json and in words", async () => {
+    const state = libraryState();
+    state.importPlan = RAINDROP_PLAN;
+    state.importFailure = "The library's folder could not be written.";
+    const server = await boot(state);
+    const json = await runCliForTest({
+      argv: ["import", "raindrop", FIXTURE_RAINDROP_PATH, "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(json.code).toBe(0);
+    expect(json.stderr).toBe("");
+    expect(importsJobResponseSchema.parse(JSON.parse(json.stdout)).job).toMatchObject({
+      message: "The library's folder could not be written.",
+      state: "failed",
+    });
+
+    state.importPlan = RAINDROP_PLAN;
+    const words = await runCliForTest({
+      argv: ["import", "raindrop", FIXTURE_RAINDROP_PATH],
+      baseUrl: server.baseUrl,
+    });
+    expect(words.stdout.split("\n").at(-2)).toBe(
+      "The import from Raindrop stopped: The library's folder could not be written.",
+    );
   });
 
   it("refuses a file that is not a Raindrop export in the server's class", async () => {
@@ -2188,7 +2215,7 @@ describe("import", () => {
     });
     expect(importCancelOutputSchema.parse(JSON.parse(none.stdout))).toEqual({ job: null });
 
-    state.imports.job = {
+    state.importJob = {
       added: 1200,
       alreadySaved: 0,
       finishedAt: null,
@@ -2202,7 +2229,7 @@ describe("import", () => {
     };
     const stopped = await runCliForTest({ argv: ["import", "cancel"], baseUrl: server.baseUrl });
     expect(stopped.stdout).toBe("Stopped the import\n");
-    expect(state.imports.job.state).toBe("cancelled");
+    expect(state.importJob.state).toBe("cancelled");
   });
 });
 

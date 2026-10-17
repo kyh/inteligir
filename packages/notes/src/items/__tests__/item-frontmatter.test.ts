@@ -5,15 +5,15 @@ import { splitLines } from "../../text/source-lines";
 import { bodyOf, composeLinkBody, embedMarkdown, withBody } from "../item-body";
 import {
   composeItemFile,
-  FILL_OWNED_KEYS,
   isItemStub,
-  ITEM_KEYS,
   itemFactsOf,
   NOTE_FACTS,
   readItemFacts,
   withItemFields,
 } from "../item-frontmatter";
-import type { ItemFieldPatch, ItemKey } from "../item-frontmatter";
+import type { ItemFieldPatch } from "../item-frontmatter";
+import { FILL_OWNED_KEYS, ITEM_KEYS } from "../item-kind";
+import type { ItemKey } from "../item-kind";
 import { linkStubText } from "../item-stub";
 
 /* oxlint-disable no-bitwise -- mulberry32 is 32-bit integer math; the shifts and xors ARE the
@@ -78,6 +78,19 @@ describe("the exact bytes of §1.4", () => {
   it("a phone stub with a note, its tracking parameters dropped", () => {
     expect(phoneStub).toBe(
       "---\nid: 7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17\nkind: link\nurl: https://stephango.com/file-over-app\nsaved: 2026-10-17T09:12:30Z\n---\n\nFor Tuesday.\n",
+    );
+  });
+
+  it("trims a stub's note whole, its first line's indent included", () => {
+    const padded = linkStubText({
+      id: "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17",
+      note: "  For Tuesday.  \n",
+      saved: SAVED,
+      url: "https://stephango.com/file-over-app",
+    });
+    expect(padded).toBe(phoneStub);
+    expect(linkStubText({ id: "i", note: " \n\t\n", saved: SAVED, url: "https://a.com/" })).toBe(
+      "---\nid: i\nkind: link\nurl: https://a.com/\nsaved: 2026-10-17T09:12:30Z\n---\n",
     );
   });
 
@@ -317,7 +330,7 @@ describe("withItemFields", () => {
     );
     expect(written("---\nfoo: 1\n---\n", { site: "S" })).toBe("---\nsite: S\nfoo: 1\n---\n");
     expect(written("body\n", { kind: "link", url: "https://a.com" })).toBe(
-      "---\nkind: link\nurl: https://a.com\n---\nbody\n",
+      "---\nkind: link\nurl: https://a.com\n---\n\nbody\n",
     );
   });
 
@@ -336,10 +349,10 @@ describe("withItemFields", () => {
     expect(withItemFields("x", { url: "ftp://a" }).kind).toBe("refused");
     expect(withItemFields("x", { saved: "yesterday" }).kind).toBe("refused");
     expect(written("x", { saved: "2026-10-17T11:12:30+02:00" })).toBe(
-      "---\nsaved: 2026-10-17T09:12:30Z\n---\nx",
+      "---\nsaved: 2026-10-17T09:12:30Z\n---\n\nx",
     );
     expect(written("x", { url: "https://u:p@a.com/?fbclid=1" })).toBe(
-      "---\nurl: https://a.com/\n---\nx",
+      "---\nurl: https://a.com/\n---\n\nx",
     );
   });
 
@@ -348,6 +361,21 @@ describe("withItemFields", () => {
       "---\nsite: s\n---\nx",
     );
     expect(written("---\nsite: s\n---\nx", { site: null })).toBe("x");
+  });
+
+  it("writes a block it adds one blank line above the body, and an emptied block takes it", () => {
+    expect(written("Hello\n", { description: "D" })).toBe("---\ndescription: D\n---\n\nHello\n");
+    expect(written("\nHello\n", { description: "D" })).toBe("---\ndescription: D\n---\n\nHello\n");
+    expect(written("", { kind: "link" })).toBe("---\nkind: link\n---\n");
+    expect(written("\uFEFFHello\r\n", { site: "S" })).toBe(
+      "\uFEFF---\r\nsite: S\r\n---\r\n\r\nHello\r\n",
+    );
+    expect(written("---\nsite: s\n---\n\nHello\n", { site: null })).toBe("Hello\n");
+    expect(written("\uFEFF---\r\nsite: s\r\n---\r\n\r\nHello\r\n", { site: null })).toBe(
+      "\uFEFFHello\r\n",
+    );
+    // a block that stays is a line cut: the bytes under it are kept, flush or not
+    expect(written("---\nsite: s\n---\nHello\n", { site: "T" })).toBe("---\nsite: T\n---\nHello\n");
   });
 
   it("is unchanged when every key already says it, and refuses an invalid block", () => {

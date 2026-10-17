@@ -2,7 +2,9 @@
 // the server, the projection worker and the phone load it and the contract never does.
 
 import { splitLines } from "../text/source-lines";
+import { BOM } from "../markdown/parsed-offsets";
 import {
+  frontmatterEnd,
   frontmatterYaml,
   noteIdOfProperties,
   parseProperties,
@@ -14,34 +16,10 @@ import {
   yamlScalarText,
 } from "../markdown/frontmatter";
 import type { ParsedProperties, TypedProperty } from "../markdown/frontmatter";
-import { isItemKind, URL_ITEM_KINDS } from "./item-kind";
-import type { ItemKind } from "./item-kind";
+import { isItemKind, ITEM_KEYS, URL_ITEM_KINDS } from "./item-kind";
+import type { ItemKey, ItemKind } from "./item-kind";
 import { formatItemTime, parseItemTime } from "./item-time";
 import { cleanUrl, isWebUrl, urlHost, urlKey } from "./item-url";
-
-export const ITEM_KEYS = [
-  "kind",
-  "url",
-  "site",
-  "author",
-  "published",
-  "saved",
-  "fetched",
-  "fetch-error",
-  "description",
-] as const;
-export type ItemKey = (typeof ITEM_KEYS)[number];
-
-// what a fill (and the url-item verdict's winner) owns; `url` and `saved` are written once, at save
-export const FILL_OWNED_KEYS = [
-  "kind",
-  "site",
-  "author",
-  "published",
-  "fetched",
-  "fetch-error",
-  "description",
-] as const satisfies readonly ItemKey[];
 
 export interface ItemFacts {
   kind: ItemKind;
@@ -216,6 +194,31 @@ export const composeItemFile = (fields: ItemFileFields, body: string): string =>
   return `---\n${lines.join("\n")}\n---\n${body === "" ? "" : "\n"}${body}`;
 };
 
+// the blank line the editor writes between a block and the body under it
+const SEPARATING_LINE = /^\r?\n/u;
+
+// replaceFrontmatterYaml, holding the editor's spelling at the block's two edges: a block this
+// adds to a doc that had none sits one blank line above the body, and a block this empties takes
+// that line with it. A block that stays is a line cut, every byte under it kept.
+export const replaceItemYaml = (content: string, yaml: string): string => {
+  const end = frontmatterEnd(content);
+  const writesBlock = yaml.trim() !== "";
+  if ((end !== null) === writesBlock) {
+    return replaceFrontmatterYaml(content, yaml);
+  }
+  const bom = content.startsWith(BOM) ? BOM : "";
+  const body = content.slice(end ?? bom.length).replace(SEPARATING_LINE, "");
+  if (!writesBlock) {
+    return `${bom}${body}`;
+  }
+  const flush = replaceFrontmatterYaml(content, yaml);
+  const block = flush.slice(0, flush.length - (content.length - bom.length));
+  if (body === "") {
+    return block;
+  }
+  return `${block}${block.endsWith("\r\n") ? "\r\n" : "\n"}${body}`;
+};
+
 export type WithItemFieldsVerdict =
   | { kind: "written"; content: string }
   | { kind: "unchanged" }
@@ -330,5 +333,5 @@ export const withItemFields = (content: string, patch: ItemFieldPatch): WithItem
   if (!changed) {
     return { kind: "unchanged" };
   }
-  return { content: replaceFrontmatterYaml(content, lines.join("\n")), kind: "written" };
+  return { content: replaceItemYaml(content, lines.join("\n")), kind: "written" };
 };

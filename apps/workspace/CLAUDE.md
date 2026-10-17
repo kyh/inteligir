@@ -204,6 +204,19 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   Settings is laid out by hand. A keyed storage read outside the table fails
   `tools/repo-guards/src/page-prefs.test.ts`.
 
+- **A LIBRARY SCOPE HAS ONE SPELLING, `@repo/domain/library-scope`.** Which
+  part of the library a screen shows (all of it, Unsorted, a folder, a tag or
+  Deleted) is one zod union, `libraryScopeSchema`
+  (`packages/domain/src/library-scope.ts`): the page remembers it as a `PREFS`
+  row over that schema (`apps/workspace/src/app/prefs.ts`), asks the items
+  listing for it by its folder and tag, and sends it as a library view
+  context's `scope` (`packages/domain/src/view-context.ts`), which the threads
+  wire holds to a vault path and a tag name and refuses for Deleted
+  (`packages/contract/src/local/threads/threads-schema.ts`). Rejected: a scope
+  per surface (the rail's view name, the listing's request fields, the
+  composer's subject), three spellings that drift the first time a scope gains
+  a kind.
+
 ## Repo guards, vendoring and tooling
 
 - **A WORKSPACE TEST THAT LOGS A console.error FAILS.** React reports a setState

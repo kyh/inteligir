@@ -185,7 +185,7 @@ describe("the library over the runtime", () => {
     ]);
   });
 
-  it("says targets-changed for a rename and an alias edit, never for a body edit", async () => {
+  it("says targets-changed for a rename, an alias, pin or heading edit, never another body edit", async () => {
     let changed = 0;
     const { knowledge, service } = bootIndexedVault(makeDirs(), {
       onTargetsChanged: () => {
@@ -207,5 +207,15 @@ describe("the library over the runtime", () => {
     await service.write("b.md", "---\naliases: [Alpha]\n---\n# A\n");
     await knowledge.settle();
     expect(changed).toBe(2);
+
+    // a pin or a heading the targets rows carry moves the page's pinned set and link titles
+    await service.write("b.md", "---\naliases: [Alpha]\npinned: true\n---\n# A\n");
+    await knowledge.settle();
+    expect(changed).toBe(3);
+    const targets = await knowledge.wikiTargets();
+    expect(targets.find((target) => target.path === "b.md")?.pinned).toBe(true);
+    await service.write("b.md", "---\naliases: [Alpha]\npinned: true\n---\n# Beta\n");
+    await knowledge.settle();
+    expect(changed).toBe(4);
   });
 });
