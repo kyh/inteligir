@@ -60,6 +60,7 @@ import type {
   VaultRevision,
   VaultStatusResponse,
 } from "@repo/contract/local/vault/vault-schema";
+import type { ActionPreset } from "@repo/domain/action-preset";
 import type { ThreadStatus } from "@repo/domain/thread-status";
 import { boundAddressSchema } from "../server/__tests__/bound-address";
 import { guardRefusalError, judgeGuard } from "../server/vault/write-guard";
@@ -92,6 +93,8 @@ export interface FixtureState {
   dataDir: string;
   failWith: { code: "BAD_REQUEST" | "INTERNAL_SERVER_ERROR"; message: string } | null;
   refuseSend: { code: "PROVIDER_UNAVAILABLE"; message: string } | null;
+  // every message threads.send took, in order
+  sent: { preset: ActionPreset | null; text: string; threadId: string }[];
   // false: the server of an unbuilt checkout, which mints no browser handoff.
   servesUi: boolean;
   vault: Map<string, string>;
@@ -113,10 +116,14 @@ export interface FixtureState {
   // the library listing's rows, filtered and paged by the knowledge item handlers as the index's;
   // a save appends one, pending
   items: ItemRowWire[];
-  // what imports.plan answers; null, the file reads as no export at all
-  importPlan: ImportsPlanResponse | null;
-  // the latest import job, which imports.status answers
-  importJob: ImportJob | null;
+  // nested, since a handler's context is a shallow copy of this state: a field it reassigns at the
+  // top would be lost after the call
+  imports: {
+    // the latest import job, which imports.status answers
+    job: ImportJob | null;
+    // what imports.plan answers; null, the file reads as no export at all
+    plan: ImportsPlanResponse | null;
+  };
   guideMarkdown: string;
   agent: AgentStatus;
   vaultStatus: VaultStatusResponse;
@@ -176,11 +183,11 @@ export const makeFixtureState = (): FixtureState => ({
   failWith: null,
   folders: { folders: [] },
   guideMarkdown: "# Fixture guide\n\nBe kind to the vault.\n",
-  importJob: null,
-  importPlan: null,
+  imports: { job: null, plan: null },
   items: [],
   nextCreatedThreadId: "thr_created_1",
   refuseSend: null,
+  sent: [],
   related: [],
   revisions: new Map(),
   searchResults: [],
@@ -672,6 +679,7 @@ const threadsRouter = {
     if (refusal !== null) {
       throw errors.PROVIDER_UNAVAILABLE({ message: refusal.message });
     }
+    context.sent.push({ preset: input.preset ?? null, text: input.text, threadId: input.threadId });
     return { kind: "started", turnId: `turn_for_${input.threadId}` };
   }),
   timeline: base.threads.timeline.handler(({ context, input, errors }) => {
@@ -715,7 +723,7 @@ const fillOf = (row: ItemRowWire): ItemFill => {
     : { message: row.fetchError, state: "failed" };
 };
 
-const itemRow = (path: string, fields: Partial<ItemRowWire>): ItemRowWire => ({
+export const makeItemRow = (path: string, fields: Partial<ItemRowWire>): ItemRowWire => ({
   author: null,
   bare: false,
   copy: null,
@@ -766,7 +774,7 @@ const saveUrl = (state: FixtureState, save: UrlSave): ItemSaveResponse => {
   }
   const path = freeItemPath(state, save.folder ?? UNSORTED_FOLDER, itemStem(save.title, save.url));
   state.items.push(
-    itemRow(path, {
+    makeItemRow(path, {
       host: urlHost(save.url),
       kind: kindForUrl(save.url),
       pending: true,
@@ -802,7 +810,7 @@ const itemsRouter = {
     const stem = itemNameFromTitle(name.slice(0, name.length - extnamePath(name).length));
     const path = freeItemPath(context, input.folder ?? UNSORTED_FOLDER, stem ?? "File");
     context.items.push(
-      itemRow(path, {
+      makeItemRow(path, {
         file: `assets/${name}`,
         fileBytes: input.file.size,
         kind: fileKindOf(name) ?? "file",
@@ -848,33 +856,33 @@ const itemsRouter = {
 // a start answers its job running, and the status after it finished: one poll sees it done
 const importsRouter = {
   cancel: base.imports.cancel.handler(({ context, input, errors }) => {
-    const job = context.importJob;
+    const { job } = context.imports;
     if (job?.id !== input.id) {
       throw errors.NOT_FOUND({ message: "No import is running" });
     }
     if (job.state === "running") {
-      context.importJob = { ...job, finishedAt: 1_700_000_001_000, state: "cancelled" };
+      context.imports.job = { ...job, finishedAt: 1_700_000_001_000, state: "cancelled" };
     }
-    return { job: context.importJob ?? job };
+    return { job: context.imports.job ?? job };
   }),
   plan: base.imports.plan.handler(({ context, errors }) => {
-    if (context.importPlan === null) {
+    if (context.imports.plan === null) {
       throw errors.IMPORT_UNREADABLE({
         data: { reason: "not-csv" },
         message: "This file isn't a Raindrop export",
       });
     }
-    return context.importPlan;
+    return context.imports.plan;
   }),
   start: base.imports.start.handler(({ context, input, errors }) => {
-    if (context.importJob?.state === "running") {
+    if (context.imports.job?.state === "running") {
       throw errors.CONFLICT({ message: "An import is already running." });
     }
-    const plan = context.importPlan;
+    const { plan } = context.imports;
     if (plan?.planId !== input.planId) {
       throw errors.NOT_FOUND({ message: "That import plan is gone; choose the file again." });
     }
-    context.importPlan = null;
+    context.imports.plan = null;
     const job: ImportJob = {
       added: plan.items,
       alreadySaved: plan.alreadySaved,
@@ -887,10 +895,10 @@ const importsRouter = {
       state: "running",
       total: plan.items,
     };
-    context.importJob = { ...job, finishedAt: 1_700_000_001_000, state: "done" };
+    context.imports.job = { ...job, finishedAt: 1_700_000_001_000, state: "done" };
     return { job };
   }),
-  status: base.imports.status.handler(({ context }) => ({ job: context.importJob })),
+  status: base.imports.status.handler(({ context }) => ({ job: context.imports.job })),
 };
 
 const parentFolders = (path: string): string[] => {

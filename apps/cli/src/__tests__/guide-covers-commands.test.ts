@@ -52,7 +52,12 @@ describe("the served guide covers the command surface", () => {
           continue;
         }
         const flag = `--${name}`;
-        if (!CLI_SKILL_MD.includes(flag)) {
+        // a boolean that defaults on is spelled by its negation, which citty parses as `name` false
+        const negation = arg.type === "boolean" && arg.default === true ? `--no-${name}` : null;
+        if (
+          !CLI_SKILL_MD.includes(flag) &&
+          (negation === null || !CLI_SKILL_MD.includes(negation))
+        ) {
           undocumented.push(`${path} ${flag}`);
         }
       }
@@ -66,6 +71,11 @@ describe("the served guide covers the command surface", () => {
     for (const { command } of collectLeafCommands(testProgram())) {
       for (const flag of declaredFlags(argsOf(command))) {
         accepted.add(flag);
+      }
+      for (const [name, arg] of Object.entries(argsOf(command))) {
+        if (arg.type === "boolean") {
+          accepted.add(`no-${name}`);
+        }
       }
     }
 

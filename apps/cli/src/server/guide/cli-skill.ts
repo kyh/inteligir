@@ -3,13 +3,15 @@
 // tree against these bytes, so re-flagging a command means editing this text.
 // Limits are the contract's own constants, so a changed cap cannot leave a stale range here.
 
+import { IMPORT_FILE_MAX_BYTES } from "@repo/contract/local/imports/imports-schema";
 import {
+  KNOWLEDGE_ITEMS_DEFAULT_LIMIT,
+  KNOWLEDGE_ITEMS_MAX_LIMIT,
   KNOWLEDGE_MATCHES_MAX_LIMIT,
   KNOWLEDGE_RELATED_MAX_LIMIT,
   KNOWLEDGE_SEARCH_MAX_LIMIT,
-  KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT,
-  KNOWLEDGE_TAG_NOTES_MAX_LIMIT,
 } from "@repo/contract/local/knowledge/knowledge-schema";
+import { ITEM_FILE_MAX_BYTES } from "@repo/notes/items/item-kind";
 import {
   THREADS_LIST_DEFAULT_LIMIT,
   THREADS_LIST_MAX_LIMIT,
@@ -31,13 +33,15 @@ const MIB = 1024 * 1024;
 
 export const CLI_SKILL_MD = `---
 name: inteligir-cli
-description: Drive the local inteligir notes app — vault files, knowledge search, agent actions — from the shell.
+description: Drive the local inteligir library app — saving links and files, the items, tags, search, agent actions — from the shell.
 ---
 
 # The inteligir CLI
 
-inteligir is a local-first notes app: a vault of markdown files with a
-knowledge index and an agent. The \`inteligir\` CLI drives the running app over
+inteligir is a local-first library of everything a person saves: links,
+articles, images, PDFs, files and their own notes, every item one markdown
+file in a vault folder, with a knowledge index and an agent. The
+\`inteligir\` CLI drives the running app over
 its HTTP API. Every leaf command accepts \`--json\` for machine-readable
 output; without it the output is compact human text.
 
@@ -75,6 +79,62 @@ rather than dropped. Quote an argument that holds spaces
   command. Under \`--json\` it opens nothing and prints \`{"url": …}\`: hand
   that link to the user rather than opening it yourself. A server with no UI
   (an unbuilt checkout) refuses it as \`NOT_FOUND\`.
+
+## Library — saving and finding items
+
+Every item is one markdown file. A saved link's frontmatter holds its \`kind\`,
+\`url\`, \`site\` and \`saved\` time, and its body is the page's readable
+text once the Mac has read the page; an image, PDF or other file is the
+original beside a small note that embeds it. A save lands in \`Unsorted/\`
+unless it names a folder, and calls no model: the Mac's own server reads the
+page.
+
+- \`inteligir save <target>\` — save a web link (\`https://…\`), a file on this
+  Mac (at most ${ITEM_FILE_MAX_BYTES / MIB} MB, refused before anything is sent), or, with \`-\`,
+  up to 50 web links read from stdin, one per line
+  (\`pbpaste | inteligir save -\`). \`--folder <path>\` saves into that folder
+  (\`""\` is the library's top), \`--tags <a,b>\` adds tags (comma-separated,
+  each without the \`#\`), \`--copy\` keeps a copy of the page (links only),
+  and \`--html <file|->\` hands over the page's HTML instead of fetching it
+  (one link only). It waits until the page is read (at most a minute);
+  \`--no-wait\` answers at once. A link the library already holds is not saved
+  twice: the answer is \`Already saved: <path>\`, and its tags are added to
+  that item. A page that cannot be read is still saved, and the answer says
+  why. \`--json\` answers \`{ fill, outcome, path }\` (\`outcome\` is
+  \`created\` or \`exists\`; \`fill.state\` is \`filled\`, \`pending\` or
+  \`failed\` with its \`message\`); with \`-\`, \`{ results }\` in stdin's order.
+- \`inteligir items\` — the library's items, newest saved first, pinned ones
+  leading, one tab-separated line each: path, kind, saved day, site, tags.
+  \`--kind <k[,k]>\` keeps those kinds (\`note\`, \`link\`, \`video\`,
+  \`audio\`, \`image\`, \`pdf\`, \`file\`); \`--tag <t>\` keeps a tag and the
+  tags nested under it; \`--untagged\` keeps items with no tag at all;
+  \`--site <host>\` keeps one site; \`--folder <path>\` keeps a folder and its
+  subfolders, and \`--flat\` leaves the subfolders out; \`--since <date>\`
+  keeps items saved at or after it (\`2026-10-16\`);
+  \`--sort saved|modified|title\` orders them; \`--limit <n>\` is the page
+  (1–${KNOWLEDGE_ITEMS_MAX_LIMIT}, default ${KNOWLEDGE_ITEMS_DEFAULT_LIMIT}) and \`--offset <n>\` skips to the next one,
+  which a cut listing names on its last line.
+- \`inteligir item show <path>\` — one item's facts: kind, url, site, author,
+  published, saved, fetched, why its page could not be read, folder, cover,
+  file, page copy, tags, pinned. A path that is not an item is \`NOT_FOUND\`.
+- \`inteligir item find <url>\` — where the library already holds a link,
+  matched the way a save dedupes (tracking parameters, \`www.\` and the like
+  ignored). Prints \`Not saved yet\` when it holds none.
+- \`inteligir item refresh <path>\` — read a saved link's page again. Its text
+  is kept unless \`--replace-text\` (refused while it has highlights);
+  \`--copy\` also keeps a copy of the page; \`--no-wait\` answers at once.
+- \`inteligir import raindrop <file>\` — import a Raindrop backup's CSV (at
+  most ${IMPORT_FILE_MAX_BYTES / MIB} MB): links into folders named for its collections, with
+  their tags, notes and highlights. A link the library already holds stays as
+  it is. It prints what it will do, then waits for the job, printing its
+  progress on stderr; \`--dry-run\` prints the plan and imports nothing, and
+  \`--no-wait\` answers once the job starts. Each page fills in afterwards.
+- \`inteligir import status\` — the latest import, running or ended.
+- \`inteligir import cancel\` — stop the running import; the items it already
+  added stay.
+
+Filing rules the person wrote for the library live in its own \`AGENTS.md\`:
+read it before you file, tag or rename items.
 
 ## Vault — files on disk
 
@@ -178,10 +238,14 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
 - \`inteligir related <path>\` — notes connected to a note WITHOUT linking to
   it: shared link targets, shared tags, similar text. Each row is followed by
   the reasons it is there. \`--limit <n>\` caps results (1–${KNOWLEDGE_RELATED_MAX_LIMIT}).
-- \`inteligir tags\` — every tag with its usage count, most used first.
-- \`inteligir tag notes <tag>\` — every note holding the tag or one nested under
-  it, by path; \`--limit <n>\` is the page (1–${KNOWLEDGE_TAG_NOTES_MAX_LIMIT}, default
-  ${KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT}) and \`--offset <n>\` skips to the next one.
+- \`inteligir tags\` — every tag with its usage count, most used first. The
+  items holding one are \`inteligir items --tag <tag>\`.
+- \`inteligir tag add <tag> <path>\` — add a tag (spelled without the \`#\`) to
+  an item's properties; every other byte of the file is kept.
+- \`inteligir tag remove <tag> <path>\` — take a tag off an item's properties.
+  A note can also hold the tag as \`#tag\` in its text, which this leaves, and
+  the answer says so. \`--json\` answers the one item's result for either:
+  \`{ inline, outcome, path }\`. An item that is gone is \`NOT_FOUND\`.
 - \`inteligir tag rename <from> <to>\` — rename a tag (spelled without the
   \`#\`) in every note, nested tags under it included; a note that changed
   mid-rename is reported as skipped, never overwritten.
@@ -199,7 +263,9 @@ Paths are vault-relative POSIX paths (\`notes/idea.md\`). Prefer wiki links
 - \`inteligir action new [--doc <path>] <prompt>\` — start an action
   (optionally attached to a note) and send the first turn. If the action is
   created but its first turn fails, the failure names the new id so you can
-  retry or archive it.
+  retry or archive it. \`--preset tidy-library\` runs Tidy my library: the
+  agent tags and files every Unsorted or untagged item by the library's
+  filing rules; the prompt is then optional, and is sent with it.
 - \`inteligir action send <id> <prompt>\` — send a follow-up; starts a turn
   when the action is idle, queues behind a running one otherwise. A message
   still waiting in the queue always starts before a later send.
@@ -247,30 +313,33 @@ id=$(inteligir action new "Summarize notes/inbox.md" --json | jq -r .thread.id)
 inteligir action wait "$id" && inteligir action show "$id"
 \`\`\`
 
-## Annotations — highlights and notes on a note's text
+## Annotations — highlights and notes on an item's text
 
 An annotation is a highlighted passage and an optional note on it, with
-replies under it. Annotations live in \`.inteligir/annotations/<note-id>.json\`,
-keyed by the note's frontmatter \`id\` (minted on the first annotation); the
+replies under it. Annotations live in \`.inteligir/annotations/<item-id>.json\`,
+keyed by the item's frontmatter \`id\` (minted on the first annotation); the
 \`%%i:id:start%%…%%i:id:end%%\` body markers wrap the passages they are
 about (the inteligir-annotations skill states the grammar — follow it when
 editing files directly). There is no resolve: remove an annotation once it
 has done its job.
 
-- \`inteligir annotation list <path>\` — a note's annotations, their quotes,
-  notes and replies, and whether markers anchor each.
-- \`inteligir annotation add <path> <quote>\` — add an annotation recording
-  the passage's text (\`--note <text>\` gives it a note). It is UNANCHORED
-  until markers wrap that passage in the note body.
+- \`inteligir annotation list <path>\` — an item's annotations, one line each:
+  id, state, the quoted passage and the note, with replies beneath.
+  \`anchored\` means its markers are in the text; \`waiting\` means the item's
+  page is still being read and the highlight is placed once it is; \`missing\`
+  means its passage is no longer in the text.
+- \`inteligir annotation add <path> <quote>\` — highlight a passage: the
+  markers are written around the first place \`<quote>\` appears in the text
+  (\`--occurrence <n>\` picks a later one), and \`--note <text>\` gives it a
+  note. A quote the text does not hold is refused.
 - \`inteligir annotation edit <path> <id> <text>\` — rewrite an annotation's
   note or a reply (\`""\` takes a note away and keeps the highlight).
 - \`inteligir annotation reply <path> <parent-id> <text>\` — reply under an
   annotation.
-- Each of those four signs its entry: \`agent\` inside an agent shell
-  (\`INTELIGIR_THREAD_ID\` set), \`user\` otherwise;
-  \`--source <user|agent|external>\` overrides.
-- \`inteligir annotation remove <path> <id>\` — delete an annotation's
-  entries; the answer names the marker ids you still owe the note body.
+- Each of those signs its entry \`agent\` inside an agent shell
+  (\`INTELIGIR_THREAD_ID\` set) and \`user\` otherwise.
+- \`inteligir annotation remove <path> <id>\` — remove a highlight: its
+  markers in the text, and its note and replies.
 
 ## Connected folders — reference context you are pointed at
 
@@ -335,6 +404,9 @@ it lives in Settings › Account, where it says what goes and what stays.
 - \`inteligir status\` — server version, data dir, agent runtime state, and
   the current thread context.
 - \`inteligir guide\` — print this manual.
+- \`inteligir native-host\` — the browser extension's door; Chrome starts it,
+  never run it yourself (\`--install\` writes a checkout's door for the dev
+  extension).
 
 ## Diagnostics
 

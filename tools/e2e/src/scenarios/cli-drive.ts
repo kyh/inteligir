@@ -1,4 +1,4 @@
-import { copyFile, readFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { agentShellCli } from "../harness/agent-shell-cli";
@@ -27,6 +27,20 @@ const SHARED_NOTE = "notes/shared.md";
 const SHARED_COPY = "notes/shared copy.md";
 const SHARED_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
 const SHARED_CONTENT = `---\ntitle: Shared\nid: ${SHARED_ID}\n---\n# Shared\n`;
+const SHARED_STORE = `${JSON.stringify(
+  {
+    first: { createdAt: 1, quote: "Shared", source: "user", text: "The first note", updatedAt: 1 },
+    second: {
+      createdAt: 2,
+      quote: "Shared",
+      source: "user",
+      text: "The second note",
+      updatedAt: 2,
+    },
+  },
+  null,
+  2,
+)}\n`;
 
 export const cliDrive: Scenario = {
   description:
@@ -123,11 +137,12 @@ export const cliDrive: Scenario = {
 
     ctx.log("a byte copy shares its original's id until vault new-id gives it one of its own");
     await cli("vault", "write", SHARED_NOTE, "--content", SHARED_CONTENT, "--if-absent");
-    await cli("annotation", "add", SHARED_NOTE, "Shared", "--note", "The first note");
-    await cli("annotation", "add", SHARED_NOTE, "Shared", "--note", "The second note");
+    // the store lands beside the app, as a synced one would: what new-id copies is its bytes
+    const sharedStore = path.join(app.vaultDir, ".inteligir", "annotations", `${SHARED_ID}.json`);
+    await mkdir(path.dirname(sharedStore), { recursive: true });
+    await writeFile(sharedStore, SHARED_STORE, "utf-8");
     const original = path.join(app.vaultDir, SHARED_NOTE);
     const originalBytes = await readFile(original, "utf-8");
-    const sharedStore = path.join(app.vaultDir, ".inteligir", "annotations", `${SHARED_ID}.json`);
     const storeBytes = await readFile(sharedStore, "utf-8");
     // Finder's duplicate: the same bytes, landed beside the app rather than through it
     await copyFile(original, path.join(app.vaultDir, SHARED_COPY));

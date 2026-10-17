@@ -5,10 +5,11 @@ import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
 import { argsOf, collectGroupCommands, collectLeafCommands } from "../command-tree";
 import type { CommandAtPath } from "../command-tree";
-import { LEAF_INVOCATIONS, testProgram } from "./command-tree";
+import { FIXTURE_ITEM_PATH, FIXTURE_ITEM_URL, LEAF_INVOCATIONS, testProgram } from "./command-tree";
 import {
   FIXTURE_REVISION_SHA,
   makeFixtureState,
+  makeItemRow,
   makeRevision,
   makeThread,
   serveFixture,
@@ -28,6 +29,10 @@ const EXCLUDED_COMMANDS = new Map<string, string>([
     "vault open",
     "it writes the selector `serve` reads and dials no server: this table drives every leaf against the fixture over a real home, and this one would rewrite the developer's own config.json; vault-open.test.ts drives it over a scratch home instead, refusals included",
   ],
+  [
+    "native-host",
+    "the browser's door: Chrome runs it with its origin and it speaks length-prefixed frames on stdin/stdout for its whole life, so a --json document would be a frame Chrome rejects; apps/cli/src/native-host/__tests__ drive both modes",
+  ],
 ]);
 
 // re-applied between leaves: they mutate it (rename moves the file delete then wants).
@@ -46,6 +51,29 @@ const seedFixture = (state: FixtureState): void => {
   state.related = [
     { path: "notes/nearby.md", reasons: ["shares #project"], score: 3, title: "Nearby" },
   ];
+  state.items = [
+    makeItemRow(FIXTURE_ITEM_PATH, {
+      host: "example.test",
+      kind: "link",
+      tags: ["project"],
+      url: FIXTURE_ITEM_URL,
+    }),
+  ];
+  state.imports.job = null;
+  state.imports.plan = {
+    alreadySaved: 0,
+    droppedTags: [],
+    duplicates: 0,
+    estimatedBytes: 65_536,
+    folderCount: 1,
+    folders: ["Reading"],
+    highlights: 0,
+    items: 1,
+    planId: "plan_1",
+    skipped: [],
+    skippedCount: 0,
+    tags: 1,
+  };
   state.threads.length = 0;
   state.annotations.set("notes/hello.md", [
     {

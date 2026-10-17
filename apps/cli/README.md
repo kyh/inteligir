@@ -82,13 +82,14 @@ agent shells are given.
 
 ## Command surface
 
-`serve` · `open` · `vault
+`serve` · `open` · `save` · `items` · `item show|find|refresh` · `vault
 list|read|history|revision|restore|write|rename|delete|deleted|mkdir|new-id|attachments|remote|open|status|sync`
 · `search` (`tag:` terms pass through) · `matches` · `backlinks` · `related` ·
-`tags` · `tag notes|rename` · `action
+`tags` · `tag add|remove|rename` · `import raindrop|status|cancel` · `action
 list|new|send|show|stop|wait|archive|changes|undo` · `annotation list|add|edit|reply|remove` ·
 `interactions list|answer` · `agents list|default` · `folders
-list|add|remove` · `cloud status|login|sync` · `status` · `guide`.
+list|add|remove` · `cloud status|login|sync` · `status` · `guide` ·
+`native-host` (hidden: the browser extension's door, which Chrome starts).
 
 Exit codes: 0 success · 1 error (including an action settling in error) ·
 2 `action wait` timeout · 3 no server reachable · 4 `action wait

@@ -1,5 +1,8 @@
 import { spawnSync } from "node:child_process";
+import { mkdtemp, rm, truncate, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileTooLargeMessage } from "@repo/contract/local/items/items-schema";
 import { browserHandoffUrl } from "@repo/contract/local/routes";
 import type { ThreadTimeline } from "@repo/contract/local/thread-timeline";
 import type { TurnChanges } from "@repo/contract/local/threads/threads-schema";
@@ -8,11 +11,17 @@ import type { VaultSyncConflict } from "@repo/contract/local/vault/vault-schema"
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { z } from "zod";
+import { importCancelOutputSchema } from "../commands/import";
+import { itemShowOutputSchema } from "../commands/item";
+import { saveStdinOutputSchema } from "../commands/save";
+import { tagChangeOutputSchema } from "../commands/tag";
+import { FIXTURE_FILE_PATH, FIXTURE_PAGE_PATH, FIXTURE_RAINDROP_PATH } from "./command-tree";
 import {
   FIXTURE_HANDOFF_NONCE,
   FIXTURE_REVISION_SHA,
   makeFixtureState,
   makeInteraction,
+  makeItemRow,
   makeRevision,
   makeThread,
   serveFixture,
@@ -1165,83 +1174,113 @@ const sourcesOn = (state: FixtureState) =>
     ...annotation.replies.map((reply) => reply.entry.source),
   ]);
 
-const addedIdSchema = z.object({ id: z.string() });
+const annotationsOutputSchema = z.looseObject({
+  annotations: z.array(z.looseObject({ id: z.string(), quote: z.string().nullable() })),
+});
+
+const idOfQuote = (stdout: string, quote: string): string => {
+  const found = annotationsOutputSchema
+    .parse(JSON.parse(stdout))
+    .annotations.find((annotation) => annotation.quote === quote);
+  if (found === undefined) {
+    throw new Error(`no annotation quotes "${quote}"`);
+  }
+  return found.id;
+};
 
 describe("annotation verbs sign their entries", () => {
-  it("signs `agent` inside an agent shell and `user` from a plain one", async () => {
+  it("signs `agent` inside an agent shell and leaves a plain one to the server's `user`", async () => {
     const state = seededState();
     const server = await boot(state);
 
     const fromAgent = await runCliForTest({
-      argv: ["annotation", "add", "notes/hello.md", "hello", "--note", "Needs a second pass"],
+      argv: ["annotation", "add", "notes/hello.md", "Hello", "--note", "Needs a second pass"],
       baseUrl: server.baseUrl,
       env: { INTELIGIR_THREAD_ID: "thr_ctx" },
     });
     expect(fromAgent.code).toBe(0);
     const fromShell = await runCliForTest({
-      argv: ["annotation", "add", "notes/hello.md", "Hello"],
+      argv: ["annotation", "add", "notes/hello.md", "Body", "--json"],
       baseUrl: server.baseUrl,
     });
     expect(fromShell.code).toBe(0);
-
-    expect(sourcesOn(state)).toEqual(["agent", "user"]);
-  });
-
-  it("takes --source over the shell's own answer, on replies too", async () => {
-    const state = seededState();
-    const server = await boot(state);
-
-    const added = await runCliForTest({
-      argv: ["annotation", "add", "notes/hello.md", "Hello", "--source", "external", "--json"],
-      baseUrl: server.baseUrl,
-      env: { INTELIGIR_THREAD_ID: "thr_ctx" },
-    });
-    expect(added.code).toBe(0);
-    const rootId = addedIdSchema.parse(JSON.parse(added.stdout)).id;
+    const rootId = idOfQuote(fromShell.stdout, "Body");
 
     const replied = await runCliForTest({
-      argv: ["annotation", "reply", "notes/hello.md", rootId, "and again", "--source", "user"],
+      argv: ["annotation", "reply", "notes/hello.md", rootId, "and again"],
       baseUrl: server.baseUrl,
       env: { INTELIGIR_THREAD_ID: "thr_ctx" },
     });
-    expect(replied.code).toBe(0);
+    expect(replied.stdout).toBe(`Replied to ${rootId}\n`);
 
-    expect(sourcesOn(state)).toEqual(["external", "user"]);
+    expect(sourcesOn(state)).toEqual(["agent", "user", "agent"]);
   });
 
-  it("refuses a source outside the vocabulary before dialing", async () => {
+  it("refuses --source, which an entry's author is never asked for", async () => {
     const state = seededState();
     const server = await boot(state);
     const result = await runCliForTest({
-      argv: ["annotation", "add", "notes/hello.md", "x", "--source", "robot"],
+      argv: ["annotation", "add", "notes/hello.md", "Hello", "--source", "user"],
       baseUrl: server.baseUrl,
     });
-    expect(result.code).not.toBe(0);
+    expect(result.code).toBe(1);
     expect(sourcesOn(state)).toEqual([]);
   });
 });
 
-describe("annotation add and edit", () => {
-  it("records the quote, starts with no note, and takes the note through edit", async () => {
+describe("annotation add, edit and remove", () => {
+  it("highlights the passage, starts with no note, and takes the note through edit", async () => {
     const state = seededState();
     const server = await boot(state);
 
     const added = await runCliForTest({
-      argv: ["annotation", "add", "notes/hello.md", "Hello", "--json"],
+      argv: ["annotation", "add", "notes/hello.md", "Hello"],
       baseUrl: server.baseUrl,
     });
-    expect(added.code).toBe(0);
-    const { id } = addedIdSchema.parse(JSON.parse(added.stdout));
-    const [root] = (state.annotations.get("notes/hello.md") ?? []).map((row) => row.root);
-    expect(root?.quote).toBe("Hello");
-    expect(root?.text).toBe("");
+    const [annotation] = state.annotations.get("notes/hello.md") ?? [];
+    const id = annotation?.id ?? "";
+    expect(added.stdout).toBe(`Highlighted "Hello" in notes/hello.md (${id})\n`);
+    expect(annotation?.state).toBe("anchored");
+    expect(annotation?.root.quote).toBe("Hello");
+    expect(annotation?.root.text).toBe("");
+
+    const listed = await runCliForTest({
+      argv: ["annotation", "list", "notes/hello.md"],
+      baseUrl: server.baseUrl,
+    });
+    expect(listed.stdout).toBe(`${id}\tanchored\t"Hello"\t\n`);
 
     const edited = await runCliForTest({
       argv: ["annotation", "edit", "notes/hello.md", id, "Say it louder"],
       baseUrl: server.baseUrl,
     });
-    expect(edited.stdout).toBe(`Updated ${id}.\n`);
+    expect(edited.stdout).toBe(`Updated ${id}\n`);
     expect(state.annotations.get("notes/hello.md")?.[0]?.root.text).toBe("Say it louder");
+
+    const removed = await runCliForTest({
+      argv: ["annotation", "remove", "notes/hello.md", id],
+      baseUrl: server.baseUrl,
+    });
+    expect(removed.stdout).toBe(`Removed highlight ${id}\n`);
+    expect(state.annotations.get("notes/hello.md")).toEqual([]);
+  });
+
+  it("refuses a passage the text does not hold, and an occurrence below 1 before dialing", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const absent = await runCliForTest({
+      argv: ["annotation", "add", "notes/hello.md", "Goodbye", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(absent.code).toBe(1);
+    expect(JSON.parse(absent.stderr)).toMatchObject({ error: "BAD_REQUEST" });
+
+    const zeroth = await runCliForTest({
+      argv: ["annotation", "add", "notes/hello.md", "Hello", "--occurrence", "0", "--json"],
+      baseUrl: null,
+    });
+    expect(JSON.parse(zeroth.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+    expect(state.annotations.get("notes/hello.md") ?? []).toEqual([]);
   });
 });
 
@@ -1420,13 +1459,17 @@ describe("argv the CLI refuses", () => {
 });
 
 describe("a leaf refuses bad usage before it resolves a server", () => {
-  it("tag notes checks its --limit first", async () => {
-    const result = await runCliForTest({
-      argv: ["tag", "notes", "project", "--limit", "0", "--json"],
-      baseUrl: null,
-    });
-    expect(result.code).toBe(1);
-    expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+  it("items checks its --limit, --kind, --since and tag filters first", async () => {
+    for (const argv of [
+      ["items", "--limit", "0"],
+      ["items", "--kind", "link,tweet"],
+      ["items", "--since", "last week"],
+      ["items", "--tag", "project", "--untagged"],
+    ]) {
+      const result = await runCliForTest({ argv: [...argv, "--json"], baseUrl: null });
+      expect(result.code).toBe(1);
+      expect(JSON.parse(result.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+    }
   });
 
   it("vault write checks its guard first: none, a malformed hash, and two at once", async () => {
@@ -1795,5 +1838,389 @@ describe("a server that stopped answering", () => {
     const result = await runCliForTest({ argv: ["status", "--json"], baseUrl });
     expect(result.code).toBe(3);
     expect(JSON.parse(result.stderr)).toMatchObject({ error: "SERVER_UNREACHABLE" });
+  });
+});
+
+const LINK_PATH = "Reading/File over app.md";
+const LINK_URL = "https://example.test/file-over-app";
+
+const libraryState = (): FixtureState => {
+  const state = seededState();
+  state.items = [
+    makeItemRow(LINK_PATH, {
+      host: "example.test",
+      kind: "link",
+      saved: "2026-10-16T08:00:00Z",
+      site: "Example",
+      tags: ["essay", "project"],
+      url: LINK_URL,
+    }),
+    makeItemRow("notes/hello.md", { saved: null }),
+  ];
+  return state;
+};
+
+const saveOutputSchema = z.looseObject({ outcome: z.string(), path: z.string() });
+
+describe("save", () => {
+  it("saves a link as a pending stub, and answers an exact path for a link it holds", async () => {
+    const state = libraryState();
+    const server = await boot(state);
+    const created = await runCliForTest({
+      argv: ["save", "https://example.test/new?utm_source=feed", "--tags", "later,ideas"],
+      baseUrl: server.baseUrl,
+    });
+    expect(created.stdout).toBe(
+      "Saved Unsorted/example.test - new.md; its page is still being read\n",
+    );
+    expect(state.items.at(-1)).toMatchObject({
+      pending: true,
+      tags: ["later", "ideas"],
+      url: "https://example.test/new",
+    });
+
+    const again = await runCliForTest({
+      argv: ["save", `${LINK_URL}?utm_source=feed`, "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(saveOutputSchema.parse(JSON.parse(again.stdout))).toMatchObject({
+      outcome: "exists",
+      path: LINK_PATH,
+    });
+    const human = await runCliForTest({ argv: ["save", LINK_URL], baseUrl: server.baseUrl });
+    expect(human.stdout).toBe(`Already saved: ${LINK_PATH}\n`);
+  });
+
+  it("says why a page could not be read, and saves into the folder named", async () => {
+    const state = libraryState();
+    const [link] = state.items;
+    if (link !== undefined) {
+      link.fetchError = "The site answered 404.";
+      link.fetched = "2026-10-16T08:00:01Z";
+    }
+    const server = await boot(state);
+    const failed = await runCliForTest({
+      argv: ["item", "refresh", LINK_PATH],
+      baseUrl: server.baseUrl,
+    });
+    expect(failed.stdout).toBe(
+      `Refreshed ${LINK_PATH}, but its page couldn't be read: The site answered 404.\n`,
+    );
+
+    const filed = await runCliForTest({
+      argv: ["save", "https://example.test/elsewhere", "--folder", "Reading", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(saveOutputSchema.parse(JSON.parse(filed.stdout)).path).toBe(
+      "Reading/example.test - elsewhere.md",
+    );
+  });
+
+  it("saves a file on this Mac as a file item, and refuses the flags a file cannot take", async () => {
+    const state = libraryState();
+    const server = await boot(state);
+    const saved = await runCliForTest({
+      argv: ["save", FIXTURE_FILE_PATH],
+      baseUrl: server.baseUrl,
+    });
+    expect(saved.stdout).toBe("Saved Unsorted/brochure.md\n");
+    expect(state.items.at(-1)).toMatchObject({ file: "assets/brochure.pdf", kind: "pdf" });
+
+    for (const flags of [["--copy"], ["--html", FIXTURE_PAGE_PATH]]) {
+      const refused = await runCliForTest({
+        argv: ["save", FIXTURE_FILE_PATH, ...flags, "--json"],
+        baseUrl: null,
+      });
+      expect(JSON.parse(refused.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+    }
+  });
+
+  it("refuses a file over 10 MB and a target that is neither a link nor a file, before dialing", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "inteligir-save-"));
+    onTestFinished(async () => {
+      await rm(dir, { force: true, recursive: true });
+    });
+    const big = path.join(dir, "film.mov");
+    await writeFile(big, "");
+    await truncate(big, 11 * 1024 * 1024);
+    const tooLarge = await runCliForTest({ argv: ["save", big, "--json"], baseUrl: null });
+    expect(JSON.parse(tooLarge.stderr)).toEqual({
+      error: "INVALID_USAGE",
+      message: fileTooLargeMessage("film.mov", 11 * 1024 * 1024),
+    });
+
+    const neither = await runCliForTest({ argv: ["save", "not a link", "--json"], baseUrl: null });
+    expect(JSON.parse(neither.stderr)).toEqual({
+      error: "INVALID_USAGE",
+      message: "not a link is not a web link or a file on this Mac",
+    });
+  });
+
+  it("hands over the page's HTML instead of fetching it", async () => {
+    const state = libraryState();
+    const server = await boot(state);
+    const saved = await runCliForTest({
+      argv: ["save", "https://example.test/given", "--html", FIXTURE_PAGE_PATH],
+      baseUrl: server.baseUrl,
+    });
+    expect(saved.code).toBe(0);
+    expect(state.items.at(-1)?.url).toBe("https://example.test/given");
+  });
+
+  it("saves every web link on stdin in order, and refuses a line that is not one", async () => {
+    const state = libraryState();
+    const server = await boot(state);
+    const saved = await runCliForTest({
+      argv: ["save", "-", "--json"],
+      baseUrl: server.baseUrl,
+      stdin: new TextEncoder().encode(`https://example.test/one\n\n${LINK_URL}\n`),
+    });
+    expect(
+      saveStdinOutputSchema.parse(JSON.parse(saved.stdout)).results.map((row) => row.outcome),
+    ).toEqual(["created", "exists"]);
+
+    const refused = await runCliForTest({
+      argv: ["save", "-", "--json"],
+      baseUrl: null,
+      stdin: new TextEncoder().encode("https://example.test/two\nnot a link\n"),
+    });
+    expect(JSON.parse(refused.stderr)).toEqual({
+      error: "INVALID_USAGE",
+      message: "line 2 of stdin is not a web link",
+    });
+    const empty = await runCliForTest({
+      argv: ["save", "-", "--json"],
+      baseUrl: null,
+      stdin: new TextEncoder().encode("\n\n"),
+    });
+    expect(JSON.parse(empty.stderr)).toMatchObject({ message: "stdin holds no web link" });
+    const html = await runCliForTest({
+      argv: ["save", "-", "--html", FIXTURE_PAGE_PATH, "--json"],
+      baseUrl: null,
+    });
+    expect(JSON.parse(html.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+  });
+});
+
+describe("items and item", () => {
+  it("lists one tab-separated line per item, and names the next page when cut", async () => {
+    const server = await boot(libraryState());
+    const listed = await runCliForTest({ argv: ["items"], baseUrl: server.baseUrl });
+    expect(listed.stdout).toBe(
+      `${LINK_PATH}\tlink\t2026-10-16\tExample\t#essay #project\nnotes/hello.md\tnote\t-\t-\t\n`,
+    );
+
+    const page = await runCliForTest({ argv: ["items", "--limit", "1"], baseUrl: server.baseUrl });
+    expect(page.stdout).toBe(
+      `${LINK_PATH}\tlink\t2026-10-16\tExample\t#essay #project\n(1 of 2; more: --offset 1)\n`,
+    );
+
+    const links = await runCliForTest({
+      argv: ["items", "--kind", "note", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(JSON.parse(links.stdout)).toMatchObject({
+      items: [{ path: "notes/hello.md" }],
+      total: 1,
+    });
+  });
+
+  it("shows an item's facts, and refuses a path that is not one", async () => {
+    const server = await boot(libraryState());
+    const shown = await runCliForTest({
+      argv: ["item", "show", LINK_PATH],
+      baseUrl: server.baseUrl,
+    });
+    expect(shown.stdout).toBe(
+      [
+        "kind: link",
+        `url: ${LINK_URL}`,
+        "site: Example",
+        "saved: 2026-10-16T08:00:00Z",
+        "folder: Reading",
+        "tags: #essay #project",
+        "",
+      ].join("\n"),
+    );
+    const json = await runCliForTest({
+      argv: ["item", "show", LINK_PATH, "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(itemShowOutputSchema.parse(JSON.parse(json.stdout)).item.url).toBe(LINK_URL);
+
+    const missing = await runCliForTest({
+      argv: ["item", "show", "notes/nowhere.md", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(missing.code).toBe(1);
+    expect(missing.stdout).toBe("");
+    expect(JSON.parse(missing.stderr)).toEqual({
+      error: "NOT_FOUND",
+      message: "notes/nowhere.md is not an item",
+    });
+  });
+
+  it("finds where a link is saved, says when it is not, and refuses what is not a web link", async () => {
+    const server = await boot(libraryState());
+    const found = await runCliForTest({
+      argv: ["item", "find", `https://www.example.test/file-over-app?utm_campaign=x`],
+      baseUrl: server.baseUrl,
+    });
+    expect(found.stdout).toBe(`${LINK_PATH}\n`);
+    const absent = await runCliForTest({
+      argv: ["item", "find", "https://example.test/never"],
+      baseUrl: server.baseUrl,
+    });
+    expect(absent.stdout).toContain("Not saved yet");
+    const notWeb = await runCliForTest({
+      argv: ["item", "find", "ftp://example.test/x", "--json"],
+      baseUrl: null,
+    });
+    expect(JSON.parse(notWeb.stderr)).toMatchObject({ error: "INVALID_USAGE" });
+  });
+});
+
+describe("tag add and remove", () => {
+  it("tags and untags one item, and says when there was nothing to do", async () => {
+    const state = libraryState();
+    const server = await boot(state);
+    const added = await runCliForTest({
+      argv: ["tag", "add", "later", LINK_PATH],
+      baseUrl: server.baseUrl,
+    });
+    expect(added.stdout).toBe(`Tagged ${LINK_PATH} #later\n`);
+    const again = await runCliForTest({
+      argv: ["tag", "add", "later", LINK_PATH, "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(tagChangeOutputSchema.parse(JSON.parse(again.stdout))).toEqual({
+      inline: [],
+      outcome: "unchanged",
+      path: LINK_PATH,
+    });
+
+    const removed = await runCliForTest({
+      argv: ["tag", "remove", "essay", LINK_PATH],
+      baseUrl: server.baseUrl,
+    });
+    expect(removed.stdout).toBe(`Removed #essay from ${LINK_PATH}\n`);
+    expect(state.items[0]?.tags).toEqual(["project", "later"]);
+  });
+
+  it("refuses an item that is not there", async () => {
+    const server = await boot(libraryState());
+    const missing = await runCliForTest({
+      argv: ["tag", "add", "later", "notes/nowhere.md", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(missing.code).toBe(1);
+    expect(missing.stdout).toBe("");
+    expect(JSON.parse(missing.stderr)).toEqual({
+      error: "NOT_FOUND",
+      message: "notes/nowhere.md is not an item",
+    });
+  });
+});
+
+const RAINDROP_PLAN = {
+  alreadySaved: 96,
+  droppedTags: [],
+  duplicates: 0,
+  estimatedBytes: 8416 * 65_536,
+  folderCount: 34,
+  folders: ["Reading"],
+  highlights: 1240,
+  items: 8416,
+  planId: "plan_raindrop",
+  skipped: [],
+  skippedCount: 0,
+  tags: 210,
+};
+
+describe("import", () => {
+  it("prints the plan on a dry run and imports nothing", async () => {
+    const state = libraryState();
+    state.imports.plan = RAINDROP_PLAN;
+    const server = await boot(state);
+    const dry = await runCliForTest({
+      argv: ["import", "raindrop", FIXTURE_RAINDROP_PATH, "--dry-run"],
+      baseUrl: server.baseUrl,
+    });
+    expect(dry.stdout).toBe(
+      "8,416 links in 34 folders, with 210 tags and 1,240 highlights. 96 are already in your library and stay as they are.\n",
+    );
+    expect(state.imports.job).toBeNull();
+  });
+
+  it("runs the import, follows it to its end, and says what it added", async () => {
+    const state = libraryState();
+    state.imports.plan = RAINDROP_PLAN;
+    const server = await boot(state);
+    const run = await runCliForTest({
+      argv: ["import", "raindrop", FIXTURE_RAINDROP_PATH],
+      baseUrl: server.baseUrl,
+    });
+    expect(run.stdout.split("\n").at(-2)).toBe(
+      "Imported 8,416 items from Raindrop (96 already saved)",
+    );
+    expect(run.stderr).toContain("Imported 8,416 of 8,416");
+
+    const status = await runCliForTest({ argv: ["import", "status"], baseUrl: server.baseUrl });
+    expect(status.stdout).toBe("Imported 8,416 items from Raindrop (96 already saved)\n");
+  });
+
+  it("refuses a file that is not a Raindrop export in the server's class", async () => {
+    const server = await boot(libraryState());
+    const refused = await runCliForTest({
+      argv: ["import", "raindrop", FIXTURE_RAINDROP_PATH, "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(refused.code).toBe(1);
+    expect(JSON.parse(refused.stderr)).toMatchObject({ error: "IMPORT_UNREADABLE" });
+  });
+
+  it("stops a running import, and says so when none is running", async () => {
+    const state = libraryState();
+    const server = await boot(state);
+    const none = await runCliForTest({
+      argv: ["import", "cancel", "--json"],
+      baseUrl: server.baseUrl,
+    });
+    expect(importCancelOutputSchema.parse(JSON.parse(none.stdout))).toEqual({ job: null });
+
+    state.imports.job = {
+      added: 1200,
+      alreadySaved: 0,
+      finishedAt: null,
+      highlights: 0,
+      id: "import_1",
+      message: null,
+      source: "raindrop",
+      startedAt: 1_700_000_000_000,
+      state: "running",
+      total: 8512,
+    };
+    const stopped = await runCliForTest({ argv: ["import", "cancel"], baseUrl: server.baseUrl });
+    expect(stopped.stdout).toBe("Stopped the import\n");
+    expect(state.imports.job.state).toBe("cancelled");
+  });
+});
+
+describe("action new with a preset", () => {
+  it("sends the preset with an empty prompt, and refuses neither a prompt nor a preset", async () => {
+    const state = seededState();
+    const server = await boot(state);
+    const tidy = await runCliForTest({
+      argv: ["action", "new", "--preset", "tidy-library"],
+      baseUrl: server.baseUrl,
+    });
+    expect(tidy.stderr).toBe("");
+    expect(state.sent).toEqual([{ preset: "tidy-library", text: "", threadId: "thr_created_1" }]);
+
+    const neither = await runCliForTest({ argv: ["action", "new", "--json"], baseUrl: null });
+    expect(JSON.parse(neither.stderr)).toEqual({
+      error: "INVALID_USAGE",
+      message: "give a prompt or --preset",
+    });
   });
 });

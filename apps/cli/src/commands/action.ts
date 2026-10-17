@@ -12,9 +12,10 @@ import type {
   UndoKeptReason,
   UndoTurnResponse,
 } from "@repo/contract/local/threads/threads-schema";
+import { actionPresetSchema } from "@repo/domain/action-preset";
 import { defineCommand } from "citty";
 import { parseBoundedInteger, parsePositiveNumber } from "../args";
-import { CliExitError, failureFrom, getErrorMessage } from "../cli-error";
+import { CliExitError, failureFrom, getErrorMessage, invalidUsage } from "../cli-error";
 import { apiFor } from "../context";
 import type { Api, CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
@@ -209,7 +210,12 @@ export const actionCommand = (deps: CliDeps) =>
       new: defineCommand({
         args: {
           doc: { description: "Attach the action to this note", type: "string" },
-          prompt: { description: "The first turn's text", required: true, type: "positional" },
+          preset: {
+            description: "Run a named action (tidy-library: tag and file everything untagged)",
+            options: actionPresetSchema.options,
+            type: "enum",
+          },
+          prompt: { description: "The first turn's text", required: false, type: "positional" },
           ...jsonArg,
         },
         meta: {
@@ -217,6 +223,9 @@ export const actionCommand = (deps: CliDeps) =>
           name: "new",
         },
         run: async ({ args }) => {
+          if (args.prompt === undefined && args.preset === undefined) {
+            throw invalidUsage("give a prompt or --preset");
+          }
           const api = apiFor(deps);
           const { thread: createdThread } = await api.threads.create(
             args.doc === undefined ? {} : { originDocPath: args.doc },
@@ -224,7 +233,8 @@ export const actionCommand = (deps: CliDeps) =>
           let outcome: SendOutcome;
           try {
             outcome = await api.threads.send({
-              text: args.prompt,
+              preset: args.preset,
+              text: args.prompt ?? "",
               threadId: createdThread.id,
             });
           } catch (error) {
