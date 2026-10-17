@@ -7,13 +7,13 @@ import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR, OPTION_COUNT, PALETTE_INPUT } from "../harness/selectors";
 
-// sort A1 before A2, so the virgin boot opens the first and the rows come in this order.
+// sort A1 before A2, so the rows come in this order; the first is opened by its deep link.
 const NOTE_ONE = "A1 zebrafish.md";
 const NOTE_TWO = "A2 zebrafish.md";
 const NEEDLE = "zebrafish";
 const DOC_ONE = "# One\n\nThe zebrafish swims.\n";
 const DOC_TWO = "# Two\n\nAnother zebrafish here, and a zebrafish there.\n";
-const SEARCH_INPUT = 'input[placeholder^="Search across the vault"]';
+const SEARCH_INPUT = 'input[placeholder^="Search inside every item"]';
 const FIND_BAR_INPUT = 'input[aria-label="Find in note"]';
 const ROWS_DEADLINE_MS = 20_000;
 
@@ -32,12 +32,12 @@ const waitForRows = async (
   );
 };
 
-// the palette is the one search surface: its root row opens the vault-wide scan
+// the palette is the one search surface: its root row opens the library-wide scan
 const openSearch = async (agentBrowser: AgentBrowser): Promise<void> => {
   await agentBrowser(["click", EDITOR]);
   await agentBrowser(["press", modChord("p")]);
   await agentBrowser(["wait", PALETTE_INPUT], 30_000);
-  await agentBrowser(["find", "role", "option", "click", "--name", "Search across the vault…"]);
+  await agentBrowser(["find", "role", "option", "click", "--name", "Search inside every item…"]);
   await agentBrowser(["wait", SEARCH_INPUT], 30_000);
   await agentBrowser(["fill", SEARCH_INPUT, NEEDLE]);
   // one row per occurrence: one in the first note, two in the second
@@ -57,8 +57,11 @@ export const vaultSearchBrowser: Scenario = {
     });
     const agentBrowser = await ctx.browser("vault-search");
 
-    ctx.log(`opening ${app.baseUrl}/`);
-    await agentBrowser.openWorkspace(app);
+    ctx.log(`opening ${NOTE_ONE} by its deep link`);
+    await agentBrowser.openWorkspace(app, {
+      path: `/?item=${encodeURIComponent(NOTE_ONE)}`,
+      ready: EDITOR,
+    });
 
     ctx.log("the palette opens the search page and the rows arrive");
     await openSearch(agentBrowser);

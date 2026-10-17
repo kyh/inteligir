@@ -6,10 +6,10 @@ import { expect } from "../harness/assert";
 import { readOrNull } from "../harness/exec";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR, treeRow } from "../harness/selectors";
+import { EDITOR, folderRow, libraryCard } from "../harness/selectors";
 
-// not the note the virgin boot opens (the listing puts folders first), so the pin is a closed
-// note's guarded write and the reload below names the moved note rather than trusting the boot.
+// nothing is open at boot, so the pin is a closed item's guarded write and the reload below
+// names the moved note by its deep link.
 const NOTE = "Aardvark.md";
 const PROSE = "A burrowing note.";
 // the spaced name a paste writes as it is; the move re-bases it file-relative and percent-encoded
@@ -26,9 +26,15 @@ const FOLDER_NOTE = "Zebra.md";
 const DISK_DEADLINE_MS = 30_000;
 const IMAGE_DEADLINE_MS = 30_000;
 
-// the row's actions button is a sibling of the row, not a child: a button cannot nest a button
-const rowActions = (vaultPath: string): string =>
-  `[role="tree"] li:has([data-path="${vaultPath}"]) [data-sidebar="menu-action"]`;
+// a right-click, as the browser sends one: the card selects itself and opens its menu
+const openCardMenu = (vaultPath: string): string => `(() => {
+  const card = document.querySelector(${JSON.stringify(libraryCard(vaultPath))});
+  if (!card) return "missing";
+  card.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+  return "opened";
+})()`;
+
+const MENU_LABELS = `JSON.stringify([...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent?.trim() ?? ""))`;
 
 interface MoveState {
   moved: string | null;
@@ -37,7 +43,7 @@ interface MoveState {
 
 export const treeOpsBrowser: Scenario = {
   description:
-    "the rail opens on Files; the tree's row menu pins a note into its frontmatter and then offers Unpin, and a drag moves it into a folder with its image still loading",
+    "the library opens on its grid; a card's menu pins an item into its frontmatter and then offers Unpin, and a card dragged onto a folder in the rail moves it, with its image still loading",
   name: "tree-ops-browser",
   async run(ctx) {
     const app = await ctx.boot({
@@ -52,14 +58,15 @@ export const treeOpsBrowser: Scenario = {
     });
     const agentBrowser = await ctx.browser("tree-ops");
 
-    ctx.log(`opening ${app.baseUrl}/`);
+    ctx.log(`opening ${app.baseUrl}/ on the library`);
     await agentBrowser.openWorkspace(app);
+    await agentBrowser(["wait", libraryCard(NOTE)], 30_000);
 
-    ctx.log("the rail opens on Files on a fresh profile");
-    await agentBrowser(["wait", treeRow(NOTE)], 30_000);
-
-    ctx.log("Pin from the row menu lands pinned: true in the frontmatter");
-    await agentBrowser(["click", rowActions(NOTE)]);
+    ctx.log("Pin from the card's menu lands pinned: true in the frontmatter");
+    expect(
+      parseEval(await agentBrowser(["eval", openCardMenu(NOTE)]), z.string()) === "opened",
+      `no card for ${NOTE}`,
+    );
     await agentBrowser(["find", "role", "menuitem", "click", "--name", "Pin", "--exact"]);
     const pinned = await pollUntil(
       async () => (await readOrNull(path.join(app.vaultDir, NOTE))) ?? "",
@@ -71,31 +78,26 @@ export const treeOpsBrowser: Scenario = {
     );
     expect(pinned.endsWith(DOC), `the pin rewrote more than the frontmatter:\n${pinned}`);
 
-    // the pinned set is read from the link targets, which a pin's settle announces as
-    // targets-changed: the row's verb must follow the bytes without a reload
-    ctx.log("the row menu then offers Unpin");
+    // the card's row is the index's, which the pin's settle moves: the card's verb must follow
+    // the bytes without a reload
+    ctx.log("the card's menu then offers Unpin");
     await pollUntil(
       async () => {
-        await agentBrowser(["click", rowActions(NOTE)]);
-        const labels = parseEval(
-          await agentBrowser([
-            "eval",
-            `JSON.stringify([...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent?.trim() ?? ""))`,
-          ]),
-          z.array(z.string()),
-        );
+        await agentBrowser(["eval", openCardMenu(NOTE)]);
+        const labels = parseEval(await agentBrowser(["eval", MENU_LABELS]), z.array(z.string()));
         await agentBrowser(["press", "Escape"]);
         return labels;
       },
       (labels) => labels.includes("Unpin"),
       {
         deadlineMs: DISK_DEADLINE_MS,
-        describe: (labels) => `the row menu never offered Unpin: ${labels.join(", ")}`,
+        describe: (labels) => `the card's menu never offered Unpin: ${labels.join(", ")}`,
       },
     );
 
-    ctx.log(`dragging ${NOTE} onto ${FOLDER}/ moves it`);
-    await agentBrowser(["drag", treeRow(NOTE), treeRow(FOLDER)]);
+    ctx.log(`dragging ${NOTE}'s card onto ${FOLDER} in the rail moves it`);
+    await agentBrowser(["wait", folderRow(FOLDER)], 30_000);
+    await agentBrowser(["drag", libraryCard(NOTE), folderRow(FOLDER)]);
     const { moved } = await pollUntil(
       async (): Promise<MoveState> => ({
         moved: await readOrNull(path.join(app.vaultDir, FOLDER, NOTE)),
@@ -117,7 +119,8 @@ export const treeOpsBrowser: Scenario = {
     // a fresh load, so no image the note drew before the move can answer for it
     ctx.log("the moved note's re-based image still loads");
     await agentBrowser.openWorkspace(app, {
-      path: `/?note=${encodeURIComponent(`${FOLDER}/${NOTE}`)}`,
+      path: `/?item=${encodeURIComponent(`${FOLDER}/${NOTE}`)}`,
+      ready: EDITOR,
     });
     await pollUntil(
       async () =>

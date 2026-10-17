@@ -60,7 +60,10 @@ export const remoteContentBrowser: Scenario = {
     const agentBrowser = await ctx.browser("remote-content");
 
     ctx.log(`opening ${app.baseUrl}/ on ${DOC_PATH}`);
-    await agentBrowser.openWorkspace(app, { path: `/?note=${encodeURIComponent(DOC_PATH)}` });
+    await agentBrowser.openWorkspace(app, {
+      path: `/?item=${encodeURIComponent(DOC_PATH)}`,
+      ready: EDITOR,
+    });
     await agentBrowser(["wait", `${EDITOR} pre`], 30_000);
 
     ctx.log("the video and the image are cards, and nothing remote is loaded");

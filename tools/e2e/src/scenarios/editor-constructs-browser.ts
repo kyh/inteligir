@@ -54,7 +54,6 @@ export const editorConstructsBrowser: Scenario = {
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
-      // the only note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
         await writeFile(path.join(vaultDir, DOC_PATH), DOC, "utf-8");
       },
@@ -62,8 +61,11 @@ export const editorConstructsBrowser: Scenario = {
 
     const agentBrowser = await ctx.browser("editor");
 
-    ctx.log(`opening ${app.baseUrl}/`);
-    await agentBrowser.openWorkspace(app);
+    ctx.log(`opening ${DOC_PATH} by its deep link`);
+    await agentBrowser.openWorkspace(app, {
+      path: `/?item=${encodeURIComponent(DOC_PATH)}`,
+      ready: EDITOR,
+    });
     await agentBrowser(["wait", `${EDITOR} table`], 30_000);
 
     ctx.log("probing the rendered constructs");

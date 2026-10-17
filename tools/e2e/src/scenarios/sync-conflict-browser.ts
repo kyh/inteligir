@@ -75,6 +75,8 @@ export const syncConflictBrowser: Scenario = {
       "clicked",
       "the notice's Open",
     );
+    // the window was on the library, so the item Open shows mounts its editor now
+    await agentBrowser(["wait", EDITOR], DEADLINE_MS);
     await pollUntil(
       async () => await agentBrowser(["get", "text", EDITOR]),
       (text) => text.includes("edited on A"),

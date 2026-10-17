@@ -90,7 +90,10 @@ export const undoBrowser: Scenario = {
     expectEq(await readOrNull(secondFile), agentNote("second draft"), "the second turn's bytes");
 
     ctx.log("open the note, and that action's transcript from ⌘P");
-    await agentBrowser.openWorkspace(app, { path: `/?note=${encodeURIComponent(secondPath)}` });
+    await agentBrowser.openWorkspace(app, {
+      path: `/?item=${encodeURIComponent(secondPath)}`,
+      ready: EDITOR,
+    });
     await agentBrowser(["click", EDITOR]);
     await agentBrowser(["press", modChord("p")]);
     await agentBrowser(["wait", PALETTE_INPUT], 30_000);

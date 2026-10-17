@@ -8,7 +8,6 @@ import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR } from "../harness/selectors";
 
-// the only note, so the virgin boot opens it.
 const NOTE = "Aardvark plan.md";
 const FIRST = "First paragraph.";
 const SECOND = "Second paragraph.";
@@ -30,8 +29,11 @@ export const extractNoteBrowser: Scenario = {
     });
     const agentBrowser = await ctx.browser("extract");
 
-    ctx.log(`opening ${app.baseUrl}/`);
-    await agentBrowser.openWorkspace(app);
+    ctx.log(`opening ${NOTE} by its deep link`);
+    await agentBrowser.openWorkspace(app, {
+      path: `/?item=${encodeURIComponent(NOTE)}`,
+      ready: EDITOR,
+    });
 
     ctx.log("selecting the second paragraph with the mouse, which raises the toolbar");
     // a drag across the text, as a user selects: a key chord lands nowhere until the editor
