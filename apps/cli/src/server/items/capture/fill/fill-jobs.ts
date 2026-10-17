@@ -1,23 +1,38 @@
-// one job of the fill worker: a page's html in, its facts and its article out, with no network in
-// reach. The article is written as the editor's own fixpoint, so an item opens rich and its first
-// edit is a minimal diff.
+// one job of the fill worker: html in, a page's facts and article (or a page copy's plan, or the
+// copy itself) out, with no network in reach. Every job is pure CPU over what it was handed, and a
+// page that breaks the extractor answers `failed` rather than taking the worker down.
 
-import type { DocAnalysis } from "@repo/editor/markdown/markdown-doc";
+import type { FillJobInput, FillResult } from "../fill-protocol";
+import { buildCopy, planCopy } from "./copy-page";
+import { extractPage } from "./extract-page";
 
-export interface FillJob {
-  id: string;
-  url: string;
-  html: string;
-}
+const reasonOf = (error: Error): string => `${error.name}: ${error.message}`;
 
-export type FillJobResult =
-  // `analysis`: what the editor's gate made of the article the body ladder kept
-  | { kind: "filled"; id: string; article: string; analysis: DocAnalysis }
-  | { kind: "failed"; id: string; reason: string };
+const runJob = (job: FillJobInput): FillResult => {
+  switch (job.kind) {
+    case "extract": {
+      return { kind: "extracted", ...extractPage(job) };
+    }
+    case "copy-plan": {
+      return { kind: "copy-plan", ...planCopy(job.html, job.url) };
+    }
+    case "copy-build": {
+      return buildCopy(job);
+    }
+    default: {
+      const exhaustive: never = job;
+      return exhaustive;
+    }
+  }
+};
 
-// PIVOT-STUB(S1): replaced by linkedom, defuddle, the page's meta, turndown and the body ladder (§4.4 point 4)
-export const runFillJob = (job: FillJob): FillJobResult => ({
-  id: job.id,
-  kind: "failed",
-  reason: "PIVOT-STUB(S1)",
-});
+export const runFillJob = (job: FillJobInput): FillResult => {
+  try {
+    return runJob(job);
+  } catch (error) {
+    return {
+      kind: "failed",
+      reason: error instanceof Error ? reasonOf(error) : "the page could not be read",
+    };
+  }
+};
