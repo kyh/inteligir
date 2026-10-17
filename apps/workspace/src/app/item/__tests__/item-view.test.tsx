@@ -186,6 +186,17 @@ describe("the way back to the library", () => {
     expect(onGoToLibrary).toHaveBeenCalledOnce();
   });
 
+  it("takes the keyboard as it opens, so the first Escape goes back", async () => {
+    stubIndex([row("assets/photo.png", "image", { bare: true, file: "assets/photo.png" })]);
+    const { onGoToLibrary, store } = mount();
+    openIn(store, "assets/photo.png");
+    await screen.findByRole("button", { name: "Show at actual size" });
+    const root = document.querySelector('[data-item-path="assets/photo.png"]');
+    expect(document.activeElement).toBe(root);
+    fireEvent.keyDown(root ?? document.body, { key: "Escape" });
+    expect(onGoToLibrary).toHaveBeenCalledOnce();
+  });
+
   it("goes back by the breadcrumb", async () => {
     stubIndex([row("assets/photo.png", "image", { bare: true, file: "assets/photo.png" })]);
     const { onGoToLibrary, store } = mount();

@@ -1,8 +1,10 @@
 // CLAUDE.md § A SAVE FROM THE WINDOW IS A PASTE OR A DROP THAT NO FIELD CLAIMED. A paste lands
-// where nothing takes text; a drop lands where no row, card or editor took it. WebKit fires no
-// paste on a target that is not editable, so ⌘V there first moves the focus to a 1×1 off-screen
-// catcher, without preventing the key, and the paste the key then makes fires on the catcher,
-// which hands the focus back. The window's own drags (cards, folder rows) are moves, never saves.
+// where nothing takes text; a drop lands where no field, row, card or editor took it, and a drop
+// that holds nothing to save keeps the browser's own handling. WebKit fires no paste on a target
+// that is not editable, so ⌘V there first moves the focus to a 1×1 off-screen catcher, without
+// preventing the key, and the paste the key then makes fires on the catcher, which hands the focus
+// back, or lets it go when nothing had it (or no paste came). The window's own drags (cards,
+// folder rows) are moves, never saves.
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { RefObject } from "react";
@@ -29,6 +31,9 @@ export interface WindowCapture {
 
 // a drag hovers by repeated dragover events; the layer goes once they stop
 const DROP_LAYER_LINGER_MS = 150;
+// how long the catcher waits for the paste its ⌘V should make: WebKit sends none when its Paste
+// command is off, and the focus must not stay in a field nobody sees
+const PASTE_WAIT_MS = 250;
 
 const inEditor = (target: EventTarget | null): boolean =>
   target instanceof Element && target.closest("[data-slate-editor]") !== null;
@@ -58,6 +63,7 @@ export const useWindowCapture = ({
     // the element the catcher took the focus from, handed back once the paste has landed
     let returnFocus: HTMLElement | null = null;
     let lingering: ReturnType<typeof setTimeout> | null = null;
+    let waitingPaste: ReturnType<typeof setTimeout> | null = null;
     const hideLayer = (): void => {
       if (lingering !== null) {
         clearTimeout(lingering);
@@ -66,12 +72,19 @@ export const useWindowCapture = ({
       setDropInto(null);
     };
 
+    // the focus back where it was, or nowhere: the body takes no focus, so a focus() on it would
+    // leave the catcher holding it
     const restoreFocus = (): void => {
+      if (waitingPaste !== null) {
+        clearTimeout(waitingPaste);
+        waitingPaste = null;
+      }
       const back = returnFocus;
       returnFocus = null;
-      if (back?.isConnected === true) {
+      if (back !== null && back !== document.body && back.isConnected) {
         back.focus({ preventScroll: true });
-      } else {
+      }
+      if (document.activeElement === catcherRef.current) {
         catcherRef.current?.blur();
       }
     };
@@ -87,6 +100,10 @@ export const useWindowCapture = ({
       returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       catcher.value = "";
       catcher.focus({ preventScroll: true });
+      if (waitingPaste !== null) {
+        clearTimeout(waitingPaste);
+      }
+      waitingPaste = setTimeout(restoreFocus, PASTE_WAIT_MS);
     };
 
     const onPaste = (event: ClipboardEvent): void => {
@@ -110,8 +127,13 @@ export const useWindowCapture = ({
       capture(payload);
     };
 
+    // a field's drop is the field's: a link dragged into the composer or Info's address is typed
+    // there, never saved
     const accepts = (event: DragEvent): boolean =>
-      !event.defaultPrevented && internalDrag() === null && !inEditor(event.target);
+      !event.defaultPrevented &&
+      internalDrag() === null &&
+      !inEditor(event.target) &&
+      !isTextEntryTarget(event.target);
 
     const onDragOver = (event: DragEvent): void => {
       if (!accepts(event)) {
@@ -133,11 +155,12 @@ export const useWindowCapture = ({
       if (!accepts(event)) {
         return;
       }
-      event.preventDefault();
       const payload = payloadFrom(event.dataTransfer);
-      if (!isEmptyPayload(payload)) {
-        capture(payload);
+      if (isEmptyPayload(payload)) {
+        return;
       }
+      event.preventDefault();
+      capture(payload);
     };
 
     window.addEventListener("keydown", onKeyDown, true);
@@ -147,6 +170,9 @@ export const useWindowCapture = ({
     window.addEventListener("dragend", hideLayer);
     return () => {
       hideLayer();
+      if (waitingPaste !== null) {
+        clearTimeout(waitingPaste);
+      }
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("paste", onPaste, true);
       window.removeEventListener("dragover", onDragOver);

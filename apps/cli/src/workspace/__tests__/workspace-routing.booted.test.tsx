@@ -122,6 +122,32 @@ describe("the library is home, and the url names the open item", () => {
   });
 });
 
+describe("the keyboard's round trip through an item", () => {
+  it("opens the focused card on Return, goes back on the first Escape, and lands on that card again", async () => {
+    await bootAt(createMemoryHistory({ initialEntries: ["/"] }));
+    await screen.findByRole("heading", { name: "All items" });
+    const beta = await card("beta.md");
+    fireEvent.click(beta);
+    beta.focus();
+    fireEvent.keyDown(beta, { key: "Enter" });
+    await screen.findByRole("heading", { name: "Beta" });
+    await waitFor(() => {
+      expect(document.activeElement?.closest("[data-item-view]")).not.toBeNull();
+    });
+    const inItem = document.activeElement;
+    if (inItem === null) {
+      throw new Error("nothing holds the focus in the item");
+    }
+    // a note's body keeps its own Escape, so the item's own root is where the key goes back from
+    const root = inItem.closest<HTMLElement>("[data-item-view]");
+    fireEvent.keyDown(root ?? inItem, { key: "Escape" });
+    await screen.findByRole("heading", { name: "All items" });
+    await waitFor(async () => {
+      expect(document.activeElement).toBe(await card("beta.md"));
+    });
+  });
+});
+
 describe("Settings over the workspace", () => {
   it("covers it inert with its chords stood down, and the way back finds it as it was", async () => {
     const { router } = await bootAt(createMemoryHistory({ initialEntries: ["/?item=alpha.md"] }));

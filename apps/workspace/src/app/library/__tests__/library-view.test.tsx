@@ -138,7 +138,7 @@ const mount = (scope: LibraryScope, overrides: Partial<LibraryViewProps> = {}) =
   const add = {
     addFiles: vi.fn<() => void>(),
     newFolder: vi.fn<() => void>(),
-    newNote: vi.fn<(folder: string) => void>(),
+    newNote: vi.fn<(folder: string, tags?: readonly string[]) => void>(),
     saveLink: vi.fn<() => void>(),
   };
   const props: LibraryViewProps = {
@@ -205,7 +205,7 @@ describe("a scope with nothing in it says why", () => {
           addFiles: vi.fn<() => void>(),
           importRaindrop,
           newFolder: vi.fn<() => void>(),
-          newNote: vi.fn<(folder: string) => void>(),
+          newNote: vi.fn<(folder: string, tags?: readonly string[]) => void>(),
           saveLink: vi.fn<() => void>(),
         },
       },
@@ -278,6 +278,24 @@ describe("a scope with nothing in it says why", () => {
     expect(asked).toEqual([]);
     expect(screen.queryByRole("button", { name: "Date saved" })).toBeNull();
   });
+});
+
+describe("+ Add › New note", () => {
+  it.each([
+    [{ kind: "folder", path: "Reading" }, "Reading", []],
+    [{ kind: "unsorted" }, "Unsorted", []],
+    [{ kind: "tag", tag: "recipes" }, "Unsorted", ["recipes"]],
+    [{ kind: "all" }, "", []],
+  ] satisfies [LibraryScope, string, string[]][])(
+    "writes the note where %o lists it",
+    async (scope, folder, tags) => {
+      stubWire({ items: () => listing([row("a.md", "note")], { note: 1 }) });
+      const { add } = mount(scope);
+      fireEvent.click(await screen.findByRole("button", { name: "Add" }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "New note" }));
+      expect(add.newNote).toHaveBeenCalledWith(folder, tags);
+    },
+  );
 });
 
 describe("the chips and the count", () => {

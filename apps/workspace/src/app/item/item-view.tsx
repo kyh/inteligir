@@ -11,7 +11,7 @@ import { EditorColumn } from "@repo/editor/editor-column";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { URL_ITEM_KINDS } from "@repo/notes/items/item-kind";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 
 import { isTextEntryTarget } from "../global-shortcuts";
@@ -252,6 +252,18 @@ export const ItemView = ({
   const [face, setFace] = useState<{ path: string; face: ItemFace } | null>(null);
   const [asNote, setAsNote] = useState<string | null>(null);
 
+  // the keyboard lands in the item as it opens, so Escape goes back at once: opening from the
+  // grid unmounts the focused card and leaves the focus nowhere. Whatever already holds the focus
+  // (the editor's title, the panel, the composer) keeps it
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const root = rootRef.current;
+    const nowhere = document.activeElement === null || document.activeElement === document.body;
+    if (path !== null && root !== null && nowhere) {
+      root.focus({ preventScroll: true });
+    }
+  }, [path]);
+
   // a bare file that is no longer an item (deleted, moved) has nothing to show
   const gone = isGone(item, rowQuery.isSuccess, row);
   useEffect(() => {
@@ -283,9 +295,11 @@ export const ItemView = ({
   return (
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the item view's own key, Escape back to the library, listened on its root so a field inside keeps its own Escape
     <div
+      ref={rootRef}
+      tabIndex={-1}
       data-item-view={item.kind}
       data-item-path={path}
-      className="flex min-h-0 flex-1 flex-col"
+      className="flex min-h-0 flex-1 flex-col outline-none"
       onKeyDown={onKeyDown}
     >
       {zen ? null : (

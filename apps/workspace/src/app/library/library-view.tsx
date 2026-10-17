@@ -5,6 +5,7 @@
 
 import type { LibraryScope } from "@repo/domain/library-scope";
 import type { ItemKind } from "@repo/notes/items/item-kind";
+import { UNSORTED_FOLDER } from "@repo/notes/items/item-kind";
 import { KNOWLEDGE_ITEM_PATHS_MAX } from "@repo/contract/local/knowledge/knowledge-schema";
 import {
   SelectionAction,
@@ -43,7 +44,9 @@ export interface LibraryViewProps {
   scrollMemory: StoreApi<number>;
   lead: TopbarLeadProps;
   insetTitleBar: boolean;
-  add: Omit<LibraryAddActions, "newNote"> & { newNote: (folder: string) => void };
+  add: Omit<LibraryAddActions, "newNote"> & {
+    newNote: (folder: string, tags?: readonly string[]) => void;
+  };
   onTidy?: (() => void) | undefined;
   onEditFilingRules?: (() => void) | undefined;
   onRenameTag: (tag: string) => void;
@@ -51,8 +54,35 @@ export interface LibraryViewProps {
   onRestored: (path: string) => void;
 }
 
-// where "New note" from this scope writes: the folder shown, else the library's root
-const scopeFolder = (scope: LibraryScope): string => (scope.kind === "folder" ? scope.path : "");
+// where "New note" from this scope writes, so the note is in the grid the person comes back to:
+// the folder shown; Unsorted from Unsorted, and from a tag tagged with it, as a save from either
+// lands; else the library's root
+interface NewNoteTarget {
+  folder: string;
+  tags: string[];
+}
+
+const newNoteTarget = (scope: LibraryScope): NewNoteTarget => {
+  switch (scope.kind) {
+    case "folder": {
+      return { folder: scope.path, tags: [] };
+    }
+    case "unsorted": {
+      return { folder: UNSORTED_FOLDER, tags: [] };
+    }
+    case "tag": {
+      return { folder: UNSORTED_FOLDER, tags: [scope.tag] };
+    }
+    case "all":
+    case "deleted": {
+      return { folder: "", tags: [] };
+    }
+    default: {
+      const exhaustive: never = scope;
+      return exhaustive;
+    }
+  }
+};
 
 // the paths a selection stands for, ⌘A's read from the listing
 export const selectionPaths = async (
@@ -147,7 +177,7 @@ export const LibraryView = ({
   const selected = useStore(selection.store);
   const total = filter === null ? null : (head.data?.total ?? null);
   const count = selectionCount(selected, total ?? 0);
-  const folder = scopeFolder(scope);
+  const noteTarget = newNoteTarget(scope);
 
   const emptyActions: LibraryEmptyActions = {
     addFiles: add.addFiles,
@@ -252,7 +282,7 @@ export const LibraryView = ({
         add={{
           ...add,
           newNote: () => {
-            add.newNote(folder);
+            add.newNote(noteTarget.folder, noteTarget.tags);
           },
         }}
         onTidy={tidyShown ? onTidy : undefined}

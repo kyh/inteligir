@@ -274,8 +274,9 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   editor for a note, a saved page's source over its text or its sandboxed copy,
   and a viewer for a picture, a PDF, a video, a sound or any other file, each
   over the byte routes with the boot's media token, which WebKit's media loader
-  needs for a video's ranges (`apps/workspace/src/app/item/item-stages.tsx`). A
-  viewer still opens its doc through the session, so History, ⌘K and Info bind
+  needs for a video's ranges (`apps/workspace/src/app/item/item-stages.tsx`); the
+  item takes the keyboard as it opens unless something already holds it, so the
+  first Escape goes back. A viewer still opens its doc through the session, so History, ⌘K and Info bind
   to its path, and "Edit as note" swaps the viewer for the editor. What kind the
   open item is reads from the bytes the store last analyzed, never per
   keystroke, so the stage never swaps under typing
@@ -290,7 +291,13 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   the anchor, the arrows move over the grid's own columns, ⌘A selects the whole
   scope by its count until a gesture needs its names, Space is Quick Look and
   Return opens (`apps/workspace/src/app/library/library-selection.ts`, a pure
-  reducer). The store is the workspace's, made once beside the grid's scroll, so
+  reducer). The grid keeps where the focus and the anchor sit in the listing,
+  so the focused card's window stays loaded and its card mounted however far
+  the grid scrolls, a ⇧-click whose span the loaded windows do not hold reads
+  it from the listing, and a right-click or a drag under ⌘A acts on everything
+  selected; coming back from an item, the focused card takes the keyboard
+  again (`apps/workspace/src/app/library/library-grid.tsx`). The store is the
+  workspace's, made once beside the grid's scroll, so
   the panel's Info and the composer read the same selection the grid draws and
   an item opened over the grid comes back to it. Rejected: click-to-open, because
   the selection is the ⌘K context and the Info subject, and a click that opened
@@ -299,14 +306,16 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   (`apps/workspace/src/app/library/bulk-actions.ts`).
 
 - **A SAVE FROM THE WINDOW IS A PASTE OR A DROP THAT NO FIELD CLAIMED.** A paste
-  lands where nothing takes text, and a drop where no row, card or editor took it
+  lands where nothing takes text, and a drop where no field, row, card or editor
+  took it, a drop that holds nothing to save keeping the browser's own handling
   (`apps/workspace/src/app/library/capture/window-capture.ts`); both save into
   the folder the scope shows, else Unsorted, and say where with Open, or that the
   library already holds it with Show
   (`apps/workspace/src/app/library/capture/save-items.ts`). WebKit fires no paste
   on a target that is not editable, so ⌘V there moves the focus to a 1×1
   off-screen catcher without preventing the key, and the paste the key makes
-  fires on the catcher, which hands the focus back. What a transfer holds is read
+  fires on the catcher, which hands the focus back, or lets it go when nothing
+  had it or no paste came, so it never stays in a field nobody sees. What a transfer holds is read
   in one place, files over links, links from the uri-list with their titles
   (`apps/workspace/src/app/library/capture/capture-payload.ts`), and a folder or a
   file over the cap is refused there, before a byte is sent. Rejected: a save

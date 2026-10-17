@@ -56,10 +56,10 @@ const paste = (target: Element, text: string): Event => {
   return event;
 };
 
-const drag = (type: "dragover" | "drop", target: Element, uris: string): Event => {
+const drag = (type: "dragover" | "drop", target: Element, uris: string, text = ""): Event => {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.defineProperty(event, "dataTransfer", {
-    value: { ...strings({ "text/uri-list": uris }), dropEffect: "none" },
+    value: { ...strings({ "text/plain": text, "text/uri-list": uris }), dropEffect: "none" },
   });
   act(() => {
     target.dispatchEvent(event);
@@ -124,6 +124,28 @@ describe("⌘V where nothing takes text", () => {
     expect(document.activeElement).toBe(field);
   });
 
+  it("lets the focus go when nothing had it, rather than keep it in the catcher", () => {
+    const onCapture = mount();
+    fireEvent.keyDown(document.body, { key: "v", metaKey: true });
+    const catcher = screen.getByLabelText("catcher");
+    expect(document.activeElement).toBe(catcher);
+    paste(catcher, "https://a.example");
+    expect(onCapture).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("lets the focus go when the ⌘V makes no paste at all", () => {
+    vi.useFakeTimers();
+    mount();
+    card().focus();
+    fireEvent.keyDown(card(), { key: "v", metaKey: true });
+    expect(document.activeElement).toBe(screen.getByLabelText("catcher"));
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(document.activeElement).toBe(card());
+  });
+
   it("keeps nothing in the catcher when the paste held no link", () => {
     const onCapture = mount();
     card().focus();
@@ -161,6 +183,20 @@ describe("a drop over the window", () => {
     startInternalDrag(["Reading/a.md"]);
     expect(drag("dragover", card(), "https://a.example").defaultPrevented).toBe(false);
     drag("drop", card(), "https://a.example");
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
+  it("leaves a drop on a field to the field", () => {
+    const onCapture = mount();
+    const field = screen.getByLabelText("a field");
+    expect(drag("dragover", field, "https://a.example").defaultPrevented).toBe(false);
+    expect(drag("drop", field, "https://a.example").defaultPrevented).toBe(false);
+    expect(onCapture).not.toHaveBeenCalled();
+  });
+
+  it("leaves a drop that holds nothing to save to the browser", () => {
+    const onCapture = mount();
+    expect(drag("drop", card(), "", "a sentence from the note").defaultPrevented).toBe(false);
     expect(onCapture).not.toHaveBeenCalled();
   });
 

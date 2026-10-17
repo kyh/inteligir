@@ -15,7 +15,7 @@ import type { StoreApi } from "zustand/vanilla";
 
 import { useMediaOrigin } from "../vault-hooks";
 import { useNow } from "../relative-time";
-import { endInternalDrag, startInternalDrag } from "./drag-store";
+import { endInternalDrag, internalDrag, startInternalDrag } from "./drag-store";
 import { ItemCard } from "./item-card";
 import { isUrlItem } from "./item-labels";
 import { ItemMenu } from "./item-menu";
@@ -63,6 +63,28 @@ interface Loaded {
   indexOf: ReadonlyMap<string, number>;
 }
 
+// a path's place in the listing, kept from the last time its window was loaded: the focused
+// card and the selection's anchor stay findable once the grid scrolls far from them
+interface Pin {
+  path: string;
+  index: number;
+}
+
+const pinOf = (
+  path: string | null,
+  indexOf: ReadonlyMap<string, number>,
+  kept: Pin | null,
+): Pin | null => {
+  if (path === null) {
+    return null;
+  }
+  const index = indexOf.get(path);
+  if (index !== undefined) {
+    return { index, path };
+  }
+  return kept?.path === path ? kept : null;
+};
+
 const loadedRows = (windows: ReadonlyMap<number, { items: readonly ItemRowWire[] }>): Loaded => {
   const rows: ItemRowWire[] = [];
   const indexOf = new Map<string, number>();
@@ -91,12 +113,39 @@ export const LibraryGrid = ({
   const [lookAt, setLookAt] = useState<string | null>(null);
   const gridRef = useRef<CardGridHandle | null>(null);
   const shellRef = useRef<HTMLDivElement | null>(null);
-  const windows = useLibraryWindows(filter, windowsAround(range, total));
-  const loaded = loadedRows(windows);
   const state = useStore(selection.store);
+  const [pins, setPins] = useState<{ focus: Pin | null; anchor: Pin | null }>({
+    anchor: null,
+    focus: null,
+  });
+  // the card the keyboard lands on once it renders: the focused one as the grid comes back from
+  // an item, or the one End or an arrow moved to while its window was still loading. The card
+  // takes the focus itself as it mounts, and the next gesture lets the wish go
+  const [wantFocus, setWantFocus] = useState<string | null>(() => selection.store.getState().focus);
+  const focusPin = pins.focus !== null && pins.focus.path === state.focus ? pins.focus : null;
+  // the focused card's window stays loaded wherever the grid scrolls, so its card stays mounted
+  // and the keys keep working
+  const focusWindow = focusPin === null ? null : Math.floor(focusPin.index / LIBRARY_WINDOW);
+  const around = windowsAround(range, total);
+  const windows = useLibraryWindows(
+    filter,
+    focusWindow === null || around.includes(focusWindow) ? around : [...around, focusWindow],
+  );
+  const loaded = loadedRows(windows);
   const media = useMediaOrigin();
   const now = useNow();
-  const focusIndex = state.focus === null ? null : (loaded.indexOf.get(state.focus) ?? null);
+  const focusIndex =
+    state.focus === null ? null : (loaded.indexOf.get(state.focus) ?? focusPin?.index ?? null);
+
+  // where the selection's focus and anchor sit in the listing, read after a gesture moved them
+  const pinSelection = (): void => {
+    const { anchor, focus } = selection.store.getState();
+    setWantFocus(null);
+    setPins((held) => ({
+      anchor: pinOf(anchor, loaded.indexOf, held.anchor),
+      focus: pinOf(focus, loaded.indexOf, held.focus),
+    }));
+  };
 
   const isSelected = (path: string): boolean => state.all || state.selected.has(path);
 
@@ -109,19 +158,38 @@ export const LibraryGrid = ({
     selection.apply({ kind: "materialize", paths });
   };
 
+  // the card scrolled to and focused once it renders, however long its window takes
   const focusCard = (path: string, index: number | null): void => {
     if (index !== null) {
       gridRef.current?.scrollToCell(index);
+      setPins((held) => ({ ...held, focus: { index, path } }));
     }
-    requestAnimationFrame(() => {
-      for (const card of shellRef.current?.querySelectorAll<HTMLElement>("[data-item-path]") ??
-        []) {
-        if (card.dataset.itemPath === path) {
-          card.focus({ preventScroll: true });
-          return;
-        }
-      }
-    });
+    setWantFocus(path);
+  };
+
+  // every row from the anchor to `path`, read from the listing when the loaded windows do not
+  // hold them all, so a ⇧-click far from the anchor selects the whole span
+  const rangeTo = async (path: string): Promise<void> => {
+    const { anchor } = selection.store.getState();
+    const anchorIndex =
+      anchor === null
+        ? null
+        : (loaded.indexOf.get(anchor) ?? (pins.anchor?.path === anchor ? pins.anchor.index : null));
+    const toIndex = loaded.indexOf.get(path);
+    if (anchorIndex === null || toIndex === undefined) {
+      selection.apply({ kind: "range", order: loaded.order, path });
+      return;
+    }
+    const from = Math.min(anchorIndex, toIndex);
+    const to = Math.max(anchorIndex, toIndex);
+    const spanned = Array.from(
+      { length: Math.floor(to / LIBRARY_WINDOW) - Math.floor(from / LIBRARY_WINDOW) + 1 },
+      (_, at) => Math.floor(from / LIBRARY_WINDOW) + at,
+    );
+    const order = spanned.every((windowIndex) => windows.has(windowIndex))
+      ? loaded.order
+      : await materializePaths(filter, from, to + 1);
+    selection.apply({ kind: "range", order, path });
   };
 
   const press = (row: ItemRowWire, event: MouseEvent<HTMLDivElement>): void => {
@@ -129,37 +197,59 @@ export const LibraryGrid = ({
     if (event.shiftKey || toggle) {
       void (async () => {
         await settleAll();
-        selection.apply(
-          event.shiftKey
-            ? { kind: "range", order: loaded.order, path: row.path }
-            : { kind: "toggle", path: row.path },
-        );
+        if (event.shiftKey) {
+          await rangeTo(row.path);
+        } else {
+          selection.apply({ kind: "toggle", path: row.path });
+        }
+        pinSelection();
       })();
       return;
     }
     selection.apply({ kind: "click", path: row.path });
+    pinSelection();
   };
 
+  // under ⌘A the card is one of everything selected, so the menu acts on the whole selection
   const openMenu = (row: ItemRowWire, anchor: HTMLElement): void => {
-    const current = selection.store.getState();
-    const inSelection = !current.all && current.selected.has(row.path);
-    if (!inSelection) {
-      selection.apply({ kind: "click", path: row.path });
-    }
-    const subjects = inSelection && current.selected.size > 1 ? [...current.selected] : [row.path];
-    setMenu({ anchor, row, subjects });
+    void (async () => {
+      await settleAll();
+      const current = selection.store.getState();
+      const inSelection = current.selected.has(row.path);
+      if (!inSelection) {
+        selection.apply({ kind: "click", path: row.path });
+        pinSelection();
+      }
+      const subjects =
+        inSelection && current.selected.size > 1 ? [...current.selected] : [row.path];
+      setMenu({ anchor, row, subjects });
+    })();
   };
 
   const dragStart = (row: ItemRowWire, event: DragEvent<HTMLDivElement>): void => {
     const current = selection.store.getState();
+    // under ⌘A the drag carries everything: the loaded rows at once, every name once the listing
+    // answers, which a drop reads well after the drag began
+    if (current.all) {
+      startInternalDrag(loaded.order);
+      void (async () => {
+        await settleAll();
+        if (internalDrag() !== null) {
+          startInternalDrag([...selection.store.getState().selected]);
+        }
+      })();
+    }
     const paths =
       !current.all && current.selected.has(row.path) ? [...current.selected] : [row.path];
-    if (!current.selected.has(row.path)) {
+    if (!current.all && !current.selected.has(row.path)) {
       selection.apply({ kind: "click", path: row.path });
+      pinSelection();
     }
-    startInternalDrag(paths);
+    if (!current.all) {
+      startInternalDrag(paths);
+    }
     event.dataTransfer.effectAllowed = "copyMove";
-    const urls = paths
+    const urls = (current.all ? loaded.order : paths)
       .map((path) => (path === row.path ? row : loaded.rows.find((other) => other.path === path)))
       .filter((other): other is ItemRowWire => other !== undefined && isUrlItem(other))
       .map((other) => other.url)
@@ -176,6 +266,7 @@ export const LibraryGrid = ({
     if (at !== -1 && next !== undefined) {
       setLookAt(next);
       selection.apply({ kind: "click", path: next });
+      pinSelection();
     }
   };
 
@@ -186,6 +277,7 @@ export const LibraryGrid = ({
       const [path] = await materializePaths(filter, index, index + 1);
       if (path !== undefined) {
         selection.apply({ kind: "click", path });
+        setPins({ anchor: { index, path }, focus: { index, path } });
         focusCard(path, index);
       }
     })();
@@ -205,6 +297,7 @@ export const LibraryGrid = ({
           await settleAll();
         }
         selection.apply({ ...move, columns, kind: "move", order: loaded.order });
+        pinSelection();
         const { focus } = selection.store.getState();
         if (focus !== null) {
           focusCard(focus, loaded.indexOf.get(focus) ?? null);
@@ -255,7 +348,12 @@ export const LibraryGrid = ({
     }
   };
 
-  const tabStop = state.focus ?? loaded.order[0] ?? null;
+  // the focused card while it is rendered, else the first card in view: a tab stop on a card that
+  // is not drawn would leave Tab no way back into the grid
+  const tabStop =
+    state.focus !== null && loaded.indexOf.has(state.focus)
+      ? state.focus
+      : (rowAt(windows, range.first)?.path ?? null);
 
   return (
     <div ref={shellRef} className="flex min-h-0 flex-1 flex-col" data-library-grid="">
@@ -284,6 +382,7 @@ export const LibraryGrid = ({
               row={row}
               selected={isSelected(row.path)}
               tabStop={row.path === tabStop}
+              takeFocus={row.path === wantFocus}
               media={media}
               nowMs={now}
               onPress={press}

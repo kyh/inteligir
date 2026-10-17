@@ -18,7 +18,7 @@ import {
 import { Tooltip } from "@repo/ui/components/tooltip";
 import { FileKindIcon } from "@repo/editor/nodes/file-card";
 import { FileTextIcon, MusicIcon, PinIcon, PlayIcon, TriangleAlertIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DragEvent, KeyboardEvent, MouseEvent } from "react";
 
 import type { MediaOrigin } from "../vault-hooks";
@@ -29,6 +29,9 @@ export interface ItemCardProps {
   selected: boolean;
   // the one card Tab reaches; the grid's arrows move it
   tabStop: boolean;
+  // the keyboard lands here as the card mounts: the grid's focus was moved to it before its
+  // window had loaded, or the grid came back from an item
+  takeFocus: boolean;
   media: MediaOrigin | null;
   nowMs: number;
   onPress: (row: ItemRowWire, event: MouseEvent<HTMLDivElement>) => void;
@@ -156,6 +159,7 @@ export const ItemCard = ({
   row,
   selected,
   tabStop,
+  takeFocus,
   media,
   nowMs,
   onPress,
@@ -165,8 +169,15 @@ export const ItemCard = ({
   onDragEnd,
 }: ItemCardProps) => {
   const playable = (row.kind === "video" || row.kind === "audio") && row.cover !== null;
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (takeFocus) {
+      cardRef.current?.focus({ preventScroll: true });
+    }
+  }, [takeFocus]);
   return (
     <MediaCard
+      ref={cardRef}
       selected={selected}
       tabIndex={tabStop ? 0 : -1}
       draggable

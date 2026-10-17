@@ -558,19 +558,19 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
   useEffect(() => subscribeOpenRequests(openItem), [openItem]);
 
   // a note the page makes says when it came in, as every item the app makes does
-  const createNote = async (path: string): Promise<void> => {
+  const createNote = async (path: string, tags: readonly string[] = []): Promise<void> => {
     const made = await actionsRef.current?.createFileAt(
       path,
-      composeItemFile({ saved: formatItemTime(Date.now()) }, ""),
+      composeItemFile({ saved: formatItemTime(Date.now()), tags }, ""),
     );
     if (made !== null && made !== undefined) {
       openItem(made);
     }
   };
 
-  const newNoteIn = (folder: string): void => {
+  const newNoteIn = (folder: string, tags: readonly string[] = []): void => {
     const taken = (treeQuery.data?.entries ?? []).map((entry) => entry.path);
-    void createNote(untitledIn(folder, taken));
+    void createNote(untitledIn(folder, taken), tags);
   };
 
   // the live editor is keyed by path, so an item mid-switch answers no editor and the bar stays shut
@@ -1008,7 +1008,11 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
                       setQ(null);
                     }}
                     sort={sort}
-                    onSortChange={setSort}
+                    onSortChange={(next) => {
+                      setSort(next);
+                      // a new order is a new listing, opened at its top
+                      scrollMemory.setState(0, true);
+                    }}
                     selection={selection}
                     scrollMemory={scrollMemory}
                     lead={lead}
