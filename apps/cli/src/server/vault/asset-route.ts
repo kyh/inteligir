@@ -60,7 +60,11 @@ export const handleVaultAsset = async (c: Context, vault: VaultService): Promise
     // stat before read: no-cache means every re-mount revalidates.
     const stat = await vault.statAsset(path);
     const headers = { ...baseHeaders(kind, stat.path), etag: stat.etag };
-    if (c.req.header("if-none-match") === stat.etag) {
+    // a ranged request is answered its range even when it also revalidates: a media loader
+    // (WebKit's, AVFoundation's) sends the etag it holds with each range it reads, and a 304 to a
+    // range leaves it holding only the probe's two bytes
+    const ranged = c.req.header("range") !== undefined;
+    if (!ranged && c.req.header("if-none-match") === stat.etag) {
       return new Response(null, { headers, status: 304 });
     }
     const asked = rangeApplies(c.req.header("if-range"), stat.etag)
@@ -85,13 +89,13 @@ export const handleVaultAsset = async (c: Context, vault: VaultService): Promise
     }
     const span = { end: asked.end, start: asked.start };
     const length = span.end - span.start + 1;
-    const ranged = {
+    const partial = {
       ...typed,
       "content-length": String(length),
       "content-range": `bytes ${String(span.start)}-${String(span.end)}/${String(stat.size)}`,
     };
     if (head) {
-      return new Response(null, { headers: ranged, status: 206 });
+      return new Response(null, { headers: partial, status: 206 });
     }
     const piece = await vault.readByteRange(path, span);
     // a file that changed between the stat and the read is answered as it now is, whole: the
@@ -100,7 +104,7 @@ export const handleVaultAsset = async (c: Context, vault: VaultService): Promise
       const asset = await vault.readBytes(path);
       return new Response(asset.bytes, { headers: { ...typed, etag: asset.etag }, status: 200 });
     }
-    return new Response(piece.bytes, { headers: ranged, status: 206 });
+    return new Response(piece.bytes, { headers: partial, status: 206 });
   } catch (error) {
     const status = vaultRefusalStatus(error);
     if (status === null) {

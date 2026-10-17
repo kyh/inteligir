@@ -137,7 +137,10 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   probe answers 206, so one range is answered 206 with its `content-range`, a
   range past the end 416, a HEAD with the length and no body, and a list of
   ranges or a stale `if-range` whole, read off a handle rather than the whole
-  file. What is served is the shared media table's (images, PDF, video,
+  file. A ranged request is answered its range even when its `if-none-match`
+  matches, because a media loader sends the etag it holds with every range it
+  reads and a 304 there leaves it holding the probe's two bytes; only a
+  request with no range revalidates to 304. What is served is the shared media table's (images, PDF, video,
   audio), never what a file may be stored as: an archive is an item's original
   and is never served, and an `.html` is a page copy, served only by its own
   route under a script-less sandbox. A PDF alone has no sandbox, because one

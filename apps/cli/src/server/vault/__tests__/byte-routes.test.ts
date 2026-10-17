@@ -80,6 +80,47 @@ describe("the asset route", () => {
     expect(await bytesOf(whole)).toEqual(video);
   });
 
+  it("answers a range that also revalidates with its range, and a bare revalidation 304", async () => {
+    const { request, vaultDir } = await bootTestApp();
+    const video = pngOf(1000);
+    await writeFile(path.join(vaultDir, "clip.mp4"), video);
+    const first = await request(`${VAULT_ASSET_PATH}?path=clip.mp4`);
+    const etag = first.headers.get("etag") ?? "";
+    expect(etag).not.toBe("");
+
+    // a media loader sends the etag it holds with every range it reads
+    const probe = await request(`${VAULT_ASSET_PATH}?path=clip.mp4`, {
+      headers: { "if-none-match": etag, range: "bytes=0-1" },
+    });
+    expect(probe.status).toBe(206);
+    expect(probe.headers.get("content-range")).toBe("bytes 0-1/1000");
+    expect(await bytesOf(probe)).toEqual(video.slice(0, 2));
+
+    const rest = await request(`${VAULT_ASSET_PATH}?path=clip.mp4`, {
+      headers: { "if-none-match": etag, range: "bytes=2-" },
+    });
+    expect(rest.status).toBe(206);
+    expect(await bytesOf(rest)).toEqual(video.slice(2));
+
+    // the existing range rules still hold under the etag: past the end is 416, a stale if-range
+    // the whole file
+    const past = await request(`${VAULT_ASSET_PATH}?path=clip.mp4`, {
+      headers: { "if-none-match": etag, range: "bytes=1000-" },
+    });
+    expect(past.status).toBe(416);
+    const stale = await request(`${VAULT_ASSET_PATH}?path=clip.mp4`, {
+      headers: { "if-none-match": etag, "if-range": '"stale"', range: "bytes=0-1" },
+    });
+    expect(stale.status).toBe(200);
+    expect(await bytesOf(stale)).toEqual(video);
+
+    const revalidated = await request(`${VAULT_ASSET_PATH}?path=clip.mp4`, {
+      headers: { "if-none-match": etag },
+    });
+    expect(revalidated.status).toBe(304);
+    expect(await lengthOf(revalidated)).toBe(0);
+  });
+
   it("answers HEAD with the length and no body", async () => {
     const { request, vaultDir } = await bootTestApp();
     await writeFile(path.join(vaultDir, "song.mp3"), pngOf(300));

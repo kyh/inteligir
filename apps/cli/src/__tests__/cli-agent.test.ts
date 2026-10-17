@@ -231,6 +231,49 @@ describe("highlighting a passage on the command line", { timeout: 60_000 }, () =
   });
 });
 
+describe("placing a highlight by its quote on the command line", { timeout: 60_000 }, () => {
+  it("marks the occurrence it is asked for in the file, and says where in plain text", async () => {
+    const { cli, linesOf, onDisk, write } = await bootCli();
+    write("Twice.md", "Files last. Apps fade.\n\nThe second time: Files last.\n");
+
+    const [said] = await linesOf([
+      "annotation",
+      "add",
+      "Twice.md",
+      "Files last",
+      "--occurrence",
+      "2",
+      "--note",
+      "Said twice",
+    ]);
+    const id = /^Highlighted "Files last" in Twice\.md \((?<id>[^)]+)\)$/u.exec(said ?? "")?.groups
+      ?.id;
+    expect(id, `the plain answer: ${String(said)}`).toBeDefined();
+    const text = onDisk("Twice.md");
+    // the first occurrence stays plain; the second carries the markers, the passage between them
+    expect(text).toContain("\nFiles last. Apps fade.\n");
+    expect(text).toContain(
+      `The second time: %%i:${String(id)}:start%%Files last%%i:${String(id)}:end%%.\n`,
+    );
+    expect(await linesOf(["annotation", "list", "Twice.md"])).toEqual([
+      `${String(id)}\tanchored\t"Files last"\tSaid twice`,
+    ]);
+
+    // a third occurrence is not in the text: refused, and the file is as it was
+    const third = await cli([
+      "annotation",
+      "add",
+      "Twice.md",
+      "Files last",
+      "--occurrence",
+      "3",
+      "--json",
+    ]);
+    expect(third.code).toBe(1);
+    expect(onDisk("Twice.md")).toBe(text);
+  });
+});
+
 describe("Tidy my library on the command line", { timeout: 60_000 }, () => {
   it("stores the preset's label as the text, and the turn's prompt carries its procedure", async () => {
     const { cli, jsonOf } = await bootCli(SCRIPTED);
