@@ -16,8 +16,10 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # a backstop over the e2e runner's per-scenario deadlines
-    timeout-minutes: 30
+    # a backstop over the e2e runner's per-scenario deadlines; verify and the suite run about 25
+    # minutes on a four-core runner before the scenarios that read a page on the runner's own
+    # address, which only a runner with such an address runs
+    timeout-minutes: 45
     env:
       TURBO_TELEMETRY_DISABLED: 1
     steps:
