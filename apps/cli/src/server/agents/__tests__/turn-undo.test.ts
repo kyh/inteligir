@@ -2,6 +2,7 @@
 // composed server's own engine and vault; only the provider is the test's.
 
 import { existsSync, readFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { isDefinedError, safe } from "@orpc/client";
 import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
@@ -338,5 +339,79 @@ describe("undoing a turn", () => {
       harness.client.threads.undoTurn({ threadId: "thr_missing", turnId: turn.turnId }),
     );
     expect(isDefinedError(noThread) && noThread.code).toBe("NOT_FOUND");
+  });
+});
+
+// not text: the png signature, a nul and the bytes a utf-8 decode would replace
+const pngBytes = (mark: number): Uint8Array =>
+  new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0, 0xff, 0xfe, mark]);
+
+const writeFileBytes = async (
+  harness: ThreadHarness,
+  filePath: string,
+  bytes: Uint8Array,
+): Promise<void> => {
+  const absolute = path.join(harness.vaultDir, filePath);
+  await mkdir(path.dirname(absolute), { recursive: true });
+  await writeFile(absolute, bytes);
+};
+
+const bytesOnDisk = (harness: ThreadHarness, filePath: string): Uint8Array | null => {
+  const absolute = path.join(harness.vaultDir, filePath);
+  return existsSync(absolute) ? new Uint8Array(readFileSync(absolute)) : null;
+};
+
+describe("undoing a turn's files", () => {
+  it("takes back a PNG the turn created, byte-exact", async () => {
+    const harness = await boot({ "a.md": doc("# A") });
+    const threadId = await createThread(harness.client);
+    const turn = await startTurn(harness, threadId);
+    await writeFileBytes(harness, "assets/shot.png", pngBytes(1));
+    turn.writes.recordPaths(["assets/shot.png"]);
+    await settle(harness, turn);
+
+    expect(await harness.client.threads.undoTurn({ threadId, turnId: turn.turnId })).toEqual({
+      kept: [],
+      reverted: ["assets/shot.png"],
+    });
+    expect(bytesOnDisk(harness, "assets/shot.png")).toBeNull();
+  });
+
+  it("puts back a PNG the turn overwrote and one it deleted, byte-exact", async () => {
+    const harness = await boot({ "a.md": doc("# A") });
+    await writeFileBytes(harness, "assets/kept.png", pngBytes(1));
+    await writeFileBytes(harness, "assets/gone.png", pngBytes(2));
+    await harness.vault.git.commitNow();
+    const threadId = await createThread(harness.client);
+    const turn = await startTurn(harness, threadId);
+    await writeFileBytes(harness, "assets/kept.png", pngBytes(9));
+    await harness.vault.service.remove("assets/gone.png");
+    turn.writes.recordPaths(["assets/kept.png", "assets/gone.png"]);
+    await settle(harness, turn);
+
+    expect(await harness.client.threads.undoTurn({ threadId, turnId: turn.turnId })).toEqual({
+      kept: [],
+      reverted: ["assets/gone.png", "assets/kept.png"],
+    });
+    expect(bytesOnDisk(harness, "assets/kept.png")).toEqual(pngBytes(1));
+    expect(bytesOnDisk(harness, "assets/gone.png")).toEqual(pngBytes(2));
+  });
+
+  it("keeps a file changed since the turn, and never merges its bytes", async () => {
+    const harness = await boot({ "a.md": doc("# A") });
+    await writeFileBytes(harness, "assets/shot.png", pngBytes(1));
+    await harness.vault.git.commitNow();
+    const threadId = await createThread(harness.client);
+    const turn = await startTurn(harness, threadId);
+    await writeFileBytes(harness, "assets/shot.png", pngBytes(2));
+    turn.writes.recordPaths(["assets/shot.png"]);
+    await settle(harness, turn);
+    await writeFileBytes(harness, "assets/shot.png", pngBytes(3));
+
+    expect(await harness.client.threads.undoTurn({ threadId, turnId: turn.turnId })).toEqual({
+      kept: [{ path: "assets/shot.png", reason: "edited-since" }],
+      reverted: [],
+    });
+    expect(bytesOnDisk(harness, "assets/shot.png")).toEqual(pngBytes(3));
   });
 });

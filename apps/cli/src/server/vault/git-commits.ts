@@ -24,7 +24,7 @@ const MAX_SCOPED_COMMIT_PATHS = 200;
 type Committed = { files: number } | null;
 
 // the files over the cap that stay on this Mac: every one counted, the first few named
-export interface TooLargeFiles {
+interface TooLargeFiles {
   count: number;
   files: SizedPath[];
 }

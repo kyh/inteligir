@@ -24,9 +24,9 @@ const THUMB_TYPES = {
 
 type ThumbExtension = keyof typeof THUMB_TYPES;
 
-export type ThumbMediaType = (typeof THUMB_TYPES)[ThumbExtension];
+type ThumbMediaType = (typeof THUMB_TYPES)[ThumbExtension];
 
-export interface Thumb {
+interface Thumb {
   bytes: Uint8Array;
   mediaType: ThumbMediaType;
 }

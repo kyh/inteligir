@@ -29,8 +29,16 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   buffer's convergence; there is no restore procedure, since a second server
   write path is a second CAS. A CAS refusal is reported, not diff3-merged,
   because the user named exact bytes. A deleted note comes back the same way,
-  from the log's deletions plus the worktree's uncommitted ones. There is no
-  trash folder and no purge. `apps/cli/src/server/vault/git-history.ts`.
+  from the log's deletions plus the worktree's uncommitted ones. A file that is
+  not text comes back byte-exact the same way, through `vault.revisionBytes`
+  and `vault.createFile`, the byte twin of a write's `absent` guard, so a
+  restore never writes over what stands there now. Deleted lists every file,
+  not only docs, and a file deleted in one change set with a doc that embedded
+  or linked it is `heldBy` that doc, listed under it and restored with it
+  (`apps/cli/src/server/vault/held-files.ts`,
+  `@repo/contract/local/vault/restore-held-files`), which every client runs
+  after the doc's own restore. There is no trash folder and no purge.
+  `apps/cli/src/server/vault/git-history.ts`.
 
 - **A WRITE CARRIES THE BASE IT WAS COMPUTED FROM AND NAMES ITS GUARD, AND A
   CREATE IS NOT A WRITE WITH AN EMPTY BASE.** The guard is one required union:
@@ -103,7 +111,9 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   folder that is a file is refused, since it would refuse every paste. The bytes
   ride as a multipart Blob rather than base64 inside the json. The phone's
   photos take the same free name and land in the default folder, spelled once,
-  since the choice never reaches the phone.
+  since the choice never reaches the phone. A file item's original lands where
+  a paste beside its wrapper would, under its own name
+  (`apps/cli/src/server/items/save-file.ts`).
   `apps/cli/src/server/vault/vault-prefs-store.ts`,
   `@repo/contract/local/vault/attachment-location`.
 
@@ -138,6 +148,18 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   srcdoc page copy, which inherits the window's origin.
   `apps/cli/src/server/vault/asset-route.ts`, `byte-range.ts`,
   `page-copy-route.ts`, `thumb-route.ts`.
+
+- **A DELETE TAKES THE FILES ONLY IT LINKS.** An item's original, its cover
+  and its page copy leave with the item, and a file another doc still embeds or
+  links stays, by one rule the server's delete and the phone's both run
+  (`@repo/notes/knowledge/attachment-removal`): a file goes when every doc that
+  links it is being removed, and one whose linkers the caller's graph has not
+  read is kept, so a delete never takes more than it named. The linkers are the
+  index's, read before the entry goes, and the files leave after it, as the
+  annotation stores do, in the same change set, so Deleted lists them under the
+  doc and a restore brings them back with it. Rejected: leaving the files (every
+  deleted item would strand its original and cover, which no card shows), and
+  asking the person file by file. `apps/cli/src/server/vault/remove-entry.ts`.
 
 - **A SYNC PASS HOLDS THE REPO LOCK ONLY FOR ITS LOCAL STEPS.** The fetch and
   the push run unlocked between locked local steps: held across the network, the

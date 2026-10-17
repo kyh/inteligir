@@ -202,7 +202,11 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   undo commits as the engine, never as the agent's turn, so an agent undoing an
   earlier turn from inside a later one does not commit the undo as its own. AN
   ANNOTATION STORE IS TAKEN BACK ENTRY BY ENTRY, never as lines, which can break
-  its json: an entry goes or comes back only while it is as the turn left it. It
+  its json: an entry goes or comes back only while it is as the turn left it. A
+  FILE THAT IS NOT A DOC IS PUT BACK BYTE FOR BYTE, never merged, since an
+  image or a PDF holds no lines and a merge of an svg's writes bytes nobody
+  made: it goes back only while it holds exactly what the turn left, and is
+  kept and named otherwise. It
   is wired beside the thread service rather than inside it, which would hand
   that service the vault's git and writes.
   `apps/cli/src/server/threads/turn-undo.ts`.

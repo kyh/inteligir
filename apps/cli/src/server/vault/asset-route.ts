@@ -23,7 +23,7 @@ const policyFor = (kind: AssetKind): string => (kind === "pdf" ? PDF_POLICY : SA
 // quote, a semicolon or a non-ASCII letter can neither end the header nor be misread
 const ATTR_CHAR = /[A-Za-z0-9!#$&+.^_`|~-]/u;
 
-export const contentDisposition = (path: string): string => {
+const contentDisposition = (path: string): string => {
   const encoded = [...new TextEncoder().encode(basenamePath(path))]
     .map((byte) => {
       const char = String.fromCodePoint(byte);

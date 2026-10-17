@@ -22,7 +22,7 @@ const PAGE_COPY_HEADERS = {
 
 // an .html file directly under the page copies' folder: no other html in the library is served,
 // since a note's folder may hold any page a hostile sync wrote
-export const isPageCopyPath = (path: string): boolean => {
+const isPageCopyPath = (path: string): boolean => {
   const prefix = `${PAGES_DIR}/`;
   if (!path.startsWith(prefix) || extnamePath(path) !== ".html") {
     return false;

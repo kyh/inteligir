@@ -251,14 +251,14 @@ type ConditionalWriteResult =
 
 // a file's bytes are compared whole: a byte write is a restore or an undo of a file at most the
 // asset cap, so the read costs what the write does
-export type BytesWriteGuard = { kind: "absent" } | { kind: "expected"; bytes: Uint8Array };
+type BytesWriteGuard = { kind: "absent" } | { kind: "expected"; bytes: Uint8Array };
 
-export type BytesWriteResult =
+type BytesWriteResult =
   | { applied: true; path: string }
   | { applied: false; reason: "exists" | "changed" | "not_found" };
 
 // an asset's identity for a revalidation and a range: its size and mtime, which the etag spells
-export interface VaultAssetStat {
+interface VaultAssetStat {
   path: string;
   etag: string;
   size: number;
@@ -266,7 +266,7 @@ export interface VaultAssetStat {
 }
 
 // `end` inclusive, as a range header spells it
-export interface VaultByteSpan {
+interface VaultByteSpan {
   start: number;
   end: number;
 }

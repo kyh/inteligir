@@ -33,7 +33,7 @@ export const parsePorcelain = (stdout: string): PorcelainEntry[] => {
   return entries;
 };
 
-export const readPorcelain = async (
+const readPorcelain = async (
   run: RunGitCommand,
   paths: readonly string[] = [],
 ): Promise<PorcelainEntry[]> => {
@@ -49,9 +49,6 @@ export const readPorcelain = async (
   ]);
   return parsePorcelain(stdout);
 };
-
-export const entryPaths = (entries: readonly PorcelainEntry[]): string[] =>
-  entries.flatMap((entry) => (entry.origin === null ? [entry.path] : [entry.path, entry.origin]));
 
 // git's unmerged columns: U on either side, AA (both added), DD (both deleted).
 const isUnmerged = (entry: PorcelainEntry): boolean =>

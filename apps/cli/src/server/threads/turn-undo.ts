@@ -18,12 +18,13 @@ import {
   serializeAnnotationStore,
 } from "@repo/notes/annotations/store-schema";
 import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
+import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { VaultPathError } from "@repo/notes/knowledge/vault-path";
 import { frontmatterId, withFrontmatterId } from "@repo/notes/markdown/frontmatter";
 import { revertEdit, turnEditOf } from "@repo/notes/text/revert-edit";
 import type { RevertVerdict } from "@repo/notes/text/revert-edit";
 import type { KnowledgeRuntime } from "../knowledge/knowledge-runtime";
-import type { GitEngine } from "../vault/git-engine";
+import type { VaultGit } from "../vault/git-engine";
 import type { TurnCommit } from "../vault/git-history";
 import { ENGINE_IDENTITY } from "../vault/git-run";
 import { undoCommitMessage } from "../vault/turn-trailers";
@@ -88,7 +89,14 @@ const readSide = async (read: () => Promise<string>): Promise<ReadSide> => {
 
 type RevertService = Pick<
   VaultService,
-  "read" | "removeIfUnchanged" | "statEntry" | "writeGuarded" | "writeIfUnchanged"
+  | "read"
+  | "readBytes"
+  | "removeBytesIfUnchanged"
+  | "removeIfUnchanged"
+  | "statEntry"
+  | "writeBytesGuarded"
+  | "writeGuarded"
+  | "writeIfUnchanged"
 >;
 
 const readCurrent = async (service: RevertService, path: string): Promise<ReadSide> =>
@@ -105,7 +113,7 @@ interface SpanSides {
 
 // null when a side is not text the undo can merge
 const readSpan = async (
-  git: GitEngine,
+  git: VaultGit,
   service: RevertService,
   span: PathSpan,
 ): Promise<SpanSides | null> => {
@@ -233,7 +241,7 @@ const landVerdict = async (
 
 // one undo's reads and writes, and what it reports
 interface UndoPass {
-  git: GitEngine;
+  git: VaultGit;
   service: RevertService;
   busy: ReadonlySet<string>;
   claim: (paths: readonly string[]) => void;
@@ -306,6 +314,123 @@ const revertNote = async (pass: UndoPass, span: PathSpan): Promise<void> => {
   }
 };
 
+type BytesSide = { readable: true; bytes: Uint8Array | null } | { readable: false };
+
+// a missing path reads as no bytes; past the cap, or a symlink planted there since, is no side
+// the undo can compare
+const readBytesSide = async (read: () => Promise<Uint8Array>): Promise<BytesSide> => {
+  try {
+    return { bytes: await read(), readable: true };
+  } catch (error) {
+    if (error instanceof VaultServiceError && error.code === "not_found") {
+      return { bytes: null, readable: true };
+    }
+    if (
+      (error instanceof VaultServiceError && error.code === "too_large") ||
+      error instanceof VaultPathError
+    ) {
+      return { readable: false };
+    }
+    throw error;
+  }
+};
+
+const sameBytes = (a: Uint8Array | null, b: Uint8Array | null): boolean => {
+  if (a === null || b === null) {
+    return a === b;
+  }
+  return a.byteLength === b.byteLength && a.every((byte, index) => byte === b[index]);
+};
+
+type FileLanded = Landed;
+
+// the byte twin of landVerdict: each write is the vault's own compare-and-swap over the bytes
+// the undo read, so a file changed after that read is kept, never overwritten.
+const landFile = async (
+  service: RevertService,
+  path: string,
+  before: Uint8Array | null,
+  current: Uint8Array | null,
+): Promise<FileLanded> => {
+  if (before === null) {
+    if (current === null) {
+      return { kind: "already-there" };
+    }
+    const removed = await service.removeBytesIfUnchanged(path, current);
+    if (removed.applied) {
+      return { kind: "reverted" };
+    }
+    return removed.reason === "changed"
+      ? { kind: "kept", reason: "edited-since" }
+      : { kind: "already-there" };
+  }
+  try {
+    const written = await service.writeBytesGuarded(
+      path,
+      before,
+      current === null ? { kind: "absent" } : { bytes: current, kind: "expected" },
+    );
+    if (written.applied) {
+      return { kind: "reverted" };
+    }
+    return {
+      kind: "kept",
+      reason: written.reason === "exists" ? "recreated-since" : "edited-since",
+    };
+  } catch (error) {
+    // a folder now stands at the path, or a file where one of its folders must be.
+    if (error instanceof VaultServiceError && error.code === "conflict") {
+      return { kind: "kept", reason: "recreated-since" };
+    }
+    throw error;
+  }
+};
+
+// a file that is not a doc is put back byte for byte, never merged: an image, a PDF or an
+// archive holds no lines, and a merge of an svg's would write bytes nobody made. it goes back only
+// while it holds exactly what the turn left; a file changed since is kept and named.
+const revertFile = async (pass: UndoPass, span: PathSpan): Promise<void> => {
+  if (pass.busy.has(span.path)) {
+    pass.kept.push({ path: span.path, reason: "busy" });
+    return;
+  }
+  const [before, after, current] = await Promise.all([
+    readBytesSide(async () => await pass.git.revisionBytes(span.path, span.before)),
+    readBytesSide(async () => await pass.git.revisionBytes(span.path, span.after)),
+    readBytesSide(async () => {
+      const { bytes } = await pass.service.readBytes(span.path);
+      return bytes;
+    }),
+  ]);
+  if (!before.readable || !after.readable || !current.readable) {
+    pass.kept.push({ path: span.path, reason: "unreadable" });
+    return;
+  }
+  if (sameBytes(before.bytes, after.bytes) || sameBytes(current.bytes, before.bytes)) {
+    return;
+  }
+  if (!sameBytes(current.bytes, after.bytes)) {
+    let reason: UndoKeptReason = "edited-since";
+    if (current.bytes === null) {
+      reason = "deleted-since";
+    } else if (after.bytes === null) {
+      reason = "recreated-since";
+    }
+    pass.kept.push({ path: span.path, reason });
+    return;
+  }
+  pass.claim([span.path]);
+  const landed = await landFile(pass.service, span.path, before.bytes, current.bytes);
+  if (landed.kind === "kept") {
+    pass.kept.push({ path: span.path, reason: landed.reason });
+  }
+  if (landed.kind !== "reverted") {
+    return;
+  }
+  pass.written.add(span.path);
+  pass.reverted.push(span.path);
+};
+
 // an annotation store is json, which a line merge can leave unparseable, so it is taken back entry by
 // entry instead, against the notes that carry the id it is keyed by.
 const revertStore = async (
@@ -370,7 +495,7 @@ const refileMintedIds = async (pass: UndoPass): Promise<void> => {
 
 interface UndoTurnArgs {
   db: DbConnection;
-  git: GitEngine;
+  git: VaultGit;
   knowledge: Pick<KnowledgeRuntime, "noteIdOwners">;
   service: RevertService;
   notifier: DbNotifier;
@@ -425,10 +550,12 @@ export const undoTurnChanges = async (args: UndoTurnArgs): Promise<UndoTurnOutco
     const stores: { span: PathSpan; noteId: string }[] = [];
     for (const span of turnSpans(commits, turnId)) {
       const noteId = annotationsStoreItemId(span.path);
-      if (noteId === null) {
+      if (noteId !== null) {
+        stores.push({ noteId, span });
+      } else if (isDocPath(span.path)) {
         await revertNote(pass, span);
       } else {
-        stores.push({ noteId, span });
+        await revertFile(pass, span);
       }
     }
     for (const { span, noteId } of stores) {

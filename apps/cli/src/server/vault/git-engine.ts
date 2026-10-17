@@ -20,7 +20,8 @@ import { ACCOUNT_MARKER_KEY, SEED_COMMIT_KEY } from "./git-bootstrap";
 import {
   cachedDeletionLog,
   readCreatorOf,
-  readDeletedNotes,
+  cachedDeletedDocLinks,
+  readDeletedFiles,
   readIsTracked,
   readNoteHistory,
   readNoteRevision,
@@ -152,7 +153,7 @@ export interface GitEngine {
 // a revision's exact bytes, for a file that is not text: what a byte restore and a binary undo put
 // back. its own interface, beside the engine's, because only those two read it; the agent driver,
 // the watchdog and the items core take the engine without it.
-export interface GitRevisionBytes {
+interface GitRevisionBytes {
   revisionBytes: (path: string, sha: string) => Promise<Uint8Array>;
 }
 
@@ -268,6 +269,7 @@ export const createGitEngine = (args: GitEngineArgs): VaultGit => {
   const run = gitAt(git, root);
 
   const deletionLog = cachedDeletionLog(run);
+  const deletedDocLinks = cachedDeletedDocLinks(run);
 
   // a pass reads under the repo lock, the one the origin and its marker are written under, so a
   // change to both lands whole on one side of its read. a status or a gate reads off it: one
@@ -1052,8 +1054,11 @@ export const createGitEngine = (args: GitEngineArgs): VaultGit => {
     },
     currentRemote,
     async deleted() {
-      return await readDeletedNotes(run, deletionLog, (notePath) =>
-        existsSync(path.join(root, notePath)),
+      return await readDeletedFiles(
+        run,
+        deletionLog,
+        (filePath) => existsSync(path.join(root, filePath)),
+        deletedDocLinks,
       );
     },
     async dispose() {

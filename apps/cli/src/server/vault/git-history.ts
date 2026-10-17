@@ -5,9 +5,13 @@ import {
   VAULT_MAX_CONTENT_LENGTH,
 } from "@repo/contract/local/vault/vault-schema";
 import type { VaultDeletedEntry, VaultRevision } from "@repo/contract/local/vault/vault-schema";
-import { isDocPath } from "@repo/notes/knowledge/doc-file";
+import { isDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
+import { scanDoc } from "@repo/notes/knowledge/link-extract";
+import type { ExtractedLink } from "@repo/notes/knowledge/link-extract";
 import { ENGINE_IDENTITY } from "./git-run";
 import type { RunGitCommand } from "./git-run";
+import { heldByDoc } from "./held-files";
+import type { DeletedPath } from "./held-files";
 import { AGENT_COMMIT_AUTHOR, parseAgentCommitTrailers, threadTrailer } from "./turn-trailers";
 import type { AgentCommitTrailers } from "./turn-trailers";
 import { VaultServiceError } from "./vault-service";
@@ -257,6 +261,8 @@ export const readRevisionBytes = async (
 const DELETION_LOG_FORMAT = "%H%x00%P%x00%aI";
 
 export interface DeletionRecord {
+  // the deleting commit: what was deleted together is one change set
+  commit: string;
   // the deleting commit's first parent: the tree that still holds the bytes.
   parent: string;
   deletedAt: string;
@@ -265,13 +271,13 @@ export interface DeletionRecord {
 
 export const parseDeletionLog = (stdout: string): DeletionRecord[] => {
   const records: DeletionRecord[] = [];
-  for (const { fields, tuples } of logFrames(stdout, DELETION_LOG_FORMAT)) {
+  for (const { fields, sha, tuples } of logFrames(stdout, DELETION_LOG_FORMAT)) {
     const [parents = "", deletedAt = ""] = fields;
     // `%P` is space-separated; --no-merges leaves one, but the frame is read the same either way.
     const [parent] = parents.split(" ");
     const paths = tuples.filter((tuple) => tuple.letter === "D").map((tuple) => tuple.path);
     if (parent !== undefined && OBJECT_NAME.test(parent)) {
-      records.push({ deletedAt, parent, paths });
+      records.push({ commit: sha, deletedAt, parent, paths });
     }
   }
   return records;
@@ -324,14 +330,52 @@ export const cachedDeletionLog = (run: RunGitCommand): DeletionLog => {
   };
 };
 
-// docs no longer on disk, newest deletion first, one entry per path. two sources: the log's
-// deletions, and `ls-files --deleted` for the ones the session-shaped auto-commit has not
-// flushed, whose bytes HEAD still holds. a path back on disk is left out whichever source
-// named it — the entry would restore over the user's own re-creation.
-export const readDeletedNotes = async (
+// the group of a deletion the auto-commit has not flushed: every one of them is one change set
+const WORKTREE_GROUP = "worktree";
+
+// a deleted doc's links as its text held them, read once per revision: a revision never changes,
+// and every files-changed frame re-asks while the Deleted view is open
+const LINKS_KEPT = 512;
+
+export type DeletedDocLinks = (path: string, sha: string) => Promise<readonly ExtractedLink[]>;
+
+export const cachedDeletedDocLinks = (run: RunGitCommand): DeletedDocLinks => {
+  const kept = new Map<string, readonly ExtractedLink[]>();
+  return async (path, sha) => {
+    const key = `${sha}:${path}`;
+    const known = kept.get(key);
+    if (known !== undefined) {
+      return known;
+    }
+    // a doc past the read cap, or one that is not text, holds nothing it could bring back
+    const text = await readNoteRevision(run, path, sha).catch(() => null);
+    const links = text === null ? [] : scanDoc(text).links;
+    if (kept.size >= LINKS_KEPT) {
+      kept.clear();
+    }
+    kept.set(key, links);
+    return links;
+  };
+};
+
+const kindOf = (path: string): DeletedPath["kind"] => (isDocPath(path) ? "doc" : "file");
+
+interface DeletedCandidate extends DeletedPath {
+  deletedAt: string;
+  sha: string;
+}
+
+// docs and files no longer on disk, newest deletion first, one entry per path. two sources: the
+// log's deletions, and `ls-files --deleted` for the ones the session-shaped auto-commit has not
+// flushed, whose bytes HEAD still holds. a path back on disk is left out whichever source named
+// it — the entry would restore over the user's own re-creation — and so is a dot-path (a
+// highlight store comes back with its item, another app's state is its own). a file deleted in
+// one change set with a doc that embedded or linked it is `heldBy` that doc.
+export const readDeletedFiles = async (
   run: RunGitCommand,
   deletionLog: DeletionLog,
   exists: (path: string) => boolean,
+  docLinks: DeletedDocLinks,
 ): Promise<VaultDeletedEntry[]> => {
   const { stdout: headStdout } = await run(["rev-parse", "HEAD"]);
   const head = headStdout.trim();
@@ -340,34 +384,57 @@ export const readDeletedNotes = async (
   const records = await deletionLog(head);
 
   const readAt = new Date().toISOString();
-  // PIVOT-STUB(S2): docs only, none held; every deleted file and what held it (§2.6)
-  const doc = { heldBy: null, kind: "doc" } as const;
-  const candidates: VaultDeletedEntry[] = [
-    ...unflushed.map((path) => ({ ...doc, deletedAt: readAt, path, sha: head })),
+  const candidates: DeletedCandidate[] = [
+    ...unflushed.map((path) => ({
+      deletedAt: readAt,
+      group: WORKTREE_GROUP,
+      kind: kindOf(path),
+      path,
+      sha: head,
+    })),
     ...records.flatMap((record) =>
       record.paths.map((path) => ({
-        ...doc,
         deletedAt: record.deletedAt,
+        group: record.commit,
+        kind: kindOf(path),
         path,
         sha: record.parent,
       })),
     ),
   ];
   const seen = new Set<string>();
-  const entries: VaultDeletedEntry[] = [];
+  const listed: DeletedCandidate[] = [];
   for (const candidate of candidates) {
-    if (entries.length === VAULT_DELETED_MAX_ENTRIES) {
+    if (listed.length === VAULT_DELETED_MAX_ENTRIES) {
       break;
     }
     if (seen.has(candidate.path)) {
       continue;
     }
     seen.add(candidate.path);
-    if (isDocPath(candidate.path) && !exists(candidate.path)) {
-      entries.push(candidate);
+    if (!isVaultMetadataPath(candidate.path) && !exists(candidate.path)) {
+      listed.push(candidate);
     }
   }
-  return entries;
+
+  // only a doc that shares its change set with a deleted file is read
+  const groupsWithFiles = new Set(
+    listed.flatMap((entry) => (entry.kind === "file" ? [entry.group] : [])),
+  );
+  const links = new Map<string, readonly ExtractedLink[]>();
+  for (const entry of listed) {
+    if (entry.kind === "doc" && groupsWithFiles.has(entry.group)) {
+      links.set(entry.path, await docLinks(entry.path, entry.sha));
+    }
+  }
+  const held = heldByDoc(listed, (doc) => links.get(doc) ?? []);
+  return listed.map(({ deletedAt, kind, path, sha }) => ({
+    deletedAt,
+    heldBy: held.get(path) ?? null,
+    kind,
+    path,
+    sha,
+  }));
 };
 
 const TURN_LOG_FORMAT = "%H%x00%P%x00%B";
