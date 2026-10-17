@@ -256,7 +256,10 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   FILE THAT IS NOT A DOC IS PUT BACK BYTE FOR BYTE, never merged, since an
   image or a PDF holds no lines and a merge of an svg's writes bytes nobody
   made: it goes back only while it holds exactly what the turn left, and is
-  kept and named otherwise. It
+  kept and named otherwise; one the turn added that a doc the undo did not
+  take back links or embeds stays (`linked-since`), because a cover is shared
+  by its hash and a later item may embed the very file the turn wrote, so the
+  files go after the notes, as the delete asks of `attachmentsFreedBy`. It
   is wired beside the thread service rather than inside it, which would hand
   that service the vault's git and writes.
   `apps/cli/src/server/threads/turn-undo.ts`.

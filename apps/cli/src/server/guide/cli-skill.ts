@@ -144,6 +144,11 @@ with its tags, its note as the item's text, its favourite as \`pinned\`, and its
 highlights waiting for its page to fill. The import fetches nothing; every
 page fills in afterwards, one at a time.
 
+An import is the person's to start: from an agent's shell \`import raindrop\`
+is refused as \`FORBIDDEN\` (its batches land after your turn, where Undo
+changes cannot take them back), so run it with \`--dry-run\` to say what it
+would do and ask the person to choose Import from Raindrop… in the library.
+
 - \`inteligir import raindrop <file>\` — import a Raindrop backup's CSV (at
   most ${IMPORT_FILE_MAX_BYTES / MIB} MB): links into folders named for its collections, with
   their tags, notes and highlights. A link the library already holds stays as

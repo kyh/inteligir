@@ -21,11 +21,12 @@ export const importsContract = {
     .output(importsPlanResponseSchema)
     .errors({ IMPORT_UNREADABLE }),
 
-  // NOT_FOUND: the plan expired (24 h) or was used. CONFLICT: a job is running.
+  // NOT_FOUND: the plan expired (24 h) or was used. CONFLICT: a job is running. FORBIDDEN: a
+  // start from an agent's shell, which the turn's Undo could not take back
   start: oc
     .input(importsStartRequestSchema)
     .output(importsJobResponseSchema)
-    .errors({ CONFLICT: {}, NOT_FOUND: {} }),
+    .errors({ CONFLICT: {}, FORBIDDEN: {}, NOT_FOUND: {} }),
 
   status: oc.output(importsStatusResponseSchema),
 };

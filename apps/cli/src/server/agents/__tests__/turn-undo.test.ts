@@ -397,6 +397,45 @@ describe("undoing a turn's files", () => {
     expect(bytesOnDisk(harness, "assets/gone.png")).toEqual(pngBytes(2));
   });
 
+  it("keeps a cover the turn added that an item saved since embeds, and takes back its own item", async () => {
+    const harness = await boot({ "a.md": doc("# A") });
+    const cover = "assets/covers/0123456789abcdef.png";
+    const threadId = await createThread(harness.client);
+    const turn = await startTurn(harness, threadId);
+    await writeFileBytes(harness, cover, pngBytes(4));
+    await agentWrites(harness, turn, "Unsorted/Agent's.md", doc(`![](${cover})`, "", "theirs"));
+    turn.writes.recordPaths([cover]);
+    await settle(harness, turn);
+    // the person's own save of another page from the same site: the same cover, by its hash
+    await harness.vault.service.write("Unsorted/Mine.md", doc(`![](${cover})`, "", "mine"));
+    await harness.composed.context.knowledge.settle();
+
+    expect(await harness.client.threads.undoTurn({ threadId, turnId: turn.turnId })).toEqual({
+      kept: [{ path: cover, reason: "linked-since" }],
+      reverted: ["Unsorted/Agent's.md"],
+    });
+    expect(bytesOnDisk(harness, cover)).toEqual(pngBytes(4));
+    expect(onDisk(harness, "Unsorted/Agent's.md")).toBeNull();
+  });
+
+  it("takes back a cover only the turn's own item embedded", async () => {
+    const harness = await boot({ "a.md": doc("# A") });
+    const cover = "assets/covers/fedcba9876543210.png";
+    const threadId = await createThread(harness.client);
+    const turn = await startTurn(harness, threadId);
+    await writeFileBytes(harness, cover, pngBytes(5));
+    await agentWrites(harness, turn, "Unsorted/Agent's.md", doc(`![](${cover})`, "", "theirs"));
+    turn.writes.recordPaths([cover]);
+    await settle(harness, turn);
+    await harness.composed.context.knowledge.settle();
+
+    expect(await harness.client.threads.undoTurn({ threadId, turnId: turn.turnId })).toEqual({
+      kept: [],
+      reverted: ["Unsorted/Agent's.md", cover],
+    });
+    expect(bytesOnDisk(harness, cover)).toBeNull();
+  });
+
   it("keeps a file changed since the turn, and never merges its bytes", async () => {
     const harness = await boot({ "a.md": doc("# A") });
     await writeFileBytes(harness, "assets/shot.png", pngBytes(1));

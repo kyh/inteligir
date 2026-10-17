@@ -59,6 +59,7 @@ const KEPT_BECAUSE = {
   busy: "the agent is working on it",
   "deleted-since": "deleted since",
   "edited-since": "edited since",
+  "linked-since": "another item uses it",
   "recreated-since": "made again since",
   unreadable: "too large, or not text",
 } satisfies Record<UndoKeptReason, string>;

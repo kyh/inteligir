@@ -225,12 +225,18 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   the item to the fill's pending store, then commits once under a commit hold.
   The job is a json file of its cursor and counts, rewritten per batch, and a
   boot resumes a running one: a url the library already holds counts as saved,
-  so a resume adds nothing twice. Rejected: a job table in the database (url
+  so a resume adds nothing twice. An agent's shell may plan an import but not
+  start one (`FORBIDDEN`), because the batches commit as the engine long after
+  its turn, where Undo changes cannot reach them, and every change an agent
+  makes is a turn with Undo. Rejected: carrying the turn into the job (an Undo
+  of thousands of items, from a turn that reads finished while its job still
+  writes), a job table in the database (url
   dedupe already makes a re-run a safe resume), a settle and a listing per
   item (quadratic over one `Unsorted/`), and the import fetching covers (all
   network work is the one guarded fill, and a Raindrop cover is a hint the
   fill fetches). `apps/cli/src/server/imports/import-service.ts`,
-  `apps/cli/src/server/imports/raindrop.ts`.
+  `apps/cli/src/server/imports/raindrop.ts`,
+  `apps/cli/src/server/imports/imports-router.ts`.
 
 ## Repo guards, vendoring and tooling
 

@@ -344,11 +344,13 @@ export const undoTurnRequestSchema = z.strictObject({
 export type UndoTurnRequest = z.infer<typeof undoTurnRequestSchema>;
 
 // why a path the turn changed was left as it is: edited, deleted or put back since the turn;
-// claimed by a turn still running; or not text the undo can merge (too large, or not UTF-8).
+// a file the turn added that another doc links or embeds since; claimed by a turn still running;
+// or not text the undo can merge (too large, or not UTF-8).
 export const undoKeptReasonSchema = z.enum([
   "edited-since",
   "deleted-since",
   "recreated-since",
+  "linked-since",
   "busy",
   "unreadable",
 ]);

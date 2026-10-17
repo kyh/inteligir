@@ -69,7 +69,7 @@ Inteligir is now a library of everything you save: links, articles, videos, imag
 
 ### Fixed
 
-- **Undo takes back a picture or a PDF the agent added, replaced or deleted.** Undo changes on an agent's reply used to leave the files it touched as they were; it now puts them back byte for byte.
+- **Undo takes back a picture or a PDF the agent added, replaced or deleted.** Undo changes on an agent's reply used to leave the files it touched as they were; it now puts them back byte for byte, and keeps a picture the agent added that another item shows too.
 - **A library too big for one sync now reaches your online library in several passes.** A library that grew past what one sync can send stopped as too large; it now sends its changes in steps.
 - **Underlined text stays underlined.** Text you underlined with ⌘U came back as uneditable gray text the next time the note opened; it now opens underlined.
 - **Tabs work inside toggles, columns, callouts, quotes and lists, and a tab can end with a list, a table or a callout, or start with a divider.** Tabs anywhere but the top of a note, a tab whose last block was a list, a table or a callout, and a tab whose first block was a divider opened as plain text after a save; they now stay tabs.
@@ -92,7 +92,7 @@ Inteligir is now a library of everything you save: links, articles, videos, imag
 - **`inteligir save <link|file|->` saves into the library.** It saves a web link, a file, or every web link piped to it with `-`, one per line, in order, with `--folder`, `--tags`, `--copy` (keep a copy of the page), `--html <file>` (save a page you already have without fetching it) and `--no-wait`.
 - **`inteligir items` lists the library**, filtered by kind, tag, site, folder and date, and **`inteligir item show|find|refresh`** answers one item; `item find` matches a link however it is spelled.
 - **`inteligir tag add|remove` tags and untags one item.** `inteligir tag notes` is gone: use `inteligir items --tag <tag>`.
-- **`inteligir import raindrop <file>` imports a Raindrop backup's CSV.** `--dry-run` shows the plan and `--no-wait` returns once it starts; `import status` and `import cancel` follow it. An import that stopped on an error says why, and `--json` prints its job with `"state": "failed"`.
+- **`inteligir import raindrop <file>` imports a Raindrop backup's CSV.** `--dry-run` shows the plan and `--no-wait` returns once it starts; `import status` and `import cancel` follow it. An import that stopped on an error says why, and `--json` prints its job with `"state": "failed"`. From an agent's shell the import is refused as `FORBIDDEN`, since its Undo changes could not take it back: the agent can run `--dry-run` and ask you to choose Import from Raindrop… in the app.
 - **`inteligir comment` is now `inteligir annotation`:** `list`, `add <path> <quote> --note <text>`, the new `edit <path> <id> <text>`, `reply` and `remove`. `add` highlights the passage in the item's text itself (`--occurrence` picks a later one), `--source` is gone and an agent's shell signs its entries, and `comment resolve` is gone. `vault restore --json` and `vault new-id --json` name the item's store `annotations` where they said `comments`.
 - **`inteligir action new --preset tidy-library`** runs Tidy my library: it files and tags everything in Unsorted or with no tags.
 - **`inteligir vault restore <path> <sha>` brings back a deleted file**, and a deleted note with the files it held; `inteligir vault deleted` lists files, and names the note a file was deleted with.

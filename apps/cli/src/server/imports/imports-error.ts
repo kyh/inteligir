@@ -11,11 +11,15 @@ type ImportsRefusal =
   | [code: "plan-gone", subject?: { message?: string }]
   | [code: "job-not-found", subject?: { message?: string }]
   // a start while another job runs
-  | [code: "running", subject?: { message?: string }];
+  | [code: "running", subject?: { message?: string }]
+  // a start from an agent's shell: its batches would sit outside the turn, beyond its Undo
+  | [code: "agent-started", subject?: { message?: string }];
 
 export type ImportsErrorCode = ImportsRefusal[0];
 
 const SENTENCES = {
+  "agent-started":
+    "An import is the person's to start, since Undo changes could not take it back: ask them to choose Import from Raindrop… in the library",
   "job-not-found": "No import is running",
   "plan-gone": "That import plan is gone; choose the file again.",
   running: "An import is already running.",

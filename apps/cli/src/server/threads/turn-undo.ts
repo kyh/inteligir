@@ -251,6 +251,8 @@ interface UndoPass {
   written: Set<string>;
   // each id the turn minted into a note whose revert took it back, and that note
   minted: Map<string, string>;
+  // every doc that linked or embedded each file the turn changed, read before any revert
+  linkers: ReadonlyMap<string, readonly string[]>;
 }
 
 // null once the path is named kept
@@ -386,6 +388,13 @@ const landFile = async (
   }
 };
 
+// whether a doc other than the ones whose revert landed links or embeds the file. the notes are
+// reverted before the files, so a turn's own item that the undo took back no longer counts
+const stillLinked = (pass: UndoPass, path: string): boolean => {
+  const reverted = new Set(pass.reverted);
+  return (pass.linkers.get(path) ?? []).some((linker) => !reverted.has(linker));
+};
+
 // a file that is not a doc is put back byte for byte, never merged: an image, a PDF or an
 // archive holds no lines, and a merge of an svg's would write bytes nobody made. it goes back only
 // while it holds exactly what the turn left; a file changed since is kept and named.
@@ -417,6 +426,12 @@ const revertFile = async (pass: UndoPass, span: PathSpan): Promise<void> => {
       reason = "recreated-since";
     }
     pass.kept.push({ path: span.path, reason });
+    return;
+  }
+  // a file the turn added that a doc the undo did not take back still links stays: covers are
+  // shared by their hash, so a later item may embed the very file the turn wrote
+  if (before.bytes === null && stillLinked(pass, span.path)) {
+    pass.kept.push({ path: span.path, reason: "linked-since" });
     return;
   }
   pass.claim([span.path]);
@@ -496,7 +511,7 @@ const refileMintedIds = async (pass: UndoPass): Promise<void> => {
 interface UndoTurnArgs {
   db: DbConnection;
   git: VaultGit;
-  knowledge: Pick<KnowledgeRuntime, "noteIdOwners">;
+  knowledge: Pick<KnowledgeRuntime, "noteIdOwners" | "backlinks">;
   service: RevertService;
   notifier: DbNotifier;
   threadId: string;
@@ -507,8 +522,9 @@ interface UndoTurnArgs {
 // any other edit, which git revert would bypass; and three-way, since a byte restore to the
 // turn's parent would drop every edit made since. nothing hands the writes to a running turn, so
 // an agent undoing an earlier turn from inside a later one does not commit the undo as its own.
-// annotation stores go after the notes, because whether an entry the turn added may go depends on
-// the markers its note carries once the note's own revert has landed.
+// files go after the notes, because whether a file the turn added may go depends on which of the
+// docs that link it the undo took back; annotation stores go last, because whether an entry the
+// turn added may go depends on the markers its note carries once the note's own revert has landed.
 export const undoTurnChanges = async (args: UndoTurnArgs): Promise<UndoTurnOutcome> => {
   const { git, service, threadId, turnId } = args;
   const thread = getThread(args.db, threadId);
@@ -535,6 +551,24 @@ export const undoTurnChanges = async (args: UndoTurnArgs): Promise<UndoTurnOutco
       return { kind: "conflict", message: `Turn ${turnId} was already undone` };
     }
 
+    const stores: { span: PathSpan; noteId: string }[] = [];
+    const files: PathSpan[] = [];
+    const notes: PathSpan[] = [];
+    for (const span of turnSpans(commits, turnId)) {
+      const noteId = annotationsStoreItemId(span.path);
+      if (noteId !== null) {
+        stores.push({ noteId, span });
+      } else if (isDocPath(span.path)) {
+        notes.push(span);
+      } else {
+        files.push(span);
+      }
+    }
+    const linkers = new Map<string, string[]>();
+    for (const span of files) {
+      const backlinks = await args.knowledge.backlinks(span.path);
+      linkers.set(span.path, [...new Set(backlinks.map((link) => link.sourcePath))]);
+    }
     const pass: UndoPass = {
       busy: new Set(git.claimedPaths()),
       claim: (paths) => {
@@ -542,21 +576,17 @@ export const undoTurnChanges = async (args: UndoTurnArgs): Promise<UndoTurnOutco
       },
       git,
       kept: [],
+      linkers,
       minted: new Map(),
       reverted: [],
       service,
       written: new Set(),
     };
-    const stores: { span: PathSpan; noteId: string }[] = [];
-    for (const span of turnSpans(commits, turnId)) {
-      const noteId = annotationsStoreItemId(span.path);
-      if (noteId !== null) {
-        stores.push({ noteId, span });
-      } else if (isDocPath(span.path)) {
-        await revertNote(pass, span);
-      } else {
-        await revertFile(pass, span);
-      }
+    for (const span of notes) {
+      await revertNote(pass, span);
+    }
+    for (const span of files) {
+      await revertFile(pass, span);
     }
     for (const { span, noteId } of stores) {
       await revertStore(pass, args.knowledge, span, noteId);

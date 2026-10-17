@@ -8,11 +8,15 @@ import { ImportsError } from "./imports-error";
 import type { ImportsErrorCode } from "./imports-error";
 
 const IMPORTS_REFUSALS = {
+  "agent-started": "FORBIDDEN",
   "job-not-found": "NOT_FOUND",
   "plan-gone": "NOT_FOUND",
   running: "CONFLICT",
   unreadable: "IMPORT_UNREADABLE",
-} as const satisfies Record<ImportsErrorCode, "CONFLICT" | "IMPORT_UNREADABLE" | "NOT_FOUND">;
+} as const satisfies Record<
+  ImportsErrorCode,
+  "CONFLICT" | "FORBIDDEN" | "IMPORT_UNREADABLE" | "NOT_FOUND"
+>;
 
 const asWireError = (cause: unknown): ORPCError<string, unknown> | null => {
   if (!(cause instanceof ImportsError)) {
@@ -31,9 +35,14 @@ const plan = base.imports.plan.use(importsRefusals).handler(async ({ context, in
   return await context.imports.plan(input.source, bytes);
 });
 
-const start = base.imports.start
-  .use(importsRefusals)
-  .handler(async ({ context, input }) => ({ job: await context.imports.start(input.planId) }));
+// an agent's shell may plan an import but not start one: the job commits its batches as the
+// engine long after the turn ends, so the turn's Undo changes could take none of them back
+const start = base.imports.start.use(importsRefusals).handler(async ({ context, input }) => {
+  if (context.agentThreadId !== null) {
+    throw new ImportsError("agent-started");
+  }
+  return { job: await context.imports.start(input.planId) };
+});
 
 const status = base.imports.status.handler(async ({ context }) => ({
   job: await context.imports.status(),

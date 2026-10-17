@@ -74,6 +74,7 @@ const KEPT_BECAUSE: Record<UndoKeptReason, string> = {
   busy: "a running turn is changing it",
   "deleted-since": "deleted since the turn",
   "edited-since": "edited since the turn, where the turn changed it",
+  "linked-since": "another note links or embeds it since the turn",
   "recreated-since": "made again since the turn deleted it",
   unreadable: "not text an undo can merge",
 };
