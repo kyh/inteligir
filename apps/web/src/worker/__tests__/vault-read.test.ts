@@ -448,7 +448,7 @@ describe("the vault asset route", () => {
     const { credential, commit } = await loginAndPush("vault-asset-ext@example.test", [
       { content: "# text\n", path: "notes.md" },
     ]);
-    for (const path of ["notes.md", "script.html", "no-extension"]) {
+    for (const path of ["notes.md", "script.html", "no-extension", "archive.zip"]) {
       const response = await readAsset(credential, { path, ref: commit });
       expect(response.status).toBe(400);
       expect(await refusalCodeOf(response)).toBe("bad-request");

@@ -191,8 +191,10 @@ const answerFiles = async (
 };
 
 // the sandbox csp is what makes svg safe: <img> never runs its script, but a navigation to this url
-// renders it as a document, and a sandbox with no allow-scripts refuses that. immutable holds
-// because the read pins a commit.
+// renders it as a document, and a sandbox with no allow-scripts refuses that. it holds for every
+// type, a PDF's included: the phone shows a PDF from its own cached copy, never from this url, so
+// the desktop's sandbox-free PDF policy has no reader here. immutable holds because the read pins
+// a commit.
 const ASSET_HEADERS = {
   "cache-control": "private, max-age=31536000, immutable",
   "content-security-policy": "default-src 'none'; sandbox",
@@ -205,7 +207,7 @@ const answerAsset = async (
 ): Promise<Response> => {
   const mediaType = assetMediaType(query.path);
   if (mediaType === null) {
-    return refuse("bad-request", "That extension is not an image type this vault serves.");
+    return refuse("bad-request", "That is not a file type this library serves.");
   }
 
   // size-gate from the tree first: readBlob inflates the whole blob in the cell and the rpc return
