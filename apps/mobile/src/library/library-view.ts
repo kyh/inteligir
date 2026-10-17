@@ -1,7 +1,8 @@
 // What the phone's Library lists, from the cards the mirror read once per text: every item in a
-// scope, narrowed by kind and a typed query, newest save first. Pure: the screens and the tests
-// call it over the held files. A card's cover and original are resolved here, through one
-// resolver per listing, never stored.
+// scope, narrowed by kind and a typed query, newest save first. Its members are the Mac's: every
+// doc, and every picture, PDF, video or sound no doc names, by the Mac's own keys. Pure: the
+// screens and the tests call it over the held files. A card's cover and original are resolved
+// here, through one resolver per listing, never stored.
 
 import { itemFilesOf } from "@repo/notes/items/item-files";
 import { isItemStub } from "@repo/notes/items/item-frontmatter";
@@ -12,6 +13,7 @@ import {
   UNSORTED_FOLDER,
 } from "@repo/notes/items/item-kind";
 import type { ItemKind } from "@repo/notes/items/item-kind";
+import { fileRefsOf, mediaKindOf, refsOf } from "@repo/notes/items/library-index";
 import { DEFAULT_ATTACHMENTS_FOLDER } from "@repo/notes/knowledge/asset-name";
 import { docStem, isDocPath, isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import type { ExtractedLink } from "@repo/notes/knowledge/link-extract";
@@ -63,7 +65,29 @@ const isHidden = (path: string): boolean =>
   path.startsWith(`${COVERS_DIR}/`) ||
   path.startsWith(`${PAGES_DIR}/`);
 
-const isItem = (file: HeldFile): boolean => isDocPath(file.path) && !isHidden(file.path);
+// the keys every held doc names a file by
+const namedKeys = (files: readonly HeldFile[]): Set<string> =>
+  new Set(files.flatMap((file) => [...refsOf(file.path, file.item?.media ?? [])]));
+
+// a member of the library: a doc, or a media file no doc names (a bare file), as on the Mac
+const isItemAmong =
+  (named: ReadonlySet<string>) =>
+  (file: HeldFile): boolean => {
+    if (isDocPath(file.path)) {
+      return !isHidden(file.path);
+    }
+    return (
+      !isHidden(file.path) &&
+      mediaKindOf(file.path) !== null &&
+      fileRefsOf(file.path).every((key) => !named.has(key))
+    );
+  };
+
+const basenameStem = (path: string): string => {
+  const name = path.split("/").at(-1) ?? path;
+  const dot = name.lastIndexOf(".");
+  return dot > 0 ? name.slice(0, dot) : name;
+};
 
 const isUnder = (folder: string, root: string): boolean =>
   folder === root || folder.startsWith(`${root}/`);
@@ -116,8 +140,29 @@ const resolverOf = (files: readonly HeldFile[]): TargetResolver =>
     ),
   );
 
+// a bare file's card: the file is its own original, and a picture its own cover
+const bareCardOf = (path: string): LibraryCard => {
+  const kind = mediaKindOf(path) ?? "file";
+  return {
+    cover: kind === "image" ? path : null,
+    file: path,
+    folder: dirnamePath(path),
+    kind,
+    path,
+    pending: false,
+    saved: null,
+    site: null,
+    tags: [],
+    title: basenameStem(path),
+    url: null,
+  };
+};
+
 const cardOf = (file: HeldFile, resolver: TargetResolver): LibraryCard => {
   const { item, path } = file;
+  if (!isDocPath(path)) {
+    return bareCardOf(path);
+  }
   const resolve = (link: ExtractedLink): string | null => {
     const target =
       link.kind === "wiki"
@@ -160,17 +205,18 @@ const bySaved = (a: LibraryCard, b: LibraryCard): number => {
   return a.path < b.path ? -1 : 1;
 };
 
+// whether the Library under `filter` lists the card
+export const cardMatches = (card: LibraryCard, filter: LibraryFilter): boolean =>
+  inScope(card, filter.scope) &&
+  (filter.kinds.size === 0 || filter.kinds.has(card.kind)) &&
+  matchesQuery(card, filter.query);
+
 export const libraryCards = (files: readonly HeldFile[], filter: LibraryFilter): LibraryCard[] => {
   const resolver = resolverOf(files);
   return files
-    .filter(isItem)
+    .filter(isItemAmong(namedKeys(files)))
     .map((file) => cardOf(file, resolver))
-    .filter(
-      (card) =>
-        inScope(card, filter.scope) &&
-        (filter.kinds.size === 0 || filter.kinds.has(card.kind)) &&
-        matchesQuery(card, filter.query),
-    )
+    .filter((card) => cardMatches(card, filter))
     .toSorted(bySaved);
 };
 
@@ -188,6 +234,7 @@ const foldersAbove = (folder: string): string[] => {
 export const libraryScopes = (files: readonly HeldFile[]): LibraryScopes => {
   const folders = new Set<string>();
   const tags = new Map<string, { tag: string; count: number }>();
+  const isItem = isItemAmong(namedKeys(files));
   for (const file of files) {
     if (!isItem(file)) {
       continue;
@@ -217,5 +264,7 @@ export const libraryScopes = (files: readonly HeldFile[]): LibraryScopes => {
 // one item's card, as the Library would list it; null for a path the phone does not list as one
 export const libraryCardAt = (files: readonly HeldFile[], path: string): LibraryCard | null => {
   const file = files.find((held) => held.path === path);
-  return file === undefined || !isItem(file) ? null : cardOf(file, resolverOf(files));
+  return file === undefined || !isItemAmong(namedKeys(files))(file)
+    ? null
+    : cardOf(file, resolverOf(files));
 };

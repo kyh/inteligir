@@ -35,10 +35,14 @@ type Held =
   | { kind: "held"; uri: string }
   | { kind: "failed"; message: string };
 
-// the original's bytes on this phone, downloaded on the first ask; nothing remote ever loads here
-const useHeldFile = (path: string): Held => {
+// the original's bytes on this phone, downloaded on the first ask; nothing remote ever loads here,
+// and a file the phone cannot show (null) is never downloaded
+const useHeldFile = (path: string | null): Held => {
   const [held, setHeld] = useState<{ path: string; held: Held } | null>(null);
   useEffect(() => {
+    if (path === null) {
+      return;
+    }
     let live = true;
     void (async () => {
       const read = await attachmentFile(path);
@@ -96,22 +100,32 @@ const PdfView = ({ uri }: { uri: string }) => {
   );
 };
 
-// One image or PDF item full size, from the file this phone holds of it; Edit opens the item it
-// belongs to in the editor.
+// One image or PDF full size, from the file this phone holds of it; Edit opens the item it belongs
+// to in the editor, and a file that is an item of its own has none. Any other file says where it
+// opens.
 const ViewerScreen = () => {
   const theme = useTheme();
   const params = useLocalSearchParams<{ path: string[]; item?: string | string[] }>();
   const path = Array.isArray(params.path) ? params.path.join("/") : (params.path ?? "");
   const item = firstParam(params.item);
-  const held = useHeldFile(path);
   const kind = fileKindOf(path);
+  const shown = kind === "pdf" || kind === "image";
+  const held = useHeldFile(shown ? path : null);
 
   let body = (
     <View style={styles.center}>
       <ActivityIndicator />
     </View>
   );
-  if (held.kind === "failed") {
+  if (!shown) {
+    body = (
+      <View style={styles.center}>
+        <Text style={[styles.status, { color: theme.mutedForeground }]}>
+          This file opens on your Mac.
+        </Text>
+      </View>
+    );
+  } else if (held.kind === "failed") {
     body = (
       <View style={styles.center}>
         <Text style={[styles.status, { color: theme.mutedForeground }]}>

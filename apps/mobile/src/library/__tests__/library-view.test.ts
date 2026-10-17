@@ -5,7 +5,7 @@ import type { ItemKind } from "@repo/notes/items/item-kind";
 import { describe, expect, it } from "vitest";
 import type { HeldFile } from "../../notes/notes-store";
 import { textFactsOf } from "../../notes/vault-mirror";
-import { libraryCardAt, libraryCards, libraryScopes } from "../library-view";
+import { cardMatches, libraryCardAt, libraryCards, libraryScopes } from "../library-view";
 import type { LibraryFilter } from "../library-view";
 
 // a held file as the store lists it: a doc with its card read from its text, anything else bare
@@ -130,6 +130,54 @@ describe("the phone's library listing", () => {
         { count: 1, tag: "school" },
       ],
     });
+  });
+
+  it("lists a media file no doc names as an item of its own, as the Mac does", () => {
+    const files: HeldFile[] = [
+      ...FILES,
+      held("Papers/syllabus.pdf"),
+      held("Papers/Trip.md", "First.\n\n![](a.png)\n\n![](b.png)\n\nLast, [[c.png]].\n"),
+      held("Papers/a.png"),
+      held("Papers/b.png"),
+      held("assets/c.png"),
+      held("Papers/clip.mp4"),
+      held("Papers/data.csv"),
+    ];
+    const listed = libraryCards(files, ALL).map((card) => card.path);
+    expect(listed).toContain("Papers/syllabus.pdf");
+    expect(listed).toContain("Papers/clip.mp4");
+    // named by the doc, however far down and however spelled; and a file that is no medium
+    for (const shown of ["Papers/a.png", "Papers/b.png", "assets/c.png", "Papers/data.csv"]) {
+      expect(listed).not.toContain(shown);
+    }
+    expect(libraryCardAt(files, "Papers/syllabus.pdf")).toStrictEqual({
+      cover: null,
+      file: "Papers/syllabus.pdf",
+      folder: "Papers",
+      kind: "pdf",
+      path: "Papers/syllabus.pdf",
+      pending: false,
+      saved: null,
+      site: null,
+      tags: [],
+      title: "syllabus",
+      url: null,
+    });
+    expect(
+      libraryCards(files, { ...ALL, kinds: new Set<ItemKind>(["pdf"]) }).map((card) => card.path),
+    ).toStrictEqual(["Papers/Lecture.md", "Papers/syllabus.pdf"]);
+  });
+
+  it("tells whether a filter lists a card, so a save the list hides can say where it went", () => {
+    const saved = libraryCardAt(FILES, "Unsorted/example.org.md");
+    if (saved === null) {
+      throw new Error("no card");
+    }
+    expect(cardMatches(saved, ALL)).toBe(true);
+    expect(cardMatches(saved, { ...ALL, scope: { kind: "unsorted" } })).toBe(true);
+    expect(cardMatches(saved, { ...ALL, scope: { kind: "tag", tag: "read" } })).toBe(false);
+    expect(cardMatches(saved, { ...ALL, kinds: new Set<ItemKind>(["note"]) })).toBe(false);
+    expect(cardMatches(saved, { ...ALL, query: "lecture" })).toBe(false);
   });
 
   it("answers one item's card, and none for a file no card stands for", () => {

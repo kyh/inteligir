@@ -20,7 +20,7 @@ import type { SavedItem } from "../items/item-ops";
 import { createCoverThumbs } from "../library/cover-thumbs";
 import type { CoverThumbs } from "../library/cover-thumbs";
 import { createExpoCoverThumbPort } from "../library/expo-cover-thumbs";
-import { libraryCardAt, libraryCards, libraryScopes } from "../library/library-view";
+import { cardMatches, libraryCardAt, libraryCards, libraryScopes } from "../library/library-view";
 import type { LibraryCard, LibraryFilter, LibraryScopes } from "../library/library-view";
 import { defaultDeviceName } from "../login/device-name";
 import type { LoginRequest, LoginState } from "../login/login-store";
@@ -173,6 +173,12 @@ export const useLibrary = (filter: LibraryFilter): LibraryView => {
   );
   const scopes = useMemo(() => libraryScopes(files), [files]);
   return { cards, scopes, tree };
+};
+
+// whether the Library under `filter` lists `path` now: a save the screen shows says nothing more
+export const listsNow = (filter: LibraryFilter, path: string): boolean => {
+  const card = libraryCardAt(getRuntime().notes.heldFiles(), path);
+  return card !== null && cardMatches(card, filter);
 };
 
 // one item's card, kept current with the listing

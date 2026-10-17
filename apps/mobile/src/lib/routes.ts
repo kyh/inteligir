@@ -25,9 +25,13 @@ export const openItem = (path: string, focus?: "title" | "body"): void => {
   });
 };
 
-// an image or a PDF full size: `file` is the original, `item` the item that shows it
-export const openViewer = (file: string, item: string): void => {
-  router.push({ params: { item, path: file.split("/") }, pathname: "/view/[...path]" });
+// a file full size: `file` is the original, `item` the item that shows it, null for a file that is
+// an item of its own
+export const openViewer = (file: string, item: string | null): void => {
+  router.push({
+    params: item === null ? { path: file.split("/") } : { item, path: file.split("/") },
+    pathname: "/view/[...path]",
+  });
 };
 
 export const openThread = (params: ThreadParams): void => {

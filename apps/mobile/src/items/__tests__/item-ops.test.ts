@@ -2,7 +2,7 @@ import { WEB_URL_RULE } from "@repo/notes/items/item-kind";
 import { describe, expect, it } from "vitest";
 import { createFakeVault, networkOver, requestsOf } from "../../notes/__tests__/fake-vault";
 import type { FakeVault, Network } from "../../notes/__tests__/fake-vault";
-import { launchPhone } from "../../notes/__tests__/phone-storage";
+import { launchPhone, openTempDb } from "../../notes/__tests__/phone-storage";
 import { createItemOps } from "../item-ops";
 
 const ID = "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17";
@@ -77,6 +77,27 @@ describe("saving a link from the phone", () => {
         url: "http://stephango.com/file-over-app?fbclid=x#top",
       }),
     ).toStrictEqual({ kind: "already", path: "Reading/Kept.md" });
+  });
+
+  it("finds a link the phone already holds when the app opens on a share, before its listing is read back", async () => {
+    const vault = createFakeVault({
+      "Reading/Kept.md": stub("https://stephango.com/file-over-app"),
+    });
+    const net: Network = { loseApplied: false, online: true };
+    const db = openTempDb();
+    await launchPhone(networkOver(vault, net), db).refresh();
+    // the next launch, offline: the share is read the moment the app opens
+    net.online = false;
+    const cold = launchPhone(networkOver(vault, net), db);
+    const items = createItemOps({ newId: () => ID, now: () => NOW, store: cold });
+    expect(
+      await items.saveLink({
+        note: null,
+        title: "File over app",
+        url: "https://stephango.com/file-over-app",
+      }),
+    ).toStrictEqual({ kind: "already", path: "Reading/Kept.md" });
+    expect(cold.heldFiles().map((file) => file.path)).toStrictEqual(["Reading/Kept.md"]);
   });
 
   it("steps past a taken name", async () => {

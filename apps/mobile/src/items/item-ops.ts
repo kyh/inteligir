@@ -25,7 +25,7 @@ export interface ItemOps {
 }
 
 export interface ItemOpsArgs {
-  store: Pick<NotesStore, "create" | "heldFiles">;
+  store: Pick<NotesStore, "create" | "heldFiles" | "ready">;
   now: () => Date;
   newId: () => string;
 }
@@ -61,10 +61,25 @@ const firstLine = (text: string): string =>
   text.split(/\r?\n/u).find((line) => line.trim() !== "") ?? "";
 
 export const createItemOps = ({ newId, now, store }: ItemOpsArgs): ItemOps => {
-  // the first free name in Unsorted, stepping past a create another write took first
-  const createIn = async (stem: string, content: string): Promise<SavedItem> => {
+  const holding = (key: string): string | null =>
+    store.heldFiles().find((file) => file.item?.facts.urlKey === key)?.path ?? null;
+
+  // the first free name in Unsorted, stepping past a create another write took first; a link's
+  // key is looked for again before each try, since the write that took the name may be its own
+  // save from another screen. Every lookup waits for the boot to read the phone's rows back, so
+  // a share the app opens with is never checked against an empty listing
+  const createIn = async (
+    stem: string,
+    content: string,
+    key: string | null = null,
+  ): Promise<SavedItem> => {
+    await store.ready();
     const refused: string[] = [];
     for (let attempt = 0; attempt < MAX_NAME_ATTEMPTS; attempt += 1) {
+      const held = key === null ? null : holding(key);
+      if (held !== null) {
+        return { kind: "already", path: held };
+      }
       const taken = [...store.heldFiles().map((file) => file.path), ...refused];
       const path = freeDocPath(UNSORTED_FOLDER, stem, taken);
       const outcome = await store.create(path, content);
@@ -81,12 +96,8 @@ export const createItemOps = ({ newId, now, store }: ItemOpsArgs): ItemOps => {
     if (key === null) {
       return { kind: "refused", message: WEB_URL_RULE };
     }
-    const held = store.heldFiles().find((file) => file.item?.facts.urlKey === key);
-    if (held !== undefined) {
-      return { kind: "already", path: held.path };
-    }
     const text = linkStubText({ id: newId(), note: note ?? "", saved: now().getTime(), url });
-    return await createIn(itemStem(title, url), text);
+    return await createIn(itemStem(title, url), text, key);
   };
 
   return {

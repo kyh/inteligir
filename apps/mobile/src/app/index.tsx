@@ -22,6 +22,7 @@ import {
   deleteNote,
   refreshNotes,
   renameNote,
+  listsNow,
   saveText,
   syncNow,
   useLibrary,
@@ -30,7 +31,7 @@ import { messageOf } from "@/lib/error-message";
 import { openItem, openThreads, openViewer } from "@/lib/routes";
 import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 import { LibraryCardRow } from "@/library/library-card";
-import type { LibraryCard, PhoneScope } from "@/library/library-view";
+import type { LibraryCard, LibraryFilter, PhoneScope } from "@/library/library-view";
 import { confirmDeleteNote } from "@/notes/confirm-delete-note";
 import { linksKeptLine } from "@/notes/file-ops";
 import type { NotesTreeState } from "@/notes/notes-store";
@@ -112,10 +113,12 @@ const emptyLabel = (tree: NotesTreeState, filtered: boolean): string => {
 const folderOf = (scope: PhoneScope): string =>
   scope.kind === "folder" ? scope.path : UNSORTED_FOLDER;
 
-// an image or a PDF opens full size; everything else opens in the editor
+// an image or a PDF opens full size, and so does a file that is an item of its own; everything
+// else opens in the editor
 const openCard = (card: LibraryCard): void => {
-  if ((card.kind === "image" || card.kind === "pdf") && card.file !== null) {
-    openViewer(card.file, card.path);
+  const bare = card.file === card.path;
+  if ((card.kind === "image" || card.kind === "pdf" || bare) && card.file !== null) {
+    openViewer(card.file, bare ? null : card.path);
     return;
   }
   openItem(card.path);
@@ -196,10 +199,23 @@ const showCardActions = (card: LibraryCard): void => {
   );
 };
 
-// a saved link or thought just lists; only one already here, or one that could not be, says so
-const tellSaved = (saved: SavedItem): void => {
+// a saved link or thought just lists; one the list in view leaves out (a scope, a kind or a
+// search hides Unsorted's newest), one already here, and one that could not be, each say so
+const tellSaved = (saved: SavedItem, filter: LibraryFilter): void => {
   if (saved.kind === "refused") {
     Alert.alert("Couldn't save", saved.message);
+    return;
+  }
+  if (saved.kind === "saved" && !listsNow(filter, saved.path)) {
+    Alert.alert(`Saved to ${UNSORTED_FOLDER}`, docStem(saved.path), [
+      { style: "cancel", text: "OK" },
+      {
+        onPress: () => {
+          openItem(saved.path);
+        },
+        text: "Open",
+      },
+    ]);
     return;
   }
   if (saved.kind === "already") {
@@ -215,7 +231,7 @@ const tellSaved = (saved: SavedItem): void => {
   }
 };
 
-const SaveField = () => {
+const SaveField = ({ filter }: { filter: LibraryFilter }) => {
   const theme = useTheme();
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -235,7 +251,7 @@ const SaveField = () => {
       if (saved.kind !== "refused") {
         setDraft("");
       }
-      tellSaved(saved);
+      tellSaved(saved, filter);
     })();
   };
   return (
@@ -484,7 +500,7 @@ const LibraryScreen = () => {
         ListHeaderComponent={
           <>
             <OutboxBanner onOpen={openItem} />
-            <SaveField />
+            <SaveField filter={filter} />
             <KindChips kinds={kinds} toggle={toggleKind} />
             <Notices tree={tree} />
           </>

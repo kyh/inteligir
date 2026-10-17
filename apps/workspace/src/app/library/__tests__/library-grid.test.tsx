@@ -180,7 +180,7 @@ describe("a ⇧-click far from the anchor", () => {
       expect(selection.store.getState().selected.size).toBe(target - 10 + 1);
     });
     expect(pathRequests).toContainEqual({ limit: target - 10 + 1, offset: 10 });
-    const selected = selection.store.getState().selected;
+    const { selected } = selection.store.getState();
     expect(selected.has(pathAt(10))).toBe(true);
     expect(selected.has(pathAt(300))).toBe(true);
     expect(selected.has(pathAt(target))).toBe(true);

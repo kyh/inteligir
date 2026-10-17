@@ -380,6 +380,11 @@ describe("the vault mirror", () => {
           target: "assets/pages/0a1b2c3d4e5f6071.html",
         },
       ],
+      // every link that names a medium, which tells a shown file from a file of its own
+      media: [
+        { embed: true, kind: "image", line: 12, target: "assets/covers/3f9a0c2b1d4e5f60.jpg" },
+        { embed: true, kind: "image", line: 16, target: "assets/in-the-article.png" },
+      ],
       tags: ["read"],
     };
     const [row] = await openTempDb(file).all(

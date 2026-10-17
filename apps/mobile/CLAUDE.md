@@ -76,8 +76,10 @@ The phone: its editor page, its offline store and queue, and how it ships.
   once), and for a doc or an annotation store its text; a doc's row also holds
   its frontmatter id and aliases, so the resolver's alias and uuid tiers answer
   on the phone, and its library card (`item`: the item facts, the first embeds
-  and the page copy's links, the tags), all read in one scan when the text
-  lands, so the Library lists thousands of items without parsing one, and an
+  and the page copy's links, every link that names a medium, the tags), all
+  read in one scan when the text lands, so a picture, a PDF, a video or a sound
+  no doc names lists as an item of its own by the Mac's own keys
+  (`fileRefsOf` in `@repo/notes/items/library-index`), so the Library lists thousands of items without parsing one, and an
   unsent text's card is read once per change of it. A card's cover and original
   are resolved per listing, never stored
   (`apps/mobile/src/library/library-view.ts`); a cover draws from the oid-named
@@ -143,8 +145,11 @@ The phone: its editor page, its offline store and queue, and how it ships.
   create in `Unsorted/` (`apps/mobile/src/items/item-ops.ts`): a link's stub
   named by `itemStem` and deduped by url key, a thought a note named by its
   first line, a non-web link refused in `@repo/notes/items/item-kind`'s words,
-  since the phone reaches no `/local` module; every note the phone makes says
-  when it was `saved`. No folder verbs on the phone: an item moves to another
+  since the phone reaches no `/local` module; the dedupe waits for the boot to
+  read the phone's rows back and looks again before each try, so a share the
+  app opens with is never checked against an empty listing; a save the list in
+  view would not show says where it went; every note the phone makes says when
+  it was `saved`. No folder verbs on the phone: an item moves to another
   folder from the Mac (owner decision). A photo is a JPEG at most 2048px on its long edge
   (`apps/mobile/src/notes/photo-ingest.ts`): a HEIC is no asset type the vault
   takes and the Mac's editor cannot draw it, and the re-encode writes no EXIF,

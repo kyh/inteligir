@@ -165,6 +165,10 @@ export interface NotesStore {
   putAsset: (path: string, bytes: Uint8Array) => Promise<CreateOutcome>;
   // every file the phone lists, unsent changes laid over; none before the first listing
   heldFiles: () => readonly HeldFile[];
+  // resolves once the sign-in's rows are read back (a restore) or wiped (a new sign-in), so a
+  // lookup in `heldFiles` after it sees what the phone holds: a share the app opens with is read
+  // before the boot's listing is
+  ready: () => Promise<void>;
   // the text the phone holds for each note it lists; a note whose text has not downloaded is
   // left out
   noteTexts: () => Promise<ReadonlyMap<string, string>>;
@@ -914,6 +918,10 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     },
 
     editAnnotations,
+
+    ready: async () => {
+      await signIn.ready();
+    },
 
     heldFiles: () =>
       listing === null

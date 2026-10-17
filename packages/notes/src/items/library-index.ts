@@ -134,7 +134,7 @@ const isHidden = (path: string): boolean =>
   path.startsWith(`${COVERS_DIR}/`) ||
   path.startsWith(`${PAGES_DIR}/`);
 
-const mediaKindOf = (path: string): Exclude<FileKind, "file"> | null => {
+export const mediaKindOf = (path: string): Exclude<FileKind, "file"> | null => {
   const kind = fileKindOf(path);
   return kind === null || kind === "file" ? null : kind;
 };
@@ -144,7 +144,9 @@ const mediaKindOf = (path: string): Exclude<FileKind, "file"> | null => {
 const pathRef = (path: string): string => `p:${vaultCollisionKey(path)}`;
 const nameRef = (name: string): string => `n:${vaultCollisionKey(basenamePath(name))}`;
 
-const refsOf = (path: string, links: readonly ExtractedLink[]): Set<string> => {
+// the keys the doc at `path` names files by; a media file is bare while no doc's key is one of
+// its own two (`fileRefsOf`), which the phone's listing asks too
+export const refsOf = (path: string, links: readonly ExtractedLink[]): Set<string> => {
   const refs = new Set<string>();
   for (const link of links) {
     if (link.kind === "wiki") {
@@ -156,6 +158,8 @@ const refsOf = (path: string, links: readonly ExtractedLink[]): Set<string> => {
   }
   return refs;
 };
+
+export const fileRefsOf = (path: string): [string, string] => [pathRef(path), nameRef(path)];
 
 const emptyKindCounts = (): Record<ItemKind, number> => ({
   audio: 0,
@@ -456,9 +460,7 @@ export class LibraryIndex {
       return !isHidden(path);
     }
     return (
-      entry.media !== null &&
-      (this.refCounts.get(pathRef(path)) ?? 0) === 0 &&
-      (this.refCounts.get(nameRef(path)) ?? 0) === 0
+      entry.media !== null && fileRefsOf(path).every((key) => (this.refCounts.get(key) ?? 0) === 0)
     );
   }
 

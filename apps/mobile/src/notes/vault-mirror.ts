@@ -18,6 +18,7 @@ import { isAnnotationsStorePath } from "@repo/notes/annotations/store-schema";
 import { readItemFacts } from "@repo/notes/items/item-frontmatter";
 import type { ItemFacts } from "@repo/notes/items/item-frontmatter";
 import { ITEM_KINDS, PAGES_DIR } from "@repo/notes/items/item-kind";
+import { mediaKindOf } from "@repo/notes/items/library-index";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { frontmatterAliases, scanDoc } from "@repo/notes/knowledge/link-extract";
 import type { ExtractedLink } from "@repo/notes/knowledge/link-extract";
@@ -48,6 +49,9 @@ export interface ItemCard {
   facts: ItemFacts;
   // the first embeds and the page copy's links only, in document order
   links: readonly ExtractedLink[];
+  // every link that names a picture, a PDF, a video or a sound, so the listing knows which media
+  // files a doc shows and which stand as items of their own, as the Mac's does
+  media: readonly ExtractedLink[];
   tags: readonly string[];
 }
 
@@ -189,6 +193,7 @@ const linkSchema = z
 const itemCardSchema = z.object({
   facts: itemFactsSchema,
   links: z.array(linkSchema),
+  media: z.array(linkSchema),
   tags: z.array(z.string()),
 });
 
@@ -268,7 +273,7 @@ const frontmatterFactsOf = (content: string): NoteFacts => {
   const properties = yaml === null ? null : parseProperties(yaml);
   return {
     aliases: frontmatterAliases(properties),
-    item: { facts: readItemFacts(properties), links: [], tags: [] },
+    item: { facts: readItemFacts(properties), links: [], media: [], tags: [] },
     noteId: noteIdOfProperties(properties),
   };
 };
@@ -285,7 +290,12 @@ export const textFactsOf = (path: string, content: string): NoteFacts => {
   const scan = scanDoc(content);
   return {
     aliases: scan.aliases,
-    item: { facts: scan.item, links: cardLinks(scan.links), tags: scan.tags },
+    item: {
+      facts: scan.item,
+      links: cardLinks(scan.links),
+      media: scan.links.filter((link) => mediaKindOf(link.target) !== null),
+      tags: scan.tags,
+    },
     noteId: scan.noteId,
   };
 };
