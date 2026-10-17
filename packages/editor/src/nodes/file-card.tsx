@@ -103,6 +103,11 @@ export const FileCard = ({
           variant="secondary"
           size="compact"
           onClick={() => {
+            const io = getEditorHostIo();
+            if (io.opensFiles) {
+              io.vault.openFile(path);
+              return;
+            }
             void openInViewer(path);
           }}
         >

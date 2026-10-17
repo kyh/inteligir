@@ -96,6 +96,8 @@ export interface EditorHostIo {
   htmlFrameUrl: string | null;
   /** A native photo picker that writes what it picks; null where paste and drop are the only way in. */
   pickImage: (() => Promise<PickImageResult>) | null;
+  /** True where `vault.openFile` shows a file that is no note in a viewer of the host's own (the phone), so a file card's Open goes there; false where the page hands the file's bytes to the system's viewer. */
+  opensFiles: boolean;
 }
 
 export interface AnnotationActions {

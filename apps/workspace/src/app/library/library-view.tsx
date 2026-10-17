@@ -111,8 +111,10 @@ const SelectionStrip = ({
   onDelete: () => void;
   onClear: () => void;
 }) => (
-  <div className="flex shrink-0 items-center gap-2 px-4 pt-3">
-    <SelectionActions aria-label="Selection">
+  // over the grid's foot, out of the flow: a strip that took a row of its own moved every card
+  // down on the first click, so the second click of a double-click landed above where it aimed
+  <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4">
+    <SelectionActions aria-label="Selection" className="pointer-events-auto">
       <span className="px-2 text-body font-medium text-ink tabular-nums">
         {formatCount(count)} selected
       </span>
@@ -232,46 +234,35 @@ export const LibraryView = ({
     );
   };
 
-  // the selection's strip in the chips' place while anything is selected
+  // the selection's strip while anything is selected, over the grid and never above it
   const strip = () => {
-    if (filter === null) {
+    if (filter === null || count === 0) {
       return null;
     }
-    if (count > 0) {
-      return (
-        <SelectionStrip
-          count={count}
-          onTag={() => {
-            withSelection(actions.tag);
-          }}
-          onMove={() => {
-            withSelection(actions.move);
-          }}
-          onAsk={() => {
-            withSelection(actions.askAgent);
-          }}
-          onDelete={() => {
-            withSelection(actions.remove);
-          }}
-          onClear={() => {
-            selection.apply({ kind: "clear" });
-          }}
-        />
-      );
-    }
     return (
-      <KindChips
-        counts={head.data?.kindCounts}
-        kind={kind}
-        onKindChange={onKindChange}
-        q={q}
-        onClearQuery={onClearQuery}
+      <SelectionStrip
+        count={count}
+        onTag={() => {
+          withSelection(actions.tag);
+        }}
+        onMove={() => {
+          withSelection(actions.move);
+        }}
+        onAsk={() => {
+          withSelection(actions.askAgent);
+        }}
+        onDelete={() => {
+          withSelection(actions.remove);
+        }}
+        onClear={() => {
+          selection.apply({ kind: "clear" });
+        }}
       />
     );
   };
 
   return (
-    <div data-library-view="" className="flex min-h-0 flex-1 flex-col">
+    <div data-library-view="" className="relative flex min-h-0 flex-1 flex-col">
       <LibraryHeader
         lead={lead}
         insetTitleBar={insetTitleBar}
@@ -289,8 +280,17 @@ export const LibraryView = ({
         onEditFilingRules={onEditFilingRules}
         onRenameTag={onRenameTag}
       />
-      {strip()}
+      {filter === null ? null : (
+        <KindChips
+          counts={head.data?.kindCounts}
+          kind={kind}
+          onKindChange={onKindChange}
+          q={q}
+          onClearQuery={onClearQuery}
+        />
+      )}
       {body()}
+      {strip()}
     </div>
   );
 };

@@ -31,7 +31,7 @@ import type { RenameSource } from "@repo/notes/knowledge/plan-rename";
 import { projectDoc } from "@repo/notes/knowledge/projection";
 import { moveCandidates } from "@repo/notes/knowledge/rename-candidates";
 import { computeMoveEdits } from "@repo/notes/knowledge/rename-links";
-import { dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
+import { dirnamePath, extnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import { addFrontmatterAlias } from "@repo/notes/markdown/frontmatter";
 import { NOTE_GONE } from "./annotation-ops";
 import type { HeldFile, NotesStore, RenameEdits } from "./notes-store";
@@ -121,12 +121,19 @@ const linkGraphOf = (
   return graph;
 };
 
-// a typed title keeps the note's own extension; a typed doc extension is taken as written
-const renamedPath = (from: string, name: string): string =>
-  joinPath(
+// a typed title keeps the note's own extension; a typed doc extension is taken as written. A
+// file that is no note keeps its own extension whatever is typed, so a picture stays a picture
+const renamedPath = (from: string, name: string): string => {
+  if (!isDocPath(from)) {
+    const extension = extnamePath(from);
+    const typed = extension !== "" && name.toLowerCase().endsWith(extension.toLowerCase());
+    return joinPath(dirnamePath(from), typed ? name : `${name}${extension}`);
+  }
+  return joinPath(
     dirnamePath(from),
     isDocPath(name) ? name : `${name}${docExtension(from) || DEFAULT_DOC_EXTENSION}`,
   );
+};
 
 type PlannedRewrite = RenameEdits["rewrites"][number];
 

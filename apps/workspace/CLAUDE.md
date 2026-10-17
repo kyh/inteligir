@@ -26,7 +26,8 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   reasons. The drag's source is the window's own drag store
   (`apps/workspace/src/app/library/drag-store.ts`), not `dataTransfer`, because a
   drag from the desktop carries files and links too: a drop with nothing in the
-  store came from outside, and is a save, never a move (A SAVE FROM THE WINDOW IS
+  store, of a drag that did not start in the page, came from outside, and is a
+  save, never a move (A SAVE FROM THE WINDOW IS
   A PASTE OR A DROP THAT NO FIELD CLAIMED). No second write path: the move rides
   `vault.rename`, which rewrites links for a folder as for an item
   (`apps/cli/src/server/knowledge/rename.ts`), and the vault session carries the
@@ -319,6 +320,8 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
 - **A SAVE FROM THE WINDOW IS A PASTE OR A DROP THAT NO FIELD CLAIMED.** A paste
   lands where nothing takes text, and a drop where no field, row, card or editor
   took it, a drop that holds nothing to save keeping the browser's own handling
+  and a drag that started inside the page (a picture in the viewer, a selection)
+  never saving, since what the window shows is already in the library
   (`apps/workspace/src/app/library/capture/window-capture.ts`); both save into
   the folder the scope shows, else Unsorted, and say where with Open, or that the
   library already holds it with Show

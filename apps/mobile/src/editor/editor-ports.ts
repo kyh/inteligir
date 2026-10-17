@@ -28,10 +28,12 @@ export type PageEditorState = Pick<
   "dirty" | "saveError"
 >;
 
-// where a page event takes the phone's stack: a note the page opened, or a new thread about the
-// note asked from, with the selection it was asked over and the sha-256 of the bytes it held
+// where a page event takes the phone's stack: a note the page opened, a file that is no note in
+// the viewer (with the item that shows it), or a new thread about the note asked from, with the
+// selection it was asked over and the sha-256 of the bytes it held
 export type EditorRoute =
   | { kind: "note"; path: string }
+  | { kind: "file"; path: string; item: string | null }
   | { kind: "thread"; threadId: string; note: string; quote: string; revision: string | null };
 
 export interface EditorPortsArgs {
@@ -359,10 +361,13 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
         return;
       }
       case "navigate": {
-        // an attachment has no screen here, and opened as a note it would show its bytes
-        if (isDocPath(event.path)) {
-          args.go({ kind: "note", path: event.path });
-        }
+        // a file that is no note (a picture, a PDF, a page's copy) opens in the viewer, which says
+        // where one it cannot show opens; opened as a note it would show its bytes
+        args.go(
+          isDocPath(event.path)
+            ? { kind: "note", path: event.path }
+            : { item: openPath, kind: "file", path: event.path },
+        );
         return;
       }
       case "askAgent": {

@@ -275,7 +275,13 @@ const AnnotationCard = ({
           variant="ghost"
           disabled={busy}
           onClick={() => {
-            remove.mutate({ id: annotation.id, path: docPath });
+            // the open editor strips the markers itself, under its own save; with none open (a
+            // saved page shown as its copy) the server strips them under its compare-and-swap
+            remove.mutate({
+              id: annotation.id,
+              path: docPath,
+              stripMarkers: getLiveEditor(docPath) === null,
+            });
           }}
         >
           {anchored ? "Remove highlight" : "Remove"}

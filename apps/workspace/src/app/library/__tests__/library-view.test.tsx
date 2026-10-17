@@ -342,7 +342,7 @@ describe("the chips and the count", () => {
 });
 
 describe("the selection's strip", () => {
-  it("stands in the chips' place while anything is selected, and runs a verb on it", async () => {
+  it("floats over the grid while anything is selected, moving nothing, and runs a verb on it", async () => {
     const rows = [row("a.md", "link"), row("b.md", "pdf")];
     stubWire({ items: () => listing(rows, { link: 1, pdf: 1 }) });
     const { props, selection } = mount({ kind: "all" });
@@ -352,7 +352,11 @@ describe("the selection's strip", () => {
       selection.apply({ kind: "toggle", path: "b.md" });
     });
     expect(screen.getByText("2 selected")).toBeTruthy();
-    expect(screen.queryByRole("group", { name: "Kind" })).toBeNull();
+    // the chips keep their row and the strip takes none, so no card moves under a double-click
+    expect(screen.getByRole("group", { name: "Kind" })).toBeTruthy();
+    expect(screen.getByRole("toolbar", { name: "Selection" }).parentElement?.className).toContain(
+      "absolute",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Tag…" }));
     await waitFor(() => {
       expect(props.actions.tag).toHaveBeenCalledWith(["a.md", "b.md"]);

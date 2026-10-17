@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { bootTestApp } from "../../server/__tests__/boot-app";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { PREFS, readPref, writePref } from "@repo/workspace/app/prefs";
 import { createAppRouter } from "@repo/workspace/router";
 import { routePageFetch } from "./booted-fetch";
 import { chord, layOutCardGrids, sidebarState } from "./boot-workspace";
@@ -67,6 +68,27 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+});
+
+describe("the palette's results in the library", () => {
+  it("shows them over the whole library, wherever the grid was", async () => {
+    // the window was on Deleted, which has no grid to filter
+    writePref(PREFS.libraryScope, { kind: "deleted" });
+    await bootAt(createMemoryHistory({ initialEntries: ["/"] }));
+    await screen.findByRole("heading", { name: "Deleted" });
+    fireEvent.keyDown(window, chord("p"));
+    fireEvent.change(await screen.findByPlaceholderText("Search your library or run a command…"), {
+      target: { value: "Alpha" },
+    });
+    fireEvent.click(
+      await within(screen.getByRole("listbox")).findByText("Show all results in the library"),
+    );
+    await screen.findByRole("heading", { name: "All items" });
+    expect(
+      await screen.findByRole("button", { name: "Clear the search for “Alpha”" }),
+    ).toBeTruthy();
+    expect(readPref(PREFS.libraryScope)).toEqual({ kind: "all" });
+  });
 });
 
 describe("the library is home, and the url names the open item", () => {

@@ -7,7 +7,7 @@
 import type { ItemRowWire } from "@repo/contract/local/items/items-schema";
 import { SidebarProvider } from "@repo/ui/components/sidebar-core";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { createStore } from "zustand/vanilla";
@@ -87,6 +87,17 @@ beforeEach(() => {
         total: TOTAL,
       };
     },
+    // Quick Look reads the item it shows
+    "knowledge/itemsAt": (input) => ({
+      items: z
+        .object({ paths: z.array(z.string()) })
+        .parse(input)
+        .paths.map((path) => row(Number(/item-(?<n>\d+)/u.exec(path)?.groups?.n ?? "0"))),
+    }),
+    "vault/read": (input) => ({
+      content: "# A note\n",
+      path: z.object({ path: z.string() }).parse(input).path,
+    }),
     "system/status": () => ({
       agent: { state: "off" },
       dataDir: "/data",
@@ -121,6 +132,7 @@ const itemActions = (): LibraryItemActions => ({
 });
 
 const mount = (selection = createLibrarySelection()) => {
+  const actions = itemActions();
   render(
     <QueryClientProvider client={createWorkspaceQueryClient()}>
       <SidebarProvider>
@@ -129,12 +141,12 @@ const mount = (selection = createLibrarySelection()) => {
           total={TOTAL}
           selection={selection}
           scrollMemory={createStore<number>()(() => 0)}
-          actions={itemActions()}
+          actions={actions}
         />
       </SidebarProvider>
     </QueryClientProvider>,
   );
-  return { selection };
+  return { actions, selection };
 };
 
 const card = async (index: number): Promise<HTMLElement> => {
@@ -282,6 +294,28 @@ describe("an arrow", () => {
     await waitFor(() => {
       expect(selection.store.getState().focus).toBe(pathAt(5));
     });
+  });
+
+  it("opens, with Return, the card the keyboard is on when nothing is selected", async () => {
+    const { actions, selection } = mount();
+    const focused = await card(4);
+    fireEvent.click(focused);
+    focused.focus();
+    fireEvent.keyDown(focused, { key: "Escape" });
+    expect(selection.store.getState().focus).toBeNull();
+    fireEvent.keyDown(focused, { key: "Enter" });
+    expect(actions.open).toHaveBeenCalledWith(pathAt(4));
+    expect(selection.store.getState().focus).toBe(pathAt(4));
+  });
+
+  it("looks, with Space, at the card the keyboard is on when nothing is selected", async () => {
+    const { selection } = mount();
+    const focused = await card(2);
+    focused.focus();
+    expect(selection.store.getState().focus).toBeNull();
+    fireEvent.keyDown(focused, { key: " " });
+    expect(selection.store.getState().focus).toBe(pathAt(2));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
   });
 
   it("with ⇧ spans from an anchor the loaded windows no longer hold", async () => {

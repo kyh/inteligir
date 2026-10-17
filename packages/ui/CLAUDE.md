@@ -39,8 +39,9 @@ are the library's grid, its cards and its kind chips.
   selection-driven `open` and its `frozen` hold. Quick Look is a `Dialog`
   (`apps/workspace/src/app/library/quick-look.tsx`), so its dismissal and the
   focus it hands back are the primitive's; the window's drop layer and the
-  library's selection strip are in flow, not floating, because neither has an
-  anchor to position against or a dismissal of its own.
+  library's selection strip (over the grid's foot, so a click that selects moves
+  no card) are the page's own layers, not popups, because neither has an anchor
+  to position against or a dismissal of its own.
 
 - **THE CHROME HAS FIVE TYPE ROLES, AND THEY ARE FLUID'S LADDER.** caption 11,
   body 12, subtitle 13, title 15, display 24 — the compact column of `typeScale`

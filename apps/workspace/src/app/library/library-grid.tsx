@@ -197,6 +197,24 @@ export const LibraryGrid = ({
     }));
   };
 
+  // the item Return and Space act on: the selection's focus, else the card the keyboard is on
+  // (a Tab into the grid, an Escape that cleared the selection), which they select first, as a
+  // click would
+  const keyedPath = (): string | null => {
+    const { focus } = selection.store.getState();
+    if (focus !== null) {
+      return focus;
+    }
+    const at = domFocusedIndex();
+    const row = at === null ? null : rowAt(windows, at);
+    if (row === null) {
+      return null;
+    }
+    selection.apply({ kind: "click", path: row.path });
+    pinSelection();
+    return row.path;
+  };
+
   const isSelected = (path: string): boolean => state.all || state.selected.has(path);
 
   // the names a ⌘A stood for, read before a gesture that edits them
@@ -389,7 +407,6 @@ export const LibraryGrid = ({
       void moveBy(move);
       return;
     }
-    const { focus } = selection.store.getState();
     switch (action) {
       case "move-first":
       case "move-last": {
@@ -397,13 +414,14 @@ export const LibraryGrid = ({
         break;
       }
       case "open-item": {
-        if (focus !== null) {
-          actions.open(focus);
+        const path = keyedPath();
+        if (path !== null) {
+          actions.open(path);
         }
         break;
       }
       case "quick-look": {
-        if (focus !== null) {
+        if (keyedPath() !== null) {
           setLook({ of: "focus" });
         }
         break;

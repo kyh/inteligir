@@ -420,16 +420,20 @@ describe("where the page's events lead", () => {
     expect(openFailures).toStrictEqual(["no a.md"]);
   });
 
-  it("pushes a note the page opened, and never an attachment", async () => {
+  it("pushes a note the page opened, and a file that is no note to the viewer", async () => {
     const { annotations, editor, opened, routes } = await phoneFor(
       createFakeVault({ "a.md": "# a\n" }),
     );
+    editor.handle({ nonce: NONCE, path: "a.md", type: "opened" });
     editor.handle({ nonce: NONCE, path: "b.md", type: "navigate" });
-    editor.handle({ nonce: NONCE, path: "media/p.png", type: "navigate" });
+    editor.handle({ nonce: NONCE, path: "assets/pages/0123456789abcdef.html", type: "navigate" });
     editor.handle({ ids: ["c1"], nonce: NONCE, type: "showAnnotations" });
     editor.handle({ nonce: NONCE, path: null, type: "opened" });
-    expect(routes).toStrictEqual([{ kind: "note", path: "b.md" }]);
+    expect(routes).toStrictEqual([
+      { kind: "note", path: "b.md" },
+      { item: "a.md", kind: "file", path: "assets/pages/0123456789abcdef.html" },
+    ]);
     expect(annotations).toStrictEqual([["c1"]]);
-    expect(opened).toStrictEqual([null]);
+    expect(opened).toStrictEqual(["a.md", null]);
   });
 });

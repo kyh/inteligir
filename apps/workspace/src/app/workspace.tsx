@@ -951,12 +951,12 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
       saveInto({ files: [], refused: [], urls: [{ title: null, url }] }, captureDir(scope));
     },
     // ⌘P stays the one search field: the grid takes what it holds as its filter
+    // the palette's rows were the whole library's, so its results are too: never a folder's
+    // share of them, nor Deleted, which has no grid to show them in. The scope clears the search,
+    // the kind, the selection and the scroll, so the search is set after it
     showResults: (text) => {
-      goToLibrary();
-      setKind(null);
+      goToLibrary({ kind: "all" });
       setQ(text);
-      selection.apply({ kind: "clear" });
-      scrollMemory.setState(0, true);
     },
     startTidy: tidy.startTidy,
     syncNow,

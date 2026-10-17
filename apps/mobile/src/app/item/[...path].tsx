@@ -17,7 +17,7 @@ import type { LoadVerdict } from "@/editor/editor-host";
 import type { EditorRoute, PageEditorState } from "@/editor/editor-ports";
 import { ItemInfoSheet } from "@/items/item-info-sheet";
 import { deleteNote, useLibraryCard } from "@/lib/app-runtime";
-import { firstParam, openItem, openThread } from "@/lib/routes";
+import { firstParam, openItem, openThread, openViewer } from "@/lib/routes";
 import type { ThreadParams } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
 import { AnnotationsSheet } from "@/notes/annotations-view";
@@ -76,6 +76,10 @@ const followVerdict = (verdict: LoadVerdict): boolean => {
 const pushRoute = (route: EditorRoute): void => {
   if (route.kind === "note") {
     openItem(route.path);
+    return;
+  }
+  if (route.kind === "file") {
+    openViewer(route.path, route.item);
     return;
   }
   const params: ThreadParams = { id: route.threadId, note: route.note };

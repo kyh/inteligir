@@ -59,7 +59,10 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   what the editor reads as one piece, and a quote the text no longer holds goes
   under `## Highlights` once its fill is final. `remove` with `stripMarkers`
   takes the store's entry first and its markers second, keeping another id on a
-  shared pair. Rejected: an anchor of offsets beside the text (every edit moves
+  shared pair; the window's Remove highlight asks for it whenever no open
+  editor holds the item (a saved page shown as its copy), and otherwise takes
+  the markers out in the editor, under its own save
+  (`apps/workspace/src/app/actions/annotations-tab.tsx`). Rejected: an anchor of offsets beside the text (every edit moves
   it) and a fuzzy match (two Macs would pick two passages).
   `apps/cli/src/server/annotations/annotations-service.ts`,
   `apps/cli/src/server/annotations/place-quotes.ts`,

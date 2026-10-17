@@ -47,8 +47,11 @@ The phone: its editor page, its offline store and queue, and how it ships.
   earlier sign-in never ends the next
   (`apps/mobile/src/lib/compose-runtime.ts`). Which screens exist is the route
   guard's answer (`Stack.Protected` in `apps/mobile/src/app/_layout.tsx`), never
-  a per-screen branch: signed in, the Library, an item, an image or PDF viewer,
-  the threads and a thread; signed out, the sign-in.
+  a per-screen branch: signed in, the Library, an item, a viewer of a picture,
+  a PDF or a page's copy (with no script, reading only its own folder), the
+  threads and a thread; signed out, the sign-in. A link or a file card in an
+  item that names a file that is no note opens that viewer, which says where any
+  other file opens (`opensFiles` in `packages/editor/src/host-io.ts`).
   `apps/mobile/src/sync/sync-runtime.ts`,
   `apps/mobile/src/login/login-store.ts`,
   `apps/mobile/src/dispatch/dispatch-runtime.ts`.

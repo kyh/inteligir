@@ -11,8 +11,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
-import { fileKindOf } from "@repo/notes/items/item-kind";
-import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
+import { fileKindOf, PAGES_DIR } from "@repo/notes/items/item-kind";
+import { basenamePath, dirnamePath, extnamePath } from "@repo/notes/knowledge/vault-path";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { attachmentFile } from "@/lib/app-runtime";
 import { firstParam, openItem } from "@/lib/routes";
@@ -82,9 +82,13 @@ const ImageView = ({ uri }: { uri: string }) => {
   );
 };
 
-// the cached PDF in WebKit's own viewer, which may read only the folder it sits in and follows no
-// link out of it
-const PdfView = ({ uri }: { uri: string }) => {
+// a page's copy the Mac kept: one html file with nothing in it that runs or loads
+const isPageCopy = (path: string): boolean =>
+  dirnamePath(path) === PAGES_DIR && extnamePath(path).toLowerCase() === ".html";
+
+// the cached PDF in WebKit's own viewer, or a page's copy, with no script, reading only the folder
+// it sits in and following no link out of it
+const HeldDocumentView = ({ uri }: { uri: string }) => {
   const theme = useTheme();
   return (
     <WebView
@@ -100,16 +104,17 @@ const PdfView = ({ uri }: { uri: string }) => {
   );
 };
 
-// One image or PDF full size, from the file this phone holds of it; Edit opens the item it belongs
-// to in the editor, and a file that is an item of its own has none. Any other file says where it
-// opens.
+// One image, PDF or page copy full size, from the file this phone holds of it; Edit opens the
+// item it belongs to in the editor, and a file that is an item of its own has none. Any other file
+// says where it opens.
 const ViewerScreen = () => {
   const theme = useTheme();
   const params = useLocalSearchParams<{ path: string[]; item?: string | string[] }>();
   const path = Array.isArray(params.path) ? params.path.join("/") : (params.path ?? "");
   const item = firstParam(params.item);
   const kind = fileKindOf(path);
-  const shown = kind === "pdf" || kind === "image";
+  const asDocument = kind === "pdf" || isPageCopy(path);
+  const shown = asDocument || kind === "image";
   const held = useHeldFile(shown ? path : null);
 
   let body = (
@@ -134,7 +139,7 @@ const ViewerScreen = () => {
       </View>
     );
   } else if (held.kind === "held") {
-    body = kind === "pdf" ? <PdfView uri={held.uri} /> : <ImageView uri={held.uri} />;
+    body = asDocument ? <HeldDocumentView uri={held.uri} /> : <ImageView uri={held.uri} />;
   }
 
   return (

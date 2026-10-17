@@ -83,6 +83,22 @@ describe("renaming a note on the phone", () => {
     );
   });
 
+  it("keeps a file's own extension, whether or not the name typed carries it", async () => {
+    const vault = createFakeVault({ "assets/photo.png": "png bytes" });
+    const { fileOps, store } = await phone(vault);
+    expect(await fileOps.rename("assets/photo.png", "photo.png")).toStrictEqual({
+      kind: "renamed",
+      path: "assets/photo.png",
+      unlinked: [],
+    });
+    expect(await fileOps.rename("assets/photo.png", "beach")).toMatchObject({
+      kind: "renamed",
+      path: "assets/beach.png",
+    });
+    await store.drain();
+    expect(Object.keys(vault.files())).toStrictEqual(["assets/beach.png"]);
+  });
+
   it("moves a note no link names and whose name keeps its stem as it is", async () => {
     const vault = createFakeVault({ "a/plan.md": "# Plan\n" });
     const { fileOps, store } = await phone(vault);

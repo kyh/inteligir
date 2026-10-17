@@ -15,7 +15,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { UNSORTED_FOLDER } from "@repo/notes/items/item-kind";
 import type { ItemKind } from "@repo/notes/items/item-kind";
-import { docStem } from "@repo/notes/knowledge/doc-file";
+import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
+import { basenamePath, extnamePath } from "@repo/notes/knowledge/vault-path";
 import type { SavedItem } from "@/items/item-ops";
 import {
   createNote,
@@ -124,6 +125,16 @@ const openCard = (card: LibraryCard): void => {
   openItem(card.path);
 };
 
+// the name a rename starts from: a note's title, a file's name without its extension, which the
+// rename keeps
+const renameStem = (path: string): string => {
+  if (isDocPath(path)) {
+    return docStem(path);
+  }
+  const name = basenamePath(path);
+  return name.slice(0, name.length - extnamePath(path).length);
+};
+
 const rename = (path: string): void => {
   Alert.prompt(
     "Rename",
@@ -145,7 +156,7 @@ const rename = (path: string): void => {
       },
     ],
     "plain-text",
-    docStem(path),
+    renameStem(path),
   );
 };
 

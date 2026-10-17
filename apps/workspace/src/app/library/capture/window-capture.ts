@@ -4,7 +4,9 @@
 // that is not editable, so ⌘V there first moves the focus to a 1×1 off-screen catcher, without
 // preventing the key, and the paste the key then makes fires on the catcher, which hands the focus
 // back, or lets it go when nothing had it (or no paste came). The window's own drags (cards,
-// folder rows) are moves, never saves.
+// folder rows) are moves, never saves, and any other drag that starts inside the page (a picture
+// in the viewer or Quick Look, a selection of text) is never a save either: only what comes from
+// outside the window is.
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { RefObject } from "react";
@@ -62,6 +64,9 @@ export const useWindowCapture = ({
     }
     // the element the catcher took the focus from, handed back once the paste has landed
     let returnFocus: HTMLElement | null = null;
+    // a drag that started inside the page, from its start to its end: what the window shows is
+    // already in the library
+    let fromPage = false;
     let lingering: ReturnType<typeof setTimeout> | null = null;
     let waitingPaste: ReturnType<typeof setTimeout> | null = null;
     const hideLayer = (): void => {
@@ -131,6 +136,7 @@ export const useWindowCapture = ({
     // there, never saved
     const accepts = (event: DragEvent): boolean =>
       !event.defaultPrevented &&
+      !fromPage &&
       internalDrag() === null &&
       !inEditor(event.target) &&
       !isTextEntryTarget(event.target);
@@ -150,9 +156,18 @@ export const useWindowCapture = ({
       lingering = setTimeout(hideLayer, DROP_LAYER_LINGER_MS);
     };
 
+    const onDragStart = (): void => {
+      fromPage = true;
+    };
+    const onDragEnd = (): void => {
+      fromPage = false;
+      hideLayer();
+    };
+
     const onDrop = (event: DragEvent): void => {
       hideLayer();
       if (!accepts(event)) {
+        fromPage = false;
         return;
       }
       const payload = payloadFrom(event.dataTransfer);
@@ -165,9 +180,10 @@ export const useWindowCapture = ({
 
     window.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("paste", onPaste, true);
+    window.addEventListener("dragstart", onDragStart, true);
     window.addEventListener("dragover", onDragOver);
     window.addEventListener("drop", onDrop);
-    window.addEventListener("dragend", hideLayer);
+    window.addEventListener("dragend", onDragEnd, true);
     return () => {
       hideLayer();
       if (waitingPaste !== null) {
@@ -175,9 +191,10 @@ export const useWindowCapture = ({
       }
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("paste", onPaste, true);
+      window.removeEventListener("dragstart", onDragStart, true);
       window.removeEventListener("dragover", onDragOver);
       window.removeEventListener("drop", onDrop);
-      window.removeEventListener("dragend", hideLayer);
+      window.removeEventListener("dragend", onDragEnd, true);
     };
   }, [enabled]);
 

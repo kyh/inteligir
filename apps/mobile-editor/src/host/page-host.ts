@@ -259,6 +259,8 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
         changeListeners.delete(listener);
       };
     },
+    // the phone shows a picture, a PDF or a page's copy in a viewer of its own, through navigate
+    opensFiles: true,
     pickImage: async () => await bridge.request("pickImage", {}),
     readNoteFormulas: formulas.read,
     readVaultAsset,

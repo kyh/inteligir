@@ -39,6 +39,7 @@ export interface FakeEditorHostOptions {
   // null is a host with no frame to run an html block in
   readonly htmlFrameUrl?: string | null;
   readonly pickImage?: EditorHostIo["pickImage"];
+  readonly opensFiles?: boolean;
   readonly annotations?: AnnotationActions;
   readonly agent?: AgentRequestActions;
 }
@@ -104,6 +105,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
     onVaultChanged: () => () => {
       // the fake vault announces no change, so there is no subscription to end
     },
+    opensFiles: options.opensFiles ?? false,
     pickImage: options.pickImage ?? null,
     readNoteFormulas: options.readNoteFormulas ?? (async () => await Promise.resolve(null)),
     readVaultAsset: async ({ path }) =>

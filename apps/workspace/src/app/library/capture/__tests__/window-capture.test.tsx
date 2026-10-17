@@ -186,6 +186,24 @@ describe("a drop over the window", () => {
     expect(onCapture).not.toHaveBeenCalled();
   });
 
+  it("never saves a drag that started inside the page, such as a picture in the viewer", () => {
+    const onCapture = mount();
+    act(() => {
+      card().dispatchEvent(new Event("dragstart", { bubbles: true }));
+    });
+    expect(drag("dragover", card(), "http://127.0.0.1:4664/vault/asset?m=t").defaultPrevented).toBe(
+      false,
+    );
+    drag("drop", card(), "http://127.0.0.1:4664/vault/asset?m=t");
+    expect(onCapture).not.toHaveBeenCalled();
+    // once that drag ends, a drop from outside the window is saved again
+    act(() => {
+      card().dispatchEvent(new Event("dragend", { bubbles: true }));
+    });
+    drag("drop", card(), "https://a.example");
+    expect(onCapture).toHaveBeenCalledOnce();
+  });
+
   it("leaves a drop on a field to the field", () => {
     const onCapture = mount();
     const field = screen.getByLabelText("a field");

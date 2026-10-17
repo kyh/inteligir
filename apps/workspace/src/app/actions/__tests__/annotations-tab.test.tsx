@@ -41,23 +41,34 @@ const listing = (annotations: AnnotationRow[]) => ({
 });
 
 const editSchema = z.object({ id: z.string(), path: z.string(), text: z.string() });
+const removeSchema = z.object({
+  id: z.string(),
+  path: z.string(),
+  stripMarkers: z.boolean().optional(),
+});
 
 const mountTab = (annotations: AnnotationRow[]) => {
   installFakeEditorHost();
   const edits: z.infer<typeof editSchema>[] = [];
+  const removes: z.infer<typeof removeSchema>[] = [];
   stubRpc({
     "annotations/edit": (input) => {
       edits.push(editSchema.parse(input));
       return listing(annotations);
     },
     "annotations/list": () => listing(annotations),
+    "annotations/remove": (input) => {
+      const request = removeSchema.parse(input);
+      removes.push(request);
+      return { ...listing(annotations), removedIds: [request.id] };
+    },
   });
   render(
     <QueryClientProvider client={createWorkspaceQueryClient()}>
       <AnnotationsTab docPath="plan.md" focus={null} modifier="meta" />
     </QueryClientProvider>,
   );
-  return { edits };
+  return { edits, removes };
 };
 
 describe("the Annotations tab", () => {
@@ -91,6 +102,16 @@ describe("the Annotations tab", () => {
     expect(within(missing).getByText("a passage edited away")).toBeTruthy();
     expect(within(waiting).getByRole("button", { name: "Remove" })).toBeTruthy();
     expect(within(missing).getByRole("button", { name: "Remove" })).toBeTruthy();
+  });
+
+  it("has the server take a highlight's marks out when no editor holds the item", async () => {
+    const { removes } = mountTab([annotation("a1", "anchored", { quote: "words" })]);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Remove highlight" }));
+
+    await waitFor(() => {
+      expect(removes).toEqual([{ id: "a1", path: "plan.md", stripMarkers: true }]);
+    });
   });
 
   it("edits a note in place on a click, writing it on Return", async () => {
