@@ -1,40 +1,64 @@
-import { docStem } from "@repo/notes/knowledge/doc-file";
+import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
+import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
+import { composeItemFile } from "@repo/notes/items/item-frontmatter";
+import type { ItemKind } from "@repo/notes/items/item-kind";
+import { formatItemTime } from "@repo/notes/items/item-time";
 import { quoteSelection } from "@repo/domain/quote-selection";
+import type { LibraryScope } from "@repo/domain/library-scope";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { ViewContextSource } from "./thread-activity";
 import type { VaultMatchWire } from "@repo/contract/local/knowledge/knowledge-schema";
 import type { Thread } from "@repo/contract/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
+import type { itemsRefreshRequestSchema } from "@repo/contract/local/items/items-schema";
+import type { z } from "zod";
+import { confirm } from "@repo/ui/components/confirm-dialog";
 import { toast } from "@repo/ui/components/sonner";
+import { plural } from "@repo/ui/lib/plural";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
 import { client, failed, orpc } from "./api";
 import { ActionComposer } from "./actions/action-composer";
 import { ActionsPanel } from "./actions/actions-panel";
 import type { PanelTab } from "./actions/actions-panel";
 import type { AnnotationFocus } from "./actions/annotations-tab";
+import type { InfoActions, PanelSubject } from "./actions/info-tab";
 import { useNoteAnnotations, useNoteAnnotationMeta } from "./actions/annotation-hooks";
-import { NoteTopbar } from "./note-topbar";
-import { NoteFooter } from "./note-footer";
 import { useThreads } from "./actions/thread-hooks";
 import { useTurnFinishToast } from "./actions/turn-finish-toast";
 import { useSyncConflictNotices } from "./sync-conflict-notices";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { bindingFor, useGlobalShortcuts } from "./global-shortcuts";
-import { EditorColumn } from "@repo/editor/editor-column";
 import { hideFindBar, jumpToFindMatch, openFindBar } from "@repo/editor/find-bar";
 import { getLiveEditor, whenLiveEditor } from "@repo/editor/live-editor";
 import { collectHeadings, goToHeading } from "@repo/editor/toc";
 import type { HeadingItem } from "@repo/editor/toc";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import { openDocPath } from "@repo/editor/note/open-doc";
-import { backTarget, createOpenNoteStore, forwardTarget } from "@repo/editor/note/open-note-store";
+import { createOpenNoteStore, historyStep } from "@repo/editor/note/open-note-store";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
 import { exportNoteAsPdf } from "./note/export-pdf";
 import type { EditorHostActions, VaultActions } from "@repo/editor/host-io";
+import { ItemView } from "./item/item-view";
+import { runBulk } from "./library/bulk-actions";
+import { captureDir, savePayload } from "./library/capture/save-items";
+import { filesPayload } from "./library/capture/capture-payload";
+import type { CapturePayload } from "./library/capture/capture-payload";
+import { useWindowCapture } from "./library/capture/window-capture";
+import { NameDialog, TagDialog } from "./library/item-dialogs";
+import type { NameDialogRequest, TagDialogRequest } from "./library/item-dialogs";
+import type { LibraryItemActions } from "./library/item-menu";
+import { useLibraryScopes } from "./library/library-items";
+import type { LibraryFilter } from "./library/library-items";
+import { createLibrarySelection, selectionCount } from "./library/library-selection";
+import type { LibrarySelection } from "./library/library-selection";
+import { LibraryView, selectionPaths } from "./library/library-view";
+import { RenameTagDialog } from "./library/rename-tag-dialog";
 import { readNoteViewContext } from "./note/note-view-context";
+import { retagItems } from "./note/item-frontmatter";
 import { setNotePinned } from "./note/pin-note";
 import type { PinNoteApi } from "./note/pin-note";
 import { VaultProvider } from "./note/vault-provider";
@@ -50,18 +74,18 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   canSyncNow,
   useSyncNow,
-  untitledNotePath,
   usePinnedPaths,
   useVaultStatus,
   useVaultTree,
 } from "./vault-hooks";
 import { PREFS, readPref, usePref, writePref } from "./prefs";
 import { hasInsetTitleBar } from "./title-bar";
+import { useWorkspace } from "./workspace-context";
 
 export interface WorkspaceProps {
-  // read once, at boot: after that the note store owns the open note and `onOpenNote` mirrors it
-  bootNote: string | null;
-  onOpenNote: (path: string | null) => void;
+  // read once, at boot: after that the note store owns the open item and `onOpenItem` mirrors it
+  bootItem: string | null;
+  onOpenItem: (path: string | null) => void;
   // another surface draws over the workspace: it goes inert and its window-level chords stand
   // down. Its root isolates the z-indices inside, so a later sibling covers every one of them.
   covered: boolean;
@@ -70,7 +94,13 @@ export interface WorkspaceProps {
 const EMPTY_ENTRIES: readonly VaultEntry[] = [];
 const EMPTY_THREADS: readonly Thread[] = [];
 
-// what the panel is asked to show; a comments reveal with no focus keeps the last one
+// a bulk delete this large asks first; any fewer go at once, each recoverable from Deleted
+const DELETE_ASKS_OVER = 50;
+
+// the most selected paths a files-changed frame looks up at once to prune the selection
+const PRUNE_LOOKUP_MAX = 200;
+
+// what the panel is asked to show; an annotations reveal with no focus keeps the last one
 type PanelReveal =
   | { tab: "actions"; threadId: string }
   | { tab: "annotations"; focus?: readonly string[] }
@@ -108,10 +138,94 @@ const setPinned = (path: string, pinned: boolean): void => {
   void pinAndReport(client, path, pinned);
 };
 
-export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => {
+const isNonEmpty = (paths: readonly string[]): paths is readonly [string, ...string[]] =>
+  paths.length > 0;
+
+// a stored folder scope the library no longer lists reads as every item
+const listedScope = (
+  scope: LibraryScope,
+  folders: readonly { path: string }[] | undefined,
+): LibraryScope =>
+  scope.kind === "folder" &&
+  folders !== undefined &&
+  !folders.some((folder) => folder.path === scope.path)
+    ? { kind: "all" }
+    : scope;
+
+type ItemsRefreshInput = z.input<typeof itemsRefreshRequestSchema>;
+
+// "Keep a copy of the page" and "Refresh from the page", the same calls wherever they appear
+const refreshItem = async (
+  path: string,
+  change: { keepCopy?: true; replace?: true },
+): Promise<void> => {
+  if (change.replace === true) {
+    const confirmed = await confirm({
+      body: "Its text is read again from the page, and what was saved is replaced.",
+      confirmLabel: "Replace",
+      destructive: true,
+      title: "Replace the saved text with the page as it is now?",
+    });
+    if (!confirmed) {
+      return;
+    }
+  }
+  const request: ItemsRefreshInput = { path, wait: false };
+  if (change.keepCopy === true) {
+    request.keepCopy = true;
+    request.text = "keep";
+  }
+  if (change.replace === true) {
+    request.text = "replace";
+  }
+  try {
+    await client.items.refresh(request);
+    toast.success(
+      change.keepCopy === true ? "Keeping a copy of the page" : "Reading the page again",
+    );
+  } catch (error) {
+    failed(error, "The page couldn't be read again.");
+  }
+};
+
+// what the panel is about: the open item, else one selected item, else the selection, else the scope
+const panelSubjectOf = (
+  openPath: string | null,
+  selected: LibrarySelection,
+  scope: LibraryScope,
+): PanelSubject => {
+  if (openPath !== null) {
+    return { kind: "item", path: openPath };
+  }
+  const [only] = selected.selected;
+  if (!selected.all && selected.selected.size === 1 && only !== undefined) {
+    return { kind: "item", path: only };
+  }
+  if (selected.all || selected.selected.size > 1) {
+    return { all: selected.all, kind: "selection", paths: [...selected.selected], scope };
+  }
+  return { kind: "scope", scope };
+};
+
+// a viewer's original is no doc: ⌘K and the panel's doc tabs bind to docs alone
+const docOf = (path: string | null): string | null =>
+  path !== null && isDocPath(path) ? path : null;
+
+// a free name for a new note in `folder`, against the listing the rail holds
+const untitledIn = (folder: string, taken: readonly string[]): string => {
+  let name = "Untitled";
+  for (let n = 2; taken.includes(joinPath(folder, `${name}.md`)); n += 1) {
+    name = `Untitled ${String(n)}`;
+  }
+  return joinPath(folder, `${name}.md`);
+};
+
+export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => {
   const queryClient = useQueryClient();
+  const { vaultChanges } = useWorkspace();
   const treeQuery = useVaultTree();
   const statusQuery = useVaultStatus();
+  const scopesQuery = useLibraryScopes();
 
   // Each open is a fresh request, keyed by its nonce so the palette mounts clean. A close keeps
   // the last request mounted with `open` off, because unmounting the dialog cuts its exit tween;
@@ -131,7 +245,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [insetTitleBar] = useState(hasInsetTitleBar);
 
-  // The action surface's state lives beside the note, never above it, so no
+  // The action surface's state lives beside the item, never above it, so no
   // agent interaction can remount the editor.
   const threadsQuery = useThreads();
   const [composerOpen, setComposerOpen] = useState(false);
@@ -143,8 +257,37 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   const openPath = useStore(noteStore.store, (state) => state.openPath);
   // Trails `openPath` across a switch; the annotation tint keys on it.
   const loadedPath = useStore(noteStore.store, (state) => openDocPath(state.openDoc));
-  const back = useStore(noteStore.store, backTarget);
-  const forward = useStore(noteStore.store, forwardTarget);
+  const back = useStore(noteStore.store, (state) => historyStep(state, "back")?.to);
+  const forward = useStore(noteStore.store, (state) => historyStep(state, "forward")?.to);
+  const openDoc = docOf(openPath);
+
+  // CLAUDE.md § THE GRID'S SELECTION IS A STORE: made once here, with the grid's scroll, so the
+  // library unmounting under an open item finds both as it left them
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
+  const [selection] = useState(createLibrarySelection);
+  // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
+  const [scrollMemory] = useState(() => createStore<number>()(() => 0));
+  const selected = useStore(selection.store);
+  const [storedScope, storeScope] = usePref(PREFS.libraryScope);
+  const scope = listedScope(storedScope, scopesQuery.data?.folders);
+  const [kind, setKind] = useState<ItemKind | null>(null);
+  const [q, setQ] = useState<string | null>(null);
+  const [sort, setSort] = usePref(PREFS.librarySort);
+  const libraryFilter: LibraryFilter | null =
+    scope.kind === "deleted" ? null : { kind, q, scope, sort };
+
+  // a new scope is a new listing: the selection, the chip, the search and the scroll go with it
+  const setScope = useCallback(
+    (next: LibraryScope): void => {
+      storeScope(next);
+      setKind(null);
+      setQ(null);
+      selection.apply({ kind: "clear" });
+      scrollMemory.setState(0, true);
+    },
+    [storeScope, selection, scrollMemory, setKind, setQ],
+  );
+
   // walked as the headings page opens, never in render: nothing re-renders the workspace when the
   // document changes.
   const listOpenHeadings = (): readonly HeadingItem[] => {
@@ -155,9 +298,9 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   const [panelThreadId, setPanelThreadId] = useState<string | null>(null);
 
   const [panelOpen, setPanelOpen] = usePref(PREFS.panelOpen);
-  const [panelTab, setPanelTab] = useState<PanelTab>("actions");
+  const [panelTab, setPanelTab] = useState<PanelTab>("info");
   // Here, not in the panel: the top bar's badge counts while the panel is collapsed.
-  const annotationsQuery = useNoteAnnotations(openPath);
+  const annotationsQuery = useNoteAnnotations(openDoc);
   const annotationCount = annotationsQuery.data?.total ?? 0;
 
   useNoteAnnotationMeta(loadedPath);
@@ -183,6 +326,11 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   // state only its provider holds
   const railActionsRef = useRef<SidebarActions | null>(null);
   const panelActionsRef = useRef<SidebarActions | null>(null);
+  // held by hand: the top bars take it inside an object, where the compiler cannot see it is only
+  // ever a click's
+  const toggleRail = useCallback((): void => {
+    railActionsRef.current?.toggle();
+  }, []);
 
   const [annotationFocus, setAnnotationFocus] = useState<AnnotationFocus | null>(null);
   // One verb for every entry that shows something in the panel: it starts closed, so an entry
@@ -198,7 +346,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
         setAnnotationFocus((current) => ({ ids, nonce: (current?.nonce ?? 0) + 1 }));
       }
     },
-    [showPanel],
+    [showPanel, setPanelTab, setPanelThreadId],
   );
 
   const openThread = (threadId: string): void => {
@@ -227,58 +375,101 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
   const actionsRef = useRef<VaultActions | null>(null);
   const noteColumnRef = useRef<HTMLElement | null>(null);
   // Ordinary opens, Back and Forward included: the store's stacks recognize a back/forward move
-  // by value.
+  // by value, and `null` is the library.
   // held by hand, as showHistory is: VaultProvider re-points its merge-conflict toast in an effect
-  const setOpenNote = useCallback((path: string | null): void => {
+  const openItem = useCallback((path: string | null): void => {
     if (path === null) {
+      actionsRef.current?.closeFile();
       return;
     }
     actionsRef.current?.openFile(path);
   }, []);
 
+  // CLAUDE.md § THE NOTE STORE OWNS THE OPEN ITEM: nothing open is the library, so going back to
+  // it is closing the item, and naming a scope narrows it on the way
+  const goToLibrary = useCallback(
+    (next?: LibraryScope): void => {
+      if (next !== undefined) {
+        setScope(next);
+      }
+      actionsRef.current?.closeFile();
+    },
+    [setScope],
+  );
+
+  // Back and Forward over the one history, where `null` is the library
+  const stepHistory = (direction: "back" | "forward"): void => {
+    const step = historyStep(noteStore.state(), direction);
+    if (step !== null) {
+      openItem(step.to);
+    }
+  };
+
   const showHistory = useCallback(
     (path: string): void => {
-      setOpenNote(path);
+      openItem(path);
       revealPanel({ tab: "history" });
     },
-    [setOpenNote, revealPanel],
+    [openItem, revealPanel],
   );
 
   useTurnFinishToast(showHistory);
-  useSyncConflictNotices(setOpenNote);
+  useSyncConflictNotices(openItem);
+
+  // a files-changed frame that took a selected item away takes it out of the selection
+  useEffect(
+    () =>
+      vaultChanges.subscribe((event) => {
+        if (event.kind !== "files" || event.paths === null) {
+          return;
+        }
+        const chosen = selection.store.getState().selected;
+        const touched = event.paths.filter((path) => chosen.has(path)).slice(0, PRUNE_LOOKUP_MAX);
+        if (touched.length === 0) {
+          return;
+        }
+        void (async () => {
+          try {
+            const { items } = await client.knowledge.itemsAt({ paths: touched });
+            const still = new Set(items.map((row) => row.path));
+            selection.apply({
+              gone: new Set(touched.filter((path) => !still.has(path))),
+              kind: "prune",
+            });
+          } catch {
+            // the next change looks again
+          }
+        })();
+      }),
+    [vaultChanges, selection],
+  );
 
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [initialSidebarWidth] = useState(() => `${String(readPref(PREFS.sidebarWidth))}px`);
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [initialPanelWidth] = useState(() => `${String(readPref(PREFS.panelWidth))}px`);
-  // the rail's view and its tag, owned here for the same reason: a `#tag` chip deep in the note
-  // sets both, and it reaches the shell through the editor host's `showTag`
-  const [railView, chooseRailView] = usePref(PREFS.railView);
-  // The breadcrumb's ask, keyed by a nonce so naming the same folder twice reveals it twice; the
-  // tree consumes it, so the rail shows Files first. The nonce is counted here rather than off
-  // the ask, which is cleared once the tree has focused it.
-  const [reveal, setReveal] = useState<{ path: string; nonce: number } | null>(null);
-  const revealNonce = useRef(0);
-  const revealInTree = (path: string): void => {
-    chooseRailView("files");
-    revealNonce.current += 1;
-    setReveal({ nonce: revealNonce.current, path });
-  };
-  // held by hand: the tree's focus effect re-runs on its identity
-  const clearReveal = useCallback((): void => {
-    setReveal(null);
-  }, []);
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [renamingTag, setRenamingTag] = useState<string | null>(null);
+  const [tagRequest, setTagRequest] = useState<TagDialogRequest | null>(null);
+  const [nameRequest, setNameRequest] = useState<NameDialogRequest | null>(null);
+  const addFilesRef = useRef<HTMLInputElement | null>(null);
 
+  // a note the page makes says when it came in, as every item the app makes does
   const createNote = async (path: string): Promise<void> => {
-    await actionsRef.current?.createFile(path);
+    const made = await actionsRef.current?.createFileAt(
+      path,
+      composeItemFile({ saved: formatItemTime(Date.now()) }, ""),
+    );
+    if (made !== null && made !== undefined) {
+      openItem(made);
+    }
   };
 
-  const newUntitledNote = (parentDir: string): void => {
-    void createNote(untitledNotePath(parentDir, treeQuery.data));
+  const newNoteIn = (folder: string): void => {
+    const taken = (treeQuery.data?.entries ?? []).map((entry) => entry.path);
+    void createNote(untitledIn(folder, taken));
   };
 
-  // the live editor is keyed by path, so a note mid-switch answers no editor and the bar stays shut
+  // the live editor is keyed by path, so an item mid-switch answers no editor and the bar stays shut
   const findInNote = (): void => {
     const editor = openLiveEditor(noteStore);
     if (editor !== null) {
@@ -286,22 +477,152 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
     }
   };
 
-  // the note opens first; the find bar takes the match once its editor is live
+  // the item opens first; the find bar takes the match once its editor is live
   const openMatch = (match: VaultMatchWire, needle: string, options: TextMatchOptions): void => {
-    setOpenNote(match.path);
+    openItem(match.path);
     void jumpWhenLive(match.path, needle, match.ordinal, options);
   };
 
   const { syncNow, inFlight: syncInFlight } = useSyncNow();
 
   const pinnedPaths = usePinnedPaths();
-  const openPinned = openPath !== null && pinnedPaths.has(openPath);
+  const openPinned = openDoc !== null && pinnedPaths.has(openDoc);
 
   const treeOps = useTreeOps({
     actions: actionsRef,
     createNote,
     setPinned,
   });
+
+  const saveInto = (payload: CapturePayload, folder: string): void => {
+    void savePayload(payload, folder, { open: openItem });
+  };
+
+  const { catcherRef, dropInto } = useWindowCapture({
+    dirFor: () => captureDir(scope),
+    enabled: !covered,
+    onCapture: saveInto,
+  });
+
+  const moveItems = (paths: readonly string[], toDir: string): void => {
+    void runBulk({
+      chunk: 1,
+      done: (count) =>
+        `Moved ${plural(count, "item")} to ${toDir === "" ? "the library" : basenamePath(toDir)}`,
+      items: paths,
+      run: async ([path]) => {
+        if (path !== undefined) {
+          await treeOps.moveEntry(path, toDir);
+        }
+      },
+      verb: "Moving",
+    });
+  };
+
+  const removeItems = (paths: readonly string[]): void => {
+    void (async () => {
+      if (paths.length > DELETE_ASKS_OVER) {
+        const confirmed = await confirm({
+          body: "Every one stays recoverable from Deleted.",
+          confirmLabel: "Delete",
+          destructive: true,
+          title: `Delete ${plural(paths.length, "item")}?`,
+        });
+        if (!confirmed) {
+          return;
+        }
+      }
+      await runBulk({
+        chunk: 1,
+        done: (count) => `Deleted ${plural(count, "item")}`,
+        items: paths,
+        run: async ([path]) => {
+          if (path !== undefined) {
+            await actionsRef.current?.deleteEntry(path);
+          }
+        },
+        verb: "Deleting",
+      });
+      selection.apply({ gone: new Set(paths), kind: "prune" });
+    })();
+  };
+
+  const itemActions: LibraryItemActions = {
+    askAgent: () => {
+      setComposerSeed(null);
+      setComposerOpen(true);
+    },
+    keepCopy: (path) => {
+      void refreshItem(path, { keepCopy: true });
+    },
+    move: (paths) => {
+      if (isNonEmpty(paths)) {
+        openPalette({ page: "move-to-folder", subjects: paths });
+      }
+    },
+    open: (path) => {
+      openItem(path);
+    },
+    // the grid draws its own Quick Look; from anywhere else the item opens
+    quickLook: (path) => {
+      openItem(path);
+    },
+    refresh: (path, replace) => {
+      void refreshItem(path, replace ? { replace: true } : {});
+    },
+    remove: removeItems,
+    rename: (path) => {
+      const name = basenamePath(path);
+      const dot = name.lastIndexOf(".");
+      const stem = dot > 0 ? name.slice(0, dot) : name;
+      const extension = dot > 0 ? name.slice(dot) : "";
+      setNameRequest({
+        confirm: "Rename",
+        initial: stem,
+        label: "Name",
+        onSubmit: (next) => {
+          void treeOps.renameEntry(path, joinPath(dirnamePath(path), `${next}${extension}`));
+        },
+        title: `Rename ${stem}`,
+      });
+    },
+    reveal: treeOps.revealEntry ?? null,
+    setPinned,
+    tag: (paths) => {
+      setTagRequest({ paths });
+    },
+  };
+
+  const infoActions: InfoActions = {
+    ...itemActions,
+    onRenameFolder: (path) => {
+      setNameRequest({
+        confirm: "Rename",
+        initial: basenamePath(path),
+        label: "Folder name",
+        onSubmit: (next) => {
+          void (async () => {
+            const to = joinPath(dirnamePath(path), next);
+            if (await treeOps.renameEntry(path, to)) {
+              setScope({ kind: "folder", path: to });
+            }
+          })();
+        },
+        title: `Rename ${basenamePath(path)}`,
+      });
+    },
+    onRenameTag: setRenamingTag,
+    withSelection: (run) => {
+      void (async () => {
+        const paths = await selectionPaths(selection, libraryFilter);
+        if (paths.length > 0) {
+          run(paths);
+        }
+      })();
+    },
+  };
+
+  const subject = panelSubjectOf(openPath, selected, scope);
 
   const navigate = useNavigate();
   // Settings covers a workspace that stays mounted, so no unmount settles a title mid-rename or
@@ -334,10 +655,10 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
           setComposerSeed(quoteSelection(selectionText));
           setComposerOpen(true);
         },
+        // a `#tag` chip shows the library scoped to the tag
         showTag: (tag) => {
           showRail(true);
-          chooseRailView("recent");
-          setSelectedTag(tag);
+          goToLibrary({ kind: "tag", tag });
         },
       },
       annotations: {
@@ -376,7 +697,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
         },
       },
     }),
-    [chooseRailView, showRail, noteStore, queryClient, revealPanel],
+    [goToLibrary, showRail, noteStore, queryClient, revealPanel],
   );
 
   useGlobalShortcuts({ enabled: !covered, modifier: shortcutModifier }, (action) => {
@@ -436,59 +757,57 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
         goToHeading(editor, heading);
       }
     },
-    moveNote: treeOps.moveEntry,
-    newNote: newUntitledNote,
+    moveItems,
+    newNote: newNoteIn,
     note:
-      openPath === null
+      openDoc === null
         ? null
         : {
             exportPdf: () => {
-              void exportNoteAsPdf(docStem(openPath));
+              void exportNoteAsPdf(docStem(openDoc));
             },
             findInNote,
             listHeadings: listOpenHeadings,
-            path: openPath,
+            path: openDoc,
             pinned: openPinned,
             togglePin: () => {
-              setPinned(openPath, !openPinned);
+              setPinned(openDoc, !openPinned);
             },
           },
     openDeletedNotes: () => {
-      chooseRailView("deleted");
+      goToLibrary({ kind: "deleted" });
     },
     openMatch,
-    openNote: setOpenNote,
+    openNote: openItem,
     openSettings: () => {
       onOpenSettings();
     },
     openThread,
+    saveLink: (url) => {
+      saveInto({ files: [], refused: [], urls: [{ title: null, url }] }, captureDir(scope));
+    },
     syncNow,
-  };
-
-  const noteMetadata = {
-    deleteNote: () => {
-      const { openPath: path } = noteStore.state();
-      if (path !== null) {
-        treeOps.removeEntry(path, "file");
-      }
-    },
-    openDeletedNotes: () => {
-      chooseRailView("deleted");
-    },
-    setPinned: (pinned: boolean) => {
-      const { openPath: path } = noteStore.state();
-      if (path !== null) {
-        setPinned(path, pinned);
-      }
-    },
   };
 
   const threads = threadsQuery.data ?? EMPTY_THREADS;
 
+  const lead = {
+    canBack: back !== undefined,
+    canForward: forward !== undefined,
+    onBack: () => {
+      stepHistory("back");
+    },
+    onForward: () => {
+      stepHistory("forward");
+    },
+    onToggleRail: toggleRail,
+    railOpen: railOpen && !zen,
+  };
+
   return (
     <VaultProvider
-      initialPath={bootNote}
-      onOpenPath={onOpenNote}
+      initialPath={bootItem}
+      onOpenPath={onOpenItem}
       onShowHistory={showHistory}
       actionsRef={actionsRef}
       hostActions={hostActions}
@@ -509,18 +828,16 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
         >
           <Sidebar variant="floating" className="h-full print:hidden">
             <SidebarRailContent
-              openPath={openPath}
-              onOpenFile={setOpenNote}
+              scope={scope}
+              itemOpen={openPath !== null}
+              onScope={goToLibrary}
               ops={treeOps}
-              onMoveRequest={(path) => {
-                openPalette({ page: "move-to-folder", subject: path });
+              onMoveRequest={(paths) => {
+                openPalette({ page: "move-to-folder", subjects: paths });
               }}
-              view={railView}
-              onViewChange={chooseRailView}
-              selectedTag={selectedTag}
-              onSelectTag={setSelectedTag}
-              reveal={reveal}
-              onRevealConsumed={clearReveal}
+              onNewNoteIn={newNoteIn}
+              onSaveInto={saveInto}
+              onRenameTag={setRenamingTag}
               onOpenSearch={() => {
                 openPalette({ page: "root" });
               }}
@@ -542,46 +859,77 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
               width={initialPanelWidth}
             >
               <SidebarInset ref={noteColumnRef} className="relative bg-surface">
-                {zen ? null : (
-                  <NoteTopbar
-                    path={openPath}
-                    railOpen={railOpen && !zen}
-                    onToggleRail={() => {
-                      railActionsRef.current?.toggle();
+                {openPath === null ? (
+                  <LibraryView
+                    scope={scope}
+                    kind={kind}
+                    onKindChange={(next) => {
+                      setKind(next);
+                      selection.apply({ kind: "clear" });
+                      scrollMemory.setState(0, true);
                     }}
+                    q={q}
+                    onClearQuery={() => {
+                      setQ(null);
+                    }}
+                    sort={sort}
+                    onSortChange={setSort}
+                    selection={selection}
+                    scrollMemory={scrollMemory}
+                    lead={lead}
                     insetTitleBar={insetTitleBar}
-                    canBack={back !== null}
-                    canForward={forward !== null}
-                    onBack={() => {
-                      setOpenNote(back);
+                    add={{
+                      addFiles: () => {
+                        addFilesRef.current?.click();
+                      },
+                      newFolder: () => {
+                        const parent = scope.kind === "folder" ? scope.path : "";
+                        setNameRequest({
+                          confirm: "Create",
+                          initial: "",
+                          label: "Folder name",
+                          onSubmit: (name) => {
+                            treeOps.createFolder(joinPath(parent, name));
+                          },
+                          title: "New folder",
+                        });
+                      },
+                      newNote: newNoteIn,
+                      saveLink: () => {
+                        openPalette({ page: "save-link" });
+                      },
                     }}
-                    onForward={() => {
-                      setOpenNote(forward);
-                    }}
+                    onRenameTag={setRenamingTag}
+                    actions={itemActions}
+                    onRestored={openItem}
+                  />
+                ) : (
+                  <ItemView
+                    store={noteStore}
+                    lead={lead}
+                    insetTitleBar={insetTitleBar}
+                    zen={zen}
+                    onGoToLibrary={goToLibrary}
                     onFindInNote={findInNote}
-                    onOpenFolder={(folder) => {
-                      revealInTree(folder);
-                      showRail(true);
-                    }}
                     annotationCount={annotationCount}
                     onOpenAnnotations={() => {
                       revealPanel({ tab: "annotations" });
                     }}
                     onExportPdf={() => {
-                      const { openPath: path } = noteStore.state();
-                      if (path !== null) {
-                        exportNoteAsPdf(docStem(path));
+                      if (openDoc !== null) {
+                        exportNoteAsPdf(docStem(openDoc));
                       }
                     }}
                   />
                 )}
-                <div
-                  data-editor-scroller=""
-                  className="min-h-0 flex-1 overflow-y-auto print:overflow-visible"
-                >
-                  <EditorColumn />
-                </div>
-                {zen ? null : <NoteFooter path={openPath} />}
+                {dropInto === null ? null : (
+                  <div
+                    aria-live="polite"
+                    className="pointer-events-none absolute inset-3 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/50 bg-surface/80 text-title font-medium text-ink"
+                  >
+                    Drop to save to {basenamePath(dropInto)}
+                  </div>
+                )}
                 <ActionComposer
                   open={composerOpen}
                   onOpenChange={(next) => {
@@ -592,7 +940,7 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
                     }
                   }}
                   seed={composerSeed}
-                  docPath={openPath}
+                  docPath={openDoc}
                   readViewContext={readViewContext}
                   onLaunched={openThread}
                   container={noteColumnRef}
@@ -600,14 +948,16 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
               </SidebarInset>
               <Sidebar side="right" className="h-full print:hidden">
                 <ActionsPanel
-                  docPath={openPath}
+                  docPath={openDoc}
                   tab={panelTab}
                   onTabChange={setPanelTab}
                   annotationFocus={annotationFocus}
                   selectedThreadId={panelThreadId}
                   onSelectThread={setPanelThreadId}
-                  onOpenDoc={setOpenNote}
-                  noteMetadata={noteMetadata}
+                  onOpenDoc={openItem}
+                  subject={subject}
+                  selectionCount={selectionCount(selected, scopesQuery.data?.total ?? 0)}
+                  infoActions={infoActions}
                   modifier={shortcutModifier}
                 />
               </Sidebar>
@@ -632,6 +982,54 @@ export const Workspace = ({ bootNote, onOpenNote, covered }: WorkspaceProps) => 
           )}
         </SidebarProvider>
       </div>
+      <textarea
+        ref={catcherRef}
+        aria-hidden
+        tabIndex={-1}
+        className="pointer-events-none fixed -top-full left-0 size-px opacity-0"
+      />
+      <input
+        ref={addFilesRef}
+        type="file"
+        multiple
+        hidden
+        aria-label="Add files"
+        onChange={(event) => {
+          const files = [...(event.currentTarget.files ?? [])];
+          event.currentTarget.value = "";
+          if (files.length > 0) {
+            saveInto(filesPayload(files), captureDir(scope));
+          }
+        }}
+      />
+      <TagDialog
+        request={tagRequest}
+        onClose={() => {
+          setTagRequest(null);
+        }}
+        onApply={(paths, change) => {
+          void retagItems(paths, change);
+        }}
+      />
+      <NameDialog
+        request={nameRequest}
+        onClose={() => {
+          setNameRequest(null);
+        }}
+      />
+      <RenameTagDialog
+        tag={renamingTag}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenamingTag(null);
+          }
+        }}
+        onRenamed={(from, to) => {
+          if (scope.kind === "tag" && scope.tag === from) {
+            storeScope({ kind: "tag", tag: to });
+          }
+        }}
+      />
     </VaultProvider>
   );
 };

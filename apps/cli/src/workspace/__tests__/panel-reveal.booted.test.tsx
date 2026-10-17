@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PREFS, readPref } from "@repo/workspace/app/prefs";
 import { bootWorkspace as bootWindow, chord, sidebarState } from "./boot-workspace";
+import type { BootWorkspaceOptions } from "./boot-workspace";
 
 const selectedTab = (): string | null =>
   screen.getAllByRole("tab").find((tab) => tab.getAttribute("aria-selected") === "true")
@@ -13,8 +14,16 @@ const selectedTab = (): string | null =>
 
 const bootWorkspace = async (
   seed?: (harness: ThreadHarness) => Promise<void>,
+  item?: string,
 ): Promise<ThreadHarness> => {
-  const harness = await bootWindow(seed === undefined ? {} : { seed });
+  const options: BootWorkspaceOptions = {};
+  if (seed !== undefined) {
+    options.seed = seed;
+  }
+  if (item !== undefined) {
+    options.item = item;
+  }
+  const harness = await bootWindow(options);
   expect(sidebarState("right")).toBe("collapsed");
   return harness;
 };
@@ -74,7 +83,7 @@ describe("an entry that shows something in the closed panel", () => {
     });
   });
 
-  it("leaves zen for an annotation click, onto the Comments tab", async () => {
+  it("leaves zen for an annotation click, onto the Annotations tab", async () => {
     await bootWorkspace();
     fireEvent.keyDown(window, chord("\\"));
     await waitFor(() => {
@@ -89,7 +98,7 @@ describe("an entry that shows something in the closed panel", () => {
       expect(sidebarState("right")).toBe("expanded");
     });
     expect(sidebarState("left")).toBe("expanded");
-    expect(selectedTab()).toBe("Comments");
+    expect(selectedTab()).toBe("Annotations");
     expect(readPref(PREFS.panelOpen)).toBe(true);
   });
 });
@@ -103,7 +112,7 @@ describe("a save that kept this device's lines over a change made elsewhere", ()
         guard: { kind: "overwrite" },
         path: note,
       });
-    });
+    }, note);
     await screen.findByText("intro");
 
     await harness.client.vault.write({

@@ -14,7 +14,7 @@ import { readFrontmatterRaw, writeFrontmatterRaw } from "@repo/editor/properties
 import { PropertiesPanel } from "@repo/editor/properties/properties-panel";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
-import { InlineProperties } from "../metadata-tab";
+import { InlineProperties } from "../info-tab";
 
 beforeEach(() => {
   installFakeEditorHost();
@@ -23,6 +23,8 @@ afterEach(cleanup);
 
 const PATH = "note.md";
 const NOTE = "---\ntitle: Note\ndone: false\n---\n\nbody\n";
+const ITEM =
+  "---\nid: 7d2f9e40\nkind: link\nurl: https://example.com/\nsaved: 2026-10-17T09:12:30Z\nmood: calm\n---\n\nbody\n";
 
 const mountEditor = (onChange = vi.fn<(markdown: string) => void>()) =>
   render(
@@ -63,7 +65,7 @@ const toggle = async (key: string): Promise<void> => {
   });
 };
 
-describe("the Metadata tab's properties", () => {
+describe("Info's more properties", () => {
   it("runs the panel as the compiler emits it", () => {
     expect(
       PropertiesPanel.toString(),
@@ -73,10 +75,10 @@ describe("the Metadata tab's properties", () => {
 
   it("mounts the panel when the note's editor registers after the section drew", () => {
     mountSection();
-    expect(screen.getByText("Open the note to edit properties.")).toBeTruthy();
+    expect(screen.getByText("Open the item to edit properties.")).toBeTruthy();
     mountEditor();
     expect(screen.getByRole("textbox", { name: "title" })).toBeTruthy();
-    expect(screen.queryByText("Open the note to edit properties.")).toBeNull();
+    expect(screen.queryByText("Open the item to edit properties.")).toBeNull();
   });
 
   it("keeps every edit when several land in a row", async () => {
@@ -116,5 +118,18 @@ describe("the Metadata tab's properties", () => {
       fireEvent.blur(title);
     });
     expect(readFrontmatterRaw(liveEditor())).toBe("title: Renamed\ndone: false\npinned: true");
+  });
+
+  it("hides the item's own keys and its id, which Info shows, and keeps every other", () => {
+    render(
+      <OpenNoteStoreProvider store={createOpenNoteStore()}>
+        <MarkdownEditor path={PATH} value={ITEM} onChange={vi.fn<(markdown: string) => void>()} />
+      </OpenNoteStoreProvider>,
+    );
+    mountSection();
+    expect(screen.getByRole("textbox", { name: "mood" })).toBeTruthy();
+    for (const key of ["id", "kind", "url", "saved"]) {
+      expect(screen.queryByRole("textbox", { name: key })).toBeNull();
+    }
   });
 });

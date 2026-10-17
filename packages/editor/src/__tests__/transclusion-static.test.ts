@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { BASE_KIT } from "@repo/editor/kits/base-kit";
-import { STATIC_COMPONENTS } from "@repo/editor/transclusion";
+import { STATIC_COMPONENTS } from "@repo/editor/static-note";
 
 const pluginKeys = new Set(BASE_KIT.map((plugin) => String(plugin.key)));
 

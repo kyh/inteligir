@@ -9,6 +9,9 @@ A LIBRARY AHEAD OF ITS CONSUMERS: `packages/ui/src/ai` holds components no
 surface draws on yet, kept by owner decision and listed one by one in
 `AWAITING_CONSUMER` (`tools/repo-guards/src/ui-package.ts`), which the
 per-export orphan guard reads, so one more unconsumed export still fails.
+`selection-actions` has its consumer, the library's selection strip, and left
+the list. `components/card-grid.tsx`, `media-card.tsx` and `toggle-group.tsx`
+are the library's grid, its cards and its kind chips.
 
 ## Editor and dialect
 
@@ -33,7 +36,11 @@ per-export orphan guard reads, so one more unconsumed export still fails.
   (`apps/workspace/src/app/actions/action-composer.tsx` says why). The selection
   toolbar (`packages/editor/src/selection-toolbar.tsx`) is the one exception:
   with no open/dismiss lifecycle, a Popover would still need its
-  selection-driven `open` and its `frozen` hold.
+  selection-driven `open` and its `frozen` hold. Quick Look is a `Dialog`
+  (`apps/workspace/src/app/library/quick-look.tsx`), so its dismissal and the
+  focus it hands back are the primitive's; the window's drop layer and the
+  library's selection strip are in flow, not floating, because neither has an
+  anchor to position against or a dismissal of its own.
 
 - **THE CHROME HAS FIVE TYPE ROLES, AND THEY ARE FLUID'S LADDER.** caption 11,
   body 12, subtitle 13, title 15, display 24 — the compact column of `typeScale`
@@ -81,3 +88,15 @@ per-export orphan guard reads, so one more unconsumed export still fails.
   list (`packages/ui/src/components/__tests__/row-registry.test.tsx`).
   `react/rule-suppression` refuses a new `exhaustive-deps` or `rules-of-hooks`
   suppression, the ones the compiler bails on.
+
+- **THE CARD GRID IS VIRTUALIZED BY UNIFORM ROWS, AND ITS ONE COMPONENT IS THE
+  REACT COMPILER'S ONE EXCEPTION.** Every cell is `cellHeight(cellWidth)` tall,
+  so nothing is measured: the columns and the row pitch derive from the width
+  alone, a resize re-derives both, and a 10,000-item scope mounts a screenful
+  of rows (`packages/ui/src/components/card-grid.tsx`). `useVirtualizer` is a
+  mutable instance read in render, which the compiler knows as incompatible and
+  skips, so the grid is the one component it skips and the cells it renders are
+  children the compiler does compile; the workspace build's diagnostic names
+  that file alone. Rejected: masonry, whose heights must be measured before a
+  row is placed and jump as covers load; hand-rolled windowing, a second
+  virtualizer to keep right; virtua, a second library for one grid.

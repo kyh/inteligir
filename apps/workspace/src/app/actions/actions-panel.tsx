@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui/components/ta
 import type { Thread } from "@repo/contract/local/threads/threads-schema";
 import { Button } from "@repo/ui/components/button";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
-import { useState } from "react";
 import type { UseInfiniteQueryResult } from "@tanstack/react-query";
 
 import { useSignedOutHarness } from "../agents/agent-hooks";
@@ -19,21 +18,21 @@ import { THREAD_ACTIVITY_LABELS, threadActivity } from "../thread-activity";
 import type { ThreadActivity } from "../thread-activity";
 import { useNoteThreads, useThreads } from "./thread-hooks";
 import { ActionDetail } from "./action-detail";
-import { NoteMetadataTab } from "./metadata-tab";
-import type { NoteMetadataActions } from "./metadata-tab";
+import { InfoTab } from "./info-tab";
+import type { InfoActions, PanelSubject } from "./info-tab";
 import { AnnotationsTab } from "./annotations-tab";
 import type { AnnotationFocus } from "./annotations-tab";
 import { HistoryTab } from "./history-tab";
 import { bindingFor } from "../global-shortcuts";
 
-export type PanelTab = "actions" | "annotations" | "history" | "metadata";
+export type PanelTab = "info" | "annotations" | "actions" | "history";
 
-const PANEL_TABS: readonly PanelTab[] = ["actions", "annotations", "history", "metadata"];
+const PANEL_TABS: readonly PanelTab[] = ["info", "annotations", "actions", "history"];
 const PANEL_TAB_LABELS = {
   actions: "Actions",
-  annotations: "Comments",
+  annotations: "Annotations",
   history: "History",
-  metadata: "Metadata",
+  info: "Info",
 } satisfies Record<PanelTab, string>;
 
 export interface ActionsPanelProps {
@@ -46,7 +45,10 @@ export interface ActionsPanelProps {
   selectedThreadId: string | null;
   onSelectThread: (threadId: string | null) => void;
   onOpenDoc: (path: string) => void;
-  noteMetadata: NoteMetadataActions;
+  // what Info is about, and the verbs it offers over it
+  subject: PanelSubject;
+  selectionCount: number;
+  infoActions: InfoActions;
 }
 
 // ⌘K would open on the sign-in while the default agent is signed out, so the list offers it here.
@@ -126,10 +128,11 @@ export const ActionsPanel = ({
   selectedThreadId,
   onSelectThread,
   onOpenDoc,
-  noteMetadata,
+  subject,
+  selectionCount,
+  infoActions,
   modifier,
 }: ActionsPanelProps) => {
-  const [propertiesOpen, setPropertiesOpen] = useState(true);
   const recentQuery = useThreads();
   const noteQuery = useNoteThreads(docPath);
   const recent = recentQuery.data ?? [];
@@ -162,13 +165,12 @@ export const ActionsPanel = ({
       <TabsContent value="history">
         <HistoryTab key={docPath} docPath={docPath} />
       </TabsContent>
-      <TabsContent value="metadata">
-        <NoteMetadataTab
-          docPath={docPath}
-          propertiesOpen={propertiesOpen}
-          onPropertiesOpenChange={setPropertiesOpen}
+      <TabsContent value="info">
+        <InfoTab
+          subject={subject}
+          selectionCount={selectionCount}
+          actions={infoActions}
           onOpenDoc={onOpenDoc}
-          actions={noteMetadata}
         />
       </TabsContent>
       <TabsContent value="actions">

@@ -73,7 +73,7 @@ export const defaultRequest: PaletteRequest = { nonce: 1, page: "root" };
 export const makeActions = () =>
   ({
     goToHeading: vi.fn<PaletteActions["goToHeading"]>(),
-    moveNote: vi.fn<PaletteActions["moveNote"]>(),
+    moveItems: vi.fn<PaletteActions["moveItems"]>(),
     newNote: vi.fn<PaletteActions["newNote"]>(),
     note: null,
     openDeletedNotes: vi.fn<PaletteActions["openDeletedNotes"]>(),
@@ -81,6 +81,7 @@ export const makeActions = () =>
     openNote: vi.fn<PaletteActions["openNote"]>(),
     openSettings: vi.fn<PaletteActions["openSettings"]>(),
     openThread: vi.fn<PaletteActions["openThread"]>(),
+    saveLink: vi.fn<PaletteActions["saveLink"]>(),
     syncNow: vi.fn<PaletteActions["syncNow"]>(),
   }) satisfies PaletteActions;
 

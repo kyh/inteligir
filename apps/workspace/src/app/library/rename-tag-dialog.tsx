@@ -1,3 +1,6 @@
+// A tag's rename, from the tag scope's header and the rail's tag rows alike: the link rename's
+// surgery over every item that holds the tag, its nested tags included.
+
 import { isTagName } from "@repo/notes/knowledge/tag-grammar";
 import { Button } from "@repo/ui/components/button";
 import {
@@ -11,47 +14,9 @@ import { Input } from "@repo/ui/components/input";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon, PencilIcon } from "lucide-react";
 import { useState } from "react";
 
 import { failed, orpc } from "../api";
-
-export interface TagScopeCount {
-  // how many of the family the listing holds, and how many there are
-  listed: number;
-  total: number;
-}
-
-// the count says when the list is cut, so a cut is never mistaken for the whole
-export const tagScopeCountLabel = ({ listed, total }: TagScopeCount): string =>
-  listed < total ? `${String(listed)} of ${String(total)}` : String(total);
-
-export const TagScopeHeader = ({
-  tag,
-  count,
-  onClear,
-  onRename,
-}: {
-  tag: string;
-  count: TagScopeCount | undefined;
-  onClear: () => void;
-  onRename: () => void;
-}) => (
-  <div className="flex items-center gap-1 py-1">
-    <Button variant="ghost" size="icon-compact" aria-label="Every note" onClick={onClear}>
-      <ArrowLeftIcon />
-    </Button>
-    <span className="min-w-0 flex-1 truncate text-subtitle font-medium">#{tag}</span>
-    {count === undefined ? null : (
-      <span className="shrink-0 text-caption text-muted-foreground tabular-nums">
-        {tagScopeCountLabel(count)}
-      </span>
-    )}
-    <Button variant="ghost" size="icon-compact" aria-label={`Rename ${tag}`} onClick={onRename}>
-      <PencilIcon />
-    </Button>
-  </div>
-);
 
 export const RenameTagDialog = ({
   tag,
@@ -77,7 +42,7 @@ export const RenameTagDialog = ({
       },
       onSuccess: (body) => {
         const count = body.rewritten.length;
-        toast.success(`Renamed #${body.from} to #${body.to} in ${plural(count, "note")}.`);
+        toast.success(`Renamed #${body.from} to #${body.to} in ${plural(count, "item")}.`);
         if (body.skipped.length > 0) {
           toast.warning(
             `Skipped ${body.skipped.map((skip) => skip.path).join(", ")}: changed while renaming.`,
@@ -97,7 +62,7 @@ export const RenameTagDialog = ({
         <DialogHeader>
           <DialogTitle>Rename tag</DialogTitle>
           <DialogDescription>
-            Every note holding #{tag} is rewritten, nested tags included. A note that changes
+            Every item holding #{tag} is rewritten, nested tags included. An item that changes
             mid-rename is skipped, never overwritten.
           </DialogDescription>
         </DialogHeader>

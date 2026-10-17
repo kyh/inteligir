@@ -12,6 +12,7 @@ import { InertSocket } from "@repo/workspace/test-support/inert-socket";
 import { WorkspaceProvider } from "@repo/workspace/app/workspace-context";
 import { ActionsPanel } from "@repo/workspace/app/actions/actions-panel";
 import { routePageFetch } from "./booted-fetch";
+import { panelInfo } from "./boot-workspace";
 
 afterEach(() => {
   cleanup();
@@ -46,7 +47,7 @@ const mountPanel = ({
         selectedThreadId={threadId}
         onSelectThread={noop}
         onOpenDoc={noop}
-        noteMetadata={{ deleteNote: noop, openDeletedNotes: noop, setPinned: noop }}
+        {...panelInfo()}
         modifier="meta"
       />
     </WorkspaceProvider>,

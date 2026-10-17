@@ -214,15 +214,8 @@ export const EditorColumn = () => {
     (s) => s.openDoc.kind === "markdown" && s.openDoc.surface.mode === "rich",
   );
 
-  if (kind === "none") {
-    return (
-      <div className="flex flex-1 items-center justify-center p-8 text-center text-subtitle text-muted-foreground">
-        Select a note to edit, or create one. The agent edits these same files.
-      </div>
-    );
-  }
-
-  if (kind === "loading" || docPath === null) {
+  // nothing open is the library, which the host draws in the column's place
+  if (kind === "none" || kind === "loading" || docPath === null) {
     return null;
   }
 

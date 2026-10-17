@@ -13,12 +13,14 @@ import type { Thread } from "@repo/contract/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
 import type { TextMatchOptions } from "@repo/notes/knowledge/text-matches";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
+import { isWebUrl } from "@repo/notes/items/item-url";
 import { platformShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import type { HeadingItem } from "@repo/editor/toc";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArchiveRestoreIcon,
+  BookmarkPlusIcon,
   FilePlusIcon,
   FileTextIcon,
   FolderIcon,
@@ -49,6 +51,7 @@ import {
   SEARCH_DEBOUNCE_MS,
   useDebounced,
 } from "./palette-page";
+import { SaveLinkPage } from "./save-link-page";
 import { SearchPage } from "./search-page";
 import { ShortcutsPage } from "./shortcuts-page";
 import { ThreadsPage } from "./threads-page";
@@ -66,13 +69,15 @@ export interface PaletteNote {
 
 export interface PaletteActions {
   openNote: (path: string) => void;
+  // a link the field holds, saved into the scope the library shows
+  saveLink: (url: string) => void;
   newNote: (parentDir: string) => void;
   openThread: (threadId: string) => void;
   syncNow: () => void;
   openSettings: () => void;
   openDeletedNotes: () => void;
   note: PaletteNote | null;
-  moveNote: (path: string, toDir: string) => void;
+  moveItems: (paths: readonly [string, ...string[]], toDir: string) => void;
   // `needle` and `options` are the search the row was listed by, so its ordinal counts among them
   openMatch: (match: VaultMatchWire, needle: string, options: TextMatchOptions) => void;
   goToHeading: (heading: HeadingItem) => void;
@@ -83,9 +88,9 @@ export interface PaletteActions {
 // outside the Plate provider and cannot subscribe to the document, so the outline is a snapshot
 // taken as the page opens, never a walk during render.
 export type PaletteEntry =
-  | { page: "root" | "search" }
+  | { page: "root" | "search" | "save-link" }
   | { page: "headings"; outline: readonly HeadingItem[] }
-  | { page: "move-to-folder"; subject: string };
+  | { page: "move-to-folder"; subjects: readonly [string, ...string[]] };
 
 // One channel for every way the palette opens. The workspace bumps `nonce` per open and keys the
 // palette on it, so each open mounts fresh and no state from the last open needs resetting.
@@ -117,6 +122,11 @@ const PAGE_CHROME: Record<Exclude<Page["page"], "move-to-folder">, PageChrome> =
     placeholder: "Search notes or commands…",
     title: "Command palette",
   },
+  "save-link": {
+    description: "Save a link to your library",
+    placeholder: "Paste a link to save…",
+    title: "Save link",
+  },
   search: {
     description: "Every match, with the line it sits on",
     placeholder: "Search across the vault…",
@@ -140,7 +150,10 @@ const pageChrome = (page: Page): PageChrome =>
     ? {
         description: "Pick the folder to move it into",
         placeholder: "Move to which folder?",
-        title: `Move ${basenamePath(page.subject)}`,
+        title:
+          page.subjects.length === 1
+            ? `Move ${basenamePath(page.subjects[0])}`
+            : `Move ${String(page.subjects.length)} items`,
       }
     : PAGE_CHROME[page.page];
 
@@ -207,9 +220,9 @@ const noteCommands = (note: PaletteNote, goTo: (next: Page) => void): StaticComm
     icon: <FolderInputIcon />,
     id: "move-note",
     keepOpen: true,
-    label: "Move note to folder…",
+    label: "Move to folder…",
     run: () => {
-      goTo({ page: "move-to-folder", subject: note.path });
+      goTo({ page: "move-to-folder", subjects: [note.path] });
     },
   },
 ];
@@ -221,6 +234,15 @@ const rootCommands = (
   canSync: boolean,
   goTo: (next: Page) => void,
 ): StaticCommand[] => [
+  {
+    icon: <BookmarkPlusIcon />,
+    id: "save-link",
+    keepOpen: true,
+    label: "Save link…",
+    run: () => {
+      goTo({ page: "save-link" });
+    },
+  },
   {
     icon: <FilePlusIcon />,
     id: "new-note",
@@ -356,9 +378,28 @@ export const CommandPalette = ({
         const visibleCommands = rootCommands(actions, canSync, goTo).filter((command) =>
           matchesQuery(command.label, query),
         );
+        const typedLink = query.trim();
         return (
           <PalettePage>
             <CommandEmpty>Nothing matches.</CommandEmpty>
+            {isWebUrl(typedLink) ? (
+              <CommandGroup heading="Link">
+                <CommandItem
+                  action="Save this link"
+                  onSelect={() => {
+                    run(() => {
+                      actions.saveLink(typedLink);
+                    });
+                  }}
+                >
+                  <BookmarkPlusIcon />
+                  Save this link
+                  <span className="ml-auto truncate pl-3 text-body text-muted-foreground">
+                    {typedLink}
+                  </span>
+                </CommandItem>
+              </CommandGroup>
+            ) : null}
             {noteHits.length > 0 ? (
               <CommandGroup heading="Notes">
                 {noteHits.map((hit) => (
@@ -486,17 +527,37 @@ export const CommandPalette = ({
           />
         );
       }
+      case "save-link": {
+        return (
+          <SaveLinkPage
+            open={open}
+            query={query}
+            onSave={(url) => {
+              run(() => {
+                actions.saveLink(url);
+              });
+            }}
+            onOpenItem={(path) => {
+              run(() => {
+                actions.openNote(path);
+              });
+            }}
+          />
+        );
+      }
       case "move-to-folder": {
-        const { subject } = page;
+        const { subjects } = page;
         return (
           <FolderPage
             empty="No folder it can move to."
             folders={["", ...folders].filter(
-              (dir) => planMove(subject, dir).ok && (dir === "" || matchesQuery(dir, query)),
+              (dir) =>
+                subjects.some((subject) => planMove(subject, dir).ok) &&
+                (dir === "" || matchesQuery(dir, query)),
             )}
             onPick={(dir) => {
               run(() => {
-                actions.moveNote(subject, dir);
+                actions.moveItems(subjects, dir);
               });
             }}
           />

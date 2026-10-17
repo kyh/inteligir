@@ -457,35 +457,35 @@ describe("the new-note-in-folder page", () => {
 describe("the move-to-folder page", () => {
   it("is offered for the open note and moves it into the picked folder", () => {
     const { actions, onOpenChange } = renderPalette({ note: makeNote("Welcome.md") });
-    fireEvent.click(rows().getByText("Move note to folder…"));
+    fireEvent.click(rows().getByText("Move to folder…"));
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
     fireEvent.click(rows().getByText("notes/daily"));
-    expect(actions.moveNote).toHaveBeenCalledWith("Welcome.md", "notes/daily");
+    expect(actions.moveItems).toHaveBeenCalledWith(["Welcome.md"], "notes/daily");
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it("hides the folder the note is already in, and the root when that is it", () => {
     renderPalette({ note: makeNote("Welcome.md") });
-    fireEvent.click(rows().getByText("Move note to folder…"));
+    fireEvent.click(rows().getByText("Move to folder…"));
     expect(rows().queryByText("Vault root")).toBeNull();
     expect(rows().getByText(/^notes$/u)).toBeDefined();
   });
 
   it("opens straight on the page for a requested entry, and hides its own subtree", () => {
     const { actions } = renderPalette({
-      request: { nonce: 1, page: "move-to-folder", subject: "notes" },
+      request: { nonce: 1, page: "move-to-folder", subjects: ["notes"] },
     });
     expect(screen.getByPlaceholderText("Move to which folder?")).toBeDefined();
     expect(rows().queryByText(/^notes$/u)).toBeNull();
     expect(rows().queryByText("notes/daily")).toBeNull();
     expect(rows().queryByText("Vault root")).toBeNull();
     expect(rows().getByText("No folder it can move to.")).toBeDefined();
-    expect(actions.moveNote).not.toHaveBeenCalled();
+    expect(actions.moveItems).not.toHaveBeenCalled();
   });
 
   it("is absent from the root page with no note open", () => {
     renderPalette();
-    expect(rows().queryByText("Move note to folder…")).toBeNull();
+    expect(rows().queryByText("Move to folder…")).toBeNull();
   });
 });
 

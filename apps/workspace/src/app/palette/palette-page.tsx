@@ -45,7 +45,7 @@ export interface FolderPageProps {
   onPick: (dir: string) => void;
 }
 
-// the one picker behind "New note in folder…" and "Move note to folder…"
+// the one picker behind "New note in folder…" and "Move to folder…"
 export const FolderPage = ({ empty, folders, onPick }: FolderPageProps) => (
   <PalettePage>
     <CommandEmpty>{empty}</CommandEmpty>

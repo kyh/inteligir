@@ -155,16 +155,19 @@ node is rather than discriminating structurally at each visit.
   `@repo/notes/knowledge/link-extract`); the index path emits no spans.
   `packages/notes/src/markdown/__tests__/total-grammar.test.ts`.
 
-- **A TAG IS A SCOPE ON THE RECENT LIST, NOT A VIEW; ITS NOTES ARE A LISTING,
+- **A TAG IS A SCOPE ON THE LIBRARY GRID, NOT A VIEW; ITS ITEMS ARE A LISTING,
   NOT A SEARCH; AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** No tag browser
   (owner decision): a `#tag` chip asks the shell through `showTag`
-  (`EditorHostActions`, `packages/editor/src/host-io.ts`), and the rail answers with Recent
-  scoped to the tag (`apps/workspace/src/app/sidebar/tagged-notes.tsx`).
-  `knowledge.tagNotes` answers the tag's family with the whole count, paged,
-  from the index alone, because the search route stops at its ceiling with no
-  sign of a cut; the family is one predicate, `notesInTagFamily`
-  (`@repo/notes/knowledge/tag-notes`). `knowledge.renameTag` splices a
-  frontmatter entry over its own yaml scalar
+  (`EditorHostActions`, `packages/editor/src/host-io.ts`), and the window answers
+  with the grid scoped to the tag, as a row of the rail's Tags group does
+  (`apps/workspace/src/app/sidebar/tag-list.tsx`,
+  `apps/workspace/src/app/library/library-view.tsx`). `knowledge.items({tag})`
+  answers the tag's family with the whole count, paged, from the index alone,
+  because the search route stops at its ceiling with no sign of a cut; the
+  family is one predicate, `notesInTagFamily` (`@repo/notes/knowledge/tag-notes`).
+  An item that is not a note takes its tags from its frontmatter alone, because a
+  saved page's hashtags are the page's, not the person's. `knowledge.renameTag`
+  splices a frontmatter entry over its own yaml scalar
   (`@repo/notes/markdown/frontmatter`), because re-serializing restyles a flow
   list and rewrites every line of a CRLF one, and every write is
   `writeIfUnchanged`, so a note that changed mid-rename is reported, never
@@ -172,7 +175,7 @@ node is rather than discriminating structurally at each visit.
   (`@repo/notes/knowledge/tag-grammar`, import-free so the contract loads no
   markdown parser). `@repo/notes/knowledge/rename-tags.ts`,
   `apps/cli/src/server/knowledge/rename-tag.ts`,
-  `apps/workspace/src/app/sidebar/tag-scope.tsx`.
+  `apps/workspace/src/app/library/rename-tag-dialog.tsx`.
 
 - **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, AND BOTH READ THE
   BODY WITHOUT ITS YAML.** FTS5 cannot say where inside a line a hit sits, so
@@ -199,7 +202,10 @@ node is rather than discriminating structurally at each visit.
   the index cannot resolve is the one drawn missing and a vault url opens in the
   app; only an http(s) url reaches the browser. An image the resolver misses
   falls back to a root path, because a pasted asset is on disk before the
-  listing that would resolve it. `useVaultLinkTarget` in
+  listing that would resolve it. An embed whose target is not an image (a PDF, a
+  sound, a video or any other file) draws as a file card whose Open shows the
+  original in the system's viewer (`packages/editor/src/nodes/file-card.tsx`),
+  because an `<img>` over it is a broken picture. `useVaultLinkTarget` in
   `packages/editor/src/host.ts`, `packages/editor/src/nodes/image-node.tsx`,
   `link-node.tsx` and `packages/editor/src/transclusion.tsx`.
 
@@ -219,5 +225,7 @@ node is rather than discriminating structurally at each visit.
   Copy link copies the note's `[[wiki link]]` (`wikiLinkFor`), because a
   loopback URL opened nothing anywhere else and died with the port; a name no
   link can carry copies nothing and says so
-  (`apps/workspace/src/app/note-topbar.tsx`). Pinned by the round trip in
+  (`apps/workspace/src/app/item/item-topbar.tsx`). A url item also offers Copy
+  address, which copies its `url`; Copy link stays the in-library `[[wiki
+  link]]` for every kind. Pinned by the round trip in
   `packages/notes/src/__tests__/link-resolve.test.ts`.

@@ -10,6 +10,7 @@ import { DataSection } from "./data-section";
 import { EditingSection } from "./editing-section";
 import { FeedbackSection } from "./feedback-section";
 import { InputsSection } from "./inputs-section";
+import { LibrarySection } from "./library-section";
 import { NavigationSection } from "./navigation-section";
 import { OverlaysSection } from "./overlays-section";
 import { TokensSection } from "./tokens-section";
@@ -24,6 +25,7 @@ const NAV = [
   { id: "agent", label: "Agent surfaces" },
   { id: "data", label: "Data" },
   { id: "editing", label: "Editing" },
+  { id: "library", label: "Library" },
   { id: "tokens", label: "Tokens" },
 ] as const;
 
@@ -90,6 +92,7 @@ export const GalleryPage = () => {
           <AgentSection />
           <DataSection />
           <EditingSection />
+          <LibrarySection />
           <TokensSection />
         </main>
       </div>

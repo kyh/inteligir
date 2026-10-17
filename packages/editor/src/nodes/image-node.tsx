@@ -4,6 +4,7 @@
 // image the index cannot resolve is the one drawn missing.
 
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { NodeApi } from "platejs";
 import type { TElement } from "platejs";
 import { PlateElement, useSelected } from "platejs/react";
@@ -17,7 +18,9 @@ import { getEditorHostIo } from "@repo/editor/host-io";
 import { isHttpUrl } from "@repo/editor/lib/url";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { stringProp } from "@repo/editor/node-props";
+import { FileCard } from "@repo/editor/nodes/file-card";
 import { RemoteContentCard } from "@repo/editor/nodes/remote-content-card";
+import { fileKindOf } from "@repo/notes/items/item-kind";
 
 type VaultState = { kind: "loading" } | { kind: "ready"; url: string } | { kind: "error" };
 
@@ -131,17 +134,28 @@ export const ImageFigure = ({
   const linked = useVaultLinkTarget(url, notePath);
   // a miss falls back to the url as a root path: a just-pasted asset is on disk before the
   // listing that would resolve it
-  const vaultState = useVaultAsset(
-    external || linked === null ? null : (linked.path ?? linked.target),
-  );
+  const target = external || linked === null ? null : (linked.path ?? linked.target);
+  // an embed of a file that is not a picture is the item's original, drawn as a card, so no
+  // request is made for bytes no <img> could show; an unresolved url is judged by a media
+  // extension alone, since any string ends in something that reads as one
+  const kind = external ? null : fileKindOf(target ?? url);
+  const notAnImage =
+    kind !== null && kind !== "image" && (kind !== "file" || (linked?.path ?? null) !== null);
+  const vaultState = useVaultAsset(notAnImage ? null : target);
+
+  const body = (): ReactNode => {
+    if (external) {
+      return <RemoteContentCard kind="image" selected={selected} url={url} />;
+    }
+    if (notAnImage) {
+      return <FileCard path={linked?.path ?? null} url={url} selected={selected} />;
+    }
+    return <ImageBody alt={altText(element)} selected={selected} state={vaultState} url={url} />;
+  };
 
   return (
     <figure className="group/image relative m-0 w-full" contentEditable={false}>
-      {external ? (
-        <RemoteContentCard kind="image" selected={selected} url={url} />
-      ) : (
-        <ImageBody alt={altText(element)} selected={selected} state={vaultState} url={url} />
-      )}
+      {body()}
     </figure>
   );
 };

@@ -22,10 +22,7 @@ import {
   SelectionAction,
   SelectionActions,
   SelectionActionsSeparator,
-  SelectionResult,
-  SelectionResultBody,
-  SelectionResultFooter,
-  SelectionResultHeader,
+  Shimmer,
 } from "@repo/ui/ai/selection-actions";
 import {
   SidebarNavFooter,
@@ -52,28 +49,17 @@ export const EditingSection = () => {
   return (
     <GallerySection id="editing" title="Editing">
       <Demo
-        name="SelectionActions · SelectionResult"
-        purpose="The toolbar over a selection, and the answer it returns in place."
+        name="SelectionActions · Shimmer"
+        purpose="The bar over a selection of items, and the shimmer a line wears while it fills in."
         stack
       >
         <SelectionActions>
-          <SelectionAction>Rewrite</SelectionAction>
-          <SelectionAction>Summarize</SelectionAction>
+          <SelectionAction>Tag…</SelectionAction>
+          <SelectionAction>Move…</SelectionAction>
           <SelectionActionsSeparator />
-          <SelectionAction hasMenu>More</SelectionAction>
+          <SelectionAction hasMenu>Ask agent</SelectionAction>
         </SelectionActions>
-        <div className="w-full max-w-md">
-          <SelectionResult>
-            <SelectionResultHeader>Rewritten</SelectionResultHeader>
-            <SelectionResultBody>
-              The filename is the title, so renaming a note rewrites every link that points at it.
-            </SelectionResultBody>
-            <SelectionResultFooter>
-              <SelectionAction>Replace</SelectionAction>
-              <SelectionAction>Discard</SelectionAction>
-            </SelectionResultFooter>
-          </SelectionResult>
-        </div>
+        <Shimmer className="text-body">Filling in…</Shimmer>
       </Demo>
 
       <Demo

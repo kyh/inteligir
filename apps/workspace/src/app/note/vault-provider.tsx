@@ -36,7 +36,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 
 import { client } from "../api";
-import { forgetPref, PREFS, readPref, writePref } from "../prefs";
 import { useWorkspace } from "../workspace-context";
 import { createGuardedVaultPort } from "./guarded-vault-io";
 
@@ -109,13 +108,11 @@ const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): Vau
     askVanished: confirmVanished,
     boot: async (): Promise<WorkspaceBoot> => {
       const flat = listingEntries(await readVaultTree(queryClient));
-      const known = (path: string | null): path is string =>
-        path !== null && flat.some((entry) => entry.path === path && entry.kind === "doc");
-      // Welcome.md ahead of listing order, which lands on "Getting Started" first.
+      // nothing open is the library: only the deep link opens an item, and only one that is there
       const target =
-        [bootPath, readPref(PREFS.lastOpenNote), "Welcome.md"].find(known) ??
-        flat.find((entry) => entry.kind === "doc")?.path ??
-        null;
+        bootPath !== null && flat.some((entry) => entry.path === bootPath && entry.kind === "doc")
+          ? bootPath
+          : null;
       let openNote: WorkspaceBoot["openNote"] = null;
       if (target !== null) {
         const content = await io.read(target).catch(() => null);
@@ -142,13 +139,13 @@ const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): Vau
     },
     publishEditor: store.publishEditor,
     publishListing: linkResolver.setListing,
+    // a move the page did not make (a fill's rename, an agent's) is followed by the item's id
+    findMoved: async (lastPath, id) => {
+      const { path } = await client.knowledge.pathForNoteId({ id, lastPath });
+      return path;
+    },
     publishOpenPath: (path, change) => {
       store.publishOpenPath(path, change);
-      if (path === null) {
-        forgetPref(PREFS.lastOpenNote);
-      } else {
-        writePref(PREFS.lastOpenNote, path);
-      }
       mirrorOpenPath(path);
     },
     rename: async (from, to) => await renameVaultEntry(client, from, to),
