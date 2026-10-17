@@ -32,7 +32,7 @@ import { mergeFetched, mergeInProgress, pulledCopies } from "./git-merge";
 import type { Reconcile } from "./git-merge";
 import { createAutoCommit } from "./git-commits";
 import type { CommitHold } from "./git-commits";
-import { readPorcelain, unmergedPaths } from "./git-porcelain";
+import { unmergedPaths } from "./git-porcelain";
 import {
   currentBranch,
   isAncestor,
@@ -44,6 +44,7 @@ import {
 } from "./git-refs";
 import {
   classifyNetworkFailure,
+  GitError,
   gitAt,
   gitPath,
   identityEnv,
@@ -58,6 +59,14 @@ import type { VaultFilesChange } from "./vault-changes";
 // push and nothing waits to go up, a tick reaches the hosted vault only this often, because every
 // fetch is an operation the hosted vault bills. a ping, a sign-in and Sync now still reach it at once.
 const ACCOUNT_QUIET_FETCH_MS = 15 * 60_000;
+
+const UNTRACKED_IN_THE_WAY = /untracked working tree files would be (?:overwritten|removed)/u;
+
+const overwritesUntracked = (cause: unknown): boolean =>
+  cause instanceof GitError && UNTRACKED_IN_THE_WAY.test(cause.stderr);
+
+// a lower account push cap, in bytes, read from the vault's own git config (accountPushCap)
+const PUSH_CAP_KEY = "inteligir.pushCapBytes";
 
 export interface GitEngineArgs {
   root: string;
@@ -85,6 +94,8 @@ export interface GitEngineArgs {
   maxWaitMs?: number;
   // the account remote's push cap; unset, the hosted vault's own.
   maxPushBytes?: number;
+  // a suite's smaller commit budget and file cap; unset, git-stage.ts's own
+  staging?: { budgetBytes?: number; capBytes?: number };
   // whether another device's push to the account remote would ping this device now (its account
   // socket is up). unset or false, every tick fetches, as a remote that pings nobody needs.
   accountPingsReach?: (() => boolean) | undefined;
@@ -337,7 +348,9 @@ export const createGitEngine = (args: GitEngineArgs): VaultGit => {
     onError: args.onError,
     onStatusChanged: args.onStatusChanged,
     quietMs: args.quietMs,
+    root,
     run,
+    staging: args.staging,
   });
 
   const ensureOriginRemote = async (
@@ -412,28 +425,57 @@ export const createGitEngine = (args: GitEngineArgs): VaultGit => {
     return true;
   };
 
+  // the account push's cap: the hosted vault's, or a lower one the vault's own git config names,
+  // which only a suite sets, so a small history steps through pushes the real cap takes whole
+  const accountPushCap = async (): Promise<number> => {
+    const configured = Number(await readConfig(run, PUSH_CAP_KEY));
+    return Number.isSafeInteger(configured) && configured > 0
+      ? Math.min(configured, maxPushBytes)
+      : maxPushBytes;
+  };
+
   // off the lock, like the push it stands in front of: the hosted vault refuses a pack over its
   // cap only once the whole body has arrived. the on-disk estimate is cheap and loose, so only a
-  // push near the cap pays for packing what it would send; a measurement that fails answers null
-  // and the push goes, with the remote's own 413 behind it. answers the tips it measured.
-  const measuredOverCap = async (
-    branch: string,
-    remoteHasBranch: boolean,
-  ): Promise<PushTips | null> => {
-    const tips = await withRepoLock(async () => await pushTips(branch, remoteHasBranch));
-    const revisions = tips.remote === null ? [tips.head] : [tips.head, `^${tips.remote}`];
+  // push near the cap pays for packing what it would send; a measurement that fails answers
+  // false and the push goes, with the remote's own 413 behind it.
+  const packsPast = async (
+    head: string,
+    remoteTip: string | null,
+    cap: number,
+  ): Promise<boolean> => {
+    const revisions = remoteTip === null ? [head] : [head, `^${remoteTip}`];
     try {
       const { stdout } = await run(["rev-list", "--objects", "--disk-usage", ...revisions]);
-      if (Number(stdout.trim()) < maxPushBytes / 2) {
-        return null;
+      if (Number(stdout.trim()) < cap / 2) {
+        return false;
       }
-      const over = await git.packExceeds(root, revisions, maxPushBytes, {
-        timeoutMs: NETWORK_GIT_TIMEOUT_MS,
-      });
-      return over ? tips : null;
+      return await git.packExceeds(root, revisions, cap, { timeoutMs: NETWORK_GIT_TIMEOUT_MS });
     } catch {
-      return null;
+      return false;
     }
+  };
+
+  // the newest unpushed commit on the first-parent line whose push fits the cap, searched by
+  // halves over the line oldest first, since a longer prefix only sends more; null when even the
+  // oldest alone is over it, which no step can send.
+  const newestFitting = async (tips: PushTips, cap: number): Promise<string | null> => {
+    const range = tips.remote === null ? [tips.head] : [tips.head, `^${tips.remote}`];
+    const { stdout } = await run(["rev-list", "--reverse", "--first-parent", ...range]);
+    const line = stdout.split("\n").filter((sha) => sha.length > 0);
+    let low = 0;
+    let high = line.length - 1;
+    let fitting: string | null = null;
+    while (low <= high) {
+      const middle = Math.floor((low + high) / 2);
+      const candidate = line[middle] ?? "";
+      if (await packsPast(candidate, tips.remote, cap)) {
+        high = middle - 1;
+      } else {
+        fitting = candidate;
+        low = middle + 1;
+      }
+    }
+    return fitting;
   };
 
   // what a rebase or a merge from a clean tree rewrote on disk. --no-renames: a moved note is a
@@ -525,7 +567,10 @@ export const createGitEngine = (args: GitEngineArgs): VaultGit => {
         if (recovered === "broken") {
           return null;
         }
-        if (recovered === "unhandled") {
+        // a file over the cap this device took out of history still sits on its disk, and a
+        // rebase checks out the other device's tip, which holds its last version, so it refuses
+        // before it starts; the merge keeps this side's deletion and never writes that path
+        if (recovered === "unhandled" && !overwritesUntracked(error)) {
           throw error;
         }
       }
@@ -715,23 +760,17 @@ export const createGitEngine = (args: GitEngineArgs): VaultGit => {
     return true;
   };
 
-  // answers whether the push landed: a refusal or a failure is recorded where it is met.
-  const pushBranch = async (
+  // answers whether the push landed: a refusal or a failure is recorded where it is met. `what`
+  // is the commit sent to the branch, the branch's own head when absent.
+  const pushOnce = async (
     remote: VaultRemoteSpec,
     branch: string,
     remoteHasBranch: boolean,
+    what?: string,
   ): Promise<boolean> => {
-    if (remote.source === "account") {
-      const overCap = await measuredOverCap(branch, remoteHasBranch);
-      if (overCap !== null) {
-        refusedPush = { failure: "too-large", url: remote.url, ...overCap };
-        recordRefusedPush(remote, "too-large");
-        return false;
-      }
-    }
-
+    const refspec = what === undefined ? branch : `${what}:refs/heads/${branch}`;
     try {
-      await runNetwork(["push", "origin", branch], remote.env);
+      await runNetwork(["push", "origin", refspec], remote.env);
     } catch (error) {
       const failure = failureFrom(remote, classifyNetworkFailure(error));
       if (failure !== "too-large" && failure !== "full") {
@@ -750,6 +789,51 @@ export const createGitEngine = (args: GitEngineArgs): VaultGit => {
     }
     return true;
   };
+
+  // the account remote takes a push of at most its cap, and every commit stages at most its
+  // budget, so a history too large for one push goes up in steps: each sends the newest unpushed
+  // commit whose pack fits, oldest first, and the tracking ref follows each landed step, so a
+  // pass that stops halfway resumes there. only a single commit over the cap is refused, as
+  // too-large, and nothing is sent. answers whether HEAD landed.
+  const pushAccountSteps = async (
+    remote: VaultRemoteSpec,
+    branch: string,
+    remoteHasBranch: boolean,
+  ): Promise<boolean> => {
+    const cap = await accountPushCap();
+    const readTips = async (hasBranch: boolean): Promise<PushTips> =>
+      await withRepoLock(async () => await pushTips(branch, hasBranch));
+    let hasBranch = remoteHasBranch;
+    for (;;) {
+      const tips = await readTips(hasBranch);
+      const whole = !(await packsPast(tips.head, tips.remote, cap));
+      const step = whole ? tips.head : await newestFitting(tips, cap);
+      if (step === null) {
+        refusedPush = { failure: "too-large", url: remote.url, ...tips };
+        recordRefusedPush(remote, "too-large");
+        return false;
+      }
+      if (!(await pushOnce(remote, branch, hasBranch, step))) {
+        return false;
+      }
+      await withRepoLock(async () => {
+        await run(["update-ref", `refs/remotes/origin/${branch}`, step]);
+      });
+      hasBranch = true;
+      if (step === tips.head) {
+        return true;
+      }
+    }
+  };
+
+  const pushBranch = async (
+    remote: VaultRemoteSpec,
+    branch: string,
+    remoteHasBranch: boolean,
+  ): Promise<boolean> =>
+    remote.source === "account"
+      ? await pushAccountSteps(remote, branch, remoteHasBranch)
+      : await pushOnce(remote, branch, remoteHasBranch);
 
   // the network steps run off the repo lock: a fetch or push on a dropped network waits out its
   // timeout, and under the lock every save and every turn start would wait with it.
@@ -809,9 +893,8 @@ export const createGitEngine = (args: GitEngineArgs): VaultGit => {
   // behind the repo lock so a status never reports a sync's half-way tree.
   const treeState = async (): Promise<"clean" | "dirty"> =>
     await withRepoLock(async () => {
-      const dirtyPaths = await readPorcelain(run)
-        .then((entries) => entries.length)
-        .catch(() => 0);
+      // a file over the cap that is not in history never will be, so it leaves nothing dirty
+      const dirtyPaths = await autoCommit.dirtyCount().catch(() => 0);
       let unpushed = 0;
       if (dirtyPaths === 0) {
         const branch = await currentBranch(run);
@@ -823,6 +906,17 @@ export const createGitEngine = (args: GitEngineArgs): VaultGit => {
       return dirtyPaths > 0 || unpushed > 0 ? "dirty" : "clean";
     });
 
+  // what the last read found over the cap; a status before any commit or pass reads once, so a
+  // file dropped in before boot is named from the first status on
+  const tooLargeFiles = async (): Promise<VaultStatusResponse["tooLarge"]> => {
+    const known = autoCommit.tooLarge();
+    if (known !== null) {
+      return known;
+    }
+    await withRepoLock(async () => await autoCommit.dirtyCount()).catch(() => 0);
+    return autoCommit.tooLarge() ?? { count: 0, files: [] };
+  };
+
   const statusSnapshot = async (): Promise<VaultStatusResponse> => {
     const remote = await currentRemote();
     // one read, so the state and its message are the same verdict's.
@@ -833,8 +927,7 @@ export const createGitEngine = (args: GitEngineArgs): VaultGit => {
       externalSync,
       lastError: autoCommit.flushError() ?? verdict.message,
       lastSyncAt,
-      // PIVOT-STUB(S2): the files over the cap no commit stages (§2.6)
-      tooLarge: { count: 0, files: [] },
+      tooLarge: await tooLargeFiles(),
     };
     if (remote === null) {
       return { ...statusFields, state: "no-remote" };

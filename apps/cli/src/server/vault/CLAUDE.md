@@ -10,10 +10,16 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   its file and a fifteen-second pause ends an editing session. A scheduler that
   names no paths (the boot sweep, the post-sync drain), a window past the scoped
   cap and the flush after a failed one are unscoped; a change nobody announced
-  waits for one. A turn's start stages the whole tree less every path a live
-  turn claimed, because literal pathspecs rule out an exclude and naming every
-  other path is an argv a first commit overflows; unscoped `add -A` survives for
-  that same ARG_MAX. `apps/cli/src/server/vault/git-commits.ts` says why the max
+  waits for one. Staging is an explicit list on stdin
+  (`--pathspec-from-file`), which no argument limit bounds, so every commit, a
+  turn's start included, stages exactly the paths it names: a turn's start lists
+  the dirty tree less the claimed paths, and each untracked file is listed and
+  measured on its own. A commit stages at most 32 MiB of new bytes, with the
+  rest following at once, so no push the engine makes is past what the hosted
+  library takes in steps. Rejected: an unscoped `add -A`, which stages what
+  nobody named and hashes a file before its size is known, and an argv
+  pathspec, which a first commit overflows.
+  `apps/cli/src/server/vault/git-stage.ts`; `git-commits.ts` says why the max
   wait is the sync interval.
 
 - **NOTE HISTORY IS LOCAL, AND A RESTORE IS A WRITE.** History reads the vault's
@@ -71,9 +77,9 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   an engine commit, rebase or push, where `--no-verify` reaches only pre-commit
   and commit-msg; a signing policy stalls or refuses an engine commit; and a
   recorded resolution replays over a verdict. Untracked files are a status
-  read's own flag: each passes `--untracked-files=normal`, because
-  `status.showUntrackedFiles=no` would hide an engine commit's paths and hold
-  every sync behind it. Residual: a git-lfs vault's upload is a pre-push hook
+  read's own flag: each names its `--untracked-files` mode (`all` where a commit
+  is planned), because `status.showUntrackedFiles=no` would hide an engine
+  commit's paths and hold every sync behind it. Residual: a git-lfs vault's upload is a pre-push hook
   too, so it does not run. Before the listen the bootstrap stages only the
   starter notes it seeded into a folder it created, and an opened folder's first
   commit is empty, since staging a large folder there outran the shell's
@@ -100,6 +106,21 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   since the choice never reaches the phone.
   `apps/cli/src/server/vault/vault-prefs-store.ts`,
   `@repo/contract/local/vault/attachment-location`.
+
+- **NO FILE OVER 10 MiB ENTERS HISTORY.** It is planned out before staging
+  and never hashed, so the object store and every push stay free of it. A
+  tracked file that grows past the cap leaves the index and stays on this Mac's
+  disk, and the commit that takes it out ("<name> is over 10 MB, so it stays on
+  this Mac") is a deletion every other device takes, where the file shows in
+  Deleted as its last version. The status counts and names what stays here
+  (`tooLarge`), Info says "Only on this Mac", and such a file leaves nothing
+  dirty, since no commit ever takes it. A rebase that would check out another
+  device's version over it is refused before it starts, so the pass merges
+  instead, which keeps this side's deletion and never writes that path.
+  Rejected: `info/exclude`, since a checkout overwrites an ignored file;
+  add-then-reset, which re-hashes the file on every flush; and `skip-worktree`
+  or `assume-unchanged` to keep the last version tracked, which wedges a
+  rebase. `apps/cli/src/server/vault/git-stage.ts`, `git-commits.ts`.
 
 - **THE ASSET ROUTE ANSWERS BYTE RANGES AND A POLICY PER KIND.** A player asks
   for its file in pieces, and AVFoundation plays nothing until its `bytes=0-1`

@@ -286,12 +286,16 @@ cited.
   offline, and skips a push while the tips a refusal named still stand, since
   each retry would upload the cap's worth again, while commits land and pulls go
   on; the phone keeps the refused edits queued. The first refusal costs no
-  upload either: a push to the account remote is measured first. Rejected:
-  splitting the push into commit-sized steps, since a vault's first commit is
-  the whole tree; a Worker-side meter, which counts bytes offered, not kept; and
-  the head tree's size, which ignores the history that grows.
+  upload either: a push to the account remote is measured first. Commits are
+  budgeted (at most 32 MiB of new bytes each, a vault's first commit included,
+  and no file over 10 MiB in any), so a history past the cap steps through its
+  unpushed commits, each push the newest prefix under the cap, and only a single
+  commit over the cap is refused as too-large. Rejected: one push of the whole
+  history, which a large first commit or an import could never send; a
+  Worker-side meter, which counts bytes offered, not kept; and the head tree's
+  size, which ignores the history that grows.
   `apps/web/cloudflare.config.ts`, `apps/web/src/worker/vault/receive-pack.ts`,
-  `apps/cli/src/server/vault/git-engine.ts`.
+  `apps/cli/src/server/vault/git-engine.ts`, `apps/cli/src/server/vault/git-stage.ts`.
 
 - **A PHONE ASKS A MAC THROUGH A CLAIMABLE DISPATCH INBOX, THE REQUEST LANDS
   THROUGH THE MAC'S OWN SEND, AND THE THREAD IS ITS LEDGER** (owner decision).

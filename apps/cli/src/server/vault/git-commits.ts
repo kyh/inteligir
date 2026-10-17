@@ -1,7 +1,15 @@
 import { vaultCommitSubject } from "@repo/contract/cloud/vault/vault-git";
-import { entryPaths, readPorcelain } from "./git-porcelain";
+import { VAULT_TOO_LARGE_LISTED } from "@repo/contract/local/vault/vault-schema";
 import { identityEnv } from "./git-run";
 import type { CommitAuthor, RunGitCommand } from "./git-run";
+import {
+  applyStaging,
+  HISTORY_FILE_MAX_BYTES,
+  planStaging,
+  readStagingEntries,
+  untrackSubject,
+} from "./git-stage";
+import type { SizedPath, StagingEntry, StagingLimits } from "./git-stage";
 import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 
 // a 15s pause ends an editing session, so the log stays answerable ("the version from before
@@ -10,13 +18,21 @@ import { createDebouncedCallbackScheduler } from "./watcher/debounce";
 const AUTO_COMMIT_QUIET_MS = 15_000;
 const AUTO_COMMIT_MAX_WAIT_MS = 60_000;
 
-// past this a scoped commit costs more argv (status pathspec, then add) than the unscoped sweep.
+// past this a window's commit is the whole dirty tree: a scoped status costs a pathspec per path.
 const MAX_SCOPED_COMMIT_PATHS = 200;
 
 type Committed = { files: number } | null;
 
+// the files over the cap that stay on this Mac: every one counted, the first few named
+export interface TooLargeFiles {
+  count: number;
+  files: SizedPath[];
+}
+
 export interface AutoCommitArgs {
   run: RunGitCommand;
+  // the worktree, where each dirty path is measured before anything is staged
+  root: string;
   // the engine's repo lock, the one its sync pass takes: a second chain would let a flush land
   // inside a rebase.
   lock: <T>(work: () => Promise<T>) => Promise<T>;
@@ -28,6 +44,8 @@ export interface AutoCommitArgs {
   onStatusChanged?: (() => void) | undefined;
   quietMs?: number | undefined;
   maxWaitMs?: number | undefined;
+  // a suite's smaller budget and cap; unset, COMMIT_BUDGET_BYTES and HISTORY_FILE_MAX_BYTES
+  staging?: Omit<StagingLimits, "leaveOut"> | undefined;
 }
 
 export interface CommitHold {
@@ -49,6 +67,11 @@ export interface AutoCommit {
   claimedPaths: () => string[];
   // unlocked: for a caller that already holds the lock, as a sync pass does.
   commitIfDirty: () => Promise<Committed>;
+  // unlocked, like commitIfDirty: the dirty paths a commit would take, which leaves out a file
+  // over the cap that is not in history, since no commit ever will. refreshes tooLarge.
+  dirtyCount: () => Promise<number>;
+  // what the last whole-tree read found over the cap; null before any read
+  tooLarge: () => TooLargeFiles | null;
   // reported ahead of a pass's verdict until a flush or a whole-tree commit lands: a tree the
   // auto-commit left dirty says why nowhere else, and a vault with no remote runs no pass.
   flushError: () => string | null;
@@ -76,51 +99,36 @@ export const createAutoCommit = (args: AutoCommitArgs): AutoCommit => {
     }
   };
 
-  // a whole-tree commit that succeeds leaves nothing a failed flush stranded, whoever ran it: a
-  // sync pass or a checkpoint clears the report as a later flush would.
-  const commitIfDirty = async (): Promise<Committed> => {
-    await args.beforeCommit();
-    const dirty = entryPaths(await readPorcelain(run));
-    if (dirty.length === 0) {
-      clearFlushError();
-      return null;
+  // the files over the cap, by path, as the reads that covered them found them
+  let oversized: Map<string, number> | null = null;
+
+  // a read covers the paths it was scoped to (all when unscoped, all but the left-out ones at a
+  // turn's start): what it did not find over the cap there no longer is
+  const recordOversized = (
+    entries: readonly StagingEntry[],
+    covers: (path: string) => boolean,
+    cap: number,
+  ): void => {
+    // a path the read covered and did not find over the cap is no longer, wherever it went
+    const next = new Map(
+      [...(oversized ?? new Map<string, number>())].filter(([path]) => !covers(path)),
+    );
+    for (const entry of entries) {
+      if (covers(entry.path) && entry.bytes !== null && entry.bytes > cap) {
+        next.set(entry.path, entry.bytes);
+      }
     }
-    // unscoped: the scoped form passes every path as argv, and a large vault's first commit
-    // would exceed ARG_MAX.
-    await run(["add", "-A"]);
-    await commit(vaultCommitSubject(dirty));
-    clearFlushError();
-    return { files: dirty.length };
+    oversized = next;
   };
 
-  const commitPathsIfDirty = async (
-    paths: readonly string[],
-    author: CommitAuthor | undefined,
-    subject: (dirty: readonly string[]) => string,
-  ): Promise<Committed> => {
-    if (paths.length === 0) {
-      return null;
+  const capBytes = args.staging?.capBytes ?? HISTORY_FILE_MAX_BYTES;
+  const limitsWith = (leaveOut?: ReadonlySet<string>): StagingLimits => {
+    const limits: StagingLimits = { ...args.staging };
+    if (leaveOut !== undefined) {
+      limits.leaveOut = leaveOut;
     }
-    await args.beforeCommit();
-    // git add errors on a pathspec matching nothing, and a reported write may have been reverted.
-    const dirty = entryPaths(await readPorcelain(run, paths));
-    if (dirty.length === 0) {
-      return null;
-    }
-    // -A with a pathspec stages deletions under it too; the commit takes only the index.
-    await run(["add", "-A", "--", ...dirty]);
-    await commit(subject(dirty), author);
-    return { files: dirty.length };
+    return limits;
   };
-
-  // each live hold's claims. a held flush is re-armed on release; the release path's own
-  // commitPaths usually beats it.
-  const liveHolds = new Set<Set<string>>();
-  let flushDeferredWhileHeld = false;
-
-  const claimedPaths = (): string[] => [
-    ...new Set([...liveHolds].flatMap((claims) => [...claims])),
-  ];
 
   const stagedPaths = async (paths: readonly string[] = []): Promise<string[]> => {
     const { stdout } = await run([
@@ -135,26 +143,122 @@ export const createAutoCommit = (args: AutoCommitArgs): AutoCommit => {
     return stdout.split("\0").filter((staged) => staged.length > 0);
   };
 
+  interface CommitScope {
+    // absent: the whole dirty tree
+    paths?: readonly string[];
+    leaveOut?: ReadonlySet<string>;
+    author?: CommitAuthor | undefined;
+    subject: (staged: readonly string[]) => string;
+  }
+
+  const coversFor = (scope: CommitScope): ((path: string) => boolean) => {
+    if (scope.paths === undefined) {
+      const { leaveOut } = scope;
+      return leaveOut === undefined ? () => true : (path) => !leaveOut.has(path);
+    }
+    const named = new Set(scope.paths);
+    return (path) => {
+      const segments = path.split("/");
+      return segments.some((_, index) => named.has(segments.slice(0, index + 1).join("/")));
+    };
+  };
+
+  // one plan per commit: the files that outgrew the cap leave history in a commit of their own,
+  // then the scope's paths go in commits of at most the budget each, the rest following at once.
+  // nothing is hashed before it is planned, so a file over the cap never reaches the object store.
+  const commitPlanned = async (scope: CommitScope): Promise<Committed> => {
+    await args.beforeCommit();
+    let files = 0;
+    let landed = false;
+    let { paths } = scope;
+    let first = true;
+    for (;;) {
+      const entries = await readStagingEntries(run, args.root, paths);
+      const plan = planStaging(entries, limitsWith(scope.leaveOut));
+      // the first read covers the scope; a later one only the rest it left, all within the cap
+      if (first) {
+        recordOversized(entries, coversFor(scope), capBytes);
+        first = false;
+      }
+      if (plan.untrack.length > 0) {
+        await applyStaging(run, { stage: [], untrack: plan.untrack });
+        await commit(untrackSubject(plan.untrack));
+        files += plan.untrack.length;
+        landed = true;
+      }
+      if (plan.stage.length === 0) {
+        break;
+      }
+      await applyStaging(run, { stage: plan.stage, untrack: [] });
+      const staged = await stagedPaths();
+      if (staged.length === 0) {
+        break;
+      }
+      await commit(scope.subject(staged), scope.author);
+      files += staged.length;
+      landed = true;
+      if (plan.rest.length === 0) {
+        break;
+      }
+      paths = plan.rest;
+    }
+    return landed ? { files } : null;
+  };
+
+  // a whole-tree commit that succeeds leaves nothing a failed flush stranded, whoever ran it: a
+  // sync pass or a checkpoint clears the report as a later flush would.
+  const commitIfDirty = async (): Promise<Committed> => {
+    const committed = await commitPlanned({ subject: vaultCommitSubject });
+    clearFlushError();
+    return committed;
+  };
+
+  const commitPathsIfDirty = async (
+    paths: readonly string[],
+    author: CommitAuthor | undefined,
+    subject: (dirty: readonly string[]) => string,
+  ): Promise<Committed> => {
+    if (paths.length === 0) {
+      return null;
+    }
+    return await commitPlanned({ author, paths, subject });
+  };
+
+  // each live hold's claims. a held flush is re-armed on release; the release path's own
+  // commitPaths usually beats it.
+  const liveHolds = new Set<Set<string>>();
+  let flushDeferredWhileHeld = false;
+
+  const claimedPaths = (): string[] => [
+    ...new Set([...liveHolds].flatMap((claims) => [...claims])),
+  ];
+
+  // the dirty tree less every claim, named on stdin: an :(exclude) pathspec is magic, which
+  // --literal-pathspecs turns off, and naming every unclaimed path in argv is what a large
+  // vault's first commit would overflow.
   const commitUnclaimed = async (): Promise<Committed> => {
     const claimed = claimedPaths();
     if (claimed.length === 0) {
       return await commitIfDirty();
     }
-    await args.beforeCommit();
-    // an :(exclude) pathspec is magic, which --literal-pathspecs turns off, and naming every
-    // unclaimed path is the argv a large vault's first commit would overflow: the whole tree is
-    // staged and the claims taken back out.
-    await run(["add", "-A"]);
-    const claimedStaged = await stagedPaths(claimed);
-    if (claimedStaged.length > 0) {
-      await run(["reset", "-q", "--", ...claimedStaged]);
-    }
-    const staged = await stagedPaths();
-    if (staged.length === 0) {
+    return await commitPlanned({ leaveOut: new Set(claimed), subject: vaultCommitSubject });
+  };
+
+  const dirtyCount = async (): Promise<number> => {
+    const entries = await readStagingEntries(run, args.root);
+    recordOversized(entries, () => true, capBytes);
+    const plan = planStaging(entries, limitsWith());
+    return plan.stage.length + plan.untrack.length + plan.rest.length;
+  };
+
+  const tooLarge = (): TooLargeFiles | null => {
+    if (oversized === null) {
       return null;
     }
-    await commit(vaultCommitSubject(staged));
-    return { files: staged.length };
+    const files = [...oversized.entries()]
+      .map(([path, bytes]) => ({ bytes, path }))
+      .toSorted((a, b) => a.path.localeCompare(b.path));
+    return { count: files.length, files: files.slice(0, VAULT_TOO_LARGE_LISTED) };
   };
 
   // null means "whatever is dirty"; one unscoped call in the window decides the whole flush.
@@ -238,6 +342,7 @@ export const createAutoCommit = (args: AutoCommitArgs): AutoCommit => {
     },
     claimedPaths,
     commitIfDirty,
+    dirtyCount,
     async commitNow(paths) {
       return await args.lock(
         async () =>
@@ -257,6 +362,7 @@ export const createAutoCommit = (args: AutoCommitArgs): AutoCommit => {
     flushError: () => flushError,
     held: () => liveHolds.size > 0,
     hold,
+    tooLarge,
     schedule(paths) {
       if (!disposed) {
         addPendingCommitPaths(paths);
