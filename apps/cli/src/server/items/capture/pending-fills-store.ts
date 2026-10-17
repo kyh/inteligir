@@ -8,7 +8,9 @@ import { randomBytes } from "node:crypto";
 import type { DbConnection } from "@repo/db/connection";
 import { z } from "zod";
 
-export type FillOrigin = "own" | "phone" | "foreign";
+// `own`: a save of this Mac's; `import`: a row this Mac's import handed over; `phone` and
+// `foreign`: a stub another device made, in a library that syncs with the account
+export type FillOrigin = "own" | "import" | "phone" | "foreign";
 
 export interface PendingFill {
   itemId: string;
@@ -42,7 +44,7 @@ const rowSchema = z.object({
   item_id: z.string(),
   keep_copy: z.number().int(),
   not_before: z.number(),
-  origin: z.enum(["own", "phone", "foreign"]),
+  origin: z.enum(["own", "import", "phone", "foreign"]),
   path: z.string(),
   url: z.string(),
 });

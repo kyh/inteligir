@@ -218,6 +218,36 @@ export const classifyAddress: AddressPolicy = (raw) => {
   return worst([classifyIpv6Itself(groups), ...embeddedIpv4(groups).map(classifyIpv4Number)]);
 };
 
+// one spelling per address, so two spellings of one compare equal: an IPv4 address as its number,
+// an IPv6 one as its eight groups; null for anything that is not an address
+export const addressKey = (raw: string): string | null => {
+  const address = raw.replaceAll(/^\[|\]$/gu, "").replace(/%.*$/u, "");
+  const family = isIP(address);
+  if (family === 4) {
+    return `4:${String(ipv4Number(address))}`;
+  }
+  if (family !== 6) {
+    return null;
+  }
+  const groups = ipv6Groups(address.toLowerCase());
+  return groups === null || groups.some((value) => Number.isNaN(value))
+    ? null
+    : `6:${groups.join(":")}`;
+};
+
+// the address's own key and the key of every IPv4 address it carries (see EMBEDDINGS), the ways a
+// dual-stack socket could reach one address under another spelling
+export const reachedKeys = (raw: string): string[] => {
+  const own = addressKey(raw);
+  if (own === null) {
+    return [];
+  }
+  const address = raw.replaceAll(/^\[|\]$/gu, "").replace(/%.*$/u, "");
+  const groups = isIP(address) === 6 ? ipv6Groups(address.toLowerCase()) : null;
+  const carried = groups === null ? [] : embeddedIpv4(groups).map((value) => `4:${String(value)}`);
+  return [own, ...carried];
+};
+
 // refused before any lookup: the name resolves to this Mac on every resolver that honours RFC 6761
 export const isThisMacName = (host: string): boolean => {
   const name = host.toLowerCase().replace(/\.$/u, "");

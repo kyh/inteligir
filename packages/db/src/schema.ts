@@ -229,7 +229,7 @@ export const syncOwnDevices = sqliteTable("sync_own_devices", {
 // the stubs this Mac will fill, one row per item, written per transition rather than as one file
 // rewritten whole (an import of thousands moves every row). `origin` says whose stub it is: this
 // Mac's own save or import, a phone's share, or another Mac's, which decides when it is filled.
-export const pendingFillOriginValues = ["own", "phone", "foreign"] as const;
+export const pendingFillOriginValues = ["own", "import", "phone", "foreign"] as const;
 
 export const pendingFills = sqliteTable(
   "pending_fills",

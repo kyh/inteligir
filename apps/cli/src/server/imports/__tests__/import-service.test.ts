@@ -83,6 +83,7 @@ const fakeLibrary = () => {
     remove: unreachable,
     rename: unreachable,
     syncNow: unreachable,
+    syncsWithAccount: unreachable,
     withUrlLock: async (_key, run) => await run(),
     write: unreachable,
     writeContentAddressed: unreachable,

@@ -4,6 +4,7 @@
 // html, an entity, a strikethrough or a wiki link), and nothing but text, links, pictures, code,
 // lists, quotes and tables is ever written.
 
+import { RICH_FENCE_LANGS } from "@repo/notes/markdown/fence-langs";
 import TurndownService from "turndown";
 
 export type Rung = "rich" | "plain" | "text";
@@ -100,10 +101,14 @@ const flatTable = (table: HTMLElement): string =>
     .filter((row) => row !== "")
     .join("\n\n");
 
+// the page's own name for its code's language, unless it names one of the dialect's own fenced
+// blocks (a chart, a canvas, a runnable html block): a page's code stays code
 const codeLanguage = (pre: HTMLElement): string => {
   const [code] = childElements(pre, "CODE");
   const classes = `${code?.getAttribute("class") ?? ""} ${pre.getAttribute("class") ?? ""}`;
-  return /(?:^|\s)(?:language|lang)-(?<lang>[\w+#-]{1,32})/u.exec(classes)?.groups?.lang ?? "";
+  const lang =
+    /(?:^|\s)(?:language|lang)-(?<lang>[\w+#-]{1,32})/u.exec(classes)?.groups?.lang ?? "";
+  return RICH_FENCE_LANGS.has(lang.toLowerCase()) ? "" : lang;
 };
 
 // a fence longer than any backtick run inside, so the code cannot close it

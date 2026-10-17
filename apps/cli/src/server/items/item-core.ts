@@ -29,7 +29,7 @@ import { ItemsError } from "./items-error";
 export interface ItemCoreDeps {
   service: VaultService;
   knowledge: Pick<KnowledgeRuntime, "settle" | "findByUrl" | "itemsAt">;
-  git: Pick<GitEngine, "isTracked" | "creatorOf" | "syncNow" | "commitPaths">;
+  git: Pick<GitEngine, "isTracked" | "creatorOf" | "currentRemote" | "syncNow" | "commitPaths">;
   // the attachments location, read per save
   prefs: VaultPrefsStore;
   // renameNoteWithLinkRewrite with `alias: false`: links rewritten, no alias kept
@@ -91,6 +91,9 @@ export interface ItemCore {
   // "phone" when the commit that added the path was the Worker's, else "device"; null when
   // untracked or there is no repo
   creatorOf: (path: string) => Promise<"phone" | "device" | null>;
+  // whether the library syncs with the account's hosted vault: the one history in which a commit
+  // the Worker made is the person's own phone, and another device's stub is the person's own
+  syncsWithAccount: () => Promise<boolean>;
   rename: (from: string, to: string) => Promise<{ path: string; rewritten: string[] }>;
   // the engine's own pass, for a foreign fill: resolves on any outcome
   syncNow: () => Promise<void>;
@@ -275,6 +278,11 @@ export const createItemCore = (deps: ItemCoreDeps): ItemCore => {
       } catch {
         // a pass that failed says so on the status; the fill goes on either way.
       }
+    },
+
+    async syncsWithAccount() {
+      const remote = await deps.git.currentRemote().catch(() => null);
+      return remote?.source === "account";
     },
 
     async write(path, content, expectedHash) {

@@ -256,6 +256,24 @@ describe("urlItemVerdict, both changed the fill (A)", () => {
     expect(settle(base, late, early)).toBe(early);
   });
 
+  it("lets a fill that read the page win over an earlier one that failed", () => {
+    const base = stub();
+    // the first Mac's fill, which the site refused
+    const refused = composeItemFile(
+      {
+        "fetch-error": "The site answered 403 (forbidden).",
+        fetched: "2026-10-17T09:12:40Z",
+        id: ID,
+        kind: "link",
+        saved: SAVED,
+        url: URL,
+      },
+      "",
+    );
+    const read = filled("2026-10-17T09:13:10Z");
+    expect(settle(base, refused, read)).toBe(read);
+  });
+
   it("lets the earlier fetch win when two refreshes of one fill race", () => {
     const base = filled("2026-10-17T09:12:33Z");
     const first = filled("2026-10-18T08:00:00Z", { cover: COVER_2 });

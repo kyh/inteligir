@@ -43,7 +43,7 @@ export interface CaptureDeps {
     KnowledgeRuntime,
     "settle" | "findByUrl" | "itemsAt" | "itemStubs" | "pathForNoteId"
   >;
-  annotations: Pick<AnnotationsService, "add" | "placeWaiting">;
+  annotations: Pick<AnnotationsService, "add" | "list" | "placeWaiting">;
   // pending_fills and the `meta` row `fill-shuffle-seed`
   db: DbConnection;
   dataDir: string;
@@ -133,6 +133,25 @@ export const createCapture = (deps: CaptureDeps): Capture => {
 
   const queue = createFillQueue({
     clock,
+    copyAfter: async (row, signal) => {
+      const page = supplied.get(row.itemId) ?? null;
+      supplied.delete(row.itemId);
+      return await fillItem(context, {
+        coverHint: null,
+        itemId: row.itemId,
+        keepCopy: true,
+        mayRetry: false,
+        onMoved: (moved) => {
+          debug(`the copy of ${row.path} follows it to ${moved}`);
+        },
+        origin: "refresh",
+        path: row.path,
+        signal,
+        supplied: page,
+        text: "keep",
+        url: row.url,
+      });
+    },
     core,
     debug,
     fillRow: async (target, signal, onMoved) => {
@@ -186,6 +205,9 @@ export const createCapture = (deps: CaptureDeps): Capture => {
       if (outcome.kind === "written") {
         return { fill: outcome.fill, path: outcome.path, wrote: outcome.wrote };
       }
+      if (outcome.kind === "unread") {
+        return { fill: { message: outcome.message, state: "failed" }, path, wrote: [] };
+      }
       const read = await core.read(path);
       return {
         fill: read === null ? PENDING : fillStateOf(read.content),
@@ -229,10 +251,16 @@ export const createCapture = (deps: CaptureDeps): Capture => {
   };
 
   // a selection the person made is never dropped: placed in a filled item's text, waiting on a
-  // stub's fill, or under the item's Highlights when its passage is not in the text
+  // stub's fill, or under the item's Highlights when its passage is not in the text. One the item
+  // already holds as a highlight is not added again: the popup's Keep a copy of the page sends the
+  // page again with the selection still in it
   const addSelection = async (path: string, text: string): Promise<string[]> => {
-    const read = await core.read(path);
     const quote = clipQuote(text);
+    const held = await deps.annotations.list(path).catch(() => null);
+    if (held?.annotations.some((annotation) => annotation.quote === quote) === true) {
+      return [];
+    }
+    const read = await core.read(path);
     const entry = {
       id: mintAnnotationId(randomBytes),
       path,
@@ -286,21 +314,34 @@ export const createCapture = (deps: CaptureDeps): Capture => {
     })();
   };
 
-  // `keepCopy` on a held url: a stub still waiting on its fill gains the copy there; a filled item
-  // is refreshed for it, from the page a browser handed over when there is one
+  // `keepCopy` on a held url: a stub still waiting on its fill gains the copy there, or right
+  // after the fill already under way; a filled link is refreshed for it, from the page a browser
+  // handed over when there is one. A note or a file that carries the url keeps its own text, as a
+  // refresh would refuse it
   const copyOfExisting = async (
     found: { path: string; fill: ItemFill },
     request: Request,
     wrote: readonly string[],
   ): Promise<SaveOutcome> => {
     const read = await core.read(found.path);
+    const facts = read === null ? null : itemFactsOf(read.content);
+    if (facts === null || !URL_ITEM_KINDS.some((kind) => kind === facts.kind)) {
+      return { fill: found.fill, outcome: "exists", path: found.path, wrote: [...wrote] };
+    }
     const itemId = read === null ? null : frontmatterId(read.content);
     const html = request.page?.html ?? null;
     if (itemId !== null && queue.has(itemId)) {
       if (html !== null) {
         supplied.set(itemId, { at: clock.now(), html });
       }
-      queue.add({ coverHint: null, itemId, keepCopy: true, path: found.path, url: request.url });
+      queue.add({
+        coverHint: null,
+        itemId,
+        keepCopy: true,
+        origin: "own",
+        path: found.path,
+        url: request.url,
+      });
       const done = request.wait ? await queue.waitFor(itemId, WAIT_MS) : null;
       return {
         fill: done?.fill ?? found.fill,
@@ -395,7 +436,14 @@ export const createCapture = (deps: CaptureDeps): Capture => {
     if (request.page?.html !== null && request.page?.html !== undefined) {
       supplied.set(id, { at: clock.now(), html: request.page.html });
     }
-    queue.add({ coverHint: null, itemId: id, keepCopy: request.keepCopy, path, url });
+    queue.add({
+      coverHint: null,
+      itemId: id,
+      keepCopy: request.keepCopy,
+      origin: "own",
+      path,
+      url,
+    });
     if (!request.wait) {
       return { fill: PENDING, outcome: "created", path, wrote };
     }
@@ -420,6 +468,7 @@ export const createCapture = (deps: CaptureDeps): Capture => {
         coverHint: hints?.cover ?? null,
         itemId: item.id,
         keepCopy: false,
+        origin: "import",
         path: item.path,
         url: item.url,
       });

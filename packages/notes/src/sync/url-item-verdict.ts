@@ -178,13 +178,18 @@ const compareTexts = (a: string, b: string): number => {
   return a < b ? -1 : 1;
 };
 
-// the total order case (A) picks its winner by: a fetched side first, then the earlier fetch
-// (by time, then as written), then the earlier save, then the smaller text; negative: a wins
+// the total order case (A) picks its winner by: a fetched side first, then one whose page was
+// read over one that says it failed (a site may refuse one Mac and answer another), then the
+// earlier fetch (by time, then as written), then the earlier save, then the smaller text;
+// negative: a wins
 const beats = (a: Side, b: Side): number => {
   if ((a.mark === null) !== (b.mark === null)) {
     return a.mark === null ? 1 : -1;
   }
   if (a.mark !== null && b.mark !== null) {
+    if ((a.facts.fetchError === null) !== (b.facts.fetchError === null)) {
+      return a.facts.fetchError === null ? -1 : 1;
+    }
     const byTime = compareNumbers(a.facts.fetchedMs ?? LATEST, b.facts.fetchedMs ?? LATEST);
     if (byTime !== 0) {
       return byTime;

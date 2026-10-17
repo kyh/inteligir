@@ -185,6 +185,41 @@ describe("the guarded fetch", () => {
     expect(site.seen).toEqual([]);
   });
 
+  it("refuses a public name answering one of this Mac's own addresses, in any spelling", async () => {
+    const site = await listen(html("<p>a service bound on every address</p>"));
+    const dialed: LookupAddress[][] = [];
+    const onDial = (addresses: readonly LookupAddress[]): void => {
+      dialed.push([...addresses]);
+    };
+    // the loopback server stands in for a service on the Mac's own global address
+    const own = guard({
+      lookup: answers({
+        "mapped.attacker.test": [v6("::ffff:8.8.4.4")],
+        "x.attacker.test": [v4("127.0.0.1")],
+      }),
+      onDial,
+      ownAddresses: () => ["127.0.0.1", "8.8.4.4"],
+      policy: loopbackIs("public"),
+    });
+    expect(await own.fetch(page(`http://x.attacker.test:${site.port}/`))).toEqual({
+      failure: { kind: "refused", refusal: "this-mac" },
+      ok: false,
+    });
+    expect(await own.fetch(page("http://mapped.attacker.test/"))).toEqual({
+      failure: { kind: "refused", refusal: "this-mac" },
+      ok: false,
+    });
+    expect(dialed).toEqual([]);
+    expect(site.seen).toEqual([]);
+    // the same answer from a Mac that holds no such address is read
+    const elsewhere = await guard({
+      lookup: answers({ "x.attacker.test": [v4("127.0.0.1")] }),
+      ownAddresses: () => ["192.168.1.20"],
+      policy: loopbackIs("public"),
+    }).fetch(page(`http://x.attacker.test:${site.port}/`));
+    expect(elsewhere.ok).toBe(true);
+  });
+
   it("refuses an answer mixing private and public addresses", async () => {
     const site = await listen(html("<p>hello</p>"));
     const result = await guard({

@@ -12,13 +12,20 @@ import type { ClientRequest, IncomingMessage, RequestOptions } from "node:http";
 import { request as httpsRequest } from "node:https";
 import type { LookupFunction } from "node:net";
 import { isIP } from "node:net";
+import { networkInterfaces } from "node:os";
 import type { Readable } from "node:stream";
 import { getCACertificates, rootCertificates } from "node:tls";
 import { createBrotliDecompress, createGunzip, createUnzip } from "node:zlib";
 
 import { errnoCode } from "../../errno";
-import { classifyAddress, isThisMacName, vetAnswer } from "./address-guard";
-import type { AddressPolicy, GuardRefusal, Reach } from "./address-guard";
+import {
+  addressKey,
+  classifyAddress,
+  isThisMacName,
+  reachedKeys,
+  vetAnswer,
+} from "./address-guard";
+import type { AddressClass, AddressPolicy, GuardRefusal, Reach } from "./address-guard";
 
 export interface LookupAddress {
   address: string;
@@ -86,6 +93,9 @@ export interface GuardedFetchDeps {
   // classifyAddress otherwise
   lookup?: HostLookup | undefined;
   policy?: AddressPolicy | undefined;
+  // the addresses this Mac's network interfaces hold, read at every hop; the system's own,
+  // loopback left out (the policy judges it this Mac's already), otherwise
+  ownAddresses?: (() => readonly string[]) | undefined;
   // the trust store; the bundled roots and the system's otherwise
   ca?: readonly string[] | undefined;
   connectTimeoutMs?: number | undefined;
@@ -116,6 +126,11 @@ const systemLookup: HostLookup = async (hostname) =>
   await dnsLookup(hostname, { all: true, order: "verbatim" });
 
 const defaultCa = (): string[] => [...rootCertificates, ...getCACertificates("system")];
+
+const interfaceAddresses = (): string[] =>
+  Object.values(networkInterfaces()).flatMap((entries) =>
+    (entries ?? []).filter((entry) => !entry.internal).map((entry) => entry.address),
+  );
 
 const failureOfError = (cause: unknown): FetchFailure => {
   const code = errnoCode(cause);
@@ -235,6 +250,21 @@ type Answered = { ok: true; response: IncomingMessage } | { ok: false; failure: 
 export const createGuardedFetch = (deps: GuardedFetchDeps): GuardedFetch => {
   const lookup = deps.lookup ?? systemLookup;
   const policy = deps.policy ?? classifyAddress;
+  const ownAddresses = deps.ownAddresses ?? interfaceAddresses;
+
+  // an address of this Mac's own that reads as public (an interface's global IPv6, a public IPv4
+  // it was handed) is this Mac's: a public name answering it would reach every service bound on
+  // all of this Mac's addresses. Its private ones stay private space, which only a private saved
+  // address reaches
+  const classesOf = (addresses: readonly LookupAddress[]): AddressClass[] => {
+    const own = new Set(ownAddresses().flatMap((address) => addressKey(address) ?? []));
+    return addresses.map((entry) => {
+      const judged = policy(entry.address);
+      return judged === "public" && reachedKeys(entry.address).some((key) => own.has(key))
+        ? "this-mac"
+        : judged;
+    });
+  };
   const ca = deps.ca ?? defaultCa();
   const connectTimeoutMs = deps.connectTimeoutMs ?? CONNECT_TIMEOUT_MS;
   const requestTimeoutMs = deps.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
@@ -258,10 +288,7 @@ export const createGuardedFetch = (deps: GuardedFetchDeps): GuardedFetch => {
     } else {
       addresses = [{ address: hop.host, family }];
     }
-    const verdict = vetAnswer(
-      addresses.map((entry) => policy(entry.address)),
-      reach,
-    );
+    const verdict = vetAnswer(classesOf(addresses), reach);
     return verdict.ok
       ? { addresses, ok: true, reach: verdict.reach }
       : { failure: { kind: "refused", refusal: verdict.refusal }, ok: false };

@@ -15,9 +15,12 @@ Saving links, pages and files as items, and filling a saved link from its page.
   every subresource is checked again. This Mac (and `localhost` by name, before
   any lookup), link-local and reserved space are refused, so is the server's own
   port on any address, and so is an answer mixing private and public addresses;
-  private space is reachable only from a saved address that is itself private,
-  the first hop deciding. No env var widens it: a suite injects the lookup, the
-  policy or the whole fetch (`CapturePorts`). Rejected: pre-resolving then
+  an address one of this Mac's interfaces holds that would read as public (its
+  global IPv6, a public IPv4 it was handed), read again at every hop, is this
+  Mac's too, while its private ones stay private space; private space is
+  reachable only from a saved address that is itself private, the first hop
+  deciding. No env var widens it: a suite injects the lookup, the policy or the
+  whole fetch (`CapturePorts`), and the guard's own suite this Mac's addresses. Rejected: pre-resolving then
   `fetch()` (a rebinding window), undici (a new dependency for the same hook),
   and the LAN open to any page (a public page could then redirect the Mac at the
   router or at a service bound on this Mac's own address, which browsers'
@@ -28,7 +31,10 @@ Saving links, pages and files as items, and filling a saved link from its page.
 - **THE FILL WORKER HAS NO NETWORK AND IS RETIRED WHEN IDLE.** A page's DOM,
   the readable-content extractor, turndown and the editor's fixpoint run in one
   worker thread that the first fill starts, a minute idle retires and a job past
-  30 s replaces; `fetch` is refused before any job runs, nothing under `fill/`
+  30 s replaces; the runner hands it one job at a time, as it reads them, so a
+  job's 30 s are its own and the jobs behind one that wedged or crashed it go to
+  a fresh worker rather than failing with it; `fetch` is refused before any job
+  runs, nothing under `fill/`
   imports a socket, and every byte it reads the host fetched through the guard.
   A page that breaks the extractor answers `failed` rather than taking the
   thread down, and a page nested past 256 elements skips the extractor for the
@@ -43,7 +49,9 @@ Saving links, pages and files as items, and filling a saved link from its page.
   `canonicalizeImported` calls canonical with at least 97% of the converted
   letters kept is written, so an item opens rich and its first edit is a minimal
   diff; a page's `{{x}}`, `@2026-01-02`, `%%`, `:::`, `$$`, `[[x]]` and raw tags
-  are escaped so they stay text. Rejected: defuddle's markdown, Plate's
+  are escaped so they stay text, and a code block that names one of the
+  dialect's own fences (`@repo/notes/markdown/fence-langs`) as its language
+  keeps its code and loses the name, so a page never writes a runnable block. Rejected: defuddle's markdown, Plate's
   `deserializeHtml`, and canonicalizing on first open.
   `apps/cli/src/server/items/capture/fill/extract-page.ts`,
   `apps/cli/src/server/items/capture/fill/html-to-markdown.ts`.
@@ -51,10 +59,19 @@ Saving links, pages and files as items, and filling a saved link from its page.
 - **A MAC FILLS WHAT IT MADE AT ONCE, A PHONE'S STUB WITHIN A MINUTE AND ANOTHER
   MAC'S AFTER 15 MINUTES; A FILL ONLY ADDS, NEVER WRITES `url`/`saved`, AND
   RENAMES ONLY AN UNTRACKED STUB OF ITS OWN, BEFORE IT WRITES.** This Mac's own
-  rows run at once, two at a time and one per site. A phone stub is one whose
-  adding commit the Worker made (`creatorOf`), since no Mac holds it in a
-  pending store; it waits 0 to 60 s, shuffled by a per-install seed so two Macs
-  rarely race, and another Mac's waits 15 minutes; one such fill runs at a time,
+  rows (its saves, `own`, and its import's, `import`) run at once, two at a
+  time and one per site, a save and a phone's share ahead of an import and
+  another device's stubs, and each site's rows waiting behind its own first, so
+  a save made during an import of thousands starts at the next free slot. Only
+  a library that syncs with the account's hosted vault fills another device's
+  stubs (`syncsWithAccount`), since there they are the person's own devices'
+  and anywhere else a stub-shaped note is just a file the folder held. A phone
+  stub is one whose adding commit the Worker made (`creatorOf`), since no Mac
+  holds it in a pending store; it waits 0 to 60 s, shuffled by a per-install
+  seed so two Macs rarely race, and its own address decides its reach as an own
+  save's does; another Mac's waits 15 minutes and is read under public reach,
+  so a stub this Mac did not make never leads it into private space. One such
+  fill runs at a time,
   syncs before it fetches (and drops a stub the sync filled) and commits and
   syncs after it writes, so a second Mac rarely enriches it, and the url-item
   verdict settles the rare double. The sweep that finds them polls every 10 s,
@@ -78,21 +95,31 @@ Saving links, pages and files as items, and filling a saved link from its page.
   write; a transient failure (offline, a timeout, 429, 503) is retried three
   times before the fourth is written. A copy too big to keep is only logged,
   since `fetch-error` marks the text unread and a refresh would add the article
-  twice. Rejected: a failed state in the database alone (the phone and another
-  Mac would see a stub forever). `apps/cli/src/server/items/capture/fill-sentences.ts`.
+  twice; for the same reason a refresh (or a copy) of an item already read that
+  cannot read its page again leaves the file as it is and answers the failure
+  (`unread`). Rejected: a failed state in the database alone (the phone and
+  another Mac would see a stub forever). `apps/cli/src/server/items/capture/fill-sentences.ts`.
 
 - **A SAVE OF A URL THE LIBRARY HOLDS ADDS WHAT IT CARRIES** (tags, a selection
   as a highlight placed in the text or under `## Highlights` when the passage is
   gone, a page copy) to that item and never rewrites its text (R22); a stub that
-  turns out to hold a url another item holds folds into it. Rejected: answering
-  `exists` and dropping the rest, which made the popup's "Keep a copy of the
+  turns out to hold a url another item holds folds into it. A selection the
+  item already holds as a highlight is not added again (the popup sends the
+  page again, selection and all, for Keep a copy of the page); a copy asked for
+  while the item's first fill is under way is made right after it, before its
+  waiters hear; and a copy is kept only for a link, a video or a song, so a
+  note or a file that carries the url keeps its own text, as a refresh would
+  refuse it. Rejected: answering `exists` and dropping the rest, which made the popup's "Keep a copy of the
   page" and "Save as a highlight" on a saved page do nothing.
   `apps/cli/src/server/items/capture/capture.ts`,
   `apps/cli/src/server/items/capture/fold-duplicate.ts`.
 
 - **AN ITEM IS A STUB ONLY WHEN THE APP MADE IT** (`id` and `saved` present,
   `isItemStub` in `packages/notes/src/items/item-frontmatter.ts`), so a link
-  note an opened folder already held is never filled unasked.
+  note an opened folder already held is never filled unasked; and since a
+  folder's files can say anything, a stub no row of this Mac's holds is filled
+  only in a library that syncs with the account, never under private reach
+  unless the account's Worker made it.
 
 - **A COVER IS DOWNSCALED BY THE SYSTEM'S `sips` AND STORED BY ITS HASH**: at
   most 640 px, a picture with transparency kept PNG and the rest JPEG at 80, a

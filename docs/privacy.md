@@ -240,8 +240,9 @@ The apps also hold to these, plainly:
 - **Saving a link — from your Mac, to that site.** When you save a link, the
   Mac app fetches that page once, from your Mac and never through our cloud, to
   fill in its title, site, description, cover image and readable text. Refresh
-  fetches it again, and so does any of your Macs that finds a link saved
-  elsewhere still waiting to be filled in. It also fetches the cover image the
+  fetches it again, and, in a library that syncs with your Inteligir account,
+  so does any of your Macs that finds a link saved on another of your devices
+  still waiting to be filled in. It also fetches the cover image the
   page names. For YouTube, Vimeo, X, TikTok, Spotify and SoundCloud it asks that
   site's own oEmbed address (with X's `dnt=true`), for any other page the oEmbed
   address the page itself names, and the picture that answer names; for a
@@ -250,9 +251,11 @@ The apps also hold to these, plainly:
   request carries no cookies, sign-in or referrer; the site sees your Mac's IP
   address, a Safari-compatible user agent naming inteligir and its version, and
   your preferred language, as a browser visit would. Addresses on this Mac
-  itself and link-local addresses are never fetched. An address on your own
-  network is fetched only when it is the link you saved; a page on the internet
-  can never send your Mac to one, by a redirect or by naming a picture there. A
+  itself, its own address on the internet included, and link-local addresses
+  are never fetched. An address on your own network is fetched only when it is
+  the link you saved, on that Mac or from your phone; a page on the internet can
+  never send your Mac to one, by a redirect or by naming a picture there, and
+  neither can a link another Mac saved. A
   link saved on your phone is fetched by your Macs, usually by one of them
   within a minute, occasionally by two; the phone fetches nothing. Before a Mac
   fills a link saved elsewhere it syncs once, so it can skip one another Mac

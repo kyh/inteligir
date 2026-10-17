@@ -316,6 +316,7 @@ describe("whose stubs this Mac fills", () => {
           committed.push([...paths]);
           await core.commitPaths(paths);
         },
+        syncsWithAccount: async () => await Promise.resolve(true),
         syncNow: async () => {
           synced.push("sync");
           await Promise.resolve();
@@ -352,6 +353,7 @@ describe("whose stubs this Mac fills", () => {
       core: (core) => ({
         ...core,
         creatorOf: async () => await Promise.resolve("phone" as const),
+        syncsWithAccount: async () => await Promise.resolve(true),
         syncNow: async () => {
           if (fillElsewhere) {
             const current = await core.read("Unsorted/From phone 2.md");
@@ -371,6 +373,8 @@ describe("whose stubs this Mac fills", () => {
     await suite.clock.advance(10_000 + MINUTE);
     await settled(suite, "Unsorted/From phone.md", filled);
     expect(pendingRows(suite)).toEqual([]);
+    // the person's own phone saved it, so its own address decides what it may reach
+    expect(suite.fetcher.reaches).toContainEqual({ reach: null, url: PAGE });
 
     const other = "https://site.test/other";
     await suite.harness.vault.service.write(
@@ -387,6 +391,42 @@ describe("whose stubs this Mac fills", () => {
     expect(suite.fetcher.requests).not.toContain(other);
   });
 
+  it("never lets another device's stub lead this Mac into private space", async () => {
+    const router = "http://192.168.1.1/cgi-bin/luci";
+    const suite = await bootCapture({
+      core: (core) => ({
+        ...core,
+        syncsWithAccount: async () => await Promise.resolve(true),
+      }),
+      routes: { [router]: { html: "<title>Router</title><p>Admin.</p>" } },
+    });
+    await syncedStub(suite, "Unsorted/Router.md", router);
+    suite.capture.boot();
+    await suite.clock.advance(10_000 + 15 * MINUTE);
+    const content = await settled(suite, "Unsorted/Router.md", filled);
+    expect(content).toContain(
+      "fetch-error: The page pointed at an address on your own network, so it isn't read.\n",
+    );
+    expect(content).not.toContain("Admin.");
+    expect(suite.fetcher.reaches).toEqual([{ reach: "public", url: router }]);
+  });
+
+  it("fills no other device's stub, a phone's included, in a library that does not sync with the account", async () => {
+    const suite = await bootCapture({
+      core: (core) => ({
+        ...core,
+        creatorOf: async () => await Promise.resolve("phone" as const),
+      }),
+      routes: { [PAGE]: { html: PAGE_HTML } },
+    });
+    expect(await suite.core.syncsWithAccount()).toBe(false);
+    await syncedStub(suite, "Unsorted/Their stub.md", PAGE);
+    suite.capture.boot();
+    await suite.clock.advance(20 * MINUTE);
+    expect(suite.fetcher.requests).toEqual([]);
+    expect(pendingRows(suite)).toEqual([]);
+  });
+
   it("never fills a link note an opened folder already held", async () => {
     const suite = await bootCapture({ routes: { [PAGE]: { html: PAGE_HTML } } });
     await suite.harness.vault.service.write(
@@ -401,7 +441,13 @@ describe("whose stubs this Mac fills", () => {
   });
 
   it("folds a stub into the item already holding its url instead of reading the page", async () => {
-    const suite = await bootCapture({ routes: { [PAGE]: { html: PAGE_HTML } } });
+    const suite = await bootCapture({
+      core: (core) => ({
+        ...core,
+        syncsWithAccount: async () => await Promise.resolve(true),
+      }),
+      routes: { [PAGE]: { html: PAGE_HTML } },
+    });
     await suite.harness.vault.service.write(
       "Reading/File over app.md",
       `---\nid: 0e5b3c1a-9a51-4f0e-8a0c-0b7f9d3a2c11\nkind: link\nurl: ${PAGE}\nsaved: 2026-10-16T09:00:00Z\nfetched: 2026-10-16T09:00:05Z\n---\n\n![](assets/covers/abc.png)\n\nThe article.\n`,
@@ -423,6 +469,81 @@ describe("whose stubs this Mac fills", () => {
     expect(holder).toContain("tags:\n  - later\n");
     expect(holder).toContain("![](assets/covers/abc.png)\n\nFor Tuesday.\n\nThe article.\n");
     expect(suite.fetcher.requests).toEqual([]);
+  });
+});
+
+describe("what a fill may reach", () => {
+  it("keeps a public page's cover, stylesheets and pictures out of private space", async () => {
+    const mixed = "https://site.test/mixed";
+    const privateCover = "http://192.168.1.1/admin.png";
+    const privateSheet = "http://10.0.0.5/style.css";
+    const privatePicture = "http://192.168.1.1/picture.png";
+    const suite = await bootCapture({
+      routes: {
+        [mixed]: {
+          html: [
+            "<title>Mixed</title>",
+            `<meta property="og:image" content="${privateCover}">`,
+            `<link rel="stylesheet" href="${privateSheet}">`,
+            `<img src="${privatePicture}">`,
+            "<p>Public words.</p>",
+          ].join("\n"),
+        },
+        [privateCover]: { bytes: pngOf(640, 400), mediaType: "image/png" },
+        [privatePicture]: { bytes: pngOf(640, 400, 3), mediaType: "image/png" },
+        [privateSheet]: { bytes: new TextEncoder().encode("p{}"), mediaType: "text/css" },
+      },
+    });
+    const saved = await suite.capture.saveLink({ keepCopy: true, url: mixed, wait: true });
+    expect(saved.fill).toEqual({ state: "filled" });
+    expect(saved.wrote.some((path) => path.startsWith("assets/covers/"))).toBe(false);
+    expect(suite.fetcher.reaches[0]).toEqual({ reach: null, url: mixed });
+    const subresources = suite.fetcher.reaches.slice(1);
+    expect(subresources.map((request) => request.url).toSorted()).toEqual(
+      [privateCover, privatePicture, privateSheet].toSorted(),
+    );
+    expect(subresources.every((request) => request.reach === "public")).toBe(true);
+  });
+
+  it("lets a page on the person's own network keep a cover from that network", async () => {
+    const lan = "http://192.168.1.10/notes";
+    const lanCover = "http://192.168.1.10/cover.png";
+    const suite = await bootCapture({
+      routes: {
+        [lan]: {
+          html: `<title>Home</title><meta property="og:image" content="${lanCover}"><p>Words.</p>`,
+        },
+        [lanCover]: { bytes: pngOf(640, 400), mediaType: "image/png" },
+      },
+    });
+    const saved = await suite.capture.saveLink({ keepCopy: false, url: lan, wait: true });
+    expect(saved.wrote.some((path) => path.startsWith("assets/covers/"))).toBe(true);
+    expect(suite.fetcher.reaches).toEqual([
+      { reach: null, url: lan },
+      { reach: "private", url: lanCover },
+    ]);
+  });
+});
+
+describe("a refresh", () => {
+  it("keeps a read item as it was when the page can't be read again, so the next adds the article once", async () => {
+    const suite = await bootCapture({ routes: { [PAGE]: { html: PAGE_HTML } } });
+    const first = await suite.capture.saveLink({ keepCopy: false, url: PAGE, wait: true });
+    const before = suite.onDisk(first.path);
+    suite.fetcher.routes.set(PAGE, { failure: { kind: "unreachable", transient: true } });
+    const failed = await suite.capture.refresh({
+      keepCopy: false,
+      path: first.path,
+      text: "keep",
+      wait: true,
+    });
+    expect(failed.fill).toEqual({ message: "The page couldn't be reached.", state: "failed" });
+    expect(suite.onDisk(first.path)).toBe(before);
+    suite.fetcher.routes.set(PAGE, { html: PAGE_HTML });
+    await suite.capture.refresh({ keepCopy: true, path: first.path, text: "keep", wait: true });
+    const after = suite.onDisk(first.path);
+    expect(after.split("Apps are ephemeral.")).toHaveLength(2);
+    expect(after).toMatch(/\[Copy of the page\]\(assets\/pages\/[0-9a-f]{16}\.html\)/u);
   });
 });
 
@@ -480,6 +601,64 @@ describe("a save of a url the library holds", () => {
     );
     // the copy is built from the page the browser handed over: the page is read once, by the first
     expect(suite.fetcher.requests.filter((url) => url === PAGE)).toHaveLength(1);
+  });
+
+  it("keeps a note that carries the url as the person wrote it when a copy is asked for", async () => {
+    const suite = await bootCapture({ routes: { [PAGE]: { html: PAGE_HTML } } });
+    const essay = `---\nurl: ${PAGE}\n---\n\nMy own essay on files.\n`;
+    await suite.harness.vault.service.write("Reading/On files.md", essay);
+    await suite.harness.composed.context.knowledge.settle();
+    const again = await suite.capture.savePage({
+      keepCopy: true,
+      page: { html: PAGE_HTML, selection: null, title: "File over app", url: PAGE },
+      wait: true,
+    });
+    expect(again).toMatchObject({ outcome: "exists", path: "Reading/On files.md" });
+    expect(suite.onDisk("Reading/On files.md")).toBe(essay);
+    expect(suite.fetcher.requests).toEqual([]);
+  });
+
+  it("adds a selection once when the page comes again with it still selected", async () => {
+    const suite = await bootCapture({
+      routes: { [COVER]: { bytes: pngOf(640, 400), mediaType: "image/png" } },
+    });
+    const page = {
+      html: PAGE_HTML,
+      selection: { text: "Files last." },
+      title: "File over app",
+      url: PAGE,
+    };
+    const first = await suite.capture.savePage({ keepCopy: false, page, wait: true });
+    await suite.harness.composed.context.knowledge.settle();
+    await suite.capture.savePage({ keepCopy: true, page, wait: true });
+    const listed = await suite.harness.composed.context.annotations.list(first.path);
+    expect(listed.annotations.map((annotation) => annotation.quote)).toEqual(["Files last."]);
+  });
+
+  it("keeps the copy asked for while the item's first fill is under way", async () => {
+    const suite = await bootCapture({
+      routes: { [COVER]: { bytes: pngOf(640, 400), mediaType: "image/png" } },
+    });
+    const page = { html: PAGE_HTML, selection: null, title: "File over app", url: PAGE };
+    const held = suite.fetcher.hold(COVER);
+    const first = await suite.capture.savePage({ keepCopy: false, page, wait: false });
+    await held.reached;
+    const asking = suite.capture.savePage({ keepCopy: true, page, wait: true });
+    // the running row gains the copy once the second save reaches it
+    await vi.waitFor(() => {
+      expect(
+        suite.harness.db.$client.prepare("SELECT keep_copy FROM pending_fills").pluck().all(),
+      ).toEqual([1]);
+    });
+    held.release();
+    const again = await asking;
+    expect(again.outcome).toBe("exists");
+    const content = suite.onDisk(again.path);
+    expect(content).toMatch(/\[Copy of the page\]\(assets\/pages\/[0-9a-f]{16}\.html\)/u);
+    expect(content.split("Apps are ephemeral.")).toHaveLength(2);
+    expect(first.outcome).toBe("created");
+    // the copy came from the page handed over again; the page itself was never requested
+    expect(suite.fetcher.requests).not.toContain(PAGE);
   });
 });
 

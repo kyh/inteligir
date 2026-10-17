@@ -18,6 +18,7 @@ import type { Capture } from "../capture";
 import type { CaptureClock } from "../capture-ports";
 import type { FillJobInput, FillResult } from "../fill-protocol";
 import { inlineFillRunner } from "../fill-runner";
+import type { Reach } from "../address-guard";
 import type { FetchFailure, FetchRequest, FetchResult, GuardedFetch } from "../guarded-fetch";
 
 export const START_MS = Date.UTC(2026, 9, 17, 9, 12, 30);
@@ -75,16 +76,35 @@ export type Route =
 
 export interface FakeFetcher extends GuardedFetch {
   requests: string[];
+  // every request's url with the reach it was made under, refused or not
+  reaches: { url: string; reach: Reach | null }[];
   routes: Map<string, Route>;
   // the next fetch of `url` waits until the answer is released
   hold: (url: string) => { reached: Promise<true>; release: () => void };
 }
 
+// the hosts a suite's network puts in private space; every other host is public
+const PRIVATE_HOST = /^(?:10\.|192\.168\.|router\.lan$)/u;
+
+const hostReach = (url: string): Reach => {
+  try {
+    return PRIVATE_HOST.test(new URL(url).hostname) ? "private" : "public";
+  } catch {
+    return "public";
+  }
+};
+
+// the guard's own rule over that network: private space only from a private saved address
 export const fakeFetcher = (routes: Record<string, Route> = {}): FakeFetcher => {
   const table = new Map(Object.entries(routes));
   const requests: string[] = [];
+  const reaches: { url: string; reach: Reach | null }[] = [];
   const holds = new Map<string, { reached: (value: true) => void; released: Promise<true> }>();
   const answer = (request: FetchRequest): FetchResult => {
+    const host = hostReach(request.url);
+    if (request.reach === "public" && host === "private") {
+      return { failure: { kind: "refused", refusal: "private-from-public" }, ok: false };
+    }
     const route = table.get(request.url);
     if (route === undefined) {
       return {
@@ -102,7 +122,7 @@ export const fakeFetcher = (routes: Record<string, Route> = {}): FakeFetcher => 
         bytes,
         charset: "utf-8",
         mediaType: "html" in route ? "text/html" : route.mediaType,
-        reach: "public",
+        reach: request.reach ?? host,
         status: 200,
         truncated: "truncated" in route && route.truncated === true,
         url: request.url,
@@ -112,6 +132,7 @@ export const fakeFetcher = (routes: Record<string, Route> = {}): FakeFetcher => 
   return {
     async fetch(request) {
       requests.push(request.url);
+      reaches.push({ reach: request.reach, url: request.url });
       const held = holds.get(request.url);
       if (held !== undefined) {
         holds.delete(request.url);
@@ -131,7 +152,8 @@ export const fakeFetcher = (routes: Record<string, Route> = {}): FakeFetcher => 
         },
       };
     },
-    reachOf: async () => await Promise.resolve({ ok: true, reach: "public" }),
+    reachOf: async (url) => await Promise.resolve({ ok: true, reach: hostReach(url) }),
+    reaches,
     requests,
     routes: table,
   };
@@ -141,7 +163,7 @@ const match = (html: string, pattern: RegExp): string | null =>
   pattern.exec(html)?.groups?.value ?? null;
 
 // the tiny pages a capture suite serves: <title>, og:site_name, og:image, the description meta and
-// <p> paragraphs, read by pattern
+// <p> paragraphs, read by pattern, and for a copy its stylesheet links and <img> pictures
 const fakeExtract = (job: FillJobInput): FillResult => {
   switch (job.kind) {
     case "extract": {
@@ -173,7 +195,17 @@ const fakeExtract = (job: FillJobInput): FillResult => {
       };
     }
     case "copy-plan": {
-      return { images: [], kind: "copy-plan", styleImports: [], styleRefs: [], stylesheets: [] };
+      return {
+        images: [...job.html.matchAll(/<img src="(?<value>[^"]*)"/gu)].map(
+          (image) => image.groups?.value ?? "",
+        ),
+        kind: "copy-plan",
+        styleImports: [],
+        styleRefs: [],
+        stylesheets: [...job.html.matchAll(/<link rel="stylesheet" href="(?<value>[^"]*)"/gu)].map(
+          (sheet) => sheet.groups?.value ?? "",
+        ),
+      };
     }
     case "copy-build": {
       return { html: `<!DOCTYPE html>\n<p>copy of ${job.url}</p>\n`, kind: "copy" };
@@ -213,7 +245,7 @@ const recordingAnnotations = (
 ) => {
   const placements: RecordedPlacement[] = [];
   const quotes: string[] = [];
-  const annotations: Pick<AnnotationsService, "add" | "placeWaiting"> = {
+  const annotations: Pick<AnnotationsService, "add" | "list" | "placeWaiting"> = {
     add: async (request) => {
       if (request.place !== undefined) {
         const item = await core.read(request.path);
@@ -226,6 +258,7 @@ const recordingAnnotations = (
       quotes.push(request.quote);
       return await real.add(request);
     },
+    list: async (path) => await real.list(path),
     placeWaiting: async (args) => {
       placements.push({ final: args.final, itemId: args.itemId, path: args.path });
       onPlace({ final: args.final, itemId: args.itemId, path: args.path });

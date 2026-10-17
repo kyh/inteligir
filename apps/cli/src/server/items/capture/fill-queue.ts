@@ -1,9 +1,12 @@
-// the stubs this Mac fills, and when. Its own saves and imports are filled at once; a phone's stub
-// (one whose adding commit the Worker made) after a delay of up to a minute, shuffled by this data
-// dir's seed so two Macs pick different moments; anyone else's after it has waited fifteen minutes.
-// Two fills run at once, one per host, and one phone or foreign fill at a time, which syncs before
-// it fetches (and drops a stub another device filled meanwhile) and commits and syncs after it
-// writes. A transient failure tries again after 1, 10 and 60 minutes; the fourth is said in the file.
+// the stubs this Mac fills, and when. Its own saves and imports are filled at once; in a library
+// that syncs with the account's hosted vault, a phone's stub (one whose adding commit the Worker
+// made) after a delay of up to a minute, shuffled by this data dir's seed so two Macs pick
+// different moments, and another device's after it has waited fifteen minutes; a library that
+// syncs anywhere else fills only what this Mac saved. Two fills run at once, one per host, and one
+// phone or foreign fill at a time, which syncs before it fetches (and drops a stub another device
+// filled meanwhile) and commits and syncs after it writes. A save and a phone's share go ahead of
+// an import and another device's stubs, so a save made during an import is filled at once. A
+// transient failure tries again after 1, 10 and 60 minutes; the fourth is said in the file.
 
 import { createHash } from "node:crypto";
 
@@ -16,7 +19,7 @@ import type { KnowledgeRuntime } from "../../knowledge/knowledge-runtime";
 import type { ItemCore } from "../item-core";
 import type { CaptureClock } from "./capture-ports";
 import type { FillOutcome, FillTarget } from "./fill-item";
-import type { PendingFill, PendingFillsStore } from "./pending-fills-store";
+import type { FillOrigin, PendingFill, PendingFillsStore } from "./pending-fills-store";
 
 const MINUTE = 60_000;
 const RETRY_AFTER_MS = [MINUTE, 10 * MINUTE, 60 * MINUTE];
@@ -38,7 +41,7 @@ interface FillDone {
 
 export interface FillQueueDeps {
   store: PendingFillsStore;
-  core: Pick<ItemCore, "read" | "creatorOf" | "syncNow" | "commitPaths">;
+  core: Pick<ItemCore, "read" | "creatorOf" | "syncsWithAccount" | "syncNow" | "commitPaths">;
   knowledge: Pick<KnowledgeRuntime, "itemStubs" | "pathForNoteId">;
   clock: CaptureClock;
   // the fill itself, with the target the queue built from the row
@@ -49,17 +52,25 @@ export interface FillQueueDeps {
   ) => Promise<FillOutcome>;
   // the page a browser handed over for a row, consumed by its fill
   takeSupplied: (itemId: string) => { html: string; at: number } | null;
+  // a copy of the page asked for while the row's fill was already under way without one: a
+  // keep-copy refresh of the item that fill wrote, run before the row's waiters are answered
+  copyAfter: (
+    row: { itemId: string; path: string; url: string },
+    signal: AbortSignal,
+  ) => Promise<FillOutcome>;
   debug: (line: string) => void;
 }
 
 export interface FillQueue {
-  // an own row, due at once; a row for an id already held only gains `keepCopy`
+  // a row of this Mac's own, a save's or the import's, due at once; a row for an id already held
+  // only gains `keepCopy`, made after its fill when that fill is already under way without it
   add: (row: {
     itemId: string;
     path: string;
     url: string;
     keepCopy: boolean;
     coverHint: string | null;
+    origin: Extract<FillOrigin, "own" | "import">;
   }) => void;
   has: (itemId: string) => boolean;
   // resolves with the row's first fill that ended (written, dropped, or put off by a transient
@@ -85,11 +96,16 @@ const hostOf = (row: PendingFill): string => {
   return host;
 };
 
-// how far past the first due row a pass looks for one it may start: one site's import thousands
-// deep waits behind its own head rather than costing every pass a walk of the whole store
-const SCAN_MAX = 256;
+// a phone's or another device's row, which syncs around its fill and holds the one elsewhere slot
+const isElsewhere = (origin: FillOrigin): boolean => origin === "phone" || origin === "foreign";
 
-// a row placed before another: the sooner due, then the earlier seen, then by id
+// the two lanes a pass starts from, in turn: what the person is waiting on (a save, a phone's
+// share) ahead of what runs in the background (an import, another device's stub)
+type Lane = "interactive" | "background";
+const laneOf = (origin: FillOrigin): Lane =>
+  origin === "own" || origin === "phone" ? "interactive" : "background";
+
+// a row placed before another in its lane: the sooner due, then the earlier seen, then by id
 const comesBefore = (a: PendingFill, b: PendingFill): boolean => {
   if (a.notBefore === b.notBefore) {
     return a.firstSeenAt === b.firstSeenAt ? a.itemId < b.itemId : a.firstSeenAt < b.firstSeenAt;
@@ -104,10 +120,24 @@ interface Waiter {
 export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
   const { store, clock } = deps;
   const rows = new Map<string, PendingFill>();
-  // the rows' ids by when each comes due, then when it was first seen: the next fill is a prefix
-  // read, never a sort of the whole store (an import holds thousands)
-  const order: string[] = [];
-  const running = new Map<string, { controller: AbortController; done: Promise<void> }>();
+  // each lane's row ids by host, each host's by when each comes due, then when it was first seen:
+  // only a host's first row may start, so a pass reads one row per host, never a walk of one
+  // site's import thousands deep
+  const lanes: Record<Lane, Map<string, string[]>> = {
+    background: new Map(),
+    interactive: new Map(),
+  };
+  const queueOf = (row: PendingFill): string[] | undefined =>
+    lanes[laneOf(row.origin)].get(hostOf(row));
+  // every row id in the same order across lanes and hosts: when the next one comes due is a
+  // binary search, never a walk of the store
+  const byTime: string[] = [];
+  const running = new Map<
+    string,
+    { controller: AbortController; done: Promise<void>; keepCopy: boolean }
+  >();
+  // the running rows a copy of the page was asked for after their fill started without one
+  const copyLater = new Set<string>();
   const waiters = new Map<string, Waiter[]>();
   const busyHosts = new Set<string>();
   let elsewhereBusy = false;
@@ -151,8 +181,8 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
     }
   };
 
-  // the first position whose row does not come before `row`
-  const positionOf = (row: PendingFill): number => {
+  // the first position in an ordered list of ids whose row does not come before `row`
+  const positionOf = (order: readonly string[], row: PendingFill): number => {
     let low = 0;
     let high = order.length;
     while (low < high) {
@@ -167,55 +197,86 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
     return low;
   };
 
-  const unorder = (itemId: string): void => {
-    const at = order.indexOf(itemId);
-    if (at !== -1) {
-      order.splice(at, 1);
+  const unorder = (row: PendingFill): void => {
+    const timed = byTime.indexOf(row.itemId);
+    if (timed !== -1) {
+      byTime.splice(timed, 1);
+    }
+    const order = queueOf(row);
+    const at = order?.indexOf(row.itemId) ?? -1;
+    if (order === undefined || at === -1) {
+      return;
+    }
+    order.splice(at, 1);
+    if (order.length === 0) {
+      lanes[laneOf(row.origin)].delete(hostOf(row));
     }
   };
 
-  // a row held, placed by when it comes due; a change that keeps its moment keeps its place
+  // a row held, placed in its lane by when it comes due; a change that keeps its moment keeps its
+  // place
   const put = (row: PendingFill): void => {
     const held = rows.get(row.itemId);
-    if (held !== undefined && held.notBefore === row.notBefore) {
+    if (held !== undefined && held.notBefore === row.notBefore && held.origin === row.origin) {
       rows.set(row.itemId, row);
       return;
     }
     if (held !== undefined) {
-      unorder(row.itemId);
+      unorder(held);
     }
     rows.set(row.itemId, row);
-    order.splice(positionOf(row), 0, row.itemId);
+    const lane = lanes[laneOf(row.origin)];
+    const order = lane.get(hostOf(row)) ?? [];
+    lane.set(hostOf(row), order);
+    order.splice(positionOf(order, row), 0, row.itemId);
+    byTime.splice(positionOf(byTime, row), 0, row.itemId);
   };
 
+  // each host's first row in a lane
+  const headsOf = (lane: Lane): PendingFill[] =>
+    [...lanes[lane].values()].flatMap((order) => {
+      const head = rows.get(order[0] ?? "");
+      return head === undefined ? [] : [head];
+    });
+
   const forget = (itemId: string): void => {
+    const held = rows.get(itemId);
+    if (held !== undefined) {
+      unorder(held);
+    }
     rows.delete(itemId);
-    unorder(itemId);
+    copyLater.delete(itemId);
+    // a page a browser handed over for the row is never read once the row is gone
+    deps.takeSupplied(itemId);
     store.remove(itemId);
   };
 
-  // the earliest due rows that may start now, by the concurrency rules
+  // the earliest due rows that may start now, by the concurrency rules: the interactive lane's
+  // first, and in each lane the soonest due first among the hosts not busy, so one site's import
+  // thousands deep never holds a free slot from every other site
   const startable = (now: number): PendingFill[] => {
     const picked: PendingFill[] = [];
     const hosts = new Set(busyHosts);
     let elsewhere = elsewhereBusy;
-    for (const [index, itemId] of order.entries()) {
-      const row = rows.get(itemId);
-      if (
-        row === undefined ||
-        row.notBefore > now ||
-        index >= SCAN_MAX ||
-        running.size + picked.length >= FILLS_AT_ONCE
-      ) {
+    for (const lane of ["interactive", "background"] as const) {
+      if (running.size + picked.length >= FILLS_AT_ONCE) {
         break;
       }
-      const isElsewhere = row.origin !== "own";
-      if (running.has(itemId) || hosts.has(hostOf(row)) || (isElsewhere && elsewhere)) {
-        continue;
+      const due = headsOf(lane)
+        .filter((row) => row.notBefore <= now && !hosts.has(hostOf(row)))
+        .toSorted((a, b) => (comesBefore(a, b) ? -1 : 1));
+      for (const row of due) {
+        if (running.size + picked.length >= FILLS_AT_ONCE) {
+          break;
+        }
+        const fromElsewhere = isElsewhere(row.origin);
+        if (running.has(row.itemId) || hosts.has(hostOf(row)) || (fromElsewhere && elsewhere)) {
+          continue;
+        }
+        hosts.add(hostOf(row));
+        elsewhere ||= fromElsewhere;
+        picked.push(row);
       }
-      hosts.add(hostOf(row));
-      elsewhere ||= isElsewhere;
-      picked.push(row);
     }
     return picked;
   };
@@ -235,6 +296,16 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
             ? null
             : { fill: { state: "pending" }, path: outcome.path, wrote: outcome.wrote },
         );
+        break;
+      }
+      // never a row's own fill, whose stub was never read; settled as a drop that says why
+      case "unread": {
+        forget(row.itemId);
+        answer(row.itemId, {
+          fill: { message: outcome.message, state: "failed" },
+          path: outcome.path,
+          wrote: [],
+        });
         break;
       }
       case "retry": {
@@ -260,18 +331,43 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
     }
   };
 
+  // the fill's outcome with the copy asked for while it ran, made from what it wrote
+  const withCopyAfter = async (
+    row: PendingFill,
+    outcome: FillOutcome,
+    signal: AbortSignal,
+  ): Promise<FillOutcome> => {
+    const asked = copyLater.delete(row.itemId);
+    if (!asked || outcome.kind !== "written") {
+      return outcome;
+    }
+    const copied = await deps.copyAfter(
+      { itemId: row.itemId, path: outcome.path, url: row.url },
+      signal,
+    );
+    if (copied.kind !== "written") {
+      return outcome;
+    }
+    return { ...copied, wrote: [...outcome.wrote, ...copied.wrote] };
+  };
+
   const runRow = async (row: PendingFill, controller: AbortController): Promise<void> => {
-    const elsewhere = row.origin !== "own";
+    const elsewhere = isElsewhere(row.origin);
     try {
       if (elsewhere) {
         await syncAround();
         const read = await deps.core.read(row.path);
-        if (read === null || !isItemStub(itemFactsOf(read.content))) {
+        // a library that stopped syncing with the account fills only what this Mac saved
+        if (
+          read === null ||
+          !isItemStub(itemFactsOf(read.content)) ||
+          !(await deps.core.syncsWithAccount())
+        ) {
           settle(row, { kind: "dropped", path: read === null ? null : row.path, wrote: [] });
           return;
         }
       }
-      const outcome = await deps.fillRow(
+      const filled = await deps.fillRow(
         {
           coverHint: row.coverHint,
           itemId: row.itemId,
@@ -292,6 +388,7 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
           }
         },
       );
+      const outcome = await withCopyAfter(row, filled, controller.signal);
       settle(rows.get(row.itemId) ?? row, outcome);
       if (elsewhere && outcome.kind === "written") {
         await deps.core.commitPaths(outcome.wrote);
@@ -310,24 +407,24 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
   // due prefix
   const nextDue = (now: number): number | null => {
     let low = 0;
-    let high = order.length;
+    let high = byTime.length;
     while (low < high) {
       const middle = Math.floor((low + high) / 2);
-      const at = rows.get(order[middle] ?? "");
+      const at = rows.get(byTime[middle] ?? "");
       if (at !== undefined && at.notBefore <= now) {
         low = middle + 1;
       } else {
         high = middle;
       }
     }
-    return rows.get(order[low] ?? "")?.notBefore ?? null;
+    return rows.get(byTime[low] ?? "")?.notBefore ?? null;
   };
 
   // a row's fill, holding its host and (for a phone's or another Mac's) the one elsewhere slot
   const start = (row: PendingFill, then: () => void): void => {
     const controller = new AbortController();
     const host = hostOf(row);
-    const elsewhere = row.origin !== "own";
+    const elsewhere = isElsewhere(row.origin);
     busyHosts.add(host);
     elsewhereBusy ||= elsewhere;
     const done = (async () => {
@@ -342,7 +439,7 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
         then();
       }
     })();
-    running.set(row.itemId, { controller, done });
+    running.set(row.itemId, { controller, done, keepCopy: row.keepCopy });
   };
 
   const pump = (): void => {
@@ -363,7 +460,9 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
     }
   };
 
-  // a stub with no row gains one: a phone's within a minute, anyone else's after fifteen
+  // a stub with no row gains one: a phone's within a minute, anyone else's after fifteen. Only a
+  // library that syncs with the account adopts any (the sweep asks), so a folder's own link notes
+  // shaped like stubs are never filled unasked
   const adopt = async (path: string, now: number): Promise<void> => {
     const read = await deps.core.read(path);
     if (read === null) {
@@ -425,8 +524,9 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
     const now = clock.now();
     const stubs = await deps.knowledge.itemStubs();
     const known = new Set([...rows.values()].map((row) => row.path));
-    for (const path of stubs) {
-      if (!known.has(path)) {
+    const unknown = stubs.filter((path) => !known.has(path));
+    if (unknown.length > 0 && (await deps.core.syncsWithAccount())) {
+      for (const path of unknown) {
         await adopt(path, now);
       }
     }
@@ -460,6 +560,9 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
           put({ ...held, keepCopy: true });
           store.setKeepCopy(row.itemId);
         }
+        if (row.keepCopy && running.get(row.itemId)?.keepCopy === false) {
+          copyLater.add(row.itemId);
+        }
         return;
       }
       const now = clock.now();
@@ -470,7 +573,7 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
         itemId: row.itemId,
         keepCopy: row.keepCopy,
         notBefore: now,
-        origin: "own",
+        origin: row.origin,
         path: row.path,
         url: row.url,
       };

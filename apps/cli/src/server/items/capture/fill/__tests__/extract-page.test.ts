@@ -139,6 +139,17 @@ describe("the article", () => {
     expect(article).toMatch(/- On macOS it lives under your home folder\./u);
   });
 
+  it("never names one of the dialect's own fenced blocks as a code block's language", () => {
+    const { article } = extracted("docs-page");
+    expect(article).toContain("```\n<b>Synced</b> at noon\n```");
+    expect(article).toContain('```\n{"type": "bar"}\n```');
+    expect(article.toLowerCase()).not.toContain("```inteligir-");
+    const types = new Set(nodesOf(article).map((node) => node.type ?? "text"));
+    expect([...types].filter((type) => type.endsWith("_block") && type !== "code_block")).toEqual(
+      [],
+    );
+  });
+
   it("keeps nothing a script, a frame, an object or a form put there", () => {
     const { article } = extracted("script-heavy");
     expect(article).toContain("offline mode");

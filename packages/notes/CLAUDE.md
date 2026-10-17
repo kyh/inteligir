@@ -97,8 +97,9 @@ node is rather than discriminating structurally at each visit.
   the image or PDF a fill turned a link into) with one url key, over a base
   that has that key or none. A side's fill mark is its `fetched` as written.
   When both changed it, and differently, the winner comes from one total
-  order (a fetched side, then the earlier fetch, then the earlier save, then
-  the smaller text) and the loser's edits since base ride onto it: its tag and
+  order (a fetched side, then one that read its page over one whose
+  `fetch-error` says it failed, then the earlier fetch, then the earlier save,
+  then the smaller text) and the loser's edits since base ride onto it: its tag and
   alias adds and removes, its own keys through the line cut, the earlier
   `saved`, its `id` when the winner has none, and an unfetched loser's note
   where the fill carried the stub's. When one side changed it, the filler's

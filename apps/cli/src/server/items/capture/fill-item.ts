@@ -74,6 +74,10 @@ export type FillOutcome =
   | { kind: "written"; path: string; fill: ItemFill; wrote: string[] }
   | { kind: "retry"; path: string; wrote: string[] }
   | { kind: "dropped"; path: string | null; wrote: string[] }
+  // a refresh of an item already read that could not read the page again: the file keeps its
+  // text and facts, since `fetch-error` would mark that text unread and the next refresh would add
+  // the article a second time
+  | { kind: "unread"; path: string; message: string }
   | { kind: "aborted" };
 
 const FILLED: ItemFill = { state: "filled" };
@@ -189,20 +193,31 @@ interface Page {
   fetched: string;
 }
 
+// what the saved address may reach: null lets its own answer decide (private space only from a
+// private address), and another device's stub never leads this Mac into private space, since its
+// address is whatever the library's files say
+const startReach = (target: FillTarget): Reach | null =>
+  target.origin === "foreign" ? "public" : null;
+
 type PageRead =
   | { kind: "page"; page: Page }
   | { kind: "media"; response: FetchedResponse; fetched: string }
   | { kind: "failure"; message: string; transient: boolean };
 
 const readPage = async (context: FillContext, target: FillTarget): Promise<PageRead> => {
+  const start = startReach(target);
   if (target.supplied !== null) {
-    const reach = await context.fetcher.reachOf(target.url, target.signal);
+    let reach = start;
+    if (reach === null) {
+      const vetted = await context.fetcher.reachOf(target.url, target.signal);
+      reach = vetted.ok ? vetted.reach : null;
+    }
     return {
       kind: "page",
       page: {
         fetched: formatItemTime(target.supplied.at),
         html: target.supplied.html,
-        reach: reach.ok ? reach.reach : null,
+        reach,
         url: target.url,
       },
     };
@@ -211,7 +226,7 @@ const readPage = async (context: FillContext, target: FillTarget): Promise<PageR
     accept: PAGE_ACCEPT,
     maxBytes: PAGE_MAX_BYTES,
     overflow: "truncate",
-    reach: null,
+    reach: start,
     signal: target.signal,
     url: target.url,
   });
@@ -295,7 +310,11 @@ const renameToTitle = async (
   title: string | null,
   wrote: string[],
 ): Promise<void> => {
-  if (target.origin !== "own" || title === null || !isProvisionalStem(target.path, target.url)) {
+  if (
+    (target.origin !== "own" && target.origin !== "import") ||
+    title === null ||
+    !isProvisionalStem(target.path, target.url)
+  ) {
     return;
   }
   const name = itemNameFromTitle(title);
@@ -361,12 +380,13 @@ const hintCover = async (
   if (target.coverHint === null) {
     return null;
   }
-  const reach = await context.fetcher.reachOf(target.url, target.signal);
+  const start = startReach(target);
+  const reach = start === null ? await context.fetcher.reachOf(target.url, target.signal) : null;
   return await keepCover(
     context,
     target,
     [target.coverHint],
-    reach.ok ? reach.reach : "public",
+    reach?.ok === true ? reach.reach : "public",
     added,
   );
 };
@@ -506,6 +526,41 @@ const keepCopyOf = async (
   return copy.path;
 };
 
+// what a read page makes of the item; null when its text could not be extracted from an item
+// already read, which keeps what it has
+const pageWriting = async (
+  context: FillContext,
+  target: FillTarget,
+  page: Page,
+  start: { content: string; kind: string; wasRead: boolean },
+  files: { added: string[]; wrote: string[] },
+): Promise<Writing | null> => {
+  const extracted = await extract(context, target, page, start.kind);
+  if (extracted === null) {
+    return start.wasRead
+      ? null
+      : {
+          cover: await hintCover(context, target, files.added),
+          fetched: page.fetched,
+          kind: "failure",
+          message: TEXT_NOT_SAVED,
+        };
+  }
+  const wantsCover =
+    target.text === "replace" || start.wasRead || !startsWithImage(bodyOf(start.content));
+  const cover = wantsCover
+    ? await keepCover(context, target, coverCandidates(target, extracted), page.reach, files.added)
+    : null;
+  const copy = await keepCopyOf(context, target, page, files.added);
+  await renameToTitle(
+    context,
+    target,
+    extracted.facts.title ?? extracted.oembed?.title ?? null,
+    files.wrote,
+  );
+  return linkWriting(target, page, extracted, { copy, cover, kind: start.kind });
+};
+
 // the files a fill added that no write now points at
 const takeBack = async (context: FillContext, added: readonly string[]): Promise<void> => {
   for (const path of added) {
@@ -522,6 +577,8 @@ export const fillItem = async (context: FillContext, target: FillTarget): Promis
   if (target.origin !== "refresh" && !isItemStub(startFacts)) {
     return { kind: "dropped", path: start.path, wrote: [] };
   }
+  // an item whose page was read and whose text holds that article
+  const wasRead = startFacts.fetchedMs !== null && startFacts.fetchError === null;
   const read = await readPage(context, target);
   if (target.signal.aborted) {
     return { kind: "aborted" };
@@ -534,6 +591,9 @@ export const fillItem = async (context: FillContext, target: FillTarget): Promis
     if (read.transient && target.mayRetry) {
       return { kind: "retry", path: target.path, wrote: [] };
     }
+    if (wasRead) {
+      return { kind: "unread", message: read.message, path: target.path };
+    }
     writing = {
       cover: await hintCover(context, target, added),
       fetched: formatItemTime(context.clock.now()),
@@ -543,36 +603,17 @@ export const fillItem = async (context: FillContext, target: FillTarget): Promis
   } else if (read.kind === "media") {
     writing = await mediaWriting(context, target, read, added);
   } else {
-    const extracted = await extract(context, target, read.page, startFacts.kind);
-    if (extracted === null) {
-      writing = {
-        cover: await hintCover(context, target, added),
-        fetched: read.page.fetched,
-        kind: "failure",
-        message: TEXT_NOT_SAVED,
-      };
-    } else {
-      const first = startFacts.fetchedMs === null || startFacts.fetchError !== null;
-      const wantsCover =
-        target.text === "replace" || !first || !startsWithImage(bodyOf(start.content));
-      const cover = wantsCover
-        ? await keepCover(
-            context,
-            target,
-            coverCandidates(target, extracted),
-            read.page.reach,
-            added,
-          )
-        : null;
-      const copy = await keepCopyOf(context, target, read.page, added);
-      await renameToTitle(
-        context,
-        target,
-        extracted.facts.title ?? extracted.oembed?.title ?? null,
-        wrote,
-      );
-      writing = linkWriting(target, read.page, extracted, { copy, cover, kind: startFacts.kind });
+    const fromPage = await pageWriting(
+      context,
+      target,
+      read.page,
+      { content: start.content, kind: startFacts.kind, wasRead },
+      { added, wrote },
+    );
+    if (fromPage === null) {
+      return { kind: "unread", message: TEXT_NOT_SAVED, path: target.path };
     }
+    writing = fromPage;
   }
   if (target.signal.aborted) {
     await takeBack(context, added);
