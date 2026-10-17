@@ -635,7 +635,6 @@ export const vaultCommand = (deps: CliDeps) =>
             return;
           }
           const revision = await api.vault.revision({ path: args.path, sha: args.sha });
-          await api.vault.commitNow({ paths: [args.path] });
           const current = await safe(api.vault.read({ path: args.path }));
           let guard: VaultWriteGuard;
           if (current.error === null) {
@@ -647,13 +646,14 @@ export const vaultCommand = (deps: CliDeps) =>
           } else {
             throw current.error;
           }
-          // the files the deleted note held, read before the write brings it back and Deleted
-          // stops listing them under it
+          // the files the deleted note held, read before the checkpoint, which commits the note's
+          // own deletion apart from theirs, and before the write brings it back
           let held: VaultDeletedEntry[] = [];
           if (guard.kind === "absent") {
             const { entries } = await api.vault.deleted();
             held = entries.filter((entry) => entry.heldBy === args.path);
           }
+          await api.vault.commitNow({ paths: [args.path] });
           const body = await api.vault.write({ content: revision.content, guard, path: args.path });
           let annotations: AnnotationStoreRestore = { kind: "none" };
           let files: HeldFilesRestore | null = null;

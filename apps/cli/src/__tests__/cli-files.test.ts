@@ -48,9 +48,10 @@ describe("a file on the command line", { timeout: 60_000 }, () => {
 
     const deleted = await cli("vault", "delete", wrapper);
     expect(deleted.code).toBe(0);
-    // the original went with its wrapper: nothing else embeds it
+    // the original went with its wrapper: nothing else embeds it. the deletion is left
+    // unflushed, as the auto-commit's quiet window leaves it, so the restore's own checkpoint
+    // of the note must not split the two
     expect(onDisk("assets/brochure.pdf")).toBeNull();
-    await booted.vault.git.commitNow();
 
     const listed = await cli("vault", "deleted", "--json");
     const { entries } = deletedSchema.parse(JSON.parse(listed.stdout));
