@@ -175,7 +175,10 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   `sync-conventions` skill applies, which must not delete that folder. While
   nobody but the owner runs the app, the history is one baseline rather than
   every generation, so the CHECKs `ALTER TABLE` cannot add are declared and the
-  columns sit in order (`packages/db/src/schema.ts`). A file whose ledger names
+  columns sit in order (`packages/db/src/schema.ts`). A regenerated baseline
+  takes a new folder name, never its old one, because drizzle keys its ledger
+  by the folder's name, and a file that lists the old one must read as a
+  history this build lacks rather than as already applied. A file whose ledger names
   a migration this build does not carry is refused before the migrator runs
   (`UnknownMigrationHistoryError` in `packages/db/src/migrate.ts`), and the
   server signs the install out, then replaces it, because the cloud log holds

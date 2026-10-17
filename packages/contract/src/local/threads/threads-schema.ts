@@ -5,6 +5,7 @@ import {
 } from "@repo/domain/pending-interactions";
 import { threadStatusSchema } from "@repo/domain/thread-status";
 import { MAX_THREAD_TITLE_LENGTH } from "@repo/domain/thread-title";
+import { actionPresetSchema } from "@repo/domain/action-preset";
 import type { LibraryScope } from "@repo/domain/library-scope";
 import { viewContextSchema } from "@repo/domain/view-context";
 import type { DocViewContext, LibraryViewContext, ViewContext } from "@repo/domain/view-context";
@@ -256,17 +257,25 @@ const contextPathsSchema = z
     message: "contextPaths names a note twice",
   });
 
-export const sendMessageRequestSchema = z.strictObject({
-  // the notes the user attached; the server names them to the agent in a block of their own,
-  // so `text` stays exactly what was typed.
-  contextPaths: contextPathsSchema.optional(),
-  // the turn the client believes is running; when it no longer names the open turn the send
-  // answers 409 rather than starting one.
-  expectedTurnId: z.string().min(1).optional(),
-  text: z.string().min(1),
-  threadId: z.string().min(1),
-  viewContext: wireViewContextSchema.optional(),
-});
+export const sendMessageRequestSchema = z
+  .strictObject({
+    // the notes the user attached; the server names them to the agent in a block of their own,
+    // so `text` stays exactly what was typed.
+    contextPaths: contextPathsSchema.optional(),
+    // the turn the client believes is running; when it no longer names the open turn the send
+    // answers 409 rather than starting one.
+    expectedTurnId: z.string().min(1).optional(),
+    // a named action; the server composes its block, so `text` stays what was typed, and an
+    // empty text is stored as the preset's label. no thread event and no /cloud wire carries it.
+    preset: actionPresetSchema.optional(),
+    text: z.string(),
+    threadId: z.string().min(1),
+    viewContext: wireViewContextSchema.optional(),
+  })
+  .refine((send) => send.text.length > 0 || send.preset !== undefined, {
+    message: "text or a preset",
+    path: ["text"],
+  });
 export type SendMessageRequest = z.infer<typeof sendMessageRequestSchema>;
 
 export const sendMessageResponseSchema = z.discriminatedUnion("kind", [

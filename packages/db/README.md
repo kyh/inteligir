@@ -76,7 +76,12 @@ drizzle.config.ts          # where `pnpm --filter @repo/db db:generate` writes t
   `UnknownMigrationHistoryError` first, whose message says to wipe the file
   and restart. The server's boot does exactly that
   (`apps/cli/src/server/open-database.ts`). A name sorting after the newest is
-  a newer build's, which the ceiling above refuses.
+  a newer build's, which the ceiling above refuses. So the one baseline is
+  regenerated under a NEW folder name, never its old one: delete the folder,
+  run `pnpm --filter @repo/db db:generate --name baseline`, and append the two
+  seeding inserts again; a file the old baseline migrated then names a history
+  this build lacks and is replaced, where a folder kept under the old name
+  would read as applied and fail at the first insert into a new column.
 - **The migrations and `src/schema.ts` agree, and neither checks the other.**
   `schema-agreement.test.ts` migrates a scratch file, builds a second from
   `drizzle-kit export`'s DDL, and diffs `sqlite_master` with normalized SQL —

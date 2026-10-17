@@ -70,3 +70,21 @@ describe("a send's view context", () => {
     expect(send({ ...library, ...change }).success).toBe(false);
   });
 });
+
+describe("a send's text and preset", () => {
+  it("takes text, a preset, or both, and refuses neither", () => {
+    const thread = { threadId: "thr_1" };
+    expect(sendMessageRequestSchema.safeParse({ ...thread, text: "hi" }).success).toBe(true);
+    expect(
+      sendMessageRequestSchema.safeParse({ ...thread, preset: "tidy-library", text: "" }).success,
+    ).toBe(true);
+    expect(
+      sendMessageRequestSchema.safeParse({ ...thread, preset: "tidy-library", text: "only links" })
+        .success,
+    ).toBe(true);
+    expect(sendMessageRequestSchema.safeParse({ ...thread, text: "" }).success).toBe(false);
+    expect(
+      sendMessageRequestSchema.safeParse({ ...thread, preset: "summarize", text: "" }).success,
+    ).toBe(false);
+  });
+});

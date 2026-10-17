@@ -6,6 +6,12 @@
 import type { PromptInput } from "@repo/agent-runtime/types";
 import type { DocViewContext, LibraryViewContext, ViewContext } from "@repo/domain/view-context";
 import type { TurnRequest } from "../threads/turn-driver";
+import { composePresetBlock } from "./action-preset-prompt";
+import type { PromptFacts } from "./action-preset-prompt";
+
+// PIVOT-STUB(S3): the session's own facts, built from cliBinDir and the library's AGENTS.md and
+// threaded through turnPromptInput (§12.4 point 5)
+const UNKNOWN_FACTS: PromptFacts = { cli: false, filingRules: false };
 
 const composeDocBlock = (context: DocViewContext): string =>
   `The user sent this while looking at ${context.resource} in the editor — "this", "here" and "the note" refer to that file. It hashed to sha-256 ${context.revision} when they sent it; if it no longer does, it changed afterwards.`;
@@ -23,6 +29,11 @@ export const turnPromptInput = (turn: TurnRequest, instructions?: string): Promp
   const blocks: PromptInput[] = [];
   if (instructions !== undefined) {
     blocks.push({ text: instructions, type: "text" });
+  }
+  const presetBlock =
+    turn.preset === undefined ? "" : composePresetBlock(turn.preset, UNKNOWN_FACTS);
+  if (presetBlock !== "") {
+    blocks.push({ text: presetBlock, type: "text" });
   }
   const viewBlock = turn.viewContext === undefined ? "" : composeViewContextBlock(turn.viewContext);
   if (viewBlock !== "") {

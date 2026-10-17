@@ -28,10 +28,15 @@ import { openTempDb } from "./open-temp-db";
 // each in the transaction the server composes it in.
 const enqueue = (
   db: DbConnection,
-  input: Omit<CreateQueuedThreadMessageInput, "contextPaths" | "dispatchId">,
+  input: Omit<CreateQueuedThreadMessageInput, "contextPaths" | "dispatchId" | "preset">,
 ): QueuedThreadMessageRow =>
   writeTransaction(db, (tx) =>
-    createQueuedThreadMessageInTransaction(tx, { ...input, contextPaths: null, dispatchId: null }),
+    createQueuedThreadMessageInTransaction(tx, {
+      ...input,
+      contextPaths: null,
+      dispatchId: null,
+      preset: null,
+    }),
   );
 
 const claimNext = (db: DbConnection, threadId: string): ClaimedQueuedThreadMessageRow | null =>
@@ -110,6 +115,7 @@ describe("queued thread messages", () => {
         createQueuedThreadMessageInTransaction(tx, {
           contextPaths,
           dispatchId: null,
+          preset: null,
           text: "compare these",
           threadId: thread.id,
         }),
@@ -128,6 +134,35 @@ describe("queued thread messages", () => {
       null,
     ]);
     expect(claimNext(db, thread.id)?.contextPaths).toEqual(["Notes/a.md", "Notes/b.md"]);
+  });
+
+  it("hands a message's preset back, and a name this build has no preset for as none", () => {
+    const db = openTempDb();
+    const thread = createThread(db, noopNotifier, {});
+    const ask = (preset: "tidy-library" | null): QueuedThreadMessageRow =>
+      writeTransaction(db, (tx) =>
+        createQueuedThreadMessageInTransaction(tx, {
+          contextPaths: null,
+          dispatchId: null,
+          preset,
+          text: "Tidy my library",
+          threadId: thread.id,
+        }),
+      );
+    const tidy = ask("tidy-library");
+    const unknown = ask("tidy-library");
+    ask(null);
+    db.$client
+      .prepare("UPDATE queued_thread_messages SET preset = ? WHERE id = ?")
+      .run("summarize-everything", unknown.id);
+
+    expect(tidy.preset).toBe("tidy-library");
+    expect(listQueuedThreadMessages(db, thread.id).map((row) => row.preset)).toEqual([
+      "tidy-library",
+      null,
+      null,
+    ]);
+    expect(claimNext(db, thread.id)?.preset).toBe("tidy-library");
   });
 
   it("release puts a claim back; delete needs the claim token", () => {

@@ -25,6 +25,18 @@ CREATE TABLE `meta` (
 	`value` text NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE `pending_fills` (
+	`item_id` text PRIMARY KEY,
+	`path` text NOT NULL,
+	`url` text NOT NULL,
+	`origin` text NOT NULL,
+	`keep_copy` integer DEFAULT false NOT NULL,
+	`cover_hint` text,
+	`attempts` integer DEFAULT 0 NOT NULL,
+	`first_seen_at` integer NOT NULL,
+	`not_before` integer NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE `pending_interactions` (
 	`id` text PRIMARY KEY,
 	`thread_id` text NOT NULL,
@@ -47,6 +59,7 @@ CREATE TABLE `queued_thread_messages` (
 	`sort_key` text NOT NULL,
 	`text` text NOT NULL,
 	`context_paths` text,
+	`preset` text,
 	`dispatch_id` text,
 	`claimed_at` integer,
 	`claim_token` text,
@@ -99,6 +112,7 @@ CREATE TABLE `threads` (
 CREATE UNIQUE INDEX `events_thread_sequence_idx` ON `events` (`thread_id`,`sequence`);--> statement-breakpoint
 CREATE UNIQUE INDEX `events_origin_idx` ON `events` (`origin_device_id`,`origin_device_seq`);--> statement-breakpoint
 CREATE INDEX `events_thread_turn_type_item_sequence_idx` ON `events` (`thread_id`,`turn_id`,`type`,`item_id`,`sequence`);--> statement-breakpoint
+CREATE INDEX `pending_fills_not_before_idx` ON `pending_fills` (`not_before`);--> statement-breakpoint
 CREATE UNIQUE INDEX `pending_interactions_thread_request_idx` ON `pending_interactions` (`thread_id`,`request_key`);--> statement-breakpoint
 CREATE INDEX `pending_interactions_thread_status_created_idx` ON `pending_interactions` (`thread_id`,`status`,`created_at`);--> statement-breakpoint
 CREATE INDEX `queued_thread_messages_thread_sort_idx` ON `queued_thread_messages` (`thread_id`,`sort_key`,`id`);--> statement-breakpoint

@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "b806ffc9-c136-4e71-afa3-bc7702d74000",
+  "id": "84207f6f-cae5-4e07-a7af-e7e0f6472d70",
   "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
@@ -10,6 +10,10 @@
     },
     {
       "name": "meta",
+      "entityType": "tables"
+    },
+    {
+      "name": "pending_fills",
       "entityType": "tables"
     },
     {
@@ -182,6 +186,96 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
+      "name": "item_id",
+      "entityType": "columns",
+      "table": "pending_fills"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "path",
+      "entityType": "columns",
+      "table": "pending_fills"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "url",
+      "entityType": "columns",
+      "table": "pending_fills"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "origin",
+      "entityType": "columns",
+      "table": "pending_fills"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "false",
+      "generated": null,
+      "name": "keep_copy",
+      "entityType": "columns",
+      "table": "pending_fills"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "cover_hint",
+      "entityType": "columns",
+      "table": "pending_fills"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": "0",
+      "generated": null,
+      "name": "attempts",
+      "entityType": "columns",
+      "table": "pending_fills"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "first_seen_at",
+      "entityType": "columns",
+      "table": "pending_fills"
+    },
+    {
+      "type": "integer",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "not_before",
+      "entityType": "columns",
+      "table": "pending_fills"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
       "name": "id",
       "entityType": "columns",
       "table": "pending_interactions"
@@ -333,6 +427,16 @@
       "default": null,
       "generated": null,
       "name": "context_paths",
+      "entityType": "columns",
+      "table": "queued_thread_messages"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "preset",
       "entityType": "columns",
       "table": "queued_thread_messages"
     },
@@ -674,6 +778,13 @@
       "entityType": "pks"
     },
     {
+      "columns": ["item_id"],
+      "nameExplicit": false,
+      "name": "pending_fills_pk",
+      "table": "pending_fills",
+      "entityType": "pks"
+    },
+    {
       "columns": ["id"],
       "nameExplicit": false,
       "name": "pending_interactions_pk",
@@ -780,6 +891,20 @@
       "name": "events_thread_turn_type_item_sequence_idx",
       "entityType": "indexes",
       "table": "events"
+    },
+    {
+      "columns": [
+        {
+          "value": "not_before",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "origin": "manual",
+      "name": "pending_fills_not_before_idx",
+      "entityType": "indexes",
+      "table": "pending_fills"
     },
     {
       "columns": [

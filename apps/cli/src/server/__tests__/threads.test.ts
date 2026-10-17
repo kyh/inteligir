@@ -24,6 +24,7 @@ import { WS_PATH } from "@repo/contract/local/routes";
 import type { TimelineResponse } from "@repo/contract/local/threads/threads-schema";
 import { applyTimelineDelta } from "@repo/contract/local/thread-timeline";
 import type { TimelineRow } from "@repo/contract/local/thread-timeline";
+import type { ViewContext } from "@repo/domain/view-context";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { z } from "zod";
 import { ThreadService } from "../threads/service";
@@ -223,6 +224,29 @@ describe("the view context a message carries", () => {
       throw new Error("expected the drained message's row");
     }
     expect(drained.viewContext).toBeNull();
+  });
+
+  it("records the library's scope and count on the event, and its paths only on the turn", async () => {
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const library: ViewContext = {
+      kinds: ["link"],
+      paths: ["Unsorted/a.md", "Unsorted/b.md"],
+      q: "design",
+      scope: { kind: "unsorted" },
+      selected: 340,
+      surface: "library",
+    };
+    await client.threads.send({ text: "file these", threadId, viewContext: library });
+
+    expect(driver.startedTurns[0]?.viewContext).toEqual(library);
+    const row = timelineRows(await fetchTimeline(client, threadId)).find(
+      (candidate) => candidate.kind === "conversation",
+    );
+    if (row?.kind !== "conversation") {
+      throw new Error("expected the user's conversation row");
+    }
+    expect(row.viewContext).toEqual({ ...library, paths: [] });
   });
 
   it("refuses a resource that is not a vault path", async () => {
@@ -1295,5 +1319,46 @@ describe("a phone's request", () => {
     expect(types).toContain("client/turn/requested");
     expect(types).toContain("provider/error");
     expect(getThread(db, threadId)?.status).toBe("error");
+  });
+});
+
+describe("a named action on the send", () => {
+  it("stores the preset's label when nothing was typed, and hands the turn the preset", async () => {
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    await client.threads.send({ preset: "tidy-library", text: "", threadId });
+
+    expect(driver.startedTurns[0]?.text).toBe("Tidy my library");
+    expect(driver.startedTurns[0]?.preset).toBe("tidy-library");
+    const row = timelineRows(await fetchTimeline(client, threadId)).find(
+      (candidate) => candidate.kind === "conversation",
+    );
+    expect(row?.kind === "conversation" && row.text).toBe("Tidy my library");
+  });
+
+  it("keeps what was typed beside the preset, and the preset through the queue", async () => {
+    const { client, driver } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const started = await client.threads.send({ text: "first", threadId });
+    if (started.kind !== "started") {
+      throw new Error("expected a started turn");
+    }
+    const queued = await client.threads.send({
+      preset: "tidy-library",
+      text: "only the links",
+      threadId,
+    });
+    expect(queued.kind).toBe("queued");
+
+    driver.completeTurn(threadId, started.turnId, "completed");
+    expect(driver.startedTurns[1]?.text).toBe("only the links");
+    expect(driver.startedTurns[1]?.preset).toBe("tidy-library");
+  });
+
+  it("refuses a send with neither text nor a preset", async () => {
+    const { client } = await bootThreadHarness({ mode: "manual" });
+    const threadId = await createThread(client);
+    const [error] = await safe(client.threads.send({ text: "", threadId }));
+    expect(error instanceof ORPCError && error.code).toBe("BAD_REQUEST");
   });
 });
