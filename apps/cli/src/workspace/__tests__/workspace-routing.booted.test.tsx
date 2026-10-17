@@ -1,27 +1,40 @@
 import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
 import type { RouterHistory } from "@tanstack/react-router";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { bootTestApp } from "../../server/__tests__/boot-app";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createAppRouter } from "@repo/workspace/router";
 import { routePageFetch } from "./booted-fetch";
-import { chord, sidebarState } from "./boot-workspace";
+import { chord, layOutCardGrids, sidebarState } from "./boot-workspace";
 import { InertSocket } from "@repo/workspace/test-support/inert-socket";
 import { ScriptedSocket } from "@repo/workspace/test-support/scripted-socket";
 
-// the rail opens on its Files view, whose row for the open note is the current page
-const highlighted = (): string | null =>
-  document.querySelector<HTMLElement>('[role="treeitem"][aria-current="page"]')?.dataset.path ??
-  null;
-
-const railRow = (path: string): HTMLElement => {
-  const row = document.querySelector<HTMLElement>(`[role="treeitem"][data-path="${path}"]`);
-  if (row === null) {
-    throw new Error(`the rail draws no row for ${path}`);
+// a card in the library's grid, by its item's path
+const card = async (path: string): Promise<HTMLElement> => {
+  let found: HTMLElement | null = null;
+  await waitFor(() => {
+    found = document.querySelector<HTMLElement>(`[role="gridcell"][data-item-path="${path}"]`);
+    expect(found).not.toBeNull();
+  });
+  if (found === null) {
+    throw new Error(`the library draws no card for ${path}`);
   }
-  return row;
+  return found;
 };
+
+// Settings' own way back, which the item under it, covered inert, also names
+const settingsBack = (): HTMLElement => {
+  const main = screen.getByRole("heading", { name: "Settings" }).closest("main");
+  if (!(main instanceof HTMLElement)) {
+    throw new Error("Settings draws no main");
+  }
+  return within(main).getByRole("button", { name: "Back to library" });
+};
+
+// the item the window shows, by the item view's own mark; null is the library
+const shownItem = (): string | null =>
+  document.querySelector<HTMLElement>("[data-item-view]")?.dataset.itemPath ?? null;
 
 const bootAt = async (
   history: RouterHistory,
@@ -29,9 +42,10 @@ const bootAt = async (
 ) => {
   const booted = await bootTestApp();
   vi.stubGlobal("WebSocket", socket);
+  layOutCardGrids();
   routePageFetch(booted);
   await booted.client.vault.write({
-    content: "# Alpha\n",
+    content: "---\nid: 01JALPHA0000000000000000AA\n---\n\n# Alpha\n",
     guard: { kind: "overwrite" },
     path: "alpha.md",
   });
@@ -42,9 +56,7 @@ const bootAt = async (
   });
   const router = createAppRouter(history);
   render(<RouterProvider router={router} />);
-  await waitFor(() => {
-    expect(highlighted()).toBe("alpha.md");
-  });
+  await screen.findByRole("tablist", { name: "Panel tabs" });
   return { booted, router };
 };
 
@@ -57,17 +69,44 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("the open note has one owner", () => {
-  it("leaves the rail on the open note through a history Back; the top bar's Back moves both", async () => {
-    const { router } = await bootAt(
-      createMemoryHistory({ initialEntries: ["/", "/?note=alpha.md"], initialIndex: 1 }),
-    );
+describe("the library is home, and the url names the open item", () => {
+  it("opens the item `?item=` names", async () => {
+    const { router } = await bootAt(createMemoryHistory({ initialEntries: ["/?item=alpha.md"] }));
+    await screen.findByRole("heading", { name: "Alpha" });
+    expect(shownItem()).toBe("alpha.md");
+    expect(router.state.location.search).toEqual({ item: "alpha.md" });
+  });
 
-    fireEvent.click(railRow("beta.md"));
-    await waitFor(() => {
-      expect(highlighted()).toBe("beta.md");
-    });
-    expect(router.state.location.search).toEqual({ note: "beta.md" });
+  it("is the library at `/`, where a card opens its item and the way back mirrors no param", async () => {
+    const { router } = await bootAt(createMemoryHistory({ initialEntries: ["/"] }));
+    await screen.findByRole("heading", { name: "All items" });
+    expect(shownItem()).toBeNull();
+    expect(router.state.location.search).toEqual({});
+
+    fireEvent.doubleClick(await card("beta.md"));
+    await screen.findByRole("heading", { name: "Beta" });
+    expect(router.state.location.search).toEqual({ item: "beta.md" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to library" }));
+    await screen.findByRole("heading", { name: "All items" });
+    expect(router.state.location.search).toEqual({});
+
+    // the library is a step in the one history like any item, so going back to it from the item
+    // it opened is that Back step, and Forward returns to the item
+    expect(screen.getByRole("button", { name: "Back" })).toHaveProperty("disabled", true);
+    fireEvent.click(screen.getByRole("button", { name: "Forward" }));
+    await screen.findByRole("heading", { name: "Beta" });
+    expect(router.state.location.search).toEqual({ item: "beta.md" });
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    await screen.findByRole("heading", { name: "All items" });
+    expect(router.state.location.search).toEqual({});
+  });
+
+  it("leaves the open item alone through a history Back; the top bar's Back moves both", async () => {
+    const { router } = await bootAt(
+      createMemoryHistory({ initialEntries: ["/", "/?item=alpha.md"], initialIndex: 1 }),
+    );
+    await screen.findByRole("heading", { name: "Alpha" });
 
     act(() => {
       router.history.back();
@@ -75,20 +114,17 @@ describe("the open note has one owner", () => {
     await waitFor(() => {
       expect(router.state.location.search).toEqual({});
     });
-    expect(highlighted()).toBe("beta.md");
-    expect(screen.getByRole("navigation", { name: "Note location" }).textContent).toBe("beta");
+    expect(shownItem()).toBe("alpha.md");
 
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    await waitFor(() => {
-      expect(highlighted()).toBe("alpha.md");
-    });
-    expect(router.state.location.search).toEqual({ note: "alpha.md" });
+    await screen.findByRole("heading", { name: "All items" });
+    expect(router.state.location.search).toEqual({});
   });
 });
 
 describe("Settings over the workspace", () => {
   it("covers it inert with its chords stood down, and the way back finds it as it was", async () => {
-    const { router } = await bootAt(createMemoryHistory({ initialEntries: ["/?note=alpha.md"] }));
+    const { router } = await bootAt(createMemoryHistory({ initialEntries: ["/?item=alpha.md"] }));
     await screen.findByRole("heading", { name: "Alpha" });
     fireEvent.keyDown(window, chord("f"));
     await screen.findByPlaceholderText("Find in note");
@@ -98,7 +134,7 @@ describe("Settings over the workspace", () => {
 
     fireEvent.keyDown(window, chord(","));
     await screen.findByRole("heading", { name: "Settings" });
-    expect(router.state.location.search).toEqual({ note: "alpha.md" });
+    expect(router.state.location.search).toEqual({ item: "alpha.md" });
     expect(composer.closest("[inert]")).not.toBeNull();
     expect(screen.queryByPlaceholderText("Find in note")).toBeNull();
 
@@ -108,22 +144,22 @@ describe("Settings over the workspace", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(sidebarState("left")).toBe("expanded");
 
-    fireEvent.click(screen.getByRole("button", { name: "Back to notes" }));
+    fireEvent.click(settingsBack());
     await waitFor(() => {
       expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
     });
-    expect(router.state.location.search).toEqual({ note: "alpha.md" });
+    expect(router.state.location.search).toEqual({ item: "alpha.md" });
     expect(composer.isConnected).toBe(true);
     expect(composer.closest("[inert]")).toBeNull();
     expect(composer).toHaveProperty("value", "half a thought");
-    expect(highlighted()).toBe("alpha.md");
+    expect(shownItem()).toBe("alpha.md");
   });
 
-  // a move from outside the window (an agent's `mv`, Finder, a pull) is the open note vanishing,
-  // so the url lets it go; only a rename the window makes carries the note to its new path
-  it("stays up when the open note moves out from under it, and the url lets the note go", async () => {
+  // a move from outside the window (an agent's `vault rename`, Finder, a pull) is the open item
+  // vanishing; its id names where it went, so the window follows it there, Settings still up
+  it("follows the open item by its id when it moves out from under it, Settings still up", async () => {
     const { booted, router } = await bootAt(
-      createMemoryHistory({ initialEntries: ["/?note=alpha.md"] }),
+      createMemoryHistory({ initialEntries: ["/?item=alpha.md"] }),
       ScriptedSocket,
     );
     await screen.findByRole("heading", { name: "Alpha" });
@@ -141,15 +177,37 @@ describe("Settings over the workspace", () => {
     });
 
     await waitFor(() => {
-      expect(router.state.location.search).toEqual({});
+      expect(router.state.location.search).toEqual({ item: "gamma.md" });
     });
     expect(router.state.location.pathname).toBe("/settings");
     expect(screen.getByRole("heading", { name: "Settings" })).toBeDefined();
 
-    fireEvent.click(screen.getByRole("button", { name: "Back to notes" }));
+    fireEvent.click(settingsBack());
     await waitFor(() => {
-      expect(railRow("gamma.md")).toBeDefined();
+      expect(shownItem()).toBe("gamma.md");
     });
-    expect(document.querySelector('[role="treeitem"][data-path="alpha.md"]')).toBeNull();
+  });
+
+  it("lets an item with no id go when it moves, and the url with it", async () => {
+    const { booted, router } = await bootAt(
+      createMemoryHistory({ initialEntries: ["/?item=beta.md"] }),
+      ScriptedSocket,
+    );
+    await screen.findByRole("heading", { name: "Beta" });
+
+    await booted.client.vault.rename({ from: "beta.md", to: "delta.md" });
+    act(() => {
+      ScriptedSocket.deliverToAll({
+        changes: ["files-changed"],
+        entity: "vault",
+        paths: ["beta.md", "delta.md"],
+        type: "changed",
+      });
+    });
+
+    await waitFor(() => {
+      expect(router.state.location.search).toEqual({});
+    });
+    await screen.findByRole("heading", { name: "All items" });
   });
 });

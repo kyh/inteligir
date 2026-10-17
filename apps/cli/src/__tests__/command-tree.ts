@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { CommandDef } from "citty";
 import type { CliDeps } from "../context";
 import { buildProgram } from "../program";
@@ -16,6 +17,16 @@ export const testProgram = (): CommandDef => {
   };
   return buildProgram(deps);
 };
+
+// files a leaf reads from this Mac's disk: a file to save, a page's HTML, a Raindrop backup
+const FIXTURE_FILES = path.join(import.meta.dirname, "fixtures");
+export const FIXTURE_FILE_PATH = path.join(FIXTURE_FILES, "brochure.pdf");
+export const FIXTURE_PAGE_PATH = path.join(FIXTURE_FILES, "page.html");
+export const FIXTURE_RAINDROP_PATH = path.join(FIXTURE_FILES, "raindrop-export.csv");
+
+// the saved link every leaf about one item names; json-flag-enforcement seeds it
+export const FIXTURE_ITEM_PATH = "Reading/File over app.md";
+export const FIXTURE_ITEM_URL = "https://example.test/file-over-app";
 
 export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["vault list", ["vault", "list"]],
@@ -40,11 +51,18 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["matches", ["matches", "Hello"]],
   ["backlinks", ["backlinks", "notes/hello.md"]],
   ["related", ["related", "notes/hello.md"]],
-  ["unlinked", ["unlinked", "notes/hello.md"]],
-  ["problems", ["problems"]],
   ["tags", ["tags"]],
   ["tag rename", ["tag", "rename", "project", "work"]],
-  ["tag notes", ["tag", "notes", "project", "--limit", "10"]],
+  ["tag add", ["tag", "add", "project", FIXTURE_ITEM_PATH]],
+  ["tag remove", ["tag", "remove", "project", FIXTURE_ITEM_PATH]],
+  ["save", ["save", FIXTURE_ITEM_URL, "--tags", "essay", "--no-wait"]],
+  ["items", ["items", "--kind", "link,note", "--limit", "10"]],
+  ["item show", ["item", "show", FIXTURE_ITEM_PATH]],
+  ["item find", ["item", "find", FIXTURE_ITEM_URL]],
+  ["item refresh", ["item", "refresh", FIXTURE_ITEM_PATH, "--no-wait"]],
+  ["import raindrop", ["import", "raindrop", FIXTURE_RAINDROP_PATH]],
+  ["import status", ["import", "status"]],
+  ["import cancel", ["import", "cancel"]],
   ["action list", ["action", "list"]],
   ["action new", ["action", "new", "do a thing"]],
   ["action send", ["action", "send", "thr_1", "and then?"]],
@@ -54,11 +72,14 @@ export const LEAF_INVOCATIONS = new Map<string, readonly string[]>([
   ["action archive", ["action", "archive", "thr_1"]],
   ["action changes", ["action", "changes", "thr_1"]],
   ["action undo", ["action", "undo", "thr_1"]],
-  ["comment list", ["comment", "list", "notes/hello.md"]],
-  ["comment add", ["comment", "add", "notes/hello.md", "Needs a second pass"]],
-  ["comment reply", ["comment", "reply", "notes/hello.md", "c1", "Done"]],
-  ["comment resolve", ["comment", "resolve", "notes/hello.md", "c1"]],
-  ["comment remove", ["comment", "remove", "notes/hello.md", "c1"]],
+  ["annotation list", ["annotation", "list", "notes/hello.md"]],
+  [
+    "annotation add",
+    ["annotation", "add", "notes/hello.md", "Hello", "--note", "Needs a second pass"],
+  ],
+  ["annotation edit", ["annotation", "edit", "notes/hello.md", "c1", "Second pass done"]],
+  ["annotation reply", ["annotation", "reply", "notes/hello.md", "c1", "Done"]],
+  ["annotation remove", ["annotation", "remove", "notes/hello.md", "c1"]],
   ["interactions list", ["interactions", "list"]],
   ["interactions answer", ["interactions", "answer", "int_1", "allow_once"]],
   ["folders list", ["folders", "list"]],

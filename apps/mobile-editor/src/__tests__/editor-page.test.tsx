@@ -73,7 +73,7 @@ describe("the phone editor page", () => {
     const { phone } = await mount({}, { "Note.md": anchored });
 
     act(() => {
-      phone.deliver({ ids: ["c1"], nonce: PHONE_NONCE, type: "commentsRemoved" });
+      phone.deliver({ ids: ["c1"], nonce: PHONE_NONCE, type: "annotationsRemoved" });
     });
 
     await waitFor(() => {
@@ -90,7 +90,7 @@ describe("the phone editor page", () => {
     const { phone } = await mount({}, { "Note.md": tabbed });
 
     act(() => {
-      phone.deliver({ ids: ["c1"], nonce: PHONE_NONCE, type: "commentsRemoved" });
+      phone.deliver({ ids: ["c1"], nonce: PHONE_NONCE, type: "annotationsRemoved" });
     });
 
     await waitFor(() => {

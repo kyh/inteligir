@@ -73,6 +73,12 @@ On main, clean, at the commit to ship:
 2. Retitle `CHANGELOG.md`'s `## Unreleased` as `## <version> — <YYYY-MM-DD>`,
    and read the section once as a user would: it is the GitHub release's body,
    word for word.
+3. When the comment on `MIN_CLIENT_BUILD` (`apps/web/cloudflare.config.ts`)
+   says the next release owes the floor, set it to `<version>` and drop that
+   line. Every checkout since the last release reports the last release's
+   version, so a change that retires a `/cloud` shape those checkouts read
+   cannot raise the floor past them, and the comment names the shape this
+   release retires.
 
 ## 2. Gates
 
@@ -260,10 +266,6 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   the 60s poll would land it (the account's socket upgraded from the device,
   React Native's headers argument carrying the bearer), and ends as the
   settled reply.
-- **Capture.** Passing: a quick capture lands in `Inbox.md` on the Mac. In
-  airplane mode, capture a line, force-quit the app, turn airplane mode off and
-  open it. Passing: `Inbox.md` on the Mac holds the line once, and the count of
-  captures waiting under the box clears.
 - **Sign out.** With an edit still unsent (airplane mode), Sign out. Passing: it
   asks first and names the count; confirmed, the sign-in screen shows.
 - **Revoke.** Sign the phone in again, then Revoke it in Settings › Account on

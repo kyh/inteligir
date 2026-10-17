@@ -26,7 +26,7 @@ export type EditorPageEvent = Exclude<PageFrame, { type: "request" | "ready" | "
 
 // what the phone tells a loaded page on its own
 export type EditorNativeEvent = Unstamped<
-  Extract<NativeFrame, { type: "vaultChanged" | "commentMeta" | "commentsRemoved" }>
+  Extract<NativeFrame, { type: "vaultChanged" | "annotationMeta" | "annotationsRemoved" }>
 >;
 
 // the part of the WebView the host drives

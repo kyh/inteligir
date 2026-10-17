@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Point, TRange, Value } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
-import { ADD_COMMENT_SHORTCUT, COMMENT_SHORTCUTS } from "@repo/editor/comments/comment-kit";
+import { ANNOTATION_SHORTCUTS, HIGHLIGHT_SHORTCUT } from "@repo/editor/annotations/annotation-kit";
 import { EDITOR_SHORTCUTS } from "@repo/editor/editor-shortcuts";
-import type { CommentActions, PickImageResult } from "@repo/editor/host-io";
+import type { AnnotationActions, PickImageResult } from "@repo/editor/host-io";
 import { registerLiveEditor } from "@repo/editor/live-editor";
 import { MARK_SHORTCUTS } from "@repo/editor/mark-shortcuts";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
@@ -29,7 +29,7 @@ const { toast } = await import("@repo/ui/components/sonner");
 const TABLE_LABELS = new Set([
   ...MARK_SHORTCUTS.map((row) => row.label),
   ...EDITOR_SHORTCUTS.map((row) => row.label),
-  ...COMMENT_SHORTCUTS.map((row) => row.label),
+  ...ANNOTATION_SHORTCUTS.map((row) => row.label),
   ...GROUPS.flatMap((group) => group.items.map((item) => item.label)),
   ...Object.values(TOUCH_ACTIONS).map((row) => row.label),
 ]);
@@ -105,11 +105,11 @@ describe("the touch toolbar", () => {
     }
   });
 
-  it("draws Ask agent and Comment on every host, and no image button without a picker", () => {
+  it("draws Ask agent and Highlight on every host, and no image button without a picker", () => {
     mount("body\n");
     const names = toolbarButtons().map((button) => button.getAttribute("aria-label"));
     expect(names).toContain(TOUCH_ACTIONS["ask-agent"].label);
-    expect(names).toContain(ADD_COMMENT_SHORTCUT.label);
+    expect(names).toContain(HIGHLIGHT_SHORTCUT.label);
     expect(names).not.toContain(TOUCH_ACTIONS.image.label);
   });
 
@@ -180,8 +180,9 @@ describe("the touch toolbar", () => {
 });
 
 const hostAnswering = (answer: boolean) => {
-  const create = vi.fn<CommentActions["create"]>(async () => await Promise.resolve(answer));
-  return { create, host: { comments: { create, open: vi.fn() } } };
+  const create = vi.fn<AnnotationActions["create"]>(async () => await Promise.resolve(answer));
+  const edit = vi.fn<AnnotationActions["edit"]>(async () => await Promise.resolve(true));
+  return { create, edit, host: { annotations: { create, edit, open: vi.fn() } } };
 };
 
 // slate tells its listeners on a microtask, so the toolbar redraws for a selection a turn later
@@ -199,9 +200,9 @@ const selectOne = async (editor: PlateEditor): Promise<void> => {
   });
 };
 
-const writeComment = async (text: string, submit: string): Promise<void> => {
+const writeNote = async (text: string, submit: string): Promise<void> => {
   act(() => {
-    fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Note" }), {
       target: { value: text },
     });
   });
@@ -211,90 +212,105 @@ const writeComment = async (text: string, submit: string): Promise<void> => {
   });
 };
 
-const commentButton = (): HTMLElement =>
-  screen.getByRole("button", { name: ADD_COMMENT_SHORTCUT.label });
+const highlightButton = (): HTMLElement =>
+  screen.getByRole("button", { name: HIGHLIGHT_SHORTCUT.label });
 
-describe("a comment from the touch toolbar", () => {
+describe("a highlight from the touch toolbar", () => {
   afterEach(() => {
     for (const unregister of unregisters.splice(0)) {
       unregister();
     }
   });
 
-  it("is offered only over a selection, and never inside a code block", async () => {
+  it("is offered only over a selection with text, and never inside a code block", async () => {
     const { host } = hostAnswering(true);
     const editor = mount("one two\n\n```\ncode here\n```\n", host);
 
     await select(editor, { offset: 1, path: [0, 0] });
-    expect(commentButton()).toHaveProperty("disabled", true);
+    expect(highlightButton()).toHaveProperty("disabled", true);
 
     await selectOne(editor);
-    expect(commentButton()).toHaveProperty("disabled", false);
+    expect(highlightButton()).toHaveProperty("disabled", false);
 
     await select(editor, {
       anchor: { offset: 0, path: [1, 0, 0] },
       focus: { offset: 4, path: [1, 0, 0] },
     });
-    expect(commentButton()).toHaveProperty("disabled", true);
+    expect(highlightButton()).toHaveProperty("disabled", true);
   });
 
-  it("puts its markers in at Save, around the selection Comment was pressed on, and hands the host the id and the words", async () => {
-    const { create, host } = hostAnswering(true);
+  it("puts its markers in at Highlight, around the selection it was pressed on, and hands the host the id, the passage and the note", async () => {
+    const { create, edit, host } = hostAnswering(true);
     const editor = mount("one two\n", host);
     await selectOne(editor);
-    press(ADD_COMMENT_SHORTCUT.label);
+    press(HIGHLIGHT_SHORTCUT.label);
     expect(serializeNote(editor)).toBe("one two\n");
 
-    await writeComment("  why this?  ", "Save");
+    await writeNote("  why this?  ", "Highlight");
 
     expect(create).toHaveBeenCalledTimes(1);
-    const [id, text] = create.mock.calls[0] ?? [];
-    expect(text).toBe("why this?");
+    const [id, quote] = create.mock.calls[0] ?? [];
+    expect(quote).toBe("one");
+    await vi.waitFor(() => {
+      expect(edit).toHaveBeenCalledExactlyOnceWith(id, "why this?");
+    });
     expect(serializeNote(editor)).toBe(`%%i:${String(id)}:start%%one%%i:${String(id)}:end%% two\n`);
   });
 
-  it("strips the markers of a create the host refused", async () => {
-    const { create, host } = hostAnswering(false);
+  it("strips the markers of a highlight the host refused, and writes it no note", async () => {
+    const { create, edit, host } = hostAnswering(false);
     const editor = mount("one two\n", host);
     await selectOne(editor);
-    press(ADD_COMMENT_SHORTCUT.label);
-    await writeComment("why?", "Save");
+    press(HIGHLIGHT_SHORTCUT.label);
+    await writeNote("why?", "Highlight");
 
     expect(create).toHaveBeenCalledTimes(1);
     expect(serializeNote(editor)).toBe("one two\n");
+    expect(edit).not.toHaveBeenCalled();
   });
 
   it("lands nothing when the note is re-seeded under the open field, and keeps the words for the next one", async () => {
     const { create, host } = hostAnswering(true);
     const editor = mount("one two\n", host);
     await selectOne(editor);
-    press(ADD_COMMENT_SHORTCUT.label);
+    press(HIGHLIGHT_SHORTCUT.label);
     act(() => {
       editor.tf.setValue(parsedValue("three four\n"));
     });
 
-    await writeComment("why this?", "Save");
+    await writeNote("why this?", "Highlight");
 
     expect(create).not.toHaveBeenCalled();
     expect(serializeNote(editor)).toBe("three four\n");
-    expect(toast.warning).toHaveBeenCalledWith("The note changed — select the text again.");
+    expect(toast.warning).toHaveBeenCalledWith("The item changed — select the text again.");
 
     await selectOne(editor);
-    press(ADD_COMMENT_SHORTCUT.label);
-    expect(screen.getByRole("textbox", { name: "Comment" })).toHaveProperty("value", "why this?");
+    press(HIGHLIGHT_SHORTCUT.label);
+    expect(screen.getByRole("textbox", { name: "Note" })).toHaveProperty("value", "why this?");
   });
 
-  it("writes nothing when cancelled or left empty", async () => {
+  it("writes nothing when cancelled", async () => {
     const { create, host } = hostAnswering(true);
     const editor = mount("one two\n", host);
     await selectOne(editor);
-    press(ADD_COMMENT_SHORTCUT.label);
-    await writeComment("never mind", "Cancel");
-    await selectOne(editor);
-    press(ADD_COMMENT_SHORTCUT.label);
-    await writeComment("   ", "Save");
+    press(HIGHLIGHT_SHORTCUT.label);
+    await writeNote("never mind", "Cancel");
 
     expect(create).not.toHaveBeenCalled();
     expect(serializeNote(editor)).toBe("one two\n");
+  });
+
+  it("makes a bare highlight of an empty submit: the note is optional", async () => {
+    const { create, edit, host } = hostAnswering(true);
+    const editor = mount("one two\n", host);
+    await selectOne(editor);
+    press(HIGHLIGHT_SHORTCUT.label);
+    await writeNote("   ", "Highlight");
+
+    expect(create).toHaveBeenCalledTimes(1);
+    const [id] = create.mock.calls[0] ?? [];
+    expect(serializeNote(editor)).toBe(`%%i:${String(id)}:start%%one%%i:${String(id)}:end%% two\n`);
+    await Promise.resolve();
+    expect(edit).not.toHaveBeenCalled();
   });
 });

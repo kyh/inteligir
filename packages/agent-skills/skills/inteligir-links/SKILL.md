@@ -44,7 +44,7 @@ Rules worth the keystrokes:
 - A `#` anchor matches the heading loosely (case and spacing are forgiven). If
   two headings collide, link the section a different way rather than shipping an
   ambiguous anchor.
-- Wiki links do not render inside comment text. In a comment, name the note in
+- Wiki links do not render inside an annotation's text. In an annotation, name the note in
   prose.
 
 ## External Links
@@ -58,11 +58,13 @@ Never author `javascript:`, `data:`, `file:`, or a URL carrying credentials.
 
 ## Embeds And Media
 
-| Intent                     | Syntax                               |
-| -------------------------- | ------------------------------------ |
-| Transclude another note    | `![[Some Note]]`                     |
-| Image from the vault       | `![Alt text](assets/diagram.png)`    |
-| Video, tweet, or page card | `![](https://example.com/watch?v=…)` |
+| Intent                        | Syntax                               |
+| ----------------------------- | ------------------------------------ |
+| Transclude another note       | `![[Some Note]]`                     |
+| Image from the vault          | `![Alt text](assets/diagram.png)`    |
+| A PDF or other vault file     | `![](assets/report.pdf)`             |
+| A file whose name has a space | `![](<assets/Lecture notes.pdf>)`    |
+| Video, tweet, or page card    | `![](https://example.com/watch?v=…)` |
 
 `![[Some Note]]` pulls that note's content in for reading; it does not copy the
 bytes, so the source note stays the one place to edit it.
@@ -70,6 +72,11 @@ bytes, so the source note stays the one place to edit it.
 Nothing remote loads inside a note: a remote image, video, tweet or page shows as
 a card that opens in the browser. An image the note must show goes in the vault.
 An embed has no alt text; `![Chart](https://…)` with alt text is a remote image.
+
+A PDF embed shows the document and any other file shows as a card that
+opens it; an image, PDF or file item is a small note whose body is one such
+embed of its original (`inteligir-items`). A link's cover is the first image
+its body embeds, under `assets/covers/`.
 
 Vault media lives under `assets/` and is referenced by that relative path. Do
 not write `file://` or absolute local paths — they break for every other person

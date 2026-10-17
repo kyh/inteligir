@@ -10,8 +10,10 @@ The server process, its credential and boot, and the binary around it.
 leaf that is a client of a running one. Every leaf takes `--json` and is
 EXECUTED by the fitness test against the refusal path, except the rows in
 `EXCLUDED_COMMANDS` (`apps/cli/src/__tests__/json-flag-enforcement.test.ts`),
-each with its reason. Every app-written JSON file in the data dir is read
-through `readJsonFile` in `json-file-store.ts` and written through
+each with its reason: `serve`, `vault open` and `native-host`, the browser
+extension's door, whose stdout is framed messages for its whole life. Every
+app-written JSON file in the data dir is read through `readJsonFile` in
+`json-file-store.ts` and written through
 `staged-write.ts`, and `JsonFileStore` is the per-use store over the two;
 `config.json` is read at boot and never written by the app except its
 `vaultDir`, the selector a switch rewrites
@@ -123,8 +125,14 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   call with nothing saying why (`apps/workspace/src/app/signed-out-state.ts`).
   The cookie, being ambient, must also prove same-origin, because loopback
   "site" ignores the port, and EVERY REQUEST MUST NAME 127.0.0.1 OR localhost AS
-  ITS HOST, so a rebinding page gets nothing. Residual: a cookie is
-  port-agnostic, which is why it is not the bearer and dies with the boot.
+  ITS HOST, so a rebinding page gets nothing. The byte routes alone (an
+  item's file, its thumbnail, its page copy) also take a cookie request that
+  carries neither `Sec-Fetch-Site` nor `Origin` when its `m` parameter is the
+  boot's media token, which `system.status` answers, because AVFoundation's
+  loader inside WKWebView may send neither on a video's range requests; the
+  token alone is no credential, and no other route reads it
+  (`requireMediaRequest` in `apps/cli/src/server/app.ts`). Residual: a cookie
+  is port-agnostic, which is why it is not the bearer and dies with the boot.
   `apps/cli/src/server/server-file.ts`, `browser-session.ts`,
   `browser-request.ts` and the guard in `app.ts`.
 
@@ -134,7 +142,10 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   listener step closes websockets by name (`wss.clients`), because an upgraded
   socket is detached from the HTTP server's tracking and one open tab can stall
   the teardown. The step list is re-read before every step, so a boot still
-  composing when the signal lands adds what it brings up.
+  composing when the signal lands adds what it brings up. Imports and items
+  stop before knowledge and the vault flush, since an import hands fills to
+  items and a fill writes the vault and settles knowledge, each a row of
+  `TEARDOWN_BUDGETS_MS`, whose order is the teardown's.
   `apps/cli/src/server/shutdown.ts` and `listen.ts`.
 
 - **THE CSP IS STATIC, and a plain Vite SPA is what buys it.** The page injects
@@ -151,7 +162,13 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   `tools/repo-guards/src/phone-page-csp.test.ts`. NOTHING REMOTE LOADS IN A
   NOTE: a remote embed is a beacon on every open, so it draws as a card
   (`packages/editor/src/nodes/remote-content-card.tsx`); widening the policy is
-  a privacy decision. AN HTML BLOCK'S RUN IS A FRAME WITH A POLICY OF ITS OWN,
+  a privacy decision. A LIBRARY FILE IS SERVED WITH A POLICY OF ITS OWN: a PDF
+  gets `default-src 'none'; object-src 'self'; style-src 'unsafe-inline';
+  frame-ancestors 'self'`, because a sandbox blanks WebKit's PDF viewer, and
+  every other kind is sandboxed; a page copy is its own route under a
+  script-less sandbox, and thumbnails are a data-dir cache. Rejected: pdf.js
+  (`worker-src`, about 2 MB) (`apps/cli/src/server/vault/asset-route.ts`).
+  AN HTML BLOCK'S RUN IS A FRAME WITH A POLICY OF ITS OWN,
   `sandbox allow-scripts; default-src 'none'`
   (`apps/cli/src/server/html-block-frame.ts`); dropping Run was the rejected
   alternative, since interaction is what the block is for. `pnpm dev` stamps no
@@ -166,7 +183,10 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   `sync-conventions` skill applies, which must not delete that folder. While
   nobody but the owner runs the app, the history is one baseline rather than
   every generation, so the CHECKs `ALTER TABLE` cannot add are declared and the
-  columns sit in order (`packages/db/src/schema.ts`). A file whose ledger names
+  columns sit in order (`packages/db/src/schema.ts`). A regenerated baseline
+  takes a new folder name, never its old one, because drizzle keys its ledger
+  by the folder's name, and a file that lists the old one must read as a
+  history this build lacks rather than as already applied. A file whose ledger names
   a migration this build does not carry is refused before the migrator runs
   (`UnknownMigrationHistoryError` in `packages/db/src/migrate.ts`), and the
   server signs the install out, then replaces it, because the cloud log holds
@@ -176,6 +196,21 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   (`apps/cli/src/server/open-database.ts`). Once anyone else holds a database,
   squashing is the loss of their threads, and a migration is appended instead.
 
+- **AN IMPORT IS A SERVER JOB OVER A COPY OF THE FILE: DEDUPED BY URL, ONE
+  COMMIT PER 100 ITEMS, LINEAR IN ITS ROWS, RESUMED AT BOOT.** The plan keeps
+  the file in the data dir and keys every row once, folding rows of one url
+  key into the first; a batch settles the index once, lists each folder it
+  writes into once, writes each item's highlights before the item and hands
+  the item to the fill's pending store, then commits once under a commit hold.
+  The job is a json file of its cursor and counts, rewritten per batch, and a
+  boot resumes a running one: a url the library already holds counts as saved,
+  so a resume adds nothing twice. Rejected: a job table in the database (url
+  dedupe already makes a re-run a safe resume), a settle and a listing per
+  item (quadratic over one `Unsorted/`), and the import fetching covers (all
+  network work is the one guarded fill, and a Raindrop cover is a hint the
+  fill fetches). `apps/cli/src/server/imports/import-service.ts`,
+  `apps/cli/src/server/imports/raindrop.ts`.
+
 ## Repo guards, vendoring and tooling
 
 - **A CLIENT VERB LOADS THE CLIENT, AND THE BUILD REFUSES A STATIC IMPORT PAST
@@ -184,4 +219,11 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   frontmatter parser (yaml, 72 modules) sit behind `await import()` in the verbs
   that need them. A static import that reaches yaml passes every test and every
   review, so `apps/cli/scripts/build.ts` walks the metafile's static closure and
-  fails naming the importer (`LOADED_ON_EVERY_VERB_REFUSED`).
+  fails naming the importer (`LOADED_ON_EVERY_VERB_REFUSED`). The DOM, defuddle,
+  turndown and the editor's headless kits live in `item-fill-worker.mjs` alone
+  (`apps/cli/src/server/items/capture/item-fill-worker.ts`), so the build refuses
+  any of them anywhere in the main bundle, statically or dynamically imported
+  (`SERVER_REFUSED_ANYWHERE`), and refuses React, the renderers and `@repo/ui`
+  among the inputs that put bytes in the worker (`FILL_WORKER_REFUSED`), each
+  package named by its own store directory, never another package's peer
+  suffix.

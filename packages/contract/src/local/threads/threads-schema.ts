@@ -5,9 +5,15 @@ import {
 } from "@repo/domain/pending-interactions";
 import { threadStatusSchema } from "@repo/domain/thread-status";
 import { MAX_THREAD_TITLE_LENGTH } from "@repo/domain/thread-title";
+import { actionPresetSchema } from "@repo/domain/action-preset";
+import type { LibraryScope } from "@repo/domain/library-scope";
 import { viewContextSchema } from "@repo/domain/view-context";
-import type { ViewContext } from "@repo/domain/view-context";
+import type { DocViewContext, LibraryViewContext, ViewContext } from "@repo/domain/view-context";
+import { isItemKind } from "@repo/notes/items/item-kind";
+import { isTagName } from "@repo/notes/knowledge/tag-grammar";
 import { z } from "zod";
+import { utf8ByteLength } from "@repo/contract/cloud/bytes";
+import { KNOWLEDGE_ITEMS_QUERY_MAX } from "../knowledge/knowledge-schema";
 import { threadTimelineSchema, timelineDeltaSchema } from "../thread-timeline";
 import { contentHashSchema, vaultPathSchema } from "../vault/vault-schema";
 
@@ -154,27 +160,106 @@ export const interruptThreadResponseSchema = z.strictObject({
 });
 export type InterruptThreadResponse = z.infer<typeof interruptThreadResponseSchema>;
 
-// the resource and the revision reach a prompt with no further validation. the stored grammar
-// stays looser so a row written before either rule still parses.
-const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewContext => {
+interface WireIssue {
+  message: string;
+  path: (string | number)[];
+}
+
+type WireRead<T> = { ok: true; value: T } | ({ ok: false } & WireIssue);
+
+const refused = (message: string, path: (string | number)[]): WireRead<never> => ({
+  message,
+  ok: false,
+  path,
+});
+
+const readDocContext = (value: DocViewContext): WireRead<DocViewContext> => {
   const resource = vaultPathSchema.safeParse(value.resource);
   if (!resource.success) {
-    ctx.addIssue({
-      code: "custom",
-      message: "viewContext.resource is not a vault path",
-      path: ["resource"],
-    });
-    return z.NEVER;
+    return refused("viewContext.resource is not a vault path", ["resource"]);
   }
   if (!contentHashSchema.safeParse(value.revision).success) {
-    ctx.addIssue({
-      code: "custom",
-      message: "viewContext.revision is not a content hash",
-      path: ["revision"],
-    });
+    return refused("viewContext.revision is not a content hash", ["revision"]);
+  }
+  return { ok: true, value: { ...value, resource: resource.data } };
+};
+
+const readLibraryScope = (scope: LibraryScope): WireRead<LibraryScope> => {
+  switch (scope.kind) {
+    case "all":
+    case "unsorted": {
+      return { ok: true, value: scope };
+    }
+    case "folder": {
+      const path = vaultPathSchema.safeParse(scope.path);
+      return path.success
+        ? { ok: true, value: { kind: "folder", path: path.data } }
+        : refused("viewContext.scope.path is not a vault path", ["scope", "path"]);
+    }
+    case "tag": {
+      return isTagName(scope.tag)
+        ? { ok: true, value: scope }
+        : refused("viewContext.scope.tag is not a tag name", ["scope", "tag"]);
+    }
+    case "deleted": {
+      // Deleted lists what is gone, so nothing there is a library item an agent could act on
+      return refused("a library context never names the Deleted scope", ["scope", "kind"]);
+    }
+    default: {
+      const exhaustive: never = scope;
+      return exhaustive;
+    }
+  }
+};
+
+// what the request event keeps of a library context (every field but the paths, which
+// thread-send.ts drops) rides the thread sync beside the typed text under the event's 64 KiB cap,
+// and only the text is clipped to fit, so the rest is held to a few KB here
+export const LIBRARY_CONTEXT_RECORD_MAX_BYTES = 4096;
+
+const readLibraryContext = (value: LibraryViewContext): WireRead<LibraryViewContext> => {
+  const scope = readLibraryScope(value.scope);
+  if (!scope.ok) {
+    return scope;
+  }
+  if (value.kinds !== undefined && !value.kinds.every(isItemKind)) {
+    return refused("viewContext.kinds names a kind no item has", ["kinds"]);
+  }
+  if (value.kinds !== undefined && new Set(value.kinds).size !== value.kinds.length) {
+    return refused("viewContext.kinds names a kind twice", ["kinds"]);
+  }
+  if (value.q !== undefined && value.q.length > KNOWLEDGE_ITEMS_QUERY_MAX) {
+    return refused("viewContext.q is longer than a listing's search", ["q"]);
+  }
+  if (utf8ByteLength(JSON.stringify({ ...value, paths: [] })) > LIBRARY_CONTEXT_RECORD_MAX_BYTES) {
+    return refused("viewContext is too large to record on the thread", []);
+  }
+  const paths: string[] = [];
+  for (const [index, raw] of value.paths.entries()) {
+    const path = vaultPathSchema.safeParse(raw);
+    if (!path.success) {
+      return refused("viewContext.paths names a path outside the vault", ["paths", index]);
+    }
+    paths.push(path.data);
+  }
+  if (new Set(paths).size !== paths.length) {
+    return refused("viewContext.paths names an item twice", ["paths"]);
+  }
+  if (paths.length > value.selected) {
+    return refused("viewContext.selected counts fewer items than its paths", ["selected"]);
+  }
+  return { ok: true, value: { ...value, paths, scope: scope.value } };
+};
+
+// every path and the revision reach a prompt with no further validation. the stored grammar
+// stays looser so a row written before either rule still parses.
+const wireViewContextSchema = viewContextSchema.transform((value, ctx): ViewContext => {
+  const read = value.surface === "doc" ? readDocContext(value) : readLibraryContext(value);
+  if (!read.ok) {
+    ctx.addIssue({ code: "custom", message: read.message, path: read.path });
     return z.NEVER;
   }
-  return { ...value, resource: resource.data };
+  return read.value;
 });
 
 export const MAX_CONTEXT_PATHS = 16;
@@ -188,17 +273,25 @@ const contextPathsSchema = z
     message: "contextPaths names a note twice",
   });
 
-export const sendMessageRequestSchema = z.strictObject({
-  // the notes the user attached; the server names them to the agent in a block of their own,
-  // so `text` stays exactly what was typed.
-  contextPaths: contextPathsSchema.optional(),
-  // the turn the client believes is running; when it no longer names the open turn the send
-  // answers 409 rather than starting one.
-  expectedTurnId: z.string().min(1).optional(),
-  text: z.string().min(1),
-  threadId: z.string().min(1),
-  viewContext: wireViewContextSchema.optional(),
-});
+export const sendMessageRequestSchema = z
+  .strictObject({
+    // the notes the user attached; the server names them to the agent in a block of their own,
+    // so `text` stays exactly what was typed.
+    contextPaths: contextPathsSchema.optional(),
+    // the turn the client believes is running; when it no longer names the open turn the send
+    // answers 409 rather than starting one.
+    expectedTurnId: z.string().min(1).optional(),
+    // a named action; the server composes its block, so `text` stays what was typed, and an
+    // empty text is stored as the preset's label. no thread event and no /cloud wire carries it.
+    preset: actionPresetSchema.optional(),
+    text: z.string(),
+    threadId: z.string().min(1),
+    viewContext: wireViewContextSchema.optional(),
+  })
+  .refine((send) => send.text.length > 0 || send.preset !== undefined, {
+    message: "text or a preset",
+    path: ["text"],
+  });
 export type SendMessageRequest = z.infer<typeof sendMessageRequestSchema>;
 
 export const sendMessageResponseSchema = z.discriminatedUnion("kind", [

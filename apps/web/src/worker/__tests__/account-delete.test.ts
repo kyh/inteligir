@@ -66,12 +66,17 @@ describe("deleting the account from a device", () => {
       method: "POST",
     });
     expect(synced.status).toBe(200);
-    const captured = await SELF.fetch(`${ORIGIN}${DISPATCH_API_PATHS.dispatch}`, {
-      body: JSON.stringify({ id: "c".repeat(32), kind: "capture", text: "a capture" }),
+    const asked = await SELF.fetch(`${ORIGIN}${DISPATCH_API_PATHS.dispatch}`, {
+      body: JSON.stringify({
+        id: "c".repeat(32),
+        kind: "turn",
+        text: "a request",
+        threadId: "th_1",
+      }),
       headers: { ...deviceHeaders(phone.credential), "content-type": "application/json" },
       method: "POST",
     });
-    expect(captured.status).toBe(200);
+    expect(asked.status).toBe(200);
 
     const deletion = await postAccountDelete(deviceHeaders(laptop.credential), PASSWORD);
     expect(deletion.status).toBe(200);

@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
@@ -6,16 +6,8 @@ import { File } from "expo-file-system";
 import { addNetworkStateListener } from "expo-network";
 import * as SecureStore from "expo-secure-store";
 import { createKeychainCredentials } from "../credential/secure-store-credential";
-import {
-  pendingCaptures,
-  threadDispatches,
-  threadListEntries,
-} from "../dispatch/dispatch-projection";
-import type {
-  PendingCaptures,
-  ThreadDispatches,
-  ThreadListEntry,
-} from "../dispatch/dispatch-projection";
+import { threadDispatches, threadListEntries } from "../dispatch/dispatch-projection";
+import type { ThreadDispatches, ThreadListEntry } from "../dispatch/dispatch-projection";
 import type {
   AskAgentRequest,
   CancelOutcome,
@@ -24,13 +16,19 @@ import type {
 } from "../dispatch/dispatch-runtime";
 import { createEditorPorts } from "../editor/editor-ports";
 import type { EditorPorts, EditorPortsArgs } from "../editor/editor-ports";
+import type { SavedItem } from "../items/item-ops";
+import { createCoverThumbs } from "../library/cover-thumbs";
+import type { CoverThumbs } from "../library/cover-thumbs";
+import { createExpoCoverThumbPort } from "../library/expo-cover-thumbs";
+import { libraryCardAt, libraryCards, libraryScopes } from "../library/library-view";
+import type { LibraryCard, LibraryFilter, LibraryScopes } from "../library/library-view";
 import { defaultDeviceName } from "../login/device-name";
 import type { LoginRequest, LoginState } from "../login/login-store";
 
 import { createExpoAttachmentFiles } from "../notes/expo-attachment-files";
 import { createExpoOutboxFolder } from "../notes/expo-outbox-files";
 import type { CreatedNote, RenamedNote } from "../notes/file-ops";
-import type { CommentsRead, NoteRead, NoteText, NotesTreeState } from "../notes/notes-store";
+import type { AnnotationsRead, NoteRead, NoteText, NotesTreeState } from "../notes/notes-store";
 import { excludedFromBackup } from "../notes/outbox-files";
 import { ingestPhoto } from "../notes/photo-ingest";
 import type { OutboxStatus } from "../notes/vault-outbox";
@@ -50,6 +48,7 @@ import { createExpoSqlDriver } from "./expo-sql-driver";
 import { openPhoneDb } from "./phone-db";
 
 let runtime: AppRuntime | null = null;
+let thumbs: CoverThumbs | null = null;
 
 // console.warn would raise a LogBox toast per skipped row or offline pass.
 const devLog = (message: string): void => {
@@ -62,16 +61,18 @@ const devLog = (message: string): void => {
 // the cloud refuses as too old rather than letting a build it cannot place through
 const appVersion = (): string => Constants.expoConfig?.version ?? "0.0.0";
 
+const attachments = createExpoAttachmentFiles();
+
 const build = (): AppRuntime => {
   const rt = composeRuntime({
-    attachments: createExpoAttachmentFiles(),
+    attachments,
     build: { platform: "mobile", version: appVersion() },
     cloudUrl: getCloudUrl(),
     credentials: createKeychainCredentials(SecureStore),
     db: openPhoneDb(createExpoSqlDriver("inteligir.db")),
     deviceName: defaultDeviceName(),
     mintId: () => hexFromBytes(Crypto.getRandomBytes(16)),
-    mintNoteId: Crypto.randomUUID,
+    newId: Crypto.randomUUID,
     outboxFiles: excludedFromBackup(createExpoOutboxFolder(), excludeFromBackup),
     randomBytes: Crypto.getRandomBytes,
     sha1: async (bytes) =>
@@ -127,8 +128,8 @@ export const refreshNotes = async (): Promise<void> => {
 export const readNote = async (path: string): Promise<NoteRead> =>
   await getRuntime().notes.readNote(path);
 
-export const readNoteComments = async (note: NoteText): Promise<CommentsRead> =>
-  await getRuntime().notes.readComments(note);
+export const readNoteAnnotations = async (note: NoteText): Promise<AnnotationsRead> =>
+  await getRuntime().notes.readAnnotations(note);
 
 export const createNote = async (dir: string): Promise<CreatedNote> =>
   await getRuntime().fileOps.create(dir);
@@ -139,6 +140,89 @@ export const renameNote = async (from: string, name: string): Promise<RenamedNot
 export const deleteNote = async (path: string): Promise<void> => {
   await getRuntime().fileOps.remove(path);
 };
+
+// the files a delete of `path` would take with it, which the confirm counts
+export const filesFreedBy = async (path: string): Promise<readonly string[]> =>
+  await getRuntime().fileOps.freedBy(path);
+
+export const saveLink = async (link: {
+  url: string;
+  title: string | null;
+  note: string | null;
+}): Promise<SavedItem> => await getRuntime().items.saveLink(link);
+
+export const saveText = async (text: string): Promise<SavedItem> =>
+  await getRuntime().items.saveText(text);
+
+export interface LibraryView {
+  tree: NotesTreeState;
+  cards: readonly LibraryCard[];
+  scopes: LibraryScopes;
+}
+
+// the Library over what the phone holds, listed again whenever the listing moves
+export const useLibrary = (filter: LibraryFilter): LibraryView => {
+  const rt = getRuntime();
+  const tree = useSyncExternalStore(rt.notes.tree.subscribe, rt.notes.tree.get);
+  const { kinds, query, scope } = filter;
+  // the tree moves with every listing the store publishes, and heldFiles is that listing
+  const files = useMemo(() => (tree.state === "ready" ? rt.notes.heldFiles() : []), [rt, tree]);
+  const cards = useMemo(
+    () => libraryCards(files, { kinds, query, scope }),
+    [files, kinds, query, scope],
+  );
+  const scopes = useMemo(() => libraryScopes(files), [files]);
+  return { cards, scopes, tree };
+};
+
+// one item's card, kept current with the listing
+export const useLibraryCard = (path: string | null): LibraryCard | null => {
+  const rt = getRuntime();
+  const tree = useSyncExternalStore(rt.notes.tree.subscribe, rt.notes.tree.get);
+  return useMemo(
+    () =>
+      path === null || tree.state !== "ready" ? null : libraryCardAt(rt.notes.heldFiles(), path),
+    [rt, tree, path],
+  );
+};
+
+const coverThumbs = (): CoverThumbs => {
+  const rt = getRuntime();
+  thumbs ??= createCoverThumbs(
+    createExpoCoverThumbPort({
+      attachments,
+      original: async (path) => await rt.notes.attachmentFile(path),
+    }),
+  );
+  return thumbs;
+};
+
+// the file:// a card draws its cover from; null until it is on this phone, or when it cannot be
+export const useCoverThumb = (cover: string | null): string | null => {
+  const [uri, setUri] = useState<{ cover: string; uri: string | null } | null>(null);
+  useEffect(() => {
+    if (cover === null) {
+      return;
+    }
+    let live = true;
+    void (async () => {
+      const made = await coverThumbs().thumbFor(cover);
+      if (live) {
+        setUri({ cover, uri: made });
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [cover]);
+  return uri !== null && uri.cover === cover ? uri.uri : null;
+};
+
+// a held file's bytes on this phone, downloaded on the first ask: a viewer's image or PDF
+export const attachmentFile = async (
+  path: string,
+): Promise<{ ok: true; uri: string } | { ok: false; message: string }> =>
+  await getRuntime().notes.attachmentFile(path);
 
 // the view context's revision: the sha-256 of the note's bytes as the screen showed them
 const noteRevision = async (content: string): Promise<string> =>
@@ -153,13 +237,13 @@ const noteRevision = async (content: string): Promise<string> =>
 export const createNoteEditorPorts = (
   screen: Pick<
     EditorPortsArgs,
-    "editorState" | "go" | "notify" | "openFailed" | "opened" | "showComments"
+    "editorState" | "go" | "notify" | "openFailed" | "opened" | "showAnnotations"
   >,
 ): EditorPorts => {
   const rt = getRuntime();
   return createEditorPorts({
     ...screen,
-    comments: rt.comments,
+    annotations: rt.annotations,
     fileOps: rt.fileOps,
     newThreadId: () => rt.dispatch.newThreadId(),
     pickImage: async () => await ingestPhoto(rt.fileOps),
@@ -171,11 +255,6 @@ export const createNoteEditorPorts = (
 
 // one per load of the editor page
 export const mintBridgeNonce = (): string => hexFromBytes(Crypto.getRandomBytes(16));
-
-export const useNotesTree = (): NotesTreeState => {
-  const rt = getRuntime();
-  return useSyncExternalStore(rt.notes.tree.subscribe, rt.notes.tree.get);
-};
 
 // what has not reached the vault: the parked changes and the conflicts the queue settled
 export const useOutboxStatus = (): OutboxStatus => {
@@ -252,16 +331,8 @@ export const useDispatches = (threadId: string): ThreadDispatches => {
   );
 };
 
-export const usePendingCaptures = (): PendingCaptures => {
-  const dispatches = useDispatchState();
-  return useMemo(() => pendingCaptures(dispatches), [dispatches]);
-};
-
 export const askAgent = async (request: AskAgentRequest): Promise<DispatchOutcome> =>
   await getRuntime().dispatch.askAgent(request);
-
-export const capture = async (text: string): Promise<DispatchOutcome> =>
-  await getRuntime().dispatch.capture(text);
 
 export const answerApproval = async (
   approvalId: string,

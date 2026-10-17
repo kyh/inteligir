@@ -28,6 +28,7 @@ afterEach(() => {
 const fakeGitEngine = (): GitEngine => ({
   checkpointUnclaimed: async () => await Promise.resolve(null),
   claimedPaths: () => [],
+  creatorOf: async () => await Promise.resolve(null),
   currentRemote: async () => await Promise.resolve(null),
   commitNow: async () => await Promise.resolve(null),
   commitPaths: async () => await Promise.resolve(null),
@@ -38,6 +39,7 @@ const fakeGitEngine = (): GitEngine => ({
   history: async () => await Promise.resolve([]),
   holdCommits: () => ({ claim: () => {}, release: () => {} }),
   isSyncing: () => false,
+  isTracked: async () => await Promise.resolve(false),
   revision: async () => await Promise.resolve(""),
   runExclusive: async (work) => await work(),
   scheduleCommit: () => {},
@@ -50,6 +52,7 @@ const fakeGitEngine = (): GitEngine => ({
       externalSync: null,
       lastError: null,
       lastSyncAt: null,
+      tooLarge: { count: 0, files: [] },
       state: "no-remote",
     }),
   syncNow: async () =>
@@ -59,6 +62,7 @@ const fakeGitEngine = (): GitEngine => ({
       externalSync: null,
       lastError: null,
       lastSyncAt: null,
+      tooLarge: { count: 0, files: [] },
       state: "no-remote",
     }),
   turnCommits: async () => await Promise.resolve([]),

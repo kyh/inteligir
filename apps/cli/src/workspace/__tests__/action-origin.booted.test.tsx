@@ -33,7 +33,7 @@ const bufferNoteId = (): string | null => {
 describe("an action composed over a note with no id", () => {
   it("gives the note its id before the view context is read, so the revision names the file", async () => {
     const harness = await bootWorkspace({
-      note: NOTE,
+      item: NOTE,
       seed: async (booted) => {
         await booted.client.vault.write({
           content: "# Plans\n\nFirst line.\n",
@@ -57,9 +57,11 @@ describe("an action composed over a note with no id", () => {
 
     const { content } = await harness.client.vault.read({ path: NOTE });
     expect(frontmatterId(content)).not.toBeNull();
-    expect(harness.driver.startedTurns[0]?.viewContext?.revision).toBe(
-      await contentHashHex(content),
-    );
+    expect(harness.driver.startedTurns[0]?.viewContext).toEqual({
+      resource: NOTE,
+      revision: await contentHashHex(content),
+      surface: "doc",
+    });
 
     // the id the editor wrote is the one the thread holds: a move the rename route never saw
     // still finds the note
@@ -70,7 +72,7 @@ describe("an action composed over a note with no id", () => {
 
   it("keeps the id it minted through an undo", async () => {
     const harness = await bootWorkspace({
-      note: NOTE,
+      item: NOTE,
       seed: async (booted) => {
         await booted.client.vault.write({
           content: "# Plans\n\nFirst line.\n",

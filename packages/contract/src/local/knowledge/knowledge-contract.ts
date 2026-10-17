@@ -5,21 +5,26 @@ import { oc } from "@orpc/contract";
 import {
   knowledgeBacklinksRequestSchema,
   knowledgeBacklinksResponseSchema,
+  knowledgeFindByUrlRequestSchema,
+  knowledgeFindByUrlResponseSchema,
+  knowledgeItemPathsRequestSchema,
+  knowledgeItemPathsResponseSchema,
+  knowledgeItemsAtRequestSchema,
+  knowledgeItemsAtResponseSchema,
+  knowledgeItemsRequestSchema,
+  knowledgeItemsResponseSchema,
+  knowledgePathForNoteIdRequestSchema,
+  knowledgePathForNoteIdResponseSchema,
+  knowledgeScopesResponseSchema,
   knowledgeMatchesRequestSchema,
   knowledgeMatchesResponseSchema,
-  knowledgeProblemsRequestSchema,
-  knowledgeProblemsResponseSchema,
   knowledgeRelatedRequestSchema,
   knowledgeRelatedResponseSchema,
   knowledgeRenameTagRequestSchema,
   knowledgeRenameTagResponseSchema,
   knowledgeSearchRequestSchema,
   knowledgeSearchResponseSchema,
-  knowledgeTagNotesRequestSchema,
-  knowledgeTagNotesResponseSchema,
   knowledgeTagsResponseSchema,
-  knowledgeUnlinkedMentionsRequestSchema,
-  knowledgeUnlinkedMentionsResponseSchema,
   knowledgeWikiTargetsResponseSchema,
 } from "./knowledge-schema";
 
@@ -28,21 +33,27 @@ export const knowledgeContract = {
 
   matches: oc.input(knowledgeMatchesRequestSchema).output(knowledgeMatchesResponseSchema),
 
-  problems: oc.input(knowledgeProblemsRequestSchema).output(knowledgeProblemsResponseSchema),
-
   related: oc.input(knowledgeRelatedRequestSchema).output(knowledgeRelatedResponseSchema),
 
   renameTag: oc.input(knowledgeRenameTagRequestSchema).output(knowledgeRenameTagResponseSchema),
 
   search: oc.input(knowledgeSearchRequestSchema).output(knowledgeSearchResponseSchema),
 
-  tagNotes: oc.input(knowledgeTagNotesRequestSchema).output(knowledgeTagNotesResponseSchema),
-
   tags: oc.output(knowledgeTagsResponseSchema),
 
-  unlinkedMentions: oc
-    .input(knowledgeUnlinkedMentionsRequestSchema)
-    .output(knowledgeUnlinkedMentionsResponseSchema),
-
   wikiTargets: oc.output(knowledgeWikiTargetsResponseSchema),
+
+  findByUrl: oc.input(knowledgeFindByUrlRequestSchema).output(knowledgeFindByUrlResponseSchema),
+
+  itemPaths: oc.input(knowledgeItemPathsRequestSchema).output(knowledgeItemPathsResponseSchema),
+
+  items: oc.input(knowledgeItemsRequestSchema).output(knowledgeItemsResponseSchema),
+
+  itemsAt: oc.input(knowledgeItemsAtRequestSchema).output(knowledgeItemsAtResponseSchema),
+
+  pathForNoteId: oc
+    .input(knowledgePathForNoteIdRequestSchema)
+    .output(knowledgePathForNoteIdResponseSchema),
+
+  scopes: oc.output(knowledgeScopesResponseSchema),
 };

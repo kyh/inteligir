@@ -101,7 +101,7 @@ describe("which finished turn a commit frame announces", () => {
     const thread = watching();
     await thread.observe(RAN);
 
-    const metadataOnly = applied("turn_1", [".inteligir/comments/note-1.json"]);
+    const metadataOnly = applied("turn_1", [".inteligir/annotations/note-1.json"]);
     thread.setTurns([metadataOnly]);
     await thread.observe(COMMITTED);
     thread.setTurns([metadataOnly, applied("turn_2", [])]);

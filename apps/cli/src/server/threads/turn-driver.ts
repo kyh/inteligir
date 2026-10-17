@@ -1,3 +1,4 @@
+import type { ActionPreset } from "@repo/domain/action-preset";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { PendingInteraction } from "@repo/contract/local/threads/threads-schema";
@@ -28,6 +29,9 @@ export interface TurnRequest {
   text: string;
   contextPaths?: readonly string[] | undefined;
   viewContext?: ViewContext | undefined;
+  // the named action the message asks for: its block is composed into the prompt, never into
+  // the text, and no thread event records it
+  preset?: ActionPreset | undefined;
   // the phone's dispatch the message carries out, stated on its request so the phone finds it
   dispatchId?: string | undefined;
 }

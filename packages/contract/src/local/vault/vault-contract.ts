@@ -1,5 +1,6 @@
-// GET /vault/asset is not a procedure: its body is bytes with an etag and if-none-match
-// revalidation, which an rpc envelope cannot carry.
+// GET /vault/asset, /vault/thumb and /vault/page-copy are not procedures: their bodies are bytes
+// with an etag and if-none-match revalidation and a policy of their own, which an rpc envelope
+// cannot carry.
 
 import { oc } from "@orpc/contract";
 import { ALREADY_EXISTS, CAS_MISMATCH, INVALID_PATH } from "../local-errors";
@@ -8,6 +9,8 @@ import {
   vaultAssetWriteResponseSchema,
   vaultCommitRequestSchema,
   vaultCommitResponseSchema,
+  vaultCreateFileRequestSchema,
+  vaultCreateFileResponseSchema,
   vaultDeletedResponseSchema,
   vaultDeleteRequestSchema,
   vaultDeleteResponseSchema,
@@ -22,6 +25,8 @@ import {
   vaultReadResponseSchema,
   vaultRenameRequestSchema,
   vaultRenameResponseSchema,
+  vaultRevisionBytesRequestSchema,
+  vaultRevisionBytesResponseSchema,
   vaultRevisionRequestSchema,
   vaultRevisionResponseSchema,
   vaultStatusResponseSchema,
@@ -40,6 +45,15 @@ export const vaultContract = {
   // a restore checkpoints first: the auto-commit is session-shaped, so the bytes being replaced
   // may be in no revision yet.
   commitNow: oc.input(vaultCommitRequestSchema).output(vaultCommitResponseSchema),
+
+  // a deleted file's byte-exact restore, the byte twin of a write's `absent` guard:
+  // ALREADY_EXISTS when something stands at the path; INVALID_PATH for a path that takes no
+  // bytes (a doc, an annotation store, a metadata path); CONFLICT: a file stands where a folder
+  // must be
+  createFile: oc
+    .input(vaultCreateFileRequestSchema)
+    .output(vaultCreateFileResponseSchema)
+    .errors({ ALREADY_EXISTS, CONFLICT: {}, INVALID_PATH, PAYLOAD_TOO_LARGE: {} }),
 
   // the recovery surface: there is no trash folder, the git log is the record of what was deleted.
   deleted: oc.output(vaultDeletedResponseSchema),
@@ -77,6 +91,11 @@ export const vaultContract = {
   revision: oc
     .input(vaultRevisionRequestSchema)
     .output(vaultRevisionResponseSchema)
+    .errors({ NOT_FOUND: {}, PAYLOAD_TOO_LARGE: {} }),
+
+  revisionBytes: oc
+    .input(vaultRevisionBytesRequestSchema)
+    .output(vaultRevisionBytesResponseSchema)
     .errors({ NOT_FOUND: {}, PAYLOAD_TOO_LARGE: {} }),
 
   // edits the vault's own origin, the one record a pass reads, and answers the status the choice

@@ -35,6 +35,8 @@ interface HarnessOptions {
   // the bytes the move leaves at the new path, as the server's alias write does.
   readonly rewriteOnMove?: (content: string) => string;
   readonly vanishedChoice?: VanishedChoice;
+  // the server's answer to where an id lives now; unset, the session asks nothing.
+  readonly findMoved?: (path: string, id: string) => Promise<string | null>;
 }
 
 // The disk is the fake vault: `list` walks it, so a test moves a file there and announces it.
@@ -122,6 +124,9 @@ const harness = (options: HarnessOptions = {}) => {
     },
     rename,
   };
+  if (options.findMoved !== undefined) {
+    ports.findMoved = options.findMoved;
+  }
   const session = createVaultSession(ports);
   broadcast = session.handleVaultChanged;
   return {
@@ -267,6 +272,149 @@ describe("switching notes", () => {
     expect(asked).toEqual(["a.md"]);
     expect(vault.files.get("a.md")).toBe("A typed");
     expect(log).toEqual(["write a.md", "open b.md"]);
+  });
+});
+
+describe("leaving for the library", () => {
+  it("writes the item being left, then closes it", async () => {
+    const { session, vault, log } = await started(TWO_NOTES);
+    session.actions.editNote("a.md", "A typed");
+    session.actions.closeFile();
+    await settle();
+    expect(log).toEqual(["write a.md", "open nothing"]);
+    expect(vault.files.get("a.md")).toBe("A typed");
+  });
+
+  it("stays on an item whose write was refused, and says so", async () => {
+    const { session, vault, log, notices } = await started(TWO_NOTES);
+    vault.write = async () => await Promise.reject(new Error("offline"));
+    session.actions.editNote("a.md", "A typed");
+    session.actions.closeFile();
+    await settle();
+    expect(log).toEqual([]);
+    expect(notices).toContain("Couldn't save the current file — resolve that before switching.");
+  });
+
+  it("does nothing when nothing is open", async () => {
+    const { session, log } = await started({ files: { "a.md": "A" } });
+    session.actions.closeFile();
+    await settle();
+    expect(log).toEqual([]);
+  });
+
+  it("lets an open asked for after the close win", async () => {
+    const { session, log } = await started(TWO_NOTES);
+    session.actions.closeFile();
+    session.actions.openFile("b.md");
+    await settle();
+    expect(log).toEqual(["open b.md"]);
+  });
+});
+
+describe("a file that is no doc", () => {
+  it("opens its path without reading it into a buffer", async () => {
+    const h = await started({ ...TWO_NOTES, files: { ...TWO_NOTES.files, "assets/x.png": "PNG" } });
+    let reads = 0;
+    const { read } = h.vault;
+    h.vault.read = async (path) => {
+      reads += 1;
+      return await read(path);
+    };
+    h.session.actions.openFile("assets/x.png");
+    await settle();
+    expect(h.opened.at(-1)).toEqual(["assets/x.png", "navigate"]);
+    expect(reads).toBe(0);
+  });
+});
+
+// a move made by someone else: the bytes go, as an agent's rename or a fill's leaves them
+const moveOnDisk = (vault: FakeVault, from: string, to: string): void => {
+  const content = vault.files.get(from);
+  vault.files.delete(from);
+  if (content !== undefined) {
+    vault.files.set(to, content);
+  }
+};
+
+describe("an item moved under it", () => {
+  const ITEM = "---\nid: item-1\nkind: link\nurl: https://example.com/\n---\n";
+  const MOVED: HarnessOptions = {
+    files: { "Unsorted/example.com.md": ITEM, "b.md": "B" },
+    openAtBoot: "Unsorted/example.com.md",
+  };
+
+  it("follows the item by its id to the path it moved to, rewriting history in place", async () => {
+    const asked: [string, string][] = [];
+    const h = await started({
+      ...MOVED,
+      findMoved: async (path, id) => {
+        asked.push([path, id]);
+        return await Promise.resolve("Unsorted/Example Domain.md");
+      },
+    });
+    moveOnDisk(h.vault, "Unsorted/example.com.md", "Unsorted/Example Domain.md");
+    h.session.handleVaultChanged({
+      kind: "files",
+      paths: ["Unsorted/example.com.md", "Unsorted/Example Domain.md"],
+    });
+    await settle();
+    expect(asked).toEqual([["Unsorted/example.com.md", "item-1"]]);
+    expect(h.opened.at(-1)).toEqual(["Unsorted/Example Domain.md", "carry"]);
+    expect(h.editor()).toMatchObject({ content: ITEM, path: "Unsorted/Example Domain.md" });
+    expect(h.notices).toEqual([]);
+  });
+
+  it("drops to the library when nothing answers to the id", async () => {
+    const h = await started({ ...MOVED, findMoved: async () => await Promise.resolve(null) });
+    h.vault.files.delete("Unsorted/example.com.md");
+    h.session.handleVaultChanged({ kind: "files", paths: ["Unsorted/example.com.md"] });
+    await settle();
+    expect(h.log).toEqual(["open nothing"]);
+  });
+
+  it("drops to the library at once for a note with no id, asking nothing", async () => {
+    let asked = 0;
+    const h = await started({
+      ...TWO_NOTES,
+      findMoved: async () => {
+        asked += 1;
+        return await Promise.resolve("b.md");
+      },
+    });
+    h.vault.files.delete("a.md");
+    h.session.handleVaultChanged({ kind: "files", paths: ["a.md"] });
+    await settle();
+    expect(asked).toBe(0);
+    expect(h.log).toEqual(["open nothing"]);
+  });
+
+  it("keeps the navigation made while the answer was in flight", async () => {
+    const answer = deferred<string | null>();
+    const h = await started({ ...MOVED, findMoved: async () => await answer.promise });
+    moveOnDisk(h.vault, "Unsorted/example.com.md", "Unsorted/Example Domain.md");
+    h.session.handleVaultChanged({ kind: "files", paths: ["Unsorted/example.com.md"] });
+    await settle();
+    h.session.actions.openFile("b.md");
+    await settle();
+    answer.resolve("Unsorted/Example Domain.md");
+    await settle();
+    expect(h.opened.at(-1)).toEqual(["b.md", "navigate"]);
+    expect(h.editor()).toMatchObject({ path: "b.md" });
+  });
+
+  it("asks nothing when the session deletes the item itself", async () => {
+    let asked = 0;
+    const h = await started({
+      ...MOVED,
+      findMoved: async () => {
+        asked += 1;
+        return await Promise.resolve(null);
+      },
+    });
+    await h.session.actions.deleteEntry("Unsorted/example.com.md");
+    await settle();
+    expect(asked).toBe(0);
+    expect(h.log).toEqual(["open nothing"]);
   });
 });
 

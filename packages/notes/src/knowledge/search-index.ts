@@ -13,6 +13,7 @@ import type { SearchQueryOptions, SearchQueryPlan, SearchQueryTerm } from "./sea
 export interface SearchFields {
   title: string;
   headings: readonly string[];
+  meta: string;
   body: string;
 }
 
@@ -24,6 +25,7 @@ export interface SearchHit {
 interface FieldCounts {
   title: number;
   heading: number;
+  meta: number;
   body: number;
 }
 
@@ -34,6 +36,7 @@ const PREFIX_FACTOR = 0.7;
 const weightOf = (counts: FieldCounts): number =>
   SEARCH_FIELD_WEIGHTS.title * Math.min(counts.title, TF_CAP) +
   SEARCH_FIELD_WEIGHTS.headings * Math.min(counts.heading, TF_CAP) +
+  SEARCH_FIELD_WEIGHTS.meta * Math.min(counts.meta, TF_CAP) +
   SEARCH_FIELD_WEIGHTS.body * Math.min(counts.body, TF_CAP);
 
 type Postings = Map<string, Map<string, FieldCounts>>;
@@ -46,7 +49,7 @@ const bump = (postings: Postings, key: string, path: string, field: keyof FieldC
   }
   let counts = docs.get(path);
   if (!counts) {
-    counts = { body: 0, heading: 0, title: 0 };
+    counts = { body: 0, heading: 0, meta: 0, title: 0 };
     docs.set(path, counts);
   }
   counts[field] += 1;
@@ -94,6 +97,7 @@ export class SearchIndex {
     for (const heading of fields.headings) {
       add("heading", heading);
     }
+    add("meta", fields.meta);
     add("body", fields.body);
     this.docKeys.set(path, keys);
   }

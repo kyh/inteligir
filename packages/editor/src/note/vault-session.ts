@@ -12,7 +12,8 @@ import type { OpenPathChange } from "@repo/editor/note/open-note-store";
 import { createNoteRuntime } from "@repo/editor/note/note-runtime";
 import type { NoteRuntime } from "@repo/editor/note/note-runtime";
 import type { SaveError, VaultEditorState, VaultIO } from "@repo/editor/vault-editor";
-import { withDocExtension } from "@repo/notes/knowledge/doc-file";
+import { isDocPath, withDocExtension } from "@repo/notes/knowledge/doc-file";
+import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { checkNoteName, noteNameErrorMessage } from "@repo/notes/knowledge/note-name";
 import { basenamePath, dirnamePath } from "@repo/notes/knowledge/vault-path";
 
@@ -41,6 +42,10 @@ export interface VaultSessionPorts {
   notifyMergeConflict: (path: string) => void;
   // asked when the user leaves a note whose file was deleted under unsaved edits.
   askVanished: (path: string) => Promise<VanishedChoice>;
+  // where the item whose frontmatter `id` this is lives now, asked when the open item's file
+  // vanished under a clean buffer: a move the page did not make (a fill's rename, an agent's
+  // rename) is followed rather than dropped to the library. Unset, a vanish closes the item.
+  findMoved?: (path: string, id: string) => Promise<string | null>;
 }
 
 export interface VaultSession {
@@ -118,6 +123,23 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     applyOpenPath(null);
   };
 
+  // the bytes the open runtime last held, read for its frontmatter id only once its file is gone
+  let lastContent: string | null = null;
+  // the runtime this session is deleting itself, whose vanish is the delete's and not a move
+  let removing: NoteRuntime | null = null;
+  // what a runtime's vanish runs, bound once the follow below exists: it opens runtimes itself
+  let onRuntimeVanished: (path: string) => void = dropNote;
+
+  // the delete of the open runtime, marked so its vanish is not followed as a move
+  const removeOpen = async (target: NoteRuntime): Promise<boolean> => {
+    removing = target;
+    try {
+      return await target.remove();
+    } finally {
+      removing = null;
+    }
+  };
+
   // callers dispose any previous runtime first.
   const ensureRuntime = (path: string, initial?: string): NoteRuntime => {
     if (runtime?.path === path) {
@@ -126,15 +148,24 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     const created = createNoteRuntime(
       path,
       ports.note,
-      { onMergeConflict: ports.notifyMergeConflict, onVanished: dropNote },
+      {
+        onMergeConflict: ports.notifyMergeConflict,
+        onVanished: (gone) => {
+          onRuntimeVanished(gone);
+        },
+      },
       initial,
     );
     runtime = created;
+    lastContent = initial ?? null;
     // said once per failure, not per retry: the error stands until a write lands.
     let failing: SaveError["kind"] | null = null;
     // subscribe before the first publish so no emission slips between snapshot and subscription.
     const publish = (): void => {
       const state = created.getState();
+      if (state.kind === "open" && runtime === created) {
+        lastContent = state.content;
+      }
       ports.publishEditor(state);
       const saveError = state.kind === "open" ? state.saveError : null;
       if (saveError !== null && saveError.kind !== failing) {
@@ -146,6 +177,38 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     publish();
     return created;
   };
+
+  // a clean buffer whose file left: an item that carries an id is looked for where it went, and
+  // opened there in place of the old path, so Back never names it; only an id nothing answers to,
+  // or a navigation made while the answer was in flight, leaves it closed.
+  const followVanished = (path: string): void => {
+    const vanished = runtime;
+    if (vanished?.path !== path) {
+      return;
+    }
+    const id = lastContent === null || removing === vanished ? null : frontmatterId(lastContent);
+    const { findMoved } = ports;
+    if (id === null || findMoved === undefined) {
+      dropNote(path);
+      return;
+    }
+    disposeRuntime();
+    const seq = navSeq;
+    void (async () => {
+      const moved = await findMoved(path, id).catch(() => null);
+      if (!running || seq !== navSeq || runtime !== null || openPath !== path) {
+        return;
+      }
+      if (moved === null || moved === path) {
+        applyOpenPath(null);
+        return;
+      }
+      ensureRuntime(moved);
+      applyOpenPath(moved, "carry");
+    })();
+  };
+
+  onRuntimeVanished = followVanished;
 
   const flush = async (): Promise<boolean> => {
     const current = runtime;
@@ -169,7 +232,8 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     return false;
   };
 
-  const openFile = (path: string): void => {
+  // `null` is the library: the item is written and let go, as a switch to another would.
+  const navigate = (path: string | null): void => {
     navSeq += 1;
     const seq = navSeq;
     if (openPath === path) {
@@ -194,9 +258,20 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
         return;
       }
       disposeRuntime();
-      ensureRuntime(path);
+      // a file that is no doc (an image, a PDF) is shown, never read as text into a buffer
+      if (path !== null && isDocPath(path)) {
+        ensureRuntime(path);
+      }
       applyOpenPath(path);
     })();
+  };
+
+  const openFile = (path: string): void => {
+    navigate(path);
+  };
+
+  const closeFile = (): void => {
+    navigate(null);
   };
 
   const refreshList = (): void => {
@@ -278,8 +353,8 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     return result.kind === "refused" ? null : result.path;
   };
 
-  const createFile = async (rawPath: string, content = ""): Promise<void> => {
-    const path = await createFileAt(rawPath, content);
+  const createFile = async (rawPath: string): Promise<void> => {
+    const path = await createFileAt(rawPath);
     if (path !== null) {
       openFile(path);
     }
@@ -327,7 +402,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     // a delete that threw leaves the file's fate unknown, so the note stays open over it.
     const removed =
       open?.path === path
-        ? await open.remove()
+        ? await removeOpen(open)
         : await ports.note.remove(path).then(
             () => true,
             () => false,
@@ -353,6 +428,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
 
   return {
     actions: {
+      closeFile,
       createFile,
       createFileAt,
       createNewFileAt,

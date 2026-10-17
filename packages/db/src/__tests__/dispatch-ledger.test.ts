@@ -67,6 +67,7 @@ describe("the dispatch ledger", () => {
       createQueuedThreadMessageInTransaction(tx, {
         contextPaths: null,
         dispatchId: DISPATCH,
+        preset: null,
         text: "asked",
         threadId: thread.id,
       }),

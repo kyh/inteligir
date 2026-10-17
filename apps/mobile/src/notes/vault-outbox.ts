@@ -24,7 +24,7 @@ import type { SignInFence } from "../lib/sign-in-fence";
 import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import {
-  commentChanges,
+  annotationChanges,
   isTextOp,
   opPaths,
   putText,
@@ -64,7 +64,7 @@ type ParkedChange = ParkedKind & {
   seq: number;
   paths: readonly string[];
   reason: string;
-  // a note's text or an attachment can be kept under a free name; a rename, a delete or a comment
+  // a note's text or an attachment can be kept under a free name; a rename, a delete or an annotation
   // cannot
   canSaveAsNew: boolean;
 };
@@ -244,11 +244,11 @@ const removedBy = (op: VaultOp): readonly string[] => {
       return [op.from];
     }
     case "remove": {
-      return [op.path, ...op.stores.map((store) => store.path)];
+      return [op.path, ...op.alongside.map((file) => file.path)];
     }
     case "write":
     case "create":
-    case "comment":
+    case "annotation":
     case "putAsset": {
       return [];
     }
@@ -546,7 +546,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       }
       case "remove": {
         return {
-          changes: [op, ...op.stores].map((removed): VaultChangeRequest => ({
+          changes: [op, ...op.alongside].map((removed): VaultChangeRequest => ({
             base: removed.baseOid,
             op: "delete",
             path: removed.path,
@@ -557,8 +557,8 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       case "rename": {
         return { changes: renameChanges(op), kind: "set" };
       }
-      case "comment": {
-        return { changes: commentChanges(op), kind: "set" };
+      case "annotation": {
+        return { changes: annotationChanges(op), kind: "set" };
       }
       case "putAsset": {
         let bytes: Uint8Array;

@@ -1,25 +1,28 @@
-// The headless mirror: the gate editor is built from exactly this list, and the
-// live kit composes the React halves of the same files.
+// The headless mirror: the gate editor is built from exactly this list, and the live kit composes
+// the React halves of the same plugins. Every file here is headless (kits/headless/, plus the
+// markdown wiring), so the fixpoint runs in node: the fill worker canonicalizes a saved page with
+// it, and nothing it reaches imports React, a stylesheet or a node built-in.
 
-import { BasicBlocksBaseKit } from "@repo/editor/kits/basic-blocks-kit";
-import { BasicMarksBaseKit } from "@repo/editor/kits/basic-marks-kit";
-import { CodeBlockBaseKit } from "@repo/editor/kits/code-block-kit";
-import { ColumnBaseKit } from "@repo/editor/kits/column-kit";
-import { DateBaseKit } from "@repo/editor/kits/date-kit";
-import { EmbedBaseKit } from "@repo/editor/kits/embed-kit";
-import { FrontmatterBaseKit } from "@repo/editor/kits/frontmatter-kit";
-import { ImageBaseKit } from "@repo/editor/kits/image-kit";
-import { LinkBaseKit } from "@repo/editor/kits/link-kit";
-import { ListBaseKit } from "@repo/editor/kits/list-kit";
 import { MarkdownKit } from "@repo/editor/kits/markdown-kit";
-import { MathBaseKit } from "@repo/editor/kits/math-kit";
-import { OpaqueBaseKit } from "@repo/editor/kits/opaque-kit";
-import { TableBaseKit } from "@repo/editor/kits/table-kit";
-import { ToggleBaseKit } from "@repo/editor/kits/toggle-kit";
-import { RichBlocksBaseKit } from "@repo/editor/kits/rich-blocks-kit";
-import { InlineConstructsBaseKit } from "@repo/editor/kits/inline-constructs-kit";
-import { TabsBaseKit } from "@repo/editor/kits/tabs-kit";
-import { WikiLinkBaseKit } from "@repo/editor/kits/wiki-link-kit";
+
+import { BasicBlocksBaseKit } from "./headless/basic-blocks-base";
+import { BasicMarksBaseKit } from "./headless/basic-marks-base";
+import { CodeBlockBaseKit } from "./headless/code-block-base";
+import { ColumnBaseKit } from "./headless/column-base";
+import { DateBaseKit } from "./headless/date-base";
+import { EmbedBaseKit } from "./headless/embed-base";
+import { FrontmatterBaseKit } from "./headless/frontmatter-base";
+import { ImageBaseKit } from "./headless/image-base";
+import { InlineConstructsBaseKit } from "./headless/inline-constructs-base";
+import { LinkBaseKit } from "./headless/link-base";
+import { ListBaseKit } from "./headless/list-base";
+import { MathBaseKit } from "./headless/math-base";
+import { OpaqueBaseKit } from "./headless/opaque-base";
+import { RichBlocksBaseKit } from "./headless/rich-blocks-base";
+import { TableBaseKit } from "./headless/table-base";
+import { TabsBaseKit } from "./headless/tabs-base";
+import { ToggleBaseKit } from "./headless/toggle-base";
+import { WikiLinkBaseKit } from "./headless/wiki-link-base";
 
 export const BASE_KIT = [
   ...BasicMarksBaseKit,

@@ -12,6 +12,7 @@ import { InertSocket } from "@repo/workspace/test-support/inert-socket";
 import { WorkspaceProvider } from "@repo/workspace/app/workspace-context";
 import { ActionsPanel } from "@repo/workspace/app/actions/actions-panel";
 import { routePageFetch } from "./booted-fetch";
+import { panelInfo } from "./boot-workspace";
 
 afterEach(() => {
   cleanup();
@@ -42,11 +43,11 @@ const mountPanel = ({
         docPath={docPath}
         tab="actions"
         onTabChange={noop}
-        commentFocus={null}
+        annotationFocus={null}
         selectedThreadId={threadId}
         onSelectThread={noop}
         onOpenDoc={noop}
-        noteMetadata={{ deleteNote: noop, openDeletedNotes: noop, setPinned: noop }}
+        {...panelInfo()}
         modifier="meta"
       />
     </WorkspaceProvider>,
@@ -164,7 +165,7 @@ describe("the action list", () => {
     mountPanel({ docPath: "notes/a.md", threadId: null });
 
     expect(await screen.findByText("The old one")).toBeDefined();
-    expect(screen.getByText("This note")).toBeDefined();
+    expect(screen.getByText("This item")).toBeDefined();
   });
 
   it("leaves an archived action out", async () => {

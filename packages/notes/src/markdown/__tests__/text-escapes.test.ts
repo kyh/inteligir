@@ -34,7 +34,7 @@ describe("a construct whose first character an escape wrote", () => {
   it.each([
     ["a date chip", "Meet \\@2026-07-01 there\n", "text Meet @2026-07-01 there"],
     ["a formula pill", "Sum \\{{a|b}} here\n", "text Sum {{a|b}} here"],
-    ["a comment marker", "See \\%%i:c1:start%% here\n", "text See %%i:c1:start%% here"],
+    ["an annotation marker", "See \\%%i:c1:start%% here\n", "text See %%i:c1:start%% here"],
   ])("is text: %s", (_name, md, text) => {
     expect(outlineOf(md)).toEqual(["  paragraph", `    ${text}`]);
     expect(stringify(parseMdast(md).root)).toBe(md);

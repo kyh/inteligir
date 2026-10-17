@@ -190,6 +190,7 @@ describe("the vault's own origin", { timeout: 30_000 }, () => {
       externalSync: null,
       lastError: null,
       lastSyncAt: null,
+      tooLarge: { count: 0, files: [] },
       state: "no-remote",
     });
   });

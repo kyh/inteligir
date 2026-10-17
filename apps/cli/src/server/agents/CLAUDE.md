@@ -1,6 +1,6 @@
 # Decisions: agents and threads
 
-Turns, threads, the agent's commits and undo, sign-in, connectors and comments.
+Turns, threads, the agent's commits and undo, sign-in, connectors and annotations.
 `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Agents and threads
@@ -29,26 +29,45 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and comments.
   turn, since the canonicalizing save-back leaves no sound per-writer split; a
   crash mid-turn leaves its writes to the boot sweep, so that turn cannot be
   undone; a thread pulled from another device lists only what was committed
-  after it arrived. `apps/cli/src/server/agents/agent-commits.ts`,
+  after it arrived. A scripted turn runs each `save <target>` line of its text
+  through the items service and records what the save wrote in the turn's set,
+  because the scripted driver hears no external shell's writes; this is how an
+  e2e proves that an agent's save, cover and original included, joins its turn
+  and leaves with its Undo (`apps/cli/src/server/agents/scripted-driver.ts`).
+  `apps/cli/src/server/agents/agent-commits.ts`,
   `apps/cli/src/server/vault/turn-trailers.ts`.
 
-- **A COMMENT STORE IS ONE DOT-FOLDER KEYED BY THE NOTE'S ID, ITS WRITE IS A
-  CAS, AND EVERY ENTRY CARRIES ITS AUTHOR'S `source`; the cloud was rejected for
-  it.** Keyed by the note's frontmatter `id`, so a rename or move anywhere
+- **AN ANNOTATION STORE IS ONE DOT-FOLDER KEYED BY THE ITEM'S ID, ITS WRITE IS
+  A CAS, AND EVERY ENTRY CARRIES ITS AUTHOR'S `source`; the cloud was rejected
+  for it.** Keyed by the item's frontmatter `id`, so a rename or move anywhere
   (Finder, a pull, an agent's `mv`) strands nothing and one commit carries a
   note's anchors and bodies together; bodies in a cloud table would drift from
-  the anchors in the note's bytes and need an account. A comment on a note
+  the anchors in the note's bytes and need an account. An annotation on a note
   without an id mints one through a guarded note write; a read writes nothing,
-  and an `id` that is not text is refused, never overwritten. The comment-id
-  grammar has one spelling (`@repo/notes/comments/sidecar-schema`). A deleted
+  and an `id` that is not text is refused, never overwritten. The annotation-id
+  grammar has one spelling (`@repo/notes/annotations/store-schema`). A deleted
   note's store goes with it unless a byte copy still carries that id, one rule
   the server's delete and the phone's both ask, and a restore brings both back.
-  `apps/cli/src/server/comments/comments-service.ts`,
-  `@repo/notes/comments/store-removal`.
+  A highlight made away from the editor (the CLI, a browser's selection, an
+  import, a fill) is placed by its quote: `add` with `place` writes the entry
+  first and the markers second, each under its own CAS, so a crash between them
+  leaves a highlight that reads as missing, never markers no entry explains; a
+  passage the text does not hold is refused before anything is written, and a
+  note that changed twice under the markers takes the entry back out. The
+  markers are only spliced into the bytes, so taking them out gives the input
+  back and two Macs placing one quote write the same bytes; an edge never splits
+  what the editor reads as one piece, and a quote the text no longer holds goes
+  under `## Highlights` once its fill is final. `remove` with `stripMarkers`
+  takes the store's entry first and its markers second, keeping another id on a
+  shared pair. Rejected: an anchor of offsets beside the text (every edit moves
+  it) and a fuzzy match (two Macs would pick two passages).
+  `apps/cli/src/server/annotations/annotations-service.ts`,
+  `apps/cli/src/server/annotations/place-quotes.ts`,
+  `@repo/notes/annotations/store-removal`.
 
 - **A BYTE COPY IS RE-KEYED AND ITS STORE FORKED, never stripped of its id.**
   Giving a copy its own id copies the store under the new id first, then moves
-  the copy's `id:` line under the CAS, so both notes keep every thread and the
+  the copy's `id:` line under the CAS, so both notes keep every annotation and the
   one keeping the old id keeps its `[[Title|uuid]]` links and actions. Deleting
   the copy's `id:` line was rejected: its anchors' bodies live only under that
   id. `@repo/contract/local/vault/give-note-own-id`.
@@ -57,17 +76,38 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and comments.
   What the user was looking at travels on the send
   (`@repo/domain/view-context`), never as a thread column or a server-side
   "current view" that has no owner, so navigating away mid-turn changes nothing.
+  It has two surfaces: the open item (`doc`), or the library (`library`): the
+  scope the grid shows, its kinds and its search, and the selection, its count
+  and up to 200 of its paths, which the prompt names as what "these" means.
   There is no tool: the agent can already read the file, and the one thing a
   tool could add, a live selection, cannot be made honest. A queued send carries
-  none. `apps/cli/src/server/agents/view-context-prompt.ts`.
+  none, and the phone's dispatch carries `doc` alone, since the phone has no
+  grid. The thread event records the library context WITHOUT its paths,
+  because the event rides the thread sync under a 64 KiB cap and only the prompt
+  reads them (`apps/cli/src/server/threads/thread-send.ts`).
+  `apps/cli/src/server/agents/view-context-prompt.ts`.
 
 - **AN @-MENTION RIDES THE SEND AS `contextPaths`, NEVER AS TEXT.** The stored
   message is exactly what the user typed, so the timeline, the phone and a
   thread's title read the message rather than a prefix the desktop glued on; the
   server names the notes in a block of its own. UNLIKE the view context, a
   queued send KEEPS them: a mention is part of what the user asked, not a
-  statement about a screen since left.
-  `@repo/contract/local/threads/threads-schema`.
+  statement about a screen since left. A mention names an item; the grid's
+  selection is a view context instead, because it is a statement about the
+  screen. `@repo/contract/local/threads/threads-schema`.
+
+- **A NAMED ACTION IS A PRESET ON THE SEND, NOT A PROMPT IN THE TEXT.** Tidy my
+  library is `preset: "tidy-library"`: the stored text is what was typed, or
+  the preset's label when nothing was, and the server composes the procedure
+  as a block of its own (file and tag everything in Unsorted and untagged,
+  following the library's filing rules, in batches of 100 until none is left),
+  worded for what the session holds. The preset survives the queue in a column
+  of its own and is never in the thread event. Rejected: a seeded composer
+  prompt (the person's words would be ours, and the timeline and the phone
+  would show a page of instructions), a `library.tidy` procedure (a second
+  agent entry beside the send), and an agent run per save (it spends the
+  person's plan on every bookmark).
+  `apps/cli/src/server/agents/action-preset-prompt.ts`.
 
 - **THE DEFAULT HARNESS IS A STORED CHOICE, read per thread start**, in the data
   dir and not config.json, which is read once at boot and never written by the
@@ -96,7 +136,9 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and comments.
   beside them is two answers to one question. The pattern stays: content the
   agent consumes lives in files it reads with its own shell. The dialect skills
   ride `INTELIGIR_SKILLS_DIR` with a three-sentence pointer on the first turn,
-  never the spec inlined.
+  never the spec inlined. The library's own AGENTS.md is the person's filing
+  rules: it closes the instructions under a header that says so, and the Tidy
+  block follows it when it is there.
 
 - **ONE SET OF SESSION FACTS, TWO PROJECTIONS, AND A LOADED SESSION IS HANDED
   ONLY THE INSTRUCTIONS IT DOES NOT HOLD.** The shell env and the prompt are
@@ -105,8 +147,12 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and comments.
   `session/new` carries no instructions, so they ride a turn's prompt, and a
   loaded session gets them again only when they differ from the last set its
   thread was handed. Claude's `_meta.systemPrompt` is not used: it is one
-  harness's channel. `apps/cli/src/server/agents/agent-shell-env.ts`,
-  `runtime-manager.ts`.
+  harness's channel. The prompt's blocks read the same facts as
+  `PromptFacts` (`promptFactsFor` in
+  `apps/cli/src/server/agents/agent-instructions.ts`): the preset and library
+  blocks name `inteligir` commands only when `cliBinDir` resolved, and the Tidy
+  block cites the filing rules only when the library has them.
+  `apps/cli/src/server/agents/agent-shell-env.ts`, `runtime-manager.ts`.
 
 - **THE HOST CLOSES A PROVIDER SESSION IT GIVES UP ON, AND A CHILD'S DEATH FAILS
   ITS TURN THROUGH THE PROMPT.** The watchdog and a failed dispatch close the
@@ -153,14 +199,15 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and comments.
 - **AN ACTION'S ORIGIN IS ITS NOTE'S ID, and the path is only the fallback.**
   Rebinding the stored path on the rename route was rejected: Finder, an agent's
   `mv` and a pull never reach that route. The create stores the note's `id`
-  beside the path, minting one through the comment store's guarded step. A
+  beside the path, minting one through the annotation store's guarded step. A
   phone's request reads the id and never mints one, so over a note with none its
   thread is bound by path alone, and a boot binds each such path to its note's
   id once the note has one. A read prefers the stored path while it still
   carries the id, so a byte copy never takes the binding. The composer mints the
   open note's id through the live editor, because a server mint under the buffer
   would make the revision name bytes no longer on disk, and outside the undo
-  history, because an undo would unbind the action just sent.
+  history, because an undo would unbind the action just sent. An action sent
+  from the library has no origin doc: its subject is the view it was sent from.
   `apps/cli/src/server/threads/thread-origins.ts`,
   `apps/workspace/src/app/note/open-note-id.ts`.
 
@@ -200,9 +247,13 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and comments.
   CAS and a write racing the undo is kept and named. A path a running turn
   claimed is `busy`, and a turn still running or already undone is refused. The
   undo commits as the engine, never as the agent's turn, so an agent undoing an
-  earlier turn from inside a later one does not commit the undo as its own. A
-  COMMENT STORE IS TAKEN BACK ENTRY BY ENTRY, never as lines, which can break
-  its json: an entry goes or comes back only while it is as the turn left it. It
+  earlier turn from inside a later one does not commit the undo as its own. AN
+  ANNOTATION STORE IS TAKEN BACK ENTRY BY ENTRY, never as lines, which can break
+  its json: an entry goes or comes back only while it is as the turn left it. A
+  FILE THAT IS NOT A DOC IS PUT BACK BYTE FOR BYTE, never merged, since an
+  image or a PDF holds no lines and a merge of an svg's writes bytes nobody
+  made: it goes back only while it holds exactly what the turn left, and is
+  kept and named otherwise. It
   is wired beside the thread service rather than inside it, which would hand
   that service the vault's git and writes.
   `apps/cli/src/server/threads/turn-undo.ts`.

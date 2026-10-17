@@ -5,12 +5,14 @@
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
 import { createDispatchRuntime } from "../dispatch/dispatch-runtime";
+import { createItemOps } from "../items/item-ops";
+import type { ItemOps } from "../items/item-ops";
 import type { DispatchRuntime, DispatchRuntimeArgs } from "../dispatch/dispatch-runtime";
 import { createLoginStore } from "../login/login-store";
 import type { LoginStore } from "../login/login-store";
 import type { AttachmentFiles } from "../notes/attachment-files";
-import { createCommentOps } from "../notes/comment-ops";
-import type { CommentOps } from "../notes/comment-ops";
+import { createAnnotationOps } from "../notes/annotation-ops";
+import type { AnnotationOps } from "../notes/annotation-ops";
 import { createFileOps } from "../notes/file-ops";
 import type { FileOps } from "../notes/file-ops";
 import { createNotesStore } from "../notes/notes-store";
@@ -46,7 +48,8 @@ export interface ComposeRuntimeArgs {
   deviceName: string;
   mintId: () => string;
   randomBytes: (length: number) => Uint8Array;
-  mintNoteId: () => string;
+  // a uuid: a saved item's id, and a note's for its first annotation
+  newId: () => string;
   sync?: Omit<SyncRuntimeArgs, "build" | "cloudUrl" | "onDispatchPing" | "onVaultPing" | "store">;
   retryBaseMs?: CreateNotesStoreArgs["retryBaseMs"];
   dispatchPollIntervalMs?: DispatchRuntimeArgs["pollIntervalMs"];
@@ -65,7 +68,9 @@ export interface AppRuntime {
   sync: SyncRuntime;
   notes: NotesStore;
   fileOps: FileOps;
-  comments: CommentOps;
+  // saving a link or a thought into Unsorted
+  items: ItemOps;
+  annotations: AnnotationOps;
   dispatch: DispatchRuntime;
   login: LoginStore;
   // reads the stored credential once and ends `restoring` either way
@@ -100,7 +105,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     attachments: args.attachments,
     db: args.db,
     deviceName: args.deviceName,
-    mintNoteId: args.mintNoteId,
+    mintNoteId: args.newId,
     outboxFiles: args.outboxFiles,
     session: sync.session,
     sha1: args.sha1,
@@ -180,12 +185,13 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
   let started = false;
 
   return {
-    comments: createCommentOps({
+    annotations: createAnnotationOps({
       now: () => Math.floor(Date.now() / 1000),
       randomBytes: args.randomBytes,
       store: notes,
     }),
-    fileOps: createFileOps(notes),
+    fileOps: createFileOps(notes, { now: () => new Date() }),
+    items: createItemOps({ newId: args.newId, now: () => new Date(), store: notes }),
     async logout(options = {}) {
       const [edits, requests] = await Promise.all([notes.unsentCount(), dispatch.unclaimedCount()]);
       if (edits + requests > 0 && options.discardUnsent !== true) {

@@ -38,7 +38,7 @@ import {
   approvalsToOpen,
   approvalsToWithdraw,
 } from "./dispatches";
-import type { DispatchSink, InboxVault } from "./dispatches";
+import type { DispatchSink } from "./dispatches";
 import { ackPushBatch, takePushBatch } from "./outbox";
 
 // bounds one pass's drain so a backlog cannot starve the pull half or hold a shutdown open.
@@ -72,7 +72,6 @@ export interface SyncPassDeps {
   db: DbConnection;
   /** the running build, recorded beside a row it could not read so a different one pulls it again. */
   build: string;
-  vault: InboxVault;
   debug: (message: string) => void;
   /** INTELIGIR_DEBUG's sync trace: where each step of a pass stopped, and each pulled page. */
   debugLog?: DebugLog | undefined;
@@ -80,7 +79,7 @@ export interface SyncPassDeps {
   sink: () => SyncedEventSink | null;
   /** checked after every await, before any write. */
   fenced: (context: PassContext) => boolean;
-  /** read per pass: off, this Mac claims only captures from the dispatch inbox and offers no approval. */
+  /** read per pass: off, this Mac claims nothing from the dispatch inbox and offers no approval. */
   phoneRequests: () => boolean;
   /** outlives the pass it was taken in, so the next one sends it before it claims. */
   heldAck: { current: HeldAck | null };
@@ -192,7 +191,7 @@ const skipStep = (deps: SyncPassDeps, step: Extract<LogPlanStep, { kind: "skip" 
 };
 
 // a throw is a row that did not land, and applyStep's refusal to move the cursor past it: this
-// step fails with the cursor where the last commit left it, and the captures still land.
+// step fails with the cursor where the last commit left it.
 const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<SyncOutcome> => {
   try {
     return await pullPages({
@@ -224,7 +223,6 @@ const pullAndApply = async (deps: SyncPassDeps, context: PassContext): Promise<S
 };
 
 const EVERY_KIND: DispatchKind[] = [...dispatchKindSchema.options];
-const CAPTURES_ONLY: DispatchKind[] = ["capture"];
 
 // an ack that could not reach the cloud is sent again before the next claim: the inbox records it
 // under its claim, lapsed or not, until another claim takes those rows, so a row this Mac applied
@@ -279,9 +277,9 @@ const ackResults = async (
 
 // a turn waits for a whole log, so a request another Mac already ran for a dispatch is here to be
 // found and a follow-up lands in its thread rather than starting one the log already holds: until
-// the pull is caught up, and while this Mac does not take the phone's requests, it claims captures
-// alone, which no log holds. a row's ack waits for every row before it in the claim; one whose
-// apply threw is left out, so its claim lapses and it comes back.
+// the pull is caught up, and while this Mac does not take the phone's requests, it claims nothing.
+// a row's ack waits for every row before it in the claim; one whose apply threw is left out, so its
+// claim lapses and it comes back.
 const applyDispatches = async (
   deps: SyncPassDeps,
   context: PassContext,
@@ -309,9 +307,11 @@ const applyDispatches = async (
   if (held !== null) {
     return held;
   }
-  const kinds = takesRequests && earlier.get("pull") === "caught-up" ? EVERY_KIND : CAPTURES_ONLY;
+  if (!takesRequests || earlier.get("pull") !== "caught-up") {
+    return failed ? "failed" : "caught-up";
+  }
   const claimed = await context.client.claimDispatches({
-    kinds,
+    kinds: EVERY_KIND,
     limit: DISPATCH_CLAIM_DEFAULT_LIMIT,
   });
   if (!deps.fenced(context)) {
@@ -328,7 +328,7 @@ const applyDispatches = async (
       return "fenced";
     }
     try {
-      results.push(await applyDispatch({ db: deps.db, sink, vault: deps.vault }, dispatch));
+      results.push(await applyDispatch({ db: deps.db, sink }, dispatch));
     } catch (error) {
       failed = true;
       const message = messageOf(error);

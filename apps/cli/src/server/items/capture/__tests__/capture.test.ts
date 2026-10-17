@@ -1,0 +1,504 @@
+// the capture over a booted server's own vault, index and database, with the fetch, the extract
+// and the clock the suite's own (capture-harness.ts): what a save writes, what its fill writes and
+// when, who fills whose stubs, and what a save of a held url adds.
+
+import { existsSync } from "node:fs";
+import nodePath from "node:path";
+
+import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
+import { itemFactsOf } from "@repo/notes/items/item-frontmatter";
+import { frontmatterId } from "@repo/notes/markdown/frontmatter";
+import { describe, expect, it, vi } from "vitest";
+
+import { bootCapture, pngOf, START_MS } from "./capture-harness";
+import type { CaptureSuite } from "./capture-harness";
+
+const PAGE = "https://site.test/file-over-app";
+const COVER = "https://site.test/cover.png";
+const PAGE_HTML = [
+  "<title>File over app</title>",
+  '<meta property="og:site_name" content="Steph Ango">',
+  `<meta property="og:image" content="${COVER}">`,
+  '<meta name="description" content="Files outlive apps.">',
+  "<p>Apps are ephemeral.</p>",
+  "<p>Files last.</p>",
+].join("\n");
+
+const MINUTE = 60_000;
+
+// the suite a hook built before the suite existed reads it through
+interface SuiteHolder {
+  suite: CaptureSuite | null;
+}
+
+const settled = async (suite: CaptureSuite, path: string, check: (content: string) => boolean) => {
+  await vi.waitFor(
+    () => {
+      expect(
+        existsSync(nodePath.join(suite.harness.vaultDir, path)) && check(suite.onDisk(path)),
+      ).toBe(true);
+    },
+    { interval: 20, timeout: 10_000 },
+  );
+  return suite.onDisk(path);
+};
+
+const filled = (content: string): boolean => itemFactsOf(content).fetchedMs !== null;
+
+const pendingRows = (suite: CaptureSuite) =>
+  suite.harness.db.$client
+    .prepare("SELECT item_id, path, origin, attempts, not_before FROM pending_fills")
+    .all();
+
+// a stub as a synced device would leave it, committed, so this Mac never created it
+const syncedStub = async (
+  suite: CaptureSuite,
+  path: string,
+  url: string,
+  extra = "",
+): Promise<void> => {
+  await suite.harness.vault.service.write(
+    path,
+    [
+      "---",
+      "id: 7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17",
+      "kind: link",
+      `url: ${url}`,
+      "saved: 2026-10-17T09:12:30Z",
+      "---",
+      extra,
+    ].join("\n"),
+  );
+  await suite.core.commitPaths([path]);
+  await suite.harness.composed.context.knowledge.settle();
+};
+
+describe("a save", () => {
+  it("writes the stub at once, under the next free name, before any page is read", async () => {
+    const suite = await bootCapture({ routes: { [PAGE]: { html: PAGE_HTML } } });
+    await suite.harness.vault.service.write("Unsorted/site.test - file over app.md", "mine\n");
+    const held = suite.fetcher.hold(PAGE);
+    const saving = suite.capture.saveLink({ keepCopy: false, url: PAGE, wait: false });
+    const saved = await saving;
+    expect(saved).toMatchObject({
+      fill: { state: "pending" },
+      outcome: "created",
+      path: "Unsorted/site.test - file over app 2.md",
+    });
+    await held.reached;
+    expect(suite.onDisk("Unsorted/site.test - file over app.md")).toBe("mine\n");
+    expect(itemFactsOf(suite.onDisk(saved.path)).fetchedMs).toBeNull();
+    held.release();
+  });
+
+  it("makes one file for two saves of one url at once", async () => {
+    const suite = await bootCapture({ routes: { [PAGE]: { html: PAGE_HTML } } });
+    const [a, b] = await Promise.all([
+      suite.capture.saveLink({ keepCopy: false, url: PAGE, wait: false }),
+      suite.capture.saveLink({ keepCopy: false, url: `${PAGE}?utm_source=feed`, wait: false }),
+    ]);
+    expect([a.outcome, b.outcome].toSorted()).toEqual(["created", "exists"]);
+    expect(a.path).toBe(b.path);
+  });
+
+  it("answers the full set it wrote when asked to wait: the stub, its cover and its new name", async () => {
+    const suite = await bootCapture({
+      routes: {
+        [COVER]: { bytes: pngOf(640, 400), mediaType: "image/png" },
+        [PAGE]: { html: PAGE_HTML },
+      },
+    });
+    const saved = await suite.capture.saveLink({ keepCopy: false, url: PAGE, wait: true });
+    expect(saved.fill).toEqual({ state: "filled" });
+    expect(saved.path).toBe("Unsorted/File over app.md");
+    const cover = saved.wrote.find((path) => path.startsWith("assets/covers/"));
+    expect(cover).toMatch(/^assets\/covers\/[0-9a-f]{16}\.png$/u);
+    expect(saved.wrote).toEqual(
+      expect.arrayContaining([
+        "Unsorted/site.test - file over app.md",
+        "Unsorted/File over app.md",
+      ]),
+    );
+    const content = suite.onDisk(saved.path);
+    expect(content).toContain(`fetched: 2026-10-17T09:12:30Z`);
+    expect(content).toContain("site: Steph Ango\n");
+    expect(content).toContain("description: Files outlive apps.\n");
+    expect(
+      content.endsWith(`---\n\n![](${cover ?? ""})\n\nApps are ephemeral.\n\nFiles last.\n`),
+    ).toBe(true);
+    // the provisional name is no name anybody chose, so it is kept as no alias
+    expect(content).not.toContain("aliases");
+    expect(pendingRows(suite)).toEqual([]);
+  });
+});
+
+describe("the fill", () => {
+  it("keeps a person's keys and text written while the page was read", async () => {
+    const suite = await bootCapture({ routes: { [PAGE]: { html: PAGE_HTML } } });
+    const held = suite.fetcher.hold(PAGE);
+    const saved = await suite.capture.saveLink({
+      keepCopy: false,
+      title: "Mine",
+      url: PAGE,
+      wait: false,
+    });
+    await held.reached;
+    const stub = suite.onDisk(saved.path);
+    await suite.harness.vault.service.write(
+      saved.path,
+      `${stub.replace("---\n", "---\npinned: true\n")}My own note.\n`.replace(
+        "---\nMy own",
+        "---\n\nMy own",
+      ),
+    );
+    held.release();
+    const content = await settled(suite, saved.path, filled);
+    expect(content).toContain("pinned: true\n");
+    expect(content).toContain("My own note.\n\nApps are ephemeral.");
+    expect(saved.path).toBe("Unsorted/Mine.md");
+  });
+
+  it("renames only this Mac's untracked stub still named after its url, before it writes", async () => {
+    const rowsAtPlacement: unknown[] = [];
+    const holder: SuiteHolder = { suite: null };
+    const suite = await bootCapture({
+      onPlace: () => {
+        if (holder.suite !== null) {
+          rowsAtPlacement.push(...pendingRows(holder.suite));
+        }
+      },
+      routes: { [PAGE]: { html: PAGE_HTML } },
+    });
+    holder.suite = suite;
+    const saved = await suite.capture.saveLink({ keepCopy: false, url: PAGE, wait: true });
+    expect(saved.path).toBe("Unsorted/File over app.md");
+    expect(
+      existsSync(nodePath.join(suite.harness.vaultDir, "Unsorted/site.test - file over app.md")),
+    ).toBe(false);
+    // the placement runs inside the write, so the item, and its pending row, had already moved
+    expect(suite.placements.map((placement) => placement.path)).toEqual([
+      "Unsorted/File over app.md",
+    ]);
+    expect(rowsAtPlacement).toMatchObject([{ path: "Unsorted/File over app.md" }]);
+
+    const tracked = "https://site.test/tracked";
+    suite.fetcher.routes.set(tracked, { html: "<title>A real title</title><p>Text.</p>" });
+    const held = suite.fetcher.hold(tracked);
+    const stub = await suite.capture.saveLink({ keepCopy: false, url: tracked, wait: false });
+    await held.reached;
+    await suite.core.commitPaths([stub.path]);
+    held.release();
+    await settled(suite, stub.path, filled);
+    expect(stub.path).toBe("Unsorted/site.test - tracked.md");
+
+    const named = "https://site.test/named";
+    suite.fetcher.routes.set(named, { html: "<title>The page's title</title><p>Text.</p>" });
+    const titled = await suite.capture.saveLink({
+      keepCopy: false,
+      title: "My name",
+      url: named,
+      wait: true,
+    });
+    expect(titled.path).toBe("Unsorted/My name.md");
+  });
+
+  it("says a failure in the file and places the waiting highlights under Highlights", async () => {
+    const dead = "https://site.test/dead";
+    const suite = await bootCapture();
+    const saved = await suite.capture.savePage({
+      keepCopy: false,
+      page: { html: null, selection: { text: "a passage" }, title: "Dead page", url: dead },
+      wait: true,
+    });
+    expect(saved.fill).toEqual({ message: "The site answered 404 (not found).", state: "failed" });
+    const content = suite.onDisk(saved.path);
+    expect(content).toContain(
+      "fetched: 2026-10-17T09:12:30Z\nfetch-error: The site answered 404 (not found).\n",
+    );
+    expect(content).toContain("## Highlights\n\n> a passage\n");
+    expect(suite.placements.at(-1)).toMatchObject({ final: true, path: saved.path });
+  });
+
+  it("tries a transient failure again later, and a restarted server fills what was pending", async () => {
+    const flaky = "https://site.test/flaky";
+    const suite = await bootCapture({
+      routes: { [flaky]: { failure: { kind: "timeout" } } },
+    });
+    const saved = await suite.capture.saveLink({ keepCopy: false, url: flaky, wait: true });
+    expect(saved.fill).toEqual({ state: "pending" });
+    expect(pendingRows(suite)).toMatchObject([{ attempts: 1, not_before: START_MS + MINUTE }]);
+    await suite.capture.dispose();
+    suite.fetcher.routes.set(flaky, { html: "<p>Here again.</p>" });
+    const next = suite.restart();
+    next.boot();
+    await suite.clock.advance(MINUTE);
+    const content = await settled(suite, saved.path, filled);
+    expect(content).toContain("Here again.");
+    await vi.waitFor(() => {
+      expect(pendingRows(suite)).toEqual([]);
+    });
+  });
+
+  it("writes the fourth transient failure in the file", async () => {
+    const flaky = "https://site.test/flaky";
+    const suite = await bootCapture({ routes: { [flaky]: { failure: { kind: "timeout" } } } });
+    const saved = await suite.capture.saveLink({ keepCopy: false, url: flaky, wait: true });
+    for (const [attempts, wait] of [
+      [2, MINUTE],
+      [3, 10 * MINUTE],
+    ] as const) {
+      await suite.clock.advance(wait);
+      await vi.waitFor(() => {
+        expect(pendingRows(suite)).toMatchObject([{ attempts }]);
+      });
+    }
+    await suite.clock.advance(60 * MINUTE);
+    const content = await settled(suite, saved.path, filled);
+    expect(content).toContain("fetch-error: The page took too long to answer.\n");
+    expect(suite.fetcher.requests.filter((url) => url === flaky)).toHaveLength(4);
+  });
+
+  it("uses an import's cover hint when the page names none, and on a dead link", async () => {
+    const hint = "https://cdn.test/raindrop-cover.png";
+    const plain = "https://site.test/plain";
+    const suite = await bootCapture({
+      routes: {
+        [hint]: { bytes: pngOf(800, 600, 7), mediaType: "image/png" },
+        [plain]: { html: "<title>Plain</title><p>No picture here.</p>" },
+      },
+    });
+    const write = async (url: string, stem: string) => {
+      const { path } = await suite.core.createDoc({
+        content: `---\nid: ${suite.core.newId()}\nkind: link\nurl: ${url}\nsaved: 2026-10-17T09:12:30Z\n---\n`,
+        folder: "Imported",
+        stem,
+      });
+      return path;
+    };
+    const living = await write(plain, "Plain");
+    const dead = await write("https://site.test/gone", "Gone");
+    suite.capture.enqueue(
+      { id: frontmatterId(suite.onDisk(living)) ?? "", path: living, url: plain },
+      { cover: hint },
+    );
+    suite.capture.enqueue(
+      { id: frontmatterId(suite.onDisk(dead)) ?? "", path: dead, url: "https://site.test/gone" },
+      { cover: hint },
+    );
+    for (const path of [living, dead]) {
+      const content = await settled(suite, path, filled);
+      expect(content).toMatch(/---\n\n!\[\]\(assets\/covers\/[0-9a-f]{16}\.png\)\n/u);
+    }
+    expect(suite.onDisk(dead)).toContain("fetch-error: The site answered 404 (not found).\n");
+  });
+
+  it("makes a link to a picture the picture's item", async () => {
+    const picture = "https://site.test/photos/sunset.jpeg";
+    const suite = await bootCapture({
+      routes: { [picture]: { bytes: pngOf(1200, 800), mediaType: "image/png" } },
+    });
+    const saved = await suite.capture.saveLink({ keepCopy: false, url: picture, wait: true });
+    const content = suite.onDisk(saved.path);
+    expect(content).toContain("kind: image\n");
+    expect(content).toContain("![](assets/sunset.png)\n");
+    expect(existsSync(nodePath.join(suite.harness.vaultDir, "assets/sunset.png"))).toBe(true);
+  });
+});
+
+describe("whose stubs this Mac fills", () => {
+  it("fills another Mac's stub after fifteen minutes, syncing before and after", async () => {
+    const synced: string[] = [];
+    const committed: string[][] = [];
+    const suite = await bootCapture({
+      core: (core) => ({
+        ...core,
+        commitPaths: async (paths) => {
+          committed.push([...paths]);
+          await core.commitPaths(paths);
+        },
+        syncNow: async () => {
+          synced.push("sync");
+          await Promise.resolve();
+        },
+      }),
+      routes: { [PAGE]: { html: PAGE_HTML } },
+    });
+    await syncedStub(suite, "Unsorted/Elsewhere.md", PAGE);
+    suite.capture.boot();
+    await suite.clock.advance(10_000);
+    await vi.waitFor(
+      () => {
+        expect(pendingRows(suite)).toMatchObject([
+          { origin: "foreign", path: "Unsorted/Elsewhere.md" },
+        ]);
+      },
+      { timeout: 10_000 },
+    );
+    await suite.clock.advance(14 * MINUTE);
+    expect(suite.fetcher.requests).toEqual([]);
+    await suite.clock.advance(MINUTE);
+    const content = await settled(suite, "Unsorted/Elsewhere.md", filled);
+    expect(content).toContain("Apps are ephemeral.");
+    // the commit and the second pass follow the write
+    await vi.waitFor(() => {
+      expect(synced.length).toBeGreaterThanOrEqual(2);
+      expect(committed.at(-1)).toContain("Unsorted/Elsewhere.md");
+    });
+  });
+
+  it("fills a phone's stub within a minute, and drops one another device filled meanwhile", async () => {
+    let fillElsewhere = false;
+    const suite = await bootCapture({
+      core: (core) => ({
+        ...core,
+        creatorOf: async () => await Promise.resolve("phone" as const),
+        syncNow: async () => {
+          if (fillElsewhere) {
+            const current = await core.read("Unsorted/From phone 2.md");
+            const content = current?.content ?? "";
+            await core.write(
+              "Unsorted/From phone 2.md",
+              content.replace("saved:", "fetched: 2026-10-17T09:13:00Z\nsaved:"),
+              current?.hash ?? "",
+            );
+          }
+        },
+      }),
+      routes: { [PAGE]: { html: PAGE_HTML } },
+    });
+    await syncedStub(suite, "Unsorted/From phone.md", PAGE);
+    suite.capture.boot();
+    await suite.clock.advance(10_000 + MINUTE);
+    await settled(suite, "Unsorted/From phone.md", filled);
+    expect(pendingRows(suite)).toEqual([]);
+
+    const other = "https://site.test/other";
+    await suite.harness.vault.service.write(
+      "Unsorted/From phone 2.md",
+      `---\nid: 11111111-2222-4333-8444-555555555555\nkind: link\nurl: ${other}\nsaved: 2026-10-17T09:12:30Z\n---\n`,
+    );
+    await suite.harness.composed.context.knowledge.settle();
+    fillElsewhere = true;
+    await suite.clock.advance(MINUTE + 10_000);
+    await settled(suite, "Unsorted/From phone 2.md", filled);
+    await vi.waitFor(() => {
+      expect(pendingRows(suite)).toEqual([]);
+    });
+    expect(suite.fetcher.requests).not.toContain(other);
+  });
+
+  it("never fills a link note an opened folder already held", async () => {
+    const suite = await bootCapture({ routes: { [PAGE]: { html: PAGE_HTML } } });
+    await suite.harness.vault.service.write(
+      "Theirs.md",
+      `---\nkind: link\nurl: ${PAGE}\n---\nMy note.\n`,
+    );
+    await suite.harness.composed.context.knowledge.settle();
+    suite.capture.boot();
+    await suite.clock.advance(20 * MINUTE);
+    expect(suite.fetcher.requests).toEqual([]);
+    expect(pendingRows(suite)).toEqual([]);
+  });
+
+  it("folds a stub into the item already holding its url instead of reading the page", async () => {
+    const suite = await bootCapture({ routes: { [PAGE]: { html: PAGE_HTML } } });
+    await suite.harness.vault.service.write(
+      "Reading/File over app.md",
+      `---\nid: 0e5b3c1a-9a51-4f0e-8a0c-0b7f9d3a2c11\nkind: link\nurl: ${PAGE}\nsaved: 2026-10-16T09:00:00Z\nfetched: 2026-10-16T09:00:05Z\n---\n\n![](assets/covers/abc.png)\n\nThe article.\n`,
+    );
+    await syncedStub(suite, "Unsorted/Duplicate.md", PAGE, "\nFor Tuesday.\n");
+    await suite.harness.vault.service.write(
+      "Unsorted/Duplicate.md",
+      suite.onDisk("Unsorted/Duplicate.md").replace("saved:", "tags:\n  - later\nsaved:"),
+    );
+    await suite.harness.composed.context.knowledge.settle();
+    suite.capture.boot();
+    await suite.clock.advance(10_000 + 15 * MINUTE);
+    await vi.waitFor(() => {
+      expect(existsSync(nodePath.join(suite.harness.vaultDir, "Unsorted/Duplicate.md"))).toBe(
+        false,
+      );
+    });
+    const holder = suite.onDisk("Reading/File over app.md");
+    expect(holder).toContain("tags:\n  - later\n");
+    expect(holder).toContain("![](assets/covers/abc.png)\n\nFor Tuesday.\n\nThe article.\n");
+    expect(suite.fetcher.requests).toEqual([]);
+  });
+});
+
+describe("a page the browser handed over", () => {
+  it("is never requested, and its selection waits for the fill that places it", async () => {
+    const suite = await bootCapture();
+    const saved = await suite.capture.savePage({
+      keepCopy: true,
+      page: {
+        html: PAGE_HTML,
+        selection: { text: "Files last." },
+        title: "File over app",
+        url: PAGE,
+      },
+      wait: true,
+    });
+    expect(saved.fill).toEqual({ state: "filled" });
+    // its cover is fetched; the page itself never is
+    expect(suite.fetcher.requests).not.toContain(PAGE);
+    const content = suite.onDisk(saved.path);
+    expect(content).toContain("fetched: 2026-10-17T09:12:30Z\n");
+    expect(content).toMatch(
+      /\[Copy of the page\]\(assets\/pages\/[0-9a-f]{16}\.html\)\n\n## Highlights\n\n> Files last\.\n/u,
+    );
+    const id = frontmatterId(content) ?? "";
+    expect(suite.onDisk(annotationsStorePath(id))).toContain("Files last.");
+  });
+});
+
+describe("a save of a url the library holds", () => {
+  it("adds its tags, its selection and a copy of the page, leaving the text as it was", async () => {
+    const suite = await bootCapture({ routes: { [PAGE]: { html: PAGE_HTML } } });
+    const first = await suite.capture.saveLink({ keepCopy: false, url: PAGE, wait: true });
+    await suite.harness.composed.context.knowledge.settle();
+    const before = suite.onDisk(first.path);
+    const again = await suite.capture.savePage({
+      keepCopy: true,
+      page: {
+        html: PAGE_HTML,
+        selection: { text: "a passage no longer there" },
+        title: "",
+        url: PAGE,
+      },
+      tags: ["essays"],
+      wait: true,
+    });
+    expect(again.outcome).toBe("exists");
+    expect(again.path).toBe(first.path);
+    const after = suite.onDisk(first.path);
+    expect(after).toContain("tags:\n  - essays\n");
+    expect(after).toMatch(/\[Copy of the page\]\(assets\/pages\/[0-9a-f]{16}\.html\)/u);
+    expect(after).toContain("## Highlights\n\n> a passage no longer there\n");
+    expect(after).toContain(
+      before.slice(before.indexOf("Apps are ephemeral."), before.indexOf("Files last.")),
+    );
+    // the copy is built from the page the browser handed over: the page is read once, by the first
+    expect(suite.fetcher.requests.filter((url) => url === PAGE)).toHaveLength(1);
+  });
+});
+
+describe("the pending store", () => {
+  it("is one insert per enqueued item, never a rewrite of the rows before it", async () => {
+    const suite = await bootCapture();
+    const held = suite.fetcher.hold("https://site.test/0");
+    const changes = (): number =>
+      Number(suite.harness.db.$client.prepare("SELECT total_changes() AS n").pluck().get());
+    const start = changes();
+    for (let index = 0; index < 8500; index += 1) {
+      suite.capture.enqueue({
+        id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+        path: `Imported/${String(index)}.md`,
+        url: `https://site.test/${String(index)}`,
+      });
+    }
+    expect(changes() - start).toBe(8500);
+    expect(pendingRows(suite)).toHaveLength(8500);
+    held.release();
+  });
+});

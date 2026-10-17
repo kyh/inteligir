@@ -46,6 +46,24 @@ describe("rename with link rewrite", () => {
     expect(backlinks.map((entry) => entry.sourcePath).toSorted()).toEqual(["a.md", "b.md"]);
   });
 
+  it("with alias false rewrites the links and keeps the old stem as no alias", async () => {
+    const { root, service, knowledge } = boot();
+    const stub = "---\nkind: link\nurl: https://stephango.com/file-over-app\n---\n";
+    await service.write("Unsorted/stephango.com - file over app.md", stub);
+    await service.write("a.md", "Read [[stephango.com - file over app]] later.\n");
+
+    const result = await renameNoteWithLinkRewrite({
+      alias: false,
+      from: "Unsorted/stephango.com - file over app.md",
+      knowledge,
+      service,
+      to: "Unsorted/File over app.md",
+    });
+    expect(result).toEqual({ path: "Unsorted/File over app.md", rewritten: ["a.md"], skipped: [] });
+    expect(readFileSync(path.join(root, "a.md"), "utf-8")).toBe("Read [[File over app]] later.\n");
+    expect(readFileSync(path.join(root, "Unsorted", "File over app.md"), "utf-8")).toBe(stub);
+  });
+
   it("qualifies links a shadowing rename would steal", async () => {
     const { root, service, knowledge } = boot();
     await service.write("a/note.md", "# A note\n");
@@ -119,11 +137,12 @@ describe("rename with link rewrite", () => {
       "# Note\n\nUp to [hub](../hub.md), across [sib](sibling.md) and [[proj/sibling]].\n",
     );
     await service.write("proj/sibling.md", "# Sibling\n\nBack to [[note]].\n");
-    const unresolved = async () => {
-      const problems = await knowledge.problems({ limit: 10 });
-      return [...problems.unresolvedLinks.rows, ...problems.missingEmbeds.rows];
+    // every link the three notes write resolves: hub's three, the note's three, the sibling's one
+    const resolvedLinks = async (docs: readonly string[]): Promise<number> => {
+      const inbound = await Promise.all(docs.map(async (doc) => await knowledge.backlinks(doc)));
+      return inbound.flat().length;
     };
-    expect(await unresolved()).toEqual([]);
+    expect(await resolvedLinks(["hub.md", "proj/note.md", "proj/sibling.md"])).toBe(7);
 
     const result = await renameNoteWithLinkRewrite({
       from: "proj",
@@ -144,7 +163,9 @@ describe("rename with link rewrite", () => {
     expect(readFileSync(path.join(root, "archive", "project", "sibling.md"), "utf-8")).toBe(
       "# Sibling\n\nBack to [[note]].\n",
     );
-    expect(await unresolved()).toEqual([]);
+    expect(
+      await resolvedLinks(["hub.md", "archive/project/note.md", "archive/project/sibling.md"]),
+    ).toBe(7);
   });
 
   it("skips a candidate edited between snapshot and rewrite, and still records the alias", async () => {

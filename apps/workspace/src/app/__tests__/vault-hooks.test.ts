@@ -96,6 +96,7 @@ const SYNC_FIELDS = {
   externalSync: null,
   lastError: null,
   lastSyncAt: null,
+  tooLarge: { count: 0, files: [] },
 };
 const REMOTE = {
   remote: "git@example.com:vault.git",
@@ -220,6 +221,7 @@ describe("a folder another service syncs", () => {
       externalSync,
       lastError: GIT_STDERR,
       lastSyncAt: null,
+      tooLarge: { count: 0, files: [] },
       state: "no-remote",
     };
     expect(syncStateLabel(status)).toBe(label);
@@ -245,7 +247,7 @@ describe("naming a new note", () => {
 
 const LISTING: VaultEntry[] = [
   { kind: "dir", path: ".inteligir" },
-  { kind: "file", path: ".inteligir/comments/7d1c.json" },
+  { kind: "file", path: ".inteligir/annotations/7d1c.json" },
   { kind: "dir", path: ".obsidian" },
   { kind: "file", path: ".obsidian/app.json" },
   { kind: "dir", path: "notes" },

@@ -44,7 +44,7 @@ const HELD_AS_SOURCE: Record<GrammarNodeType, boolean> = {
   code: false,
   column: false,
   columnGroup: false,
-  commentMarker: false,
+  annotationMarker: false,
   date: false,
   definition: false,
   delete: false,

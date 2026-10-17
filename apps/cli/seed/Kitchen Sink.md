@@ -145,9 +145,9 @@ const answer = 42;
 
 ## Comments
 
-This %%i:seed-open-thread:start%%sentence carries an open comment thread%%i:seed-open-thread:end%% for the panel.
+This %%i:seed-open-thread:start%%sentence carries a comment thread%%i:seed-open-thread:end%% for the panel.
 
-This %%i:seed-resolved-thread:start%%one carries a resolved thread%%i:seed-resolved-thread:end%% that keeps its history.
+This %%i:seed-agent-thread:start%%one carries the agent's%%i:seed-agent-thread:end%%, labelled as its own.
 
 ## Embeds
 

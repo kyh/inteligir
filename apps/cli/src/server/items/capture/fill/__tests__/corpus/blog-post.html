@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Keep your notes in files | Field Notes</title>
+    <meta name="description" content="A short argument for plain files over databases." />
+    <meta property="og:title" content="Keep your notes in files" />
+    <meta property="og:site_name" content="Field Notes" />
+    <meta property="og:description" content="Plain files outlive the apps that made them." />
+    <meta property="og:image" content="/images/cover.jpg" />
+    <meta property="og:image:secure_url" content="https://cdn.fieldnotes.example/cover@2x.jpg" />
+    <meta property="article:published_time" content="2024-03-05T08:30:00-08:00" />
+    <meta name="author" content="Ada Lindqvist" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "BlogPosting",
+        "headline": "A headline the og title beats",
+        "author": { "@type": "Person", "name": "A. Lindqvist (JSON-LD)" },
+        "datePublished": "2024-03-04"
+      }
+    </script>
+    <link rel="stylesheet" href="/site.css" />
+  </head>
+  <body>
+    <header>
+      <nav><a href="/">Home</a> <a href="/archive">Archive</a> <a href="/about">About</a></nav>
+    </header>
+    <main>
+      <article>
+        <h1>Keep your notes in files</h1>
+        <p class="byline">By Ada Lindqvist · March 5, 2024</p>
+        <p>
+          Every few years a new notes app promises to be the last one you will ever need. A few
+          years later it is gone, and the notes go with it unless they were <em>files</em> all
+          along.
+        </p>
+        <p>
+          A file is a <strong>contract with the future</strong>. Any editor can open it, any backup
+          can copy it, and any search tool can read it. A database is a contract with one vendor.
+        </p>
+        <h2>What a file buys you</h2>
+        <ul>
+          <li>It opens in tools that do not exist yet.</li>
+          <li>It syncs with whatever you already use.</li>
+          <li>It survives the app that wrote it.</li>
+        </ul>
+        <p>
+          None of this is new. The
+          <a href="https://en.wikipedia.org/wiki/Unix_philosophy">Unix philosophy</a> said it
+          decades ago, and <a href="/posts/plain-text">an earlier post here</a> said it again.
+        </p>
+        <blockquote>
+          <p>Write programs to handle text streams, because that is a universal interface.</p>
+        </blockquote>
+        <h2>A small example</h2>
+        <p>Here is how a note looks on disk:</p>
+        <pre><code class="language-markdown"># Groceries
+
+- eggs
+- bread
+</code></pre>
+        <p>That is the whole format. There is nothing to migrate.</p>
+        <figure>
+          <img src="/images/shelf.jpg" alt="A shelf of paper notebooks" />
+          <figcaption>Paper notebooks age well too.</figcaption>
+        </figure>
+        <p>Thanks for reading.</p>
+      </article>
+    </main>
+    <aside>
+      <h3>Related</h3>
+      <ul>
+        <li><a href="/posts/one">One more post</a></li>
+        <li><a href="/posts/two">And another</a></li>
+      </ul>
+    </aside>
+    <footer>
+      <p>© 2024 Field Notes. <a href="/rss">RSS</a></p>
+      <form action="/subscribe"><input name="email" /><button>Subscribe</button></form>
+    </footer>
+    <script>
+      window.track && window.track("view");
+    </script>
+  </body>
+</html>

@@ -156,12 +156,11 @@ const closeApproval = (sql: SqlStorage, approvalId: string | null, now: number):
   }
 };
 
-// a turn pings every Mac that takes a phone's turns; an answer, only the Mac that asked; a capture,
-// every Mac, since each claims captures. never the creator's own sockets
+// a turn pings every Mac that takes a phone's turns; an answer, only the Mac that asked. never the
+// creator's own sockets
 export type DispatchPing =
   | { threadId: string; to: "phone-requests" }
-  | { threadId: string; to: "device"; deviceId: string }
-  | { to: "desktops" };
+  | { threadId: string; to: "device"; deviceId: string };
 
 export type CreateDispatchOutcome =
   | { kind: "stored"; dispatch: DispatchStatus; duplicate: boolean; ping: DispatchPing | null }
@@ -294,21 +293,6 @@ export const createDispatchRow = (
     }
     case "answer": {
       return storeAnswer(sql, deviceId, request, now);
-    }
-    case "capture": {
-      insertDispatch(sql, {
-        approvalId: null,
-        claimed: { ...request, createdAt: now },
-        fromDeviceId: deviceId,
-        settled: null,
-        toDeviceId: null,
-      });
-      return {
-        dispatch: { id: request.id, state: "waiting" },
-        duplicate: false,
-        kind: "stored",
-        ping: { to: "desktops" },
-      };
     }
     // no default
   }

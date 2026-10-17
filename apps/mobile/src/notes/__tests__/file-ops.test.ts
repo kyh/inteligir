@@ -1,6 +1,11 @@
-import { VAULT_ASSET_MAX_BYTES } from "@repo/contract/cloud/vault/vault-schema";
+import {
+  VAULT_ASSET_MAX_BYTES,
+  VAULT_FILE_MAX_BYTES,
+} from "@repo/contract/cloud/vault/vault-schema";
+import type { RemovedLinker } from "@repo/notes/knowledge/attachment-removal";
 import { describe, expect, it } from "vitest";
 import { createFileOps } from "../file-ops";
+import type { FileOpsDeps } from "../file-ops";
 import type { NotesStore } from "../notes-store";
 import { photoBaseName, photoResize } from "../photo-plan";
 import { blobOid, createFakeVault, networkOver, requestsOf } from "./fake-vault";
@@ -8,15 +13,31 @@ import type { FakeVault, Network } from "./fake-vault";
 import { launchPhone } from "./phone-storage";
 
 const ID = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
-const STORE = `.inteligir/comments/${ID}.json`;
+const STORE = `.inteligir/annotations/${ID}.json`;
 const WITH_ID = `---\nid: ${ID}\n---\n# Plan\n`;
 const COMMENTS = '{"c1":{"createdAt":1,"source":"user","text":"why?","updatedAt":1}}\n';
 
-const phone = async (vault: FakeVault) => {
+const phone = async (vault: FakeVault, deps: FileOpsDeps = {}) => {
   const net: Network = { loseApplied: false, online: true };
   const store = launchPhone(networkOver(vault, net));
   await store.refresh();
-  return { fileOps: createFileOps(store), net, store };
+  return { fileOps: createFileOps(store, deps), net, store };
+};
+
+// the removal rule as the phone asks it: what it was handed, and what it answered
+const recordingRule = (answer: readonly string[]) => {
+  const asked: { removed: RemovedLinker[]; linkers: Record<string, readonly string[]> }[] = [];
+  const rule: NonNullable<FileOpsDeps["attachmentsFreedBy"]> = (removed, linkersOf) => {
+    const linkers: Record<string, readonly string[]> = {};
+    for (const { linked } of removed) {
+      for (const file of linked) {
+        linkers[file] = [...linkersOf(file)].toSorted();
+      }
+    }
+    asked.push({ linkers, removed: removed.map((entry) => ({ ...entry })) });
+    return [...answer];
+  };
+  return { asked, rule };
 };
 
 const readText = async (store: NotesStore, path: string): Promise<string> => {
@@ -57,11 +78,9 @@ describe("renaming a note on the phone", () => {
       "unrelated.md": "No links, though target is a word here.\n",
     });
     expect(await readText(store, "notes/Moved.md")).toBe(moved);
-    expect(store.heldFiles()).toContainEqual({
-      aliases: ["target"],
-      noteId: null,
-      path: "notes/Moved.md",
-    });
+    expect(store.heldFiles()).toContainEqual(
+      expect.objectContaining({ aliases: ["target"], noteId: null, path: "notes/Moved.md" }),
+    );
   });
 
   it("moves a note no link names and whose name keeps its stem as it is", async () => {
@@ -98,11 +117,9 @@ describe("renaming a note on the phone", () => {
     const { conflicts, unsent } = store.outbox.status.get();
     expect(unsent).toBe(0);
     expect(conflicts).toMatchObject([{ copyPath: null, path: "a.md" }]);
-    expect(store.heldFiles()).toContainEqual({
-      aliases: ["target"],
-      noteId: null,
-      path: "Moved.md",
-    });
+    expect(store.heldFiles()).toContainEqual(
+      expect.objectContaining({ aliases: ["target"], noteId: null, path: "Moved.md" }),
+    );
   });
 
   it("leaves out a note the phone changed since the rename was planned, and names it", async () => {
@@ -190,7 +207,82 @@ describe("deleting a note on the phone", () => {
   });
 });
 
+describe("deleting an item on the phone", () => {
+  const PHOTO_ITEM = "Unsorted/Photo.md";
+  const WRAPPER = `---\nid: ${ID}\nkind: image\n---\n\n![](assets/photo.png)\n\n![](assets/shared.png)\n`;
+  const items = {
+    "Notes/Trip.md": "The view: ![](assets/shared.png)\n",
+    [PHOTO_ITEM]: WRAPPER,
+    "assets/photo.png": "photo bytes",
+    "assets/shared.png": "shared bytes",
+  };
+
+  it("takes the doc and exactly the files the removal rule frees, over the held link graph, in one set", async () => {
+    const vault = createFakeVault(items);
+    const { asked, rule } = recordingRule(["assets/photo.png"]);
+    const { fileOps, store } = await phone(vault, { attachmentsFreedBy: rule });
+
+    expect(await fileOps.freedBy(PHOTO_ITEM)).toStrictEqual(["assets/photo.png"]);
+    await fileOps.remove(PHOTO_ITEM);
+    await store.drain();
+
+    expect(asked.at(-1)).toStrictEqual({
+      linkers: {
+        "assets/photo.png": [PHOTO_ITEM],
+        "assets/shared.png": ["Notes/Trip.md", PHOTO_ITEM],
+      },
+      removed: [{ linked: ["assets/photo.png", "assets/shared.png"], path: PHOTO_ITEM }],
+    });
+    expect(requestsOf(vault, "commit")).toStrictEqual([
+      `commit delete ${PHOTO_ITEM}@${blobOid(WRAPPER)},delete assets/photo.png@${blobOid("photo bytes")}`,
+    ]);
+    expect(vault.files()).toStrictEqual({
+      "Notes/Trip.md": "The view: ![](assets/shared.png)\n",
+      "assets/shared.png": "shared bytes",
+    });
+  });
+
+  it("frees nothing while a held note's text has not reached the phone", async () => {
+    const big = `![](assets/photo.png)\n${"x".repeat(VAULT_FILE_MAX_BYTES)}\n`;
+    const vault = createFakeVault({ ...items, "Notes/Big.md": big });
+    const { asked, rule } = recordingRule(["assets/photo.png"]);
+    const { fileOps, store } = await phone(vault, { attachmentsFreedBy: rule });
+
+    expect(await fileOps.freedBy(PHOTO_ITEM)).toStrictEqual([]);
+    await fileOps.remove(PHOTO_ITEM);
+    await store.drain();
+
+    expect(asked).toStrictEqual([]);
+    expect(requestsOf(vault, "commit")).toStrictEqual([
+      `commit delete ${PHOTO_ITEM}@${blobOid(WRAPPER)}`,
+    ]);
+  });
+
+  it("asks nothing for a note that links no file", async () => {
+    const vault = createFakeVault({
+      "plan.md": "# Plan\n\nSee [[other]].\n",
+      "other.md": "# Other\n",
+    });
+    const { asked, rule } = recordingRule([]);
+    const { fileOps } = await phone(vault, { attachmentsFreedBy: rule });
+    expect(await fileOps.freedBy("plan.md")).toStrictEqual([]);
+    expect(asked).toStrictEqual([]);
+  });
+});
+
 describe("a new note on the phone", () => {
+  it("says when it was saved", async () => {
+    const vault = createFakeVault({});
+    const { fileOps, store } = await phone(vault, {
+      now: () => new Date(Date.UTC(2026, 9, 17, 9, 12, 30)),
+    });
+    expect(await fileOps.create("")).toStrictEqual({ kind: "created", path: "Untitled.md" });
+    await store.drain();
+    expect(vault.files()).toStrictEqual({
+      "Untitled.md": "---\nsaved: 2026-10-17T09:12:30Z\n---\n",
+    });
+  });
+
   it("steps past an Untitled that is taken", async () => {
     const vault = createFakeVault({ "notes/Untitled.md": "" });
     const { fileOps, store } = await phone(vault);

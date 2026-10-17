@@ -1,0 +1,16 @@
+{
+  // the fill worker's own program: the page's DOM is linkedom's inside a thread with no network,
+  // so the DOM lib is this program's alone and never the server's (apps/cli/tsconfig.json excludes
+  // this folder and the worker entry beside it). The editor's headless markdown fixpoint is the one
+  // @repo/editor module it reaches (EDITOR_FROM_SERVER in tools/repo-guards/src/dep-dag.test.ts),
+  // and its base kits are headless files (packages/editor/src/kits/headless/), so this program
+  // compiles no jsx and knows no stylesheet import: a React half reached from here fails it.
+  "extends": "../../../../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024", "dom", "dom.iterable"],
+    "customConditions": ["node"],
+    "types": ["node"],
+    "tsBuildInfoFile": "${configDir}/../../../../../.cache/tsbuildinfo.fill.json"
+  },
+  "include": ["./**/*.ts", "../item-fill-worker.ts"]
+}

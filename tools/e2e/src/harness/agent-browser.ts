@@ -3,27 +3,34 @@ import { skip } from "./assert";
 import { describeExecError, exec } from "./exec";
 import type { AppInstance } from "./instance";
 import { pollUntil } from "./poll";
-import { EDITOR, SIDEBAR } from "./selectors";
+import { LIBRARY_GRID, SIDEBAR } from "./selectors";
 
 export type AgentBrowser = (args: readonly string[], timeoutMs?: number) => Promise<string>;
 
 interface OpenWorkspaceOptions {
   path?: string;
+  // what the page shows once it is ready: the library's grid, which the window opens on, unless
+  // the path opened an item (`/?item=…`), whose caller names the editor or its viewer instead
+  ready?: string;
 }
 
 interface ScenarioBrowserControls {
-  // signs the browser in through a fresh handoff and returns once the rail and the editor mounted.
+  // signs the browser in through a fresh handoff and returns once the rail and `ready` mounted.
   openWorkspace: (app: AppInstance, options?: OpenWorkspaceOptions) => Promise<void>;
   close: () => Promise<void>;
 }
 
 export type ScenarioBrowser = AgentBrowser & ScenarioBrowserControls;
 
-const agentBrowserSession = (label: string): AgentBrowser => {
+// launchFlags ride every call, after --session: agent-browser launches its browser on whichever
+// call comes first, so a flag only the first call carried would launch nothing once a later one did.
+const agentBrowserSession = (label: string, launchFlags: readonly string[] = []): AgentBrowser => {
   // label keeps scenarios off each other's tabs; pid keeps two runs of the suite apart.
   const session = `inteligir-e2e-${label}-${process.pid}`;
   return async (args, timeoutMs = 60_000) => {
-    const result = await exec("agent-browser", ["--session", session, ...args], { timeoutMs });
+    const result = await exec("agent-browser", ["--session", session, ...launchFlags, ...args], {
+      timeoutMs,
+    });
     return result.stdout.trim();
   };
 };
@@ -62,6 +69,36 @@ export const clickButtonIn = async (
     { deadlineMs, describe: (outcome) => `the ${name} button in ${scope} stayed ${outcome}` },
   );
 };
+
+// a row whose text runs on past its name (a rail row's count, a chip's), found by how it starts
+const pressStartingWith = (scope: string, prefix: string): string => `(() => {
+  const root = document.querySelector(${JSON.stringify(scope)});
+  const button = root ? [...root.querySelectorAll("button")].find((el) => el.textContent.trim().startsWith(${JSON.stringify(prefix)})) : null;
+  if (!button) return "missing";
+  if (button.disabled) return "disabled";
+  button.click();
+  return "clicked";
+})()`;
+
+export const clickStartingWith = async (
+  browser: AgentBrowser,
+  scope: string,
+  prefix: string,
+  deadlineMs = 30_000,
+): Promise<void> => {
+  await pollUntil(
+    async () => parseEval(await browser(["eval", pressStartingWith(scope, prefix)]), z.string()),
+    (outcome) => outcome === "clicked",
+    { deadlineMs, describe: (outcome) => `the ${prefix} row in ${scope} stayed ${outcome}` },
+  );
+};
+
+// the query the page's url carries: the open item, or none on the library
+export const openItemParam = async (browser: AgentBrowser): Promise<string | null> =>
+  parseEval(
+    await browser(["eval", `String(new URLSearchParams(location.search).get("item") ?? "")`]),
+    z.string(),
+  ) || null;
 
 export const untilBodyHolds = async (
   browser: AgentBrowser,
@@ -117,8 +154,16 @@ export const requireHeadlessBrowser = async (log: (message: string) => void): Pr
   await probed;
 };
 
-export const createScenarioBrowser = (label: string): ScenarioBrowser => {
-  const run = agentBrowserSession(label);
+export interface ScenarioBrowserOptions {
+  // a browser profile, an unpacked extension: what the session's browser launches with
+  launchFlags?: readonly string[];
+}
+
+export const createScenarioBrowser = (
+  label: string,
+  launch: ScenarioBrowserOptions = {},
+): ScenarioBrowser => {
+  const run = agentBrowserSession(label, launch.launchFlags);
   const controls: ScenarioBrowserControls = {
     close: async () => {
       await closeQuietly(run);
@@ -127,7 +172,7 @@ export const createScenarioBrowser = (label: string): ScenarioBrowser => {
       const url = await app.browserUrl(options.path ?? "/");
       await run(["open", url], 60_000);
       await run(["wait", SIDEBAR], 90_000);
-      await run(["wait", EDITOR], 90_000);
+      await run(["wait", options.ready ?? LIBRARY_GRID], 90_000);
     },
   };
   return Object.assign(run, controls);

@@ -1,4 +1,4 @@
-import { KEYS, createSlatePlugin } from "platejs";
+import { KEYS } from "platejs";
 import type { SlateEditor } from "platejs";
 import { createPlatePlugin } from "platejs/react";
 
@@ -7,14 +7,6 @@ import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { isLiveEditor } from "@repo/editor/live-editor";
 import { ImageElement } from "@repo/editor/nodes/image-node";
 import { toast } from "@repo/ui/components/sonner";
-
-// The live half is a separate plugin on the same key: DOM paste/drop handlers exist only on React plugins.
-const imageBasePlugin = createSlatePlugin({
-  key: KEYS.img,
-  node: { isElement: true, isVoid: true },
-});
-
-export const ImageBaseKit = [imageBasePlugin];
 
 const extFromMime = (mime: string): string => {
   const subtype = mime.slice("image/".length).split("+")[0] ?? "";
@@ -68,6 +60,8 @@ export const ingestImageFiles = async (editor: SlateEditor, files: File[]): Prom
   }
 };
 
+// a separate plugin on the base half's key (headless/image-base.ts): DOM paste/drop handlers exist
+// only on React plugins.
 export const ImageKit = [
   createPlatePlugin({
     key: KEYS.img,

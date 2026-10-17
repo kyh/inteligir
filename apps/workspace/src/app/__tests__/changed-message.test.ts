@@ -1,11 +1,10 @@
 import { partialMatchKey, QueryClient } from "@tanstack/react-query";
-import type { QueryKey } from "@tanstack/react-query";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/contract/local/notifications";
 import type { VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import type { ThreadChangeKind } from "@repo/domain/change-kinds";
 import type { VaultChangedEvent } from "@repo/editor/host-io";
 import { THREAD_CHANGE_KINDS, VAULT_CHANGE_KINDS } from "@repo/domain/change-kinds";
-import { commentsStorePath } from "@repo/notes/comments/sidecar-schema";
+import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 import { describe, expect, it, vi } from "vitest";
 import { orpc } from "../api";
 import { ChangeBatch, sweepAfterReconnect } from "../change-batch";
@@ -84,50 +83,25 @@ describe("a doc change", () => {
     expect(applied.invalidated).toEqual([[...orpc.knowledge.key()]]);
   });
 
-  it("refreshes the comments when the doc is a comment store", () => {
+  it("refreshes the annotations when the doc is an annotation store", () => {
     // the second comment on a note rewrites an existing store: no files-changed follows it.
-    const applied = apply(contentChanged(commentsStorePath("note-id")));
+    const applied = apply(contentChanged(annotationsStorePath("note-id")));
 
-    expect(applied.invalidated).toEqual([[...orpc.knowledge.key()], [...orpc.comments.key()]]);
+    expect(applied.invalidated).toEqual([[...orpc.knowledge.key()], [...orpc.annotations.key()]]);
   });
 
-  it("moves the edited note to now in the cached listing, and no other row", () => {
-    const tree: VaultTreeResponse = {
-      entries: [
-        { kind: "dir", path: "notes" },
-        { kind: "file", modifiedMs: 1, path: "notes/edited.md" },
-        { kind: "file", modifiedMs: 1, path: "notes/untouched.md" },
-      ],
-      name: "vault",
-      root: "/vault",
-    };
-    const before = Date.now();
-    const applied = applyBatch([contentChanged("notes/edited.md")], (queryClient) => {
-      queryClient.setQueryData(orpc.vault.tree.queryKey(), tree);
-    });
-
-    const patched = applied.queryClient.getQueryData(orpc.vault.tree.queryKey());
-    const modified = new Map(
-      patched?.entries.flatMap((entry) =>
-        entry.kind === "file" ? [[entry.path, entry.modifiedMs]] : [],
-      ),
-    );
-    expect(modified.get("notes/edited.md")).toBeGreaterThanOrEqual(before);
-    expect(modified.get("notes/untouched.md")).toBe(1);
-    expect(applied.invalidated).not.toContainEqual([...orpc.vault.tree.key()]);
-  });
-
-  it("leaves the cached listing as it was when the doc is not in it", () => {
+  it("leaves the cached listing as it was: no surface reads a row's modified time from it", () => {
     const tree: VaultTreeResponse = {
       entries: [{ kind: "file", modifiedMs: 1, path: "a.md" }],
       name: "vault",
       root: "/vault",
     };
-    const applied = applyBatch([contentChanged("elsewhere.md")], (queryClient) => {
+    const applied = applyBatch([contentChanged("a.md")], (queryClient) => {
       queryClient.setQueryData(orpc.vault.tree.queryKey(), tree);
     });
 
     expect(applied.queryClient.getQueryData(orpc.vault.tree.queryKey())).toBe(tree);
+    expect(applied.invalidated).not.toContainEqual([...orpc.vault.tree.key()]);
   });
 });
 
@@ -144,7 +118,7 @@ describe("a vault change", () => {
       [...orpc.vault.tree.key()],
       [...orpc.vault.deleted.key()],
       [...orpc.knowledge.key()],
-      [...orpc.comments.key()],
+      [...orpc.annotations.key()],
       [...orpc.threads.list.key()],
       [...orpc.threads.get.key()],
       [...orpc.threads.turnChanges.key()],
@@ -341,38 +315,12 @@ describe("a thread change", () => {
   });
 });
 
-describe("the unlinked-mentions scan", () => {
-  it("is the one knowledge query a content change leaves alone", () => {
-    const queryClient = new QueryClient();
-    const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
-    const batch = new ChangeBatch();
-    batch.add(contentChanged("a.md"));
-    batch.apply(
-      queryClient,
-      () => {},
-      () => {},
-    );
-    // the predicate reads the key alone; the cache builds its Query from the same key
-    const keys: readonly QueryKey[] = [
-      orpc.knowledge.backlinks.key({ input: { path: "a.md" } }),
-      orpc.knowledge.unlinkedMentions.key({ input: { path: "a.md" } }),
-    ];
-    const seen = invalidateQueries.mock.calls.flatMap(([filters]) =>
-      keys.map((queryKey) => {
-        const query = queryClient.getQueryCache().build(queryClient, { queryKey });
-        return filters?.predicate === undefined || filters.predicate(query);
-      }),
-    );
-    expect(seen).toEqual([true, false]);
-  });
-});
-
 describe("a reconnect", () => {
   it("covers every query a frame can invalidate, since a gap in the socket produced none", () => {
     // one frame per flush: in a shared flush files-changed would stand in for the doc branch.
     const everyFrame = [
       apply({ changes: VAULT_CHANGE_KINDS, entity: "vault", type: "changed" }),
-      apply(contentChanged(commentsStorePath("note-id"))),
+      apply(contentChanged(annotationsStorePath("note-id"))),
       apply(threadChanged("t1", THREAD_CHANGE_KINDS)),
       apply({ changes: THREAD_CHANGE_KINDS, entity: "thread", type: "changed" }),
     ].flatMap((applied) => applied.invalidated);
@@ -382,7 +330,7 @@ describe("a reconnect", () => {
       (frameKey) => !swept.some((sweptKey) => partialMatchKey(frameKey, sweptKey)),
     );
     expect(uncovered).toEqual([]);
-    expect(swept).toContainEqual([...orpc.comments.key()]);
+    expect(swept).toContainEqual([...orpc.annotations.key()]);
   });
 
   it("tells every note and every thread to re-check", () => {
@@ -390,5 +338,82 @@ describe("a reconnect", () => {
 
     expect(vaultChanges).toEqual([{ kind: "files", paths: null }]);
     expect(threads).toEqual([{ changes: THREAD_CHANGE_KINDS, entity: "thread", type: "changed" }]);
+  });
+});
+
+describe("the library's own kinds", () => {
+  const wikiTargetsKey = [...orpc.knowledge.wikiTargets.key()];
+
+  it("refetches the import's status on import-changed, and no knowledge", () => {
+    const applied = apply({ changes: ["import-changed"], entity: "vault", type: "changed" });
+
+    expect(applied.invalidated).toEqual([[...orpc.imports.status.key()]]);
+  });
+
+  it("refetches the link targets on targets-changed alone", () => {
+    const applied = apply({ changes: ["targets-changed"], entity: "vault", type: "changed" });
+
+    expect(applied.invalidated).toEqual([wikiTargetsKey]);
+  });
+
+  it("keeps the targets out of the knowledge sweep a body edit or a listing change makes", () => {
+    const frames: ChangedMessage[] = [
+      contentChanged("notes/open.md"),
+      { changes: ["files-changed"], entity: "vault", type: "changed" },
+    ];
+    for (const frame of frames) {
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(orpc.knowledge.wikiTargets.queryKey(), { targets: [] });
+      queryClient.setQueryData(orpc.knowledge.tags.queryKey(), { tags: [], total: 0 });
+      const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
+      const batch = new ChangeBatch();
+      batch.add(frame);
+      batch.apply(queryClient, vi.fn(), vi.fn());
+
+      const sweep = invalidateQueries.mock.calls
+        .map(([filters]) => filters)
+        .find((filters) => partialMatchKey([...(filters?.queryKey ?? [])], orpc.knowledge.key()));
+      const swept = queryClient
+        .getQueryCache()
+        .findAll({ queryKey: orpc.knowledge.key() })
+        .filter((query) => sweep?.predicate?.(query) ?? true)
+        .map((query) => [...query.queryKey]);
+      expect(swept).toEqual([[...orpc.knowledge.tags.queryKey()]]);
+    }
+  });
+
+  it("refetches the targets at most once per five seconds, folding the frames between", () => {
+    vi.useFakeTimers();
+    try {
+      const queryClient = new QueryClient();
+      const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue();
+      const frame = (): void => {
+        const batch = new ChangeBatch();
+        batch.add({ changes: ["targets-changed"], entity: "vault", type: "changed" });
+        batch.apply(queryClient, vi.fn(), vi.fn());
+      };
+      const refetches = (): number => invalidateQueries.mock.calls.length;
+
+      frame();
+      expect(refetches()).toBe(1);
+      vi.advanceTimersByTime(1000);
+      frame();
+      vi.advanceTimersByTime(1000);
+      frame();
+      expect(refetches()).toBe(1);
+      vi.advanceTimersByTime(3000);
+      expect(refetches()).toBe(2);
+      vi.advanceTimersByTime(10_000);
+      expect(refetches()).toBe(2);
+      frame();
+      expect(refetches()).toBe(3);
+      expect(
+        invalidateQueries.mock.calls.every(([filters]) =>
+          partialMatchKey([...(filters?.queryKey ?? [])], wikiTargetsKey),
+        ),
+      ).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

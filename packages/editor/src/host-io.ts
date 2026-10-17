@@ -23,12 +23,14 @@ export type CreateNewFileResult =
 export interface VaultActions {
   /** A failed flush of the current note refuses to navigate. */
   openFile: (path: string) => void;
+  /** Leaves the open item for the library, written first as a switch to another item would be. */
+  closeFile: () => void;
   /** Keyed by path: a teardown or surface switch can emit after the open note changed, and those bytes must no-op. */
   editNote: (path: string, content: string) => void;
   /** Drains the serialize debounce before a save/rename/delete; keyed by path for the same reason as editNote. */
   registerNoteSerializeFlush: (path: string, flush: () => void) => void;
-  /** Open-or-create: an existing file opens untouched, so templates and daily notes can re-run it. */
-  createFile: (path: string, content?: string) => Promise<void>;
+  /** Open-or-create: an existing file opens untouched, so naming a note that exists opens it. */
+  createFile: (path: string) => Promise<void>;
   /** Creates without opening; an existing file counts as success. */
   createFileAt: (path: string, seedContent?: string) => Promise<string | null>;
   /** Creates without opening, exclusively: a caller moving bytes into the file would drop them if an existing one counted as success. */
@@ -39,7 +41,7 @@ export interface VaultActions {
 }
 
 // The knowledge index's resolver over the listing, so a link the editor draws lands where the
-// index (and so Problems and a rename) says it does. Identity changes when the listing or aliases
+// index (and so backlinks and a rename) says it does. Identity changes when the listing or aliases
 // refresh, so a link re-renders on that alone.
 export interface LinkResolver {
   resolveWikiTarget: (target: string, alias?: string) => string | null;
@@ -95,9 +97,11 @@ export interface EditorHostIo {
   pickImage: (() => Promise<PickImageResult>) | null;
 }
 
-export interface CommentActions {
-  /** False means refused; the caller strips the markers it minted. */
-  create: (id: string, text: string) => Promise<boolean>;
+export interface AnnotationActions {
+  /** A highlight's entry around the markers just minted, `quote` its passage's text. False means refused; the caller strips the markers it minted. */
+  create: (id: string, quote: string) => Promise<boolean>;
+  /** The note on an annotation that exists. False means refused. */
+  edit: (id: string, text: string) => Promise<boolean>;
   open: (ids: string[]) => void;
 }
 
@@ -111,7 +115,7 @@ export interface AgentRequestActions {
 // leaves one out fails to typecheck rather than drawing a button that does nothing.
 export interface EditorHostActions {
   readonly agent: AgentRequestActions;
-  readonly comments: CommentActions;
+  readonly annotations: AnnotationActions;
 }
 
 export interface EditorHost {

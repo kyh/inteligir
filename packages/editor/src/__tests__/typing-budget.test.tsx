@@ -75,9 +75,9 @@ const ROOT_NORMALIZE: BudgetRow = {
   name: "normalizeNode",
   why: "Slate normalizes every ancestor of an edit, the root among them, and the root's normalization looks at each top-level block",
 };
-const COMMENT_PAIRING: BudgetRow = {
-  module: "comments/comment-ranges.ts",
-  name: "commentSpans",
+const ANNOTATION_PAIRING: BudgetRow = {
+  module: "annotations/annotation-ranges.ts",
+  name: "annotationSpans",
   why: "a comment may span blocks, so markers pair in document order; a block's edges are cached, each pair's extent is not",
 };
 const SORTABLE_IDS: BudgetRow = {
@@ -108,7 +108,7 @@ const SELECTOR_SUBSCRIPTIONS: BudgetRow = {
 
 const KEYSTROKE_BUDGET: readonly BudgetRow[] = [
   ROOT_NORMALIZE,
-  COMMENT_PAIRING,
+  ANNOTATION_PAIRING,
   SORTABLE_IDS,
   FOLD_REACH,
   TOGGLE_INDEX,

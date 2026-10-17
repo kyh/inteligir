@@ -23,6 +23,9 @@ const latestGeneration = (): number => {
 
 const LATEST = latestGeneration();
 
+// the baseline every build before the library's applied, which no build carries now
+const RETIRED_BASELINE = "20261010170606_baseline";
+
 // un-migrated, unlike the shared fixture: the migrator is what these suites test.
 const openTempDb = (): DbConnection =>
   createConnection(path.join(makeTempDir("inteligir-db-test-"), "test.db"));
@@ -88,6 +91,26 @@ describe("boot", () => {
     );
     // refused before the migrator ran: the baseline was not laid over the file's own tables.
     expect(tableNames(db)).toEqual(["__drizzle_migrations", "threads"]);
+  });
+
+  it("refuses a file on the retired baseline, whose folder name this build does not carry", () => {
+    // the one baseline is regenerated under a new folder name, never in place: drizzle keys its
+    // ledger by the name, so a file a build before it migrated must read as a history this build lacks
+    const retired = makeTempDir("inteligir-db-migrations-retired-");
+    const [current] = listMigrationNames(MIGRATIONS_DIR);
+    if (current === undefined) {
+      throw new Error(`${MIGRATIONS_DIR} has no migration folders`);
+    }
+    cpSync(path.join(MIGRATIONS_DIR, current), path.join(retired, RETIRED_BASELINE), {
+      recursive: true,
+    });
+    const db = openTempDb();
+    runMigrations(db, retired);
+
+    expect(() => runMigrations(db)).toThrow(UnknownMigrationHistoryError);
+    expect(() => runMigrations(db)).toThrow(
+      new RegExp(`${RETIRED_BASELINE}, which this build does not carry`, "u"),
+    );
   });
 
   it("refuses a ledger whose rows name no migration at all", () => {

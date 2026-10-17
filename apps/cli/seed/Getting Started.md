@@ -57,7 +57,7 @@ Type `[[` to link a note. Links keep working when you rename or move a note, and
 
 Tag a note by writing a word after `#`, like #guide, and click the tag to see every note that carries it.
 
-Open **Related** in the **Metadata** tab of the right panel for both halves of the picture: notes that link here, counted, and notes the app thinks belong with this one, each with its reason. It also lists notes that mention this one without linking to it, with a button that turns the mention into a link.
+Open **Related** in the **Metadata** tab of the right panel for both halves of the picture: notes that link here, counted, and notes the app thinks belong with this one, each with its reason.
 
 ## Blocks Worth Knowing
 
@@ -100,7 +100,7 @@ Select text and press ⌘⇧A to comment on exactly that phrase. Comments sit be
 - %%i:onboarding-user-comment:start%%Your own comments stay editable — leave yourself a review note and revise it later.%%i:onboarding-user-comment:end%%
 - %%i:onboarding-agent-comment:start%%The agent can leave comments too, and its own are labelled as its own.%%i:onboarding-agent-comment:end%%
 
-Open the **Comments** tab in the right panel to reply or resolve. Resolving keeps the thread and its history; it does not erase the conversation.
+Open the **Comments** tab in the right panel to reply, or to delete a comment once it has done its job.
 
 ## The Agent
 
@@ -156,7 +156,6 @@ The palette's Keyboard shortcuts page lists every shortcut.
 | ----------------------------- | -------------------- |
 | Ask the agent                 | `⌘K`                 |
 | Command palette and search    | `⌘P`                 |
-| Daily note                    | `⌘D`                 |
 | Comment on the selection      | `⌘⇧A`                |
 | Find in this note             | `⌘F`                 |
 | Go to heading                 | `⌘⇧O`                |

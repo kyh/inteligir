@@ -148,7 +148,7 @@ export class FakeCloud {
   private readonly approvals = new Map<string, ApprovalEntry>();
   private nextDevice = 0;
   private nextSeq = 0;
-  private nextCapture = 0;
+  private nextTurn = 0;
   readonly requests: string[] = [];
   /** fails the next push after its first event is stored — an interrupted push. */
   dropNextPushResponse = false;
@@ -185,14 +185,14 @@ export class FakeCloud {
     this.forgetDevice(deviceId);
   }
 
-  /** a phone's capture, waiting for a Mac to claim it. */
-  capture(text: string): string {
-    this.nextCapture += 1;
-    const id = this.nextCapture.toString(16).padStart(32, "0");
+  /** a phone's turn, waiting for a Mac to claim it. */
+  turn(threadId: string, text: string): string {
+    this.nextTurn += 1;
+    const id = this.nextTurn.toString(16).padStart(32, "0");
     this.dispatches.push({
       approvalId: null,
       claimToken: null,
-      claimed: { createdAt: Date.now(), id, kind: "capture", text },
+      claimed: { createdAt: Date.now(), id, kind: "turn", text, threadId },
       claimedAt: 0,
       fromDeviceId: "fake-phone",
       settle: { state: "pending" },
@@ -439,7 +439,7 @@ export class FakeCloud {
       return refuse("rate-limited", "Too many requests are already waiting for a computer.");
     }
     const createdAt = Date.now();
-    if (request.kind === "turn" || request.kind === "capture") {
+    if (request.kind === "turn") {
       this.dispatches.push({
         approvalId: null,
         claimToken: null,

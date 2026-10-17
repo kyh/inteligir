@@ -47,9 +47,8 @@ and nothing about using it requires a terminal.
   through its own servers.
 - **History by default.** Every edit, yours or the agent's, is recorded, so you can see what
   changed and take any of it back.
-- **Sync when you want it.** An optional account syncs your notes, your conversations with the
-  agent and your quick captures across your Macs and your phone. The hosted copy of your notes is
-  free up to about 1 GB.
+- **Sync when you want it.** An optional account syncs your notes and your conversations with the
+  agent across your Macs and your phone. The hosted copy of your notes is free up to about 1 GB.
 
 ## Who makes it
 

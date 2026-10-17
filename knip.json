@@ -11,16 +11,23 @@
         "src/index.ts",
         "src/desktop/desktop-entry.ts",
         "src/server/vault/watcher/parcel-child-entry.ts",
-        "src/server/knowledge/projection-worker.ts"
-      ],
-      // the ACP adapters are resolved with require from the running bundle, never imported
-      "ignoreDependencies": [
-        "@agentclientprotocol/claude-agent-acp",
-        "@agentclientprotocol/codex-acp"
+        "src/server/knowledge/projection-worker.ts",
+        "src/server/items/capture/item-fill-worker.ts"
       ],
       // the vault service's suite makes a named pipe with the system's own mkfifo, which no
       // package provides
-      "ignoreBinaries": ["mkfifo"]
+      "ignoreBinaries": ["mkfifo"],
+      // the ACP adapters are resolved with require from the running bundle, never imported.
+      // PIVOT-STUB(I): the fill worker's DOM, readable extraction and markdown, held until S1's
+      // fill program imports them (drop the rows once knip hints at them)
+      "ignoreDependencies": [
+        "@agentclientprotocol/claude-agent-acp",
+        "@agentclientprotocol/codex-acp",
+        "@types/turndown",
+        "defuddle",
+        "linkedom",
+        "turndown"
+      ]
     },
     "apps/desktop": {
       "entry": ["scripts/*.ts"],
@@ -39,8 +46,19 @@
       // expo reads fingerprint.config.js by its name when it fingerprints the native build
       "entry": ["fingerprint.config.js"],
       // linked natively; knip's expo plugin counts it only while `updates` is on, and app.config.js
-      // leaves it off until the EAS project is committed
-      "ignoreDependencies": ["expo-updates"]
+      // leaves it off until the EAS project is committed. expo-linking, autolinked as
+      // expo-share-intent's peer, needs no row: the expo plugin counts it, and a row draws a hint.
+      // PIVOT-STUB(I): expo-share-intent is held until M's share extension names it in
+      // app.config.js
+      "ignoreDependencies": ["expo-share-intent", "expo-updates"]
+    },
+    "apps/extension": {
+      // node runs the scripts by path
+      "entry": ["scripts/*.ts"],
+      "project": ["src/**/*.{ts,tsx,css}", "vite/**/*.ts", "scripts/*.ts"],
+      // tailwindcss is @repo/ui's globals.css import, which knip does not follow. PIVOT-STUB(I):
+      // @testing-library/react is held for X's popup suites
+      "ignoreDependencies": ["@testing-library/react", "tailwindcss"]
     },
     "apps/mobile-editor": {
       "project": ["src/**/*.{ts,tsx,css}", "vite/**/*.ts"]
@@ -70,7 +88,8 @@
     },
     "tools/e2e": {
       // spawned by path: the Worker host from cloud-worker.ts, the fake vendor from its scenario
-      "entry": ["src/harness/worker-host.ts", "src/fixtures/*.mjs"]
+      // PIVOT-STUB(I): the LAN fixture is an entry until the scenarios that serve pages from it land
+      "entry": ["src/harness/worker-host.ts", "src/fixtures/*.mjs", "src/harness/lan-fixture.ts"]
     },
     "tools/ui-gallery": {
       // the entry is index.html's script, which knip's vite plugin reads
@@ -82,7 +101,9 @@
       "ignoreExportsUsedInFile": true,
       // src/ai is held ahead of its consumers by owner decision, export by export, in the orphan
       // guard (tools/repo-guards/src/ui-orphan-exports.test.ts), which counts no gallery demo
-      "ignoreIssues": { "src/ai/**": ["exports"] }
+      "ignoreIssues": { "src/ai/**": ["exports"] },
+      // PIVOT-STUB(I): the card grid's virtualizer, held until W's card-grid.tsx imports it
+      "ignoreDependencies": ["@tanstack/react-virtual"]
     }
   }
 }

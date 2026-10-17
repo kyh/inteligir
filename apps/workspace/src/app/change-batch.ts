@@ -1,20 +1,16 @@
 import { partialMatchKey } from "@tanstack/react-query";
-import type { QueryClient, QueryKey } from "@tanstack/react-query";
+import type { Query, QueryClient, QueryKey } from "@tanstack/react-query";
 import { THREAD_CHANGE_KINDS } from "@repo/domain/change-kinds";
 import type { ThreadChangeKind, VaultChangeKind } from "@repo/domain/change-kinds";
 import type { VaultChangedEvent } from "@repo/editor/host-io";
-import { isCommentsStorePath } from "@repo/notes/comments/sidecar-schema";
+import { isAnnotationsStorePath } from "@repo/notes/annotations/store-schema";
 import type { ChangedMessage, ThreadChangedMessage } from "@repo/contract/local/notifications";
-import type { VaultEntry, VaultTreeResponse } from "@repo/contract/local/vault/vault-schema";
 import { orpc } from "./api";
 
 export type VaultChangeListener = (event: VaultChangedEvent) => void;
 
 // An undefined `id` is a synthetic sweep: any thread may have changed.
 export type ThreadListener = (message: ThreadChangedMessage) => void;
-
-const isUnlinkedMentionsQuery = (queryKey: readonly unknown[]): boolean =>
-  partialMatchKey(queryKey, orpc.knowledge.unlinkedMentions.key());
 
 // Total over the kinds, like thread-hooks' MOVES_THE_TIMELINE. A streamed turn is hundreds of
 // events-appended frames that move no list row and no detail field: the timeline's delta fetch is
@@ -63,24 +59,55 @@ const movesAny = (
   kinds: ReadonlySet<ThreadChangeKind>,
 ): boolean => [...kinds].some((kind) => table[kind]);
 
-// content-changed moves no row, so the listing is patched rather than re-walked; without it the
-// recents, sorted by modifiedMs, never move for a note being edited. Each doc carries the time its
-// frame arrived, which from a loopback server is the write's own to within a frame.
-const touchModified = (
-  tree: VaultTreeResponse | undefined,
-  modifiedAt: ReadonlyMap<string, number>,
-): VaultTreeResponse | undefined => {
-  const stamped = (entry: VaultEntry): VaultEntry => {
-    if (entry.kind !== "file") {
-      return entry;
-    }
-    const modifiedMs = modifiedAt.get(entry.path);
-    return modifiedMs === undefined ? entry : { ...entry, modifiedMs };
+// every doc and asset the library holds (about 7.5 MB at 50k items), so it moves only on
+// targets-changed, which the server says when a settle added, removed or renamed a path or changed
+// a doc's aliases, id, pin or title, every field of its row (the pinned set is read from it); any
+// other body edit, most of every fill's and every keystroke's, says only content-changed.
+const isWikiTargets = (query: Query): boolean =>
+  partialMatchKey(query.queryKey, orpc.knowledge.wikiTargets.key());
+
+// the knowledge family less the targets: a link into a note lives in another note's bytes, so the
+// rest is swept whole
+const sweepKnowledge = (queryClient: QueryClient): void => {
+  void queryClient.invalidateQueries({
+    predicate: (query) => !isWikiTargets(query),
+    queryKey: orpc.knowledge.key(),
+  });
+};
+
+const TARGETS_REFETCH_MS = 5000;
+
+// per query client, across flushes: an import or a fill storm renames paths for minutes, and
+// each frame's batch would otherwise refetch the targets again
+interface TargetsRefetch {
+  lastAt: number;
+  pending: ReturnType<typeof setTimeout> | null;
+}
+
+const targetsRefetches = new WeakMap<QueryClient, TargetsRefetch>();
+
+// at most once per TARGETS_REFETCH_MS: the first after a quiet spell at once, and every frame
+// inside the window folded into one trailing refetch at its end
+const refetchTargets = (queryClient: QueryClient): void => {
+  const state = targetsRefetches.get(queryClient) ?? {
+    lastAt: Number.NEGATIVE_INFINITY,
+    pending: null,
   };
-  if (tree === undefined || tree.entries.every((entry) => stamped(entry) === entry)) {
-    return tree;
+  targetsRefetches.set(queryClient, state);
+  if (state.pending !== null) {
+    return;
   }
-  return { ...tree, entries: tree.entries.map(stamped) };
+  const run = (): void => {
+    state.pending = null;
+    state.lastAt = Date.now();
+    void queryClient.invalidateQueries({ queryKey: orpc.knowledge.wikiTargets.key() });
+  };
+  const wait = state.lastAt + TARGETS_REFETCH_MS - Date.now();
+  if (wait <= 0) {
+    run();
+    return;
+  }
+  state.pending = setTimeout(run, wait);
 };
 
 // What the frames since the last flush owe the screen, folded rather than replayed: a K-note
@@ -89,8 +116,8 @@ export class ChangeBatch {
   private readonly vaultKinds = new Set<VaultChangeKind>();
   // null once a files-changed frame named no paths: every note re-checks.
   private movedPaths: Set<string> | null = new Set();
-  // stamped on arrival, not at the flush: a hidden window defers the flush, never the write.
-  private readonly contentChanged = new Map<string, number>();
+  // the docs whose bytes moved in place since the last flush
+  private readonly contentChanged = new Set<string>();
   private readonly threads = new Map<string | undefined, Set<ThreadChangeKind>>();
 
   add(message: ChangedMessage): void {
@@ -112,7 +139,7 @@ export class ChangeBatch {
       }
       case "doc": {
         if (message.changes.includes("content-changed")) {
-          this.contentChanged.set(message.id, Date.now());
+          this.contentChanged.add(message.id);
         }
         break;
       }
@@ -135,15 +162,13 @@ export class ChangeBatch {
   // whose content changed in the same flush rides it, so the open note reloads once.
   private vaultChangedEvents(): VaultChangedEvent[] {
     if (!this.vaultKinds.has("files-changed")) {
-      return [...this.contentChanged.keys()].map((path): VaultChangedEvent => ({
+      return [...this.contentChanged].map((path): VaultChangedEvent => ({
         kind: "content",
         path,
       }));
     }
     const paths =
-      this.movedPaths === null
-        ? null
-        : [...new Set([...this.movedPaths, ...this.contentChanged.keys()])];
+      this.movedPaths === null ? null : [...new Set([...this.movedPaths, ...this.contentChanged])];
     return [{ kind: "files", paths }];
   }
 
@@ -155,32 +180,28 @@ export class ChangeBatch {
     if (this.vaultKinds.has("files-changed")) {
       void queryClient.invalidateQueries({ queryKey: orpc.vault.tree.key() });
       void queryClient.invalidateQueries({ queryKey: orpc.vault.deleted.key() });
-      void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
-      void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
+      sweepKnowledge(queryClient);
+      void queryClient.invalidateQueries({ queryKey: orpc.annotations.key() });
     } else if (this.contentChanged.size > 0) {
       // The note's bytes are not query state, so content-changed goes to the
       // open note's reader alone; a query alongside bought a second read of the
-      // same bytes. Knowledge is swept whole: this doc's links are some other
-      // note's backlinks, and which note is not knowable here. The one exception
-      // is the vault-wide prose scan behind unlinked mentions, which would re-read
-      // every doc body per autosave; it waits for files-changed or a refold.
-      void queryClient.invalidateQueries({
-        predicate: (query) => !isUnlinkedMentionsQuery(query.queryKey),
-        queryKey: orpc.knowledge.key(),
-      });
-      // a comment added to a note that already has a store rewrites the store and names no row.
-      if ([...this.contentChanged.keys()].some(isCommentsStorePath)) {
-        void queryClient.invalidateQueries({ queryKey: orpc.comments.key() });
+      // same bytes. Knowledge is swept whole but for the targets: this doc's
+      // links are some other note's backlinks, and which note is not knowable here.
+      sweepKnowledge(queryClient);
+      // a highlight added to an item that already has a store rewrites the store and names no row.
+      if ([...this.contentChanged].some(isAnnotationsStorePath)) {
+        void queryClient.invalidateQueries({ queryKey: orpc.annotations.key() });
       }
     }
     if (this.vaultKinds.has("sync-status-changed")) {
       void queryClient.invalidateQueries({ queryKey: orpc.vault.status.key() });
       void queryClient.invalidateQueries({ queryKey: orpc.cloud.status.key() });
     }
-    if (this.contentChanged.size > 0) {
-      queryClient.setQueryData(orpc.vault.tree.queryKey(), (tree) =>
-        touchModified(tree, this.contentChanged),
-      );
+    if (this.vaultKinds.has("import-changed")) {
+      void queryClient.invalidateQueries({ queryKey: orpc.imports.status.key() });
+    }
+    if (this.vaultKinds.has("targets-changed")) {
+      refetchTargets(queryClient);
     }
     for (const event of this.vaultChangedEvents()) {
       emitVaultChange(event);
@@ -228,7 +249,8 @@ export class ChangeBatch {
 const BUS_SWEPT_FAMILIES: readonly QueryKey[] = [
   orpc.vault.key(),
   orpc.knowledge.key(),
-  orpc.comments.key(),
+  orpc.annotations.key(),
+  orpc.imports.key(),
   orpc.threads.key(),
   orpc.cloud.status.key(),
 ];

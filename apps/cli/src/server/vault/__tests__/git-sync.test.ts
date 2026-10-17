@@ -1,11 +1,10 @@
 import { once } from "node:events";
 import { existsSync } from "node:fs";
-import { appendFile, chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { VaultStatusResponse } from "@repo/contract/local/vault/vault-schema";
-import { CAPTURE_INBOX_PATH } from "@repo/notes/sync/reconcile-file";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { beginAgentTurnWrites } from "../../agents/agent-commits";
 import { ensureVaultRepo } from "../git-bootstrap";
@@ -17,7 +16,6 @@ import { createVaultService } from "../vault-service";
 import { boundAddressSchema } from "../../__tests__/bound-address";
 import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
 import {
-  conflictCopies,
   expectCleanRepo,
   failFlush,
   FAST_COMMIT,
@@ -180,30 +178,6 @@ describe("sync", { timeout: 30_000 }, () => {
     await failFlush(made);
     expect(await reportedState(made.engine)).toBe("stalled");
     expect(await syncState(made.engine)).toBe("clean");
-  });
-
-  it("keeps both devices' capture appends to the inbox instead of wedging on a conflict", async () => {
-    const remote = await makeBareRemote();
-    const a = await makeEngine({ remoteUrl: remote });
-    const b = await makeEngine({ remoteUrl: remote });
-    await writeFile(path.join(a.root, CAPTURE_INBOX_PATH), "# Inbox\n\n- first\n", "utf-8");
-    await a.engine.commitNow();
-    expect(await syncState(a.engine)).toBe("clean");
-    expect(await syncState(b.engine)).toBe("clean");
-    expect(await syncState(a.engine)).toBe("clean");
-
-    await appendFile(path.join(a.root, CAPTURE_INBOX_PATH), "- captured on A\n", "utf-8");
-    await a.engine.commitNow();
-    await appendFile(path.join(b.root, CAPTURE_INBOX_PATH), "- captured on B\n", "utf-8");
-    await b.engine.commitNow();
-    expect(await syncState(a.engine)).toBe("clean");
-    expect(await syncState(b.engine)).toBe("clean");
-
-    const inbox = await readFile(path.join(b.root, CAPTURE_INBOX_PATH), "utf-8");
-    expect(inbox).toContain("- captured on A\n");
-    expect(inbox).toContain("- captured on B\n");
-    expect(await conflictCopies(b.root)).toEqual([]);
-    await expectCleanRepo(b.root);
   });
 });
 

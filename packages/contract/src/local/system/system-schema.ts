@@ -34,6 +34,9 @@ export type GuideResponse = z.infer<typeof guideResponseSchema>;
 export const systemStatusResponseSchema = z.strictObject({
   agent: agentStatusSchema,
   dataDir: z.string().min(1),
+  // this boot's media token, which the page puts on every byte-route url it builds
+  // (MEDIA_TOKEN_PARAM in local-routes.ts); a new boot mints another
+  mediaToken: z.string().min(1),
   schemaVersion: z.number().int().min(1),
   uptimeMs: z.number().min(0),
   vaultDir: z.string().min(1),

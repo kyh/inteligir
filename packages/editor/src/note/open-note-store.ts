@@ -28,9 +28,12 @@ export interface OpenNoteState {
   editor: VaultEditorState;
   analyzed: Analyzed;
   openDoc: OpenDoc;
-  back: string[];
-  forward: string[];
+  // `null` is the library: nothing open is a step in the one history like any item
+  back: HistoryEntry[];
+  forward: HistoryEntry[];
 }
+
+export type HistoryEntry = string | null;
 
 const INITIAL_ANALYZED: Analyzed = { content: "", path: null, rawReason: null };
 
@@ -73,26 +76,25 @@ const toastRawFlip = (was: Analyzed, path: string | null, rawReason: GateReason 
   }
 };
 
-const capped = (stack: readonly string[]): string[] =>
+const capped = (stack: readonly HistoryEntry[]): HistoryEntry[] =>
   stack.length > HISTORY_DEPTH ? stack.slice(stack.length - HISTORY_DEPTH) : [...stack];
 
 // a back/forward move is recognized by value (`next` is already a stack top), not
 // by a caller flag: the open is async and refusable, so a flag armed before a
-// refused open would mis-attribute the next one.
+// refused open would mis-attribute the next one. The library is an entry like any
+// item, so leaving it is remembered and Back returns to it.
 const movedHistory = (
   state: OpenNoteState,
-  prev: string | null,
-  next: string | null,
+  prev: HistoryEntry,
+  next: HistoryEntry,
 ): Pick<OpenNoteState, "back" | "forward"> => {
-  const carriedForward = prev === null ? state.forward : [...state.forward, prev];
-  const carriedBack = prev === null ? state.back : [...state.back, prev];
-  if (next !== null && state.back.at(-1) === next) {
-    return { back: state.back.slice(0, -1), forward: capped(carriedForward) };
+  if (state.back.length > 0 && state.back.at(-1) === next) {
+    return { back: state.back.slice(0, -1), forward: capped([...state.forward, prev]) };
   }
-  if (next !== null && state.forward.at(-1) === next) {
-    return { back: capped(carriedBack), forward: state.forward.slice(0, -1) };
+  if (state.forward.length > 0 && state.forward.at(-1) === next) {
+    return { back: capped([...state.back, prev]), forward: state.forward.slice(0, -1) };
   }
-  return { back: capped(carriedBack), forward: [] };
+  return { back: capped([...state.back, prev]), forward: [] };
 };
 
 // instance-scoped, not module state: an ended session's in-flight analysis must
@@ -223,6 +225,11 @@ export const createOpenNoteStore = (): OpenNoteStore => {
   };
 };
 
-export const backTarget = (state: OpenNoteState): string | null => state.back.at(-1) ?? null;
-
-export const forwardTarget = (state: OpenNoteState): string | null => state.forward.at(-1) ?? null;
+// where Back or Forward lands: an item's path, or `null` for the library; null when that stack is empty.
+export const historyStep = (
+  state: OpenNoteState,
+  direction: "back" | "forward",
+): { readonly to: HistoryEntry } | null => {
+  const stack = direction === "back" ? state.back : state.forward;
+  return stack.length === 0 ? null : { to: stack.at(-1) ?? null };
+};

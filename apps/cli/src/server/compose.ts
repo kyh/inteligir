@@ -3,6 +3,7 @@
 // vendor account probe are injected (`cloudTransport`, `driver`, `accounts`) rather than imported,
 // and serve.ts supplies the real ones.
 
+import { randomBytes } from "node:crypto";
 import { closeConnection } from "@repo/db/connection";
 import type { DbConnection } from "@repo/db/connection";
 import type { ExternalSync } from "@repo/contract/local/vault/vault-schema";
@@ -11,7 +12,7 @@ import { AgentPrefsStore } from "./agents/agent-prefs-store";
 import type { AgentAccounts } from "./agents/agent-sign-in";
 import { createAgentsService } from "./agents/agents-service";
 import { createBrowserSession } from "./browser-session";
-import { createCommentsService } from "./comments/comments-service";
+import { createAnnotationsService } from "./annotations/annotations-service";
 import { CloudPrefsStore } from "./cloud/cloud-prefs-store";
 import { createCloudRuntime } from "./cloud/sync-runtime";
 import type { CloudRuntime, CloudRuntimeArgs, CloudTransport } from "./cloud/sync-runtime";
@@ -25,9 +26,14 @@ import { messageOf } from "./error-message";
 import { createFoldersService } from "./folders/folders-service";
 import type { FoldersService } from "./folders/folders-service";
 import { FoldersStore } from "./folders/folders-store";
+import { createImportService } from "./imports/import-service";
+import type { CapturePorts } from "./items/capture/capture-ports";
+import { createItemsService } from "./items/items-service";
+import type { ItemsService } from "./items/items-service";
 import { createKnowledgeRuntime } from "./knowledge/knowledge-runtime";
 import type { KnowledgeRuntime, KnowledgeRuntimeArgs } from "./knowledge/knowledge-runtime";
 import { createProjectionWorker } from "./knowledge/projector";
+import { createImageDownscale } from "./media/image-downscale";
 import { renameNoteWithLinkRewrite } from "./knowledge/rename";
 import { renameTagAcrossVault } from "./knowledge/rename-tag";
 import { openDatabase } from "./open-database";
@@ -54,6 +60,8 @@ interface ComposeDriverDeps {
   folders: FoldersService;
   agentPrefs: AgentPrefsStore;
   sink: ProviderEventSink;
+  // the scripted driver's save, run inside its turn as an agent's shell would run `inteligir save`
+  items: Pick<ItemsService, "saveLink" | "saveFile">;
 }
 
 export interface ComposePorts {
@@ -64,6 +72,8 @@ export interface ComposePorts {
   // what this device is called before any sign-in names it; unset, the machine's own name.
   machineName?: string;
   vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "git" | "remote">>;
+  // a suite's fetcher, lookup and clock for the capture; passed through untouched
+  items?: CapturePorts;
 }
 
 export interface ComposeRuntimeArgs {
@@ -90,6 +100,8 @@ export interface ComposedRuntime {
   // each step is added as its resource comes up, so a boot that throws (EADDRINUSE
   // with the watcher forked and the db open) is still torn down by the caller.
   teardown: ShutdownStep[];
+  // serve.ts calls it once the port is bound: a fill refuses this server's own address
+  setOwnPort: (port: number) => void;
 }
 
 export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<ComposedRuntime> => {
@@ -144,8 +156,16 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   });
 
   const knowledge = createKnowledgeRuntime({
+    attachmentsFolder: () => {
+      const { attachments } = vaultPrefs.read();
+      return attachments?.kind === "folder" ? attachments.path : null;
+    },
     dataDir: config.dataDir,
     debugLog: debugLog(config.debug, "knowledge"),
+    // a body edit, every fill's and every keystroke's, moves no link target, so it says nothing
+    onTargetsChanged: () => {
+      bus.notifyVault(["targets-changed"]);
+    },
     projector: ports.knowledge?.projector ?? createProjectionWorker(),
     vault: vault.service,
     vaultRoot: config.vaultDir,
@@ -154,6 +174,59 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     await knowledge.dispose();
   });
   knowledgeRef = knowledge;
+
+  const annotations = createAnnotationsService({
+    knowledge,
+    now: () => Math.floor(Date.now() / 1000),
+    service: vault.service,
+  });
+  const downscale = createImageDownscale({ platform: process.platform });
+  // unset until serve.ts has bound the port, and a booted suite's app is never bound
+  let ownPortRef: number | null = null;
+  // before the agent driver, which the scripted one takes
+  const items = createItemsService({
+    annotations,
+    dataDir: config.dataDir,
+    db,
+    debugLog: debugLog(config.debug, "items"),
+    downscale,
+    git: vault.git,
+    knowledge,
+    newId: () => crypto.randomUUID(),
+    now: () => new Date(),
+    ownPort: () => ownPortRef,
+    ports: ports.items,
+    prefs: vaultPrefs,
+    renameNote: async (from, to) =>
+      await renameNoteWithLinkRewrite({
+        alias: false,
+        from,
+        knowledge,
+        service: vault.service,
+        to,
+      }),
+    service: vault.service,
+    version: args.version,
+  });
+  addTeardownStep(teardown, "items", async () => {
+    await items.dispose();
+  });
+  const imports = createImportService({
+    annotations,
+    core: items.core,
+    dataDir: config.dataDir,
+    git: vault.git,
+    items,
+    knowledge,
+    newId: () => crypto.randomUUID(),
+    notify: () => {
+      bus.notifyVault(["import-changed"]);
+    },
+    now: () => new Date(),
+  });
+  addTeardownStep(teardown, "imports", async () => {
+    await imports.dispose();
+  });
 
   const folders = createFoldersService({
     dataDir: config.dataDir,
@@ -193,7 +266,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
       void vault.git.syncNow();
     },
     phoneRequests: () => cloudPrefs.phoneRequests(),
-    vault: vault.service,
   };
   if (args.cloudTransport !== undefined) {
     cloudArgs.transport = args.cloudTransport;
@@ -223,6 +295,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     config,
     db,
     folders,
+    items,
     sink: threads,
     vault,
   });
@@ -243,20 +316,28 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
       console.warn(`[threads] origin repair skipped: ${messageOf(error)}`);
     }
   })();
-
-  const comments = createCommentsService(vault.service, () => Math.floor(Date.now() / 1000));
+  // off the critical path too: a pending fill or a stopped import is picked up where it was left
+  try {
+    items.boot();
+    imports.boot();
+  } catch (error) {
+    console.warn(`[items] boot skipped: ${messageOf(error)}`);
+  }
 
   // last, once every service it announces through exists; the bus has no clients before a socket is injected.
   cloud.start();
 
   const context: AppServices = {
     agents,
+    annotations,
     browserSession: createBrowserSession(),
     cloud,
     cloudPrefs,
-    comments,
     connectors,
+    downscale,
     folders,
+    imports,
+    items,
     knowledge,
     recordAgentWrites: (threadId, paths) => {
       turnDriver.recordAgentWrites?.(threadId, paths);
@@ -268,6 +349,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     system: {
       agent: agentStatus,
       dataDir: config.dataDir,
+      // distinct from the cookie's secret, and per boot like it: it rides byte-route urls, so it
+      // is no credential alone (requireMediaRequest in app.ts)
+      mediaToken: randomBytes(32).toString("base64url"),
       schemaVersion,
       servesUi: args.servesUi,
       startedAt: Date.now(),
@@ -286,5 +370,14 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     vaultPrefs,
   };
 
-  return { bus, context, db, externalSync, teardown };
+  return {
+    bus,
+    context,
+    db,
+    externalSync,
+    setOwnPort: (port) => {
+      ownPortRef = port;
+    },
+    teardown,
+  };
 };

@@ -54,7 +54,7 @@
   "scripts": {
     "build": "node scripts/build.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts && tsc --noEmit -p src/workspace",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts && tsc --noEmit -p src/workspace && tsc --noEmit -p src/server/items/capture/fill",
     "smoke": "node scripts/smoke.ts"
   },
   "dependencies": {
@@ -86,14 +86,18 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@types/turndown": "^5.0.6",
     "citty": "catalog:",
     "consola": "catalog:",
+    "defuddle": "catalog:",
     "esbuild": "catalog:",
     "hono": "catalog:",
     "jsdom": "catalog:",
+    "linkedom": "0.18.13",
     "react": "catalog:",
     "react-dom": "catalog:",
     "tsx": "catalog:",
+    "turndown": "^7.2.4",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",

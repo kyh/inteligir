@@ -29,15 +29,17 @@ export const viewContextBrowser: Scenario = {
     const app = await ctx.boot({
       extraEnv: { INTELIGIR_AGENT: "scripted" },
       name: "solo",
-      // the only note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
         await writeFile(path.join(vaultDir, DOC_PATH), DOC, "utf-8");
       },
     });
     const agentBrowser = await ctx.browser("view-context");
 
-    ctx.log(`opening ${app.baseUrl}/`);
-    await agentBrowser.openWorkspace(app);
+    ctx.log(`opening ${DOC_PATH} by its deep link`);
+    await agentBrowser.openWorkspace(app, {
+      path: `/?item=${encodeURIComponent(DOC_PATH)}`,
+      ready: EDITOR,
+    });
     const opened = await agentBrowser(["get", "text", EDITOR]);
     expect(opened.includes(PARAGRAPH), `the browser did not open ${DOC_PATH} — got: ${opened}`);
 
@@ -53,7 +55,7 @@ export const viewContextBrowser: Scenario = {
     const { rows } = await pollUntil(
       async () => {
         const listed = await app.api.threads.list({});
-        // the composer attaches the open note by default.
+        // the composer attaches the open item by default.
         const chat = listed.threads.find(
           (thread) => thread.originDocPath === DOC_PATH && thread.archivedAt === null,
         );
@@ -80,7 +82,7 @@ export const viewContextBrowser: Scenario = {
     expect(sent !== undefined, "the user's message is not on the timeline");
     expectEq(sent.text, MESSAGE, "the stored message text");
     const context = sent.viewContext;
-    expect(context !== null, "the send carried no view context");
+    expect(context?.surface === "doc", "the send carried no doc view context");
     expectEq(context.resource, DOC_PATH, "the doc the user was looking at");
     // the flush before the send is what makes the revision name the bytes on disk.
     expectEq(

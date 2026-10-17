@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { base64FromBytes } from "@repo/contract/cloud/bytes";
 import type { NativeFrame, RequestPayload } from "@repo/mobile-editor/bridge-protocol";
-import { serializeSidecar } from "@repo/notes/comments/sidecar-schema";
+import { serializeAnnotationStore } from "@repo/notes/annotations/store-schema";
 import { describe, expect, it } from "vitest";
-import { createCommentOps } from "../../notes/comment-ops";
+import { createAnnotationOps } from "../../notes/annotation-ops";
 import { createFileOps } from "../../notes/file-ops";
 import type { PhotoIngest } from "../../notes/photo-ingest";
 import { createFakeVault, networkOver } from "../../notes/__tests__/fake-vault";
@@ -19,11 +19,11 @@ import type { EditorRoute, PageEditorState } from "../editor-ports";
 
 type VaultChangedEvent = Extract<NativeFrame, { type: "vaultChanged" }>["event"];
 
-type CommentMeta = Omit<Extract<NativeFrame, { type: "commentMeta" }>, "nonce">;
+type AnnotationMeta = Omit<Extract<NativeFrame, { type: "annotationMeta" }>, "nonce">;
 
 const NONCE = "test-nonce-0123456789";
 const ID = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
-// unix seconds, when every comment in these cases is made
+// unix seconds, when every annotation in these cases is made
 const AT = 1_790_000_000;
 
 const sha256 = (text: string): string => createHash("sha256").update(text).digest("hex");
@@ -43,14 +43,14 @@ const phoneFor = async (vault: FakeVault, options: { picked?: PhotoIngest } = {}
   const opened: (string | null)[] = [];
   const openFailures: string[] = [];
   const editorStates: PageEditorState[] = [];
-  const comments: (readonly string[])[] = [];
-  const commentOps = createCommentOps({
+  const annotations: (readonly string[])[] = [];
+  const annotationOps = createAnnotationOps({
     now: () => AT,
     randomBytes: (length) => new Uint8Array(length),
     store,
   });
   const editor = createEditorPorts({
-    comments: commentOps,
+    annotations: annotationOps,
     editorState: (state) => {
       editorStates.push(state);
     },
@@ -75,13 +75,13 @@ const phoneFor = async (vault: FakeVault, options: { picked?: PhotoIngest } = {}
       return base64FromBytes(bytes);
     },
     revisionOf: async (content) => sha256(content),
-    showComments: (ids) => {
-      comments.push(ids);
+    showAnnotations: (ids) => {
+      annotations.push(ids);
     },
     store,
   });
   const changes: VaultChangedEvent[] = [];
-  const metas: CommentMeta[] = [];
+  const metas: AnnotationMeta[] = [];
   const removals: (readonly string[])[] = [];
   const stop = editor.watch((event) => {
     switch (event.type) {
@@ -89,11 +89,11 @@ const phoneFor = async (vault: FakeVault, options: { picked?: PhotoIngest } = {}
         changes.push(event.event);
         return;
       }
-      case "commentMeta": {
+      case "annotationMeta": {
         metas.push(event);
         return;
       }
-      case "commentsRemoved": {
+      case "annotationsRemoved": {
         removals.push(event.ids);
       }
       // no default
@@ -102,8 +102,8 @@ const phoneFor = async (vault: FakeVault, options: { picked?: PhotoIngest } = {}
   const write = async (payload: RequestPayload<"write">) => await editor.requests.write(payload);
   return {
     changes,
-    commentOps,
-    comments,
+    annotationOps,
+    annotations,
     editor,
     editorStates,
     fileOps,
@@ -193,14 +193,14 @@ describe("what the editor page asks of the phone", () => {
     });
     expect(notices).toStrictEqual([]);
     expect(await editor.requests.rename({ from: "notes/Moved.md", to: "Moved.md" })).toStrictEqual({
-      error: "A note moves to another folder from your Mac.",
+      error: "An item moves to another folder from your Mac.",
       ok: false,
     });
   });
 
-  it("offers wiki targets with each note's id and aliases, and never a comment store", async () => {
+  it("offers wiki targets with each note's id and aliases, and never an annotation store", async () => {
     const vault = createFakeVault({
-      [`.inteligir/comments/${ID}.json`]: "{}\n",
+      [`.inteligir/annotations/${ID}.json`]: "{}\n",
       "a.md": `---\nid: ${ID}\naliases:\n  - Alpha\n---\n# a\n`,
       "media/p.png": "png bytes",
     });
@@ -244,31 +244,31 @@ describe("what the editor page asks of the phone", () => {
     });
   });
 
-  it("lands a comment the page anchored with its note as one set, and tells the page of the id the note took", async () => {
+  it("lands an annotation the page anchored with its note as one set, and tells the page of the id the note took", async () => {
     const vault = createFakeVault({ "a.md": "# a\n\nHello there.\n" });
     const { changes, editor, store } = await phoneFor(vault);
     await editor.requests.read({ path: "a.md" });
     const anchored = "# a\n\n%%i:c1:start%%Hello%%i:c1:end%% there.\n";
 
     expect(
-      await editor.requests.addComment({
+      await editor.requests.addAnnotation({
         base: "# a\n\nHello there.\n",
         content: anchored,
         id: "c1",
         path: "a.md",
-        text: "Why here?",
+        quote: "Hello",
       }),
     ).toStrictEqual({ kind: "written" });
     expect(changes).toContainEqual({ kind: "content", path: "a.md" });
 
     await store.drain();
-    const commentStore = `.inteligir/comments/${MINTED_NOTE_ID}.json`;
-    expect(Object.keys(vault.files()).toSorted()).toStrictEqual([commentStore, "a.md"]);
+    const annotationStore = `.inteligir/annotations/${MINTED_NOTE_ID}.json`;
+    expect(Object.keys(vault.files()).toSorted()).toStrictEqual([annotationStore, "a.md"]);
     expect(vault.files()["a.md"]).toBe(`---\nid: ${MINTED_NOTE_ID}\n---\n${anchored}`);
     expect(vault.commits()).toBe(2);
   });
 
-  it("hands a comment's note back for the page's merge when a sync landed since the page read", async () => {
+  it("hands an annotation's note back for the page's merge when a sync landed since the page read", async () => {
     const vault = createFakeVault({ "a.md": "# a\n" });
     const { editor, store } = await phoneFor(vault);
     await editor.requests.read({ path: "a.md" });
@@ -276,12 +276,12 @@ describe("what the editor page asks of the phone", () => {
     await store.refresh();
 
     expect(
-      await editor.requests.addComment({
+      await editor.requests.addAnnotation({
         base: "# a\n",
         content: "%%i:c1:start%%# a%%i:c1:end%%\n",
         id: "c1",
         path: "a.md",
-        text: "Why?",
+        quote: "a",
       }),
     ).toStrictEqual({ current: "# a\nfrom the mac\n", kind: "changed" });
   });
@@ -309,32 +309,31 @@ describe("what the phone tells the page", () => {
     ]);
   });
 
-  it("tells the page its note's comments as a thread is added, resolved and deleted", async () => {
+  it("tells the page its note's annotations as one is added, noted and deleted", async () => {
     const vault = createFakeVault({ "a.md": "# a\n\nHello there.\n" });
     const { editor, metas, removals } = await phoneFor(vault);
-    const latest = (): CommentMeta | undefined => metas.at(-1);
+    const latest = (): AnnotationMeta | undefined => metas.at(-1);
     editor.handle({ nonce: NONCE, path: "a.md", type: "opened" });
-    await expect
-      .poll(latest)
-      .toStrictEqual({ knownIds: [], path: "a.md", resolvedIds: [], type: "commentMeta" });
+    await expect.poll(latest).toStrictEqual({ knownIds: [], path: "a.md", type: "annotationMeta" });
 
     await editor.requests.read({ path: "a.md" });
-    await editor.requests.addComment({
+    await editor.requests.addAnnotation({
       base: "# a\n\nHello there.\n",
       content: "# a\n\n%%i:c1:start%%Hello%%i:c1:end%% there.\n",
       id: "c1",
       path: "a.md",
-      text: "Why here?",
+      quote: "Hello",
     });
     await expect.poll(() => latest()?.knownIds).toStrictEqual(["c1"]);
 
-    expect(await editor.comments.resolve("a.md", "c1", true)).toStrictEqual({ kind: "done" });
-    await expect.poll(() => latest()?.resolvedIds).toStrictEqual(["c1"]);
+    expect(
+      await editor.requests.editAnnotation({ id: "c1", path: "a.md", text: "Why here?" }),
+    ).toStrictEqual({ kind: "done" });
 
-    expect(await editor.comments.reply("a.md", "c1", "Fixed.")).toStrictEqual({ kind: "done" });
+    expect(await editor.annotations.reply("a.md", "c1", "Fixed.")).toStrictEqual({ kind: "done" });
     // the harness mints every id from zero bytes
     const replyId = "a".repeat(10);
-    expect(await editor.comments.remove("a.md", "c1")).toStrictEqual({
+    expect(await editor.annotations.remove("a.md", "c1")).toStrictEqual({
       kind: "done",
       removedIds: ["c1", replyId],
     });
@@ -342,7 +341,7 @@ describe("what the phone tells the page", () => {
     await expect.poll(() => latest()?.knownIds).toStrictEqual([]);
   });
 
-  it("tells the page a comment another device made, and tells a page loaded again once more", async () => {
+  it("tells the page an annotation another device made, and tells a page loaded again once more", async () => {
     const note = `---\nid: ${ID}\n---\n# a\n`;
     const vault = createFakeVault({ "a.md": note });
     const { editor, metas, store } = await phoneFor(vault);
@@ -350,19 +349,14 @@ describe("what the phone tells the page", () => {
     await expect.poll(() => metas).toHaveLength(1);
 
     vault.change({
-      [`.inteligir/comments/${ID}.json`]: serializeSidecar({
-        c9: { createdAt: AT, resolvedAt: AT, resolvedBy: "user", text: "Done?", updatedAt: AT },
+      [`.inteligir/annotations/${ID}.json`]: serializeAnnotationStore({
+        c9: { createdAt: AT, quote: "a", text: "Done?", updatedAt: AT },
       }),
     });
     await store.refresh();
     await expect
       .poll(() => metas.at(-1))
-      .toStrictEqual({
-        knownIds: ["c9"],
-        path: "a.md",
-        resolvedIds: ["c9"],
-        type: "commentMeta",
-      });
+      .toStrictEqual({ knownIds: ["c9"], path: "a.md", type: "annotationMeta" });
 
     editor.handle({ nonce: NONCE, path: "a.md", type: "opened" });
     await expect.poll(() => metas).toHaveLength(3);
@@ -427,15 +421,15 @@ describe("where the page's events lead", () => {
   });
 
   it("pushes a note the page opened, and never an attachment", async () => {
-    const { comments, editor, opened, routes } = await phoneFor(
+    const { annotations, editor, opened, routes } = await phoneFor(
       createFakeVault({ "a.md": "# a\n" }),
     );
     editor.handle({ nonce: NONCE, path: "b.md", type: "navigate" });
     editor.handle({ nonce: NONCE, path: "media/p.png", type: "navigate" });
-    editor.handle({ ids: ["c1"], nonce: NONCE, type: "showComments" });
+    editor.handle({ ids: ["c1"], nonce: NONCE, type: "showAnnotations" });
     editor.handle({ nonce: NONCE, path: null, type: "opened" });
     expect(routes).toStrictEqual([{ kind: "note", path: "b.md" }]);
-    expect(comments).toStrictEqual([["c1"]]);
+    expect(annotations).toStrictEqual([["c1"]]);
     expect(opened).toStrictEqual([null]);
   });
 });

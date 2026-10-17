@@ -16,7 +16,10 @@ import {
   cachedDeletionLog,
   parseDeletionLog,
   parseFollowLog,
-  readDeletedNotes,
+  readCreatorOf,
+  cachedDeletedDocLinks,
+  readDeletedFiles,
+  readIsTracked,
   readNoteHistory,
   readNoteRevision,
   readTurnCommits,
@@ -226,6 +229,50 @@ describe("readNoteHistory", () => {
   });
 });
 
+describe("who added a path, and whether git holds it", () => {
+  it("answers untracked and no creator until a commit adds the path, read literally", async () => {
+    const { root, run, runAs, commit } = await makeVault();
+    await writeFile(nodePath.join(root, "[x].md"), "stub\n", "utf-8");
+    await writeFile(nodePath.join(root, "x.md"), "other\n", "utf-8");
+    expect(await readIsTracked(run, "[x].md")).toBe(false);
+    expect(await readCreatorOf(run, "[x].md")).toBeNull();
+
+    await run(["add", "--", "x.md"]);
+    await runAs(["commit", "-m", "vault: update x.md"]);
+    // a glob would answer for x.md
+    expect(await readIsTracked(run, "[x].md")).toBe(false);
+    expect(await readCreatorOf(run, "[x].md")).toBeNull();
+
+    await commit("vault: update [x].md");
+    expect(await readIsTracked(run, "[x].md")).toBe(true);
+    expect(await readCreatorOf(run, "[x].md")).toBe("device");
+  });
+
+  it("names the phone when the Worker committed the add, whatever later edits it", async () => {
+    const { root, run, commit } = await makeVault();
+    await writeFile(nodePath.join(root, "Shared.md"), "from the phone\n", "utf-8");
+    await run(["add", "-A"]);
+    await git.run(root, ["commit", "-m", vaultCommitSubject(["Shared.md"])], {
+      env: {
+        GIT_AUTHOR_EMAIL: deviceCommitEmail("dev_1"),
+        GIT_AUTHOR_NAME: "Kai's iPhone",
+        GIT_COMMITTER_EMAIL: WORKER_COMMITTER_EMAIL,
+        GIT_COMMITTER_NAME: "Kai's iPhone",
+      },
+    });
+    await writeFile(nodePath.join(root, "Shared.md"), "filled on a Mac\n", "utf-8");
+    await commit("vault: update Shared.md");
+    expect(await readCreatorOf(run, "Shared.md")).toBe("phone");
+  });
+
+  it("answers untracked with no repo at all", async () => {
+    const root = makeTempDir("inteligir-no-repo-");
+    const run = async (args: readonly string[]) => await git.run(root, args);
+    expect(await readIsTracked(run, "a.md")).toBe(false);
+    expect(await readCreatorOf(run, "a.md")).toBeNull();
+  });
+});
+
 describe("readNoteRevision", () => {
   it("reads the bytes a note held at its own historical path", async () => {
     const { root, run, commit } = await makeVault();
@@ -281,7 +328,7 @@ describe("parseDeletionLog", () => {
       "",
     ].join("\0");
     expect(parseDeletionLog(stdout)).toEqual([
-      { deletedAt: "2026-01-01T00:00:00+00:00", parent, paths: ["one.md", "two.md"] },
+      { commit: sha, deletedAt: "2026-01-01T00:00:00+00:00", parent, paths: ["one.md", "two.md"] },
     ]);
   });
 
@@ -305,7 +352,7 @@ const vaultWithDeletion = async (notes: readonly string[], deleted: string) => {
 };
 
 const readDeleted = async (run: RunGitCommand, root: string) =>
-  await readDeletedNotes(run, cachedDeletionLog(run), onDisk(root));
+  await readDeletedFiles(run, cachedDeletionLog(run), onDisk(root), cachedDeletedDocLinks(run));
 
 // counts the deletion walks alone: rev-parse and ls-files run on every read by design.
 const countingWalks = (run: RunGitCommand) => {
@@ -319,27 +366,69 @@ const countingWalks = (run: RunGitCommand) => {
   return { run: counted, walks: () => walks };
 };
 
-describe("readDeletedNotes", () => {
-  it("lists a committed deletion under the parent whose tree still holds the bytes, docs only", async () => {
+describe("readDeletedFiles", () => {
+  it("lists a committed deletion under the parent whose tree still holds the bytes, docs and files", async () => {
     const { root, run, commit } = await makeVault();
+    await mkdir(nodePath.join(root, ".inteligir", "annotations"), { recursive: true });
     await writeFile(nodePath.join(root, "Gone.md"), "bytes\n", "utf-8");
     await writeFile(nodePath.join(root, "Gone.json"), "{}", "utf-8");
+    await writeFile(nodePath.join(root, ".inteligir", "annotations", "x.json"), "{}", "utf-8");
     await writeFile(nodePath.join(root, "Kept.md"), "kept\n", "utf-8");
     await commit("vault: create");
     const [created] = await readNoteHistory(run, "Gone.md", { limit: 1, skip: 0 });
     await rm(nodePath.join(root, "Gone.md"));
     await rm(nodePath.join(root, "Gone.json"));
+    await rm(nodePath.join(root, ".inteligir", "annotations", "x.json"));
     await commit("vault: delete");
 
     const entries = await readDeleted(run, root);
+    // the highlight store is the app's own: it comes back with its item, never on its own
     expect(entries).toEqual([
       {
         deletedAt: anIsoTimestamp,
-        path: "Gone.md",
+        heldBy: null,
+        kind: "file",
+        path: "Gone.json",
         sha: created?.sha,
       },
+      { deletedAt: anIsoTimestamp, heldBy: null, kind: "doc", path: "Gone.md", sha: created?.sha },
     ]);
-    expect(await readNoteRevision(run, "Gone.md", entries[0]?.sha ?? "")).toBe("bytes\n");
+    expect(await readNoteRevision(run, "Gone.md", entries[1]?.sha ?? "")).toBe("bytes\n");
+  });
+
+  it("holds a file under the doc deleted with it that embedded it, and none deleted apart", async () => {
+    const { root, run, commit } = await makeVault();
+    await mkdir(nodePath.join(root, "assets"), { recursive: true });
+    await mkdir(nodePath.join(root, "Unsorted"), { recursive: true });
+    await writeFile(nodePath.join(root, "assets", "scan.pdf"), "%PDF-1.4\n", "utf-8");
+    await writeFile(nodePath.join(root, "assets", "cover.jpg"), "jpeg", "utf-8");
+    await writeFile(nodePath.join(root, "assets", "alone.png"), "png", "utf-8");
+    await writeFile(nodePath.join(root, "assets", "shared.png"), "png2", "utf-8");
+    await writeFile(
+      nodePath.join(root, "Unsorted", "Scan.md"),
+      "---\nkind: pdf\n---\n![](assets/scan.pdf)\n\n![[cover.jpg]]\n",
+      "utf-8",
+    );
+    await writeFile(nodePath.join(root, "Other.md"), "![](assets/shared.png)\n", "utf-8");
+    await commit("vault: create");
+    await rm(nodePath.join(root, "assets", "alone.png"));
+    await commit("vault: delete alone.png");
+    await rm(nodePath.join(root, "Unsorted", "Scan.md"));
+    await rm(nodePath.join(root, "assets", "scan.pdf"));
+    await rm(nodePath.join(root, "assets", "cover.jpg"));
+    await commit("vault: delete Scan");
+    // not yet committed: one change set of its own
+    await rm(nodePath.join(root, "Other.md"));
+    await rm(nodePath.join(root, "assets", "shared.png"));
+
+    const entries = await readDeleted(run, root);
+    const byPath = new Map(entries.map((entry) => [entry.path, entry]));
+    expect(byPath.get("assets/scan.pdf")?.heldBy).toBe("Unsorted/Scan.md");
+    expect(byPath.get("assets/cover.jpg")?.heldBy).toBe("Unsorted/Scan.md");
+    expect(byPath.get("assets/shared.png")?.heldBy).toBe("Other.md");
+    expect(byPath.get("assets/alone.png")?.heldBy).toBeNull();
+    expect(byPath.get("Unsorted/Scan.md")?.kind).toBe("doc");
+    expect(byPath.get("assets/scan.pdf")?.kind).toBe("file");
   });
 
   it("lists a deletion the auto-commit has not flushed under HEAD", async () => {
@@ -351,7 +440,9 @@ describe("readDeletedNotes", () => {
     const entries = await readDeleted(run, root);
     const headRef = await run(["rev-parse", "HEAD"]);
     const head = headRef.stdout.trim();
-    expect(entries).toEqual([{ deletedAt: anIsoTimestamp, path: "Fresh.md", sha: head }]);
+    expect(entries).toEqual([
+      { deletedAt: anIsoTimestamp, heldBy: null, kind: "doc", path: "Fresh.md", sha: head },
+    ]);
     expect(Number.isNaN(Date.parse(entries[0]?.deletedAt ?? ""))).toBe(false);
     expect(await readNoteRevision(run, "Fresh.md", head)).toBe("fresh\n");
   });
@@ -402,15 +493,30 @@ describe("cachedDeletionLog", () => {
     const counted = countingWalks(run);
     const deletionLog = cachedDeletionLog(counted.run);
 
-    const first = await readDeletedNotes(counted.run, deletionLog, onDisk(root));
-    const second = await readDeletedNotes(counted.run, deletionLog, onDisk(root));
+    const first = await readDeletedFiles(
+      counted.run,
+      deletionLog,
+      onDisk(root),
+      cachedDeletedDocLinks(counted.run),
+    );
+    const second = await readDeletedFiles(
+      counted.run,
+      deletionLog,
+      onDisk(root),
+      cachedDeletedDocLinks(counted.run),
+    );
     expect(first.map((entry) => entry.path)).toEqual(["Gone.md"]);
     expect(second).toEqual(first);
     expect(counted.walks()).toBe(1);
 
     await rm(nodePath.join(root, "Later.md"));
     await commit("vault: delete Later.md");
-    const third = await readDeletedNotes(counted.run, deletionLog, onDisk(root));
+    const third = await readDeletedFiles(
+      counted.run,
+      deletionLog,
+      onDisk(root),
+      cachedDeletedDocLinks(counted.run),
+    );
     expect(third.map((entry) => entry.path)).toEqual(["Later.md", "Gone.md"]);
     expect(counted.walks()).toBe(2);
   });
@@ -419,14 +525,29 @@ describe("cachedDeletionLog", () => {
     const { root, run } = await vaultWithDeletion(["Gone.md", "Fresh.md"], "Gone.md");
     const counted = countingWalks(run);
     const deletionLog = cachedDeletionLog(counted.run);
-    await readDeletedNotes(counted.run, deletionLog, onDisk(root));
+    await readDeletedFiles(
+      counted.run,
+      deletionLog,
+      onDisk(root),
+      cachedDeletedDocLinks(counted.run),
+    );
 
     await rm(nodePath.join(root, "Fresh.md"));
-    const unflushed = await readDeletedNotes(counted.run, deletionLog, onDisk(root));
+    const unflushed = await readDeletedFiles(
+      counted.run,
+      deletionLog,
+      onDisk(root),
+      cachedDeletedDocLinks(counted.run),
+    );
     expect(unflushed.map((entry) => entry.path)).toEqual(["Fresh.md", "Gone.md"]);
 
     await writeFile(nodePath.join(root, "Gone.md"), "back\n", "utf-8");
-    const recreated = await readDeletedNotes(counted.run, deletionLog, onDisk(root));
+    const recreated = await readDeletedFiles(
+      counted.run,
+      deletionLog,
+      onDisk(root),
+      cachedDeletedDocLinks(counted.run),
+    );
     expect(recreated.map((entry) => entry.path)).toEqual(["Fresh.md"]);
     expect(counted.walks()).toBe(1);
   });
@@ -437,7 +558,15 @@ describe("cachedDeletionLog", () => {
     const deletionLog = cachedDeletionLog(counted.run);
 
     const reads = await Promise.all(
-      [1, 2, 3].map(async () => await readDeletedNotes(counted.run, deletionLog, onDisk(root))),
+      [1, 2, 3].map(
+        async () =>
+          await readDeletedFiles(
+            counted.run,
+            deletionLog,
+            onDisk(root),
+            cachedDeletedDocLinks(counted.run),
+          ),
+      ),
     );
     expect(reads.map((entries) => entries.map((entry) => entry.path))).toEqual([
       ["Gone.md"],
@@ -459,8 +588,15 @@ describe("cachedDeletionLog", () => {
     };
     const deletionLog = cachedDeletionLog(flaky);
 
-    await expect(readDeletedNotes(flaky, deletionLog, onDisk(root))).rejects.toThrow("log failed");
-    const entries = await readDeletedNotes(flaky, deletionLog, onDisk(root));
+    await expect(
+      readDeletedFiles(flaky, deletionLog, onDisk(root), cachedDeletedDocLinks(flaky)),
+    ).rejects.toThrow("log failed");
+    const entries = await readDeletedFiles(
+      flaky,
+      deletionLog,
+      onDisk(root),
+      cachedDeletedDocLinks(flaky),
+    );
     expect(entries.map((entry) => entry.path)).toEqual(["Gone.md"]);
   });
 });

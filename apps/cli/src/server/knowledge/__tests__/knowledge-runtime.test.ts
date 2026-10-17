@@ -134,14 +134,16 @@ describe("the knowledge runtime", () => {
       root: dirs.root,
     });
     let listTreeCalls = 0;
-    const counted: Pick<VaultService, "listTree" | "statEntry" | "listFilesUnder" | "readBytes"> = {
-      listFilesUnder: async (path) => await service.listFilesUnder(path),
-      listTree: async () => {
-        listTreeCalls += 1;
-        return await service.listTree();
+    const counted: Pick<VaultService, "listFileStats" | "statFile" | "listDirs" | "readBytes"> = {
+      listDirs: async (under) => await service.listDirs(under),
+      listFileStats: async (under) => {
+        if (under === undefined) {
+          listTreeCalls += 1;
+        }
+        return await service.listFileStats(under);
       },
       readBytes: async (path) => await service.readBytes(path),
-      statEntry: async (path) => await service.statEntry(path),
+      statFile: async (path) => await service.statFile(path),
     };
     const knowledge = createKnowledgeRuntime({
       dataDir: dirs.dataDir,
@@ -337,12 +339,12 @@ describe("the knowledge runtime", () => {
     const { knowledge } = bootIndexedVault(dirs, {
       reader: (service) => ({
         ...service,
-        listTree: async () => {
+        listFileStats: async (under) => {
           if (failNextListing) {
             failNextListing = false;
             throw new Error("transient io failure");
           }
-          return await service.listTree();
+          return await service.listFileStats(under);
         },
       }),
     });
@@ -371,20 +373,20 @@ describe("the knowledge runtime", () => {
       reader: (inner) => ({
         ...inner,
         // announced after the rerun's listing, so only its changed-paths step sees the note
-        listTree: async () => {
-          const listing = await inner.listTree();
+        listFileStats: async (under) => {
+          const listing = await inner.listFileStats(under);
           if (writeDuringNextListing) {
             writeDuringNextListing = false;
             await inner.write("c.md", "# C\n\nCrane notes.\n");
           }
           return listing;
         },
-        statEntry: async (path) => {
+        statFile: async (path) => {
           if (failCraneStat && path === "c.md") {
             failCraneStat = false;
             throw new Error("transient io failure");
           }
-          return await inner.statEntry(path);
+          return await inner.statFile(path);
         },
       }),
     });
@@ -785,61 +787,5 @@ describe("the knowledge runtime's debug trace", () => {
       "kept.md: unchanged, skipped",
     ]);
     expect(lines.join("\n")).not.toContain("quokka");
-  });
-});
-
-describe("unlinked mentions", () => {
-  it("names the notes that spell this one in prose, and drops one once it links", async () => {
-    const { service, knowledge } = bootIndexedVault(makeDirs());
-    await service.write("Roadmap.md", "---\naliases: [the plan]\n---\n# Roadmap\n");
-    await service.write("a.md", "We revisit the roadmap on Monday.\n");
-    await service.write("b.md", "Follow the plan.\n");
-    await service.write("c.md", "See [[Roadmap]] and the roadmap again.\n");
-    await service.write("d.md", "`roadmap` in code only.\n");
-
-    const found = await knowledge.unlinkedMentions("Roadmap.md", 10);
-    expect(found.total).toBe(2);
-    expect(found.mentions.map((mention) => [mention.path, mention.text])).toEqual([
-      ["a.md", "roadmap"],
-      ["b.md", "the plan"],
-    ]);
-
-    await service.write("a.md", "We revisit the [[Roadmap|roadmap]] on Monday.\n");
-    const after = await knowledge.unlinkedMentions("Roadmap.md", 10);
-    expect(after.mentions.map((mention) => mention.path)).toEqual(["b.md"]);
-    const backlinks = await knowledge.backlinks("Roadmap.md");
-    expect(backlinks.map((b) => b.sourcePath).toSorted()).toEqual(["a.md", "c.md"]);
-  });
-
-  it("answers the target a Link writes, qualified when the bare name is another note's", async () => {
-    const { service, knowledge } = bootIndexedVault(makeDirs());
-    await service.write("Plan.md", "# Plan\n");
-    await service.write("zz/Plan.md", "# The other plan\n");
-    await service.write("zz/Solo.md", "# Solo\n");
-
-    const shadowed = await knowledge.unlinkedMentions("zz/Plan.md", 10);
-    const unique = await knowledge.unlinkedMentions("zz/Solo.md", 10);
-    expect(shadowed.linkTarget).toBe("zz/Plan");
-    expect(unique.linkTarget).toBe("Solo");
-  });
-});
-
-describe("vault problems", () => {
-  it("lists a dangling link once with its source, and drops it once the note exists", async () => {
-    const { service, knowledge } = bootIndexedVault(makeDirs());
-    await service.write("Welcome.md", "# Welcome\n\nOpen [[Nowhere]] twice: [[nowhere]].\n");
-    await service.write("Guide.md", "# Guide\n\nBack to [[Welcome]].\n");
-
-    const before = await knowledge.problems({ limit: 10 });
-    expect(
-      before.unresolvedLinks.rows.map((row) => [row.sourcePath, row.target, row.line]),
-    ).toEqual([["Welcome.md", "Nowhere", 3]]);
-    expect(before.orphans.rows.map((row) => row.path)).toEqual(["Guide.md"]);
-
-    // the new note is what Welcome linked to, so it is linked, not orphaned
-    await service.write("Nowhere.md", "# Nowhere\n");
-    const after = await knowledge.problems({ limit: 10 });
-    expect(after.unresolvedLinks.rows).toEqual([]);
-    expect(after.orphans.rows.map((row) => row.path)).toEqual(["Guide.md"]);
   });
 });

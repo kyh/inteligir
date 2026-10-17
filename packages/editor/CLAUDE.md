@@ -14,8 +14,10 @@ seams: `VaultSessionPorts` (`packages/editor/src/note/vault-session.ts`), the
 (`packages/editor/src/host-io.ts`, opened to React by `host.ts`): its
 `EditorHostIo`, which also carries the link resolver store and note formulas so
 no host writes its own, the `EditorHostActions` a deep node asks the shell
-through (Ask agent, `showTag`, a comment's create and open, all required),
-installed by one `installEditorHost` call per host.
+through (Ask agent, `showTag`, and a highlight's create, note and open, all required),
+installed by one `installEditorHost` call per host. Its `VaultActions` carry
+`closeFile`, the way back to the library. `static-note.tsx` draws a note
+read-only over its bytes, for an embed and for Quick Look.
 `node-props.ts` is the SLATE DECODE BOUNDARY: a node's dialect fields ride
 `TElement`'s open index signature, so every read arrives as `unknown` and
 becomes a domain value there alone, which is why no walk narrows structurally.
@@ -33,7 +35,13 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   rule table expects its pre-pass over the whole value. Rejected: a paragraph
   rule's prune, under which a heading or a list item saved `**a****b**`, and
   Plate's own `serializeMd`, which skips the pre-pass and writes a ZWSP beside
-  every chip. `packages/editor/src/markdown/markdown-doc.ts`,
+  every chip. The base kits are headless files (`packages/editor/src/kits/headless/`),
+  each live kit its headless half plus components, so the fixpoint runs in node
+  with no React, `@repo/ui` or renderer in reach
+  (`packages/editor/src/__tests__/headless-kits.test.ts`), and an imported page
+  is written as its own fixpoint: `canonicalizeImported` answers the canonical
+  markdown and the share of the page's letters it kept, or nothing when the
+  result is not canonical. `packages/editor/src/markdown/markdown-doc.ts`,
   `packages/editor/README.md` § Invariants.
 
 - **THE EDITOR SHIPS ITS BEHAVIOUR CSS, AND THE APPEARANCE DIALS ARE ONE
@@ -49,12 +57,12 @@ becomes a domain value there alone, which is why no walk narrows structurally.
 
 - **NOTES SPEAK THE INTELIGIR DIALECT**: `[[Title]]` / `[[Title#H]]` /
   `[[Title|alias]]` / `[[Title|uuid]]` wiki links (the last pipe starts the
-  alias), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%` comment
-  anchors, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub alerts (`>
+  alias), `{{source|display|meta}}` formula pills, `%%i:id:start/end%%` annotation
+  markers, `@2026-08-22` date chips, `<u>…</u>` underline, GitHub alerts (`>
   [!NOTE]` through `> [!CAUTION]`) as THE callout, `inteligir-chart` /
   `inteligir-canvas` / `inteligir-html` fences, the `:::tabs`, `:::toggle` and
   `:::columns` containers, and `![](url)` embeds, all valid markdown, all
-  round-tripping. Pills, dates, comment anchors and `:::` lines are read from
+  round-tripping. Pills, dates, annotation markers and `:::` lines are read from
   finished text, so a backslash before one's first character keeps it text
   (`\@2026-08-22`), and the serializer writes that escape before a text the next
   parse would read as one, so text a person types stays text. Only a web url
@@ -80,10 +88,16 @@ becomes a domain value there alone, which is why no walk narrows structurally.
 
 - **FRONTMATTER IS THE ONLY PROPERTY STORE**: no metadata table, a note's UUID
   is its `id:`, and YAML the typing rules cannot represent is preserved
-  byte-exactly. `@repo/notes/markdown/frontmatter`.
+  byte-exactly. `@repo/notes/markdown/frontmatter`. The properties panel hides
+  an item's own keys (`ITEM_KEYS`) and `id`, which Info shows and writes
+  (`packages/editor/src/properties/properties-panel.tsx`), so no key has two
+  editors.
 
-- **THE EDITOR COLUMN SHOWS ONE NOTE.** No second pane and no pane vocabulary:
-  one `OpenNoteStore`, and every surface reads the open note. Registries keyed
+- **THE EDITOR COLUMN SHOWS ONE ITEM, AND NOTHING OPEN IS THE LIBRARY.** No
+  second pane and no pane vocabulary: one `OpenNoteStore`, and every surface
+  reads the open item. With nothing open the column draws nothing, because the
+  page draws the library there, and a file that is no doc opens with no buffer,
+  its viewer the page's (`packages/editor/src/editor-column.tsx`). Registries keyed
   on a note's path keep that key so a late answer cannot land on the note that
   replaced it. There is no raw/rich toggle: the surface derives from
   `packages/editor/src/note/markdown-gate.ts` alone.
@@ -101,44 +115,33 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   `packages/editor/src/slash-items.tsx`,
   `packages/editor/src/touch-toolbar.tsx`.
 
-- **TEMPLATES ARE A FOLDER, AND PLACEHOLDERS EXPAND ON THE TEMPLATE'S OWN
-  BYTES.** A template is a doc under `templates/` (a fixed convention like the
-  daily folder, no setting); `templates/Daily.md` shapes the daily note. Exactly
-  three placeholders, `{{date}}`, `{{time}}`, `{{title}}`, replaced in place on
-  the raw markdown, so the formula grammar never sees them and every other
-  `{{…}}` is a pill left byte-exact. The title is a file name, which can spell
-  markdown and yaml, so it is escaped for where it lands, and only as much as
-  the next parse needs. Rejected: escaping every punctuation mark, which writes
-  `Mike\'s` into the file, and re-serializing the template, which restyles bytes
-  the author wrote. That expansion loads both parsers, so the folder names live
-  apart from it (`@repo/notes/templates/folders`), where the contract and every
-  command-line verb read them. A note minted from a template drops the
-  template's `id:`, because two notes with one id make the uuid link tier
-  ambiguous. `@repo/notes/templates/placeholders`,
-  `packages/editor/src/insert-template.ts`.
-
 - **A BINDING IS SPELLED FROM THE TABLE ITS LISTENER READS, never as a
-  literal.** Five tables own every chord and each handler walks its own; the
+  literal.** Six tables own every chord and each handler walks its own; the
   marks' table builds Plate's own shortcut config, so Plate's defaults never
   run. Every label is derived from those rows (`@repo/ui/lib/hotkey-spelling`),
   so a rebinding leaves no stale label. A chord two tables share is refused,
   because a key both claim runs both. A row claims shift explicitly, so an
   unshifted row never fires on a shifted chord. The rail's `[` and the panel's
   `]` are BARE rows, answering only with focus outside a field, since a bare key
-  is a character wherever text is typed.
-  `packages/editor/src/mark-shortcuts.ts`,
+  is a character wherever text is typed. The library's table
+  (`apps/workspace/src/app/library/library-keys.ts`) is read by the grid's own
+  listener and the item view's, so Escape back to the library is the item
+  view's element, never the window's, and a field inside keeps its own Escape.
+  A key's glyph is `KEY_CAPS`' (`@repo/ui/lib/hotkey-spelling`), so ⌫ and ↩ are
+  spelled once. `packages/editor/src/mark-shortcuts.ts`,
   `apps/workspace/src/app/global-shortcuts.ts`.
 
 - **A PIN IS THE FRONTMATTER KEY `pinned: true`, AND ITS EDIT IS A LINE CUT.**
   Pinning travels with the file, so every device and the agent agree; a pinned
-  note tops the recents with no Pinned heading, which would cost more height
-  than it explains. The edit cuts or appends the key's own lines rather than
+  item leads the grid in every scope and sort with no Pinned heading, which
+  would cost more height than it explains. The edit cuts or appends the key's own lines rather than
   re-serializing the frontmatter, which restyles every flow list; unpinning
   removes the key, never writes `false`. The open note takes the edit through
   the live editor, so the autosave carries it; any other note is a guarded write
   whose mismatch is reported, never merged. The pinned set is the index's, so a
-  pin shows after the sweep. `@repo/notes/markdown/frontmatter`,
-  `apps/workspace/src/app/note/pin-note.ts`.
+  pin shows after the sweep. The two-path edit is every item field's, through
+  `editItemFields` (`apps/workspace/src/app/note/item-frontmatter.ts`).
+  `@repo/notes/markdown/frontmatter`, `apps/workspace/src/app/note/pin-note.ts`.
 
 - **GO TO HEADING IS THE PALETTE OVER THE TOC'S WALK, AND AN EXTRACT IS ONE
   HISTORY BATCH.** ⌘⇧O opens the palette on the open note's outline and lands
@@ -148,8 +151,8 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   is one nothing refreshes. "Extract to new note" creates the note through the
   exclusive create before touching the buffer, because create-or-reuse would
   count an existing file as success and the blocks would leave for a note that
-  never received them; blocks anchoring a comment are refused, since the thread
-  would stay behind. The removal and the `[[link]]` land in one flush, so one
+  never received them; blocks anchoring an annotation are refused, since its
+  entry would stay behind. The removal and the `[[link]]` land in one flush, so one
   undo restores both; the created file stays, because the vault has no
   transaction and a note that exists is truer than an edit that never happened.
   `packages/editor/src/extract-note.ts`.
@@ -188,13 +191,30 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   The gate backs it: a save may split a line but never join two.
   `packages/editor/src/markdown/md-rules.ts`, `markdown-doc.ts`.
 
-- **COMMENT MARKERS PAIR ACROSS THE DOCUMENT, AND THE TINT IS ONE ROOT
-  DECORATION.** A block comment is a marker line above a fence and another below
-  it, so markers pair in document order over the whole note. Rejected: pairing
-  per block, which draws a two-paragraph comment as two orphans, and refusing a
+- **ANNOTATION MARKERS PAIR ACROSS THE DOCUMENT, AND THE TINT IS ONE ROOT
+  DECORATION.** A block annotation is a marker line above a fence and another
+  below it, so markers pair in document order over the whole note. Rejected:
+  pairing per block, which draws a two-paragraph annotation as two orphans, and refusing a
   selection that crosses blocks. The ranges are returned for the root alone,
   because a per-text decoration leaves an untouched middle block with a stale
-  tint. `packages/editor/src/comments/comment-ranges.ts`.
+  tint. `packages/editor/src/annotations/annotation-ranges.ts`.
+
+- **AN ANNOTATION IS A HIGHLIGHT FIRST AND A NOTE SECOND.** ⌘⇧H, the selection
+  toolbar's Highlight and the touch toolbar's Highlight are one gesture,
+  `highlightSelection`: it writes the markers around the selection and at once
+  asks the host for the bare entry, its quote the selection's text clipped by
+  `clipQuote`, so a long selection is a highlight with a shortened quote, never
+  a refusal; a refusal takes the markers back out. A selection with no text
+  offers no Highlight. The note is optional and comes after: the desktop opens a
+  popover on the range ("Add a note…", Return writes it once the entry has
+  landed, Escape or a click away keeps the bare highlight), and the touch
+  toolbar's field reads "Add a note (optional)" with Highlight as its submit,
+  so an empty one is a bare highlight. A highlight is tinted by the
+  `--highlight` token, an id its store does not hold is a dotted underline, and
+  only one with a note or a reply has a gutter dot (`notedIds`). There is no
+  resolve. Rejected: the entry written only on Save, which made a highlight
+  without a note impossible, and a resolved tint, since a reading mark is not
+  a task. `packages/editor/src/annotations/annotation-kit.tsx`.
 
 - **TYPING IN A LONG NOTE WALKS IT ONLY THROUGH A RECORDED BUDGET, AND THE
   BUDGET FINDS ITS PASSES.** In a 10k-line note a keystroke, a caret move and
@@ -243,7 +263,12 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   it answers one hunk, which diff3 reads as one changed region. Conflicting on
   every over-budget merge is rejected: it would warn when nothing was lost. A
   conflicted merge's toast opens that note's History (owner decision).
-  `@repo/notes/text/line-diff`, `packages/editor/src/vault-editor.ts`.
+  `rebase` and the 409 retry ask `mergeItemTexts` before diff3, so an open
+  item whose page a fill or a Refresh rewrote under the person's typing lands
+  the fill's keys and the typed lines with no overlap said, as the sync and the
+  phone's queue would (`@repo/notes/sync/url-item-verdict`).
+  `@repo/notes/text/line-diff`, `packages/editor/src/vault-editor.ts`,
+  `packages/editor/src/guarded-vault-io.ts`.
 
 - **A RENAME HOLDS THE OPEN NOTE THROUGH THE MOVE, NEVER LETS GO OF IT.** The
   session suspends the note's controller across the move: edits still land in
@@ -252,5 +277,11 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   rejected: a keystroke typed during the move reached no controller. At a new
   path the resume reads before it writes, because the guarded io holds no base
   for a path it never read and the move writes the old name into the note as an
-  alias. `packages/editor/src/vault-editor.ts`,
+  alias. A move the page did not make (a fill's rename of a pending stub, an
+  agent's `vault rename`) is followed by the item's frontmatter id through the
+  session's `findMoved` port, so the open item stays open at its new path and
+  Back never names the old one; only an id nothing answers drops to the library
+  (`packages/editor/src/note/vault-session.ts`). Rejected: dropping to the
+  library on every vanish, which bounced a person off the item whose page had
+  just been read. `packages/editor/src/vault-editor.ts`,
   `packages/editor/src/note/vault-session.ts`.

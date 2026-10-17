@@ -97,7 +97,6 @@ describe("KnowledgeIndex — case-colliding paths", () => {
     expect(targets).toEqual(["Note.md", "note.md", "Note.md"]);
     expect(index.backlinks("Note.md")).toHaveLength(2);
     expect(index.backlinks("note.md")).toHaveLength(1);
-    expect(index.problems({ limit: 10 }).unresolvedLinks.rows).toEqual([]);
   });
 });
 
@@ -109,7 +108,8 @@ describe("KnowledgeIndex — incremental updates", () => {
     expect(index.backlinks("missing note.md")).toEqual([
       expect.objectContaining({ sourcePath: "wiki/hub.md" }),
     ]);
-    expect(index.problems({ limit: 10 }).unresolvedLinks.rows).toEqual([]);
+    const forward = index.forwardLinks("wiki/hub.md");
+    expect(forward.find((f) => f.target === "missing note")?.targetPath).toBe("missing note.md");
   });
 
   it("turns links dangling when their target is removed", () => {
@@ -150,5 +150,61 @@ describe("KnowledgeIndex — wiki targets and search", () => {
     expect(index.wikiTargets()).toEqual([
       { path: "plain notes.md", title: "plain notes", type: "doc" },
     ]);
+  });
+});
+
+describe("KnowledgeIndex — items and properties", () => {
+  const item = [
+    "---",
+    "id: 7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17",
+    "kind: link",
+    "url: https://stephango.com/file-over-app",
+    "site: Steph Ango",
+    "author: Kepano",
+    "saved: 2026-10-17T09:12:30Z",
+    "---",
+    "File over app is a philosophy.",
+    "",
+  ].join("\n");
+
+  it("searches an item's url, site and author, and no other property", () => {
+    const index = new KnowledgeIndex();
+    index.setDoc("Unsorted/File over app.md", item);
+    index.setDoc("other.md", "---\nstatus: kepano\n---\nPlain words.\n");
+    expect(index.search("kepano").map((hit) => hit.path)).toEqual(["Unsorted/File over app.md"]);
+    expect(index.search("stephango").map((hit) => hit.path)).toEqual(["Unsorted/File over app.md"]);
+    expect(index.search("link")).toEqual([]);
+    expect(index.search("status")).toEqual([]);
+  });
+
+  it("scans the body with the frontmatter blanked, keeping the file's line numbers", () => {
+    const index = new KnowledgeIndex();
+    index.setDoc("Unsorted/File over app.md", item);
+    const found = index.matches("philosophy", { caseSensitive: false, wholeWord: false }, 10);
+    expect(found.matches.map((match) => match.line)).toEqual([9]);
+    expect(index.matches("Kepano", { caseSensitive: false, wholeWord: false }, 10).total).toBe(0);
+  });
+
+  it("lists the library and finds an item by any spelling of its url", () => {
+    const index = new KnowledgeIndex();
+    index.setDoc("Unsorted/File over app.md", item);
+    index.setOther("scan.pdf");
+    index.setStat("scan.pdf", { mtimeMs: 1, size: 3 });
+    const page = index.items({
+      limit: 10,
+      offset: 0,
+      sort: "saved",
+      subfolders: true,
+      untagged: false,
+    });
+    expect(page.items.map((row) => row.path)).toEqual(["Unsorted/File over app.md", "scan.pdf"]);
+    expect(index.itemsAt(["scan.pdf"])[0]?.fileBytes).toBe(3);
+    expect(
+      index.findByUrl("https://www.stephango.com/file-over-app?utm_medium=x", 5).items,
+    ).toHaveLength(1);
+    expect(index.scopes([], []).unsorted).toBe(1);
+    expect(index.pathForNoteId("7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17", "gone.md")).toBe(
+      "Unsorted/File over app.md",
+    );
   });
 });

@@ -48,6 +48,7 @@ const recordingEngine = (options: RecordingEngineOptions = {}): RecordingEngine 
       return await Promise.resolve(null);
     },
     claimedPaths: () => state.claims.flat(),
+    creatorOf: async () => await Promise.resolve(null),
     currentRemote: async () => await Promise.resolve(null),
     commitNow: async () => {
       state.wholeTreeCommits += 1;
@@ -78,6 +79,7 @@ const recordingEngine = (options: RecordingEngineOptions = {}): RecordingEngine 
     isSyncing() {
       return false;
     },
+    isTracked: async () => await Promise.resolve(false),
     revision: async () => await Promise.resolve(""),
     runExclusive: async (work) => await work(),
     scheduleCommit() {},
@@ -90,6 +92,7 @@ const recordingEngine = (options: RecordingEngineOptions = {}): RecordingEngine 
         externalSync: null,
         lastError: null,
         lastSyncAt: null,
+        tooLarge: { count: 0, files: [] },
         state: "no-remote",
       }),
     syncNow: async () =>
@@ -99,6 +102,7 @@ const recordingEngine = (options: RecordingEngineOptions = {}): RecordingEngine 
         externalSync: null,
         lastError: null,
         lastSyncAt: null,
+        tooLarge: { count: 0, files: [] },
         state: "no-remote",
       }),
     turnCommits: async () => await Promise.resolve([]),

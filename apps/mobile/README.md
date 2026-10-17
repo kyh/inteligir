@@ -2,8 +2,8 @@
 
 A full editor over the account's hosted vault. **The agent and the vault
 ENGINE stay on the desktop** (issue #542's re-founding): the phone holds the
-SYNCED THREADS, ASKS a Mac's agent and hands it CAPTURES for Inbox.md through
-the DISPATCH inbox and holds a MIRROR of every note's text, reaching
+SYNCED THREADS, ASKS a Mac's agent through the DISPATCH inbox and holds a
+MIRROR of every note's text, reaching
 `@repo/contract/cloud` (the wire), `@repo/domain` (the `ThreadEvent` grammar),
 `@repo/notes` (wiki resolution, the rename and delete rules and the one
 conflict verdict, guard-pure) and `@repo/mobile-editor/bridge-protocol` (the
@@ -28,14 +28,21 @@ src/
   login/        signing this phone in to an account
   editor/       the @repo/mobile-editor page in a WebView, the phone answering its bridge
   notes/        the vault on the phone: the mirror, the notes store, the outbox and the
-                file and comment verbs; photo-ingest.ts and the expo-*-files.ts
+                file and annotation verbs; photo-ingest.ts and the expo-*-files.ts
                 adapters are its native halves
+  items/        saving a link or a thought (item-ops.ts), what a share hands over and the
+                inbox that saves it, and an item's Info sheet
+  library/      the Library's cards by scope, kind and query, its rows, and the covers
+                from the attachment cache (expo-cover-thumbs.ts is the native half)
   lib/          the composition root (compose-runtime.ts, platform-free; app-runtime.ts,
                 its binding to the device), the SQL port with phone-db.ts's
                 migrations, and backup-exclusion.ts over modules/backup-exclusion, the
                 one native module this app carries
   ui/           controls the screens share
-  app/          expo-router screens; _layout.tsx holds the splash and the route guard
+  app/          expo-router screens: index.tsx is the Library, item/ an item in the editor,
+                view/ an image or a PDF full size, threads.tsx and thread/ the agent;
+                _layout.tsx holds the splash, the share provider and the route guard, and
+                +native-intent.ts lands the share extension's handoff on the Library
 plugins/        with-editor-page.js: the built page into the app bundle
 ```
 
@@ -69,8 +76,8 @@ tables, and the boot restore keeps them; a page that started before a wipe
 never lands (a reset generation, re-checked inside the transaction). There is
 no thread outbox: the phone appends nothing to the log and claims nothing from
 the inbox, so it has nothing to hold. Its own NOTE edits are another matter,
-below, and so are its requests to a Mac and its captures: the
-`dispatch_outbox` table is durable, and it is not a log outbox — nothing in it
+below, and so are its requests to a Mac: the `dispatch_outbox` table is
+durable, and it is not a log outbox — nothing in it
 ever reaches the thread log (Asking a Mac, below).
 
 The log holds what the thread view draws from and no more: a streaming delta
@@ -113,7 +120,7 @@ native module `modules/backup-exclusion`, and so is the outbox's folder of
 staged photos (`excludedFromBackup` in `notes/outbox-files.ts`), flagged before
 every stage, since the rows naming them live in that database. The mirror (`notes/vault-mirror.ts`)
 keeps a row per file the hosted tree names — path, blob oid, size, the commit
-its blob first appeared at, and for a note or a comment store its text with
+its blob first appeared at, and for a note or an annotation store its text with
 the frontmatter id and aliases read once as it lands. A refresh walks the tree
 at head, stops after one page when head is the mirrored commit, and otherwise
 applies the whole listing in one transaction: a row whose oid is unchanged is
@@ -124,7 +131,7 @@ answer stored in its own transaction and only onto a row still naming the
 answer's oid. The mirrored commit moves only once every wanted row holds its
 text, so a refresh cut short resumes from the empty rows. So a cold launch
 shows the list and opens every note before any request, and a refresh that
-fails keeps the list it has and says why above it. "Loading your vault…"
+fails keeps the list it has and says why above it. "Loading your library…"
 shows only on a FIRST mirror, with its count.
 
 The listing (paths, aliases and ids, which the editor page's own resolver
@@ -145,6 +152,36 @@ database has ONE `user_version` (`lib/phone-db.ts`): a table another module
 adds is a step there. Until the first build EAS makes, the schema is one step
 edited in place; from that build on, a step is appended, never edited.
 
+## The library
+
+Home is the Library: every item the phone holds, newest save first, narrowed
+by a scope from the menu (All, Unsorted, a folder, a tag), the kind chips and
+the header's search over titles, sites and links. Each row is a card the mirror
+read once from the item's text as it landed (`item` in `mirror_entries`): its
+facts, its first embeds and page-copy link, and its tags. The cover and the
+original are resolved per listing over the held paths (`library/library-view.ts`),
+and a cover draws from the attachment cache, or from a 320 px JPEG made once
+beside an original over 512 KB (`library/cover-thumbs.ts`), so a list loads
+nothing remote. A link no Mac has read yet says "Details arrive from your Mac".
+
+- **Saving is one create.** The field over the list and a share from another app
+  both make ONE outbox `create` in `Unsorted/` (`items/item-ops.ts`): a link is
+  a stub (`linkStubText`: a minted id, its kind, the cleaned url, when it was
+  saved, and the note as its body), named by the share's title or the link,
+  and a link the library already holds answers where it is; a thought is a
+  note named by its first line. The Worker takes it like any write, and a Mac
+  that sees the stub reads its page within a minute.
+- **A share is the app's save.** The share extension ("Save to Inteligir")
+  only hands the page, the link or the text to the app through the App Group;
+  `items/share-inbox.tsx` saves it, opens it, and only then lets it go, so a
+  share made signed out waits for the sign-in.
+- **Two versions of one link settle by themselves.** A phone edit of a stub a
+  Mac filled meanwhile (a tag, a note) meets it in `reconcileFile`, which asks
+  the url-item verdict first: one text, both changes, no copy.
+- **A delete takes what only it shows.** Deleting an image item takes its
+  picture too, in the same change set, when no other item links it and every
+  held item's text is on the phone (`notes/file-ops.ts`).
+
 ## Unsent edits
 
 A write lands on the phone the moment it is durable in the `outbox` table
@@ -152,7 +189,7 @@ A write lands on the phone the moment it is durable in the `outbox` table
 resolves links over see it from then on (`notes/vault-overlay.ts`): a pending
 edit reads as the note, a create and a staged photo list before the vault holds them, a rename
 moves the row and rewrites the links naming it now, a delete hides the
-note and its comment store, and a comment reads as its store and its note.
+note and its annotation store, and an annotation reads as its store and its note.
 The rows are sent oldest first,
 one change set per row, to `POST /v1/vault/commit`, on every write, on resume,
 when expo-network says the phone is back online, and on a backoff after a
@@ -193,20 +230,21 @@ failure, one pass at a time (`createSingleFlight` from
   the phone's own link graph with `@repo/notes/knowledge/plan-rename`, the
   server's rules; a note another device changed first keeps its bytes and is
   named, and the alias still answers its link. A delete carries the note's
-  comment store unless another note carries its id
-  (`@repo/notes/comments/store-removal`), so a note the vault keeps, because
-  another device edited it, keeps its comments too.
-- **A comment is one set too** (`notes/comment-ops.ts`). A new one is the
-  editor page's save that writes its markers, which carries it (`addComment`
-  on the bridge): the store plans its entry under the write lock from the
-  texts the phone holds and queues the note and its comment store as ONE
-  `comment` row, minting a note without an id one by the desktop's line cut.
-  A reply, a resolve and a delete are the store alone; a deleted thread's
-  markers go through the page's editor and its next write, as the desktop's
-  do. The editor ports tell the page each thread its note's store holds and
-  which are resolved (`commentMeta`), so its ranges draw as the desktop's. A
-  stale set settles the note as a write and the store by its entries, so a
-  comment another device made meanwhile keeps both threads.
+  annotation store unless another note carries its id
+  (`@repo/notes/annotations/store-removal`), so a note the vault keeps, because
+  another device edited it, keeps its annotations too.
+- **An annotation is one set too** (`notes/annotation-ops.ts`). A new one is
+  the editor page's save that writes its markers, which carries its bare entry
+  and quote (`addAnnotation` on the bridge): the store plans its entry under
+  the write lock from the texts the phone holds and queues the note and its
+  annotation store as ONE `annotation` row, minting a note without an id one
+  by the desktop's line cut. Its note (`editAnnotation`), a reply and a delete
+  are the store alone; a deleted annotation's markers go through the page's
+  editor and its next write, as the desktop's do. The editor ports tell the
+  page each annotation its note's store holds (`annotationMeta`), so its
+  ranges draw as the desktop's. A stale set settles the note as a write and
+  the store by its entries, so an annotation another device made meanwhile
+  keeps both.
 - **A photo lands in the default attachments folder** (`assets/`), since the
   Mac's attachment choice lives in its own data folder, under a free name
   (`@repo/notes/knowledge/asset-name`), as a JPEG: the Mac's editor cannot
@@ -217,26 +255,14 @@ failure, one pass at a time (`createSingleFlight` from
   counts; a discard wipes the rows and the staged photos with the mirror,
   and the requests with them, and so does a revocation.
 
-## Captures
-
-The home screen's capture box hands a Mac a line for the vault's `Inbox.md`:
-a `capture` row in `dispatch_outbox`, sent to the account's dispatch inbox like
-a request (below) and kept on the phone until a Mac says it wrote it, so a
-capture typed offline is sent after a relaunch. Any Mac that is open claims it,
-whether or not it takes the phone's requests, and appends it as a bullet;
-`Inbox.md` merges by union, so two devices' captures both land. The box says
-Captured once the row is kept, and under it how many captures no Mac holds
-yet (Not sent yet — retrying, or waiting for your Mac); a refused capture keeps
-its words and the reason until Dismiss.
-
 ## Asking a Mac
 
-The phone asks a Mac's agent through the same inbox: it posts a
+The phone asks a Mac's agent through the dispatch inbox: it posts a
 `turn` row to the account's dispatch inbox (`POST /v1/sync/dispatch`) and never
 claims one, and a Mac runs the turn and writes it to the log. Ask agent on a
 note opens a new thread under an id the phone mints (`thr_` and 16 random
 bytes), and its first message names the note as the thread's origin and the
-sha-256 of the bytes the note screen showed as its view context's revision.
+sha-256 of the bytes the item screen showed as its view context's revision.
 
 - **A request is durable before it is sent.** Send writes the row to
   `dispatch_outbox` with an id minted here, the body frozen as it will be
@@ -321,13 +347,12 @@ that is signed in.
   racing a landing), the dispatch runtime (a resend under
   the same id across a relaunch, the log replacing a pending row once, every
   state's words, cancel, a refusal kept, a stale sign-in's refusal, an approval
-  answered, the foreground poll, a capture kept offline across a relaunch and
-  dropped once a Mac wrote it), the socket (a ping past the cursor pulls and
+  answered, the foreground poll), the socket (a ping past the cursor pulls and
   one it covers does not, the background closes it and a resume dials again,
   a sign-out and a refused credential close it for good), the live fold (a
   turn's deltas, an item settling, a turn ending, a reset), and the
   composition's restore, sign-out, revocation and resume, the file verbs (a rename's rewritten link and alias,
-  a note changed under it, a delete's comment store, a new note stepping past
+  a note changed under it, a delete's annotation store, a new note stepping past
   a taken name, a photo's size and cap), the editor page's native end (every
   frame kind to its port, a foreign document's, another load's and a
   malformed frame dropped, a flush held until the page answers, the load
@@ -365,7 +390,7 @@ pnpm --filter @repo/mobile dev                                              # ag
 EXPO_PUBLIC_CLOUD_URL=http://localhost:5174 pnpm --filter @repo/mobile dev  # against `pnpm dev:web`
 ```
 
-The note screen's editor is `@repo/mobile-editor`'s built page, carried in the
+The item screen's editor is `@repo/mobile-editor`'s built page, carried in the
 app bundle by `plugins/with-editor-page.js`, so it changes only with a new
 native build: `pnpm --filter @repo/mobile ios` builds the page first, and
 `pnpm --filter @repo/mobile editor-page` rebuilds it alone. Metro serves the

@@ -9,7 +9,7 @@ import { askShell, PAGE_UNDER_SHELL, running, WINDOW_LOADED } from "../harness/d
 import type { DesktopShell, ShellTarget } from "../harness/desktop-shell";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR, treeRow } from "../harness/selectors";
+import { EDITOR, libraryCard } from "../harness/selectors";
 
 const NOTE = "Shell.md";
 const SEEDED_TOKEN = "seededshelltoken";
@@ -54,7 +54,7 @@ const switchedTo = async (shell: DesktopShell): Promise<SwitchState> => {
 
 export const desktopShell: Scenario = {
   description:
-    "the built Tauri shell over WebDriver: the window is the server's own page signed in by its handoff, the rail and a note ride its cookie, an API write reaches the open editor through the socket, `window.open` is denied, every permission request is refused, Reveal refuses a symlink out of the vault, a switch boots a new child and a new window on the new vault, and a SIGTERM quit stops the server and retracts `server.json`",
+    "the built Tauri shell over WebDriver: the window is the server's own page signed in by its handoff, the library and an item ride its cookie, an API write reaches the open editor through the socket, `window.open` is denied, every permission request is refused, Reveal refuses a symlink out of the vault, a switch boots a new child and a new window on the new vault, and a SIGTERM quit stops the server and retracts `server.json`",
   name: "desktop-shell",
   // the shell boots twice (the switch)
   timeoutMs: 300_000,
@@ -88,8 +88,19 @@ export const desktopShell: Scenario = {
     expect(url.startsWith(`${shell.serverOrigin}/`), `the window is not on the server: ${url}`);
     expect(!url.includes("handoff"), `the handoff's nonce stayed in the window's url: ${url}`);
 
-    ctx.log("the rail lists the seeded note, and the note opens: the cookie carries every call");
-    await page.clickWhenThere(treeRow(NOTE), RAIL_DEADLINE_MS);
+    ctx.log(
+      "the library lists the seeded note, and its card opens it: the cookie carries every call",
+    );
+    // a card selects on a click and opens on a double-click, which WebDriver's element click
+    // does not make, so the card's own dblclick is dispatched once it is there
+    await page.waitUntil(
+      `document.querySelector(${JSON.stringify(libraryCard(NOTE))}) !== null`,
+      RAIL_DEADLINE_MS,
+    );
+    await page.run(
+      `document.querySelector(${JSON.stringify(libraryCard(NOTE))}).dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); return null;`,
+      z.null(),
+    );
     const readEditor = async (): Promise<string> => await page.textOf(EDITOR);
     await pollUntil(readEditor, (text) => text.includes(SEEDED_TOKEN), {
       deadlineMs: EDITOR_DEADLINE_MS,

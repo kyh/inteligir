@@ -6,7 +6,7 @@ import { giveNoteOwnId } from "../give-note-own-id";
 import { contentHashHex } from "../vault-schema";
 
 const SHARED = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
-const SHARED_STORE = `.inteligir/comments/${SHARED}.json`;
+const SHARED_STORE = `.inteligir/annotations/${SHARED}.json`;
 const COPY = "Plan copy.md";
 const COPY_BYTES = `---\ntitle: Plan\nid: ${SHARED}\n---\n%%i:c1:start%%x%%i:c1:end%%\n`;
 const STORE_BYTES = '{\n  "c1": { "text": "kept", "createdAt": 1, "updatedAt": 1 }\n}\n';
@@ -88,7 +88,7 @@ const vaultClient = (stub: VaultStub) =>
     },
   });
 
-const storeOf = (id: string): string => `.inteligir/comments/${id}.json`;
+const storeOf = (id: string): string => `.inteligir/annotations/${id}.json`;
 
 describe("giving a copy its own id", () => {
   it("copies the store under a new id first, then moves the copy's id line to it", async () => {
@@ -98,17 +98,17 @@ describe("giving a copy its own id", () => {
       throw new Error(`expected done, got ${result.kind}`);
     }
     expect(result.id).toMatch(UUID_RE);
-    expect(result.comments).toBe("copied");
+    expect(result.annotations).toBe("copied");
     expect(stub.disk.get(COPY)).toBe(COPY_BYTES.replace(SHARED, result.id));
     expect(stub.disk.get(storeOf(result.id))).toBe(STORE_BYTES);
     expect(stub.disk.get(SHARED_STORE)).toBe(STORE_BYTES);
     expect(stub.log).toEqual([`write ${storeOf(result.id)}`, `write ${COPY}`]);
   });
 
-  it("still gives a copy with no comments its own id", async () => {
+  it("still gives a copy with no annotations its own id", async () => {
     const stub = stubWith({ [COPY]: COPY_BYTES });
     const result = await giveNoteOwnId(vaultClient(stub), COPY, SHARED);
-    expect(result.kind === "done" && result.comments).toBe("none");
+    expect(result.kind === "done" && result.annotations).toBe("none");
     expect(stub.log).toEqual([`write ${COPY}`]);
   });
 
@@ -129,7 +129,7 @@ describe("giving a copy its own id", () => {
     expect(await giveNoteOwnId(vaultClient(stub), COPY, SHARED)).toEqual({ kind: "changed" });
     expect(stub.disk.get(COPY)).toBe(edited);
     expect([...stub.disk.keys()].toSorted()).toEqual([COPY, SHARED_STORE].toSorted());
-    expect(stub.log.at(-1)).toMatch(/^remove \.inteligir\/comments\//u);
+    expect(stub.log.at(-1)).toMatch(/^remove \.inteligir\/annotations\//u);
   });
 
   it("refuses frontmatter it cannot read, writing nothing", async () => {

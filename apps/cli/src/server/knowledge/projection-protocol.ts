@@ -80,6 +80,8 @@ const searchColumnsSchema = z.object({
   bodyStems: z.string(),
   headingStems: z.string(),
   headings: z.string(),
+  meta: z.string(),
+  metaStems: z.string(),
   title: z.string(),
   titleStems: z.string(),
 }) satisfies z.ZodType<DocSearchColumns>;

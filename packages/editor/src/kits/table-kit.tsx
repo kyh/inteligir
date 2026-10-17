@@ -1,10 +1,4 @@
 import {
-  BaseTableCellHeaderPlugin,
-  BaseTableCellPlugin,
-  BaseTablePlugin,
-  BaseTableRowPlugin,
-} from "@platejs/table";
-import {
   TableCellHeaderPlugin,
   TableCellPlugin,
   TablePlugin,
@@ -13,13 +7,6 @@ import {
 
 import { classNameElement } from "@repo/editor/kits/kit-utils";
 import { TableElement } from "@repo/editor/nodes/table-node";
-
-export const TableBaseKit = [
-  BaseTablePlugin,
-  BaseTableRowPlugin,
-  BaseTableCellPlugin,
-  BaseTableCellHeaderPlugin,
-];
 
 // The grid is styled by `.typeset table` rules; min-w only keeps empty cells clickable.
 export const TABLE_CELL_CLASS = "min-w-24";

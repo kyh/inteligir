@@ -1,13 +1,15 @@
 # AGENTS.md
 
-**inteligir** is Obsidian where an agent edits your notes with you: a Mac app
-for general knowledge workers, not developers, on Apple silicon, that nobody
-uses yet. The vault is a folder of markdown files on the user's own disk; one
+**inteligir** is a library of everything you save, with an agent that files
+and edits it with you: links, articles, images, PDFs and your own markdown
+notes, one app in place of a bookmark manager like Raindrop and a notes app
+like Obsidian. It is a Mac app for general knowledge workers, not developers,
+on Apple silicon, that nobody uses yet. The vault is a folder of markdown files
+on the user's own disk, and every item in the library is one of them; one
 local Node process owns that vault, indexes it, answers one API and drives the
 agent that edits those same files. The only hosted piece is a Cloudflare
 Worker carrying the marketing site, accounts, cross-device sync, the dispatch
-inbox a phone asks a Mac and hands it captures through, and the account's
-hosted vault.
+inbox a phone asks a Mac through, and the account's hosted vault.
 
 This is the root guide for every coding agent; `CLAUDE.md` imports it. Each
 workspace's durable decisions live in a `CLAUDE.md` beside its code
@@ -40,9 +42,18 @@ The premises every change builds from, each with its reason:
   the vendor's, with the vendor's own sign-in, beats a second one beside it.
 - **Dictation is the operating system's**, because the Mac's and the phone
   keyboard's are already there and cost the app no speech model.
-- **Every feature is core.** Nothing sits behind a tier or a flag, and nothing
-  already built is cut for the persona: the persona changes the words.
-- **An account is optional, and offered.** Without one the app is a local notes
+- **Every item is one markdown file.** A link is a note whose frontmatter holds
+  its url, site and saved date and whose body is the page's readable text; an
+  image or PDF is the original file beside a note that embeds it; a note the
+  user writes is an item too. One shape is what lets search, History, sync,
+  the phone and the agent's verbs work on every item without a second store.
+- **Saving calls no model.** The Mac's own server fetches a page's title, cover
+  and text, and the agent files, tags and summarizes only when asked, because
+  a save should be instant and free.
+- **Every feature is core, and a feature serves saving, reading or writing or
+  goes.** Nothing sits behind a tier or a flag; a feature that serves none of
+  the three is removed, never hidden, and the persona changes the words.
+- **An account is optional, and offered.** Without one the app is a local library
   app that makes no cloud request; with one it syncs, and the hosted vault is
   free up to about 1 GB.
 - **No users yet, so every format may change.** Nobody but the owner holds an
@@ -67,15 +78,17 @@ verb but `vault open` is a client of a running one. The CLI is the agent's
 door and the developer's, which is how an agent drives the product from bash;
 nothing the user does needs a terminal. `apps/mobile` is the iPhone app: the
 same editor over the hosted vault, offline, asking a Mac to run the agent.
+`apps/extension` is the browser's Save, talking only to the Mac app on the same
+machine through `inteligir native-host`.
 
 **The decision record is GitHub issues
 [#542](https://github.com/kyh/inteligir/issues/542),
 [#611](https://github.com/kyh/inteligir/issues/611) and
 [#889](https://github.com/kyh/inteligir/issues/889)**: what was chosen, and
 what was rejected and why. Where two disagree the later wins. Where any of
-them, or a decision bullet, assumes a developer at the keyboard, this overview
-wins, and the change that touches that code rewrites the bullet in the same
-commit.
+them, or a decision bullet, assumes a developer at the keyboard, or a notes
+app whose window is always one open note, this overview wins, and the change
+that touches that code rewrites the bullet in the same commit.
 
 ## Map
 
@@ -86,8 +99,9 @@ apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the serve
 apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, dispatch, hosted vault
 apps/mobile             @repo/mobile — the iPhone app: notes in the editor page, offline, and asking a Mac's agent
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
+apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save, handing the page to the Mac app
 packages/domain         @repo/domain — zod-only leaf vocabulary
-packages/contract       @repo/contract — ONE contract, TWO entries: /local and /cloud
+packages/contract       @repo/contract — ONE contract, THREE entries: /local, /cloud and /browser
 packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
 packages/notes          @repo/notes — the pure, platform-neutral domain
 packages/editor         @repo/editor — the Plate WYSIWYG over the fixpoint serializer
@@ -233,6 +247,12 @@ is in the file named.
 - **A value has one spelling**: a key binding comes from the table its listener
   reads (`packages/editor/CLAUDE.md`), a page preference is a `PREFS` row
   (`apps/workspace/CLAUDE.md`).
+- **/browser breaks only behind its own version**: the extension ships on the
+  Web Store's cadence and the host adapts it to /local
+  (`apps/extension/CLAUDE.md`).
+- **A library scope has one spelling**: `@repo/domain/library-scope`, read by
+  the page's pref, the items listing and the view context
+  (`apps/workspace/CLAUDE.md`).
 
 ## Decisions
 
@@ -246,15 +266,17 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 
 - [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, and the open note's saves and renames
 - [`packages/ui/CLAUDE.md`](packages/ui/CLAUDE.md) — floating surfaces, type roles, popup motion, row order, the orphan guard
-- [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — Knowledge: the scan, search, links, tags and problems
+- [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — Items, annotations, and Knowledge: the scan, search, links and tags
 - [`packages/agent-runtime/CLAUDE.md`](packages/agent-runtime/CLAUDE.md) — the provider grammar, and what a session may load from the vault
 - [`apps/cli/CLAUDE.md`](apps/cli/CLAUDE.md) — the server process: its lock, composition, credential, shutdown, CSP, database, and a vault's data dir
 - [`apps/cli/src/server/vault/CLAUDE.md`](apps/cli/src/server/vault/CLAUDE.md) — Vault: writes, git and containment
 - [`apps/cli/src/server/knowledge/CLAUDE.md`](apps/cli/src/server/knowledge/CLAUDE.md) — the index's persistence, its worker and its read deadline
+- [`apps/cli/src/server/items/CLAUDE.md`](apps/cli/src/server/items/CLAUDE.md) — Items: capture and fill
 - [`apps/cli/src/server/agents/CLAUDE.md`](apps/cli/src/server/agents/CLAUDE.md) — Agents and threads
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sync and accounts
-- [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, store, queue and comments, and how it ships
+- [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, store, queue and annotations, and how it ships
 - [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the desktop shell, dictation, and the shell's e2e
+- [`apps/extension/CLAUDE.md`](apps/extension/CLAUDE.md) — the browser extension and its wire
 - [`apps/workspace/CLAUDE.md`](apps/workspace/CLAUDE.md) — Desktop workspace surfaces
 - [`tools/repo-guards/CLAUDE.md`](tools/repo-guards/CLAUDE.md) — Repo guards, vendoring and tooling
 

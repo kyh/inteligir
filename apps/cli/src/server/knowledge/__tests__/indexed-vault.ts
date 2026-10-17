@@ -35,6 +35,7 @@ interface IndexedVaultOptions {
   reader?: (service: VaultService) => KnowledgeRuntimeArgs["vault"];
   projector?: Projector;
   readDeadlineMs?: number;
+  onTargetsChanged?: () => void;
 }
 
 interface IndexedVault {
@@ -49,6 +50,7 @@ export const bootIndexedVault = (
     reader = (service) => service,
     projector = createInlineProjector(),
     readDeadlineMs,
+    onTargetsChanged,
   }: IndexedVaultOptions = {},
 ): IndexedVault => {
   // the service announces to a runtime built after it, over that same service
@@ -68,6 +70,9 @@ export const bootIndexedVault = (
   };
   if (readDeadlineMs !== undefined) {
     runtimeArgs.readDeadlineMs = readDeadlineMs;
+  }
+  if (onTargetsChanged !== undefined) {
+    runtimeArgs.onTargetsChanged = onTargetsChanged;
   }
   const knowledge = createKnowledgeRuntime(runtimeArgs);
   sink = knowledge;

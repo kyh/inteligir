@@ -225,6 +225,42 @@ describe("a phone's change set against the hosted vault", () => {
     expect(new Uint8Array(await asset.arrayBuffer())).toStrictEqual(png);
   });
 
+  it("writes a base64 PDF, which the asset route answers under its sandbox, and refuses base64 on a store", async () => {
+    const vault = await openVault([{ content: "# a\n", path: "a.md" }]);
+    const pdf = Uint8Array.of(0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x00, 0xff);
+
+    const answer = await committed(
+      await sendChanges(vault.phone, [
+        {
+          base: null,
+          content: { data: base64FromBytes(pdf), encoding: "base64" },
+          op: "put",
+          path: "assets/Lecture notes.pdf",
+        },
+        put("a.md", await oidOf("# a\n"), "# a\n\n![](<assets/Lecture notes.pdf>)\n"),
+      ]),
+    );
+    const asset = await postVaultRead(VAULT_API_PATHS.asset, deviceHeaders(vault.phone), {
+      path: "assets/Lecture notes.pdf",
+      ref: answer.commit,
+    });
+    expect(asset.status).toBe(200);
+    expect(asset.headers.get("content-type")).toBe("application/pdf");
+    expect(asset.headers.get("content-security-policy")).toBe("default-src 'none'; sandbox");
+    expect(new Uint8Array(await asset.arrayBuffer())).toStrictEqual(pdf);
+
+    const store = await sendChanges(vault.phone, [
+      {
+        base: null,
+        content: { data: base64FromBytes(encoder.encode("{}")), encoding: "base64" },
+        op: "put",
+        path: ".inteligir/annotations/0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b.json",
+      },
+    ]);
+    expect(store.status).toBe(400);
+    expect(await refusalCodeOf(store)).toBe("bad-request");
+  });
+
   it("dates the commit when the device made the change, held to the past month", async () => {
     const vault = await openVault([
       { content: "one\n", path: "a.md" },

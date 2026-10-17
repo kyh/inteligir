@@ -51,6 +51,7 @@ const statusWith = (
   externalSync: null,
   lastError: null,
   lastSyncAt,
+  tooLarge: { count: 0, files: [] },
   remote: "https://cloud.test/v1/git/vault.git",
   remoteSource: "account",
   state: "clean",

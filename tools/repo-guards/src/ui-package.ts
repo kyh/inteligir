@@ -26,7 +26,6 @@ export const AWAITING_CONSUMER: ReadonlySet<string> = new Set([
   "packages/ui/src/ai/recommendation-card.tsx",
   "packages/ui/src/ai/records-table.tsx",
   "packages/ui/src/ai/search.tsx",
-  "packages/ui/src/ai/selection-actions.tsx",
   "packages/ui/src/ai/sidebar-nav.tsx",
 ]);
 

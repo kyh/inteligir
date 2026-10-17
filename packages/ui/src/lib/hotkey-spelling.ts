@@ -26,6 +26,25 @@ const MODIFIER_CAPS: Record<
   ],
 };
 
+// the glyph a named key is drawn with, on every keyboard, by the key's capitalized name; any other
+// key is that name
+const KEY_CAPS = new Map([
+  ["Backspace", "⌫"],
+  ["Down", "↓"],
+  ["Enter", "↩"],
+  ["Esc", "Esc"],
+  ["Escape", "Esc"],
+  ["Left", "←"],
+  ["Right", "→"],
+  ["Space", "Space"],
+  ["Up", "↑"],
+]);
+
+const keyCap = (key: string): string => {
+  const named = key.charAt(0).toUpperCase() + key.slice(1);
+  return KEY_CAPS.get(named) ?? named;
+};
+
 // one entry per key, for a surface that draws a box per key
 export const hotkeyCaps = (hotkey: string, modifier: ShortcutModifier): string[] => {
   const parts = hotkey.split("+");
@@ -34,7 +53,7 @@ export const hotkeyCaps = (hotkey: string, modifier: ShortcutModifier): string[]
   const modifierCaps = MODIFIER_CAPS[modifier]
     .filter((row) => row.spells.some((mod) => mods.has(mod)))
     .map((row) => row.cap);
-  return [...modifierCaps, key.charAt(0).toUpperCase() + key.slice(1)];
+  return [...modifierCaps, keyCap(key)];
 };
 
 // a mac keyboard runs its glyphs together; words are joined with +

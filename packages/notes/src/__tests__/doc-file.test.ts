@@ -29,9 +29,9 @@ describe("what counts as a doc", () => {
 });
 
 describe("what a listing hides", () => {
-  it("hides every dot-entry, the comment store included, at any depth", () => {
+  it("hides every dot-entry, the annotation store included, at any depth", () => {
     for (const path of [
-      ".inteligir/comments/7d1c.json",
+      ".inteligir/annotations/7d1c.json",
       ".obsidian/app.json",
       "notes/.DS_Store",
       ".trash",

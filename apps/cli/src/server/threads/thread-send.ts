@@ -14,7 +14,8 @@ import {
 import type { ThreadOriginInput, ThreadRow } from "@repo/db/threads";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope } from "@repo/domain/thread-event-scope";
-import type { ViewContext } from "@repo/domain/view-context";
+import { ACTION_PRESET_LABELS } from "@repo/domain/action-preset";
+import type { DocViewContext, ViewContext } from "@repo/domain/view-context";
 import type { SendMessageRequest } from "@repo/contract/local/threads/threads-schema";
 import { nameThreadFromRequestsInTransaction } from "./thread-ingest";
 import type { ThreadWrite } from "./thread-ingest";
@@ -43,7 +44,8 @@ export interface DispatchedTurn {
   threadId: string;
   text: string;
   originDocPath?: string | undefined;
-  viewContext?: ViewContext | undefined;
+  // a phone describes a doc alone: it has no library grid
+  viewContext?: DocViewContext | undefined;
 }
 
 // delivered: this device took it into the thread now, started, queued, or recorded beside the
@@ -85,7 +87,7 @@ const RUNS_ELSEWHERE_REFUSAL =
 
 // a queued message carries no view context: it drains minutes later, long
 // after the screen it described; storing one gives away the immediacy that keeps it honest. its
-// context paths stay: an @-mention is part of what the user asked.
+// context paths and its preset stay: an @-mention and a named action are part of what the user asked.
 const queueInTransaction = (
   write: ThreadWrite,
   threadId: string,
@@ -94,6 +96,7 @@ const queueInTransaction = (
   const queued = createQueuedThreadMessageInTransaction(write.tx, {
     contextPaths: turn.contextPaths ?? null,
     dispatchId: turn.dispatchId ?? null,
+    preset: turn.preset ?? null,
     text: turn.text,
     threadId,
   });
@@ -106,6 +109,9 @@ const queuedTurn = (claimed: ClaimedQueuedThreadMessageRow): TurnRequest => {
   if (claimed.contextPaths !== null) {
     turn.contextPaths = claimed.contextPaths;
   }
+  if (claimed.preset !== null) {
+    turn.preset = claimed.preset;
+  }
   if (claimed.dispatchId !== null) {
     turn.dispatchId = claimed.dispatchId;
   }
@@ -113,12 +119,23 @@ const queuedTurn = (claimed: ClaimedQueuedThreadMessageRow): TurnRequest => {
 };
 
 // a send's request also carries its routing (the thread, the turn it expects), which is no part of
-// what the turn carries to the driver.
+// what the turn carries to the driver. a preset sent with no text is stored as its label, so the
+// thread reads what was asked and names itself after it.
 const requestedTurn = (request: SendMessageRequest): TurnRequest => ({
   contextPaths: request.contextPaths,
-  text: request.text,
+  preset: request.preset,
+  text:
+    request.text === "" && request.preset !== undefined
+      ? ACTION_PRESET_LABELS[request.preset]
+      : request.text,
   viewContext: request.viewContext,
 });
+
+// what the request event records of the screen: the library's scope, filters and count, never
+// the selection's names. the event rides the thread sync under a 64 KiB cap that 200 long paths
+// would pass, and only the turn's prompt reads them, through the TurnRequest that keeps them.
+const recordedViewContext = (context: ViewContext): ViewContext =>
+  context.surface === "library" ? { ...context, paths: [] } : context;
 
 type ThreadMetaEvent = Extract<ThreadEvent, { type: "thread/meta" }>;
 
@@ -171,7 +188,7 @@ const prepareTurnInTransaction = (
     requested.contextPaths = [...turn.contextPaths];
   }
   if (turn.viewContext !== undefined) {
-    requested.viewContext = turn.viewContext;
+    requested.viewContext = recordedViewContext(turn.viewContext);
   }
   if (turn.dispatchId !== undefined) {
     requested.dispatchId = turn.dispatchId;

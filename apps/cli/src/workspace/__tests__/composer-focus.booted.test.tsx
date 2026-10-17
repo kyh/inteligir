@@ -57,7 +57,7 @@ const editable = (): HTMLElement => {
 describe("the ⌘K composer", () => {
   it("hands focus back to the note's editor on Escape", async () => {
     await bootWorkspace({
-      note: NOTE,
+      item: NOTE,
       seed: async (harness) => {
         await harness.client.vault.write({
           content: "# Plans\n\nFirst line.\n",
@@ -115,6 +115,8 @@ describe("the ⌘K composer", () => {
     const router = createAppRouter(createMemoryHistory({ initialEntries: ["/"] }));
     render(<RouterProvider router={router} />);
     await screen.findByRole("tablist", { name: "Panel tabs" });
+    // the panel opens on Info; the list is the Actions tab's
+    fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
 
     await waitFor(() => {
       expect(statusesAnswered).toBeGreaterThan(0);

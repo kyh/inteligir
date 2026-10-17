@@ -22,7 +22,7 @@ type UndoTurnOutcome =
   | { kind: "undone"; changes: UndoTurnResponse }
   | { kind: "refused"; message: string };
 
-// a turn's commit can carry comment stores and other dot-entries; what it changed is its notes.
+// a turn's commit can carry annotation stores and other dot-entries; what it changed is its notes.
 export const turnNotePaths = (turn: TurnChanges): string[] =>
   turn.paths.filter((path) => !isVaultMetadataPath(path));
 
@@ -72,7 +72,7 @@ interface UndoSummary {
 }
 
 export const summarizeUndo = (changes: UndoTurnResponse): UndoSummary => {
-  // an undo reverts the turn's comment stores too; the user counts notes
+  // an undo reverts the turn's annotation stores too; the user counts notes
   const kept = changes.kept.filter((row) => !isVaultMetadataPath(row.path));
   const reverted = changes.reverted.filter((path) => !isVaultMetadataPath(path));
   const undid =

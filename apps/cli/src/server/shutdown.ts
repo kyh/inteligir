@@ -18,6 +18,11 @@ export const TEARDOWN_BUDGETS_MS = {
   agent: 12_000,
   // each running connector sign-in's vendor process is killed and its close awaited.
   connectors: 2000,
+  // an import stops between batches and persists its cursor; it hands fills to items, so it stops first.
+  imports: 2000,
+  // every fill request is aborted, the worker terminated and the pending rows written; a fill writes
+  // the vault and settles knowledge, so it stops above both.
+  items: DEFAULT_STEP_TIMEOUT_MS,
   knowledge: DEFAULT_STEP_TIMEOUT_MS,
   // a git commit over a large dirty tree; the step the ordering exists to protect.
   vault: 8000,

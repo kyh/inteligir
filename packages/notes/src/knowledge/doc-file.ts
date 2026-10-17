@@ -34,7 +34,7 @@ export const wikiLinkPath = (path: string): string =>
 // the name a bare `[[name]]` answers to; `docStem` is the title, which hides every doc extension
 export const wikiLinkName = (path: string): string => wikiLinkPath(basenamePath(path));
 
-// A listing shows what the user wrote. A dot-entry (the comment store's `.inteligir/`, another
+// A listing shows what the user wrote. A dot-entry (the annotation store's `.inteligir/`, another
 // app's `.obsidian/`, the OS's `.DS_Store`) is nobody's to open here; the server's listing stays
 // complete because the CLI and the agent read it.
 export const isVaultMetadataPath = (path: string): boolean =>

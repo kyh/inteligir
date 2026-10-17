@@ -2,8 +2,8 @@
 
 One Cloudflare Worker serving the marketing site and the whole cloud from
 one origin: the TanStack Start pages, Better Auth on D1, device login, the
-per-user thread-sync Durable Object, the dispatch inbox (a phone's turns,
-answers and captures) and the hosted vault git remote. The wire contract is
+per-user thread-sync Durable Object, the dispatch inbox (a phone's turns and
+answers) and the hosted vault git remote. The wire contract is
 `@repo/contract/cloud` — the Worker implements it, the local app's sync client
 consumes it.
 
@@ -77,7 +77,7 @@ its own `tsconfig.json`.
 | `POST /v1/sync/push`                    | device            | Outbox batch in — idempotent, conflict-aware                        |
 | `GET /v1/sync/pull`                     | device            | Page the merged log by global `seq`                                 |
 | `GET /v1/sync/ws`                       | device            | Invalidation socket (Bearer on the upgrade; hibernatable)           |
-| `POST /v1/sync/dispatch`                | device            | A phone's turn, approval answer or capture in, deduped on its id    |
+| `POST /v1/sync/dispatch`                | device            | A phone's turn or approval answer in, deduped on its id             |
 | `POST /v1/sync/dispatch/claim`          | device            | Take waiting rows of the kinds named, for two minutes               |
 | `POST /v1/sync/dispatch/ack`            | device            | Settle what that claim owns, delivered or refused — per-id outcomes |
 | `POST /v1/sync/dispatch/status`         | device            | Each dispatch's state, and how many desktops are listening          |

@@ -11,6 +11,109 @@ random bytes and fresh ids) is injected.
 `markdown/mdast-nodes.ts` is the mdast NARROWING boundary: a walk asks it what a
 node is rather than discriminating structurally at each visit.
 
+## Items
+
+- **AN ITEM IS ONE MARKDOWN FILE, AND `@repo/notes/items` IS ITS ONE READER
+  AND WRITER.** A link, a video, an image's wrapper and a note the person
+  writes are all one doc. Its facts are frontmatter keys (`kind`, `url`,
+  `site`, `author`, `published`, `saved`, `fetched`, `fetch-error`,
+  `description`, beside the existing `id`, `tags`, `pinned` and `aliases`),
+  read by `readItemFacts`, where a missing or unknown `kind` is a note and a
+  note writes no `kind` at all; every write of them is a line cut
+  (`withItemFields` in `@repo/notes/items/item-frontmatter`, over
+  `replaceTopLevelKey`) that leaves every other byte of the block alone and
+  puts an added key in its compose position, so two Macs filling one stub
+  write the same bytes. A body sits one blank line under the block, the
+  editor's own spelling (`composeItemFile`, and `withBody` in
+  `@repo/notes/items/item-body`), so every item a writer makes is the editor's
+  fixpoint and opens rich (`packages/editor/src/__tests__/item-embed-spelling.test.ts`). There is no `title:` key: the filename is the title,
+  and a page's title becomes one through `itemNameFromTitle`
+  (`@repo/notes/items/item-name`). A stub is an app-made url item whose page
+  is unread, which needs the `id` and `saved` every writer stamps
+  (`isItemStub`). An item's cover, original file and page copy are computed
+  from its first embeds and its links every time it is read
+  (`@repo/notes/items/item-files`), never stored. A media file no doc embeds is
+  a card of its own (a bare file), and the library rules file, the dot-folders
+  and the covers and page copies folders are never cards. Rejected: a
+  frontmatter cover path (rename's link rewrite and the phone never see it),
+  wrapping every file that appears in a doc (a pasted image and a cover would
+  each become a card), and a `title:` key beside the filename (two names that
+  drift).
+
+- **A URL HAS ONE KEY, COMPUTED WITHOUT THE PLATFORM'S URL.**
+  `@repo/notes/items/item-url` parses by the RFC 3986 appendix-B regex: the
+  key drops the scheme, userinfo, `www.`, a default port, the tracking
+  parameters and a non-route fragment, folds the host and its aliases
+  (`youtu.be`, `x.com`, a mobile host) and sorts what query is left, and
+  `cleanUrl`, what `url:` holds, drops only the userinfo and the tracking
+  parameters, so `urlKey(cleanUrl(u)) === urlKey(u)` (a seeded property in
+  its suite). The key is projected, so a rule change bumps
+  `PROJECTION_VERSION`, and `URL` is a banned global in this package
+  (`oxlint.config.ts`). Rejected: `new URL()` (React Native's is not WHATWG,
+  so the phone and the Mac would key one link differently), and storing the
+  key in frontmatter (a rule change would leave every file holding the old
+  one).
+
+- **THE LIBRARY LISTING IS AN IN-MEMORY INDEX BESIDE THE TAGS.**
+  `@repo/notes/items/library-index` lives inside `LinkGraphIndex`, which feeds
+  it every doc and other it files and forwards the queries with its live
+  resolver and tag index. Its members are every doc and every bare media file,
+  less the hidden paths; it sorts with pinned items first in every sort
+  (saved, else mtime; mtime; title; a search's rank), filters by kind, folder,
+  tag family, untagged, site and saved date, counts the scope per kind with
+  the asked kinds ignored, and keeps one sorted order per sort, dropped only
+  when membership or that sort's key moves, so a page costs its own rows. The
+  resolver under it is live (`createPathResolver` in
+  `@repo/notes/knowledge/link-resolve`): a new path files its own keys rather
+  than rebuilding over every path. Rejected: SQLite columns (tag families,
+  bareness and mtime live in memory anyway) and re-resolving per new path
+  (550–630 ms at 50k). `packages/notes/src/__tests__/library-cost.test.ts`
+  holds both costs.
+
+## Annotations
+
+- **AN ANNOTATION IS A HIGHLIGHT AND AN OPTIONAL NOTE, STORED BY THE ITEM'S
+  ID.** Its markers, `%%i:<id>[,<id>…]:start%%…%%i:<ids>:end%%`, wrap the
+  passage in the item's own bytes, and its entries live in
+  `.inteligir/annotations/<item id>.json`, a record keyed by entry id: `text`
+  (`""` is a bare highlight), `quote` on a root (the passage's plain text when
+  it was made), `createdAt` and `updatedAt` in unix seconds, `source`, and a
+  reply's `parentId`. The fold lists the roots in the order their markers open
+  and the unanchored after them by creation (`foldAnnotations` in
+  `@repo/notes/annotations/annotation-threads`). An unanchored root is
+  waiting on a stub, since the fill places it by its quote, and missing on any
+  other item, whose text will never place it; the state is derived from the
+  markers and the stub rule on every answer, never stored, because a stored
+  claim is wrong the first time the text and the store are written in either
+  order. There is no resolve: an annotation stays until it is removed.
+  Rejected: resolve, because a reading mark is not a task, and keeping the
+  comments name, which is two spellings forever.
+  `@repo/notes/annotations/store-schema`.
+
+## Sync
+
+- **TWO VERSIONS OF ONE SAVED LINK SETTLE ON ONE TEXT, WHICHEVER DEVICE
+  ASKS.** The verdict looks at a pair only when both read as a url item (or as
+  the image or PDF a fill turned a link into) with one url key, over a base
+  that has that key or none. A side's fill mark is its `fetched` as written.
+  When both changed it, and differently, the winner comes from one total
+  order (a fetched side, then the earlier fetch, then the earlier save, then
+  the smaller text) and the loser's edits since base ride onto it: its tag and
+  alias adds and removes, its own keys through the line cut, the earlier
+  `saved`, its `id` when the winner has none, and an unfetched loser's note
+  where the fill carried the stub's. When one side changed it, the filler's
+  text takes the editor's edits the same way, its body by diff3 or, against a
+  first fill, the editor's note in place of the stub's; only a text-replacing
+  refresh against a person's body edit answers null and falls to the copy.
+  Every rule is phrased by role and every diff3 runs in one orientation, so
+  both askers land the same bytes and no copy is made. One verdict runs in
+  reconcile-file (the desktop's sync merge and the phone's queue) and in the
+  editor's merges (`mergeItemTexts`). Rejected: a Worker lease so only one Mac
+  fills (a new /cloud protocol for what a pure verdict settles), and renaming
+  on fill (git cannot pair the rename with a concurrent phone edit).
+  `@repo/notes/sync/url-item-verdict`,
+  `packages/notes/src/sync/__tests__/url-item-verdict.test.ts`.
+
 ## Knowledge: index, search and links
 
 - **Stemming is a SHADOW of the indexed text, never a rewrite of it.** Literal
@@ -20,13 +123,17 @@ node is rather than discriminating structurally at each visit.
   word stops retrieving (86 of 1,555 prefixes over the labelled corpus), and it
   puts half a shared policy inside SQLite's C. Every term asks both halves, and
   that OR is the exact tier: a doc holding the literal word scores about twice a
-  stem-only hit. Residual: the title/body gap is 10x, so a title collision still
-  beats a body exact match. `search-query.ts` and `knowledge/search-excerpt.ts`.
+  stem-only hit. There are four literal columns (title, headings, meta, body),
+  each with its stem shadow. Residual: the title/body gap is 10x, so a title
+  collision still beats a body exact match. `search-query.ts` and
+  `knowledge/search-excerpt.ts`.
 
 - **THE CLIENT DOES NOT DECIDE WHAT A DOC IS.** `@repo/notes/knowledge/doc-file`
   is the one answer: `isDocPath` (`.md`, `.markdown`, `.mdx`, `.txt`) and
   `docStem`. A private `.md` rule in a client hides every `.txt` note and
-  disagrees on display the moment a name is not lowercase.
+  disagrees on display the moment a name is not lowercase. What any other file
+  is in the library is `fileKindOf` (`@repo/notes/items/item-kind`), and what a
+  doc is as an item is its `kind`: one answer each, for every client.
   `apps/workspace/src/app/__tests__/vault-hooks.test.ts` walks the page for
   either shape.
 
@@ -48,16 +155,19 @@ node is rather than discriminating structurally at each visit.
   `@repo/notes/knowledge/link-extract`); the index path emits no spans.
   `packages/notes/src/markdown/__tests__/total-grammar.test.ts`.
 
-- **A TAG IS A SCOPE ON THE RECENT LIST, NOT A VIEW; ITS NOTES ARE A LISTING,
+- **A TAG IS A SCOPE ON THE LIBRARY GRID, NOT A VIEW; ITS ITEMS ARE A LISTING,
   NOT A SEARCH; AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** No tag browser
   (owner decision): a `#tag` chip asks the shell through `showTag`
-  (`EditorHostActions`, `packages/editor/src/host-io.ts`), and the rail answers with Recent
-  scoped to the tag (`apps/workspace/src/app/sidebar/tagged-notes.tsx`).
-  `knowledge.tagNotes` answers the tag's family with the whole count, paged,
-  from the index alone, because the search route stops at its ceiling with no
-  sign of a cut; the family is one predicate, `notesInTagFamily`
-  (`@repo/notes/knowledge/tag-notes`). `knowledge.renameTag` splices a
-  frontmatter entry over its own yaml scalar
+  (`EditorHostActions`, `packages/editor/src/host-io.ts`), and the window answers
+  with the grid scoped to the tag, as a row of the rail's Tags group does
+  (`apps/workspace/src/app/sidebar/tag-list.tsx`,
+  `apps/workspace/src/app/library/library-view.tsx`). `knowledge.items({tag})`
+  answers the tag's family with the whole count, paged, from the index alone,
+  because the search route stops at its ceiling with no sign of a cut; the
+  family is one predicate, `notesInTagFamily` (`@repo/notes/knowledge/tag-notes`).
+  An item that is not a note takes its tags from its frontmatter alone, because a
+  saved page's hashtags are the page's, not the person's. `knowledge.renameTag`
+  splices a frontmatter entry over its own yaml scalar
   (`@repo/notes/markdown/frontmatter`), because re-serializing restyles a flow
   list and rewrites every line of a CRLF one, and every write is
   `writeIfUnchanged`, so a note that changed mid-rename is reported, never
@@ -65,55 +175,37 @@ node is rather than discriminating structurally at each visit.
   (`@repo/notes/knowledge/tag-grammar`, import-free so the contract loads no
   markdown parser). `@repo/notes/knowledge/rename-tags.ts`,
   `apps/cli/src/server/knowledge/rename-tag.ts`,
-  `apps/workspace/src/app/sidebar/tag-scope.tsx`.
+  `apps/workspace/src/app/library/rename-tag-dialog.tsx`.
 
-- **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, and a replace
-  rewrites exactly what the rows showed.** FTS5 cannot say where inside a line a
-  hit sits, so `knowledge.matches` (the palette's "Search across the vault…",
+- **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, AND BOTH READ THE
+  BODY WITHOUT ITS YAML.** FTS5 cannot say where inside a line a hit sits, so
+  `knowledge.matches` (the palette's "Search across the vault…",
   `inteligir matches`) scans bodies with ONE matcher,
-  `@repo/notes/knowledge/text-matches`, which the listing, the rewrite and the
-  find bar's jump all run; the store only pre-narrows by ascii substrings
-  (`docTexts`), because LIKE folds ascii case alone. A replace is a per-file
-  write with the hash of the bytes it read, and a mismatch is REPORTED by name,
-  never diff3-merged: the user named exact bytes
-  (`apps/workspace/src/app/palette/vault-replace.ts`). A cut listing, or one
-  that no longer answers the box, cannot replace
-  (`apps/workspace/src/app/palette/search-page.tsx`), and a run honours a cancel
-  between notes, never inside one. The jump lands by ordinal among the note's
-  matches, because a markdown column is not a Slate offset.
-
-- **AN UNLINKED MENTION IS THE STEM OR AN ALIAS IN PROSE, and Link rewrites the
-  bytes the row showed.** `knowledge.unlinkedMentions` (`inteligir unlinked`)
-  runs the literal matcher over the target's names as whole words, longest
-  first; one row per note, excluding notes already linking here. A hit inside
-  code, math, a link, a url, frontmatter, an html tag, a comment marker, a date
-  chip or a `:::` marker line is withheld by the scan's own line regexes as well
-  as the editor's verbatim ranges (math, and what it carries as source). Not
-  the H1: `[[H1 text]]` resolves to nothing. Link wraps exactly that site
-  through a guarded write, targeting the route's `linkTarget`, because the bare
-  stem may be another note's. `@repo/notes/knowledge/unlinked-mentions.ts`,
-  `apps/workspace/src/app/actions/link-mention.ts`.
-
-- **A PROBLEM IS THE RESOLVER'S VERDICT, never a scan's.** `knowledge.problems`
-  (the palette's Problems page, `inteligir problems`) reads the resolved graph
-  alone: unresolved links, missing embeds, orphans, and a link name
-  (`wikiLinkName`) or frontmatter `id` two docs share, a tie the resolver is
-  quietly breaking. Every row disappears with the sweep that fixes it, so none
-  is stale. Daily notes and templates are orphans by design and left out unless
-  asked (`@repo/notes/templates/folders` spells the folders). A row lands
-  on the link ELEMENT (`packages/editor/src/link-locate.ts`), since the find bar
-  cannot see a wiki chip's label, a prop of an inline void.
-  `@repo/notes/knowledge/vault-problems.ts`.
+  `@repo/notes/knowledge/text-matches`, which the listing and the find bar's
+  jump both run; the store only pre-narrows by ascii substrings (`docTexts`),
+  because LIKE folds ascii case alone. Both engines read the body with the
+  frontmatter's lines blanked (`searchBodyOf` in
+  `@repo/notes/knowledge/search-columns`), so a match's line stays the file's
+  and neither finds a property's yaml; an item's url, site, author,
+  description and tags are the ranked index's `meta` column instead. The scan
+  finds and never rewrites: a change across many notes is the agent's, whose
+  turn History and Undo already cover
+  (`apps/workspace/src/app/palette/search-page.tsx`). The jump lands by
+  ordinal among the note's matches, because a markdown column is not a Slate
+  offset.
 
 - **AN MD URL HAS ONE READING, AND THE EDITOR RESOLVES IT WITH THE INDEX'S
   RESOLVER.** `mdLinkTarget` (`@repo/notes/knowledge/link-extract`) is how the
   scan reads an md url, and the editor reads a link's or an image's url through
   it and resolves it from the note it is written in with the index's own
   `buildResolver` (`packages/editor/src/link-resolver-feed.ts`), so the image
-  Problems calls missing is the one drawn missing and a vault url opens in the
+  the index cannot resolve is the one drawn missing and a vault url opens in the
   app; only an http(s) url reaches the browser. An image the resolver misses
   falls back to a root path, because a pasted asset is on disk before the
-  listing that would resolve it. `useVaultLinkTarget` in
+  listing that would resolve it. An embed whose target is not an image (a PDF, a
+  sound, a video or any other file) draws as a file card whose Open shows the
+  original in the system's viewer (`packages/editor/src/nodes/file-card.tsx`),
+  because an `<img>` over it is a broken picture. `useVaultLinkTarget` in
   `packages/editor/src/host.ts`, `packages/editor/src/nodes/image-node.tsx`,
   `link-node.tsx` and `packages/editor/src/transclusion.tsx`.
 
@@ -122,7 +214,7 @@ node is rather than discriminating structurally at each visit.
   (`wikiLinkName` in `@repo/notes/knowledge/doc-file`), and the resolver keys
   that same name, so a `.txt` note links as `[[todo.txt]]`; letting every doc
   extension go was rejected to keep Obsidian's reading and the pinned resolver.
-  The `[[` picker, Link, extract and a rename take their target from
+  The `[[` picker, extract and a rename take their target from
   `wikiTargetForPath` (`@repo/notes/knowledge/link-resolve`: the name when it
   resolves back, else the path), but a rename's candidate predicate refuses the
   bare name unless no other file answers to it (`answersOnly` in
@@ -133,5 +225,7 @@ node is rather than discriminating structurally at each visit.
   Copy link copies the note's `[[wiki link]]` (`wikiLinkFor`), because a
   loopback URL opened nothing anywhere else and died with the port; a name no
   link can carry copies nothing and says so
-  (`apps/workspace/src/app/note-topbar.tsx`). Pinned by the round trip in
+  (`apps/workspace/src/app/item/item-topbar.tsx`). A url item also offers Copy
+  address, which copies its `url`; Copy link stays the in-library `[[wiki
+  link]]` for every kind. Pinned by the round trip in
   `packages/notes/src/__tests__/link-resolve.test.ts`.

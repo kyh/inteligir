@@ -4,6 +4,7 @@
 import { stripVTControlCharacters } from "node:util";
 import { runCommand, defineCommand, renderUsage } from "citty";
 import type { CommandDef } from "citty";
+import { z } from "zod";
 import {
   CliExitError,
   EXIT_ERROR,
@@ -28,18 +29,21 @@ import { interactionsCommand } from "./commands/interactions";
 import {
   backlinksCommand,
   matchesCommand,
-  problemsCommand,
-  unlinkedCommand,
   relatedCommand,
   searchCommand,
   tagsCommand,
 } from "./commands/knowledge";
+import { importCommand } from "./commands/import";
+import { itemCommand } from "./commands/item";
+import { itemsCommand } from "./commands/items";
+import { nativeHostCommand } from "./commands/native-host";
 import { openCommand } from "./commands/open";
+import { saveCommand } from "./commands/save";
 import { statusCommand } from "./commands/status";
 import { tagCommand } from "./commands/tag";
 import { cloudCommand } from "./commands/cloud";
 import { actionCommand } from "./commands/action";
-import { commentCommand } from "./commands/comment";
+import { annotationCommand } from "./commands/annotation";
 import { serveCommand } from "./commands/serve";
 import { vaultCommand } from "./commands/vault";
 import { describeContext } from "./context";
@@ -52,29 +56,33 @@ import { out, wantsJsonOutput, writeOut } from "./output";
 export const buildProgram = (deps: CliDeps): CommandDef =>
   defineCommand({
     meta: {
-      description: "Run the local inteligir notes app, and drive it — vault, search, agent actions",
+      description:
+        "Run the local inteligir library app, and drive it — save, items, tags, search, agent actions",
       name: "inteligir",
       version: readCliVersion(),
     },
     subCommands: {
       action: actionCommand(deps),
       agents: agentsCommand(deps),
+      annotation: annotationCommand(deps),
       backlinks: backlinksCommand(deps),
       cloud: cloudCommand(deps),
-      comment: commentCommand(deps),
       folders: foldersCommand(deps),
       guide: guideCommand(deps),
+      import: importCommand(deps),
       interactions: interactionsCommand(deps),
+      item: itemCommand(deps),
+      items: itemsCommand(deps),
       matches: matchesCommand(deps),
+      "native-host": nativeHostCommand(deps),
       open: openCommand(deps),
-      problems: problemsCommand(deps),
       related: relatedCommand(deps),
+      save: saveCommand(deps),
       search: searchCommand(deps),
       serve: serveCommand(),
       status: statusCommand(deps),
       tag: tagCommand(deps),
       tags: tagsCommand(deps),
-      unlinked: unlinkedCommand(deps),
       vault: vaultCommand(deps),
     },
   });
@@ -122,6 +130,23 @@ const asCliExitError = (cause: unknown): CliExitError => {
   return new CliExitError(message, { code: "UNEXPECTED" });
 };
 
+// a leaf that speaks a protocol of its own (native-host's frames) cannot print a failure line, so it
+// answers its exit code through process.exitCode; read once and put back, so one run never sees
+// another's.
+const leafExitCodeSchema = z.number().int();
+
+const runLeaf = async (program: CommandDef, rawArgs: readonly string[]): Promise<number> => {
+  const inherited = process.exitCode;
+  process.exitCode = undefined;
+  try {
+    await runCommand(program, { rawArgs: [...rawArgs] });
+    const answered = leafExitCodeSchema.safeParse(process.exitCode);
+    return answered.success ? answered.data : 0;
+  } finally {
+    process.exitCode = inherited;
+  }
+};
+
 export const runCli = async (argv: readonly string[], deps: CliDeps): Promise<number> => {
   const rawArgs = argv.slice(2);
   const jsonMode = wantsJsonOutput(rawArgs);
@@ -150,8 +175,7 @@ export const runCli = async (argv: readonly string[], deps: CliDeps): Promise<nu
       process.stderr.write(forStream(`${await renderUsage(program)}\n`, process.stderr));
       return EXIT_ERROR;
     }
-    await runCommand(program, { rawArgs: [...rawArgs] });
-    return 0;
+    return await runLeaf(program, rawArgs);
   } catch (error) {
     const failure = asCliExitError(error);
     if (jsonMode) {

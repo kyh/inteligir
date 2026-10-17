@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { commentsStorePath, parseSidecar, serializeSidecar } from "../../comments/sidecar-schema";
-import type { CommentEntry, CommentSidecar } from "../../comments/sidecar-schema";
+import {
+  annotationsStorePath,
+  parseAnnotationStore,
+  serializeAnnotationStore,
+} from "../../annotations/store-schema";
+import type { AnnotationEntry, AnnotationStore } from "../../annotations/store-schema";
+import { composeLinkBody } from "../../items/item-body";
+import { composeItemFile } from "../../items/item-frontmatter";
+import type { ItemFileFields } from "../../items/item-frontmatter";
 import { takenIgnoringCase } from "../../knowledge/doc-file";
-import { CAPTURE_INBOX_PATH, reconcileFile } from "../reconcile-file";
+import { diff3 } from "../../text/diff3";
+import { reconcileFile } from "../reconcile-file";
 import type { FileSide, ReconcileInput } from "../reconcile-file";
 
 const HERE = "Kai’s MacBook";
@@ -11,7 +19,7 @@ const THERE = "Kai’s iPhone";
 const text = (value: string): FileSide => ({ kind: "text", text: value });
 const opaque = (ref: string): FileSide => ({ kind: "opaque", ref });
 const absent: FileSide = { kind: "absent" };
-const store = (sidecar: CommentSidecar): FileSide => text(serializeSidecar(sidecar));
+const store = (entries: AnnotationStore): FileSide => text(serializeAnnotationStore(entries));
 
 const doc = (...lines: string[]): string => `${lines.join("\n")}\n`;
 
@@ -189,7 +197,7 @@ describe("reconcileFile", () => {
     ).toEqual({ copy: null, report: null, stays: { kind: "mine" } });
   });
 
-  it("reconciles a json file named like a comment store beside a note as the user's own text", () => {
+  it("reconciles a json file named like an annotation store beside a note as the user's own text", () => {
     const result = reconcile({
       base: text('{\n  "topic": "budget"\n}\n'),
       mine: text('{\n  "topic": "budget, mine"\n}\n'),
@@ -205,17 +213,17 @@ describe("reconcileFile", () => {
     expect(result.report?.kind).toBe("copied");
   });
 
-  describe("the comment store", () => {
-    const path = commentsStorePath("7d1c");
+  describe("the annotation store", () => {
+    const path = annotationsStorePath("7d1c");
     const AT = 1_707_900_000;
-    const root: CommentEntry = {
+    const root: AnnotationEntry = {
       createdAt: AT,
       source: "user",
       text: "Why Friday?",
       updatedAt: AT,
     };
 
-    it("keeps both devices' new comments and never makes a copy", () => {
+    it("keeps both devices' new annotations and never makes a copy", () => {
       const result = reconcile({
         base: store({ c1: root }),
         mine: store({ c1: root, m1: { ...root, text: "mine" } }),
@@ -225,8 +233,9 @@ describe("reconcileFile", () => {
       expect(result.copy).toBeNull();
       expect(result.report).toBeNull();
       expect(result.stays.kind).toBe("merged");
-      const merged = result.stays.kind === "merged" ? parseSidecar(result.stays.text) : null;
-      expect(merged?.ok === true ? Object.keys(merged.sidecar) : null).toEqual(["c1", "m1", "t1"]);
+      const merged =
+        result.stays.kind === "merged" ? parseAnnotationStore(result.stays.text) : null;
+      expect(merged?.ok === true ? Object.keys(merged.store) : null).toEqual(["c1", "m1", "t1"]);
     });
 
     it("keeps the store whole beside a deletion, since the note it belongs to reports", () => {
@@ -251,35 +260,71 @@ describe("reconcileFile", () => {
       ).toEqual({ copy: null, report: null, stays: { kind: "mine" } });
     });
   });
+});
 
-  describe("the capture inbox", () => {
-    it("keeps both devices' appends, mine first, with no copy", () => {
-      const base = doc("# Inbox", "", "- first");
-      expect(
-        reconcile({
-          base: text(base),
-          mine: text(doc("# Inbox", "", "- first", "- captured here")),
-          path: CAPTURE_INBOX_PATH,
-          theirs: text(doc("# Inbox", "", "- first", "- captured there")),
-        }),
-      ).toEqual({
-        copy: null,
-        report: null,
-        stays: {
-          kind: "merged",
-          text: doc("# Inbox", "", "- first", "- captured here", "- captured there"),
-        },
-      });
-    });
+describe("reconcileFile over two versions of one saved link", () => {
+  const url = "https://stephango.com/file-over-app";
+  const fields = (extra: ItemFileFields = {}): ItemFileFields => ({
+    id: "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17",
+    kind: "link",
+    saved: "2026-10-17T09:12:30Z",
+    url,
+    ...extra,
+  });
+  const fill = (fetched: string, cover: string, extra: ItemFileFields = {}): string =>
+    composeItemFile(
+      fields({ fetched, site: "Steph Ango", ...extra }),
+      composeLinkBody({ article: "File over app is a philosophy.", copy: null, cover, note: "" }),
+    );
+  const path = "Unsorted/File over app.md";
 
-    it("merges a nested Inbox.md like any note", () => {
-      const result = reconcile({
-        base: text(doc("- first")),
-        mine: text(doc("- first", "- here")),
-        path: `notes/${CAPTURE_INBOX_PATH}`,
-        theirs: text(doc("- first", "- there")),
-      });
-      expect(result.copy?.path).toBe("notes/Inbox (conflict, Kai’s iPhone).md");
+  it("settles two Macs' fills of one stub on the earlier one, with no copy where diff3 would make one", () => {
+    const base = composeItemFile(fields(), "");
+    const early = fill("2026-10-17T09:12:33Z", "assets/covers/3f9a0c2b1d4e5f60.jpg");
+    const late = fill("2026-10-17T09:12:41Z", "assets/covers/9c1d0a7b6e5f4c3d.jpg");
+    expect(diff3(base, late, early).conflicted).toBe(true);
+    expect(reconcile({ base: text(base), mine: text(late), path, theirs: text(early) })).toEqual({
+      copy: null,
+      report: null,
+      stays: { kind: "theirs" },
     });
+    expect(reconcile({ base: text(base), mine: text(early), path, theirs: text(late) })).toEqual({
+      copy: null,
+      report: null,
+      stays: { kind: "mine" },
+    });
+  });
+
+  it("keeps both a refresh and a tag edit that raced it, whichever device asks", () => {
+    const base = fill("2026-10-17T09:12:33Z", "assets/covers/3f9a0c2b1d4e5f60.jpg");
+    const tagged = fill("2026-10-17T09:12:33Z", "assets/covers/3f9a0c2b1d4e5f60.jpg", {
+      tags: ["read"],
+    });
+    const refreshed = fill("2026-10-18T08:00:00Z", "assets/covers/9c1d0a7b6e5f4c3d.jpg");
+    const both = fill("2026-10-18T08:00:00Z", "assets/covers/9c1d0a7b6e5f4c3d.jpg", {
+      tags: ["read"],
+    });
+    for (const [mine, theirs] of [
+      [tagged, refreshed],
+      [refreshed, tagged],
+    ] as const) {
+      expect(reconcile({ base: text(base), mine: text(mine), path, theirs: text(theirs) })).toEqual(
+        { copy: null, report: null, stays: { kind: "merged", text: both } },
+      );
+    }
+  });
+
+  it("leaves a file that is not a doc to the line merge", () => {
+    const base = composeItemFile(fields(), "");
+    const early = fill("2026-10-17T09:12:33Z", "assets/covers/3f9a0c2b1d4e5f60.jpg");
+    const late = fill("2026-10-17T09:12:41Z", "assets/covers/9c1d0a7b6e5f4c3d.jpg");
+    expect(
+      reconcile({
+        base: text(base),
+        mine: text(late),
+        path: "Unsorted/link.yaml",
+        theirs: text(early),
+      }).copy,
+    ).not.toBeNull();
   });
 });

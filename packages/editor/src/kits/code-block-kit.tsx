@@ -3,7 +3,7 @@ import { CodeIcon, EyeIcon } from "lucide-react";
 import { KEYS, NodeApi } from "platejs";
 import { PlateElement, PlateLeaf } from "platejs/react";
 import type { PlateEditor, PlateElementProps, PlateLeafProps } from "platejs/react";
-import { BaseCodeBlockPlugin, BaseCodeLinePlugin, CodeBlockRules } from "@platejs/code-block";
+import { CodeBlockRules } from "@platejs/code-block";
 import { CodeBlockPlugin, CodeLinePlugin, CodeSyntaxPlugin } from "@platejs/code-block/react";
 import { common, createLowlight } from "lowlight";
 
@@ -12,8 +12,6 @@ import { cn } from "@repo/ui/lib/cn";
 import { turnIntoOption, turnIntoSelection } from "@repo/editor/block-transforms";
 import { stringProp } from "@repo/editor/node-props";
 import { MermaidPreview } from "@repo/editor/nodes/code-block-mermaid";
-
-export const CodeBlockBaseKit = [BaseCodeBlockPlugin, BaseCodeLinePlugin];
 
 const lowlight = createLowlight(common);
 // lowlight ships no mermaid/math grammar; without the alias CodeSyntaxPlugin logs "not registered" per fence.

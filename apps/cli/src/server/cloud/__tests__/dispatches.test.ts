@@ -260,7 +260,7 @@ describe("a phone's request reaching a Mac", () => {
     expect(titles).toEqual(["Plan the week"]);
   });
 
-  it("is left waiting by a Mac whose person turned phone requests off, which claims captures alone", async () => {
+  it("is left waiting by a Mac whose person turned phone requests off, which claims nothing", async () => {
     const cloud = new FakeCloud();
     const claims = recordingClaims(cloud);
     const mac = await bootMac(cloud, claims.fetch);
@@ -273,8 +273,7 @@ describe("a phone's request reaching a Mac", () => {
 
     await signInMac(mac);
 
-    expect(claims.kinds.length).toBeGreaterThan(0);
-    expect(new Set(claims.kinds.flat())).toEqual(new Set(["capture"]));
+    expect(claims.kinds).toEqual([]);
     expect(cloud.dispatchStatus(TURN).state).toBe("waiting");
     expect(mac.driver.startedTurns).toEqual([]);
 
@@ -293,7 +292,7 @@ describe("a phone's request reaching a Mac", () => {
 
     await signInMac(mac);
 
-    expect(new Set(claims.kinds.flat())).toEqual(new Set(["capture"]));
+    expect(claims.kinds).toEqual([]);
     expect(cloud.dispatchStatus(TURN).state).toBe("waiting");
     const status = await mac.client.cloud.status();
     expect(status.state === "signed-in" && status.lastError).toContain("cloud-prefs.json");

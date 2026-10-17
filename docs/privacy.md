@@ -49,8 +49,8 @@ on your Mac, with their history kept beside them. The app and its search run on
 that Mac, and so does the agent, which talks to its provider from there. An
 account is optional, and without one the apps send our cloud nothing. Our cloud
 is the part of the Service we run on Cloudflare, at inteligir.com. Signed in, it
-carries your conversations with the agent between your devices, your quick
-captures and your phone's requests, and keeps a hosted copy of your vault for
+carries your conversations with the agent between your devices and your
+phone's requests, and keeps a hosted copy of your vault for
 your phone and your other Macs. This Privacy Policy states exactly what that
 means: what leaves your machine, what never does, what your phone keeps, how
 long our cloud keeps it, and how it is deleted.
@@ -93,7 +93,8 @@ through the Service or otherwise includes:
   contact us by email, open an issue on GitHub, or send us feedback through
   Apple's TestFlight while you test the iPhone app.
 - **User-generated content and input data**, such as your notes, attachments,
-  comments, quick captures, what you ask the agent and other content or
+  comments, saved links, their text, covers and page copies, and your
+  highlights, what you ask the agent and other content or
   information that you generate, transmit, or otherwise make available on the
   Service, as well as associated metadata. Metadata includes information on how,
   when, where and by whom a piece of content was collected and how that content
@@ -122,12 +123,6 @@ through the Service or otherwise includes:
     running it sends the question (the command or the change the agent wants to
     make, and why) to the same place for your phone to answer. A Mac with Let my
     phone ask this Mac turned off in Settings never picks one up.
-  - **Captures** — quick-capture text you type on your phone, held in the same
-    per-user object, as a request is, until one of your Macs adds it to your
-    Inbox note. Every Mac signed in to your account picks captures up, Let my
-    phone ask this Mac on or off. A capture is handed to one Mac at a time; if
-    that Mac stops mid-way the hold lapses after two minutes and another may
-    take it, so a capture can be added twice and is never silently lost.
   - **Your vault, in your account's hosted vault — only for a vault nothing else
     syncs.** Signed in, each Mac sends its vault — notes, attachments, comments
     and every earlier version, each change named for the device that saved it
@@ -204,8 +199,8 @@ as:
 For more information concerning our automatic collection of data, please see the
 [Tracking & Other Technologies](#tracking--other-technologies) section below.
 
-**Data about others.** Content you sync, such as your notes, captures and
-conversations with the agent, may hold personal information about other people,
+**Data about others.** Content you sync, such as your notes and conversations
+with the agent, may hold personal information about other people,
 and our cloud holds what you sync. Please do not share someone else's personal
 information with us through the Service unless you have their permission to do
 so.
@@ -238,6 +233,40 @@ The apps also hold to these, plainly:
   the web, on the Mac or the phone: an image or embed at a web address is not
   fetched, so nobody learns you opened it. A link opens in your browser only
   when you follow it.
+- **Saving a link — from your Mac, to that site.** When you save a link, the
+  Mac app fetches that page once, from your Mac and never through our cloud, to
+  fill in its title, site, description, cover image and readable text. Refresh
+  fetches it again, and so does any of your Macs that finds a link saved
+  elsewhere still waiting to be filled in. It also fetches the cover image the
+  page names. For YouTube, Vimeo, X, TikTok, Spotify and SoundCloud it asks that
+  site's own oEmbed address (with X's `dnt=true`), for any other page the oEmbed
+  address the page itself names, and the picture that answer names; for a
+  YouTube video it may also fetch the video's still picture from YouTube. Keep a
+  copy of the page also fetches the page's stylesheets, fonts and images. The
+  request carries no cookies, sign-in or referrer; the site sees your Mac's IP
+  address, a Safari-compatible user agent naming inteligir and its version, and
+  your preferred language, as a browser visit would. Addresses on this Mac
+  itself and link-local addresses are never fetched. An address on your own
+  network is fetched only when it is the link you saved; a page on the internet
+  can never send your Mac to one, by a redirect or by naming a picture there. A
+  link saved on your phone is fetched by your Macs, usually by one of them
+  within a minute, occasionally by two; the phone fetches nothing. Before a Mac
+  fills a link saved elsewhere it syncs once, so it can skip one another Mac
+  already filled. For a link imported from Raindrop, it may also fetch the cover
+  picture Raindrop recorded for it. What is saved lands in your library and
+  travels wherever your library syncs.
+- **The browser extension.** The Inteligir extension for Chrome, Arc, Brave and
+  Edge reads the page you are on only when you click Save or choose Save from
+  the right-click menu. It hands the page's address, title, text and (when you
+  ask) a copy of the page to the Inteligir app on the same Mac, over the
+  browser's native messaging, and to nothing else. It sends nothing to us or to
+  anyone. It never reads form fields.
+- **Sharing from your iPhone.** Sharing a page to Inteligir saves its address,
+  its title and any text you shared into your library, like any other edit on
+  the phone. The phone fetches nothing from the page; your Mac fills it in.
+- **Importing from Raindrop.** The CSV file you choose is read on your Mac and
+  kept in the app's data folder only until the import ends. Each imported link
+  is then filled in as above.
 - **Your voice.** Neither the Mac app nor the phone app ever opens the
   microphone. Dictation is your operating system's own — on a Mac, press fn
   twice; on the phone, the keyboard's microphone key — which types into the app
@@ -359,8 +388,8 @@ Specifically, in our cloud:
   log is append-only — that is what makes multi-device merge trivial — so
   archiving a conversation hides it and deletes nothing; there is no deleting
   one conversation from our cloud.
-- A request or a capture from your phone, and a permission question sent to it,
-  is kept for a day after a Mac settles it, then deleted the next time a request is sent or a
+- A request from your phone, and a permission question sent to it, is kept for
+  a day after a Mac settles it, then deleted the next time a request is sent or a
   Mac checks for one. One still waiting stays until a Mac picks it up, you
   cancel it, or you revoke the phone that sent it, which deletes every request
   of its no Mac has picked up yet; revoking a Mac settles every question it
@@ -389,7 +418,7 @@ your notes offline:
 - **Your conversations with the agent**, as your Macs sync them.
 - **Whatever it has not sent yet.** Edits, new notes, renames, deletions,
   comments and photos wait on the phone until the hosted vault takes them, and
-  requests and captures to your Mac wait until one picks them up. A change the
+  requests to your Mac wait until one picks them up. A change the
   vault cannot take as it is stays on the phone and says so, until you retry
   it, keep it as a new note or discard it.
 
@@ -423,8 +452,7 @@ and email delivery). Specifically:
 - **Cloudflare** runs our cloud and our website. Its D1 database holds your
   account, sessions, devices, the invite you redeemed and the throttling rows;
   storage it keeps for your account alone (your own Durable Objects, and storage
-  named for your vault) holds your thread events, captures, requests and hosted
-  vault; its email sending delivers your password-reset emails; and it keeps the
+  named for your vault) holds your thread events, requests and hosted vault; its email sending delivers your password-reset emails; and it keeps the
   request log described above.
 - **GitHub** hosts the Mac app's releases and its update feed, and the issues
   you open there.
@@ -534,7 +562,7 @@ account row itself goes:
    cloud serves downloads from. An account whose vault was never sent wipes
    empty tables, so the step is idempotent either way.
 3. **Your thread-sync Durable Object** is purged whole: every thread event,
-   every capture, every request from your phone and every permission question,
+   every request from your phone and every permission question,
    every open socket closed. It is then tombstoned, so a request that
    authenticated microseconds before step 1 cannot rebuild what was just
    deleted; it is refused instead.
@@ -578,8 +606,8 @@ talk to our cloud over HTTPS.
 
 These are the edges of that protection, stated plainly:
 
-- **We can read what our cloud holds.** Thread events, requests, captures and
-  the hosted vault are stored unencrypted to us (Cloudflare encrypts its storage
+- **We can read what our cloud holds.** Thread events, requests and the hosted
+  vault are stored unencrypted to us (Cloudflare encrypts its storage
   at rest, but there is no end-to-end encryption). Don't sync a conversation or
   a vault you wouldn't store in a hosted notes app.
 - **Our cloud writes your hosted vault.** Your phone's changes become changes in
@@ -1006,10 +1034,10 @@ to Better Auth under `/api/auth/`. Nothing else under `/v1/` exists.
 | `/v1/sync/push`                    | Your conversations with the agent, as events, including what the agent read and changed, with each one's title, note, agent and archived state.                                                                      | The device's credential.                                            |
 | `/v1/sync/pull`                    | The same events, written by your other devices.                                                                                                                                                                      | The device's credential.                                            |
 | `/v1/sync/ws`                      | A live connection that says only that something changed, and whether a Mac takes your phone's requests.                                                                                                              | The device's credential.                                            |
-| `/v1/sync/dispatch`                | What you ask your Mac's agent from your phone, your answer to its permission question, or the text of a quick capture.                                                                                               | The device's credential.                                            |
-| `/v1/sync/dispatch/claim`          | The requests and captures waiting for a Mac to pick up, and the answers meant for that Mac.                                                                                                                          | The device's credential.                                            |
-| `/v1/sync/dispatch/ack`            | The ids of the requests and captures that Mac took, and why it turned one down.                                                                                                                                      | The device's credential and the claim it was handed.                |
-| `/v1/sync/dispatch/status`         | Whether your requests and captures are waiting, picked up or answered, and how many Macs are online, taking them or not.                                                                                             | The device's credential.                                            |
+| `/v1/sync/dispatch`                | What you ask your Mac's agent from your phone, or your answer to its permission question.                                                                                                                            | The device's credential.                                            |
+| `/v1/sync/dispatch/claim`          | The requests waiting for a Mac to pick up, and the answers meant for that Mac.                                                                                                                                       | The device's credential.                                            |
+| `/v1/sync/dispatch/ack`            | The ids of the requests that Mac took, and why it turned one down.                                                                                                                                                   | The device's credential and the claim it was handed.                |
+| `/v1/sync/dispatch/status`         | Whether your requests are waiting, picked up or answered, and how many Macs are online, taking them or not.                                                                                                          | The device's credential.                                            |
 | `/v1/sync/dispatch/cancel`         | The id of a request you took back before a Mac picked it up.                                                                                                                                                         | The device's credential.                                            |
 | `/v1/sync/dispatch/approval`       | The command or change an agent wants your permission for, in a conversation your phone started.                                                                                                                      | The device's credential.                                            |
 | `/v1/sync/dispatch/approval/close` | The id of a permission question that no longer needs your answer.                                                                                                                                                    | The device's credential.                                            |
@@ -1035,6 +1063,9 @@ Everything else the app reaches is someone else's:
   and their own sign-in pages when they ask for one.
 - **Your own git server**, if a vault syncs to one instead of your account's
   hosted vault.
+- **The sites you save**, from your Mac, when you save or refresh a link or a
+  Mac fills in one saved elsewhere, with the cover and page-copy files they
+  name, the cover a Raindrop import recorded, and the oEmbed addresses above.
 
 ---
 

@@ -5,9 +5,17 @@
 // can disagree with the arrays.
 
 import { RELATED_DEFAULT_LIMIT, SEARCH_DEFAULT_LIMIT } from "@repo/notes/knowledge/default-limits";
+import { ITEM_KINDS } from "@repo/notes/items/item-kind";
 import { LINK_KINDS } from "@repo/notes/knowledge/link-kinds";
-import { isTagName, TAG_NAME_RULE } from "@repo/notes/knowledge/tag-grammar";
 import { z } from "zod";
+import {
+  itemKindSchema,
+  itemRowSchema,
+  itemSortSchema,
+  itemTimeSchema,
+  libraryFolderSchema,
+  tagNameSchema,
+} from "../items/items-schema";
 import { vaultPathSchema, vaultRenameSkipReasonSchema } from "../vault/vault-schema";
 
 export const KNOWLEDGE_SEARCH_MAX_LIMIT = 100;
@@ -16,10 +24,6 @@ export const KNOWLEDGE_BACKLINKS_MAX = 500;
 export const KNOWLEDGE_TAGS_MAX = 1000;
 export const KNOWLEDGE_MATCHES_MAX_LIMIT = 500;
 export const KNOWLEDGE_MATCHES_DEFAULT_LIMIT = 200;
-export const KNOWLEDGE_UNLINKED_MAX_LIMIT = 200;
-export const KNOWLEDGE_UNLINKED_DEFAULT_LIMIT = 50;
-export const KNOWLEDGE_PROBLEMS_MAX_LIMIT = 200;
-export const KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT = 50;
 
 // q is the raw box text, parsed engine-side so a typed tag: term and a composed one resolve alike
 export const knowledgeSearchRequestSchema = z.strictObject({
@@ -82,107 +86,8 @@ export const knowledgeMatchesResponseSchema = z.strictObject({
 });
 export type KnowledgeMatchesResponse = z.infer<typeof knowledgeMatchesResponseSchema>;
 
-// a note that names this one in prose without linking it: the stem or an alias as a whole
-// word, outside code, links, urls and frontmatter. one row per note, on its first mention
-export const knowledgeUnlinkedMentionsRequestSchema = z.strictObject({
-  limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(KNOWLEDGE_UNLINKED_MAX_LIMIT)
-    .default(KNOWLEDGE_UNLINKED_DEFAULT_LIMIT),
-  path: vaultPathSchema,
-});
-export type KnowledgeUnlinkedMentionsRequest = z.input<
-  typeof knowledgeUnlinkedMentionsRequestSchema
->;
-
-export const unlinkedMentionSchema = z.strictObject({
-  after: z.string(),
-  before: z.string(),
-  // utf-16 offset inside the line
-  column: z.number().int().min(0),
-  // every plain mention in that note, this one included
-  count: z.number().int().min(1),
-  length: z.number().int().min(1),
-  // 1-based
-  line: z.number().int().min(1),
-  path: z.string().min(1),
-  text: z.string(),
-  title: z.string(),
-});
-export type UnlinkedMentionWire = z.infer<typeof unlinkedMentionSchema>;
-
-export const knowledgeUnlinkedMentionsResponseSchema = z.strictObject({
-  // the wiki target a Link writes, resolving back to `path` even where the bare name is
-  // another note's; null when no wiki link can name the note
-  linkTarget: z.string().min(1).nullable(),
-  mentions: z.array(unlinkedMentionSchema).max(KNOWLEDGE_UNLINKED_MAX_LIMIT),
-  path: z.string().min(1),
-  total: z.number().int().min(0),
-});
-export type KnowledgeUnlinkedMentionsResponse = z.infer<
-  typeof knowledgeUnlinkedMentionsResponseSchema
->;
-
 export const linkKindSchema = z.enum(LINK_KINDS);
 export type LinkKindWire = z.infer<typeof linkKindSchema>;
-
-// what the graph cannot resolve: five families, each capped on its own with its own total.
-// the limit applies per family; dailies and templates count as orphans only when asked
-export const knowledgeProblemsRequestSchema = z.strictObject({
-  includeConventionFolders: z.boolean().default(false),
-  limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(KNOWLEDGE_PROBLEMS_MAX_LIMIT)
-    .default(KNOWLEDGE_PROBLEMS_DEFAULT_LIMIT),
-});
-export type KnowledgeProblemsRequest = z.input<typeof knowledgeProblemsRequestSchema>;
-
-// once per source and target, on the first line it appears
-export const unresolvedLinkRowSchema = z.strictObject({
-  embed: z.boolean(),
-  kind: linkKindSchema,
-  line: z.number().int().min(1),
-  snippet: z.string(),
-  sourcePath: z.string().min(1),
-  sourceTitle: z.string(),
-  target: z.string().min(1),
-});
-export type UnresolvedLinkRowWire = z.infer<typeof unresolvedLinkRowSchema>;
-
-export const orphanRowSchema = z.strictObject({ path: z.string().min(1), title: z.string() });
-export type OrphanRowWire = z.infer<typeof orphanRowSchema>;
-
-export const duplicateStemRowSchema = z.strictObject({
-  paths: z.array(z.string().min(1)).min(2),
-  stem: z.string().min(1),
-});
-export type DuplicateStemRowWire = z.infer<typeof duplicateStemRowSchema>;
-
-// one frontmatter `id` carried by several notes, which then share one comment store
-export const duplicateIdRowSchema = z.strictObject({
-  id: z.string().min(1),
-  paths: z.array(z.string().min(1)).min(2),
-});
-export type DuplicateIdRowWire = z.infer<typeof duplicateIdRowSchema>;
-
-const problemFamilySchema = <Row extends z.ZodType>(row: Row) =>
-  z.strictObject({
-    rows: z.array(row).max(KNOWLEDGE_PROBLEMS_MAX_LIMIT),
-    total: z.number().int().min(0),
-  });
-
-export const knowledgeProblemsResponseSchema = z.strictObject({
-  duplicateIds: problemFamilySchema(duplicateIdRowSchema),
-  duplicateStems: problemFamilySchema(duplicateStemRowSchema),
-  missingEmbeds: problemFamilySchema(unresolvedLinkRowSchema),
-  orphans: problemFamilySchema(orphanRowSchema),
-  unresolvedLinks: problemFamilySchema(unresolvedLinkRowSchema),
-});
-export type KnowledgeProblemsResponse = z.infer<typeof knowledgeProblemsResponseSchema>;
 
 export const backlinkEntrySchema = z.strictObject({
   alias: z.string().exactOptional(),
@@ -256,31 +161,8 @@ export const knowledgeTagsResponseSchema = z.strictObject({
 });
 export type KnowledgeTagsResponse = z.infer<typeof knowledgeTagsResponseSchema>;
 
-// the inline grammar's own name rule, so a rename can only write a tag the scan would read back
-export const tagNameSchema = z.string().refine(isTagName, { message: TAG_NAME_RULE });
-
-export const KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT = 100;
-export const KNOWLEDGE_TAG_NOTES_MAX_LIMIT = 500;
-
-// a listing, not a search: the tag's family by path, paged, with the whole count
-export const knowledgeTagNotesRequestSchema = z.strictObject({
-  limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(KNOWLEDGE_TAG_NOTES_MAX_LIMIT)
-    .default(KNOWLEDGE_TAG_NOTES_DEFAULT_LIMIT),
-  offset: z.number().int().min(0).default(0),
-  tag: tagNameSchema,
-});
-export type KnowledgeTagNotesRequest = z.input<typeof knowledgeTagNotesRequestSchema>;
-
-export const knowledgeTagNotesResponseSchema = z.strictObject({
-  paths: z.array(z.string().min(1)).max(KNOWLEDGE_TAG_NOTES_MAX_LIMIT),
-  tag: z.string().min(1),
-  total: z.number().int().min(0),
-});
-export type KnowledgeTagNotesResponse = z.infer<typeof knowledgeTagNotesResponseSchema>;
+// spelled beside the item schemas, which a save's tags parse with too
+export { tagNameSchema } from "../items/items-schema";
 
 export const knowledgeRenameTagRequestSchema = z.strictObject({
   from: tagNameSchema,
@@ -301,3 +183,116 @@ export const knowledgeRenameTagResponseSchema = z.strictObject({
   to: z.string().min(1),
 });
 export type KnowledgeRenameTagResponse = z.infer<typeof knowledgeRenameTagResponseSchema>;
+
+export const KNOWLEDGE_ITEMS_DEFAULT_LIMIT = 100;
+export const KNOWLEDGE_ITEMS_MAX_LIMIT = 500;
+export const KNOWLEDGE_ITEMS_AT_MAX = 200;
+export const KNOWLEDGE_ITEM_PATHS_MAX = 50_000;
+export const KNOWLEDGE_FIND_BY_URL_MAX = 50;
+// q narrows to this many ranked hits
+export const KNOWLEDGE_ITEMS_SEARCH_MAX = 500;
+// the longest q a listing (and a library view context, which names one) takes
+export const KNOWLEDGE_ITEMS_QUERY_MAX = 500;
+
+const itemFilterFields = {
+  // with subfolders: that folder and below
+  folder: libraryFolderSchema.optional(),
+  kinds: z.array(itemKindSchema).min(1).max(ITEM_KINDS.length).optional(),
+  // the ranked search, top KNOWLEDGE_ITEMS_SEARCH_MAX
+  q: z.string().trim().min(1).max(KNOWLEDGE_ITEMS_QUERY_MAX).optional(),
+  // saved (else modified) at or after
+  since: itemTimeSchema.optional(),
+  site: z.string().trim().min(1).max(253).optional(),
+  // default: "relevance" when q, else "saved"
+  sort: itemSortSchema.optional(),
+  subfolders: z.boolean().default(true),
+  // the tag's family (nested tags included)
+  tag: tagNameSchema.optional(),
+  // items with no tag at all
+  untagged: z.boolean().default(false),
+};
+const noTagWithUntagged = (v: { tag?: string | undefined; untagged: boolean }) =>
+  !(v.untagged && v.tag !== undefined);
+const TAG_UNTAGGED_RULE = {
+  message: "tag and untagged cannot be asked together",
+  path: ["untagged"],
+};
+
+export const knowledgeItemsRequestSchema = z
+  .strictObject({
+    ...itemFilterFields,
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(KNOWLEDGE_ITEMS_MAX_LIMIT)
+      .default(KNOWLEDGE_ITEMS_DEFAULT_LIMIT),
+    offset: z.number().int().min(0).default(0),
+  })
+  .refine(noTagWithUntagged, TAG_UNTAGGED_RULE);
+export type KnowledgeItemsRequest = z.input<typeof knowledgeItemsRequestSchema>;
+
+export const knowledgeItemsResponseSchema = z.strictObject({
+  items: z.array(itemRowSchema).max(KNOWLEDGE_ITEMS_MAX_LIMIT),
+  // the scope's count per kind with the request's own `kinds` ignored, for the chips
+  kindCounts: z.record(itemKindSchema, z.number().int().min(0)),
+  total: z.number().int().min(0),
+});
+export type KnowledgeItemsResponse = z.infer<typeof knowledgeItemsResponseSchema>;
+
+export const knowledgeItemPathsRequestSchema = z
+  .strictObject({
+    ...itemFilterFields,
+    limit: z.number().int().min(1).max(KNOWLEDGE_ITEM_PATHS_MAX).default(KNOWLEDGE_ITEM_PATHS_MAX),
+    offset: z.number().int().min(0).default(0),
+  })
+  .refine(noTagWithUntagged, TAG_UNTAGGED_RULE);
+export type KnowledgeItemPathsRequest = z.input<typeof knowledgeItemPathsRequestSchema>;
+
+export const knowledgeItemPathsResponseSchema = z.strictObject({
+  paths: z.array(z.string().min(1)).max(KNOWLEDGE_ITEM_PATHS_MAX),
+  total: z.number().int().min(0),
+});
+export type KnowledgeItemPathsResponse = z.infer<typeof knowledgeItemPathsResponseSchema>;
+
+export const knowledgeItemsAtRequestSchema = z.strictObject({
+  paths: z.array(vaultPathSchema).min(1).max(KNOWLEDGE_ITEMS_AT_MAX),
+});
+// in request order; a path that is not an item is left out
+export const knowledgeItemsAtResponseSchema = z.strictObject({
+  items: z.array(itemRowSchema).max(KNOWLEDGE_ITEMS_AT_MAX),
+});
+export type KnowledgeItemsAtResponse = z.infer<typeof knowledgeItemsAtResponseSchema>;
+
+export const knowledgeFindByUrlRequestSchema = z.strictObject({ url: z.string().min(1).max(8192) });
+// key null: not a web url (items then empty); non-stub items first, then by saved ascending
+export const knowledgeFindByUrlResponseSchema = z.strictObject({
+  items: z.array(itemRowSchema).max(KNOWLEDGE_FIND_BY_URL_MAX),
+  key: z.string().min(1).nullable(),
+});
+export type KnowledgeFindByUrlResponse = z.infer<typeof knowledgeFindByUrlResponseSchema>;
+
+export const libraryFolderCountSchema = z.strictObject({
+  // items in it and below
+  items: z.number().int().min(0),
+  path: z.string().min(1),
+});
+export const knowledgeScopesResponseSchema = z.strictObject({
+  // every folder the sidebar lists (§1.5 exclusions applied): the vault's directories, plus
+  // every folder an item sits in, depth-first with parents first, sorted by name within a parent
+  folders: z.array(libraryFolderCountSchema),
+  total: z.number().int().min(0),
+  unsorted: z.number().int().min(0),
+  untagged: z.number().int().min(0),
+});
+export type KnowledgeScopesResponse = z.infer<typeof knowledgeScopesResponseSchema>;
+
+// where the item with this frontmatter id is now; the page's session asks it when its open
+// item's file vanished under it (a fill's rename, an agent's `vault rename`)
+export const knowledgePathForNoteIdRequestSchema = z.strictObject({
+  id: z.string().min(1).max(128),
+  lastPath: vaultPathSchema,
+});
+export const knowledgePathForNoteIdResponseSchema = z.strictObject({
+  path: z.string().min(1).nullable(),
+});

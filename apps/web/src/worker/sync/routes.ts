@@ -94,7 +94,7 @@ const SYNC_ROUTES = new Map<string, (call: SyncCall) => Promise<Response>>([
     `POST ${DISPATCH_API_PATHS.dispatch}`,
     withBody(
       createDispatchRequestSchema,
-      'Send { kind: "turn", id, threadId, text }, { kind: "answer", id, approvalId, decision } or { kind: "capture", id, text }.',
+      'Send { kind: "turn", id, threadId, text } or { kind: "answer", id, approvalId, decision }.',
       async ({ device, stub }, body) => answer(await stub.createDispatch(device.deviceId, body)),
     ),
   ],

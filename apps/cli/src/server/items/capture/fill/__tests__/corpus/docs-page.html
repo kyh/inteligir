@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Configuring the sync daemon — Tidepool docs</title>
+    <meta name="application-name" content="Tidepool Docs" />
+    <meta
+      name="description"
+      content="How to configure the sync daemon's interval, paths and conflict policy."
+    />
+  </head>
+  <body>
+    <nav class="sidebar">
+      <ul>
+        <li><a href="/docs/install">Install</a></li>
+        <li><a href="/docs/sync">Sync</a></li>
+      </ul>
+    </nav>
+    <main>
+      <h1>Configuring the sync daemon</h1>
+      <p>
+        The daemon reads its settings from <code>~/.config/tidepool/sync.toml</code> when it starts.
+        Changes take effect after a restart.
+      </p>
+      <h2>Settings</h2>
+      <table>
+        <tr>
+          <th>Key</th>
+          <th>Default</th>
+          <th>Meaning</th>
+        </tr>
+        <tr>
+          <td><code>interval</code></td>
+          <td>60</td>
+          <td>Seconds between passes</td>
+        </tr>
+        <tr>
+          <td><code>paths</code></td>
+          <td>[]</td>
+          <td>Folders to watch</td>
+        </tr>
+        <tr>
+          <td><code>conflicts</code></td>
+          <td>"copy"</td>
+          <td>What to do when both sides changed</td>
+        </tr>
+      </table>
+      <h2>Example</h2>
+      <pre><code class="language-toml">interval = 30
+paths = ["~/Notes", "~/Projects"]
+conflicts = "copy"
+</code></pre>
+      <p>Run the daemon in the foreground to check your settings:</p>
+      <pre><code>tidepool sync --foreground --verbose</code></pre>
+      <h3>Nested settings</h3>
+      <ol>
+        <li>
+          Open the settings file.
+          <ul>
+            <li>On macOS it lives under your home folder.</li>
+            <li>On Linux it follows the XDG rules.</li>
+          </ul>
+        </li>
+        <li>Add a <code>[remote]</code> table.</li>
+        <li>Restart the daemon.</li>
+      </ol>
+      <p class="note">Note: a path that does not exist is skipped with a warning, never created.</p>
+      <h2>Troubleshooting</h2>
+      <dl>
+        <dt>The daemon exits at once</dt>
+        <dd>Check the file for a syntax error; the log names the line.</dd>
+        <dt>Nothing syncs</dt>
+        <dd>Make sure the paths are absolute.</dd>
+      </dl>
+    </main>
+  </body>
+</html>

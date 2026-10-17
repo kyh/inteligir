@@ -10,7 +10,7 @@ import { buildResolver } from "@repo/notes/knowledge/link-resolve";
 import { EditorHarness } from "./editor-harness";
 import { installFakeEditorHost } from "@repo/editor/test-support/fake-editor-host";
 
-const LISTING = ["a/x y.png", "b/c/doc.md"];
+const LISTING = ["a/x y.png", "assets/Lecture notes.pdf", "b/c/doc.md"];
 
 // every path the node asked the host for; the host answers each as missing, since jsdom has no
 // object URLs to draw a real one with
@@ -58,6 +58,21 @@ describe("an image's src, read and resolved as the knowledge index does", () => 
   it("asks the host for nothing when no vault path answers the url", async () => {
     const fetched = mountImage("b/c/doc.md", "mailto:a@b.c");
     expect(await screen.findByText("Missing image: mailto:a@b.c")).toBeTruthy();
+    expect(fetched).toEqual([]);
+  });
+
+  it("draws an embed of a file that is not a picture as a card naming it, fetching nothing", async () => {
+    const fetched = mountImage("b/c/doc.md", "../../assets/Lecture%20notes.pdf");
+    expect(await screen.findByText("Lecture notes.pdf")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open" })).toBeTruthy();
+    expect(screen.queryByText(/Missing image/u)).toBeNull();
+    expect(fetched).toEqual([]);
+  });
+
+  it("says a file the library does not hold is missing, and offers no Open", async () => {
+    const fetched = mountImage("b/c/doc.md", "assets/gone.pdf");
+    expect(await screen.findByText("Not in your library")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Open" })).toBeNull();
     expect(fetched).toEqual([]);
   });
 });

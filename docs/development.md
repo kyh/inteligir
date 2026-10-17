@@ -33,8 +33,10 @@ pnpm cli serve          # The server ALONE, from source, no window; a shell adop
 pnpm cli <verb>         # Every other verb, against this checkout's instance
 pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort)
 pnpm dev:gallery        # tools/ui-gallery: the @repo/ui gallery alone, at localhost:5175 (never deployed)
+pnpm dev:extension      # apps/extension: this checkout's browser door, then the dev build rebuilt on change
 pnpm package:cli        # The npm artifact (apps/cli) — `npx inteligir serve`
 pnpm package:desktop    # The macOS arm64 .app and dmg, signed + notarized when the keys are present
+pnpm package:extension  # The Web Store zip and the unpacked store build, under apps/extension/.output
 pnpm smoke:cli          # Pack, install into a scratch prefix, boot, probe, stop
 pnpm smoke:desktop      # Package the .app, launch it, drive its server and an agent turn, SIGTERM (macOS only)
 pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; docs/releasing.md)
@@ -127,6 +129,32 @@ package time), signed when the keychain holds a Developer ID and notarized when
 the dispatch inbox, the hosted vault git remote — over a local D1 file and
 miniflare's Durable Objects. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 § "There is no seeded login" has the exact commands.
+
+## Browser extension
+
+`apps/extension` is the browser's Save: a Chromium extension that captures the
+page and hands it to the app on the same machine through `inteligir
+native-host`, which Chrome starts by the manifest a browser keeps for it
+(`apps/extension/README.md`). `pnpm dev:extension` writes this checkout's door
+once (`pnpm cli native-host --install`), builds the extension into
+`apps/extension/dist` and rebuilds it on every change; load that folder with
+Load unpacked on `chrome://extensions` (Developer mode on), and reload it there
+after a change to its worker. Its committed key gives the unpacked build the id
+`EXTENSION_ID` (`packages/contract/src/browser/extension-identity.ts`), the one
+origin the door allows.
+
+THE DEV BUILD DIALS `com.inteligir.desktop.dev`, the manifest `--install`
+writes, whose launcher runs this checkout's `apps/cli/bin/inteligir
+native-host` from the checkout, so it reaches this checkout's instance (a
+`pnpm cli serve` or `pnpm dev`). The store builds (`pnpm package:extension`:
+the Web Store zip and `.output/unpacked`, the same files with the key) dial
+`com.inteligir.desktop`, which the packaged app writes for every Chromium
+browser at each launch (`apps/cli/src/desktop/native-hosts.ts`), so they reach
+the installed app and never a checkout. `--install` writes a manifest only
+where a browser's folder exists, so open the browser once first; on Linux it
+writes Chrome's and Chromium's under `~/.config`. `--install` is refused in the
+packaged mode, and the e2e's `browser-extension` scenario writes its own door
+into a scratch profile (`tools/e2e/src/harness/native-host-fixture.ts`).
 
 ## Where state lives
 

@@ -84,11 +84,11 @@ const PREDICATES: Predicate[] = [
   },
   {
     detect: (source) =>
-      source.includes("%%i:[^%]*%%") ? ["spells the loose comment-marker regex"] : [],
+      source.includes("%%i:[^%]*%%") ? ["spells the loose annotation-marker regex"] : [],
     elsewhere: {},
     home: "packages/notes/src/markdown/remark-inline-constructs.ts",
-    question: "where do comment markers, half-typed ones included, sit in raw bytes?",
-    use: "COMMENT_MARKER_STRIP_RE",
+    question: "where do annotation markers, half-typed ones included, sit in raw bytes?",
+    use: "ANNOTATION_MARKER_STRIP_RE",
   },
 ];
 

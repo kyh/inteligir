@@ -12,7 +12,7 @@ import type {
   VaultConflictAnswer,
 } from "@repo/contract/cloud/vault/vault-commit-schema";
 import {
-  assetMediaType,
+  takesBytes,
   VAULT_ASSET_MAX_BYTES,
   VAULT_FILE_MAX_BYTES,
 } from "@repo/contract/cloud/vault/vault-schema";
@@ -69,8 +69,10 @@ const decodeChange = (change: VaultChangeRequest): Decoded => {
     }
     return { change: { base, bytes, op: "put", path }, kind: "change" };
   }
-  if (assetMediaType(path) === null) {
-    return refusedWith(refuse("bad-request", `${path}: only an image path takes base64 content.`));
+  // any file a library stores, as the desktop's own write takes it: a PDF, an archive, a video.
+  // never a note, a highlight store or a dot-path, which are text the app writes as text
+  if (!takesBytes(path)) {
+    return refusedWith(refuse("bad-request", `${path}: a note is saved as text, not as a file.`));
   }
   const bytes = bytesFromBase64(content.data);
   if (bytes.length > VAULT_ASSET_MAX_BYTES) {

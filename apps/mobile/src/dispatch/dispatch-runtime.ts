@@ -1,9 +1,8 @@
-// the phone asks a Mac's agent, and hands a Mac a line for the vault's Inbox.md, through the
-// dispatch inbox: it never pushes to the thread log and never claims. A request is durable before
-// it is sent and carries an id minted here, so a resend after a lost answer is the same row; while
-// one waits and the app is in the foreground its fate is polled, and a turn is handed to the log
-// once a pulled request carries its id. A phone-started turn's approvals are listed here and
-// answered through the same inbox.
+// the phone asks a Mac's agent through the dispatch inbox: it never pushes to the thread log and
+// never claims. A request is durable before it is sent and carries an id minted here, so a resend
+// after a lost answer is the same row; while one waits and the app is in the foreground its fate
+// is polled, and a turn is handed to the log once a pulled request carries its id. A
+// phone-started turn's approvals are listed here and answered through the same inbox.
 
 import { describeCloudFailure } from "@repo/contract/cloud/client";
 import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
@@ -73,13 +72,7 @@ export interface AnswerDispatch extends DispatchViewBase {
   decision: PendingInteractionApprovalDecision;
 }
 
-// a line for Inbox.md, which belongs to no thread
-export interface CaptureDispatch extends DispatchViewBase {
-  kind: "capture";
-  text: string;
-}
-
-export type DispatchView = TurnDispatch | AnswerDispatch | CaptureDispatch;
+export type DispatchView = TurnDispatch | AnswerDispatch;
 
 // the Macs open at the last status poll: those that take this phone's requests, and those whose
 // "Let my phone ask this Mac" is off
@@ -139,9 +132,6 @@ export interface DispatchRuntime extends ReadableStore<DispatchState> {
     approvalId: string,
     decision: PendingInteractionApprovalDecision,
   ) => Promise<DispatchOutcome>;
-  // a line for the vault's Inbox.md, which the first Mac to claim it writes, whether or not it
-  // takes the phone's requests
-  capture: (text: string) => Promise<DispatchOutcome>;
   // withdraws a request no Mac holds yet; a Mac that already has it keeps it
   cancel: (id: string) => Promise<CancelOutcome>;
   // forgets a refused request, whose words the phone kept until now
@@ -189,18 +179,14 @@ const viewOf = (row: DispatchRow, error: string | null): DispatchView => {
         kind: "answer",
       };
     }
-    case "capture": {
-      return { ...base, kind: "capture", text: request.text };
-    }
     // no default
   }
 };
 
-// the words a turn or a capture carries, refused before they are kept when the cloud would refuse
-// them
-const textRefusal = (text: string, empty: string): string | null => {
+// the words a turn carries, refused before they are kept when the cloud would refuse them
+const textRefusal = (text: string): string | null => {
   if (text === "") {
-    return empty;
+    return "Write something to ask.";
   }
   return text.length > DISPATCH_MAX_CHARS
     ? `A message from your phone can be up to ${DISPATCH_MAX_CHARS.toLocaleString()} characters.`
@@ -291,8 +277,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     }
   };
 
-  // a Mac taking an answer settles its approval, and one taking a capture has written it to
-  // Inbox.md, so neither row has anything left to say
+  // a Mac taking an answer settles its approval, so the row has nothing left to say
   const record = async (id: string, status: DispatchStatus, fence: Fence): Promise<boolean> => {
     const row = rows.find((candidate) => candidate.request.id === id);
     if (row === undefined) {
@@ -300,14 +285,12 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
     }
     errors.delete(id);
     const { request } = row;
-    if (request.kind !== "turn" && status.state === "delivered") {
+    if (request.kind === "answer" && status.state === "delivered") {
       if (!(await outbox.remove([id], fence))) {
         return false;
       }
       forget([id]);
-      if (request.kind === "answer") {
-        approvals = approvals.filter((approval) => approval.id !== request.approvalId);
-      }
+      approvals = approvals.filter((approval) => approval.id !== request.approvalId);
       publish();
       return true;
     }
@@ -618,7 +601,7 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
 
     askAgent: async (ask) => {
       const text = ask.text.trim();
-      const refusal = textRefusal(text, "Write something to ask.");
+      const refusal = textRefusal(text);
       if (refusal !== null) {
         return { message: refusal, ok: false };
       }
@@ -649,15 +632,6 @@ export const createDispatchRuntime = (args: DispatchRuntimeArgs): DispatchRuntim
       } finally {
         rearm();
       }
-    },
-
-    capture: async (words) => {
-      const text = words.trim();
-      const refusal = textRefusal(text, "Write something to capture.");
-      if (refusal !== null) {
-        return { message: refusal, ok: false };
-      }
-      return await enqueue({ id: args.mintId(), kind: "capture", text });
     },
 
     dismiss: async (id) => {

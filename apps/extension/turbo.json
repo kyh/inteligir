@@ -1,0 +1,15 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    // the unpacked dev build the e2e loads with --extension, and `pnpm dev:extension` watches
+    "build": {
+      "outputs": ["dist/**"]
+    },
+    // the Web Store zip and the unpacked store build (scripts/package.ts)
+    "package": {
+      "dependsOn": ["^build"],
+      "outputs": [".output/**"]
+    }
+  }
+}

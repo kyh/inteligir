@@ -5,9 +5,11 @@
   "description": "The thread events, statuses and approval shapes every part of the app parses, in zod alone.",
   "type": "module",
   "exports": {
+    "./action-preset": "./src/action-preset.ts",
     "./agent-shell-env": "./src/agent-shell-env.ts",
     "./change-kinds": "./src/change-kinds.ts",
     "./harness": "./src/harness.ts",
+    "./library-scope": "./src/library-scope.ts",
     "./notifier": "./src/notifier.ts",
     "./pending-interaction-status": "./src/pending-interaction-status.ts",
     "./pending-interactions": "./src/pending-interactions.ts",

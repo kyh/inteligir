@@ -34,7 +34,8 @@ const framesOf = (script: string): NativeFrame[] => {
 
 // one answer per kind, each distinct, so a frame routed to the wrong port shows
 const PORT_ANSWERS = {
-  addComment: { current: "# a\n", kind: "changed" },
+  addAnnotation: { current: "# a\n", kind: "changed" },
+  editAnnotation: { kind: "refused", message: "no such annotation" },
   list: { paths: ["a.md"] },
   pickImage: { kind: "cancelled" },
   read: { content: "# a\n" },
@@ -47,13 +48,14 @@ const PORT_ANSWERS = {
 } satisfies { [K in RequestKind]: RequestResult<K> };
 
 const PAYLOADS = {
-  addComment: {
+  addAnnotation: {
     base: "# a\n",
     content: "%%i:c1:start%%# a%%i:c1:end%%\n",
     id: "c1",
     path: "a.md",
-    text: "why?",
+    quote: "a",
   },
+  editAnnotation: { id: "c1", path: "a.md", text: "why?" },
   list: {},
   pickImage: {},
   read: { path: "a.md" },
@@ -75,7 +77,8 @@ const KINDS: readonly RequestKind[] = [
   "wikiTargets",
   "write",
   "writeAsset",
-  "addComment",
+  "addAnnotation",
+  "editAnnotation",
 ];
 
 // one request of each kind, in KINDS' order, each carrying its id's position
@@ -89,7 +92,8 @@ const requestFrames = (nonce: string): PageFrame[] => [
   { id: 6, kind: "wikiTargets", nonce, payload: PAYLOADS.wikiTargets, type: "request" },
   { id: 7, kind: "write", nonce, payload: PAYLOADS.write, type: "request" },
   { id: 8, kind: "writeAsset", nonce, payload: PAYLOADS.writeAsset, type: "request" },
-  { id: 9, kind: "addComment", nonce, payload: PAYLOADS.addComment, type: "request" },
+  { id: 9, kind: "addAnnotation", nonce, payload: PAYLOADS.addAnnotation, type: "request" },
+  { id: 10, kind: "editAnnotation", nonce, payload: PAYLOADS.editAnnotation, type: "request" },
 ];
 
 interface PortCall {
@@ -100,9 +104,13 @@ interface PortCall {
 const recordingPorts = () => {
   const calls: PortCall[] = [];
   const ports: EditorRequestPorts = {
-    addComment: async (payload) => {
-      calls.push({ kind: "addComment", payload });
-      return PORT_ANSWERS.addComment;
+    addAnnotation: async (payload) => {
+      calls.push({ kind: "addAnnotation", payload });
+      return PORT_ANSWERS.addAnnotation;
+    },
+    editAnnotation: async (payload) => {
+      calls.push({ kind: "editAnnotation", payload });
+      return PORT_ANSWERS.editAnnotation;
     },
     list: async (payload) => {
       calls.push({ kind: "list", payload });

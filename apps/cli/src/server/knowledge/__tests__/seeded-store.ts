@@ -3,8 +3,7 @@
 
 import { createHash } from "node:crypto";
 import nodePath from "node:path";
-import { projectDoc } from "@repo/notes/knowledge/projection";
-import { docSearchColumns } from "@repo/notes/knowledge/search-columns";
+import { projectForIndex } from "@repo/notes/knowledge/search-columns";
 import { createSqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import type { SqlKnowledgeStore } from "@repo/notes/knowledge/sql-knowledge-store";
 import { onTestFinished } from "vitest";
@@ -14,14 +13,15 @@ import { createSqliteDriver } from "../sqlite-driver";
 type Docs = Readonly<Record<string, string>>;
 
 export const docRow = (path: string, content: string) => {
-  const projection = projectDoc(path, content);
+  const { projection, search } = projectForIndex(path, content);
   return {
     row: {
       contentHash: createHash("sha256").update(content, "utf-8").digest("hex"),
+      fingerprint: null,
       path,
       projection,
     },
-    search: docSearchColumns(projection, content),
+    search,
   };
 };
 

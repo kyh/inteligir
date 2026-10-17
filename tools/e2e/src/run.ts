@@ -12,7 +12,11 @@ import { createScenarioContext } from "./harness/scenario";
 import type { Scenario, ScenarioContext } from "./harness/scenario";
 import { accountHosted } from "./scenarios/account-hosted";
 import { actionScripted } from "./scenarios/action-scripted";
+import { agentSaveIntegrated } from "./scenarios/agent-save-integrated";
 import { agentSignInBrowser } from "./scenarios/agent-sign-in-browser";
+import { annotationsBrowser } from "./scenarios/annotations-browser";
+import { annotationsCli } from "./scenarios/annotations-cli";
+import { browserExtension } from "./scenarios/browser-extension";
 import { browserSmoke } from "./scenarios/browser-smoke";
 import { builtCliBoot } from "./scenarios/built-cli-boot";
 import { builtWorkerBoot } from "./scenarios/built-worker-boot";
@@ -23,53 +27,70 @@ import { desktopDiagnostics } from "./scenarios/desktop-diagnostics";
 import { desktopOnboarding } from "./scenarios/desktop-onboarding";
 import { desktopShell } from "./scenarios/desktop-shell";
 import { editorConstructsBrowser } from "./scenarios/editor-constructs-browser";
+import { extensionIntegrated } from "./scenarios/extension-integrated";
 import { externalEditBrowser } from "./scenarios/external-edit-browser";
 import { extractNoteBrowser } from "./scenarios/extract-note-browser";
+import { fileItems } from "./scenarios/file-items";
 import { hostedVaultFull } from "./scenarios/hosted-vault-full";
 import { hostedVaultPhoneWrite } from "./scenarios/hosted-vault-phone-write";
 import { hostedVaultSecondMac } from "./scenarios/hosted-vault-second-mac";
 import { hostedVaultSync } from "./scenarios/hosted-vault-sync";
+import { importIntegrated } from "./scenarios/import-integrated";
+import { libraryBrowser } from "./scenarios/library-browser";
+import { libraryIntegrated } from "./scenarios/library-integrated";
+import { librarySelectionBrowser } from "./scenarios/library-selection-browser";
+import { linkCapture } from "./scenarios/link-capture";
 import { noteCreateBrowser } from "./scenarios/note-create-browser";
 import { onboardingAccountBrowser } from "./scenarios/onboarding-account-browser";
 import { osDictationBrowser } from "./scenarios/os-dictation-browser";
-import { phoneCaptureHosted } from "./scenarios/phone-capture-hosted";
-import { phoneCommentsHosted } from "./scenarios/phone-comments-hosted";
+import { phoneAnnotationsHosted } from "./scenarios/phone-annotations-hosted";
 import { phoneDispatchHosted } from "./scenarios/phone-dispatch-hosted";
 import { phoneEditorPage } from "./scenarios/phone-editor-page";
 import { phoneFileOpsHosted } from "./scenarios/phone-file-ops-hosted";
+import { phoneFillIntegrated } from "./scenarios/phone-fill-integrated";
+import { phoneFillRaceHosted } from "./scenarios/phone-fill-race-hosted";
 import { phoneOfflineEdit } from "./scenarios/phone-offline-edit";
+import { phoneSaveHosted } from "./scenarios/phone-save-hosted";
+import { raindropImport } from "./scenarios/raindrop-import";
 import { remoteContentBrowser } from "./scenarios/remote-content-browser";
 import { settingsBrowser } from "./scenarios/settings-browser";
+import { sizeGate } from "./scenarios/size-gate";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
 import { slowStorage } from "./scenarios/slow-storage";
 import { syncConflictBrowser } from "./scenarios/sync-conflict-browser";
 import { threadSyncHosted } from "./scenarios/thread-sync-hosted";
 import { threadsScripted } from "./scenarios/threads-scripted";
+import { tidyLibraryBrowser } from "./scenarios/tidy-library-browser";
+import { tidyLibraryScripted } from "./scenarios/tidy-library-scripted";
 import { treeOpsBrowser } from "./scenarios/tree-ops-browser";
 import { undoBrowser } from "./scenarios/undo-browser";
 import { undoScripted } from "./scenarios/undo-scripted";
 import { vaultCrud } from "./scenarios/vault-crud";
-import { vaultSearchBrowser } from "./scenarios/vault-search-browser";
 import { vaultRemoteSetting } from "./scenarios/vault-remote-setting";
+import { vaultSearchBrowser } from "./scenarios/vault-search-browser";
 import { vaultSync } from "./scenarios/vault-sync";
 import { viewContextBrowser } from "./scenarios/view-context-browser";
+import { viewersDesktopIntegrated } from "./scenarios/viewers-desktop-integrated";
 
 const SCENARIOS: readonly Scenario[] = [
   vaultCrud,
   slowStorage,
   vaultSync,
   vaultRemoteSetting,
+  fileItems,
+  sizeGate,
   hostedVaultSync,
   hostedVaultSecondMac,
   hostedVaultPhoneWrite,
   hostedVaultFull,
   phoneOfflineEdit,
   phoneFileOpsHosted,
-  phoneCommentsHosted,
+  phoneAnnotationsHosted,
   phoneEditorPage,
+  phoneSaveHosted,
+  phoneFillRaceHosted,
   threadSyncHosted,
   phoneDispatchHosted,
-  phoneCaptureHosted,
   accountHosted,
   onboardingAccountBrowser,
   builtWorkerBoot,
@@ -81,6 +102,10 @@ const SCENARIOS: readonly Scenario[] = [
   actionScripted,
   undoScripted,
   cliDrive,
+  linkCapture,
+  raindropImport,
+  tidyLibraryScripted,
+  annotationsCli,
   debugLogTrace,
   browserSmoke,
   noteCreateBrowser,
@@ -98,6 +123,17 @@ const SCENARIOS: readonly Scenario[] = [
   extractNoteBrowser,
   remoteContentBrowser,
   syncConflictBrowser,
+  libraryBrowser,
+  annotationsBrowser,
+  librarySelectionBrowser,
+  tidyLibraryBrowser,
+  browserExtension,
+  libraryIntegrated,
+  importIntegrated,
+  extensionIntegrated,
+  phoneFillIntegrated,
+  viewersDesktopIntegrated,
+  agentSaveIntegrated,
 ];
 
 const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list] [--no-skip]
@@ -285,13 +321,23 @@ const installSignalCleanup = (): void => {
 };
 
 // built through turbo, not looked for on disk: a present dist/ may be last week's server and UI.
+// the extension's dev build rides the same run: the browser-extension scenarios load its dist/
 const buildCli = async (repoRoot: string): Promise<void> => {
   const startedAt = Date.now();
-  console.log(`${timestamp()} building the CLI bundle and the workspace UI it stages`);
+  console.log(
+    `${timestamp()} building the CLI bundle, the workspace UI it stages and the browser extension`,
+  );
   try {
     await exec(
       "pnpm",
-      ["turbo", "run", "build", "--filter=inteligir", "--output-logs=errors-only"],
+      [
+        "turbo",
+        "run",
+        "build",
+        "--filter=inteligir",
+        "--filter=@repo/extension",
+        "--output-logs=errors-only",
+      ],
       { cwd: repoRoot, env: buildProcessEnv(), timeoutMs: CLI_BUILD_TIMEOUT_MS },
     );
   } catch (error) {

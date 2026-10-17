@@ -12,13 +12,13 @@ cited.
   since two values that must agree can disagree: signed out, the app sends this
   project's cloud nothing, and what does leave the machine is
   `docs/privacy.md`'s to list. Signed in, the credential alone entitles threads,
-  captures and the hosted vault, except that a folder with an origin of its own,
-  or one another service syncs, never takes the hosted vault (AN OPENED FOLDER'S
-  OWN ORIGIN, in `apps/cli/src/server/vault/CLAUDE.md`); its threads sync either
-  way. The hosted vault's ceiling is a size, not a flag (THE HOSTED VAULT IS
-  CAPPED, below), the invite gate is account-creation policy, and the BYO remote
-  is the vault's own origin and stays accountless. Cost accepted: "pause sync"
-  is signing out, which discards the queue.
+  the phone's requests and the hosted vault, except that a folder with an origin
+  of its own, or one another service syncs, never takes the hosted vault (AN
+  OPENED FOLDER'S OWN ORIGIN, in `apps/cli/src/server/vault/CLAUDE.md`); its
+  threads sync either way. The hosted vault's ceiling is a size, not a flag (THE
+  HOSTED VAULT IS CAPPED, below), the invite gate is account-creation policy,
+  and the BYO remote is the vault's own origin and stays accountless. Cost
+  accepted: "pause sync" is signing out, which discards the queue.
   `apps/cli/src/server/cloud/credential-store.ts`, `sync-runtime.ts`.
 
 - **A DEVICE SIGNS IN, OR SIGNS UP, WITH EMAIL + PASSWORD, and gets the same
@@ -149,14 +149,10 @@ cited.
 - **Say the delivery guarantee you implement.** The dispatch inbox delivers
   at-least-once to a claimant and settles a row only under the claim that holds
   it, so a Mac's apply of a turn or an answer must be exactly-once on the
-  dispatch id, and is: the thread is its ledger (A PHONE ASKS A MAC, below). A
-  capture's only ledger is its bullet in `Inbox.md`, which carries no id, so the
-  Mac holds an ack that never reached the cloud and sends it before its next
-  claim, and the inbox records it under that claim, lapsed or not, until another
-  claim takes the row. A restart between the write and the ack can still repeat
-  a bullet, chosen over losing one. Rejected: a table of applied captures, a
-  second store that repeats a bullet all the same on a crash between its write
-  and the vault's, and spares only a restart that also lost the ack.
+  dispatch id, and is: the thread is its ledger (A PHONE ASKS A MAC, below). An
+  ack that never reached the cloud is held and sent before the Mac's next claim,
+  and the inbox records it under that claim, lapsed or not, until another claim
+  takes the row, so a row the Mac applied is not handed over again.
   `apps/cli/src/server/cloud/dispatches.ts`, `sync-pass.ts`.
 
 - **The THREAD channel carries thread events alone, and a thread's own facts are
@@ -290,12 +286,16 @@ cited.
   offline, and skips a push while the tips a refusal named still stand, since
   each retry would upload the cap's worth again, while commits land and pulls go
   on; the phone keeps the refused edits queued. The first refusal costs no
-  upload either: a push to the account remote is measured first. Rejected:
-  splitting the push into commit-sized steps, since a vault's first commit is
-  the whole tree; a Worker-side meter, which counts bytes offered, not kept; and
-  the head tree's size, which ignores the history that grows.
+  upload either: a push to the account remote is measured first. Commits are
+  budgeted (at most 32 MiB of new bytes each, a vault's first commit included,
+  and no file over 10 MiB in any), so a history past the cap steps through its
+  unpushed commits, each push the newest prefix under the cap, and only a single
+  commit over the cap is refused as too-large. Rejected: one push of the whole
+  history, which a large first commit or an import could never send; a
+  Worker-side meter, which counts bytes offered, not kept; and the head tree's
+  size, which ignores the history that grows.
   `apps/web/cloudflare.config.ts`, `apps/web/src/worker/vault/receive-pack.ts`,
-  `apps/cli/src/server/vault/git-engine.ts`.
+  `apps/cli/src/server/vault/git-engine.ts`, `apps/cli/src/server/vault/git-stage.ts`.
 
 - **A PHONE ASKS A MAC THROUGH A CLAIMABLE DISPATCH INBOX, THE REQUEST LANDS
   THROUGH THE MAC'S OWN SEND, AND THE THREAD IS ITS LEDGER** (owner decision).
@@ -320,16 +320,6 @@ cited.
   provider session there.
   `apps/web/src/worker/sync/dispatch-inbox.ts`,
   `apps/cli/src/server/cloud/dispatches.ts`, `packages/db/src/events.ts`.
-
-- **A CAPTURE RIDES THE SAME INBOX**: a line for `Inbox.md`, kept on the phone
-  until a Mac says it wrote it, so one typed offline is sent after a relaunch.
-  Every Mac claims captures, whether or not it takes the phone's requests and
-  before its pull has caught up, since no log holds them, and a capture can
-  repeat its bullet (Say the delivery guarantee you implement, above). Rejected:
-  a capture lane of its own, whose phone end held the words in memory, so a
-  capture typed offline was lost on relaunch, beside a second claim, ack and
-  ledger that only ever appended a bullet.
-  `packages/contract/src/cloud/dispatch/dispatch-schema.ts`.
 
 - **A PHONE-STARTED TURN'S APPROVAL IS ANSWERED ON THE PHONE** (owner decision):
   the Mac holding its waiter opens it in the inbox, and the phone's answer is a

@@ -12,7 +12,12 @@ import type {
 import type { TurnChanges } from "@repo/contract/local/threads/threads-schema";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TimelineRowView, TurnChangesFooter, turnFooterSlots } from "../timeline-rows";
+import {
+  TimelineRowView,
+  TurnChangesFooter,
+  libraryAttribution,
+  turnFooterSlots,
+} from "../timeline-rows";
 
 afterEach(cleanup);
 
@@ -230,6 +235,35 @@ it("attributes a user message to what the sender was looking at", () => {
   expect(view.container.textContent).not.toContain("a".repeat(64));
 });
 
+it("attributes a message sent from the library to the scope and the count, never the names", () => {
+  const view = render(
+    <List
+      rows={[
+        userRow({
+          paths: [],
+          scope: { kind: "unsorted" },
+          selected: 3,
+          surface: "library",
+        }),
+      ]}
+    />,
+  );
+  expect(view.getByText("Unsorted · 3 selected")).toBeTruthy();
+});
+
+it("spells the library's narrowing in the attribution", () => {
+  expect(
+    libraryAttribution({
+      kinds: ["pdf"],
+      paths: [],
+      q: "tax",
+      scope: { kind: "tag", tag: "finance" },
+      selected: 0,
+      surface: "library",
+    }),
+  ).toBe("#finance · PDFs · “tax”");
+});
+
 it("renders a message with no context as the bubble alone", () => {
   const view = render(<List rows={[userRow(null)]} />);
   expect(view.container.textContent).toBe("make this shorter");
@@ -244,7 +278,7 @@ it("draws the notes a message attached under its bubble, apart from the text", (
 });
 
 const turnChanges = (state: TurnChanges["state"]): TurnChanges => ({
-  paths: ["Plans.md", ".inteligir/comments/note-1.json", "Ideas.md"],
+  paths: ["Plans.md", ".inteligir/annotations/note-1.json", "Ideas.md"],
   state,
   turnId: "turn_1",
 });
@@ -264,7 +298,7 @@ describe("a turn's changes footer", () => {
     expect(view.getByText("Edited 2 notes")).toBeTruthy();
     expect(view.getByText("Plans.md")).toBeTruthy();
     expect(view.getByText("Ideas.md")).toBeTruthy();
-    expect(view.queryByText(".inteligir/comments/note-1.json")).toBeNull();
+    expect(view.queryByText(".inteligir/annotations/note-1.json")).toBeNull();
     fireEvent.click(view.getByRole("button", { name: "Undo changes" }));
     expect(onUndo).toHaveBeenCalledWith("turn_1");
   });

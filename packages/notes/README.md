@@ -63,7 +63,7 @@ src/
                        # nesting in every flow container; an opener whose
                        # container cannot be read whole stays prose
     text-escapes.ts    # which of a text's characters a backslash escape
-                       # wrote, so a pill, a date, a comment marker or a
+                       # wrote, so a pill, a date, an annotation marker or a
                        # `:::` line spelled with one stays text
     remark-inline-constructs.ts, remark-opaque.ts, table-pipes.ts,
     line-scan.ts
@@ -87,10 +87,10 @@ src/
                        # keeps a BOM and the note's line ending) + the
                        # typed-property ADT (YAML it cannot represent is
                        # preserved byte-exactly)
-  comments/            # the %%i:id:start/end%% anchor sidecar: thread bodies,
-                       # marker ids, the sidecar schema, and the entry-wise
-                       # merge two devices' stores take and revert an undo
-                       # takes (never a line merge)
+  annotations/         # the %%i:id:start/end%% markers' store: highlights,
+                       # notes and replies, marker ids, the store schema, and
+                       # the entry-wise merge two devices' stores take and
+                       # revert an undo takes (never a line merge)
   formulas/            # {{source|display|meta}} pills: collection, expression
                        # evaluation, the resolve graph and the walk that loads
                        # it across notes, and result formatting

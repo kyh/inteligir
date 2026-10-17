@@ -5,6 +5,8 @@
 // what each namespace traces, as the guide prints it.
 export const DEBUG_TRACES = {
   acp: "every frame traded with an agent adapter, named by method, id and session",
+  items:
+    "each save and fill by path and url key: the item it made or found, and why a fill waited, failed or was skipped",
   knowledge: "the index's verdict for each file a pass looked at",
   sync: "each pulled page, where each step of a sync pass stopped, and a pass fenced out by a newer sign-in",
   watcher:

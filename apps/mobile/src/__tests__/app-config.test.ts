@@ -29,11 +29,33 @@ const privacyManifestSchema = z.looseObject({
   NSPrivacyAccessedAPITypes: z.array(accessedApiSchema).optional(),
 });
 
+const appExtensionSchema = z.looseObject({
+  bundleIdentifier: z.string(),
+  entitlements: z.record(z.string(), z.unknown()),
+  targetName: z.string(),
+});
+
 const appConfigSchema = z.looseObject({
+  extra: z
+    .looseObject({
+      eas: z
+        .looseObject({
+          build: z.looseObject({
+            experimental: z.looseObject({
+              ios: z.looseObject({ appExtensions: z.array(appExtensionSchema).optional() }),
+            }),
+          }),
+        })
+        .optional(),
+    })
+    .optional(),
   ios: z.looseObject({
+    bundleIdentifier: z.string(),
+    entitlements: z.record(z.string(), z.unknown()).optional(),
     infoPlist: z.record(z.string(), z.unknown()),
     privacyManifests: privacyManifestSchema.optional(),
   }),
+  plugins: z.array(z.unknown()),
 });
 type AppConfig = z.infer<typeof appConfigSchema>;
 
@@ -147,6 +169,22 @@ const declaredReasons = async (pods: LinkedPod[]): Promise<DeclaredReason[]> => 
 
 const reasonKey = (api: string, reason: string): string => `${api} ${reason}`;
 
+const APP_GROUP = "group.com.inteligir.mobile";
+const SHARE_EXTENSION_ID = "com.inteligir.mobile.share-extension";
+const APP_GROUPS_KEY = "com.apple.security.application-groups";
+
+const sharePluginSchema = z.tuple([
+  z.literal("expo-share-intent"),
+  z.looseObject({ iosActivationRules: z.record(z.string(), z.unknown()) }),
+]);
+
+// the share plugin's own options, as the resolved config carries them
+const shareOptionsOf = (config: AppConfig) =>
+  config.plugins.flatMap((plugin) => {
+    const parsed = sharePluginSchema.safeParse(plugin);
+    return parsed.success ? [parsed.data[1]] : [];
+  });
+
 describe("the phone's store config", () => {
   let config: AppConfig;
   let packageVersion: string;
@@ -190,6 +228,41 @@ describe("the phone's store config", () => {
       "rule: a purpose string is what the permission prompt shows, and an Expo plugin's default names no reason the user could weigh\n" +
         "fix: pass the plugin the app's own sentence, or false where the app never asks",
     ).toEqual([]);
+  });
+
+  it("signs the app into the App Group its share extension hands a share over through", () => {
+    expect(config.ios.entitlements?.[APP_GROUPS_KEY]).toStrictEqual([APP_GROUP]);
+    expect(config.ios.infoPlist.AppGroupIdentifier).toBe(APP_GROUP);
+  });
+
+  it("carries exactly one app extension, the share extension, in that group", () => {
+    const extensions = config.extra?.eas?.build.experimental.ios.appExtensions ?? [];
+    expect(
+      extensions.map((extension) => ({
+        bundleIdentifier: extension.bundleIdentifier,
+        groups: extension.entitlements[APP_GROUPS_KEY],
+      })),
+      "rule: EAS signs every app extension it is told of, and a second one is a target nobody asked for\n" +
+        "fix: expo-share-intent's plugin in app.config.js is the one extension",
+    ).toStrictEqual([{ bundleIdentifier: SHARE_EXTENSION_ID, groups: [APP_GROUP] }]);
+    expect(config.ios.bundleIdentifier).toBe("com.inteligir.mobile");
+  });
+
+  it("offers Save to Inteligir for a page, a link and text, never for an image or a file", () => {
+    const options = shareOptionsOf(config);
+    expect(options).toHaveLength(1);
+    expect(options[0]?.iosActivationRules).toStrictEqual({
+      NSExtensionActivationSupportsText: true,
+      NSExtensionActivationSupportsWebPageWithMaxCount: 1,
+      NSExtensionActivationSupportsWebURLWithMaxCount: 1,
+    });
+  });
+
+  it("declares the App Group's defaults among the reasons it reads user defaults", () => {
+    const userDefaults = config.ios.privacyManifests?.NSPrivacyAccessedAPITypes?.find(
+      (api) => api.NSPrivacyAccessedAPIType === "NSPrivacyAccessedAPICategoryUserDefaults",
+    );
+    expect(userDefaults?.NSPrivacyAccessedAPITypeReasons).toContain("1C8F.1");
   });
 
   it("finds the manifests it holds the config to", () => {

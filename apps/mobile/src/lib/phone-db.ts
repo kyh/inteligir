@@ -8,7 +8,9 @@ import type { SqlDriver, SqlExecutor } from "./sql-driver";
 
 // mirror_meta's tree_commit is the tree the rows hold, mirrored_commit the last one they held
 // every wanted text of. mirror_entries puts content last: a listing read stops at the columns
-// before it rather than walking a long note's overflow pages to reach one after it.
+// before it rather than walking a long note's overflow pages to reach one after it. `item` is a
+// doc's library card as JSON, read from its text when the text lands, so the library lists
+// without parsing a note.
 // outbox: the phone's unsent writes, oldest first; `op` and `settle` are JSON parsed on every
 // read. mirror_landings: which paths a landed write moved, in landing order, so a refresh that
 // listed the tree before a landing leaves those rows alone.
@@ -33,8 +35,9 @@ const MIGRATIONS: readonly string[] = [
      wants_text INTEGER NOT NULL CHECK (wants_text IN (0, 1)),
      note_id TEXT,
      aliases TEXT NOT NULL DEFAULT '[]',
+     item TEXT,
      content TEXT,
-     CHECK (content IS NOT NULL OR (note_id IS NULL AND aliases = '[]'))
+     CHECK (content IS NOT NULL OR (note_id IS NULL AND aliases = '[]' AND item IS NULL))
    );
    CREATE TABLE outbox (
      seq INTEGER PRIMARY KEY AUTOINCREMENT,

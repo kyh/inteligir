@@ -76,6 +76,7 @@ import {
 import type { VaultCommitRequest } from "../vault/vault-commit-schema";
 import {
   assetMediaType,
+  takesBytes,
   VAULT_API_PATHS,
   VAULT_ASSET_MEDIA_TYPES,
   VAULT_FILES_MAX_PATHS,
@@ -316,7 +317,6 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
   ],
   ["a sync ping", syncPingSchema, { seq: 1, type: "sync" }],
   ["a dispatch ping", syncPingSchema, { threadId: "th_1", type: "dispatch" }],
-  ["a capture's dispatch ping", syncPingSchema, { type: "dispatch" }],
   [
     "a dispatch created",
     createDispatchResponseSchema,
@@ -692,11 +692,6 @@ describe("the dispatch inbox", () => {
     id: "e".repeat(32),
     kind: "answer",
   };
-  const CAPTURE: CreateDispatchRequest = {
-    id: "f".repeat(32),
-    kind: "capture",
-    text: "buy oat milk",
-  };
   const APPROVAL: OpenApprovalRequest = {
     id: APPROVAL_ID,
     payload: APPROVAL_PAYLOAD,
@@ -714,7 +709,6 @@ describe("the dispatch inbox", () => {
   it("reads every request it sends as exactly that request", () => {
     expect(createDispatchRequestSchema.parse(TURN)).toStrictEqual(TURN);
     expect(createDispatchRequestSchema.parse(ANSWER)).toStrictEqual(ANSWER);
-    expect(createDispatchRequestSchema.parse(CAPTURE)).toStrictEqual(CAPTURE);
     expect(openApprovalRequestSchema.parse(APPROVAL)).toStrictEqual(APPROVAL);
     expect(ackDispatchesRequestSchema.parse(ACK)).toStrictEqual(ACK);
     expect(dispatchStatusRequestSchema.parse({ ids: [DISPATCH_ID] })).toStrictEqual({
@@ -726,8 +720,8 @@ describe("the dispatch inbox", () => {
     expect(closeApprovalRequestSchema.parse({ id: APPROVAL_ID })).toStrictEqual({
       id: APPROVAL_ID,
     });
-    expect(claimDispatchesRequestSchema.parse({ kinds: ["capture"] })).toStrictEqual({
-      kinds: ["capture"],
+    expect(claimDispatchesRequestSchema.parse({ kinds: ["answer"] })).toStrictEqual({
+      kinds: ["answer"],
       limit: DISPATCH_CLAIM_DEFAULT_LIMIT,
     });
   });
@@ -748,9 +742,6 @@ describe("the dispatch inbox", () => {
       { ...TURN, lane: "desktop" },
       { ...ANSWER, decision: "allow_forever" },
       { ...ANSWER, kind: "cancel" },
-      { ...CAPTURE, text: "  " },
-      { ...CAPTURE, text: "x".repeat(DISPATCH_MAX_CHARS + 1) },
-      { ...CAPTURE, threadId: "thr_1" },
     ];
     for (const body of refused) {
       expect(createDispatchRequestSchema.safeParse(body).success, JSON.stringify(body)).toBe(false);
@@ -803,7 +794,7 @@ describe("the dispatch inbox", () => {
       },
     });
     await client.createDispatch(TURN);
-    await client.claimDispatches({ kinds: ["turn", "capture"], limit: 5 });
+    await client.claimDispatches({ kinds: ["turn", "answer"], limit: 5 });
     await client.ackDispatches(ACK);
     await client.dispatchStatus([DISPATCH_ID]);
     await client.cancelDispatch(DISPATCH_ID);
@@ -832,7 +823,7 @@ describe("the dispatch inbox", () => {
     ];
     expect(decoded).toStrictEqual([
       TURN,
-      { kinds: ["turn", "capture"], limit: 5 },
+      { kinds: ["turn", "answer"], limit: 5 },
       ACK,
       { ids: [DISPATCH_ID] },
       { id: DISPATCH_ID },
@@ -1013,18 +1004,51 @@ describe("vault read rows", () => {
 
   it("pins the asset allowlist WHOLE — growth is additive, removal waits on the build floor", () => {
     // hand-listed on purpose: removing an entry 400s every phone above the floor whose notes embed it
-    expect(Object.fromEntries(VAULT_ASSET_MEDIA_TYPES)).toEqual({
-      ".apng": "image/apng",
-      ".avif": "image/avif",
-      ".bmp": "image/bmp",
-      ".gif": "image/gif",
-      ".ico": "image/x-icon",
-      ".jpeg": "image/jpeg",
-      ".jpg": "image/jpeg",
-      ".png": "image/png",
-      ".svg": "image/svg+xml",
-      ".webp": "image/webp",
+    expect(
+      Object.fromEntries(
+        [...VAULT_ASSET_MEDIA_TYPES].map(([extension, row]) => [
+          extension,
+          `${row.kind} ${row.mediaType}`,
+        ]),
+      ),
+    ).toEqual({
+      ".aac": "audio audio/aac",
+      ".apng": "image image/apng",
+      ".avif": "image image/avif",
+      ".bmp": "image image/bmp",
+      ".flac": "audio audio/flac",
+      ".gif": "image image/gif",
+      ".ico": "image image/x-icon",
+      ".jpeg": "image image/jpeg",
+      ".jpg": "image image/jpeg",
+      ".m4a": "audio audio/mp4",
+      ".m4v": "video video/x-m4v",
+      ".mov": "video video/quicktime",
+      ".mp3": "audio audio/mpeg",
+      ".mp4": "video video/mp4",
+      ".pdf": "pdf application/pdf",
+      ".png": "image image/png",
+      ".svg": "image image/svg+xml",
+      ".wav": "audio audio/wav",
+      ".webm": "video video/webm",
+      ".webp": "image image/webp",
     });
+  });
+
+  it("stores bytes at any path but a doc's and the app's own, which is wider than it serves", () => {
+    for (const path of ["assets/archive.zip", "assets/IMG.HEIC", "media/a.png", "x.pdf"]) {
+      expect(takesBytes(path), path).toBe(true);
+    }
+    for (const path of [
+      "notes/a.md",
+      "notes/a.TXT",
+      ".inteligir/annotations/abc.json",
+      ".obsidian/workspace.json",
+      "notes/.DS_Store",
+    ]) {
+      expect(takesBytes(path), path).toBe(false);
+    }
+    expect(assetMediaType("assets/archive.zip")).toBeNull();
   });
 });
 

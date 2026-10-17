@@ -19,11 +19,14 @@ import type { CloudTransport } from "../cloud/sync-runtime";
 import type { VaultRemoteProvider } from "../cloud/vault-remote";
 import { composeRuntime } from "../compose";
 import type { ComposedRuntime, ComposePorts, ComposeRuntimeArgs } from "../compose";
+import { offlineFetcher } from "../items/capture/__tests__/offline-fetcher";
+import type { CapturePorts } from "../items/capture/capture-ports";
 import { createVendorMcpConfigs } from "../connectors/connectors-service";
 import type { VendorMcpConfigs } from "../connectors/vendor-mcp-config";
 import { SignInInProgressError } from "../agents/agent-sign-in";
 import type { AgentAccounts, SigningIn } from "../agents/agent-sign-in";
 import type { AppConfig } from "../config";
+import type { ItemsService } from "../items/items-service";
 import { createInlineProjector } from "../knowledge/__tests__/inline-projector";
 import { closeServer } from "../listen";
 import { localRouter } from "../root-router";
@@ -161,12 +164,16 @@ export interface BootTestAppOptions {
   pinnedRemote?: string;
   // the vault's folder is left for the boot to create, so it seeds the starter notes.
   seedsStarters?: boolean;
+  // the capture's fetch, worker and clock; absent, a fetch that never answers, so a saved link
+  // stays a stub and no page leaves the machine.
+  items?: CapturePorts;
   makeDriver?: (deps: {
     db: DbConnection;
     bus: WsBus;
     vault: VaultRuntime;
     vaultDir: string;
     sink: ProviderEventSink;
+    items: Pick<ItemsService, "saveLink" | "saveFile">;
   }) => {
     driver: TurnDriver;
     // absent, `agent` answers every request.
@@ -238,6 +245,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
   };
 
   const ports: ComposePorts = {
+    items: options.items ?? { fetcher: offlineFetcher },
     knowledge: { projector: createInlineProjector() },
     machineName: TEST_MACHINE_NAME,
     vault:
@@ -264,6 +272,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
       const made = options.makeDriver?.({
         bus: deps.bus,
         db: deps.db,
+        items: deps.items,
         sink: deps.sink,
         vault: deps.vault,
         vaultDir,

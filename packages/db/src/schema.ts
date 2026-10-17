@@ -121,6 +121,9 @@ export const queuedThreadMessages = sqliteTable(
     // json array of vault paths, null for none. Kept, unlike the view context the queue drops:
     // an @-mention is part of what the user asked, not a statement about a screen since left.
     contextPaths: text("context_paths"),
+    // the named action the message asks for (an ActionPreset), null for none. Kept for the same
+    // reason: the preset is what was asked, and its block is composed when the message drains.
+    preset: text("preset"),
     // the phone's dispatch this message carries out, so a claim that finds it queued here is a
     // duplicate and the request it drains into names it
     dispatchId: text("dispatch_id"),
@@ -222,3 +225,29 @@ export const syncState = sqliteTable(
 export const syncOwnDevices = sqliteTable("sync_own_devices", {
   deviceId: text("device_id").primaryKey(),
 });
+
+// the stubs this Mac will fill, one row per item, written per transition rather than as one file
+// rewritten whole (an import of thousands moves every row). `origin` says whose stub it is: this
+// Mac's own save or import, a phone's share, or another Mac's, which decides when it is filled.
+export const pendingFillOriginValues = ["own", "phone", "foreign"] as const;
+
+export const pendingFills = sqliteTable(
+  "pending_fills",
+  {
+    // the stub's frontmatter id
+    itemId: text("item_id").primaryKey(),
+    // its path now: a rename updates it
+    path: text("path").notNull(),
+    url: text("url").notNull(),
+    origin: text("origin", { enum: pendingFillOriginValues }).notNull(),
+    keepCopy: integer("keep_copy", { mode: "boolean" }).notNull().default(false),
+    // an imported Raindrop cover url, which the fill tries before the page's own
+    coverHint: text("cover_hint"),
+    attempts: integer("attempts").notNull().default(0),
+    // epoch ms
+    firstSeenAt: integer("first_seen_at").notNull(),
+    // epoch ms: not tried before this
+    notBefore: integer("not_before").notNull(),
+  },
+  (table) => [index("pending_fills_not_before_idx").on(table.notBefore)],
+);

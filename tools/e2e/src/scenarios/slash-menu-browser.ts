@@ -24,15 +24,17 @@ export const slashMenuBrowser: Scenario = {
   async run(ctx) {
     const app = await ctx.boot({
       name: "solo",
-      // the only note, so the virgin boot opens it.
       seedVault: async (vaultDir) => {
         await writeFile(path.join(vaultDir, DOC_PATH), DOC, "utf-8");
       },
     });
     const agentBrowser = await ctx.browser("slash");
 
-    ctx.log(`opening ${app.baseUrl}/`);
-    await agentBrowser.openWorkspace(app);
+    ctx.log(`opening ${DOC_PATH} by its deep link`);
+    await agentBrowser.openWorkspace(app, {
+      path: `/?item=${encodeURIComponent(DOC_PATH)}`,
+      ready: EDITOR,
+    });
 
     ctx.log("putting the caret at the end of the paragraph and opening a fresh block");
     await agentBrowser(["find", "text", PARAGRAPH, "click"]);

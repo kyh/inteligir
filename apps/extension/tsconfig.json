@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // the extension's pages and its service worker run in Chrome 116 or later
+    "lib": ["ES2023", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client", "chrome"]
+  },
+  "include": ["src", "vite", "vite.config.ts", "vite.capture.config.ts", "vitest.config.ts"]
+}

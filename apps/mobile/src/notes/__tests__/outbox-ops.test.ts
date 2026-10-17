@@ -18,8 +18,8 @@ describe("an outbox row's op", () => {
     expect(vaultOpSchema.safeParse({ ...rename, content: undefined }).success).toBe(false);
     expect(vaultOpSchema.safeParse({ ...rename, rewrites: undefined }).success).toBe(false);
 
-    const remove = { baseOid: OID, op: "remove", path: "a.md", stores: [] };
+    const remove = { baseOid: OID, op: "remove", path: "a.md", alongside: [] };
     expect(vaultOpSchema.safeParse(remove).success).toBe(true);
-    expect(vaultOpSchema.safeParse({ ...remove, stores: undefined }).success).toBe(false);
+    expect(vaultOpSchema.safeParse({ ...remove, alongside: undefined }).success).toBe(false);
   });
 });

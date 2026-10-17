@@ -17,7 +17,6 @@ import { LabelledField } from "../labelled-field";
 const DELETED = [
   "The online copy of your notes",
   "Your synced conversations with the agent",
-  "Captures from your phone that haven't reached a Mac",
   "The sign-in on every device, this Mac included",
 ] as const;
 

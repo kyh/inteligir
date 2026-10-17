@@ -3,9 +3,7 @@
 // swaps only this. Every page filters its own rows, so nothing here matches a query.
 
 import { CommandEmpty, CommandGroup, CommandItem, CommandList } from "@repo/ui/components/command";
-import { docStem } from "@repo/notes/knowledge/doc-file";
-import { TEMPLATES_FOLDER } from "@repo/notes/templates/folders";
-import { FolderIcon, LayoutTemplateIcon } from "lucide-react";
+import { FolderIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export const SEARCH_DEBOUNCE_MS = 120;
@@ -28,7 +26,7 @@ export const matchesQuery = (label: string, query: string): boolean =>
   label.toLowerCase().includes(query.trim().toLowerCase());
 
 export interface PalettePageProps {
-  // between the field and the list: the search page's toggles and replace row
+  // between the field and the list: the search page's match-case and whole-word toggles
   toolbar?: React.ReactNode;
   children: React.ReactNode;
 }
@@ -47,7 +45,7 @@ export interface FolderPageProps {
   onPick: (dir: string) => void;
 }
 
-// the one picker behind "New note in folder…" and "Move note to folder…"
+// the one picker behind "New note in folder…" and "Move to folder…"
 export const FolderPage = ({ empty, folders, onPick }: FolderPageProps) => (
   <PalettePage>
     <CommandEmpty>{empty}</CommandEmpty>
@@ -67,39 +65,3 @@ export const FolderPage = ({ empty, folders, onPick }: FolderPageProps) => (
     </CommandGroup>
   </PalettePage>
 );
-
-export const TemplateRows = ({
-  templatePaths,
-  query,
-  onPick,
-}: {
-  templatePaths: readonly string[];
-  query: string;
-  onPick: (templatePath: string) => void;
-}) => {
-  const visible = templatePaths.filter((path) => matchesQuery(docStem(path), query));
-  return (
-    <>
-      <CommandEmpty>
-        {templatePaths.length === 0
-          ? `No templates yet — notes under ${TEMPLATES_FOLDER}/ appear here.`
-          : "No matching template."}
-      </CommandEmpty>
-      <CommandGroup heading="Templates">
-        {visible.map((path) => (
-          <CommandItem
-            key={path}
-            action={docStem(path)}
-            onSelect={() => {
-              onPick(path);
-            }}
-          >
-            <LayoutTemplateIcon />
-            <span className="truncate">{docStem(path)}</span>
-            <span className="ml-auto truncate pl-3 text-body text-muted-foreground">{path}</span>
-          </CommandItem>
-        ))}
-      </CommandGroup>
-    </>
-  );
-};

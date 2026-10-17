@@ -11,7 +11,7 @@ import type { SignInSource } from "../../lib/sign-in-fence";
 import type { SqlDriver } from "../../lib/sql-driver";
 import { createSyncRuntime } from "../../sync/sync-runtime";
 import { createNotesStore } from "../notes-store";
-import type { CommentsRead, NotesStore } from "../notes-store";
+import type { AnnotationsRead, NotesStore } from "../notes-store";
 import { blobOid, createFakeVault, requestsOf } from "./fake-vault";
 import type { FakeVault } from "./fake-vault";
 import { openSyncStore, openTempDb, phonePorts } from "./phone-storage";
@@ -84,7 +84,7 @@ describe("the notes store", () => {
     signIn(CREDENTIAL, "restored");
     await store.refresh();
     expect(store.tree.get()).toEqual({
-      entries: Object.keys(VAULT).map((path) => ({ path })),
+      entries: Object.keys(VAULT).map((path) => expect.objectContaining({ path })),
       progress: null,
       refreshError: null,
       state: "ready",
@@ -165,7 +165,7 @@ describe("the notes store", () => {
 
     expect(store.tree.get()).toEqual({
       ...ready,
-      refreshError: "This vault is too large for the notes list.",
+      refreshError: "This library is too large to list on your phone.",
     });
   });
 
@@ -445,7 +445,7 @@ describe("a worker newer than this build", () => {
     await sync.syncNow();
 
     expect(store.tree.get()).toEqual({
-      entries: [{ path: "a.md" }],
+      entries: [expect.objectContaining({ path: "a.md" })],
       progress: null,
       refreshError: null,
       state: "ready",
@@ -494,16 +494,16 @@ const signedInStore = async (extra: Record<string, string>) => {
   return { store, vault };
 };
 
-// the screen's order: the note first, then the comments folded against that read
-const commentsOf = async (store: NotesStore, path: string): Promise<CommentsRead> => {
+// the screen's order: the note first, then the annotations folded against that read
+const annotationsOf = async (store: NotesStore, path: string): Promise<AnnotationsRead> => {
   const note = await store.readNote(path);
   if (!note.ok) {
     throw new Error(note.message);
   }
-  return await store.readComments(note);
+  return await store.readAnnotations(note);
 };
 
-describe("a note's comments on the phone", () => {
+describe("a note's annotations on the phone", () => {
   const NOTE_ID = "0f6a3b1e-5c2d-4e8f-9a7b-1c3d5e7f9a0b";
   const NOTE = `---\nid: ${NOTE_ID}\n---\nThe %%i:c1:start%%plan%%i:c1:end%% holds.\n`;
   const STORE = JSON.stringify({
@@ -514,23 +514,23 @@ describe("a note's comments on the phone", () => {
   it("folds the store at the note's id against the note's own markers, both held offline", async () => {
     const { store, vault } = await signedInStore({
       "notes/d.md": NOTE,
-      [`.inteligir/comments/${NOTE_ID}.json`]: STORE,
+      [`.inteligir/annotations/${NOTE_ID}.json`]: STORE,
     });
-    const read = await commentsOf(store, "notes/d.md");
+    const read = await annotationsOf(store, "notes/d.md");
     expect(read.ok).toBe(true);
     if (!read.ok) {
       return;
     }
-    expect(read.threads.map((thread) => thread.rootId)).toEqual(["c1"]);
-    expect(read.threads[0]?.anchored).toBe(true);
-    expect(read.threads[0]?.replies.map((reply) => reply.entry.text)).toEqual(["It does."]);
+    expect(read.annotations.map((annotation) => annotation.id)).toEqual(["c1"]);
+    expect(read.annotations[0]?.anchored).toBe(true);
+    expect(read.annotations[0]?.replies.map((reply) => reply.entry.text)).toEqual(["It does."]);
     expect(requestsOf(vault, "file")).toEqual([]);
   });
 
-  it("answers no comments for a note without an id, and for one the tree holds no store for, without asking", async () => {
+  it("answers no annotations for a note without an id, and for one the tree holds no store for, without asking", async () => {
     const { store, vault } = await signedInStore({ "notes/d.md": NOTE });
-    expect(await commentsOf(store, "a.md")).toEqual({ ok: true, threads: [] });
-    expect(await commentsOf(store, "notes/d.md")).toEqual({ ok: true, threads: [] });
+    expect(await annotationsOf(store, "a.md")).toEqual({ annotations: [], ok: true });
+    expect(await annotationsOf(store, "notes/d.md")).toEqual({ annotations: [], ok: true });
     expect(vault.requests.filter((line) => line.includes(".inteligir"))).toEqual([]);
   });
 
@@ -538,16 +538,16 @@ describe("a note's comments on the phone", () => {
     const vault = fakeVault({ "notes/d.md": NOTE });
     const { signIn, store } = notesOver(vault.fetch);
     signIn(CREDENTIAL, "restored");
-    expect(await commentsOf(store, "notes/d.md")).toEqual({ ok: true, threads: [] });
+    expect(await annotationsOf(store, "notes/d.md")).toEqual({ annotations: [], ok: true });
     expect(vault.requests.filter((line) => line.includes(".inteligir"))).toHaveLength(1);
   });
 
   it("reports an unreadable store rather than showing nothing", async () => {
     const { store } = await signedInStore({
       "notes/d.md": NOTE,
-      [`.inteligir/comments/${NOTE_ID}.json`]: "{broken",
+      [`.inteligir/annotations/${NOTE_ID}.json`]: "{broken",
     });
-    const read = await commentsOf(store, "notes/d.md");
+    const read = await annotationsOf(store, "notes/d.md");
     expect(read.ok).toBe(false);
   });
 });

@@ -76,7 +76,12 @@ export default defineConfig({
     platformPurity(
       "packages/editor",
       NODE,
-      "@repo/editor is browser-only: Plate/Slate in the page, never in the Node process",
+      "@repo/editor imports no node module: it runs in the page, and its headless kits in the fill worker's DOM-shimmed thread (apps/cli/src/server/items/capture/fill/)",
+    ),
+    platformPurity(
+      "apps/extension",
+      NODE,
+      "@repo/extension runs in the browser: its pages and its service worker reach the Mac only through the native host",
     ),
     platformPurity(
       "apps/mobile-editor",
@@ -121,6 +126,10 @@ export default defineConfig({
                 message:
                   "@repo/notes names no platform and not every runtime it ships to has crypto; take the random bytes or the id from the caller",
                 name: "crypto",
+              },
+              {
+                message: "React Native's URL is not WHATWG; parse with @repo/notes/items/item-url",
+                name: "URL",
               },
             ],
           },

@@ -32,11 +32,12 @@ const spawnFakeAdapter: AcpAgentRuntimeOptions["spawnAdapter"] = (_harness, env)
 const bootAcp = async (env: NodeJS.ProcessEnv) =>
   await bootTestApp({
     agent: { detail: "placeholder", mode: "acp", runtime: "unavailable" },
-    makeDriver: ({ db, bus, vault, vaultDir, sink }) =>
+    makeDriver: ({ db, bus, items, vault, vaultDir, sink }) =>
       resolveAgentDriver({
         config: { agent: "acp", agentModels: NO_MODELS, vaultDir },
         db,
         defaultHarness: () => "claude",
+        items,
         env,
         notifier: bus,
         sessionFacts: () => fakeSessionFacts(),
@@ -77,11 +78,12 @@ describe("agent driver resolution", () => {
   it("the off mode reads as off on /system/status", async () => {
     const harness = await bootTestApp({
       agent: { mode: "off" },
-      makeDriver: ({ db, bus, vault, vaultDir, sink }) =>
+      makeDriver: ({ db, bus, items, vault, vaultDir, sink }) =>
         resolveAgentDriver({
           config: { agent: "off", agentModels: NO_MODELS, vaultDir },
           db,
           defaultHarness: () => "claude",
+          items,
           notifier: bus,
           sessionFacts: () => fakeSessionFacts(),
           sink,

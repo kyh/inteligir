@@ -1,3 +1,7 @@
+// CLAUDE.md § A MOVE IS A RENAME THAT KEEPS THE NAME. The rail's and the library's file verbs over
+// the vault session, which carries or closes the open item for a rename or delete of it or of a
+// folder above it, so nothing here does.
+
 import { useMemo } from "react";
 import type { RefObject } from "react";
 import { confirm } from "@repo/ui/components/confirm-dialog";
@@ -5,24 +9,31 @@ import type { VaultActions } from "@repo/editor/host-io";
 import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import { client, failed } from "../api";
 import { desktopPaths, runPathAction } from "../desktop-paths";
-import type { TreeOps } from "./file-tree";
 
-// Ref-held: the vault session mounts below the component that owns these. The session carries
-// or closes the open note for a rename or delete of it or a folder above it, so nothing here does.
+// Ref-held: the vault session mounts below the component that owns these.
 type TreeVaultActions = Pick<VaultActions, "renameEntry" | "deleteEntry">;
 
-// the server's root is a native path, so the join keeps its separator; the entry is always "/"-joined
-export const absoluteEntryPath = (root: string, path: string): string => {
-  const separator = root.includes("\\") ? "\\" : "/";
-  return `${root}${separator}${path.split("/").join(separator)}`;
-};
+export interface TreeOps {
+  createNote: (path: string) => void;
+  createFolder: (path: string) => void;
+  // false when the session refused it, and said why
+  renameEntry: (fromPath: string, toPath: string) => Promise<boolean>;
+  // into `toDir` ("" is the library's root), keeping the entry's own name
+  moveEntry: (fromPath: string, toDir: string) => Promise<boolean>;
+  // a folder is asked about first: everything inside goes with it
+  removeFolder: (path: string) => void;
+  setPinned: (path: string, pinned: boolean) => void;
+  // present under the shell alone: the OS is reached through it, and a browser tab has no shell
+  revealEntry?: (path: string) => void;
+  openEntry?: (path: string) => void;
+}
 
 export type MoveVerdict =
   | { ok: true; to: string }
   | { ok: false; reason: "self" | "descendant" | "same-parent" };
 
-// One predicate for the drop target and the palette's folder page, so the tree refuses a
-// drop and the palette hides a folder for the same three reasons. "" is the vault root.
+// One predicate for every drop target and the palette's folder page, so a folder row refuses a
+// drop and the palette hides a folder for the same three reasons. "" is the library's root.
 export const planMove = (from: string, toDir: string): MoveVerdict => {
   if (toDir === from) {
     return { ok: false, reason: "self" };
@@ -38,7 +49,7 @@ export const planMove = (from: string, toDir: string): MoveVerdict => {
 
 interface TreeOpsDeps {
   actions: RefObject<TreeVaultActions | null>;
-  createNote: (path: string, content?: string) => Promise<void>;
+  createNote: (path: string) => Promise<void>;
   setPinned: (path: string, pinned: boolean) => void;
 }
 
@@ -47,7 +58,7 @@ interface TreeOpsDeps {
 export const useTreeOps = ({ actions, createNote, setPinned }: TreeOpsDeps): TreeOps =>
   useMemo<TreeOps>(() => {
     const paths = desktopPaths();
-    // absent outside the shell, so the tree draws no row for them there
+    // absent outside the shell, so no surface draws a row for them there
     const shellOps: Pick<TreeOps, "revealEntry" | "openEntry"> =
       paths === undefined
         ? {}
@@ -59,9 +70,8 @@ export const useTreeOps = ({ actions, createNote, setPinned }: TreeOpsDeps): Tre
               runPathAction(async () => await paths.reveal({ path }), `Could not reveal ${path}.`);
             },
           };
-    const renameEntry: TreeOps["renameEntry"] = (fromPath, toPath) => {
-      void actions.current?.renameEntry(fromPath, toPath);
-    };
+    const renameEntry: TreeOps["renameEntry"] = async (fromPath, toPath) =>
+      (await actions.current?.renameEntry(fromPath, toPath)) ?? false;
     return {
       createFolder: (path) => {
         void (async () => {
@@ -78,22 +88,17 @@ export const useTreeOps = ({ actions, createNote, setPinned }: TreeOpsDeps): Tre
       renameEntry,
       setPinned,
       ...shellOps,
-      moveEntry: (fromPath, toDir) => {
+      moveEntry: async (fromPath, toDir) => {
         const plan = planMove(fromPath, toDir);
-        if (plan.ok) {
-          renameEntry(fromPath, plan.to);
-        }
+        return plan.ok ? await renameEntry(fromPath, plan.to) : false;
       },
-      removeEntry: (path, kind) => {
+      removeFolder: (path) => {
         void (async () => {
           const confirmed = await confirm({
-            body:
-              kind === "dir"
-                ? "Everything inside it goes with it. Notes stay recoverable from Deleted notes."
-                : "It stays recoverable from Deleted notes.",
+            body: "Everything inside it goes with it. Every item stays recoverable from Deleted.",
             confirmLabel: "Delete",
             destructive: true,
-            title: kind === "dir" ? `Delete the folder ${path}?` : `Delete ${path}?`,
+            title: `Delete the folder ${path}?`,
           });
           if (!confirmed) {
             return;

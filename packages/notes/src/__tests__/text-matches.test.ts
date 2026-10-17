@@ -5,7 +5,6 @@ import {
   collectVaultMatches,
   excerptAround,
   findTextOffsets,
-  replaceTextMatches,
 } from "../knowledge/text-matches";
 import type { TextMatch, TextMatchOptions } from "../knowledge/text-matches";
 
@@ -69,20 +68,6 @@ describe("offsets into one string", () => {
       { length: 3, offset: 0 },
       { length: 3, offset: 4 },
     ]);
-  });
-});
-
-describe("replacing what the rows showed", () => {
-  it("rewrites every occurrence, keeps terminators and counts", () => {
-    const text = "Deploy on Friday\r\nnever deploy\n";
-    expect(replaceTextMatches(text, "deploy", "ship", LOOSE)).toEqual({
-      count: 2,
-      text: "ship on Friday\r\nnever ship\n",
-    });
-  });
-
-  it("writes a `$1` as text, not a group", () => {
-    expect(replaceTextMatches("cost: 5", "5", "$1", LOOSE).text).toBe("cost: $1");
   });
 });
 

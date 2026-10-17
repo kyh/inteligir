@@ -1,6 +1,6 @@
 // the phone's requests to a Mac, durable from the tap that asks one. Not a log outbox: the phone
 // appends nothing to the thread log, and a row here leaves once a Mac's request carrying its id is
-// in the log, or once the cloud says a Mac took an answer or a capture.
+// in the log, or once the cloud says a Mac took an answer.
 
 import { z } from "zod";
 import {

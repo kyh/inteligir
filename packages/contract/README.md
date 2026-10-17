@@ -57,11 +57,10 @@ src/
 - **apps/cli** implements `/local` and, in `src/server/cloud/`, consumes all
   of `/cloud` — push, pull, the dispatch claims and acks, the approvals it
   relays, the git remote.
-- **apps/mobile** pulls threads, produces dispatches (its captures among them),
-  answers a phone-started turn's approvals and commits vault change sets
-  (`vaultCommit`), and never pushes thread events, claims a dispatch or speaks
-  git, because the desktop runs the turns and owns applying a capture to the
-  vault. It reaches nothing under `/local` either, pinned by
+- **apps/mobile** pulls threads, produces dispatches, answers a phone-started
+  turn's approvals and commits vault change sets (`vaultCommit`), and never
+  pushes thread events, claims a dispatch or speaks git, because the desktop
+  runs the turns. It reaches nothing under `/local` either, pinned by
   the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as apps/web: a phone
   install may be months stale against the deployed Worker.
 - **apps/workspace** compiles against `/local` alone.

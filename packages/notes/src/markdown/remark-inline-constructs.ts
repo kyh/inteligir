@@ -13,7 +13,7 @@ import type {
 } from "mdast-util-to-markdown";
 import type { Plugin, Processor, Transformer } from "unified";
 
-import { COMMENT_ID_PATTERN } from "../comments/sidecar-schema";
+import { ANNOTATION_ID_PATTERN } from "../annotations/store-schema";
 import { ISO_DATE_PATTERN } from "../iso-date";
 import { isMdastRoot } from "./mdast-nodes";
 import { escapedAt, textCutter } from "./text-escapes";
@@ -26,8 +26,8 @@ export interface FormulaPill extends Node {
   meta?: string;
 }
 
-export interface CommentMarker extends Node {
-  type: "commentMarker";
+export interface AnnotationMarker extends Node {
+  type: "annotationMarker";
   ids: string;
   edge: "start" | "end";
 }
@@ -40,12 +40,12 @@ export interface DateChip extends Node {
 
 declare module "mdast" {
   interface PhrasingContentMap {
-    commentMarker: CommentMarker;
+    annotationMarker: AnnotationMarker;
     date: DateChip;
     formulaPill: FormulaPill;
   }
   interface RootContentMap {
-    commentMarker: CommentMarker;
+    annotationMarker: AnnotationMarker;
     date: DateChip;
     formulaPill: FormulaPill;
   }
@@ -53,7 +53,7 @@ declare module "mdast" {
 
 // each construct after its first character, the one an escape keeps it text by
 const FORMULA_TAIL = String.raw`\{[^|{}\n]+(?:\|[^|{}\n]*)?(?:\|[^{}\n]*)?\}\}`;
-const MARKER_TAIL = `%i:(?<ids>${COMMENT_ID_PATTERN}(?:,${COMMENT_ID_PATTERN})*):(?<edge>start|end)%%`;
+const MARKER_TAIL = `%i:(?<ids>${ANNOTATION_ID_PATTERN}(?:,${ANNOTATION_ID_PATTERN})*):(?<edge>start|end)%%`;
 // a chip reads back wherever the editor can put one, a word's edge included, so nothing bounds it
 // but a digit that would make its day a longer number
 const DATE_TAIL = String.raw`(?<value>${ISO_DATE_PATTERN})(?!\d)`;
@@ -61,14 +61,14 @@ const DATE_TAIL = String.raw`(?<value>${ISO_DATE_PATTERN})(?!\d)`;
 const FORMULA_RE = new RegExp(String.raw`\{${FORMULA_TAIL}`, "gu");
 const MARKER_RE = new RegExp(`%${MARKER_TAIL}`, "gu");
 
-// a date chip as written, `value` its day. Shared and global, like COMMENT_MARKER_STRIP_RE below:
+// a date chip as written, `value` its day. Shared and global, like ANNOTATION_MARKER_STRIP_RE below:
 // hand it to replace, replaceAll, match or matchAll only.
 export const DATE_CHIP_RE = new RegExp(`@${DATE_TAIL}`, "gu");
 
 // Looser than MARKER_RE on purpose, so a half-typed or malformed marker still leaves a preview or
 // a snippet. Shared and global: hand it to replace, replaceAll, match or matchAll only, never to
 // test or exec, whose lastIndex would carry from one caller into the next.
-export const COMMENT_MARKER_STRIP_RE = /%%i:[^%]*%%/gu;
+export const ANNOTATION_MARKER_STRIP_RE = /%%i:[^%]*%%/gu;
 
 // A marker's `ids` stays the joined spelling so the serializer re-emits its bytes; this is the
 // one place the list is read.
@@ -119,7 +119,7 @@ const splitTextNode = (node: Text, inLink: boolean): PhrasingContent[] | null =>
       splices.push({
         index: match.index,
         length: match[0].length,
-        node: { edge, ids, type: "commentMarker" },
+        node: { edge, ids, type: "annotationMarker" },
       });
     }
   }
@@ -207,7 +207,7 @@ const UNSAFE: Unsafe[] = [
 
 const inlineConstructsToMarkdown: ToMarkdownExtension = {
   handlers: {
-    commentMarker: Object.assign((node: CommentMarker) => `%%i:${node.ids}:${node.edge}%%`, {
+    annotationMarker: Object.assign((node: AnnotationMarker) => `%%i:${node.ids}:${node.edge}%%`, {
       peek: () => "%",
     }),
     date: Object.assign((node: DateChip) => `@${node.value}`, { peek: () => "@" }),

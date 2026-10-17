@@ -37,6 +37,7 @@ const NO_REMOTE: VaultStatusResponse = {
   externalSync: null,
   lastError: null,
   lastSyncAt: null,
+  tooLarge: { count: 0, files: [] },
   state: "no-remote",
 };
 
@@ -128,6 +129,7 @@ const REMOTE_FIELDS = {
   externalSync: null,
   lastError: GIT_STDERR,
   lastSyncAt: null,
+  tooLarge: { count: 0, files: [] },
   remote: "https://example.com/vault.git",
   remoteSource: "explicit",
 } satisfies Omit<Extract<VaultStatusResponse, { state: "offline" }>, "state">;

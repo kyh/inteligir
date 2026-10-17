@@ -6,9 +6,12 @@ import type { Operation, Path, Value } from "platejs";
 import { createPlateEditor, pipeHandler } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
 
-import { anchorNewComment, selectionTakesComment } from "@repo/editor/comments/comment-kit";
-import { removeCommentMarkers } from "@repo/editor/comments/comment-markers";
-import { isCommentMarker } from "@repo/editor/comments/comment-ranges";
+import {
+  anchorNewAnnotation,
+  selectionTakesHighlight,
+} from "@repo/editor/annotations/annotation-kit";
+import { removeAnnotationMarkers } from "@repo/editor/annotations/annotation-markers";
+import { isAnnotationMarker } from "@repo/editor/annotations/annotation-ranges";
 import { withRichBlockLockLifted } from "@repo/editor/kits/rich-block-lock-kit";
 import { TOUCH_EDITOR_KIT } from "@repo/editor/kits/touch-editor-kit";
 import { parseMarkdown, serializeNote } from "@repo/editor/markdown/markdown-doc";
@@ -200,7 +203,7 @@ describe("the rich-block lock refuses every edit inside a locked block", () => {
 });
 
 const markersIn = (editor: PlateEditor): number =>
-  [...editor.api.nodes({ at: [], match: isCommentMarker })].length;
+  [...editor.api.nodes({ at: [], match: isAnnotationMarker })].length;
 
 // a thread in a tab panel and one in a column, as a note another device commented on holds them
 const MARKED = [
@@ -236,8 +239,8 @@ describe("comment markers and the lock", () => {
       focus: { offset: "inside".length, path: textPath(editor, "inside the first tab") },
     });
 
-    expect(selectionTakesComment(editor)).toBe(false);
-    expect(anchorNewComment(editor)).toBeNull();
+    expect(selectionTakesHighlight(editor)).toBe(false);
+    expect(anchorNewAnnotation(editor)).toBeNull();
     expect(markersIn(editor)).toBe(0);
     expect(serializeNote(editor)).toBe(before);
   });
@@ -245,12 +248,12 @@ describe("comment markers and the lock", () => {
   it("a thread deleted elsewhere takes its markers out of a tab panel and a column under the lift", () => {
     const refused = touchEditor(MARKED);
     expect(markersIn(refused)).toBe(4);
-    removeCommentMarkers(refused, ["c1", "c2"]);
+    removeAnnotationMarkers(refused, ["c1", "c2"]);
     expect(markersIn(refused), "without the lift the lock still holds").toBe(4);
 
     const editor = touchEditor(MARKED);
     withRichBlockLockLifted(editor, () => {
-      removeCommentMarkers(editor, ["c1", "c2"]);
+      removeAnnotationMarkers(editor, ["c1", "c2"]);
     });
 
     expect(markersIn(editor)).toBe(0);

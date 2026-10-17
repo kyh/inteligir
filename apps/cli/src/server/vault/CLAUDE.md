@@ -10,10 +10,16 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   its file and a fifteen-second pause ends an editing session. A scheduler that
   names no paths (the boot sweep, the post-sync drain), a window past the scoped
   cap and the flush after a failed one are unscoped; a change nobody announced
-  waits for one. A turn's start stages the whole tree less every path a live
-  turn claimed, because literal pathspecs rule out an exclude and naming every
-  other path is an argv a first commit overflows; unscoped `add -A` survives for
-  that same ARG_MAX. `apps/cli/src/server/vault/git-commits.ts` says why the max
+  waits for one. Staging is an explicit list on stdin
+  (`--pathspec-from-file`), which no argument limit bounds, so every commit, a
+  turn's start included, stages exactly the paths it names: a turn's start lists
+  the dirty tree less the claimed paths, and each untracked file is listed and
+  measured on its own. A commit stages at most 32 MiB of new bytes, with the
+  rest following at once, so no push the engine makes is past what the hosted
+  library takes in steps. Rejected: an unscoped `add -A`, which stages what
+  nobody named and hashes a file before its size is known, and an argv
+  pathspec, which a first commit overflows.
+  `apps/cli/src/server/vault/git-stage.ts`; `git-commits.ts` says why the max
   wait is the sync interval.
 
 - **NOTE HISTORY IS LOCAL, AND A RESTORE IS A WRITE.** History reads the vault's
@@ -23,8 +29,16 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   buffer's convergence; there is no restore procedure, since a second server
   write path is a second CAS. A CAS refusal is reported, not diff3-merged,
   because the user named exact bytes. A deleted note comes back the same way,
-  from the log's deletions plus the worktree's uncommitted ones. There is no
-  trash folder and no purge. `apps/cli/src/server/vault/git-history.ts`.
+  from the log's deletions plus the worktree's uncommitted ones. A file that is
+  not text comes back byte-exact the same way, through `vault.revisionBytes`
+  and `vault.createFile`, the byte twin of a write's `absent` guard, so a
+  restore never writes over what stands there now. Deleted lists every file,
+  not only docs, and a file deleted in one change set with a doc that embedded
+  or linked it is `heldBy` that doc, listed under it and restored with it
+  (`apps/cli/src/server/vault/held-files.ts`,
+  `@repo/contract/local/vault/restore-held-files`), which every client runs
+  after the doc's own restore. There is no trash folder and no purge.
+  `apps/cli/src/server/vault/git-history.ts`.
 
 - **A WRITE CARRIES THE BASE IT WAS COMPUTED FROM AND NAMES ITS GUARD, AND A
   CREATE IS NOT A WRITE WITH AN EMPTY BASE.** The guard is one required union:
@@ -71,9 +85,9 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   an engine commit, rebase or push, where `--no-verify` reaches only pre-commit
   and commit-msg; a signing policy stalls or refuses an engine commit; and a
   recorded resolution replays over a verdict. Untracked files are a status
-  read's own flag: each passes `--untracked-files=normal`, because
-  `status.showUntrackedFiles=no` would hide an engine commit's paths and hold
-  every sync behind it. Residual: a git-lfs vault's upload is a pre-push hook
+  read's own flag: each names its `--untracked-files` mode (`all` where a commit
+  is planned), because `status.showUntrackedFiles=no` would hide an engine
+  commit's paths and hold every sync behind it. Residual: a git-lfs vault's upload is a pre-push hook
   too, so it does not run. Before the listen the bootstrap stages only the
   starter notes it seeded into a folder it created, and an opened folder's first
   commit is empty, since staging a large folder there outran the shell's
@@ -97,9 +111,55 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   folder that is a file is refused, since it would refuse every paste. The bytes
   ride as a multipart Blob rather than base64 inside the json. The phone's
   photos take the same free name and land in the default folder, spelled once,
-  since the choice never reaches the phone.
+  since the choice never reaches the phone. A file item's original lands where
+  a paste beside its wrapper would, under its own name
+  (`apps/cli/src/server/items/save-file.ts`).
   `apps/cli/src/server/vault/vault-prefs-store.ts`,
   `@repo/contract/local/vault/attachment-location`.
+
+- **NO FILE OVER 10 MiB ENTERS HISTORY.** It is planned out before staging
+  and never hashed, so the object store and every push stay free of it. A
+  tracked file that grows past the cap leaves the index and stays on this Mac's
+  disk, and the commit that takes it out ("<name> is over 10 MB, so it stays on
+  this Mac") is a deletion every other device takes, where the file shows in
+  Deleted as its last version. The status counts and names what stays here
+  (`tooLarge`), Info says "Only on this Mac", and such a file leaves nothing
+  dirty, since no commit ever takes it. A rebase that would check out another
+  device's version over it is refused before it starts, so the pass merges
+  instead, which keeps this side's deletion and never writes that path.
+  Rejected: `info/exclude`, since a checkout overwrites an ignored file;
+  add-then-reset, which re-hashes the file on every flush; and `skip-worktree`
+  or `assume-unchanged` to keep the last version tracked, which wedges a
+  rebase. `apps/cli/src/server/vault/git-stage.ts`, `git-commits.ts`.
+
+- **THE ASSET ROUTE ANSWERS BYTE RANGES AND A POLICY PER KIND.** A player asks
+  for its file in pieces, and AVFoundation plays nothing until its `bytes=0-1`
+  probe answers 206, so one range is answered 206 with its `content-range`, a
+  range past the end 416, a HEAD with the length and no body, and a list of
+  ranges or a stale `if-range` whole, read off a handle rather than the whole
+  file. What is served is the shared media table's (images, PDF, video,
+  audio), never what a file may be stored as: an archive is an item's original
+  and is never served, and an `.html` is a page copy, served only by its own
+  route under a script-less sandbox. A PDF alone has no sandbox, because one
+  blanks WebKit's viewer; every other kind is sandboxed, which is what keeps an
+  svg's script from running when its url is opened as a document. A thumbnail
+  is a data-dir cache, never a second file in the library, bounded and shared
+  per key. Rejected: pdf.js, which needs `worker-src` and about 2 MB, and a
+  srcdoc page copy, which inherits the window's origin.
+  `apps/cli/src/server/vault/asset-route.ts`, `byte-range.ts`,
+  `page-copy-route.ts`, `thumb-route.ts`.
+
+- **A DELETE TAKES THE FILES ONLY IT LINKS.** An item's original, its cover
+  and its page copy leave with the item, and a file another doc still embeds or
+  links stays, by one rule the server's delete and the phone's both run
+  (`@repo/notes/knowledge/attachment-removal`): a file goes when every doc that
+  links it is being removed, and one whose linkers the caller's graph has not
+  read is kept, so a delete never takes more than it named. The linkers are the
+  index's, read before the entry goes, and the files leave after it, as the
+  annotation stores do, in the same change set, so Deleted lists them under the
+  doc and a restore brings them back with it. Rejected: leaving the files (every
+  deleted item would strand its original and cover, which no card shows), and
+  asking the person file by file. `apps/cli/src/server/vault/remove-entry.ts`.
 
 - **A SYNC PASS HOLDS THE REPO LOCK ONLY FOR ITS LOCAL STEPS.** The fetch and
   the push run unlocked between locked local steps: held across the network, the
@@ -131,18 +191,12 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   lasting conflict list, because Recent shows the copy and the copies are the
   record. Rejected: a `conflict` state that stopped sync until someone ran git,
   which a knowledge worker cannot, and a rebase through the conflict, which
-  replays every local commit and has nowhere to keep the other version.
-  `apps/cli/src/server/vault/git-merge.ts`.
-
-- **`Inbox.md` MERGES BY UNION.** Two desktops each appending a phone capture to
-  the root `Inbox.md` between syncs overlap on a file the app wrote itself, and
-  without union the merge would copy the inbox aside over a conflict nobody
-  made. Every boot makes sure `info/attributes` holds `/Inbox.md merge=union`:
-  local, never a committed `.gitattributes`, because the vault's files are the
-  user's. Residual: a bullet one device deleted beside the other's append comes
-  back. `apps/cli/src/server/vault/git-bootstrap.ts`, beside
-  `@repo/notes/sync/reconcile-file`, whose verdict unions the same file for a
-  writer that runs no git.
+  replays every local commit and has nowhere to keep the other version. Two
+  versions of one saved link (two Macs filling one stub, a Refresh racing a
+  tag) settle by `urlItemVerdict` inside that verdict, with no copy, so both
+  repos and the remote end on one text whichever device merges.
+  `apps/cli/src/server/vault/git-merge.ts`,
+  `apps/cli/src/server/vault/__tests__/git-merge-items.test.ts`.
 
 - **AN UNTOUCHED STARTER VAULT YIELDS TO A REMOTE THAT HAS HISTORY**, so a
   second Mac signing in never merges its seed into the account's notes: the two

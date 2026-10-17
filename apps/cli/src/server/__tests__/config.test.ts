@@ -353,7 +353,7 @@ describe("the diagnostics selection", () => {
 
   it("refuses a namespace it does not know, naming the ones it does", () => {
     expect(() => resolveWithDebug("watcher,wacher")).toThrow(
-      /INTELIGIR_DEBUG must be a comma-separated list of acp, knowledge, sync, watcher \(got "wacher"\)/u,
+      /INTELIGIR_DEBUG must be a comma-separated list of acp, items, knowledge, sync, watcher \(got "wacher"\)/u,
     );
   });
 });

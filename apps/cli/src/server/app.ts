@@ -8,8 +8,11 @@ import {
   BROWSER_HANDOFF_PARAM,
   HEALTH_PATH,
   HTML_FRAME_PATH,
+  MEDIA_TOKEN_PARAM,
+  PAGE_COPY_PATH,
   RPC_PREFIX,
   VAULT_ASSET_PATH,
+  VAULT_THUMB_PATH,
   websocketOrigin,
   WS_PATH,
 } from "@repo/contract/local/routes";
@@ -34,6 +37,8 @@ import { BEARER_PREFIX } from "./server-file";
 import { SIGNED_OUT_PAGE, SIGNED_OUT_PAGE_HEADERS } from "./signed-out-page";
 import { forwardToUiDevServer } from "./ui-dev-server";
 import { handleVaultAsset } from "./vault/asset-route";
+import { handlePageCopy } from "./vault/page-copy-route";
+import { handleVaultThumb } from "./vault/thumb-route";
 import type { WsBus } from "./ws-bus";
 
 export interface CreateAppArgs {
@@ -86,6 +91,21 @@ const uiSource = (uiDevOrigin: string | null, clientDir: string | null): UiSourc
   return clientDir === null ? null : { dir: nodePath.resolve(clientDir), kind: "bundle" };
 };
 
+const refuseUncredentialed = (c: Context): Response => {
+  c.header("WWW-Authenticate", 'Bearer realm="inteligir"');
+  return c.text("This request carried no valid inteligir device token", 401);
+};
+
+const refuseCrossOrigin = (c: Context): Response =>
+  c.text("This cross-origin request cannot use the session cookie", 403);
+
+const sameOrigin = (c: Context): boolean =>
+  isSameOriginBrowserRequest({
+    host: c.req.header("host"),
+    origin: c.req.header("origin"),
+    secFetchSite: c.req.header("sec-fetch-site"),
+  });
+
 export const createApp = (args: CreateAppArgs) => {
   const app = new Hono<AppEnv>();
   const nodeWebSocket = createNodeWebSocket({ app });
@@ -128,18 +148,29 @@ export const createApp = (args: CreateAppArgs) => {
   const requireServerToken: MiddlewareHandler = async (c, next): Promise<Response | undefined> => {
     const carrier = acceptedCredential(c);
     if (carrier === null) {
-      c.header("WWW-Authenticate", 'Bearer realm="inteligir"');
-      return c.text("This request carried no valid inteligir device token", 401);
+      return refuseUncredentialed(c);
     }
-    if (
-      carrier === "cookie" &&
-      !isSameOriginBrowserRequest({
-        host: c.req.header("host"),
-        origin: c.req.header("origin"),
-        secFetchSite: c.req.header("sec-fetch-site"),
-      })
-    ) {
-      return c.text("This cross-origin request cannot use the session cookie", 403);
+    if (carrier === "cookie" && !sameOrigin(c)) {
+      return refuseCrossOrigin(c);
+    }
+    await next();
+    return undefined;
+  };
+
+  // the byte routes' gate, and no other's: AVFoundation's loader inside WKWebView may send a
+  // video's range requests with neither Sec-Fetch-Site nor Origin, so a cookie request may prove
+  // itself by the boot's media token instead. the token is no credential alone: without the
+  // cookie or the bearer it is refused like any other request.
+  const requireMediaRequest: MiddlewareHandler = async (c, next): Promise<Response | undefined> => {
+    const carrier = acceptedCredential(c);
+    if (carrier === null) {
+      return refuseUncredentialed(c);
+    }
+    const token = c.req.query(MEDIA_TOKEN_PARAM);
+    const namesToken =
+      token !== undefined && constantTimeEqual(args.context.system.mediaToken, token);
+    if (carrier === "cookie" && !sameOrigin(c) && !namesToken) {
+      return refuseCrossOrigin(c);
     }
     await next();
     return undefined;
@@ -183,10 +214,21 @@ export const createApp = (args: CreateAppArgs) => {
 
   app.get(HEALTH_PATH, (c) => c.json({ ok: true } as const));
 
+  // the three byte routes, each body bytes with a policy of its own
   app.get(
     VAULT_ASSET_PATH,
-    requireServerToken,
+    requireMediaRequest,
     async (c) => await handleVaultAsset(c, args.context.vault.service),
+  );
+  app.get(PAGE_COPY_PATH, requireMediaRequest, (c) =>
+    handlePageCopy(c, args.context.vault.service),
+  );
+  app.get(VAULT_THUMB_PATH, requireMediaRequest, (c) =>
+    handleVaultThumb(c, {
+      dataDir: args.context.system.dataDir,
+      downscale: args.context.downscale,
+      service: args.context.vault.service,
+    }),
   );
 
   app.get(

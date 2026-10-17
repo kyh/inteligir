@@ -99,12 +99,32 @@ and cited.
   node child with every `NODE_*` but `NODE_ENV` removed, so an `open --env` runs
   no code inside a process TCC counts as Inteligir
   (`apps/desktop/src-tauri/src/runtime.rs`). An agent's `inteligir` runs on that
-  node too, since a Mac may have no node of its own. Rejected: `bun build
+  node too, since a Mac may have no node of its own, and so does the browser's
+  native-messaging host, whose launcher starts it under `env -i` with HOME
+  alone, because the browser's environment is whatever it was launched with and
+  a `NODE_OPTIONS` there would run code inside the app's node. Rejected: `bun build
   --compile`, under which better-sqlite3 does not load, and Node's
   single-executable apps, whose blob holds no native addon and no split ESM
   entry. Residual: that node is a signed interpreter any local process can run;
   it carries the JIT entitlements and no other grant.
   `apps/desktop/scripts/fetch-node.ts`.
+
+- **THE APP WRITES EVERY CHROMIUM BROWSER'S NATIVE-MESSAGING MANIFEST AT EACH
+  BOOT, AND ARC'S TWICE.** A browser finds the extension's host by a manifest in
+  the person's own folder for that browser, naming a launcher and the one
+  extension origin allowed to start it, and the app may have moved or updated
+  since the last boot. So the server's desktop entry rewrites the launcher
+  (`~/.inteligir/native-host/inteligir-native-host`) and a manifest for every
+  Chrome, Chromium, Edge, Brave and Vivaldi channel whose folder exists, beside
+  the agent's launcher; Arc reads Chrome's folder as well as its own, so its
+  manifest goes in both. It never runs for a launch an env pins (a harness, the
+  smoke), whose library the door could not find, nor for an app macOS
+  translocated, whose node is gone once it quits, and a folder it cannot write
+  costs that browser alone. The shell still owns nothing but ordering. Rejected:
+  Rust writing them, a second language for a rule desktop-serve already sits
+  beside, and a launcher inside the bundle, which a manifest naming a moved
+  app's path would lose. `apps/cli/src/desktop/native-hosts.ts`; the packaged
+  smoke reads both browsers' manifests and drives the launcher with frames.
 
 - **DIAGNOSTICS ARE `INTELIGIR_DEBUG`'S NAMED TRACES, SHIPPED IN EVERY BUILD,
   AND IN THE PACKAGED APP A SWITCH AND A FILE, BOTH THE SHELL'S.** The watcher,
@@ -192,7 +212,9 @@ and cited.
   note in its log. Not the packaged `.app`: packing is minutes, and the bundle,
   the signatures and the sidecar stay `pnpm smoke:desktop`'s, on the macOS job.
   The static half is `tools/repo-guards/src/desktop-shell-wire.test.ts` (THE APP
-  WINDOW IS THE SERVER'S OWN PAGE). `tools/e2e/src/scenarios/desktop-shell.ts`.
+  WINDOW IS THE SERVER'S OWN PAGE), which also holds the bundle id the browser's
+  door opens the app by (`APP_BUNDLE_ID`, `apps/cli/src/desktop/app-identity.ts`)
+  to `tauri.conf.json`'s `identifier`. `tools/e2e/src/scenarios/desktop-shell.ts`.
 
 - **THE SHELL'S PLUMBING IS COPIED BETWEEN REPOS AND DIVERGES ON PURPOSE.** The
   shell's log, its origin pin, its runtime and the packaging scripts in

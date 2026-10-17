@@ -6,9 +6,12 @@ import {
   pinnedFrontmatterYaml,
   removeFrontmatterId,
   replaceFrontmatterYaml,
+  replaceTopLevelKey,
   setFrontmatterPinned,
   splitFrontmatter,
+  topLevelKeyRange,
   withFrontmatterId,
+  yamlScalarText,
 } from "@repo/notes/markdown/frontmatter";
 
 import { parseBare } from "../bare-parse";
@@ -202,5 +205,49 @@ describe("setFrontmatterPinned", () => {
     expect(pinnedFrontmatterYaml(null, true)).toEqual({ kind: "changed", yaml: "pinned: true" });
     expect(pinnedFrontmatterYaml("pinned: true", false)).toEqual({ kind: "changed", yaml: "" });
     expect(pinnedFrontmatterYaml("x: 1", false)).toEqual({ kind: "unchanged" });
+  });
+});
+
+describe("removeFrontmatterId", () => {
+  it("drops the id and keeps every other key byte-exact", () => {
+    expect(removeFrontmatterId("---\nid: abc\ntags: [a, b]\n---\n# Hi\n")).toBe(
+      "---\ntags: [a, b]\n---\n# Hi\n",
+    );
+  });
+
+  it("drops the block when id was its only key, and leaves a note without one alone", () => {
+    expect(removeFrontmatterId("---\nid: abc\n---\n# Hi\n")).toBe("# Hi\n");
+    expect(removeFrontmatterId("---\ntags: [a]\n---\n# Hi\n")).toBe("---\ntags: [a]\n---\n# Hi\n");
+    expect(removeFrontmatterId("# Hi\n")).toBe("# Hi\n");
+  });
+});
+
+describe("the top-level key line cut", () => {
+  const lines = ["id: x", "aliases:", "  - a", "- b", '"site": s', "# c", "tail: 1"];
+
+  it("finds a key's own lines, its block value and a quoted spelling included", () => {
+    expect(topLevelKeyRange(lines, "aliases")).toEqual({ end: 4, start: 1 });
+    expect(topLevelKeyRange(lines, "site")).toEqual({ end: 5, start: 4 });
+    expect(topLevelKeyRange(lines, "missing")).toBeNull();
+  });
+
+  it("puts the replacement where they stood and keeps every other line", () => {
+    expect(replaceTopLevelKey(lines, "aliases", ["aliases: [z]"])).toEqual([
+      "id: x",
+      "aliases: [z]",
+      '"site": s',
+      "# c",
+      "tail: 1",
+    ]);
+    expect(replaceTopLevelKey(lines, "missing", ["x: 1"])).toEqual(lines);
+  });
+});
+
+describe("yamlScalarText", () => {
+  it("keeps a comma plain in a block value and quotes it in a flow list", () => {
+    expect(yamlScalarText("a, b", "plain", "block")).toBe("a, b");
+    expect(yamlScalarText("a, b", "plain")).toBe('"a, b"');
+    expect(yamlScalarText("a: b", "plain", "block")).toBe('"a: b"');
+    expect(yamlScalarText("[x]", "plain", "block")).toBe('"[x]"');
   });
 });

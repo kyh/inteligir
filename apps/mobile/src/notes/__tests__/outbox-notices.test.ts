@@ -6,7 +6,7 @@ import { createFakeVault, networkOver } from "./fake-vault";
 import type { Network } from "./fake-vault";
 import { launchPhone } from "./phone-storage";
 
-const STORE = ".inteligir/comments/9e64c3df-c1e2-4a4d-8c07-91528f422413.json";
+const STORE = ".inteligir/annotations/9e64c3df-c1e2-4a4d-8c07-91528f422413.json";
 
 const parkedOnly = (parked: OutboxStatus["parked"]): OutboxStatus => ({
   conflicts: [],
@@ -71,14 +71,16 @@ describe("what the notes screens show of the phone's unsent edits", () => {
     expect(notice).toMatchObject({ actions: ["retry", "discard"], seq: 4 });
   });
 
-  it("names a reply or a resolve as a comment, never by its store's file", () => {
+  it("names a reply or a note on a highlight as an annotation, never by its store's file", () => {
     const [notice] = outboxNotices(
-      parkedOnly([{ canSaveAsNew: false, kind: "comment", paths: [STORE], reason: "no", seq: 5 }]),
+      parkedOnly([
+        { canSaveAsNew: false, kind: "annotation", paths: [STORE], reason: "no", seq: 5 },
+      ]),
     );
-    expect(notice).toMatchObject({ title: "A comment is not in your vault yet" });
+    expect(notice).toMatchObject({ title: "An annotation is not in your vault yet" });
   });
 
-  it("says what a refused delete, rename and new comment leave, and what discarding each keeps", () => {
+  it("says what a refused delete, rename and new annotation leave, and what discarding each keeps", () => {
     const notices = outboxNotices(
       parkedOnly([
         {
@@ -99,7 +101,7 @@ describe("what the notes screens show of the phone's unsent edits", () => {
         },
         {
           canSaveAsNew: false,
-          kind: "comment",
+          kind: "annotation",
           paths: ["Plan.md", STORE],
           reason: "no",
           seq: 3,
@@ -124,7 +126,7 @@ describe("what the notes screens show of the phone's unsent edits", () => {
       },
       {
         discard: "It has not reached your vault, and discarding deletes it.",
-        title: "A comment on Plan is not in your vault yet",
+        title: "An annotation on Plan is not in your vault yet",
       },
       {
         discard: "It has not reached your vault, and discarding deletes it.",

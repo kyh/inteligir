@@ -37,7 +37,7 @@ const bootAt = async (
   if (stalled.length > 0) {
     stall(booted, stalled);
   }
-  // listed first, so only the boot's preference opens Welcome.md over it
+  // a library of two, so the workspace underneath has cards to draw
   await booted.client.vault.write({
     content: "# Agenda\n",
     guard: { kind: "overwrite" },
@@ -67,7 +67,7 @@ afterEach(() => {
 });
 
 describe("the steps after a first run", () => {
-  it("skips the agent and the account, and opens the notes on Welcome.md", async () => {
+  it("skips the agent and the account, and finishes on the library", async () => {
     const router = await bootAt("/welcome", signedOutAgents());
 
     expect(await screen.findByRole("button", { name: "Sign in with Claude" })).toBeDefined();
@@ -88,11 +88,10 @@ describe("the steps after a first run", () => {
     await waitFor(() => {
       expect(router.state.location.pathname).toBe("/");
     });
-    await waitFor(() => {
-      expect(router.state.location.search).toEqual({ note: WELCOME });
-    });
+    expect(router.state.location.search).toEqual({});
     expect(stepOnScreen()).toBeNull();
-    expect(await screen.findByRole("heading", { name: "Welcome to inteligir" })).toBeDefined();
+    expect(await screen.findByRole("heading", { name: "All items" })).toBeDefined();
+    expect(document.querySelector("[data-item-view]")).toBeNull();
   });
 
   it("an unknown step starts at the agent", async () => {
@@ -137,10 +136,9 @@ describe("the steps after a first run", () => {
       ),
     ).toBeDefined();
 
-    // the workspace underneath mirrors the note it booted on into the url, beside the step
-    await waitFor(() => {
-      expect(router.state.location.search).toEqual({ note: WELCOME, step: "account" });
-    });
+    // the workspace underneath is the library, which puts nothing in the url beside the step
+    expect(await screen.findByRole("heading", { name: "All items" })).toBeDefined();
+    expect(router.state.location.search).toEqual({ step: "account" });
     expect(stepOnScreen()).toBe("account");
   });
 });

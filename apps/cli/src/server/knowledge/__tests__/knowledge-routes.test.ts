@@ -2,9 +2,12 @@ import { ORPCError, safe } from "@orpc/client";
 import {
   KNOWLEDGE_RELATED_MAX_LIMIT,
   knowledgeBacklinksResponseSchema,
+  knowledgeItemPathsResponseSchema,
+  knowledgeItemsResponseSchema,
+  knowledgePathForNoteIdResponseSchema,
+  knowledgeScopesResponseSchema,
   knowledgeRelatedResponseSchema,
   knowledgeSearchResponseSchema,
-  knowledgeTagNotesResponseSchema,
   knowledgeTagsResponseSchema,
 } from "@repo/contract/local/knowledge/knowledge-schema";
 import { describe, expect, it } from "vitest";
@@ -63,15 +66,16 @@ describe("the knowledge routes", () => {
       path: "c.md",
     });
 
-    const whole = knowledgeTagNotesResponseSchema.parse(
-      await client.knowledge.tagNotes({ tag: "work" }),
-    );
-    expect(whole).toEqual({ paths: ["a.md", "b.md"], tag: "work", total: 2 });
+    const whole = await client.knowledge.itemPaths({ sort: "title", tag: "work" });
+    expect(whole).toEqual({ paths: ["a.md", "b.md"], total: 2 });
 
-    const page = knowledgeTagNotesResponseSchema.parse(
-      await client.knowledge.tagNotes({ limit: 1, offset: 1, tag: "work" }),
-    );
-    expect(page).toEqual({ paths: ["b.md"], tag: "work", total: 2 });
+    const page = await client.knowledge.itemPaths({
+      limit: 1,
+      offset: 1,
+      sort: "title",
+      tag: "work",
+    });
+    expect(page).toEqual({ paths: ["b.md"], total: 2 });
   });
 
   it("ranks related notes with the reasons they are related", async () => {
@@ -112,5 +116,80 @@ describe("the knowledge routes", () => {
 
     const [hostile] = await safe(client.knowledge.backlinks({ path: "../escape.md" }));
     expect(hostile instanceof ORPCError && hostile.code).toBe("BAD_REQUEST");
+  });
+
+  it("lists the library by its defaults, and narrows by folder, the root included", async () => {
+    const { client } = await bootTestApp();
+    await client.vault.write({
+      content: "---\nid: a\nkind: link\nurl: https://a.com/\nsaved: 2026-10-02T00:00:00Z\n---\n",
+      guard: { kind: "overwrite" },
+      path: "Unsorted/a.md",
+    });
+    await client.vault.write({
+      content: "---\nsaved: 2026-10-03T00:00:00Z\n---\nA root note about quokkas.\n",
+      guard: { kind: "overwrite" },
+      path: "root.md",
+    });
+
+    const all = knowledgeItemsResponseSchema.parse(await client.knowledge.items({}));
+    expect(all.items.map((row) => row.path)).toEqual(["root.md", "Unsorted/a.md"]);
+    expect(all.total).toBe(2);
+    expect(all.kindCounts).toMatchObject({ link: 1, note: 1 });
+    expect(all.items[1]).toMatchObject({ pending: true, saved: "2026-10-02T00:00:00Z" });
+
+    const root = knowledgeItemsResponseSchema.parse(
+      await client.knowledge.items({ folder: "", subfolders: false }),
+    );
+    expect(root.items.map((row) => row.path)).toEqual(["root.md"]);
+
+    const searched = knowledgeItemPathsResponseSchema.parse(
+      await client.knowledge.itemPaths({ q: "quokkas" }),
+    );
+    expect(searched).toEqual({ paths: ["root.md"], total: 1 });
+
+    const since = knowledgeItemPathsResponseSchema.parse(
+      await client.knowledge.itemPaths({ since: "2026-10-03" }),
+    );
+    expect(since.paths).toEqual(["root.md"]);
+
+    expect(knowledgeScopesResponseSchema.parse(await client.knowledge.scopes())).toEqual({
+      folders: [],
+      total: 2,
+      unsorted: 1,
+      untagged: 2,
+    });
+  });
+
+  it("refuses a tag asked with untagged, empty kinds and a since that is no date", async () => {
+    const { client } = await bootTestApp();
+    const refusals = [
+      await safe(client.knowledge.items({ tag: "work", untagged: true })),
+      await safe(client.knowledge.items({ kinds: [] })),
+      await safe(client.knowledge.itemPaths({ since: "yesterday" })),
+    ];
+    for (const [refused] of refusals) {
+      expect(refused instanceof ORPCError && refused.code).toBe("BAD_REQUEST");
+    }
+  });
+
+  it("follows an item's id across a rename", async () => {
+    const { client } = await bootTestApp();
+    await client.vault.write({
+      content: "---\nid: 7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17\n---\n# Moved\n",
+      guard: { kind: "overwrite" },
+      path: "before.md",
+    });
+    await client.vault.rename({ from: "before.md", to: "after.md" });
+    expect(
+      knowledgePathForNoteIdResponseSchema.parse(
+        await client.knowledge.pathForNoteId({
+          id: "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17",
+          lastPath: "before.md",
+        }),
+      ),
+    ).toEqual({ path: "after.md" });
+    expect(await client.knowledge.pathForNoteId({ id: "nobody", lastPath: "before.md" })).toEqual({
+      path: null,
+    });
   });
 });

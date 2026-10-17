@@ -8,7 +8,6 @@ import {
   linkedMentionsSummary,
   groupBacklinks,
   plainSnippet,
-  unlinkedMentionDetail,
 } from "../related-section";
 import type { RelatedRow } from "../related-section";
 
@@ -106,48 +105,5 @@ describe("linked-mention previews", () => {
       ["a.md", 2],
       ["b.md", 1],
     ]);
-  });
-});
-
-describe("an unlinked mention row", () => {
-  it("carries the sentence and a Link button that runs beside opening the note", () => {
-    const onOpenDoc = vi.fn<(path: string) => void>();
-    const run = vi.fn<() => void>();
-    render(
-      <RelatedRows
-        rows={[
-          {
-            action: { label: "Link", run },
-            detail: "Mentions · We revisit the roadmap on Monday.",
-            label: "a",
-            path: "notes/a.md",
-          },
-        ]}
-        settledEmpty={false}
-        suggestionsFailed={false}
-        onOpenDoc={onOpenDoc}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Link" }));
-    expect(run).toHaveBeenCalledTimes(1);
-    expect(onOpenDoc).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByText("a"));
-    expect(onOpenDoc).toHaveBeenCalledWith("notes/a.md");
-  });
-
-  it("spells the sentence as prose, with the count when there are several", () => {
-    const mention = {
-      after: " and [[b|B]]",
-      before: "> ",
-      column: 0,
-      count: 3,
-      length: 7,
-      line: 1,
-      path: "a.md",
-      text: "roadmap",
-      title: "a",
-    };
-    expect(unlinkedMentionDetail(mention)).toBe("Mentions 3× · roadmap and B");
-    expect(unlinkedMentionDetail({ ...mention, count: 1 })).toBe("Mentions · roadmap and B");
   });
 });
