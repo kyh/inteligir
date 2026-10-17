@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { KEYS, createSlatePlugin, NodeApi, TextApi } from "platejs";
+import { KEYS, NodeApi, TextApi } from "platejs";
 import type { SlateEditor, TElement } from "platejs";
 import { PlateElement } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
@@ -7,23 +7,15 @@ import type { PlateElementProps } from "platejs/react";
 import { parseFormulaMeta } from "@repo/notes/formulas/formula-meta";
 import { cn } from "@repo/ui/lib/cn";
 
-import { ANNOTATION_MARKER_KEY, FORMULA_PILL_KEY } from "@repo/editor/dialect-node-keys";
 import { insertVoidAndEscape } from "@repo/editor/insert-void";
 import { stringProp } from "@repo/editor/node-props";
 import { convertFormulaToText, FormulaEditPopover } from "@repo/editor/formulas/formula-edit";
 import { formulaNodeFromTyped, isFormulaPill } from "@repo/editor/formulas/formula-entry";
 
-const formulaPillBasePlugin = createSlatePlugin({
-  key: FORMULA_PILL_KEY,
-  node: { isElement: true, isInline: true, isVoid: true },
-});
-
-const annotationMarkerBasePlugin = createSlatePlugin({
-  key: ANNOTATION_MARKER_KEY,
-  node: { isElement: true, isInline: true, isVoid: true },
-});
-
-export const InlineConstructsBaseKit = [formulaPillBasePlugin, annotationMarkerBasePlugin];
+import {
+  annotationMarkerBasePlugin,
+  formulaPillBasePlugin,
+} from "./headless/inline-constructs-base";
 
 /* oxlint-disable jsx-a11y/click-events-have-key-events, jsx-a11y/prefer-tag-over-role --
    the pill is a Slate inline void, deliberately out of the tab order, and this package reserves a

@@ -1,4 +1,3 @@
-import { createSlatePlugin } from "platejs";
 import type { SlateEditor } from "platejs";
 
 import { CANVAS_BLOCK_KEY, CHART_BLOCK_KEY, HTML_BLOCK_KEY } from "@repo/editor/dialect-node-keys";
@@ -7,22 +6,7 @@ import { ChartElement } from "@repo/editor/nodes/chart-node";
 import { HtmlElement } from "@repo/editor/nodes/html-node";
 import { GRID_HEADER } from "@repo/editor/nodes/canvas-header";
 
-const chartBasePlugin = createSlatePlugin({
-  key: CHART_BLOCK_KEY,
-  node: { isElement: true, isVoid: true },
-});
-
-const canvasBasePlugin = createSlatePlugin({
-  key: CANVAS_BLOCK_KEY,
-  node: { isElement: true, isVoid: true },
-});
-
-const htmlBasePlugin = createSlatePlugin({
-  key: HTML_BLOCK_KEY,
-  node: { isElement: true, isVoid: true },
-});
-
-export const RichBlocksBaseKit = [chartBasePlugin, canvasBasePlugin, htmlBasePlugin];
+import { canvasBasePlugin, chartBasePlugin, htmlBasePlugin } from "./headless/rich-blocks-base";
 
 export const RichBlocksKit = [
   chartBasePlugin.withComponent(ChartElement),

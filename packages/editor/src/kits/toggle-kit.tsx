@@ -5,13 +5,10 @@
 import { ElementApi, KEYS, PathApi, TextApi, createBlockStartInputRule } from "platejs";
 import type { Path } from "platejs";
 import type { PlateEditor } from "platejs/react";
-import { BaseTogglePlugin } from "@platejs/toggle";
 import { TogglePlugin } from "@platejs/toggle/react";
 
 import { stringProp } from "@repo/editor/node-props";
 import { ToggleElement } from "@repo/editor/nodes/toggle-node";
-
-export const ToggleBaseKit = [BaseTogglePlugin];
 
 export const wrapBlockInToggle = (editor: PlateEditor, at: Path): void => {
   editor.tf.withoutNormalizing(() => {
