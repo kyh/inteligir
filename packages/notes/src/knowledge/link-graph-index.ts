@@ -1,14 +1,27 @@
-// Resolution reads only the path set, the docs' `aliases:` and their `id:`, so
-// re-projecting a known doc under an unchanged namespace re-resolves its own
-// links alone; anything moving a path, alias or id rebuilds whole, because a
-// new `note.md` can re-point another doc's dangling `[[note]]`.
+// Resolution reads only the path set, the docs' `aliases:` and their `id:`, which one live
+// resolver files as they move, so re-projecting a known doc under an unchanged namespace
+// re-resolves its own links alone; anything moving a path, alias or id re-files every doc's
+// links over that resolver, because a new `note.md` can re-point another doc's dangling
+// `[[note]]`.
 
+import { LibraryIndex } from "../items/library-index";
+import type {
+  FileStat,
+  ItemPage,
+  ItemPaths,
+  ItemQuery,
+  ItemRow,
+  ItemScopes,
+  UrlMatches,
+} from "../items/library-index";
+import type { ExtractedLink } from "./link-extract";
 import type { LinkKind } from "./link-kinds";
-import { buildResolver } from "./link-resolve";
-import type { TargetResolver } from "./link-resolve";
+import { createPathResolver } from "./link-resolve";
+import type { PathResolver } from "./link-resolve";
 import type { DocProjection, StoredLink } from "./projection";
 import { TagIndex } from "./tag-index";
 import type { TagCount } from "./tag-index";
+import { notesInTagFamily } from "./tag-notes";
 import { basenamePath } from "./vault-path";
 
 export interface BacklinkEntry {
@@ -77,7 +90,6 @@ interface Occurrence {
 }
 
 interface ResolvedState {
-  resolver: TargetResolver;
   forward: Map<string, ResolvedLink[]>;
   backlinks: Map<string, Occurrence[]>;
 }
@@ -121,7 +133,7 @@ const sameStrings = (a: readonly string[], b: readonly string[]): boolean => {
 const byPath = (a: WikiTarget, b: WikiTarget): number => (a.path < b.path ? -1 : 1);
 
 const resolveLinks = (
-  resolver: TargetResolver,
+  resolver: PathResolver,
   sourcePath: string,
   record: DocRecord,
 ): ResolvedLink[] =>
@@ -137,9 +149,13 @@ export class LinkGraphIndex {
   private readonly docs = new Map<string, DocRecord>();
   private readonly others = new Set<string>();
   private readonly tagIndex = new TagIndex();
+  private readonly library = new LibraryIndex();
+  private resolver = createPathResolver();
   private resolved: ResolvedState | null = null;
   private readonly pendingDocs = new Set<string>();
   private nextSeq = 0;
+  // a path was added or removed, or a doc's aliases or id moved, since the last take
+  private targetsMoved = false;
 
   private allocateSeq(): number {
     const seq = this.nextSeq;
@@ -148,7 +164,7 @@ export class LinkGraphIndex {
   }
 
   applyDoc(path: string, projection: DocProjection): void {
-    this.others.delete(path);
+    const wasOther = this.others.delete(path);
     const prior = this.docs.get(path);
     this.docs.set(path, {
       aliases: projection.aliases,
@@ -159,6 +175,7 @@ export class LinkGraphIndex {
       title: projection.title,
     });
     this.tagIndex.set(path, projection.tags);
+    this.library.applyDoc(path, projection);
     if (
       prior !== undefined &&
       sameStrings(prior.aliases, projection.aliases) &&
@@ -167,16 +184,33 @@ export class LinkGraphIndex {
       if (this.resolved !== null) {
         this.pendingDocs.add(path);
       }
-    } else {
-      this.dropResolution();
+      return;
     }
+    if (prior === undefined && !wasOther) {
+      this.resolver.addPath(path);
+    }
+    this.resolver.setAliases(path, projection.aliases);
+    this.resolver.setNoteId(path, projection.noteId);
+    this.targetsMoved = true;
+    this.dropResolution();
   }
 
   setOther(path: string): void {
-    if (this.docs.delete(path)) {
+    const wasDoc = this.docs.delete(path);
+    if (wasDoc) {
       this.tagIndex.remove(path);
+      this.resolver.setAliases(path, []);
+      this.resolver.setNoteId(path, null);
     }
+    const wasOther = this.others.has(path);
     this.others.add(path);
+    this.library.setOther(path);
+    if (!wasDoc && !wasOther) {
+      this.resolver.addPath(path);
+    }
+    if (!wasOther) {
+      this.targetsMoved = true;
+    }
     this.dropResolution();
   }
 
@@ -184,9 +218,14 @@ export class LinkGraphIndex {
     const wasDoc = this.docs.delete(path);
     if (wasDoc) {
       this.tagIndex.remove(path);
+      this.resolver.setAliases(path, []);
+      this.resolver.setNoteId(path, null);
     }
     const wasOther = this.others.delete(path);
+    this.library.remove(path);
     if (wasDoc || wasOther) {
+      this.resolver.removePath(path);
+      this.targetsMoved = true;
       this.dropResolution();
     }
   }
@@ -195,15 +234,69 @@ export class LinkGraphIndex {
     this.docs.clear();
     this.others.clear();
     this.tagIndex.clear();
+    this.library.clear();
+    this.resolver = createPathResolver();
+    this.targetsMoved = true;
     this.dropResolution();
   }
+
+  // the listing's size and mtime for a file, which the library sorts and sizes by
+  setStat(path: string, stat: FileStat | null): void {
+    this.library.setStat(path, stat);
+  }
+
+  // whether the set of link targets moved since the last take, and resets it: what the server
+  // announces as `targets-changed`
+  takeTargetsChanged(): boolean {
+    const moved = this.targetsMoved;
+    this.targetsMoved = false;
+    return moved;
+  }
+
+  items(q: ItemQuery): ItemPage {
+    return this.library.items(q, this.resolveFile, this.tagsOfPath, this.tagFamily);
+  }
+
+  itemPaths(q: ItemQuery): ItemPaths {
+    return this.library.paths(q, this.tagFamily);
+  }
+
+  itemsAt(paths: readonly string[]): ItemRow[] {
+    return this.library.itemsAt(paths, this.resolveFile, this.tagsOfPath);
+  }
+
+  findByUrl(url: string, limit: number): UrlMatches {
+    return this.library.findByUrl(url, limit, this.resolveFile, this.tagsOfPath);
+  }
+
+  scopes(extraFolders: readonly string[], hiddenFolders: readonly string[]): ItemScopes {
+    return this.library.scopes(extraFolders, hiddenFolders);
+  }
+
+  itemStubs(): string[] {
+    return this.library.stubs();
+  }
+
+  // a link's target when it is a file that is not a doc
+  private readonly resolveFile = (link: ExtractedLink, fromPath: string): string | null => {
+    const target =
+      link.kind === "wiki"
+        ? this.resolver.resolveWiki(link.target, link.alias)
+        : this.resolver.resolveMd(link.target, fromPath);
+    return target !== null && this.others.has(target) ? target : null;
+  };
+
+  private readonly tagsOfPath = (path: string): string[] => this.tagIndex.tagsOf(path);
+
+  private readonly tagFamily = (tag: string): ReadonlySet<string> =>
+    new Set(notesInTagFamily(this, tag));
 
   titleOf(path: string): string | null {
     return this.docs.get(path)?.title ?? null;
   }
 
   resolveWiki(target: string): string | null {
-    return this.ensureResolved().resolver.resolveWiki(target);
+    return this.resolver.resolveWiki(target);
   }
 
   backlinks(path: string): BacklinkEntry[] {
@@ -292,7 +385,7 @@ export class LinkGraphIndex {
     if (this.docs.get(lastPath)?.noteId === id) {
       return lastPath;
     }
-    return this.ensureResolved().resolver.resolveNoteId(id);
+    return this.resolver.resolveNoteId(id);
   }
 
   private dropResolution(): void {
@@ -305,23 +398,10 @@ export class LinkGraphIndex {
     if (current !== null && this.applyPending(current)) {
       return current;
     }
-    const aliasEntries: (readonly [string, string])[] = [];
-    for (const [path, record] of this.docs) {
-      for (const alias of record.aliases) {
-        aliasEntries.push([alias, path]);
-      }
-    }
-    const idEntries: (readonly [string, string])[] = [];
-    for (const [path, record] of this.docs) {
-      if (record.noteId !== null) {
-        idEntries.push([record.noteId, path]);
-      }
-    }
-    const resolver = buildResolver([...this.docs.keys(), ...this.others], aliasEntries, idEntries);
     const forward = new Map<string, ResolvedLink[]>();
     const backlinks: ResolvedState["backlinks"] = new Map();
     for (const [sourcePath, record] of this.docs) {
-      const resolvedLinks = resolveLinks(resolver, sourcePath, record);
+      const resolvedLinks = resolveLinks(this.resolver, sourcePath, record);
       forward.set(sourcePath, resolvedLinks);
       for (const { link, targetPath } of resolvedLinks) {
         if (targetPath === null) {
@@ -336,7 +416,7 @@ export class LinkGraphIndex {
         }
       }
     }
-    this.resolved = { backlinks, forward, resolver };
+    this.resolved = { backlinks, forward };
     this.pendingDocs.clear();
     return this.resolved;
   }
@@ -372,7 +452,7 @@ export class LinkGraphIndex {
           state.backlinks.set(target, kept);
         }
       }
-      const links = resolveLinks(state.resolver, path, record);
+      const links = resolveLinks(this.resolver, path, record);
       state.forward.set(path, links);
       for (const { link, targetPath } of links) {
         if (targetPath === null) {

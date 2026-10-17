@@ -13,6 +13,7 @@ import {
 } from "@repo/contract/cloud/vault/vault-schema";
 import { utf8ByteLength } from "@repo/contract/cloud/bytes";
 import { annotationStoresFreedBy } from "@repo/notes/annotations/store-removal";
+import { NOTE_FACTS } from "@repo/notes/items/item-frontmatter";
 import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPath } from "@repo/notes/knowledge/asset-name";
 import {
   docExtension,
@@ -95,9 +96,11 @@ const linkGraphOf = (
         ? {
             aliases: [...file.aliases],
             headings: [],
+            item: NOTE_FACTS,
             links: [],
             noteId: file.noteId,
             pinned: false,
+            preview: "",
             tags: [],
             title: docStem(file.path),
           }

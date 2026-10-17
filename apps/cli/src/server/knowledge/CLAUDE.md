@@ -6,18 +6,21 @@ and cited.
 
 ## Knowledge: index, search and links
 
-- **The knowledge index persists no stat fingerprint.** A warm reconcile over
-  2000 notes reads and hashes every doc in ~200ms on a local disk, off the
-  critical path, and a second persisted table in a cache whose recovery
-  primitive is deleting the file is a crash waiting for a missed re-create. On
-  storage that fetches or wakes, the read deadline (A DOC WHOSE READ HAS NOT
-  ANSWERED, below) keeps the reconcile to ~2s whether one read stalls or all do,
-  so the fingerprint is not what makes slow storage usable. What only size+mtime
-  buys is not opening the file, so THE TRIGGER is a report of a vault whose
-  notes the OS evicts to placeholders being fetched again on every boot; the
-  walk already stats every file. `KnowledgeIndex` in `@repo/notes` is not dead
-  code: the package carries no sqlite (`SqlDriver` is injected), so that
-  in-memory composition is how it tests its own engine.
+- **THE INDEX SKIPS A DOC WHOSE SIZE AND MTIME ARE THE ONES IT INDEXED.** A
+  library of 50k saved items holds about 1 GB of article text, which a boot
+  that opened every doc would read again each launch, and a library whose
+  files the OS evicts to placeholders would download; the walk already stats
+  every file (`listFileStats` in `apps/cli/src/server/vault/vault-service.ts`),
+  so a reconcile compares `(size, modified_ms)`, stored beside `content_hash`,
+  and opens only a doc whose pair moved. The pair is the stat taken before the
+  read, never after, so a write between the two leaves a pair the next
+  reconcile reads again; a read whose bytes had not moved only rewrites the
+  pair. An announced change is always read. Rejected: reading and hashing
+  every doc at boot. Residual: a write that keeps both, which a checkout's
+  same-second rewrite can do, is caught by the next content change.
+  `KnowledgeIndex` in `@repo/notes` is not dead code: the package carries no
+  sqlite (`SqlDriver` is injected), so that in-memory composition is how it
+  tests its own engine. `apps/cli/src/server/knowledge/index-pass.ts`.
 
 - **A DOC THE INDEX CANNOT READ OR PROJECT COSTS THAT DOC, NEVER THE INDEX.** A
   refused read (EACCES, EIO) keeps the doc's last row and is retried every pass,
@@ -48,6 +51,16 @@ and cited.
   worker booted from source (`apps/cli/src/server/worker-entry.ts`) costs
   seconds. Pinned over a 20k-line note in
   `apps/cli/src/server/knowledge/__tests__/knowledge-runtime.test.ts`.
+
+- **THE LIBRARY LISTING IS ANSWERED FROM THE IN-MEMORY MIRROR.** `items`,
+  `itemPaths`, `itemsAt`, `findByUrl`, `scopes` and `pathForNoteId` settle,
+  then read `LinkGraphIndex`'s `LibraryIndex` (`@repo/notes/items/library-index`),
+  with no SQL read and no walk: mtime and size come from the listing, and
+  `scopes`' folders from the directory set the reconcile's walk keeps
+  (`listDirs`), which an announced folder change updates for its own subtree.
+  Rejected: SQLite columns and indexes (tag families, bareness and mtime live
+  in memory anyway), and a `listDirs` walk per call, since the rail asks on
+  every files-changed frame. `apps/cli/src/server/knowledge/knowledge-runtime.ts`.
 
 - **A DOC WHOSE READ HAS NOT ANSWERED IN 2S IS DEFERRED, NOT AWAITED, AND EVERY
   VAULT READ OPENS INSIDE THE VAULT SERVICE'S BUDGET.** On storage that fetches

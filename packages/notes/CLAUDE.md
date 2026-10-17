@@ -51,6 +51,22 @@ node is rather than discriminating structurally at each visit.
   key in frontmatter (a rule change would leave every file holding the old
   one).
 
+- **THE LIBRARY LISTING IS AN IN-MEMORY INDEX BESIDE THE TAGS.**
+  `@repo/notes/items/library-index` lives inside `LinkGraphIndex`, which feeds
+  it every doc and other it files and forwards the queries with its live
+  resolver and tag index. Its members are every doc and every bare media file,
+  less the hidden paths; it sorts with pinned items first in every sort
+  (saved, else mtime; mtime; title; a search's rank), filters by kind, folder,
+  tag family, untagged, site and saved date, counts the scope per kind with
+  the asked kinds ignored, and keeps one sorted order per sort, dropped only
+  when membership or that sort's key moves, so a page costs its own rows. The
+  resolver under it is live (`createPathResolver` in
+  `@repo/notes/knowledge/link-resolve`): a new path files its own keys rather
+  than rebuilding over every path. Rejected: SQLite columns (tag families,
+  bareness and mtime live in memory anyway) and re-resolving per new path
+  (550–630 ms at 50k). `packages/notes/src/__tests__/library-cost.test.ts`
+  holds both costs.
+
 ## Annotations
 
 - **AN ANNOTATION IS A HIGHLIGHT AND AN OPTIONAL NOTE, STORED BY THE ITEM'S
@@ -75,8 +91,10 @@ node is rather than discriminating structurally at each visit.
   word stops retrieving (86 of 1,555 prefixes over the labelled corpus), and it
   puts half a shared policy inside SQLite's C. Every term asks both halves, and
   that OR is the exact tier: a doc holding the literal word scores about twice a
-  stem-only hit. Residual: the title/body gap is 10x, so a title collision still
-  beats a body exact match. `search-query.ts` and `knowledge/search-excerpt.ts`.
+  stem-only hit. There are four literal columns (title, headings, meta, body),
+  each with its stem shadow. Residual: the title/body gap is 10x, so a title
+  collision still beats a body exact match. `search-query.ts` and
+  `knowledge/search-excerpt.ts`.
 
 - **THE CLIENT DOES NOT DECIDE WHAT A DOC IS.** `@repo/notes/knowledge/doc-file`
   is the one answer: `isDocPath` (`.md`, `.markdown`, `.mdx`, `.txt`) and
@@ -124,14 +142,20 @@ node is rather than discriminating structurally at each visit.
   `apps/cli/src/server/knowledge/rename-tag.ts`,
   `apps/workspace/src/app/sidebar/tag-scope.tsx`.
 
-- **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX.** FTS5 cannot say
-  where inside a line a hit sits, so `knowledge.matches` (the palette's "Search
-  across the vault…", `inteligir matches`) scans bodies with ONE matcher,
+- **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, AND BOTH READ THE
+  BODY WITHOUT ITS YAML.** FTS5 cannot say where inside a line a hit sits, so
+  `knowledge.matches` (the palette's "Search across the vault…",
+  `inteligir matches`) scans bodies with ONE matcher,
   `@repo/notes/knowledge/text-matches`, which the listing and the find bar's
   jump both run; the store only pre-narrows by ascii substrings (`docTexts`),
-  because LIKE folds ascii case alone. The scan finds and never rewrites: a
-  change across many notes is the agent's, whose turn History and Undo already
-  cover (`apps/workspace/src/app/palette/search-page.tsx`). The jump lands by
+  because LIKE folds ascii case alone. Both engines read the body with the
+  frontmatter's lines blanked (`searchBodyOf` in
+  `@repo/notes/knowledge/search-columns`), so a match's line stays the file's
+  and neither finds a property's yaml; an item's url, site, author,
+  description and tags are the ranked index's `meta` column instead. The scan
+  finds and never rewrites: a change across many notes is the agent's, whose
+  turn History and Undo already cover
+  (`apps/workspace/src/app/palette/search-page.tsx`). The jump lands by
   ordinal among the note's matches, because a markdown column is not a Slate
   offset.
 

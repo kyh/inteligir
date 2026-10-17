@@ -134,14 +134,16 @@ describe("the knowledge runtime", () => {
       root: dirs.root,
     });
     let listTreeCalls = 0;
-    const counted: Pick<VaultService, "listTree" | "statEntry" | "listFilesUnder" | "readBytes"> = {
-      listFilesUnder: async (path) => await service.listFilesUnder(path),
-      listTree: async () => {
-        listTreeCalls += 1;
-        return await service.listTree();
+    const counted: Pick<VaultService, "listFileStats" | "statFile" | "listDirs" | "readBytes"> = {
+      listDirs: async (under) => await service.listDirs(under),
+      listFileStats: async (under) => {
+        if (under === undefined) {
+          listTreeCalls += 1;
+        }
+        return await service.listFileStats(under);
       },
       readBytes: async (path) => await service.readBytes(path),
-      statEntry: async (path) => await service.statEntry(path),
+      statFile: async (path) => await service.statFile(path),
     };
     const knowledge = createKnowledgeRuntime({
       dataDir: dirs.dataDir,
@@ -337,12 +339,12 @@ describe("the knowledge runtime", () => {
     const { knowledge } = bootIndexedVault(dirs, {
       reader: (service) => ({
         ...service,
-        listTree: async () => {
+        listFileStats: async (under) => {
           if (failNextListing) {
             failNextListing = false;
             throw new Error("transient io failure");
           }
-          return await service.listTree();
+          return await service.listFileStats(under);
         },
       }),
     });
@@ -371,20 +373,20 @@ describe("the knowledge runtime", () => {
       reader: (inner) => ({
         ...inner,
         // announced after the rerun's listing, so only its changed-paths step sees the note
-        listTree: async () => {
-          const listing = await inner.listTree();
+        listFileStats: async (under) => {
+          const listing = await inner.listFileStats(under);
           if (writeDuringNextListing) {
             writeDuringNextListing = false;
             await inner.write("c.md", "# C\n\nCrane notes.\n");
           }
           return listing;
         },
-        statEntry: async (path) => {
+        statFile: async (path) => {
           if (failCraneStat && path === "c.md") {
             failCraneStat = false;
             throw new Error("transient io failure");
           }
-          return await inner.statEntry(path);
+          return await inner.statFile(path);
         },
       }),
     });

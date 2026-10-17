@@ -107,3 +107,40 @@ describe("LinkGraphIndex — [[Title|uuid]] id tier", () => {
     expect(index.forwardLinks("hub.md")[0]?.targetPath).toBeNull();
   });
 });
+
+describe("LinkGraphIndex — target changes", () => {
+  it("marks a path added, removed or renamed and a moved alias or id, never a body edit", () => {
+    const graph = new LinkGraphIndex();
+    graph.applyDoc("a.md", projectDoc("a.md", "# A\n"));
+    expect(graph.takeTargetsChanged()).toBe(true);
+    expect(graph.takeTargetsChanged()).toBe(false);
+
+    graph.applyDoc("a.md", projectDoc("a.md", "# A\n\nA new body with [[b]].\n"));
+    expect(graph.takeTargetsChanged()).toBe(false);
+
+    graph.applyDoc("a.md", projectDoc("a.md", "---\naliases: [Alpha]\n---\n# A\n"));
+    expect(graph.takeTargetsChanged()).toBe(true);
+    graph.applyDoc("a.md", projectDoc("a.md", "---\naliases: [Alpha]\nid: x\n---\n# A\n"));
+    expect(graph.takeTargetsChanged()).toBe(true);
+
+    graph.remove("a.md");
+    graph.applyDoc("b.md", projectDoc("b.md", "# A\n"));
+    expect(graph.takeTargetsChanged()).toBe(true);
+    graph.setOther("pic.png");
+    expect(graph.takeTargetsChanged()).toBe(true);
+    graph.setOther("pic.png");
+    expect(graph.takeTargetsChanged()).toBe(false);
+  });
+
+  it("resolves over the live resolver as it moves", () => {
+    const graph = new LinkGraphIndex();
+    graph.applyDoc("hub.md", projectDoc("hub.md", "[[target]]\n"));
+    expect(graph.forwardLinks("hub.md")[0]?.targetPath).toBeNull();
+    graph.applyDoc("deep/target.md", projectDoc("deep/target.md", "# T\n"));
+    expect(graph.forwardLinks("hub.md")[0]?.targetPath).toBe("deep/target.md");
+    expect(graph.resolveWiki("target")).toBe("deep/target.md");
+    graph.remove("deep/target.md");
+    expect(graph.resolveWiki("target")).toBeNull();
+    expect(graph.forwardLinks("hub.md")[0]?.targetPath).toBeNull();
+  });
+});

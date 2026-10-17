@@ -6,15 +6,24 @@ import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schem
 import type { AnnotationWire } from "@repo/contract/local/annotations/annotations-schema";
 import type { ConnectorsResponse } from "@repo/contract/local/connectors/connectors-schema";
 import type { ConnectedFoldersResponse } from "@repo/contract/local/folders/folders-schema";
+import type { ItemRowWire } from "@repo/contract/local/items/items-schema";
 import type {
   BacklinkEntryWire,
+  KnowledgeItemPathsRequest,
   RelatedNoteWire,
   SearchResultWire,
   TagCountWire,
 } from "@repo/contract/local/knowledge/knowledge-schema";
-import { docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
+import { UNSORTED_FOLDER } from "@repo/notes/items/item-kind";
+import type { ItemKind } from "@repo/notes/items/item-kind";
+import { parseItemTime } from "@repo/notes/items/item-time";
+import { siteMatches, urlKey } from "@repo/notes/items/item-url";
+import { tagInFamily } from "@repo/notes/knowledge/rename-tags";
+import { isVaultMetadataPath, docStem, isDocPath } from "@repo/notes/knowledge/doc-file";
+import { dirnamePath } from "@repo/notes/knowledge/vault-path";
 import { collectVaultMatches } from "@repo/notes/knowledge/text-matches";
 import { KnowledgeIndex } from "@repo/notes/knowledge/knowledge-index";
+import { searchBodyOf } from "@repo/notes/knowledge/search-columns";
 import type { AgentsStatusResponse } from "@repo/contract/local/agents/agents-schema";
 import { RPC_PREFIX } from "@repo/contract/local/routes";
 import type { AgentStatus, SystemStatusResponse } from "@repo/contract/local/system/system-schema";
@@ -78,6 +87,8 @@ export interface FixtureState {
   cloud: CloudStatusResponse;
   threads: FixtureThread[];
   annotations: Map<string, AnnotationWire[]>;
+  // the library listing's rows, filtered and paged by the knowledge item handlers as the index's
+  items: ItemRowWire[];
   guideMarkdown: string;
   agent: AgentStatus;
   vaultStatus: VaultStatusResponse;
@@ -137,6 +148,7 @@ export const makeFixtureState = (): FixtureState => ({
   failWith: null,
   folders: { folders: [] },
   guideMarkdown: "# Fixture guide\n\nBe kind to the vault.\n",
+  items: [],
   nextCreatedThreadId: "thr_created_1",
   refuseSend: null,
   related: [],
@@ -337,6 +349,96 @@ const indexOf = (vault: Map<string, string>): KnowledgeIndex => {
   return index;
 };
 
+type ItemFilter = Omit<KnowledgeItemPathsRequest, "limit" | "offset">;
+
+const savedKeyOf = (row: ItemRowWire): number =>
+  (row.saved === null ? null : parseItemTime(row.saved)) ?? row.modifiedMs ?? 0;
+
+const compareText = (a: string, b: string): number => {
+  if (a === b) {
+    return 0;
+  }
+  return a < b ? -1 : 1;
+};
+
+const rowPasses = (row: ItemRowWire, filter: ItemFilter): boolean => {
+  const { folder, q, site, tag } = filter;
+  const subfolders = filter.subfolders ?? true;
+  const since = filter.since === undefined ? null : parseItemTime(filter.since);
+  const inFolder =
+    folder === undefined ||
+    (folder === ""
+      ? subfolders || row.folder === ""
+      : row.folder === folder || (subfolders && row.folder.startsWith(`${folder}/`)));
+  return (
+    inFolder &&
+    (tag === undefined || row.tags.some((candidate) => tagInFamily(candidate, tag))) &&
+    (filter.untagged !== true || row.tags.length === 0) &&
+    (site === undefined || siteMatches(row.host, site)) &&
+    (since === null || savedKeyOf(row) >= since) &&
+    (q === undefined || row.title.toLowerCase().includes(q.toLowerCase()))
+  );
+};
+
+// the index's rules over the seeded rows: the filters, pinned first in every sort, kind counts
+// that ignore the request's kinds
+const selectRows = (rows: readonly ItemRowWire[], filter: ItemFilter) => {
+  const kindCounts: Record<ItemKind, number> = {
+    audio: 0,
+    file: 0,
+    image: 0,
+    link: 0,
+    note: 0,
+    pdf: 0,
+    video: 0,
+  };
+  const kinds = filter.kinds === undefined ? null : new Set(filter.kinds);
+  const passed = rows.filter((row) => rowPasses(row, filter));
+  for (const row of passed) {
+    kindCounts[row.kind] += 1;
+  }
+  const sort = filter.sort ?? "saved";
+  const byKey = (a: ItemRowWire, b: ItemRowWire): number => {
+    if (sort === "title") {
+      return compareText(a.title.toLowerCase(), b.title.toLowerCase());
+    }
+    if (sort === "modified") {
+      return (b.modifiedMs ?? 0) - (a.modifiedMs ?? 0);
+    }
+    return savedKeyOf(b) - savedKeyOf(a);
+  };
+  const order = passed
+    .filter((row) => kinds === null || kinds.has(row.kind))
+    .toSorted(
+      (a, b) => Number(b.pinned) - Number(a.pinned) || byKey(a, b) || compareText(a.path, b.path),
+    );
+  return { kindCounts, order };
+};
+
+const isHiddenFolder = (folder: string): boolean =>
+  isVaultMetadataPath(folder) ||
+  ["assets", UNSORTED_FOLDER].some((h) => folder === h || folder.startsWith(`${h}/`));
+
+const scopesOf = (rows: readonly ItemRowWire[]) => {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    for (let at = row.folder; at !== ""; at = dirnamePath(at)) {
+      counts.set(at, (counts.get(at) ?? 0) + 1);
+    }
+  }
+  return {
+    folders: [...counts]
+      .filter(([path]) => !isHiddenFolder(path))
+      .toSorted(([a], [b]) => compareText(a, b))
+      .map(([path, items]) => ({ items, path })),
+    total: rows.length,
+    unsorted: rows.filter(
+      (row) => row.folder === UNSORTED_FOLDER || row.folder.startsWith(`${UNSORTED_FOLDER}/`),
+    ).length,
+    untagged: rows.filter((row) => row.tags.length === 0).length,
+  };
+};
+
 const knowledgeRouter = {
   backlinks: base.knowledge.backlinks.handler(({ context, input }) => ({
     backlinks: context.backlinks,
@@ -346,7 +448,11 @@ const knowledgeRouter = {
   // the real fold over the fixture vault: a stub list would not exercise the rows' shape
   matches: base.knowledge.matches.handler(({ context, input }) =>
     collectVaultMatches(
-      [...context.vault].map(([path, body]) => ({ body, path, title: docStem(path) })),
+      [...context.vault].map(([path, content]) => ({
+        body: searchBodyOf(content),
+        path,
+        title: docStem(path),
+      })),
       input.q,
       { caseSensitive: input.caseSensitive, wholeWord: input.wholeWord },
       input.limit,
@@ -379,6 +485,46 @@ const knowledgeRouter = {
     total: context.tags.length,
   })),
   wikiTargets: base.knowledge.wikiTargets.handler(() => ({ targets: [] })),
+  findByUrl: base.knowledge.findByUrl.handler(({ context, input }) => {
+    const key = urlKey(input.url);
+    const found =
+      key === null
+        ? []
+        : context.items.filter((row) => row.url !== null && urlKey(row.url) === key);
+    return {
+      items: found
+        .toSorted(
+          (a, b) =>
+            Number(a.pending) - Number(b.pending) ||
+            savedKeyOf(a) - savedKeyOf(b) ||
+            compareText(a.path, b.path),
+        )
+        .slice(0, 50),
+      key,
+    };
+  }),
+  itemPaths: base.knowledge.itemPaths.handler(({ context, input }) => {
+    const { order } = selectRows(context.items, input);
+    return {
+      paths: order.slice(input.offset, input.offset + input.limit).map((row) => row.path),
+      total: order.length,
+    };
+  }),
+  items: base.knowledge.items.handler(({ context, input }) => {
+    const { kindCounts, order } = selectRows(context.items, input);
+    return {
+      items: order.slice(input.offset, input.offset + input.limit),
+      kindCounts,
+      total: order.length,
+    };
+  }),
+  itemsAt: base.knowledge.itemsAt.handler(({ context, input }) => ({
+    items: input.paths.flatMap((path) => context.items.filter((row) => row.path === path)),
+  })),
+  pathForNoteId: base.knowledge.pathForNoteId.handler(({ context, input }) => ({
+    path: indexOf(context.vault).pathForNoteId(input.id, input.lastPath),
+  })),
+  scopes: base.knowledge.scopes.handler(({ context }) => scopesOf(context.items)),
 };
 
 const systemRouter = {

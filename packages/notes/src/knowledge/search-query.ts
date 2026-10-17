@@ -24,7 +24,7 @@ export interface SearchResult {
 
 // the fields both engines rank a doc by; the formulas around them differ by design (bm25 has an
 // idf, the pure index a capped tf), the weights do not
-export const SEARCH_FIELD_WEIGHTS = { body: 1, headings: 4, title: 10 } as const;
+export const SEARCH_FIELD_WEIGHTS = { body: 1, headings: 4, meta: 2, title: 10 } as const;
 
 // `stemmer` is imported here and nowhere else, so the engines and the snippet cut cannot diverge
 export const stemToken = (token: string): string => stemmer(token);

@@ -102,10 +102,18 @@ const readSubfolder = async (
   }
 };
 
+// what a walk meets, before the listing's wire shape: a file's lstat is kept whole so the index
+// can skip a doc whose size and mtime did not move. `stat` is null when the lstat failed.
+type WalkedEntry =
+  | { kind: "dir"; path: string }
+  | { kind: "file"; path: string; stat: VaultFileStat | null };
+
 interface WalkArgs {
-  entries: VaultEntry[];
+  entries: WalkedEntry[];
   ignore: VaultIgnore;
   onUnreadable: UnreadableFolderSink;
+  // a directory walk reads every folder and stats no file
+  files: boolean;
 }
 
 // the caller reads the root's dirents itself, so a root that cannot be read still throws.
@@ -140,20 +148,29 @@ const walk = async (
     const children = await readSubfolder(absPath, relPath, walkArgs.onUnreadable);
     await walk(absPath, relPath, children, walkArgs);
   }
+  if (!walkArgs.files) {
+    return;
+  }
   const statted = await Promise.all(
     files.map(async (name) => {
       const stats = await lstat(path.join(absDir, name)).catch(() => null);
-      return { modifiedMs: stats === null ? null : Math.trunc(stats.mtimeMs), name };
+      return { name, stats };
     }),
   );
-  for (const { name, modifiedMs } of statted) {
-    const relPath = pathOf(name);
-    if (modifiedMs === null) {
-      walkArgs.entries.push({ kind: "file", path: relPath });
-    } else {
-      walkArgs.entries.push({ kind: "file", modifiedMs, path: relPath });
-    }
+  for (const { name, stats } of statted) {
+    walkArgs.entries.push({
+      kind: "file",
+      path: pathOf(name),
+      stat: stats === null ? null : { mtimeMs: stats.mtimeMs, size: stats.size },
+    });
   }
+};
+
+const toVaultEntry = (entry: WalkedEntry): VaultEntry => {
+  if (entry.kind === "dir" || entry.stat === null) {
+    return { kind: entry.kind, path: entry.path };
+  }
+  return { kind: "file", modifiedMs: Math.trunc(entry.stat.mtimeMs), path: entry.path };
 };
 
 // recursive: EEXIST means the last segment is a file, ENOTDIR an earlier one. either way a file
@@ -216,6 +233,18 @@ export interface VaultServiceArgs {
   stallRead?: ReadStall | undefined;
 }
 
+// a file's size and mtime as its lstat answered them, whole: the knowledge index's fingerprint
+interface VaultFileStat {
+  size: number;
+  mtimeMs: number;
+}
+
+export interface VaultListedFile extends VaultFileStat {
+  path: string;
+}
+
+type VaultEntryStat = ({ kind: "file" } & VaultFileStat) | { kind: "dir" };
+
 type ConditionalWriteResult =
   | { applied: true; path: string }
   | { applied: false; reason: "changed" | "not_found" };
@@ -224,6 +253,12 @@ export interface VaultService {
   listTree: () => Promise<VaultTreeResponse>;
   statEntry: (path: string) => Promise<"file" | "dir" | null>;
   listFilesUnder: (path: string) => Promise<string[]>;
+  // the server's own reads, off the wire: the walk's files with their stats, and its folders,
+  // the whole vault's or the ones under `under`; a file whose lstat failed is left out
+  listFileStats: (under?: string) => Promise<VaultListedFile[]>;
+  listDirs: (under?: string) => Promise<string[]>;
+  // statEntry with the file's stat; null for anything the listing would not show
+  statFile: (path: string) => Promise<VaultEntryStat | null>;
   // a read takes a slot of the process's fs budget (read-slots.ts) while the bytes are opened;
   // absent, its lane is foreground, and a job nobody waits on says background.
   read: (path: string, lane?: ReadLane) => Promise<{ path: string; content: string }>;
@@ -404,6 +439,59 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
     return { absPath, etag, relPath };
   };
 
+  // the whole vault, or the folder `under` (nothing when it is not a listed folder); the root
+  // that cannot be read throws, a folder below it that cannot is skipped
+  const walkUnder = async (under: string | undefined, files: boolean): Promise<WalkedEntry[]> => {
+    const entries: WalkedEntry[] = [];
+    const ignore = await args.ignore();
+    if (under === undefined) {
+      const dirents = await readdir(rootReal, { withFileTypes: true });
+      await walk(rootReal, "", dirents, {
+        entries,
+        files,
+        ignore,
+        onUnreadable: onUnreadableFolder,
+      });
+      return entries;
+    }
+    const folder = await containedEntry(under);
+    if (folder === null || !folder.stats.isDirectory()) {
+      return [];
+    }
+    const { relPath, absPath } = folder;
+    if (ignore.ignores(relPath, "dir")) {
+      return [];
+    }
+    try {
+      const dirents = await readdir(absPath, { withFileTypes: true });
+      await walk(absPath, relPath, dirents, {
+        entries,
+        files,
+        ignore,
+        onUnreadable: onUnreadableFolder,
+      });
+    } catch {
+      // Gone or swapped for a file since the stat: nothing under it to list.
+    }
+    return entries;
+  };
+
+  // the listing leaves out what the vault ignores; a stat must agree.
+  const statListed = async (requestedPath: string): Promise<VaultEntryStat | null> => {
+    const entry = await containedEntry(requestedPath);
+    if (entry === null) {
+      return null;
+    }
+    const { relPath, stats } = entry;
+    const ignore = await args.ignore();
+    if (stats.isDirectory()) {
+      return ignore.ignores(relPath, "dir") ? null : { kind: "dir" };
+    }
+    return stats.isFile() && !ignore.ignores(relPath, "file")
+      ? { kind: "file", mtimeMs: stats.mtimeMs, size: stats.size }
+      : null;
+  };
+
   return {
     async createDir(requestedPath) {
       return await lock(async () => {
@@ -419,37 +507,31 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
       });
     },
 
+    async listDirs(under) {
+      const walked = await walkUnder(under, false);
+      return walked.flatMap((entry) => (entry.kind === "dir" ? [entry.path] : []));
+    },
+
+    async listFileStats(under) {
+      const walked = await walkUnder(under, true);
+      return walked.flatMap((entry) =>
+        entry.kind === "file" && entry.stat !== null ? [{ path: entry.path, ...entry.stat }] : [],
+      );
+    },
+
     async listFilesUnder(requestedPath) {
-      const folder = await containedEntry(requestedPath);
-      if (folder === null || !folder.stats.isDirectory()) {
-        return [];
-      }
-      const { relPath, absPath } = folder;
-      const ignore = await args.ignore();
-      if (ignore.ignores(relPath, "dir")) {
-        return [];
-      }
-      const entries: VaultEntry[] = [];
-      try {
-        const dirents = await readdir(absPath, { withFileTypes: true });
-        await walk(absPath, relPath, dirents, {
-          entries,
-          ignore,
-          onUnreadable: onUnreadableFolder,
-        });
-      } catch {
-        // Gone or swapped for a file since the stat: nothing under it to index.
-      }
-      return entries.filter((entry) => entry.kind === "file").map((entry) => entry.path);
+      const walked = await walkUnder(requestedPath, true);
+      return walked.flatMap((entry) => (entry.kind === "file" ? [entry.path] : []));
     },
 
     async listTree() {
-      const entries: VaultEntry[] = [];
-      const ignore = await args.ignore();
-      const dirents = await readdir(rootReal, { withFileTypes: true });
-      await walk(rootReal, "", dirents, { entries, ignore, onUnreadable: onUnreadableFolder });
+      const walked = await walkUnder(undefined, true);
       // basename here, not a split in the browser: this side knows the machine's separator.
-      return { entries, name: path.basename(rootReal) || rootReal, root: rootReal };
+      return {
+        entries: walked.map(toVaultEntry),
+        name: path.basename(rootReal) || rootReal,
+        root: rootReal,
+      };
     },
 
     async read(requestedPath, lane = "foreground") {
@@ -563,18 +645,11 @@ export const createVaultService = (args: VaultServiceArgs): VaultService => {
     },
 
     async statEntry(requestedPath) {
-      const entry = await containedEntry(requestedPath);
-      if (entry === null) {
-        return null;
-      }
-      const { relPath, stats } = entry;
-      // the listing leaves out what the vault ignores; a stat must agree.
-      const ignore = await args.ignore();
-      if (stats.isDirectory()) {
-        return ignore.ignores(relPath, "dir") ? null : "dir";
-      }
-      return stats.isFile() && !ignore.ignores(relPath, "file") ? "file" : null;
+      const stat = await statListed(requestedPath);
+      return stat?.kind ?? null;
     },
+
+    statFile: statListed,
 
     async write(requestedPath, content) {
       return await lock(async () => {

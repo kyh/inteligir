@@ -144,6 +144,10 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   });
 
   const knowledge = createKnowledgeRuntime({
+    attachmentsFolder: () => {
+      const { attachments } = vaultPrefs.read();
+      return attachments?.kind === "folder" ? attachments.path : null;
+    },
     dataDir: config.dataDir,
     debugLog: debugLog(config.debug, "knowledge"),
     projector: ports.knowledge?.projector ?? createProjectionWorker(),

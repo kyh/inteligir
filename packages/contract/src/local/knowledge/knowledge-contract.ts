@@ -5,6 +5,17 @@ import { oc } from "@orpc/contract";
 import {
   knowledgeBacklinksRequestSchema,
   knowledgeBacklinksResponseSchema,
+  knowledgeFindByUrlRequestSchema,
+  knowledgeFindByUrlResponseSchema,
+  knowledgeItemPathsRequestSchema,
+  knowledgeItemPathsResponseSchema,
+  knowledgeItemsAtRequestSchema,
+  knowledgeItemsAtResponseSchema,
+  knowledgeItemsRequestSchema,
+  knowledgeItemsResponseSchema,
+  knowledgePathForNoteIdRequestSchema,
+  knowledgePathForNoteIdResponseSchema,
+  knowledgeScopesResponseSchema,
   knowledgeMatchesRequestSchema,
   knowledgeMatchesResponseSchema,
   knowledgeRelatedRequestSchema,
@@ -35,4 +46,18 @@ export const knowledgeContract = {
   tags: oc.output(knowledgeTagsResponseSchema),
 
   wikiTargets: oc.output(knowledgeWikiTargetsResponseSchema),
+
+  findByUrl: oc.input(knowledgeFindByUrlRequestSchema).output(knowledgeFindByUrlResponseSchema),
+
+  itemPaths: oc.input(knowledgeItemPathsRequestSchema).output(knowledgeItemPathsResponseSchema),
+
+  items: oc.input(knowledgeItemsRequestSchema).output(knowledgeItemsResponseSchema),
+
+  itemsAt: oc.input(knowledgeItemsAtRequestSchema).output(knowledgeItemsAtResponseSchema),
+
+  pathForNoteId: oc
+    .input(knowledgePathForNoteIdRequestSchema)
+    .output(knowledgePathForNoteIdResponseSchema),
+
+  scopes: oc.output(knowledgeScopesResponseSchema),
 };
