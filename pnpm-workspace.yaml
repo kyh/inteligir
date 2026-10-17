@@ -48,6 +48,8 @@ catalog:
   citty: ^0.2.2
   cn: ^0.4.0
   consola: ^3.4.2
+  # exact: 0.x output moves between patches; the fill corpus pins it
+  defuddle: 0.19.5
   drizzle-kit: 1.0.0-rc.4
   drizzle-orm: 1.0.0-rc.4
   # exact: `pnpm testflight:mobile` uploads the build through it, and apps/mobile/eas.json floors
@@ -60,9 +62,11 @@ catalog:
   expo-file-system: ~57.0.7
   expo-image-manipulator: ~57.0.21
   expo-image-picker: ~57.0.20
+  expo-linking: ~57.0.12
   expo-network: ~57.0.2
   expo-router: ~57.0.25
   expo-secure-store: ~57.0.4
+  expo-share-intent: ~8.0.1
   expo-splash-screen: ~57.0.9
   expo-sqlite: ~57.0.4
   expo-status-bar: ~57.0.1
