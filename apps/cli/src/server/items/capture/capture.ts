@@ -60,6 +60,9 @@ export interface Capture {
   refresh: (input: RefreshInput) => Promise<{ path: string; fill: ItemFill; wrote: string[] }>;
   // an own pending entry, the import's hand-off
   enqueue: (item: { id: string; path: string; url: string }, hints?: { cover?: string }) => void;
+  // a stub the person wrote back through this Mac (a restore from Deleted or History, an Undo)
+  // with no row: its fill is this Mac's own again. A stub a row holds keeps that row
+  adoptOwn: (path: string) => Promise<void>;
   boot: () => void;
   dispose: () => Promise<void>;
 }
@@ -287,10 +290,13 @@ export const createCapture = (deps: CaptureDeps): Capture => {
       if (current === null || itemId === null) {
         return wrote;
       }
+      // this selection alone: any other unplaced highlight of a read item is one the person took
+      // out of the text
       const placed = await deps.annotations.placeWaiting({
         content: current.content,
         final: true,
         itemId,
+        only: [entry.id],
         path,
       });
       if (placed.content === current.content) {
@@ -451,6 +457,26 @@ export const createCapture = (deps: CaptureDeps): Capture => {
   };
 
   return {
+    async adoptOwn(path) {
+      const read = await core.read(path);
+      if (read === null) {
+        return;
+      }
+      const facts = itemFactsOf(read.content);
+      const itemId = frontmatterId(read.content);
+      if (!isItemStub(facts) || facts.url === null || itemId === null || queue.has(itemId)) {
+        return;
+      }
+      queue.add({
+        coverHint: null,
+        itemId,
+        keepCopy: false,
+        origin: "own",
+        path,
+        url: facts.url,
+      });
+    },
+
     boot: () => {
       queue.boot();
     },

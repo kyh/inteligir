@@ -22,6 +22,7 @@ import { errnoCode } from "../../errno";
 import {
   addressKey,
   classifyAddress,
+  isPrivateUseName,
   isThisMacName,
   reachedKeys,
   vetAnswer,
@@ -58,6 +59,8 @@ export interface FetchedResponse {
   bytes: Uint8Array;
   // the body passed `maxBytes` and was cut there (overflow "truncate")
   truncated: boolean;
+  // the size the site declared for the body, null when it declared none
+  declaredBytes: number | null;
   reach: Reach;
 }
 
@@ -80,9 +83,11 @@ export type ReachResult = { ok: true; reach: Reach } | { ok: false; failure: Fet
 
 export interface GuardedFetch {
   fetch: (request: FetchRequest) => Promise<FetchResult>;
-  // the saved address's reach without requesting it: a captured page is never fetched, but its
-  // covers and copy resources are, and they may enter private space only if the page's host is
-  // private itself
+  // the reach of a page this Mac did not fetch (the browser's capture, an import's link whose page
+  // failed): its covers and copy resources are fetched, and they may enter private space only
+  // when the page's own host is an address in private space or a name no public resolver answers.
+  // A public name is public whatever it resolves to now, since that answer is its owner's to
+  // choose and the page's bytes came from wherever the browser loaded them
   reachOf: (url: string, signal?: AbortSignal) => Promise<ReachResult>;
 }
 
@@ -287,18 +292,55 @@ export const createGuardedFetch = (deps: GuardedFetchDeps): GuardedFetch => {
     | { ok: true; reach: Reach; addresses: LookupAddress[] }
     | { ok: false; failure: FetchFailure };
 
-  const vetHop = async (hop: Hop, reach: Reach | null): Promise<Vetted> => {
+  // the resolver's answer, or `null` once the signal fires: a slow nameserver holds a lookup past
+  // the request's deadline and its caller's, and the caller must not wait on it. The resolver's
+  // own thread still finishes the lookup; nothing more is asked of it
+  const lookupWithin = async (
+    host: string,
+    signal: AbortSignal | undefined,
+  ): Promise<LookupAddress[] | null> => {
+    if (signal === undefined) {
+      return await lookup(host);
+    }
+    if (signal.aborted) {
+      return null;
+    }
+    const stopped = Promise.withResolvers<null>();
+    const stop = (): void => {
+      stopped.resolve(null);
+    };
+    signal.addEventListener("abort", stop, { once: true });
+    try {
+      return await Promise.race([lookup(host), stopped.promise]);
+    } finally {
+      signal.removeEventListener("abort", stop);
+    }
+  };
+
+  const vetHop = async (
+    hop: Hop,
+    reach: Reach | null,
+    signal: AbortSignal | undefined,
+  ): Promise<Vetted> => {
+    if (signal?.aborted === true) {
+      return { failure: { kind: "aborted" }, ok: false };
+    }
     if (hop.port === deps.ownPort() || isThisMacName(hop.host)) {
       return { failure: { kind: "refused", refusal: "this-mac" }, ok: false };
     }
     let addresses: LookupAddress[];
     const family = isIP(hop.host);
     if (family === 0) {
+      let answered: LookupAddress[] | null;
       try {
-        addresses = await lookup(hop.host);
+        answered = await lookupWithin(hop.host, signal);
       } catch (error) {
         return { failure: failureOfError(error), ok: false };
       }
+      if (answered === null) {
+        return { failure: { kind: "aborted" }, ok: false };
+      }
+      addresses = answered;
     } else {
       addresses = [{ address: hop.host, family }];
     }
@@ -397,7 +439,7 @@ export const createGuardedFetch = (deps: GuardedFetchDeps): GuardedFetch => {
     let hop = hopOf(request.url);
     let { reach } = request;
     for (let redirects = 0; hop !== null; redirects += 1) {
-      const vetted = await vetHop(hop, reach);
+      const vetted = await vetHop(hop, reach, signal);
       if (!vetted.ok) {
         return vetted;
       }
@@ -450,6 +492,7 @@ export const createGuardedFetch = (deps: GuardedFetchDeps): GuardedFetch => {
         response: {
           bytes: body.bytes,
           charset: type.charset,
+          declaredBytes: declared !== null && Number.isFinite(declared) ? declared : null,
           mediaType: type.mediaType,
           reach,
           status,
@@ -484,8 +527,18 @@ export const createGuardedFetch = (deps: GuardedFetchDeps): GuardedFetch => {
       if (signal?.aborted === true) {
         return { failure: { kind: "aborted" }, ok: false };
       }
-      const vetted = await vetHop(hop, null);
-      return vetted.ok ? { ok: true, reach: vetted.reach } : vetted;
+      if (isIP(hop.host) === 0 && !isThisMacName(hop.host) && !isPrivateUseName(hop.host)) {
+        return { ok: true, reach: "public" };
+      }
+      const deadline = AbortSignal.timeout(requestTimeoutMs);
+      const within = signal === undefined ? deadline : AbortSignal.any([deadline, signal]);
+      const vetted = await vetHop(hop, null, within);
+      if (vetted.ok) {
+        return { ok: true, reach: vetted.reach };
+      }
+      return within.aborted
+        ? { failure: deadline.aborted ? { kind: "timeout" } : { kind: "aborted" }, ok: false }
+        : vetted;
     },
   };
 };

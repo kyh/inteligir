@@ -41,6 +41,7 @@ const fakeLibrary = () => {
   const byKey = new Map<string, string>();
   const calls: string[] = [];
   let listings = 0;
+  let settles = 0;
   let pause: { at: number; release: Promise<void>; reached: () => void } | null = null;
   const core: ItemCore = {
     commitPaths: unreachable,
@@ -82,6 +83,10 @@ const fakeLibrary = () => {
     read: unreachable,
     remove: unreachable,
     rename: unreachable,
+    async settle() {
+      settles += 1;
+      await Promise.resolve();
+    },
     syncNow: unreachable,
     syncsWithAccount: unreachable,
     withUrlLock: async (_key, run) => await run(),
@@ -95,6 +100,7 @@ const fakeLibrary = () => {
     core,
     files,
     listings: () => listings,
+    settles: () => settles,
     // the next createDoc once `at` items exist waits for the returned release
     pauseAt(at: number): Pause {
       const reached: PromiseWithResolvers<void> = Promise.withResolvers();
@@ -108,7 +114,6 @@ const fakeLibrary = () => {
 const boot = (options: { dataDir?: string; library?: ReturnType<typeof fakeLibrary> } = {}) => {
   const dataDir = options.dataDir ?? makeTempDir("inteligir-import-");
   const library = options.library ?? fakeLibrary();
-  let settles = 0;
   let ids = 0;
   const commits: string[][] = [];
   const claims: string[][] = [];
@@ -143,13 +148,6 @@ const boot = (options: { dataDir?: string; library?: ReturnType<typeof fakeLibra
         fills.push(hints === undefined ? { item } : { hints, item });
       },
     },
-    knowledge: {
-      findByUrl: unreachable,
-      async settle() {
-        settles += 1;
-        await Promise.resolve();
-      },
-    },
     newId: () => {
       ids += 1;
       return `0000000${String(ids)}-0000-4000-8000-000000000000`.slice(-36);
@@ -175,7 +173,7 @@ const boot = (options: { dataDir?: string; library?: ReturnType<typeof fakeLibra
     finished,
     library,
     service,
-    settles: () => settles,
+    settles: library.settles,
   };
 };
 

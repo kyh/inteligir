@@ -14,9 +14,16 @@ export const COPY_TOO_BIG = "The page is too big to keep a copy of; its text is 
 
 const MB = 1024 * 1024;
 
-// MB to the nearest whole, as fileTooLargeMessage says it
-export const fileOnlyLinked = (bytes: number): string =>
-  `The file is ${String(Math.max(1, Math.round(bytes / MB)))} MB; only its link is kept (the limit is 10 MB).`;
+const LIMIT_MB = 10;
+
+// MB to the nearest whole, as fileTooLargeMessage says it; a size the read only knows is past the
+// limit (the site declared none, or one that rounds to the limit) is said as over it
+export const fileOnlyLinked = (bytes: number | null): string => {
+  const mb = bytes === null ? null : Math.max(1, Math.round(bytes / MB));
+  return mb === null || mb <= LIMIT_MB
+    ? `The file is over ${String(LIMIT_MB)} MB; only its link is kept.`
+    : `The file is ${String(mb)} MB; only its link is kept (the limit is ${String(LIMIT_MB)} MB).`;
+};
 
 export const failureOf = (failure: FetchFailure): FillFailure => {
   switch (failure.kind) {

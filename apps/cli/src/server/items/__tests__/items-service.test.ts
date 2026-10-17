@@ -6,10 +6,11 @@ import nodePath from "node:path";
 import { isDefinedError, safe } from "@orpc/client";
 import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 import { frontmatterId } from "@repo/notes/markdown/frontmatter";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { bootTestApp } from "../../__tests__/boot-app";
 import type { BootedTestApp } from "../../__tests__/boot-app";
+import { fakeFetcher } from "../capture/__tests__/capture-harness";
 
 const URL_SAVED = "https://stephango.com/file-over-app?utm_source=feed";
 const SAVED_LINE = /^saved: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/mu;
@@ -222,5 +223,41 @@ describe("tagging items", () => {
       { inline: [], outcome: "invalid", path: "shot.png" },
     ]);
     expect(onDisk(harness, "a.md")).toBe("---\ntags: [new]\n---\nWritten with #old.\n");
+  });
+});
+
+describe("a stub written back through this Mac", () => {
+  it("is filled again as this Mac's own, in a library that does not sync with the account", async () => {
+    const url = "https://site.test/back-again";
+    const fetcher = fakeFetcher({ [url]: { html: "<title>Back again</title><p>Here.</p>" } });
+    const harness = await bootTestApp({ items: { fetcher } });
+    // the stub a restore from Deleted writes: its row went with it when it was deleted
+    const stub = [
+      "---",
+      "id: 5c1d7e2a-3b4f-4c6d-8e9f-0a1b2c3d4e5f",
+      "kind: link",
+      `url: ${url}`,
+      "saved: 2026-10-17T09:12:30Z",
+      "---",
+      "",
+    ].join("\n");
+    await harness.client.vault.write({
+      content: stub,
+      guard: { kind: "absent" },
+      path: "Unsorted/site.test - back again.md",
+    });
+    await vi.waitFor(
+      () => {
+        expect(fetcher.requests).toContain(url);
+      },
+      { timeout: 20_000 },
+    );
+    // a note that only looks like one is never read
+    await harness.client.vault.write({
+      content: "# A note\n\nkind: link\n",
+      guard: { kind: "absent" },
+      path: "Notes/Plain.md",
+    });
+    expect(fetcher.requests).toEqual([url]);
   });
 });

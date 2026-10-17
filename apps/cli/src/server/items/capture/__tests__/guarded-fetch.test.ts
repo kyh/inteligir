@@ -6,6 +6,8 @@ import { once } from "node:events";
 import { createServer } from "node:http";
 import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
+import { networkInterfaces } from "node:os";
+import { setTimeout as delay } from "node:timers/promises";
 import { randomBytes } from "node:crypto";
 import { brotliCompressSync, deflateSync, gzipSync } from "node:zlib";
 import { afterEach, describe, expect, it } from "vitest";
@@ -221,6 +223,31 @@ describe("the guarded fetch", () => {
     expect(elsewhere.ok).toBe(true);
   });
 
+  // the capture builds its guard with no `ownAddresses`, so the system's own interfaces decide
+  const external = Object.values(networkInterfaces())
+    .flatMap((entries) => entries ?? [])
+    .filter((entry) => !entry.internal);
+  const ownInterface =
+    external.find((entry) => entry.family === "IPv4") ?? external.find(() => true);
+  it.skipIf(ownInterface === undefined)(
+    "reads this Mac's own addresses from its interfaces when no suite names them",
+    async () => {
+      const address = ownInterface?.address ?? "";
+      const dialed: LookupAddress[][] = [];
+      const result = await guard({
+        lookup: answers({
+          "x.test": [ownInterface?.family === "IPv6" ? v6(address) : v4(address)],
+        }),
+        onDial: (addresses) => {
+          dialed.push([...addresses]);
+        },
+        policy: (candidate) => (candidate === address ? "public" : classifyAddress(candidate)),
+      }).fetch(page("http://x.test/"));
+      expect(result).toEqual({ failure: { kind: "refused", refusal: "this-mac" }, ok: false });
+      expect(dialed).toEqual([]);
+    },
+  );
+
   it("refuses an answer mixing private and public addresses", async () => {
     const site = await listen(html("<p>hello</p>"));
     const result = await guard({
@@ -314,16 +341,88 @@ describe("the guarded fetch", () => {
 
   it("decides a captured page's reach from its host alone, with no request", async () => {
     const site = await listen(html("<p>never</p>"));
+    const calls: string[] = [];
     const fetcher = guard({
-      lookup: answers({ "lan.test": [v4("10.0.0.7")], "web.test": [v4("8.8.8.8")] }),
+      lookup: answers(
+        {
+          "nas.local": [v4("10.0.0.7")],
+          "router.home.arpa": [v4("192.168.1.1")],
+          "web.test": [v4("8.8.8.8")],
+          wiki: [v4("10.0.0.8")],
+        },
+        calls,
+      ),
     });
-    expect(await fetcher.reachOf("http://lan.test/x")).toEqual({ ok: true, reach: "private" });
+    expect(await fetcher.reachOf("http://nas.local/x")).toEqual({ ok: true, reach: "private" });
+    expect(await fetcher.reachOf("http://router.home.arpa/")).toEqual({
+      ok: true,
+      reach: "private",
+    });
+    expect(await fetcher.reachOf("http://wiki/Home")).toEqual({ ok: true, reach: "private" });
+    expect(await fetcher.reachOf("http://10.0.0.9/")).toEqual({ ok: true, reach: "private" });
     expect(await fetcher.reachOf("https://web.test/x")).toEqual({ ok: true, reach: "public" });
     expect(await fetcher.reachOf(site.url("/"))).toEqual({
       failure: { kind: "refused", refusal: "this-mac" },
       ok: false,
     });
+    expect(calls).toEqual(["nas.local", "router.home.arpa", "wiki"]);
     expect(site.seen).toEqual([]);
+  });
+
+  it("never lets a public name's answer open private space for a page it did not read", async () => {
+    // the browser loaded evil.test from a public server; a moment later its nameserver answers
+    // the router's address, and the page's cover names the router
+    const router = await listen((_request, response) => {
+      response.writeHead(200, { "content-type": "image/png" });
+      response.end(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    });
+    const calls: string[] = [];
+    const fetcher = guard({
+      lookup: answers({ "evil.test": [v4("127.0.0.1")] }, calls),
+      policy: loopbackIs("private"),
+    });
+    const reach = await fetcher.reachOf("https://evil.test/article");
+    expect(reach).toEqual({ ok: true, reach: "public" });
+    expect(calls).toEqual([]);
+    const cover = await fetcher.fetch(
+      page(router.url("/cgi-bin/cover.png"), { accept: "image/*", reach: "public" }),
+    );
+    expect(cover).toEqual({
+      failure: { kind: "refused", refusal: "private-from-public" },
+      ok: false,
+    });
+    expect(router.seen).toEqual([]);
+  });
+
+  it("gives up a lookup when the deadline passes or the caller stops, and asks none once stopped", async () => {
+    const calls: string[] = [];
+    const slow: HostLookup = async (hostname) => {
+      calls.push(hostname);
+      await delay(1500);
+      return [v4("8.8.8.8")];
+    };
+    const fetcher = guard({ lookup: slow, requestTimeoutMs: 200 });
+    const started = performance.now();
+    expect(await fetcher.fetch(page("http://slow.test/"))).toEqual({
+      failure: { kind: "timeout" },
+      ok: false,
+    });
+    expect(await fetcher.reachOf("http://slow.lan/")).toEqual({
+      failure: { kind: "timeout" },
+      ok: false,
+    });
+    expect(performance.now() - started).toBeLessThan(1200);
+    expect(calls).toEqual(["slow.test", "slow.lan"]);
+    const stopped = AbortSignal.abort();
+    expect(await fetcher.fetch(page("http://slow.test/", { signal: stopped }))).toEqual({
+      failure: { kind: "aborted" },
+      ok: false,
+    });
+    expect(await fetcher.reachOf("http://slow.lan/", stopped)).toEqual({
+      failure: { kind: "aborted" },
+      ok: false,
+    });
+    expect(calls).toEqual(["slow.test", "slow.lan"]);
   });
 
   it("stops after five redirects", async () => {
@@ -352,6 +451,21 @@ describe("the guarded fetch", () => {
     const result = await guard({ policy: loopbackIs("public") }).fetch(page(site.url("/start")));
     expect(result.ok && result.response.url).toBe(`http://127.0.0.1:${site.port}/end`);
     expect(site.seen.map((seen) => seen.headers.authorization)).toEqual([undefined, undefined]);
+  });
+
+  it("keeps the size a site declared for a body it cut, which is all a cut read knows of it", async () => {
+    const body = Buffer.alloc(3 * MiB, 1);
+    const site = await listen((_request, response) => {
+      response.writeHead(200, {
+        "content-length": String(body.byteLength),
+        "content-type": "application/pdf",
+      });
+      response.end(body);
+    });
+    const cut = await guard({ policy: loopbackIs("public") }).fetch(
+      page(site.url("/big.pdf"), { maxBytes: MiB }),
+    );
+    expect(cut.ok && cut.response).toMatchObject({ declaredBytes: 3 * MiB, truncated: true });
   });
 
   it("counts the decoded size, so a gzip bomb stops at the cap", async () => {

@@ -78,6 +78,29 @@ describe("the item core", () => {
     expect(await core.existing("https://example.com/other")).toBeNull();
   });
 
+  it("forgets a stub it wrote once a settle has read it, so one deleted since is not saved", async () => {
+    const { core, harness } = await bootCore();
+    const content = [
+      "---",
+      "id: 0b6f3c2e-8d41-4f7a-9c55-3e2a1d7b9f60",
+      "kind: link",
+      "url: https://example.com/gone",
+      "saved: 2026-10-17T09:12:30Z",
+      "---",
+      "",
+    ].join("\n");
+    // the import's way: a settle of its own, then every lookup with none
+    const { path } = await core.createDoc({ content, folder: "Unsorted", stem: "Gone" });
+    await core.settle();
+    expect(await core.existing("https://example.com/gone", { settle: false })).toEqual({
+      fill: { state: "pending" },
+      path,
+    });
+    await harness.vault.service.remove(path);
+    await core.settle();
+    expect(await core.existing("https://example.com/gone", { settle: false })).toBeNull();
+  });
+
   it("rewrites under the hash it was given, and says when the file moved or went", async () => {
     const { core, harness } = await bootCore();
     await harness.vault.service.write("a.md", "one\n");

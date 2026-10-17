@@ -230,6 +230,25 @@ describe("placing the waiting highlights", () => {
     );
   });
 
+  it("places only the roots it is asked to, leaving the rest unplaced", async () => {
+    const { annotations, seedStore } = boot({ note: STUB });
+    seedStore({
+      fresh: { createdAt: AT + 1, quote: "a new selection", text: "", updatedAt: AT + 1 },
+      removed: { createdAt: AT, quote: "a passage taken out", text: "", updatedAt: AT },
+    });
+    const placed = await annotations.placeWaiting({
+      content: `${STUB}\nThe page's text.\n`,
+      final: true,
+      itemId: ITEM_ID,
+      only: ["fresh"],
+      path: "item.md",
+    });
+    expect(placed.placed).toEqual(["fresh"]);
+    expect(placed.content).toBe(
+      `${STUB}\nThe page's text.\n\n## Highlights\n\n> %%i:fresh:start%%a new selection%%i:fresh:end%%\n`,
+    );
+  });
+
   it("places nothing for an item with no id, no store or a store that does not parse", async () => {
     const { annotations, root } = boot({ note: STUB });
     const content = `${STUB}\nText.\n`;

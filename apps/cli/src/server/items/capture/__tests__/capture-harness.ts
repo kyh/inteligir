@@ -71,7 +71,7 @@ const manualClock = (): ManualClock => {
 
 export type Route =
   | { html: string }
-  | { bytes: Uint8Array; mediaType: string; truncated?: boolean }
+  | { bytes: Uint8Array; mediaType: string; truncated?: boolean; declaredBytes?: number }
   | { failure: FetchFailure };
 
 export interface FakeFetcher extends GuardedFetch {
@@ -121,6 +121,7 @@ export const fakeFetcher = (routes: Record<string, Route> = {}): FakeFetcher => 
       response: {
         bytes,
         charset: "utf-8",
+        declaredBytes: "declaredBytes" in route ? (route.declaredBytes ?? null) : null,
         mediaType: "html" in route ? "text/html" : route.mediaType,
         reach: request.reach ?? host,
         status: 200,
@@ -293,6 +294,8 @@ export const bootCapture = async (
     routes?: Record<string, Route>;
     core?: (core: ItemCore) => ItemCore;
     onPlace?: (placement: RecordedPlacement) => void;
+    // the guard itself in place of the table, for a case about the guard's own rule
+    fetch?: GuardedFetch;
   } = {},
 ): Promise<CaptureSuite> => {
   const harness = await bootTestApp();
@@ -315,7 +318,7 @@ export const bootCapture = async (
       downscale: createImageDownscale({ platform: "linux" }),
       knowledge: harness.composed.context.knowledge,
       ownPort: () => null,
-      ports: { clock, fetcher, runner: inlineFillRunner(fakeExtract) },
+      ports: { clock, fetcher: options.fetch ?? fetcher, runner: inlineFillRunner(fakeExtract) },
       version: "9.9.9",
     });
   const captures: Capture[] = [make()];

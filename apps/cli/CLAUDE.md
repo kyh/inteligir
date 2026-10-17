@@ -220,7 +220,9 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
 - **AN IMPORT IS A SERVER JOB OVER A COPY OF THE FILE: DEDUPED BY URL, ONE
   COMMIT PER 100 ITEMS, LINEAR IN ITS ROWS, RESUMED AT BOOT.** The plan keeps
   the file in the data dir and keys every row once, folding rows of one url
-  key into the first; a batch settles the index once, lists each folder it
+  key into the first; the plan and each batch settle the index once, through
+  the items core, which then forgets the stubs it wrote, so an item deleted
+  since is never counted as saved; a batch lists each folder it
   writes into once, writes each item's highlights before the item and hands
   the item to the fill's pending store, then commits once under a commit hold.
   The job is a json file of its cursor and counts, rewritten per batch, and a

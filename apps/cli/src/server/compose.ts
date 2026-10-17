@@ -217,7 +217,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     dataDir: config.dataDir,
     git: vault.git,
     items,
-    knowledge,
     newId: () => crypto.randomUUID(),
     notify: () => {
       bus.notifyVault(["import-changed"]);

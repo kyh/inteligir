@@ -426,8 +426,10 @@ const land = async (
     if (composed === null) {
       return { kind: "lost" };
     }
+    // highlights wait only on a stub: on an item already read, a highlight with no passage in the
+    // text is one the person took out, and a refresh or a copy never puts it back
     const placed =
-      target.itemId === null
+      target.itemId === null || !isItemStub(itemFactsOf(current.content))
         ? { content: composed }
         : await context.annotations.placeWaiting({
             content: composed,
@@ -481,7 +483,8 @@ const mediaWriting = async (
       cover: null,
       fetched: read.fetched,
       kind: "failure",
-      message: fileOnlyLinked(read.response.bytes.byteLength + 1),
+      // the read stopped at the limit, so only the site's own declaration knows the size
+      message: fileOnlyLinked(read.response.declaredBytes),
     };
   }
   if (sniffed !== null) {

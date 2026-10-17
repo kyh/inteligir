@@ -12,6 +12,7 @@ import type {
   itemsSavePageRequestSchema,
   itemsTagRequestSchema,
 } from "@repo/contract/local/items/items-schema";
+import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import type { z } from "zod";
 
 import type { AnnotationsService } from "../annotations/annotations-service";
@@ -49,6 +50,9 @@ export interface ItemsService {
     item: { id: string; path: string; url: string },
     hints?: { cover?: string },
   ) => void;
+  // a stub the person wrote back through this Mac (a restore from Deleted or History, an Undo)
+  // is filled again as this Mac's own; never throws
+  adoptOwn: (paths: readonly string[]) => Promise<void>;
   // imports share the url locks
   readonly core: ItemCore;
   // compose calls it off the critical path, beside the thread origins' repair
@@ -87,6 +91,17 @@ export const createItemsService = (deps: ItemsServiceDeps): ItemsService => {
     version: deps.version,
   });
   return {
+    adoptOwn: async (paths) => {
+      for (const path of paths.filter((candidate) => isDocPath(candidate))) {
+        try {
+          await capture.adoptOwn(path);
+        } catch (error) {
+          deps.debugLog?.(
+            `adopting ${path} failed: ${error instanceof Error ? error.message : "unknown"}`,
+          );
+        }
+      }
+    },
     boot: () => {
       capture.boot();
     },

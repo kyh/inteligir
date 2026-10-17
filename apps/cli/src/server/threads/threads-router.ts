@@ -101,6 +101,8 @@ const undoTurn = base.threads.undoTurn.handler(async ({ context, input, errors }
   const outcome = await context.turnUndo.undo(input.threadId, input.turnId);
   switch (outcome.kind) {
     case "undone": {
+      // a stub the turn had deleted comes back with no row to fill it
+      await context.items.adoptOwn(outcome.changes.reverted);
       return outcome.changes;
     }
     case "not-found": {

@@ -67,6 +67,11 @@ describe("the fill's sentences", () => {
     expect(fileOnlyLinked(24 * 1024 * 1024)).toBe(
       "The file is 24 MB; only its link is kept (the limit is 10 MB).",
     );
+    // a size that rounds to the limit, or none at all, is never said as the limit itself
+    expect(fileOnlyLinked(10 * 1024 * 1024 + 1)).toBe(
+      "The file is over 10 MB; only its link is kept.",
+    );
+    expect(fileOnlyLinked(null)).toBe("The file is over 10 MB; only its link is kept.");
   });
 });
 

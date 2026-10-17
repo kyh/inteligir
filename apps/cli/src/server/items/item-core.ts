@@ -47,9 +47,11 @@ export interface ItemCore {
   newId: () => string;
   // every save of one url key runs one at a time
   withUrlLock: <T>(key: string, run: () => Promise<T>) => Promise<T>;
+  // the index settled, and the stubs this core wrote forgotten once it holds them: the import's
+  // one settle per batch, so a stub it wrote and the person later deleted never reads as saved
+  settle: () => Promise<void>;
   // the item already holding this url's key: a non-stub first, then the earliest saved; null when
-  // none. `settle: false` skips the settle and the prune of the stubs this core created: the
-  // import settles once per batch
+  // none. `settle: false` skips the settle: the import settles once per batch, through `settle`
   existing: (
     url: string,
     options?: { settle: boolean },
@@ -154,15 +156,19 @@ export const createItemCore = (deps: ItemCoreDeps): ItemCore => {
     }
   };
 
+  const settle = async (): Promise<void> => {
+    const mark = createdSeq;
+    await deps.knowledge.settle();
+    pruneCreated(mark);
+  };
+
   const existing: ItemCore["existing"] = async (url, options) => {
     const key = urlKey(url);
     if (key === null) {
       return null;
     }
     if (options?.settle !== false) {
-      const mark = createdSeq;
-      await deps.knowledge.settle();
-      pruneCreated(mark);
+      await settle();
     }
     const matches = await deps.knowledge.findByUrl(url, 1);
     const [top] = matches.items;
@@ -207,6 +213,7 @@ export const createItemCore = (deps: ItemCoreDeps): ItemCore => {
   };
 
   return {
+    settle,
     async commitPaths(paths) {
       if (paths.length === 0) {
         return;

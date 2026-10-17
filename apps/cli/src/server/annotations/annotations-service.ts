@@ -96,14 +96,15 @@ export interface AnnotationsService {
     itemId: string;
     entries: readonly UnanchoredEntry[];
   }) => Promise<AnnotationsWrite<{ path: string }>>;
-  // the waiting roots of `itemId` placed into `content`; `final` appends what found no passage
-  // under a Highlights section. pure over the store it reads: the caller writes `content` under its
-  // own compare-and-swap
+  // the waiting roots of `itemId` placed into `content`, or only those `only` names; `final`
+  // appends what found no passage under a Highlights section. pure over the store it reads: the
+  // caller writes `content` under its own compare-and-swap
   placeWaiting: (args: {
     path: string;
     itemId: string | null;
     content: string;
     final: boolean;
+    only?: readonly string[];
   }) => Promise<{ content: string; placed: string[] }>;
 }
 
@@ -502,7 +503,7 @@ export const createAnnotationsService = ({
       });
     },
 
-    async placeWaiting({ content, final, itemId }) {
+    async placeWaiting({ content, final, itemId, only }) {
       if (itemId === null || !isNoteIdKey(itemId)) {
         return { content, placed: [] };
       }
@@ -516,7 +517,10 @@ export const createAnnotationsService = ({
         }
         throw error;
       }
-      const pending = waitingRoots(store, content);
+      const named = only === undefined ? null : new Set(only);
+      const pending = waitingRoots(store, content).filter(
+        (root) => named === null || named.has(root.id),
+      );
       if (pending.length === 0) {
         return { content, placed: [] };
       }

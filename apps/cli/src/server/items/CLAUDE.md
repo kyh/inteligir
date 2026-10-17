@@ -20,8 +20,16 @@ Saving links, pages and files as items, and filling a saved link from its page.
   global IPv6, a public IPv4 it was handed), read again at every hop, is this
   Mac's too, while its private ones stay private space; private space is
   reachable only from a saved address that is itself private, the first hop
-  deciding. No env var widens it: a suite injects the lookup, the policy or the
-  whole fetch (`CapturePorts`), and the guard's own suite this Mac's addresses. Rejected: pre-resolving then
+  deciding. A page this Mac did not fetch (the browser's capture, an import's
+  link whose page failed) opens private space for its covers and copy only when
+  its host is an address in private space or a name no public resolver answers
+  (one label, `.local`, `.home.arpa`, `.internal`, `.lan`, …), since a public
+  name's answer a moment later is its owner's to choose and the page's bytes
+  came from wherever the browser loaded them (`isPrivateUseName` in
+  `address-guard.ts`). A lookup gives up when the request's deadline or its
+  caller's signal fires, and a stopped request asks for none. No env var widens
+  it: a suite injects the lookup, the policy or the whole fetch
+  (`CapturePorts`), and the guard's own suite this Mac's addresses. Rejected: pre-resolving then
   `fetch()` (a rebinding window), undici (a new dependency for the same hook),
   and the LAN open to any page (a public page could then redirect the Mac at the
   router or at a service bound on this Mac's own address, which browsers'
@@ -90,14 +98,19 @@ Saving links, pages and files as items, and filling a saved link from its page.
   Rejected: a claim through the dispatch inbox (a new /cloud protocol), filling
   every pending stub at boot, a 15-minute wait for a phone's share (it has no
   other filler), and a JSON pending file (rewritten whole on every transition of
-  an 8,500-item import). `apps/cli/src/server/items/capture/fill-queue.ts`,
+  an 8,500-item import). A copy the person asks for of another device's stub
+  makes that row due at once, still syncing first, and is made as a refresh
+  would make it when another device filled the stub meanwhile, so the copy
+  never rides on a row that drops. `apps/cli/src/server/items/capture/fill-queue.ts`,
   `apps/cli/src/server/items/capture/pending-fills-store.ts`,
   `apps/cli/src/server/items/capture/fill-item.ts`,
   `apps/cli/src/server/items/capture/link-fill.ts`.
 
 - **A FAILED FILL IS SAID IN THE FILE**: `fetched` and a plain `fetch-error`
   sentence, and the waiting highlights placed under `## Highlights` in the same
-  write; a transient failure (offline, a timeout, 429, 503) is retried three
+  write. Highlights wait only on a stub: a refresh or a copy of an item already
+  read places none, and a selection added to one places only itself, since a
+  highlight with no passage in a read item's text is one the person took out; a transient failure (offline, a timeout, 429, 503) is retried three
   times before the fourth is written. A copy too big to keep is only logged,
   since `fetch-error` marks the text unread and a refresh would add the article
   twice; for the same reason a refresh (or a copy) of an item already read that
@@ -126,7 +139,10 @@ Saving links, pages and files as items, and filling a saved link from its page.
   note an opened folder already held is never filled unasked; and since a
   folder's files can say anything, a stub no row of this Mac's holds is filled
   only in a library that syncs with the account, never under private reach
-  unless the account's Worker made it.
+  unless the account's Worker made it. A stub the person writes back through
+  this Mac (a restore from Deleted or History, an Undo) is this Mac's own again
+  and gains an own row (`adoptOwn` in `capture.ts`, from the vault's write
+  route and the turn's Undo), since its first row went with it.
 
 - **A COVER IS DOWNSCALED BY THE SYSTEM'S `sips` AND STORED BY ITS HASH**: at
   most 640 px, a picture with transparency kept PNG and the rest JPEG at 80, a
@@ -139,7 +155,12 @@ Saving links, pages and files as items, and filling a saved link from its page.
   stylesheets, fonts and pictures are fetched under the page's own reach and
   inlined as data, its scripts, frames, handlers and base dropped, its links
   disarmed, and a meta policy loads nothing; over 10 MiB it drops fonts, then
-  the largest pictures. Rejected: a copy on every save (about 300 saves fill the
+  the largest pictures. It asks for at most 64 stylesheets, 64 they import and
+  400 pictures and fonts, and nothing more once its 45 s are up. The server's
+  own thread reads up to 3 MiB of the page's stylesheets for the urls they
+  name, so that reading is one forward pass with no backtracking pattern
+  (`css-urls.ts`), since a backtracking pattern over a hostile sheet holds
+  every request for minutes. Rejected: a copy on every save (about 300 saves fill the
   hosted library), and single-file-core (AGPL).
   `apps/cli/src/server/items/capture/page-copy.ts`,
   `apps/cli/src/server/items/capture/fill/copy-page.ts`,

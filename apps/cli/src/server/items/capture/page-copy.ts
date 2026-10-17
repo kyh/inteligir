@@ -1,7 +1,8 @@
 // "Keep a copy of the page": the worker plans what the copy needs, this fetches it through the
-// guard under the page's own reach (four at a time; a stylesheet 1 MiB and all of them 3 MiB, a
-// picture 2 MiB, a font 512 KiB, 9 MiB and 45 s in all), the worker builds the one script-free
-// file, and it is stored by its hash under assets/pages/.
+// guard under the page's own reach (four at a time; at most 64 stylesheets and 64 more they
+// import, a stylesheet 1 MiB and all of them 3 MiB; at most 400 pictures and fonts, a picture
+// 2 MiB, a font 512 KiB; 9 MiB and 45 s in all, and nothing new asked once those 45 s are up),
+// the worker builds the one script-free file, and it is stored by its hash under assets/pages/.
 
 import { PAGES_DIR } from "@repo/notes/items/item-kind";
 
@@ -19,6 +20,9 @@ const KiB = 1024;
 const MiB = 1024 * KiB;
 const CSS_MAX_BYTES = MiB;
 const CSS_TOTAL_MAX_BYTES = 3 * MiB;
+// a page names as many as it likes, and each is a lookup and a dial
+const STYLESHEETS_MAX = 64;
+const RESOURCES_MAX = 400;
 const LIMITS: Record<CopyResourceKind, number> = { font: 512 * KiB, image: 2 * MiB };
 const RESOURCES_TOTAL_MAX_BYTES = 9 * MiB;
 const BUDGET_MS = 45_000;
@@ -85,8 +89,8 @@ const fetchStylesheets = async (
   context: { deps: CopyDeps; reach: Reach; signal: AbortSignal; budget: { css: number } },
 ): Promise<Stylesheet[]> => {
   const sheets: Stylesheet[] = [];
-  await pooled(urls, CONCURRENCY, async (url) => {
-    if (context.budget.css >= CSS_TOTAL_MAX_BYTES) {
+  await pooled([...new Set(urls)].slice(0, STYLESHEETS_MAX), CONCURRENCY, async (url) => {
+    if (context.budget.css >= CSS_TOTAL_MAX_BYTES || context.signal.aborted) {
       return;
     }
     const fetched = await context.deps.fetcher.fetch({
@@ -140,7 +144,7 @@ export const keepPageCopy = async (
   }
   const files: CopyFile[] = [];
   let total = 0;
-  await pooled([...wanted], CONCURRENCY, async ([url, kind]) => {
+  await pooled([...wanted].slice(0, RESOURCES_MAX), CONCURRENCY, async ([url, kind]) => {
     if (total >= RESOURCES_TOTAL_MAX_BYTES || signal.aborted) {
       return;
     }

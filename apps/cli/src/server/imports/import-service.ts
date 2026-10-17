@@ -34,7 +34,6 @@ import type { FolderNamer, ItemCore } from "../items/item-core";
 import { ItemsError } from "../items/items-error";
 import type { ItemsService } from "../items/items-service";
 import { JsonFileStore } from "../json-file-store";
-import type { KnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import { stagedWriteFileSync } from "../staged-write";
 import type { GitEngine } from "../vault/git-engine";
 import { ENGINE_IDENTITY } from "../vault/git-run";
@@ -59,7 +58,6 @@ export interface ImportServiceDeps {
   core: ItemCore;
   items: Pick<ItemsService, "enqueueFill">;
   annotations: Pick<AnnotationsService, "addUnanchored">;
-  knowledge: Pick<KnowledgeRuntime, "settle" | "findByUrl">;
   // a batch commits as one, under a hold that keeps the auto-commit off its paths
   git: Pick<GitEngine, "holdCommits" | "commitPaths">;
   // bus.notifyVault(["import-changed"]), each time a job's counts or state move
@@ -268,7 +266,7 @@ export const createImportService = (deps: ImportServiceDeps): ImportService => {
   // a batch from the cursor: one settle, one hold, a namer per folder, one commit. a shutdown
   // stops it after the item in hand, committing what it wrote
   const runBatch = async (plan: ImportPlan, cursor: number): Promise<BatchCounts> => {
-    await deps.knowledge.settle();
+    await core.settle();
     const hold = deps.git.holdCommits();
     const wrote: string[] = [];
     const counts: BatchCounts = { added: 0, alreadySaved: 0, done: 0, highlights: 0 };
@@ -397,7 +395,7 @@ export const createImportService = (deps: ImportServiceDeps): ImportService => {
       const now = deps.now().getTime();
       const text = decode(bytes);
       const { plan, skipped } = planOf(text, now);
-      await deps.knowledge.settle();
+      await core.settle();
       const adding: PlannedItem[] = [];
       let alreadySaved = 0;
       for (const item of plan.items) {

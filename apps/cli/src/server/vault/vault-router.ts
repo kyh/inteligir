@@ -5,8 +5,10 @@ import {
 } from "@repo/contract/local/vault/vault-schema";
 import type { VaultRenameResponse } from "@repo/contract/local/vault/vault-schema";
 import { VAULT_REMOTE_PIN_ENV_VAR } from "@repo/contract/local/vault/remote-url";
+import { isItemStub, itemFactsOf } from "@repo/notes/items/item-frontmatter";
 import { joinPath } from "@repo/notes/knowledge/vault-path";
 import { attributeWrites, base, refusing } from "../orpc";
+import type { AppContext } from "../orpc";
 import { removeEntry } from "./remove-entry";
 import { vaultWireError } from "./vault-refusals";
 import { guardRefusalError } from "./write-guard";
@@ -36,11 +38,20 @@ const revision = base.vault.revision.use(vaultRefusals).handler(async ({ context
   content: await context.vault.git.revision(input.path, input.sha),
 }));
 
+// a stub written back through this Mac (a restore from Deleted or History) is filled as its own
+// again, since the row its first fill held went with the stub
+const adoptIfStub = async (context: AppContext, path: string, content: string): Promise<void> => {
+  if (isItemStub(itemFactsOf(content))) {
+    await context.items.adoptOwn([path]);
+  }
+};
+
 const write = base.vault.write.use(vaultRefusals).handler(async ({ context, input, errors }) => {
   const { guard } = input;
   if (guard.kind === "overwrite") {
     const written = await context.vault.service.write(input.path, input.content);
     attributeWrites(context, [written.path]);
+    await adoptIfStub(context, written.path, input.content);
     return written;
   }
   const result = await context.vault.service.writeGuarded(input.path, input.content, guard);
@@ -48,6 +59,7 @@ const write = base.vault.write.use(vaultRefusals).handler(async ({ context, inpu
     throw guardRefusalError(errors, input.path, result);
   }
   attributeWrites(context, [result.path]);
+  await adoptIfStub(context, result.path, input.content);
   return { path: result.path };
 });
 

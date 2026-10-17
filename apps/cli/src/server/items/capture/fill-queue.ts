@@ -365,12 +365,27 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
       if (elsewhere) {
         await syncAround();
         const read = await deps.core.read(row.path);
+        // another device filled it first; a copy the person asked this Mac for is still made, from
+        // the page their browser handed over, as a refresh would make it
+        if (read !== null && !isItemStub(itemFactsOf(read.content))) {
+          const current = rows.get(row.itemId) ?? row;
+          const asked = copyLater.delete(row.itemId) || current.keepCopy;
+          const copied = asked
+            ? await deps.copyAfter(
+                { itemId: row.itemId, path: current.path, url: row.url },
+                controller.signal,
+              )
+            : null;
+          settle(
+            current,
+            copied?.kind === "written"
+              ? copied
+              : { kind: "dropped", path: current.path, wrote: [] },
+          );
+          return;
+        }
         // a library that stopped syncing with the account fills only what this Mac saved
-        if (
-          read === null ||
-          !isItemStub(itemFactsOf(read.content)) ||
-          !(await deps.core.syncsWithAccount())
-        ) {
+        if (read === null || !(await deps.core.syncsWithAccount())) {
           settle(row, { kind: "dropped", path: read === null ? null : row.path, wrote: [] });
           return;
         }
@@ -582,6 +597,20 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
         }
         if (row.keepCopy && running.get(row.itemId)?.keepCopy === false) {
           copyLater.add(row.itemId);
+        }
+        // a copy the person asked for of another device's stub is read now rather than after that
+        // device's wait, still syncing first, so a stub filled elsewhere is not filled twice
+        const now = clock.now();
+        const current = rows.get(row.itemId) ?? held;
+        if (
+          row.keepCopy &&
+          isElsewhere(current.origin) &&
+          !running.has(row.itemId) &&
+          current.notBefore > now
+        ) {
+          put({ ...current, notBefore: now });
+          store.reschedule(row.itemId, current.attempts, now);
+          pump();
         }
         return;
       }
