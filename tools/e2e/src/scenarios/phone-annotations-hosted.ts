@@ -21,12 +21,13 @@ const anchored = (text: string, words: string, id: string): string => {
   return text.replace(words, `%%i:${id}:start%%${words}%%i:${id}:end%%`);
 };
 
-// the page's Save: the highlight with its markers, then its note as a store write of its own
+// the page's highlight: its markers and a bare entry in one set, then, when the person writes one,
+// its note as a store write of its own
 const annotateOnPhone = async (
   phone: AppRuntime,
   words: string,
   id: string,
-  note: string,
+  note: string | null,
 ): Promise<void> => {
   const held = await readPhoneNote(phone, PLAN);
   const added = await phone.annotations.add({
@@ -36,13 +37,16 @@ const annotateOnPhone = async (
     quote: words,
   });
   expect(added.kind === "edited", `the phone's annotation ${id}: ${JSON.stringify(added)}`);
+  if (note === null) {
+    return;
+  }
   const noted = await phone.annotations.edit(PLAN, id, note);
   expect(noted.kind === "done", `the phone's note on ${id}: ${JSON.stringify(noted)}`);
 };
 
 export const phoneAnnotationsHosted: Scenario = {
   description:
-    "the phone's own runtime annotates a note with no id, minting it one; offline it replies and annotates again while A annotates the same note; after A syncs, every annotation is anchored on its own words with its quote, the reply is there, and the phone's later note reaches A",
+    "the phone's own runtime annotates a note with no id, minting it one; offline it replies and makes a bare highlight while A annotates the same note; after A syncs, every annotation is anchored on its own words with its quote, the reply is there, the bare highlight has no note, the phone's later note reaches A, and the phone's removal of A's annotation takes its entry and its markers off A",
   name: "phone-annotations-hosted",
   timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
   async run(ctx) {
@@ -82,11 +86,11 @@ export const phoneAnnotationsHosted: Scenario = {
       `A's annotations after the first pull: ${JSON.stringify(first.annotations)}`,
     );
 
-    ctx.log("offline, the phone replies and annotates again while A annotates the same note");
+    ctx.log("offline, the phone replies and highlights again, bare, while A annotates the note");
     network.online = false;
     const replied = await phone.annotations.reply(PLAN, "phone1", "A reply from the phone");
     expect(replied.kind === "done", `the phone's reply: ${JSON.stringify(replied)}`);
-    await annotateOnPhone(phone, "line two", "phone2", "Also from the phone");
+    await annotateOnPhone(phone, "line two", "phone2", null);
     await a.api.vault.write({
       content: anchored(pulled, "line three", "mac1"),
       guard: { kind: "overwrite" },
@@ -132,6 +136,11 @@ export const phoneAnnotationsHosted: Scenario = {
       ["A reply from the phone"],
       "the phone's reply on A",
     );
+    expectEq(
+      { quote: byRoot.get("phone2")?.root.quote, text: byRoot.get("phone2")?.root.text },
+      { quote: "line two", text: "" },
+      "the phone's bare highlight on A",
+    );
 
     ctx.log("the phone rewrites its first annotation's note, and A syncs the new note");
     const edited = await phone.annotations.edit(PLAN, "phone1", "Rewritten on the phone");
@@ -143,6 +152,31 @@ export const phoneAnnotationsHosted: Scenario = {
       settled.annotations.find((annotation) => annotation.id === "phone1")?.root.text ===
         "Rewritten on the phone",
       `A's annotations after the edit: ${JSON.stringify(settled.annotations)}`,
+    );
+
+    ctx.log("the phone removes A's annotation, its page writing the markers out, and A syncs");
+    const removed = await phone.annotations.remove(PLAN, "mac1");
+    expect(
+      removed.kind === "done" && removed.removedIds.includes("mac1"),
+      `the phone's removal: ${JSON.stringify(removed)}`,
+    );
+    const marked = await readPhoneNote(phone, PLAN);
+    const unmarked = marked.replace("%%i:mac1:start%%", "").replace("%%i:mac1:end%%", "");
+    expect(unmarked !== marked, "the phone's note held A's markers");
+    const rewritten = await phone.notes.write(PLAN, unmarked, { base: marked, kind: "expected" });
+    expect(rewritten.kind === "written", `the page's write: ${JSON.stringify(rewritten)}`);
+    await drained(phone, "after the removal");
+    await syncUntil(a.api, "A pulling the phone's removal", "clean");
+    const left = await a.api.annotations.list({ path: PLAN });
+    expectEq(
+      left.annotations.map((annotation) => annotation.id),
+      ["phone1", "phone2"],
+      "A's annotations after the phone's removal",
+    );
+    const after = await readFile(path.join(a.vaultDir, PLAN), "utf-8");
+    expect(
+      !after.includes("%%i:mac1:") && after.includes("line three"),
+      `A's note keeps the words and loses the removed annotation's markers: ${after}`,
     );
     await gitIn(a.vaultDir, ["fsck", "--strict"]);
   },
