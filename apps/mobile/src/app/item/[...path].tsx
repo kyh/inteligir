@@ -15,8 +15,9 @@ import { docStem } from "@repo/notes/knowledge/doc-file";
 import { loadVerdict, openWindowVerdict } from "@/editor/editor-host";
 import type { LoadVerdict } from "@/editor/editor-host";
 import type { EditorRoute, PageEditorState } from "@/editor/editor-ports";
-import { deleteNote } from "@/lib/app-runtime";
-import { firstParam, openNote, openThread } from "@/lib/routes";
+import { ItemInfoSheet } from "@/items/item-info-sheet";
+import { deleteNote, useLibraryCard } from "@/lib/app-runtime";
+import { firstParam, openItem, openThread } from "@/lib/routes";
 import type { ThreadParams } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
 import { AnnotationsSheet } from "@/notes/annotations-view";
@@ -74,7 +75,7 @@ const followVerdict = (verdict: LoadVerdict): boolean => {
 
 const pushRoute = (route: EditorRoute): void => {
   if (route.kind === "note") {
-    openNote(route.path);
+    openItem(route.path);
     return;
   }
   const params: ThreadParams = { id: route.threadId, note: route.note };
@@ -91,13 +92,14 @@ type SaveError = NonNullable<PageEditorState["saveError"]>;
 
 const unsavedLine = (error: SaveError): string =>
   error.kind === "vanished"
-    ? "This note was deleted while it had edits that are not saved."
+    ? "This item was deleted while it had edits that are not saved."
     : `Your last edits couldn't be saved: ${error.message}`;
 
-// One note in the desktop's editor: the page the app bundle carries, in a WebView that reaches the
+// One item in the desktop's editor: the page the app bundle carries, in a WebView that reaches the
 // phone only through the bridge (editor-host.ts) and loads nothing but itself. Leaving the screen
-// or the app writes what the page holds first.
-const NoteScreen = () => {
+// or the app writes what the page holds first. The menu opens the saved page in Safari, the item's
+// Info and its annotations.
+const ItemScreen = () => {
   const theme = useTheme();
   const headerHeight = useHeaderHeight();
   const params = useLocalSearchParams<{ path: string[]; focus?: string | string[] }>();
@@ -110,6 +112,9 @@ const NoteScreen = () => {
   const [released, setReleased] = useState(false);
   const [saveError, setSaveError] = useState<SaveError | null>(null);
   const [openFailed, setOpenFailed] = useState<string | null>(null);
+  const [showInfo, setShowInfo] = useState(false);
+  const card = useLibraryCard(opened);
+  const original = card?.url ?? null;
 
   const { host, ports, source } = useNoteEditor(
     { focus: focusOf(firstParam(params.focus)), path },
@@ -205,7 +210,7 @@ const NoteScreen = () => {
   if (source === null) {
     body = (
       <Text style={[styles.status, { color: theme.mutedForeground }]}>
-        This build has no editor to open notes with.
+        This build has no editor to open items with.
       </Text>
     );
   } else if (!released) {
@@ -257,18 +262,36 @@ const NoteScreen = () => {
           icon="ellipsis.circle"
         >
           <Stack.Toolbar.MenuAction
+            hidden={original === null}
+            onPress={() => {
+              if (original !== null) {
+                void openOutside(original);
+              }
+            }}
+          >
+            Open original
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
+            hidden={card === null}
+            onPress={() => {
+              setShowInfo(true);
+            }}
+          >
+            Info
+          </Stack.Toolbar.MenuAction>
+          <Stack.Toolbar.MenuAction
             onPress={() => {
               setSheet({ ids: null });
             }}
           >
-            Comments
+            Annotations
           </Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction destructive onPress={deleteOpened}>
             Delete
           </Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
-      <OutboxBanner style={styles.banner} onOpen={openNote} />
+      <OutboxBanner style={styles.banner} onOpen={openItem} />
       <KeyboardAvoidingView
         style={styles.screen}
         behavior="padding"
@@ -280,7 +303,7 @@ const NoteScreen = () => {
             style={[StyleSheet.absoluteFill, styles.failed, { backgroundColor: theme.background }]}
           >
             <Text style={[styles.failedText, { color: theme.mutedForeground }]}>
-              {`Couldn't open this note: ${openFailed}`}
+              {`Couldn't open this item: ${openFailed}`}
             </Text>
             <TextButton fontSize={16} label="Retry" onPress={loadPageAgain} />
           </View>
@@ -295,8 +318,15 @@ const NoteScreen = () => {
           setSheet(null);
         }}
       />
+      <ItemInfoSheet
+        card={card}
+        visible={showInfo}
+        onClose={() => {
+          setShowInfo(false);
+        }}
+      />
     </SafeAreaView>
   );
 };
 
-export default NoteScreen;
+export default ItemScreen;

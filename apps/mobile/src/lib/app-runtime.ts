@@ -256,11 +256,6 @@ export const createNoteEditorPorts = (
 // one per load of the editor page
 export const mintBridgeNonce = (): string => hexFromBytes(Crypto.getRandomBytes(16));
 
-export const useNotesTree = (): NotesTreeState => {
-  const rt = getRuntime();
-  return useSyncExternalStore(rt.notes.tree.subscribe, rt.notes.tree.get);
-};
-
 // what has not reached the vault: the parked changes and the conflicts the queue settled
 export const useOutboxStatus = (): OutboxStatus => {
   const { status } = getRuntime().notes.outbox;

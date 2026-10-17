@@ -1,5 +1,5 @@
-// The stack's pushes and the params they carry, spelled once for every screen that opens a note or a
-// thread. Outside src/app, so expo-router makes no route of it.
+// The stack's pushes and the params they carry, spelled once for every screen that opens an item,
+// a viewer or a thread. Outside src/app, so expo-router makes no route of it.
 
 import { router } from "expo-router";
 
@@ -16,14 +16,24 @@ export interface ThreadParams {
   revision?: string;
 }
 
-export const openNote = (path: string, focus?: "title" | "body"): void => {
+// an item in the editor page; `focus` puts the cursor in its title or its body
+export const openItem = (path: string, focus?: "title" | "body"): void => {
   const segments = path.split("/");
   router.push({
     params: focus === undefined ? { path: segments } : { focus, path: segments },
-    pathname: "/notes/[...path]",
+    pathname: "/item/[...path]",
   });
+};
+
+// an image or a PDF full size: `file` is the original, `item` the item that shows it
+export const openViewer = (file: string, item: string): void => {
+  router.push({ params: { item, path: file.split("/") }, pathname: "/view/[...path]" });
 };
 
 export const openThread = (params: ThreadParams): void => {
   router.push({ params, pathname: "/thread/[id]" });
+};
+
+export const openThreads = (): void => {
+  router.push("/threads");
 };

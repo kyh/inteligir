@@ -431,7 +431,7 @@ describe("a new annotation", () => {
     await host.io.vault.flush();
     phone.answer = (request) =>
       request.kind === "addAnnotation"
-        ? { error: "The comments could not be read.", ok: false }
+        ? { error: "The annotations could not be read.", ok: false }
         : null;
 
     expect(await create("c3", "Why here?")).toBe(false);

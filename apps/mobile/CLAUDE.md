@@ -47,7 +47,9 @@ The phone: its editor page, its offline store and queue, and how it ships.
   earlier sign-in never ends the next
   (`apps/mobile/src/lib/compose-runtime.ts`). Which screens exist is the route
   guard's answer (`Stack.Protected` in `apps/mobile/src/app/_layout.tsx`), never
-  a per-screen branch. `apps/mobile/src/sync/sync-runtime.ts`,
+  a per-screen branch: signed in, the Library, an item, an image or PDF viewer,
+  the threads and a thread; signed out, the sign-in.
+  `apps/mobile/src/sync/sync-runtime.ts`,
   `apps/mobile/src/login/login-store.ts`,
   `apps/mobile/src/dispatch/dispatch-runtime.ts`.
 
@@ -63,26 +65,36 @@ The phone: its editor page, its offline store and queue, and how it ships.
   folding an item this launch never saw start, which would draw the tail as the
   reply. `apps/mobile/src/sync/sync-runtime.ts`.
 
-- **THE PHONE HOLDS EVERY NOTE'S TEXT IN SQLITE, AND ITS MIRRORED COMMIT MOVES
-  ONLY WHEN THE MIRROR IS WHOLE.** One expo-sqlite file in Documents, never the
-  purgeable cache, kept out of the iCloud device backup (owner decision: it
-  downloads again) by the local module `apps/mobile/modules/backup-exclusion`,
-  as is the outbox's folder of staged photos, whose rows that file holds
-  (`excludedFromBackup` in `apps/mobile/src/notes/outbox-files.ts`). A row per
-  file the tree names holds its oid, the commit its blob first appeared at (so
-  an attachment is fetched once), and for a note or an annotation store its text
-  with the frontmatter id and aliases, so the resolver's alias and uuid tiers
-  answer on the phone. The commit advances only when no wanted row is empty, so
-  a refresh cut short resumes. Rejected: a body cache keyed `(commit, path)`
-  beside a tree held in memory, which shows nothing on a cold offline launch,
-  loses every body to any commit, and holds no frontmatter. A sign-in, a
-  sign-out and a revocation wipe the rows and the attachments; the boot restore
-  keeps them. The phone's database has ONE `user_version`, so a table another
-  module adds is a step in `apps/mobile/src/lib/phone-db.ts`. Until the first
-  build EAS makes (`easProject` in `apps/mobile/app.config.js`), no phone holds
-  a file worth upgrading, so the schema is ONE step edited in place and a stored
-  row's parser defaults no field for an older row; from that build on, a step is
-  appended, never edited. `apps/mobile/src/notes/vault-mirror.ts`,
+- **THE PHONE HOLDS EVERY NOTE'S TEXT IN SQLITE, AND EACH ITEM'S CARD BESIDE
+  IT, AND ITS MIRRORED COMMIT MOVES ONLY WHEN THE MIRROR IS WHOLE.** One
+  expo-sqlite file in Documents, never the purgeable cache, kept out of the
+  iCloud device backup (owner decision: it downloads again) by the local module
+  `apps/mobile/modules/backup-exclusion`, as is the outbox's folder of staged
+  photos, whose rows that file holds (`excludedFromBackup` in
+  `apps/mobile/src/notes/outbox-files.ts`). A row per file the tree names holds
+  its oid, the commit its blob first appeared at (so an attachment is fetched
+  once), and for a doc or an annotation store its text; a doc's row also holds
+  its frontmatter id and aliases, so the resolver's alias and uuid tiers answer
+  on the phone, and its library card (`item`: the item facts, the first embeds
+  and the page copy's links, the tags), all read in one scan when the text
+  lands, so the Library lists thousands of items without parsing one, and an
+  unsent text's card is read once per change of it. A card's cover and original
+  are resolved per listing, never stored
+  (`apps/mobile/src/library/library-view.ts`); a cover draws from the oid-named
+  attachment file, and one over 512 KB from a 320 px JPEG made once beside it
+  (`apps/mobile/src/library/cover-thumbs.ts`), so nothing remote loads in a
+  list. The commit advances only when no wanted row is empty, so a refresh cut
+  short resumes. Rejected: a body cache keyed `(commit, path)` beside a tree
+  held in memory, which shows nothing on a cold offline launch, loses every body
+  to any commit, and holds no frontmatter; and parsing each listed item for its
+  card, which a 2k-item library pays on every relist. A sign-in, a sign-out and
+  a revocation wipe the rows and the attachments, thumbnails included; the boot
+  restore keeps them. The phone's database has ONE `user_version`, so a table
+  another module adds is a step in `apps/mobile/src/lib/phone-db.ts`. Until the
+  first build EAS makes (`easProject` in `apps/mobile/app.config.js`), no phone
+  holds a file worth upgrading, so the schema is ONE step edited in place and a
+  stored row's parser defaults no field for an older row; from that build on, a
+  step is appended, never edited. `apps/mobile/src/notes/vault-mirror.ts`,
   `apps/mobile/src/notes/notes-store.ts`.
 
 - **A PHONE EDIT IS A QUEUED WRITE WITH ITS BASE, AND THE PHONE SETTLES ITS OWN
@@ -96,8 +108,10 @@ The phone: its editor page, its offline store and queue, and how it ships.
   write policy beside the editor's. A write to a path whose last row writes it
   replaces the text and KEEPS THE FIRST BASE, so three offline saves are one
   write. A 409 is settled on the phone by `reconcileFile`
-  (`@repo/notes/sync/reconcile-file`), the desktop's own verdict, and the result
-  and its copy land as ONE set, kept on the row before it is sent, so an answer
+  (`@repo/notes/sync/reconcile-file`), the desktop's own verdict, which asks the
+  url-item verdict first, so a phone's tag or note on a link a Mac filled
+  meanwhile settles on one text with no copy; the result and its copy land as
+  ONE set, kept on the row before it is sent, so an answer
   lost after the vault applied it is resent unchanged and answered as already
   held. A landing moves the mirror in the transaction that retires the row and
   stamps what it moved, and a refresh skips every row stamped after it read,
@@ -122,40 +136,66 @@ The phone: its editor page, its offline store and queue, and how it ships.
   is named (`reconcileRename` in `apps/mobile/src/notes/outbox-reconcile.ts`),
   and the old stem's alias still answers its link. A delete carries the note's
   annotation store, so a note the vault keeps because another device edited it
-  keeps its annotations. Notes only: no folder verbs on the phone in 0.6 (owner
-  decision). A photo is a JPEG at most 2048px on its long edge
+  keeps its annotations, and the files only it links: `attachmentsFreedBy`
+  (`@repo/notes/knowledge/attachment-removal`) over the phone's own link graph,
+  in the same change set, and nothing while any held doc's text is missing,
+  since that doc could link them; the confirm names how many go. Save is one
+  create in `Unsorted/` (`apps/mobile/src/items/item-ops.ts`): a link's stub
+  named by `itemStem` and deduped by url key, a thought a note named by its
+  first line, a non-web link refused in `@repo/notes/items/item-kind`'s words,
+  since the phone reaches no `/local` module; every note the phone makes says
+  when it was `saved`. No folder verbs on the phone: an item moves to another
+  folder from the Mac (owner decision). A photo is a JPEG at most 2048px on its long edge
   (`apps/mobile/src/notes/photo-ingest.ts`): a HEIC is no asset type the vault
   takes and the Mac's editor cannot draw it, and the re-encode writes no EXIF,
   so no location reaches the vault's history. Rejected: link rewrites as rows of
   their own, which could land a rename without the links it moved, and a typed
   name cleaned up rather than refused, which shows a title that was never saved.
 
-- **A PHONE ANNOTATION IS ITS MARKERS AND ITS ENTRY IN ONE CHANGE SET** (owner
-  decision: the phone annotates and replies). The touch toolbar's Comment puts
-  the kit's markers in only at Save, and the page's flush that writes them goes
-  as `addAnnotation`, not `write`, carrying the highlight's bare entry and its
-  quote, and the note follows as `editAnnotation`, a row of the store alone
+- **A PHONE HIGHLIGHT IS ITS MARKERS AND A BARE ENTRY IN ONE CHANGE SET**
+  (owner decision: the phone annotates and replies). The page's flush that
+  writes a highlight's markers goes as `addAnnotation`, not `write`, carrying
+  the highlight's bare entry and its quote, and the note follows as
+  `editAnnotation`, a row of the store alone
   (`apps/mobile-editor/src/host/page-host.ts`); the phone plans the entry under
-  its write lock and queues the note and its store as ONE `annotation` row
-  (`editAnnotations` in `apps/mobile/src/notes/notes-store.ts`), a note without an
-  id minting one by the desktop's line cut (`@repo/notes/annotations/annotation-key`),
-  every entry signed `user`. A note, a reply and a delete are rows of the
-  store alone (`apps/mobile/src/notes/annotation-ops.ts`); a deleted
-  annotation's markers go as the desktop's do, through the page's live editor
-  and its next write (`annotationsRemoved`). The page draws its ranges by the
-  note's annotations, as the desktop's editor does: the editor ports send
-  `annotationMeta` when the page opens a note, after each of the phone's own
-  annotation verbs, and when a pull changes the note's store or its id
+  its write lock and queues the markers and the store as ONE `annotation` row
+  (`editAnnotations` in `apps/mobile/src/notes/notes-store.ts`), an item without
+  an id minting one by the desktop's line cut
+  (`@repo/notes/annotations/annotation-key`), every entry signed `user`. The
+  sheet's field adds a bare highlight's note, and after that replies; a note, a
+  reply and a delete are rows of the store alone
+  (`apps/mobile/src/notes/annotation-ops.ts`), and there is no resolve. A card
+  shows the root's stored `quote` above its note. A deleted annotation's markers
+  go as the desktop's do, through the page's live editor and its next write
+  (`annotationsRemoved`). The page draws its ranges by the item's annotations,
+  as the desktop's editor does: the editor ports send `annotationMeta` when the
+  page opens an item, after each of the phone's own annotation verbs, and when a
+  pull changes the item's store or its id
   (`apps/mobile/src/editor/editor-ports.ts`). A stale set is settled per path
-  (`reconcileAnnotation` in `apps/mobile/src/notes/outbox-reconcile.ts`): the note
-  as a write is, and the store by its entries, so an annotation another device
-  made meanwhile keeps both. Rejected: markers in at the field's opening, as
-  the desktop's popover does, which the 600ms autosave writes long before there
-  is an annotation, so a pull could find markers with nothing behind them; and a
-  store write in a row of its own after the note's, which is the same gap.
-  Residual: a hardware chord's create lands its entry in a set of its own; and
-  when two devices each give one id-less note its first annotation at once, the
-  other's waits under an id no note carries.
+  (`reconcileAnnotation` in `apps/mobile/src/notes/outbox-reconcile.ts`): the
+  item as a write is, and the store by its entries, so an annotation another
+  device made meanwhile keeps both. Rejected: the live passage, which would put
+  the Mac's passage projection on the phone for a line the quote already holds;
+  markers in at the field's opening, which the 600ms autosave writes long
+  before there is an annotation; and a store write in a row of its own after the
+  item's, which is the same gap. Residual: a hardware chord's create lands its
+  entry in a set of its own; and when two devices each give one id-less item its
+  first annotation at once, the other's waits under an id no item carries.
+
+- **A SHARE IS A SAVE THE APP MAKES; THE EXTENSION ONLY HANDS IT OVER.** The
+  share extension (`expo-share-intent`'s "Save to Inteligir", offered for a
+  page, a link and text, never a photo or a file) writes what was shared into
+  the App Group and opens the app at its handoff address, which
+  `apps/mobile/src/app/+native-intent.ts` lands on the Library; the signed-in
+  app reads it (`apps/mobile/src/items/share-payload.ts`: the page's title from
+  its meta, else short text beside the link, any other text the note), saves it
+  through the outbox as the Save field does, opens the item and only then lets
+  the share go, so a share made offline is queued and one made signed out waits
+  for the sign-in (`apps/mobile/src/items/share-inbox.tsx`). Rejected:
+  expo-sharing, whose receive is experimental and gives no page title; an
+  extension that writes the save itself, which would put the database, the
+  outbox and the credential in the App Group; and a `save?url` deep link, which
+  any page could fire.
 
 ## Repo guards, vendoring and tooling
 
@@ -173,5 +213,9 @@ The phone: its editor page, its offline store and queue, and how it ships.
   the phone reads `EXPO_PUBLIC_CLOUD_URL` at bundle time and refuses a malformed
   one. Rejected: per-profile env in `eas.json`, a second spelling of the origin,
   and a fallback to a dead host, which made a misconfigured build one that could
-  only fail. `apps/mobile/src/__tests__/app-config.test.ts` holds the store
-  config to what App Store Connect judges.
+  only fail. The share extension is a target of its own in the App Group
+  `group.com.inteligir.mobile`, both the plugin's defaults and both signed by
+  EAS, and the App Group's defaults are a declared reason (`1C8F.1`).
+  `apps/mobile/src/__tests__/app-config.test.ts` holds the store config to what
+  App Store Connect judges: the group, exactly one app extension, its
+  activation rules, and every reason.
