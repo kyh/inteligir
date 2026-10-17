@@ -196,6 +196,21 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   (`apps/cli/src/server/open-database.ts`). Once anyone else holds a database,
   squashing is the loss of their threads, and a migration is appended instead.
 
+- **AN IMPORT IS A SERVER JOB OVER A COPY OF THE FILE: DEDUPED BY URL, ONE
+  COMMIT PER 100 ITEMS, LINEAR IN ITS ROWS, RESUMED AT BOOT.** The plan keeps
+  the file in the data dir and keys every row once, folding rows of one url
+  key into the first; a batch settles the index once, lists each folder it
+  writes into once, writes each item's highlights before the item and hands
+  the item to the fill's pending store, then commits once under a commit hold.
+  The job is a json file of its cursor and counts, rewritten per batch, and a
+  boot resumes a running one: a url the library already holds counts as saved,
+  so a resume adds nothing twice. Rejected: a job table in the database (url
+  dedupe already makes a re-run a safe resume), a settle and a listing per
+  item (quadratic over one `Unsorted/`), and the import fetching covers (all
+  network work is the one guarded fill, and a Raindrop cover is a hint the
+  fill fetches). `apps/cli/src/server/imports/import-service.ts`,
+  `apps/cli/src/server/imports/raindrop.ts`.
+
 ## Repo guards, vendoring and tooling
 
 - **A CLIENT VERB LOADS THE CLIENT, AND THE BUILD REFUSES A STATIC IMPORT PAST
