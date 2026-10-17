@@ -204,4 +204,11 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   frontmatter parser (yaml, 72 modules) sit behind `await import()` in the verbs
   that need them. A static import that reaches yaml passes every test and every
   review, so `apps/cli/scripts/build.ts` walks the metafile's static closure and
-  fails naming the importer (`LOADED_ON_EVERY_VERB_REFUSED`).
+  fails naming the importer (`LOADED_ON_EVERY_VERB_REFUSED`). The DOM, defuddle,
+  turndown and the editor's headless kits live in `item-fill-worker.mjs` alone
+  (`apps/cli/src/server/items/capture/item-fill-worker.ts`), so the build refuses
+  any of them anywhere in the main bundle, statically or dynamically imported
+  (`SERVER_REFUSED_ANYWHERE`), and refuses React, the renderers and `@repo/ui`
+  among the inputs that put bytes in the worker (`FILL_WORKER_REFUSED`), each
+  package named by its own store directory, never another package's peer
+  suffix.

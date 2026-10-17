@@ -33,7 +33,13 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   rule table expects its pre-pass over the whole value. Rejected: a paragraph
   rule's prune, under which a heading or a list item saved `**a****b**`, and
   Plate's own `serializeMd`, which skips the pre-pass and writes a ZWSP beside
-  every chip. `packages/editor/src/markdown/markdown-doc.ts`,
+  every chip. The base kits are headless files (`packages/editor/src/kits/headless/`),
+  each live kit its headless half plus components, so the fixpoint runs in node
+  with no React, `@repo/ui` or renderer in reach
+  (`packages/editor/src/__tests__/headless-kits.test.ts`), and an imported page
+  is written as its own fixpoint: `canonicalizeImported` answers the canonical
+  markdown and the share of the page's letters it kept, or nothing when the
+  result is not canonical. `packages/editor/src/markdown/markdown-doc.ts`,
   `packages/editor/README.md` § Invariants.
 
 - **THE EDITOR SHIPS ITS BEHAVIOUR CSS, AND THE APPEARANCE DIALS ARE ONE

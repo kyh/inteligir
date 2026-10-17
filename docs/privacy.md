@@ -93,7 +93,8 @@ through the Service or otherwise includes:
   contact us by email, open an issue on GitHub, or send us feedback through
   Apple's TestFlight while you test the iPhone app.
 - **User-generated content and input data**, such as your notes, attachments,
-  comments, what you ask the agent and other content or
+  comments, saved links, their text, covers and page copies, and your
+  highlights, what you ask the agent and other content or
   information that you generate, transmit, or otherwise make available on the
   Service, as well as associated metadata. Metadata includes information on how,
   when, where and by whom a piece of content was collected and how that content
@@ -232,6 +233,40 @@ The apps also hold to these, plainly:
   the web, on the Mac or the phone: an image or embed at a web address is not
   fetched, so nobody learns you opened it. A link opens in your browser only
   when you follow it.
+- **Saving a link — from your Mac, to that site.** When you save a link, the
+  Mac app fetches that page once, from your Mac and never through our cloud, to
+  fill in its title, site, description, cover image and readable text. Refresh
+  fetches it again, and so does any of your Macs that finds a link saved
+  elsewhere still waiting to be filled in. It also fetches the cover image the
+  page names. For YouTube, Vimeo, X, TikTok, Spotify and SoundCloud it asks that
+  site's own oEmbed address (with X's `dnt=true`), for any other page the oEmbed
+  address the page itself names, and the picture that answer names; for a
+  YouTube video it may also fetch the video's still picture from YouTube. Keep a
+  copy of the page also fetches the page's stylesheets, fonts and images. The
+  request carries no cookies, sign-in or referrer; the site sees your Mac's IP
+  address, a Safari-compatible user agent naming inteligir and its version, and
+  your preferred language, as a browser visit would. Addresses on this Mac
+  itself and link-local addresses are never fetched. An address on your own
+  network is fetched only when it is the link you saved; a page on the internet
+  can never send your Mac to one, by a redirect or by naming a picture there. A
+  link saved on your phone is fetched by your Macs, usually by one of them
+  within a minute, occasionally by two; the phone fetches nothing. Before a Mac
+  fills a link saved elsewhere it syncs once, so it can skip one another Mac
+  already filled. For a link imported from Raindrop, it may also fetch the cover
+  picture Raindrop recorded for it. What is saved lands in your library and
+  travels wherever your library syncs.
+- **The browser extension.** The Inteligir extension for Chrome, Arc, Brave and
+  Edge reads the page you are on only when you click Save or choose Save from
+  the right-click menu. It hands the page's address, title, text and (when you
+  ask) a copy of the page to the Inteligir app on the same Mac, over the
+  browser's native messaging, and to nothing else. It sends nothing to us or to
+  anyone. It never reads form fields.
+- **Sharing from your iPhone.** Sharing a page to Inteligir saves its address,
+  its title and any text you shared into your library, like any other edit on
+  the phone. The phone fetches nothing from the page; your Mac fills it in.
+- **Importing from Raindrop.** The CSV file you choose is read on your Mac and
+  kept in the app's data folder only until the import ends. Each imported link
+  is then filled in as above.
 - **Your voice.** Neither the Mac app nor the phone app ever opens the
   microphone. Dictation is your operating system's own — on a Mac, press fn
   twice; on the phone, the keyboard's microphone key — which types into the app
@@ -1028,6 +1063,9 @@ Everything else the app reaches is someone else's:
   and their own sign-in pages when they ask for one.
 - **Your own git server**, if a vault syncs to one instead of your account's
   hosted vault.
+- **The sites you save**, from your Mac, when you save or refresh a link or a
+  Mac fills in one saved elsewhere, with the cover and page-copy files they
+  name, the cover a Raindrop import recorded, and the oEmbed addresses above.
 
 ---
 

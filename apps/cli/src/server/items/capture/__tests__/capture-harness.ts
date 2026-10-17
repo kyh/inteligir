@@ -73,14 +73,14 @@ export type Route =
   | { bytes: Uint8Array; mediaType: string; truncated?: boolean }
   | { failure: FetchFailure };
 
-interface FakeFetcher extends GuardedFetch {
+export interface FakeFetcher extends GuardedFetch {
   requests: string[];
   routes: Map<string, Route>;
   // the next fetch of `url` waits until the answer is released
   hold: (url: string) => { reached: Promise<true>; release: () => void };
 }
 
-const fakeFetcher = (routes: Record<string, Route> = {}): FakeFetcher => {
+export const fakeFetcher = (routes: Record<string, Route> = {}): FakeFetcher => {
   const table = new Map(Object.entries(routes));
   const requests: string[] = [];
   const holds = new Map<string, { reached: (value: true) => void; released: Promise<true> }>();
