@@ -7,7 +7,7 @@
 import { lstat } from "node:fs/promises";
 import path from "node:path";
 import { VAULT_ASSET_MAX_BYTES } from "@repo/contract/cloud/vault/vault-schema";
-import { parsePorcelain } from "./git-porcelain";
+import { readPorcelain } from "./git-porcelain";
 import type { RunGitCommand } from "./git-run";
 
 // the new bytes one commit may stage; what is past it follows in the next commit at once
@@ -122,18 +122,14 @@ export const readStagingEntries = async (
   paths?: readonly string[],
 ): Promise<StagingEntry[]> => {
   const argvScoped = paths !== undefined && paths.length <= ARGV_PATHSPEC_MAX;
-  const { stdout } = await run([
-    "--no-optional-locks",
-    "status",
-    "--porcelain",
-    "-z",
-    "--untracked-files=all",
-    "--no-renames",
-    ...(argvScoped ? ["--", ...paths] : []),
-  ]);
+  const entries = await readPorcelain(run, {
+    paths: argvScoped ? paths : [],
+    renames: false,
+    untracked: "all",
+  });
   const keep = paths === undefined || argvScoped ? () => true : coveredBy(new Set(paths));
   const indexed = new Map<string, boolean>();
-  for (const entry of parsePorcelain(stdout)) {
+  for (const entry of entries) {
     if (keep(entry.path)) {
       indexed.set(entry.path, (indexed.get(entry.path) ?? false) || indexHolds(entry.x));
     }

@@ -120,7 +120,7 @@ describe("the vault routes", () => {
     expect(other.revisions).toHaveLength(1);
   });
 
-  it("lists deleted docs, flushed or not, and a restore is a revision read plus an absent-guarded write", async () => {
+  it("lists deleted docs and files, flushed or not, and a restore is a revision read plus an absent-guarded write", async () => {
     const { client, vault } = await bootTestApp();
     await client.vault.write({
       content: "# gone\n",
@@ -138,12 +138,18 @@ describe("the vault routes", () => {
 
     // the auto-commit is session-shaped: a note deleted seconds ago is in no commit yet.
     const unflushed = await client.vault.deleted();
-    expect(unflushed.entries.map((entry) => entry.path)).toEqual(["notes/gone.md"]);
+    expect(unflushed.entries.map((entry) => [entry.path, entry.kind])).toEqual([
+      ["notes/gone.json", "file"],
+      ["notes/gone.md", "doc"],
+    ]);
 
     await vault.git.commitNow();
     const { entries } = await client.vault.deleted();
-    expect(entries.map((entry) => entry.path)).toEqual(["notes/gone.md"]);
-    const [entry] = entries;
+    expect(entries.map((entry) => entry.path).toSorted()).toEqual([
+      "notes/gone.json",
+      "notes/gone.md",
+    ]);
+    const entry = entries.find((each) => each.path === "notes/gone.md");
     const { content } = await client.vault.revision({
       path: entry?.path ?? "",
       sha: entry?.sha ?? "",
@@ -156,7 +162,7 @@ describe("the vault routes", () => {
       path: "notes/gone.md",
     });
     const unflushedDeletions = await client.vault.deleted();
-    expect(unflushedDeletions.entries).toEqual([]);
+    expect(unflushedDeletions.entries.map((each) => each.path)).toEqual(["notes/gone.json"]);
   });
 
   it("answers refusals with their declared classes", async () => {

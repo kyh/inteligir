@@ -33,18 +33,29 @@ export const parsePorcelain = (stdout: string): PorcelainEntry[] => {
   return entries;
 };
 
-const readPorcelain = async (
+export interface PorcelainRead {
+  // the paths the read is scoped to; all of them when absent
+  paths?: readonly string[];
+  // "all" lists every untracked file on its own, never folded into its folder, for a reader that
+  // measures each one (a commit's plan)
+  untracked?: "normal" | "all";
+  // false reads a staged move as the path it left and the path it made
+  renames?: boolean;
+}
+
+export const readPorcelain = async (
   run: RunGitCommand,
-  paths: readonly string[] = [],
+  read: PorcelainRead = {},
 ): Promise<PorcelainEntry[]> => {
-  const pathspec = paths.length === 0 ? [] : ["--", ...paths];
+  const pathspec = read.paths === undefined || read.paths.length === 0 ? [] : ["--", ...read.paths];
   // explicit, because a vault's status.showUntrackedFiles=no hides every new note from a commit.
   const { stdout } = await run([
     "--no-optional-locks",
     "status",
     "--porcelain",
     "-z",
-    "--untracked-files=normal",
+    `--untracked-files=${read.untracked ?? "normal"}`,
+    ...(read.renames === false ? ["--no-renames"] : []),
     ...pathspec,
   ]);
   return parsePorcelain(stdout);
