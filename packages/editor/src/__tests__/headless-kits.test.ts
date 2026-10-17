@@ -11,7 +11,7 @@ const EDITOR = path.resolve(import.meta.dirname, "..");
 
 // a bare specifier the headless closure may never name
 const REFUSED = [
-  /^react($|\/|-dom)/u,
+  /^react(?:$|\/|-dom)/u,
   /\/react$/u,
   /^@repo\/ui\//u,
   /^lucide-react/u,
@@ -68,7 +68,13 @@ const valueSpecifiers = (file: string): string[] => {
   return found;
 };
 
-const closureOf = (entry: string): { files: Set<string>; bare: Map<string, string> } => {
+// every file the entry's value imports reach, and each bare specifier with the file that names it
+interface Closure {
+  files: Set<string>;
+  bare: Map<string, string>;
+}
+
+const closureOf = (entry: string): Closure => {
   const files = new Set<string>();
   const bare = new Map<string, string>();
   const pending = [path.join(EDITOR, entry)];

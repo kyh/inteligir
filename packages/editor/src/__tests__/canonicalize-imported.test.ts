@@ -26,7 +26,7 @@ describe("canonicalizeImported", () => {
 
   it("counts the letters a spelling drops, so a plainer rung can win", () => {
     const imported = settled("a&nbsp;b and a &mdash; b\n");
-    expect(imported.markdown).toBe("a\u00a0b and a — b\n");
+    expect(imported.markdown).toBe("a\u00A0b and a — b\n");
     // "anbspbandamdashb" is 16 letters, of which "abandab" survive
     expect(imported.kept).toBe(7 / 16);
   });
