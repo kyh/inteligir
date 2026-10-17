@@ -1,7 +1,7 @@
 // The desktop shell is Rust, and the page and the CLI it runs are TypeScript, so the words they share
 // cross no compiler: every command a page may ask, the capability that grants it, the event the
-// updater pushes, the line the server announces itself on, the entry the shell runs, the first
-// run's content policy, the env the shell pins on a child (and the page's dev loop on its server)
+// updater pushes, the line the server announces itself on, the entry the shell runs, the bundle id
+// the browser's door opens the app by, the first run's content policy, the env the shell pins on a child (and the page's dev loop on its server)
 // and the fields of every answer the CLI's desktop door gives. Each is read from both sides here and held equal, so a rename on one side
 // fails here rather than as a command no window can reach or a server the shell never hears.
 
@@ -32,6 +32,7 @@ const UPDATER = "apps/desktop/src-tauri/src/updater.rs";
 const SERVER = "apps/desktop/src-tauri/src/server.rs";
 const RUNTIME = "apps/desktop/src-tauri/src/runtime.rs";
 const DESKTOP_SERVE = "apps/cli/src/desktop/desktop-serve.ts";
+const APP_IDENTITY = "apps/cli/src/desktop/app-identity.ts";
 const CLI_BUILD = "apps/cli/scripts/build.ts";
 const TAURI_CONFIG = "apps/desktop/src-tauri/tauri.conf.json";
 const CSP = "apps/cli/src/server/csp.ts";
@@ -71,6 +72,7 @@ const capabilitySchema = z.looseObject({ permissions: z.array(z.string()) });
 const tauriConfigSchema = z.looseObject({
   app: z.looseObject({ security: z.looseObject({ csp: z.record(z.string(), z.string()) }) }),
 });
+const tauriIdentifierSchema = z.looseObject({ identifier: z.string() });
 
 const grantedBy = (file: string): string[] =>
   readJsonFile(file, capabilitySchema, "a capability with a permissions list").permissions.flatMap(
@@ -206,6 +208,21 @@ describe("the desktop shell's wire", () => {
     expect(printed, `${DESKTOP_SERVE}'s READY_MARKER and ${SERVER}'s disagree\n`).toBe(
       rustConstant(SERVER, "READY_MARKER"),
     );
+  });
+
+  it("opens the app by the bundle id the shell is built under", () => {
+    const named = /export const APP_BUNDLE_ID = "(?<value>[^"]+)";/u.exec(sourceOf(APP_IDENTITY))
+      ?.groups?.value;
+    const { identifier } = readJsonFile(
+      TAURI_CONFIG,
+      tauriIdentifierSchema,
+      "a Tauri config with an identifier",
+    );
+    expect(
+      named,
+      `${APP_IDENTITY}'s APP_BUNDLE_ID is not ${TAURI_CONFIG}'s identifier.\n` +
+        `  rule: the browser's door opens the app by its bundle id, so a renamed bundle is an app the door can never open\n`,
+    ).toBe(identifier);
   });
 
   it("holds the first run to the server's policy for a page with no socket", () => {

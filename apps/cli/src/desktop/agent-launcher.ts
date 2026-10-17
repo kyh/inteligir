@@ -11,7 +11,7 @@ export const AGENT_BIN_DIR_NAME = "bin";
 const CLI_BIN_NAME = "inteligir";
 
 // single-quoted for sh: a quote inside ends the quoting, is escaped, and starts it again
-const shellQuote = (value: string): string => `'${value.replaceAll("'", String.raw`'\''`)}'`;
+export const shellQuote = (value: string): string => `'${value.replaceAll("'", String.raw`'\''`)}'`;
 
 export interface AgentLauncherArgs {
   dataDir: string;
