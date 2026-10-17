@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout } from "node:timers/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createImageDownscale } from "../image-downscale";
 import type { SipsRunner } from "../image-downscale";
@@ -85,7 +85,12 @@ describe("the macOS downscale's rules", () => {
       sips: fakeSips(4000, 3000, { calls, gate: gate.promise }),
     });
     const pending = Array.from({ length: 66 }, async () => await downscale(PNG, "image/png", 640));
-    await setTimeout(50);
+    // the first two each write their input before the tool runs, however long a loaded runner
+    // takes over it; once both are in, no third starts while they hold
+    await vi.waitFor(() => {
+      expect(calls).toHaveLength(2);
+    });
+    await setTimeout(20);
     expect(calls).toHaveLength(2);
     expect(await downscale(PNG, "image/png", 640)).toBeNull();
     gate.resolve(true);

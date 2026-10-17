@@ -256,8 +256,10 @@ const killedMidFill = async (
   const stub = (await onDisk(app, saved.path)) ?? "";
   expect(!stub.includes("\nfetched:"), `the stopped server left its stub unread:\n${stub}`);
   const restarted = await ctx.boot({ name: "capture" });
+  // the stop's flush committed the stub, and a fill renames only an untracked stub, so the page
+  // fills in under the name it was saved with
   const filled = await pollUntil(
-    async () => (await onDisk(restarted, "Unsorted/A page read after a restart.md")) ?? "",
+    async () => (await onDisk(restarted, saved.path)) ?? "",
     (content) => content.includes("\nfetched:"),
     {
       deadlineMs: 60_000,
@@ -265,11 +267,16 @@ const killedMidFill = async (
     },
   );
   expect(filled.includes("Its fill was cut by a kill."), `the page's text:\n${filled}`);
+  expectEq(
+    await onDisk(restarted, "Unsorted/A page read after a restart.md"),
+    null,
+    "a committed stub keeps its name",
+  );
 };
 
 export const linkCapture: Scenario = {
   description:
-    "a saved LAN-fixture page lands with its kind, url, site, description, cover and canonical text named by its title; a resave answers exists; a loopback, link-local or 404 page keeps the item with its fetch-error; --copy keeps a copy; save - saves stdin's links in order; a fill cut by a kill finishes at the next boot",
+    "a saved LAN-fixture page lands with its kind, url, site, description, cover and canonical text named by its title; a resave answers exists; a loopback, link-local or 404 page keeps the item with its fetch-error; --copy keeps a copy; save - saves stdin's links in order; a fill cut by stopping the server finishes at the next boot under the name it was saved with",
   name: "link-capture",
   run: async (ctx) => {
     const app = await ctx.boot({ name: "capture" });

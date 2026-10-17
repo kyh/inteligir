@@ -118,6 +118,23 @@ const overTheHostedLibrary = async (ctx: ScenarioContext): Promise<void> => {
   await writeBytes(a, OVER_CAP, 12 * MiB);
   await syncUntil(a.api, "A's stepped push", "clean");
   expectEq(await tooLargeNamed(a), OVER_CAP, "A's status names the file over the cap");
+  // two of the scans make a push over the cap, so every scan's commit was the hosted library's
+  // head in turn: the tracking ref follows each landed step, and its log keeps every one
+  const stepsLogged = await gitIn(a.vaultDir, [
+    "log",
+    "-g",
+    "--format=%H",
+    "refs/remotes/origin/main",
+  ]);
+  const tracked = new Set(stepsLogged.split("\n"));
+  for (const index of [1, 2, 3, 4]) {
+    const scan = `scans/scan-${String(index)}.pdf`;
+    const commit = await gitIn(a.vaultDir, ["log", "-1", "--format=%H", "--", scan]);
+    expect(
+      tracked.has(commit),
+      `the push landed scan ${String(index)}'s commit as a step of its own`,
+    );
+  }
 
   ctx.log("B's clone holds the four scans and not the file over the cap");
   const deviceB = await loginDevice(worker.origin, "E2E Device B");

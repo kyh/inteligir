@@ -34,9 +34,10 @@ export interface LanFixture {
   close: () => Promise<void>;
 }
 
-// the space a saved page may be read from: a private address reaches only itself and the public
-// web, a public one only the public web, and every other class is refused before any dial
-const READABLE = new Set(["private", "public"]);
+// the space a page served on this machine may be read from: a private address, which a saved
+// private address reaches. This machine's own public address is the guard's "this Mac", refused
+// like loopback, and every other class is refused before any dial
+const READABLE = new Set(["private"]);
 
 const lanAddress = (): string => {
   const own = Object.values(networkInterfaces())
@@ -47,7 +48,7 @@ const lanAddress = (): string => {
   if (usable === undefined) {
     const held = own.map((address) => `${address} (${classifyAddress(address)})`).join(", ");
     throw new ScenarioSkipError(
-      `no usable LAN address: the guarded fetch reads a page only from private or public space, and this machine holds ${held === "" ? "no non-loopback IPv4 address" : held}`,
+      `no usable LAN address: the guarded fetch reads a page served on this machine only from its private space, and this machine holds ${held === "" ? "no non-loopback IPv4 address" : held}`,
     );
   }
   return usable;

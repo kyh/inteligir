@@ -7,10 +7,12 @@ import { COMMIT_BUDGET_BYTES, planStaging, readStagingEntries } from "../git-sta
 import {
   commitCount,
   git,
+  gitDirPath,
   lastMessage,
   makeBareRemote,
   makeEngine,
   syncState,
+  tipOf,
   trackedFiles,
 } from "./git-fixtures";
 
@@ -182,5 +184,40 @@ describe("the size gate on a real repo", { timeout: 60_000 }, () => {
     expect(existsSync(path.join(b.root, "video.mp4"))).toBe(false);
     const status2 = await b.engine.status();
     expect(status2.tooLarge.count).toBe(0);
+  });
+
+  // the other device's tip still holds the file's last version, so a rebase onto it would check
+  // that version out over the grown file this Mac keeps: git refuses it before it starts, and the
+  // pass merges, keeping this side's deletion and never writing the path
+  it("merges past another device's change made while this Mac took a grown file out of history", async () => {
+    const remote = await makeBareRemote();
+    const a = await makeEngine({ device: "Mac A", remoteUrl: remote });
+    const b = await makeEngine({ device: "Mac B", remoteUrl: remote });
+    await writeFile(path.join(a.root, "video.mp4"), fileOf(9 * MiB, 7));
+    await a.engine.commitNow();
+    expect(await syncState(a.engine)).toBe("clean");
+    expect(await syncState(b.engine)).toBe("clean");
+
+    await writeFile(path.join(b.root, "other.md"), "# From B\n");
+    await b.engine.commitNow();
+    expect(await syncState(b.engine)).toBe("clean");
+
+    await writeFile(path.join(a.root, "video.mp4"), fileOf(12 * MiB, 7));
+    const passed = await a.engine.syncNow();
+    expect(passed.lastError).toBeNull();
+    expect(passed.state).toBe("clean");
+    expect(existsSync(await gitDirPath(a.root, "rebase-merge"))).toBe(false);
+    expect(existsSync(await gitDirPath(a.root, "rebase-apply"))).toBe(false);
+
+    const head = await tipOf(remote, "main");
+    const { stdout: parents } = await git.run(remote, ["rev-list", "--parents", "-n", "1", head]);
+    expect(parents.trim().split(" ")).toHaveLength(3);
+    const { stdout: listed } = await git.run(remote, ["ls-tree", "-r", "--name-only", head]);
+    const onRemote = listed.split("\n");
+    expect(onRemote).toContain("other.md");
+    expect(onRemote).not.toContain("video.mp4");
+    const kept = await stat(path.join(a.root, "video.mp4"));
+    expect(kept.size).toBe(12 * MiB);
+    expect(existsSync(path.join(a.root, "other.md"))).toBe(true);
   });
 });
