@@ -14,10 +14,12 @@ import {
 } from "@repo/contract/local/routes";
 import { appLaunchEnv } from "./exec";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
-import type { TrackedProcess } from "./tracked-child";
+import type { SupervisedChild, TrackedProcess } from "./tracked-child";
 
 const HEALTH_POLL_INTERVAL_MS = 250;
 const HEALTH_DEADLINE_MS = 60_000;
+// the server's ordered shutdown, every step of its teardown at its budget, with room to spare
+const QUIT_GRACE_MS = 45_000;
 
 // source: the bin a user's shell resolves, which in a checkout runs src/ under tsx. built: the
 // bundle a published install and the desktop shell run.
@@ -171,12 +173,19 @@ export const createInstanceApi = (baseUrl: string, dataDir: () => string): Insta
   return createORPCClient(link);
 };
 
-const attachInstance = (child: TrackedProcess, dirs: InstanceDirs, port: number): AppInstance => {
+// a stop is the quit a supervisor sends, to the leader alone: in a checkout the leader is the bin,
+// which forwards one SIGTERM through tsx to the server, while a SIGTERM to the whole group reaches
+// the server two or three times, and a second is the server's cue to leave before the vault flush
+const attachInstance = (child: SupervisedChild, dirs: InstanceDirs, port: number): AppInstance => {
   const { claudeConfigDir, codexHome, dataDir, vaultDir } = dirs;
   const baseUrl = loopbackOrigin(port);
   const api = createInstanceApi(baseUrl, () => dataDir);
   return {
-    ...child,
+    name: child.name,
+    outputTail: child.outputTail,
+    stop: async () => {
+      await child.quit(QUIT_GRACE_MS);
+    },
     api,
     baseUrl,
     browserUrl: async (pathAndSearch) => {

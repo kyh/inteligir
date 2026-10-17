@@ -47,10 +47,13 @@ scratch dir and tears everything down afterwards:
   its sign-in or edits its connectors on the host's account), a
   reserved free port (bind races retry with a fresh port,
   bounded), health-gated on `/health` answering `{ok:true}`. Registered for
-  teardown at SPAWN, before the health wait, and torn down as a process group
-  that is polled to verified-dead (SIGTERM →
-  SIGKILL → ESRCH) before its scratch is removed; Ctrl-C kills every live
-  group. `extraEnv` may not touch harness-owned keys (paths, vendor stores,
+  teardown at SPAWN, before the health wait. `stop()` is the quit a supervisor
+  sends: SIGTERM to the leader alone, so the server runs one ordered shutdown,
+  the vault flush included (a SIGTERM to the whole group reaches a source-mode
+  server through the bin and tsx more than once, and a second is its cue to
+  leave before the flush), then the process group is polled to verified-dead
+  (SIGTERM → SIGKILL → ESRCH) before its scratch is removed; Ctrl-C kills
+  every live group. `extraEnv` may not touch harness-owned keys (paths, vendor stores,
   port, NODE_ENV, `GIT_*`) — collisions are refused loudly. `seedVault` writes fixture files
   before boot; the app's repo init commits them. A seeded vault exists before
   boot, so the bootstrap adds no starter notes. `seedData` does the same for

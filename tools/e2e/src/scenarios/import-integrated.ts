@@ -188,9 +188,10 @@ export const importIntegrated: Scenario = {
         live.includes("A format any program can open is a format nobody can take away from you."),
         `the article's text is in the item:\n${live}`,
       );
+      const noteAt = bodyOf(live).indexOf(LIVE_NOTE);
       expect(
-        bodyOf(live).indexOf(LIVE_NOTE) < bodyOf(live).indexOf("A format any program can open"),
-        `the export's note sits above the article:\n${live}`,
+        noteAt !== -1 && noteAt < bodyOf(live).indexOf("A format any program can open"),
+        `the export's note is kept, above the article:\n${live}`,
       );
       expect(!live.includes("\n## Highlights\n"), `nothing waits under ## Highlights:\n${live}`);
       const placed = await annotationsOf(cli, LIVE_ITEM);
