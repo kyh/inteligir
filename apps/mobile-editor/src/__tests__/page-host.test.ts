@@ -454,10 +454,10 @@ describe("a note on an annotation", () => {
     const refused = vi.spyOn(toast, "error");
     phone.answer = (request) =>
       request.kind === "editAnnotation"
-        ? { ok: true, result: { kind: "refused", message: "This note has no comments." } }
+        ? { ok: true, result: { kind: "refused", message: "This item has no highlights." } }
         : null;
 
     expect(await getEditorHostActions().annotations.edit("c3", "Why here?")).toBe(false);
-    expect(refused).toHaveBeenLastCalledWith("This note has no comments.");
+    expect(refused).toHaveBeenLastCalledWith("This item has no highlights.");
   });
 });

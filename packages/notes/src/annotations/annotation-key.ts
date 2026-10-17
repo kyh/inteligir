@@ -22,13 +22,13 @@ export const annotationStoreKey = (content: string): string | null => {
 const keyed = (id: string, content: string): AnnotationKey =>
   isNoteIdKey(id)
     ? { content, id, kind: "key" }
-    : refused("This note's id can't name a file, so it can't take a comment.");
+    : refused("This item's id can't name a file, so it can't take a highlight.");
 
 // `mint` is null for an edit of a thread that exists, a reply or a resolve, which never adds an id
 export const annotationKeyOf = (content: string, mint: (() => string) | null): AnnotationKey => {
   if (mint === null) {
     const id = frontmatterId(content);
-    return id === null ? refused("This note has no comments.") : keyed(id, content);
+    return id === null ? refused("This item has no highlights.") : keyed(id, content);
   }
   const minted = mint();
   const verdict = withFrontmatterId(content, minted);
@@ -40,10 +40,10 @@ export const annotationKeyOf = (content: string, mint: (() => string) | null): A
       return keyed(minted, verdict.content);
     }
     case "invalid": {
-      return refused("This note's properties can't be read, so it can't take a comment.");
+      return refused("This item's properties can't be read, so it can't take a highlight.");
     }
     case "foreign-id": {
-      return refused("This note's id isn't text, so it can't take a comment.");
+      return refused("This item's id isn't text, so it can't take a highlight.");
     }
     // no default
   }

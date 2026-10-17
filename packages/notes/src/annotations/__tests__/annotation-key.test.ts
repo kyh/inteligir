@@ -28,7 +28,7 @@ describe("the id a note's annotations are keyed by", () => {
   it("mints nothing for a reply or an edit: a note without an id has no annotation", () => {
     expect(annotationKeyOf("# Plan\n", null)).toStrictEqual({
       kind: "refused",
-      message: "This note has no comments.",
+      message: "This item has no highlights.",
     });
   });
 
@@ -52,7 +52,7 @@ describe("the id a note's annotations are keyed by", () => {
     expect(newAnnotationRefusal("# Plan\n")).toBeNull();
     expect(newAnnotationRefusal(`---\nid: ${ID}\n---\n# Plan\n`)).toBeNull();
     expect(newAnnotationRefusal("---\nid: 42\n---\n# Plan\n")).toBe(
-      "This note's id isn't text, so it can't take a comment.",
+      "This item's id isn't text, so it can't take a highlight.",
     );
   });
 });

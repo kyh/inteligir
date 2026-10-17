@@ -10,6 +10,7 @@ import { removeFrontmatterId } from "../markdown/frontmatter";
 import { diff3 } from "../text/diff3";
 import { conflictCopyPath } from "./conflict-copy";
 import type { SyncConflictReport } from "./conflict-copy";
+import { urlItemVerdict } from "./url-item-verdict";
 
 export type FileSide =
   | { readonly kind: "absent" }
@@ -129,9 +130,9 @@ const reconcileAnnotationStore = ({ base, mine, theirs }: ReconcileInput): Recon
 };
 
 // Asked in this order: identical sides, a change on one side only, the annotation store, every
-// other dot-folder, an edit beside a deletion (the edit stays), two texts (a line merge whose
-// overlaps keep mine and copy theirs whole), and anything else both changed (mine stays, theirs
-// is copied).
+// other dot-folder, an edit beside a deletion (the edit stays), two versions of one saved link
+// (the url-item verdict), two texts (a line merge whose overlaps keep mine and copy theirs whole),
+// and anything else both changed (mine stays, theirs is copied).
 export const reconcileFile = (input: ReconcileInput): Reconciled => {
   const { path, base, mine, theirs, thisDevice, theirDevice } = input;
   if (sameSide(mine, theirs) || sameSide(theirs, base)) {
@@ -162,6 +163,17 @@ export const reconcileFile = (input: ReconcileInput): Reconciled => {
     };
   }
   if (mine.kind === "text" && theirs.kind === "text") {
+    // two versions of one saved link settle on one text, with no copy (url-item-verdict)
+    const item = isDocPath(path)
+      ? urlItemVerdict({
+          base: base.kind === "text" ? base.text : null,
+          mine: mine.text,
+          theirs: theirs.text,
+        })
+      : null;
+    if (item !== null) {
+      return resolved(settle(item, mine, theirs));
+    }
     const baseText = base.kind === "text" ? base.text : "";
     const { conflicted, merged } = diff3(baseText, mine.text, theirs.text);
     const stays = settle(merged, mine, theirs);

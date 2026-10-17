@@ -239,7 +239,7 @@ describe("an annotation made on the phone", () => {
       }),
     ).toStrictEqual({
       kind: "refused",
-      message: "This note's id isn't text, so it can't take a comment.",
+      message: "This item's id isn't text, so it can't take a highlight.",
     });
     await store.drain();
     expect(requestsOf(vault, "commit")).toStrictEqual([]);
