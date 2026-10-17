@@ -39,6 +39,9 @@ const toolLines = (facts: PromptFacts): string[] =>
         "- Tag it in its frontmatter `tags` list, reusing the library's existing tags before you make a new one.",
       ];
 
+// the items an agent leaves where they are stay at the front of the listing it pages through, so
+// each later batch skips them by count: without that, a batch of unclear items is listed again and
+// again and the run ends with the rest never seen
 const loopLines = (facts: PromptFacts): string[] => {
   const unsorted = facts.cli
     ? `\`inteligir items --folder Unsorted --limit ${TIDY_BATCH} --json\``
@@ -46,8 +49,11 @@ const loopLines = (facts: PromptFacts): string[] => {
   const untagged = facts.cli
     ? `\`inteligir items --untagged --limit ${TIDY_BATCH} --json\``
     : `the next ${TIDY_BATCH} items with no tags`;
+  const skipping = facts.cli
+    ? "The items you leave where they are stay in that listing, so keep count of them and add `--offset` with that count to each later listing (counting again from 0 for the untagged ones), or you would be shown the same ones again."
+    : "The items you leave where they are stay where they were, so skip them when you take the next batch.";
   return [
-    `Work through all of them in this one run, in batches of ${TIDY_BATCH}: list a batch with ${unsorted} (then, once Unsorted is done, ${untagged}), file and tag every item in it, then say how far you are ("Filed 300 of 1,240") and go on with the next batch. Do not stop until none is left, or every one left is unclear.`,
+    `Work through all of them in this one run, in batches of ${TIDY_BATCH}: list a batch with ${unsorted} (then, once Unsorted is done, ${untagged}), file and tag every item in it, then say how far you are ("Filed 300 of 1,240") and go on with the next batch. ${skipping} Do not stop until a batch comes back empty.`,
     "End with a summary: how many items you filed, the folders you made, and the unclear ones by name (at most 20, then how many more).",
   ];
 };

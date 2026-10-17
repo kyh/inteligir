@@ -9,6 +9,7 @@ import type { LibraryScope } from "@repo/domain/library-scope";
 import type { DocViewContext, LibraryViewContext, ViewContext } from "@repo/domain/view-context";
 import { isItemKind } from "@repo/notes/items/item-kind";
 import type { ItemKind } from "@repo/notes/items/item-kind";
+import { shellQuote } from "../../shell-quote";
 import type { TurnRequest } from "../threads/turn-driver";
 import { composePresetBlock } from "./action-preset-prompt";
 import type { PromptFacts } from "./action-preset-prompt";
@@ -57,17 +58,19 @@ const scopeWords = (scope: LibraryScope): string => {
   }
 };
 
-// the listing command for what the view shows, the search left out (the listing has none)
+// the listing command for what the view shows, the search left out (the listing has none). A
+// folder's name and a search come from the library's files and the person's typing, so each is
+// one sh word whatever it holds: the agent runs this command as it is written
 const listingCommand = (context: LibraryViewContext): string => {
   const flags: string[] = [];
   if (context.scope.kind === "folder") {
-    flags.push(`--folder ${JSON.stringify(context.scope.path)}`);
+    flags.push(`--folder ${shellQuote(context.scope.path)}`);
   }
   if (context.scope.kind === "unsorted") {
     flags.push("--folder Unsorted");
   }
   if (context.scope.kind === "tag") {
-    flags.push(`--tag ${context.scope.tag}`);
+    flags.push(`--tag ${shellQuote(context.scope.tag)}`);
   }
   if (context.kinds !== undefined) {
     flags.push(`--kind ${context.kinds.join(",")}`);
@@ -75,7 +78,7 @@ const listingCommand = (context: LibraryViewContext): string => {
   const search =
     context.q === undefined
       ? ""
-      : ` (without the search; \`inteligir search ${JSON.stringify(context.q)} --json\` finds its matches)`;
+      : ` (without the search; \`inteligir search ${shellQuote(context.q)} --json\` finds its matches)`;
   return `\`inteligir items ${[...flags, "--json"].join(" ")}\` lists them${search}.`;
 };
 

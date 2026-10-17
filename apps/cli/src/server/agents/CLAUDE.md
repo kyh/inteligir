@@ -100,8 +100,9 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   library is `preset: "tidy-library"`: the stored text is what was typed, or
   the preset's label when nothing was, and the server composes the procedure
   as a block of its own (file and tag everything in Unsorted and untagged,
-  following the library's filing rules, in batches of 100 until none is left),
-  worded for what the session holds. The preset survives the queue in a column
+  following the library's filing rules, in batches of 100 until a batch comes
+  back empty, each later one paged past the items left where they were, which
+  stay at the front of the listing), worded for what the session holds. The preset survives the queue in a column
   of its own and is never in the thread event. Rejected: a seeded composer
   prompt (the person's words would be ours, and the timeline and the phone
   would show a page of instructions), a `library.tidy` procedure (a second
@@ -150,8 +151,10 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   harness's channel. The prompt's blocks read the same facts as
   `PromptFacts` (`promptFactsFor` in
   `apps/cli/src/server/agents/agent-instructions.ts`): the preset and library
-  blocks name `inteligir` commands only when `cliBinDir` resolved, and the Tidy
-  block cites the filing rules only when the library has them.
+  blocks name `inteligir` commands only when `cliBinDir` resolved, every value
+  from the library or the person's typing in one quoted as one sh word
+  (`apps/cli/src/shell-quote.ts`), since the agent runs it as written, and the
+  Tidy block cites the filing rules only when the library has them.
   `apps/cli/src/server/agents/agent-shell-env.ts`, `runtime-manager.ts`.
 
 - **THE HOST CLOSES A PROVIDER SESSION IT GIVES UP ON, AND A CHILD'S DEATH FAILS

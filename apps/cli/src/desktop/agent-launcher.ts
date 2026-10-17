@@ -6,12 +6,10 @@
 
 import path from "node:path";
 import { stagedWriteFileSync } from "../server/staged-write";
+import { shellQuote } from "../shell-quote";
 
 export const AGENT_BIN_DIR_NAME = "bin";
 const CLI_BIN_NAME = "inteligir";
-
-// single-quoted for sh: a quote inside ends the quoting, is escaped, and starts it again
-export const shellQuote = (value: string): string => `'${value.replaceAll("'", String.raw`'\''`)}'`;
 
 export interface AgentLauncherArgs {
   dataDir: string;

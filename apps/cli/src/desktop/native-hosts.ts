@@ -13,7 +13,7 @@ import type { RuntimeMode } from "../server/config";
 import { messageOf } from "../server/error-message";
 import { stagedWriteFileSync } from "../server/staged-write";
 import { selectionBlockedByEnv } from "../server/vault-switch";
-import { shellQuote } from "./agent-launcher";
+import { shellQuote } from "../shell-quote";
 import type { ServerTarget } from "./server-start";
 
 const MANIFEST_DIR_NAME = "NativeMessagingHosts";

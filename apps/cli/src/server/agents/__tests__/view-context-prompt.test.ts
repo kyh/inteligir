@@ -89,7 +89,7 @@ describe("composeViewContextBlock", () => {
       "The person sent this from their library, looking at items tagged #talks, only videos.",
       "'These', 'this' and 'the selection' mean the item they selected:",
       "- Watch/Talk.md",
-      "`inteligir items --tag talks --kind video --json` lists them.",
+      "`inteligir items --tag 'talks' --kind video --json` lists them.",
     ]);
     expect(
       composeViewContextBlock(
@@ -99,7 +99,22 @@ describe("composeViewContextBlock", () => {
         .split("\n")
         .at(-1),
     ).toBe(
-      '`inteligir items --folder "Cooking/Weeknight" --json` lists them (without the search; `inteligir search "lemon" --json` finds its matches).',
+      "`inteligir items --folder 'Cooking/Weeknight' --json` lists them (without the search; `inteligir search 'lemon' --json` finds its matches).",
+    );
+  });
+
+  it("hands the agent a folder's name and a search as one shell word, whatever they hold", () => {
+    const hostile = composeViewContextBlock(
+      libraryContext({
+        q: "it's `touch pwned`",
+        scope: { kind: "folder", path: "$(open -a Calculator)" },
+      }),
+      ALL_FACTS,
+    )
+      .split("\n")
+      .at(-1);
+    expect(hostile).toBe(
+      "`inteligir items --folder '$(open -a Calculator)' --json` lists them (without the search; `inteligir search 'it'\\''s `touch pwned`' --json` finds its matches).",
     );
   });
 });
@@ -126,7 +141,8 @@ describe("the Tidy my library block", () => {
     expect(block).toContain("`inteligir items --folder Unsorted --limit 100 --json`");
     expect(block).toContain("`inteligir items --untagged --limit 100 --json`");
     expect(block).toContain('("Filed 300 of 1,240")');
-    expect(block).toContain("Do not stop until none is left, or every one left is unclear.");
+    expect(block).toContain("Do not stop until a batch comes back empty.");
+    expect(block).not.toContain("every one left is unclear");
     expect(block).toContain("the unclear ones by name (at most 20, then how many more)");
     expect(block).not.toMatch(/at most \d+ items|only the first/u);
   });
@@ -138,6 +154,15 @@ describe("the Tidy my library block", () => {
     expect(withoutCli).not.toContain("inteligir");
     expect(withoutCli).toContain("moving its file into the folder");
     expect(withoutCli).toContain("frontmatter `tags` list");
+  });
+
+  it("pages past the items it leaves where they are, so every item is seen", () => {
+    expect(composePresetBlock("tidy-library", ALL_FACTS)).toContain(
+      "keep count of them and add `--offset` with that count to each later listing (counting again from 0 for the untagged ones)",
+    );
+    expect(composePresetBlock("tidy-library", { cli: false, filingRules: false })).toContain(
+      "skip them when you take the next batch",
+    );
   });
 
   it("follows the library's filing rules when it has them, and states the defaults when not", () => {
