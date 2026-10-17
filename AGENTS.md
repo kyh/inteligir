@@ -267,6 +267,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`apps/web/CLAUDE.md`](apps/web/CLAUDE.md) — Cloud, sync and accounts
 - [`apps/mobile/CLAUDE.md`](apps/mobile/CLAUDE.md) — the phone: its editor page, store, queue and annotations, and how it ships
 - [`apps/desktop/CLAUDE.md`](apps/desktop/CLAUDE.md) — the desktop shell, dictation, and the shell's e2e
+- [`apps/extension/CLAUDE.md`](apps/extension/CLAUDE.md) — the browser extension and its wire
 - [`apps/workspace/CLAUDE.md`](apps/workspace/CLAUDE.md) — Desktop workspace surfaces
 - [`tools/repo-guards/CLAUDE.md`](tools/repo-guards/CLAUDE.md) — Repo guards, vendoring and tooling
 

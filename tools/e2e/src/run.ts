@@ -283,13 +283,23 @@ const installSignalCleanup = (): void => {
 };
 
 // built through turbo, not looked for on disk: a present dist/ may be last week's server and UI.
+// the extension's dev build rides the same run: the browser-extension scenarios load its dist/
 const buildCli = async (repoRoot: string): Promise<void> => {
   const startedAt = Date.now();
-  console.log(`${timestamp()} building the CLI bundle and the workspace UI it stages`);
+  console.log(
+    `${timestamp()} building the CLI bundle, the workspace UI it stages and the browser extension`,
+  );
   try {
     await exec(
       "pnpm",
-      ["turbo", "run", "build", "--filter=inteligir", "--output-logs=errors-only"],
+      [
+        "turbo",
+        "run",
+        "build",
+        "--filter=inteligir",
+        "--filter=@repo/extension",
+        "--output-logs=errors-only",
+      ],
       { cwd: repoRoot, env: buildProcessEnv(), timeoutMs: CLI_BUILD_TIMEOUT_MS },
     );
   } catch (error) {

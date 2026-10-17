@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     "./browser/browser-wire": "./src/browser/browser-wire.ts",
+    "./browser/extension-identity": "./src/browser/extension-identity.ts",
     "./cloud/account/account-schema": "./src/cloud/account/account-schema.ts",
     "./cloud/bytes": "./src/cloud/bytes.ts",
     "./cloud/client": "./src/cloud/cloud-client.ts",

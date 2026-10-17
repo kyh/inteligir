@@ -50,6 +50,14 @@
       // held until M's share extension names it in app.config.js
       "ignoreDependencies": ["expo-share-intent", "expo-updates"]
     },
+    "apps/extension": {
+      // node runs the scripts by path
+      "entry": ["scripts/*.ts"],
+      "project": ["src/**/*.{ts,tsx,css}", "vite/**/*.ts", "scripts/*.ts"],
+      // tailwindcss is @repo/ui's globals.css import, which knip does not follow. PIVOT-STUB(I):
+      // @testing-library/react is held for X's popup suites
+      "ignoreDependencies": ["@testing-library/react", "tailwindcss"]
+    },
     "apps/mobile-editor": {
       "project": ["src/**/*.{ts,tsx,css}", "vite/**/*.ts"]
     },

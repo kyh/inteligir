@@ -79,6 +79,11 @@ export default defineConfig({
       "@repo/editor imports no node module: it runs in the page, and its headless kits in the fill worker's DOM-shimmed thread (apps/cli/src/server/items/capture/fill/)",
     ),
     platformPurity(
+      "apps/extension",
+      NODE,
+      "@repo/extension runs in the browser: its pages and its service worker reach the Mac only through the native host",
+    ),
+    platformPurity(
       "apps/mobile-editor",
       NODE,
       "@repo/mobile-editor is a page in the phone's WebView, loaded from file://: nothing but the browser is there",

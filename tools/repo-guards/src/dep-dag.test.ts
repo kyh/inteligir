@@ -45,6 +45,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/e2e": ["@repo/contract", "@repo/mobile", "@repo/mobile-editor", "inteligir"],
     // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
     "@repo/editor": ["@repo/notes", "@repo/ui"],
+    // the browser's Save: the /browser wire and the production origin it links (BROWSER_WIRE_CLIENTS
+    // below), drawn with the shared component kit; it reaches the Mac only through the native host.
+    "@repo/extension": ["@repo/contract", "@repo/ui"],
     // a partial cloud client: reads the thread log and asks a Mac, never pushes or claims,
     // and writes the vault only through the guarded commit route. the @repo/notes edge is the
     // dialect's own parse, link resolver and the one conflict verdict its write queue settles
@@ -100,6 +103,14 @@ const CLOUD_ONLY_CLIENTS = new Map<string, string>([
     "@repo/mobile",
     "a phone install may be months stale against the deployed Worker, while /local ships in the desktop bundle and may break freely",
   ],
+]);
+
+// The extension ships on the Web Store's cadence, apart from the desktop bundle that /local breaks
+// with, so it reaches the contract's versioned /browser wire (behind BROWSER_WIRE_FLOOR) and the
+// production origin its "Get Inteligir for Mac" links, and nothing else of it.
+const BROWSER_WIRE_ENTRIES = ["@repo/contract/browser/", "@repo/contract/cloud/origin"];
+const BROWSER_WIRE_CLIENTS = new Map<string, string>([
+  ["@repo/extension", "a browser install updates on the Web Store's cadence, not the app's"],
 ]);
 
 // The phone's editor page is DOM React built by Vite; a native client that hosts it reaches the
@@ -402,6 +413,40 @@ describe("platform purity", () => {
           violations.push(
             `LOCAL CONTRACT IN A CLOUD-ONLY CLIENT  ${file} imports "${specifier}"\n` +
               `  rule: ${name} reaches @repo/contract/cloud/* alone — ${why}`,
+          );
+        }
+      }
+    }
+    expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
+  });
+
+  it("every browser wire client reaches @repo/contract's browser entry and its origin, and nothing else", () => {
+    const violations: string[] = [];
+    for (const [name, why] of BROWSER_WIRE_CLIENTS) {
+      const client = workspaces().find((candidate) => candidate.name === name);
+      if (client === undefined) {
+        violations.push(
+          `BROWSER_WIRE_CLIENTS ROW NAMES NO WORKSPACE  ${name}\n` +
+            `  rule: a pin on a workspace that is gone pins nothing — delete the row from tools/repo-guards/src/dep-dag.test.ts`,
+        );
+        continue;
+      }
+      const files = workspaceFiles(client);
+      for (const file of [...files.shipped, ...files.test]) {
+        for (const specifier of importsOf(file)) {
+          if (resolveWorkspace(specifier)?.name !== "@repo/contract") {
+            continue;
+          }
+          if (
+            BROWSER_WIRE_ENTRIES.some((entry) =>
+              entry.endsWith("/") ? specifier.startsWith(entry) : specifier === entry,
+            )
+          ) {
+            continue;
+          }
+          violations.push(
+            `CONTRACT PAST THE BROWSER WIRE  ${file} imports "${specifier}"\n` +
+              `  rule: ${name} reaches ${BROWSER_WIRE_ENTRIES.join(" and ")} alone — ${why}`,
           );
         }
       }
