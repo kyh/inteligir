@@ -133,6 +133,21 @@ describe("select all, clear and prune", () => {
     expect(s.anchor).toBeNull();
   });
 
+  it("follows an item that moved under it, keeping its focus and anchor", () => {
+    const s = run(
+      { kind: "click", path: "Unsorted/a.md" },
+      { kind: "toggle", path: "b" },
+      { kind: "toggle", path: "Unsorted/a.md" },
+      { kind: "toggle", path: "Unsorted/a.md" },
+      { kind: "moved", moves: new Map([["Unsorted/a.md", "Unsorted/A page.md"]]) },
+    );
+    expect(names(s)).toEqual(["Unsorted/A page.md", "b"]);
+    expect(s.focus).toBe("Unsorted/A page.md");
+    expect(s.anchor).toBe("Unsorted/A page.md");
+    const before = run({ kind: "click", path: "a" });
+    expect(selectionAfter(before, { kind: "moved", moves: new Map([["z", "y"]]) })).toBe(before);
+  });
+
   it("answers the same selection when nothing it holds left", () => {
     const before = run({ kind: "click", path: "a" });
     expect(selectionAfter(before, { gone: new Set(["z"]), kind: "prune" })).toBe(before);

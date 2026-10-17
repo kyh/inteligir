@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { planMove } from "../tree-ops";
+import { planMove, scopeAfterMove } from "../tree-ops";
 
 describe("where a move may land", () => {
   it("names the destination path under the folder", () => {
@@ -21,5 +21,23 @@ describe("where a move may land", () => {
 
   it("is not fooled by a folder whose name is a prefix", () => {
     expect(planMove("a", "ab").ok).toBe(true);
+  });
+});
+
+describe("the folder the grid shows, after a folder moves", () => {
+  it("follows a rename or a move of it, or of a folder above it", () => {
+    expect(scopeAfterMove({ kind: "folder", path: "Reading" }, "Reading", "Articles")).toEqual({
+      kind: "folder",
+      path: "Articles",
+    });
+    expect(
+      scopeAfterMove({ kind: "folder", path: "Reading/Long" }, "Reading", "Archive/Reading"),
+    ).toEqual({ kind: "folder", path: "Archive/Reading/Long" });
+  });
+
+  it("leaves every other scope where it was", () => {
+    expect(scopeAfterMove({ kind: "folder", path: "Readings" }, "Reading", "Articles")).toBeNull();
+    expect(scopeAfterMove({ kind: "all" }, "Reading", "Articles")).toBeNull();
+    expect(scopeAfterMove({ kind: "tag", tag: "reading" }, "Reading", "Articles")).toBeNull();
   });
 });

@@ -39,6 +39,7 @@ const row = (path: string, kind: ItemKind): ItemRowWire => ({
   fileBytes: null,
   folder: "",
   host: null,
+  id: null,
   kind,
   modifiedMs: null,
   path,

@@ -35,6 +35,7 @@ const row = (index: number): ItemRowWire => ({
   fileBytes: null,
   folder: "Reading",
   host: null,
+  id: null,
   kind: "note",
   modifiedMs: null,
   path: pathAt(index),
@@ -119,8 +120,7 @@ const itemActions = (): LibraryItemActions => ({
   tag: vi.fn<LibraryItemActions["tag"]>(),
 });
 
-const mount = () => {
-  const selection = createLibrarySelection();
+const mount = (selection = createLibrarySelection()) => {
   render(
     <QueryClientProvider client={createWorkspaceQueryClient()}>
       <SidebarProvider>
@@ -234,5 +234,84 @@ describe("⌘A, then a gesture on one card", () => {
     await waitFor(() => {
       expect(internalDrag()?.paths).toHaveLength(TOTAL);
     });
+  });
+});
+
+const scrollFar = async (): Promise<number> => {
+  act(() => {
+    scroller().scrollTop = 40_000;
+    scroller().dispatchEvent(new Event("scroll"));
+  });
+  let last = 0;
+  await waitFor(() => {
+    const shown = [...document.querySelectorAll<HTMLElement>("[data-item-path]")].map((element) =>
+      Number(/item-(?<n>\d+)/u.exec(element.dataset.itemPath ?? "")?.groups?.n ?? "0"),
+    );
+    last = Math.max(0, ...shown);
+    expect(last).toBeGreaterThan(400);
+  });
+  return last;
+};
+
+describe("an arrow", () => {
+  it("steps from the focused card's own place in the listing, however far the grid scrolled", async () => {
+    const { selection } = mount();
+    // the last card of the first window, whose next is the first card of a window not loaded
+    act(() => {
+      scroller().scrollTop = 6400;
+      scroller().dispatchEvent(new Event("scroll"));
+    });
+    const focused = await card(99);
+    fireEvent.click(focused);
+    await scrollFar();
+    fireEvent.keyDown(focused, { key: "ArrowRight" });
+    await waitFor(() => {
+      expect(selection.store.getState().focus).toBe(pathAt(100));
+    });
+    expect([...selection.store.getState().selected]).toEqual([pathAt(100)]);
+  });
+
+  it("with nothing selected, lands on the card the keyboard is on", async () => {
+    const { selection } = mount();
+    const focused = await card(5);
+    fireEvent.click(focused);
+    focused.focus();
+    fireEvent.keyDown(focused, { key: "Escape" });
+    expect(selection.store.getState().focus).toBeNull();
+    fireEvent.keyDown(focused, { key: "ArrowRight" });
+    await waitFor(() => {
+      expect(selection.store.getState().focus).toBe(pathAt(5));
+    });
+  });
+
+  it("with ⇧ spans from an anchor the loaded windows no longer hold", async () => {
+    const { selection } = mount();
+    fireEvent.click(await card(5));
+    const far = await scrollFar();
+    const target = await card(far);
+    fireEvent.click(target, { shiftKey: true });
+    await waitFor(() => {
+      expect(selection.store.getState().selected.size).toBe(far - 5 + 1);
+    });
+    fireEvent.keyDown(target, { key: "ArrowRight", shiftKey: true });
+    await waitFor(() => {
+      expect(selection.store.getState().focus).toBe(pathAt(far + 1));
+    });
+    expect(selection.store.getState().selected.size).toBe(far + 1 - 5 + 1);
+    expect(selection.store.getState().anchor).toBe(pathAt(5));
+  });
+});
+
+describe("the card that is to take the keyboard", () => {
+  it("leaves it in a field the person is typing in", async () => {
+    const selection = createLibrarySelection();
+    selection.apply({ kind: "click", path: pathAt(3) });
+    const field = document.createElement("input");
+    document.body.append(field);
+    field.focus();
+    mount(selection);
+    await card(3);
+    expect(document.activeElement).toBe(field);
+    field.remove();
   });
 });

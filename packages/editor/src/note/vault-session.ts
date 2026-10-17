@@ -404,7 +404,8 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     return true;
   };
 
-  const deleteEntry = async (path: string): Promise<void> => {
+  // answers whether the entry went
+  const deleteEntry = async (path: string): Promise<boolean> => {
     const open = runtime !== null && isWithin(runtime.path, path) ? runtime : null;
     // a folder delete that fails leaves the note under it open, so its edits are written first.
     if (open !== null && open.path !== path) {
@@ -424,6 +425,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
       dropNote(open.path);
     }
     refreshList();
+    return removed;
   };
 
   const handleVaultChanged = (event: VaultChangedEvent): void => {

@@ -726,6 +726,7 @@ export const makeItemRow = (path: string, fields: Partial<ItemRowWire>): ItemRow
   fileBytes: null,
   folder: dirnamePath(path),
   host: null,
+  id: null,
   kind: "note",
   modifiedMs: null,
   path,

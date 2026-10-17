@@ -121,8 +121,10 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   EXISTS: a folder row and the item bar's breadcrumb both NARROW the grid to the
   folder and what is under it. The folders are `knowledge.scopes`', so a folder
   an item sits in is listed with its count though the disk holds no directory
-  for it (`apps/workspace/src/app/sidebar/folder-tree.tsx`), and a remembered
-  folder no longer listed reads as All items. The Tags group folds
+  for it (`apps/workspace/src/app/sidebar/folder-tree.tsx`), a rename or a move
+  of the shown folder, or of one above it, from any surface takes the scope
+  with it (`scopeAfterMove` in `apps/workspace/src/app/sidebar/tree-ops.ts`),
+  and a remembered folder no longer listed reads as All items. The Tags group folds
   (`railTagsOpen`); a folder's fold and its name input are the rail's own state.
   Rejected: the Recent | Files | Deleted view menu, where switching swapped one
   list for another and every list answered "what is this?" differently, and a
@@ -294,15 +296,21 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   reducer). The grid keeps where the focus and the anchor sit in the listing,
   so the focused card's window stays loaded and its card mounted however far
   the grid scrolls, a ⇧-click whose span the loaded windows do not hold reads
-  it from the listing, and a right-click or a drag under ⌘A acts on everything
-  selected; coming back from an item, the focused card takes the keyboard
-  again (`apps/workspace/src/app/library/library-grid.tsx`). The store is the
+  it from the listing, an arrow (and Quick Look's) steps by the focused card's
+  own index in the listing, never through the loaded windows joined, which
+  start wherever the grid was scrolled and leave gaps, and a right-click or a
+  drag under ⌘A acts on everything selected; coming back from an item, the
+  focused card takes the keyboard again, once, and never from a field or a
+  dialog (`apps/workspace/src/app/library/library-grid.tsx`). A selected item
+  that moved under the grid (a fill names a saved link's stub by its page's
+  title) is followed by its id, its focus and Quick Look with it, as the open
+  item is (`apps/workspace/src/app/workspace.tsx`). The store is the
   workspace's, made once beside the grid's scroll, so
   the panel's Info and the composer read the same selection the grid draws and
   an item opened over the grid comes back to it. Rejected: click-to-open, because
   the selection is the ⌘K context and the Info subject, and a click that opened
   could select nothing. A bulk verb runs in the chunks its route takes at once,
-  sequentially, under one toast with Stop
+  sequentially, under one toast with Stop, and says only what landed
   (`apps/workspace/src/app/library/bulk-actions.ts`).
 
 - **A SAVE FROM THE WINDOW IS A PASTE OR A DROP THAT NO FIELD CLAIMED.** A paste

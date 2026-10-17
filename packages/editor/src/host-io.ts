@@ -36,7 +36,8 @@ export interface VaultActions {
   /** Creates without opening, exclusively: a caller moving bytes into the file would drop them if an existing one counted as success. */
   createNewFileAt: (path: string, seedContent: string) => Promise<CreateNewFileResult>;
   renameEntry: (from: string, to: string) => Promise<boolean>;
-  deleteEntry: (path: string) => Promise<void>;
+  // answers whether the entry went
+  deleteEntry: (path: string) => Promise<boolean>;
   flush: () => Promise<boolean>;
 }
 

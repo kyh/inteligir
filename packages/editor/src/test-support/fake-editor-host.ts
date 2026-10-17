@@ -81,7 +81,7 @@ export const installFakeEditorHost = (options: FakeEditorHostOptions = {}) => {
         options.refuseCreates === true ? { kind: "refused" } : { kind: "created", path };
       return await Promise.resolve(result);
     },
-    deleteEntry: record("deleteEntry", Promise.resolve()),
+    deleteEntry: record("deleteEntry", Promise.resolve(true)),
     editNote: recordVoid("editNote"),
     flush: async () => {
       calls.push({ action: "flush", args: [] });

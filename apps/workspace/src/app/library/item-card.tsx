@@ -29,9 +29,10 @@ export interface ItemCardProps {
   selected: boolean;
   // the one card Tab reaches; the grid's arrows move it
   tabStop: boolean;
-  // the keyboard lands here as the card mounts: the grid's focus was moved to it before its
-  // window had loaded, or the grid came back from an item
+  // the keyboard lands here once: the grid's focus was moved to it, maybe before its window had
+  // loaded, or the grid came back from an item; `onFocusSettled` lets the wish go
   takeFocus: boolean;
+  onFocusSettled: () => void;
   media: MediaOrigin | null;
   nowMs: number;
   onPress: (row: ItemRowWire, event: MouseEvent<HTMLDivElement>) => void;
@@ -40,6 +41,20 @@ export interface ItemCardProps {
   onDragStart: (row: ItemRowWire, event: DragEvent<HTMLDivElement>) => void;
   onDragEnd: () => void;
 }
+
+// a field the person is typing in, or a dialog over the grid, keeps the keyboard: the card that
+// was to take it lets the wish go instead
+const keyboardHeldElsewhere = (card: HTMLElement): boolean => {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement) || card.contains(active)) {
+    return false;
+  }
+  return (
+    active.isContentEditable ||
+    active.matches("input, textarea, select") ||
+    active.closest('[role="dialog"], [role="alertdialog"]') !== null
+  );
+};
 
 const hueOf = (text: string): number => {
   let hash = 0;
@@ -160,6 +175,7 @@ export const ItemCard = ({
   selected,
   tabStop,
   takeFocus,
+  onFocusSettled,
   media,
   nowMs,
   onPress,
@@ -171,10 +187,15 @@ export const ItemCard = ({
   const playable = (row.kind === "video" || row.kind === "audio") && row.cover !== null;
   const cardRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (takeFocus) {
-      cardRef.current?.focus({ preventScroll: true });
+    const card = cardRef.current;
+    if (!takeFocus || card === null) {
+      return;
     }
-  }, [takeFocus]);
+    if (!keyboardHeldElsewhere(card)) {
+      card.focus({ preventScroll: true });
+    }
+    onFocusSettled();
+  }, [takeFocus, onFocusSettled]);
   return (
     <MediaCard
       ref={cardRef}

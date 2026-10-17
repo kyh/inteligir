@@ -31,6 +31,8 @@ export type SelectionGesture =
   | { kind: "all" }
   | { kind: "clear" }
   | { kind: "prune"; gone: ReadonlySet<string> }
+  // items that moved under the selection (a fill's rename, an agent's): each path is its new one
+  | { kind: "moved"; moves: ReadonlyMap<string, string> }
   // the names an `all` stood for, once the caller has read them
   | { kind: "materialize"; paths: readonly string[] };
 
@@ -123,6 +125,19 @@ export const selectionAfter = (s: LibrarySelection, g: SelectionGesture): Librar
         anchor: keep(s.anchor),
         focus: keep(s.focus),
         selected: new Set([...s.selected].filter((path) => !g.gone.has(path))),
+      };
+    }
+    case "moved": {
+      const at = (path: string | null): string | null =>
+        path === null ? null : (g.moves.get(path) ?? path);
+      if (![...s.selected, s.anchor, s.focus].some((path) => path !== null && g.moves.has(path))) {
+        return s;
+      }
+      return {
+        all: s.all,
+        anchor: at(s.anchor),
+        focus: at(s.focus),
+        selected: new Set([...s.selected].map((path) => g.moves.get(path) ?? path)),
       };
     }
     case "materialize": {

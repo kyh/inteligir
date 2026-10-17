@@ -33,6 +33,7 @@ const row = (path: string, kind: ItemKind, fields: Partial<ItemRowWire> = {}): I
   fileBytes: null,
   folder: "",
   host: null,
+  id: null,
   kind,
   modifiedMs: null,
   path,

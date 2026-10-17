@@ -4,6 +4,8 @@
 // family, so the bus's sweep refreshes what is mounted.
 
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
+import { z } from "zod";
 import type { LibraryScope } from "@repo/domain/library-scope";
 import type { ItemKind } from "@repo/notes/items/item-kind";
 import { UNSORTED_FOLDER } from "@repo/notes/items/item-kind";
@@ -159,4 +161,30 @@ export const materializePaths = async (
     offset: from,
   });
   return paths;
+};
+
+// a cached answer's rows, whichever knowledge query held them: the listing's windows and itemsAt
+const cachedRowsSchema = z.looseObject({
+  items: z.array(z.looseObject({ id: z.string().nullable(), path: z.string() })),
+});
+
+// the ids the rows already read name for these paths, read before a change refetches them: a path
+// a rename took away (a fill's, an agent's) is followed by its item's id
+export const cachedItemIds = (
+  queryClient: QueryClient,
+  paths: readonly string[],
+): Map<string, string> => {
+  const wanted = new Set(paths);
+  const ids = new Map<string, string>();
+  for (const key of [orpc.knowledge.items.key(), orpc.knowledge.itemsAt.key()]) {
+    for (const [, data] of queryClient.getQueriesData({ queryKey: key })) {
+      const parsed = cachedRowsSchema.safeParse(data);
+      for (const row of parsed.success ? parsed.data.items : []) {
+        if (row.id !== null && wanted.has(row.path)) {
+          ids.set(row.path, row.id);
+        }
+      }
+    }
+  }
+  return ids;
 };

@@ -55,6 +55,7 @@ import { NameDialog, TagDialog } from "./library/item-dialogs";
 import type { NameDialogRequest, TagDialogRequest } from "./library/item-dialogs";
 import type { LibraryItemActions } from "./library/item-menu";
 import {
+  cachedItemIds,
   filterRequest,
   useItemSourceUrl,
   useLibraryScopes,
@@ -86,7 +87,8 @@ import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar-core"
 import type { SidebarActions } from "@repo/ui/components/sidebar-core";
 import type { SettingsSection } from "./settings/settings-page";
 import { SidebarRailContent } from "./sidebar/sidebar";
-import { useTreeOps } from "./sidebar/tree-ops";
+import { planMove, scopeAfterMove, useTreeOps } from "./sidebar/tree-ops";
+import type { TreeOps } from "./sidebar/tree-ops";
 import { useNavigate } from "@tanstack/react-router";
 import {
   canSyncNow,
@@ -513,24 +515,45 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
   useTurnFinishToast(showHistory);
   useSyncConflictNotices(openItem);
 
-  // a files-changed frame that took a selected item away takes it out of the selection
+  // a files-changed frame that took a selected item away takes it out of the selection, unless the
+  // item only moved (a fill names a saved link's stub by its page's title): the selection, its
+  // focus and Quick Look follow it there by its id, as the open item does
   useEffect(
     () =>
       vaultChanges.subscribe((event) => {
         if (event.kind !== "files" || event.paths === null) {
           return;
         }
-        const chosen = selection.store.getState().selected;
-        const touched = event.paths.filter((path) => chosen.has(path)).slice(0, PRUNE_LOOKUP_MAX);
+        const now = selection.store.getState();
+        const held = new Set([
+          ...now.selected,
+          ...[now.anchor, now.focus].filter((path) => path !== null),
+        ]);
+        const touched = event.paths.filter((path) => held.has(path)).slice(0, PRUNE_LOOKUP_MAX);
         if (touched.length === 0) {
           return;
         }
+        // read now, before the change's sweep refetches the rows that name them
+        const ids = cachedItemIds(queryClient, touched);
         void (async () => {
           try {
             const { items } = await client.knowledge.itemsAt({ paths: touched });
             const still = new Set(items.map((row) => row.path));
+            const gone = touched.filter((path) => !still.has(path));
+            const moves = new Map<string, string>();
+            for (const path of gone) {
+              const id = ids.get(path);
+              if (id === undefined) {
+                continue;
+              }
+              const found = await client.knowledge.pathForNoteId({ id, lastPath: path });
+              if (found.path !== null && found.path !== path) {
+                moves.set(path, found.path);
+              }
+            }
+            selection.apply({ kind: "moved", moves });
             selection.apply({
-              gone: new Set(touched.filter((path) => !still.has(path))),
+              gone: new Set(gone.filter((path) => !moves.has(path))),
               kind: "prune",
             });
           } catch {
@@ -538,7 +561,7 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
           }
         })();
       }),
-    [vaultChanges, selection],
+    [vaultChanges, selection, queryClient],
   );
 
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
@@ -594,11 +617,38 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
   const sourceUrl = useItemSourceUrl(openDoc);
   const openPinned = openDoc !== null && pinnedPaths.has(openDoc);
 
-  const treeOps = useTreeOps({
+  const sessionTreeOps = useTreeOps({
     actions: actionsRef,
     createNote,
     setPinned,
   });
+  // the folder the grid shows follows a rename or a move of it, or of a folder above it, from any
+  // surface (the rail's Rename, a drag, Move to…, Info), so the grid never falls back to All items
+  // while the remembered scope names a folder that left
+  const followFolder = (from: string, to: string): void => {
+    const followed = scopeAfterMove(readPref(PREFS.libraryScope), from, to);
+    if (followed !== null) {
+      storeScope(followed);
+    }
+  };
+  const treeOps: TreeOps = {
+    ...sessionTreeOps,
+    moveEntry: async (fromPath, toDir) => {
+      const plan = planMove(fromPath, toDir);
+      const moved = await sessionTreeOps.moveEntry(fromPath, toDir);
+      if (moved && plan.ok) {
+        followFolder(fromPath, plan.to);
+      }
+      return moved;
+    },
+    renameEntry: async (fromPath, toPath) => {
+      const renamed = await sessionTreeOps.renameEntry(fromPath, toPath);
+      if (renamed) {
+        followFolder(fromPath, toPath);
+      }
+      return renamed;
+    },
+  };
 
   const saveInto = (payload: CapturePayload, folder: string): void => {
     void savePayload(payload, folder, { open: openItem });
@@ -616,11 +666,7 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
       done: (count) =>
         `Moved ${plural(count, "item")} to ${toDir === "" ? "the library" : basenamePath(toDir)}`,
       items: paths,
-      run: async ([path]) => {
-        if (path !== undefined) {
-          await treeOps.moveEntry(path, toDir);
-        }
-      },
+      run: async ([path]) => (path !== undefined && (await treeOps.moveEntry(path, toDir)) ? 1 : 0),
       verb: "Moving",
     });
   };
@@ -642,11 +688,8 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
         chunk: 1,
         done: (count) => `Deleted ${plural(count, "item")}`,
         items: paths,
-        run: async ([path]) => {
-          if (path !== undefined) {
-            await actionsRef.current?.deleteEntry(path);
-          }
-        },
+        run: async ([path]) =>
+          path !== undefined && (await actionsRef.current?.deleteEntry(path)) === true ? 1 : 0,
         verb: "Deleting",
       });
       selection.apply({ gone: new Set(paths), kind: "prune" });
@@ -716,9 +759,7 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
         onSubmit: (next) => {
           void (async () => {
             const to = joinPath(dirnamePath(path), next);
-            if (await treeOps.renameEntry(path, to)) {
-              setScope({ kind: "folder", path: to });
-            }
+            await treeOps.renameEntry(path, to);
           })();
         },
         title: `Rename ${basenamePath(path)}`,

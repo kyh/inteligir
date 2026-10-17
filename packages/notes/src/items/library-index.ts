@@ -47,6 +47,8 @@ export interface ItemQuery {
 
 // exactly the wire's ItemRowWire, which the contract's engine-mirror test holds
 export interface ItemRow {
+  // the frontmatter id a doc carries, which follows it through a rename; null for a bare file
+  id: string | null;
   author: string | null;
   // a media file no doc embeds, listed as its own card
   bare: boolean;
@@ -111,6 +113,7 @@ type TagFamily = (tag: string) => ReadonlySet<string>;
 
 interface DocEntry {
   kind: "doc";
+  noteId: string | null;
   facts: ItemFacts;
   preview: string;
   pinned: boolean;
@@ -267,6 +270,7 @@ export class LibraryIndex {
       facts: projection.item,
       kind: "doc",
       links: projection.links,
+      noteId: projection.noteId,
       pinned: projection.pinned,
       preview: projection.preview,
       refs,
@@ -690,6 +694,7 @@ export class LibraryIndex {
         file: path,
         fileBytes: this.stats.get(path)?.size ?? null,
         host: null,
+        id: null,
         kind: kindOfEntry(entry),
         pending: false,
         pinned: false,
@@ -719,6 +724,7 @@ export class LibraryIndex {
       file: files.file,
       fileBytes: files.file === null ? null : (this.stats.get(files.file)?.size ?? null),
       host: facts.host,
+      id: entry.noteId,
       kind: facts.kind,
       pending: isItemStub(facts),
       pinned: entry.pinned,

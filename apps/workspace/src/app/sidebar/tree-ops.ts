@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import type { RefObject } from "react";
 import { confirm } from "@repo/ui/components/confirm-dialog";
 import type { VaultActions } from "@repo/editor/host-io";
+import type { LibraryScope } from "@repo/domain/library-scope";
 import { basenamePath, dirnamePath, joinPath } from "@repo/notes/knowledge/vault-path";
 import { client, failed } from "../api";
 import { desktopPaths, runPathAction } from "../desktop-paths";
@@ -46,6 +47,17 @@ export const planMove = (from: string, toDir: string): MoveVerdict => {
   }
   return { ok: true, to: joinPath(toDir, basenamePath(from)) };
 };
+
+// the scope a folder's rename or move leaves the grid on: the folder it shows follows it, and so
+// does one under it; null when the move took nothing the grid shows
+export const scopeAfterMove = (
+  scope: LibraryScope,
+  from: string,
+  to: string,
+): LibraryScope | null =>
+  scope.kind === "folder" && (scope.path === from || scope.path.startsWith(`${from}/`))
+    ? { kind: "folder", path: `${to}${scope.path.slice(from.length)}` }
+    : null;
 
 interface TreeOpsDeps {
   actions: RefObject<TreeVaultActions | null>;

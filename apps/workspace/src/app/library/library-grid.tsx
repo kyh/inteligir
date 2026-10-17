@@ -85,6 +85,21 @@ const pinOf = (
   return kept?.path === path ? kept : null;
 };
 
+// how far a move steps through the listing from the focused card
+const stepOf = (delta: MoveDelta, columns: number, from: number, total: number): number =>
+  ({
+    down: columns,
+    first: -from,
+    last: total - 1 - from,
+    left: -1,
+    right: 1,
+    up: -columns,
+  })[delta];
+
+// what Quick Look shows: the focused card, which it follows as the arrows or a rename move it, or
+// the one card a menu named
+type Look = { of: "focus" } | { of: "path"; path: string };
+
 const loadedRows = (windows: ReadonlyMap<number, { items: readonly ItemRowWire[] }>): Loaded => {
   const rows: ItemRowWire[] = [];
   const indexOf = new Map<string, number>();
@@ -110,7 +125,7 @@ export const LibraryGrid = ({
   const [range, setRange] = useState({ first: 0, last: LIBRARY_WINDOW - 1 });
   const [columns, setColumns] = useState(1);
   const [menu, setMenu] = useState<ItemMenuState | null>(null);
-  const [lookAt, setLookAt] = useState<string | null>(null);
+  const [look, setLook] = useState<Look | null>(null);
   const gridRef = useRef<CardGridHandle | null>(null);
   const shellRef = useRef<HTMLDivElement | null>(null);
   const state = useStore(selection.store);
@@ -119,9 +134,13 @@ export const LibraryGrid = ({
     focus: null,
   });
   // the card the keyboard lands on once it renders: the focused one as the grid comes back from
-  // an item, or the one End or an arrow moved to while its window was still loading. The card
-  // takes the focus itself as it mounts, and the next gesture lets the wish go
+  // an item, or the one End or an arrow moved to, maybe while its window was still loading. The
+  // card takes the focus once, and lets the wish go, so a card that later lands at another index
+  // (a sort by last changed, a save above it) never takes the keyboard back from a field
   const [wantFocus, setWantFocus] = useState<string | null>(() => selection.store.getState().focus);
+  const settleFocus = (): void => {
+    setWantFocus(null);
+  };
   const focusPin = pins.focus !== null && pins.focus.path === state.focus ? pins.focus : null;
   // the focused card's window stays loaded wherever the grid scrolls, so its card stays mounted
   // and the keys keep working
@@ -136,6 +155,37 @@ export const LibraryGrid = ({
   const now = useNow();
   const focusIndex =
     state.focus === null ? null : (loaded.indexOf.get(state.focus) ?? focusPin?.index ?? null);
+  const lookedAt = (): string | null => {
+    if (look === null) {
+      return null;
+    }
+    return look.of === "focus" ? state.focus : look.path;
+  };
+  const lookAt = lookedAt();
+
+  // a path's place in the listing: its loaded row's, else the pin kept for it
+  const indexOfPath = (path: string): number | null =>
+    loaded.indexOf.get(path) ??
+    [pins.focus, pins.anchor].find((pin) => pin?.path === path)?.index ??
+    null;
+
+  // the listing's paths from `from` to `to`, both included: the loaded rows when they hold them
+  // all, else read from the listing
+  const pathsBetween = async (from: number, to: number): Promise<string[]> => {
+    const rows = Array.from({ length: to - from + 1 }, (_, at) => rowAt(windows, from + at));
+    const paths = rows.flatMap((row) => (row === null ? [] : [row.path]));
+    return paths.length === rows.length ? paths : await materializePaths(filter, from, to + 1);
+  };
+
+  // the card the keyboard is on, when the selection names none (an Escape cleared it)
+  const domFocusedIndex = (): number | null => {
+    const active = document.activeElement;
+    const path =
+      active instanceof HTMLElement && shellRef.current?.contains(active) === true
+        ? active.dataset.itemPath
+        : undefined;
+    return path === undefined ? null : (loaded.indexOf.get(path) ?? null);
+  };
 
   // where the selection's focus and anchor sit in the listing, read after a gesture moved them
   const pinSelection = (): void => {
@@ -171,25 +221,60 @@ export const LibraryGrid = ({
   // hold them all, so a ⇧-click far from the anchor selects the whole span
   const rangeTo = async (path: string): Promise<void> => {
     const { anchor } = selection.store.getState();
-    const anchorIndex =
-      anchor === null
-        ? null
-        : (loaded.indexOf.get(anchor) ?? (pins.anchor?.path === anchor ? pins.anchor.index : null));
+    const anchorIndex = anchor === null ? null : indexOfPath(anchor);
     const toIndex = loaded.indexOf.get(path);
     if (anchorIndex === null || toIndex === undefined) {
       selection.apply({ kind: "range", order: loaded.order, path });
       return;
     }
-    const from = Math.min(anchorIndex, toIndex);
-    const to = Math.max(anchorIndex, toIndex);
-    const spanned = Array.from(
-      { length: Math.floor(to / LIBRARY_WINDOW) - Math.floor(from / LIBRARY_WINDOW) + 1 },
-      (_, at) => Math.floor(from / LIBRARY_WINDOW) + at,
+    const order = await pathsBetween(
+      Math.min(anchorIndex, toIndex),
+      Math.max(anchorIndex, toIndex),
     );
-    const order = spanned.every((windowIndex) => windows.has(windowIndex))
-      ? loaded.order
-      : await materializePaths(filter, from, to + 1);
     selection.apply({ kind: "range", order, path });
+  };
+
+  // an arrow steps through the listing from the focused card's own index, never through the
+  // loaded windows joined, which start wherever the grid was scrolled and leave gaps; with no
+  // focus it starts on the card the keyboard is on, or the first in view. A ⇧-arrow spans from
+  // the anchor however far the grid has scrolled from it
+  const moveBy = async (move: { delta: MoveDelta; extend: boolean }): Promise<void> => {
+    if (total === 0) {
+      return;
+    }
+    if (move.extend) {
+      await settleAll();
+    }
+    const before = selection.store.getState();
+    const focusAt = before.focus === null ? null : indexOfPath(before.focus);
+    const from = focusAt ?? domFocusedIndex() ?? Math.min(range.first, total - 1);
+    const wanted = from + stepOf(move.delta, Math.max(1, columns), from, total);
+    // a step past either edge stays put, as Finder's does; with no focus the first press lands
+    const target = focusAt === null || wanted < 0 || wanted >= total ? from : wanted;
+    const anchorAt =
+      move.extend && focusAt !== null && before.anchor !== null ? indexOfPath(before.anchor) : null;
+    const ends = [from, target, ...(anchorAt === null ? [] : [anchorAt])];
+    const low = Math.min(...ends);
+    const high = Math.min(Math.max(...ends), low + KNOWLEDGE_ITEM_PATHS_MAX - 1);
+    const order = await pathsBetween(low, high);
+    selection.apply({ ...move, columns, kind: "move", order });
+    const after = selection.store.getState();
+    if (after.focus === null) {
+      return;
+    }
+    const focus = { index: target, path: after.focus };
+    const anchorPin = (): Pin | null => {
+      if (after.anchor === null) {
+        return null;
+      }
+      if (after.anchor === after.focus) {
+        return focus;
+      }
+      const index = indexOfPath(after.anchor) ?? (after.anchor === before.focus ? from : null);
+      return index === null ? null : { index, path: after.anchor };
+    };
+    setPins({ anchor: anchorPin(), focus });
+    focusCard(after.focus, target);
   };
 
   const press = (row: ItemRowWire, event: MouseEvent<HTMLDivElement>): void => {
@@ -260,14 +345,23 @@ export const LibraryGrid = ({
     event.dataTransfer.setData("text/plain", urls.length > 0 ? urls.join("\n") : row.title);
   };
 
+  // Quick Look's arrows step through the listing by index too, and the focus with them
   const stepLook = (path: string, by: -1 | 1): void => {
-    const at = loaded.order.indexOf(path);
-    const next = loaded.order[at + by];
-    if (at !== -1 && next !== undefined) {
-      setLookAt(next);
-      selection.apply({ kind: "click", path: next });
-      pinSelection();
+    const at = indexOfPath(path);
+    const next = at === null ? -1 : at + by;
+    if (next < 0 || next >= total) {
+      return;
     }
+    void (async () => {
+      const [nextPath] = await pathsBetween(next, next);
+      if (nextPath === undefined) {
+        return;
+      }
+      selection.apply({ kind: "click", path: nextPath });
+      setPins({ anchor: { index: next, path: nextPath }, focus: { index: next, path: nextPath } });
+      setLook({ of: "focus" });
+      gridRef.current?.scrollToCell(next);
+    })();
   };
 
   const goToEnd = (which: "first" | "last"): void => {
@@ -292,17 +386,7 @@ export const LibraryGrid = ({
     const { action } = shortcut;
     const move = MOVES[action];
     if (move !== undefined) {
-      void (async () => {
-        if (move.extend) {
-          await settleAll();
-        }
-        selection.apply({ ...move, columns, kind: "move", order: loaded.order });
-        pinSelection();
-        const { focus } = selection.store.getState();
-        if (focus !== null) {
-          focusCard(focus, loaded.indexOf.get(focus) ?? null);
-        }
-      })();
+      void moveBy(move);
       return;
     }
     const { focus } = selection.store.getState();
@@ -320,7 +404,7 @@ export const LibraryGrid = ({
       }
       case "quick-look": {
         if (focus !== null) {
-          setLookAt(focus);
+          setLook({ of: "focus" });
         }
         break;
       }
@@ -383,6 +467,7 @@ export const LibraryGrid = ({
               selected={isSelected(row.path)}
               tabStop={row.path === tabStop}
               takeFocus={row.path === wantFocus}
+              onFocusSettled={settleFocus}
               media={media}
               nowMs={now}
               onPress={press}
@@ -403,16 +488,20 @@ export const LibraryGrid = ({
         }}
         actions={{
           ...actions,
-          quickLook: setLookAt,
+          quickLook: (path) => {
+            setLook(
+              path === selection.store.getState().focus ? { of: "focus" } : { of: "path", path },
+            );
+          },
         }}
       />
       <QuickLook
         path={lookAt}
         onClose={() => {
-          setLookAt(null);
+          setLook(null);
         }}
         onOpen={(path) => {
-          setLookAt(null);
+          setLook(null);
           actions.open(path);
         }}
         onStep={stepLook}

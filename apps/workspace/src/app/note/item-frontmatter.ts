@@ -200,14 +200,18 @@ export const retagItems = async (
           paths: [...chunk],
           remove: [...change.remove],
         });
+        let tagged = 0;
         for (const result of results) {
           for (const tag of result.inline) {
             inline.add(tag);
           }
           if (result.outcome === "conflict" || result.outcome === "invalid") {
             conflicts += 1;
+          } else if (result.outcome !== "missing") {
+            tagged += 1;
           }
         }
+        return tagged;
       },
       verb: "Tagging",
     });

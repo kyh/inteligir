@@ -53,6 +53,8 @@ export const itemRowSchema = z.strictObject({
   // dirnamePath(path), "" for the root
   folder: z.string(),
   host: z.string().nullable(),
+  // the frontmatter id, which follows the item through a rename; null for a bare file
+  id: z.string().min(1).nullable(),
   kind: itemKindSchema,
   modifiedMs: z.number().nullable(),
   path: z.string().min(1),

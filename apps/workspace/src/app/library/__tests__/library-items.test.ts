@@ -1,7 +1,10 @@
+import type { ItemRowWire } from "@repo/contract/local/items/items-schema";
+import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
+import { orpc } from "../../api";
 import { tagsFromText } from "../item-dialogs";
-import { LIBRARY_WINDOW, filterRequest, windowsAround } from "../library-items";
+import { LIBRARY_WINDOW, cachedItemIds, filterRequest, windowsAround } from "../library-items";
 
 describe("what the grid asks the index for", () => {
   it("reads Unsorted as its folder, a folder and a tag as themselves, sorted as chosen", () => {
@@ -48,5 +51,54 @@ describe("tags as a person types them", () => {
   it("splits on spaces and commas, drops a leading #, and names each once", () => {
     expect(tagsFromText("#reading  work, #reading,later")).toEqual(["reading", "work", "later"]);
     expect(tagsFromText("  ,  ")).toEqual([]);
+  });
+});
+
+const rowOf = (path: string, id: string | null): ItemRowWire => ({
+  author: null,
+  bare: id === null,
+  copy: null,
+  cover: null,
+  description: null,
+  fetchError: null,
+  fetched: null,
+  file: null,
+  fileBytes: null,
+  folder: "",
+  host: null,
+  id,
+  kind: "note",
+  modifiedMs: null,
+  path,
+  pending: false,
+  pinned: false,
+  preview: "",
+  published: null,
+  saved: null,
+  site: null,
+  tags: [],
+  title: path,
+  url: null,
+});
+
+describe("the ids the rows already read name", () => {
+  it("finds a path's id in a listing window or an itemsAt answer, before a change refetches it", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(
+      orpc.knowledge.items.queryKey({ input: { limit: LIBRARY_WINDOW, offset: 0 } }),
+      {
+        items: [rowOf("Unsorted/site.test.md", "id-stub"), rowOf("a.png", null)],
+        kindCounts: { audio: 0, file: 0, image: 0, link: 0, note: 2, pdf: 0, video: 0 },
+        total: 2,
+      },
+    );
+    queryClient.setQueryData(orpc.knowledge.itemsAt.queryKey({ input: { paths: ["b.md"] } }), {
+      items: [rowOf("b.md", "id-b")],
+    });
+    expect(
+      Object.fromEntries(
+        cachedItemIds(queryClient, ["Unsorted/site.test.md", "a.png", "b.md", "gone.md"]),
+      ),
+    ).toEqual({ "Unsorted/site.test.md": "id-stub", "b.md": "id-b" });
   });
 });
