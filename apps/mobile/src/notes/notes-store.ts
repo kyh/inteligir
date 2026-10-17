@@ -29,24 +29,33 @@ import type { AnnotationOp, GuardedText, OutboxRow, Sha1, VaultOp } from "./outb
 import type { OutboxFiles } from "./outbox-files";
 import { createVaultOutbox, STAGED_FILE_GONE } from "./vault-outbox";
 import type { CreateVaultOutboxArgs, OutboxStatus } from "./vault-outbox";
-import { landOnRows, createVaultMirror } from "./vault-mirror";
-import type { MirrorLanding, MirrorProgress, MirrorRow, MirrorText } from "./vault-mirror";
+import { landOnRows, createVaultMirror, textFactsOf } from "./vault-mirror";
+import type {
+  ItemCard,
+  MirrorLanding,
+  MirrorProgress,
+  MirrorRow,
+  MirrorText,
+  NoteFacts,
+} from "./vault-mirror";
 import { overlayEntries } from "./vault-overlay";
-import type { OverlayEntry } from "./vault-overlay";
+import type { OverlayEntry, TextFacts } from "./vault-overlay";
 
 const INCOMPLETE = "Some notes did not download. Pull down to try again.";
 
 const UNREADABLE_NOTE = "This note has not downloaded to your phone yet.";
 
-const UNREADABLE_ANNOTATIONS = "This note's comments could not be read.";
+const UNREADABLE_ANNOTATIONS = "This item's annotations could not be read.";
 
 // an account whose hosted vault no Mac has pushed yet answers 404 until one does
 const NO_HOSTED_VAULT = "Your notes aren't here yet — open inteligir on your Mac while signed in.";
 
 const DEFAULT_RETRY_BASE_MS = 2000;
 
+// a listed file, and a doc's card once its text is held
 interface NoteEntry {
   path: string;
+  item: ItemCard | null;
 }
 
 // a refresh that fails keeps the listing it has and says why in `refreshError`; `error` and
@@ -130,6 +139,7 @@ export interface HeldFile {
   path: string;
   noteId: string | null;
   aliases: readonly string[];
+  item: ItemCard | null;
 }
 
 export interface NotesStore {
@@ -149,8 +159,9 @@ export interface NotesStore {
   create: (path: string, content: string) => Promise<CreateOutcome>;
   // the move and its edits are one change set
   rename: (from: string, to: string, edits?: RenameEdits) => Promise<RenameOutcome>;
-  // the note and the annotation `stores` that go with it are one change set
-  remove: (path: string, stores?: readonly string[]) => Promise<void>;
+  // the note and the files that go `alongside` it (its annotation store, the files only it links)
+  // are one change set
+  remove: (path: string, alongside?: readonly string[]) => Promise<void>;
   putAsset: (path: string, bytes: Uint8Array) => Promise<CreateOutcome>;
   // every file the phone lists, unsent changes laid over; none before the first listing
   heldFiles: () => readonly HeldFile[];
@@ -262,6 +273,10 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     }
   };
 
+  // what each unsent text said of itself the last time it was listed: a relist reads only the texts
+  // that changed since, so a note being typed is scanned once per save, never every row per save
+  let unsentFacts = new Map<string, { text: string; facts: NoteFacts }>();
+
   // the listing is the mirror with the unsent rows laid over it; nothing held and nothing unsent
   // is no listing, so the screen keeps loading rather than drawing an empty vault
   const relist = (
@@ -272,14 +287,26 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       listing = null;
       return;
     }
-    const entries = overlayEntries(mirrorRows ?? [], rows);
+    const read = new Map<string, { text: string; facts: NoteFacts }>();
+    const factsOf: TextFacts = (path, text) => {
+      const held = unsentFacts.get(path);
+      const facts = held?.text === text ? held.facts : textFactsOf(path, text);
+      read.set(path, { facts, text });
+      return facts;
+    };
+    const entries = overlayEntries(mirrorRows ?? [], rows, factsOf);
+    unsentFacts = read;
     listing = listingOf(entries);
     const view = tree.get();
     const kept = notices ?? {
       progress: view.state === "ready" ? view.progress : null,
       refreshError: view.state === "ready" ? view.refreshError : null,
     };
-    tree.set({ entries: entries.map((entry) => ({ path: entry.path })), ...kept, state: "ready" });
+    tree.set({
+      entries: entries.map((entry) => ({ item: entry.item, path: entry.path })),
+      ...kept,
+      state: "ready",
+    });
     notifyWatchers();
   };
 
@@ -601,6 +628,16 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     }
   };
 
+  // the blob a delete is guarded by: the mirror's row as listed, with no read of a file's bytes
+  const heldOid = async (path: string): Promise<string | null> => {
+    if (lastRowOn(outbox.rows(), path) === undefined) {
+      const entry = listing?.files.get(path);
+      return entry?.source.kind === "vault" ? entry.source.row.oid : null;
+    }
+    const held = await heldText(path);
+    return held?.oid ?? null;
+  };
+
   const isTakenHere = (path: string): boolean =>
     listing?.taken.has(vaultCollisionKey(path)) === true;
 
@@ -736,7 +773,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       return { kind: "renamed", skipped };
     });
 
-  const remove: NotesStore["remove"] = async (path, stores = []) => {
+  const remove: NotesStore["remove"] = async (path, alongside = []) => {
     await queued(async ({ enqueue }) => {
       if (listing?.files.has(path) !== true) {
         return;
@@ -745,14 +782,14 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       if (base === null) {
         return;
       }
-      const storeBases: { baseOid: string; path: string }[] = [];
-      for (const store of stores) {
-        const held = listing?.files.has(store) === true ? await heldText(store) : null;
-        if (held !== null) {
-          storeBases.push({ baseOid: held.oid, path: store });
+      const bases: { baseOid: string; path: string }[] = [];
+      for (const file of alongside) {
+        const oid = await heldOid(file);
+        if (oid !== null) {
+          bases.push({ baseOid: oid, path: file });
         }
       }
-      await enqueue({ baseOid: base.oid, op: "remove", path, stores: storeBases });
+      await enqueue({ alongside: bases, baseOid: base.oid, op: "remove", path });
     });
   };
 
@@ -883,6 +920,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         ? []
         : [...listing.files.values()].map((entry) => ({
             aliases: entry.aliases,
+            item: entry.item,
             noteId: entry.noteId,
             path: entry.path,
           })),
@@ -940,7 +978,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       }
       const parsed = parseAnnotationStore(store.content);
       if (!parsed.ok) {
-        return { message: `The comments could not be read: ${parsed.error}`, ok: false };
+        return { message: `The annotations could not be read: ${parsed.error}`, ok: false };
       }
       return {
         annotations: foldAnnotations(parsed.store, markerRootIds(note.content)).annotations,

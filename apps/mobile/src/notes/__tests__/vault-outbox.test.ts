@@ -4,6 +4,10 @@ import {
   VAULT_FILE_MAX_BYTES,
   vaultTreeQuerySchema,
 } from "@repo/contract/cloud/vault/vault-schema";
+import { composeLinkBody } from "@repo/notes/items/item-body";
+import { composeItemFile } from "@repo/notes/items/item-frontmatter";
+import type { ItemFileFields } from "@repo/notes/items/item-frontmatter";
+import { linkStubText } from "@repo/notes/items/item-stub";
 import { takenIgnoringCase } from "@repo/notes/knowledge/doc-file";
 import { describeSyncConflict } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";
@@ -425,5 +429,50 @@ describe("the phone's outbox", () => {
     ]);
     expect(await readText(store, "renamed.md")).toBe("# a\n");
     expect(await store.create("NEW.md", "# twin\n")).toStrictEqual({ kind: "exists" });
+  });
+
+  it("settles a phone's edit of a stub against a Mac's fill of it as ONE set, with no copy and no notice", async () => {
+    const item = "Unsorted/File over app.md";
+    const fields: ItemFileFields = {
+      id: "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17",
+      kind: "link",
+      saved: "2026-10-17T09:12:30Z",
+      url: "https://stephango.com/file-over-app",
+    };
+    const stub = linkStubText({
+      id: "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17",
+      note: "",
+      saved: Date.UTC(2026, 9, 17, 9, 12, 30),
+      url: "https://stephango.com/file-over-app",
+    });
+    const filled = (extra: ItemFileFields, stubNote: string): string =>
+      composeItemFile(
+        { ...fields, fetched: "2026-10-17T09:12:33Z", site: "Steph Ango", ...extra },
+        composeLinkBody({
+          article: "File over app is a philosophy.",
+          copy: null,
+          cover: "assets/covers/3f9a0c2b1d4e5f60.jpg",
+          note: stubNote,
+        }),
+      );
+    const vault = createFakeVault({ [item]: stub });
+    const { net, store } = await phone(vault);
+    await readText(store, item);
+    net.online = false;
+    const edited = composeItemFile({ ...fields, tags: ["read"] }, "For Tuesday.\n");
+    await store.write(item, edited, { base: stub, kind: "expected" });
+    vault.change({ [item]: filled({}, "") });
+
+    net.online = true;
+    await store.drain();
+
+    const settled = filled({ tags: ["read"] }, "For Tuesday.");
+    expect(vault.files()).toStrictEqual({ [item]: settled });
+    expect(requestsOf(vault, "commit")).toStrictEqual([
+      `commit put ${item}@${blobOid(stub)}`,
+      `commit put ${item}@${blobOid(filled({}, ""))}`,
+    ]);
+    expect(await readText(store, item)).toBe(settled);
+    expect(store.outbox.status.get()).toMatchObject({ conflicts: [], parked: [], unsent: 0 });
   });
 });

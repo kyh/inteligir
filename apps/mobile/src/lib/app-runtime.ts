@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
 import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
@@ -16,6 +16,12 @@ import type {
 } from "../dispatch/dispatch-runtime";
 import { createEditorPorts } from "../editor/editor-ports";
 import type { EditorPorts, EditorPortsArgs } from "../editor/editor-ports";
+import type { SavedItem } from "../items/item-ops";
+import { createCoverThumbs } from "../library/cover-thumbs";
+import type { CoverThumbs } from "../library/cover-thumbs";
+import { createExpoCoverThumbPort } from "../library/expo-cover-thumbs";
+import { libraryCardAt, libraryCards, libraryScopes } from "../library/library-view";
+import type { LibraryCard, LibraryFilter, LibraryScopes } from "../library/library-view";
 import { defaultDeviceName } from "../login/device-name";
 import type { LoginRequest, LoginState } from "../login/login-store";
 
@@ -42,6 +48,7 @@ import { createExpoSqlDriver } from "./expo-sql-driver";
 import { openPhoneDb } from "./phone-db";
 
 let runtime: AppRuntime | null = null;
+let thumbs: CoverThumbs | null = null;
 
 // console.warn would raise a LogBox toast per skipped row or offline pass.
 const devLog = (message: string): void => {
@@ -54,16 +61,18 @@ const devLog = (message: string): void => {
 // the cloud refuses as too old rather than letting a build it cannot place through
 const appVersion = (): string => Constants.expoConfig?.version ?? "0.0.0";
 
+const attachments = createExpoAttachmentFiles();
+
 const build = (): AppRuntime => {
   const rt = composeRuntime({
-    attachments: createExpoAttachmentFiles(),
+    attachments,
     build: { platform: "mobile", version: appVersion() },
     cloudUrl: getCloudUrl(),
     credentials: createKeychainCredentials(SecureStore),
     db: openPhoneDb(createExpoSqlDriver("inteligir.db")),
     deviceName: defaultDeviceName(),
     mintId: () => hexFromBytes(Crypto.getRandomBytes(16)),
-    mintNoteId: Crypto.randomUUID,
+    newId: Crypto.randomUUID,
     outboxFiles: excludedFromBackup(createExpoOutboxFolder(), excludeFromBackup),
     randomBytes: Crypto.getRandomBytes,
     sha1: async (bytes) =>
@@ -131,6 +140,89 @@ export const renameNote = async (from: string, name: string): Promise<RenamedNot
 export const deleteNote = async (path: string): Promise<void> => {
   await getRuntime().fileOps.remove(path);
 };
+
+// the files a delete of `path` would take with it, which the confirm counts
+export const filesFreedBy = async (path: string): Promise<readonly string[]> =>
+  await getRuntime().fileOps.freedBy(path);
+
+export const saveLink = async (link: {
+  url: string;
+  title: string | null;
+  note: string | null;
+}): Promise<SavedItem> => await getRuntime().items.saveLink(link);
+
+export const saveText = async (text: string): Promise<SavedItem> =>
+  await getRuntime().items.saveText(text);
+
+export interface LibraryView {
+  tree: NotesTreeState;
+  cards: readonly LibraryCard[];
+  scopes: LibraryScopes;
+}
+
+// the Library over what the phone holds, listed again whenever the listing moves
+export const useLibrary = (filter: LibraryFilter): LibraryView => {
+  const rt = getRuntime();
+  const tree = useSyncExternalStore(rt.notes.tree.subscribe, rt.notes.tree.get);
+  const { kinds, query, scope } = filter;
+  // the tree moves with every listing the store publishes, and heldFiles is that listing
+  const files = useMemo(() => (tree.state === "ready" ? rt.notes.heldFiles() : []), [rt, tree]);
+  const cards = useMemo(
+    () => libraryCards(files, { kinds, query, scope }),
+    [files, kinds, query, scope],
+  );
+  const scopes = useMemo(() => libraryScopes(files), [files]);
+  return { cards, scopes, tree };
+};
+
+// one item's card, kept current with the listing
+export const useLibraryCard = (path: string | null): LibraryCard | null => {
+  const rt = getRuntime();
+  const tree = useSyncExternalStore(rt.notes.tree.subscribe, rt.notes.tree.get);
+  return useMemo(
+    () =>
+      path === null || tree.state !== "ready" ? null : libraryCardAt(rt.notes.heldFiles(), path),
+    [rt, tree, path],
+  );
+};
+
+const coverThumbs = (): CoverThumbs => {
+  const rt = getRuntime();
+  thumbs ??= createCoverThumbs(
+    createExpoCoverThumbPort({
+      attachments,
+      original: async (path) => await rt.notes.attachmentFile(path),
+    }),
+  );
+  return thumbs;
+};
+
+// the file:// a card draws its cover from; null until it is on this phone, or when it cannot be
+export const useCoverThumb = (cover: string | null): string | null => {
+  const [uri, setUri] = useState<{ cover: string; uri: string | null } | null>(null);
+  useEffect(() => {
+    if (cover === null) {
+      return;
+    }
+    let live = true;
+    void (async () => {
+      const made = await coverThumbs().thumbFor(cover);
+      if (live) {
+        setUri({ cover, uri: made });
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [cover]);
+  return uri !== null && uri.cover === cover ? uri.uri : null;
+};
+
+// a held file's bytes on this phone, downloaded on the first ask: a viewer's image or PDF
+export const attachmentFile = async (
+  path: string,
+): Promise<{ ok: true; uri: string } | { ok: false; message: string }> =>
+  await getRuntime().notes.attachmentFile(path);
 
 // the view context's revision: the sha-256 of the note's bytes as the screen showed them
 const noteRevision = async (content: string): Promise<string> =>

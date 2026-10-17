@@ -63,13 +63,13 @@ export interface EditorPorts {
   readonly askAgent: (path: string, selection: string) => Promise<void>;
   // the annotation sheet's verbs, each telling the page what its ranges are drawn by once it lands,
   // and a deleted annotation's markers to take out
-  readonly annotations: Pick<AnnotationOps, "reply" | "remove">;
+  readonly annotations: Pick<AnnotationOps, "edit" | "reply" | "remove">;
   // tells `listener` what moved under the page: the listing, the bytes of every note it read, and
   // the open note's annotations. the returned stop ends every watch this began
   readonly watch: (listener: (event: EditorNativeEvent) => void) => () => void;
 }
 
-const NO_FOLDER_MOVES = "A note moves to another folder from your Mac.";
+const NO_FOLDER_MOVES = "An item moves to another folder from your Mac.";
 
 // the resolver's alias and id tiers read these; the title is the name, since the phone holds no
 // projection of a note's heading
@@ -322,6 +322,13 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
   };
 
   const annotations: EditorPorts["annotations"] = {
+    edit: async (path, id, text) => {
+      const edited = await args.annotations.edit(path, id, text);
+      if (edited.kind === "done") {
+        refreshAnnotations();
+      }
+      return edited;
+    },
     remove: async (path, rootId) => {
       const removed = await args.annotations.remove(path, rootId);
       if (removed.kind === "done") {

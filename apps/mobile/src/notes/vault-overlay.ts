@@ -1,13 +1,16 @@
 // what the phone shows is the mirror with every unsent row laid over it, oldest first: a pending
 // edit reads as the note, a create and a staged photo list before the vault holds them, a rename
-// moves the row and rewrites the links naming it now, a delete hides the note and its annotation
-// store, and an annotation edit reads as its store and the note it anchored in. A parked row is laid
+// moves the row and rewrites the links naming it now, a delete hides the note and the files that
+// go with it, and an annotation edit reads as its store and the note it anchored in. A parked row is laid
 // over too, since its bytes are the user's until they discard them.
 
 import { utf8ByteLength } from "@repo/contract/cloud/bytes";
 import type { OutboxRow, VaultOp } from "./outbox-ops";
-import { noteFactsOf } from "./vault-mirror";
-import type { MirrorRow } from "./vault-mirror";
+import { textFactsOf } from "./vault-mirror";
+import type { ItemCard, MirrorRow, NoteFacts } from "./vault-mirror";
+
+// what an unsent text says of itself; the store hands one that remembers the texts it has read
+export type TextFacts = (path: string, text: string) => NoteFacts;
 
 // where an entry's bytes are: a mirror row (under another name while a rename is unsent), a
 // note's unsent text, or an attachment's staged file
@@ -21,33 +24,36 @@ export interface OverlayEntry {
   size: number;
   noteId: string | null;
   aliases: readonly string[];
+  // a doc's card, once its text is held
+  item: ItemCard | null;
   source: EntrySource;
 }
 
-const textEntry = (path: string, text: string): OverlayEntry => ({
-  ...noteFactsOf(text),
+const textEntry = (factsOf: TextFacts, path: string, text: string): OverlayEntry => ({
+  ...factsOf(path, text),
   path,
   size: utf8ByteLength(text),
   source: { kind: "text", text },
 });
 
-const lay = (entries: Map<string, OverlayEntry>, op: VaultOp): void => {
+const lay = (entries: Map<string, OverlayEntry>, op: VaultOp, factsOf: TextFacts): void => {
   switch (op.op) {
     case "write":
     case "create": {
-      entries.set(op.path, textEntry(op.path, op.content));
+      entries.set(op.path, textEntry(factsOf, op.path, op.content));
       return;
     }
     case "remove": {
       entries.delete(op.path);
-      for (const store of op.stores) {
-        entries.delete(store.path);
+      for (const file of op.alongside) {
+        entries.delete(file.path);
       }
       return;
     }
     case "putAsset": {
       entries.set(op.path, {
         aliases: [],
+        item: null,
         noteId: null,
         path: op.path,
         size: op.size,
@@ -59,22 +65,22 @@ const lay = (entries: Map<string, OverlayEntry>, op: VaultOp): void => {
       const moving = entries.get(op.from);
       entries.delete(op.from);
       if (op.content !== null) {
-        entries.set(op.to, textEntry(op.to, op.content));
+        entries.set(op.to, textEntry(factsOf, op.to, op.content));
       } else if (moving !== undefined) {
         entries.set(op.to, { ...moving, path: op.to });
       } else if (op.baseContent !== null) {
-        entries.set(op.to, textEntry(op.to, op.baseContent));
+        entries.set(op.to, textEntry(factsOf, op.to, op.baseContent));
       }
       for (const rewrite of op.rewrites) {
-        entries.set(rewrite.path, textEntry(rewrite.path, rewrite.content));
+        entries.set(rewrite.path, textEntry(factsOf, rewrite.path, rewrite.content));
       }
       break;
     }
     case "annotation": {
       if (op.anchored !== null) {
-        entries.set(op.anchored.path, textEntry(op.anchored.path, op.anchored.content));
+        entries.set(op.anchored.path, textEntry(factsOf, op.anchored.path, op.anchored.content));
       }
-      entries.set(op.store.path, textEntry(op.store.path, op.store.content));
+      entries.set(op.store.path, textEntry(factsOf, op.store.path, op.store.content));
       break;
     }
     // no default
@@ -84,12 +90,14 @@ const lay = (entries: Map<string, OverlayEntry>, op: VaultOp): void => {
 export const overlayEntries = (
   mirror: readonly MirrorRow[],
   rows: readonly OutboxRow[],
+  factsOf: TextFacts = textFactsOf,
 ): OverlayEntry[] => {
   const entries = new Map<string, OverlayEntry>(
     mirror.map((row) => [
       row.path,
       {
         aliases: row.aliases,
+        item: row.item,
         noteId: row.noteId,
         path: row.path,
         size: row.size,
@@ -101,7 +109,7 @@ export const overlayEntries = (
     return [...entries.values()];
   }
   for (const row of rows) {
-    lay(entries, row.op);
+    lay(entries, row.op, factsOf);
   }
   return [...entries.values()].toSorted((a, b) => (a.path < b.path ? -1 : 1));
 };

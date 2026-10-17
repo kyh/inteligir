@@ -244,7 +244,7 @@ const removedBy = (op: VaultOp): readonly string[] => {
       return [op.from];
     }
     case "remove": {
-      return [op.path, ...op.stores.map((store) => store.path)];
+      return [op.path, ...op.alongside.map((file) => file.path)];
     }
     case "write":
     case "create":
@@ -546,7 +546,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       }
       case "remove": {
         return {
-          changes: [op, ...op.stores].map((removed): VaultChangeRequest => ({
+          changes: [op, ...op.alongside].map((removed): VaultChangeRequest => ({
             base: removed.baseOid,
             op: "delete",
             path: removed.path,

@@ -123,7 +123,7 @@ const runtimeOver = (
       minted += 1;
       return mintedId(minted);
     },
-    mintNoteId: () => MINTED_NOTE_ID,
+    newId: () => MINTED_NOTE_ID,
     outboxFiles: storage.outboxFiles,
     randomBytes: (length) => new Uint8Array(length),
     retryBaseMs: null,

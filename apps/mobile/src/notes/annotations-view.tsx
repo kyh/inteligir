@@ -51,8 +51,10 @@ const styles = StyleSheet.create({
 const entryMeta = (entry: AnnotationEntry): string =>
   `${annotationSourceLabel(entry.source)} · ${new Date(entry.createdAt * 1000).toLocaleDateString()}`;
 
-// what the sheet asks of the note's annotations; each answers once the change is on the phone
+// what the sheet asks of the item's annotations; each answers once the change is on the phone
 export interface AnnotationEdits {
+  // the note on a highlight: a store write alone
+  note: (rootId: string, text: string) => Promise<AnnotationOutcome>;
   reply: (rootId: string, text: string) => Promise<AnnotationOutcome>;
   // the annotation with every reply, and its markers in the note
   remove: (rootId: string) => Promise<AnnotationOutcome>;
@@ -67,13 +69,15 @@ const ThreadCard = ({ edits, thread }: { edits: AnnotationEdits; thread: Annotat
   const theme = useTheme();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  // a bare highlight's first words are its note; after that the field answers it
+  const bare = thread.root.text === "";
 
   const run = async (change: () => Promise<AnnotationOutcome>): Promise<boolean> => {
     setBusy(true);
     const outcome = await change().catch(failureOf);
     setBusy(false);
     if (outcome.kind === "refused") {
-      Alert.alert("Couldn't change this comment", outcome.message);
+      Alert.alert("Couldn't change this annotation", outcome.message);
       return false;
     }
     return true;
@@ -85,7 +89,10 @@ const ThreadCard = ({ edits, thread }: { edits: AnnotationEdits; thread: Annotat
       return;
     }
     void (async () => {
-      if (await run(async () => await edits.reply(thread.id, text))) {
+      const sent = await run(async () =>
+        bare ? await edits.note(thread.id, text) : await edits.reply(thread.id, text),
+      );
+      if (sent) {
         setDraft("");
       }
     })();
@@ -93,10 +100,10 @@ const ThreadCard = ({ edits, thread }: { edits: AnnotationEdits; thread: Annotat
 
   const confirmRemove = (): void => {
     Alert.alert(
-      "Delete this comment?",
+      "Delete this annotation?",
       thread.replies.length === 0
-        ? "It goes from this note on every device."
-        : "It and its replies go from this note on every device.",
+        ? "The highlight and its note go from this item on every device."
+        : "The highlight, its note and its replies go from this item on every device.",
       [
         { style: "cancel", text: "Cancel" },
         {
@@ -114,7 +121,7 @@ const ThreadCard = ({ edits, thread }: { edits: AnnotationEdits; thread: Annotat
     <View style={[styles.thread, { backgroundColor: theme.card, borderColor: theme.border }]}>
       <Text style={[styles.meta, { color: theme.mutedForeground }]}>
         {entryMeta(thread.root)}
-        {thread.anchored ? "" : " · Unanchored"}
+        {thread.anchored ? "" : " · Not placed in the text"}
       </Text>
       {thread.root.quote === undefined ? null : (
         <Text style={[styles.quote, { borderColor: theme.border, color: theme.mutedForeground }]}>
@@ -134,7 +141,7 @@ const ThreadCard = ({ edits, thread }: { edits: AnnotationEdits; thread: Annotat
       ))}
       <View style={styles.actions}>
         <TextInput
-          accessibilityLabel="Reply to comment"
+          accessibilityLabel={bare ? "Add a note to this highlight" : "Reply to this annotation"}
           style={[
             styles.field,
             {
@@ -143,7 +150,7 @@ const ThreadCard = ({ edits, thread }: { edits: AnnotationEdits; thread: Annotat
               color: theme.foreground,
             },
           ]}
-          placeholder="Reply…"
+          placeholder={bare ? "Add a note…" : "Reply…"}
           placeholderTextColor={theme.mutedForeground}
           value={draft}
           editable={!busy}
@@ -178,7 +185,7 @@ const AnnotationsSection = ({
   const theme = useTheme();
   return (
     <View style={styles.section}>
-      <Text style={[styles.heading, { color: theme.mutedForeground }]}>Comments</Text>
+      <Text style={[styles.heading, { color: theme.mutedForeground }]}>Annotations</Text>
       {threads.map((thread) => (
         <ThreadCard key={thread.id} edits={edits} thread={thread} />
       ))}
@@ -207,11 +214,12 @@ const sheetStatus = (annotations: AnnotationsRead | null): string | null => {
   if (!annotations.ok) {
     return annotations.message;
   }
-  return annotations.annotations.length === 0 ? "No comments on this note." : null;
+  return annotations.annotations.length === 0 ? "No highlights yet." : null;
 };
 
-// the open note's annotations over the editor: `ids` names the marker the page was tapped on, and
-// null is every thread (the header's Annotations). A new annotation is made on a selection in the note.
+// the open item's annotations over the editor: `ids` names the marker the page was tapped on, and
+// null is every annotation (the menu's Annotations). A highlight is made on a selection in the
+// item, and its card shows the passage's stored quote above its note.
 export const AnnotationsSheet = ({
   annotations,
   edits,

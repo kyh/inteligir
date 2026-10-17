@@ -84,7 +84,7 @@ describe("the notes store", () => {
     signIn(CREDENTIAL, "restored");
     await store.refresh();
     expect(store.tree.get()).toEqual({
-      entries: Object.keys(VAULT).map((path) => ({ path })),
+      entries: Object.keys(VAULT).map((path) => expect.objectContaining({ path })),
       progress: null,
       refreshError: null,
       state: "ready",
@@ -445,7 +445,7 @@ describe("a worker newer than this build", () => {
     await sync.syncNow();
 
     expect(store.tree.get()).toEqual({
-      entries: [{ path: "a.md" }],
+      entries: [expect.objectContaining({ path: "a.md" })],
       progress: null,
       refreshError: null,
       state: "ready",

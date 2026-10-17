@@ -65,6 +65,8 @@ export const useSheetAnnotations = (
     return outcome;
   };
   const edits: AnnotationEdits = {
+    note: async (rootId, text) =>
+      await editAnnotations(async (notePath) => await verbs.edit(notePath, rootId, text)),
     reply: async (rootId, text) =>
       await editAnnotations(async (notePath) => await verbs.reply(notePath, rootId, text)),
     remove: async (rootId) =>

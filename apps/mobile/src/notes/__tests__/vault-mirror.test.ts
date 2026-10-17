@@ -2,6 +2,8 @@ import { createCloudClient } from "@repo/contract/cloud/client";
 import type { CloudFetch } from "@repo/contract/cloud/client";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
+import { composeLinkBody } from "@repo/notes/items/item-body";
+import { composeItemFile, itemFactsOf } from "@repo/notes/items/item-frontmatter";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { deferred } from "../../__tests__/async";
@@ -238,11 +240,13 @@ describe("the vault mirror", () => {
     const { store } = launch(vault.fetch, openTempDb());
     await store.refresh();
 
-    expect(store.heldFiles()).toContainEqual({
-      aliases: ["Some Alias"],
-      noteId: NOTE_ID,
-      path: "projects/plan.md",
-    });
+    expect(store.heldFiles()).toContainEqual(
+      expect.objectContaining({
+        aliases: ["Some Alias"],
+        noteId: NOTE_ID,
+        path: "projects/plan.md",
+      }),
+    );
   });
 
   it("keeps an unchanged image's pin across a commit, and moves a changed one's", async () => {
@@ -331,6 +335,76 @@ describe("the vault mirror", () => {
     await store.refresh();
     await db.exclusive(async (tx) => {
       await tx.run("UPDATE mirror_entries SET aliases = ? WHERE path = ?", ['"Alias"', "a.md"]);
+    });
+
+    await expect(createVaultMirror(db).snapshot()).rejects.toThrow();
+  });
+
+  it("reads an item's card once as its text lands, and serves it on a relaunch that cannot reach the cloud", async () => {
+    const item = composeItemFile(
+      {
+        fetched: "2026-10-17T09:12:33Z",
+        id: NOTE_ID,
+        kind: "link",
+        saved: "2026-10-17T09:12:30Z",
+        site: "Steph Ango",
+        tags: ["read"],
+        url: "https://stephango.com/file-over-app",
+      },
+      `${composeLinkBody({
+        article: "File over app.\n\n![](assets/in-the-article.png)",
+        copy: "assets/pages/0a1b2c3d4e5f6071.html",
+        cover: "assets/covers/3f9a0c2b1d4e5f60.jpg",
+        note: "",
+      })}`,
+    );
+    const file = tempDbPath();
+    const vault = createFakeVault({
+      "Unsorted/File over app.md": item,
+      "assets/covers/3f9a0c2b1d4e5f60.jpg": "jpg bytes",
+      "media/a.png": "png bytes",
+    });
+    const first = launch(vault.fetch, openTempDb(file));
+    await first.store.refresh();
+
+    const card = {
+      facts: itemFactsOf(item),
+      links: [
+        { embed: true, kind: "image", line: 12, target: "assets/covers/3f9a0c2b1d4e5f60.jpg" },
+        { embed: true, kind: "image", line: 16, target: "assets/in-the-article.png" },
+        {
+          alias: "Copy of the page",
+          embed: false,
+          kind: "md",
+          line: 18,
+          target: "assets/pages/0a1b2c3d4e5f6071.html",
+        },
+      ],
+      tags: ["read"],
+    };
+    const [row] = await openTempDb(file).all(
+      "SELECT item FROM mirror_entries WHERE path = 'Unsorted/File over app.md'",
+    );
+    expect(JSON.parse(z.object({ item: z.string() }).parse(row).item)).toEqual(card);
+
+    const second = launch(offline, openTempDb(file));
+    await vi.waitFor(() => {
+      expect(second.store.tree.get().state).toBe("ready");
+    });
+    expect(second.store.heldFiles()).toContainEqual(
+      expect.objectContaining({ item: card, path: "Unsorted/File over app.md" }),
+    );
+    expect(second.store.heldFiles()).toContainEqual(
+      expect.objectContaining({ item: null, path: "media/a.png" }),
+    );
+  });
+
+  it("refuses a listing whose card is not the one it wrote", async () => {
+    const db = openTempDb();
+    const { store } = launch(createFakeVault(VAULT).fetch, db);
+    await store.refresh();
+    await db.exclusive(async (tx) => {
+      await tx.run("UPDATE mirror_entries SET item = ? WHERE path = ?", ['{"facts":{}}', "a.md"]);
     });
 
     await expect(createVaultMirror(db).snapshot()).rejects.toThrow();

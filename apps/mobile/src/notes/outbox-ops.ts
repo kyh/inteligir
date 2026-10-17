@@ -26,7 +26,8 @@ export type GuardedText = z.infer<typeof guardedTextSchema>;
 // settling a rename onto a taken name merges the two notes; its `content` is the note's text at
 // the new name when the rename changes it (its alias, its own links), null for the bytes as they
 // are, and its `rewrites` the other notes whose links name it, all one change set. A delete takes
-// the annotation stores that go with the note in the same set, so a note the vault keeps keeps them.
+// what goes with the note `alongside` it in the same set: its annotation store, and the files only
+// it links, so a note the vault keeps keeps them all.
 // An annotation edit is its store's new text and, when it anchors a new annotation, the note's with the
 // markers in it, one set, so no pull finds markers with no annotation behind them.
 export const vaultOpSchema = z.discriminatedUnion("op", [
@@ -62,7 +63,7 @@ export const vaultOpSchema = z.discriminatedUnion("op", [
     baseOid: gitOidSchema,
     op: z.literal("remove"),
     path: vaultPathSchema,
-    stores: z.array(z.object({ baseOid: gitOidSchema, path: vaultPathSchema })),
+    alongside: z.array(z.object({ baseOid: gitOidSchema, path: vaultPathSchema })),
   }),
   z.object({
     op: z.literal("putAsset"),
@@ -119,7 +120,7 @@ export const opPaths = (op: VaultOp): readonly string[] => {
       return [op.from, op.to, ...op.rewrites.map((rewrite) => rewrite.path)];
     }
     case "remove": {
-      return [op.path, ...op.stores.map((store) => store.path)];
+      return [op.path, ...op.alongside.map((file) => file.path)];
     }
     case "annotation": {
       return op.anchored === null ? [op.store.path] : [op.anchored.path, op.store.path];
