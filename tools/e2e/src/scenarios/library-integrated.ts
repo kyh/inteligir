@@ -212,9 +212,8 @@ const followsTheRename = async (
   const header = await browser(["get", "text", "[data-source-header]"]);
   expect(header.includes(SITE), `the item's header does not name its site: ${header}`);
 
-  const stages = stagesSchema.parse(
-    JSON.parse(parseEval(await browser(["eval", STAGES]), z.string())),
-  );
+  // a JSON array the eval answers as a string, which parseEval reads through its second layer
+  const stages = parseEval(await browser(["eval", STAGES]), stagesSchema);
   const shown = JSON.stringify(stages);
   expectEq(stages[0], { param: provisional, stage: "pending" }, "the first stage recorded");
   expectEq(stages.at(-1), { param: ITEM, stage: "article" }, "the last stage recorded");
