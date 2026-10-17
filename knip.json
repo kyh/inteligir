@@ -86,7 +86,8 @@
     },
     "tools/e2e": {
       // spawned by path: the Worker host from cloud-worker.ts, the fake vendor from its scenario
-      "entry": ["src/harness/worker-host.ts", "src/fixtures/*.mjs"]
+      // PIVOT-STUB(I): the LAN fixture is an entry until the scenarios that serve pages from it land
+      "entry": ["src/harness/worker-host.ts", "src/fixtures/*.mjs", "src/harness/lan-fixture.ts"]
     },
     "tools/ui-gallery": {
       // the entry is index.html's script, which knip's vite plugin reads

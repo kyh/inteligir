@@ -19,11 +19,15 @@ interface ScenarioBrowserControls {
 
 export type ScenarioBrowser = AgentBrowser & ScenarioBrowserControls;
 
-const agentBrowserSession = (label: string): AgentBrowser => {
+// launchFlags ride every call, after --session: agent-browser launches its browser on whichever
+// call comes first, so a flag only the first call carried would launch nothing once a later one did.
+const agentBrowserSession = (label: string, launchFlags: readonly string[] = []): AgentBrowser => {
   // label keeps scenarios off each other's tabs; pid keeps two runs of the suite apart.
   const session = `inteligir-e2e-${label}-${process.pid}`;
   return async (args, timeoutMs = 60_000) => {
-    const result = await exec("agent-browser", ["--session", session, ...args], { timeoutMs });
+    const result = await exec("agent-browser", ["--session", session, ...launchFlags, ...args], {
+      timeoutMs,
+    });
     return result.stdout.trim();
   };
 };
@@ -117,8 +121,16 @@ export const requireHeadlessBrowser = async (log: (message: string) => void): Pr
   await probed;
 };
 
-export const createScenarioBrowser = (label: string): ScenarioBrowser => {
-  const run = agentBrowserSession(label);
+export interface ScenarioBrowserOptions {
+  // a browser profile, an unpacked extension: what the session's browser launches with
+  launchFlags?: readonly string[];
+}
+
+export const createScenarioBrowser = (
+  label: string,
+  launch: ScenarioBrowserOptions = {},
+): ScenarioBrowser => {
+  const run = agentBrowserSession(label, launch.launchFlags);
   const controls: ScenarioBrowserControls = {
     close: async () => {
       await closeQuietly(run);

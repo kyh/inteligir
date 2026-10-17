@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createScenarioBrowser, requireHeadlessBrowser } from "./agent-browser";
-import type { ScenarioBrowser } from "./agent-browser";
+import type { ScenarioBrowser, ScenarioBrowserOptions } from "./agent-browser";
 import { launchCloudWorker } from "./cloud-worker";
 import type { CloudWorker, LaunchCloudWorkerArgs } from "./cloud-worker";
 import { launchDesktopShell } from "./desktop-shell";
@@ -32,7 +32,7 @@ export interface ScenarioContext {
   // driver or no built shell.
   desktopShell: (options?: DesktopShellOptions) => Promise<DesktopShell>;
   // skips the scenario when no headless browser can launch; closed at teardown like an instance.
-  browser: (label: string) => Promise<ScenarioBrowser>;
+  browser: (label: string, options?: ScenarioBrowserOptions) => Promise<ScenarioBrowser>;
 }
 
 export interface Scenario {
@@ -111,9 +111,9 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
     }
     return await launchApp(launchArgs);
   },
-  async browser(label) {
+  async browser(label, options) {
     await requireHeadlessBrowser(args.log);
-    const browser = createScenarioBrowser(label);
+    const browser = createScenarioBrowser(label, options);
     own(args, { name: `browser "${label}"`, outputTail: () => "", stop: browser.close });
     return browser;
   },
