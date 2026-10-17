@@ -48,7 +48,7 @@ const sentContextSchema = z.object({
 
 export const librarySelectionBrowser: Scenario = {
   description:
-    "two cards selected, ⌘K and send: the stored view context is the library surface with both paths",
+    "two cards selected, ⌘K and send: the send carries both paths, the stored view context is the library surface with its count and no names, and the agent's prompt names both",
   name: "library-selection-browser",
   async run(ctx) {
     const app = await ctx.boot({
@@ -121,5 +121,38 @@ export const librarySelectionBrowser: Scenario = {
     expect(recorded?.surface === "library", "the thread recorded no library view");
     expectEq(recorded.selected, 2, "the recorded count");
     expectEq(recorded.paths, [], "the recorded names, which stay with the prompt");
+
+    ctx.log("the prompt names both selected items: the scripted agent echoes what it was handed");
+    const reply = await pollUntil(
+      async () => {
+        const { threads } = await app.api.threads.list({});
+        const [thread] = threads;
+        if (thread === undefined) {
+          return "";
+        }
+        const body = await app.api.threads.timeline({ threadId: thread.id });
+        const row =
+          body.kind === "full"
+            ? body.timeline.rows.find(
+                (candidate): candidate is TimelineConversationRow =>
+                  candidate.kind === "conversation" && candidate.role === "assistant",
+              )
+            : undefined;
+        return row?.text ?? "";
+      },
+      // whole once it ends in the typed text, the prompt's last block
+      (text) => text.endsWith(MESSAGE),
+      {
+        deadlineMs: DEADLINE_MS,
+        describe: (text) => `the scripted agent never echoed the whole prompt:\n${text}`,
+      },
+    );
+    expect(
+      reply.includes("'These', 'this' and 'the selection' mean the 2 items they selected:"),
+      `the prompt does not say what the selection means:\n${reply}`,
+    );
+    for (const file of [ALPHA, BETA]) {
+      expect(reply.includes(`\n- ${file}`), `the prompt does not name ${file}:\n${reply}`);
+    }
   },
 };

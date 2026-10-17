@@ -2,11 +2,17 @@
 // guarded fetch refuses loopback, link-local and reserved space, and reaches private space only
 // from a saved address that is itself private, which this one is. It never reaches past this
 // machine, so a scenario saves no URL that leaves it (§0.2.9).
+//
+// The address is the first the guard itself would read a page from, judged by the guard's own
+// classification: a machine whose only addresses are in space the guard refuses (a sandbox in
+// TEST-NET, say) has no page a save can read, and a scenario that needs one skips here, at its
+// start, rather than failing a fill it was never going to see. The guard is never widened for it.
 
 import { once } from "node:events";
 import { createServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { networkInterfaces } from "node:os";
+import { classifyAddress } from "inteligir/server/address-guard";
 import { z } from "zod";
 import { ScenarioSkipError } from "./scenario-skip-error";
 
@@ -28,15 +34,23 @@ export interface LanFixture {
   close: () => Promise<void>;
 }
 
+// the space a saved page may be read from: a private address reaches only itself and the public
+// web, a public one only the public web, and every other class is refused before any dial
+const READABLE = new Set(["private", "public"]);
+
 const lanAddress = (): string => {
-  for (const addresses of Object.values(networkInterfaces())) {
-    for (const address of addresses ?? []) {
-      if (address.family === "IPv4" && !address.internal) {
-        return address.address;
-      }
-    }
+  const own = Object.values(networkInterfaces())
+    .flatMap((addresses) => addresses ?? [])
+    .filter((address) => address.family === "IPv4" && !address.internal)
+    .map((address) => address.address);
+  const usable = own.find((address) => READABLE.has(classifyAddress(address)));
+  if (usable === undefined) {
+    const held = own.map((address) => `${address} (${classifyAddress(address)})`).join(", ");
+    throw new ScenarioSkipError(
+      `no usable LAN address: the guarded fetch reads a page only from private or public space, and this machine holds ${held === "" ? "no non-loopback IPv4 address" : held}`,
+    );
   }
-  throw new ScenarioSkipError("no non-loopback IPv4 address");
+  return usable;
 };
 
 const pathOf = (request: IncomingMessage): string => (request.url ?? "/").split("?")[0] ?? "/";

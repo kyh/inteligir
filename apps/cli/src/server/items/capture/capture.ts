@@ -248,10 +248,7 @@ export const createCapture = (deps: CaptureDeps): Capture => {
       const placed = await deps.annotations.add({ ...entry, place: { occurrence: 1 } });
       return placed.wrote;
     } catch (error) {
-      if (
-        !(error instanceof AnnotationsError) ||
-        (error.code !== "passage-not-found" && error.code !== "refused")
-      ) {
+      if (!(error instanceof AnnotationsError) || error.code !== "passage-not-found") {
         throw error;
       }
     }

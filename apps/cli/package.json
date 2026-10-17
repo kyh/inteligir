@@ -33,6 +33,7 @@
   "type": "module",
   "exports": {
     "./desktop/door-answers": "./src/desktop/__tests__/door-answers.ts",
+    "./server/address-guard": "./src/server/items/capture/address-guard.ts",
     "./server/agent-shell-env": "./src/server/agents/agent-shell-env.ts",
     "./server/cloud/credential-store": "./src/server/cloud/credential-store.ts",
     "./server/cloud/sync-cadence": "./src/server/cloud/sync-cadence.ts",

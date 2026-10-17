@@ -9,7 +9,7 @@ import { resolveCliBinDir, toShellEnv } from "inteligir/server/agent-shell-env";
 import { z } from "zod";
 import { agentShellCli } from "../harness/agent-shell-cli";
 import type { AgentShellCli } from "../harness/agent-shell-cli";
-import { expect, expectEq, skip } from "../harness/assert";
+import { expect, expectEq } from "../harness/assert";
 import { exec, hermeticProcessEnv } from "../harness/exec";
 import type { AppInstance } from "../harness/instance";
 import { startLanFixture } from "../harness/lan-fixture";
@@ -81,7 +81,6 @@ const ROUTES = {
 // what a refused fetch says in the file, by the space its address is in
 const ON_THIS_MAC = "This address is on this Mac, so its page isn't read.";
 const ON_THE_HARDWARE = "This address is on this network's own hardware, so its page isn't read.";
-const NOT_READABLE = "This address isn't one a page can be read from.";
 
 const saveStdinSchema = z.object({ results: z.array(itemSaveResponseSchema) });
 
@@ -157,14 +156,6 @@ const articleFills = async (
   );
   const url = lan.url("/essay");
   const saved = await saveJson(cli, url);
-  if (
-    saved.fill.state === "failed" &&
-    (saved.fill.message === NOT_READABLE || saved.fill.message === ON_THE_HARDWARE)
-  ) {
-    skip(
-      `this machine's only network address (${lan.origin}) is in space the guard always refuses, so no page served on it can be read; a private or public address is needed`,
-    );
-  }
   expectEq(saved.fill, { state: "filled" }, "the article's fill");
   expectEq(saved.path, ITEM_PATH, "the item's name, from the page's title");
   const content = (await onDisk(app, saved.path)) ?? "";
@@ -281,11 +272,13 @@ export const linkCapture: Scenario = {
     "a saved LAN-fixture page lands with its kind, url, site, description, cover and canonical text named by its title; a resave answers exists; a loopback, link-local or 404 page keeps the item with its fetch-error; --copy keeps a copy; save - saves stdin's links in order; a fill cut by a kill finishes at the next boot",
   name: "link-capture",
   run: async (ctx) => {
+    const app = await ctx.boot({ name: "capture" });
+    const cli = agentShellCli(ctx.repoRoot, app.dataDir);
+    await loopbackRefused(ctx, cli, app);
+    // every step after the loopback's reads a page: a machine with no address the guard reads
+    // from skips here, through the fixture
     const lan = await startLanFixture(ROUTES);
     try {
-      const app = await ctx.boot({ name: "capture" });
-      const cli = agentShellCli(ctx.repoRoot, app.dataDir);
-      await loopbackRefused(ctx, cli, app);
       await articleFills(ctx, cli, app, lan);
       await refusalsAndErrors(ctx, cli, app, lan);
       await copyKept(ctx, cli, app, lan);
