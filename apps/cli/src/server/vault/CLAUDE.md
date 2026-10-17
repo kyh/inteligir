@@ -191,8 +191,8 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   who made the change. Every surface words a conflict through one function
   (`@repo/notes/sync/conflict-copy`), and the desktop says each once, as a toast
   that stays until dismissed and opens the version set aside; there is no
-  lasting conflict list, because Recent shows the copy and the copies are the
-  record. Rejected: a `conflict` state that stopped sync until someone ran git,
+  lasting conflict list, because the copy is an item in the original's folder,
+  which the library lists like any other, and the copies are the record. Rejected: a `conflict` state that stopped sync until someone ran git,
   which a knowledge worker cannot, and a rebase through the conflict, which
   replays every local commit and has nowhere to keep the other version. Two
   versions of one saved link (two Macs filling one stub, a Refresh racing a

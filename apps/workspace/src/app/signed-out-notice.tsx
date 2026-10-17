@@ -24,9 +24,9 @@ export const SignedOutNotice = () => (
         <AlertDialogHeader>
           <AlertDialogTitle>This tab is signed out</AlertDialogTitle>
           <AlertDialogDescription>
-            The server restarted, or this tab&apos;s sign-in expired. Run{" "}
-            <code>inteligir open</code> in a terminal, or choose Help → Open in Browser in the
-            desktop app, and this tab picks the new sign-in up by itself.
+            The server restarted, or this tab&apos;s sign-in expired. Choose Help › Open in Browser
+            in the desktop app again, or run <code>inteligir open</code>, and this tab picks the new
+            sign-in up by itself.
           </AlertDialogDescription>
         </AlertDialogHeader>
       )}

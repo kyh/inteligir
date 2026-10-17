@@ -157,14 +157,20 @@ const hitsIn = (file: string, text: string): Hit[] => {
   return [];
 };
 
-// JSX text that shares its line with the tags around it: `<p>Remote content, not loaded</p>`
+// JSX text that shares its line with the tags around it: `<p>Remote content, not loaded</p>`, and
+// text after a tag that runs on to the next line: `<code>open</code> in a window, or`
 const INLINE_JSX_TEXT = />(?<text>[^<>{}=;()`"|]+)</gu;
+const TRAILING_JSX_TEXT = />(?<text>[^<>{}=;()`"|]+)$/u;
 
 const inlineJsxTextOf = (line: string): string[] =>
-  [...line.matchAll(INLINE_JSX_TEXT)].flatMap((match) => {
-    const text = match.groups?.text?.trim() ?? "";
+  [...line.matchAll(INLINE_JSX_TEXT), TRAILING_JSX_TEXT.exec(line)].flatMap((match) => {
+    const text = match?.groups?.text?.trim() ?? "";
     return /\s/u.test(text) && /^[A-Za-z]/u.test(text) ? [text] : [];
   });
+
+// an HTML entity in JSX text (`&apos;`, `&rsquo;`, `&#8217;`) read as the mark it draws, so its `;`
+// never reads as code punctuation
+const HTML_ENTITY = /&(?:[A-Za-z]+|#\d+|#x[\da-fA-F]+);/gu;
 
 // a literal a log line opens with its tag, `[desktop] …`, even when the call began a line above
 const LOG_TAGGED = /^\[[\w -]+\]\s/u;
@@ -177,12 +183,13 @@ const scanLines = (file: string, lines: readonly string[], jsx: boolean): Hit[] 
     }
     const line = raw.replace(TRAILING_COMMENT, "");
     const texts = literalsOf(line).filter((literal) => !LOG_TAGGED.test(literal));
-    const jsxText = jsx ? jsxTextOf(line) : null;
-    if (jsxText !== null) {
-      texts.push(jsxText);
-    }
     if (jsx) {
-      texts.push(...inlineJsxTextOf(line));
+      const marks = line.replaceAll(HTML_ENTITY, "'");
+      const jsxText = jsxTextOf(marks);
+      if (jsxText !== null) {
+        texts.push(jsxText);
+      }
+      texts.push(...inlineJsxTextOf(marks));
     }
     for (const text of texts) {
       hits.push(...hitsIn(file, text).map((hit) => ({ ...hit, line: index + 1 })));
@@ -238,6 +245,9 @@ describe("product surfaces speak the person's words", () => {
       ],
       ["        Each vault on this Mac signs in on its own.", "a line of JSX text", true],
       ['<p className="m-0">Remote content, not loaded</p>', "JSX text between its tags", true],
+      ["  <code>inteligir open</code> in a terminal, or choose", "JSX text after a tag", true],
+      ["        Your vault&apos;s copy is kept.", "JSX text holding an entity", true],
+      ["  <b>Saved</b> to your vault&rsquo;s top", "JSX text after a tag, with an entity", true],
       ['  "Uses this Mac\'s git credentials."', "an engine word", false],
       ['  "Run it from the CLI first"', "an uppercase engine word", false],
     ];

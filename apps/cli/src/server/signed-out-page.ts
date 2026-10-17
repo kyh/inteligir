@@ -16,7 +16,7 @@ export const SIGNED_OUT_PAGE = `<!doctype html>
   p { margin: 0; opacity: 0.75; }
 </style>
 </head>
-<body><main><h1>This tab is signed out</h1><p>A browser signs in through a one-time link, and this tab holds no sign-in this server accepts: the link was already used or expired, or the server restarted. Run &quot;inteligir open&quot; in a terminal, or choose Help → Open in Browser in the desktop app.</p></main></body>
+<body><main><h1>This tab is signed out</h1><p>A browser signs in through a one-time link, and this tab holds no sign-in this server accepts: the link was already used or expired, or the server restarted. Choose Help › Open in Browser in the desktop app again, or run &quot;inteligir open&quot;.</p></main></body>
 </html>
 `;
 
