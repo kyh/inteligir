@@ -140,11 +140,18 @@ describe("a saved link before its page is read", () => {
     expect(id === null ? null : onDisk(harness, annotationsStorePath(id))).toContain('"files"');
   });
 
-  it("does not refresh yet", async () => {
+  it("refreshes only a saved link, and answers at once without waiting", async () => {
     const harness = await bootTestApp();
     const saved = await harness.client.items.saveLink({ url: URL_SAVED });
-    const [error] = await safe(harness.client.items.refresh({ path: saved.path }));
-    expect(error).not.toBeNull();
+    expect(await harness.client.items.refresh({ path: saved.path, wait: false })).toEqual({
+      fill: { state: "pending" },
+      path: saved.path,
+    });
+    await harness.vault.service.write("Plain.md", "# Just a note\n");
+    const [notLink] = await safe(harness.client.items.refresh({ path: "Plain.md" }));
+    expect(isDefinedError(notLink) && notLink.code).toBe("BAD_REQUEST");
+    const [missing] = await safe(harness.client.items.refresh({ path: "Nowhere.md" }));
+    expect(isDefinedError(missing) && missing.code).toBe("NOT_FOUND");
   });
 });
 
