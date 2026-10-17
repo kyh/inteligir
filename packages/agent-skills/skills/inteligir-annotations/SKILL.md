@@ -10,8 +10,16 @@ check, a decision, or an answer to the person's question, attached to exact
 evidence. Ordinary wording and structure problems are not annotations — fix
 those in the text and move on.
 
-An annotation is two halves that must agree: **markers in the note's body**
-and **an entry in the store**. One without the other is a broken annotation.
+An annotation is two halves that must agree: **markers in the item's body**
+and **an entry in the store**. One without the other is a broken annotation,
+with one exception the app makes itself: an entry with a `quote` and no
+markers on a saved link the Mac has not read yet is **waiting** for its page's
+text. Leave it; the app places it on its passage when the page is read, or,
+when the passage is not there, under a `## Highlights` heading at the end.
+
+Prefer `inteligir annotation add <path> "<quote>" --note "<text>"`, which
+finds the passage and writes both halves; write the markers by hand only when
+the CLI is not there.
 
 ## Body Markers
 
@@ -100,7 +108,7 @@ guessing.
 ## Before You Finish
 
 - Every marked root has exactly one store entry, and every root entry has
-  markers.
+  markers, unless it is waiting on a link whose page is not read yet.
 - Every root you made carries the `quote` of the passage its markers wrap.
 - Reply chains reach a marked root with no cycles.
 - `source` matches who actually wrote it.

@@ -40,10 +40,11 @@ description: Drive the local inteligir library app — saving links and files, t
 
 inteligir is a local-first library of everything a person saves: links,
 articles, images, PDFs, files and their own notes, every item one markdown
-file in a vault folder, with a knowledge index and an agent. The
-\`inteligir\` CLI drives the running app over
-its HTTP API. Every leaf command accepts \`--json\` for machine-readable
-output; without it the output is compact human text.
+file in the library's folder, with a knowledge index and an agent. \`vault\` is
+this CLI's word for the library folder; talk to the person about their library
+and its items, never the vault or its files. The \`inteligir\` CLI drives the
+running app over its HTTP API. Every leaf command accepts \`--json\` for
+machine-readable output; without it the output is compact human text.
 
 Arguments are strict: a flag the command does not declare, a flag written
 before the command's name, and a word past its last argument, are refused
@@ -80,14 +81,22 @@ rather than dropped. Quote an argument that holds spaces
   that link to the user rather than opening it yourself. A server with no UI
   (an unbuilt checkout) refuses it as \`NOT_FOUND\`.
 
-## Library — saving and finding items
+## Library — saving and filing
 
 Every item is one markdown file. A saved link's frontmatter holds its \`kind\`,
 \`url\`, \`site\` and \`saved\` time, and its body is the page's readable
-text once the Mac has read the page; an image, PDF or other file is the
-original beside a small note that embeds it. A save lands in \`Unsorted/\`
-unless it names a folder, and calls no model: the Mac's own server reads the
-page.
+text once the Mac has read the page, under its cover (the body's first image);
+an image, PDF or other file is the original beside a small note that embeds
+it. The app writes those keys: never invent one, and never change an item's
+\`url\`, \`saved\` or \`id\`. A save lands in \`Unsorted/\` unless it names a
+folder, and calls no model: the Mac's own server reads the page. Save with
+\`inteligir save\` rather than writing a link item by hand, and run
+\`inteligir item find <url>\` first when you are not sure the library lacks
+it. Folders are ordinary folders: file an item by moving it with
+\`inteligir vault rename\`, which rewrites the links to it, and tag it with
+\`inteligir tag add\`. Never edit a page copy (\`assets/pages/\`), and never
+move or delete a file an item embeds on its own: \`vault delete\` of the item
+takes the files only it embeds. The inteligir-items skill holds the shape.
 
 - \`inteligir save <target>\` — save a web link (\`https://…\`), a file on this
   Mac (at most ${ITEM_FILE_MAX_BYTES / MIB} MB, refused before anything is sent), or, with \`-\`,
@@ -123,6 +132,18 @@ page.
 - \`inteligir item refresh <path>\` — read a saved link's page again. Its text
   is kept unless \`--replace-text\` (refused while it has highlights);
   \`--copy\` also keeps a copy of the page; \`--no-wait\` answers at once.
+
+Filing rules the person wrote for the library live in its own \`AGENTS.md\`
+at its top: read it before you file, tag or rename items, and follow it.
+
+## Importing
+
+A Raindrop backup becomes items: each bookmark one link item in a folder named
+for its collection (none, or Unsorted, is \`Unsorted/\`; Trash is left out),
+with its tags, its note as the item's text, its favourite as \`pinned\`, and its
+highlights waiting for its page to fill. The import fetches nothing; every
+page fills in afterwards, one at a time.
+
 - \`inteligir import raindrop <file>\` — import a Raindrop backup's CSV (at
   most ${IMPORT_FILE_MAX_BYTES / MIB} MB): links into folders named for its collections, with
   their tags, notes and highlights. A link the library already holds stays as
@@ -134,9 +155,6 @@ page.
 - \`inteligir import status\` — the latest import, running or ended.
 - \`inteligir import cancel\` — stop the running import; the items it already
   added stay.
-
-Filing rules the person wrote for the library live in its own \`AGENTS.md\`:
-read it before you file, tag or rename items.
 
 ## Vault — files on disk
 
@@ -168,21 +186,24 @@ read it before you file, tag or rename items.
   revision. \`<path>\` is the path \`vault history\` reported for that row, not
   necessarily today's name.
 - \`inteligir vault restore <path> <sha>\` — put the note back to that
-  revision. \`<path>\` here is the note's path TODAY, or a path \`vault
-  deleted\` lists. It checkpoints the note first (so the bytes being replaced
-  survive as their own revision) and writes against the base it read, so a
-  concurrent write is refused rather than overwritten; a deleted note is
-  created afresh, and refused if something reappeared at its path. A deleted
-  note's annotations come back with it (\`--json\`'s \`annotations\` says
-  \`restored\`, \`kept\` when a store already sits at its id, or \`none\`); when
-  they cannot, the note stays restored and the command fails in the refusal's
-  own class, its message naming the note. Prefer this over piping
+  revision, or bring a deleted file back byte for byte. \`<path>\` here is
+  the note's path TODAY, or a path \`vault deleted\` lists. It checkpoints
+  the note first (so the bytes being replaced survive as their own revision)
+  and writes against the base it read, so a concurrent write is refused
+  rather than overwritten; a deleted note is created afresh, and refused if
+  something reappeared at its path. A deleted note's files (an item's
+  original, its cover) and its annotations come back with it (\`--json\`'s
+  \`annotations\` says \`restored\`, \`kept\` when a store already sits at its
+  id, or \`none\`); when they cannot, the note stays restored and the command
+  fails in the refusal's own class, its message naming the note. Prefer this over piping
   \`revision\` into \`write\`: it checkpoints and guards in one step.
 - \`inteligir vault delete <path>\` — delete a file or folder. There is no
   trash: a deleted doc stays in the vault's git history.
-- \`inteligir vault deleted\` — docs no longer on disk, newest deletion first,
-  one tab-separated line each: the sha that still holds the bytes, when, path.
-  Feed a row to \`vault restore <path> <sha>\` to bring it back.
+- \`inteligir vault deleted\` — notes and files no longer on disk, newest
+  deletion first, one tab-separated line each: the sha that still holds the
+  bytes, when, path, and for a file deleted with the note that embedded it,
+  \`held by <note>\`. Feed a row to \`vault restore <path> <sha>\` to bring it
+  back; a note's held files come back with it.
 - \`inteligir vault mkdir <path>\` — create a folder.
 - \`inteligir vault new-id <path>\` — give a note that shares another's
   frontmatter \`id\` an id of its own. A copied file (\`cp\`, Finder's
@@ -323,7 +344,9 @@ keyed by the item's frontmatter \`id\` (minted on the first annotation); the
 \`%%i:id:start%%…%%i:id:end%%\` body markers wrap the passages they are
 about (the inteligir-annotations skill states the grammar — follow it when
 editing files directly). There is no resolve: remove an annotation once it
-has done its job.
+has done its job. Use one to point the person at a passage (a claim to check,
+an answer to their question), never to fix wording. An annotation with a quote
+and no markers is waiting for its page's text; leave it, the app places it.
 
 - \`inteligir annotation list <path>\` — an item's annotations, one line each:
   id, state, the quoted passage and the note, with replies beneath.

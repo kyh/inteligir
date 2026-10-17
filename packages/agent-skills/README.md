@@ -1,7 +1,7 @@
 # @repo/agent-skills
 
-The inteligir dialect's spec, served to agents as files: eight `SKILL.md`
-documents — one hub and seven focused contracts — that tell a coding agent
+The inteligir dialect's spec, served to agents as files: nine `SKILL.md`
+documents — one hub and eight focused contracts — that tell a coding agent
 exactly which bytes the editor round-trips, so what it writes is what the app
 parses. No code, no scripts, no build; the package is a directory of markdown
 and an `exports` map.
@@ -29,6 +29,9 @@ skills/
   inteligir-notes/SKILL.md        # THE HUB: the rules that never bend, the block
                                   # chooser, document syntax, and the index of
                                   # the focused contracts below
+  inteligir-items/SKILL.md        # a library's items: kinds and keys, the cover
+                                  # and the wrapper, Unsorted, folders and tags,
+                                  # saving, filing and tagging one
   inteligir-writing/SKILL.md      # how a note should READ — answer first, shape
                                   # fits the information, when to stop
   inteligir-frontmatter/SKILL.md  # YAML frontmatter as the only property store;

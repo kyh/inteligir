@@ -211,7 +211,8 @@ export const actionCommand = (deps: CliDeps) =>
         args: {
           doc: { description: "Attach the action to this note", type: "string" },
           preset: {
-            description: "Run a named action (tidy-library: tag and file everything untagged)",
+            description:
+              "Run a named action (tidy-library: file and tag everything in Unsorted or untagged)",
             options: actionPresetSchema.options,
             type: "enum",
           },
