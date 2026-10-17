@@ -152,7 +152,7 @@ export const ItemTopbar = ({
           ref={setFindBarAnchor}
           variant="ghost"
           size="icon-compact"
-          aria-label="Find in note"
+          aria-label="Find"
           disabled={!editable}
           onClick={onFindInNote}
         >

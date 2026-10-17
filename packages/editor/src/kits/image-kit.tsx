@@ -36,7 +36,7 @@ const writeAsset = async (file: File, name: string): Promise<string> => {
 // no note, and the toast says where it went.
 export const insertVaultImage = (editor: SlateEditor, path: string): boolean => {
   if (!isLiveEditor(editor)) {
-    toast.warning(`Added ${path} to the vault, but its note closed before the image landed`);
+    toast.warning(`Added ${path} to the library, but its item closed before the image landed`);
     return false;
   }
   insertVoidAndEscape(editor, { children: [{ text: "" }], type: KEYS.img, url: path });

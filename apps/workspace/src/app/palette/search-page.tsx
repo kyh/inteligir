@@ -96,7 +96,7 @@ export const SearchPage = ({ open, query, onOpenMatch }: SearchPageProps) => {
 
   const emptySentence = (): string => {
     if (query === "") {
-      return "Type to search every note.";
+      return "Type to search inside every item.";
     }
     if (vaultMatches.isError) {
       return "Could not search just now.";

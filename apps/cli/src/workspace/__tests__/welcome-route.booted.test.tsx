@@ -74,12 +74,12 @@ describe("the steps after a first run", () => {
     expect(stepOnScreen()).toBe("agent");
     fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
 
-    expect(await screen.findByRole("heading", { name: "Back up your notes" })).toBeDefined();
+    expect(await screen.findByRole("heading", { name: "Back up your library" })).toBeDefined();
     expect(stepOnScreen()).toBe("account");
     expect(router.state.location.search).toMatchObject({ step: "account" });
     expect(
       screen.getByText(
-        "An account backs up your notes and brings them to your other Macs and your iPhone.",
+        "An account backs up your library and brings it to your other Macs and your iPhone.",
       ),
     ).toBeDefined();
     expect(screen.getByLabelText("Invite code")).toBeDefined();
@@ -132,7 +132,7 @@ describe("the steps after a first run", () => {
     expect(await screen.findByRole("heading", { name: "Create your account" })).toBeDefined();
     expect(
       screen.getByText(
-        "iCloud Drive already syncs these notes, and your phone won't show them. An account still carries your conversations with the agent to your other Macs.",
+        "iCloud Drive already syncs this library, and your phone won't show it. An account still carries your conversations with the agent to your other Macs.",
       ),
     ).toBeDefined();
 

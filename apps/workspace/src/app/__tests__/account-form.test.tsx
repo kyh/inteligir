@@ -59,7 +59,7 @@ describe("the account form, signing in", () => {
     expect(screen.getByLabelText("Password").getAttribute("type")).toBe("password");
     expect(
       screen.getByText(
-        "An account backs up your notes and brings them to your other Macs and your iPhone.",
+        "An account backs up your library and brings it to your other Macs and your iPhone.",
       ),
     ).toBeDefined();
     expect(screen.queryByLabelText("Invite code")).toBeNull();
@@ -167,7 +167,7 @@ describe("the account form, creating an account", () => {
 
   it("opens on Create when asked, saying what an account does for notes another service syncs", () => {
     renderForm({ initialMode: "create", vault: IN_DROPBOX });
-    const lead = /^Dropbox already syncs these notes/u;
+    const lead = /^Dropbox already syncs this library/u;
     expect(screen.getByLabelText("Invite code")).toBeDefined();
     expect(screen.getByText(lead)).toBeDefined();
     fireEvent.click(button("I have an account"));

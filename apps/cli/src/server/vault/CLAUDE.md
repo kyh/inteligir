@@ -201,8 +201,8 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   `apps/cli/src/server/vault/git-merge.ts`,
   `apps/cli/src/server/vault/__tests__/git-merge-items.test.ts`.
 
-- **AN UNTOUCHED STARTER VAULT YIELDS TO A REMOTE THAT HAS HISTORY**, so a
-  second Mac signing in never merges its seed into the account's notes: the two
+- **AN UNTOUCHED STARTER LIBRARY YIELDS TO A REMOTE THAT HAS HISTORY**, so a
+  second Mac signing in never merges its seed into the account's library: the two
   histories are unrelated, so a starter the user edited elsewhere is added on
   both sides with no base, the fresh seed keeps the path, the user's version
   becomes the conflict copy, and every starter they deleted comes back. The

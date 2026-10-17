@@ -372,6 +372,6 @@ describe("a remote with no room left", { timeout: 30_000 }, () => {
 
     const refused = await engine.syncNow();
     expect(refused.state).toBe("full");
-    expect(refused.lastError).toBe("Your cloud vault is full. New changes stay on this Mac.");
+    expect(refused.lastError).toBe("Your online library is full. New saves stay on this Mac.");
   });
 });

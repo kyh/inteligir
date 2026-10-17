@@ -71,8 +71,8 @@ export interface FileOpsDeps {
 // what a rename says of the notes whose links still name the note as it was
 export const linksKeptLine = (unlinked: readonly string[]): string =>
   unlinked.length === 1
-    ? "1 note changed first, so its link keeps the old name, which still opens this note."
-    : `${String(unlinked.length)} notes changed first, so their links keep the old name, which still opens this note.`;
+    ? "1 item changed first, so its link keeps the old name, which still opens this item."
+    : `${String(unlinked.length)} items changed first, so their links keep the old name, which still opens this item.`;
 
 const UNTITLED = "Untitled";
 
@@ -290,7 +290,7 @@ export const createFileOps = (store: FileOpsStore, deps: FileOpsDeps = {}): File
         const taken = [...store.heldFiles().map((file) => file.path), ...refused];
         const path = freeAssetPath(DEFAULT_ATTACHMENTS_FOLDER, baseName, taken);
         if (assetMediaType(path) === null) {
-          return { kind: "refused", message: "Your vault cannot hold this kind of file." };
+          return { kind: "refused", message: "Your library cannot hold this kind of file." };
         }
         const outcome = await store.putAsset(path, bytes);
         if (outcome.kind === "created") {

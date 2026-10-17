@@ -217,7 +217,7 @@ describe("restoring a revision from the history tab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Restore" }));
     await waitFor(() => {
       expect(refused).toHaveBeenCalledWith(
-        "The note changed while this restore was in flight. Look again and retry.",
+        "The item changed while this restore was in flight. Look again and retry.",
       );
     });
 

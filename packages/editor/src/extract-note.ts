@@ -119,7 +119,7 @@ export const extractBlocksToNote = async (
     return null;
   }
   if (blocks.some(carriesAnnotationMarker)) {
-    toast.error("A comment's thread can't move to a new note, so nothing was extracted.");
+    toast.error("A highlight can't move to a new note, so nothing was extracted.");
     return null;
   }
   const markdown = serializeBlocks(editor, blocks);
@@ -152,7 +152,7 @@ export const extractBlocksToNote = async (
     extractBlocksMarkdown(editor, current) === markdown;
   if (!unchanged) {
     toast.warning(
-      `Created ${docStem(created.path)}, but the note changed meanwhile, so the blocks stayed.`,
+      `Created ${docStem(created.path)}, but this item changed meanwhile, so the blocks stayed.`,
     );
     return null;
   }

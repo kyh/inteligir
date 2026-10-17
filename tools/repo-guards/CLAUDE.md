@@ -13,12 +13,17 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   migration↔schema agreement
   (`packages/db/src/__tests__/schema-agreement.test.ts`), the per-export orphan
   guard and the type-role guard over `@repo/ui`, the CLI guide and its `--json`
-  flags, the editor's buffer invariant. If coverage is ever added,
+  flags, the editor's buffer invariant, and the words on every surface a person
+  reads (the window, the phone, the editor, `@repo/ui`, the extension and the
+  shell's Rust), where "vault" and the engine's words are Settings ›
+  Advanced's alone (`tools/repo-guards/src/product-words.test.ts`, a textual
+  lower bound over quoted literals and JSX text, like `one-spelling.test.ts`).
+  If coverage is ever added,
   `coverage.include` is mandatory in Vitest 4, and gate only `@repo/notes`. A
   guard states its own rule in the failure, names the file, and derives every
   value it can; what it cannot is a row carrying its reason
   (`AWAITING_CONSUMER`, `CLOUD_ONLY_CLIENTS`, `EXCLUDED_COMMANDS`,
-  `PROSE_SIZES`), and `dep-dag.test.ts`'s `DECLARED_EDGES` is the pin itself. A
+  `PROSE_SIZES`, product-words' `ALLOWED`), and `dep-dag.test.ts`'s `DECLARED_EDGES` is the pin itself. A
   guard is for a failure nothing else reports, because a second copy of a
   tool's check or of what the tree already prints is one more table every
   change keeps in step: knip's unused dependencies, oxlint's import rules and

@@ -368,7 +368,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     const carry = carriedNote(openPath, from, dest);
     // flush first so an in-flight write of the open note can't recreate it post-move.
     if (carry !== null && !(await flush())) {
-      ports.notify("Couldn't save the open note — resolve that before renaming.");
+      ports.notify("Couldn't save the open item — resolve that before renaming.");
       return false;
     }
     // held, not let go: a keystroke typed during the move needs a buffer to land in, and the

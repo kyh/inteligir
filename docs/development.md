@@ -171,6 +171,12 @@ into a scratch profile (`tools/e2e/src/harness/native-host-fixture.ts`).
 | Connectors                                        | the agent's own: `~/.claude.json`, `~/.codex`                                      |
 | The desktop's server log                          | `<data dir>/logs/server.log` (+ one `.1`)                                          |
 | The desktop's own folder                          | `desktop/` beside config.json: recent vaults, the debug choice, Linux's web stores |
+| The fills a save still owes                       | the `pending_fills` table in that vault's `inteligir.db`                           |
+| The grid's thumbnails                             | `<that vault's data dir>/thumbs/`, a cache pruned to 256 MiB                       |
+| A Raindrop import's copy of its CSV and its job   | `<that vault's data dir>/imports/` (`job.json`), until the import ends             |
+| The browsers' door                                | `native-host/` beside config.json: the launcher the app writes at each boot        |
+| Highlights and their notes                        | `.inteligir/annotations/<item id>.json` in the vault itself                        |
+| The library's filing rules                        | `AGENTS.md` at the vault's root, which the agent reads                             |
 | Accounts, sessions, devices, invites              | D1 (local file under `apps/web/.wrangler`)                                         |
 | Thread log, dispatch inbox, hosted vault          | Durable Objects (same `.wrangler` dir)                                             |
 

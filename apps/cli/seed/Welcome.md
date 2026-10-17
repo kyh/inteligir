@@ -1,17 +1,22 @@
 ---
-description: Your vault's front door.
+saved: 2026-10-17T12:00:00Z
+description: Your library's front door.
+pinned: true
 ---
 
 # Welcome to inteligir
 
-inteligir is a notes app with an agent in it. Your notes are ordinary files in a folder on this Mac, and they belong to you: open one in any other app and you read the same words.
+inteligir is one library for everything you save and write: links and articles, pictures, PDFs and other files, and your own notes. Each item is an ordinary file in a folder on this Mac, and all of it belongs to you.
 
-The agent reads and edits your notes with you when you ask it to, on your own Claude or ChatGPT plan. Press ⌘K over any note to ask it something. When it changes a note, its reply offers **Undo changes**, which takes back what it did and keeps everything you wrote since.
+**Save.** Paste a link anywhere in the window, drop links and files onto it, click the Inteligir extension in your browser, or share from your iPhone. Your Mac reads each page's title, picture and text itself, so a save is instant and asks no model.
 
-Where to go next:
+**Organize.** New saves wait in **Unsorted**. Move them into folders and tag them, or choose **Tidy my library** and the agent files them for you, following your filing rules. The menu beside it has **Edit filing rules…**, where you write them in your own words.
 
-- [[Getting Started]] walks through writing, linking, comments and the agent.
-- [[Use Cases]] has five ways to use it on real work: meetings, research, drafting, decisions and a weekly review.
-- [[Kitchen Sink]] shows every kind of block in one note.
+**Ask.** Press ⌘K to ask the agent about the item you have open, or about the items you selected in your library. It works on your own Claude or ChatGPT plan, and **Undo changes** takes back anything it did.
 
-These notes are yours to edit or delete.
+Four example saves wait in Unsorted: try Tidy my library on them.
+
+- [[Getting Started]] walks through saving, reading and highlighting, writing, organizing and the agent.
+- [[Kitchen Sink]] shows every kind of block a note can hold.
+
+All of this is yours to edit or delete.

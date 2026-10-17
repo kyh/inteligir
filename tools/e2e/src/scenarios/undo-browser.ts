@@ -53,7 +53,7 @@ export const undoBrowser: Scenario = {
     await agentBrowser(["press", modChord("Enter")]);
     await pollUntil(
       async () => parseEval(await agentBrowser(["eval", TOAST_TEXT]), z.string()),
-      (text) => text.includes("Agent edited 1 note"),
+      (text) => text.includes("Agent edited 1 item"),
       {
         deadlineMs: DEADLINE_MS,
         describe: (text) => `no finish toast — the toasts said:\n${text}`,
@@ -67,7 +67,7 @@ export const undoBrowser: Scenario = {
 
     ctx.log("the toast's Undo takes the note back, and the reply says its changes were undone");
     const clicked = parseEval(
-      await agentBrowser(["eval", clickToastAction("Agent edited 1 note")]),
+      await agentBrowser(["eval", clickToastAction("Agent edited 1 item")]),
       z.string(),
     );
     expectEq(clicked, "clicked", "the toast's Undo");

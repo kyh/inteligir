@@ -129,7 +129,7 @@ interface PageChrome {
 
 const PAGE_CHROME: Record<Exclude<Page["page"], "move-to-folder">, PageChrome> = {
   headings: {
-    description: "Jump to a heading in this note",
+    description: "Jump to a heading in this item",
     placeholder: "Go to heading…",
     title: "Go to heading",
   },
@@ -234,7 +234,7 @@ const noteCommands = (note: PaletteNote, goTo: (next: Page) => void): StaticComm
     binding: "find-in-note",
     icon: <TextSearchIcon />,
     id: "find-in-note",
-    label: "Find in note",
+    label: "Find…",
     run: note.findInNote,
   },
   {

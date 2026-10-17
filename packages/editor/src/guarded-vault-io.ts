@@ -34,7 +34,7 @@ export interface GuardedVaultPort {
 }
 
 const refused = (what: string, result: GuardedWriteResult): Error =>
-  new Error(`${what}: the vault answered ${result.kind}`);
+  new Error(`${what}: the library answered ${result.kind}`);
 
 export const createGuardedVaultIo = (port: GuardedVaultPort): VaultIO => {
   const bases = new Map<string, string>();

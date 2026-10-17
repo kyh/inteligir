@@ -51,7 +51,7 @@ const resolveCommit = async (
 
 const refuseWalk = (refusal: TreeWalkRefusal): Response =>
   refusal === "missing"
-    ? refuse("not-found", "This vault has no content at that revision.")
+    ? refuse("not-found", "This library holds nothing at that version.")
     : refuse("internal", `Vault tree exceeds ${String(MAX_TREE_DIRS)} directories.`);
 
 const answerTree = async (
@@ -64,7 +64,7 @@ const answerTree = async (
 
   const commit = await resolveCommit(stub, ref);
   if (commit === null) {
-    return refuse("not-found", "This vault has no content at that revision.");
+    return refuse("not-found", "This library holds nothing at that version.");
   }
 
   const kept = await slot.read(commit);
@@ -115,7 +115,7 @@ const answerFile = async (
 ): Promise<Response> => {
   const commit = await resolveCommit(stub, query.ref);
   if (commit === null) {
-    return refuse("not-found", "This vault has no content at that revision.");
+    return refuse("not-found", "This library holds nothing at that version.");
   }
   const blob = await stub.readBlob(commit, encodeGitPath(query.path));
   if (blob === null) {
@@ -151,7 +151,7 @@ const answerFiles = async (
   // at a revision the repo does not hold every path would read as missing, which a mirror takes
   // for a deletion
   if ((await stub.readCommit(ref)) === null) {
-    return refuse("not-found", "This vault has no content at that revision.");
+    return refuse("not-found", "This library holds nothing at that version.");
   }
 
   const files: VaultFilesResponse["files"] = [];
@@ -312,7 +312,7 @@ export const handleVaultReadRoutes = async <P extends VaultReadPath>(
   }
 
   if (!(await spendDeviceBudget(env, db, "vaultRead", verified.deviceId))) {
-    return refuse("rate-limited", "Too many vault reads from this device — wait a minute.");
+    return refuse("rate-limited", "Too many reads from this device — wait a minute.");
   }
 
   const route = VAULT_READS[path];
@@ -328,7 +328,7 @@ export const handleVaultReadRoutes = async <P extends VaultReadPath>(
   if (query.data.ref === undefined) {
     const info = await vaultRegistry(env).get(repo);
     if (info === null) {
-      return refuse("not-found", "This account has no hosted vault yet.");
+      return refuse("not-found", "This account has no online library yet.");
     }
   }
   return await route.answer(env.REPO.getByName(repo), query.data, env, repo);

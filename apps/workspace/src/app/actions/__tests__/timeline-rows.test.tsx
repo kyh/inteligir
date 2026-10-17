@@ -295,7 +295,7 @@ describe("a turn's changes footer", () => {
       />,
     );
 
-    expect(view.getByText("Edited 2 notes")).toBeTruthy();
+    expect(view.getByText("Edited 2 items")).toBeTruthy();
     expect(view.getByText("Plans.md")).toBeTruthy();
     expect(view.getByText("Ideas.md")).toBeTruthy();
     expect(view.queryByText(".inteligir/annotations/note-1.json")).toBeNull();
@@ -325,7 +325,7 @@ describe("a turn's changes footer", () => {
         onUndo={() => {}}
       />,
     );
-    expect(withheld.getByText("Edited 2 notes")).toBeTruthy();
+    expect(withheld.getByText("Edited 2 items")).toBeTruthy();
     expect(withheld.queryByRole("button", { name: "Undo changes" })).toBeNull();
     cleanup();
 

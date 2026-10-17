@@ -122,13 +122,13 @@ describe("the highlight tint", () => {
 
   it("marks only a noted highlight in the gutter", () => {
     setAnnotationMeta(OPEN_PATH, KNOWN_ABC);
-    expect(renderOpenNote().queryByRole("button", { name: "Notes on this block" })).toBeNull();
+    expect(renderOpenNote().queryByRole("button", { name: "Highlights on this block" })).toBeNull();
     cleanup();
 
     setAnnotationMeta(OPEN_PATH, { knownIds: new Set(["abc"]), notedIds: new Set(["abc"]) });
-    expect(renderOpenNote().getAllByRole("button", { name: "Notes on this block" })).toHaveLength(
-      1,
-    );
+    expect(
+      renderOpenNote().getAllByRole("button", { name: "Highlights on this block" }),
+    ).toHaveLength(1);
   });
 });
 

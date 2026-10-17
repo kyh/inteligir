@@ -46,7 +46,7 @@ const shortcutGroups = (
     rows: LIBRARY_SHORTCUTS.map((row) => shortcutRow(row, libraryShortcutHotkey(row), modifier)),
   },
   {
-    heading: "In the note",
+    heading: "In an item",
     rows: [
       ...MARK_SHORTCUTS,
       ...EDITOR_SHORTCUTS,

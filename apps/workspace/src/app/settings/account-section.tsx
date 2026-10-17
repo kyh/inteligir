@@ -203,7 +203,7 @@ export const AccountSection = () => {
       onSuccess: (next) => {
         queryClient.setQueryData(orpc.cloud.status.queryKey(), next);
         setDeleteOpen(false);
-        toast.success("Your account was deleted. Your notes on this Mac are still here.");
+        toast.success("Your account was deleted. Your library on this Mac is still here.");
       },
     }),
   );
@@ -241,7 +241,7 @@ export const AccountSection = () => {
           {status.revokeError === null ? null : <RevokeFailedNotice cloudUrl={status.cloudUrl} />}
           {accountForm(status.cloudUrl)}
           <p className="text-body text-muted-foreground">
-            Each vault on this Mac signs in on its own.
+            Each library on this Mac signs in on its own.
           </p>
         </div>
       );

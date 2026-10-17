@@ -82,7 +82,7 @@ const migratePhoneDb = async (db: SqlDriver): Promise<void> => {
     const [row] = await tx.all("PRAGMA user_version");
     const version = userVersionSchema.parse(row).user_version;
     if (version > MIGRATIONS.length) {
-      throw new Error("This phone's notes were saved by a newer version of the app.");
+      throw new Error("This phone's library was saved by a newer version of the app.");
     }
     for (const step of MIGRATIONS.slice(version)) {
       await tx.exec(step);

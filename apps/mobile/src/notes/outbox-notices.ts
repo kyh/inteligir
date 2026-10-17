@@ -35,8 +35,8 @@ type ParkedChange = OutboxStatus["parked"][number];
 // is the item's id
 const annotationTitle = (path: string | undefined): string =>
   path === undefined || isAnnotationsStorePath(path)
-    ? "An annotation is not in your vault yet"
-    : `An annotation on ${docStem(path)} is not in your vault yet`;
+    ? "An annotation is not in your library yet"
+    : `An annotation on ${docStem(path)} is not in your library yet`;
 
 const titleOf = (parked: ParkedChange): string => {
   const [path] = parked.paths;
@@ -46,8 +46,8 @@ const titleOf = (parked: ParkedChange): string => {
     }
     case "remove": {
       return path === undefined
-        ? "A note was not deleted from your vault"
-        : `${docStem(path)} was not deleted from your vault`;
+        ? "An item was not deleted from your library"
+        : `${docStem(path)} was not deleted from your library`;
     }
     case "annotation": {
       return annotationTitle(path);
@@ -55,7 +55,7 @@ const titleOf = (parked: ParkedChange): string => {
     case "write":
     case "create":
     case "putAsset": {
-      return path === undefined ? "A change" : `${docStem(path)} is not in your vault yet`;
+      return path === undefined ? "A change" : `${docStem(path)} is not in your library yet`;
     }
     // no default
   }
@@ -64,16 +64,16 @@ const titleOf = (parked: ParkedChange): string => {
 const discardOf = (parked: ParkedChange): string => {
   switch (parked.kind) {
     case "rename": {
-      return `It has not reached your vault. Discarding keeps its old name, ${docStem(parked.from)}.`;
+      return `It has not reached your library. Discarding keeps its old name, ${docStem(parked.from)}.`;
     }
     case "remove": {
-      return "It has not reached your vault. Discarding keeps the note.";
+      return "It has not reached your library. Discarding keeps the item.";
     }
     case "write":
     case "create":
     case "putAsset":
     case "annotation": {
-      return "It has not reached your vault, and discarding deletes it.";
+      return "It has not reached your library, and discarding deletes it.";
     }
     // no default
   }

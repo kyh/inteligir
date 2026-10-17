@@ -53,13 +53,13 @@ export const FolderPage = ({ empty, folders, onPick }: FolderPageProps) => (
       {folders.map((dir) => (
         <CommandItem
           key={dir === "" ? "(root)" : dir}
-          action={dir === "" ? "Vault root" : dir}
+          action={dir === "" ? "Top of the library" : dir}
           onSelect={() => {
             onPick(dir);
           }}
         >
           <FolderIcon />
-          {dir === "" ? "Vault root" : dir}
+          {dir === "" ? "Top of the library" : dir}
         </CommandItem>
       ))}
     </CommandGroup>

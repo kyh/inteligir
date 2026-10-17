@@ -193,7 +193,7 @@ const richBlockStatic = (label: string) =>
       <SlateElement {...props}>
         <RichBlockCard label={label}>
           <span className="block px-3 py-2 text-muted-foreground italic">
-            Open the note to see this block.
+            Open it to see this block.
           </span>
         </RichBlockCard>
         {props.children}

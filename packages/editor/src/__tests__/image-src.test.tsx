@@ -49,7 +49,7 @@ describe("an image's src, read and resolved as the knowledge index does", () => 
   it("loads no http(s) src, which the page's CSP refuses, and asks the host for nothing", async () => {
     const url = "HTTPS://example.com/shot.png";
     const fetched = mountImage("b/c/doc.md", url);
-    expect(await screen.findByText("Remote content, not loaded")).toBeTruthy();
+    expect(await screen.findByText("Web content, not loaded")).toBeTruthy();
     expect(screen.getByText(url)).toBeTruthy();
     expect(screen.queryByRole("img")).toBeNull();
     expect(fetched).toEqual([]);

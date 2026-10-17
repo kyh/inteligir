@@ -31,7 +31,7 @@ const renderValue = (value: Value) => {
 const paragraph = (children: Descendant[]): TElement => ({ children, type: "p" });
 
 const chips = (container: HTMLElement): string[] =>
-  [...container.querySelectorAll("[title^='Show notes tagged']")].map(
+  [...container.querySelectorAll("[title^='Show items tagged']")].map(
     (node) => node.textContent ?? "",
   );
 
@@ -64,7 +64,7 @@ describe("tag chip rendering", () => {
 
   it("clicking a chip asks the rail for that tag's notes", () => {
     const { container } = renderValue([paragraph([{ text: "todo #alpha" }])]);
-    const chip = container.querySelector("[title^='Show notes tagged']");
+    const chip = container.querySelector("[title^='Show items tagged']");
     expect(chip).not.toBeNull();
     if (chip === null) {
       return;

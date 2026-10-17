@@ -437,7 +437,7 @@ describe("the new-note-in-folder page", () => {
     const { actions, onOpenChange } = renderPalette();
     fireEvent.click(rows().getByText("New note in folder…"));
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
-    expect(rows().getByText("Vault root")).toBeDefined();
+    expect(rows().getByText("Top of the library")).toBeDefined();
     fireEvent.click(rows().getByText("notes/daily"));
     expect(actions.newNote).toHaveBeenCalledWith("notes/daily");
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -451,7 +451,7 @@ describe("the new-note-in-folder page", () => {
     });
     expect(rows().getByText("notes/daily")).toBeDefined();
     expect(rows().queryByText(/^notes$/u)).toBeNull();
-    expect(rows().getByText("Vault root")).toBeDefined();
+    expect(rows().getByText("Top of the library")).toBeDefined();
   });
 });
 
@@ -468,7 +468,7 @@ describe("the move-to-folder page", () => {
   it("hides the folder the note is already in, and the root when that is it", () => {
     renderPalette({ note: makeNote("Welcome.md") });
     fireEvent.click(rows().getByText("Move to folder…"));
-    expect(rows().queryByText("Vault root")).toBeNull();
+    expect(rows().queryByText("Top of the library")).toBeNull();
     expect(rows().getByText(/^notes$/u)).toBeDefined();
   });
 
@@ -479,7 +479,7 @@ describe("the move-to-folder page", () => {
     expect(screen.getByPlaceholderText("Move to which folder?")).toBeDefined();
     expect(rows().queryByText(/^notes$/u)).toBeNull();
     expect(rows().queryByText("notes/daily")).toBeNull();
-    expect(rows().queryByText("Vault root")).toBeNull();
+    expect(rows().queryByText("Top of the library")).toBeNull();
     expect(rows().getByText("No folder it can move to.")).toBeDefined();
     expect(actions.moveItems).not.toHaveBeenCalled();
   });

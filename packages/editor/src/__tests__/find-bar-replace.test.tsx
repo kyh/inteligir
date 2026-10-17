@@ -192,7 +192,7 @@ describe("the find bar's keyboard", () => {
   it("closes the bar on Escape in the find field", () => {
     const editor = openReplace();
     act(() => {
-      fireEvent.keyDown(screen.getByLabelText("Find in note"), { key: "Escape" });
+      fireEvent.keyDown(screen.getByLabelText("Find"), { key: "Escape" });
     });
     expect(getFindBarState(editor).open).toBe(false);
   });

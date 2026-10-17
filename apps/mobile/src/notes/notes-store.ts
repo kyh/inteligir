@@ -41,14 +41,14 @@ import type {
 import { overlayEntries } from "./vault-overlay";
 import type { OverlayEntry, TextFacts } from "./vault-overlay";
 
-const INCOMPLETE = "Some notes did not download. Pull down to try again.";
+const INCOMPLETE = "Some items did not download. Pull down to try again.";
 
-const UNREADABLE_NOTE = "This note has not downloaded to your phone yet.";
+const UNREADABLE_NOTE = "This item has not downloaded to your phone yet.";
 
 const UNREADABLE_ANNOTATIONS = "This item's annotations could not be read.";
 
 // an account whose hosted vault no Mac has pushed yet answers 404 until one does
-const NO_HOSTED_VAULT = "Your notes aren't here yet — open inteligir on your Mac while signed in.";
+const NO_HOSTED_VAULT = "Your library isn't here yet — open Inteligir on your Mac while signed in.";
 
 const DEFAULT_RETRY_BASE_MS = 2000;
 
@@ -215,7 +215,7 @@ export interface CreateNotesStoreArgs {
 }
 
 const storageMessage = (cause: unknown): string =>
-  `This phone could not keep your notes: ${messageOf(cause)}`;
+  `This phone could not keep your library: ${messageOf(cause)}`;
 
 const listingOf = (entries: readonly OverlayEntry[]): Listing => ({
   files: new Map(entries.map((entry) => [entry.path, entry])),
@@ -581,7 +581,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       return { content: entry.source.text, ok: true, path };
     }
     if (entry?.source.kind === "staged" || goneHere(path)) {
-      return { message: "This is not a note on this phone.", notFound: true, ok: false };
+      return { message: "This is not an item on this phone.", notFound: true, ok: false };
     }
     return await readFromMirror(path, entry?.source.row ?? null);
   };
@@ -875,7 +875,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         return { message: NOT_SIGNED_IN, ok: false };
       }
       if (entry === undefined || entry.source.kind === "text") {
-        return { message: "This attachment is not in your vault.", ok: false };
+        return { message: "This file is not in your library.", ok: false };
       }
       const fence = signIn.fenceFor(current.id);
       try {

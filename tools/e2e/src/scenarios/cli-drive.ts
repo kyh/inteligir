@@ -76,6 +76,9 @@ const drivesTheLibrary = async (
 ): Promise<void> => {
   const sources = path.join(ctx.scratchDir, "sources");
   await mkdir(sources, { recursive: true });
+  // the starter library's own items, which every listing below also holds
+  const starters = new Set(await pathsOf(cli));
+  const saved = (paths: readonly string[]): string[] => paths.filter((p) => !starters.has(p));
   const pdfFile = path.join(sources, PAPER);
   await writeFile(pdfFile, Buffer.concat([Buffer.from("%PDF-1.4\n"), randomBytes(2048)]));
   const paper = itemSaveResponseSchema.parse(
@@ -88,9 +91,9 @@ const drivesTheLibrary = async (
   expectEq(link.fill.state, "failed", "the refused link's fill");
   expect(link.path.startsWith("Unsorted/"), `the link lands in Unsorted: ${link.path}`);
 
-  const pdfs = await pathsOf(cli, "--kind", "pdf");
+  const pdfs = saved(await pathsOf(cli, "--kind", "pdf"));
   expectEq(pdfs.join(","), paper.path, "items --kind pdf");
-  const unsorted = await pathsOf(cli, "--folder", "Unsorted");
+  const unsorted = saved(await pathsOf(cli, "--folder", "Unsorted"));
   expectEq(
     unsorted.join(","),
     [link.path, paper.path].toSorted().join(","),
@@ -124,7 +127,7 @@ const drivesTheLibrary = async (
   expectEq(again.outcome, "unchanged", "a second tag add");
   const tagged = await readFile(path.join(app.vaultDir, paper.path), "utf-8");
   expect(/^tags:\n {2}- reading$/mu.test(tagged), `the tag is in the frontmatter:\n${tagged}`);
-  const readingList = await pathsOf(cli, "--tag", "reading");
+  const readingList = saved(await pathsOf(cli, "--tag", "reading"));
   expectEq(readingList.join(","), paper.path, "items --tag");
   const stillUntagged = await pathsOf(cli, "--untagged");
   expect(!stillUntagged.includes(paper.path), "no longer untagged");

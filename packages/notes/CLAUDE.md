@@ -179,7 +179,7 @@ node is rather than discriminating structurally at each visit.
 
 - **VAULT SEARCH IS A LITERAL SCAN BESIDE THE RANKED INDEX, AND BOTH READ THE
   BODY WITHOUT ITS YAML.** FTS5 cannot say where inside a line a hit sits, so
-  `knowledge.matches` (the palette's "Search across the vault…",
+  `knowledge.matches` (the palette's "Search inside every item…",
   `inteligir matches`) scans bodies with ONE matcher,
   `@repo/notes/knowledge/text-matches`, which the listing and the find bar's
   jump both run; the store only pre-narrows by ascii substrings (`docTexts`),

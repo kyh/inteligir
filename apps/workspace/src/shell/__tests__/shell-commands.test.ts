@@ -43,9 +43,9 @@ describe("the shell's door", () => {
 
   it("reads a refusal as a value, and an answer of the other shape as a fault", async () => {
     mockShell(
-      reply(APP_COMMANDS.vaults.pick)(() => ({ ok: false, reason: "No vault is open yet." })),
+      reply(APP_COMMANDS.vaults.pick)(() => ({ ok: false, reason: "No library is open yet." })),
     );
-    expect(await shellVaults.pick()).toEqual({ ok: false, reason: "No vault is open yet." });
+    expect(await shellVaults.pick()).toEqual({ ok: false, reason: "No library is open yet." });
     mockShell(
       { answer: () => ({ ok: true }), command: APP_COMMANDS.vaults.pick.command },
       { answer: () => ({ ok: true, state: VAULTS }), command: APP_COMMANDS.paths.open.command },

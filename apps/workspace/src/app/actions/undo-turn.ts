@@ -72,23 +72,23 @@ interface UndoSummary {
 }
 
 export const summarizeUndo = (changes: UndoTurnResponse): UndoSummary => {
-  // an undo reverts the turn's annotation stores too; the user counts notes
+  // an undo reverts the turn's annotation stores too; the user counts items
   const kept = changes.kept.filter((row) => !isVaultMetadataPath(row.path));
   const reverted = changes.reverted.filter((path) => !isVaultMetadataPath(path));
   const undid =
-    reverted.length > 0 ? `Undid the agent's changes to ${plural(reverted.length, "note")}.` : null;
+    reverted.length > 0 ? `Undid the agent's changes to ${plural(reverted.length, "item")}.` : null;
   const [only] = kept;
   if (only === undefined) {
     return {
       historyPath: null,
-      message: undid ?? "The notes were already as they were before the agent's changes.",
+      message: undid ?? "Your items were already as they were before the agent's changes.",
       tone: "success",
     };
   }
   const left =
     kept.length === 1
       ? `Left ${only.path} as it is: ${KEPT_BECAUSE[only.reason]}.`
-      : `Left ${plural(kept.length, "note")} as they are: ${kept
+      : `Left ${plural(kept.length, "item")} as they are: ${kept
           .map((row) => `${row.path} (${KEPT_BECAUSE[row.reason]})`)
           .join(", ")}.`;
   return {

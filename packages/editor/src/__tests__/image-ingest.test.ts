@@ -111,7 +111,7 @@ describe("image ingestion", () => {
     expect(imageUrls(editor)).toEqual([]);
     expect(helpers.writeVaultAsset).toHaveBeenCalledOnce();
     expect(toast.warning).toHaveBeenCalledWith(
-      "Added assets/late.png to the vault, but its note closed before the image landed",
+      "Added assets/late.png to the library, but its item closed before the image landed",
     );
   });
 });

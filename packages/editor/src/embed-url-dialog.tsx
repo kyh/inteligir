@@ -63,8 +63,8 @@ export const EmbedUrlDialogHost = () => {
         <DialogHeader>
           <DialogTitle>Embed from URL</DialogTitle>
           <DialogDescription>
-            A video, tweet, PDF or page. Notes load nothing remote, so it shows as a card that opens
-            in your browser.
+            A video, tweet, PDF or page. Your library loads nothing from the web, so it shows as a
+            card that opens in your browser.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">

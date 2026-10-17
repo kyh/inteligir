@@ -50,13 +50,13 @@ export const VaultRow = ({ vaultName }: { vaultName: string }) => {
   }
   const { state } = vaults;
   return (
-    <SidebarMenu aria-label="Vault" className="@container">
+    <SidebarMenu aria-label="Library" className="@container">
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger
             disabled={busy !== null}
             render={
-              <SidebarMenuButton aria-label="Switch vault" className="pl-8 disabled:opacity-50">
+              <SidebarMenuButton aria-label="Switch library" className="pl-8 disabled:opacity-50">
                 <VaultTile name={vaultName} />
                 {label}
                 <span className="ml-auto inline-flex @max-[7rem]:hidden">
@@ -86,7 +86,7 @@ export const VaultRow = ({ vaultName }: { vaultName: string }) => {
                 }}
               >
                 <FolderOpenIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                Open another vault…
+                Switch or open another library…
               </DropdownMenuItem>
             ) : (
               <DropdownMenuLabel className="max-w-64 whitespace-normal">

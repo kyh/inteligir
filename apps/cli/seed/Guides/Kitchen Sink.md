@@ -1,5 +1,6 @@
 ---
 id: 1c9a5b76-4e2d-4f4b-9a63-7e1f2b8c0d44
+saved: 2026-10-17T11:56:00Z
 description: Every block the editor models, in one note.
 tags:
   - reference
@@ -143,16 +144,16 @@ const answer = 42;
 </div>
 ```
 
-## Comments
+## Highlights
 
-This %%i:seed-open-thread:start%%sentence carries a comment thread%%i:seed-open-thread:end%% for the panel.
+This %%i:seed-user-highlight:start%%sentence carries a highlight with a note%%i:seed-user-highlight:end%% for the panel.
 
-This %%i:seed-agent-thread:start%%one carries the agent's%%i:seed-agent-thread:end%%, labelled as its own.
+This %%i:seed-agent-highlight:start%%one carries the agent's%%i:seed-agent-highlight:end%%, labelled as its own.
 
 ## Embeds
 
 A note transclusion: ![[Welcome]]
 
-An image from the vault's assets:
+An image from the library's assets:
 
 ![A sample image](assets/sample-image.png)

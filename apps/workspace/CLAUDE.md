@@ -93,7 +93,7 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   a seeded prompt in the field, which a person could edit into something the
   server's block no longer matched, and "Share with agent", which copied
   engine words. Each settled reply ends with the items its turn edited and
-  Undo changes, and a finish toast ("Agent edited N notes", Undo) sits outside
+  Undo changes, and a finish toast ("Agent edited N items", Undo) sits outside
   the panel; a `changes-committed` frame names its thread, never its turn, since
   the bus carries no payload, so the toast diffs a thread's turns against what
   it last read (`apps/workspace/src/app/actions/turn-finish-toast.ts`). Both

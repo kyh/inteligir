@@ -111,7 +111,7 @@ describe("the action detail's changes footer", () => {
     );
 
     mountDetail(thread.id);
-    expect(await screen.findByText("Edited 1 note")).toBeTruthy();
+    expect(await screen.findByText("Edited 1 item")).toBeTruthy();
     fireEvent.click(await screen.findByRole("button", { name: "Undo changes" }));
 
     // no socket reaches this page, so the footer moves on the undo's own re-read

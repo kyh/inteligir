@@ -49,8 +49,8 @@ const MAX_RETRY_MS = 5 * 60 * 1000;
 
 // the refusals that park a row, each with the words its notice says
 const PARKING_CODES: ReadonlyMap<CloudErrorCode, string> = new Map([
-  ["file-too-large", "This is too large to save to your vault from your phone."],
-  ["bad-request", "Your vault could not take this change."],
+  ["file-too-large", "This is too large to save to your library from your phone."],
+  ["bad-request", "Your library could not take this change."],
 ]);
 
 export const STAGED_FILE_GONE = "This attachment is no longer on your phone.";
@@ -478,7 +478,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
     return {
       copyPath: null,
       id: noticeIds,
-      message: `${docStem(path)} changed on another device first, so its link keeps the old name, which still opens the note.`,
+      message: `${docStem(path)} changed on another device first, so its link keeps the old name, which still opens the item.`,
       path,
     };
   };
@@ -780,7 +780,7 @@ export const createVaultOutbox = (args: CreateVaultOutboxArgs): VaultOutbox => {
       const round = (rounds.get(row.seq) ?? 0) + 1;
       rounds.set(row.seq, round);
       if (round > MAX_ROUNDS_PER_ROW) {
-        lastError = "Your vault kept changing while this phone saved. It will try again.";
+        lastError = "Your library kept changing while this phone saved. It will try again.";
       }
       const outcome =
         round > MAX_ROUNDS_PER_ROW ? "stop" : await sendRow(current.client, fence, row);

@@ -97,11 +97,11 @@ describe("the undo's summary", () => {
   it("counts the notes it took back", () => {
     expect(summarizeUndo({ kept: [], reverted: ["a.md", "b.md", "c.md"] })).toEqual({
       historyPath: null,
-      message: "Undid the agent's changes to 3 notes.",
+      message: "Undid the agent's changes to 3 items.",
       tone: "success",
     });
     expect(summarizeUndo({ kept: [], reverted: ["a.md"] }).message).toBe(
-      "Undid the agent's changes to 1 note.",
+      "Undid the agent's changes to 1 item.",
     );
   });
 
@@ -111,7 +111,7 @@ describe("the undo's summary", () => {
         kept: [],
         reverted: ["a.md", ".inteligir/annotations/1c9a5b76-4e2d-4f4b-9a63-7e1f2b8c0d44.json"],
       }).message,
-    ).toBe("Undid the agent's changes to 1 note.");
+    ).toBe("Undid the agent's changes to 1 item.");
   });
 
   it("warns about the one note it left, and points at that note's History", () => {
@@ -122,7 +122,7 @@ describe("the undo's summary", () => {
       }),
     ).toEqual({
       historyPath: "Plans.md",
-      message: "Undid the agent's changes to 2 notes. Left Plans.md as it is: edited since.",
+      message: "Undid the agent's changes to 2 items. Left Plans.md as it is: edited since.",
       tone: "warning",
     });
   });
@@ -149,7 +149,7 @@ describe("the undo's summary", () => {
     expect(summary).toEqual({
       historyPath: null,
       message:
-        "Nothing was undone. Left 2 notes as they are: Plans.md (edited since), Ideas.md (deleted since).",
+        "Nothing was undone. Left 2 items as they are: Plans.md (edited since), Ideas.md (deleted since).",
       tone: "warning",
     });
   });
@@ -157,7 +157,7 @@ describe("the undo's summary", () => {
   it("says so when the notes were already back", () => {
     expect(summarizeUndo({ kept: [], reverted: [] })).toEqual({
       historyPath: null,
-      message: "The notes were already as they were before the agent's changes.",
+      message: "Your items were already as they were before the agent's changes.",
       tone: "success",
     });
   });

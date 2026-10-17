@@ -82,7 +82,7 @@ export const RelatedRows = ({
   <div className="max-h-64 overflow-y-auto px-1.5 pb-2">
     {rows.length === 0 ? (
       <p className="px-1.5 pb-1 text-body text-muted-foreground">
-        {settledEmpty ? "Nothing links here or shares this note's links, tags or words." : "…"}
+        {settledEmpty ? "Nothing links here or shares this item's links, tags or words." : "…"}
       </p>
     ) : (
       <ul className="space-y-0.5">

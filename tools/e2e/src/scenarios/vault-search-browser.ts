@@ -14,7 +14,7 @@ const NEEDLE = "zebrafish";
 const DOC_ONE = "# One\n\nThe zebrafish swims.\n";
 const DOC_TWO = "# Two\n\nAnother zebrafish here, and a zebrafish there.\n";
 const SEARCH_INPUT = 'input[placeholder^="Search inside every item"]';
-const FIND_BAR_INPUT = 'input[aria-label="Find in note"]';
+const FIND_BAR_INPUT = 'input[aria-label="Find"]';
 const ROWS_DEADLINE_MS = 20_000;
 
 const waitForRows = async (

@@ -224,7 +224,7 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
       if (await session.actions.flush()) {
         bridge.emit({ path: target, type: "navigate" });
       } else {
-        toast.error("Couldn't save this note — resolve that before leaving it.");
+        toast.error("Couldn't save this item — resolve that before leaving it.");
       }
     })();
   };

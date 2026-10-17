@@ -9,7 +9,7 @@ import { contentHashSchema } from "./vault/vault-schema";
 
 // not BAD_REQUEST (an input schema's refusal): the filesystem's, decided after the value parsed
 export const INVALID_PATH = {
-  message: "That path is not one this vault can address",
+  message: "That path is not one this library can address",
 } as const;
 
 // the classes a VaultServiceError maps to (vault-refusals.ts is typed against these keys); an

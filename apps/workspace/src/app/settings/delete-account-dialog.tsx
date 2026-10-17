@@ -15,7 +15,7 @@ import { useId, useState } from "react";
 import { LabelledField } from "../labelled-field";
 
 const DELETED = [
-  "The online copy of your notes",
+  "Your online library",
   "Your synced conversations with the agent",
   "The sign-in on every device, this Mac included",
 ] as const;

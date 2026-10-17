@@ -20,7 +20,7 @@ const ATTACHMENT_BYTES = 768 * 1024;
 const FIRST_PATH = "notes/first.md";
 const LATER_PATH = "notes/later.md";
 
-const FULL_MESSAGE = "Your cloud vault is full. New changes stay on this Mac.";
+const FULL_MESSAGE = "Your online library is full. New saves stay on this Mac.";
 
 export const hostedVaultFull: Scenario = {
   description:

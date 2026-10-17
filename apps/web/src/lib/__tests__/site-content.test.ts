@@ -25,6 +25,18 @@ describe("the site's markdown", () => {
     expect(markdown.length).toBeGreaterThan(MIN_CHARS);
   });
 
+  // the pages a person reads say library and item, never the engine's words (AGENTS.md)
+  it.each([
+    ["home", homeMarkdown],
+    ["about", aboutMarkdown],
+    ["contact", contactMarkdown],
+  ])("%s says neither vault nor an engine word", (_page, markdown) => {
+    const prose = markdown.replaceAll(/\]\([^)]*\)/gu, "]");
+    expect(prose).not.toMatch(/\bvaults?\b/iu);
+    expect(prose).not.toMatch(/\b(?:git|commits?|remotes?|repos?|repository|terminal)\b/iu);
+    expect(prose).not.toMatch(/\b(?:CLI|PATH|MCP)\b/u);
+  });
+
   it("gives the contact email", () => {
     expect(contactMarkdown).toContain(siteConfig.contact.email);
   });

@@ -278,7 +278,7 @@ export const ConnectorsSection = () => {
   const remove = (name: string): void => {
     void (async () => {
       const confirmed = await confirm({
-        body: `${agentName} stops using it from the next action, in every vault.`,
+        body: `${agentName} stops using it from the next action, in every library.`,
         confirmLabel: "Remove",
         destructive: true,
         title: `Remove ${name}?`,
@@ -397,8 +397,8 @@ export const ConnectorsSection = () => {
     <section className="space-y-2">
       <SectionHeading>Connectors</SectionHeading>
       <p className="text-body text-muted-foreground">
-        Apps and services {agentName} can use while it works on your notes. They belong to{" "}
-        {agentName} on this Mac, so every vault shares them, and a change reaches the next action.
+        Apps and services {agentName} can use while it works on your library. They belong to{" "}
+        {agentName} on this Mac, so every library shares them, and a change reaches the next action.
       </p>
 
       {list()}

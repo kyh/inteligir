@@ -33,11 +33,11 @@ const AnnotationGutterBlock = (props: PlateElementProps) => {
   return (
     <div className="relative">
       {noted.length === 0 ? null : (
-        <Tooltip content="Notes on this block">
+        <Tooltip content="Highlights on this block">
           <button
             type="button"
             contentEditable={false}
-            aria-label="Notes on this block"
+            aria-label="Highlights on this block"
             onMouseDown={(event) => {
               event.preventDefault();
             }}

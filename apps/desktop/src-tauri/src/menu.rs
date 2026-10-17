@@ -49,14 +49,14 @@ fn app_menu(app: &AppHandle, vault_open: bool) -> tauri::Result<Submenu<Wry>> {
 
 fn file_menu(app: &AppHandle, switchable: bool, recent: &[String]) -> tauri::Result<Submenu<Wry>> {
     let mut recent_menu =
-        SubmenuBuilder::new(app, "Open Recent Vault").enabled(switchable && !recent.is_empty());
+        SubmenuBuilder::new(app, "Open Recent Library").enabled(switchable && !recent.is_empty());
     for path in recent {
         let name = crate::vaults::vault_ref(path).name;
         recent_menu = recent_menu.text(format!("{RECENT_PREFIX}{path}"), name);
     }
     SubmenuBuilder::new(app, "File")
         .item(
-            &MenuItemBuilder::with_id(OPEN_VAULT, "Open Vault…")
+            &MenuItemBuilder::with_id(OPEN_VAULT, "Open Library…")
                 .enabled(switchable)
                 .accelerator("CmdOrCtrl+O")
                 .build(app)?,
@@ -128,7 +128,7 @@ pub fn rebuild(app: &AppHandle) {
 fn switch_from_menu(app: &AppHandle, vault_dir: &str, confirm: bool) {
     match shell::switch_vault(app, vault_dir, confirm) {
         Outcome::Done | Outcome::Reported(_) => {}
-        Outcome::Refused(reason) => dialogs::error(app, "Could not open the vault", &reason),
+        Outcome::Refused(reason) => dialogs::error(app, "Could not open the library", &reason),
     }
 }
 

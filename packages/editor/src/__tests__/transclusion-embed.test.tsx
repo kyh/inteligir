@@ -65,7 +65,7 @@ describe("an embedded note's voids", () => {
     expect(pill.getAttribute("title")).toBe("2+2");
     expect(await screen.findByText("Missing image: ../assets/shot.png")).toBeTruthy();
     expect(document.querySelector("hr")).not.toBeNull();
-    expect(await screen.findByText("Open the note to see this block.")).toBeTruthy();
+    expect(await screen.findByText("Open it to see this block.")).toBeTruthy();
   });
 
   it("resolve an image's url from the embedded note, not the open one", async () => {

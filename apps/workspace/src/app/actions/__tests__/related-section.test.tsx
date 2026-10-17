@@ -62,7 +62,7 @@ describe("the unfolded list", () => {
       />,
     );
     expect(
-      screen.getByText("Nothing links here or shares this note's links, tags or words."),
+      screen.getByText("Nothing links here or shares this item's links, tags or words."),
     ).toBeTruthy();
   });
 

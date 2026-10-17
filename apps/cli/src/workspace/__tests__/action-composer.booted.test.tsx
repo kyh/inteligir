@@ -288,7 +288,7 @@ describe("the composer's @-mentions", () => {
     expect(field.getAttribute("aria-expanded")).toBe("false");
     fireEvent.change(field, { target: { value: "@Pla" } });
     const option = await screen.findByRole("option", { name: /Plans/u });
-    const list = screen.getByRole("listbox", { name: "Mention a note" });
+    const list = screen.getByRole("listbox", { name: "Mention an item" });
     expect(field.getAttribute("aria-expanded")).toBe("true");
     expect(field.getAttribute("aria-controls")).toBe(list.id);
     expect(field.getAttribute("aria-activedescendant")).toBe(option.id);

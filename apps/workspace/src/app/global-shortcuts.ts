@@ -40,7 +40,7 @@ export const GLOBAL_SHORTCUTS: readonly GlobalShortcut[] = [
   { action: "open-action-composer", key: "k", label: "Ask the agent" },
   { action: "open-palette", key: "p", label: "Command palette" },
   { action: "open-headings", key: "o", label: "Go to heading", shift: true },
-  { action: "find-in-note", key: "f", label: "Find in note" },
+  { action: "find-in-note", key: "f", label: "Find…" },
   { action: "toggle-zen", key: "\\", label: "Zen mode" },
   { action: "open-settings", key: ",", label: "Settings" },
   // bare: ⌘[ and ⌘] are the browser's history keys

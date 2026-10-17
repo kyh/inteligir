@@ -61,7 +61,7 @@ const ABSENT: FileSide = { kind: "absent" };
 
 // no resend settles these: the vault would refuse the same change the same way
 const PARKED_REASONS: ReadonlyMap<VaultConflictReason, string> = new Map([
-  ["blocked", "Something else in your vault already has this name."],
+  ["blocked", "Something else in your library already has this name."],
   ["case-collision", "Another note has this name in different capitals."],
   ["unwritable", "This file cannot be changed from your phone."],
 ]);
@@ -526,7 +526,7 @@ export const resolveConflict = async (
       return await reconcileAnnotation(row, op, conflict, ctx);
     }
     case "putAsset": {
-      return parked("A file with this name is already in your vault.");
+      return parked("A file with this name is already in your library.");
     }
     // no default
   }

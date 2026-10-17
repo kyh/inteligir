@@ -27,7 +27,7 @@ export const TagChipLeaf = (props: PlateLeafProps) => {
             getEditorHostActions().agent.showTag(tag);
           }
         },
-        title: `Show notes tagged #${tag}`,
+        title: `Show items tagged #${tag}`,
       }}
     />
   );

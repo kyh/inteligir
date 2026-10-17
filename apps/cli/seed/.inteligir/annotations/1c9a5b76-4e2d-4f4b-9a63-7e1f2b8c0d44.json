@@ -1,16 +1,16 @@
 {
-  "seed-open-thread": {
-    "text": "A comment: reply to it, or delete it, from the Comments tab.",
-    "quote": "sentence carries a comment thread",
-    "createdAt": 1787788800,
-    "updatedAt": 1787788800,
+  "seed-user-highlight": {
+    "text": "A highlight with a note: reply to it, or remove it, from the Annotations tab.",
+    "quote": "sentence carries a highlight with a note",
+    "createdAt": 1792238160,
+    "updatedAt": 1792238160,
     "source": "user"
   },
-  "seed-agent-thread": {
-    "text": "The agent's comments are labelled as its own.",
+  "seed-agent-highlight": {
+    "text": "The agent's highlights are labelled as its own.",
     "quote": "one carries the agent's",
-    "createdAt": 1787788800,
-    "updatedAt": 1787788800,
+    "createdAt": 1792238160,
+    "updatedAt": 1792238160,
     "source": "agent"
   }
 }

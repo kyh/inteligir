@@ -35,7 +35,7 @@ describe("the delete-account dialog", () => {
   it("names what goes and what stays on this Mac", async () => {
     renderDialog();
     expect(await screen.findByText("Delete your account?")).toBeDefined();
-    expect(screen.getByText("The online copy of your notes")).toBeDefined();
+    expect(screen.getByText("Your online library")).toBeDefined();
     expect(screen.getByText("Your synced conversations with the agent")).toBeDefined();
     expect(screen.getByText(/every device, this Mac included/u)).toBeDefined();
     expect(screen.getByText("Your notes on this Mac and their history stay here.")).toBeDefined();

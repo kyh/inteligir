@@ -125,7 +125,7 @@ describe("where the vault syncs", () => {
     expect(saveButton().disabled).toBe(true);
 
     fireEvent.click(screen.getByRole("radio", { name: "Your own git server" }));
-    expect(screen.getByText(/stop seeing this vault's notes/u)).toBeDefined();
+    expect(screen.getByText(/stop seeing this library/u)).toBeDefined();
     const field = screen.getByRole("textbox", { name: "Git server URL" });
     for (const refused of ["--upload-pack=x", "ext::sh", "/plain/local/path"]) {
       fireEvent.change(field, { target: { value: refused } });
@@ -152,7 +152,7 @@ describe("where the vault syncs", () => {
   it("says the hosted vault stays off in a folder another service syncs", () => {
     renderRemote({ ...SIGNED_OUT, externalSync: { kind: "dropbox" } });
     expect(
-      screen.getByText("Dropbox syncs this folder, so the hosted vault stays off here."),
+      screen.getByText("Dropbox syncs this folder, so the online library stays off here."),
     ).toBeDefined();
   });
 });

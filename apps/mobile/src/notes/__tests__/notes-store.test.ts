@@ -110,7 +110,7 @@ describe("the notes store", () => {
 
   it("reads 'no hosted vault' as the empty STATE, not an error", async () => {
     const { signIn, store } = notesOver(async () =>
-      refusedAs("not-found", "This account has no hosted vault yet."),
+      refusedAs("not-found", "This account has no online library yet."),
     );
     signIn(CREDENTIAL, "restored");
     await store.refresh();

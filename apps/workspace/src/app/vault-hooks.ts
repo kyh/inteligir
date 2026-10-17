@@ -106,11 +106,11 @@ export const syncStateLabel = (status: VaultStatusResponse): string => {
     }
     case "full": {
       return status.remoteSource === "account"
-        ? "Cloud vault full — notes stay on this Mac"
+        ? "Online library full — new saves stay on this Mac"
         : SYNC_PAUSED;
     }
     case "account-mismatch": {
-      return "This vault belongs to a different account";
+      return "This library belongs to a different account";
     }
     case "rejected":
     case "detached":
@@ -207,7 +207,7 @@ export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null
   switch (status.state) {
     case "no-remote": {
       return status.externalSync === null
-        ? { message: "Sign in to sync your notes across devices.", tone: "info" }
+        ? { message: "Sign in to sync your library across devices.", tone: "info" }
         : {
             message: `${externalSyncName(status.externalSync)} syncs this folder, so Inteligir leaves its sync to it.`,
             tone: "info",
@@ -242,8 +242,8 @@ export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null
       return {
         message:
           status.remoteSource === "account"
-            ? "Your vault is larger than your account can sync."
-            : `Your vault is too large for your sync server. ${DETAILS_IN_ADVANCED}`,
+            ? "Your library is larger than your account can sync."
+            : `Your library is too large for your sync server. ${DETAILS_IN_ADVANCED}`,
         tone: "error",
       };
     }
@@ -251,7 +251,7 @@ export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null
       return {
         message:
           status.remoteSource === "account"
-            ? "Your cloud vault is full. New changes stay on this Mac."
+            ? "Your online library is full. New saves stay on this Mac."
             : `Your sync server is out of space. ${DETAILS_IN_ADVANCED}`,
         tone: "error",
       };
@@ -259,7 +259,7 @@ export const syncStateNote = (status: VaultStatusResponse): SyncStateNote | null
     case "account-mismatch": {
       return {
         message:
-          "This vault last synced with a different account — sign out, or move the vault aside.",
+          "This library last synced with a different account — sign out, or move the library aside.",
         tone: "warning",
       };
     }

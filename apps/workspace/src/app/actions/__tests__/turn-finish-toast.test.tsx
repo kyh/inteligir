@@ -94,7 +94,7 @@ describe("which finished turn a commit frame announces", () => {
       { notePaths: ["Plans.md"], threadId: "thr_1", turnId: "turn_1" },
       { notePaths: ["Plans.md", "Ideas.md", "Inbox.md"], threadId: "thr_1", turnId: "turn_2" },
     ]);
-    expect(messages(thread.announced)).toEqual(["Agent edited 1 note", "Agent edited 3 notes"]);
+    expect(messages(thread.announced)).toEqual(["Agent edited 1 item", "Agent edited 3 items"]);
   });
 
   it("announces a turn that changed only what the user did not write, or nothing, not at all", async () => {
@@ -231,13 +231,13 @@ describe("the finish toast", () => {
     turns = [applied("turn_1", ["Plans.md", "Ideas.md", "Inbox.md"])];
     ScriptedSocket.deliverToAll(COMMITTED);
 
-    expect(await screen.findByText("Agent edited 3 notes")).toBeDefined();
+    expect(await screen.findByText("Agent edited 3 items")).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
 
     const request: UndoTurnRequest = { threadId: "thr_1", turnId: "turn_1" };
     expect(
       await screen.findByText(
-        "Undid the agent's changes to 1 note. Left Plans.md as it is: edited since.",
+        "Undid the agent's changes to 1 item. Left Plans.md as it is: edited since.",
       ),
     ).toBeDefined();
     expect(undoCalls).toEqual([request]);

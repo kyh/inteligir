@@ -127,7 +127,7 @@ describe("Settings over the workspace", () => {
     const { router } = await bootAt(createMemoryHistory({ initialEntries: ["/?item=alpha.md"] }));
     await screen.findByRole("heading", { name: "Alpha" });
     fireEvent.keyDown(window, chord("f"));
-    await screen.findByPlaceholderText("Find in note");
+    await screen.findByPlaceholderText("Find…");
     fireEvent.keyDown(window, chord("k"));
     const composer = await screen.findByLabelText("Ask the agent");
     fireEvent.change(composer, { target: { value: "half a thought" } });
@@ -136,7 +136,7 @@ describe("Settings over the workspace", () => {
     await screen.findByRole("heading", { name: "Settings" });
     expect(router.state.location.search).toEqual({ item: "alpha.md" });
     expect(composer.closest("[inert]")).not.toBeNull();
-    expect(screen.queryByPlaceholderText("Find in note")).toBeNull();
+    expect(screen.queryByPlaceholderText("Find…")).toBeNull();
 
     fireEvent.keyDown(window, chord("p"));
     fireEvent.keyDown(document.body, { key: "[" });

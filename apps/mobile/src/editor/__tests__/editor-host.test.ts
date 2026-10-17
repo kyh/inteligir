@@ -236,7 +236,7 @@ describe("the native end of the editor page's bridge", () => {
     const { fromPage, load, responses } = hostOver({
       ports: {
         read: async () => {
-          throw new Error("This is not a note on this phone.");
+          throw new Error("This is not an item on this phone.");
         },
       },
     });
@@ -244,7 +244,7 @@ describe("the native end of the editor page's bridge", () => {
     fromPage({ id: 7, kind: "read", nonce, payload: { path: "a.md" }, type: "request" });
     await nextTask();
     expect(responses()).toStrictEqual([
-      { error: "This is not a note on this phone.", id: 7, nonce, ok: false, type: "response" },
+      { error: "This is not an item on this phone.", id: 7, nonce, ok: false, type: "response" },
     ]);
   });
 

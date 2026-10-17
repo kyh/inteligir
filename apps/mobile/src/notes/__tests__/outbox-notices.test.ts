@@ -37,10 +37,10 @@ describe("what the notes screens show of the phone's unsent edits", () => {
     const notices = outboxNotices(store.outbox.status.get());
     expect(notices).toMatchObject([
       {
-        discard: "It has not reached your vault, and discarding deletes it.",
+        discard: "It has not reached your library, and discarding deletes it.",
         kind: "parked",
-        reason: "This is too large to save to your vault from your phone.",
-        title: "Plan is not in your vault yet",
+        reason: "This is too large to save to your library from your phone.",
+        title: "Plan is not in your library yet",
       },
       {
         kind: "conflict",
@@ -77,7 +77,7 @@ describe("what the notes screens show of the phone's unsent edits", () => {
         { canSaveAsNew: false, kind: "annotation", paths: [STORE], reason: "no", seq: 5 },
       ]),
     );
-    expect(notice).toMatchObject({ title: "An annotation is not in your vault yet" });
+    expect(notice).toMatchObject({ title: "An annotation is not in your library yet" });
   });
 
   it("says what a refused delete, rename and new annotation leave, and what discarding each keeps", () => {
@@ -117,20 +117,20 @@ describe("what the notes screens show of the phone's unsent edits", () => {
     );
     expect(notices).toMatchObject([
       {
-        discard: "It has not reached your vault. Discarding keeps the note.",
-        title: "Plan was not deleted from your vault",
+        discard: "It has not reached your library. Discarding keeps the item.",
+        title: "Plan was not deleted from your library",
       },
       {
-        discard: "It has not reached your vault. Discarding keeps its old name, Plan.",
+        discard: "It has not reached your library. Discarding keeps its old name, Plan.",
         title: "Plan was not renamed to Trip",
       },
       {
-        discard: "It has not reached your vault, and discarding deletes it.",
-        title: "An annotation on Plan is not in your vault yet",
+        discard: "It has not reached your library, and discarding deletes it.",
+        title: "An annotation on Plan is not in your library yet",
       },
       {
-        discard: "It has not reached your vault, and discarding deletes it.",
-        title: "photo.jpg is not in your vault yet",
+        discard: "It has not reached your library, and discarding deletes it.",
+        title: "photo.jpg is not in your library yet",
       },
     ]);
   });

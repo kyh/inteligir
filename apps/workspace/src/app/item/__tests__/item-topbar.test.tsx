@@ -130,7 +130,7 @@ describe("a viewer's bar", () => {
   it("turns off what needs the editor, and offers Edit as note", async () => {
     const onEditAsNote = vi.fn<() => void>();
     mount({ editable: false, onEditAsNote, path: "assets/Lecture.md" });
-    expect(screen.getByRole("button", { name: "Find in note" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Find" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("button", { name: "Annotations" })).toHaveProperty("disabled", true);
     fireEvent.click(screen.getByLabelText("More"));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Edit as note" }));

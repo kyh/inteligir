@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
-import { modChord } from "../harness/agent-browser";
+import { modChord, parseEval } from "../harness/agent-browser";
 import type { AgentBrowser } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import { exec, hermeticProcessEnv } from "../harness/exec";
@@ -122,6 +122,15 @@ export const browserSmoke: Scenario = {
     ctx.log(`opening ${app.baseUrl}/: the SPA mounts on the library, and its Welcome card opens`);
     await agentBrowser.openWorkspace(app);
     await agentBrowser(["wait", libraryCard("Welcome.md")], MOUNT_DEADLINE_MS);
+    ctx.log("the starter library's pinned Welcome leads the grid");
+    const first = parseEval(
+      await agentBrowser([
+        "eval",
+        `document.querySelector('[role="gridcell"]')?.getAttribute("data-item-path") ?? ""`,
+      ]),
+      z.string(),
+    );
+    expect(first === "Welcome.md", `the grid's first card is ${JSON.stringify(first)}`);
     await agentBrowser(["dblclick", libraryCard("Welcome.md")]);
     await agentBrowser(["wait", EDITOR], MOUNT_DEADLINE_MS);
 

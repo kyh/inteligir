@@ -547,7 +547,7 @@ describe("a starter vault meeting a remote with history", () => {
       const { results } = knowledgeSearchResponseSchema.parse(await client.knowledge.search({ q }));
       return results.map((result) => result.path).toSorted();
     };
-    expect(await paths("door")).toEqual(["Kitchen Sink.md", "Welcome.md"]);
+    expect(await paths("door")).toEqual(["Guides/Kitchen Sink.md", "Welcome.md"]);
     expect(await paths("quokka")).toEqual([]);
 
     signedIn = true;

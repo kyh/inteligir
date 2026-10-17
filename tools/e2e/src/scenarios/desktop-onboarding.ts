@@ -52,8 +52,8 @@ export const desktopOnboarding: Scenario = {
     // the session opens once the window exists, which can be before React has drawn it
     await page.clickButton("Get started", STEP_DEADLINE_MS);
     // the vault step draws after the click, and a click before it lands on nothing
-    await page.waitForText("Where should your notes live?", STEP_DEADLINE_MS);
-    await page.clickButton("Create vault", STEP_DEADLINE_MS);
+    await page.waitForText("Where should your library live?", STEP_DEADLINE_MS);
+    await page.clickButton("Create library", STEP_DEADLINE_MS);
 
     ctx.log("Create with the defaults boots the default vault and opens the app on /welcome");
     await pollUntil(

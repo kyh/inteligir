@@ -152,6 +152,11 @@ const importsIntoFolders = async (
 ): Promise<void> => {
   const backup = path.join(ctx.scratchDir, "raindrop-backup.csv");
   await writeFile(backup, BACKUP, "utf-8");
+  // the starter library's own links, which every link listing below also holds
+  const starterLinks = await itemsIn(cli, "--kind", "link");
+  const starters = new Set(starterLinks.map((item) => item.path));
+  const imported = (items: readonly ItemRowWire[]): ItemRowWire[] =>
+    items.filter((item) => !starters.has(item.path));
 
   ctx.log("the plan: three links, one folded into another, and the bin left out");
   const plan = importsPlanResponseSchema.parse(
@@ -166,7 +171,7 @@ const importsIntoFolders = async (
   const job = await importJob(cli, backup);
   expectEq(job.state, "done", "the job's end");
   expectEq(job.added, 3, "items added");
-  const items = await itemsIn(cli, "--kind", "link");
+  const items = imported(await itemsIn(cli, "--kind", "link"));
   expectEq(
     items
       .map((item) => item.path)
@@ -232,7 +237,7 @@ const importsIntoFolders = async (
   const again = await importJob(cli, backup);
   expectEq(again.added, 0, "items the re-import added");
   expectEq(again.alreadySaved, 3, "items it found saved");
-  const after = await itemsIn(cli, "--kind", "link");
+  const after = imported(await itemsIn(cli, "--kind", "link"));
   expectEq(after.length, 3, "items after the re-import");
   expectEq(await importCommits(app.vaultDir), 1, "commits after the re-import");
 };

@@ -38,10 +38,10 @@ describe("a vault switch's answer", () => {
     mockShell(
       reply(APP_COMMANDS.vaults.open)(() => ({
         ok: false,
-        reason: "That vault is not one the app remembers.",
+        reason: "That library is not one the app remembers.",
       })),
     );
-    expect(await openThroughSwitch()).toEqual(["That vault is not one the app remembers."]);
+    expect(await openThroughSwitch()).toEqual(["That library is not one the app remembers."]);
   });
 
   it("shows nothing when nothing was refused", async () => {
@@ -52,12 +52,12 @@ describe("a vault switch's answer", () => {
   it("words a command the shell refuses itself rather than passing on its details", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     mockShell();
-    expect(await openThroughSwitch()).toEqual(["Could not open that vault."]);
+    expect(await openThroughSwitch()).toEqual(["Could not open that library."]);
   });
 
   it("words an answer its row does not parse as a fault", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     mockShell({ answer: () => ({ ok: "maybe" }), command: APP_COMMANDS.vaults.open.command });
-    expect(await openThroughSwitch()).toEqual(["Could not open that vault."]);
+    expect(await openThroughSwitch()).toEqual(["Could not open that library."]);
   });
 });

@@ -203,11 +203,14 @@ surface.
   `## Unreleased`, in the words of someone who takes notes, saying what to do
   about a behaviour that changed or went away; a release's notes are that
   section. A command-line change goes under `### On the command line`.
-- **Product surfaces speak the user's words.** The window, the phone,
-  onboarding, the seed notes, the site and the changelog (outside its
-  `### On the command line` heading) never say git, commit, remote, repo,
-  terminal, CLI, PATH or MCP. Settings › Advanced, the CLI, the agent manual
-  and code keep their words.
+- **Product surfaces speak the user's words.** The window, the phone, the
+  browser extension, onboarding, the starter library, the site and the
+  changelog (outside its `### On the command line` heading) never say git,
+  commit, remote, repo, terminal, CLI, PATH or MCP, and call the folder the
+  library and what is in it items; `vault` stays code's and the CLI's word, and
+  "note" stays the name of what the person writes. Settings › Advanced, the
+  CLI, the agent manual and code keep their words
+  (`tools/repo-guards/src/product-words.test.ts`).
 - **No `any`, no non-null `!`, no type assertions** (lint-enforced, no escape
   comment; `as const` and `satisfies` are fine): parse at the boundary or
   narrow with a guard. Kebab-case filenames. Make illegal states

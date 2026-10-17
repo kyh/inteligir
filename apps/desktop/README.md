@@ -71,7 +71,7 @@ folder the shell handed out, plans the choice as a boot would, writes the
 selector unless the choice is the default vault, boots, and opens the app
 window at `/welcome` before closing the first run's; a boot that fails stops
 what it started, removes the selector it wrote, and answers the page why. A
-picked switch (File › Open Vault…, Settings) asks first when another service
+picked switch (File › Open Library…, Settings) asks first when another service
 syncs the folder, in the first run's words (`outsideSyncWarning` in
 `@repo/contract/local/vault/vault-folder`).
 

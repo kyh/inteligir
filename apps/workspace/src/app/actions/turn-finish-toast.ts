@@ -153,7 +153,7 @@ export const createTurnFinishWatch = (ports: TurnFinishPorts): TurnFinishWatch =
 };
 
 export const turnFinishMessage = (noteCount: number): string =>
-  `Agent edited ${plural(noteCount, "note")}`;
+  `Agent edited ${plural(noteCount, "item")}`;
 
 const showTurnFinishToast = (
   finished: FinishedTurn,

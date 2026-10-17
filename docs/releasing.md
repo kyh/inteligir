@@ -11,10 +11,13 @@ outright.
 | `inteligir` on npm | `npx inteligir serve --open`                                    | `pnpm --filter inteligir publish`                                      |
 | The Mac app        | the site's Download button, and every installed app's updater   | a GitHub release carrying the dmg, the signed update and `latest.json` |
 | The iPhone app     | TestFlight: the internal `Owner` group, then the `Cohort` group | `pnpm testflight:mobile` (EAS Build, submitted to App Store Connect)   |
+| The extension      | the Chrome Web Store, for Chrome, Arc, Brave, Edge and Vivaldi  | `pnpm package:extension`, uploaded to the store item                   |
 
-The three manifests carry one version (`apps/cli`, `apps/desktop`,
+The three app manifests carry one version (`apps/cli`, `apps/desktop`,
 `apps/mobile`; `tools/repo-guards/src/release-versions.test.ts` refuses a
-split), and a release's notes are `CHANGELOG.md`'s top section
+split), while the extension keeps its own (`apps/extension/package.json`),
+since it ships on the Web Store's cadence and speaks the app only through the
+versioned `/browser` wire, and a release's notes are `CHANGELOG.md`'s top section
 (`tools/repo-guards/src/changelog.test.ts`).
 
 The Worker is not one of them: `.github/workflows/deploy.yml` deploys it after
@@ -62,6 +65,29 @@ The owner publishes once, when every step and every check below has passed.
   `pnpm --filter @repo/mobile exec eas config --platform ios` shows the bundle
   identifier `com.inteligir.mobile`.
 
+## Once per product: the extension's store item
+
+The committed extension key (`EXTENSION_PUBLIC_KEY` in
+`packages/contract/src/browser/extension-identity.ts`) is one this repo
+generated and threw the private half of away, so the dev build and the unpacked
+store build have a stable id before any listing. The Web Store signs the real
+item with a key of its own, and the id every installed app's native-messaging
+manifests allow must be that item's. Once:
+
+1. A Chrome Web Store developer account (the one-time registration fee) on the
+   owner's Google account.
+2. `pnpm package:extension`, then upload
+   `apps/extension/.output/inteligir-extension-<version>.zip` as a new item and
+   save it as a draft, unpublished.
+3. In the draft's Package tab, View public key: paste the key's base64 body
+   into `EXTENSION_PUBLIC_KEY`. `pnpm --filter @repo/contract test` then fails
+   naming the id Chrome derives from it; set `EXTENSION_ID` to that, which is
+   the draft's id on its dashboard too.
+4. Commit both, and release the app from that commit: the app writes
+   `allowed_origins` from `EXTENSION_ID` at every launch
+   (`apps/cli/src/desktop/native-hosts.ts`), so an app built before the swap
+   refuses the store's extension. Every later upload is § 6's.
+
 ## 1. Version and changelog
 
 On main, clean, at the commit to ship:
@@ -79,12 +105,22 @@ On main, clean, at the commit to ship:
    version, so a change that retires a `/cloud` shape those checkouts read
    cannot raise the floor past them, and the comment names the shape this
    release retires.
+4. When `apps/extension` changed since its last upload, raise `version` in
+   `apps/extension/package.json`: the store refuses an upload whose version it
+   already holds.
 
 ## 2. Gates
 
 ```sh
-pnpm format:fix && pnpm verify && pnpm e2e && pnpm smoke:cli && pnpm smoke:desktop
+pnpm format:fix && pnpm verify && pnpm e2e && pnpm smoke:cli && pnpm smoke:desktop && pnpm package:extension
 ```
+
+Four scenarios serve real pages from the machine's own private address
+(`link-capture`, `library-integrated`, `import-integrated`,
+`phone-fill-integrated`), and skip with "no usable LAN address" on a machine
+that has none, as an agent's sandbox does. CI's runner has one and runs them
+under `--no-skip`, so they are proven by the release commit's green CI below,
+whatever a local run skipped.
 
 `smoke:desktop` packages the app, signs it, notarizes it with `.release/` and
 boots it; quit any running Inteligir first, since the packaged app would hand
@@ -145,9 +181,10 @@ Every check here needs a real device, a real account or a credential no CI
 holds. Run them on the release's own artifacts: the Mac app
 `pnpm smoke:desktop` left at
 `apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app` (signed and
-notarized; drag it to `/Applications` and open it from Finder), and the iPhone build from the
-`Owner` group, except where a check names the simulator or a development
-build. A failing check stops the release: fix it, and start again at step 1.
+notarized; drag it to `/Applications` and open it from Finder), the extension
+`pnpm package:extension` left at `apps/extension/.output/unpacked`, and the
+iPhone build from the `Owner` group, except where a check names the simulator
+or a development build. A failing check stops the release: fix it, and start again at step 1.
 
 A change whose proof needs a device, an account or a credential adds its check
 here, under its surface, with how to run it and what passing looks like.
@@ -207,20 +244,139 @@ app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
   then type. Passing: the words land once, at the caret; typing carries on
   after them; Enter while dictation is live does not send; the Edit menu shows
   Start Dictation…; and dictating into a note behaves the same.
-- **An earlier install's database starts over once.** With 0.6.0 installed,
-  signed in and holding an action that has synced, install this build over it
-  and open it from Finder. Passing: the app opens signed out with no actions,
-  `~/.inteligir/logs/server.log` has the `[db]` line saying the database was
-  replaced, and once you sign in again in Settings › Account the action comes
-  back, with the Mac's earlier sign-in listed beside its new one.
+- **An earlier install's database starts over once.** With the previous
+  release installed, signed in and holding an action that has synced, install
+  this build over it and open it from Finder. Passing: the app opens signed out
+  with no actions, `~/.inteligir/logs/server.log` has the `[db]` line saying the
+  database was replaced, and once you sign in again in Settings › Account the
+  action comes back, with the Mac's earlier sign-in listed beside its new one.
+- **An earlier library opens as it is.** The same install, over a library the
+  previous release kept, with a few notes and a comment. Passing: the window
+  opens on the grid with every note a card and nothing rewritten on disk
+  (`git -C <library> status` is clean), and the commented passage shows a
+  dotted underline.
+- **Covers.** Save a link to a long article. Passing: its cover under
+  `assets/covers/` is a JPEG at most 640 px wide (`sips -g pixelWidth`), and a
+  page whose picture is a PNG with transparency keeps a PNG. The grid's cards
+  draw their pictures from `/vault/thumb` (Web Inspector's network panel), they
+  scroll smoothly at 5,000 items, and the data folder's `thumbs/` stays under
+  256 MB.
+- **Real sites.** Save a YouTube video, an X post, a Spotify track, a paywalled
+  article, a Wikipedia page and a long article. Passing: each fills in with its
+  title, site, cover and text, and opens rich rather than Raw.
+- **Networks.** Passing, each:
+  - Behind a TLS-inspecting proxy whose root is only in the Keychain, saving a
+    link still fills it in.
+  - A page on your home network (a NAS or the router's own page) fills in when
+    its own address is the link you saved.
+  - A public test page that redirects to the router's address, and one whose
+    `og:image` names a `192.168.x.x` address, save with the page's text, the
+    first saying the page pointed at an address on your own network, and a
+    network monitor on the router or the Mac shows no request reaching the
+    router.
+  - `http://localhost:3000` is kept as a link with the sentence saying an
+    address on this Mac isn't read.
+- **Restart.** Quit while a save is filling in, and open the app again.
+  Passing: the item fills in. Paste 20 links at once. Passing: all fill in, and
+  the ones still named by their address take their pages' titles; one opened
+  while it was still filling in stays open through its rename and shows its
+  article.
+- **Keep a copy of the page.** On a saved link. Passing: the copy opens in the
+  item's view, and Web Inspector shows its frame makes no request.
+- **PDF.** A PDF item. Passing: it opens full size in WebKit's own viewer (the
+  asset route answers it with no sandbox), with zoom and text selection, and
+  Open in Preview works.
+- **Media.** An `.mp4`, a `.mov` and an `.m4a` item. Passing: each plays,
+  seeks and scrubs in the item's view, which means AVFoundation's `bytes=0-1`
+  probe was answered 206 and the media token rode its range requests. Web
+  Inspector's network panel shows whether those requests carried
+  `Sec-Fetch-Site`; either way they are answered. A `curl` of the same asset
+  URL with the `m` token and no cookie answers 401.
+- **Big files.** Passing: a 50 MB file dropped in Finder shows "Only on this
+  Mac" in Info, and sync stays green; twenty 8 MB PDFs reach the online library
+  in several pushes; a synced 9 MB file grown past 10 MB on one Mac shows in
+  Deleted on a second Mac and on the iPhone, and restores there as its 9 MB
+  version.
+- **Paste and drop.** Passing, each:
+  - With a card selected and no field focused, ⌘V of a copied link saves it
+    (the paste catcher), and the focus returns to the card; ⌘V of a screenshot
+    saves a picture.
+  - ⌘V inside a note still pastes into the note.
+  - A link dragged from Safari, Chrome and Arc onto the window saves, and so
+    does a file dragged from Finder onto the grid and onto a folder row.
+  - A card dragged onto a folder in the sidebar moves, never saves.
+- **Highlights.** In an item, select a passage and press ⌘⇧H. Passing: it
+  highlights at once and the note box opens under it, in the app's window as
+  in a browser.
+- **VoiceOver** reads the grid: its cells, and which are selected. Escape from
+  an open item returns to the library.
+- **A real Raindrop export.** Settings › Library › Import from Raindrop… with
+  the owner's own CSV backup (Raindrop's Settings › Backups), from an account
+  with nested collections, tags, favourites and highlight notes. Passing: the
+  file chooser opens, the summary's counts match Raindrop's, Import fills the
+  library with the sidebar's progress row counting up, each highlight lands on
+  its passage once its page fills (the synthetic fixture's reading of the
+  highlights cell, notes and colours, is what this proves), and dead links
+  keep theirs under `## Highlights`. A 5,000-link import keeps the window
+  responsive and sync green. The scrubbed export then replaces the synthetic
+  fixture in `apps/cli/src/server/imports/__tests__`.
+- **Tidy my library**, with Claude and then with ChatGPT, over a new library.
+  Passing: the four Unsorted examples are filed and tagged as the starter
+  `AGENTS.md` says, and Undo changes puts them back. With three items selected,
+  "Summarize these into a note" writes one note naming them.
+- **Scale.** On a generated library of 20,000 to 50,000 items, relaunch.
+  Passing: the grid's first paint is under about 2 s, and the boot line in
+  `server.log` reports the reads it skipped by fingerprint. A library in iCloud
+  Drive with Optimize Mac Storage on downloads no placeholder at boot.
+- **The privacy text** matches what a network monitor shows during a save:
+  the page, its cover, the oEmbed address for the sites docs/privacy.md names,
+  and nothing else.
+- **Words.** Passing: no "vault", and no "notes" meaning the whole library,
+  across the window, the File menu, the dialogs, the updater's prompt, the
+  first run and the iPhone's home screen.
+- **The browser's door.** After the app's first launch,
+  `~/.inteligir/native-host/inteligir-native-host` exists, and each installed
+  browser's `NativeMessagingHosts` folder (Arc's own and Chrome's, for Arc)
+  holds `com.inteligir.desktop.json` naming it.
+
+### The browser extension
+
+Load `apps/extension/.output/unpacked` with Developer mode on in Chrome, Arc,
+Brave and Edge, the released app installed and its first run finished.
+
+- **The id.** Passing: chrome://extensions shows `EXTENSION_ID`
+  (`packages/contract/src/browser/extension-identity.ts`), and all four
+  `NativeMessagingHosts` folders hold `com.inteligir.desktop.json`.
+- **The welcome tab** an install opens. Passing: it says the extension reached
+  the app, and names the library.
+- **Save.** The toolbar button on an article. Passing: it lands in Unsorted
+  with its title, cover and text, and a second click says it is already in
+  your library. Right-click a link, an image and a selection: each saves, the
+  selection as a highlight on the page. In the popup, Keep a copy of the page
+  adds the copy to the item.
+- **The badge.** On a chrome:// page. Passing: the toolbar badge shows "!" and
+  its tooltip says Inteligir can't save this kind of page; after a save it
+  shows "✓" for two seconds.
+- **The app closed.** Quit Inteligir and Save. Passing: the app opens behind
+  the browser and the popup says saved within 30 s. Before the app's first run
+  has finished, Save brings the app forward and says to finish setting up.
+- **No app.** On a Mac without the app. Passing: the popup offers Get
+  Inteligir for Mac.
+- **No privacy prompt.** Passing: no macOS prompt names the browser, through
+  every check above.
 
 ### The iPhone app, on the internal build
 
 On the owner's iPhone, installed from TestFlight, never a development build. An
-account whose vault holds about 2,000 notes gives the timing check its load.
+account whose library holds about 2,000 items gives the timing check its load.
+
+- **The share extension's first build.** The first `pnpm testflight:mobile`
+  (interactive) registers the App Group `group.com.inteligir.mobile` and the
+  share extension's profile. Passing: the upload passes with no ITMS-91053 for
+  the `.appex`.
 
 - **Sign in** with the account's email and password. Passing: the first
-  mirror says Loading your vault… with its count, then the notes list and the
+  mirror says Loading your library… with its count, then the library and the
   threads show. Kill the app and open it again. Passing: the splash holds
   until it knows, the sign-in form never flashes, and the phone is still
   signed in.
@@ -238,7 +394,7 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   keyboard, even after switching it with the app open; typing and then
   backgrounding and killing the app keeps what was typed.
 - **Offline.** Sync once, turn on airplane mode, kill the app and open it.
-  Passing: the notes list, any note and every thread open. Edit a note and add
+  Passing: the library, any item and every thread open. Edit a note and add
   a photo while still offline, kill the app, open it, turn airplane mode off.
   Passing: both reach the Mac.
 - **Both devices at once.** With the phone offline, change the same lines of
@@ -247,11 +403,12 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   the device it came from, such as `Plan (conflict, <device>).md`, and the
   phone's banner says how it settled, with Open.
 - **Create, rename, delete.** New note; rename a note another note links to;
-  delete a note with comments. Passing: the Mac shows the new note, the link
+  delete a note with highlights. Passing: the Mac shows the new note, the link
   rewritten to the new name, and Deleted on the Mac brings the note back with
-  its comments.
+  its highlights. Delete an image item. Passing: its picture leaves the Mac's
+  `assets/` too, and Deleted on the Mac restores both.
 - **Photos.** Add one from the camera and one from the library. Passing: each
-  lands in the vault as `assets/<name>.jpg` of about 1 MB or less, draws in
+  lands in the library as `assets/<name>.jpg` of about 1 MB or less, draws in
   its note on the Mac, and has no location: Preview's Inspector (⌘I) shows no
   GPS tab.
 - **Ask your Mac.** Ask agent from a note with the Mac app open. Passing: the
@@ -271,14 +428,28 @@ account whose vault holds about 2,000 notes gives the timing check its load.
 - **Revoke.** Sign the phone in again, then Revoke it in Settings › Account on
   the Mac. Passing: the phone's next request ends its sign-in, and the sign-in
   screen says this device was signed out.
-- **No iCloud backup of the notes.** Settings › your name › iCloud › Manage
+- **No iCloud backup of the library.** Settings › your name › iCloud › Manage
   Account Storage › Backups › this iPhone. Passing: Inteligir's backup is a
-  small fraction of the notes it holds (the mirror downloads again from the
-  hosted vault), and photos added in airplane mode do not grow it.
+  small fraction of the items it holds (the mirror downloads again from the
+  online library), and photos added in airplane mode do not grow it.
 - **A new phone signs in as itself.** Restore this iPhone's encrypted backup
   onto another iPhone and open the app. Passing: it shows the sign-in screen,
   and once signed in Settings › Account on the Mac lists it beside the first
   phone.
+- **Share a page.** From Safari, share a page to Save to Inteligir. Passing:
+  it lands in Unsorted named by the page's title, and an awake Mac fills it in
+  within about a minute of the share reaching it ("Details arrive from your
+  Mac" goes away), not after 15 minutes. From YouTube, X and Mail: the link is
+  saved. Shared offline: it is queued and lands once online. Shared signed
+  out: it waits for the sign-in. A photo does not offer Inteligir.
+- **Two Macs and a share.** With two Macs online when a phone's share lands.
+  Passing: one item and no conflict copy, and usually only one Mac fetched the
+  page (each Mac's debug log names the fills it ran). Editing the item on the
+  phone while a Mac fills it keeps the edit, and pressing Refresh on a Mac
+  while the phone adds a tag keeps both.
+- **The library.** Passing: a 2,000-item library scrolls with covers; an
+  offline launch shows placeholders for covers not yet seen; the picture and
+  PDF viewers open; and a bare highlight made on the phone shows on the Mac.
 - **An update reaches an installed build.** While the internal build is the
   only one out, `pnpm hotfix:mobile` from the release commit, then open the app
   twice. Passing: `pnpm --filter @repo/mobile exec eas update:insights <group id>`
@@ -292,6 +463,10 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   Simulator › the note's page. Passing: the note is editable, and the console
   has no `Refused to` line; the static CSP is otherwise proven in Chromium
   alone.
+- **The share address.** In the simulator, share a link from Safari to the
+  app, once with the app quit and once with it open. Passing: `+native-intent`
+  lands on the Library both times, with no Unmatched-route screen flashing
+  first.
 - **A killed page reloads.** In the simulator, quit the note's
   `com.apple.WebKit.WebContent` process in Activity Monitor. Passing: the note
   reloads with its text.
@@ -302,6 +477,15 @@ account whose vault holds about 2,000 notes gives the timing check its load.
   and after one sync, turning on airplane mode and a cold launch shows the
   threads. The first TestFlight build has no build before it, so it skips
   this.
+
+### The site
+
+- **The pitch.** Passing: `apps/web/public/og.jpg` and the Web Store listing's
+  copy read with the library's pitch (one library for everything you save),
+  and an inteligir.com link pasted into a chat app previews with it. A new
+  `og.jpg` also replaces the starter library's cover: downscale it to 640 px
+  wide and rename it by its bytes' sha-256 prefix, as
+  `apps/cli/seed/assets/covers/` and its item name it.
 
 ## 6. Publish
 
@@ -342,6 +526,16 @@ refuses a server of another version, so npm and the Mac app ship as one.
    second publish of that version is refused.
 3. **The phone's cohort.** `apps/mobile/README.md` § Per release, steps 4 to
    6: What to Test, Beta App Review, then the invites.
+4. **The extension**, when step 1 raised its version. Upload
+   `apps/extension/.output/inteligir-extension-<version>.zip` to the store
+   item, and keep the listing true to what it does: the description, the
+   screenshots, the single-purpose statement ("saves the page you are on to
+   the Inteligir app on this Mac"), a justification for each permission
+   (`nativeMessaging` to hand the page to the app, `activeTab` and `scripting`
+   to read the page only when you click, `contextMenus` for the right-click
+   Save), the privacy practices (website content, handled on this device only,
+   never sold or transferred) and the policy URL `https://inteligir.com/privacy`.
+   Submit for review; § 7 installs what the store approves.
 
 ## 7. After
 
@@ -350,8 +544,12 @@ refuses a server of another version, so npm and the Mac app ship as one.
   no warning beyond macOS's downloaded-from-the-internet notice.
 - **The update.** On a Mac running the previous release, Settings › About ›
   Check for Updates. Passing: it finds `<version>`, Download and Restart each
-  take a click, and the app comes back as `<version>` with the vault as it
+  take a click, and the app comes back as `<version>` with the library as it
   was.
+- **The extension.** Once the store approves this upload, install it from
+  `chromewebstore.google.com/detail/<EXTENSION_ID>` in a browser with no dev
+  build loaded. Passing: chrome://extensions shows `EXTENSION_ID`, and the
+  toolbar button saves the page into the released app.
 - **npm.** Passing: `npm view inteligir version` and
   `npx -y inteligir@<version> --version` both print `<version>`.
 - **The cohort.** Passing: the phone build is approved in the `Cohort` group,

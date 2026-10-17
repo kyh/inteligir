@@ -44,7 +44,7 @@ export const gateReasonFor = (analysis: DocAnalysis): GateReason | null => {
 export const describeGateReason = (reason: GateReason): string => {
   switch (reason.kind) {
     case "too-deep": {
-      return "This note nests deeper than the rich editor can hold — opened in Raw";
+      return "This item nests deeper than the rich editor can hold — opened in Raw";
     }
     case "unstable": {
       return "Rich editing cannot settle this file's formatting — opened in Raw to protect it";

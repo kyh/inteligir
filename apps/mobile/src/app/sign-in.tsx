@@ -60,7 +60,7 @@ const SignInScreen = () => {
   const reason =
     status.state === "unauthorized"
       ? "This device was signed out. Sign in again to resume syncing."
-      : "Sign in with your account to read and edit your notes, and ask your Mac's agent.";
+      : "Sign in with your account to see and edit your library, and ask your Mac's agent.";
   const fieldStyle = [
     styles.input,
     { backgroundColor: theme.card, borderColor: theme.input, color: theme.foreground },

@@ -283,7 +283,7 @@ const TurnChangesFooterContent = ({ status, changes, undo, onUndo }: TurnChanges
     <div className="flex flex-col gap-1.5">
       <div className="flex min-h-7 items-center justify-between gap-2">
         <span className="text-body text-muted-foreground">
-          Edited {plural(paths.length, "note")}
+          Edited {plural(paths.length, "item")}
         </span>
         {undo === "withheld" ? null : (
           <Button

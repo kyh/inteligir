@@ -25,9 +25,9 @@ use crate::server_log::{self, SERVER_LOG_MAX_BYTES, ServerLog};
 use crate::vaults::{self, VaultsState};
 use crate::window::{self, AppWindow};
 
-pub const NO_VAULT: &str = "No vault is open yet.";
-const ADOPTED_SWITCH_REASON: &str = "This server was started outside the app, so the app cannot restart it on another vault. Stop it and reopen Inteligir to switch.";
-const SWITCHING_REASON: &str = "Another vault is already opening.";
+pub const NO_VAULT: &str = "No library is open yet.";
+const ADOPTED_SWITCH_REASON: &str = "This server was started outside the app, so the app cannot restart it on another library. Stop it and reopen Inteligir to switch.";
+const SWITCHING_REASON: &str = "Another library is already opening.";
 const OWN_DIR_NAME: &str = "desktop";
 
 // the CLI's names for what the shell pins on a child (`apps/cli/src/server/config.ts`,
@@ -525,7 +525,7 @@ pub fn pick_vault_dir(app: &AppHandle) -> Option<String> {
         .state::<Shell>()
         .target()
         .and_then(|target| Path::new(&target.vault_dir).parent().map(Path::to_path_buf));
-    dialogs::pick_folder(app, "Open vault", true, beside.as_deref(), None)
+    dialogs::pick_folder(app, "Open library", true, beside.as_deref(), None)
 }
 
 /// The folder's own service keeps syncing it and the app will not: a picked switch asks first, in
@@ -618,13 +618,13 @@ fn run_switch(app: &AppHandle, door: &Door, leaving: &Leaving, opening: &Opening
     .and_then(|()| boot_vault(app, leaving.target.clone(), "/"));
     if let Err(reopen) = restored {
         let reason = format!("{reopen} Reopen Inteligir to continue.");
-        dialogs::error(app, "Inteligir could not reopen the vault", &reason);
+        dialogs::error(app, "Inteligir could not reopen the library", &reason);
         app.exit(1);
         return Outcome::Reported(reason);
     }
     close_previous();
     let reason = format!("Could not open {}: {reason}", opening.vault_dir);
-    dialogs::error(app, "Could not open the vault", &reason);
+    dialogs::error(app, "Could not open the library", &reason);
     Outcome::Reported(reason)
 }
 
@@ -653,7 +653,7 @@ pub fn finish_first_run(app: &AppHandle, plan_args: &[&str]) -> Outcome {
     match &mut shell.lock().phase {
         Phase::FirstRun { booting, .. } if !*booting => *booting = true,
         Phase::FirstRun { .. } => {
-            return Outcome::Refused("The vault is already opening.".to_owned());
+            return Outcome::Refused("The library is already opening.".to_owned());
         }
         _ => return Outcome::Refused("The first run is over.".to_owned()),
     }
@@ -716,7 +716,7 @@ pub fn show_server_log(app: &AppHandle) -> Result<(), String> {
         .ok_or_else(|| NO_VAULT.to_owned())?;
     let log = server_log::server_log_path(Path::new(&target.data_dir));
     if !log.exists() {
-        return Err("Nothing has been logged for this vault yet.".to_owned());
+        return Err("Nothing has been logged for this library yet.".to_owned());
     }
     app.opener()
         .reveal_item_in_dir(log)

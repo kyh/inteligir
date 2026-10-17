@@ -11,7 +11,7 @@ not belong here.
 
 ---
 
-## The vault
+## The library (the vault, in code)
 
 **doc** — a file whose extension is editable text: `.md`, `.markdown`, `.mdx`,
 `.txt` (`@repo/notes/knowledge/doc-file`, the single source of that answer).
@@ -71,7 +71,7 @@ it, the phone shows it, and a waiting highlight is placed by it. The
 unanchored; an edit inside the highlight changes the passage and leaves the
 quote.
 
-## The library
+## Items
 
 **library** — the vault folder, as the person sees it: everything they saved
 and wrote, one file per item. The product says library; code, the CLI's
@@ -266,36 +266,89 @@ it is never handed the event.
 ## The words the user sees
 
 The product never says git, commit, remote, repo, terminal, CLI, PATH or MCP,
-so each word below stands for an engine concept with another name in code.
-Reading a report or a screenshot means translating back.
+and it calls the folder the **library** and what is in it **items**, so each
+word below stands for an engine concept with another name in code. Reading a
+report or a screenshot means translating back. "Vault" is code's, the CLI's and
+Settings › Advanced's word alone, and "note" means only what the person writes
+(New note, the Notes chip, Extract to new note…); a saved page, a picture or a
+PDF is an item, never a note (`tools/repo-guards/src/product-words.test.ts`).
 
-**Sync** — the rail footer's state, Sync now, and Settings › Vault's Sync row:
-the VAULT's pass against where it syncs
+**Library** — the window's home and Settings › Library: the VAULT folder as the
+person sees it, every item one card in one grid
+(`apps/workspace/src/app/library/library-view.tsx`). "Switch or open another
+library…", File › Open Library… and the first run's "Create a new library" all
+choose which vault folder the next server opens
+(`apps/cli/src/server/vault-switch.ts`). Not the **online library**.
+
+**Items** — the cards the library lists, each one markdown file, or a bare
+file no note embeds (`@repo/notes/items/library-index`); "Agent edited N items"
+and "Undid the agent's changes to N items" count paths a turn changed, less the
+annotation stores. Not docs: a doc is a file classification, and a bare image
+is an item that is no doc.
+
+**Unsorted** — the rail's row and the folder a save lands in when the window
+shows no folder (`UNSORTED_FOLDER`). A real directory: moving an item out of it
+is a rename.
+
+**Tidy my library** — the header button, the ⌘P command and the Unsorted row's
+menu: the ⌘K composer opened on a preset, which the server turns into the
+procedure that files and tags everything in Unsorted and everything untagged
+(`apps/cli/src/server/agents/action-preset-prompt.ts`). The thread stores what
+was typed, or the label. Not a background job: it is one agent turn, with
+**Undo changes** like any other.
+
+**Filing rules** — "Edit filing rules…" beside Tidy and in Settings › Agent:
+the library's own `AGENTS.md`, written from the starter rules when the library
+has none (`apps/workspace/src/app/library/filing-rules.ts`), which every agent
+session reads last. Not the repo's `AGENTS.md`.
+
+**Highlights** — a selection marked with ⌘⇧H or Highlight in the toolbar, with
+an optional note; the panel's **Annotations** tab lists them with their notes
+and replies. Each is an ANNOTATION (markers in the item, an entry in
+`.inteligir/annotations/<id>.json`); a bare one has no note. "Remove highlight"
+deletes its entry and its markers. There is no resolve.
+
+**Online library** — what an account keeps in the cloud for the phone and the
+other Macs: the HOSTED VAULT, the account remote the engine pushes to
+(`apps/web/src/worker/vault/`). "Your online library is full" is the engine's
+`full` state against it. Not the local library, which never needs it.
+
+**Sync** — the rail footer's state, Sync now, and the account rows: the
+VAULT's pass against where it syncs
 (`apps/cli/src/server/vault/git-engine.ts`), worded in one place
-(`apps/workspace/src/app/vault-hooks.ts`). "Only on this Mac" is a vault with
-nowhere to sync; "Synced by iCloud Drive" is a folder another service syncs,
-which the app leaves to it; "Sync paused" is any state only the engine can
-explain. Not the THREAD sync: actions reach other devices through the account's
-merged log on their own (`apps/cli/src/server/cloud/sync-pass.ts`), with no
-button, and never ride the vault's remote.
+(`apps/workspace/src/app/vault-hooks.ts`). "Only on this Mac" is a library with
+nowhere to sync, and, in Info, a file over 10 MB the engine keeps out of
+history; "Synced by iCloud Drive" is a folder another service syncs, which the
+app leaves to it; "Sync paused" is any state only the engine can explain. Not
+the THREAD sync: actions reach other devices through the account's merged log
+on their own (`apps/cli/src/server/cloud/sync-pass.ts`), with no button, and
+never ride the vault's remote.
 
-**History** — the panel tab listing a note's versions: the vault's own git log
+**History** — the panel tab listing an item's versions: the vault's own git log
 for that path (`apps/cli/src/server/vault/git-history.ts`), each version named
 by when and by whom (you, the agent, or another device), never by a commit
 subject or sha. Restoring one is an ordinary guarded write of its bytes. Not the
-editor's own undo (⌘Z), which lives and dies with the open note, and not **Undo
+editor's own undo (⌘Z), which lives and dies with the open item, and not **Undo
 changes**.
 
+**Deleted** — the rail's row: the files the log deleted, each restorable, a
+file deleted with the item that embedded it listed under that item and restored
+with it (`apps/cli/src/server/vault/held-files.ts`). There is no trash folder.
+
 **Undo changes** — the button under an agent's reply, and the Undo on the "Agent
-edited N notes" toast: a three-way revert of one turn's commit
+edited N items" toast: a three-way revert of one turn's commit
 (`apps/cli/src/server/threads/turn-undo.ts`), which keeps every edit made since;
-a note whose later edits overlap the turn's is kept whole and named. Not a
+an item whose later edits overlap the turn's is kept whole and named. Not a
 History restore, which puts back exact bytes and so drops whatever came after.
 
-**Kept both versions** — what the window says when a sync met a note two devices
-changed on the same lines: the **conflict copy** above, worded by
+**Kept both versions** — what the window says when a sync met an item two
+devices changed on the same lines: the **conflict copy** above, worded by
 `@repo/notes/sync/conflict-copy` and said once per report. There is no conflict
 state to clear: sync never stops for one.
+
+**Keep a copy of the page** — the PAGE COPY: Info's, ⌘P's and the extension
+popup's way to keep a saved page as it looked, beside the article text every
+fill writes.
 
 **Account** and **Devices** — Settings › Account: an inteligir account (Better
 Auth, in `apps/web`) and this install's DEVICE CREDENTIAL, the one secret a Mac

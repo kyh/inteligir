@@ -33,7 +33,7 @@ describe("a remote embed is a card that loads nothing", () => {
   it.each(REMOTE)("%s %s mounts no frame and names itself unloaded", (type, url) => {
     const { container, getByText } = renderNode(type, url);
     expect(container.querySelector("iframe")).toBeNull();
-    expect(getByText("Remote content, not loaded")).toBeDefined();
+    expect(getByText("Web content, not loaded")).toBeDefined();
     expect(getByText(url)).toBeDefined();
   });
 

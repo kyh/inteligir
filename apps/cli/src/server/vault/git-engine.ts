@@ -192,7 +192,7 @@ const refusedPushMessage = (
   const account = remote.source === "account";
   if (failure === "full") {
     return account
-      ? "Your cloud vault is full. New changes stay on this Mac."
+      ? "Your online library is full. New saves stay on this Mac."
       : "Your sync server is out of space.";
   }
   return account

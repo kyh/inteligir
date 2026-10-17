@@ -108,6 +108,6 @@ describe("annotation gutter", () => {
     const { view } = renderNote(
       "> [!NOTE]\n> opening %%i:abc:start%%words\n\nclosing%%i:abc:end%% tail\n",
     );
-    expect(view.getAllByRole("button", { name: "Notes on this block" })).toHaveLength(1);
+    expect(view.getAllByRole("button", { name: "Highlights on this block" })).toHaveLength(1);
   });
 });

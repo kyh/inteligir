@@ -55,7 +55,7 @@ describe("creating a new vault", () => {
     const { finish } = renderStep();
     expect(screen.getByLabelText("Name")).toHaveProperty("value", "Inteligir");
     expect(screen.getByText(HOME)).toBeDefined();
-    fireEvent.click(button("Create vault"));
+    fireEvent.click(button("Create library"));
     expect(await screen.findByText("the shell said no")).toBeDefined();
     expect(finish).toHaveBeenCalledWith({ kind: "create", name: "Inteligir", parent: HOME });
   });
@@ -72,8 +72,8 @@ describe("creating a new vault", () => {
     await screen.findByText(DROPBOX);
     const warning = screen.getByRole("note");
     expect(warning.textContent).toContain("Dropbox keeps syncing this folder.");
-    expect(warning.textContent).toContain("your phone won't see them");
-    fireEvent.click(button("Create vault"));
+    expect(warning.textContent).toContain("your phone won't see it");
+    fireEvent.click(button("Create library"));
     expect(await screen.findByText("the shell said no")).toBeDefined();
     expect(finish).toHaveBeenCalledWith({ kind: "create", name: "Inteligir", parent: DROPBOX });
   });
@@ -87,15 +87,15 @@ describe("creating a new vault", () => {
   });
 
   it.each([
-    ["an empty name", "  ", "Give the vault a name."],
+    ["an empty name", "  ", "Give the library a name."],
     ["a name that is a path", "Notes/Work", "A name can't contain / or :."],
     ["a hidden name", ".notes", "A name can't start with a dot."],
   ])("holds Create for %s and says why", (_label, name, problem) => {
     const { finish } = renderStep();
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: name } });
-    expect(button("Create vault").hasAttribute("disabled")).toBe(true);
+    expect(button("Create library").hasAttribute("disabled")).toBe(true);
     expect(screen.getByText(problem)).toBeDefined();
-    fireEvent.submit(button("Create vault"));
+    fireEvent.submit(button("Create library"));
     expect(finish).not.toHaveBeenCalled();
   });
 });
@@ -104,7 +104,7 @@ describe("opening a folder", () => {
   it("shows how many notes it holds, and opens the folder the shell picked", async () => {
     const { finish } = renderStep();
     await openAFolder();
-    expect(screen.getByText("42 notes")).toBeDefined();
+    expect(screen.getByText("42 items")).toBeDefined();
     expect(screen.queryByRole("note")).toBeNull();
     fireEvent.click(button("Open folder"));
     expect(await screen.findByText("the shell said no")).toBeDefined();
@@ -124,7 +124,7 @@ describe("opening a folder", () => {
     await openAFolder();
     const warning = screen.getByRole("note");
     expect(warning.textContent).toContain(`${service} keeps syncing this folder.`);
-    expect(warning.textContent).toContain("your phone won't see them");
+    expect(warning.textContent).toContain("your phone won't see it");
   });
 
   it("names the host a folder already syncs with, in one quiet line", async () => {
@@ -139,7 +139,7 @@ describe("opening a folder", () => {
   it("counts a walk that stopped at its bound as a floor", async () => {
     renderStep(facts({ noteCount: { capped: true, count: 20_000 } }));
     await openAFolder();
-    expect(screen.getByText(`More than ${(20_000).toLocaleString()} notes`)).toBeDefined();
+    expect(screen.getByText(`More than ${(20_000).toLocaleString()} items`)).toBeDefined();
   });
 });
 

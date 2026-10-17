@@ -27,7 +27,7 @@ const DOC = `# Remote
 `;
 
 const PROBE = `JSON.stringify({
-  cards: [...document.querySelectorAll('${EDITOR} p')].filter((p) => p.textContent === 'Remote content, not loaded').length,
+  cards: [...document.querySelectorAll('${EDITOR} p')].filter((p) => p.textContent === 'Web content, not loaded').length,
   frames: document.querySelectorAll('${EDITOR} iframe').length,
   remoteImages: [...document.querySelectorAll('${EDITOR} img')].filter((img) => /^https?:/iu.test(img.getAttribute('src') ?? '')).length,
 })`;
