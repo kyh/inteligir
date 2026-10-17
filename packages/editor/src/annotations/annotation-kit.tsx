@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { KEYS, RangeApi } from "platejs";
 import type { DecoratedRange, SlateEditor } from "platejs";
-import { PlateLeaf, createPlatePlugin, useEditorRef } from "platejs/react";
+import { PlateLeaf, createPlatePlugin } from "platejs/react";
 import type { PlateLeafProps } from "platejs/react";
 
 import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
@@ -13,10 +13,9 @@ import { stringProp } from "@repo/editor/node-props";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
-import { Button } from "@repo/ui/components/button";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { Textarea } from "@repo/ui/components/textarea";
-import { mintAnnotationId } from "@repo/notes/annotations/store-schema";
+import { clipQuote, mintAnnotationId } from "@repo/notes/annotations/store-schema";
 import { splitMarkerIds } from "@repo/notes/markdown/remark-inline-constructs";
 
 import { annotationMarkerIds, annotationSpans, isAnnotationMarker } from "./annotation-ranges";
@@ -26,27 +25,26 @@ import {
   removeAnnotationMarkers,
 } from "./annotation-markers";
 import {
-  clearPendingCreate,
-  setPendingCreate,
+  clearPendingNote,
+  setPendingNote,
   useAnnotationMeta,
   useAnnotationSurface,
 } from "./annotation-store";
+import type { AnchorRect } from "./annotation-store";
 
 // exported alone as well: the empty Annotations tab says how to make the first one
-export const ADD_ANNOTATION_SHORTCUT: EditorShortcut<"add-annotation"> = {
-  action: "add-annotation",
-  hotkey: "mod+shift+a",
-  label: "Comment on the selection",
+export const HIGHLIGHT_SHORTCUT: EditorShortcut<"highlight"> = {
+  action: "highlight",
+  hotkey: "mod+shift+h",
+  label: "Highlight",
 };
 
-export const ANNOTATION_SHORTCUTS: readonly EditorShortcut<"add-annotation">[] = [
-  ADD_ANNOTATION_SHORTCUT,
-];
+export const ANNOTATION_SHORTCUTS: readonly EditorShortcut<"highlight">[] = [HIGHLIGHT_SHORTCUT];
 
 const rangeClassName = (state: { orphan: boolean; unknown: boolean }): string =>
   state.orphan || state.unknown
-    ? "bg-amber-500/10 underline decoration-amber-500/50 decoration-dotted underline-offset-2"
-    : "bg-amber-300/20 hover:bg-amber-300/30";
+    ? "underline decoration-ink-3 decoration-dotted underline-offset-2"
+    : "bg-highlight hover:bg-highlight-hover";
 
 type AnnotationDecoration = DecoratedRange & {
   annotationIds: string;
@@ -83,15 +81,7 @@ const AnnotationRangeLeaf = (props: PlateLeafProps) => {
   );
 };
 
-// a marker inside a code block is literal text there, and one inside a locked block never lands,
-// so no annotation anchors in either
-export const selectionTakesAnnotation = (editor: SlateEditor): boolean =>
-  editor.selection !== null &&
-  !RangeApi.isCollapsed(editor.selection) &&
-  !editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } }) &&
-  !selectionEdgeLocked(editor);
-
-// the selection's text, a block per line: what an annotation records it was made on
+// the selection's text, a block per line: what a highlight records it was made on
 export const selectionQuote = (editor: SlateEditor): string => {
   const { selection } = editor;
   if (selection === null) {
@@ -108,6 +98,16 @@ export const selectionQuote = (editor: SlateEditor): string => {
   return lines.join("\n").trim();
 };
 
+// A marker inside a code block is literal text there, and one inside a locked block never lands,
+// so no highlight anchors in either; a selection with no text (an image alone) has nothing to
+// quote, so it offers no Highlight either.
+export const selectionTakesHighlight = (editor: SlateEditor): boolean =>
+  editor.selection !== null &&
+  !RangeApi.isCollapsed(editor.selection) &&
+  !editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } }) &&
+  !selectionEdgeLocked(editor) &&
+  selectionQuote(editor) !== "";
+
 const markersOf = (editor: SlateEditor, id: string): number =>
   [
     ...editor.api.nodes({
@@ -116,7 +116,7 @@ const markersOf = (editor: SlateEditor, id: string): number =>
     }),
   ].length;
 
-// The new annotation's id, its markers around the selection; null when there is nothing to anchor.
+// The new highlight's id, its markers around the selection; null when there is nothing to anchor.
 // The touch kit's lock refuses a marker inside a locked block, so a pair missing one is taken back
 // rather than left as an orphan; the one that landed sits outside any locked block.
 export const anchorNewAnnotation = (editor: SlateEditor): string | null => {
@@ -131,69 +131,116 @@ export const anchorNewAnnotation = (editor: SlateEditor): string | null => {
   return id;
 };
 
-// A Save made with its highlight: the highlight's entry first, then its note. A refused highlight
-// answers false, and the caller strips the markers it minted; a refused note keeps the bare
-// highlight, the host having said why.
-export const saveNewAnnotation = async (
-  id: string,
-  quote: string,
-  text: string,
-): Promise<boolean> => {
-  const actions = getEditorHostActions().annotations;
-  if (!(await actions.create(id, quote).catch(() => false))) {
-    return false;
+export interface HighlightStarted {
+  readonly id: string;
+  readonly path: string;
+  // the host's answer to the highlight's own entry; a refusal has already stripped the markers
+  readonly created: Promise<boolean>;
+}
+
+// the host's answer to a highlight's bare entry; a refusal, or a host that threw, strips its markers
+const askForEntry = async (editor: SlateEditor, id: string, quote: string): Promise<boolean> => {
+  let ok = false;
+  try {
+    ok = await getEditorHostActions().annotations.create(id, quote);
+  } catch {
+    ok = false;
   }
-  if (text !== "") {
-    await actions.edit(id, text).catch(() => false);
+  if (!ok) {
+    removeAnnotationMarkers(editor, [id]);
   }
-  return true;
+  return ok;
 };
 
-const beginCreate = (editor: SlateEditor): boolean => {
-  // with no note nothing would claim the popover and the marker pair would be stranded, so refuse before minting
+// CLAUDE.md § AN ANNOTATION IS A HIGHLIGHT FIRST AND A NOTE SECOND: the one gesture every surface
+// makes (the chord, the selection toolbar, the touch toolbar). It mints the markers and at once
+// asks the host for the bare entry, its quote the selection's text clipped as every writer clips
+// one, so a long selection is a highlight with a clipped quote, never a refusal. A refused entry
+// takes its markers back out, so no highlight is left that the store does not hold.
+export const highlightSelection = (editor: SlateEditor): HighlightStarted | null => {
   const path = liveEditorPath(editor);
-  if (path === null) {
+  if (path === null || !selectionTakesHighlight(editor)) {
+    return null;
+  }
+  const quote = clipQuote(selectionQuote(editor));
+  const id = anchorNewAnnotation(editor);
+  if (id === null) {
+    return null;
+  }
+  return { created: askForEntry(editor, id, quote), id, path };
+};
+
+// the note on a highlight just made: written once its entry is, and dropped when it was refused
+export const noteHighlight = async (started: Promise<boolean>, id: string, text: string) => {
+  const trimmed = text.trim();
+  if (trimmed === "" || !(await started)) {
     return false;
   }
+  try {
+    return await getEditorHostActions().annotations.edit(id, trimmed);
+  } catch {
+    return false;
+  }
+};
+
+const selectionRect = (): AnchorRect => {
   const domSelection = window.getSelection();
   const rect =
     domSelection !== null && domSelection.rangeCount > 0
       ? domSelection.getRangeAt(0).getBoundingClientRect()
       : null;
-  const quote = selectionQuote(editor);
-  const id = anchorNewAnnotation(editor);
-  if (id === null) {
+  return rect === null
+    ? { bottom: 120, height: 20, left: 120, right: 120, top: 100, width: 0 }
+    : {
+        bottom: rect.bottom,
+        height: rect.height,
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        width: rect.width,
+      };
+};
+
+// a refused highlight has no entry for a note to land on, so its popover goes with its markers
+const closeWhenRefused = async (started: HighlightStarted): Promise<void> => {
+  if (!(await started.created)) {
+    clearPendingNote(started.id);
+  }
+};
+
+// slate-react reads a selection the mouse made on a throttle, so a chord pressed the moment the
+// drag ends would act on the caret its mousedown left: the chord takes the page's own selection
+// first, when it lies in this editor
+const syncDomSelection = (editor: SlateEditor): void => {
+  const dom = window.getSelection();
+  if (dom === null || dom.rangeCount === 0 || dom.isCollapsed) {
+    return;
+  }
+  const range = editor.api.toSlateRange(dom, { exactMatch: false, suppressThrow: true });
+  if (range !== null && range !== undefined) {
+    editor.tf.select(range);
+  }
+};
+
+// the desktop's gesture: the highlight, then the note popover on its range
+export const beginHighlight = (editor: SlateEditor): boolean => {
+  const rect = selectionRect();
+  const started = highlightSelection(editor);
+  if (started === null) {
     return false;
   }
-  setPendingCreate({
-    id,
-    path,
-    quote,
-    rect:
-      rect === null
-        ? { bottom: 120, height: 20, left: 120, right: 120, top: 100, width: 0 }
-        : {
-            bottom: rect.bottom,
-            height: rect.height,
-            left: rect.left,
-            right: rect.right,
-            top: rect.top,
-            width: rect.width,
-          },
-  });
+  setPendingNote({ created: started.created, id: started.id, path: started.path, rect });
+  void closeWhenRefused(started);
   return true;
 };
 
-const AnnotationCreateHost = () => {
-  const editor = useEditorRef();
+const AnnotationNoteHost = () => {
   const notePath = useOpenNotePath();
-  const armed = useAnnotationSurface((state) => state.pendingCreate);
+  const armed = useAnnotationSurface((state) => state.pendingNote);
   const [text, setText] = useState("");
-  // keyed by the create it saves, so a create armed meanwhile is not held by another's save
-  const [savingId, setSavingId] = useState<string | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // drawn only over the note that minted it, so cancel and save act on the document holding the markers
+  // drawn only over the item that made the highlight, so the note lands on the entry it names
   const pending = armed !== null && armed.path === notePath ? armed : null;
   const pendingId = pending?.id ?? null;
 
@@ -215,32 +262,15 @@ const AnnotationCreateHost = () => {
     return null;
   }
 
-  const saving = savingId === pending.id;
-
-  // a save in flight owns the markers: its answer decides whether they stay
-  const cancel = (): void => {
-    if (saving) {
-      return;
-    }
-    removeAnnotationMarkers(editor, [pending.id]);
-    clearPendingCreate(pending.id);
+  // Escape or a click away keeps the bare highlight: the note is what is optional
+  const dismiss = (): void => {
+    clearPendingNote(pending.id);
   };
 
   const save = (): void => {
-    const trimmed = text.trim();
-    if (trimmed === "" || saving) {
-      return;
-    }
-    const { id, quote } = pending;
-    setSavingId(id);
-    void (async () => {
-      const ok = await saveNewAnnotation(id, quote, trimmed);
-      setSavingId((current) => (current === id ? null : current));
-      if (!ok) {
-        removeAnnotationMarkers(editor, [id]);
-      }
-      clearPendingCreate(id);
-    })();
+    const { created, id } = pending;
+    clearPendingNote(id);
+    void noteHighlight(created, id, text);
   };
 
   // a virtual anchor: the selection's box is what the markers were minted around, and the
@@ -251,18 +281,18 @@ const AnnotationCreateHost = () => {
       open
       onOpenChange={(open) => {
         if (!open) {
-          cancel();
+          dismiss();
         }
       }}
     >
-      <PopoverContent anchor={anchor} side="bottom" align="start" className="gap-2 p-2">
+      <PopoverContent anchor={anchor} side="bottom" align="start" className="w-72 gap-1.5 p-2">
         <Textarea
           ref={fieldRef}
-          aria-label="Comment"
-          placeholder="Comment…"
+          aria-label="Note"
+          placeholder="Add a note…"
           value={text}
           rows={2}
-          className="mb-2 resize-none"
+          className="resize-none"
           onChange={(event) => {
             setText(event.target.value);
           }}
@@ -276,14 +306,9 @@ const AnnotationCreateHost = () => {
             }
           }}
         />
-        <div className="flex justify-end gap-1.5">
-          <Button size="compact" variant="ghost" disabled={saving} onClick={cancel}>
-            Cancel
-          </Button>
-          <Button size="compact" disabled={saving || text.trim() === ""} onClick={save}>
-            Save
-          </Button>
-        </div>
+        <p className="px-1 text-caption text-muted-foreground">
+          Return saves the note. The highlight stays either way.
+        </p>
       </PopoverContent>
     </Popover>
   );
@@ -337,15 +362,16 @@ export const AnnotationKit = [
   }).withComponent(AnnotationRangeLeaf),
 
   createPlatePlugin({
-    key: "annotationCreate",
-    render: { afterEditable: () => <AnnotationCreateHost /> },
+    key: "annotationNote",
+    render: { afterEditable: () => <AnnotationNoteHost /> },
   }).extend(() => ({
     handlers: {
       onKeyDown: ({ editor, event }) => {
-        if (editorShortcutFor(ANNOTATION_SHORTCUTS, event)?.action !== "add-annotation") {
+        if (editorShortcutFor(ANNOTATION_SHORTCUTS, event)?.action !== "highlight") {
           return;
         }
-        if (selectionTakesAnnotation(editor) && beginCreate(editor)) {
+        syncDomSelection(editor);
+        if (beginHighlight(editor)) {
           event.preventDefault();
         }
       },

@@ -14,7 +14,7 @@ seams: `VaultSessionPorts` (`packages/editor/src/note/vault-session.ts`), the
 (`packages/editor/src/host-io.ts`, opened to React by `host.ts`): its
 `EditorHostIo`, which also carries the link resolver store and note formulas so
 no host writes its own, the `EditorHostActions` a deep node asks the shell
-through (Ask agent, `showTag`, an annotation's create, edit and open, all required),
+through (Ask agent, `showTag`, and a highlight's create, note and open, all required),
 installed by one `installEditorHost` call per host. Its `VaultActions` carry
 `closeFile`, the way back to the library. `static-note.tsx` draws a note
 read-only over its bytes, for an embed and for Quick Look.
@@ -192,6 +192,23 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   selection that crosses blocks. The ranges are returned for the root alone,
   because a per-text decoration leaves an untouched middle block with a stale
   tint. `packages/editor/src/annotations/annotation-ranges.ts`.
+
+- **AN ANNOTATION IS A HIGHLIGHT FIRST AND A NOTE SECOND.** ⌘⇧H, the selection
+  toolbar's Highlight and the touch toolbar's Highlight are one gesture,
+  `highlightSelection`: it writes the markers around the selection and at once
+  asks the host for the bare entry, its quote the selection's text clipped by
+  `clipQuote`, so a long selection is a highlight with a shortened quote, never
+  a refusal; a refusal takes the markers back out. A selection with no text
+  offers no Highlight. The note is optional and comes after: the desktop opens a
+  popover on the range ("Add a note…", Return writes it once the entry has
+  landed, Escape or a click away keeps the bare highlight), and the touch
+  toolbar's field reads "Add a note (optional)" with Highlight as its submit,
+  so an empty one is a bare highlight. A highlight is tinted by the
+  `--highlight` token, an id its store does not hold is a dotted underline, and
+  only one with a note or a reply has a gutter dot (`notedIds`). There is no
+  resolve. Rejected: the entry written only on Save, which made a highlight
+  without a note impossible, and a resolved tint, since a reading mark is not
+  a task. `packages/editor/src/annotations/annotation-kit.tsx`.
 
 - **TYPING IN A LONG NOTE WALKS IT ONLY THROUGH A RECORDED BUDGET, AND THE
   BUDGET FINDS ITS PASSES.** In a 10k-line note a keystroke, a caret move and

@@ -4,15 +4,19 @@ import type { PlateElementProps, RenderNodeWrapper } from "platejs/react";
 import { shallow } from "zustand/shallow";
 
 import { getEditorHostActions } from "@repo/editor/host-io";
+import { useOpenNotePath } from "@repo/editor/note/open-note-context";
 import { Tooltip } from "@repo/ui/components/tooltip";
 
 import { annotationIdsByBlock, blockHoldsAnnotationMarkers } from "./annotation-ranges";
+import { useAnnotationMeta } from "./annotation-store";
 
 const NO_IDS: readonly string[] = [];
+const NONE_NOTED: ReadonlySet<string> = new Set();
 
 // A range spanning blocks draws its dot beside the block it starts in, not the one it ends in.
 // Subscribed rather than read in render: an edit elsewhere can orphan an edge here without
-// touching this block.
+// touching this block. Only a highlight with a note or a reply has a dot: a bare highlight is
+// its tint alone, which already says where it is.
 const AnnotationGutterBlock = (props: PlateElementProps) => {
   const { element } = props;
   const ids = useEditorSelector(
@@ -20,32 +24,32 @@ const AnnotationGutterBlock = (props: PlateElementProps) => {
     [element],
     { equalityFn: shallow },
   );
+  const notePath = useOpenNotePath();
+  const { notedIds = NONE_NOTED } = useAnnotationMeta(notePath);
+  const noted = ids.filter((id) => notedIds.has(id));
 
-  if (ids.length === 0) {
-    // Plate types PlateElementProps["children"] as `any`, so the fragment is what pins the
-    // return to ReactNode; returning the children bare is an unsafe return.
-    // oxlint-disable-next-line react/jsx-no-useless-fragment -- see above
-    return <>{props.children}</>;
-  }
-
+  // the wrapper stays while the block holds markers, so a note landing on a highlight adds a dot
+  // without remounting the block under the caret
   return (
     <div className="relative">
-      <Tooltip content="Comments on this block">
-        <button
-          type="button"
-          contentEditable={false}
-          aria-label="Comments on this block"
-          onMouseDown={(event) => {
-            event.preventDefault();
-          }}
-          onClick={() => {
-            getEditorHostActions().annotations.open([...ids]);
-          }}
-          className="absolute top-[0.35em] -left-6 flex size-4 cursor-pointer items-center justify-center rounded-sm select-none hover:bg-accent print:hidden"
-        >
-          <span className="block size-1.5 rounded-full bg-amber-400" />
-        </button>
-      </Tooltip>
+      {noted.length === 0 ? null : (
+        <Tooltip content="Notes on this block">
+          <button
+            type="button"
+            contentEditable={false}
+            aria-label="Notes on this block"
+            onMouseDown={(event) => {
+              event.preventDefault();
+            }}
+            onClick={() => {
+              getEditorHostActions().annotations.open(noted);
+            }}
+            className="absolute top-[0.35em] -left-6 flex size-4 cursor-pointer items-center justify-center rounded-sm select-none hover:bg-accent print:hidden"
+          >
+            <span className="block size-1.5 rounded-full bg-yellow-500" />
+          </button>
+        </Tooltip>
+      )}
       {props.children}
     </div>
   );

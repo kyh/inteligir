@@ -8,7 +8,7 @@ import type { PlateEditor } from "platejs/react";
 
 import {
   anchorNewAnnotation,
-  selectionTakesAnnotation,
+  selectionTakesHighlight,
 } from "@repo/editor/annotations/annotation-kit";
 import { removeAnnotationMarkers } from "@repo/editor/annotations/annotation-markers";
 import { isAnnotationMarker } from "@repo/editor/annotations/annotation-ranges";
@@ -239,7 +239,7 @@ describe("comment markers and the lock", () => {
       focus: { offset: "inside".length, path: textPath(editor, "inside the first tab") },
     });
 
-    expect(selectionTakesAnnotation(editor)).toBe(false);
+    expect(selectionTakesHighlight(editor)).toBe(false);
     expect(anchorNewAnnotation(editor)).toBeNull();
     expect(markersIn(editor)).toBe(0);
     expect(serializeNote(editor)).toBe(before);

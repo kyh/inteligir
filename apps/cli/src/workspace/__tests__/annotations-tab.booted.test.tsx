@@ -41,7 +41,7 @@ describe("the annotations tab under a refused read", () => {
 
     mountTab("note.md");
     await waitFor(() => {
-      expect(screen.getByText("The comments could not be read.")).toBeTruthy();
+      expect(screen.getByText("The highlights could not be read.")).toBeTruthy();
     });
     expect(screen.queryByText("Loading…")).toBeNull();
     expect(screen.getByText(/\.inteligir\/annotations\/7d1c\.json/u)).toBeTruthy();
@@ -53,9 +53,11 @@ describe("the annotations tab under a refused read", () => {
 
     mountTab("note.md", "ctrl");
     await waitFor(() => {
-      expect(screen.getByText("No comments yet. Select text and press Ctrl+Shift+A.")).toBeTruthy();
+      expect(
+        screen.getByText("No highlights yet. Select text and press Ctrl+Shift+H."),
+      ).toBeTruthy();
     });
-    expect(screen.queryByText("The comments could not be read.")).toBeNull();
+    expect(screen.queryByText("The highlights could not be read.")).toBeNull();
   });
 });
 
@@ -72,7 +74,7 @@ describe("the annotations tab over the live bus", () => {
       </WorkspaceProvider>,
     );
     await waitFor(() => {
-      expect(screen.getByText(/No comments yet/u)).toBeTruthy();
+      expect(screen.getByText(/No highlights yet/u)).toBeTruthy();
     });
 
     // the first creates the store, which the listing announces; the second only rewrites it.
@@ -152,7 +154,7 @@ describe("an Enter in a reply", () => {
     });
 
     mountTab("plan.md");
-    const field = await screen.findByLabelText("Reply to comment");
+    const field = await screen.findByLabelText("Reply");
     fireEvent.change(field, { target: { value: "日本" } });
     fireEvent.keyDown(field, { isComposing: true, key: "Enter" });
     fireEvent.change(field, { target: { value: "日本語" } });
@@ -165,5 +167,81 @@ describe("an Enter in a reply", () => {
     expect(
       annotations.flatMap((annotation) => annotation.replies.map((row) => row.entry.text)),
     ).toEqual(["日本語"]);
+  });
+});
+
+// an item with one bare highlight around "marked words"
+const annotated = async () => {
+  const booted = await bootTestApp();
+  routePageFetch(booted);
+  await booted.client.vault.write({
+    content: "---\nid: 9a1f\n---\nThe %%i:h1:start%%marked words%%i:h1:end%% stay.\n",
+    guard: { kind: "overwrite" },
+    path: "plan.md",
+  });
+  await booted.client.annotations.add({ id: "h1", path: "plan.md", quote: "marked words" });
+  return booted;
+};
+
+describe("a highlight's card", () => {
+  it("shows the highlighted words, offers a note, and writes the one typed in place", async () => {
+    const booted = await annotated();
+    mountTab("plan.md");
+
+    expect(await screen.findByText("marked words")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Add a note" }));
+    const field = screen.getByLabelText("Note");
+    fireEvent.change(field, { target: { value: "Worth a second read" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+
+    await waitFor(async () => {
+      const { annotations } = await booted.client.annotations.list({ path: "plan.md" });
+      expect(annotations.map((annotation) => annotation.root.text)).toEqual([
+        "Worth a second read",
+      ]);
+    });
+    expect(await screen.findByRole("button", { name: "Edit the note" })).toBeTruthy();
+  });
+
+  it("keeps the note as it was on Escape", async () => {
+    const booted = await annotated();
+    mountTab("plan.md");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add a note" }));
+    const field = screen.getByLabelText("Note");
+    fireEvent.change(field, { target: { value: "dropped" } });
+    fireEvent.keyDown(field, { key: "Escape" });
+
+    expect(screen.queryByLabelText("Note")).toBeNull();
+    const { annotations } = await booted.client.annotations.list({ path: "plan.md" });
+    expect(annotations.map((annotation) => annotation.root.text)).toEqual([""]);
+  });
+
+  it("removes the highlight with its entry", async () => {
+    const booted = await annotated();
+    mountTab("plan.md");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Remove highlight" }));
+    await waitFor(() => {
+      expect(screen.getByText(/No highlights yet/u)).toBeTruthy();
+    });
+    const { annotations } = await booted.client.annotations.list({ path: "plan.md" });
+    expect(annotations).toEqual([]);
+  });
+
+  it("groups one whose markers are gone under No longer in the text", async () => {
+    const booted = await bootTestApp();
+    routePageFetch(booted);
+    await booted.client.vault.write({
+      content: "---\nid: 9a1f\n---\nNo markers here.\n",
+      guard: { kind: "overwrite" },
+      path: "plan.md",
+    });
+    await booted.client.annotations.add({ id: "h2", path: "plan.md", quote: "gone words" });
+    mountTab("plan.md");
+
+    const group = await screen.findByRole("region", { name: "No longer in the text" });
+    expect(group.textContent).toContain("gone words");
+    expect(screen.getByRole("button", { name: "Remove" })).toBeTruthy();
   });
 });

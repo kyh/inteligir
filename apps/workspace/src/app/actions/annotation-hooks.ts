@@ -21,8 +21,14 @@ export const useNoteAnnotationMeta = (path: string | null): void => {
     if (path === null || data === undefined) {
       return;
     }
+    // noted: a note or a reply, which the gutter marks; a bare highlight is its tint alone
     setAnnotationMeta(path, {
       knownIds: new Set(data.annotations.map((annotation) => annotation.id)),
+      notedIds: new Set(
+        data.annotations
+          .filter((annotation) => annotation.root.text !== "" || annotation.replies.length > 0)
+          .map((annotation) => annotation.id),
+      ),
     });
     return () => {
       clearAnnotationMeta(path);

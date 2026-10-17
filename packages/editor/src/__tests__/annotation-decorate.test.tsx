@@ -35,7 +35,7 @@ const leafOf = (view: ReturnType<typeof render>, text: string | RegExp): string 
   view.getByText(text).closest('[data-slate-leaf="true"]')?.outerHTML ?? "";
 
 // with every id known to the store, the dotted underline is the orphan's alone
-const OPEN = "bg-amber-300/20";
+const OPEN = "bg-highlight";
 const ORPHAN = "decoration-dotted";
 
 describe("annotation range decoration", () => {
@@ -52,15 +52,15 @@ describe("annotation range decoration", () => {
   it("tints the text between a marker pair and leaves the tail plain", () => {
     const { view } = renderNote("%%i:abc:start%%tinted words%%i:abc:end%% and plain tail\n");
     expect(leafOf(view, "tinted words")).toContain(OPEN);
-    expect(leafOf(view, /and plain tail/u)).not.toContain("amber");
+    expect(leafOf(view, /and plain tail/u)).not.toContain(OPEN);
   });
 
   it("anchors a range across two paragraphs rather than orphaning both edges", () => {
     const { view } = renderNote("first %%i:y:start%%opening\n\nclosing%%i:y:end%% tail\n");
     expect(leafOf(view, "opening")).toContain(OPEN);
     expect(leafOf(view, "closing")).toContain(OPEN);
-    expect(leafOf(view, /first/u)).not.toContain("amber");
-    expect(leafOf(view, /tail/u)).not.toContain("amber");
+    expect(leafOf(view, /first/u)).not.toContain(OPEN);
+    expect(leafOf(view, /tail/u)).not.toContain(OPEN);
   });
 
   it("anchors markers on their own lines around a fence to the code between them", () => {
@@ -70,7 +70,7 @@ describe("annotation range decoration", () => {
 
   it("tints an untouched middle paragraph when a range is minted across it", async () => {
     const { ref, view } = renderNote("alpha one\n\nbravo two\n\ncharlie three\n");
-    expect(leafOf(view, "bravo two")).not.toContain("amber");
+    expect(leafOf(view, "bravo two")).not.toContain(OPEN);
     const editor = ref.current;
     if (editor === null) {
       throw new Error("the harness hands out its editor");
@@ -97,17 +97,17 @@ describe("annotation range decoration", () => {
 
 describe("annotation gutter", () => {
   beforeEach(() => {
-    setAnnotationMeta(NOTE_PATH, { knownIds: new Set(["abc"]) });
+    setAnnotationMeta(NOTE_PATH, { knownIds: new Set(["abc"]), notedIds: new Set(["abc"]) });
   });
   afterEach(() => {
     cleanup();
     clearAnnotationMeta(NOTE_PATH);
   });
 
-  it("draws the dot beside a callout whose body a range starts in", () => {
+  it("draws a noted highlight's dot beside a callout whose body its range starts in", () => {
     const { view } = renderNote(
       "> [!NOTE]\n> opening %%i:abc:start%%words\n\nclosing%%i:abc:end%% tail\n",
     );
-    expect(view.getAllByRole("button", { name: "Comments on this block" })).toHaveLength(1);
+    expect(view.getAllByRole("button", { name: "Notes on this block" })).toHaveLength(1);
   });
 });
