@@ -59,6 +59,32 @@ export const mintAnnotationId = (randomBytes: (length: number) => Uint8Array): s
     .map((byte) => MINTED_ID_ALPHABET[byte % MINTED_ID_ALPHABET.length])
     .join("");
 
+// the longest quote a root keeps, and the wire's limit for one: a quote is the passage's text
+// when it was made, a reminder of it rather than a copy of a chapter
+export const ANNOTATION_QUOTE_MAX = 4000;
+
+const QUOTE_ELLIPSIS = "…";
+
+// a code point past the BMP spans two code units, and the cut must not fall between them
+const MAX_BMP = 0xff_ff;
+
+// what every writer stores as a quote: whitespace folded to single spaces, then cut at the last
+// word boundary that fits ANNOTATION_QUOTE_MAX with a trailing "…" (a word longer than the room
+// is cut inside it, never between a surrogate pair)
+export const clipQuote = (text: string): string => {
+  const folded = text.replaceAll(/\s+/gu, " ").trim();
+  if (folded.length <= ANNOTATION_QUOTE_MAX) {
+    return folded;
+  }
+  const room = ANNOTATION_QUOTE_MAX - QUOTE_ELLIPSIS.length;
+  const boundary = folded.lastIndexOf(" ", room);
+  let end = boundary > 0 ? boundary : room;
+  if (boundary <= 0 && (folded.codePointAt(end - 1) ?? 0) > MAX_BMP) {
+    end -= 1;
+  }
+  return `${folded.slice(0, end).trimEnd()}${QUOTE_ELLIPSIS}`;
+};
+
 // looseObject: fields from an external writer this version never heard of must survive a rewrite.
 // zod emits parsed keys in declaration order, so this is the store's on-disk field order;
 // sorting it rewrites every vault's annotation files.

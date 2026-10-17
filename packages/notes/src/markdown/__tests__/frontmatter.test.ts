@@ -6,9 +6,12 @@ import {
   pinnedFrontmatterYaml,
   removeFrontmatterId,
   replaceFrontmatterYaml,
+  replaceTopLevelKey,
   setFrontmatterPinned,
   splitFrontmatter,
+  topLevelKeyRange,
   withFrontmatterId,
+  yamlScalarText,
 } from "@repo/notes/markdown/frontmatter";
 
 import { parseBare } from "../bare-parse";
@@ -216,5 +219,35 @@ describe("removeFrontmatterId", () => {
     expect(removeFrontmatterId("---\nid: abc\n---\n# Hi\n")).toBe("# Hi\n");
     expect(removeFrontmatterId("---\ntags: [a]\n---\n# Hi\n")).toBe("---\ntags: [a]\n---\n# Hi\n");
     expect(removeFrontmatterId("# Hi\n")).toBe("# Hi\n");
+  });
+});
+
+describe("the top-level key line cut", () => {
+  const lines = ["id: x", "aliases:", "  - a", "- b", '"site": s', "# c", "tail: 1"];
+
+  it("finds a key's own lines, its block value and a quoted spelling included", () => {
+    expect(topLevelKeyRange(lines, "aliases")).toEqual({ end: 4, start: 1 });
+    expect(topLevelKeyRange(lines, "site")).toEqual({ end: 5, start: 4 });
+    expect(topLevelKeyRange(lines, "missing")).toBeNull();
+  });
+
+  it("puts the replacement where they stood and keeps every other line", () => {
+    expect(replaceTopLevelKey(lines, "aliases", ["aliases: [z]"])).toEqual([
+      "id: x",
+      "aliases: [z]",
+      '"site": s',
+      "# c",
+      "tail: 1",
+    ]);
+    expect(replaceTopLevelKey(lines, "missing", ["x: 1"])).toEqual(lines);
+  });
+});
+
+describe("yamlScalarText", () => {
+  it("keeps a comma plain in a block value and quotes it in a flow list", () => {
+    expect(yamlScalarText("a, b", "plain", "block")).toBe("a, b");
+    expect(yamlScalarText("a, b", "plain")).toBe('"a, b"');
+    expect(yamlScalarText("a: b", "plain", "block")).toBe('"a: b"');
+    expect(yamlScalarText("[x]", "plain", "block")).toBe('"[x]"');
   });
 });

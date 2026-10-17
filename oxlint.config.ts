@@ -122,6 +122,10 @@ export default defineConfig({
                   "@repo/notes names no platform and not every runtime it ships to has crypto; take the random bytes or the id from the caller",
                 name: "crypto",
               },
+              {
+                message: "React Native's URL is not WHATWG; parse with @repo/notes/items/item-url",
+                name: "URL",
+              },
             ],
           },
         ],

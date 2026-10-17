@@ -11,6 +11,46 @@ random bytes and fresh ids) is injected.
 `markdown/mdast-nodes.ts` is the mdast NARROWING boundary: a walk asks it what a
 node is rather than discriminating structurally at each visit.
 
+## Items
+
+- **AN ITEM IS ONE MARKDOWN FILE, AND `@repo/notes/items` IS ITS ONE READER
+  AND WRITER.** A link, a video, an image's wrapper and a note the person
+  writes are all one doc. Its facts are frontmatter keys (`kind`, `url`,
+  `site`, `author`, `published`, `saved`, `fetched`, `fetch-error`,
+  `description`, beside the existing `id`, `tags`, `pinned` and `aliases`),
+  read by `readItemFacts`, where a missing or unknown `kind` is a note and a
+  note writes no `kind` at all; every write of them is a line cut
+  (`withItemFields` in `@repo/notes/items/item-frontmatter`, over
+  `replaceTopLevelKey`) that leaves every other byte of the block alone and
+  puts an added key in its compose position, so two Macs filling one stub
+  write the same bytes. There is no `title:` key: the filename is the title,
+  and a page's title becomes one through `itemNameFromTitle`
+  (`@repo/notes/items/item-name`). A stub is an app-made url item whose page
+  is unread, which needs the `id` and `saved` every writer stamps
+  (`isItemStub`). An item's cover, original file and page copy are computed
+  from its first embeds and its links every time it is read
+  (`@repo/notes/items/item-files`), never stored. A media file no doc embeds is
+  a card of its own (a bare file), and the library rules file, the dot-folders
+  and the covers and page copies folders are never cards. Rejected: a
+  frontmatter cover path (rename's link rewrite and the phone never see it),
+  wrapping every file that appears in a doc (a pasted image and a cover would
+  each become a card), and a `title:` key beside the filename (two names that
+  drift).
+
+- **A URL HAS ONE KEY, COMPUTED WITHOUT THE PLATFORM'S URL.**
+  `@repo/notes/items/item-url` parses by the RFC 3986 appendix-B regex: the
+  key drops the scheme, userinfo, `www.`, a default port, the tracking
+  parameters and a non-route fragment, folds the host and its aliases
+  (`youtu.be`, `x.com`, a mobile host) and sorts what query is left, and
+  `cleanUrl`, what `url:` holds, drops only the userinfo and the tracking
+  parameters, so `urlKey(cleanUrl(u)) === urlKey(u)` (a seeded property in
+  its suite). The key is projected, so a rule change bumps
+  `PROJECTION_VERSION`, and `URL` is a banned global in this package
+  (`oxlint.config.ts`). Rejected: `new URL()` (React Native's is not WHATWG,
+  so the phone and the Mac would key one link differently), and storing the
+  key in frontmatter (a rule change would leave every file holding the old
+  one).
+
 ## Annotations
 
 - **AN ANNOTATION IS A HIGHLIGHT AND AN OPTIONAL NOTE, STORED BY THE ITEM'S
@@ -41,7 +81,9 @@ node is rather than discriminating structurally at each visit.
 - **THE CLIENT DOES NOT DECIDE WHAT A DOC IS.** `@repo/notes/knowledge/doc-file`
   is the one answer: `isDocPath` (`.md`, `.markdown`, `.mdx`, `.txt`) and
   `docStem`. A private `.md` rule in a client hides every `.txt` note and
-  disagrees on display the moment a name is not lowercase.
+  disagrees on display the moment a name is not lowercase. What any other file
+  is in the library is `fileKindOf` (`@repo/notes/items/item-kind`), and what a
+  doc is as an item is its `kind`: one answer each, for every client.
   `apps/workspace/src/app/__tests__/vault-hooks.test.ts` walks the page for
   either shape.
 
