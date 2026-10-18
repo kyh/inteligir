@@ -106,10 +106,16 @@ export const startLanFixture = async (
       }
     }
   });
-  server.listen(0, host);
+  // the guard refuses the app's own port on any address, and the kernel will hand a LAN bind the
+  // port an instance holds on loopback; so the fixture holds its port on loopback too, for its
+  // whole life, where no instance, booted before it or after, can then listen
+  const claim = createServer();
+  claim.listen(0, "127.0.0.1");
+  await once(claim, "listening");
+  const { port } = boundPortSchema.parse(claim.address());
+  server.listen(port, host);
   // rejects on the server's "error" instead, as a refused bind would
   await once(server, "listening");
-  const { port } = boundPortSchema.parse(server.address());
   const origin = `http://${host}:${port}`;
   return {
     async close() {
@@ -121,8 +127,9 @@ export const startLanFixture = async (
       }
       gates.clear();
       server.closeAllConnections();
-      const closed = once(server, "close");
+      const closed = Promise.all([once(server, "close"), once(claim, "close")]);
       server.close();
+      claim.close();
       await closed;
     },
     gate(path, count) {
