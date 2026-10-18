@@ -11,6 +11,7 @@ import { selectionEdgeLocked } from "@repo/editor/kits/rich-block-lock-kit";
 import { liveEditorPath } from "@repo/editor/live-editor";
 import { stringProp } from "@repo/editor/node-props";
 import { useOpenNotePath } from "@repo/editor/note/open-note-context";
+import { revealCentered } from "@repo/editor/scroll-reveal";
 import { cn } from "@repo/ui/lib/cn";
 import { isImeComposing } from "@repo/ui/lib/ime";
 import { Popover, PopoverContent } from "@repo/ui/components/popover";
@@ -321,7 +322,9 @@ export const scrollToAnnotationMarker = (editor: SlateEditor, rootId: string): b
   }
   try {
     const dom = editor.api.toDOMNode(entry[0]);
-    dom?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (dom !== undefined) {
+      revealCentered(dom);
+    }
     return dom !== undefined;
   } catch {
     return false;

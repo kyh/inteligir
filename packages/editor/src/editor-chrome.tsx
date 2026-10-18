@@ -6,12 +6,13 @@
 // ancestor scrolls, so the container adds no overflow-y-auto.
 
 import type { HTMLAttributes } from "react";
+import type { RenderChunkFn } from "platejs";
 import { PlateContainer, PlateContent } from "platejs/react";
 import type { PlateContentProps } from "platejs/react";
 
 import { useEditorProfile } from "@repo/editor/editor-profile";
 import type { EditorProfile } from "@repo/editor/editor-profile";
-import { TYPESET, TYPESET_DOCS } from "@repo/editor/style-hooks";
+import { EDITOR_CHUNK, TYPESET, TYPESET_DOCS } from "@repo/editor/style-hooks";
 import { cn } from "@repo/ui/lib/cn";
 
 // select-text opts out of the shell's global user-select: none; ignore-click-outside/toolbar keeps editor clicks from closing the floating toolbar
@@ -39,6 +40,16 @@ const EDITOR_CLASS = cn(
   "**:data-slate-placeholder:top-[auto] **:data-slate-placeholder:text-muted-foreground/80 **:data-slate-placeholder:opacity-100!",
 );
 
+// only a run of blocks draws a box: a chunk of chunks adds nothing to the dom
+const EditorChunk: RenderChunkFn = ({ attributes, children, lowest }) =>
+  lowest ? (
+    <div {...attributes} className={EDITOR_CHUNK}>
+      {children}
+    </div>
+  ) : (
+    children
+  );
+
 export const EditorContainer = ({ className, ...props }: HTMLAttributes<HTMLDivElement>) => (
   <PlateContainer className={cn(CONTAINER_CLASS, className)} {...props} />
 );
@@ -49,6 +60,7 @@ export const Editor = ({ className, ...props }: PlateContentProps) => {
     <PlateContent
       className={cn(EDITOR_CLASS, editorColumnPx(profile), className)}
       disableDefaultStyles
+      renderChunk={EditorChunk}
       {...props}
     />
   );

@@ -21,3 +21,6 @@ export const TYPESET_DOCS = "typeset-docs";
 
 // the frame a diagram draws in, which feeds Pele's variables the app's own tokens.
 export const DIAGRAM_PREVIEW = "diagram-preview";
+
+// a long note's run of top-level blocks, which skips its layout and paint while off screen.
+export const EDITOR_CHUNK = "editor-chunk";

@@ -24,6 +24,22 @@
   visibility: hidden;
 }
 
+/* a long note renders in runs of blocks, and a run off screen skips its layout and paint, held at
+   an estimate of its height until it first draws and at its last height after. paint containment
+   clips to the run's own box, so it overhangs the column by the gutter the drag handle, a
+   heading's fold, a task's checkbox and a highlight's dot hang in. */
+.editor-chunk {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 300em;
+  margin-inline: -3rem;
+  padding-inline: 3rem;
+}
+
+/* typeset trims the note's first block's top margin, which the first run's box would hold apart */
+.editor-chunk:first-child {
+  margin-trim: block-start;
+}
+
 /* the prose typeset draws, fed by the appearance dials the host publishes as --editor-* on <html> */
 .typeset-docs {
   --typeset-font-body: var(--editor-font);

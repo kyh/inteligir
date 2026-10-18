@@ -42,12 +42,15 @@ const WATCHED_BLOCK =
 const CLOSING_BLOCK = "The end.";
 
 // Ratios rather than wall-clock ceilings, so a slow or loaded runner cannot fail them. Recorded: a
-// keystroke costs 210-230ms in the long note against 26-27ms in the short one, 8x for eight times
-// the lines, where a pass quadratic in the note shows; the settle costs 270ms against a 1,050ms
-// parse of the note, and without patches/@platejs__core@53.3.15.patch 3,100ms, three times it.
-// A memory-starved CI runner's garbage collection pushed the linear case to 12.4x; a quadratic
-// pass is 64x, so 16 still catches it.
-const KEYSTROKE_GROWTH_CEILING = 16;
+// keystroke costs 25ms in the long note against 10ms in the short one, 2.6x for eight times the
+// lines, and 0.013 of a 1,860ms parse of the note; the settle costs 470ms, a quarter of that parse,
+// and without patches/@platejs__core@53.3.15.patch three times it. A pass quadratic in the note is
+// 64x. A store atom every block holds is recomputed on every change: Plate's toggle hider or its
+// navigation flash alone put a keystroke back at 120ms, 6-7x and 0.06 of the parse, and the two
+// beside the old annotation pairing cost 0.2 of it. A memory-starved CI runner's garbage collection
+// pushes a ratio up by about half, so the ceilings leave that room over the recorded costs.
+const KEYSTROKE_GROWTH_CEILING = 6;
+const KEYSTROKE_TO_PARSE_CEILING = 0.05;
 const SETTLE_TO_PARSE_CEILING = 1;
 // a hang backstop, never a budget: the costs are ratios, so a runner half as fast takes twice as long
 // and still passes, and CI's job limit is the outer bound
@@ -68,11 +71,6 @@ const ROOT_NORMALIZE: BudgetRow = {
   name: "normalizeNode",
   why: "Slate normalizes every ancestor of an edit, the root among them, and the root's normalization looks at each top-level block",
 };
-const ANNOTATION_PAIRING: BudgetRow = {
-  module: "annotations/annotation-ranges.ts",
-  name: "annotationSpans",
-  why: "a comment may span blocks, so markers pair in document order; a block's edges are cached, each pair's extent is not",
-};
 const SORTABLE_IDS: BudgetRow = {
   module: "block-draggable.tsx",
   name: "sortableIds",
@@ -82,11 +80,6 @@ const FOLD_REACH: BudgetRow = {
   module: "heading-collapse.tsx",
   name: "derive",
   why: "a fold hides every block under its heading up to the next of its rank, which only the top level says, and useEditorSelector asks on every change",
-};
-const TOGGLE_INDEX: BudgetRow = {
-  module: "@platejs/toggle",
-  name: "buildToggleIndex",
-  why: "Plate rebuilds its toggle index over the top level on every change",
 };
 const ROOT_DECORATIONS: BudgetRow = {
   module: "slate-dom",
@@ -101,17 +94,14 @@ const SELECTOR_SUBSCRIPTIONS: BudgetRow = {
 
 const KEYSTROKE_BUDGET: readonly BudgetRow[] = [
   ROOT_NORMALIZE,
-  ANNOTATION_PAIRING,
   SORTABLE_IDS,
   FOLD_REACH,
-  TOGGLE_INDEX,
   ROOT_DECORATIONS,
   SELECTOR_SUBSCRIPTIONS,
 ];
 const CARET_BUDGET: readonly BudgetRow[] = [
   SORTABLE_IDS,
   FOLD_REACH,
-  TOGGLE_INDEX,
   ROOT_DECORATIONS,
   SELECTOR_SUBSCRIPTIONS,
 ];
@@ -440,6 +430,14 @@ describe(`typing in a ${String(LONG_LINES)}-line note`, () => {
       growth,
       `a keystroke costs ${ms(long.keystrokeMs)} in the ${String(LONG_LINES)}-line note and ${ms(short.keystrokeMs)} in the ${String(SHORT_LINES)}-line one, ${growth.toFixed(1)}x for eight times the lines; the ceiling is ${String(KEYSTROKE_GROWTH_CEILING)}x`,
     ).toBeLessThan(KEYSTROKE_GROWTH_CEILING);
+  });
+
+  it("costs a keystroke a small share of reading the note", () => {
+    const share = long.keystrokeMs / parseMs;
+    expect(
+      share,
+      `a keystroke in the ${String(LONG_LINES)}-line note costs ${ms(long.keystrokeMs)}, ${share.toFixed(3)}x the ${ms(parseMs)} parse that opened it; the ceiling is ${String(KEYSTROKE_TO_PARSE_CEILING)}x, and a store atom every block holds is 0.06x`,
+    ).toBeLessThan(KEYSTROKE_TO_PARSE_CEILING);
   });
 
   it("settles for less than it cost to open the note", () => {

@@ -1,6 +1,6 @@
 // Nested block children, not Plate's flat indent-sibling model: TogglePlugin is kept for its
-// openIds store and chevron hooks, and its flat-model hider is inert here. Open state lives in
-// that store, never on the node, so collapsing cannot dirty the document.
+// openIds store and chevron hooks, and its flat-model hider is switched off below. Open state
+// lives in that store, never on the node, so collapsing cannot dirty the document.
 
 import { ElementApi, KEYS, PathApi, TextApi, createBlockStartInputRule } from "platejs";
 import type { Path } from "platejs";
@@ -46,8 +46,19 @@ const toggleInputRule = createBlockStartInputRule({
   trigger: " ",
 });
 
+// The flat model's hider and its index are off: a toggle's body is its own children, so no
+// top-level block is enclosed by indent, and the hider was a store atom per block that every
+// change recomputed beside a walk of the top level, most of a keystroke in a long note.
+const wrapNoBlock = (): undefined => {
+  /* no block is hidden by a toggle above it */
+};
+const indexNoToggles = (): void => {
+  /* the toggle index stays empty, so no block reads as inside a closed toggle */
+};
+
 export const ToggleKit = [
   TogglePlugin.configure({ inputRules: [toggleInputRule] })
+    .extend({ render: { aboveNodes: wrapNoBlock }, useHooks: indexNoToggles })
     .withComponent(ToggleElement)
     .overrideEditor(({ editor, tf: { insertBreak, normalizeNode } }) => ({
       transforms: {

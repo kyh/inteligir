@@ -7,7 +7,13 @@ import { createRef } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createOpenNoteStore } from "@repo/editor/note/open-note-store";
-import { collectHeadings, headingElement, railWindow, TOC_RAIL_CAP } from "@repo/editor/toc";
+import {
+  activeHeadingAt,
+  collectHeadings,
+  headingElement,
+  railWindow,
+  TOC_RAIL_CAP,
+} from "@repo/editor/toc";
 import { EditorHarness } from "./editor-harness";
 
 afterEach(cleanup);
@@ -77,6 +83,51 @@ describe("outline targets", () => {
   it("answers null for a path the document no longer holds", () => {
     const editor = mountValue([h("h2", "Only"), p("body")]);
     expect(headingElement(editor, { depth: 2, id: "99", path: [99], title: "gone" })).toBeNull();
+  });
+});
+
+// the scroller's own top at 0, so the scanner line sits at 72px
+const spyScroller = (): Element => {
+  const el = document.createElement("div");
+  el.getBoundingClientRect = () => DOMRect.fromRect({ height: 800, width: 800, x: 0, y: 0 });
+  return el;
+};
+
+// each heading's top 100px below the last, the note scrolled by `scrolledBy`; counts the measures
+const placeHeadings = (editor: PlateEditor, scrolledBy: number) => {
+  const reads = { count: 0 };
+  for (const [index, heading] of collectHeadings(editor).entries()) {
+    const el = headingElement(editor, heading);
+    if (el === null) {
+      throw new Error("every heading draws");
+    }
+    const rect = DOMRect.fromRect({ height: 20, width: 100, x: 0, y: index * 100 - scrolledBy });
+    el.getBoundingClientRect = () => {
+      reads.count += 1;
+      return rect;
+    };
+  }
+  return reads;
+};
+
+describe("the scroll spy", () => {
+  it("lights the last heading at or above the scanner line, measuring a handful of them", () => {
+    const value: Value = Array.from({ length: 64 }, (_, index) =>
+      h("h2", `Section ${String(index)}`),
+    );
+    const editor = mountValue(value);
+    const headings = collectHeadings(editor);
+
+    const reads = placeHeadings(editor, 0);
+    expect(activeHeadingAt(editor, headings, spyScroller())).toBe(0);
+    // bisection over 64 headings asks about seven of them, never all
+    expect(reads.count).toBeLessThanOrEqual(7);
+
+    placeHeadings(editor, 2000);
+    expect(activeHeadingAt(editor, headings, spyScroller())).toBe(20);
+
+    placeHeadings(editor, 100_000);
+    expect(activeHeadingAt(editor, headings, spyScroller())).toBe(63);
   });
 });
 

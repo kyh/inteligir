@@ -199,7 +199,9 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   pairing per block, which draws a two-paragraph annotation as two orphans, and refusing a
   selection that crosses blocks. The ranges are returned for the root alone,
   because a per-text decoration leaves an untouched middle block with a stale
-  tint. `packages/editor/src/annotations/annotation-ranges.ts`.
+  tint. An extent that stays inside one top-level block is kept by that block,
+  its paths relative to it, so a keystroke elsewhere pairs again without
+  measuring it. `packages/editor/src/annotations/annotation-ranges.ts`.
 
 - **AN ANNOTATION IS A HIGHLIGHT FIRST AND A NOTE SECOND.** ⌘⇧H, the selection
   toolbar's Highlight and the touch toolbar's Highlight are one gesture,
@@ -221,9 +223,10 @@ becomes a domain value there alone, which is why no walk narrows structurally.
 - **TYPING IN A LONG NOTE WALKS IT ONLY THROUGH A RECORDED BUDGET, AND THE
   BUDGET FINDS ITS PASSES.** In a 10k-line note a keystroke, a caret move and
   the settle after typing may each walk the whole note only through passes a row
-  names with its reason, and their times are held as ratios (to how a keystroke
-  grows with the note, to the parse of the same note) so a slow runner cannot
-  fail them. A pass is found, never declared: a block near the note's end
+  names with its reason, and their times are held as ratios (a keystroke to how it
+  grows with the note and to the parse of the same note, the settle to that
+  parse), so a slow runner cannot fail them but a store atom every block holds
+  does. A pass is found, never declared: a block near the note's end
   records the stack of every read of it, so a new pass fails named by its
   function, where instrumenting the known passes would miss the one nobody
   instrumented. A pass a keystroke cannot afford caches by top-level block,
@@ -264,6 +267,33 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   leaves the drawing. Rejected: mermaid.js, about 2 MB, an async render behind a 300 ms
   debounce whose theme was baked into its DOM, so a theme change redrew every
   diagram. `packages/editor/src/nodes/code-block-mermaid.tsx`.
+
+- **A LONG NOTE RENDERS IN RUNS OF A HUNDRED BLOCKS THAT SKIP THEIR LAYOUT AND
+  PAINT OFF SCREEN, AND EVERY BLOCK STAYS MOUNTED.** Slate's chunking splits the
+  top level into runs (`CHUNK_BLOCKS` in `packages/editor/src/markdown-editor.tsx`),
+  so a keystroke re-renders one run, and each run is a box with
+  `content-visibility: auto`, held at an estimate of its height until it first
+  draws and at its last height after (`EditorChunk` in
+  `packages/editor/src/editor-chrome.tsx`, `.editor-chunk` in
+  `packages/editor/src/styles.css`). The box overhangs the column by the gutter,
+  because paint containment clips to it and the drag handle, a fold's chevron and
+  a task's checkbox hang left of their block; a jump further than about a screen
+  lands at once, because a glide across runs not yet drawn aims where its target
+  sat before they drew (`packages/editor/src/scroll-reveal.ts`). What a keystroke
+  cost in a 10k-line note was not Plate's own floor: React read the focused
+  editable's whole text before every commit (`patches/react-dom@19.2.8.patch`),
+  Plate's flat-model toggle hider and its navigation flash held a store atom per
+  block that every change recomputed, both switched off
+  (`packages/editor/src/kits/toggle-kit.tsx`, `navigationFeedback` in
+  `markdown-editor.tsx`), and every annotation extent was measured again, now kept
+  by its block (`packages/editor/src/annotations/annotation-ranges.ts`); together
+  a keystroke there went from about 230 ms to 20 ms in Chromium. Rejected:
+  virtualization that unmounts the blocks off screen, since Slate needs the dom of
+  every node a selection, find or a far link reaches, and a rewrite on
+  ProseMirror, since the hard part is the markdown conversion layer, which a
+  rewrite redoes, while the runs move the cost without touching it.
+  `packages/editor/src/__tests__/long-note-chunks.test.tsx`,
+  `packages/editor/src/__tests__/typing-budget.test.tsx`.
 
 ## Vault: writes, git and containment
 

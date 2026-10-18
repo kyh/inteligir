@@ -17,9 +17,12 @@ const TodoMarker = (props: PlateElementProps) => {
   const { checkboxProps } = useTodoListElement(useTodoListElementState({ element: props.element }));
   const readOnly = useReadOnly();
 
+  // named, so the checkbox looks for no <label>: unnamed, each one asks the document for its labels
+  // on every render, a walk of the whole note per task in a long one
   return (
     <div contentEditable={false}>
       <Checkbox
+        aria-label="Done"
         className={cn("absolute top-1 -left-6", readOnly && "pointer-events-none")}
         {...checkboxProps}
       />

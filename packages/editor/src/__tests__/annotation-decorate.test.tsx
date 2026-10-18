@@ -93,6 +93,27 @@ describe("annotation range decoration", () => {
     const { view } = renderNote("%%i:c1:start%%never closed\n");
     expect(leafOf(view, "never closed")).toContain(ORPHAN);
   });
+
+  // a tint inside one block is kept by that block, its paths relative to it, so a block added
+  // above moves only its index
+  it("keeps a tint on its passage when a block is added above it", async () => {
+    const { ref, view } = renderNote(
+      "plain lead\n\nbefore %%i:abc:start%%tinted words%%i:abc:end%% after\n\n%%i:c1:start%%never closed\n",
+    );
+    const editor = ref.current;
+    if (editor === null) {
+      throw new Error("the harness hands out its editor");
+    }
+    await act(async () => {
+      editor.tf.insertNodes({ children: [{ text: "a new first line" }], type: "p" }, { at: [0] });
+      await Promise.resolve();
+    });
+    expect(leafOf(view, "tinted words")).toContain(OPEN);
+    expect(leafOf(view, /^before/u)).not.toContain(OPEN);
+    expect(leafOf(view, /after/u)).not.toContain(OPEN);
+    expect(leafOf(view, "plain lead")).not.toContain(OPEN);
+    expect(leafOf(view, "never closed")).toContain(ORPHAN);
+  });
 });
 
 describe("annotation gutter", () => {

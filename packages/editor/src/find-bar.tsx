@@ -33,6 +33,7 @@ import { platformShortcutModifier, spellHotkey } from "@repo/ui/lib/hotkey-spell
 
 import { editorShortcutFor } from "@repo/editor/editor-shortcuts";
 import type { EditorShortcut } from "@repo/editor/editor-shortcuts";
+import { revealCentered } from "@repo/editor/scroll-reveal";
 
 export type FindBarShortcutAction = "find-next" | "find-previous" | "open-replace" | "replace-all";
 
@@ -164,7 +165,9 @@ const scrollToMatch = (editor: SlateEditor, match: TRange): void => {
     const domRange = editor.api.toDOMRange(match);
     const container = domRange?.startContainer;
     const target = container instanceof Element ? container : (container?.parentElement ?? null);
-    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (target !== null) {
+      revealCentered(target);
+    }
   } catch {
     // a leaf the view has not drawn has no DOM range
   }

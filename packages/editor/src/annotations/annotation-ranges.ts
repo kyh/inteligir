@@ -80,12 +80,62 @@ const holderExtent = (editor: SlateEditor, markerPath: Path): TRange | null => {
   return anchor !== undefined && focus !== undefined ? { anchor, focus } : null;
 };
 
+// An extent that stays inside one top-level block depends on that block alone, so it is kept by
+// the block, its paths relative to it: a keystroke elsewhere moves at most the block's index, and
+// asking Slate for a point before and after every pair on every change was a keystroke's walk.
+const localExtents = new WeakMap<TElement, Map<string, TRange | null>>();
+
+const relativeRange = ({ anchor, focus }: TRange): TRange => ({
+  anchor: { offset: anchor.offset, path: anchor.path.slice(1) },
+  focus: { offset: focus.offset, path: focus.path.slice(1) },
+});
+
+const placedRange = (index: number, { anchor, focus }: TRange): TRange => ({
+  anchor: { offset: anchor.offset, path: [index, ...anchor.path] },
+  focus: { offset: focus.offset, path: [index, ...focus.path] },
+});
+
+const extentInBlock = (
+  block: TElement,
+  index: number,
+  key: string,
+  measure: () => TRange | null,
+): TRange | null => {
+  let extents = localExtents.get(block);
+  if (extents === undefined) {
+    extents = new Map();
+    localExtents.set(block, extents);
+  }
+  let relative = extents.get(key);
+  if (relative === undefined) {
+    const measured = measure();
+    relative = measured === null ? null : relativeRange(measured);
+    extents.set(key, relative);
+  }
+  return relative === null ? null : placedRange(index, relative);
+};
+
+const relativeKey = (path: Path): string => path.slice(1).join(".");
+
 const pairEdges = (editor: SlateEditor): AnnotationSpan[] => {
   const open = new Map<string, PlacedEdge>();
   const spans: AnnotationSpan[] = [];
+  // a lone edge tints its holder, which is inside its own block
   const lone = ({ block, ids, path }: PlacedEdge): void => {
-    spans.push({ block, extent: holderExtent(editor, path), ids, orphan: true });
+    const extent = extentInBlock(block, path[0] ?? 0, `lone:${relativeKey(path)}`, () =>
+      holderExtent(editor, path),
+    );
+    spans.push({ block, extent, ids, orphan: true });
   };
+  const pairExtentOf = (started: PlacedEdge, edge: PlacedEdge): TRange | null =>
+    started.block === edge.block
+      ? extentInBlock(
+          edge.block,
+          edge.path[0] ?? 0,
+          `pair:${relativeKey(started.path)}>${relativeKey(edge.path)}`,
+          () => pairExtent(editor, started.path, edge.path),
+        )
+      : pairExtent(editor, started.path, edge.path);
 
   for (const [index, block] of editor.children.entries()) {
     for (const relative of blockEdges(block)) {
@@ -106,7 +156,7 @@ const pairEdges = (editor: SlateEditor): AnnotationSpan[] => {
       open.delete(key);
       spans.push({
         block: started.block,
-        extent: pairExtent(editor, started.path, edge.path),
+        extent: pairExtentOf(started, edge),
         ids: started.ids,
         orphan: false,
       });
