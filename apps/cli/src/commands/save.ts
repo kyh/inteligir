@@ -5,6 +5,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { buffer } from "node:stream/consumers";
 import { CAPTURE_HTML_MAX_CHARS } from "@repo/contract/browser/browser-wire";
+import type { LocalClient } from "@repo/contract/local";
 import {
   fileTooLargeMessage,
   itemSaveResponseSchema,
@@ -20,7 +21,7 @@ import { defineCommand } from "citty";
 import { z } from "zod";
 import { invalidUsage } from "../cli-error";
 import { apiFor } from "../context";
-import type { Api, CliDeps } from "../context";
+import type { CliDeps } from "../context";
 import { jsonArg, outputJson, writeLines } from "../output";
 
 // `save -`'s --json document: one answer per link, in stdin's order
@@ -155,7 +156,7 @@ interface SaveFlags {
   wait: boolean;
 }
 
-const saveLinks = async (api: Api, urls: readonly string[], flags: SaveFlags) => {
+const saveLinks = async (api: LocalClient, urls: readonly string[], flags: SaveFlags) => {
   const results: ItemSaveResponse[] = [];
   for (const url of urls) {
     results.push(await api.items.saveLink({ ...flags, url }));

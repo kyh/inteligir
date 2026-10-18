@@ -28,7 +28,8 @@ owner's.
 pnpm dev                # THE PRODUCT — the shell over its own server
 pnpm dev:desktop        # Alias of dev
 pnpm dev:workspace      # The page alone in a browser tab, on this checkout's server; no Rust
-pnpm dev:mobile         # apps/mobile: expo start
+pnpm dev:mobile         # apps/mobile: expo start, in a terminal (turbo refuses it piped or under CI;
+                        #   pnpm --filter @repo/mobile dev runs it without one)
 pnpm cli serve          # The server ALONE, from source, no window; a shell adopts it
 pnpm cli <verb>         # Every other verb, against this checkout's instance
 pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort)

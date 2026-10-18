@@ -1,9 +1,8 @@
 import { isDefinedError, safe } from "@orpc/client";
-import type { ContractRouterClient } from "@orpc/contract";
 import { annotationsStorePath, isNoteIdKey } from "@repo/notes/annotations/store-schema";
 import { reassignFrontmatterId } from "@repo/notes/markdown/frontmatter";
 
-import type { LocalContract } from "../local-contract";
+import type { LocalClient } from "../local-contract";
 import { contentHashHex } from "./vault-schema";
 
 // "changed": the note no longer carries the id it was named with, or it moved under the write;
@@ -15,7 +14,7 @@ export type NoteOwnId =
   | { kind: "invalid" }
   | { kind: "failed"; error: Error };
 
-type VaultClient = ContractRouterClient<LocalContract>["vault"];
+type VaultClient = LocalClient["vault"];
 
 interface OwnIdApi {
   vault: Pick<VaultClient, "read" | "remove" | "write">;

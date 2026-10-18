@@ -1,8 +1,8 @@
 import type { ActionPreset } from "@repo/domain/action-preset";
 import type { ViewContext } from "@repo/domain/view-context";
 import type { SendMessageRequest } from "@repo/contract/local/threads/threads-schema";
+import type { LocalClient } from "@repo/contract/local";
 import { isDefinedError, refusalMessage, safe } from "../api";
-import type { client } from "../api";
 
 export type ComposerSendOutcome =
   | { kind: "started"; turnId: string }
@@ -41,7 +41,7 @@ const sendRequest = (args: SendToThreadArgs, expectedTurnId: string | null): Sen
 
 // one retry on a stale guard, rather than racing a thread that keeps moving.
 export const sendToThread = async (
-  api: typeof client,
+  api: LocalClient,
   args: SendToThreadArgs,
 ): Promise<ComposerSendOutcome> => {
   const [error, sent] = await safe(api.threads.send(sendRequest(args, args.activeTurnId)));

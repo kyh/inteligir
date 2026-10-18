@@ -7,6 +7,7 @@ import { getLiveEditor } from "@repo/editor/live-editor";
 import { flushOpenNote } from "@repo/editor/note/open-note-flush";
 import type {
   AnnotationEntryWire,
+  AnnotationsResponse,
   AnnotationWire,
 } from "@repo/contract/local/annotations/annotations-schema";
 import { annotationSourceLabel, mintAnnotationId } from "@repo/notes/annotations/store-schema";
@@ -23,7 +24,7 @@ import type { KeyboardEvent, ReactNode } from "react";
 
 import { failed, orpc } from "../api";
 import { relativeTimeLabel, useNow } from "../relative-time";
-import { useNoteAnnotations } from "./annotation-hooks";
+import { holdAnnotations, rereadAnnotations, useNoteAnnotations } from "./annotation-hooks";
 import { ReadRefusal } from "./read-refusal";
 
 // the nonce tells two clicks on the same range apart, so the second one scrolls again
@@ -153,16 +154,15 @@ const AnnotationCard = ({
   docPath,
   annotation,
   focusNonce,
-  onDone,
   asOfMs,
 }: {
   docPath: string;
   annotation: AnnotationWire;
   // the nonce of the focus naming this card, null while none does
   focusNonce: number | null;
-  onDone: () => void;
   asOfMs: number;
 }) => {
+  const queryClient = useQueryClient();
   const [reply, setReply] = useState("");
   const cardRef = useRef<HTMLDivElement | null>(null);
 
@@ -179,12 +179,16 @@ const AnnotationCard = ({
     }
   };
 
-  // re-read after every verb, refusal included: a failed write otherwise shows a state the file never took.
+  // each verb answers the item's listing as it now stands, held as its list; a refusal re-reads
+  // that list alone
   const settle = {
-    onError: (cause: unknown): void => {
+    onError: (cause: unknown, { path }: { path: string }): void => {
       failed(cause, "The highlight change was refused.");
+      rereadAnnotations(queryClient, path);
     },
-    onSettled: onDone,
+    onSuccess: (listing: AnnotationsResponse, { path }: { path: string }): void => {
+      holdAnnotations(queryClient, path, listing);
+    },
   };
 
   const edit = useMutation(orpc.annotations.edit.mutationOptions({ ...settle }));
@@ -192,10 +196,11 @@ const AnnotationCard = ({
   const remove = useMutation(
     orpc.annotations.remove.mutationOptions({
       ...settle,
-      onSuccess: async (response) => {
+      onSuccess: async ({ removedIds, ...listing }, { path }) => {
+        holdAnnotations(queryClient, path, listing);
         const editor = getLiveEditor(docPath);
-        if (editor !== null && response.removedIds.length > 0) {
-          removeAnnotationMarkers(editor, response.removedIds);
+        if (editor !== null && removedIds.length > 0) {
+          removeAnnotationMarkers(editor, removedIds);
           await flushOpenNote();
         }
       },
@@ -309,7 +314,6 @@ export const AnnotationsTab = ({
   focus: AnnotationFocus | null;
   modifier: ShortcutModifier;
 }) => {
-  const queryClient = useQueryClient();
   const query = useNoteAnnotations(docPath);
   const asOfMs = useNow();
 
@@ -326,17 +330,12 @@ export const AnnotationsTab = ({
     return <p className="p-3 text-subtitle text-muted-foreground">Loading…</p>;
   }
 
-  const refresh = (): void => {
-    void queryClient.invalidateQueries({ queryKey: orpc.annotations.key() });
-  };
-
   const card = (annotation: AnnotationWire) => (
     <AnnotationCard
       key={annotation.id}
       docPath={docPath}
       annotation={annotation}
       focusNonce={focus !== null && focus.ids.includes(annotation.id) ? focus.nonce : null}
-      onDone={refresh}
       asOfMs={asOfMs}
     />
   );

@@ -3,6 +3,7 @@
 
 import { readFile, stat } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
+import type { LocalClient } from "@repo/contract/local";
 import {
   IMPORT_FILE_MAX_BYTES,
   importJobSchema,
@@ -12,7 +13,7 @@ import { defineCommand } from "citty";
 import { z } from "zod";
 import { CliExitError, invalidUsage } from "../cli-error";
 import { apiFor } from "../context";
-import type { Api, CliDeps } from "../context";
+import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 
 // `import cancel`'s --json document: the stopped job, or no job when none was running
@@ -75,7 +76,7 @@ const readExport = async (file: string): Promise<Blob> => {
 };
 
 // the latest status of the job this run started; another job in its place is no answer to it
-const latestJob = async (api: Api, id: string): Promise<ImportJob> => {
+const latestJob = async (api: LocalClient, id: string): Promise<ImportJob> => {
   const { job } = await api.imports.status();
   if (job?.id !== id) {
     throw new CliExitError("The import's status names another job", {
@@ -86,7 +87,11 @@ const latestJob = async (api: Api, id: string): Promise<ImportJob> => {
 };
 
 // the progress line is stderr's, and only a person's: a --json caller's stderr holds failures alone
-const followJob = async (api: Api, started: ImportJob, json: boolean): Promise<ImportJob> => {
+const followJob = async (
+  api: LocalClient,
+  started: ImportJob,
+  json: boolean,
+): Promise<ImportJob> => {
   let job = started;
   while (job.state === "running") {
     if (!json) {

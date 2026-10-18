@@ -3,12 +3,12 @@
 // guarded-vault-io does for the open buffer): the caller named exact bytes, and a merge would be
 // a guess about a note that moved.
 
+import type { LocalClient } from "@repo/contract/local";
 import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import { isDefinedError, refusalMessage, safe } from "../api";
-import type { client } from "../api";
 
 export interface RewriteNoteApi {
-  vault: Pick<(typeof client)["vault"], "read" | "write">;
+  vault: Pick<LocalClient["vault"], "read" | "write">;
 }
 
 // an edit that answers the same bytes is `unchanged`, and still carries what it found

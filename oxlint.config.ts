@@ -26,6 +26,7 @@ export default defineConfig({
   extends: [core, react, tanstack, antiSlop],
   ignorePatterns: [
     ...(core.ignorePatterns ?? []),
+    ".agents",
     ".claude",
     ".codex",
     "*.tsbuildinfo",

@@ -11,11 +11,11 @@ import { turnItemPaths } from "@repo/notes/items/turn-items";
 import { isVaultMetadataPath } from "@repo/notes/knowledge/doc-file";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
+import type { LocalClient } from "@repo/contract/local";
 import { isDefinedError, refusalMessage, safe } from "../api";
-import type { client } from "../api";
 
 export interface UndoTurnApi {
-  threads: Pick<(typeof client)["threads"], "undoTurn">;
+  threads: Pick<LocalClient["threads"], "undoTurn">;
 }
 
 type UndoTurnOutcome =

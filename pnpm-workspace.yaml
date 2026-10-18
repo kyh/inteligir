@@ -113,6 +113,11 @@ catalogs:
     react: 19.2.3
     typescript: ~6.0.3
 
+# a workspace's name written as a version range links this checkout's copy wherever that copy
+# satisfies it, rather than the registry's (`inteligir` is published); every manifest spells
+# `workspace:*`, so this decides only a slip
+linkWorkspacePackages: true
+
 # Expo-SDK-versioned names: `pnpm up --latest` must not move them past the SDK. Matched by name,
 # so react and typescript (shared with web) cannot be listed; their `expo:` rows are reverted by hand
 update:

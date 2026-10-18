@@ -34,7 +34,6 @@
   },
   "devDependencies": {
     "@orpc/client": "catalog:",
-    "@orpc/contract": "catalog:",
     "@orpc/tanstack-query": "catalog:",
     "@repo/contract": "workspace:*",
     "@repo/domain": "workspace:*",

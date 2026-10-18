@@ -27,3 +27,5 @@ export const localRouter = base.router({
   threads: threadsRouter,
   vault: vaultRouter,
 });
+
+export type LocalRouter = typeof localRouter;

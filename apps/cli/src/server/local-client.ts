@@ -1,7 +1,6 @@
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
-import type { ContractRouterClient } from "@orpc/contract";
-import type { LocalContract } from "@repo/contract/local";
+import type { LocalClient } from "@repo/contract/local";
 import { RPC_PREFIX } from "@repo/contract/local/routes";
 import { AGENT_THREAD_HEADER } from "./agent-thread-header";
 import { authorizationHeader } from "./server-file";
@@ -14,7 +13,7 @@ export interface LocalClientArgs {
   agentThreadId?: string;
 }
 
-export const createLocalClient = (args: LocalClientArgs): ContractRouterClient<LocalContract> => {
+export const createLocalClient = (args: LocalClientArgs): LocalClient => {
   const link = new RPCLink({
     // merge with init.signal: oRPC passes the caller's per-call signal in init, and a bare { signal } would drop it.
     fetch: async (url, init) => {

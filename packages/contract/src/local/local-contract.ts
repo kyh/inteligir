@@ -1,5 +1,11 @@
 // both ends ship in one bundle, so this half may break freely; @repo/contract/cloud may never.
 
+import type {
+  InferContractRouterInputs,
+  InferContractRouterOutputs,
+  RouterContractClient,
+} from "@orpc/contract";
+
 import { agentsContract } from "./agents/agents-contract";
 import { annotationsContract } from "./annotations/annotations-contract";
 import { cloudContract } from "./cloud/cloud-contract";
@@ -27,3 +33,11 @@ export const localContract = {
 };
 
 export type LocalContract = typeof localContract;
+
+// what every caller of the server types against: the page, the CLI's verbs, the browser's door and
+// the e2e harness, each over its own link
+export type LocalClient = RouterContractClient<LocalContract>;
+
+export type LocalInputs = InferContractRouterInputs<LocalContract>;
+
+export type LocalOutputs = InferContractRouterOutputs<LocalContract>;

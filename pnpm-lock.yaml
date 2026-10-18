@@ -411,9 +411,6 @@ importers:
       '@orpc/client':
         specifier: 'catalog:'
         version: 2.0.0-beta.42
-      '@orpc/contract':
-        specifier: 'catalog:'
-        version: 2.0.0-beta.42
       '@orpc/server':
         specifier: 'catalog:'
         version: 2.0.0-beta.42
@@ -863,9 +860,6 @@ importers:
   apps/workspace:
     devDependencies:
       '@orpc/client':
-        specifier: 'catalog:'
-        version: 2.0.0-beta.42
-      '@orpc/contract':
         specifier: 'catalog:'
         version: 2.0.0-beta.42
       '@orpc/tanstack-query':
@@ -1328,9 +1322,6 @@ importers:
   tools/e2e:
     dependencies:
       '@orpc/client':
-        specifier: 'catalog:'
-        version: 2.0.0-beta.42
-      '@orpc/contract':
         specifier: 'catalog:'
         version: 2.0.0-beta.42
       '@repo/contract':

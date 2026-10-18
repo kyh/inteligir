@@ -1,3 +1,4 @@
+import type { LocalClient } from "@repo/contract/local";
 import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schema";
 import type { TimelineRow } from "@repo/contract/local/thread-timeline";
 import { POLL_INTERVAL_MS } from "inteligir/server/cloud/sync-cadence";
@@ -5,7 +6,7 @@ import { expect } from "../harness/assert";
 import { signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { signInOwner } from "../harness/hosted-vault";
-import type { AppInstance, InstanceApi } from "../harness/instance";
+import type { AppInstance } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { untilThreadIdle } from "../harness/threads";
@@ -36,7 +37,7 @@ const rowLine = (row: TimelineRow): string => {
   }
 };
 
-const timelineLines = async (api: InstanceApi, threadId: string): Promise<string[]> => {
+const timelineLines = async (api: LocalClient, threadId: string): Promise<string[]> => {
   const body = await api.threads.timeline({ threadId });
   expect(body.kind === "full", `timeline without afterSequence answers full, got "${body.kind}"`);
   return body.timeline.rows.map(rowLine);

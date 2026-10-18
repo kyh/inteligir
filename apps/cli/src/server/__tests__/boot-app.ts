@@ -31,6 +31,7 @@ import type { ImageDownscale } from "../media/image-downscale";
 import { createInlineProjector } from "../knowledge/__tests__/inline-projector";
 import { closeServer } from "../listen";
 import { localRouter } from "../root-router";
+import type { LocalRouter } from "../root-router";
 import { LOOPBACK_HOST } from "../loopback-origin";
 import { authorizationHeader, loopbackOrigin } from "../server-file";
 import type { ShutdownStep } from "../shutdown";
@@ -195,7 +196,7 @@ export interface BootTestAppOptions {
 export interface BootedTestApp {
   composed: ComposedRuntime & ReturnType<typeof createApp>;
   bus: WsBus;
-  client: RouterClient<typeof localRouter>;
+  client: RouterClient<LocalRouter>;
   // from the loopback host, carrying the bearer.
   request: (input: string, init?: RequestInit) => Promise<Response>;
   // from the loopback host, carrying whatever credential `init` does.
@@ -377,7 +378,7 @@ export const bootThreadHarness = async (
 export interface ListeningTestApp {
   server: ReturnType<typeof serve>;
   port: number;
-  client: RouterClient<typeof localRouter>;
+  client: RouterClient<LocalRouter>;
 }
 
 export const listenTestApp = async (booted: BootedTestApp): Promise<ListeningTestApp> => {
@@ -394,7 +395,7 @@ export const listenTestApp = async (booted: BootedTestApp): Promise<ListeningTes
     await once(server, "listening");
   }
   const { port } = boundAddressSchema.parse(server.address());
-  const client: RouterClient<typeof localRouter> = createORPCClient(
+  const client: RouterClient<LocalRouter> = createORPCClient(
     new RPCLink({
       headers: { authorization: authorizationHeader(TEST_SERVER_TOKEN) },
       origin: loopbackOrigin(port),

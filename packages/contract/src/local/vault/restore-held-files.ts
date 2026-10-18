@@ -1,7 +1,6 @@
 import { isDefinedError, safe } from "@orpc/client";
-import type { ContractRouterClient } from "@orpc/contract";
 
-import type { LocalContract } from "../local-contract";
+import type { LocalClient } from "../local-contract";
 import type { VaultDeletedEntry } from "./vault-schema";
 
 // what came back, and why each other file did not: "exists", something stands at its path now;
@@ -12,7 +11,7 @@ export interface HeldFilesRestore {
   failed: { path: string; reason: "exists" | "too-large" | "gone" | "failed" }[];
 }
 
-type VaultClient = ContractRouterClient<LocalContract>["vault"];
+type VaultClient = LocalClient["vault"];
 
 type Refusal = HeldFilesRestore["failed"][number]["reason"];
 

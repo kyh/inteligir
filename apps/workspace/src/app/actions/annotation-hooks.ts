@@ -1,7 +1,7 @@
 import { clearAnnotationMeta, setAnnotationMeta } from "@repo/editor/annotations/annotation-store";
 import type { AnnotationsResponse } from "@repo/contract/local/annotations/annotations-schema";
 import { skipToken, useQuery } from "@tanstack/react-query";
-import type { UseQueryResult } from "@tanstack/react-query";
+import type { QueryClient, UseQueryResult } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { orpc } from "../api";
@@ -12,6 +12,24 @@ export const useNoteAnnotations = (path: string | null): UseQueryResult<Annotati
     // a refusal is an unparseable store; retrying shows "Loading…" over an answer that will not change.
     retry: false,
   });
+
+// every write answers the item's listing as it now stands (annotations-contract.ts), so it becomes
+// that item's list with no second read
+export const holdAnnotations = (
+  queryClient: QueryClient,
+  path: string,
+  listing: AnnotationsResponse,
+): void => {
+  // a read already in flight would land over the write's answer
+  void queryClient.cancelQueries({ queryKey: orpc.annotations.list.key({ input: { path } }) });
+  queryClient.setQueryData(orpc.annotations.list.queryKey({ input: { path } }), listing);
+};
+
+// a refusal most often says the item's store moved under the list shown, so after one that item's
+// list alone is read again
+export const rereadAnnotations = (queryClient: QueryClient, path: string): void => {
+  void queryClient.invalidateQueries({ queryKey: orpc.annotations.list.key({ input: { path } }) });
+};
 
 // keyed on the loaded document, not the note being opened: the outgoing note's ranges
 // must never be measured against the incoming note's store.

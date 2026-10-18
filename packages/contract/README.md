@@ -2,7 +2,9 @@
 
 ONE contract package, THREE entry points. `@repo/contract/local` is the oRPC contract
 the workspace UI and the CLI compile against and `inteligir serve`
-implements. `@repo/contract/cloud` is the wire between an install and the Cloudflare
+implements; a client of it, the page's, the CLI's or the e2e harness's, is typed as
+its `LocalClient`, never a `RouterContractClient` spelled again.
+`@repo/contract/cloud` is the wire between an install and the Cloudflare
 Worker — and the client runtime core both the CLI and the phone run over it.
 `@repo/contract/browser` is the wire between the browser extension and
 `inteligir native-host`, and the extension's identity.
@@ -40,7 +42,7 @@ here, `tools/repo-guards` a `@tauri-apps` one.
 ```
 src/
   local/               the oRPC contract, one folder per domain
-    local-contract.ts  # the router every domain's rows hang from
+    local-contract.ts  # the router every domain's rows hang from, and the client and shapes over it
     <domain>/          # a `<domain>-contract.ts` of rows beside a `<domain>-schema.ts`
     local-errors.ts    # each error code's status, which oRPC does not carry
     local-routes.ts    # the paths that are not procedures

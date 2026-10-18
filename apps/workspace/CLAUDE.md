@@ -221,8 +221,15 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   open, its scroll kept by the workspace, so a sweep then refetches the item's
   rows alone. A content change moves no listing row, since nothing
   reads a row's modified time from the tree, and an `import-changed` refetches
-  the import's status alone. A reconnect sweeps every family the bus reaches,
-  which is why no window-focus re-walk backs it up.
+  the import's status alone. A write from the page refetches only what it moves
+  too: a reply, a stop or an archive the thread's detail and the lists, an
+  answer the detail alone (`apps/workspace/src/app/actions/action-detail.tsx`),
+  and an annotation write nothing, since its answer is the item's fresh
+  listing, held as that path's list, a refusal re-reading that list alone
+  (`apps/workspace/src/app/actions/annotation-hooks.ts`). Rejected: a
+  family-wide sweep after a write, which re-read every thread, or every item's
+  highlights, for one card's change. A reconnect sweeps every family the bus
+  reaches, which is why no window-focus re-walk backs it up.
   `apps/workspace/src/app/change-batch.ts`, `app/actions/thread-hooks.ts`,
   `app/workspace-context.tsx`, which flushes the batch per frame, and
   `apps/workspace/src/app/__tests__/changed-message.test.ts`.

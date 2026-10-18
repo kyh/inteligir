@@ -75,7 +75,8 @@ The agents ship inside the app: sign in with Claude or ChatGPT in
 Settings › Agent; a Mac already signed in to Claude Code or Codex stays signed
 in. Signed in to neither, the app is a library and a notes editor, and says so.
 
-From a checkout instead:
+From a checkout instead, with the prerequisites in
+[`docs/development.md`](./docs/development.md#prerequisites) installed:
 
 ```bash
 pnpm install
@@ -108,3 +109,7 @@ committed:
 ```bash
 pnpm format:fix && pnpm verify
 ```
+
+## License
+
+Licensed under the [MIT license](./LICENSE).

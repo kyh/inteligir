@@ -17,11 +17,11 @@ import type {
   BrowserSave,
 } from "@repo/contract/browser/browser-wire";
 import { VAULT_ASSET_MEDIA_TYPES } from "@repo/contract/cloud/vault/vault-schema";
+import type { LocalClient } from "@repo/contract/local";
 import type { ItemSaveResponse } from "@repo/contract/local/items/items-schema";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { z } from "zod";
 import { getErrorMessage, isOrpcError, isUnreachable } from "../cli-error";
-import type { Api } from "../context";
 import { createLocalClient } from "../server/local-client";
 import type { FrameEvent } from "./frames";
 import type { OpenApp } from "./open-app";
@@ -128,7 +128,7 @@ const saved = (response: ItemSaveResponse): SaveAnswer => ({ kind: "saved", resp
 const presentText = (text: string | null): string | null =>
   text === null || text.trim() === "" ? null : text;
 
-const saveOf = async (api: Api, save: BrowserSave): Promise<SaveAnswer> => {
+const saveOf = async (api: LocalClient, save: BrowserSave): Promise<SaveAnswer> => {
   switch (save.target) {
     case "page": {
       const text = presentText(save.page.selection?.text ?? null);

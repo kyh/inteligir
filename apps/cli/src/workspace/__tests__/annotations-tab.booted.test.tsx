@@ -1,8 +1,9 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { getEditorHostActions } from "@repo/editor/host-io";
 import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { bootTestApp } from "../../server/__tests__/boot-app";
 import type { ShortcutModifier } from "@repo/ui/lib/hotkey-spelling";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -13,13 +14,15 @@ import {
   createWorkspaceQueryClient,
   WorkspaceProvider,
 } from "@repo/workspace/app/workspace-context";
-import { routePageFetch } from "./booted-fetch";
+import { countPageCalls, routePageFetch } from "./booted-fetch";
 import { routePageSocket } from "./booted-socket";
+import { bootWorkspace } from "./boot-workspace";
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  localStorage.clear();
 });
 
 const mountTab = (docPath: string, modifier: ShortcutModifier = "meta"): void => {
@@ -243,5 +246,50 @@ describe("a highlight's card", () => {
     const group = await screen.findByRole("region", { name: "No longer in the text" });
     expect(group.textContent).toContain("gone words");
     expect(screen.getByRole("button", { name: "Remove" })).toBeTruthy();
+  });
+});
+
+const findCard = async (id: string): Promise<HTMLElement> =>
+  await waitFor(() => {
+    const card = document.querySelector<HTMLElement>(`[data-annotation-id="${id}"]`);
+    if (card === null) {
+      throw new Error(`no card for ${id}`);
+    }
+    return card;
+  });
+
+describe("a note written on the open item's highlight", () => {
+  it("lands in the tab on the write's own answer, with no second read of the list", async () => {
+    const harness = await bootWorkspace({
+      item: "plan.md",
+      seed: async ({ client }) => {
+        await client.vault.write({
+          content: "---\nid: 9a1f\n---\nThe %%i:h1:start%%marked words%%i:h1:end%% stay.\n",
+          guard: { kind: "overwrite" },
+          path: "plan.md",
+        });
+        await client.annotations.add({ id: "h1", path: "plan.md", quote: "marked words" });
+      },
+    });
+    const calls = countPageCalls(harness);
+    act(() => {
+      getEditorHostActions().annotations.open(["h1"]);
+    });
+    const card = within(await findCard("h1"));
+    expect(card.getByRole("button", { name: "Add a note" })).toBeTruthy();
+    const listReads = calls("annotations/list");
+
+    let edited = false;
+    await act(async () => {
+      edited = await getEditorHostActions().annotations.edit("h1", "Worth a second read");
+    });
+
+    expect(edited).toBe(true);
+    await waitFor(() => {
+      expect(card.getByRole("button", { name: "Edit the note" }).textContent).toBe(
+        "Worth a second read",
+      );
+    });
+    expect(calls("annotations/list")).toBe(listReads);
   });
 });

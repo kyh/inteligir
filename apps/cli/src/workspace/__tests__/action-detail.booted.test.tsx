@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { InertSocket } from "@repo/workspace/test-support/inert-socket";
 import { WorkspaceProvider } from "@repo/workspace/app/workspace-context";
 import { ActionsPanel } from "@repo/workspace/app/actions/actions-panel";
-import { routePageFetch } from "./booted-fetch";
+import { countPageCalls, routePageFetch } from "./booted-fetch";
 import { panelInfo } from "./boot-workspace";
 
 afterEach(() => {
@@ -78,6 +78,32 @@ describe("the action detail's transcript", () => {
     expect(await screen.findByText("Queued")).toBeTruthy();
     expect(field).toHaveProperty("value", "");
     expect(screen.getByText("for later")).toBeTruthy();
+  });
+
+  it("re-reads its own thread and the lists after a reply, and not what its turns changed", async () => {
+    const harness = await bootPanel();
+    const { thread } = await harness.client.threads.create({});
+    await harness.client.threads.send({ text: "first", threadId: thread.id });
+    const calls = countPageCalls(harness);
+
+    mountDetail(thread.id);
+    await waitFor(() => {
+      expect(screen.getAllByText("first")).toHaveLength(2);
+      expect(calls("threads/list")).toBe(1);
+      expect(calls("threads/turnChanges")).toBe(1);
+    });
+    const field = screen.getByLabelText("Reply to the agent");
+    fireEvent.change(field, { target: { value: "for later" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+
+    // the queue is the detail's, so the bubble is the thread's own re-read landing
+    expect(await screen.findByText("Queued")).toBeTruthy();
+    await waitFor(() => {
+      expect(calls("threads/list")).toBe(2);
+    });
+    expect(calls("threads/get")).toBe(2);
+    // a reply commits nothing: the turn's changes move on their commit's frame alone
+    expect(calls("threads/turnChanges")).toBe(1);
   });
 });
 
@@ -160,5 +186,29 @@ describe("the action detail's approval card", () => {
     });
     const detail = await harness.client.threads.get({ threadId: thread.id });
     expect(detail.pendingInteractions).toEqual([]);
+  });
+
+  it("re-reads the thread's detail alone after an answer, which moves no list row", async () => {
+    const harness = await bootPanel();
+    const { thread } = await harness.client.threads.create({});
+    createPendingInteraction(harness.db, noopNotifier, {
+      payload: {
+        availableDecisions: ["allow_once"],
+        kind: "approval",
+        reason: null,
+        subject: { command: "rm -rf dist", cwd: null, itemId: "item_1", kind: "command" },
+      },
+      requestKey: "req-card",
+      threadId: thread.id,
+    });
+    const calls = countPageCalls(harness);
+
+    mountDetail(thread.id);
+    fireEvent.click(await screen.findByRole("button", { name: "Allow once" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Allow once" })).toBeNull();
+    });
+    expect(calls("threads/get")).toBe(2);
+    expect(calls("threads/list")).toBe(1);
   });
 });

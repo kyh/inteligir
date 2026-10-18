@@ -1,12 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import type { LocalClient } from "@repo/contract/local";
 import type { TimelineRow } from "@repo/contract/local/thread-timeline";
 import { agentShellCli } from "../harness/agent-shell-cli";
 import type { AgentShellCli } from "../harness/agent-shell-cli";
 import { expect, expectEq } from "../harness/assert";
 import { gitIn, readOrNull } from "../harness/exec";
-import type { InstanceApi } from "../harness/instance";
 import type { Scenario } from "../harness/scenario";
 
 // the preset block's first sentence, which the scripted echo carries since it echoes the prompt
@@ -35,7 +35,7 @@ const startAction = async (cli: AgentShellCli, ...argv: string[]): Promise<strin
 };
 
 const conversationText = async (
-  api: InstanceApi,
+  api: LocalClient,
   threadId: string,
   role: "user" | "assistant",
 ): Promise<string> => {

@@ -1,9 +1,9 @@
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import type { LocalClient } from "@repo/contract/local";
 import { z } from "zod";
 import { parseEval } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
-import type { InstanceApi } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { clickToastAction, EDITOR, TOAST_TEXT } from "../harness/selectors";
@@ -18,7 +18,7 @@ const DEADLINE_MS = 30_000;
 // past sonner's own 4s: a notice that closed by itself while the user typed was never heard.
 const PAST_TOAST_DEFAULT_MS = 5000;
 
-const write = async (api: InstanceApi, content: string): Promise<void> => {
+const write = async (api: LocalClient, content: string): Promise<void> => {
   await api.vault.write({ content, guard: { kind: "overwrite" }, path: NOTE });
 };
 

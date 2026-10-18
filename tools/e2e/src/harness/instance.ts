@@ -3,9 +3,8 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
-import type { ContractRouterClient } from "@orpc/contract";
 import { authorizationHeader, loopbackOrigin, readServerFile } from "inteligir/server/server-file";
-import type { LocalContract } from "@repo/contract/local";
+import type { LocalClient } from "@repo/contract/local";
 import {
   browserHandoffUrl,
   HEALTH_PATH,
@@ -36,10 +35,8 @@ export interface LaunchAppArgs {
   register: (instance: AppInstance) => void;
 }
 
-export type InstanceApi = ContractRouterClient<LocalContract>;
-
 export interface AppInstance extends TrackedProcess {
-  api: InstanceApi;
+  api: LocalClient;
   baseUrl: string;
   // a browser holds no bearer: each open signs it in through a fresh single-use handoff.
   browserUrl: (pathAndSearch: string) => Promise<string>;
@@ -161,7 +158,7 @@ const healthAnswered = async (baseUrl: string): Promise<boolean> => {
 
 // the bearer is read per call, not captured once: server.json is written after listen, a client
 // may be built before the health wait, and a restarted server mints a new token.
-export const createInstanceApi = (baseUrl: string, dataDir: () => string): InstanceApi => {
+export const createInstanceApi = (baseUrl: string, dataDir: () => string): LocalClient => {
   const link = new RPCLink({
     headers: () => {
       const server = readServerFile(dataDir());

@@ -178,7 +178,10 @@ per IP; a script creating several users sets `RATE_LIMIT_DISABLED=true` in
 
 Drive the running site with
 [agent-browser](https://github.com/vercel-labs/agent-browser)
-(`agent-browser open http://localhost:5174/`).
+(`agent-browser open http://localhost:5174/`). Its skill is committed as a stub
+(`.agents/skills/agent-browser`, linked from `.claude/skills/` and pinned by
+`skills-lock.json`) that points at `agent-browser skills get core`, the guide
+for the installed version.
 
 ## Verify a change
 
@@ -193,6 +196,27 @@ it cannot (`docs/development.md` § Quality gates), so run `pnpm e2e` too before
 claiming a green CI. Releasing is the owner's: a change whose proof needs a device, an
 account or a credential adds its check to `docs/releasing.md` § 5, under its
 surface.
+
+### Platform matrix
+
+Every surface, and how an agent sees it run; a scenario is one of
+`tools/e2e/src/scenarios`, run as `pnpm e2e --only <name>`.
+
+| Surface                 | Dev command          | Agent-verifiable at runtime?                                                                              |
+| ----------------------- | -------------------- | --------------------------------------------------------------------------------------------------------- |
+| The desktop window      | `pnpm dev`           | **On Linux**: `desktop-shell`, `desktop-onboarding` (under `xvfb-run -a`); on a Mac, `pnpm smoke:desktop` |
+| The page alone          | `pnpm dev:workspace` | **Yes**: agent-browser on the link `pnpm cli open --json` prints; `browser-smoke`, `library-browser`      |
+| The server and the CLI  | `pnpm cli serve`     | **Yes**: every verb with `--json`; `cli-drive`, `built-cli-boot`                                          |
+| The site and the Worker | `pnpm dev:web`       | **Yes**: agent-browser or curl on `localhost:5174`; `built-worker-boot`, `account-hosted`                 |
+| The browser extension   | `pnpm dev:extension` | **In Chromium**: `browser-extension` loads the dev build beside a running app                             |
+| The phone               | `pnpm dev:mobile`    | **Its parts**: `phone-editor-page` (its editor page), `phone-offline-edit` (its runtime under node)       |
+
+What no agent can run is the owner's, in `docs/releasing.md` § 5: the signed
+.app opened from Finder, the store extension in Chrome, Arc, Brave and Edge, and
+the phone app itself, which needs the simulator or the device. `pnpm dev:mobile`
+also needs a terminal: turbo hands `expo start` the keyboard
+(`apps/mobile/turbo.json`) and refuses to start it without one, or under `CI`,
+where `pnpm --filter @repo/mobile dev` runs it bare.
 
 ## Rules that matter
 

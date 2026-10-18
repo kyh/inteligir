@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { createCloudClient } from "@repo/contract/cloud/client";
 import type { CloudClient } from "@repo/contract/cloud/client";
 import { PULL_MAX_LIMIT } from "@repo/contract/cloud/sync/sync-schema";
+import type { LocalClient } from "@repo/contract/local";
 import type { CloudStatusResponse } from "@repo/contract/local/cloud/cloud-schema";
 import { POLL_INTERVAL_MS } from "inteligir/server/cloud/sync-cadence";
 import { z } from "zod";
@@ -9,7 +10,7 @@ import { expect, expectEq } from "../harness/assert";
 import { loginDevice, PHONE_BUILD, signUp } from "../harness/cloud-account";
 import { WORKER_SCENARIO_TIMEOUT_MS } from "../harness/cloud-worker";
 import { signInOwner } from "../harness/hosted-vault";
-import type { AppInstance, InstanceApi } from "../harness/instance";
+import type { AppInstance } from "../harness/instance";
 import { pollUntil } from "../harness/poll";
 import { PHONE_NAME } from "../harness/phone-runtime";
 import type { Scenario } from "../harness/scenario";
@@ -111,7 +112,7 @@ const statusOf = async (phone: CloudClient, id: string) => {
 };
 
 // how many times a Mac's copy of the thread holds the message the user sent
-const timesAsked = async (api: InstanceApi, threadId: string, text: string): Promise<number> => {
+const timesAsked = async (api: LocalClient, threadId: string, text: string): Promise<number> => {
   const { threads } = await api.threads.list({});
   if (!threads.some((listed) => listed.id === threadId)) {
     return 0;

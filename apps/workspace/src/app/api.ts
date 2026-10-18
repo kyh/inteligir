@@ -7,8 +7,7 @@ import { createORPCClient, onError } from "@orpc/client";
 
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import type { ContractRouterClient } from "@orpc/contract";
-import type { LocalContract } from "@repo/contract/local";
+import type { LocalClient } from "@repo/contract/local";
 import { RPC_PREFIX } from "@repo/contract/local/routes";
 import { toast } from "@repo/ui/components/sonner";
 import { observeGateRefusal } from "./signed-out-state";
@@ -40,7 +39,7 @@ const link = new RPCLink({
   url: RPC_PREFIX,
 });
 
-export const client: ContractRouterClient<LocalContract> = createORPCClient(link);
+export const client: LocalClient = createORPCClient(link);
 
 export const orpc = createTanstackQueryUtils(client);
 

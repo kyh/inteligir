@@ -1,11 +1,11 @@
 import type { GuardedVaultPort, GuardedWrite } from "@repo/editor/guarded-vault-io";
+import type { LocalClient } from "@repo/contract/local";
 import { contentHashHex } from "@repo/contract/local/vault/vault-schema";
 import type { VaultWriteGuard } from "@repo/contract/local/vault/vault-schema";
 import { isDefinedError, safe } from "../api";
-import type { client } from "../api";
 
 export interface GuardedVaultApi {
-  vault: Pick<(typeof client)["vault"], "read" | "write" | "remove">;
+  vault: Pick<LocalClient["vault"], "read" | "write" | "remove">;
 }
 
 const wireGuard = async (guard: GuardedWrite): Promise<VaultWriteGuard> =>

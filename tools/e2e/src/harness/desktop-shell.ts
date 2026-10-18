@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, readlinkSync, realpathSync } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import type { LocalClient } from "@repo/contract/local";
 import { resolveAppConfig } from "inteligir/server/config";
 import { resolveCheckoutRoot } from "inteligir/server/dev-instance";
 import { loopbackOrigin } from "inteligir/server/server-file";
@@ -8,7 +9,7 @@ import { SHUTDOWN_TIMEOUT_MS } from "inteligir/server/shutdown";
 import { skip } from "./assert";
 import { appLaunchEnv } from "./exec";
 import { createInstanceApi, makeVendorDirs, vendorEnv } from "./instance";
-import type { InstanceApi, VendorDirs } from "./instance";
+import type { VendorDirs } from "./instance";
 import { pollUntil } from "./poll";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
@@ -46,7 +47,7 @@ export interface ShellTarget {
 export interface DesktopShell extends TrackedProcess {
   // the server the shell runs now: the port is pinned across a switch, the bearer re-read per call,
   // so on a first run it answers once the chosen vault's server.json appears
-  api: InstanceApi;
+  api: LocalClient;
   serverOrigin: string;
   // what the shell resolves now, derived as the shell's CLI door derives it, so a switch moves it
   target: () => ShellTarget;

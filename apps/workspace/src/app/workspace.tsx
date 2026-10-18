@@ -10,6 +10,7 @@ import type { LibraryScope } from "@repo/domain/library-scope";
 import { LIBRARY_SELECTION_MAX } from "@repo/domain/view-context";
 import type { LibraryViewContext, ViewContext } from "@repo/domain/view-context";
 import type { ViewContextSource } from "./thread-activity";
+import type { AnnotationsResponse } from "@repo/contract/local/annotations/annotations-schema";
 import type { VaultMatchWire } from "@repo/contract/local/knowledge/knowledge-schema";
 import type { Thread } from "@repo/contract/local/threads/threads-schema";
 import type { VaultEntry } from "@repo/contract/local/vault/vault-schema";
@@ -22,14 +23,19 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
-import { client, failed, orpc } from "./api";
+import { client, failed } from "./api";
 import { ActionComposer } from "./actions/action-composer";
 import type { ComposerSelection } from "./actions/action-composer";
 import { ActionsPanel } from "./actions/actions-panel";
 import type { PanelTab } from "./actions/actions-panel";
 import type { AnnotationFocus } from "./actions/annotations-tab";
 import type { InfoActions, PanelSubject } from "./actions/info-tab";
-import { useNoteAnnotations, useNoteAnnotationMeta } from "./actions/annotation-hooks";
+import {
+  holdAnnotations,
+  rereadAnnotations,
+  useNoteAnnotations,
+  useNoteAnnotationMeta,
+} from "./actions/annotation-hooks";
 import { useThreads } from "./actions/thread-hooks";
 import { useTurnFinishToast } from "./actions/turn-finish-toast";
 import { useSyncConflictNotices } from "./sync-conflict-notices";
@@ -822,12 +828,14 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
             return false;
           }
           await flushOpenNote();
+          let listing: AnnotationsResponse;
           try {
-            await client.annotations.add({ id, path, quote });
+            listing = await client.annotations.add({ id, path, quote });
           } catch {
+            rereadAnnotations(queryClient, path);
             return false;
           }
-          void queryClient.invalidateQueries({ queryKey: orpc.annotations.key() });
+          holdAnnotations(queryClient, path, listing);
           return true;
         },
         edit: async (id, text) => {
@@ -835,15 +843,16 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
           if (path === null) {
             return false;
           }
-          let edited = true;
+          let listing: AnnotationsResponse;
           try {
-            await client.annotations.edit({ id, path, text });
+            listing = await client.annotations.edit({ id, path, text });
           } catch (error) {
             failed(error, "The note on that highlight was refused.");
-            edited = false;
+            rereadAnnotations(queryClient, path);
+            return false;
           }
-          void queryClient.invalidateQueries({ queryKey: orpc.annotations.key() });
-          return edited;
+          holdAnnotations(queryClient, path, listing);
+          return true;
         },
         open: (ids) => {
           revealPanel({ focus: ids, tab: "annotations" });

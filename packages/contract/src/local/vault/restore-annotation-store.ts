@@ -1,9 +1,8 @@
 import { isDefinedError, safe } from "@orpc/client";
-import type { ContractRouterClient } from "@orpc/contract";
 import { annotationStoreKey } from "@repo/notes/annotations/annotation-key";
 import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
 
-import type { LocalContract } from "../local-contract";
+import type { LocalClient } from "../local-contract";
 
 // "kept": a store already sits at that id (a note re-created there since), and it wins. "none":
 // the note carries no id, or held no store at that revision. "failed": any other refusal, reported
@@ -15,7 +14,7 @@ export type AnnotationStoreRestore =
   | { kind: "none" }
   | { kind: "failed"; error: Error };
 
-type VaultClient = ContractRouterClient<LocalContract>["vault"];
+type VaultClient = LocalClient["vault"];
 
 // The other half of a deleted-note restore, run by both clients after the note's own revision
 // read and `absent`-guarded write: the store was removed with the note, so it comes back from the

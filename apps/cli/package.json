@@ -68,7 +68,6 @@
     "@hono/node-server": "catalog:",
     "@hono/node-ws": "catalog:",
     "@orpc/client": "catalog:",
-    "@orpc/contract": "catalog:",
     "@orpc/server": "catalog:",
     "@repo/agent-runtime": "workspace:*",
     "@repo/agent-skills": "workspace:*",

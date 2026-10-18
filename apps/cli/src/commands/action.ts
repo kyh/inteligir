@@ -1,4 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
+import type { LocalClient } from "@repo/contract/local";
 import {
   THREADS_LIST_DEFAULT_LIMIT,
   THREADS_LIST_MAX_LIMIT,
@@ -17,7 +18,7 @@ import { defineCommand } from "citty";
 import { parseBoundedInteger, parsePositiveNumber } from "../args";
 import { CliExitError, failureFrom, getErrorMessage, invalidUsage } from "../cli-error";
 import { apiFor } from "../context";
-import type { Api, CliDeps } from "../context";
+import type { CliDeps } from "../context";
 import { jsonArg, out, outputJson, writeLines } from "../output";
 import {
   DEFAULT_WAIT_POLL_INTERVAL_MS,
@@ -85,7 +86,7 @@ const undoLines = (body: UndoTurnResponse): string[] => [
 ];
 
 // the turn an undo with no --turn names: the newest one still applied.
-const newestAppliedTurn = async (api: Api, threadId: string): Promise<string> => {
+const newestAppliedTurn = async (api: LocalClient, threadId: string): Promise<string> => {
   const { turns } = await api.threads.turnChanges({ threadId });
   const newest = turns.findLast((turn) => turn.state === "applied");
   if (newest === undefined) {
@@ -96,7 +97,11 @@ const newestAppliedTurn = async (api: Api, threadId: string): Promise<string> =>
   return newest.turnId;
 };
 
-const turnStillApplied = async (api: Api, threadId: string, turnId: string): Promise<boolean> => {
+const turnStillApplied = async (
+  api: LocalClient,
+  threadId: string,
+  turnId: string,
+): Promise<boolean> => {
   const { turns } = await api.threads.turnChanges({ threadId });
   return turns.some((turn) => turn.turnId === turnId && turn.state === "applied");
 };
