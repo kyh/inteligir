@@ -36,6 +36,10 @@ const gateOpened = async () => {
   }
 };
 
+/**
+ * @param {string} method The method the agent was called with.
+ * @param {unknown} params What it was handed.
+ */
 const record = (method, params) => {
   if (recordPath !== null) {
     appendFileSync(recordPath, `${JSON.stringify({ method, params })}\n`);
@@ -73,6 +77,7 @@ const authenticate = async () => {
  */
 const prompt = async (client, params) => {
   const { sessionId } = params;
+  /** @param {import("@agentclientprotocol/sdk").SessionUpdate} sessionUpdate The update to push. */
   const update = async (sessionUpdate) => {
     await client.notify("session/update", { sessionId, update: sessionUpdate });
   };

@@ -33,6 +33,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p scripts && tsc --noEmit -p src && tsc --noEmit -p src/tsconfig.page.json"
   },
   "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/tanstack-query": "catalog:",
     "@repo/contract": "workspace:*",

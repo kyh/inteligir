@@ -98,6 +98,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
     "@types/mdast": "catalog:",
     "remark-stringify": "^11.0.0",
     "typescript": "catalog:",

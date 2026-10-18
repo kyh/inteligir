@@ -31,7 +31,7 @@ const signedIn = async (email: string): Promise<{ cookie: string; credential: st
   return { cookie, credential };
 };
 
-const asBuild = (credential: string, build: string | null) =>
+const asBuild = (credential: string, build: string | null): Record<string, string> =>
   build === null
     ? { authorization: `Bearer ${credential}` }
     : { authorization: `Bearer ${credential}`, [CLIENT_BUILD_HEADER]: build };

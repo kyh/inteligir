@@ -52,7 +52,7 @@ const storedProjectionRow = z.object({
   title: z.string(),
 });
 
-// key by key, not spread: an absent optional must stay absent under exactOptionalPropertyTypes
+// key by key, not spread: an absent optional stays absent, never a key holding undefined
 const toStoredLink = (row: z.infer<typeof storedLinkRow>): StoredLink => {
   const link: StoredLink = {
     embed: row.embed,

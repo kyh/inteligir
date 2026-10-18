@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
     // the extension's pages and its service worker run in Chrome 116 or later
     "lib": ["ES2023", "dom", "dom.iterable"],

@@ -1,12 +1,14 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
     "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "react-jsx",
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    // the configs Node loads by stripping types (vitest.config.ts) import their siblings as `.ts`
+    "allowImportingTsExtensions": true
   },
   "include": [
     "src",

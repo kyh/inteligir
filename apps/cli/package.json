@@ -67,6 +67,7 @@
   "devDependencies": {
     "@hono/node-server": "catalog:",
     "@hono/node-ws": "catalog:",
+    "@kyh/tsconfig": "catalog:",
     "@orpc/client": "catalog:",
     "@orpc/server": "catalog:",
     "@repo/agent-runtime": "workspace:*",

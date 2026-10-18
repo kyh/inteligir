@@ -162,3 +162,17 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   second place to look for a module's tests and one that drifts from the
   module it tests; kyh/init's convention puts each test beside the one module
   it names. `tools/repo-guards/src/tests-beside-source.test.ts`.
+
+- **EVERY TSCONFIG EXTENDS `@kyh/tsconfig/base.json`, AS kyh/init's DO** (owner
+  decision). A program sets only what its runtime needs on top: its `lib` (the
+  ES2023 ceiling of the pages and Hermes, ES2024 on node), its `types`, `jsx`,
+  `paths` and `customConditions`; a release script's program resolves as node
+  does (`nodenext`) and names its `.ts` imports, as does a program that reaches
+  a config node loads by stripping types (`apps/web/cloudflare.config.ts`). The
+  base is a catalog dependency of each workspace, so turbo hashes its version
+  into every typecheck key with no global row. Rejected: a local base with
+  `exactOptionalPropertyTypes`, `verbatimModuleSyntax`, `noImplicitOverride`,
+  `noImplicitReturns` and `noFallthroughCasesInSwitch` on, stricter than the
+  template's but a second base beside it; the base's `allowJs` and `checkJs`
+  stay, so a test fake written as `.mjs` is typed by its JSDoc
+  (`packages/agent-runtime/src/test-support/fake-acp-agent.mjs`).

@@ -42,8 +42,7 @@ interface TooltipProps {
   sideOffset?: number;
   delay?: number;
   className?: string;
-  // `| undefined` is spelled out so a caller may pass it explicitly under exactOptionalPropertyTypes
-  forceOpen?: boolean | undefined;
+  forceOpen?: boolean;
   followCursor?: "x" | "y";
   onOpenChange?: (open: boolean) => void;
 }

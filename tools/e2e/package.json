@@ -16,6 +16,7 @@
     "inteligir": "workspace:*"
   },
   "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
     "@types/node": "catalog:",
     "miniflare": "catalog:",
     "tsx": "catalog:",

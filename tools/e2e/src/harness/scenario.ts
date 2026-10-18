@@ -102,7 +102,6 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
       },
       repoRoot: args.repoRoot,
     };
-    // exactOptionalPropertyTypes: an absent option stays absent, never an explicit undefined.
     if (options.vaultRemote !== undefined) {
       launchArgs.vaultRemote = options.vaultRemote;
     }

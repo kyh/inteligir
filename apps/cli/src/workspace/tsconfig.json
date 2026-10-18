@@ -1,5 +1,5 @@
 {
-  "extends": "../../../../tsconfig.base.json",
+  "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
     // the workspace UI's suites compile its page and this server together: the DOM for the one,
     // ES2024 for the other, which runs on node. The page's own programs are apps/workspace's.

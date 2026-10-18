@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
     // ES2023, a ceiling as in @repo/ui: both pages this package ships in run
     // the system WebKit, the desktop window's at the macOS 13.5 floor (Safari

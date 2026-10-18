@@ -2,10 +2,6 @@
   "$schema": "https://turborepo.dev/schema.json",
   "agentGuidance": false,
   "ui": "tui",
-  // every tsconfig extends the base, but turbo hashes only files inside a workspace: without this,
-  // loosening a compiler setting leaves every typecheck key unchanged, and CI, restoring `.turbo`
-  // from a branch-prefix key, serves a green typecheck it never re-ran
-  "globalDependencies": ["tsconfig.base.json"],
   // worktrees share one cache dir and turbo never evicts by default; eviction runs in the
   // background at the start of `turbo run`
   "cacheMaxSize": "10GB",

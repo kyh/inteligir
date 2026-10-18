@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
     // WebWorker, not DOM: the fetch/Response/crypto surface without claiming a
     // document — this contract loads in the desktop page, on node, on workerd

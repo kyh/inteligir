@@ -127,7 +127,6 @@ export const parseFollowLog = (stdout: string, requestedPath: string): VaultRevi
       sha,
       subject,
     };
-    // exactOptionalPropertyTypes: an absent rename must drop the member, not carry undefined.
     const origin = content?.origin ?? null;
     revisions.push(origin === null ? revision : { ...revision, renamedFrom: origin });
   }

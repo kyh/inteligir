@@ -423,7 +423,7 @@ export const createCapture = (deps: CaptureDeps): Capture => {
       });
       return { created: { id, path: written.path } };
     });
-    if ("found" in created) {
+    if (created.found !== undefined) {
       return await addToExisting(created.found, request);
     }
     const { id, path } = created.created;

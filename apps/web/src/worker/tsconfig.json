@@ -1,5 +1,5 @@
 {
-  "extends": "../../../../tsconfig.base.json",
+  "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
     // No DOM: this half runs on workerd, whose generated globals (Request,
     // Response, BufferSource, crypto) are the ones that must win. See the note
@@ -16,7 +16,10 @@
     // durable-git publishes TS source and no .d.ts; typing it through the
     // hand-authored stub keeps the library's own code out of this stricter
     // program. The bundler ignores `paths` and still resolves the real source.
-    "paths": { "durable-git": ["./types/durable-git.d.ts"] }
+    "paths": { "durable-git": ["./types/durable-git.d.ts"] },
+    // the generated Env reaches cloudflare.config.ts, which Node loads by stripping types, so it
+    // names its siblings as `.ts`
+    "allowImportingTsExtensions": true
   },
   "include": [".", "../../.cloudflare/types/index.d.ts"],
   "exclude": ["node_modules"]

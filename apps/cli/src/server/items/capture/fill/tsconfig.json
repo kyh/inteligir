@@ -5,7 +5,7 @@
   // @repo/editor module it reaches (EDITOR_FROM_SERVER in tools/repo-guards/src/dep-dag.test.ts),
   // and its base kits are headless files (packages/editor/src/kits/headless/), so this program
   // compiles no jsx and knows no stylesheet import: a React half reached from here fails it.
-  "extends": "../../../../../../../tsconfig.base.json",
+  "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
     "lib": ["ES2024", "dom", "dom.iterable"],
     "customConditions": ["node"],

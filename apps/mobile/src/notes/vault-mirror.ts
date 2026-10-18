@@ -164,7 +164,7 @@ const itemFactsSchema = z.strictObject({
   urlKey: z.string().nullable(),
 }) satisfies z.ZodType<ItemFacts>;
 
-// key by key: an absent optional stays absent under exactOptionalPropertyTypes
+// key by key: an absent optional stays absent, never a key holding undefined
 const linkSchema = z
   .object({
     alias: z.string().optional(),

@@ -63,6 +63,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
     "@orpc/server": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
