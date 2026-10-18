@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { parseEval } from "../harness/agent-browser";
+import { dragSelectParagraph, parseEval } from "../harness/agent-browser";
 import { expect } from "../harness/assert";
 import { readOrNull } from "../harness/exec";
 import { pollUntil } from "../harness/poll";
@@ -38,18 +38,7 @@ export const extractNoteBrowser: Scenario = {
     ctx.log("selecting the second paragraph with the mouse, which raises the toolbar");
     // a drag across the text, as a user selects: a key chord lands nowhere until the editor
     // has taken focus, and the toolbar opens on a pointer-made selection either way
-    const box = parseEval(
-      await agentBrowser([
-        "eval",
-        `JSON.stringify((() => { const el = [...document.querySelectorAll('${EDITOR} p')].find((p) => p.textContent === ${JSON.stringify(SECOND)}); const r = el.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + r.height / 2), right: Math.round(r.right) }; })())`,
-      ]),
-      z.object({ right: z.number(), x: z.number(), y: z.number() }),
-    );
-    await agentBrowser(["mouse", "move", String(box.x + 1), String(box.y)]);
-    await agentBrowser(["mouse", "down"]);
-    await agentBrowser(["mouse", "move", String(box.x + 40), String(box.y)]);
-    await agentBrowser(["mouse", "move", String(box.right - 1), String(box.y)]);
-    await agentBrowser(["mouse", "up"]);
+    await dragSelectParagraph(agentBrowser, EDITOR, SECOND);
     // the toolbar floats in after the selection settles; the failure names what the page holds
     await pollUntil(
       async () =>

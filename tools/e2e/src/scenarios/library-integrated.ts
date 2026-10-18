@@ -13,7 +13,13 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PAGE_COPY_PATH } from "@repo/contract/local/routes";
 import { z } from "zod";
-import { clickButtonIn, modChord, openItemParam, parseEval } from "../harness/agent-browser";
+import {
+  clickButtonIn,
+  dragSelectParagraph,
+  modChord,
+  openItemParam,
+  parseEval,
+} from "../harness/agent-browser";
 import type { AgentBrowser } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import type { AppInstance } from "../harness/instance";
@@ -272,23 +278,7 @@ const highlightsAPassage = async (
   browser: AgentBrowser,
 ): Promise<void> => {
   ctx.log("a passage of the article, selected with the mouse and ⌘⇧H, is a highlight");
-  const box = parseEval(
-    await browser([
-      "eval",
-      `JSON.stringify((() => { const el = [...document.querySelectorAll('${EDITOR} p')].find((p) => p.textContent === ${JSON.stringify(PASSAGE)}); const r = el.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + r.height / 2), right: Math.round(r.right) }; })())`,
-    ]),
-    z.object({ right: z.number(), x: z.number(), y: z.number() }),
-  );
-  await browser(["mouse", "move", String(box.x + 1), String(box.y)]);
-  await browser(["mouse", "down"]);
-  await browser(["mouse", "move", String(box.x + 40), String(box.y)]);
-  await browser(["mouse", "move", String(box.right - 1), String(box.y)]);
-  await browser(["mouse", "up"]);
-  await pollUntil(
-    async () => parseEval(await browser(["eval", "String(window.getSelection())"]), z.string()),
-    (selected) => selected.length > 10,
-    { deadlineMs: DEADLINE_MS, describe: (selected) => `nothing selected: "${selected}"` },
-  );
+  await dragSelectParagraph(browser, EDITOR, PASSAGE, DEADLINE_MS);
   await browser(["press", modChord("Shift+h")]);
   const marked = await untilDisk(app, ITEM, (text) => MARKERS.test(text), "no markers landed");
   // the highlight offers a note; Escape in its field keeps the bare highlight

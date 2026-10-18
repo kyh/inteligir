@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { skip } from "./assert";
 import { describeExecError, exec } from "./exec";
@@ -91,6 +92,47 @@ export const clickStartingWith = async (
     (outcome) => outcome === "clicked",
     { deadlineMs, describe: (outcome) => `the ${prefix} row in ${scope} stayed ${outcome}` },
   );
+};
+
+// longer than slate-react's 100 ms selection throttle, so a read taken this long after a move comes
+// after the editor's own read of it
+const SELECTION_SETTLE_MS = 250;
+
+const paragraphBox = (editor: string, text: string): string =>
+  `JSON.stringify((() => { const el = [...document.querySelectorAll(${JSON.stringify(`${editor} p`)})].find((p) => p.textContent === ${JSON.stringify(text)}); const r = el.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + r.height / 2), right: Math.round(r.right) }; })())`;
+
+// a drag across one line's paragraph, as a reader selects. slate-react reads the page's selection on
+// a 100 ms throttle, and Editable's layout effect writes the range it last read back over the
+// page's on any render while focused, so a render between a move and the read after it puts the
+// older range back, and a drag with no later move keeps it. A hand keeps moving, and so does this:
+// the button held, the move to the line's end repeats until the paragraph is still selected a
+// throttle period after it, when the editor has read it.
+export const dragSelectParagraph = async (
+  browser: AgentBrowser,
+  editor: string,
+  text: string,
+  deadlineMs = 30_000,
+): Promise<void> => {
+  const box = parseEval(
+    await browser(["eval", paragraphBox(editor, text)]),
+    z.object({ right: z.number(), x: z.number(), y: z.number() }),
+  );
+  await browser(["mouse", "move", String(box.x + 1), String(box.y)]);
+  await browser(["mouse", "down"]);
+  try {
+    await browser(["mouse", "move", String(box.x + 40), String(box.y)]);
+    await pollUntil(
+      async () => {
+        await browser(["mouse", "move", String(box.right - 1), String(box.y)]);
+        await delay(SELECTION_SETTLE_MS);
+        return parseEval(await browser(["eval", "String(window.getSelection())"]), z.string());
+      },
+      (selected) => selected.includes(text),
+      { deadlineMs, describe: (selected) => `the drag held "${selected}", not "${text}"` },
+    );
+  } finally {
+    await browser(["mouse", "up"]);
+  }
 };
 
 // the query the page's url carries: the open item, or none on the library

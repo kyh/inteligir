@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { modChord, parseEval, untilBodyHolds } from "../harness/agent-browser";
+import { dragSelectParagraph, modChord, parseEval, untilBodyHolds } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
@@ -35,23 +35,7 @@ export const annotationsBrowser: Scenario = {
     });
 
     ctx.log("selecting the passage with the mouse, as a reader does");
-    const box = parseEval(
-      await browser([
-        "eval",
-        `JSON.stringify((() => { const el = [...document.querySelectorAll('${EDITOR} p')].find((p) => p.textContent === ${JSON.stringify(PASSAGE)}); const r = el.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top + r.height / 2), right: Math.round(r.right) }; })())`,
-      ]),
-      z.object({ right: z.number(), x: z.number(), y: z.number() }),
-    );
-    await browser(["mouse", "move", String(box.x + 1), String(box.y)]);
-    await browser(["mouse", "down"]);
-    await browser(["mouse", "move", String(box.x + 40), String(box.y)]);
-    await browser(["mouse", "move", String(box.right - 1), String(box.y)]);
-    await browser(["mouse", "up"]);
-    await pollUntil(
-      async () => parseEval(await browser(["eval", "String(window.getSelection())"]), z.string()),
-      (selected) => selected.length > 10,
-      { deadlineMs: DEADLINE_MS, describe: (selected) => `nothing selected: "${selected}"` },
-    );
+    await dragSelectParagraph(browser, EDITOR, PASSAGE, DEADLINE_MS);
 
     ctx.log("⌘⇧H makes the highlight at once, with the passage it quotes, and offers a note");
     await browser(["press", modChord("Shift+h")]);
