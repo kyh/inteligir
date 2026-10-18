@@ -255,15 +255,20 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   Pele (`pele`, MIT) reads Mermaid 12.1 and answers SVG with no runtime
   dependency, so the fence's preview loads it as a lazy chunk with the first
   diagram a note shows and then draws in the layout effect of each change, with
-  no debounce. The failure is the parse's, known while rendering: Pele's line
-  and column, the reason and the caret line under the source, while the last
-  drawing stays, dimmed, so a half-typed line never collapses the block. Its
-  colours and faces are the frame's `--pele-*` variables over the app's own
-  tokens (`packages/editor/src/styles.css`), so light and dark repaint with no
-  redraw. A diagram draws no link and no image and is handed no icon set
-  (NOTHING REMOTE LOADS IN A NOTE, in `apps/cli/CLAUDE.md`), and its markup
-  becomes nodes only through `packages/editor/src/lib/inert-svg.ts`, which
-  parses it as XML and takes out every script, handler and reference that
+  no debounce. A syntax failure is the parse's, known while rendering: Pele's
+  line and column, the reason and the caret line under the source; what only
+  the drawing finds (a gantt's impossible date, a sankey's cycle, the size cap,
+  markup the guard cannot read) the layout effect says in the same frame.
+  Either way the last drawing stays, dimmed, so a half-typed line never
+  collapses the block. Its colours and faces are the frame's `--pele-*`
+  variables over the app's own tokens (`packages/editor/src/styles.css`), so
+  light and dark repaint with no redraw; Pele measures its labels in the face
+  it read when it drew, so a change on the root element, where the appearance
+  dials are written, asks each drawing to measure again. A diagram draws no
+  link and no image and is handed no icon set (NOTHING REMOTE LOADS IN A NOTE,
+  in `apps/cli/CLAUDE.md`), and its markup becomes nodes only through
+  `packages/editor/src/lib/inert-svg.ts`, which parses it as XML and keeps only
+  the svg namespace's elements, less every script, handler and reference that
   leaves the drawing. Rejected: mermaid.js, about 2 MB, an async render behind a 300 ms
   debounce whose theme was baked into its DOM, so a theme change redrew every
   diagram. `packages/editor/src/nodes/code-block-mermaid.tsx`.

@@ -1,13 +1,15 @@
 // A drawing's markup becomes nodes only through here. Pele escapes a diagram's text and filters
 // its links and styles already; this keeps the guarantee local, so a renderer bug can neither run
 // code nor fetch anything (NOTHING REMOTE LOADS IN A NOTE, apps/cli/CLAUDE.md). XML parsing builds
-// inert nodes in a document of their own, and every element or attribute that could run a script
-// or reach outside the drawing is taken out before the nodes are adopted.
+// inert nodes in a document of their own, and every element outside the svg namespace, and every
+// element or attribute that could run a script or reach outside the drawing, is taken out before
+// the nodes are adopted.
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-// a script, an html island, a stylesheet that could @import, and the animations that can rewrite
-// an href after this pass has run
+// an element of another namespace (an html island anywhere, its src, srcset, data and content
+// with it) is taken out whole, and so are these of the drawing's own: a script, an html island, a
+// stylesheet that could @import, and the animations that can rewrite an href after this pass has run
 const REFUSED_ELEMENTS = new Set([
   "animate",
   "animateMotion",
@@ -39,7 +41,7 @@ export const inertSvg = (markup: string): Element | null => {
     return null;
   }
   for (const element of [root, ...root.querySelectorAll("*")]) {
-    if (REFUSED_ELEMENTS.has(element.localName)) {
+    if (element.namespaceURI !== SVG_NS || REFUSED_ELEMENTS.has(element.localName)) {
       element.remove();
       continue;
     }
