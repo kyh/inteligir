@@ -6,7 +6,7 @@ import {
 import { threadStatusSchema } from "@repo/domain/thread-status";
 import { MAX_THREAD_TITLE_LENGTH } from "@repo/domain/thread-title";
 import { actionPresetSchema } from "@repo/domain/action-preset";
-import type { LibraryScope } from "@repo/domain/library-scope";
+import type { ItemScope } from "@repo/domain/library-scope";
 import { viewContextSchema } from "@repo/domain/view-context";
 import type { DocViewContext, LibraryViewContext, ViewContext } from "@repo/domain/view-context";
 import { isItemKind } from "@repo/notes/items/item-kind";
@@ -184,7 +184,7 @@ const readDocContext = (value: DocViewContext): WireRead<DocViewContext> => {
   return { ok: true, value: { ...value, resource: resource.data } };
 };
 
-const readLibraryScope = (scope: LibraryScope): WireRead<LibraryScope> => {
+const readLibraryScope = (scope: ItemScope): WireRead<ItemScope> => {
   switch (scope.kind) {
     case "all":
     case "unsorted": {
@@ -200,10 +200,6 @@ const readLibraryScope = (scope: LibraryScope): WireRead<LibraryScope> => {
       return isTagName(scope.tag)
         ? { ok: true, value: scope }
         : refused("viewContext.scope.tag is not a tag name", ["scope", "tag"]);
-    }
-    case "deleted": {
-      // Deleted lists what is gone, so nothing there is a library item an agent could act on
-      return refused("a library context never names the Deleted scope", ["scope", "kind"]);
     }
     default: {
       const exhaustive: never = scope;

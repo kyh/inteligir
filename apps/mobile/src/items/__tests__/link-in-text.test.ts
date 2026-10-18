@@ -32,6 +32,41 @@ describe("a link inside text", () => {
     expect(urlIn("((https://x.y/a_(b_(c)))))")).toBe("https://x.y/a_(b_(c))");
   });
 
+  it("leaves the sentence the marks a phone's keyboard types", () => {
+    expect(linkInText("Read “https://example.com/a” tonight")).toStrictEqual({
+      rest: "Read tonight",
+      url: "https://example.com/a",
+    });
+    expect(urlIn("Read ‘https://example.com/a’")).toBe("https://example.com/a");
+    expect(urlIn("Look at https://example.com/a…")).toBe("https://example.com/a");
+    expect(urlIn("（https://example.com/a）")).toBe("https://example.com/a");
+    expect(urlIn("https://example.com/a_（b）")).toBe("https://example.com/a_（b）");
+    expect(urlIn("見て https://example.com/a。")).toBe("https://example.com/a");
+    expect(urlIn("«https://example.com/a»")).toBe("https://example.com/a");
+    expect(urlIn("https://example.com/don’t-panic")).toBe("https://example.com/don’t-panic");
+  });
+
+  it("keeps none of the brackets or quotes the link sat in for the note", () => {
+    expect(linkInText("(see https://x.y/z)")).toStrictEqual({ rest: "see", url: "https://x.y/z" });
+    expect(linkInText("[Foo](https://en.wikipedia.org/wiki/Foo_(bar))")).toStrictEqual({
+      rest: "Foo",
+      url: "https://en.wikipedia.org/wiki/Foo_(bar)",
+    });
+    expect(linkInText("Read [the post](https://x.y/a) first")).toStrictEqual({
+      rest: "Read the post first",
+      url: "https://x.y/a",
+    });
+    expect(linkInText("[https://x.y/a]")).toStrictEqual({ rest: "", url: "https://x.y/a" });
+    expect(linkInText("(a) and (see https://x.y/z)")).toStrictEqual({
+      rest: "(a) and see",
+      url: "https://x.y/z",
+    });
+    expect(linkInText("“https://x.y/a.” he said")).toStrictEqual({
+      rest: "he said",
+      url: "https://x.y/a",
+    });
+  });
+
   it("takes the rest of the text as the note, the link's punctuation with it", () => {
     expect(linkInText("For Tuesday: https://en.wikipedia.org/wiki/Foo_(bar).")).toStrictEqual({
       rest: "For Tuesday:",

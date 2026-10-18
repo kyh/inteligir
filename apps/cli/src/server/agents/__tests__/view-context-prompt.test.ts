@@ -103,29 +103,6 @@ describe("composeViewContextBlock", () => {
     );
   });
 
-  it("points the deleted view at the deleted listing, never the live items", () => {
-    const deleted = composeViewContextBlock(
-      libraryContext({ scope: { kind: "deleted" } }),
-      ALL_FACTS,
-    ).split("\n");
-    expect(deleted).toEqual([
-      "The person sent this from their library, looking at their deleted items.",
-      "Nothing was selected, so 'these', 'this' and 'the selection' mean every item that view shows.",
-      "`inteligir vault deleted --json` lists them. They are deleted items, no longer in the library: `inteligir vault restore <path> <sha>` brings one back, and none of them is a live item to file or tag.",
-    ]);
-    expect(deleted.join("\n")).not.toContain("inteligir items");
-    expect(
-      composeViewContextBlock(
-        libraryContext({ kinds: ["pdf"], q: "lemon", scope: { kind: "deleted" } }),
-        ALL_FACTS,
-      )
-        .split("\n")
-        .at(-1),
-    ).toMatch(
-      /^`inteligir vault deleted --json` lists them \(every deleted item, without the view's filter\)\. They are deleted items/u,
-    );
-  });
-
   it("hands the agent a folder's name and a search as one shell word, whatever they hold", () => {
     const hostile = composeViewContextBlock(
       libraryContext({

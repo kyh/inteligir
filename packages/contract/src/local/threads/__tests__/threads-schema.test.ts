@@ -61,7 +61,6 @@ describe("a send's view context", () => {
   });
 
   const refusals: [string, Partial<LibraryViewContext>][] = [
-    ["the Deleted scope", { scope: { kind: "deleted" } }],
     ["a folder outside the vault", { scope: { kind: "folder", path: "../out" } }],
     ["a tag that is not a tag name", { scope: { kind: "tag", tag: "two words" } }],
     ["a kind no item has", { kinds: ["graph"] }],
@@ -74,6 +73,16 @@ describe("a send's view context", () => {
   ];
   it.each(refusals)("refuses %s", (_reason, change) => {
     expect(send({ ...library, ...change }).success).toBe(false);
+  });
+
+  it("refuses the Deleted scope, whose rows are gone from the library", () => {
+    expect(
+      sendMessageRequestSchema.safeParse({
+        text: "Tidy these",
+        threadId: "thr_1",
+        viewContext: { ...library, scope: { kind: "deleted" } },
+      }).success,
+    ).toBe(false);
   });
 
   it("holds what the event records of the screen to a few KB under the sync's cap", () => {

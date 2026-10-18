@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 
-import { libraryScopeSchema } from "./library-scope";
+import { itemScopeSchema } from "./library-scope";
 
 export const docViewContextSchema = z.object({
   // held to the vault path grammar at the wire boundary; this leaf carries only zod.
@@ -27,8 +27,8 @@ export const libraryViewContextSchema = z.object({
   // the first selected; [] when nothing is selected
   paths: z.array(z.string().min(1)).max(LIBRARY_SELECTION_MAX),
   q: z.string().min(1).optional(),
-  // never "deleted"; refined at the wire
-  scope: libraryScopeSchema,
+  // never Deleted: what it lists is gone, so nothing there is an item an agent acts on
+  scope: itemScopeSchema,
   // how many are selected, which may exceed paths.length
   selected: z.number().int().min(0),
   surface: z.literal("library"),

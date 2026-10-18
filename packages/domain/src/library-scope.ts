@@ -4,11 +4,20 @@
 
 import { z } from "zod";
 
-export const libraryScopeSchema = z.discriminatedUnion("kind", [
+const ITEM_SCOPES = [
   z.object({ kind: z.literal("all") }),
   z.object({ kind: z.literal("unsorted") }),
   z.object({ kind: z.literal("folder"), path: z.string().min(1) }),
   z.object({ kind: z.literal("tag"), tag: z.string().min(1) }),
+] as const;
+
+// a scope that lists items in the library: every one but Deleted, which lists what is gone, so
+// a library view context names one of these and nothing there is an item an agent acts on
+export const itemScopeSchema = z.discriminatedUnion("kind", ITEM_SCOPES);
+export type ItemScope = z.infer<typeof itemScopeSchema>;
+
+export const libraryScopeSchema = z.discriminatedUnion("kind", [
+  ...ITEM_SCOPES,
   z.object({ kind: z.literal("deleted") }),
 ]);
 export type LibraryScope = z.infer<typeof libraryScopeSchema>;

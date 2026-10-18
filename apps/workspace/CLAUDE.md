@@ -83,7 +83,9 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   Unsorted") or, with nothing selected, its scope, and the send carries the
   library view context (scope, chip, search, how many are selected and the
   first 200 names), read as the send leaves, ⌘A's names from the listing
-  (`readViewContext` in `apps/workspace/src/app/workspace.tsx`); the thread's
+  (`readViewContext` in `apps/workspace/src/app/workspace.tsx`), and none from
+  Deleted, whose rows are gone from the library, so no context can name it
+  (`itemScopeSchema` in `packages/domain/src/library-scope.ts`); the thread's
   attribution names the screen and the count, never the names
   (`apps/workspace/src/app/actions/timeline-rows.tsx`). TIDY MY LIBRARY IS THE
   COMPOSER OPENED ON A PRESET (A NAMED ACTION IS A PRESET ON THE SEND), its chip

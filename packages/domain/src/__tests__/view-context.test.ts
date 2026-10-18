@@ -44,6 +44,15 @@ describe("a view context", () => {
     }
     expect(libraryScopeSchema.safeParse({ kind: "folder", path: "" }).success).toBe(false);
   });
+
+  it("never names Deleted as a library context's scope, since nothing there is a library item", () => {
+    expect(viewContextSchema.safeParse({ ...LIBRARY, scope: { kind: "deleted" } }).success).toBe(
+      false,
+    );
+    expect(viewContextSchema.safeParse({ ...LIBRARY, scope: { kind: "unsorted" } }).success).toBe(
+      true,
+    );
+  });
 });
 
 describe("an action preset", () => {
