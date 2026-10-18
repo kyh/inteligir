@@ -27,6 +27,13 @@ const card = async (path: string): Promise<HTMLElement> => {
   return found;
 };
 
+// a double-click as the browser sends it: a click, a second click counting two, then the dblclick
+const doubleClick = (target: HTMLElement): void => {
+  fireEvent.click(target, { detail: 1 });
+  fireEvent.click(target, { detail: 2 });
+  fireEvent.doubleClick(target, { detail: 2 });
+};
+
 // Settings' own way back, which the item under it, covered inert, also names
 const settingsBack = (): HTMLElement => {
   const main = screen.getByRole("heading", { name: "Settings" }).closest("main");
@@ -109,7 +116,7 @@ describe("the library is home, and the url names the open item", () => {
     expect(shownItem()).toBeNull();
     expect(router.state.location.search).toEqual({});
 
-    fireEvent.doubleClick(await card("beta.md"));
+    doubleClick(await card("beta.md"));
     await screen.findByRole("heading", { name: "Beta" });
     expect(router.state.location.search).toEqual({ item: "beta.md" });
 

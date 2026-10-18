@@ -2,7 +2,8 @@
 
 // the grid's gestures over a listing larger than its loaded windows: a ⇧-click far from the anchor
 // selects the whole span the listing holds between them, and under ⌘A a right-click or a drag acts
-// on everything selected rather than collapsing it to one card.
+// on everything selected rather than collapsing it to one card. A double-click opens the card it
+// landed on even when the click's own commit moved that card to another row.
 
 import type { ItemRowWire } from "@repo/contract/local/items/items-schema";
 import { SidebarProvider } from "@repo/ui/components/sidebar-core";
@@ -347,5 +348,96 @@ describe("the card that is to take the keyboard", () => {
     await card(3);
     expect(document.activeElement).toBe(field);
     field.remove();
+  });
+});
+
+type ResizeReport = (
+  entries: readonly { contentRect: { width: number; height: number } }[],
+) => void;
+
+// every observer the grid builds, so a suite can report the new width a panel's tween leaves it
+let observers: GridResizeObserver[] = [];
+
+class GridResizeObserver {
+  readonly #report: ResizeReport;
+  readonly watched = new Set<Element>();
+
+  constructor(report: ResizeReport) {
+    this.#report = report;
+    observers.push(this);
+  }
+
+  observe(target: Element): void {
+    this.watched.add(target);
+  }
+
+  unobserve(target: Element): void {
+    this.watched.delete(target);
+  }
+
+  disconnect(): void {
+    this.watched.clear();
+  }
+
+  // what the browser reports of a watched box that changed size
+  resize(target: Element, width: number): void {
+    if (this.watched.has(target)) {
+      this.#report([{ contentRect: { height: 768, width } }]);
+    }
+  }
+}
+
+const resizeGrid = (width: number): void => {
+  act(() => {
+    for (const observer of observers) {
+      observer.resize(scroller(), width);
+    }
+  });
+};
+
+// a double-click as the browser sends it: a click, a second click counting two, then the dblclick
+// the browser aims at the element that second click went to
+const doubleClick = (target: HTMLElement, between: () => void = () => {}): void => {
+  fireEvent.click(target, { detail: 1 });
+  fireEvent.click(target, { detail: 2 });
+  between();
+  fireEvent.doubleClick(target, { detail: 2 });
+};
+
+describe("a double-click", () => {
+  beforeEach(() => {
+    observers = [];
+    vi.stubGlobal("ResizeObserver", GridResizeObserver);
+  });
+
+  it("opens the card it landed on, though the click's commit moved that card to another row", async () => {
+    const { actions } = mount();
+    // the fourth card ends the first row at four columns and starts the second at three
+    const pressed = await card(3);
+    expect(scroller().getAttribute("aria-colcount")).toBe("4");
+    // a panel's tween narrows the grid from four columns to three while the press is in flight: the
+    // commit a click carries takes the width the observer reported too, so the card is a new element
+    // in its new row by the time the dblclick is sent to the one the click went to
+    doubleClick(pressed, () => {
+      resizeGrid(879);
+      expect(scroller().getAttribute("aria-colcount")).toBe("3");
+      expect(pressed.isConnected).toBe(false);
+    });
+    expect(actions.open).toHaveBeenCalledTimes(1);
+    expect(actions.open).toHaveBeenCalledWith(pathAt(3));
+  });
+
+  it("opens once, and a click alone selects without opening", async () => {
+    const { actions, selection } = mount();
+    const target = await card(1);
+    fireEvent.click(target, { detail: 1 });
+    expect(selection.store.getState().focus).toBe(pathAt(1));
+    expect(actions.open).not.toHaveBeenCalled();
+    // a screen reader's own activation arrives as a click that counts none
+    fireEvent.click(await card(2));
+    expect(actions.open).not.toHaveBeenCalled();
+    doubleClick(await card(1));
+    expect(actions.open).toHaveBeenCalledTimes(1);
+    expect(actions.open).toHaveBeenCalledWith(pathAt(1));
   });
 });

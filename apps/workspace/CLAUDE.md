@@ -299,15 +299,23 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   the anchor, the arrows move over the grid's own columns, ⌘A selects the whole
   scope by its count until a gesture needs its names, Space is Quick Look and
   Return opens (`apps/workspace/src/app/library/library-selection.ts`, a pure
-  reducer). The grid keeps where the focus and the anchor sit in the listing,
-  so the focused card's window stays loaded and its card mounted however far
-  the grid scrolls, a ⇧-click whose span the loaded windows do not hold reads
-  it from the listing, an arrow (and Quick Look's) steps by the focused card's
-  own index in the listing, never through the loaded windows joined, which
-  start wherever the grid was scrolled and leave gaps, and a right-click or a
-  drag under ⌘A acts on everything selected; coming back from an item, the
-  focused card takes the keyboard again, once, and never from a field or a
-  dialog (`apps/workspace/src/app/library/library-grid.tsx`). A selected item
+  reducer). A double-click opens on its second click, the one whose `detail` is
+  2, never on the `dblclick` after it: the browser aims that at the element the
+  click went to, and the commit the click carries, which takes a width the grid
+  was handed under a panel's tween, can move the card to another row as a new
+  element, so the `dblclick` reaches nothing
+  (`apps/workspace/src/app/library/item-card.tsx`). Rejected: a cell that keeps
+  its element across a column change, which puts the cells outside their rows
+  and restates the grid's rows in `aria-owns`. The grid keeps where the focus
+  and the anchor sit in the listing, so the focused card's window stays loaded
+  and its card mounted however far the grid scrolls, a ⇧-click whose span the
+  loaded windows do not hold reads it from the listing, an arrow (and Quick
+  Look's) steps by the focused card's own index in the listing, never through
+  the loaded windows joined, which start wherever the grid was scrolled and
+  leave gaps, and a right-click or a drag under ⌘A acts on everything selected;
+  coming back from an item, the focused card takes the keyboard again, once, and
+  never from a field or a dialog
+  (`apps/workspace/src/app/library/library-grid.tsx`). A selected item
   that moved under the grid (a fill names a saved link's stub by its page's
   title) is followed by its id, its focus and Quick Look with it, as the open
   item is: while the index still has a read out it stays selected and is asked

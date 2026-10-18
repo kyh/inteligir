@@ -8,10 +8,10 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { expect } from "../harness/assert";
+import { expect, expectEq } from "../harness/assert";
 import { PAGE_UNDER_SHELL } from "../harness/desktop-shell";
 import type { Scenario } from "../harness/scenario";
-import { LIBRARY_GRID, libraryCard } from "../harness/selectors";
+import { LIBRARY_GRID, doubleClickCard, libraryCard } from "../harness/selectors";
 import type { WebDriverSession } from "../harness/webdriver";
 
 const ITEM = "Reading/A long article.md";
@@ -141,9 +141,10 @@ export const longNoteDesktop: Scenario = {
       `document.querySelector(${JSON.stringify(card)}) !== null`,
       PAGE_DEADLINE_MS,
     );
-    await page.run(
-      `document.querySelector(${JSON.stringify(card)}).dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); return null;`,
-      z.null(),
+    expectEq(
+      await page.run(`return ${doubleClickCard(ITEM)};`, z.string()),
+      "double-clicked",
+      ITEM,
     );
     await page.waitUntil(
       `document.querySelector("[data-slate-editor]") !== null`,

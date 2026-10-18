@@ -9,7 +9,7 @@ import { askShell, PAGE_UNDER_SHELL, running, WINDOW_LOADED } from "../harness/d
 import type { DesktopShell, ShellTarget } from "../harness/desktop-shell";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { EDITOR, libraryCard } from "../harness/selectors";
+import { EDITOR, doubleClickCard, libraryCard } from "../harness/selectors";
 
 const NOTE = "Shell.md";
 const SEEDED_TOKEN = "seededshelltoken";
@@ -92,14 +92,15 @@ export const desktopShell: Scenario = {
       "the library lists the seeded note, and its card opens it: the cookie carries every call",
     );
     // a card selects on a click and opens on a double-click, which WebDriver's element click
-    // does not make, so the card's own dblclick is dispatched once it is there
+    // does not make, so the double-click's events are dispatched on the card once it is there
     await page.waitUntil(
       `document.querySelector(${JSON.stringify(libraryCard(NOTE))}) !== null`,
       RAIL_DEADLINE_MS,
     );
-    await page.run(
-      `document.querySelector(${JSON.stringify(libraryCard(NOTE))}).dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); return null;`,
-      z.null(),
+    expectEq(
+      await page.run(`return ${doubleClickCard(NOTE)};`, z.string()),
+      "double-clicked",
+      NOTE,
     );
     const readEditor = async (): Promise<string> => await page.textOf(EDITOR);
     await pollUntil(readEditor, (text) => text.includes(SEEDED_TOKEN), {

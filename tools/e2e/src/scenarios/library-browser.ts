@@ -99,6 +99,53 @@ const untilDisk = async (
     describe: (text) => `${what}; the file holds:\n${text ?? "(nothing)"}`,
   });
 
+// where Info's panel stands and a card sits: the panel opens and closes as a width tween, and the
+// grid re-derives its columns from the width the panel leaves it, so a card changes rows under it
+const PANEL = '[data-slot="sidebar"][data-side="right"]';
+const layoutOf = (card: string): string => `JSON.stringify((() => {
+  const panel = document.querySelector(${JSON.stringify(PANEL)});
+  const box = document.querySelector(${JSON.stringify(card)})?.getBoundingClientRect();
+  return {
+    card: box === undefined ? null : [Math.round(box.x), Math.round(box.y)],
+    panel: panel?.getAttribute("data-state") ?? null,
+    width: panel === null ? null : Math.round(panel.getBoundingClientRect().width),
+  };
+})())`;
+const layoutSchema = z.object({
+  card: z.tuple([z.number(), z.number()]).nullable(),
+  panel: z.string().nullable(),
+  width: z.number().nullable(),
+});
+
+// a pointer gesture is aimed at a point read before it is sent, so after a toggle the next one waits
+// for the tween to end and for the card it will aim at to stand where the read before found it
+const untilPanelSettled = async (
+  browser: AgentBrowser,
+  open: boolean,
+  card: string,
+): Promise<void> => {
+  let previous: string | null = null;
+  await pollUntil(
+    async () => {
+      const layout = parseEval(await browser(["eval", layoutOf(card)]), layoutSchema);
+      const seen = JSON.stringify(layout);
+      const steady = seen === previous;
+      previous = seen;
+      return { layout, steady };
+    },
+    ({ layout, steady }) =>
+      steady &&
+      layout.card !== null &&
+      layout.panel === (open ? "expanded" : "collapsed") &&
+      (open ? (layout.width ?? 0) > 0 : layout.width === 0),
+    {
+      deadlineMs: DEADLINE_MS,
+      describe: ({ layout }) =>
+        `the panel never settled ${open ? "open" : "closed"}: ${JSON.stringify(layout)}`,
+    },
+  );
+};
+
 const select = async (browser: AgentBrowser, file: string): Promise<void> => {
   expectEq(parseEval(await browser(["eval", clickCard(file)]), z.string()), "clicked", file);
 };
@@ -230,7 +277,8 @@ export const libraryBrowser: Scenario = {
       (text) => text !== null,
       "the dragged item never reached the folder",
     );
-    expectEq(await readOrNull(vault(DROPPED)), null, "the dragged item's old place");
+    // the move links the new path, then unlinks the old one, so the old place is waited out too
+    await untilDisk(vault(DROPPED), (text) => text === null, "the dragged item's old place stayed");
 
     ctx.log("Space on the selected card is Quick Look, and Escape closes it");
     await select(browser, WELCOME);
@@ -250,6 +298,8 @@ export const libraryBrowser: Scenario = {
     ctx.log("a tag added in Info lands as a frontmatter line");
     await select(browser, WELCOME);
     await browser(["click", 'button[aria-label="Toggle panel"]']);
+    // the toggle rides the top bar's right end, which the opening panel pushes along
+    await untilPanelSettled(browser, true, libraryCard(FIELD));
     await browser(["wait", 'input[aria-label="tags tags"]'], DEADLINE_MS);
     await browser(["fill", 'input[aria-label="tags tags"]', INFO_TAG]);
     await browser(["press", "Enter"]);
@@ -259,11 +309,14 @@ export const libraryBrowser: Scenario = {
       "Info's tag never reached the file",
     );
     await browser(["click", 'button[aria-label="Toggle panel"]']);
+    // closing hands the grid a fourth column, which moves Field notes up a row
+    await untilPanelSettled(browser, false, libraryCard(FIELD));
 
     ctx.log("an open item renamed from the command line stays open at its new path");
     await browser(["dblclick", libraryCard(FIELD)]);
-    await browser(["wait", EDITOR], DEADLINE_MS);
+    // the url first: an open the double-click never made fails naming what the window shows
     await untilItemParam(browser, FIELD);
+    await browser(["wait", EDITOR], DEADLINE_MS);
     const cli = agentShellCli(ctx.repoRoot, app.dataDir);
     await cli("vault", "rename", FIELD, FIELD_RENAMED);
     await untilItemParam(browser, FIELD_RENAMED);

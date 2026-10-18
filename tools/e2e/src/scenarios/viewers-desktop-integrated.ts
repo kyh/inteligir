@@ -19,7 +19,7 @@ import { readPngPixels } from "../harness/png-pixels";
 import type { Rgba } from "../harness/png-pixels";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
-import { BACK_TO_LIBRARY, LIBRARY_GRID, libraryCard } from "../harness/selectors";
+import { BACK_TO_LIBRARY, LIBRARY_GRID, doubleClickCard, libraryCard } from "../harness/selectors";
 import type { WebDriverSession } from "../harness/webdriver";
 
 const SAVED = "saved: 2026-10-01T09:00:00Z";
@@ -150,17 +150,14 @@ const untilFrameShows = async (
 };
 
 // a card selects on a click and opens on a double-click, which WebDriver's element click does
-// not make, so the card's own dblclick is dispatched once it is drawn
+// not make, so the double-click's events are dispatched on the card once it is drawn
 const openCard = async (page: WebDriverSession, item: string): Promise<void> => {
   const card = libraryCard(item);
   await page.waitUntil(
     `document.querySelector(${JSON.stringify(card)}) !== null`,
     PAGE_DEADLINE_MS,
   );
-  await page.run(
-    `document.querySelector(${JSON.stringify(card)}).dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); return null;`,
-    z.null(),
-  );
+  expectEq(await page.run(`return ${doubleClickCard(item)};`, z.string()), "double-clicked", item);
 };
 
 const backToLibrary = async (page: WebDriverSession): Promise<void> => {

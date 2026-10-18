@@ -206,9 +206,13 @@ export const ItemCard = ({
       aria-label={row.title}
       onClick={(event) => {
         onPress(row, event);
-      }}
-      onDoubleClick={() => {
-        onOpen(row);
+        // a double-click opens on its second click, never on the `dblclick` after it: the browser
+        // aims that at the element the click went to, and the commit the click carries can have
+        // moved this card to another row, a new element (the grid re-deriving its columns under
+        // the panel's tween), so the `dblclick` lands on a detached one that reaches no handler
+        if (event.detail === 2) {
+          onOpen(row);
+        }
       }}
       onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
         // the grid's table binds Enter; a card stands for itself only under a screen reader's

@@ -47,6 +47,17 @@ export const clickCard = (vaultPath: string, toggle = false): string => `(() => 
   card.focus();
   return "clicked";
 })()`;
+// a double-click on a card as a pointer makes it: a click, a second click counting two (the one the
+// card opens on), then the dblclick, none of which WebDriver's element click makes. Answers
+// "double-clicked" or "missing".
+export const doubleClickCard = (vaultPath: string): string => `(() => {
+  const card = document.querySelector(${JSON.stringify(libraryCard(vaultPath))});
+  if (!card) return "missing";
+  for (const [type, detail] of [["click", 1], ["click", 2], ["dblclick", 2]]) {
+    card.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, detail }));
+  }
+  return "double-clicked";
+})()`;
 // the open item's breadcrumb way back
 export const BACK_TO_LIBRARY = 'button[aria-label="Back to library"]';
 // the library's own header, which names the scope shown
