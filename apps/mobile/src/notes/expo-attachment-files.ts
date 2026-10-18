@@ -35,7 +35,7 @@ export const createExpoAttachmentFiles = (): AttachmentFiles => ({
       const dir = attachmentsDir();
       dir.create({ idempotent: true, intermediates: true });
       const partial = new File(dir, `${name}${PARTIAL_SUFFIX}`);
-      partial.write(bytes);
+      partial.writeSync(bytes);
       const file = new File(dir, name);
       partial.moveSync(file, { overwrite: true });
       return file.uri;

@@ -55,7 +55,7 @@ export const createExpoOutboxFolder = (): OutboxFolder => ({
     await settle(() => {
       const dir = createdOutboxDir();
       const partial = new File(dir, `${name}${PARTIAL_SUFFIX}`);
-      partial.write(bytes);
+      partial.writeSync(bytes);
       partial.moveSync(new File(dir, name), { overwrite: true });
     });
   },

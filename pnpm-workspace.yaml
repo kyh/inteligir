@@ -19,7 +19,7 @@ catalog:
   oxc-transform-react: ^0.152.0
   "@cloudflare/vite-plugin": ^1.63.1
   "@cloudflare/vitest-pool-workers": ^0.22.0
-  "@expo/metro-runtime": ~57.0.16
+  "@expo/metro-runtime": ~58.0.14
   "@expo/plist": ~0.8.1
   # node-server held on 1.x: @hono/node-ws has no 2.x-compatible release; lift both together
   "@hono/node-server": ~1.19.17
@@ -54,19 +54,19 @@ catalog:
   # cli.version at this release; a bump moves both
   eas-cli: 24.12.1
   esbuild: ^0.28.2
-  expo: ~57.0.27
-  expo-constants: ~57.0.21
-  expo-crypto: ~57.0.3
-  expo-file-system: ~57.0.7
-  expo-image-manipulator: ~57.0.21
-  expo-image-picker: ~57.0.20
-  expo-network: ~57.0.2
-  expo-router: ~57.0.25
-  expo-secure-store: ~57.0.4
-  expo-splash-screen: ~57.0.9
-  expo-sqlite: ~57.0.4
-  expo-status-bar: ~57.0.1
-  expo-updates: ~57.0.25
+  expo: ~58.0.14
+  expo-constants: ~58.0.12
+  expo-crypto: ~58.0.7
+  expo-file-system: ~58.0.9
+  expo-image-manipulator: ~58.0.14
+  expo-image-picker: ~58.0.10
+  expo-network: ~58.0.3
+  expo-router: ~58.0.23
+  expo-secure-store: ~58.0.2
+  expo-splash-screen: ~58.0.10
+  expo-sqlite: ~58.0.13
+  expo-status-bar: ~58.0.3
+  expo-updates: ~58.0.17
   hono: ^4.13.13
   jsdom: ^30.1.2
   lucide-react: ^1.55.0
@@ -74,11 +74,11 @@ catalog:
   # held under 19.3: @react-three/fiber 9 peers react <19.3
   react: ~19.2.8
   react-dom: ~19.2.8
-  react-native: ~0.86.3
-  react-native-safe-area-context: ~5.7.0
-  react-native-screens: ~4.26.2
+  react-native: 0.88.0
+  react-native-safe-area-context: ~5.10.1
+  react-native-screens: ~4.30.0
   # exact: the SDK's bundledNativeModules pins it, and `npx expo install --check` holds it there
-  react-native-webview: 13.16.1
+  react-native-webview: 14.0.1
   remark-frontmatter: ^5.0.0
   remark-gfm: ^4.0.1
   remark-parse: ^11.0.0
@@ -103,7 +103,7 @@ catalog:
 catalogs:
   # the SDK-blessed react/typescript; bump only with an Expo SDK upgrade
   expo:
-    react: 19.2.3
+    react: 19.3.0
     typescript: ~6.0.3
 
 # Expo-SDK-versioned names: `pnpm up --latest` must not move them past the SDK. Matched by name,
@@ -151,6 +151,8 @@ allowBuilds:
 overrides:
   # the adapter's auto-installed peer would otherwise resolve a second, newer core beside better-auth's
   "@better-auth/core": 1.7.2
+  # one @types/react for the repo, web's; Expo 58 asks for ~19.3, so apps/mobile lists it in
+  # expo.install.exclude (types a minor behind the runtime admit nothing it lacks)
   "@types/react": "catalog:"
   # the catalog alone does not bind importers that don't spell `catalog:` (vitest's vite)
   vite: "catalog:"
