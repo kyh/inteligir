@@ -1,0 +1,60 @@
+diff --git a/cjs/react-dom-client.development.js b/cjs/react-dom-client.development.js
+index b9bb0b5bd00886f4ba53a0f3608d04dcc7567320..6cc4ad19d486a0eb685262a9afd6b9da287fbd6b 100644
+--- a/cjs/react-dom-client.development.js
++++ b/cjs/react-dom-client.development.js
+@@ -13789,7 +13789,9 @@
+       root = root.containerInfo;
+       eventsEnabled = _enabled;
+       root = getActiveElementDeep(root);
+-      if (hasSelectionCapabilities(root)) {
++      // A contenteditable's offsets are its whole text walked node by node, on every commit while
++      // it holds focus; its editor keeps its own selection, so only the focus is restored.
++      if (hasSelectionCapabilities(root) && "true" !== root.contentEditable) {
+         if ("selectionStart" in root)
+           var JSCompiler_temp = {
+             start: root.selectionStart,
+diff --git a/cjs/react-dom-client.production.js b/cjs/react-dom-client.production.js
+index 819490488703bbf88d7d8a565993989bff55f570..b63f9f5a149c856e97d537b6bf1221ffcda999ce 100644
+--- a/cjs/react-dom-client.production.js
++++ b/cjs/react-dom-client.production.js
+@@ -8843,7 +8843,9 @@ function commitBeforeMutationEffects(root, firstChild) {
+   root = root.containerInfo;
+   eventsEnabled = _enabled;
+   root = getActiveElementDeep(root);
+-  if (hasSelectionCapabilities(root)) {
++  // A contenteditable's offsets are its whole text walked node by node, on every commit while
++  // it holds focus; its editor keeps its own selection, so only the focus is restored.
++  if (hasSelectionCapabilities(root) && "true" !== root.contentEditable) {
+     if ("selectionStart" in root)
+       var JSCompiler_temp = {
+         start: root.selectionStart,
+diff --git a/cjs/react-dom-profiling.development.js b/cjs/react-dom-profiling.development.js
+index dfabf7b22ffe706608e5a34331a020ce0ffc3e5a..0ca85461012a022d55c0b2640d3a7f49bb2cf613 100644
+--- a/cjs/react-dom-profiling.development.js
++++ b/cjs/react-dom-profiling.development.js
+@@ -13797,7 +13797,9 @@
+       root = root.containerInfo;
+       eventsEnabled = _enabled;
+       root = getActiveElementDeep(root);
+-      if (hasSelectionCapabilities(root)) {
++      // A contenteditable's offsets are its whole text walked node by node, on every commit while
++      // it holds focus; its editor keeps its own selection, so only the focus is restored.
++      if (hasSelectionCapabilities(root) && "true" !== root.contentEditable) {
+         if ("selectionStart" in root)
+           var JSCompiler_temp = {
+             start: root.selectionStart,
+diff --git a/cjs/react-dom-profiling.profiling.js b/cjs/react-dom-profiling.profiling.js
+index 447dfdfec43a9416e38d65075503922d0cdd94a8..694c64b735b8f282c6391619cba0ca3c5314401d 100644
+--- a/cjs/react-dom-profiling.profiling.js
++++ b/cjs/react-dom-profiling.profiling.js
+@@ -9537,7 +9537,9 @@ function commitBeforeMutationEffects(root, firstChild) {
+   root = root.containerInfo;
+   eventsEnabled = _enabled;
+   root = getActiveElementDeep(root);
+-  if (hasSelectionCapabilities(root)) {
++  // A contenteditable's offsets are its whole text walked node by node, on every commit while
++  // it holds focus; its editor keeps its own selection, so only the focus is restored.
++  if (hasSelectionCapabilities(root) && "true" !== root.contentEditable) {
+     if ("selectionStart" in root)
+       var JSCompiler_temp = {
+         start: root.selectionStart,

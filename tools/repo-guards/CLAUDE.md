@@ -111,7 +111,12 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   markdown serializer asks that of every mark rule on every text node, four
   fifths of a long note's save;
   `packages/editor/src/__tests__/typing-budget.test.tsx` fails on a save that
-  resolves one.
+  resolves one. `patches/react-dom@19.2.8.patch` is the third: before every
+  commit React read the focused element's selection as text offsets, and for a
+  contenteditable that walked every node of the open note, on each keystroke and
+  each scroll frame a commit rode, though the editor keeps its own selection;
+  `packages/editor/src/__tests__/commit-selection-walk.test.tsx` fails on a
+  commit that walks it.
 
 - **NO TYPE ASSERTION, AND NO ESCAPE COMMENT** (owner decision).
   `typescript/consistent-type-assertions` at `assertionStyle: "never"` refuses

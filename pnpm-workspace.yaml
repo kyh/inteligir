@@ -176,3 +176,7 @@ patchedDependencies:
   # quadratic in its lines; the patch is upstream's open fix (micromark/micromark#233), dropped once a
   # release carries it
   micromark@4.0.3: patches/micromark@4.0.3.patch
+  # before every commit React reads the focused element's selection as text offsets, which for a
+  # contenteditable walks every node of the open note; the editor keeps its own selection, so the
+  # patch reads none there, dropped once a release stops walking it
+  react-dom@19.2.8: patches/react-dom@19.2.8.patch
