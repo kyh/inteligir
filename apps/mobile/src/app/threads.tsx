@@ -1,28 +1,10 @@
 import { Stack, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { syncNow, useSyncStatus, useThreadList } from "@/lib/app-runtime";
-import { RADIUS, SPACE, useTheme } from "@/lib/theme";
+import { useTheme } from "@/lib/theme";
 import type { SyncStatus } from "@/sync/sync-runtime";
-
-const styles = StyleSheet.create({
-  bodyText: { fontSize: 16, textAlign: "center" },
-  empty: { alignItems: "center", gap: SPACE.sm, paddingVertical: 96 },
-  list: { paddingBottom: 32, paddingHorizontal: SPACE.lg },
-  pressed: { opacity: 0.7 },
-  screen: { flex: 1 },
-  smallText: { fontSize: 14 },
-  status: { paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
-  threadRow: {
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    gap: 2,
-    marginBottom: SPACE.sm,
-    paddingHorizontal: SPACE.lg,
-    paddingVertical: SPACE.md,
-  },
-});
 
 const describeStatus = (status: SyncStatus): string => {
   if (status.state !== "signed-in") {
@@ -37,6 +19,8 @@ const describeStatus = (status: SyncStatus): string => {
 // the threads this account's Macs and this phone hold, newest first
 const ThreadsScreen = () => {
   const theme = useTheme();
+  // a value, not a class: className draws nothing on a SafeAreaView
+  const screen = { backgroundColor: theme.background, flex: 1 };
   const router = useRouter();
   const status = useSyncStatus();
   const threads = useThreadList();
@@ -49,19 +33,16 @@ const ThreadsScreen = () => {
   }, []);
 
   return (
-    <SafeAreaView
-      style={[styles.screen, { backgroundColor: theme.background }]}
-      edges={["left", "right"]}
-    >
+    <SafeAreaView style={screen} edges={["left", "right"]}>
       <Stack.Screen options={{ title: "Threads" }} />
-      <View style={styles.status}>
-        <Text style={[styles.smallText, { color: theme.mutedForeground }]} numberOfLines={1}>
+      <View className="px-4 py-3">
+        <Text className="text-14 text-muted-foreground" numberOfLines={1}>
           {describeStatus(status)}
         </Text>
       </View>
       <FlatList
-        style={styles.screen}
-        contentContainerStyle={styles.list}
+        className="grow basis-0"
+        contentContainerClassName="px-4 pb-8"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -73,9 +54,9 @@ const ThreadsScreen = () => {
         data={threads}
         keyExtractor={(thread) => thread.threadId}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={[styles.bodyText, { color: theme.mutedForeground }]}>No threads yet.</Text>
-            <Text style={[styles.smallText, { color: theme.mutedForeground }]}>
+          <View className="items-center gap-2 py-24">
+            <Text className="text-center text-16 text-muted-foreground">No threads yet.</Text>
+            <Text className="text-14 text-muted-foreground">
               Pull to refresh, or open an item and ask the agent.
             </Text>
           </View>
@@ -84,23 +65,16 @@ const ThreadsScreen = () => {
           const { caption } = thread;
           return (
             <Pressable
-              style={({ pressed }) => [
-                styles.threadRow,
-                { backgroundColor: theme.card, borderColor: theme.border },
-                pressed && styles.pressed,
-              ]}
+              className="mb-2 gap-0.5 rounded-lg border border-border bg-card px-4 py-3 active:opacity-70"
               onPress={() => {
                 router.push({ params: { id: thread.threadId }, pathname: "/thread/[id]" });
               }}
             >
-              <Text style={[styles.bodyText, { color: theme.cardForeground }]} numberOfLines={1}>
+              <Text className="text-center text-16 text-card-foreground" numberOfLines={1}>
                 {thread.title}
               </Text>
               {caption === "" ? null : (
-                <Text
-                  style={[styles.smallText, { color: theme.mutedForeground }]}
-                  numberOfLines={1}
-                >
+                <Text className="text-14 text-muted-foreground" numberOfLines={1}>
                   {caption}
                 </Text>
               )}

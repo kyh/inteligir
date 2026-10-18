@@ -7,7 +7,7 @@ import {
 } from "expo-router/react-navigation";
 import type { ParamListBase } from "expo-router/react-navigation";
 import { useEffect, useState } from "react";
-import { Alert, KeyboardAvoidingView, Linking, StyleSheet, Text, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Linking, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import type { PageInit } from "@repo/mobile-editor/bridge-protocol";
@@ -19,7 +19,7 @@ import { ItemInfoSheet } from "@/items/item-info-sheet";
 import { deleteNote, useLibraryCard } from "@/lib/app-runtime";
 import { firstParam, openItem, openThread, openViewer } from "@/lib/routes";
 import type { ThreadParams } from "@/lib/routes";
-import { SPACE, useTheme } from "@/lib/theme";
+import { useTheme } from "@/lib/theme";
 import { AnnotationsSheet } from "@/notes/annotations-view";
 import { confirmDeleteNote } from "@/notes/confirm-delete-note";
 import { OutboxBanner } from "@/notes/outbox-banner";
@@ -28,18 +28,8 @@ import { useSheetAnnotations } from "@/notes/use-sheet-annotations";
 import type { SheetRequest } from "@/notes/use-sheet-annotations";
 import { TextButton } from "@/ui/text-button";
 
-const styles = StyleSheet.create({
-  banner: { paddingHorizontal: SPACE.lg, paddingTop: SPACE.sm },
-  failed: {
-    alignItems: "center",
-    gap: SPACE.lg,
-    paddingHorizontal: SPACE.xxl,
-    paddingVertical: 96,
-  },
-  failedText: { fontSize: 16, textAlign: "center" },
-  screen: { flex: 1 },
-  status: { fontSize: 16, paddingHorizontal: SPACE.xxl, paddingVertical: 96, textAlign: "center" },
-});
+// a value, not a class: className draws nothing on a SafeAreaView or a WebView
+const screenOf = (background: string) => ({ backgroundColor: background, flex: 1 });
 
 // the WebView hands anything its list does not admit to the OS itself, before the handler below
 // runs, so the list admits every address and `loadVerdict` is the one policy
@@ -213,7 +203,7 @@ const ItemScreen = () => {
   let body = null;
   if (source === null) {
     body = (
-      <Text style={[styles.status, { color: theme.mutedForeground }]}>
+      <Text className="px-6 py-24 text-center text-16 text-muted-foreground">
         This build has no editor to open items with.
       </Text>
     );
@@ -221,7 +211,7 @@ const ItemScreen = () => {
     body = (
       <WebView
         ref={attachView}
-        style={[styles.screen, { backgroundColor: theme.background }]}
+        style={screenOf(theme.background)}
         source={{ uri: source.uri }}
         allowingReadAccessToURL={source.readAccess}
         originWhitelist={EVERY_ORIGIN}
@@ -244,10 +234,7 @@ const ItemScreen = () => {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.screen, { backgroundColor: theme.background }]}
-      edges={["left", "right"]}
-    >
+    <SafeAreaView style={screenOf(theme.background)} edges={["left", "right"]}>
       <Stack.Screen options={{ title: opened === null ? "Deleted" : docStem(opened) }} />
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button
@@ -295,18 +282,16 @@ const ItemScreen = () => {
           </Stack.Toolbar.MenuAction>
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
-      <OutboxBanner style={styles.banner} onOpen={openItem} />
+      <OutboxBanner className="px-4 pt-2" onOpen={openItem} />
       <KeyboardAvoidingView
-        style={styles.screen}
+        className="grow basis-0"
         behavior="padding"
         keyboardVerticalOffset={headerHeight}
       >
         {body}
         {openFailed === null ? null : (
-          <View
-            style={[StyleSheet.absoluteFill, styles.failed, { backgroundColor: theme.background }]}
-          >
-            <Text style={[styles.failedText, { color: theme.mutedForeground }]}>
+          <View className="absolute inset-0 items-center gap-4 bg-background px-6 py-24">
+            <Text className="text-center text-16 text-muted-foreground">
               {`Couldn't open this item: ${openFailed}`}
             </Text>
             <TextButton fontSize={16} label="Retry" onPress={loadPageAgain} />

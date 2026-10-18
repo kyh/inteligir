@@ -7,7 +7,6 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -30,7 +29,7 @@ import {
 } from "@/lib/app-runtime";
 import { messageOf } from "@/lib/error-message";
 import { openItem, openThreads, openViewer } from "@/lib/routes";
-import { RADIUS, SPACE, useTheme } from "@/lib/theme";
+import { SPACE, useTheme } from "@/lib/theme";
 import { LibraryCardRow } from "@/library/library-card";
 import type { LibraryCard, LibraryFilter, PhoneScope } from "@/library/library-view";
 import { confirmDeleteNote } from "@/notes/confirm-delete-note";
@@ -38,34 +37,6 @@ import { linksKeptLine } from "@/notes/file-ops";
 import type { NotesTreeState } from "@/notes/notes-store";
 import { OutboxBanner } from "@/notes/outbox-banner";
 import { confirmSignOut } from "@/ui/confirm-sign-out";
-
-const styles = StyleSheet.create({
-  body: { fontSize: 16, textAlign: "center" },
-  caption: { fontSize: 13 },
-  chip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.xs,
-  },
-  chipLabel: { fontSize: 14 },
-  chips: { gap: SPACE.sm, paddingVertical: SPACE.sm },
-  empty: { alignItems: "center", gap: SPACE.sm, paddingHorizontal: SPACE.xxl, paddingVertical: 96 },
-  field: {
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    flex: 1,
-    fontSize: 16,
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.sm,
-  },
-  list: { paddingBottom: 32, paddingHorizontal: SPACE.lg, paddingVertical: SPACE.md },
-  notice: { marginBottom: SPACE.sm },
-  pressed: { opacity: 0.7 },
-  save: { fontSize: 16, fontWeight: "600" },
-  saveRow: { alignItems: "center", flexDirection: "row", gap: SPACE.md },
-  screen: { flex: 1 },
-});
 
 // the chips over the list, in the order a person scans them
 const KIND_CHIPS: readonly { kind: ItemKind; label: string }[] = [
@@ -266,13 +237,10 @@ const SaveField = ({ filter }: { filter: LibraryFilter }) => {
     })();
   };
   return (
-    <View style={styles.saveRow}>
+    <View className="flex-row items-center gap-3">
       <TextInput
         accessibilityLabel="Save a link or a thought"
-        style={[
-          styles.field,
-          { backgroundColor: theme.card, borderColor: theme.input, color: theme.foreground },
-        ]}
+        className="grow basis-0 rounded-lg border border-input bg-card px-3 py-2 text-16 text-foreground"
         placeholder="Save a link or a thought"
         placeholderTextColor={theme.mutedForeground}
         value={draft}
@@ -284,7 +252,7 @@ const SaveField = ({ filter }: { filter: LibraryFilter }) => {
         onSubmitEditing={save}
       />
       <Pressable accessibilityRole="button" disabled={saving} hitSlop={SPACE.sm} onPress={save}>
-        <Text style={[styles.save, { color: theme.foreground }]}>Save</Text>
+        <Text className="text-16 font-semibold text-foreground">Save</Text>
       </Pressable>
     </View>
   );
@@ -296,60 +264,48 @@ const KindChips = ({
 }: {
   kinds: ReadonlySet<ItemKind>;
   toggle: (kind: ItemKind) => void;
-}) => {
-  const theme = useTheme();
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.chips}
-    >
-      {KIND_CHIPS.map(({ kind, label }) => {
-        const on = kinds.has(kind);
-        return (
-          <Pressable
-            key={kind}
-            accessibilityRole="button"
-            accessibilityState={{ selected: on }}
-            style={({ pressed }) => [
-              styles.chip,
-              {
-                backgroundColor: on ? theme.primary : theme.card,
-                borderColor: on ? theme.primary : theme.border,
-              },
-              pressed && styles.pressed,
-            ]}
-            onPress={() => {
-              toggle(kind);
-            }}
-          >
-            <Text
-              style={[styles.chipLabel, { color: on ? theme.primaryForeground : theme.foreground }]}
-            >
-              {label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
-  );
-};
+}) => (
+  <ScrollView
+    horizontal
+    showsHorizontalScrollIndicator={false}
+    contentContainerClassName="gap-2 py-2"
+  >
+    {KIND_CHIPS.map(({ kind, label }) => {
+      const on = kinds.has(kind);
+      return (
+        <Pressable
+          key={kind}
+          accessibilityRole="button"
+          accessibilityState={{ selected: on }}
+          className={`rounded-full border px-3 py-1 active:opacity-70 ${on ? "border-primary bg-primary" : "border-border bg-card"}`}
+          onPress={() => {
+            toggle(kind);
+          }}
+        >
+          <Text className={`text-14 ${on ? "text-primary-foreground" : "text-foreground"}`}>
+            {label}
+          </Text>
+        </Pressable>
+      );
+    })}
+  </ScrollView>
+);
+
+const NOTICE_CLASS = "mb-2 text-13 text-muted-foreground";
 
 const Notices = ({ tree }: { tree: NotesTreeState }) => {
-  const theme = useTheme();
   if (tree.state !== "ready") {
     return null;
   }
-  const style = [styles.caption, styles.notice, { color: theme.mutedForeground }];
   return (
     <>
       {tree.progress === null ? null : (
-        <Text style={style}>
+        <Text className={NOTICE_CLASS}>
           {LOADING} {String(tree.progress.fetched)} of {String(tree.progress.total)}
         </Text>
       )}
       {tree.refreshError === null ? null : (
-        <Text style={style}>Refresh issue: {tree.refreshError}</Text>
+        <Text className={NOTICE_CLASS}>Refresh issue: {tree.refreshError}</Text>
       )}
     </>
   );
@@ -366,6 +322,8 @@ const isTagScope = (scope: PhoneScope, tag: string): boolean =>
 // ScrollView: a library holds thousands of items and an eager row each janks the open.
 const LibraryScreen = () => {
   const theme = useTheme();
+  // a value, not a class: className draws nothing on a SafeAreaView
+  const screen = { backgroundColor: theme.background, flex: 1 };
   const [scope, setScope] = useState<PhoneScope>({ kind: "all" });
   const [kinds, setKinds] = useState<ReadonlySet<ItemKind>>(() => new Set());
   const [query, setQuery] = useState("");
@@ -403,10 +361,7 @@ const LibraryScreen = () => {
   const filtered = scope.kind !== "all" || kinds.size > 0 || query.trim() !== "";
 
   return (
-    <SafeAreaView
-      style={[styles.screen, { backgroundColor: theme.background }]}
-      edges={["left", "right"]}
-    >
+    <SafeAreaView style={screen} edges={["left", "right"]}>
       <Stack.Screen
         options={{
           headerSearchBarOptions: {
@@ -494,8 +449,8 @@ const LibraryScreen = () => {
         </Stack.Toolbar.Menu>
       </Stack.Toolbar>
       <FlatList
-        style={styles.screen}
-        contentContainerStyle={styles.list}
+        className="grow basis-0"
+        contentContainerClassName="px-4 pt-3 pb-8"
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -517,8 +472,8 @@ const LibraryScreen = () => {
           </>
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={[styles.body, { color: theme.mutedForeground }]}>
+          <View className="items-center gap-2 px-6 py-24">
+            <Text className="text-center text-16 text-muted-foreground">
               {emptyLabel(tree, filtered)}
             </Text>
           </View>

@@ -3,11 +3,13 @@ import { ShareIntentProvider } from "expo-share-intent";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { useColorScheme } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ShareInbox } from "@/items/share-inbox";
 import { ensureStarted, useSyncStatus } from "@/lib/app-runtime";
-import { themeFor } from "@/lib/theme";
+import { useTheme } from "@/lib/theme";
+
+// the app's classes: one sheet, read once at the root, so every screen's className resolves
+import "../styles.css";
 
 // held until the stored credential is read, so a cold launch never flashes the sign-in form.
 void SplashScreen.preventAutoHideAsync();
@@ -18,7 +20,7 @@ const SHARE_OPTIONS = { resetOnBackground: false };
 
 const RootLayout = () => {
   const status = useSyncStatus();
-  const theme = themeFor(useColorScheme() === "dark");
+  const theme = useTheme();
   const restoring = status.state === "restoring";
 
   useEffect(() => {

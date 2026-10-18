@@ -1,28 +1,10 @@
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, Text, View } from "react-native";
 import { useCoverThumb } from "@/lib/app-runtime";
-import { RADIUS, SPACE, useTheme } from "@/lib/theme";
 import type { LibraryCard } from "./library-view";
 
 const THUMB_SIZE = 64;
 
-const styles = StyleSheet.create({
-  caption: { fontSize: 13 },
-  pressed: { opacity: 0.7 },
-  row: {
-    alignItems: "center",
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: SPACE.md,
-    marginBottom: SPACE.sm,
-    paddingHorizontal: SPACE.lg,
-    paddingVertical: SPACE.md,
-  },
-  tags: { fontSize: 12 },
-  text: { flex: 1, gap: 2 },
-  thumb: { borderRadius: RADIUS.md, height: THUMB_SIZE, width: THUMB_SIZE },
-  title: { fontSize: 16 },
-});
+const THUMB = { height: THUMB_SIZE, width: THUMB_SIZE } as const;
 
 // a stub is a link no Mac has read yet: its title and cover come when one does
 const PENDING_LINE = "Details arrive from your Mac";
@@ -34,12 +16,11 @@ const savedLine = (card: LibraryCard): string => {
 
 // a placeholder holds the cover's place while it is not on this phone yet, so rows do not jump
 const Thumb = ({ cover }: { cover: string }) => {
-  const theme = useTheme();
   const uri = useCoverThumb(cover);
   return uri === null ? (
-    <View style={[styles.thumb, { backgroundColor: theme.muted }]} />
+    <View className="rounded-lg bg-muted" style={THUMB} />
   ) : (
-    <Image accessibilityIgnoresInvertColors source={{ uri }} style={styles.thumb} />
+    <Image accessibilityIgnoresInvertColors className="rounded-lg" source={{ uri }} style={THUMB} />
   );
 };
 
@@ -53,30 +34,25 @@ export const LibraryCardRow = ({
   onPress: () => void;
   onLongPress: () => void;
 }) => {
-  const theme = useTheme();
   const caption = card.pending ? PENDING_LINE : savedLine(card);
   return (
     <Pressable
       accessibilityRole="button"
-      style={({ pressed }) => [
-        styles.row,
-        { backgroundColor: theme.card, borderColor: theme.border },
-        pressed && styles.pressed,
-      ]}
+      className="mb-2 flex-row items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 active:opacity-70"
       onPress={onPress}
       onLongPress={onLongPress}
     >
-      <View style={styles.text}>
-        <Text style={[styles.title, { color: theme.cardForeground }]} numberOfLines={2}>
+      <View className="grow basis-0 gap-0.5">
+        <Text className="text-16 text-card-foreground" numberOfLines={2}>
           {card.title}
         </Text>
         {caption === "" ? null : (
-          <Text style={[styles.caption, { color: theme.mutedForeground }]} numberOfLines={1}>
+          <Text className="text-13 text-muted-foreground" numberOfLines={1}>
             {caption}
           </Text>
         )}
         {card.tags.length === 0 ? null : (
-          <Text style={[styles.tags, { color: theme.mutedForeground }]} numberOfLines={1}>
+          <Text className="text-12 text-muted-foreground" numberOfLines={1}>
             {card.tags.map((tag) => `#${tag}`).join(" ")}
           </Text>
         )}

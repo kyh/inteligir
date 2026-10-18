@@ -465,6 +465,13 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **The library.** Passing: a 2,000-item library scrolls with covers; an
   offline launch shows placeholders for covers not yet seen; the picture and
   PDF viewers open; and a bare highlight made on the phone shows on the Mac.
+- **The screens in light and dark.** With the system in Light, open the
+  library, an item and its Info and highlights sheets, the threads, a thread
+  with a reply and a request waiting, a picture in the viewer and, signed out,
+  the sign-in screen; switch to Dark in Control Center with the app open and
+  look again. Passing: every screen has the colors, spacing, type sizes and
+  corners the build before it had, a pressed text button dims, no line of text
+  runs into the next, and the switch recolours each screen without a relaunch.
 - **A page's copy and a file inside an item.** On the Mac, Keep a copy of the
   page on a saved article; on the phone, open the item and tap Copy of the
   page. Passing: the copy opens in the viewer as the page looked, nothing in it

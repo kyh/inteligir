@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   Image,
   ScrollView,
-  StyleSheet,
   Text,
   useWindowDimensions,
   View,
@@ -17,13 +16,13 @@ import { docStem } from "@repo/notes/knowledge/doc-file";
 import { attachmentFile } from "@/lib/app-runtime";
 import { firstParam, openItem } from "@/lib/routes";
 import { sameDocument } from "@/lib/same-document";
-import { SPACE, useTheme } from "@/lib/theme";
+import { useTheme } from "@/lib/theme";
 
-const styles = StyleSheet.create({
-  center: { alignItems: "center", flex: 1, justifyContent: "center" },
-  screen: { flex: 1 },
-  status: { fontSize: 16, paddingHorizontal: SPACE.xxl, textAlign: "center" },
-});
+// a value, not a class: className draws nothing on a SafeAreaView or a WebView
+const screenOf = (background: string) => ({ backgroundColor: background, flex: 1 });
+
+// the body's frame for a spinner or a line, the whole screen with its one child in the middle
+const CENTERED = "grow basis-0 items-center justify-center";
 
 const MAX_ZOOM = 5;
 
@@ -94,7 +93,7 @@ const HeldDocumentView = ({ uri }: { uri: string }) => {
   const theme = useTheme();
   return (
     <WebView
-      style={[styles.screen, { backgroundColor: theme.background }]}
+      style={screenOf(theme.background)}
       source={{ uri }}
       allowingReadAccessToURL={dirnamePath(uri)}
       originWhitelist={EVERY_ORIGIN}
@@ -120,22 +119,22 @@ const ViewerScreen = () => {
   const held = useHeldFile(shown ? path : null);
 
   let body = (
-    <View style={styles.center}>
+    <View className={CENTERED}>
       <ActivityIndicator />
     </View>
   );
   if (!shown) {
     body = (
-      <View style={styles.center}>
-        <Text style={[styles.status, { color: theme.mutedForeground }]}>
+      <View className={CENTERED}>
+        <Text className="px-6 text-center text-16 text-muted-foreground">
           This file opens on your Mac.
         </Text>
       </View>
     );
   } else if (held.kind === "failed") {
     body = (
-      <View style={styles.center}>
-        <Text style={[styles.status, { color: theme.mutedForeground }]}>
+      <View className={CENTERED}>
+        <Text className="px-6 text-center text-16 text-muted-foreground">
           {`This file isn't on your phone yet: ${held.message}`}
         </Text>
       </View>
@@ -145,10 +144,7 @@ const ViewerScreen = () => {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.screen, { backgroundColor: theme.background }]}
-      edges={["left", "right", "bottom"]}
-    >
+    <SafeAreaView style={screenOf(theme.background)} edges={["left", "right", "bottom"]}>
       <Stack.Screen options={{ title: item === null ? basenamePath(path) : docStem(item) }} />
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button

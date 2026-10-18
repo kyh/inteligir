@@ -1,6 +1,7 @@
 # Decisions: @repo/mobile
 
-The phone: its editor page, its offline store and queue, and how it ships.
+The phone: its editor page, its offline store and queue, its look, and how it
+ships.
 `AGENTS.md` § Decisions says how a bullet is written and cited.
 
 ## Editor and dialect
@@ -206,6 +207,38 @@ The phone: its editor page, its offline store and queue, and how it ships.
   extension that writes the save itself, which would put the database, the
   outbox and the credential in the App Group; and a `save?url` deep link, which
   any page could fire.
+
+## The screens' look
+
+- **THE PHONE IS STYLED WITH NATIVEWIND OVER THE APP'S OWN TOKENS, AS kyh/init's
+  PHONE IS** (owner decision). A screen writes `className` with Tailwind's
+  utilities, which Metro compiles through PostCSS and react-native-css
+  (`apps/mobile/metro.config.js`, `apps/mobile/postcss.config.js`) from one
+  sheet the root layout imports (`apps/mobile/src/styles.css`). The palette is
+  its variables, light at `:root` and dark under `prefers-color-scheme: dark`,
+  since react-native-css has no class list for a `.dark`, so the system's scheme
+  recolours every class; `@theme inline` names them as the web's tokens are
+  named (`bg-card`, `text-muted-foreground`). What React Native takes as a value
+  (a navigator's options, an indicator, a placeholder, a safe area's or a
+  WebView's background) reads the same colors from
+  `apps/mobile/src/lib/palette.ts`, and `apps/mobile/src/styles.test.ts`
+  compiles the sheet as Metro does and holds the two equal in both schemes. The
+  pins are init's, exact: nativewind 5.0.0-preview.4, its only Tailwind 4 line,
+  and react-native-css 3.0.7; the lightningcss react-native-css compiles with,
+  @expo/metro-config's, is held at 1.30.1, since 3.0's visitor fails to
+  deserialize under later ones. 3.0.7 hands its compiler no Metro option and
+  inlines a rem that reaches a class through a variable at 14px, so the sheet
+  writes the spacing step, the radii and the type sizes in px at the web's 16px
+  rem (`p-4` is 16, `rounded-lg` 8) and names the phone's sizes by their px,
+  each a size alone; and it resolves a line-height class to nothing, so a line
+  height stays in the element's `style`, and the suite fails on a class that
+  sets one. A multi-line field is padded `pt-*` and `pb-*`, never `py-*`, which
+  compiles to `paddingBlock`: iOS gives a multi-line `TextInput` with no
+  `paddingTop` its own 5, and the suite fails on one. Rejected:
+  `StyleSheet.create` over a hand-copied palette, a second spelling of every
+  spacing and color in each screen; `@repo/ui`, which is DOM and the dep-dag
+  guard refuses; and the 5.0 release candidate, which fixes both 3.0.7 faults
+  but is not the template's pin, before nativewind 5 ships stable.
 
 ## Repo guards, vendoring and tooling
 

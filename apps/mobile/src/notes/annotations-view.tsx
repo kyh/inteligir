@@ -2,51 +2,14 @@ import { useState } from "react";
 import { annotationSourceLabel } from "@repo/notes/annotations/store-schema";
 import type { AnnotationEntry } from "@repo/notes/annotations/store-schema";
 import type { AnnotationThread } from "@repo/notes/annotations/annotation-threads";
-import {
-  Alert,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { messageOf } from "@/lib/error-message";
 import { SPACE, useTheme } from "@/lib/theme";
 import type { AnnotationOutcome } from "./annotation-ops";
 import type { AnnotationsRead } from "./notes-store";
 
-const styles = StyleSheet.create({
-  action: { fontSize: 15, fontWeight: "600", paddingHorizontal: SPACE.sm },
-  actions: { alignItems: "center", flexDirection: "row", gap: SPACE.sm, marginTop: SPACE.sm },
-  body: { fontSize: 15, lineHeight: 21 },
-  done: { fontSize: 16, fontWeight: "600" },
-  field: {
-    borderRadius: 8,
-    borderWidth: 1,
-    flex: 1,
-    fontSize: 16,
-    paddingHorizontal: SPACE.md,
-    paddingVertical: SPACE.sm,
-  },
-  heading: { fontSize: 12, fontWeight: "600", letterSpacing: 0.5, textTransform: "uppercase" },
-  meta: { fontSize: 12 },
-  quote: { borderLeftWidth: 2, fontSize: 15, lineHeight: 21, paddingLeft: SPACE.md },
-  reply: { borderLeftWidth: 2, gap: SPACE.xs, marginTop: SPACE.xs, paddingLeft: SPACE.md },
-  section: { gap: SPACE.sm, paddingTop: SPACE.xxl },
-  sheet: { flex: 1 },
-  sheetBar: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    paddingHorizontal: SPACE.lg,
-    paddingTop: SPACE.lg,
-  },
-  sheetBody: { paddingBottom: 48, paddingHorizontal: SPACE.lg },
-  status: { fontSize: 15, paddingTop: SPACE.xxl, textAlign: "center" },
-  thread: { borderRadius: 8, borderWidth: 1, gap: SPACE.xs, padding: SPACE.md },
-});
+// a line height stays a style value: react-native-css 3.0.7 resolves a line-height class to nothing
+const READING_LINE = { lineHeight: 21 } as const;
 
 const entryMeta = (entry: AnnotationEntry): string =>
   `${annotationSourceLabel(entry.source)} · ${new Date(entry.createdAt * 1000).toLocaleDateString()}`;
@@ -118,38 +81,36 @@ const ThreadCard = ({ edits, thread }: { edits: AnnotationEdits; thread: Annotat
   };
 
   return (
-    <View style={[styles.thread, { backgroundColor: theme.card, borderColor: theme.border }]}>
-      <Text style={[styles.meta, { color: theme.mutedForeground }]}>
+    <View className="gap-1 rounded-lg border border-border bg-card p-3">
+      <Text className="text-12 text-muted-foreground">
         {entryMeta(thread.root)}
         {thread.anchored ? "" : " · Not placed in the text"}
       </Text>
       {thread.root.quote === undefined ? null : (
-        <Text style={[styles.quote, { borderColor: theme.border, color: theme.mutedForeground }]}>
+        <Text
+          className="border-l-2 border-border pl-3 text-15 text-muted-foreground"
+          style={READING_LINE}
+        >
           {thread.root.quote}
         </Text>
       )}
       {thread.root.text === "" ? null : (
-        <Text style={[styles.body, { color: theme.foreground }]}>{thread.root.text}</Text>
+        <Text className="text-15 text-foreground" style={READING_LINE}>
+          {thread.root.text}
+        </Text>
       )}
       {thread.replies.map((reply) => (
-        <View key={reply.id} style={[styles.reply, { borderColor: theme.border }]}>
-          <Text style={[styles.meta, { color: theme.mutedForeground }]}>
-            {entryMeta(reply.entry)}
+        <View key={reply.id} className="mt-1 gap-1 border-l-2 border-border pl-3">
+          <Text className="text-12 text-muted-foreground">{entryMeta(reply.entry)}</Text>
+          <Text className="text-15 text-foreground" style={READING_LINE}>
+            {reply.entry.text}
           </Text>
-          <Text style={[styles.body, { color: theme.foreground }]}>{reply.entry.text}</Text>
         </View>
       ))}
-      <View style={styles.actions}>
+      <View className="mt-2 flex-row items-center gap-2">
         <TextInput
           accessibilityLabel={bare ? "Add a note to this highlight" : "Reply to this annotation"}
-          style={[
-            styles.field,
-            {
-              backgroundColor: theme.background,
-              borderColor: theme.input,
-              color: theme.foreground,
-            },
-          ]}
+          className="grow basis-0 rounded-lg border border-input bg-background px-3 py-2 text-16 text-foreground"
           placeholder={bare ? "Add a note…" : "Reply…"}
           placeholderTextColor={theme.mutedForeground}
           value={draft}
@@ -165,7 +126,7 @@ const ThreadCard = ({ edits, thread }: { edits: AnnotationEdits; thread: Annotat
           onPress={confirmRemove}
         >
           <Text
-            style={[styles.action, { color: busy ? theme.mutedForeground : theme.destructive }]}
+            className={`px-2 text-15 font-semibold ${busy ? "text-muted-foreground" : "text-destructive"}`}
           >
             Delete
           </Text>
@@ -181,17 +142,16 @@ const AnnotationsSection = ({
 }: {
   edits: AnnotationEdits;
   threads: readonly AnnotationThread[];
-}) => {
-  const theme = useTheme();
-  return (
-    <View style={styles.section}>
-      <Text style={[styles.heading, { color: theme.mutedForeground }]}>Annotations</Text>
-      {threads.map((thread) => (
-        <ThreadCard key={thread.id} edits={edits} thread={thread} />
-      ))}
-    </View>
-  );
-};
+}) => (
+  <View className="gap-2 pt-6">
+    <Text className="text-12 font-semibold tracking-[0.5px] uppercase text-muted-foreground">
+      Annotations
+    </Text>
+    {threads.map((thread) => (
+      <ThreadCard key={thread.id} edits={edits} thread={thread} />
+    ))}
+  </View>
+);
 
 // a marker the page was tapped on narrows the sheet to its threads; one it no longer holds shows all
 const threadsFor = (
@@ -233,7 +193,6 @@ export const AnnotationsSheet = ({
   onClose: () => void;
   visible: boolean;
 }) => {
-  const theme = useTheme();
   const status = sheetStatus(annotations);
   return (
     <Modal
@@ -242,21 +201,21 @@ export const AnnotationsSheet = ({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={[styles.sheet, { backgroundColor: theme.background }]}>
-        <View style={styles.sheetBar}>
+      <View className="grow basis-0 bg-background">
+        <View className="flex-row items-center justify-end px-4 pt-4">
           <Pressable accessibilityRole="button" hitSlop={SPACE.md} onPress={onClose}>
-            <Text style={[styles.done, { color: theme.foreground }]}>Done</Text>
+            <Text className="text-16 font-semibold text-foreground">Done</Text>
           </Pressable>
         </View>
         <ScrollView
-          contentContainerStyle={styles.sheetBody}
+          contentContainerClassName="px-4 pb-12"
           automaticallyAdjustKeyboardInsets
           keyboardShouldPersistTaps="handled"
         >
           {status === null && annotations?.ok === true ? (
             <AnnotationsSection edits={edits} threads={threadsFor(annotations.annotations, ids)} />
           ) : (
-            <Text style={[styles.status, { color: theme.mutedForeground }]}>{status}</Text>
+            <Text className="pt-6 text-center text-15 text-muted-foreground">{status}</Text>
           )}
         </ScrollView>
       </View>

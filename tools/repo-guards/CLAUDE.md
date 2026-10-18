@@ -75,7 +75,8 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   its browser on whichever call comes first. The arguments are `pnpm-workspace.yaml`'s comments.
   AN UPDATE SWEEP SKIPS THE EXPO SDK'S NAMES, NOT ITS `expo:` CATALOG:
   `update.ignoreDeps` holds `expo`, `expo-*`, `@expo/*`, `react-native`,
-  `react-native-*` and `@react-native/*` under `pnpm up --latest -r`. It matches
+  `react-native-*` and `@react-native/*` under `pnpm up --latest -r`, and
+  `nativewind`, whose `latest` is its Tailwind 3 line. It matches
   by name, so `react` and `typescript`, which web shares, cannot be listed
   without freezing web too: after a sweep, revert the `expo:` catalog rows by
   hand, then `npx expo install --check` in `apps/mobile`. An SDK upgrade moves

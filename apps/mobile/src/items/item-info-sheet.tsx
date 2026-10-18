@@ -1,22 +1,6 @@
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SPACE, useTheme } from "@/lib/theme";
+import { Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { SPACE } from "@/lib/theme";
 import type { LibraryCard } from "@/library/library-view";
-
-const styles = StyleSheet.create({
-  bar: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    paddingHorizontal: SPACE.lg,
-    paddingTop: SPACE.lg,
-  },
-  body: { gap: SPACE.lg, paddingBottom: 48, paddingHorizontal: SPACE.lg, paddingTop: SPACE.xxl },
-  done: { fontSize: 16, fontWeight: "600" },
-  label: { fontSize: 12, fontWeight: "600", letterSpacing: 0.5, textTransform: "uppercase" },
-  row: { gap: SPACE.xs },
-  sheet: { flex: 1 },
-  value: { fontSize: 16 },
-});
 
 const KIND_LABELS: Record<LibraryCard["kind"], string> = {
   audio: "Audio",
@@ -54,32 +38,31 @@ export const ItemInfoSheet = ({
   card: LibraryCard | null;
   onClose: () => void;
   visible: boolean;
-}) => {
-  const theme = useTheme();
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <View style={[styles.sheet, { backgroundColor: theme.background }]}>
-        <View style={styles.bar}>
-          <Pressable accessibilityRole="button" hitSlop={SPACE.md} onPress={onClose}>
-            <Text style={[styles.done, { color: theme.foreground }]}>Done</Text>
-          </Pressable>
-        </View>
-        <ScrollView contentContainerStyle={styles.body}>
-          {(card === null ? [] : rowsOf(card)).map((row) => (
-            <View key={row.label} style={styles.row}>
-              <Text style={[styles.label, { color: theme.mutedForeground }]}>{row.label}</Text>
-              <Text selectable style={[styles.value, { color: theme.foreground }]}>
-                {row.value}
-              </Text>
-            </View>
-          ))}
-        </ScrollView>
+}) => (
+  <Modal
+    visible={visible}
+    animationType="slide"
+    presentationStyle="pageSheet"
+    onRequestClose={onClose}
+  >
+    <View className="grow basis-0 bg-background">
+      <View className="flex-row items-center justify-end px-4 pt-4">
+        <Pressable accessibilityRole="button" hitSlop={SPACE.md} onPress={onClose}>
+          <Text className="text-16 font-semibold text-foreground">Done</Text>
+        </Pressable>
       </View>
-    </Modal>
-  );
-};
+      <ScrollView contentContainerClassName="gap-4 px-4 pt-6 pb-12">
+        {(card === null ? [] : rowsOf(card)).map((row) => (
+          <View key={row.label} className="gap-1">
+            <Text className="text-12 font-semibold tracking-[0.5px] uppercase text-muted-foreground">
+              {row.label}
+            </Text>
+            <Text selectable className="text-16 text-foreground">
+              {row.value}
+            </Text>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  </Modal>
+);

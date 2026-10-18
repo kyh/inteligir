@@ -43,18 +43,25 @@
     "expo-sqlite": "catalog:",
     "expo-status-bar": "catalog:",
     "expo-updates": "catalog:",
+    "nativewind": "catalog:",
     "react": "catalog:expo",
     "react-native": "catalog:",
+    "react-native-css": "catalog:",
+    "react-native-reanimated": "catalog:",
     "react-native-safe-area-context": "catalog:",
     "react-native-screens": "catalog:",
     "react-native-webview": "catalog:",
+    "react-native-worklets": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@expo/plist": "catalog:",
+    "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "eas-cli": "catalog:",
+    "postcss": "catalog:",
+    "tailwindcss": "catalog:",
     "typescript": "catalog:expo",
     "vitest": "catalog:"
   }

@@ -36,15 +36,60 @@ src/
                 from the attachment cache (expo-cover-thumbs.ts is the native half)
   lib/          the composition root (compose-runtime.ts, platform-free; app-runtime.ts,
                 its binding to the device), the SQL port with phone-db.ts's
-                migrations, and backup-exclusion.ts over modules/backup-exclusion, the
-                one native module this app carries
+                migrations, backup-exclusion.ts over modules/backup-exclusion, the
+                one native module this app carries, and palette.ts, the colors a prop
+                takes as a value, with theme.ts's useTheme over the system's scheme
   ui/           controls the screens share
+  styles.css    the classes every screen writes: Tailwind's utilities over the palette,
+                compiled for React Native by nativewind (The look, below)
   app/          expo-router screens: index.tsx is the Library, item/ an item in the editor,
                 view/ an image or a PDF full size, threads.tsx and thread/ the agent;
                 _layout.tsx holds the splash, the share provider and the route guard, and
                 +native-intent.ts lands the share extension's handoff on the Library
 plugins/        with-editor-page.js: the built page into the app bundle
+metro.config.js withNativewind, and postcss.config.js Tailwind's PostCSS plugin: the
+                sheet's two compilers; nativewind-env.d.ts gives `className` its types
 ```
+
+## The look
+
+The screens are styled with nativewind, as kyh/init's phone is: a screen writes
+`className` with Tailwind's utilities, and Metro compiles `src/styles.css`
+through PostCSS (`postcss.config.js`) and then react-native-css
+(`withNativewind` in `metro.config.js`). Metro resolves every import of
+`react-native` to react-native-css's own `View`, `Text`, `Pressable`,
+`TextInput`, `Image`, `ScrollView`, `FlatList`, `KeyboardAvoidingView` and
+`ActivityIndicator`, which read their `className` (a list's
+`contentContainerClassName` too); what it does not wrap, `SafeAreaView`, a
+WebView, `Modal`, `RefreshControl` and the navigator, takes a `style`. The
+sheet is imported once, by `app/_layout.tsx`.
+
+- **The palette is variables.** `styles.css` declares each token (background,
+  foreground, card, card-foreground, primary, primary-foreground, muted,
+  muted-foreground, border, input, destructive) light at `:root` and dark under
+  `prefers-color-scheme: dark`, and `@theme inline` maps them to
+  `bg-card`, `text-muted-foreground`, `border-border` and the rest, so the
+  system's scheme recolours every screen with no `dark:` in it.
+- **A value outside a class reads `lib/palette.ts`**: a navigator's options, an
+  `ActivityIndicator`, a field's placeholder, a safe area's or a WebView's
+  background, through `useTheme()`. Its values are the sheet's,
+  and `src/styles.test.ts` compiles the sheet as Metro does and holds the two
+  equal in both schemes, so a color changes in both or the suite fails.
+- **The scales are px.** react-native-css 3.0.7 hands its compiler no Metro
+  option and inlines a rem that reaches a class through a variable at 14px, so
+  the sheet writes Tailwind's spacing step (4px) and radii in px and sets the
+  root to 16: `p-4` is 16, `rounded-lg` 8. The type sizes are the phone's own,
+  named by their px (`text-12` to `text-30`), each a size alone; Tailwind's
+  ladder, which pairs a size with a line height, is cleared.
+- **A line height is a style value.** 3.0.7 resolves a line-height class to
+  nothing, so `lineHeight` stays in the element's `style`, beside its
+  `className`; the sheet's suite fails on a class that sets one.
+- **A multi-line field is padded `pt-*` and `pb-*`.** `py-*` compiles to
+  `paddingBlock`, and iOS gives a multi-line `TextInput` with no `paddingTop`
+  its own 5; the sheet's suite fails on one.
+- **A class is written out whole**, never assembled from parts, since Tailwind
+  makes only the classes a source spells (`ui/text-button.tsx` picks its size
+  from a table of them).
 
 ## The storage choice
 
@@ -368,16 +413,21 @@ that is signed in.
   default purpose string, and every required-reason API a linked module's
   privacy manifest declares is declared by the app's. A new native module that
   brings a manifest or a permission fails it until `app.config.js` says why.
+- **The stylesheet** (`src/styles.test.ts`): it compiles `src/styles.css` with
+  the screens' own classes, Tailwind under PostCSS and then react-native-css as
+  Metro does, and holds each token's light and dark value to `lib/palette.ts`,
+  each color class to its token's variable, the scales to px, a size class to a
+  size alone, and no class to a line height.
 - **The bundle**: `pnpm build` runs `expo export --platform ios`, so every
   `pnpm verify` and CI run compiles the phone's JavaScript to Hermes bytecode,
-  offline, on Linux and macOS alike.
+  and the stylesheet into it, offline, on Linux and macOS alike.
 - **Needs the owner's device / simulator** (no headless Expo boot in CI): the
   app actually booting, the held splash and the route guard's redirects, the
   Keychain, expo-sqlite and the backup exclusion, the attachment and staged
   files, the resume and the reconnect, the socket's upgrade from the device
   and a running turn's reply growing on it, a live sign-in, an EAS Update
-  landing, the offline check, photos, asking a Mac and the editor on a real
-  WebKit. Each is a check with how to run it and what passing looks like in
+  landing, the offline check, photos, asking a Mac, the editor on a real
+  WebKit, and how the screens look in light and dark. Each is a check with how to run it and what passing looks like in
   `docs/releasing.md` § 5, run on every release's internal build; a native
   module a development build predates needs that build rebuilt
   (`pnpm --filter @repo/mobile ios`).
@@ -397,6 +447,11 @@ native build: `pnpm --filter @repo/mobile ios` builds the page first, and
 JavaScript alone; there is no dev server for the page (its CSP refuses the
 script a Vite dev page injects), and Safari's Web Inspector reaches it in a
 development build (`webviewDebuggingEnabled`).
+
+The stylesheet is compiled from the classes Tailwind found in `src/` when Metro
+last transformed it, so a class just added that draws nothing under a running
+`dev` needs `pnpm --filter @repo/mobile dev --clear`; `pnpm --filter
+@repo/mobile test` compiles it the same way without a device.
 
 Unset, the phone talks to the production origin, the same rule the desktop
 follows (`PRODUCTION_CLOUD_ORIGIN` in `@repo/contract/cloud/origin`, the one
