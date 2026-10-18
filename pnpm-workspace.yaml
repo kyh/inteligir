@@ -17,7 +17,7 @@ catalog:
   "@agentclientprotocol/sdk": 1.5.0
   # optional peer @vitejs/plugin-react loads for `compiler: true`
   oxc-transform-react: ^0.152.0
-  "@cloudflare/vite-plugin": ^1.63.1
+  "@cloudflare/vite-plugin": ^1.64.0
   "@cloudflare/vitest-pool-workers": ^0.22.0
   "@expo/metro-runtime": ~57.0.16
   "@expo/plist": ~0.8.1
@@ -28,11 +28,11 @@ catalog:
   "@tailwindcss/vite": ^4.3.3
   "@testing-library/dom": ^10.4.2
   "@testing-library/react": ^16.3.3
-  "@tanstack/react-query": ^5.104.1
+  "@tanstack/react-query": ^5.104.3
   # exact: the committed route tree is an artifact of the plugin version
-  "@tanstack/react-router": 1.170.44
-  "@tanstack/react-start": 1.169.1
-  "@tanstack/router-plugin": 1.168.45
+  "@tanstack/react-router": 1.170.45
+  "@tanstack/react-start": 1.169.3
+  "@tanstack/router-plugin": 1.168.47
   "@types/better-sqlite3": ^9.6.0
   "@types/mdast": ^4.0.4
   # tracks engines.node; newer types let a 25+-only API typecheck and throw at runtime
@@ -68,8 +68,8 @@ catalog:
   expo-status-bar: ~57.0.1
   expo-updates: ~57.0.25
   hono: ^4.13.13
-  jsdom: ^30.1.2
-  lucide-react: ^1.55.0
+  jsdom: ^30.1.3
+  lucide-react: ^1.59.0
   nanoid: ^6.0.2
   # held under 19.3: @react-three/fiber 9 peers react <19.3
   react: ~19.2.8
@@ -94,10 +94,10 @@ catalog:
   # exact: a beta, whose config API moves between releases
   cf: 1.0.0-beta.12
   # the one wrangler resolves; tools/e2e reads `cf build` output with it
-  miniflare: 5.20261006.1-alpha
-  wrangler: ^4.149.0
+  miniflare: 5.20261012.1-beta
+  wrangler: ^4.151.1
   yaml: ^2.9.1
-  zod: ^4.6.5
+  zod: ^4.6.7
   zustand: ^5.0.15
 
 catalogs:
@@ -119,21 +119,6 @@ update:
 
 # 24h supply-chain cooldown
 minimumReleaseAge: 1440
-# TanStack Start 1.0 (react-start 1.169.1), published inside the cooldown; drop these once they
-# are a day old and a fresh install passes without them.
-minimumReleaseAgeExclude:
-  - "@tanstack/react-router@1.170.44"
-  - "@tanstack/react-start-client@1.168.42"
-  - "@tanstack/react-start-rsc@0.1.62"
-  - "@tanstack/react-start-server@1.167.49"
-  - "@tanstack/react-start@1.169.1"
-  - "@tanstack/router-core@1.171.37"
-  - "@tanstack/router-generator@1.167.43"
-  - "@tanstack/router-plugin@1.168.45"
-  - "@tanstack/start-client-core@1.170.37"
-  - "@tanstack/start-plugin-core@1.171.52"
-  - "@tanstack/start-server-core@1.169.42"
-  - "@tanstack/start-storage-context@1.167.39"
 
 blockExoticSubdeps: true
 
