@@ -72,7 +72,8 @@ export interface ComposePorts {
   connectors?: VendorMcpConfigs;
   // what this device is called before any sign-in names it; unset, the machine's own name.
   machineName?: string;
-  vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "git" | "remote">>;
+  // a suite's read stall, which it lets go of itself; unset, INTELIGIR_SLOW_READS' fixed delay
+  vault?: Partial<Pick<VaultRuntimeArgs, "watch" | "git" | "remote" | "stallRead">>;
   // a suite's fetcher, lookup and clock for the capture; passed through untouched
   items?: CapturePorts;
 }
@@ -145,7 +146,9 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
       knowledgeRef?.invalidate(change);
     },
     remote: vaultRemote,
-    stallRead: config.slowReads === null ? undefined : slowReadStall(config.slowReads),
+    stallRead:
+      ports.vault?.stallRead ??
+      (config.slowReads === null ? undefined : slowReadStall(config.slowReads)),
     syncIntervalMs: config.vaultSyncIntervalMs,
     vaultDir: config.vaultDir,
     watch: ports.vault?.watch,

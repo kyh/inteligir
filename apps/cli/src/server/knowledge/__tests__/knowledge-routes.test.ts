@@ -195,9 +195,16 @@ describe("the knowledge routes", () => {
   });
 
   it("says a null is pending while the moved item's read is still out, and answers once it lands", async () => {
+    // the new path's reads are held until the pending answer has been seen, so no runner is too
+    // slow to see it; the rename's own alias write reads it too, so the rename answers after
+    const held = Promise.withResolvers<null>();
     const { client } = await bootTestApp({
       readDeadlineMs: 20,
-      slowReads: { delayMs: 400, path: "after.md" },
+      stallRead: async (relPath) => {
+        if (relPath === "after.md") {
+          await held.promise;
+        }
+      },
     });
     await client.vault.write({
       content: "---\nid: 7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17\n---\n# Moved\n",
@@ -205,8 +212,15 @@ describe("the knowledge routes", () => {
       path: "before.md",
     });
     const ask = { id: "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17", lastPath: "before.md" };
-    await client.vault.rename({ from: "before.md", to: "after.md" });
-    expect(await client.knowledge.pathForNoteId(ask)).toEqual({ path: null, pending: true });
+    const renamed = client.vault.rename({ from: "before.md", to: "after.md" });
+    await vi.waitFor(
+      async () => {
+        expect(await client.knowledge.pathForNoteId(ask)).toEqual({ path: null, pending: true });
+      },
+      { timeout: 5000 },
+    );
+    held.resolve(null);
+    await renamed;
     await vi.waitFor(
       async () => {
         expect(await client.knowledge.pathForNoteId(ask)).toEqual({

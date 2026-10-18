@@ -37,7 +37,7 @@ import type { ShutdownStep } from "../shutdown";
 import { unavailableTurnDriver } from "../threads/turn-driver";
 import type { ProviderEventSink, TurnDriver } from "../threads/turn-driver";
 import { hermeticGit } from "../vault/__tests__/git-test-env";
-import type { SlowReads } from "../vault/slow-reads";
+import type { ReadStall, SlowReads } from "../vault/slow-reads";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import type { WsBus } from "../ws-bus";
 import { boundAddressSchema } from "./bound-address";
@@ -168,6 +168,8 @@ export interface BootTestAppOptions {
   seedsStarters?: boolean;
   // reads of one path held this long inside their slot, as INTELIGIR_SLOW_READS holds them
   slowReads?: SlowReads;
+  // reads held inside their slot until the suite lets them go, over `slowReads`
+  stallRead?: ReadStall;
   // how long the index waits on a doc's read before it defers it; absent, the runtime's own
   readDeadlineMs?: number;
   // the capture's fetch, worker and clock; absent, a fetch that never answers, so a saved link
@@ -259,8 +261,13 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     machineName: TEST_MACHINE_NAME,
     vault:
       options.remote === "derived" || options.pinnedRemote !== undefined
-        ? { git: hermeticGit(), watch: false }
-        : { git: hermeticGit(), remote: options.remote ?? (() => null), watch: false },
+        ? { git: hermeticGit(), stallRead: options.stallRead, watch: false }
+        : {
+            git: hermeticGit(),
+            remote: options.remote ?? (() => null),
+            stallRead: options.stallRead,
+            watch: false,
+          },
   };
   const connectors =
     options.connectors ??
