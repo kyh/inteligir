@@ -108,7 +108,7 @@ from the row, parsing every answer and every event against it. Its
 `underShell()` says whether the page runs inside the shell; a browser tab on
 the same server does not, and every surface that needs the shell draws
 nothing there. The suites answer those calls through Tauri's own IPC mock
-(`apps/workspace/src/shell/__tests__/mock-shell.ts`), so they run the real command names
+(`apps/workspace/src/shell/test-support/mock-shell.ts`), so they run the real command names
 and the answer parse. The commands are granted when the shell
 opens the window, to that window and the server's exact origin alone
 (`grant_app_window` in `src-tauri/src/window.rs`), since the port is the

@@ -20,7 +20,7 @@ import {
 /* oxlint-disable jsx-a11y/click-events-have-key-events, jsx-a11y/prefer-tag-over-role --
    the pill is a Slate inline void, deliberately out of the tab order, and this package reserves a
    raw <button> for controls that carry a product Tooltip instead of a native title (see
-   __tests__/icon-button-tooltips.test.ts). */
+   ../icon-button-tooltips.test.ts). */
 const FormulaPillElement = (props: PlateElementProps) => {
   const [editing, setEditing] = useState(false);
   const pillRef = useRef<HTMLSpanElement | null>(null);

@@ -31,8 +31,10 @@ The phone: its editor page, its offline store and queue, and how it ships.
   list refuses to the OS before the policy runs. A write's base is compared with
   the text the phone holds, under the store's write lock, so a change a sync
   landed since comes back for the page's own merge
-  (`apps/mobile/src/notes/notes-store.ts`). `apps/mobile/src/editor/__tests__/`,
-  and `tools/e2e/src/scenarios/phone-editor-page.ts` loads the built page from
+  (`apps/mobile/src/notes/notes-store.ts`). The suites beside it
+  (`apps/mobile/src/editor/editor-host.test.ts`,
+  `apps/mobile/src/editor/editor-ports.test.ts`) hold the native end, and
+  `tools/e2e/src/scenarios/phone-editor-page.ts` loads the built page from
   `file://` against a scripted phone.
 
 ## Cloud, sync and accounts
@@ -224,6 +226,6 @@ The phone: its editor page, its offline store and queue, and how it ships.
   only fail. The share extension is a target of its own in the App Group
   `group.com.inteligir.mobile`, both the plugin's defaults and both signed by
   EAS, and the App Group's defaults are a declared reason (`1C8F.1`).
-  `apps/mobile/src/__tests__/app-config.test.ts` holds the store config to what
+  `apps/mobile/src/app-config.test.ts` holds the store config to what
   App Store Connect judges: the group, exactly one app extension, its
   activation rules, and every reason.

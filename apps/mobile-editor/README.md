@@ -111,12 +111,13 @@ src/
 pnpm --filter @repo/mobile-editor test
 ```
 
-`src/__tests__/fake-phone.ts` is the native end as the page sees it: a
+`src/test-support/fake-phone.ts` is the native end as the page sees it: a
 transport that records frames and answers from an in-memory vault that CASes
 on the base text. The suites cover correlation, timeouts and every dropped
-frame (`page-bridge.test.ts`), each host port as one frame kind and back
-(`page-host.test.ts`), and a mounted page whose typed paragraph reaches the
-phone as `serializeNote`'s bytes (`editor-page.test.tsx`, compiled like the
-shipped page). `vite/__tests__/classic-page.test.ts` pins the build's verdicts.
+frame (`src/bridge/page-bridge.test.ts`), each host port as one frame kind and
+back (`src/host/page-host.test.ts`), and a mounted page whose typed paragraph
+reaches the phone as `serializeNote`'s bytes (`src/editor-page.test.tsx`,
+compiled like the shipped page). `vite/classic-page.test.ts` pins the build's
+verdicts.
 The page in a real browser from `file://`, with a scripted phone on its
 bridge, is `tools/e2e/src/scenarios/phone-editor-page.ts`.

@@ -53,8 +53,8 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   `external`, and the commit vocabulary both ends read is spelled once in
   `@repo/contract/cloud/vault/vault-git`. Quoting the engine's error inside a
   friendlier sentence is rejected: no sentence around git's stderr makes it the
-  user's. `apps/workspace/src/app/__tests__/vault-hooks.test.ts` holds the copy
-  to that and refuses a `lastError` read anywhere else in the page.
+  user's. `apps/workspace/src/app/vault-hooks.test.ts` holds the copy to that
+  and refuses a `lastError` read anywhere else in the page.
 
 ## Knowledge: index, search and links
 
@@ -232,7 +232,7 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   reaches, which is why no window-focus re-walk backs it up.
   `apps/workspace/src/app/change-batch.ts`, `app/actions/thread-hooks.ts`,
   `app/workspace-context.tsx`, which flushes the batch per frame, and
-  `apps/workspace/src/app/__tests__/changed-message.test.ts`.
+  `apps/workspace/src/app/changed-message.test.ts`.
 
 - **THE NOTE STORE OWNS THE OPEN ITEM, THE URL MIRRORS IT, AND SETTINGS COVERS A
   WORKSPACE THAT STAYS MOUNTED** (owner decision). `?item=` is read once, at
@@ -251,8 +251,8 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   listener; the way in flushes the open item, since nothing else settles a title
   mid-rename or an edit inside the debounce.
   `apps/workspace/src/routes/_workspace.tsx`,
-  `apps/workspace/src/app/__tests__/workspace-runtime-mount.test.tsx` and
-  `apps/cli/src/workspace/__tests__/workspace-routing.booted.test.tsx`.
+  `apps/workspace/src/app/workspace-runtime-mount.test.tsx` and
+  `apps/cli/src/workspace/workspace-routing.booted.test.tsx`.
 
 - **A PAGE PREFERENCE IS A ROW, AND SO IS AN APPEARANCE DIAL.** What the window
   remembers across a reload is one `PREFS` row (key, a zod schema that decodes
@@ -379,7 +379,7 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
 - **A WORKSPACE TEST THAT LOGS A console.error FAILS.** React reports a setState
   during another component's render, a missing key or an update outside `act` as
   a console.error and nothing else, so a suite that only logs it stays green
-  over a real defect (`apps/workspace/src/app/__tests__/console-error-gate.ts`).
+  over a real defect (`apps/workspace/src/app/test-support/console-error-gate.ts`).
   A test that provokes one on purpose silences it with its own spy. The CLI's
   suites that drive the page's modules over a booted server are gated too; its
   booted DOM suites are not (`apps/cli/vitest.config.ts`): the server they boot
@@ -392,10 +392,10 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   the cycle, and the CLI export its test harness to the page's suites.
   `@repo/workspace` depends on neither: the desktop embeds its first-run build
   (`frontendDist`) and the CLI stages its app page, each through `^build`, and
-  the suites that boot a server in-process sit in
-  `apps/cli/src/workspace/__tests__` over the page's exports, so no package
-  exports a harness. Only it reaches `@tauri-apps/*` (`SHELL_API_CLIENTS` in
-  `tools/repo-guards/src/dep-dag.test.ts`). Rejected: the page inside
-  `apps/desktop` behind a test tsconfig of its own, which keeps the cycle in the
-  task graph. `pnpm dev:workspace` (`apps/workspace/scripts/dev.ts`) is the
-  page's loop with no Rust.
+  the suites that boot a server in-process sit in `apps/cli/src/workspace`,
+  beside the harness in its `test-support/`, over the page's exports, so no
+  package exports a harness. Only it reaches `@tauri-apps/*`
+  (`SHELL_API_CLIENTS` in `tools/repo-guards/src/dep-dag.test.ts`). Rejected:
+  the page inside `apps/desktop` behind a test tsconfig of its own, which keeps
+  the cycle in the task graph. `pnpm dev:workspace`
+  (`apps/workspace/scripts/dev.ts`) is the page's loop with no Rust.

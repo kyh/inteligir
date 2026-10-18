@@ -14,7 +14,7 @@ says how a bullet is written and cited.
   drop (a tool call still running) maps to nothing, and the runtime's
   `onActivity` keeps the idle watchdog hearing it. The mapper is tested against
   turns the pinned adapters really sent
-  (`packages/agent-runtime/src/acp/__tests__/fixtures/<adapter>@<version>/`),
+  (`packages/agent-runtime/src/acp/test-support/fixtures/<adapter>@<version>/`),
   because a fake agent encodes what the adapters were believed to send. A
   failure no prompt causes on demand is staged: codex is pointed at a local
   model endpoint answering as the API does (a scenario's `staged`), so the
@@ -37,5 +37,5 @@ says how a bullet is written and cited.
   `.codex` (the row's `refusedVaultEntries`). Rejected: keeping a vault source
   and refusing its executing keys one by one, a list every vendor release can
   outgrow. User-level vendor config stays.
-  `packages/agent-runtime/src/acp/__tests__/vault-config-isolation.test.ts` runs
+  `packages/agent-runtime/src/acp/vault-config-isolation.test.ts` runs
   each pinned adapter against a fake vendor and reads what it was handed.

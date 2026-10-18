@@ -199,7 +199,7 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   tag) settle by `urlItemVerdict` inside that verdict, with no copy, so both
   repos and the remote end on one text whichever device merges.
   `apps/cli/src/server/vault/git-merge.ts`,
-  `apps/cli/src/server/vault/__tests__/git-merge-items.test.ts`.
+  `apps/cli/src/server/vault/git-merge-items.test.ts`.
 
 - **AN UNTOUCHED STARTER LIBRARY YIELDS TO A REMOTE THAT HAS HISTORY**, so a
   second Mac signing in never merges its seed into the account's library: the two

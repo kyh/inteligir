@@ -9,9 +9,9 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   rule.** Targeted structural invariants instead: the dependency DAG and where
   each package may reach, ws change-kind reachability (`tools/repo-guards`),
   each package's node and react rule (`oxlint.config.ts`), route-table
-  completeness (`apps/cli/src/server/__tests__/http-surface.test.ts`),
+  completeness (`apps/cli/src/server/http-surface.test.ts`),
   migration↔schema agreement
-  (`packages/db/src/__tests__/schema-agreement.test.ts`), the per-export orphan
+  (`packages/db/src/schema-agreement.test.ts`), the per-export orphan
   guard and the type-role guard over `@repo/ui`, the CLI guide and its `--json`
   flags, the editor's buffer invariant, and the words on every surface a person
   reads (the window, the phone, the editor, `@repo/ui`, the extension, the
@@ -53,9 +53,9 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   excluded, because a fixture hook minted in a factory is hoisted with no
   diagnostic), and a `compiled-under-test` suite in each fails when the plugin
   goes (the phone page's is the last case of
-  `apps/mobile-editor/src/__tests__/editor-page.test.tsx`, and the extension's
-  of `apps/extension/src/entrypoints/popup/__tests__/popup.test.tsx`). A node
-  suite, and the workspace UI's booted ones (`apps/cli/src/workspace/__tests__`),
+  `apps/mobile-editor/src/editor-page.test.tsx`, and the extension's
+  of `apps/extension/src/entrypoints/popup/popup.test.tsx`). A node
+  suite, and the workspace UI's booted ones (`apps/cli/src/workspace`),
   cannot run compiled: the plugin skips the ssr transform. The manual-memo sweep
   is #820.
 
@@ -107,19 +107,19 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `patchedDependencies` in `pnpm-workspace.yaml`; a bump fails the install until
   the patch is re-cut or dropped. A workaround in `@repo/notes` was rejected:
   splitting the paragraph changes what it parses to.
-  `packages/notes/src/__tests__/projection-cost.test.ts` compares a 20k-line
+  `packages/notes/src/knowledge/projection-cost.test.ts` compares a 20k-line
   paragraph's projection with an eighth of it. Residual: a paragraph dense with
   emphasis or inline nodes is still superlinear upstream, and not patched.
   `patches/@platejs__core@53.3.15.patch` is the second: Plate resolved a
   throwaway plugin to answer the type of a key no plugin registers, and the
   markdown serializer asks that of every mark rule on every text node, four
   fifths of a long note's save;
-  `packages/editor/src/__tests__/typing-budget.test.tsx` fails on a save that
+  `packages/editor/src/typing-budget.test.tsx` fails on a save that
   resolves one. `patches/react-dom@19.2.8.patch` is the third: before every
   commit React read the focused element's selection as text offsets, and for a
   contenteditable that walked every node of the open note, on each keystroke and
   each scroll frame a commit rode, though the editor keeps its own selection;
-  `packages/editor/src/__tests__/commit-selection-walk.test.tsx` fails on a
+  `packages/editor/src/commit-selection-walk.test.tsx` fails on a
   commit that walks it.
 
 - **NO TYPE ASSERTION, AND NO ESCAPE COMMENT** (owner decision).
@@ -146,3 +146,18 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   only the fields it reads (`apps/cli/scripts/smoke-lib.ts`).
   `.github/scripts/worker-preview.mjs` stays JS: its first step runs before the
   job sets up the repo's node.
+
+- **A TEST SITS BESIDE THE MODULE IT TESTS, AND A PACKAGE'S SHARED TEST CODE IS
+  ITS `test-support/`.** A suite is `<name>.test.ts` beside the `<name>.ts` it
+  tests, and a suite over several modules sits in the folder that holds them;
+  the harnesses, fakes, stubs, setup files and fixtures its suites share
+  sit in the nearest `test-support/`, and a snapshot in the `__snapshots__/`
+  vitest writes beside its suite. Those two names are all a config reads to
+  tell a test from a source: every suite's React Compiler skips
+  `/\.test\.tsx?$/` and `/\/test-support\//`, oxlint's test overrides
+  (`oxlint.config.ts`) and `isTestFile` (`tools/repo-guards/src/repo.ts`)
+  match the same, and the page's own program leaves both out
+  (`apps/workspace/src/tsconfig.page.json`). Rejected: `__tests__/` folders, a
+  second place to look for a module's tests and one that drifts from the
+  module it tests; kyh/init's convention puts each test beside the one module
+  it names. `tools/repo-guards/src/tests-beside-source.test.ts`.

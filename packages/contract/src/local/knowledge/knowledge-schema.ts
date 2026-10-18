@@ -1,4 +1,4 @@
-// each row schema mirrors an engine type, and `__tests__/engine-mirror.test.ts` holds the two
+// each row schema mirrors an engine type, and `engine-mirror.test.ts` holds the two
 // equal at compile time: a field the engine adds would otherwise pass structural assignment
 // unseen. the mirrored optionals are exactOptional because the engine's are exact. a capped
 // response carries `total`, and `array.length < total` is the truncation test; no second flag

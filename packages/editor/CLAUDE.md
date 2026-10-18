@@ -38,7 +38,7 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   every chip. The base kits are headless files (`packages/editor/src/kits/headless/`),
   each live kit its headless half plus components, so the fixpoint runs in node
   with no React, `@repo/ui` or renderer in reach
-  (`packages/editor/src/__tests__/headless-kits.test.ts`), and an imported page
+  (`packages/editor/src/headless-kits.test.ts`), and an imported page
   is written as its own fixpoint: `canonicalizeImported` answers the canonical
   markdown and the share of the page's letters it kept, or nothing when the
   result is not canonical. `packages/editor/src/markdown/markdown-doc.ts`,
@@ -228,13 +228,13 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   parse), so a slow runner cannot fail them but a store atom every block holds
   does; the two such atoms Plate carries, its navigation flash and its
   flat-model toggle hider, read no block and are held off by name
-  (`packages/editor/src/__tests__/per-block-subscriptions.test.tsx`). A pass is
+  (`packages/editor/src/per-block-subscriptions.test.tsx`). A pass is
   found, never declared: a block near the note's end
   records the stack of every read of it, so a new pass fails named by its
   function, where instrumenting the known passes would miss the one nobody
   instrumented. A pass a keystroke cannot afford caches by top-level block,
   since an edit keeps every untouched block by identity.
-  `packages/editor/src/__tests__/typing-budget.test.tsx`, held by the Linux CI
+  `packages/editor/src/typing-budget.test.tsx`, held by the Linux CI
   job: on the 7 GB macOS runner the note swaps, so that job sets
   `SKIP_TYPING_BUDGET` (`packages/editor/vitest.config.ts`).
 
@@ -318,8 +318,8 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   every node a selection, find or a far link reaches, and a rewrite on
   ProseMirror, since the hard part is the markdown conversion layer, which a
   rewrite redoes, while the runs move the cost without touching it.
-  `packages/editor/src/__tests__/long-note-chunks.test.tsx`,
-  `packages/editor/src/__tests__/typing-budget.test.tsx`.
+  `packages/editor/src/long-note-chunks.test.tsx`,
+  `packages/editor/src/typing-budget.test.tsx`.
 
 ## Vault: writes, git and containment
 

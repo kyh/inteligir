@@ -23,7 +23,7 @@ also ships ONE stylesheet, `styles.css` (toggle collapse, the callout marker
 swap, the hljs theme, the prose scope the appearance dials feed, typeset's
 table rules and the diagram frame's `--pele-*` variables), inert until the
 host `@import`s `@repo/editor/styles.css` — `style-hooks.ts` spells the
-selectors it reads, and `__tests__/style-hooks.test.ts` pins the two together.
+selectors it reads, and `style-hooks.test.ts` pins the two together.
 
 ## Layout
 
@@ -46,8 +46,14 @@ src/
   lib/                 # debounce, the one door a diagram's markup becomes
                        # nodes through, embed and url helpers
   test-support/        # the fake editor host, for any suite that mounts the
-                       # editor (the desktop's included)
-  __tests__/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)
+                       # editor (the desktop's included), and what this
+                       # package's suites share: the DOM cleanup, a mounted
+                       # editor, a fake vault, sample and generated notes
+  test-support/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)
+  *.test.ts(x)         # each suite beside the module it names, in whichever
+                       # folder that module sits; one that holds several
+                       # modules (the round trip, the typing budget, kit
+                       # parity) sits here at the top
   *.ts(x)              # the editor surface and its column, the host seam
                        # (§ Seams), the write policy, and the in-document
                        # affordances: menus, toolbars, TOC, embeds
@@ -56,7 +62,7 @@ src/
 ## Invariants
 
 - **`roundTrip(raw) === raw` for every canonical file.** The fixture matrix
-  under `src/__tests__/fixtures/roundtrip/` is the contract: `canonical/` must
+  under `src/test-support/fixtures/roundtrip/` is the contract: `canonical/` must
   survive untouched and `churn/` pins the one normalization each input gets
   (`*.in.md` → `*.out.md`). There is no `raw/`: every input parses.
 - **Never hand-edit or format a fixture.** Their bytes are the assertion —
@@ -79,7 +85,7 @@ src/
   byte-exact, and the gate's reason says which (`GateReason` in
   `markdown/markdown-doc.ts`).
 - **Typing walks a long note only through its budget.**
-  `__tests__/typing-budget.test.tsx` types into a generated 10k-line note
+  `typing-budget.test.tsx` types into a generated 10k-line note
   (`generateLongNote`) and fails on a whole-note pass no row names, on a
   keystroke, a caret move or the settle after typing. A pass a keystroke cannot
   afford caches by top-level block (the outline, the count, the gutter's ids),

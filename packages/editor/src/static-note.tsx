@@ -283,7 +283,7 @@ const BlockquoteStatic = (props: SlateElementProps) => {
 };
 
 // Every void needs a row: the default static element is a <div> or the plugin's own tag, which
-// draws the void empty, or throws for <hr>. __tests__/transclusion-static.test.ts pins it.
+// draws the void empty, or throws for <hr>. transclusion-static.test.ts pins it.
 export const STATIC_COMPONENTS: ReadonlyMap<string, (props: SlateElementProps) => ReactNode> =
   new Map([
     ["a", LinkStatic],

@@ -20,11 +20,11 @@
     "./app/settings/connectors-section": "./src/app/settings/connectors-section.tsx",
     "./app/workspace-context": "./src/app/workspace-context.tsx",
     "./router": "./src/router.ts",
-    "./test-support/console-error-gate": "./src/app/__tests__/console-error-gate.ts",
-    "./test-support/dom-timeouts": "./src/app/__tests__/dom-timeouts.ts",
-    "./test-support/inert-socket": "./src/app/__tests__/inert-socket.ts",
-    "./test-support/jsdom-stubs": "./src/app/__tests__/jsdom-stubs.ts",
-    "./test-support/scripted-socket": "./src/app/__tests__/scripted-socket.ts"
+    "./test-support/console-error-gate": "./src/app/test-support/console-error-gate.ts",
+    "./test-support/dom-timeouts": "./src/app/test-support/dom-timeouts.ts",
+    "./test-support/inert-socket": "./src/app/test-support/inert-socket.ts",
+    "./test-support/jsdom-stubs": "./src/app/test-support/jsdom-stubs.ts",
+    "./test-support/scripted-socket": "./src/app/test-support/scripted-socket.ts"
   },
   "scripts": {
     "build": "vite build && vite build --mode first-run",

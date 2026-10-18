@@ -95,7 +95,7 @@ src/
   to retry in the Worker's own words, never a verdict on the credential.
   Requests stay `z.strictObject`: only the always-newest Worker parses them. The
   Worker's tests hold every answer to exactly the declared shape (`emitted` in
-  `apps/web/src/worker/__tests__/cloud-helpers.ts`), since a stripping client
+  `apps/web/src/worker/test-support/cloud-helpers.ts`), since a stripping client
   would let a leaked column through. A field that changes what a row MEANS (a
   new dispatch kind) still reaches only a client whose request declares it,
   because stripped, the row reads as the old kind: a dispatch claim names the
@@ -103,7 +103,7 @@ src/
 - **Every request names its build, and the Worker refuses one below its
   floor.** `x-inteligir-build` rides the REST calls, the two that ask for a
   credential, the socket's upgrade and the hosted vault's git `extraHeader`
-  (`client-build.ts`; `__tests__/client-build.test.ts` walks every
+  (`client-build.ts`; `client-build.test.ts` walks every
   `CloudClient` method). `client-outdated` ends a session as `outdated`, not
   `unauthorized`: the credential stands, and only an update moves past it
   (`sync/sync-session.ts`).
@@ -121,7 +121,7 @@ src/
 - **Every local row declares only the error classes it can raise.** A base
   carrying every class hands each client switch unreachable branches; the
   vault rows' declared set is held against the handlers by
-  `apps/cli/src/server/vault/__tests__/vault-contract-errors.test.ts`.
+  `apps/cli/src/server/vault/vault-contract-errors.test.ts`.
 - **One page planner.** Two copies of `sync/plan-page.ts` would be two answers
   to "did this row move the cursor?", and a mis-set cursor is a duplicated
   conversation. The same reason keeps the session fence, the login flow and
@@ -176,6 +176,6 @@ src/
 ## Testing
 
 `pnpm --filter @repo/contract test` — vitest, no platform.
-`knowledge/__tests__/engine-mirror.test.ts` is type-level and fails under
+`knowledge/engine-mirror.test.ts` is type-level and fails under
 `tsc`, not `vitest`. The delta algebra is pinned over the projections it
-diffs, beside the server's fold in `apps/cli/src/server/threads/__tests__/`.
+diffs, beside the server's fold in `apps/cli/src/server/threads/`.

@@ -38,7 +38,7 @@ const TAURI_CONFIG = "apps/desktop/src-tauri/tauri.conf.json";
 const CSP = "apps/cli/src/server/csp.ts";
 const SHELL = "apps/desktop/src-tauri/src/shell.rs";
 const LAUNCH = "apps/desktop/src-tauri/src/launch.rs";
-const DOOR_ANSWERS = "apps/cli/src/desktop/__tests__/door-answers.ts";
+const DOOR_ANSWERS = "apps/cli/src/desktop/test-support/door-answers.ts";
 const DOOR_FIXTURES = "apps/desktop/src-tauri/fixtures";
 // the page's own dev loop, a script node runs as it stands, which cannot import the CLI's source
 const WORKSPACE_DEV = "apps/workspace/scripts/dev.ts";

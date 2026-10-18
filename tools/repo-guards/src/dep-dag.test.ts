@@ -741,8 +741,8 @@ describe("the contract's @repo/notes edge", () => {
 
 describe("tests are excluded from the shipped graph", () => {
   it("classifies suites, fixtures and test-only ports as tests", () => {
-    expect(isTestFile("packages/db/src/__tests__/db.test.ts")).toBe(true);
-    expect(isTestFile("apps/cli/src/server/__tests__/boot-app.ts")).toBe(true);
+    expect(isTestFile("packages/db/src/db.test.ts")).toBe(true);
+    expect(isTestFile("apps/cli/src/server/test-support/boot-app.ts")).toBe(true);
     expect(isTestFile("packages/agent-runtime/src/test-support/fake-acp-agent.mjs")).toBe(true);
     expect(isTestFile("packages/db/src/schema.ts")).toBe(false);
   });

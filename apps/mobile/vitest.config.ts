@@ -10,7 +10,7 @@ export default defineConfig({
     alias: { "@": `${HERE}/src` },
   },
   test: {
-    include: ["src/**/__tests__/**/*.test.ts"],
+    include: ["src/**/*.test.ts"],
     maxWorkers: 1,
   },
 });

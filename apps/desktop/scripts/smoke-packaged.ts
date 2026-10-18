@@ -34,7 +34,10 @@ import type { Exit, Rpc } from "inteligir/scripts/smoke-lib";
 import { z } from "zod";
 
 const CLI_BIN_NAME = "inteligir";
-const TEST_DIR_NAME = "__tests__";
+// a suite sits beside the module it tests and a package's shared test code in test-support/
+// (tools/repo-guards/CLAUDE.md), so either name in the packaged tree is test code that shipped
+const TEST_FILE = /\.test\.[cm]?[jt]sx?$/u;
+const TEST_SUPPORT_DIR_NAME = "test-support";
 
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const appDir = path.join(
@@ -173,11 +176,13 @@ const checkPackContents = (): void => {
   if (strays.length > 0) {
     fail(`the packaged CLI carries what its \`files\` does not ship: ${strays.join(", ")}`);
   }
-  const testDirs = readdirSync(runtimeRoot, { encoding: "utf-8", recursive: true }).filter(
-    (entry) => path.basename(entry) === TEST_DIR_NAME && !entry.startsWith("node_modules"),
+  const testEntries = readdirSync(runtimeRoot, { encoding: "utf-8", recursive: true }).filter(
+    (entry) =>
+      !entry.startsWith("node_modules") &&
+      (path.basename(entry) === TEST_SUPPORT_DIR_NAME || TEST_FILE.test(path.basename(entry))),
   );
-  if (testDirs.length > 0) {
-    fail(`the packaged CLI carries test files: ${testDirs.join(", ")}`);
+  if (testEntries.length > 0) {
+    fail(`the packaged CLI carries test files: ${testEntries.join(", ")}`);
   }
   log(`packaged CLI -> ${readdirSync(runtimeRoot).join(", ")}`);
 

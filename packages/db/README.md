@@ -34,7 +34,8 @@ src/
   pending-interactions.ts  # provider prompts waiting on the user's answer
   json-column.ts           # the one parse every json column is read back through
   sync-outbox.ts           # what this install has yet to push, and where its pull is
-  __tests__/               # real files under a temp dir
+  *.test.ts                # beside what each tests, over real files under a temp dir
+  test-support/            # what the suites share: a temp database, a JSON value type
 drizzle/                   # the committed SQL migrations, one folder per generation
 drizzle.config.ts          # where `pnpm --filter @repo/db db:generate` writes the next one
 ```
@@ -192,6 +193,6 @@ drizzle.config.ts          # where `pnpm --filter @repo/db db:generate` writes t
 ## Testing
 
 `pnpm --filter @repo/db test` — vitest over real files in a temp dir
-(`__tests__/open-temp-db.ts`, disposed with the test).
+(`test-support/open-temp-db.ts`, disposed with the test).
 `schema-agreement.test.ts` spawns `drizzle-kit`, so it carries its own 30s
 budget.

@@ -9,7 +9,12 @@ export default defineConfig({
   // uncompiled: a fixture hook minted inside a factory is hoisted to module
   // scope with no diagnostic. The compiler skips the ssr transform, so only the
   // suites that declare jsdom run compiled.
-  plugins: [viteReact({ compiler: true, exclude: [/\/node_modules\//u, /\/__tests__\//u] })],
+  plugins: [
+    viteReact({
+      compiler: true,
+      exclude: [/\/node_modules\//u, /\.test\.tsx?$/u, /\/test-support\//u],
+    }),
+  ],
   test: {
     include: ["src/**/*.test.{ts,tsx}"],
     maxWorkers: 2,

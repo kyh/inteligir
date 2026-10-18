@@ -146,7 +146,7 @@ admitted the call, and a thread with no turn running records nothing.
 
 The served manual (`src/server/guide/cli-skill.ts`) must name every leaf
 command AND every flag those leaves accept —
-`src/__tests__/guide-covers-commands.test.ts` walks the real citty tree against
+`src/guide-covers-commands.test.ts` walks the real citty tree against
 the guide's rendered bytes, never its source, and against § Command surface
 above, which must list every leaf and no other.
 `json-flag-enforcement.test.ts` (bb's pattern, MIT) walks the same tree and
@@ -248,12 +248,11 @@ The published surface is the bin and nothing else: `publishConfig.exports` is
 `package.json` is a WORKSPACE seam — apps/desktop's smoke compiles against
 `inteligir/scripts/smoke-lib`, tools/e2e and tools/repo-guards against
 `inteligir/server/*`, and repo-guards' shell-wire guard against
-`inteligir/desktop/door-answers`, the door's answer schemas kept beside its
-tests in `src/desktop/__tests__/` — and it is unshippable
-as written, since those modules target `src/`, which `files` does not carry,
-and import devDependencies and unpublished `@repo/*` packages. Advertising a
-subpath a real install answers with ERR_MODULE_NOT_FOUND is the failure this
-closes.
+`inteligir/desktop/door-answers`, the door's answer schemas its tests share
+(`src/desktop/test-support/`) — and it is unshippable as written, since those
+modules target `src/`, which `files` does not carry, and import devDependencies
+and unpublished `@repo/*` packages. Advertising a subpath a real install
+answers with ERR_MODULE_NOT_FOUND is the failure this closes.
 
 ## Tests
 
@@ -261,15 +260,16 @@ Unit suites run the real program object against an in-process server built from
 the SAME contract (so the fixture cannot drift) — output goldens, `action wait`
 exit codes, discovery resolution. Where the fixture answers from a rule, it runs
 the server's own: the knowledge index over its vault, and the guarded write's
-verdict (`src/server/vault/write-guard.ts`). The server's own suites sit under
-`src/server/__tests__/`; the cloud ones run against a fake cloud that answers
-the inbox table the Worker's suite runs
+verdict (`src/server/vault/write-guard.ts`). The server's own suites sit beside
+the modules they test under `src/server/`; the cloud ones run against a fake
+cloud that answers the inbox table the Worker's suite runs
 (`@repo/contract/cloud/test-support/inbox-scenarios`). The workspace UI's
-suites that boot this server in-process sit under `src/workspace/__tests__/`,
-beside the harness they use (`src/server/__tests__/boot-app.ts`), so the page
-never depends on this package: the `.booted.test.tsx` ones render the page
-under jsdom, the rest drive its modules with nothing rendered and fail a test
-that logs a `console.error`, as the page's own suites do (`vitest.config.ts`,
-a project each), and `src/workspace/tsconfig.json` compiles them with the DOM.
+suites that boot this server in-process sit under `src/workspace/`, in the
+package that holds the harness they use (`src/server/test-support/boot-app.ts`),
+so the page never depends on this package: the `.booted.test.tsx` ones render
+the page under jsdom, the rest drive its modules with nothing rendered and fail
+a test that logs a `console.error`, as the page's own suites do
+(`vitest.config.ts`, a project each), and `src/workspace/tsconfig.json`
+compiles them with the DOM.
 The real-server integration lives in `e2e` (`cli-drive`): the CLI drives a
 booted instance under the scripted agent.

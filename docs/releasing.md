@@ -328,7 +328,7 @@ app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
   highlights cell, notes and colours, is what this proves), and dead links
   keep theirs under `## Highlights`. A 5,000-link import keeps the window
   responsive and sync green. The scrubbed export then replaces the synthetic
-  fixture in `apps/cli/src/server/imports/__tests__`.
+  fixture in `apps/cli/src/server/imports/test-support/fixtures`.
 - **Tidy my library**, with Claude and then with ChatGPT, over a new library.
   Passing: the four Unsorted examples are filed and tagged as the starter
   `AGENTS.md` says, and Undo changes puts them back. With three items selected,

@@ -1,4 +1,4 @@
-// reachable from the workspace UI's suites (src/workspace/__tests__), so everything imported here
+// reachable from the workspace UI's suites (src/workspace/), so everything imported here
 // compiles under their DOM tsconfig: the cloud socket opener, the acp agent runtime and the
 // vendor account probe are injected (`cloudTransport`, `driver`, `accounts`) rather than imported,
 // and serve.ts supplies the real ones.

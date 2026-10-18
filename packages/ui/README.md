@@ -73,6 +73,6 @@ document-class effect races the others.
 
 `pnpm --filter @repo/ui test` runs the package's suites; the jsdom ones run
 the sources through the React Compiler as the shipped page does, which
-`components/__tests__/compiled-under-test.test.tsx` pins. Type safety is
+`components/compiled-under-test.test.tsx` pins. Type safety is
 `pnpm --filter @repo/ui typecheck`; the per-export orphan guard is
 `tools/repo-guards/src/ui-orphan-exports.test.ts` (`packages/ui/CLAUDE.md`).

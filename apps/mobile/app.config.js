@@ -17,7 +17,7 @@ const easFields =
       };
 
 // Apple refuses a build that calls a required-reason API its own manifest does not declare, and
-// does not reliably read the manifests static pods carry; src/__tests__/app-config.test.ts holds
+// does not reliably read the manifests static pods carry; src/app-config.test.ts holds
 // this list to every autolinked module's.
 const accessedApiTypes = [
   {

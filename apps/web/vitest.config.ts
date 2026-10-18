@@ -56,6 +56,6 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
     maxWorkers: 1,
-    setupFiles: ["./src/worker/__tests__/apply-schema.ts"],
+    setupFiles: ["./src/worker/test-support/apply-schema.ts"],
   },
 });

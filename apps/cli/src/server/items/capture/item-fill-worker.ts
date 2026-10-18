@@ -1,6 +1,6 @@
 // the fill worker's entry, beside the runner that resolves it in a checkout: every message is one
 // job, answered with one result. It runs in a thread with no network of its own: `fetch` refuses
-// before any job runs, and nothing it reaches imports a socket (fill/__tests__/no-network.test.ts,
+// before any job runs, and nothing it reaches imports a socket (fill/no-network.test.ts,
 // and the build's own read of the bundle).
 
 import { parentPort } from "node:worker_threads";

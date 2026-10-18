@@ -43,7 +43,9 @@ src/
     rate-limit.ts    The D1 fixed window every throttled route spends
     types/           The hand-authored durable-git .d.ts (it ships untyped TS
                      source) — re-check on every version bump
-    __tests__/       vitest-pool-workers suites (real miniflare + D1 + DO)
+    *.test.ts        vitest-pool-workers suites (real miniflare + D1 + DO)
+    test-support/    Their shared harness: the schema setup, the client
+                     helpers, a pack builder and the test env's types
 ```
 
 `src/worker/` compiles without `lib.dom` on purpose: workerd and the DOM both
@@ -278,7 +280,7 @@ against the bindings `cloudflare.config.ts` declares, restated in
 schema DDL is derived from `src/worker/db/schema.ts` at config load. The
 inboxes' refusal and ordering rules are one table,
 `@repo/contract/cloud/test-support/inbox-scenarios`, which
-`src/worker/__tests__/inbox-scenarios.test.ts` runs against the object and the
+`src/worker/inbox-scenarios.test.ts` runs against the object and the
 CLI's suites run against their fake cloud.
 
 ## Build & deploy (owner-only)

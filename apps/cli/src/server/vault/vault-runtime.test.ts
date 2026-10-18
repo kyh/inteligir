@@ -1,0 +1,198 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
+import type { VaultFilesChange } from "./vault-changes";
+import { createVaultRuntime } from "./vault-runtime";
+import { makeTempDir } from "../test-support/temp-dir";
+import { hermeticGit } from "./test-support/git-test-env";
+import { createNotifierRecorder } from "./test-support/notifier-recorder";
+import { scriptedWatcher } from "./test-support/scripted-watcher";
+
+// far past the watcher's debounce; a delivery that never comes fails at this bound.
+const DELIVERY_TIMEOUT_MS = 5000;
+
+const bootRuntime = async () => {
+  const vaultDir = makeTempDir("inteligir-echo-vault-", { realpath: true });
+  const watcher = scriptedWatcher();
+  const changes: VaultFilesChange[] = [];
+  const traced: string[] = [];
+  const notifier = createNotifierRecorder();
+  const runtime = await createVaultRuntime({
+    dataDir: makeTempDir("inteligir-echo-data-"),
+    debugLog: (line) => {
+      traced.push(line);
+    },
+    deviceName: () => "Test Mac",
+    git: hermeticGit(),
+    notifier,
+    onFilesChanged: (change) => {
+      changes.push(change);
+    },
+    remote: () => null,
+    syncIntervalMs: null,
+    vaultDir,
+    watcherBackend: watcher.backend,
+  });
+  onTestFinished(async () => {
+    await runtime.dispose();
+  });
+
+  const writeExternally = async (relPath: string, content: string): Promise<void> => {
+    await mkdir(path.dirname(path.join(vaultDir, relPath)), { recursive: true });
+    await writeFile(path.join(vaultDir, relPath), content, "utf-8");
+  };
+  // resolves on the next delivery. an external edit reported in the same batch as an echo
+  // bounds the wait for the echo's absence, so no negative waits on a sleep.
+  const report = async (...relPaths: string[]): Promise<VaultFilesChange | undefined> => {
+    const delivered = changes.length;
+    watcher.emit(...relPaths.map((relPath) => path.join(vaultDir, relPath)));
+    await vi.waitFor(
+      () => {
+        expect(changes.length).toBeGreaterThan(delivered);
+      },
+      { timeout: DELIVERY_TIMEOUT_MS },
+    );
+    return changes.at(-1);
+  };
+  const listedFiles = async (): Promise<string[]> => {
+    const { entries } = await runtime.service.listTree();
+    return entries
+      .filter((entry) => entry.kind === "file")
+      .map((entry) => entry.path)
+      .toSorted();
+  };
+  // the engine says sync-status-changed on its own schedule; a write's announcement is the rest.
+  const filesChanged = () =>
+    notifier.vaultChanges.filter(({ changes: kinds }) => kinds.includes("files-changed"));
+  return { changes, filesChanged, listedFiles, notifier, report, runtime, traced, writeExternally };
+};
+
+describe("what a write announces", { timeout: 20_000 }, () => {
+  it("says content-changed alone when only the bytes moved", async () => {
+    const { filesChanged, notifier, runtime } = await bootRuntime();
+    await runtime.service.write("note.md", "one");
+    notifier.reset();
+
+    await runtime.service.write("note.md", "two");
+
+    expect(notifier.docChanges).toEqual([{ changes: ["content-changed"], docId: "note.md" }]);
+    expect(filesChanged()).toEqual([]);
+  });
+
+  it("still says files-changed when the write CREATES the file", async () => {
+    const { filesChanged, notifier, runtime } = await bootRuntime();
+    await runtime.service.write("fresh.md", "one");
+    expect(filesChanged()).toEqual([{ changes: ["files-changed"], paths: ["fresh.md"] }]);
+
+    notifier.reset();
+    await runtime.service.writeGuarded("guarded.md", "one", { kind: "absent" });
+    expect(filesChanged()).toEqual([{ changes: ["files-changed"], paths: ["guarded.md"] }]);
+    expect(notifier.docChanges).toEqual([]);
+  });
+
+  it("names a rename's two ends and a delete's path, and no note's content", async () => {
+    const { filesChanged, notifier, runtime } = await bootRuntime();
+    await runtime.service.write("before.md", "one");
+    notifier.reset();
+
+    await runtime.service.rename("before.md", "after.md");
+    await runtime.service.remove("after.md");
+
+    expect(filesChanged()).toEqual([
+      { changes: ["files-changed"], paths: ["before.md", "after.md"] },
+      { changes: ["files-changed"], paths: ["after.md"] },
+    ]);
+    expect(notifier.docChanges).toEqual([]);
+  });
+
+  it("says files-changed for a create exactly once with the watcher on", async () => {
+    const { filesChanged, report, runtime, writeExternally } = await bootRuntime();
+    await runtime.service.write("fresh.md", "ours\n");
+
+    await writeExternally("other.md", "an external edit\n");
+    await report("fresh.md", "other.md");
+
+    expect(filesChanged()).toEqual([
+      { changes: ["files-changed"], paths: ["fresh.md"] },
+      { changes: ["files-changed"], paths: ["other.md"] },
+    ]);
+  });
+});
+
+describe("the runtime's self-write echo filter", { timeout: 20_000 }, () => {
+  it("drops a save's own echo, and delivers a foreign write that lands right behind it", async () => {
+    const { report, runtime, writeExternally } = await bootRuntime();
+    await runtime.service.write("note.md", "ours\n");
+
+    await writeExternally("other.md", "an external edit\n");
+    expect(await report("note.md", "other.md")).toEqual({ kind: "paths", paths: ["other.md"] });
+
+    await writeExternally("note.md", "an agent's edit\n");
+    expect(await report("note.md")).toEqual({ kind: "paths", paths: ["note.md"] });
+  });
+
+  it("drops a delete's echo, and delivers the note recreated behind it", async () => {
+    const { report, runtime, writeExternally } = await bootRuntime();
+    await runtime.service.write("gone.md", "ours\n");
+    await runtime.service.remove("gone.md");
+
+    await writeExternally("other.md", "an external edit\n");
+    expect(await report("gone.md", "other.md")).toEqual({ kind: "paths", paths: ["other.md"] });
+
+    await writeExternally("gone.md", "recreated\n");
+    expect(await report("gone.md")).toEqual({ kind: "paths", paths: ["gone.md"] });
+  });
+
+  it("drops a rename's echoes at both ends, and delivers a write to the new name", async () => {
+    const { report, runtime, writeExternally } = await bootRuntime();
+    await runtime.service.write("before.md", "ours\n");
+    await runtime.service.rename("before.md", "after.md");
+
+    await writeExternally("other.md", "an external edit\n");
+    expect(await report("after.md", "before.md", "other.md")).toEqual({
+      kind: "paths",
+      paths: ["other.md"],
+    });
+
+    await writeExternally("after.md", "an agent's edit\n");
+    expect(await report("after.md")).toEqual({ kind: "paths", paths: ["after.md"] });
+  });
+
+  it("traces the echo it dropped and the paths it delivered", async () => {
+    const { report, runtime, traced, writeExternally } = await bootRuntime();
+    await runtime.service.write("note.md", "ours\n");
+    await writeExternally("other.md", "an external edit\n");
+    await report("note.md", "other.md");
+
+    expect(traced).toContain("note.md: dropped, the echo of this server's own write");
+    expect(traced).toContain("delivered: other.md");
+  });
+});
+
+describe("what the vault's .gitignore files hide", { timeout: 20_000 }, () => {
+  it("wakes nothing for a write inside a folder they name", async () => {
+    const { changes, listedFiles, report, runtime, writeExternally } = await bootRuntime();
+    await runtime.service.write(".gitignore", "node_modules/\n");
+    expect(changes.at(-1)).toEqual({ kind: "unknown" });
+    await writeExternally("node_modules/pkg/index.js", "built\n");
+    expect(await listedFiles()).toEqual([".gitignore"]);
+
+    await writeExternally("note.md", "an external edit\n");
+    expect(await report("node_modules/pkg/index.js", "note.md")).toEqual({
+      kind: "paths",
+      paths: ["note.md"],
+    });
+  });
+
+  it("reloads the rules when a .gitignore changes, and hands the index a re-diff", async () => {
+    const { listedFiles, report, writeExternally } = await bootRuntime();
+    await writeExternally("dist/out.md", "built\n");
+    await writeExternally(".gitignore", "dist/\n");
+    expect(await report(".gitignore")).toEqual({ kind: "unknown" });
+    expect(await listedFiles()).toEqual([".gitignore"]);
+
+    await writeExternally(".gitignore", "");
+    expect(await report(".gitignore")).toEqual({ kind: "unknown" });
+    expect(await listedFiles()).toEqual([".gitignore", "dist/out.md"]);
+  });
+});

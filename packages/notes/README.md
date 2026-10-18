@@ -152,10 +152,11 @@ src/
 
 ## Testing
 
-`pnpm --filter @repo/notes test` — vitest. `src/__tests__/` pins the
-knowledge engine: resolver tiers (including an oracle equivalence for the
-basename buckets), rename byte surgery, the search policy against both
-engines, the scan's prose against the editor's parse, and the diff3 merge. The
+`pnpm --filter @repo/notes test` — vitest, each suite beside the module it
+tests. The suites in `src/knowledge/` pin the knowledge engine: resolver tiers
+(including an oracle equivalence for the basename buckets), rename byte
+surgery, the search policy against both engines and the scan's prose against
+the editor's parse; `src/text/` pins the diff3 merge. The
 suites run under a 512MB heap ceiling (`vitest.config.ts`), so an allocation
 that grows with a note's size, like a diff trace that copies the whole
 frontier every round, fails here rather than passing on a default heap.

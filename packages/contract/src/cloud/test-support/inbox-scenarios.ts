@@ -1,7 +1,7 @@
 // The account inboxes' refusal and ordering rules as one table, every row driven through the
 // client the local server and the phone run. The CLI's suites run it against their fake cloud
-// (apps/cli/src/server/cloud/__tests__/inbox-scenarios.test.ts) and the Worker's against the real
-// object (apps/web/src/worker/__tests__/inbox-scenarios.test.ts), so a rule the fake gets wrong
+// (apps/cli/src/server/cloud/inbox-scenarios.test.ts) and the Worker's against the real
+// object (apps/web/src/worker/inbox-scenarios.test.ts), so a rule the fake gets wrong
 // fails beside the run that pins it. A row observes ids, states and texts, never a clock or a
 // token, and leaves out what only one side can show: sockets, pruning, a body no client sends.
 

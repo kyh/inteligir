@@ -87,7 +87,7 @@ No suite of its own — `package.json` has no scripts.
 `SKILL.md` names it, the hub names every focused skill and no phantom, the
 resolver's probe file exists) and holds every `inteligir-*` fence an example
 opens to `@repo/notes/markdown/fence-langs`, and
-`packages/editor/src/__tests__/skill-examples.test.ts` opens each example
+`packages/editor/src/skill-examples.test.ts` opens each example
 through the editor. Both smokes fail a packaged install carrying no
 `dist/skills/inteligir-notes/SKILL.md`, because a missing directory silently
 disables the capability rather than erroring.

@@ -4,7 +4,7 @@
 // text. This is mdast-util-to-markdown's `safe` (2.2) over the dialect processor's own unsafe
 // patterns; the server reaches that serializer only through @repo/notes, which exports no
 // stringify of a text node, so its algorithm is restated here and held to the editor's output by
-// `apps/cli/src/workspace/__tests__/place-quotes-roundtrip.test.ts`.
+// `apps/cli/src/workspace/place-quotes-roundtrip.test.ts`.
 
 import { z } from "zod";
 

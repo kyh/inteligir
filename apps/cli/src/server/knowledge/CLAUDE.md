@@ -47,10 +47,10 @@ and cited.
   below the vault's 10 MiB read cap (a doc over it indexes as an other:
   resolvable, never searched): by owner decision a lower one is added only if
   the worker cannot keep up. Most suites run the jobs inline
-  (`apps/cli/src/server/knowledge/__tests__/inline-projector.ts`), because a
+  (`apps/cli/src/server/knowledge/test-support/inline-projector.ts`), because a
   worker booted from source (`apps/cli/src/server/worker-entry.ts`) costs
   seconds. Pinned over a 20k-line note in
-  `apps/cli/src/server/knowledge/__tests__/knowledge-runtime.test.ts`.
+  `apps/cli/src/server/knowledge/knowledge-runtime.test.ts`.
 
 - **THE LIBRARY LISTING IS ANSWERED FROM THE IN-MEMORY MIRROR.** `items`,
   `itemPaths`, `itemsAt`, `findByUrl`, `scopes` and `pathForNoteId` settle,

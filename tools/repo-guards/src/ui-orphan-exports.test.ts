@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { REPO_ROOT, sourceOf, workspaces, workspaceSourceFiles } from "./repo";
+import { isTestFile, REPO_ROOT, sourceOf, workspaces, workspaceSourceFiles } from "./repo";
 import { AWAITING_CONSUMER, GALLERY_DIR, sweptRoots, UI_DIR, UI_PACKAGE } from "./ui-package";
 
 const NON_CONSUMER_DIRS = [GALLERY_DIR];
@@ -162,7 +162,7 @@ const uiFiles = (): UiFile[] => {
       continue;
     }
     for (const entry of fs.readdirSync(rootDir, { withFileTypes: true })) {
-      if (!entry.isFile() || !SOURCE_FILE.test(entry.name)) {
+      if (!entry.isFile() || !SOURCE_FILE.test(entry.name) || isTestFile(entry.name)) {
         continue;
       }
       const name = entry.name.replace(SOURCE_FILE, "");

@@ -53,7 +53,7 @@ Saving links, pages and files as items, and filling a saved link from its page.
   parse would stall every request) and a worker kept for the process's life (a
   DOM held for nothing). `apps/cli/src/server/items/capture/fill-runner.ts`,
   `apps/cli/src/server/items/capture/item-fill-worker.ts`,
-  `apps/cli/src/server/items/capture/fill/__tests__/no-network.test.ts`.
+  `apps/cli/src/server/items/capture/fill/no-network.test.ts`.
 
 - **A SAVED PAGE IS THE EDITOR'S OWN FIXPOINT.** The article is converted down a
   ladder (rich, plain, text) and the first rung the editor's

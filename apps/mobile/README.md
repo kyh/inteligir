@@ -361,7 +361,7 @@ that is signed in.
   routes) — all against faked fetch. Unit tests, no device. `tools/e2e/src/scenarios/phone-offline-edit.ts` and
   `phone-file-ops-hosted.ts` run the same composition under node against a
   real Worker and a desktop.
-- **The store config** (`src/__tests__/app-config.test.ts`): it asks Expo's
+- **The store config** (`src/app-config.test.ts`): it asks Expo's
   own CLIs for the resolved config and the autolinked modules, and holds the
   config to what App Store Connect judges — the marketing version is the
   package's, the encryption answer is given, no permission carries an Expo

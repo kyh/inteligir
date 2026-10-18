@@ -1,0 +1,253 @@
+import {
+  PASSWORD_MAX_LENGTH,
+  PASSWORD_MIN_LENGTH,
+} from "@repo/contract/cloud/device/device-schema";
+import { eq } from "drizzle-orm";
+import { createExecutionContext, SELF } from "cloudflare:test";
+import { env } from "cloudflare:workers";
+import { describe, expect, it } from "vitest";
+import worker, { ownsPath } from "./index";
+import { sendResetEmail } from "./auth/reset-email";
+import { createDb } from "./db/client";
+import { verification } from "./db/schema";
+import { ORIGIN, signUpUser } from "./test-support/cloud-helpers";
+
+// email delivery cannot run here (it needs the owner's sending domain), so requests that
+// must observe the send go through `worker.fetch` with a recording EMAIL binding
+const NEW_PASSWORD = "new-password-5678";
+
+// the site's /app/reset-password route, which the forgot-password page names as its redirectTo;
+// the route tree is the site program's, which this one cannot import
+const RESET_PAGE_PATH = "/app/reset-password";
+
+type RecordedEmail = EmailMessageBuilder;
+
+interface EmailRecorder {
+  EMAIL: SendEmail;
+  sent: RecordedEmail[];
+}
+
+const recordingEmail = (): EmailRecorder => {
+  const sent: RecordedEmail[] = [];
+  const EMAIL: SendEmail = {
+    send: async (message: EmailMessage | EmailMessageBuilder): Promise<EmailSendResult> => {
+      if (!("subject" in message)) {
+        throw new Error("unexpected raw EmailMessage send");
+      }
+      sent.push(message);
+      return { messageId: `mock-${String(sent.length)}` };
+    },
+  };
+  return { EMAIL, sent };
+};
+
+const envWith = (EMAIL: SendEmail): Env => ({ ...env, EMAIL });
+
+// worker.fetch rather than SELF.fetch: it is the only way to swap in the recording EMAIL binding
+const requestReset = async (email: string, testEnv: Env): Promise<Response> =>
+  await worker.fetch(
+    new Request(`${ORIGIN}/api/auth/request-password-reset`, {
+      body: JSON.stringify({ email, redirectTo: RESET_PAGE_PATH }),
+      headers: { "content-type": "application/json", origin: ORIGIN },
+      method: "POST",
+    }),
+    testEnv,
+    createExecutionContext(),
+  );
+
+const signIn = async (email: string, password: string): Promise<Response> =>
+  await SELF.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
+    body: JSON.stringify({ email, password }),
+    headers: { "content-type": "application/json", origin: ORIGIN },
+    method: "POST",
+  });
+
+const firstEmail = (sent: RecordedEmail[]): RecordedEmail => {
+  const [first] = sent;
+  if (first === undefined) {
+    throw new Error("no email recorded");
+  }
+  return first;
+};
+
+const extractResetLink = (message: RecordedEmail): string => {
+  const match = /https:\/\/\S*\/api\/auth\/reset-password\/\S+/u.exec(message.text ?? "");
+  if (match === null) {
+    throw new Error("no reset link in the email text");
+  }
+  return match[0];
+};
+
+const followGetLeg = async (link: string): Promise<URL> => {
+  const response = await SELF.fetch(link, { redirect: "manual" });
+  expect(response.status).toBe(302);
+  const location = response.headers.get("location");
+  if (location === null) {
+    throw new Error("GET leg did not redirect");
+  }
+  return new URL(location);
+};
+
+const issueToken = async (email: string): Promise<string> => {
+  const { EMAIL, sent } = recordingEmail();
+  const response = await requestReset(email, envWith(EMAIL));
+  expect(response.status).toBe(200);
+  const landing = await followGetLeg(extractResetLink(firstEmail(sent)));
+  const token = landing.searchParams.get("token");
+  if (token === null) {
+    throw new Error("GET leg redirected without a token");
+  }
+  return token;
+};
+
+describe("password reset", () => {
+  it("a known email gets ONE reset email carrying the URL, from the configured sender", async () => {
+    await signUpUser("known@example.com");
+    const { EMAIL, sent } = recordingEmail();
+
+    const response = await requestReset("known@example.com", envWith(EMAIL));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ status: true });
+
+    expect(sent).toHaveLength(1);
+    const [message] = sent;
+    if (message === undefined) {
+      throw new Error("unreachable");
+    }
+    expect(message.to).toBe("known@example.com");
+    expect(message.from).toEqual({ email: "no-reply@inteligir.app", name: "inteligir" });
+    expect(message.subject).toBe("Reset your inteligir password");
+    const link = extractResetLink(message);
+    expect(link).toContain(`${ORIGIN}/api/auth/reset-password/`);
+    expect(link).toContain(`callbackURL=${encodeURIComponent(RESET_PAGE_PATH)}`);
+    expect(message.html).toContain(link);
+  });
+
+  it("an UNKNOWN email gets the byte-identical neutral response and NO email", async () => {
+    await signUpUser("oracle-probe@example.com");
+    const { EMAIL, sent } = recordingEmail();
+    const testEnv = envWith(EMAIL);
+
+    const known = await requestReset("oracle-probe@example.com", testEnv);
+    const knownBody = await known.text();
+    expect(sent).toHaveLength(1);
+
+    const unknown = await requestReset("nobody-ever-signed-up@example.com", testEnv);
+    expect(unknown.status).toBe(known.status);
+    expect(await unknown.text()).toBe(knownBody);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("the emailed link's GET leg lands on the site's reset page with the token", async () => {
+    await signUpUser("page@example.com");
+    const { EMAIL, sent } = recordingEmail();
+    await requestReset("page@example.com", envWith(EMAIL));
+
+    const landing = await followGetLeg(extractResetLink(firstEmail(sent)));
+    expect(landing.origin).toBe(ORIGIN);
+    expect(landing.pathname).toBe(RESET_PAGE_PATH);
+    expect(landing.searchParams.get("token")).toMatch(/^[A-Za-z0-9]+$/u);
+    // the server entry hands every path the API does not own to the site's Start handler
+    expect(ownsPath(landing.pathname)).toBe(false);
+  });
+
+  it("refuses a new password outside the contract's bounds, which Better Auth is configured with", async () => {
+    await signUpUser("bounds@example.com");
+    for (const newPassword of [
+      "x".repeat(PASSWORD_MIN_LENGTH - 1),
+      "x".repeat(PASSWORD_MAX_LENGTH + 1),
+    ]) {
+      const token = await issueToken("bounds@example.com");
+      const reset = await SELF.fetch(`${ORIGIN}/api/auth/reset-password`, {
+        body: JSON.stringify({ newPassword, token }),
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        method: "POST",
+      });
+      expect(reset.status, String(newPassword.length)).toBe(400);
+    }
+  });
+
+  it("a valid token changes the password: new sign-in works, old fails", async () => {
+    const { password } = await signUpUser("happy-path@example.com");
+    const token = await issueToken("happy-path@example.com");
+
+    const reset = await SELF.fetch(`${ORIGIN}/api/auth/reset-password`, {
+      body: JSON.stringify({ newPassword: NEW_PASSWORD, token }),
+      headers: { "content-type": "application/json", origin: ORIGIN },
+      method: "POST",
+    });
+    expect(reset.status).toBe(200);
+    expect(await reset.json()).toMatchObject({ status: true });
+
+    const withOld = await signIn("happy-path@example.com", password);
+    expect(withOld.status).toBe(401);
+    const withNew = await signIn("happy-path@example.com", NEW_PASSWORD);
+    expect(withNew.status).toBe(200);
+  });
+
+  it("a token is SINGLE-USE — the second consume is rejected", async () => {
+    await signUpUser("single-use@example.com");
+    const token = await issueToken("single-use@example.com");
+    const body = JSON.stringify({ newPassword: NEW_PASSWORD, token });
+    const post = async () =>
+      await SELF.fetch(`${ORIGIN}/api/auth/reset-password`, {
+        body,
+        headers: { "content-type": "application/json", origin: ORIGIN },
+        method: "POST",
+      });
+    const consumed = await post();
+    expect(consumed.status).toBe(200);
+    const replayed = await post();
+    expect(replayed.status).toBe(400);
+  });
+
+  it("invalid and EXPIRED tokens are rejected; the dead link's GET leg reports error", async () => {
+    const invalid = await SELF.fetch(`${ORIGIN}/api/auth/reset-password`, {
+      body: JSON.stringify({ newPassword: NEW_PASSWORD, token: "a".repeat(24) }),
+      headers: { "content-type": "application/json", origin: ORIGIN },
+      method: "POST",
+    });
+    expect(invalid.status).toBe(400);
+
+    const { password } = await signUpUser("expired@example.com");
+    const { EMAIL, sent } = recordingEmail();
+    await requestReset("expired@example.com", envWith(EMAIL));
+    const link = extractResetLink(firstEmail(sent));
+    const token = new URL(link).pathname.split("/").at(-1);
+    if (token === undefined) {
+      throw new Error("no token in link");
+    }
+    await createDb(env.DB)
+      .update(verification)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(verification.identifier, `reset-password:${token}`));
+
+    const expired = await SELF.fetch(`${ORIGIN}/api/auth/reset-password`, {
+      body: JSON.stringify({ newPassword: NEW_PASSWORD, token }),
+      headers: { "content-type": "application/json", origin: ORIGIN },
+      method: "POST",
+    });
+    expect(expired.status).toBe(400);
+    const landing = await followGetLeg(link);
+    expect(landing.pathname).toBe(RESET_PAGE_PATH);
+    expect(landing.searchParams.get("error")).toBe("INVALID_TOKEN");
+    expect(landing.searchParams.get("token")).toBeNull();
+
+    const stillOld = await signIn("expired@example.com", password);
+    expect(stillOld.status).toBe(200);
+  });
+
+  it("an ABSENT EMAIL binding degrades to a warning, and the from-address knob is honored", async () => {
+    await expect(
+      sendResetEmail({}, "user@example.com", "https://x/reset"),
+    ).resolves.toBeUndefined();
+
+    const { EMAIL, sent } = recordingEmail();
+    await sendResetEmail(
+      { EMAIL, RESET_FROM_ADDRESS: "hello@custom-domain.app" },
+      "user@example.com",
+      "https://x/reset",
+    );
+    expect(firstEmail(sent).from).toEqual({ email: "hello@custom-domain.app", name: "inteligir" });
+  });
+});

@@ -94,4 +94,4 @@ Every subpath is exported by name in `package.json`; there is no barrel.
 
 `pnpm --filter @repo/domain test` — vitest. That a merged log folds to the
 same rows is fuzzed where the fold is reachable,
-`apps/cli/src/server/agents/__tests__/event-coalescer.test.ts`.
+`apps/cli/src/server/agents/event-coalescer.test.ts`.

@@ -4,7 +4,7 @@ import core from "ultracite/oxlint/core";
 import react from "ultracite/oxlint/react";
 import tanstack from "ultracite/oxlint/tanstack";
 
-const tests = ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"];
+const tests = ["**/test-support/**", "**/*.test.ts", "**/*.test.tsx"];
 
 // A regex, not a group: a group matches gitignore-style, so "react" would also refuse
 // "@platejs/react".
@@ -46,6 +46,15 @@ export default defineConfig({
       files: tests,
       rules: {
         "require-await": "off",
+      },
+    },
+    {
+      // ultracite's own test override names `*.test.*` and `__tests__/`, never test-support/, so
+      // the stubs and fakes the suites share keep a test's allowances here: a stub's no-op body.
+      files: ["**/test-support/**"],
+      rules: {
+        "no-empty-function": "off",
+        "promise/prefer-await-to-then": "off",
       },
     },
     {

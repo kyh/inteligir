@@ -26,7 +26,7 @@ node is rather than discriminating structurally at each visit.
   write the same bytes. A body sits one blank line under the block, the
   editor's own spelling (`composeItemFile`, and `withBody` in
   `@repo/notes/items/item-body`), so every item a writer makes is the editor's
-  fixpoint and opens rich (`packages/editor/src/__tests__/item-embed-spelling.test.ts`). There is no `title:` key: the filename is the title,
+  fixpoint and opens rich (`packages/editor/src/item-embed-spelling.test.ts`). There is no `title:` key: the filename is the title,
   and a page's title becomes one through `itemNameFromTitle`
   (`@repo/notes/items/item-name`). A stub is an app-made url item whose page
   is unread, which needs the `id` and `saved` every writer stamps
@@ -67,7 +67,7 @@ node is rather than discriminating structurally at each visit.
   `@repo/notes/knowledge/link-resolve`): a new path files its own keys rather
   than rebuilding over every path. Rejected: SQLite columns (tag families,
   bareness and mtime live in memory anyway) and re-resolving per new path
-  (550–630 ms at 50k). `packages/notes/src/__tests__/library-cost.test.ts`
+  (550–630 ms at 50k). `packages/notes/src/items/library-cost.test.ts`
   holds both costs.
 
 ## Annotations
@@ -113,7 +113,7 @@ node is rather than discriminating structurally at each visit.
   fills (a new /cloud protocol for what a pure verdict settles), and renaming
   on fill (git cannot pair the rename with a concurrent phone edit).
   `@repo/notes/sync/url-item-verdict`,
-  `packages/notes/src/sync/__tests__/url-item-verdict.test.ts`.
+  `packages/notes/src/sync/url-item-verdict.test.ts`.
 
 ## Knowledge: index, search and links
 
@@ -135,7 +135,7 @@ node is rather than discriminating structurally at each visit.
   disagrees on display the moment a name is not lowercase. What any other file
   is in the library is `fileKindOf` (`@repo/notes/items/item-kind`), and what a
   doc is as an item is its `kind`: one answer each, for every client.
-  `apps/workspace/src/app/__tests__/vault-hooks.test.ts` walks the page for
+  `apps/workspace/src/app/vault-hooks.test.ts` walks the page for
   either shape.
 
 - **THE SCAN READS A NOTE IN THE EDITOR'S OWN GRAMMAR, AND THAT GRAMMAR IS
@@ -154,7 +154,7 @@ node is rather than discriminating structurally at each visit.
   withholds spans inside a construct the editor carries as its source
   (`isOpaqueSource` in `@repo/notes/markdown/remark-opaque`, walked by
   `@repo/notes/knowledge/link-extract`); the index path emits no spans.
-  `packages/notes/src/markdown/__tests__/total-grammar.test.ts`.
+  `packages/notes/src/markdown/total-grammar.test.ts`.
 
 - **A TAG IS A SCOPE ON THE LIBRARY GRID, NOT A VIEW; ITS ITEMS ARE A LISTING,
   NOT A SEARCH; AND A TAG RENAME IS THE LINK RENAME'S SURGERY.** No tag browser
@@ -229,4 +229,4 @@ node is rather than discriminating structurally at each visit.
   (`apps/workspace/src/app/item/item-topbar.tsx`). A url item also offers Copy
   address, which copies its `url`; Copy link stays the in-library `[[wiki
   link]]` for every kind. Pinned by the round trip in
-  `packages/notes/src/__tests__/link-resolve.test.ts`.
+  `packages/notes/src/knowledge/link-resolve.test.ts`.

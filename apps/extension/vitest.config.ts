@@ -10,7 +10,12 @@ export default defineConfig({
   // compiled like the shipped pages, so a component the compiler memoizes wrongly fails here. Test
   // files stay uncompiled: a fixture hook minted inside a factory is hoisted to module scope with no
   // diagnostic.
-  plugins: [viteReact({ compiler: true, exclude: [/\/node_modules\//u, /\/__tests__\//u] })],
+  plugins: [
+    viteReact({
+      compiler: true,
+      exclude: [/\/node_modules\//u, /\.test\.tsx?$/u, /\/test-support\//u],
+    }),
+  ],
   // WXT's own `@`, its srcDir (wxt.config.ts), which the suites resolve without booting WXT
   resolve: { alias: { "@": fileURLToPath(new URL("src", import.meta.url)) } },
   test: {

@@ -9,7 +9,7 @@ The server process, its credential and boot, and the binary around it.
 (`apps/cli/src/server/compose.ts`); every other verb but `vault open` is a citty
 leaf that is a client of a running one. Every leaf takes `--json` and is
 EXECUTED by the fitness test against the refusal path, except the rows in
-`EXCLUDED_COMMANDS` (`apps/cli/src/__tests__/json-flag-enforcement.test.ts`),
+`EXCLUDED_COMMANDS` (`apps/cli/src/json-flag-enforcement.test.ts`),
 each with its reason: `serve`, `vault open` and `native-host`, the browser
 extension's door, whose stdout is framed messages for its whole life. Every
 app-written JSON file in the data dir is read through `readJsonFile` in

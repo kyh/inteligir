@@ -154,9 +154,7 @@ export const trackedFiles = (): string[] => {
 };
 
 export const isTestFile = (relativePath: string): boolean =>
-  /(?:^|\/)__tests__\//u.test(relativePath) ||
-  /(?:^|\/)test-support\//u.test(relativePath) ||
-  /\.test\.[cm]?tsx?$/u.test(relativePath);
+  /(?:^|\/)test-support\//u.test(relativePath) || /\.test\.[cm]?tsx?$/u.test(relativePath);
 
 export interface WorkspaceFiles {
   shipped: string[];

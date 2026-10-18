@@ -47,7 +47,7 @@ are the library's grid, its cards and its kind chips.
   body 12, subtitle 13, title 15, display 24 — the compact column of `typeScale`
   (`packages/ui/src/lib/size-context.tsx`), drawn as the `text-caption | body |
   subtitle | title | display` utilities in `packages/ui/src/styles/globals.css`,
-  whose numbers `lib/__tests__/type-scale.test.ts` derives from the map. No
+  whose numbers `lib/type-scale.test.ts` derives from the map. No
   `text-sm`, `text-xs` or px/rem literal in the chrome, because a role says what
   a line IS and a scale held by convention drifts:
   `tools/repo-guards/src/type-roles.test.ts` holds it, `packages/ui/src/ai`
@@ -86,7 +86,7 @@ are the library's grid, its cards and its kind chips.
   commit in the layout phase: a sync per row mounts a thousand-row tree in tens
   of seconds, and a microtask can render a frame late with the pills at the old
   rects. The lit row rides a store, so a hover step re-renders two rows, not the
-  list (`packages/ui/src/components/__tests__/row-registry.test.tsx`).
+  list (`packages/ui/src/components/row-registry.test.tsx`).
   `react/rule-suppression` refuses a new `exhaustive-deps` or `rules-of-hooks`
   suppression, the ones the compiler bails on.
 
