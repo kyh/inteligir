@@ -34,6 +34,33 @@
   --typeset-flow: 1.25em;
 }
 
+/* a diagram reads its colours and faces from these, so a theme change recolours it with no
+   redraw. --pele-bg is the frame's own fill too, so the panel behind an edge's label matches it;
+   the series cycle the chart tokens as the chart block does. */
+.diagram-preview {
+  --pele-bg: color-mix(in oklab, var(--muted) 30%, var(--background));
+  --pele-fg: var(--foreground);
+  --pele-muted: var(--muted-foreground);
+  --pele-line: var(--muted-foreground);
+  --pele-surface: var(--muted);
+  --pele-surface-alt: var(--accent);
+  --pele-border: var(--line-strong);
+  --pele-accent: var(--primary);
+  --pele-critical: var(--destructive);
+  --pele-radius: calc(var(--radius) * 0.6);
+  --pele-font: var(--editor-font);
+  --pele-font-mono: var(--editor-mono);
+  --pele-series-1: var(--chart-1);
+  --pele-series-2: var(--chart-2);
+  --pele-series-3: var(--chart-3);
+  --pele-series-4: var(--chart-4);
+  --pele-series-5: var(--chart-5);
+  --pele-series-6: var(--chart-1);
+  --pele-series-7: var(--chart-2);
+  --pele-series-8: var(--chart-3);
+  background-color: var(--pele-bg);
+}
+
 /* plain class selectors out-specify typeset's zero-specificity :where() rules */
 .typeset table {
   width: auto;

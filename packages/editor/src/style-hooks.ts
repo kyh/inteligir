@@ -18,3 +18,6 @@ export const TYPESET = "typeset";
 
 // the scope the appearance dials feed typeset's size, leading and faces through.
 export const TYPESET_DOCS = "typeset-docs";
+
+// the frame a diagram draws in, which feeds Pele's variables the app's own tokens.
+export const DIAGRAM_PREVIEW = "diagram-preview";

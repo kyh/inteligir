@@ -20,10 +20,10 @@ comes in through one call, `installEditorHost`, and everything above its
 store (the write policy, the link resolver, note formulas) is this package's,
 so a second host copies none of it. The package
 also ships ONE stylesheet, `styles.css` (toggle collapse, the callout marker
-swap, the hljs theme, the prose scope the appearance dials feed and typeset's
-table rules), inert until the host `@import`s `@repo/editor/styles.css` —
-`style-hooks.ts` spells the selectors it reads, and
-`__tests__/style-hooks.test.ts` pins the two together.
+swap, the hljs theme, the prose scope the appearance dials feed, typeset's
+table rules and the diagram frame's `--pele-*` variables), inert until the
+host `@import`s `@repo/editor/styles.css` — `style-hooks.ts` spells the
+selectors it reads, and `__tests__/style-hooks.test.ts` pins the two together.
 
 ## Layout
 
@@ -43,7 +43,8 @@ src/
   formulas/            # `{{…}}` pills: the `{{` picker, entry, editing, recompute
   wiki/                # `[[…]]` links: the `[[` picker, the chip, insertion, keys
   properties/          # the typed frontmatter panel
-  lib/                 # debounce, the dark-class hook, embed and url helpers
+  lib/                 # debounce, the one door a diagram's markup becomes
+                       # nodes through, embed and url helpers
   test-support/        # the fake editor host, for any suite that mounts the
                        # editor (the desktop's included)
   __tests__/fixtures/  # THE BYTE-PINNED ROUND-TRIP MATRIX (see below)

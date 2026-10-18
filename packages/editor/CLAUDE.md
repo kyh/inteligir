@@ -248,6 +248,23 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   browser never fires there, so the model guard alone let it land wherever the
   user typed next. A host with no html frame draws no Run.
 
+- **A MERMAID FENCE IS DRAWN BY PELE, SYNCHRONOUSLY, AND ITS THEME IS CSS.**
+  Pele (`pele`, MIT) reads Mermaid 12.1 and answers SVG with no runtime
+  dependency, so the fence's preview loads it as a lazy chunk with the first
+  diagram a note shows and then draws in the layout effect of each change, with
+  no debounce. The failure is the parse's, known while rendering: Pele's line
+  and column, the reason and the caret line under the source, while the last
+  drawing stays, dimmed, so a half-typed line never collapses the block. Its
+  colours and faces are the frame's `--pele-*` variables over the app's own
+  tokens (`packages/editor/src/styles.css`), so light and dark repaint with no
+  redraw. A diagram draws no link and no image and is handed no icon set
+  (NOTHING REMOTE LOADS IN A NOTE, in `apps/cli/CLAUDE.md`), and its markup
+  becomes nodes only through `packages/editor/src/lib/inert-svg.ts`, which
+  parses it as XML and takes out every script, handler and reference that
+  leaves the drawing. Rejected: mermaid.js, about 2 MB, an async render behind a 300 ms
+  debounce whose theme was baked into its DOM, so a theme change redrew every
+  diagram. `packages/editor/src/nodes/code-block-mermaid.tsx`.
+
 ## Vault: writes, git and containment
 
 - **A SAVE THAT FAILS IS SAID ONCE AND RETRIED; ONE WHOSE FILE IS GONE IS ASKED

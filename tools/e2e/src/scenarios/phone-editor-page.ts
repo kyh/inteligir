@@ -18,7 +18,7 @@ import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR } from "../harness/selectors";
 
-// a cold vite build of the page, mermaid and katex inlined; a cached one returns at once.
+// a cold vite build of the page, pele and katex inlined; a cached one returns at once.
 const BUILD_TIMEOUT_MS = 300_000;
 
 const NONCE = "e2e-phone-nonce-0123456789";
@@ -40,6 +40,11 @@ const NOTE = [
   "",
   "```inteligir-chart",
   '{"type":"bar","title":"Requests","data":[{"label":"Mon","value":12},{"label":"Tue","value":18}]}',
+  "```",
+  "",
+  "```mermaid",
+  "graph TD;",
+  "Draft-->Ship;",
   "```",
   "",
   ":::tabs",
@@ -146,6 +151,9 @@ const IMAGE_LOADED = `(() => {
   const image = document.querySelector(${JSON.stringify(`${EDITOR} img[alt="A dot"]`)});
   return String(image !== null && image.complete && image.naturalWidth > 0 && image.src.startsWith("blob:"));
 })()`;
+
+// the drawing Pele answers, under the page's own CSP and from the one inlined script
+const DIAGRAM_LABELS = `JSON.stringify([...document.querySelectorAll(${JSON.stringify(`${EDITOR} svg.pele text`)})].map((text) => text.textContent))`;
 
 type WriteFrame = Extract<PageFrame, { kind: "write"; type: "request" }>;
 
@@ -269,6 +277,15 @@ export const phoneEditorPage: Scenario = {
       {
         deadlineMs: 15_000,
         describe: () => "the note's image never drew from the bytes the phone sent",
+      },
+    );
+    await pollUntil(
+      async () => parseEval(await browser(["eval", DIAGRAM_LABELS]), z.array(z.string())),
+      (labels) => labels.includes("Draft") && labels.includes("Ship"),
+      {
+        deadlineMs: 15_000,
+        describe: (labels) =>
+          `the note's diagram never drew: its labels are ${JSON.stringify(labels)}`,
       },
     );
     const booted = await phone.sent();

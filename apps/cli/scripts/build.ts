@@ -133,13 +133,7 @@ const SERVER_REFUSED_ANYWHERE = [
 
 // the worker reaches the editor's headless fixpoint and nothing of its page: a React half or a
 // renderer bundled into it is a kit that stopped being headless (packages/editor/src/kits/headless)
-const FILL_WORKER_REFUSED = [
-  "react-dom@",
-  "mermaid@",
-  "katex@",
-  "lucide-react@",
-  "packages/ui/src/",
-];
+const FILL_WORKER_REFUSED = ["react-dom@", "pele@", "katex@", "lucide-react@", "packages/ui/src/"];
 
 // a package marker (`name@`) names the package's own store directory, never a peer suffix of
 // another's (`platejs@…_react-dom@…`); a path marker names a workspace folder

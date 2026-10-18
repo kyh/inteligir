@@ -16,7 +16,7 @@ const REFUSED = [
   /^@repo\/ui\//u,
   /^lucide-react/u,
   /^katex/u,
-  /^mermaid/u,
+  /^pele(?:$|\/)/u,
   /\.css$/u,
   /^node:/u,
 ];

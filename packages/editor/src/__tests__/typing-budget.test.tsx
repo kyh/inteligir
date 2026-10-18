@@ -23,16 +23,9 @@ import { generateLongNote } from "./markdown-doc-generator";
 
 // jsdom rebuilds its document's named-property map on the first `document` read after any
 // insertion, so a renderer that builds through `document.createElement` pays the whole DOM per
-// node: minutes at this size. Both render a block once as it mounts, never on a keystroke
-// elsewhere, so here they would measure jsdom.
+// node: minutes at this size. It renders a block once as it mounts, never on a keystroke
+// elsewhere, so here it would measure jsdom.
 vi.mock("katex", () => ({ render: () => {} }));
-vi.mock("mermaid", () => ({
-  default: {
-    initialize: () => {},
-    parse: async () => await Promise.resolve(true),
-    render: async () => await Promise.resolve({ svg: "<svg></svg>" }),
-  },
-}));
 
 const SEED = 704;
 const LONG_LINES = 10_000;

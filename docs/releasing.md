@@ -393,7 +393,8 @@ account whose library holds about 2,000 items gives the timing check its load.
 - **The editor's edges.** Passing: a cold open of a note is editable within a
   second; New note opens with its title focused and the keyboard up; a
   `[[link]]` pushes its note and back returns; an external link opens Safari
-  and the page never navigates; a chart and tabs refuse edits; dark mode
+  and the page never navigates; a chart and tabs refuse edits; a Mermaid
+  diagram draws, and recolours with no flash when dark mode flips; dark mode
   follows the system, with no light edge behind a pushed screen or the
   keyboard, even after switching it with the app open; typing and then
   backgrounding and killing the app keeps what was typed.

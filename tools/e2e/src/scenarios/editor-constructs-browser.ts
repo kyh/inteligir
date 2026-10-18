@@ -29,7 +29,15 @@ const x = 1;
 | Name | Right |
 | ---- | ----- |
 | a    | 1     |
+
+\`\`\`mermaid
+graph TD;
+A[Draft]-->B[Review];
+\`\`\`
 `;
+
+// Pele's own class on the drawing it answers
+const DIAGRAM = `${EDITOR} svg.pele`;
 
 const PROBE = `JSON.stringify({
   bold: !!document.querySelector('${EDITOR} strong, ${EDITOR} b'),
@@ -46,6 +54,25 @@ const probeSchema = z.strictObject({
   fence: z.boolean(),
   table: z.boolean(),
 });
+
+// the flip and both reads run in one task, so no script (the editor's, React's, Pele's) can run
+// between them: a fill that changes is the stylesheet's doing alone
+const THEME_FLIP = `(() => {
+  const svg = document.querySelector('${DIAGRAM}');
+  const node = svg?.querySelector('rect');
+  if (!svg || !node) return JSON.stringify(null);
+  const root = document.documentElement;
+  const wasDark = root.classList.contains('dark');
+  const before = getComputedStyle(node).fill;
+  root.classList.toggle('dark');
+  const after = getComputedStyle(node).fill;
+  root.classList.toggle('dark', wasDark);
+  return JSON.stringify({ after, before, labels: [...svg.querySelectorAll('text')].map((text) => text.textContent) });
+})()`;
+
+const themeFlipSchema = z
+  .strictObject({ after: z.string(), before: z.string(), labels: z.array(z.string()) })
+  .nullable();
 
 export const editorConstructsBrowser: Scenario = {
   description:
@@ -77,6 +104,23 @@ export const editorConstructsBrowser: Scenario = {
     expect(probe.fence, "the code fence did not render as <pre>");
     expect(probe.table, "the table did not render as <table>");
 
+    ctx.log(
+      "the mermaid fence draws under the served CSP, and the theme recolours it with no redraw",
+    );
+    await agentBrowser(["wait", DIAGRAM], 30_000);
+    const flip = parseEval(await agentBrowser(["eval", THEME_FLIP]), themeFlipSchema);
+    if (flip === null) {
+      throw new Error("the diagram drew no shape to read a fill from");
+    }
+    expect(
+      flip.labels.includes("Draft") && flip.labels.includes("Review"),
+      `the diagram's labels are ${JSON.stringify(flip.labels)}`,
+    );
+    expect(
+      flip.before !== flip.after,
+      `a node's fill stayed ${flip.before} across the theme flip: the frame's --pele-* tokens did not reach the drawing`,
+    );
+
     ctx.log("rendering wrote nothing: the seeded bytes are untouched");
     await delay(2500);
     const onDisk = await readFile(path.join(app.vaultDir, DOC_PATH), "utf-8");
@@ -101,6 +145,7 @@ export const editorConstructsBrowser: Scenario = {
       "- [ ]",
       "```ts",
       "| Name |",
+      "```mermaid",
     ]) {
       expect(after.includes(marker), `${marker} was lost by the save:\n${after}`);
     }

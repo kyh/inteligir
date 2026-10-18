@@ -20,7 +20,7 @@ and its navigation stack stay native.
 classic `<script defer>` and one stylesheet, relative to the page. A `file://`
 page in WKWebView loads no module script and no `crossorigin` tag
 (`vite/classic-page.ts` says why), so the build is one IIFE with every dynamic
-import inlined (mermaid, katex, the calendar, the wiki chip), and
+import inlined (pele, katex, the calendar, the wiki chip), and
 `vite/classic-page.ts` rewrites vite's entry tag and FAILS the build on a
 module script, a second script or chunk, a `crossorigin` tag or a
 modulepreload link. Every woff2 is inlined into the
