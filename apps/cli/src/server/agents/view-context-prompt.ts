@@ -58,10 +58,23 @@ const scopeWords = (scope: LibraryScope): string => {
   }
 };
 
+// the deleted view lists what `vault deleted` lists, which no kind or search narrows: those are
+// gone from the library, so "these" there are rows to bring back, never live items to file or tag
+const deletedListing = (context: LibraryViewContext): string => {
+  const unfiltered =
+    context.kinds === undefined && context.q === undefined
+      ? ""
+      : " (every deleted item, without the view's filter)";
+  return `\`inteligir vault deleted --json\` lists them${unfiltered}. They are deleted items, no longer in the library: \`inteligir vault restore <path> <sha>\` brings one back, and none of them is a live item to file or tag.`;
+};
+
 // the listing command for what the view shows, the search left out (the listing has none). A
 // folder's name and a search come from the library's files and the person's typing, so each is
 // one sh word whatever it holds: the agent runs this command as it is written
 const listingCommand = (context: LibraryViewContext): string => {
+  if (context.scope.kind === "deleted") {
+    return deletedListing(context);
+  }
   const flags: string[] = [];
   if (context.scope.kind === "folder") {
     flags.push(`--folder ${shellQuote(context.scope.path)}`);
