@@ -2,8 +2,8 @@ import { BROWSER_WIRE_VERSION } from "@repo/contract/browser/browser-wire";
 import type { BrowserHostReply, BrowserHostRequest } from "@repo/contract/browser/browser-wire";
 import { DEV_NATIVE_HOST_NAME } from "@repo/contract/browser/extension-identity";
 import { describe, expect, it } from "vitest";
-import { answerOfDisconnect, askHost } from "../ask-host";
-import type { AskHostDeps, HostPort } from "../ask-host";
+import { answerOfDisconnect, askHost } from "@/background/ask-host";
+import type { AskHostDeps, HostPort } from "@/background/ask-host";
 
 interface FakeHost {
   deps: AskHostDeps;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { absolutizeCssUrls, freezeStyles } from "../freeze-styles";
+import { absolutizeCssUrls, freezeStyles } from "@/capture/freeze-styles";
 
 // the window's own document: jsdom builds sheets only for a document with a browsing context
 const pageOf = (head: string, body = "<p>text</p>"): Document => {

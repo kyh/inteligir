@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { serializePage } from "../serialize-page";
-import type { CaptureOptions } from "../serialize-page";
+import { serializePage } from "@/capture/serialize-page";
+import type { CaptureOptions } from "@/capture/serialize-page";
 
 const OPTIONS: CaptureOptions = { htmlMaxChars: 1_000_000, keepCopy: false };
 

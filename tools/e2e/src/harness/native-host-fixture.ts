@@ -73,7 +73,8 @@ export const installNativeHostFixture = async (
       "--profile",
       profileDir,
       "--extension",
-      path.join(args.repoRoot, "apps", "extension", "dist"),
+      // WXT's own output for the dev flavor `wxt build` writes
+      path.join(args.repoRoot, "apps", "extension", ".output", "chrome-mv3"),
     ],
   };
 };

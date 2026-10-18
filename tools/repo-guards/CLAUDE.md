@@ -40,11 +40,13 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   the notices of every Rust crate the shell links, written at package time from
   cargo's resolve (`apps/desktop/scripts/rust-notices.ts`) and checked by the
   smoke. `packages/ui/components.json` declares `rsc: true` and it is inert:
-  every consumer is a plain Vite build.
+  no consumer renders server components, each a Vite build, the extension's
+  through WXT.
 
 - **THE REACT COMPILER IS ON FOR EVERY BUNDLE**: `compiler: true` on
-  `@vitejs/plugin-react` in the workspace's, the web's, the phone editor page's
-  and the browser extension's vite configs, and `reactCompiler: true` in
+  `@vitejs/plugin-react` in the workspace's, the web's and the phone editor
+  page's vite configs and in the browser extension's WXT config
+  (`apps/extension/wxt.config.ts`), and `reactCompiler: true` in
   `apps/mobile/app.config.js`.
   The suites run what ships: the workspace's, `@repo/editor`'s, `@repo/ui`'s and
   the phone page's DOM tests compile their sources the same way (test files
@@ -52,10 +54,10 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   diagnostic), and a `compiled-under-test` suite in each fails when the plugin
   goes (the phone page's is the last case of
   `apps/mobile-editor/src/__tests__/editor-page.test.tsx`, and the extension's
-  of `apps/extension/src/popup/__tests__/popup.test.tsx`). A node suite, and
-  the workspace UI's booted ones (`apps/cli/src/workspace/__tests__`), cannot
-  run compiled: the plugin skips the ssr transform. The manual-memo sweep is
-  #820.
+  of `apps/extension/src/entrypoints/popup/__tests__/popup.test.tsx`). A node
+  suite, and the workspace UI's booted ones (`apps/cli/src/workspace/__tests__`),
+  cannot run compiled: the plugin skips the ssr transform. The manual-memo sweep
+  is #820.
 
 - **TOOLING PINS, each with its reason beside it**: `vite` is a pnpm override
   because the catalog bound only the manifests that spell it; `@types/node`
@@ -77,7 +79,9 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   by name, so `react` and `typescript`, which web shares, cannot be listed
   without freezing web too: after a sweep, revert the `expo:` catalog rows by
   hand, then `npx expo install --check` in `apps/mobile`. An SDK upgrade moves
-  all of them together.
+  all of them together, `expo-share-intent` by hand: it is third-party, so
+  `npx expo install --fix` does not manage it, though its major tracks the SDK
+  (its peer `expo` range) and the `expo-*` glob skips it.
 
 - **A TURBO CACHE KEY NAMES EVERYTHING ITS OUTPUT READS**, because a hit replays
   the output with no error, and the e2e suite and `package:*` ship what it
@@ -130,8 +134,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 
 - **A RELEASE SCRIPT IS TYPESCRIPT NODE RUNS AS IT STANDS, CHECKED AS NODE
   RESOLVES IT.** `apps/desktop/scripts` and `apps/cli/scripts` (and
-  `apps/workspace/scripts`, the page's dev loop, and `apps/extension/scripts`,
-  its dev loop and its store package) are `.ts` files node 24 strips
+  `apps/workspace/scripts`, the page's dev loop) are `.ts` files node 24 strips
   of their types, each workspace's `typecheck` checking them as a
   `scripts/tsconfig.json` program under `nodenext` and `erasableSyntaxOnly`, so
   an extensionless import or an enum fails the typecheck rather than the

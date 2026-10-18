@@ -3,8 +3,8 @@
 
 import { Spinner } from "@repo/ui/components/spinner";
 import { useEffect, useState } from "react";
-import type { ExtensionRequest, Outcome } from "../messages";
-import { refusalCopy } from "../outcome-copy";
+import type { ExtensionRequest, Outcome } from "@/messages";
+import { refusalCopy } from "@/outcome-copy";
 
 export interface WelcomeProps {
   ask: (request: ExtensionRequest) => Promise<Outcome>;

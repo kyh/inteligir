@@ -6,10 +6,10 @@ import type { ImportJob } from "@repo/contract/local/imports/imports-schema";
 import { Button } from "@repo/ui/components/button";
 import { toast } from "@repo/ui/components/sonner";
 import { plural } from "@repo/ui/lib/plural";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useEffectEvent, useRef } from "react";
 
-import { client, failed, orpc } from "../api";
+import { failed, orpc } from "../api";
 import { formatCount } from "../library/item-labels";
 
 // how many of the job's items it has been through, the ones it found already saved included
@@ -42,6 +42,16 @@ export const ImportRow = ({ onShowLibrary }: { onShowLibrary: () => void }) => {
   const queryClient = useQueryClient();
   const statusQuery = useQuery(orpc.imports.status.queryOptions());
   const job = statusQuery.data?.job ?? null;
+  const cancel = useMutation(
+    orpc.imports.cancel.mutationOptions({
+      onError: (error) => {
+        failed(error, "The import couldn't be stopped.");
+      },
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: orpc.imports.status.key() });
+      },
+    }),
+  );
   // the job this window last saw running, so only an import that finished while it watched toasts
   const watched = useRef<string | null>(null);
   const settled = useEffectEvent((finished: ImportJob) => {
@@ -76,14 +86,7 @@ export const ImportRow = ({ onShowLibrary }: { onShowLibrary: () => void }) => {
           variant="ghost"
           size="compact"
           onClick={() => {
-            void (async () => {
-              try {
-                await client.imports.cancel({ id: job.id });
-              } catch (error) {
-                failed(error, "The import couldn't be stopped.");
-              }
-              void queryClient.invalidateQueries({ queryKey: orpc.imports.status.key() });
-            })();
+            cancel.mutate({ id: job.id });
           }}
         >
           Stop

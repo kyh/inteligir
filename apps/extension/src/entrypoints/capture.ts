@@ -4,8 +4,8 @@
 // the service worker's second executeScript calls it with the save's options.
 
 import type { CapturedPageWire } from "@repo/contract/browser/browser-wire";
-import { serializePage } from "./serialize-page";
-import type { CaptureOptions } from "./serialize-page";
+import { serializePage } from "@/capture/serialize-page";
+import type { CaptureOptions } from "@/capture/serialize-page";
 
 declare global {
   interface Window {
@@ -13,4 +13,7 @@ declare global {
   }
 }
 
-window.inteligirCapture = (options) => serializePage(document, window.getSelection(), options);
+// an unlisted script, so WXT writes it as capture.js, one IIFE with everything it imports inlined
+export default defineUnlistedScript(() => {
+  window.inteligirCapture = (options) => serializePage(document, window.getSelection(), options);
+});

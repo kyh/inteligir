@@ -182,8 +182,9 @@ holds. Run them on the release's own artifacts: the Mac app
 `pnpm smoke:desktop` left at
 `apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app` (signed and
 notarized; drag it to `/Applications` and open it from Finder), the extension
-`pnpm package:extension` left at `apps/extension/.output/unpacked`, and the
-iPhone build from the `Owner` group, except where a check names the simulator
+`pnpm package:extension` left at
+`apps/extension/.output/chrome-mv3-store-unpacked`, and the iPhone build from
+the `Owner` group, except where a check names the simulator
 or a development build. A failing check stops the release: fix it, and start again at step 1.
 
 A change whose proof needs a device, an account or a credential adds its check
@@ -349,8 +350,9 @@ app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
 
 ### The browser extension
 
-Load `apps/extension/.output/unpacked` with Developer mode on in Chrome, Arc,
-Brave and Edge, the released app installed and its first run finished.
+Load `apps/extension/.output/chrome-mv3-store-unpacked` with Developer mode on
+in Chrome, Arc, Brave and Edge, the released app installed and its first run
+finished.
 
 - **The id.** Passing: chrome://extensions shows `EXTENSION_ID`
   (`packages/contract/src/browser/extension-identity.ts`), and all four

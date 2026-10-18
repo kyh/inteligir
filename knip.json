@@ -45,9 +45,10 @@
       "ignoreDependencies": ["expo-updates"]
     },
     "apps/extension": {
-      // node runs the scripts by path
-      "entry": ["scripts/*.ts"],
-      "project": ["src/**/*.{ts,tsx,css}", "vite/**/*.ts", "scripts/*.ts"],
+      // WXT's entrypoints live under its srcDir, src/, where knip's wxt plugin, which looks in
+      // entrypoints/ at the workspace root, does not; a page's entry is its index.html's script
+      "entry": ["src/entrypoints/*.ts", "src/entrypoints/*/main.tsx"],
+      "project": ["src/**/*.{ts,tsx,css}"],
       // tailwindcss is @repo/ui's globals.css import, which knip does not follow
       "ignoreDependencies": ["tailwindcss"]
     },

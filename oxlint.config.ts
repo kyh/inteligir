@@ -30,6 +30,7 @@ export default defineConfig({
     ".codex",
     "*.tsbuildinfo",
     ".tanstack",
+    ".wxt",
   ],
   overrides: [
     {

@@ -323,7 +323,8 @@ const installSignalCleanup = (): void => {
 };
 
 // built through turbo, not looked for on disk: a present dist/ may be last week's server and UI.
-// the extension's dev build rides the same run: the browser-extension scenarios load its dist/
+// the extension's dev build rides the same run: the browser-extension scenarios load its
+// .output/chrome-mv3
 const buildCli = async (repoRoot: string): Promise<void> => {
   const startedAt = Date.now();
   console.log(

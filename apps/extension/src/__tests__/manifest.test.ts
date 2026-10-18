@@ -4,7 +4,7 @@ import {
   NATIVE_HOST_NAME,
 } from "@repo/contract/browser/extension-identity";
 import { describe, expect, it } from "vitest";
-import { extensionManifest, nativeHostNameFor } from "../manifest";
+import { extensionManifest, flavorOfMode, nativeHostNameFor } from "@/manifest";
 
 describe("the manifest", () => {
   it("carries the key and the loopback hosts only in the dev build", () => {
@@ -34,5 +34,13 @@ describe("the manifest", () => {
       "nativeMessaging",
       "scripting",
     ]);
+  });
+});
+
+describe("a build's flavor", () => {
+  it("is the store's for --mode store, and the dev build's for any other mode", () => {
+    expect(flavorOfMode("store")).toBe("store");
+    expect(flavorOfMode("development")).toBe("dev");
+    expect(flavorOfMode("production")).toBe("dev");
   });
 });

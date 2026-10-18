@@ -1,9 +1,10 @@
 // the toolbar's popup: it saves the active tab on open and says where it landed (§8.6).
 
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { askWorker } from "../messages";
-import "../styles/globals.css";
-import { Popup } from "./popup";
+import { askWorker } from "@/messages";
+import "@/styles/globals.css";
+import { Popup } from "./app";
 
 const container = document.querySelector("#root");
 if (container === null) {
@@ -16,4 +17,8 @@ const activeTabId = async (): Promise<number | null> => {
   return tab?.id ?? null;
 };
 
-createRoot(container).render(<Popup activeTabId={activeTabId} ask={askWorker} />);
+createRoot(container).render(
+  <StrictMode>
+    <Popup activeTabId={activeTabId} ask={askWorker} />
+  </StrictMode>,
+);

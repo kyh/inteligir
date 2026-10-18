@@ -5,9 +5,9 @@
 import { Button } from "@repo/ui/components/button";
 import { Spinner } from "@repo/ui/components/spinner";
 import { Switch } from "@repo/ui/components/switch";
-import { useEffect, useState } from "react";
-import type { ExtensionRequest, Outcome } from "../messages";
-import { refusalCopy, savedCopy } from "../outcome-copy";
+import { useEffect, useRef, useState } from "react";
+import type { ExtensionRequest, Outcome } from "@/messages";
+import { refusalCopy, savedCopy } from "@/outcome-copy";
 
 export interface PopupProps {
   // the tab the popup opened over, or null when there is none to save
@@ -54,28 +54,47 @@ const Headline = ({ outcome }: { outcome: Outcome | null }) => {
   return null;
 };
 
+// the tab the popup opened over and what saving it answered
+interface OpenedSave {
+  answer: Outcome;
+  tabId: number;
+}
+
+// null when there is no tab to save
+const saveOpenedTab = async (
+  activeTabId: PopupProps["activeTabId"],
+  ask: PopupProps["ask"],
+): Promise<OpenedSave | null> => {
+  const tabId = await activeTabId();
+  return tabId === null ? null : { answer: await ask({ tabId, type: "save" }), tabId };
+};
+
 export const Popup = ({ activeTabId, ask }: PopupProps) => {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [tabId, setTabId] = useState<number | null>(null);
   const [copy, setCopy] = useState<CopyState>("off");
 
+  // the save opening the popup asks for, started once: StrictMode runs this effect twice in a
+  // development build, and a second save of the tab would answer that it was already saved
+  const opening = useRef<Promise<OpenedSave | null> | null>(null);
+
   useEffect(() => {
     let live = true;
-    const save = async () => {
-      const id = await activeTabId();
-      if (id === null) {
-        if (live) {
-          setOutcome({ detail: "", kind: "refused", reason: "unsupported-page" });
-        }
+    const save = opening.current ?? saveOpenedTab(activeTabId, ask);
+    opening.current = save;
+    const show = async () => {
+      const opened = await save;
+      if (!live) {
         return;
       }
-      const answer = await ask({ tabId: id, type: "save" });
-      if (live) {
-        setTabId(id);
-        setOutcome(answer);
+      if (opened === null) {
+        setOutcome({ detail: "", kind: "refused", reason: "unsupported-page" });
+        return;
       }
+      setTabId(opened.tabId);
+      setOutcome(opened.answer);
     };
-    void save();
+    void show();
     return () => {
       live = false;
     };

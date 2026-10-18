@@ -1,6 +1,7 @@
 // the extension's MV3 manifest, one function of its flavor: the dev build the e2e and a checkout
 // load, the store zip, and the unpacked store build a release check loads. Only the store zip lacks
 // the key, so the dev and unpacked builds carry the committed id the native host's manifest allows.
+// wxt.config.ts hands it to WXT and refuses a build whose manifest.json says anything else.
 
 import {
   DEV_NATIVE_HOST_NAME,
@@ -10,6 +11,11 @@ import {
 
 const EXTENSION_FLAVORS = ["dev", "store", "store-unpacked"] as const;
 export type ExtensionFlavor = (typeof EXTENSION_FLAVORS)[number];
+
+// a build's flavor is its WXT mode: `--mode store` is the store's (the zip hook in wxt.config.ts
+// writes the unpacked store build from it), and every other mode, `wxt` and `wxt build` included,
+// is the dev build, which dials the dev host
+export const flavorOfMode = (mode: string): ExtensionFlavor => (mode === "store" ? "store" : "dev");
 
 // which native host each flavor dials: the dev build reaches the manifest `inteligir native-host
 // --install` writes for a checkout, the store builds the one the desktop app writes

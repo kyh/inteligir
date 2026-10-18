@@ -1,8 +1,8 @@
 // the toolbar's badge says how a save went on the tab it was made from: "…" while it runs, "✓"
 // for two seconds once it lands, or "!" with the reason as the button's title until the next save
 
-import { refusalCopy, savedCopy } from "../outcome-copy";
-import type { Outcome } from "../messages";
+import { refusalCopy, savedCopy } from "@/outcome-copy";
+import type { Outcome } from "@/messages";
 
 const DEFAULT_TITLE = "Save to Inteligir";
 const SAVED_SHOWN_MS = 2000;

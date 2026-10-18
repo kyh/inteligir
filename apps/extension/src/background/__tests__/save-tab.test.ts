@@ -1,8 +1,8 @@
 import { BROWSER_WIRE_VERSION, CAPTURE_HTML_MAX_CHARS } from "@repo/contract/browser/browser-wire";
 import type { CapturedPageWire } from "@repo/contract/browser/browser-wire";
 import { describe, expect, it } from "vitest";
-import type { CaptureOptions } from "../../capture/serialize-page";
-import { outcomeOf, planTabSave } from "../save-tab";
+import type { CaptureOptions } from "@/capture/serialize-page";
+import { outcomeOf, planTabSave } from "@/background/save-tab";
 
 const tab = { id: 7, title: "An article", url: "https://example.test/a" };
 

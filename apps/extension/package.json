@@ -4,15 +4,22 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build --mode dev && vite build --config vite.capture.config.ts --mode dev",
-    "dev": "node scripts/dev.ts",
-    "package": "node scripts/package.ts",
+    "build": "wxt build",
+    "clean": "git clean -xdf .cache .turbo .output .wxt node_modules",
+    "dev": "wxt",
+    "postinstall": "wxt prepare",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts"
+    "typecheck": "wxt prepare && tsc --noEmit",
+    "zip": "NODE_ENV=production wxt zip --mode store"
   },
-  "devDependencies": {
+  "dependencies": {
     "@repo/contract": "workspace:*",
     "@repo/ui": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
     "@tailwindcss/vite": "catalog:",
     "@testing-library/react": "catalog:",
     "@types/chrome": "^0.3.5",
@@ -22,12 +29,10 @@
     "@vitejs/plugin-react": "catalog:",
     "jsdom": "catalog:",
     "oxc-transform-react": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:",
-    "zod": "catalog:"
+    "wxt": "^0.21.4"
   }
 }

@@ -55,7 +55,8 @@ describe("root script naming", () => {
     const names = new Set(workspaces().map((w) => w.name));
     const violations: string[] = [];
     for (const [script, command] of Object.entries(rootScripts())) {
-      for (const filtered of command.matchAll(/--filter[= ](?<target>[^\s]+)/gu)) {
+      // turbo's and pnpm's short -F too, which `turbo watch dev -F @repo/web...` spells
+      for (const filtered of command.matchAll(/(?<=^|\s)(?:--filter|-F)[= ](?<target>\S+)/gu)) {
         const target = (filtered.groups?.target ?? "").replace(/\.\.\.$/u, "");
         if (target === "" || names.has(target)) {
           continue;
@@ -63,7 +64,7 @@ describe("root script naming", () => {
         violations.push(
           `UNKNOWN WORKSPACE  ${script}\n` +
             `  runs: ${command}\n` +
-            `  rule: --filter names a workspace, and "${target}" is not one\n` +
+            `  rule: --filter (-F) names a workspace, and "${target}" is not one\n` +
             `  fix: filter a package that exists, or drop the script with the workspace it outlived`,
         );
       }

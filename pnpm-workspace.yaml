@@ -66,6 +66,9 @@ catalog:
   expo-network: ~57.0.2
   expo-router: ~57.0.25
   expo-secure-store: ~57.0.4
+  # third-party (achorein/expo-share-intent), so `npx expo install --fix` does not manage it; its
+  # major tracks the Expo SDK (8.x peers expo ^57), and the `expo-*` ignore below skips it, so an
+  # SDK upgrade bumps it by hand
   expo-share-intent: ~8.0.1
   expo-splash-screen: ~57.0.9
   expo-sqlite: ~57.0.4

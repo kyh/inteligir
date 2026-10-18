@@ -1,11 +1,12 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PRODUCTION_CLOUD_ORIGIN } from "@repo/contract/cloud/origin";
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
-import { OUTCOME_REASONS } from "../../messages";
-import type { ExtensionRequest, Outcome, OutcomeReason } from "../../messages";
-import { refusalCopy } from "../../outcome-copy";
-import { Welcome } from "../../welcome/welcome";
-import { Popup } from "../popup";
+import { OUTCOME_REASONS } from "@/messages";
+import type { ExtensionRequest, Outcome, OutcomeReason } from "@/messages";
+import { refusalCopy } from "@/outcome-copy";
+import { Welcome } from "@/entrypoints/welcome/app";
+import { Popup } from "@/entrypoints/popup/app";
 
 afterEach(cleanup);
 
@@ -36,6 +37,19 @@ describe("the popup", () => {
     render(<Popup activeTabId={tabSeven} ask={ask} />);
     expect(await screen.findByText("Saved to Unsorted")).toBeTruthy();
     expect(screen.getByText("File over app")).toBeTruthy();
+    expect(asked).toEqual([{ tabId: 7, type: "save" }]);
+  });
+
+  // the page mounts under StrictMode, which runs an effect twice in a development build: a second
+  // save of the tab would answer that it is already in the library
+  it("saves once under StrictMode, as the page mounts", async () => {
+    const { ask, asked } = worker(saved(true), saved(false));
+    render(
+      <StrictMode>
+        <Popup activeTabId={tabSeven} ask={ask} />
+      </StrictMode>,
+    );
+    expect(await screen.findByText("Saved to Unsorted")).toBeTruthy();
     expect(asked).toEqual([{ tabId: 7, type: "save" }]);
   });
 

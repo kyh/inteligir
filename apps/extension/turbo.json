@@ -2,14 +2,18 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
-    // the unpacked dev build the e2e loads with --extension, and `pnpm dev:extension` watches
+    // the unpacked dev build the e2e loads with --extension
     "build": {
-      "outputs": ["dist/**"]
+      "outputs": [".output/chrome-mv3/**"]
     },
-    // the Web Store zip and the unpacked store build (scripts/package.ts)
-    "package": {
+    // the Web Store zip and the unpacked store build beside it (wxt.config.ts)
+    "zip": {
       "dependsOn": ["^build"],
-      "outputs": [".output/**"]
+      "outputs": [
+        ".output/chrome-mv3-store/**",
+        ".output/chrome-mv3-store-unpacked/**",
+        ".output/inteligir-extension-*.zip"
+      ]
     }
   }
 }

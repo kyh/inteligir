@@ -68,7 +68,7 @@ const isWikiTargets = (query: Query): boolean =>
 
 // the knowledge family less the targets: a link into a note lives in another note's bytes, so the
 // rest is swept whole
-const sweepKnowledge = (queryClient: QueryClient): void => {
+export const sweepKnowledge = (queryClient: QueryClient): void => {
   void queryClient.invalidateQueries({
     predicate: (query) => !isWikiTargets(query),
     queryKey: orpc.knowledge.key(),

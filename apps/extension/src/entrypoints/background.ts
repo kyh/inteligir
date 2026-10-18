@@ -3,17 +3,18 @@
 // no `externally_connectable`, so no web page can ask it anything.
 
 import { BROWSER_WIRE_VERSION } from "@repo/contract/browser/browser-wire";
-import { extensionRequestSchema, refusedOutcome } from "../messages";
-import type { Outcome, ParsedExtensionRequest } from "../messages";
-import { askHost } from "./ask-host";
-import { showOutcome, showSaving } from "./badge";
-import { MENU_ITEMS, menuAction } from "./menus";
-import type { MenuContext } from "./menus";
-import { outcomeOf, saveTab, saveWith } from "./save-tab";
-import type { TabFacts } from "./save-tab";
+import type { PublicPath } from "wxt/browser";
+import { extensionRequestSchema, refusedOutcome } from "@/messages";
+import type { Outcome, ParsedExtensionRequest } from "@/messages";
+import { askHost } from "@/background/ask-host";
+import { showOutcome, showSaving } from "@/background/badge";
+import { MENU_ITEMS, menuAction } from "@/background/menus";
+import type { MenuContext } from "@/background/menus";
+import { outcomeOf, saveTab, saveWith } from "@/background/save-tab";
+import type { TabFacts } from "@/background/save-tab";
 
-const WELCOME_PAGE = "welcome.html";
-const OWN_PAGES = chrome.runtime.getURL("");
+// src/entrypoints/welcome, which WXT writes at this path
+const WELCOME_PAGE = "/welcome.html" satisfies PublicPath;
 
 const tabFacts = (tab: chrome.tabs.Tab): TabFacts | null =>
   tab.id === undefined ? null : { id: tab.id, title: tab.title, url: tab.url };
@@ -58,22 +59,7 @@ const answer = async (request: ParsedExtensionRequest): Promise<Outcome> => {
 
 // the extension's own pages, wherever they are open; a script in a web page carries that page's url
 const fromOwnPages = (sender: chrome.runtime.MessageSender): boolean =>
-  sender.id === chrome.runtime.id && sender.url?.startsWith(OWN_PAGES) === true;
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!fromOwnPages(sender)) {
-    return false;
-  }
-  const parsed = extensionRequestSchema.safeParse(message);
-  if (!parsed.success) {
-    return false;
-  }
-  void (async () => {
-    sendResponse(await answer(parsed.data));
-  })();
-  // the answer comes later, so the channel stays open for it
-  return true;
-});
+  sender.id === chrome.runtime.id && sender.url?.startsWith(chrome.runtime.getURL("")) === true;
 
 const clicked = async (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.Tab) => {
   const facts = tab === undefined ? null : tabFacts(tab);
@@ -102,10 +88,6 @@ const clicked = async (info: chrome.contextMenus.OnClickData, tab?: chrome.tabs.
     }
   });
 };
-
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  void clicked(info, tab);
-});
 
 // Chrome's own enum, read only once the worker runs in Chrome
 const contextType = (context: MenuContext): chrome.contextMenus.ContextType => {
@@ -144,6 +126,30 @@ const installed = async (reason: string): Promise<void> => {
   }
 };
 
-chrome.runtime.onInstalled.addListener((details) => {
-  void installed(details.reason);
+// WXT imports this file at build time with main() emptied, so every chrome call waits in it; the
+// worker runs main() in its first turn, which is where MV3 wants its listeners
+export default defineBackground({
+  main() {
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (!fromOwnPages(sender)) {
+        return false;
+      }
+      const parsed = extensionRequestSchema.safeParse(message);
+      if (!parsed.success) {
+        return false;
+      }
+      void (async () => {
+        sendResponse(await answer(parsed.data));
+      })();
+      // the answer comes later, so the channel stays open for it
+      return true;
+    });
+    chrome.contextMenus.onClicked.addListener((info, tab) => {
+      void clicked(info, tab);
+    });
+    chrome.runtime.onInstalled.addListener((details) => {
+      void installed(details.reason);
+    });
+  },
+  type: "module",
 });

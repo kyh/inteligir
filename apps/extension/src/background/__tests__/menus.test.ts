@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { imageBytesOfDataUrl, MENU_ITEMS, menuAction } from "../menus";
+import { imageBytesOfDataUrl, MENU_ITEMS, menuAction } from "@/background/menus";
 
 describe("the right-click Save", () => {
   it("offers one item per thing a person points at", () => {

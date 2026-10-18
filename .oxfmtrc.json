@@ -6,6 +6,7 @@
     "pnpm-lock.yaml",
     "*.tsbuildinfo",
     ".output",
+    ".wxt",
     ".tanstack",
     "routeTree.gen.ts",
     "packages/editor/src/__tests__/fixtures",

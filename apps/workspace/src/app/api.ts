@@ -1,6 +1,7 @@
 // mutations sweep the queries they affect in their own `onSuccess`, except `vault` and
-// `knowledge`, swept whole: a link into a note lives in another note's bytes, so no
-// path-scoped invalidation is expressible.
+// `knowledge`, swept by family, knowledge's less the link targets, which move only on
+// targets-changed (`sweepKnowledge` in change-batch.ts): a link into a note lives in another
+// note's bytes, so no path-scoped invalidation is expressible.
 
 import { createORPCClient, onError } from "@orpc/client";
 

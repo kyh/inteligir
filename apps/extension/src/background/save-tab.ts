@@ -8,9 +8,10 @@ import {
   capturedPageWireSchema,
 } from "@repo/contract/browser/browser-wire";
 import type { BrowserSave, CapturedPageWire } from "@repo/contract/browser/browser-wire";
-import type { CaptureOptions } from "../capture/serialize-page";
-import { refusedOutcome } from "../messages";
-import type { Outcome } from "../messages";
+import type { PublicPath } from "wxt/browser";
+import type { CaptureOptions } from "@/capture/serialize-page";
+import { refusedOutcome } from "@/messages";
+import type { Outcome } from "@/messages";
 import { askHost } from "./ask-host";
 import type { HostAnswer } from "./ask-host";
 import { isWebUrl } from "./menus";
@@ -24,7 +25,8 @@ export interface TabFacts {
 // null when the tab cannot be scripted, or answered something that is not a captured page
 type CaptureTab = (tabId: number, options: CaptureOptions) => Promise<CapturedPageWire | null>;
 
-const CAPTURE_SCRIPT = "capture.js";
+// src/entrypoints/capture.ts, which WXT writes at this path and types as one of its own
+const CAPTURE_SCRIPT = "/capture.js" satisfies PublicPath;
 
 const captureTab: CaptureTab = async (tabId, options) => {
   try {

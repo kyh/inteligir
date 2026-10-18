@@ -17,6 +17,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { failed, orpc } from "../api";
+import { sweepKnowledge } from "../change-batch";
 
 export const RenameTagDialog = ({
   tag,
@@ -48,7 +49,9 @@ export const RenameTagDialog = ({
             `Skipped ${body.skipped.map((skip) => skip.path).join(", ")}: changed while renaming.`,
           );
         }
-        void queryClient.invalidateQueries({ queryKey: orpc.knowledge.key() });
+        // the rewritten items' tags, scopes, listings and matches; a tag is no link target's
+        // field, so the targets stay, as the bus's own sweep of these writes leaves them
+        sweepKnowledge(queryClient);
         onOpenChange(false);
         onRenamed(body.from, body.to);
       },

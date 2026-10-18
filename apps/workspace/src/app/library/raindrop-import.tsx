@@ -5,11 +5,11 @@
 
 import type { ImportsPlanResponse } from "@repo/contract/local/imports/imports-schema";
 import { toast } from "@repo/ui/components/sonner";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useImperativeHandle, useRef, useState } from "react";
 import type { RefObject } from "react";
 
-import { client, isDefinedError, orpc, refusalMessage, safe } from "../api";
+import { client, failed, isDefinedError, orpc, refusalMessage, safe } from "../api";
 import { ImportDialog } from "../import/import-dialog";
 
 export const UNREADABLE_SENTENCE =
@@ -28,7 +28,6 @@ export const RaindropImport = ({
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [plan, setPlan] = useState<ImportsPlanResponse | null>(null);
-  const [starting, setStarting] = useState(false);
   const cloudQuery = useQuery(orpc.cloud.status.queryOptions());
   const syncsOnline = cloudQuery.data?.state === "signed-in";
 
@@ -55,18 +54,18 @@ export const RaindropImport = ({
     );
   };
 
-  const start = async (chosen: ImportsPlanResponse): Promise<void> => {
-    setStarting(true);
-    try {
-      await client.imports.start({ planId: chosen.planId });
-      setPlan(null);
-      toast.success("Importing from Raindrop");
-    } catch (error) {
-      toast.error(refusalMessage(error, "The import couldn't start."));
-    }
-    setStarting(false);
-    void queryClient.invalidateQueries({ queryKey: orpc.imports.status.key() });
-  };
+  const start = useMutation(
+    orpc.imports.start.mutationOptions({
+      onError: (error) => {
+        failed(error, "The import couldn't start.");
+      },
+      onSuccess: () => {
+        setPlan(null);
+        toast.success("Importing from Raindrop");
+        void queryClient.invalidateQueries({ queryKey: orpc.imports.status.key() });
+      },
+    }),
+  );
 
   return (
     <>
@@ -87,9 +86,9 @@ export const RaindropImport = ({
       <ImportDialog
         plan={plan}
         syncsOnline={syncsOnline}
-        starting={starting}
+        starting={start.isPending}
         onStart={(chosen) => {
-          void start(chosen);
+          start.mutate({ planId: chosen.planId });
         }}
         onClose={() => {
           setPlan(null);

@@ -33,10 +33,10 @@ pnpm cli serve          # The server ALONE, from source, no window; a shell adop
 pnpm cli <verb>         # Every other verb, against this checkout's instance
 pnpm dev:web            # apps/web: vite + miniflare on :5174 (pinned, strictPort)
 pnpm dev:gallery        # tools/ui-gallery: the @repo/ui gallery alone, at localhost:5175 (never deployed)
-pnpm dev:extension      # apps/extension: this checkout's browser door, then the dev build rebuilt on change
+pnpm dev:extension      # apps/extension: this checkout's browser door, then WXT's dev loop, rebuilding and reloading on change
 pnpm package:cli        # The npm artifact (apps/cli) — `npx inteligir serve`
 pnpm package:desktop    # The macOS arm64 .app and dmg, signed + notarized when the keys are present
-pnpm package:extension  # The Web Store zip and the unpacked store build, under apps/extension/.output
+pnpm package:extension  # The Web Store zip (wxt zip, checked) and the unpacked store build, under apps/extension/.output
 pnpm smoke:cli          # Pack, install into a scratch prefix, boot, probe, stop
 pnpm smoke:desktop      # Package the .app, launch it, drive its server and an agent turn, SIGTERM (macOS only)
 pnpm testflight:mobile  # The phone: EAS builds it for iOS and submits it to TestFlight (owner; docs/releasing.md)
@@ -136,25 +136,29 @@ miniflare's Durable Objects. Sign-up is invite-only and there is no seeded accou
 page and hands it to the app on the same machine through `inteligir
 native-host`, which Chrome starts by the manifest a browser keeps for it
 (`apps/extension/README.md`). `pnpm dev:extension` writes this checkout's door
-once (`pnpm cli native-host --install`), builds the extension into
-`apps/extension/dist` and rebuilds it on every change; load that folder with
-Load unpacked on `chrome://extensions` (Developer mode on), and reload it there
-after a change to its worker. Its committed key gives the unpacked build the id
-`EXTENSION_ID` (`packages/contract/src/browser/extension-identity.ts`), the one
-origin the door allows.
+once (`pnpm cli native-host --install`), then runs WXT's dev loop (`wxt`), which
+builds the extension into `apps/extension/.output/chrome-mv3-dev`, rebuilds it
+on every change and reloads it in the browser; load that folder once with Load
+unpacked on `chrome://extensions` (Developer mode on). `pnpm --filter
+@repo/extension build` writes the same flavor, without the dev server, to
+`.output/chrome-mv3`, which the e2e loads. Its committed key gives the unpacked
+build the id `EXTENSION_ID`
+(`packages/contract/src/browser/extension-identity.ts`), the one origin the
+door allows.
 
 THE DEV BUILD DIALS `com.inteligir.desktop.dev`, the manifest `--install`
 writes, whose launcher runs this checkout's `apps/cli/bin/inteligir
 native-host` from the checkout, so it reaches this checkout's instance (a
 `pnpm cli serve` or `pnpm dev`). The store builds (`pnpm package:extension`:
-the Web Store zip and `.output/unpacked`, the same files with the key) dial
-`com.inteligir.desktop`, which the packaged app writes for every Chromium
-browser at each launch (`apps/cli/src/desktop/native-hosts.ts`), so they reach
-the installed app and never a checkout. `--install` writes a manifest only
-where a browser's folder exists, so open the browser once first; on Linux it
-writes Chrome's and Chromium's under `~/.config`. `--install` is refused in the
-packaged mode, and the e2e's `browser-extension` scenario writes its own door
-into a scratch profile (`tools/e2e/src/harness/native-host-fixture.ts`).
+the Web Store zip and `.output/chrome-mv3-store-unpacked`, the same files with
+the key) dial `com.inteligir.desktop`, which the packaged app writes for every
+Chromium browser at each launch (`apps/cli/src/desktop/native-hosts.ts`), so
+they reach the installed app and never a checkout. `--install` writes a
+manifest only where a browser's folder exists, so open the browser once first;
+on Linux it writes Chrome's and Chromium's under `~/.config`. `--install` is
+refused in the packaged mode, and the e2e's `browser-extension` scenario writes
+its own door into a scratch profile
+(`tools/e2e/src/harness/native-host-fixture.ts`).
 
 ## Where state lives
 
@@ -165,6 +169,7 @@ into a scratch profile (`tools/e2e/src/harness/native-host-fixture.ts`).
 | The page's vite dev server                        | 31000 (pinned — `strictPort`; `tauri dev` waits)                                   |
 | Site + cloud Worker (`pnpm dev:web`)              | 5174 (pinned — `strictPort`)                                                       |
 | UI gallery (`pnpm dev:gallery`)                   | 5175 (pinned — `strictPort`)                                                       |
+| Extension dev server (`pnpm dev:extension`)       | 3000, or the first free port to 3010 (WXT's own probe)                             |
 | The vault selector, config.json                   | `~/.inteligir-dev/<hash>/data/` (prod: `~/.inteligir`)                             |
 | Each vault's SQLite and sign-in                   | `<that dir>/vaults/<hash of its physical path>/`                                   |
 | Folders, agent, vault and phone-request prefs     | JSON files beside them (the app writes these)                                      |
