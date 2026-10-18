@@ -155,9 +155,10 @@ export default defineConfig({
     // Sequential awaits in loops are deliberate here (ordered vault writes, rate-limited reads).
     "no-await-in-loop": "off",
     // Both shapes it flags are load-bearing idioms: an exhaustive `switch` over a
-    // union with no `default` (the fall-off-the-end is what makes tsc reject the
-    // function when a member is added) and `useEffect(() => { if (x) return; …;
-    // return cleanup; })`, React's own contract for a conditional cleanup.
+    // union with no `default` (in a function whose return type excludes
+    // undefined, the fall-off-the-end is what makes tsc reject it when a member
+    // is added) and `useEffect(() => { if (x) return; …; return cleanup; })`,
+    // React's own contract for a conditional cleanup.
     "typescript/consistent-return": "off",
     // No type assertion and no escape comment: parse at the boundary or narrow with a
     // type guard. `as const` asserts no other type and stays legal.

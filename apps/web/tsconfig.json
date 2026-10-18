@@ -7,7 +7,7 @@
       "@/*": ["./src/*"]
     },
     "types": ["vite/client"],
-    // the configs Node loads by stripping types (vitest.config.ts) import their siblings as `.ts`
+    // vitest.config.ts imports compatibility.ts by its `.ts` name, as cloudflare.config.ts does
     "allowImportingTsExtensions": true
   },
   "include": [

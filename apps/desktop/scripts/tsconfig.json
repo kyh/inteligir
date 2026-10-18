@@ -10,6 +10,9 @@
     "moduleResolution": "nodenext",
     // node strips types and keeps the specifier, so an import names the `.ts` file it loads
     "allowImportingTsExtensions": true,
+    // node keeps an import with no `type` keyword, so a type imported as a value throws at its
+    // first run
+    "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
     "resolveJsonModule": true,
     "tsBuildInfoFile": "${configDir}/../.cache/tsbuildinfo.scripts.json"

@@ -137,9 +137,9 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   RESOLVES IT.** `apps/desktop/scripts` and `apps/cli/scripts` (and
   `apps/workspace/scripts`, the page's dev loop) are `.ts` files node 24 strips
   of their types, each workspace's `typecheck` checking them as a
-  `scripts/tsconfig.json` program under `nodenext` and `erasableSyntaxOnly`, so
-  an extensionless import or an enum fails the typecheck rather than the
-  release; a relative import names its `.ts`, JSON a script reads is parsed by
+  `scripts/tsconfig.json` program under `nodenext`, `erasableSyntaxOnly` and
+  `verbatimModuleSyntax`, so an extensionless import, an enum or a type
+  imported as a value fails the typecheck rather than the release; a relative import names its `.ts`, JSON a script reads is parsed by
   zod, and its own manifest is a JSON import. Rejected: `checkJs` over `.mjs`,
   whose JSDoc casts the type-assertion rule cannot see, and `tsx`, a loader for
   what node already runs. A module whose imports name no extension (the
@@ -165,14 +165,18 @@ The guards, vendored code, the toolchain's pins and the build's rules.
 
 - **EVERY TSCONFIG EXTENDS `@kyh/tsconfig/base.json`, AS kyh/init's DO** (owner
   decision). A program sets only what its runtime needs on top: its `lib` (the
-  ES2023 ceiling of the pages and Hermes, ES2024 on node), its `types`, `jsx`,
-  `paths` and `customConditions`; a release script's program resolves as node
-  does (`nodenext`) and names its `.ts` imports, as does a program that reaches
-  a config node loads by stripping types (`apps/web/cloudflare.config.ts`). The
-  base is a catalog dependency of each workspace, so turbo hashes its version
-  into every typecheck key with no global row. Rejected: a local base with
+  ES2023 ceiling of the pages and Hermes, ES2024 on node), `types`, `jsx`,
+  `paths`, `customConditions` and `moduleSuffixes`. A program of scripts node
+  runs as they stand resolves as node does (`nodenext`, `erasableSyntaxOnly`),
+  keeps every import as written (`verbatimModuleSyntax`) and names its `.ts`
+  imports; a program that reaches `apps/web/cloudflare.config.ts`, which names
+  its own by their `.ts`, allows that spelling too. The base is a catalog
+  dependency of each workspace, so turbo hashes its version into every
+  typecheck key with no global row. With no `noImplicitReturns`, a function
+  whose exhaustive `switch` has no `default` declares a return type that
+  excludes undefined, so a new member fails it. Rejected: a local base with
   `exactOptionalPropertyTypes`, `verbatimModuleSyntax`, `noImplicitOverride`,
-  `noImplicitReturns` and `noFallthroughCasesInSwitch` on, stricter than the
-  template's but a second base beside it; the base's `allowJs` and `checkJs`
-  stay, so a test fake written as `.mjs` is typed by its JSDoc
+  `noImplicitReturns` and `noFallthroughCasesInSwitch` on everywhere, stricter
+  than the template's but a second base beside it; the base's `allowJs` and
+  `checkJs` stay, so a test fake written as `.mjs` is typed by its JSDoc
   (`packages/agent-runtime/src/test-support/fake-acp-agent.mjs`).

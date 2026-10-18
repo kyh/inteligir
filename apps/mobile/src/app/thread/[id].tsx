@@ -1,6 +1,7 @@
 import { Stack, useLocalSearchParams } from "expo-router";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useRef, useState } from "react";
+import type { ReactElement } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -51,7 +52,7 @@ type ThreadRow =
   | { kind: "approval"; key: string; approval: ApprovalView }
   | { kind: "pending"; key: string; dispatch: TurnDispatch };
 
-const Item = ({ item }: { item: ThreadDisplayItem }) => {
+const Item = ({ item }: { item: ThreadDisplayItem }): ReactElement => {
   switch (item.kind) {
     case "user": {
       return (

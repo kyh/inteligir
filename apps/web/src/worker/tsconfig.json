@@ -17,8 +17,7 @@
     // hand-authored stub keeps the library's own code out of this stricter
     // program. The bundler ignores `paths` and still resolves the real source.
     "paths": { "durable-git": ["./types/durable-git.d.ts"] },
-    // the generated Env reaches cloudflare.config.ts, which Node loads by stripping types, so it
-    // names its siblings as `.ts`
+    // the generated Env reaches cloudflare.config.ts, which names its imports by their `.ts`
     "allowImportingTsExtensions": true
   },
   "include": [".", "../../.cloudflare/types/index.d.ts"],
