@@ -15,6 +15,7 @@ import type {
   Unstamped,
 } from "@repo/mobile-editor/bridge-protocol";
 import { messageOf } from "../lib/error-message";
+import { sameDocument } from "../lib/same-document";
 
 // every question the page asks, answered by the phone
 export type EditorRequestPorts = {
@@ -66,20 +67,6 @@ export interface EditorHost {
 // long enough for a serialize and a write through the bridge, short enough that leaving a note
 // never waits on a page that stopped answering
 const FLUSH_TIMEOUT_MS = 3000;
-
-// a fragment never names another document, and WebKit may hand back escapes the uri was given raw
-const documentOf = (url: string): string => {
-  const hash = url.indexOf("#");
-  const bare = hash === -1 ? url : url.slice(0, hash);
-  try {
-    return decodeURI(bare);
-  } catch {
-    return bare;
-  }
-};
-
-const sameDocument = (url: string, pageUrl: string): boolean =>
-  documentOf(url) === documentOf(pageUrl);
 
 const isHttpUrl = (url: string): boolean => /^https?:\/\//iu.test(url);
 

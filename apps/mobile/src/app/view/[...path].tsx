@@ -16,6 +16,7 @@ import { basenamePath, dirnamePath, extnamePath } from "@repo/notes/knowledge/va
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { attachmentFile } from "@/lib/app-runtime";
 import { firstParam, openItem } from "@/lib/routes";
+import { sameDocument } from "@/lib/same-document";
 import { SPACE, useTheme } from "@/lib/theme";
 
 const styles = StyleSheet.create({
@@ -87,7 +88,8 @@ const isPageCopy = (path: string): boolean =>
   dirnamePath(path) === PAGES_DIR && extnamePath(path).toLowerCase() === ".html";
 
 // the cached PDF in WebKit's own viewer, or a page's copy, with no script, reading only the folder
-// it sits in and following no link out of it
+// it sits in and following no link out of it: the one document, in whatever escapes WebKit hands
+// back and with any fragment it adds
 const HeldDocumentView = ({ uri }: { uri: string }) => {
   const theme = useTheme();
   return (
@@ -96,7 +98,7 @@ const HeldDocumentView = ({ uri }: { uri: string }) => {
       source={{ uri }}
       allowingReadAccessToURL={dirnamePath(uri)}
       originWhitelist={EVERY_ORIGIN}
-      onShouldStartLoadWithRequest={(request) => request.url === uri}
+      onShouldStartLoadWithRequest={(request) => sameDocument(request.url, uri)}
       javaScriptEnabled={false}
       allowsLinkPreview={false}
       dataDetectorTypes="none"
