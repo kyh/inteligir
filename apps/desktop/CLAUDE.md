@@ -117,14 +117,17 @@ and cited.
   (`~/.inteligir/native-host/inteligir-native-host`) and a manifest for every
   Chrome, Chromium, Edge, Brave and Vivaldi channel whose folder exists, beside
   the agent's launcher; Arc reads Chrome's folder as well as its own, so its
-  manifest goes in both. It never runs for a launch an env pins (a harness, the
-  smoke), whose library the door could not find, nor for an app macOS
-  translocated, whose node is gone once it quits, and a folder it cannot write
-  costs that browser alone. The shell still owns nothing but ordering. Rejected:
+  manifest goes in both. It never runs for a launch whose data dir an env pins
+  (a harness, the smoke's first launch), whose server the door, which finds one
+  through the root, could not find; the shell pins every child's vault and never
+  its data dir, so a vault pin is no reason to skip. Nor does it run for an app
+  macOS translocated, whose node is gone once it quits, and a folder it cannot
+  write costs that browser alone. The shell still owns nothing but ordering. Rejected:
   Rust writing them, a second language for a rule desktop-serve already sits
   beside, and a launcher inside the bundle, which a manifest naming a moved
   app's path would lose. `apps/cli/src/desktop/native-hosts.ts`; the packaged
-  smoke reads both browsers' manifests and drives the launcher with frames.
+  smoke reads both browsers' manifests from the default vault's launch, drives
+  the launcher with frames, and finds no launcher after its pinned first launch.
 
 - **DIAGNOSTICS ARE `INTELIGIR_DEBUG`'S NAMED TRACES, SHIPPED IN EVERY BUILD,
   AND IN THE PACKAGED APP A SWITCH AND A FILE, BOTH THE SHELL'S.** The watcher,

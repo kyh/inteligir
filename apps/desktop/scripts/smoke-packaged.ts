@@ -599,6 +599,11 @@ try {
   await stopApp(launched, dataDir);
   launched = null;
   proveHostGitUntouched();
+  // a data dir an env pins holds a server the browser's door could never find, so that launch
+  // writes no door (the default vault's launch below does)
+  if (existsSync(path.join(pinnedHome, NATIVE_HOST_LAUNCHER))) {
+    fail("the launch on a data dir an env pins wrote the browser's door");
+  }
 
   // a home with no vault and nothing pinning one opens the first run, whose window loads the page
   // the shell carries and boots nothing until a vault is chosen

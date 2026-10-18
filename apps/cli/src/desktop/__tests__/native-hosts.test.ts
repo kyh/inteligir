@@ -16,6 +16,7 @@ import {
   installNativeHost,
   installsNativeHost,
 } from "../native-hosts";
+import { resolveServerTarget } from "../server-start";
 
 const SUPPORT = path.join("Library", "Application Support");
 
@@ -208,41 +209,54 @@ describe("the browsers' door the app writes", () => {
 
 describe("whether a launch writes the door", () => {
   const unpinned = { dataDirSource: "default", vaultDirSource: "default" } as const;
+  const selected = { dataDirSource: "default", vaultDirSource: "managed-config" } as const;
+  // the shell's every child: its vault pinned so a selector rewritten since cannot move it
+  const shellChild = { dataDirSource: "default", vaultDirSource: "env" } as const;
+  // a harness, and the smoke's first launch
+  const dataDirPinned = { dataDirSource: "env", vaultDirSource: "default" } as const;
+  const bothPinned = { dataDirSource: "env", vaultDirSource: "env" } as const;
   const app = "/Applications/Inteligir.app/Contents/MacOS/node";
 
-  it("writes it from the packaged app, on the library the person chose, where it was installed", () => {
+  it("writes it from the packaged app, on a data dir the root derives, where it was installed", () => {
     expect(installsNativeHost({ execPath: app, mode: "prod", target: unpinned })).toBe(true);
-    expect(
-      installsNativeHost({
-        execPath: app,
-        mode: "prod",
-        target: { dataDirSource: "default", vaultDirSource: "managed-config" },
-      }),
-    ).toBe(true);
+    expect(installsNativeHost({ execPath: app, mode: "prod", target: selected })).toBe(true);
   });
 
-  it("never from a checkout, a launch an env pins, or an app macOS translocated", () => {
-    expect(installsNativeHost({ execPath: app, mode: "dev", target: unpinned })).toBe(false);
+  it("writes it under the shell, which pins every child's vault but never its data dir", () => {
+    expect(installsNativeHost({ execPath: app, mode: "prod", target: shellChild })).toBe(true);
+    // the env the shell's server_command hands its child, resolved as desktop-serve does
+    const homeDir = makeTempDir("inteligir-door-home-");
+    const vaultDir = path.join(homeDir, "Inteligir");
+    const childOf = (env: NodeJS.ProcessEnv) => {
+      const resolved = resolveServerTarget({ env, homeDir });
+      if (resolved.kind !== "resolved") {
+        throw new Error(resolved.error);
+      }
+      return resolved.target;
+    };
+    const shellEnv = { INTELIGIR_VAULT_DIR: vaultDir, NODE_ENV: "production" };
+    expect(installsNativeHost({ execPath: app, mode: "prod", target: childOf(shellEnv) })).toBe(
+      true,
+    );
     expect(
       installsNativeHost({
         execPath: app,
         mode: "prod",
-        target: { dataDirSource: "env", vaultDirSource: "default" },
+        target: childOf({ ...shellEnv, INTELIGIR_DATA_DIR: path.join(homeDir, "pinned") }),
       }),
     ).toBe(false);
-    expect(
-      installsNativeHost({
-        execPath: app,
-        mode: "prod",
-        target: { dataDirSource: "default", vaultDirSource: "env" },
-      }),
-    ).toBe(false);
+  });
+
+  it("never from a checkout, a data dir an env pins, or an app macOS translocated", () => {
+    expect(installsNativeHost({ execPath: app, mode: "dev", target: shellChild })).toBe(false);
+    expect(installsNativeHost({ execPath: app, mode: "prod", target: dataDirPinned })).toBe(false);
+    expect(installsNativeHost({ execPath: app, mode: "prod", target: bothPinned })).toBe(false);
     expect(
       installsNativeHost({
         execPath:
           "/private/var/folders/x/T/AppTranslocation/1234/d/Inteligir.app/Contents/MacOS/node",
         mode: "prod",
-        target: unpinned,
+        target: shellChild,
       }),
     ).toBe(false);
   });

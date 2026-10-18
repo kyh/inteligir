@@ -12,7 +12,6 @@ import { DEV_DATA_ROOT_DIR, PROD_DATA_DIR_NAME } from "../server/config";
 import type { RuntimeMode } from "../server/config";
 import { messageOf } from "../server/error-message";
 import { stagedWriteFileSync } from "../server/staged-write";
-import { selectionBlockedByEnv } from "../server/vault-switch";
 import { shellQuote } from "../shell-quote";
 import type { ServerTarget } from "./server-start";
 
@@ -187,15 +186,17 @@ export const installAppNativeHost = (args: AppNativeHostArgs): NativeHostInstall
 
 export interface NativeHostPlanArgs {
   mode: RuntimeMode;
-  target: Pick<ServerTarget, "dataDirSource" | "vaultDirSource">;
+  target: Pick<ServerTarget, "dataDirSource">;
   execPath: string;
 }
 
-// only the packaged app, on the library the person chose, from where it was installed: a launch an
-// env pins (a harness, the smoke) serves a library the door would never find, and an app macOS
+// only the packaged app, on a data dir the root derives, from where it was installed. The shell
+// pins every child's vault, so a selector rewritten since cannot move it, and never its data dir,
+// so the vault pin says nothing here; a data dir an env pins (a harness, the smoke's first launch)
+// holds a server the door, which finds one through the root, would never find. An app macOS
 // translocated runs from a read-only copy that is gone once it quits, so a launcher naming its node
 // would fail every save after
 export const installsNativeHost = (args: NativeHostPlanArgs): boolean =>
   args.mode === "prod" &&
-  selectionBlockedByEnv(args.target) === null &&
+  args.target.dataDirSource !== "env" &&
   !args.execPath.includes("/AppTranslocation/");
