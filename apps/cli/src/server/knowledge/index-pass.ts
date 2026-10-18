@@ -73,8 +73,8 @@ export interface IndexPass {
   // every folder of the vault as the last walk and the announced folder changes left them
   readonly dirs: ReadonlySet<string>;
   readonly disposed: boolean;
-  // a doc read the deadline deferred has not landed in a pass yet, so the index may still gain
-  // a path, an id or a title it does not hold now
+  // a doc read the deadline deferred has not landed in a pass yet, or a pass took it and has not
+  // applied it, so the index may still gain a path, an id or a title it does not hold now
   readsOutstanding: () => boolean;
   dispose: () => void;
 }
@@ -157,6 +157,9 @@ export const createIndexPass = (args: IndexPassArgs): IndexPass => {
 
   const pendingPaths = new Set<string>();
   let disposed = false;
+  // landed reads a pass has taken and not yet applied: the deferred reads no longer hold them,
+  // and the graph does not hold them yet
+  let landedInHand = 0;
 
   // the last stat the listing or an announced change gave each file, which a read takes as its
   // fingerprint, and the vault's folders
@@ -416,11 +419,20 @@ export const createIndexPass = (args: IndexPassArgs): IndexPass => {
   };
 
   const applyLanded = async (): Promise<void> => {
-    const updates: DocUpdate[] = [];
-    for (const [path, read] of docReads.takeLanded()) {
-      applyRead(path, read, updates);
+    const taken = docReads.takeLanded();
+    if (taken.size === 0) {
+      return;
     }
-    await applyDocUpdates(updates);
+    landedInHand += 1;
+    try {
+      const updates: DocUpdate[] = [];
+      for (const [path, read] of taken) {
+        applyRead(path, read, updates);
+      }
+      await applyDocUpdates(updates);
+    } finally {
+      landedInHand -= 1;
+    }
   };
 
   // a doc a reconcile lists under the stat its row was read at is not read again
@@ -645,7 +657,7 @@ export const createIndexPass = (args: IndexPassArgs): IndexPass => {
       return disposed;
     },
 
-    readsOutstanding: () => docReads.outstanding(),
+    readsOutstanding: () => landedInHand > 0 || docReads.outstanding(),
 
     invalidate(change) {
       if (change.kind === "paths") {

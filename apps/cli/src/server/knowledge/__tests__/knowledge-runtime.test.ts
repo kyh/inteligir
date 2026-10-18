@@ -747,6 +747,59 @@ describe("a read that has not answered by its deadline", () => {
     },
     DEFERRAL_TEST_TIMEOUT_MS,
   );
+  it(
+    "counts a landed read as out until the pass that took it has applied it",
+    async () => {
+      const dirs = makeDirs();
+      const id = "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17";
+      const moved = `---\nid: ${id}\n---\n# Moved\n`;
+      writeFileSync(nodePath.join(dirs.root, "before.md"), moved);
+      const opened: PromiseWithResolvers<void> = Promise.withResolvers();
+      const projecting: PromiseWithResolvers<void> = Promise.withResolvers();
+      const applied: PromiseWithResolvers<void> = Promise.withResolvers();
+      const inline = createInlineProjector();
+      const { knowledge } = bootIndexedVault(dirs, {
+        // the pass that takes the moved doc's late read holds in its projection, past the
+        // debounce that would start another pass
+        projector: {
+          ...inline,
+          project: async (docs) => {
+            if (docs.some((doc) => doc.path === "after.md")) {
+              projecting.resolve();
+              await applied.promise;
+            }
+            return await inline.project(docs);
+          },
+        },
+        readDeadlineMs: SHORT_DEADLINE_MS,
+        reader: stallingReads(new Set(["after.md"]), opened.promise),
+      });
+      await knowledge.settle();
+      expect(await knowledge.pathForNoteId(id, "before.md")).toBe("before.md");
+
+      writeFileSync(nodePath.join(dirs.root, "after.md"), moved);
+      rmSync(nodePath.join(dirs.root, "before.md"));
+      knowledge.invalidate({ kind: "paths", paths: ["before.md", "after.md"] });
+      expect(await knowledge.pathForNoteId(id, "before.md")).toBeNull();
+      expect(knowledge.readsOutstanding()).toBe(true);
+
+      opened.resolve();
+      await projecting.promise;
+      try {
+        expect(knowledge.readsOutstanding()).toBe(true);
+      } finally {
+        applied.resolve();
+      }
+      await vi.waitFor(
+        async () => {
+          expect(await knowledge.pathForNoteId(id, "before.md")).toBe("after.md");
+        },
+        { timeout: LANDING_TIMEOUT_MS },
+      );
+      expect(knowledge.readsOutstanding()).toBe(false);
+    },
+    DEFERRAL_TEST_TIMEOUT_MS,
+  );
 });
 
 describe("the knowledge runtime's debug trace", () => {

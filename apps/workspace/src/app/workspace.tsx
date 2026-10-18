@@ -65,6 +65,7 @@ import type { LibraryFilter } from "./library/library-items";
 import { useTidyEntry } from "./library/tidy-library";
 import { createLibrarySelection, selectionCount } from "./library/library-selection";
 import type { LibrarySelection } from "./library/library-selection";
+import { createSelectionFollow, movedItemOf } from "./library/selection-follow";
 import { LibraryView, selectionPaths } from "./library/library-view";
 import { RaindropImport } from "./library/raindrop-import";
 import type { RaindropImportHandle } from "./library/raindrop-import";
@@ -518,51 +519,45 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
   // a files-changed frame that took a selected item away takes it out of the selection, unless the
   // item only moved (a fill names a saved link's stub by its page's title): the selection, its
   // focus and Quick Look follow it there by its id, as the open item does
-  useEffect(
-    () =>
-      vaultChanges.subscribe((event) => {
-        if (event.kind !== "files" || event.paths === null) {
-          return;
+  useEffect(() => {
+    const follow = createSelectionFollow({
+      apply: selection.apply,
+      ask: async (lastPath, id) =>
+        movedItemOf(await client.knowledge.pathForNoteId({ id, lastPath })),
+    });
+    const unsubscribe = vaultChanges.subscribe((event) => {
+      if (event.kind !== "files" || event.paths === null) {
+        return;
+      }
+      const now = selection.store.getState();
+      const held = new Set([
+        ...now.selected,
+        ...[now.anchor, now.focus].filter((path) => path !== null),
+      ]);
+      const touched = event.paths.filter((path) => held.has(path)).slice(0, PRUNE_LOOKUP_MAX);
+      if (touched.length === 0) {
+        return;
+      }
+      // read now, before the change's sweep refetches the rows that name them
+      const ids = cachedItemIds(queryClient, touched);
+      void (async () => {
+        try {
+          const { items } = await client.knowledge.itemsAt({ paths: touched });
+          const still = new Set(items.map((row) => row.path));
+          follow.follow(
+            touched.filter((path) => !still.has(path)),
+            ids,
+          );
+        } catch {
+          // the next change looks again
         }
-        const now = selection.store.getState();
-        const held = new Set([
-          ...now.selected,
-          ...[now.anchor, now.focus].filter((path) => path !== null),
-        ]);
-        const touched = event.paths.filter((path) => held.has(path)).slice(0, PRUNE_LOOKUP_MAX);
-        if (touched.length === 0) {
-          return;
-        }
-        // read now, before the change's sweep refetches the rows that name them
-        const ids = cachedItemIds(queryClient, touched);
-        void (async () => {
-          try {
-            const { items } = await client.knowledge.itemsAt({ paths: touched });
-            const still = new Set(items.map((row) => row.path));
-            const gone = touched.filter((path) => !still.has(path));
-            const moves = new Map<string, string>();
-            for (const path of gone) {
-              const id = ids.get(path);
-              if (id === undefined) {
-                continue;
-              }
-              const found = await client.knowledge.pathForNoteId({ id, lastPath: path });
-              if (found.path !== null && found.path !== path) {
-                moves.set(path, found.path);
-              }
-            }
-            selection.apply({ kind: "moved", moves });
-            selection.apply({
-              gone: new Set(gone.filter((path) => !moves.has(path))),
-              kind: "prune",
-            });
-          } catch {
-            // the next change looks again
-          }
-        })();
-      }),
-    [vaultChanges, selection, queryClient],
-  );
+      })();
+    });
+    return () => {
+      unsubscribe();
+      follow.dispose();
+    };
+  }, [vaultChanges, selection, queryClient]);
 
   // oxlint-disable-next-line react/hook-use-state -- a per-mount constant: React's lazy initializer, no setter exists
   const [initialSidebarWidth] = useState(() => `${String(readPref(PREFS.sidebarWidth))}px`);

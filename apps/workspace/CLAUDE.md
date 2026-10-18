@@ -308,7 +308,9 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   dialog (`apps/workspace/src/app/library/library-grid.tsx`). A selected item
   that moved under the grid (a fill names a saved link's stub by its page's
   title) is followed by its id, its focus and Quick Look with it, as the open
-  item is (`apps/workspace/src/app/workspace.tsx`). The store is the
+  item is: while the index still has a read out it stays selected and is asked
+  after again on the open item's schedule, then pruned at its end
+  (`apps/workspace/src/app/library/selection-follow.ts`). The store is the
   workspace's, made once beside the grid's scroll, so
   the panel's Info and the composer read the same selection the grid draws and
   an item opened over the grid comes back to it. Rejected: click-to-open, because

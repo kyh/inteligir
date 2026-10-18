@@ -85,8 +85,11 @@ and cited.
   pass; the deadline runs from the call, so a read still waiting for a slot is
   deferred too. A new path has no last entry, so while such a read is out
   `knowledge.pathForNoteId` answers a null as `pending`, and the window keeps an
-  item that moved rather than take it for gone (`readsOutstanding` in
-  `apps/cli/src/server/knowledge/deferred-reads.ts`, read by
+  item that moved rather than take it for gone; a read counts as out until the
+  pass that took it has applied it, since the router asks after its settle and a
+  queued pass can take what landed before the answer leaves (`readsOutstanding`
+  in `apps/cli/src/server/knowledge/deferred-reads.ts` and
+  `apps/cli/src/server/knowledge/index-pass.ts`, read by
   `apps/cli/src/server/knowledge/knowledge-router.ts`). The budget is the vault
   service's own, around the open of a file's bytes in `read` and `readBytes`
   (`apps/cli/src/server/vault/read-slots.ts`): 3 at once, whoever asked, because

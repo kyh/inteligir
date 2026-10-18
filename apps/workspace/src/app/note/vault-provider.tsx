@@ -37,6 +37,7 @@ import type { ReactNode, RefObject } from "react";
 
 import { client } from "../api";
 import { useWorkspace } from "../workspace-context";
+import { movedItemOf } from "../library/selection-follow";
 import { createGuardedVaultPort } from "./guarded-vault-io";
 
 const noOpenPathMirror = (): void => {
@@ -141,13 +142,8 @@ const createVaultPort = ({ bootPath, queryClient, store }: VaultPortInputs): Vau
     publishListing: linkResolver.setListing,
     // a move the page did not make (a fill's rename, an agent's) is followed by the item's id;
     // a null while the index still has a read out is no answer yet, so the item is not let go
-    findMoved: async (lastPath, id) => {
-      const { path, pending } = await client.knowledge.pathForNoteId({ id, lastPath });
-      if (path !== null) {
-        return { kind: "at", path };
-      }
-      return pending ? { kind: "unknown" } : { kind: "gone" };
-    },
+    findMoved: async (lastPath, id) =>
+      movedItemOf(await client.knowledge.pathForNoteId({ id, lastPath })),
     publishOpenPath: (path, change) => {
       store.publishOpenPath(path, change);
       mirrorOpenPath(path);

@@ -98,7 +98,7 @@ const carriedNote = (
 // how long the open item waits for each next answer while the index cannot yet say where it went;
 // past the last, about 14 s in all, it is taken as gone. A vault change asks again sooner, never
 // later, so a stream of changes cannot hold the item open past the bound.
-const FOLLOW_ASK_AGAIN_MS: readonly number[] = [
+export const FOLLOW_ASK_AGAIN_MS: readonly number[] = [
   100,
   250,
   500,
