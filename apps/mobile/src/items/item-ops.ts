@@ -11,6 +11,7 @@ import { formatItemTime } from "@repo/notes/items/item-time";
 import { isWebUrl, urlKey } from "@repo/notes/items/item-url";
 import { freeDocPath } from "@repo/notes/knowledge/doc-file";
 import type { NotesStore } from "../notes/notes-store";
+import { linkInText } from "./link-in-text";
 
 export type SavedItem =
   | { kind: "saved"; path: string }
@@ -37,25 +38,6 @@ const MAX_NAME_ATTEMPTS = 3;
 const NAME_TAKEN = "That name kept being taken. Try again.";
 
 const NOTHING_TO_SAVE = "Type a link or a thought to save.";
-
-// a link inside typed or shared text, up to the first space; the punctuation a sentence puts after
-// a link is the sentence's
-const LINK_IN_TEXT = /https?:\/\/[^\s<>"'`]+/iu;
-const TRAILING_PUNCTUATION = /[.,;:!?)\]}]+$/u;
-
-const linkIn = (text: string): { url: string; rest: string } | null => {
-  const found = LINK_IN_TEXT.exec(text);
-  if (found === null) {
-    return null;
-  }
-  const url = found[0].replace(TRAILING_PUNCTUATION, "");
-  if (!isWebUrl(url)) {
-    return null;
-  }
-  // the punctuation after the link goes with it, so the note keeps no stray mark
-  const rest = `${text.slice(0, found.index)}${text.slice(found.index + found[0].length)}`.trim();
-  return { rest, url };
-};
 
 const firstLine = (text: string): string =>
   text.split(/\r?\n/u).find((line) => line.trim() !== "") ?? "";
@@ -107,7 +89,7 @@ export const createItemOps = ({ newId, now, store }: ItemOpsArgs): ItemOps => {
       if (trimmed === "") {
         return { kind: "refused", message: NOTHING_TO_SAVE };
       }
-      const link = linkIn(trimmed);
+      const link = linkInText(trimmed);
       if (link !== null) {
         return await saveLink({
           note: link.rest === "" ? null : link.rest,

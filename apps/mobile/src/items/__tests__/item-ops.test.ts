@@ -140,6 +140,16 @@ describe("saving text from the phone", () => {
     });
   });
 
+  it("keeps a closing bracket the link opened, so its key finds the item it is", async () => {
+    const vault = createFakeVault({
+      "Reading/Foo.md": stub("https://en.wikipedia.org/wiki/Foo_(bar)"),
+    });
+    const { items } = await phone(vault);
+    expect(
+      await items.saveText("For Tuesday (https://en.wikipedia.org/wiki/Foo_(bar))."),
+    ).toStrictEqual({ kind: "already", path: "Reading/Foo.md" });
+  });
+
   it("saves any other text as a note in Unsorted named by its first line", async () => {
     const vault = createFakeVault({});
     const { items, store } = await phone(vault);
