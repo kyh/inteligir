@@ -13,6 +13,7 @@ import { registerLiveEditor } from "@repo/editor/live-editor";
 import { PROFILE_KITS } from "@repo/editor/markdown-editor";
 import { OpenNoteStoreProvider } from "@repo/editor/note/open-note-context";
 import type { OpenNoteStore } from "@repo/editor/note/open-note-store";
+import { EDITOR_CHUNK } from "@repo/editor/style-hooks";
 
 export const EditorHarness = ({
   value,
@@ -21,6 +22,7 @@ export const EditorHarness = ({
   livePath,
   nodeIds = false,
   profile = "desktop",
+  chunkSize,
 }: {
   value: Value;
   store: OpenNoteStore;
@@ -31,8 +33,16 @@ export const EditorHarness = ({
   nodeIds?: boolean;
   // the kit the app mounts for that hand
   profile?: EditorProfile;
+  // the top level in runs of this many blocks, each a box as the app draws it
+  chunkSize?: number;
 }) => {
-  const editor = usePlateEditor({ nodeId: nodeIds, plugins: PROFILE_KITS[profile], value });
+  const editor = usePlateEditor({
+    // Plate's own default unless a size is asked for
+    chunking: chunkSize === undefined ? true : { chunkSize, contentVisibilityAuto: false },
+    nodeId: nodeIds,
+    plugins: PROFILE_KITS[profile],
+    value,
+  });
   useImperativeHandle(ref, () => editor, [editor]);
   useEffect(() => {
     if (livePath === undefined) {
@@ -43,7 +53,17 @@ export const EditorHarness = ({
   return (
     <OpenNoteStoreProvider store={store}>
       <Plate editor={editor}>
-        <PlateContent />
+        <PlateContent
+          renderChunk={({ attributes, children, lowest }) =>
+            lowest ? (
+              <div {...attributes} className={EDITOR_CHUNK}>
+                {children}
+              </div>
+            ) : (
+              children
+            )
+          }
+        />
       </Plate>
     </OpenNoteStoreProvider>
   );

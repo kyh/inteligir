@@ -121,6 +121,7 @@
     "./properties/properties-node": "./src/properties/properties-node.ts",
     "./properties/properties-panel": "./src/properties/properties-panel.tsx",
     "./properties/property-fields": "./src/properties/property-fields.tsx",
+    "./run-anchoring": "./src/run-anchoring.ts",
     "./scroll-reveal": "./src/scroll-reveal.ts",
     "./selection-toolbar": "./src/selection-toolbar.tsx",
     "./slash-items": "./src/slash-items.tsx",

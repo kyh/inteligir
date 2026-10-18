@@ -226,7 +226,10 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   names with its reason, and their times are held as ratios (a keystroke to how it
   grows with the note and to the parse of the same note, the settle to that
   parse), so a slow runner cannot fail them but a store atom every block holds
-  does. A pass is found, never declared: a block near the note's end
+  does; the two such atoms Plate carries, its navigation flash and its
+  flat-model toggle hider, read no block and are held off by name
+  (`packages/editor/src/__tests__/per-block-subscriptions.test.tsx`). A pass is
+  found, never declared: a block near the note's end
   records the stack of every read of it, so a new pass fails named by its
   function, where instrumenting the known passes would miss the one nobody
   instrumented. A pass a keystroke cannot afford caches by top-level block,
@@ -282,9 +285,27 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   `packages/editor/src/editor-chrome.tsx`, `.editor-chunk` in
   `packages/editor/src/styles.css`). The box overhangs the column by the gutter,
   because paint containment clips to it and the drag handle, a fold's chevron and
-  a task's checkbox hang left of their block; a jump further than about a screen
-  lands at once, because a glide across runs not yet drawn aims where its target
-  sat before they drew (`packages/editor/src/scroll-reveal.ts`). What a keystroke
+  a task's checkbox hang left of their block; what would hang below a run's last
+  block sits in its block's own box (the table's add-row bar), and a block being
+  dragged, or dropped by, unclips its run while the drag lasts. A run is a
+  flow-root, so unclipping moves no margin and a copy across two runs writes no
+  blank line between them. A jump further than about a screen lands at once,
+  because a glide across runs not yet drawn aims where its target sat before
+  they drew (`packages/editor/src/scroll-reveal.ts`). WebKit, the Mac app's and
+  the phone's engine, keeps no scroll anchor, so where `overflow-anchor` is
+  unsupported the editor keeps one: a run wholly above the view that changes
+  size, or one that first draws with its top above the view's, moves the
+  scroller by as much, except the run a jump or the caret landed in, which the
+  jump laid out before it scrolled; and a far jump holds its target where it
+  landed until the person scrolls (`holdInView` in
+  `packages/editor/src/run-anchoring.ts`; `tools/e2e/src/scenarios/long-note-desktop.ts`
+  proves the find bar's jumps and the scroll back up in the WebKitGTK shell).
+  Rejected: content-visibility only where the engine anchors itself, which kept
+  the paint skip out of the shipped app. The outline places its scanner line by the runs'
+  boxes before it measures a heading, since a heading measured in a run not yet
+  drawn lays out past the run's estimate (`activeHeadingAt` in
+  `packages/editor/src/toc.tsx`), and print draws every run, since WebKit prints
+  nothing a run skipped (`apps/workspace/src/styles/print.css`). What a keystroke
   cost in a 10k-line note was not Plate's own floor: React read the focused
   editable's whole text before every commit (`patches/react-dom@19.2.8.patch`),
   Plate's flat-model toggle hider and its navigation flash held a store atom per

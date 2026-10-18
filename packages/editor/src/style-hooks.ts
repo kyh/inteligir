@@ -24,3 +24,6 @@ export const DIAGRAM_PREVIEW = "diagram-preview";
 
 // a long note's run of top-level blocks, which skips its layout and paint while off screen.
 export const EDITOR_CHUNK = "editor-chunk";
+
+// a block being dragged, or the one it would land by: its run stops clipping while it lasts.
+export const DRAG_OVERHANG_ATTR = "data-drag-overhang";

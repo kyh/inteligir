@@ -48,9 +48,11 @@ const CLOSING_BLOCK = "The end.";
 // 64x. A store atom every block holds is recomputed on every change: Plate's toggle hider or its
 // navigation flash alone put a keystroke back at 120ms, 6-7x and 0.06 of the parse, and the two
 // beside the old annotation pairing cost 0.2 of it. A memory-starved CI runner's garbage collection
-// pushes a ratio up by about half, so the ceilings leave that room over the recorded costs.
-const KEYSTROKE_GROWTH_CEILING = 6;
-const KEYSTROKE_TO_PARSE_CEILING = 0.05;
+// pushes a ratio up by about half, so the ceilings leave that room over the recorded costs, and
+// sit well under those atoms' cost; the two atoms read no block's content, so this suite's watched
+// block never names them, and per-block-subscriptions.test.tsx holds them off by name.
+const KEYSTROKE_GROWTH_CEILING = 5;
+const KEYSTROKE_TO_PARSE_CEILING = 0.035;
 const SETTLE_TO_PARSE_CEILING = 1;
 // a hang backstop, never a budget: the costs are ratios, so a runner half as fast takes twice as long
 // and still passes, and CI's job limit is the outer bound

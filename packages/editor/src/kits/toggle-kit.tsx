@@ -49,10 +49,10 @@ const toggleInputRule = createBlockStartInputRule({
 // The flat model's hider and its index are off: a toggle's body is its own children, so no
 // top-level block is enclosed by indent, and the hider was a store atom per block that every
 // change recomputed beside a walk of the top level, most of a keystroke in a long note.
-const wrapNoBlock = (): undefined => {
+export const wrapNoBlock = (): undefined => {
   /* no block is hidden by a toggle above it */
 };
-const indexNoToggles = (): void => {
+export const indexNoToggles = (): void => {
   /* the toggle index stays empty, so no block reads as inside a closed toggle */
 };
 

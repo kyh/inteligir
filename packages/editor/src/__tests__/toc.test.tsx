@@ -131,6 +131,48 @@ describe("the scroll spy", () => {
   });
 });
 
+const runBox = (el: Element | undefined, top: number, height: number): void => {
+  if (el !== undefined) {
+    el.getBoundingClientRect = () => DOMRect.fromRect({ height, width: 800, x: 0, y: top });
+  }
+};
+
+describe("the scroll spy over a long note's runs", () => {
+  it("places the line by the runs' boxes, where a run not yet drawn measures its headings past it", () => {
+    // a first run of 100 headings, then a run that alternates a heading and a paragraph
+    const value: Value = [
+      ...Array.from({ length: 100 }, (_, index) => h("h2", `Early ${String(index)}`)),
+      ...Array.from({ length: 100 }, (_, index) =>
+        index % 2 === 0 ? h("h2", `Late ${String(index / 2)}`) : p("body"),
+      ),
+    ];
+    const ref = createRef<PlateEditor>();
+    render(<EditorHarness value={value} store={createOpenNoteStore()} ref={ref} chunkSize={100} />);
+    const editor = ref.current;
+    if (editor === null) {
+      throw new Error("the editor did not mount");
+    }
+    const runs = [...document.querySelectorAll("[data-slate-chunk]")];
+    expect(runs).toHaveLength(2);
+    const [early, late] = runs;
+    // the first run sits above the view at its estimate, the second holds the scanner line at 72px
+    runBox(early, -10_000, 9000);
+    runBox(late, -1000, 2000);
+    const headings = collectHeadings(editor);
+    for (const [index, heading] of headings.entries()) {
+      const el = headingElement(editor, heading);
+      if (el === null) {
+        throw new Error("every heading draws");
+      }
+      // a heading measured inside the undrawn run lays out at its real height, past the run's box
+      const top = index < 100 ? 5000 : -1000 + (index - 100) * 40;
+      el.getBoundingClientRect = () => DOMRect.fromRect({ height: 20, width: 100, x: 0, y: top });
+    }
+    // Late 26 sits at 40px, Late 27 at 80px, under the line
+    expect(headings[activeHeadingAt(editor, headings, spyScroller())]?.title).toBe("Late 26");
+  });
+});
+
 describe("the rail window", () => {
   it("keeps the active row inside the capped rail", () => {
     expect(railWindow(25, 0)).toEqual({ end: TOC_RAIL_CAP, start: 0 });

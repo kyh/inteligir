@@ -12,6 +12,7 @@ import type { PlateContentProps } from "platejs/react";
 
 import { useEditorProfile } from "@repo/editor/editor-profile";
 import type { EditorProfile } from "@repo/editor/editor-profile";
+import { anchorRun } from "@repo/editor/run-anchoring";
 import { EDITOR_CHUNK, TYPESET, TYPESET_DOCS } from "@repo/editor/style-hooks";
 import { cn } from "@repo/ui/lib/cn";
 
@@ -43,7 +44,7 @@ const EDITOR_CLASS = cn(
 // only a run of blocks draws a box: a chunk of chunks adds nothing to the dom
 const EditorChunk: RenderChunkFn = ({ attributes, children, lowest }) =>
   lowest ? (
-    <div {...attributes} className={EDITOR_CHUNK}>
+    <div {...attributes} ref={anchorRun} className={EDITOR_CHUNK}>
       {children}
     </div>
   ) : (

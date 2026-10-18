@@ -71,6 +71,7 @@ import { vaultSearchBrowser } from "./scenarios/vault-search-browser";
 import { vaultSync } from "./scenarios/vault-sync";
 import { viewContextBrowser } from "./scenarios/view-context-browser";
 import { viewersDesktopIntegrated } from "./scenarios/viewers-desktop-integrated";
+import { longNoteDesktop } from "./scenarios/long-note-desktop";
 
 const SCENARIOS: readonly Scenario[] = [
   vaultCrud,
@@ -133,6 +134,7 @@ const SCENARIOS: readonly Scenario[] = [
   extensionIntegrated,
   phoneFillIntegrated,
   viewersDesktopIntegrated,
+  longNoteDesktop,
   agentSaveIntegrated,
 ];
 

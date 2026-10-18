@@ -27,12 +27,22 @@
 /* a long note renders in runs of blocks, and a run off screen skips its layout and paint, held at
    an estimate of its height until it first draws and at its last height after. paint containment
    clips to the run's own box, so it overhangs the column by the gutter the drag handle, a
-   heading's fold, a task's checkbox and a highlight's dot hang in. */
+   heading's fold, a task's checkbox and a highlight's dot hang in. A run is a flow-root, its own
+   formatting context whether it contains or not, so dropping the containment moves no margin;
+   and no block to the plain text a copy writes, which ends a line after every display: block
+   (slate-dom's getPlainText), so a copy across two runs gains no blank line at their edge. */
 .editor-chunk {
+  display: flow-root;
   content-visibility: auto;
   contain-intrinsic-block-size: auto 300em;
   margin-inline: -3rem;
   padding-inline: 3rem;
+}
+
+/* a block being dragged draws wherever the pointer takes it, and the line where it would land may
+   sit on its run's edge, so neither run clips while the drag lasts */
+.editor-chunk:has([data-drag-overhang]) {
+  content-visibility: visible;
 }
 
 /* typeset trims the note's first block's top margin, which the first run's box would hold apart */

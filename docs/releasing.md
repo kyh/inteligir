@@ -292,6 +292,14 @@ app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
   Inspector's network panel shows whether those requests carried
   `Sec-Fetch-Site`; either way they are answered. A `curl` of the same asset
   URL with the `m` token and no cookie answers 401.
+- **A long article.** Open a saved article of more than 300 blocks (a long
+  Wikipedia page). Press ⌘F, find a word near its end, and Return. Passing:
+  the match lands centred and holds still. Scroll back up to the top with the
+  trackpad. Passing: the text moves only as far as you scroll, with no leap.
+  Choose Export as PDF. Passing: the PDF holds the article's last paragraph, and
+  no page in it is blank. Drag a block past the 100th one down the note.
+  Passing: the dragged block stays in sight the whole way. Hover a table that
+  ends at the 100th block. Passing: its add-row bar shows and adds a row.
 - **Big files.** Passing: a 50 MB file dropped in Finder shows "Only on this
   Mac" in Info, and sync stays green; twenty 8 MB PDFs reach the online library
   in several pushes; a synced 9 MB file grown past 10 MB on one Mac shows in
