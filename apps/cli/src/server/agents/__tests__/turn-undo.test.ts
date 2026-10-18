@@ -358,6 +358,22 @@ const writeFileBytes = async (
   await writeFile(absolute, bytes);
 };
 
+// a cover as a save keeps one, through the vault, which tells the index the file is there, so an
+// embed of it resolves. one written past the vault reaches the index only through the watcher,
+// which no suite here runs, or a reconcile, which the boot's own write may have run already.
+const saveCover = async (
+  harness: ThreadHarness,
+  coverPath: string,
+  bytes: Uint8Array,
+): Promise<void> => {
+  const written = await harness.vault.service.writeAsset(
+    path.posix.dirname(coverPath),
+    path.posix.basename(coverPath),
+    bytes,
+  );
+  expect(written.path).toBe(coverPath);
+};
+
 const bytesOnDisk = (harness: ThreadHarness, filePath: string): Uint8Array | null => {
   const absolute = path.join(harness.vaultDir, filePath);
   return existsSync(absolute) ? new Uint8Array(readFileSync(absolute)) : null;
@@ -404,7 +420,7 @@ describe("undoing a turn's files", () => {
     const cover = "assets/covers/0123456789abcdef.png";
     const threadId = await createThread(harness.client);
     const turn = await startTurn(harness, threadId);
-    await writeFileBytes(harness, cover, pngBytes(4));
+    await saveCover(harness, cover, pngBytes(4));
     await agentWrites(harness, turn, "Unsorted/Agent's.md", doc(`![](${cover})`, "", "theirs"));
     turn.writes.recordPaths([cover]);
     await settle(harness, turn);
@@ -425,7 +441,7 @@ describe("undoing a turn's files", () => {
     const cover = "assets/covers/fedcba9876543210.png";
     const threadId = await createThread(harness.client);
     const turn = await startTurn(harness, threadId);
-    await writeFileBytes(harness, cover, pngBytes(5));
+    await saveCover(harness, cover, pngBytes(5));
     await agentWrites(harness, turn, "Unsorted/Agent's.md", doc(`![](${cover})`, "", "theirs"));
     turn.writes.recordPaths([cover]);
     await settle(harness, turn);

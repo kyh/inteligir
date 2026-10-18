@@ -6,6 +6,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { crc32, deflateSync } from "node:zlib";
 import {
   itemSaveResponseSchema,
   itemsRefreshResponseSchema,
@@ -13,7 +14,7 @@ import {
 import { describe, expect, it } from "vitest";
 import { saveStdinOutputSchema } from "../commands/save";
 import { bootTestApp, listenTestApp, TEST_SERVER_TOKEN } from "../server/__tests__/boot-app";
-import { fakeFetcher, pngOf } from "../server/items/capture/__tests__/capture-harness";
+import { fakeFetcher } from "../server/items/capture/__tests__/capture-harness";
 import type { Route } from "../server/items/capture/__tests__/capture-harness";
 import { loopbackOrigin } from "../server/server-file";
 import { FIXTURE_PAGE_PATH } from "./command-tree";
@@ -46,6 +47,39 @@ const ARTICLE = pageOf(
   `<meta property="og:image" content="${COVER_URL}">`,
 );
 
+// a chunk of a PNG: its length, its type, its body and the CRC over the type and the body
+const pngChunk = (type: string, body: Uint8Array): Buffer => {
+  const typed = Buffer.concat([Buffer.from(type, "latin1"), body]);
+  const framed = Buffer.alloc(typed.length + 8);
+  framed.writeUInt32BE(body.length, 0);
+  framed.set(typed, 4);
+  framed.writeUInt32BE(crc32(typed), typed.length + 4);
+  return framed;
+};
+
+// a whole PNG of one opaque grey, decodable to its last byte: this suite's server downscales with
+// the platform's own tool, on macOS `sips`, which decodes the picture and answers nothing for a
+// header alone; at 640 px it is within the cover's edge, so every platform keeps it as it is, a PNG
+const solidPng = (width: number, height: number): Uint8Array => {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  // eight bits a channel, RGB, the standard compression and filter methods, not interlaced
+  header.set([8, 2, 0, 0, 0], 8);
+  // each scanline is its filter byte (none) and the row's RGB samples
+  const scanline = Buffer.alloc(1 + width * 3, 0x80);
+  scanline[0] = 0;
+  const pixels = Buffer.concat(Array.from({ length: height }, () => scanline));
+  return new Uint8Array(
+    Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      pngChunk("IHDR", header),
+      pngChunk("IDAT", deflateSync(pixels)),
+      pngChunk("IEND", new Uint8Array(0)),
+    ]),
+  );
+};
+
 const bootCli = async (routes: Record<string, Route>) => {
   const fetcher = fakeFetcher(routes);
   const booted = await bootTestApp({ items: { fetcher } });
@@ -72,7 +106,7 @@ describe("save on the command line", { timeout: 120_000 }, () => {
   it("reads the page, names the item after it with its cover first, and answers a held link", async () => {
     const { cli, onDisk } = await bootCli({
       [ARTICLE_URL]: { html: ARTICLE },
-      [COVER_URL]: { bytes: pngOf(640, 400), mediaType: "image/png" },
+      [COVER_URL]: { bytes: solidPng(640, 400), mediaType: "image/png" },
     });
 
     const saved = await cli(["save", `${ARTICLE_URL}?utm_source=feed`, "--json"]);

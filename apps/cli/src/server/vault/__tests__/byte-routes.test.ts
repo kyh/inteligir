@@ -8,6 +8,7 @@ import { bootTestApp } from "../../__tests__/boot-app";
 import { identityLock } from "../../__tests__/identity-lock";
 import { ignoreFromDisk } from "../../__tests__/ignore-from-disk";
 import { makeTempDir } from "../../__tests__/temp-dir";
+import { createImageDownscale } from "../../media/image-downscale";
 import type { ImageDownscale } from "../../media/image-downscale";
 import { createThumbCache, THUMB_CACHE_MAX_BYTES } from "../thumb-cache";
 import { handleVaultThumb } from "../thumb-route";
@@ -231,8 +232,11 @@ describe("the page-copy route", () => {
 
 describe("the thumb route", () => {
   it("serves a cached thumbnail, and the original or nothing when nothing could resize it", async () => {
-    const { request, vaultDir, dataDir } = await bootTestApp();
-    // on this platform the downscale passes a small raster through and answers null otherwise
+    // the downscale where nothing resizes, named rather than this host's, since the Mac's own tool
+    // refuses these unreadable PNGs: it passes a small raster through and answers null otherwise
+    const { request, vaultDir, dataDir } = await bootTestApp({
+      downscale: createImageDownscale({ platform: "linux" }),
+    });
     await writeFile(path.join(vaultDir, "small.png"), pngOf(100));
     await writeFile(path.join(vaultDir, "medium.png"), pngOf(1536 * 1024));
     await writeFile(path.join(vaultDir, "large.png"), pngOf(3 * 1024 * 1024));

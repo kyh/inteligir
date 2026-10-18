@@ -107,9 +107,12 @@ describe("the browsers' door the app writes", () => {
       },
     });
     const ran: unknown = JSON.parse(printed);
+    const handed = { HOME: home, NODE_ENV: "production" };
     expect(ran).toEqual({
       args: ["native-host", EXTENSION_ORIGIN],
-      env: { HOME: home, NODE_ENV: "production" },
+      // exactly what the launcher handed, or that and the one variable macOS adds to every
+      // process: it sets __CF_USER_TEXT_ENCODING inside the process itself, past any `env -i`
+      env: expect.toBeOneOf([handed, { ...handed, __CF_USER_TEXT_ENCODING: expect.any(String) }]),
     });
   });
 

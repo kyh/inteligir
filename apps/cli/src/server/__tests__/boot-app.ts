@@ -27,6 +27,7 @@ import { SignInInProgressError } from "../agents/agent-sign-in";
 import type { AgentAccounts, SigningIn } from "../agents/agent-sign-in";
 import type { AppConfig } from "../config";
 import type { ItemsService } from "../items/items-service";
+import type { ImageDownscale } from "../media/image-downscale";
 import { createInlineProjector } from "../knowledge/__tests__/inline-projector";
 import { closeServer } from "../listen";
 import { localRouter } from "../root-router";
@@ -172,6 +173,9 @@ export interface BootTestAppOptions {
   // the capture's fetch, worker and clock; absent, a fetch that never answers, so a saved link
   // stays a stub and no page leaves the machine.
   items?: CapturePorts;
+  // the thumb route's downscale; absent, the one compose built for this host, which on a Mac is
+  // the system's own tool.
+  downscale?: ImageDownscale;
   makeDriver?: (deps: {
     db: DbConnection;
     bus: WsBus;
@@ -300,7 +304,10 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
   const wired = createApp({
     bus: runtime.bus,
     clientDir: options.clientDir ?? null,
-    context: runtime.context,
+    context:
+      options.downscale === undefined
+        ? runtime.context
+        : { ...runtime.context, downscale: options.downscale },
     serverToken: TEST_SERVER_TOKEN,
     uiDevOrigin: options.uiDevOrigin ?? null,
   });
