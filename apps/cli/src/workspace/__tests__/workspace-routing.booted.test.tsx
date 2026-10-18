@@ -1,7 +1,10 @@
+import { existsSync } from "node:fs";
+import nodePath from "node:path";
 import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
 import type { RouterHistory } from "@tanstack/react-router";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { bootTestApp } from "../../server/__tests__/boot-app";
+import type { BootTestAppOptions } from "../../server/__tests__/boot-app";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PREFS, readPref, writePref } from "@repo/workspace/app/prefs";
@@ -40,8 +43,9 @@ const shownItem = (): string | null =>
 const bootAt = async (
   history: RouterHistory,
   socket: typeof InertSocket | typeof ScriptedSocket = InertSocket,
+  options: BootTestAppOptions = {},
 ) => {
-  const booted = await bootTestApp();
+  const booted = await bootTestApp(options);
   vi.stubGlobal("WebSocket", socket);
   layOutCardGrids();
   routePageFetch(booted);
@@ -234,6 +238,46 @@ describe("Settings over the workspace", () => {
     await waitFor(() => {
       expect(shownItem()).toBe("gamma.md");
     });
+  });
+
+  // the index says where an item went only once it has read the new path, and a read slower than
+  // its deadline lands later: the window waits for that answer rather than drop the item
+  it("keeps the open item while the index has not read where it moved, then follows it", async () => {
+    const history = createMemoryHistory({ initialEntries: ["/?item=alpha.md"] });
+    const searches: string[] = [];
+    history.subscribe(() => {
+      searches.push(history.location.search);
+    });
+    const { booted, router } = await bootAt(history, ScriptedSocket, {
+      readDeadlineMs: 50,
+      slowReads: { delayMs: 800, path: "gamma.md" },
+    });
+    await screen.findByRole("heading", { name: "Alpha" });
+
+    // the move lands before the rename answers, whose alias write waits on the slow read
+    const renamed = booted.client.vault.rename({ from: "alpha.md", to: "gamma.md" });
+    await vi.waitFor(() => {
+      expect(existsSync(nodePath.join(booted.vaultDir, "gamma.md"))).toBe(true);
+    });
+    act(() => {
+      ScriptedSocket.deliverToAll({
+        changes: ["files-changed"],
+        entity: "vault",
+        paths: ["alpha.md", "gamma.md"],
+        type: "changed",
+      });
+    });
+    await renamed;
+
+    await waitFor(
+      () => {
+        expect(router.state.location.search).toEqual({ item: "gamma.md" });
+      },
+      { timeout: 10_000 },
+    );
+    expect(searches.filter((search) => !search.includes("item="))).toEqual([]);
+    await screen.findByRole("heading", { name: "Alpha" }, { timeout: 10_000 });
+    expect(shownItem()).toBe("gamma.md");
   });
 
   it("lets an item with no id go when it moves, and the url with it", async () => {

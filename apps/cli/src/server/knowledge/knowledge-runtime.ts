@@ -52,7 +52,7 @@ export interface KnowledgeRuntimeArgs {
   // owned: dispose() disposes it first, so a pass mid-projection is released, not waited out
   projector: Projector;
   // a suite shortens it rather than stalling a read for seconds
-  readDeadlineMs?: number;
+  readDeadlineMs?: number | undefined;
   debugLog?: DebugLog | undefined;
   // the attachments pref's folder when it names one, which the rail's folder tree leaves out
   attachmentsFolder?: () => string | null;
@@ -80,6 +80,9 @@ export interface KnowledgeRuntime {
   // the doc whose frontmatter `id` this is: `lastPath` while it still is, else the id tier's own
   // pick; null when no indexed doc carries it
   pathForNoteId: (id: string, lastPath: string) => Promise<string | null>;
+  // a doc read the deadline deferred has not landed yet: a null from `pathForNoteId` may be a
+  // move whose new path the index has not read, rather than an id no doc carries
+  readsOutstanding: () => boolean;
   relatedNotes: (path: string, limit: number) => Promise<RelatedNoteEntry[]>;
   tags: () => Promise<TagCount[]>;
   // pre-move path to post-move path: one entry for a note, one per file under a folder
@@ -316,6 +319,8 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
       await settle();
       return graph.pathForNoteId(id, normalizePath(lastPath));
     },
+
+    readsOutstanding: () => indexPass.readsOutstanding(),
 
     // the ranked read: the probe runs once per title token and keeps only the score, so search's excerpts would be wasted.
     async relatedNotes(path, limit) {

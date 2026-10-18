@@ -66,7 +66,8 @@ interface ComposeDriverDeps {
 
 export interface ComposePorts {
   // a suite runs the scan inline: a worker booted from source costs every compose seconds
-  knowledge?: Pick<KnowledgeRuntimeArgs, "projector">;
+  // a suite's inline projector, and the read deadline it stalls a doc past
+  knowledge?: Pick<KnowledgeRuntimeArgs, "projector" | "readDeadlineMs">;
   // a suite's vendor configs live under its own temp dir; unset, each vendor's own on this Mac.
   connectors?: VendorMcpConfigs;
   // what this device is called before any sign-in names it; unset, the machine's own name.
@@ -167,6 +168,7 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
       bus.notifyVault(["targets-changed"]);
     },
     projector: ports.knowledge?.projector ?? createProjectionWorker(),
+    readDeadlineMs: ports.knowledge?.readDeadlineMs,
     vault: vault.service,
     vaultRoot: config.vaultDir,
   });

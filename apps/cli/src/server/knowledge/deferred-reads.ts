@@ -26,6 +26,9 @@ export interface DeferredReads<T> {
   // the path and everything under it changed: drop what is queued or landed for it, and read
   // again whatever is still out once that lands
   forget: (path: string) => void;
+  // a read is still out, queued, or landed with no pass to take it yet: what the caller answers
+  // meanwhile is missing whatever those reads hold
+  outstanding: () => boolean;
   dispose: () => void;
 }
 
@@ -157,6 +160,8 @@ export const createDeferredReads = <T>(args: DeferredReadsArgs<T>): DeferredRead
         }
       }
     },
+
+    outstanding: () => unawaited.size > 0 || queued.size > 0 || landed.size > 0,
 
     // a runner stops at a full budget rather than queueing, since the slot it waits for may be a
     // sibling's; only the last one out, with every slot held by a read nobody awaits, queues the rest

@@ -132,9 +132,12 @@ const scopes = base.knowledge.scopes.handler(
   async ({ context }) => await context.knowledge.scopes(),
 );
 
-const pathForNoteId = base.knowledge.pathForNoteId.handler(async ({ context, input }) => ({
-  path: await context.knowledge.pathForNoteId(input.id, input.lastPath),
-}));
+// a null while a deferred read is still out may be a move whose new path the index has not read,
+// so it says so, and the window keeps the item open rather than read it as gone
+const pathForNoteId = base.knowledge.pathForNoteId.handler(async ({ context, input }) => {
+  const path = await context.knowledge.pathForNoteId(input.id, input.lastPath);
+  return { path, pending: path === null && context.knowledge.readsOutstanding() };
+});
 
 export const knowledgeRouter = {
   backlinks,

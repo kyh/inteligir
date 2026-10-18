@@ -7,12 +7,13 @@ import type { VaultChangedEvent, VaultEntry } from "@repo/editor/host-io";
 import type { OpenPathChange } from "@repo/editor/note/open-note-store";
 import { createVaultSession } from "@repo/editor/note/vault-session";
 import type {
+  MovedItem,
   RenameResult,
   VanishedChoice,
   VaultSessionPorts,
 } from "@repo/editor/note/vault-session";
 import type { VaultEditorState } from "@repo/editor/vault-editor";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FakeVault } from "./fake-vault";
 
@@ -41,7 +42,7 @@ interface HarnessOptions {
   readonly rewriteOnMove?: (content: string) => string;
   readonly vanishedChoice?: VanishedChoice;
   // the server's answer to where an id lives now; unset, the session asks nothing.
-  readonly findMoved?: (path: string, id: string) => Promise<string | null>;
+  readonly findMoved?: (path: string, id: string) => Promise<MovedItem>;
 }
 
 // The disk is the fake vault: `list` walks it, so a test moves a file there and announces it.
@@ -351,6 +352,9 @@ const moveOnDisk = (vault: FakeVault, from: string, to: string): void => {
   }
 };
 
+const GONE: MovedItem = { kind: "gone" };
+const UNKNOWN: MovedItem = { kind: "unknown" };
+
 describe("an item moved under it", () => {
   const ITEM = "---\nid: item-1\nkind: link\nurl: https://example.com/\n---\n";
   const MOVED: HarnessOptions = {
@@ -364,7 +368,7 @@ describe("an item moved under it", () => {
       ...MOVED,
       findMoved: async (path, id) => {
         asked.push([path, id]);
-        return await Promise.resolve("Unsorted/Example Domain.md");
+        return await Promise.resolve({ kind: "at", path: "Unsorted/Example Domain.md" });
       },
     });
     moveOnDisk(h.vault, "Unsorted/example.com.md", "Unsorted/Example Domain.md");
@@ -380,7 +384,7 @@ describe("an item moved under it", () => {
   });
 
   it("drops to the library when nothing answers to the id", async () => {
-    const h = await started({ ...MOVED, findMoved: async () => await Promise.resolve(null) });
+    const h = await started({ ...MOVED, findMoved: async () => await Promise.resolve(GONE) });
     h.vault.files.delete("Unsorted/example.com.md");
     h.session.handleVaultChanged({ kind: "files", paths: ["Unsorted/example.com.md"] });
     await settle();
@@ -393,7 +397,7 @@ describe("an item moved under it", () => {
       ...TWO_NOTES,
       findMoved: async () => {
         asked += 1;
-        return await Promise.resolve("b.md");
+        return await Promise.resolve({ kind: "at", path: "b.md" });
       },
     });
     h.vault.files.delete("a.md");
@@ -404,14 +408,14 @@ describe("an item moved under it", () => {
   });
 
   it("keeps the navigation made while the answer was in flight", async () => {
-    const answer = deferred<string | null>();
+    const answer = deferred<MovedItem>();
     const h = await started({ ...MOVED, findMoved: async () => await answer.promise });
     moveOnDisk(h.vault, "Unsorted/example.com.md", "Unsorted/Example Domain.md");
     h.session.handleVaultChanged({ kind: "files", paths: ["Unsorted/example.com.md"] });
     await settle();
     h.session.actions.openFile("b.md");
     await settle();
-    answer.resolve("Unsorted/Example Domain.md");
+    answer.resolve({ kind: "at", path: "Unsorted/Example Domain.md" });
     await settle();
     expect(h.opened.at(-1)).toEqual(["b.md", "navigate"]);
     expect(h.editor()).toMatchObject({ path: "b.md" });
@@ -423,13 +427,135 @@ describe("an item moved under it", () => {
       ...MOVED,
       findMoved: async () => {
         asked += 1;
-        return await Promise.resolve(null);
+        return await Promise.resolve(GONE);
       },
     });
     await h.session.actions.deleteEntry("Unsorted/example.com.md");
     await settle();
     expect(asked).toBe(0);
     expect(h.log).toEqual(["open nothing"]);
+  });
+});
+
+// the index answers only once it has read the new path, and a read it deferred lands later: the
+// open item waits for that answer rather than take an index that is behind for an item gone
+describe("an item moved under it before the index has read where it went", () => {
+  const ITEM = "---\nid: item-1\n---\n# Field notes\n";
+  const FROM = "Reading/Field notes.md";
+  const TO = "Reading/Field journal.md";
+  const OPEN: HarnessOptions = {
+    files: { [FROM]: ITEM, "Welcome.md": "Start here." },
+    openAtBoot: FROM,
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // the index: behind until `catchUp`, then where the item is on disk
+  const laggingIndex = (h: { vault: FakeVault }) => {
+    let behind = true;
+    const asks: string[] = [];
+    return {
+      asks,
+      catchUp: () => {
+        behind = false;
+      },
+      findMoved: async (path: string): Promise<MovedItem> => {
+        asks.push(path);
+        await Promise.resolve();
+        if (behind) {
+          return UNKNOWN;
+        }
+        const at = [...h.vault.files].find(([, content]) => content === ITEM)?.[0];
+        return at === undefined ? GONE : { kind: "at", path: at };
+      },
+    };
+  };
+
+  const startedBehind = async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let index: ReturnType<typeof laggingIndex> | null = null;
+    const h = await started({
+      ...OPEN,
+      findMoved: async (path) => {
+        if (index === null) {
+          throw new Error("asked before the index was built");
+        }
+        return await index.findMoved(path);
+      },
+    });
+    index = laggingIndex(h);
+    moveOnDisk(h.vault, FROM, TO);
+    h.session.handleVaultChanged({ kind: "files", paths: [FROM, TO] });
+    await settle();
+    return { h, index };
+  };
+
+  it("stays on the item with no buffer to type into, and follows it once the index answers", async () => {
+    const { h, index } = await startedBehind();
+    expect(index.asks).toEqual([FROM]);
+    expect(h.editor()).toMatchObject({ kind: "closed" });
+    await vi.advanceTimersByTimeAsync(100);
+    await settle();
+    expect(index.asks).toHaveLength(2);
+    expect(h.log).toEqual([]);
+    index.catchUp();
+    await vi.advanceTimersByTimeAsync(250);
+    await settle();
+    expect(h.opened.at(-1)).toEqual([TO, "carry"]);
+    expect(h.log).not.toContain("open nothing");
+    expect(h.editor()).toMatchObject({ content: ITEM, path: TO });
+  });
+
+  it("asks again at once when the vault changes, the change it was waiting on among them", async () => {
+    const { h, index } = await startedBehind();
+    index.catchUp();
+    h.session.handleVaultChanged({ kind: "content", path: TO });
+    await settle();
+    expect(index.asks).toHaveLength(2);
+    expect(h.opened.at(-1)).toEqual([TO, "carry"]);
+  });
+
+  it("takes the item as gone only once the schedule runs out, however often the vault changes", async () => {
+    const { h, index } = await startedBehind();
+    for (let elapsed = 0; elapsed < 13_000; elapsed += 500) {
+      h.session.handleVaultChanged({ kind: "content", path: "Welcome.md" });
+      await vi.advanceTimersByTimeAsync(500);
+      await settle();
+    }
+    expect(h.log).toEqual([]);
+    for (let elapsed = 0; elapsed < 2000; elapsed += 500) {
+      h.session.handleVaultChanged({ kind: "content", path: "Welcome.md" });
+      await vi.advanceTimersByTimeAsync(500);
+      await settle();
+    }
+    expect(h.log).toEqual(["open nothing"]);
+    const asked = index.asks.length;
+    await vi.advanceTimersByTimeAsync(5000);
+    await settle();
+    expect(index.asks).toHaveLength(asked);
+  });
+
+  it("lets the follow go when the person opens another item meanwhile", async () => {
+    const { h, index } = await startedBehind();
+    h.session.actions.openFile("Welcome.md");
+    await settle();
+    index.catchUp();
+    await vi.advanceTimersByTimeAsync(5000);
+    await settle();
+    expect(h.opened.at(-1)).toEqual(["Welcome.md", "navigate"]);
+    expect(index.asks).toEqual([FROM]);
+  });
+
+  it("opens the item where it was when the index finds it back at its old path", async () => {
+    const { h, index } = await startedBehind();
+    moveOnDisk(h.vault, TO, FROM);
+    index.catchUp();
+    await vi.advanceTimersByTimeAsync(100);
+    await settle();
+    expect(h.log).toEqual([]);
+    expect(h.editor()).toMatchObject({ content: ITEM, path: FROM });
   });
 });
 

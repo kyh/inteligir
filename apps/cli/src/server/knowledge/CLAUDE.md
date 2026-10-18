@@ -83,8 +83,12 @@ and cited.
   can block for minutes, and every query settles the pass first. So the pass
   moves on, the doc answers from its last entry, and the read lands in a later
   pass; the deadline runs from the call, so a read still waiting for a slot is
-  deferred too. The budget is the vault service's own, around the open of a
-  file's bytes in `read` and `readBytes`
+  deferred too. A new path has no last entry, so while such a read is out
+  `knowledge.pathForNoteId` answers a null as `pending`, and the window keeps an
+  item that moved rather than take it for gone (`readsOutstanding` in
+  `apps/cli/src/server/knowledge/deferred-reads.ts`, read by
+  `apps/cli/src/server/knowledge/knowledge-router.ts`). The budget is the vault
+  service's own, around the open of a file's bytes in `read` and `readBytes`
   (`apps/cli/src/server/vault/read-slots.ts`): 3 at once, whoever asked, because
   a stalled open holds one of node's four fs threads and a fourth stalls every
   fs call in the process, saves included, which no deadline can free; a read

@@ -282,8 +282,14 @@ becomes a domain value there alone, which is why no walk narrows structurally.
   alias. A move the page did not make (a fill's rename of a pending stub, an
   agent's `vault rename`) is followed by the item's frontmatter id through the
   session's `findMoved` port, so the open item stays open at its new path and
-  Back never names the old one; only an id nothing answers drops to the library
-  (`packages/editor/src/note/vault-session.ts`). Rejected: dropping to the
-  library on every vanish, which bounced a person off the item whose page had
-  just been read. `packages/editor/src/vault-editor.ts`,
+  Back never names the old one. The index can answer before it has read the new
+  path (a read past its deadline lands later), so while it still has a read out
+  the answer is `unknown`, not gone: the item stays open with no buffer to type
+  into and is asked after again on a bounded schedule (about 14 s) and at every
+  vault change, which never pushes the schedule back; only an id nothing
+  answers, or the schedule's end, drops to the library, and a navigation
+  meanwhile ends the follow (`packages/editor/src/note/vault-session.ts`).
+  Rejected: dropping to the library on every vanish, which bounced a person off
+  the item whose page had just been read, and a null read as gone, which
+  dropped an item renamed on a slow Mac. `packages/editor/src/vault-editor.ts`,
   `packages/editor/src/note/vault-session.ts`.

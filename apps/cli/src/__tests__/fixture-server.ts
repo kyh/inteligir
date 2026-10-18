@@ -559,6 +559,7 @@ const knowledgeRouter = {
   })),
   pathForNoteId: base.knowledge.pathForNoteId.handler(({ context, input }) => ({
     path: indexOf(context.vault).pathForNoteId(input.id, input.lastPath),
+    pending: false,
   })),
   scopes: base.knowledge.scopes.handler(({ context }) => scopesOf(context.items)),
 };

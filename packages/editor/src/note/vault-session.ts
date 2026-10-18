@@ -11,6 +11,7 @@ import type {
 import type { OpenPathChange } from "@repo/editor/note/open-note-store";
 import { createNoteRuntime } from "@repo/editor/note/note-runtime";
 import type { NoteRuntime } from "@repo/editor/note/note-runtime";
+import { EMPTY_EDITOR_STATE } from "@repo/editor/vault-editor";
 import type { SaveError, VaultEditorState, VaultIO } from "@repo/editor/vault-editor";
 import { isDocPath, withDocExtension } from "@repo/notes/knowledge/doc-file";
 import { frontmatterId, frontmatterYaml } from "@repo/notes/markdown/frontmatter";
@@ -30,6 +31,14 @@ export type RenameResult = { ok: true } | { ok: false; error: string };
 
 export type VanishedChoice = "recreate" | "discard";
 
+// where the item whose frontmatter `id` this is lives now, as the index answers: `unknown` while
+// the index still has a read out, so a move whose new path it has not read is never taken for an
+// item that is gone
+export type MovedItem =
+  | { readonly kind: "at"; readonly path: string }
+  | { readonly kind: "gone" }
+  | { readonly kind: "unknown" };
+
 export interface VaultSessionPorts {
   boot: () => Promise<WorkspaceBoot>;
   list: () => Promise<VaultEntry[]>;
@@ -47,7 +56,7 @@ export interface VaultSessionPorts {
   // where the item whose frontmatter `id` this is lives now, asked when the open item's file
   // vanished under a clean buffer: a move the page did not make (a fill's rename, an agent's
   // rename) is followed rather than dropped to the library. Unset, a vanish closes the item.
-  findMoved?: (path: string, id: string) => Promise<string | null>;
+  findMoved?: (path: string, id: string) => Promise<MovedItem>;
   // the clock a created note's `saved` is read from; unset, the system's
   now?: () => number;
 }
@@ -85,6 +94,17 @@ const carriedNote = (
   open !== null && isWithin(open, from)
     ? { from: open, to: `${to}${open.slice(from.length)}` }
     : null;
+
+// how long the open item waits for each next answer while the index cannot yet say where it went;
+// past the last, about 14 s in all, it is taken as gone. A vault change asks again sooner, never
+// later, so a stream of changes cannot hold the item open past the bound.
+const FOLLOW_ASK_AGAIN_MS: readonly number[] = [
+  100,
+  250,
+  500,
+  1000,
+  ...Array.from({ length: 6 }, () => 2000),
+];
 
 const saveErrorMessage = (path: string, error: SaveError): string =>
   error.kind === "vanished"
@@ -182,9 +202,85 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     return created;
   };
 
+  // the open item's vanish being followed, while the index cannot yet say where it went
+  interface Follow {
+    readonly path: string;
+    readonly id: string;
+    // the next wait in FOLLOW_ASK_AGAIN_MS
+    attempt: number;
+    timer: ReturnType<typeof setTimeout> | null;
+    asking: boolean;
+    // a vault change landed while an ask was out, so its answer may already be stale
+    again: boolean;
+  }
+  let follow: Follow | null = null;
+
+  const endFollow = (): void => {
+    if (follow !== null && follow.timer !== null) {
+      clearTimeout(follow.timer);
+    }
+    follow = null;
+  };
+
+  const askWhereMoved = (
+    current: Follow,
+    findMoved: NonNullable<VaultSessionPorts["findMoved"]>,
+  ): void => {
+    current.asking = true;
+    current.again = false;
+    void (async () => {
+      const answer = await findMoved(current.path, current.id).catch((): MovedItem => ({
+        kind: "unknown",
+      }));
+      current.asking = false;
+      if (follow !== current) {
+        return;
+      }
+      if (!running || runtime !== null || openPath !== current.path) {
+        endFollow();
+        return;
+      }
+      // the old path again is the item back where it was (a save that replaced the file): it
+      // opens there, and a read that finds nothing drops it, since the runtime holds no id yet
+      if (answer.kind === "at") {
+        endFollow();
+        ensureRuntime(answer.path);
+        applyOpenPath(answer.path, "carry");
+        return;
+      }
+      if (answer.kind === "gone") {
+        endFollow();
+        applyOpenPath(null);
+        return;
+      }
+      // the next wait is armed before any sooner ask, so the bound holds however often the
+      // vault changes; an ask still out when it fires arms the one after as it answers
+      if (current.timer === null) {
+        const wait = FOLLOW_ASK_AGAIN_MS[current.attempt];
+        if (wait === undefined) {
+          endFollow();
+          applyOpenPath(null);
+          return;
+        }
+        current.attempt += 1;
+        current.timer = setTimeout(() => {
+          current.timer = null;
+          if (follow === current && !current.asking) {
+            askWhereMoved(current, findMoved);
+          }
+        }, wait);
+      }
+      if (current.again) {
+        askWhereMoved(current, findMoved);
+      }
+    })();
+  };
+
   // a clean buffer whose file left: an item that carries an id is looked for where it went, and
-  // opened there in place of the old path, so Back never names it; only an id nothing answers to,
-  // or a navigation made while the answer was in flight, leaves it closed.
+  // opened there in place of the old path, so Back never names it. While the index cannot yet say
+  // (a move whose new path it has not read), the item stays open with no buffer and is asked
+  // after again, on a schedule and on every vault change; only an id nothing answers to, the end
+  // of that schedule, or a navigation made meanwhile leaves it.
   const followVanished = (path: string): void => {
     const vanished = runtime;
     if (vanished?.path !== path) {
@@ -197,19 +293,27 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
       return;
     }
     disposeRuntime();
-    const seq = navSeq;
-    void (async () => {
-      const moved = await findMoved(path, id).catch(() => null);
-      if (!running || seq !== navSeq || runtime !== null || openPath !== path) {
-        return;
-      }
-      if (moved === null || moved === path) {
-        applyOpenPath(null);
-        return;
-      }
-      ensureRuntime(moved);
-      applyOpenPath(moved, "carry");
-    })();
+    // the transient a vanish shows: no buffer a keystroke could land in and be lost
+    ports.publishEditor(EMPTY_EDITOR_STATE);
+    endFollow();
+    const current: Follow = { again: false, asking: false, attempt: 0, id, path, timer: null };
+    follow = current;
+    askWhereMoved(current, findMoved);
+  };
+
+  // a change can be the one the index was waiting on, so a follow asks again at once; the
+  // schedule is the timer's alone, which a change never pushes back
+  const askAgainOnChange = (): void => {
+    const current = follow;
+    const { findMoved } = ports;
+    if (current === null || findMoved === undefined) {
+      return;
+    }
+    if (current.asking) {
+      current.again = true;
+      return;
+    }
+    askWhereMoved(current, findMoved);
   };
 
   onRuntimeVanished = followVanished;
@@ -243,6 +347,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     if (openPath === path) {
       return;
     }
+    endFollow();
     void (async () => {
       const leaving = runtime;
       if (!(await flush())) {
@@ -437,6 +542,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
     if (event.kind === "files") {
       refreshList();
     }
+    askAgainOnChange();
   };
 
   return {
@@ -476,6 +582,7 @@ export const createVaultSession = (ports: VaultSessionPorts): VaultSession => {
 
     stop: (): void => {
       running = false;
+      endFollow();
       // flush first: a change inside the autosave debounce would go with the timer dispose cancels.
       void runtime?.flush();
       disposeRuntime();

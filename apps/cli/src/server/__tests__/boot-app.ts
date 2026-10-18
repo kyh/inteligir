@@ -36,6 +36,7 @@ import type { ShutdownStep } from "../shutdown";
 import { unavailableTurnDriver } from "../threads/turn-driver";
 import type { ProviderEventSink, TurnDriver } from "../threads/turn-driver";
 import { hermeticGit } from "../vault/__tests__/git-test-env";
+import type { SlowReads } from "../vault/slow-reads";
 import type { VaultRuntime } from "../vault/vault-runtime";
 import type { WsBus } from "../ws-bus";
 import { boundAddressSchema } from "./bound-address";
@@ -164,6 +165,10 @@ export interface BootTestAppOptions {
   pinnedRemote?: string;
   // the vault's folder is left for the boot to create, so it seeds the starter notes.
   seedsStarters?: boolean;
+  // reads of one path held this long inside their slot, as INTELIGIR_SLOW_READS holds them
+  slowReads?: SlowReads;
+  // how long the index waits on a doc's read before it defers it; absent, the runtime's own
+  readDeadlineMs?: number;
   // the capture's fetch, worker and clock; absent, a fetch that never answers, so a saved link
   // stays a stub and no page leaves the machine.
   items?: CapturePorts;
@@ -236,7 +241,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
     port: options.port ?? 0,
     portSource: "env",
     rootDataDir: dataDir,
-    slowReads: null,
+    slowReads: options.slowReads ?? null,
     vaultDir,
     vaultDirSource: "env",
     vaultRemote: options.pinnedRemote ?? null,
@@ -246,7 +251,7 @@ export const bootTestApp = async (options: BootTestAppOptions = {}): Promise<Boo
 
   const ports: ComposePorts = {
     items: options.items ?? { fetcher: offlineFetcher },
-    knowledge: { projector: createInlineProjector() },
+    knowledge: { projector: createInlineProjector(), readDeadlineMs: options.readDeadlineMs },
     machineName: TEST_MACHINE_NAME,
     vault:
       options.remote === "derived" || options.pinnedRemote !== undefined

@@ -10,7 +10,7 @@ import {
   knowledgeSearchResponseSchema,
   knowledgeTagsResponseSchema,
 } from "@repo/contract/local/knowledge/knowledge-schema";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { bootTestApp } from "../../__tests__/boot-app";
 
 describe("the knowledge routes", () => {
@@ -187,9 +187,34 @@ describe("the knowledge routes", () => {
           lastPath: "before.md",
         }),
       ),
-    ).toEqual({ path: "after.md" });
+    ).toEqual({ path: "after.md", pending: false });
     expect(await client.knowledge.pathForNoteId({ id: "nobody", lastPath: "before.md" })).toEqual({
       path: null,
+      pending: false,
     });
+  });
+
+  it("says a null is pending while the moved item's read is still out, and answers once it lands", async () => {
+    const { client } = await bootTestApp({
+      readDeadlineMs: 20,
+      slowReads: { delayMs: 400, path: "after.md" },
+    });
+    await client.vault.write({
+      content: "---\nid: 7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17\n---\n# Moved\n",
+      guard: { kind: "overwrite" },
+      path: "before.md",
+    });
+    const ask = { id: "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17", lastPath: "before.md" };
+    await client.vault.rename({ from: "before.md", to: "after.md" });
+    expect(await client.knowledge.pathForNoteId(ask)).toEqual({ path: null, pending: true });
+    await vi.waitFor(
+      async () => {
+        expect(await client.knowledge.pathForNoteId(ask)).toEqual({
+          path: "after.md",
+          pending: false,
+        });
+      },
+      { timeout: 5000 },
+    );
   });
 });

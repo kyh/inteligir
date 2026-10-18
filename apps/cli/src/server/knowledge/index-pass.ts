@@ -73,6 +73,9 @@ export interface IndexPass {
   // every folder of the vault as the last walk and the announced folder changes left them
   readonly dirs: ReadonlySet<string>;
   readonly disposed: boolean;
+  // a doc read the deadline deferred has not landed in a pass yet, so the index may still gain
+  // a path, an id or a title it does not hold now
+  readsOutstanding: () => boolean;
   dispose: () => void;
 }
 
@@ -641,6 +644,8 @@ export const createIndexPass = (args: IndexPassArgs): IndexPass => {
     get disposed() {
       return disposed;
     },
+
+    readsOutstanding: () => docReads.outstanding(),
 
     invalidate(change) {
       if (change.kind === "paths") {

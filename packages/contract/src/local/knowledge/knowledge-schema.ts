@@ -295,4 +295,6 @@ export const knowledgePathForNoteIdRequestSchema = z.strictObject({
 });
 export const knowledgePathForNoteIdResponseSchema = z.strictObject({
   path: z.string().min(1).nullable(),
+  // with a null path: the index still has a read out, so a doc carrying the id may yet appear
+  pending: z.boolean(),
 });
