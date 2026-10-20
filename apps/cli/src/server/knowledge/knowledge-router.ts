@@ -133,10 +133,17 @@ const scopes = base.knowledge.scopes.handler(
 );
 
 // a null while a deferred read is still out may be a move whose new path the index has not read,
-// so it says so, and the window keeps the item open rather than read it as gone
+// so it says so, and the window keeps the item open rather than read it as gone. the index hears a
+// move only once it is told (the server's own after the move's fsyncs, a watched one after the
+// watcher's debounce), so until then it names the path the item left: a path the disk no longer
+// holds is that, pending too, never an answer the window would open and find nothing at
 const pathForNoteId = base.knowledge.pathForNoteId.handler(async ({ context, input }) => {
   const path = await context.knowledge.pathForNoteId(input.id, input.lastPath);
-  return { path, pending: path === null && context.knowledge.readsOutstanding() };
+  if (path === null) {
+    return { path, pending: context.knowledge.readsOutstanding() };
+  }
+  const there = await context.vault.service.statFile(path);
+  return there?.kind === "file" ? { path, pending: false } : { path: null, pending: true };
 });
 
 export const knowledgeRouter = {

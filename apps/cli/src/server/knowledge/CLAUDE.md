@@ -90,7 +90,13 @@ and cited.
   queued pass can take what landed before the answer leaves (`readsOutstanding`
   in `apps/cli/src/server/knowledge/deferred-reads.ts` and
   `apps/cli/src/server/knowledge/index-pass.ts`, read by
-  `apps/cli/src/server/knowledge/knowledge-router.ts`). The budget is the vault
+  `apps/cli/src/server/knowledge/knowledge-router.ts`). Nor does it answer a
+  path the disk no longer holds: the index hears a move only once told, the
+  server's own after the move's fsyncs and a watched one after the watcher's
+  debounce, and until then names the path the item left, so the router answers
+  that as `pending` too; an id nothing answers once the index has heard drops.
+  Rejected: the old path as the answer, which the window opened, found
+  nothing at and dropped to the library on a busy Mac. The budget is the vault
   service's own, around the open of a file's bytes in `read` and `readBytes`
   (`apps/cli/src/server/vault/read-slots.ts`): 3 at once, whoever asked, because
   a stalled open holds one of node's four fs threads and a fourth stalls every
