@@ -14,6 +14,15 @@ keyboard toolbar). Everything it reads or writes, and every navigation, is a
 frame to the native screen that hosts it: the phone's store, its offline queue
 and its navigation stack stay native.
 
+The same page has a second mode, the reader: an `init` in `fill` mode mounts
+no editor and reads each page the phone fetched for a link it saved with
+`@repo/page-reader` over the WebView's own `DOMParser`
+(`src/fill/serve-fills.ts`), so a link reads as it would on a Mac. The phone
+keeps one such page open, a WebView nothing shows
+(`apps/mobile/src/items/reader-page.tsx`); the reader reaches no network
+either, since the page's policy refuses every connection and a parsed
+document loads nothing.
+
 ## The build
 
 `pnpm --filter @repo/mobile-editor build` writes `dist/`: `index.html`, ONE
@@ -52,7 +61,11 @@ both ends address the same files.
   `editorState` (dirty and why a save failed, sent only when either changes,
   which the screen asks about before letting the note go), `showAnnotations`,
   `navigate`, `flushed`.
-- Native to page: `init { nonce, path, focus }`, `response { id, ok }`,
+- Page to native, in fill mode: `fillAnswer { id, nonce, answer }`, what the
+  reader made of the page (its facts and article) or why it read nothing.
+- Native to page: `init { mode: "edit", nonce, path, focus }` or
+  `init { mode: "fill", nonce }`, `fillJob { id, nonce, job }` (a page's bytes
+  as base64, its charset and its address), `response { id, ok }`,
   `vaultChanged`, `flush` (answered by `flushed` with its id), `annotationMeta`
   (the note's annotations, which its ranges are drawn by) and
   `annotationsRemoved` (annotations deleted on the phone, whose markers the page
@@ -94,7 +107,9 @@ index.html              the page, its CSP and a scale-1 viewport
 vite.config.ts          one IIFE, fonts inlined, the classic-page check
 vite/classic-page.ts    the entry rewrite and the build's refusal
 src/
-  main.tsx              connects the bridge, waits for init, mounts
+  main.tsx              connects the bridge, waits for init, mounts the editor
+                        or serves the reader
+  fill/serve-fills.ts   the reader mode, exported as ./reader-mode
   editor-page.tsx       the providers, the column under the touch profile,
                         the focus init asks for
   bridge/protocol.ts    the wire (zod), exported as ./bridge-protocol

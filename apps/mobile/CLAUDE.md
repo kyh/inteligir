@@ -215,7 +215,9 @@ ships.
   (`apps/mobile/src/items/link-fill.ts`). iOS's fetch has no lookup hook, so
   from a public page an address that names private space by its spelling is
   skipped (`namesPrivateSpace`). Rejected: a Mac filling a phone's saves, which
-  left them waiting on a Mac.
+  left them waiting on a Mac. Residual: iOS follows a page's redirects itself,
+  so a public page can lead the read onto the person's own network; what it
+  reads lands only in their own library.
 
 ## The screens' look
 

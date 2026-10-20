@@ -161,7 +161,7 @@ A deleted item is not gone. Choose **Deleted** in the sidebar and restore it fro
 Without an account, your library lives on this Mac alone. Create one with your invite code, or sign in, from **Sign in…** at the bottom of the sidebar or in Settings › Account. An account backs up your library and brings it to your other devices; your online library is free up to about 1 GB:
 
 - Sign in on another Mac and your library arrives there as it is.
-- On your iPhone, see and edit the same library, save from any app's share sheet, add photos and highlight. A link you save there is filled in by your Mac. The agent runs on your Mac: ask it there, and what it changes reaches your iPhone.
+- On your iPhone, see and edit the same library, save from any app's share sheet, add photos and highlight. A link you save there is read by your iPhone once it's online, with no Mac needed. The agent runs on your Mac: ask it there, and what it changes reaches your iPhone.
 - If two devices change the same lines of an item, both versions are kept, and the app tells you where the other one went.
 - A file over 10 MB stays on the Mac it is on.
 

@@ -22,7 +22,7 @@ node is rather than discriminating structurally at each visit.
   note writes no `kind` at all; every write of them is a line cut
   (`withItemFields` in `@repo/notes/items/item-frontmatter`, over
   `replaceTopLevelKey`) that leaves every other byte of the block alone and
-  puts an added key in its compose position, so two Macs filling one stub
+  puts an added key in its compose position, so two devices filling one stub
   write the same bytes. A body sits one blank line under the block, the
   editor's own spelling (`composeItemFile`, and `withBody` in
   `@repo/notes/items/item-body`), so every item a writer makes is the editor's
@@ -109,7 +109,7 @@ node is rather than discriminating structurally at each visit.
   Every rule is phrased by role and every diff3 runs in one orientation, so
   both askers land the same bytes and no copy is made. One verdict runs in
   reconcile-file (the desktop's sync merge and the phone's queue) and in the
-  editor's merges (`mergeItemTexts`). Rejected: a Worker lease so only one Mac
+  editor's merges (`mergeItemTexts`). Rejected: a Worker lease so only one device
   fills (a new /cloud protocol for what a pure verdict settles), and renaming
   on fill (git cannot pair the rename with a concurrent phone edit).
   `@repo/notes/sync/url-item-verdict`,

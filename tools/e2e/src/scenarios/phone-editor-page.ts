@@ -8,7 +8,9 @@ import {
   PAGE_RECEIVER,
   pageFrameSchema,
 } from "@repo/mobile-editor/bridge-protocol";
-import type { NativeFrame, PageFrame } from "@repo/mobile-editor/bridge-protocol";
+import type { FillJob, NativeFrame, PageFrame } from "@repo/mobile-editor/bridge-protocol";
+import { readPage } from "@repo/mobile-editor/reader-mode";
+import { parsePage } from "@repo/page-reader/linkedom-page";
 
 import { parseEval } from "../harness/agent-browser";
 import type { ScenarioBrowser } from "../harness/agent-browser";
@@ -60,6 +62,40 @@ const NOTE = [
 
 // past the serialize debounce and the autosave behind it
 const SETTLE_MS = 2000;
+
+const READER_NONCE = "e2e-reader-nonce-0123456789";
+
+// a page the phone fetched for a link it saved, as the reader is handed it
+const READER_PAGE = [
+  "<!doctype html>",
+  '<html lang="en"><head><meta charset="utf-8">',
+  "<title>File over app</title>",
+  '<meta property="og:site_name" content="Steph Ango">',
+  '<meta name="description" content="Files you can control.">',
+  '<meta property="og:image" content="https://stephango.com/cover.png">',
+  '</head><body><nav><a href="/">Home</a> <a href="/about">About</a></nav><article>',
+  "<h1>File over app</h1>",
+  "<p>If you want to create digital artifacts that last, they must be <em>files</em> you can control.</p>",
+  '<p>Apps are ephemeral; <a href="https://example.com/files">the files</a> outlast them.</p>',
+  "<ul><li>Plain text</li><li>Open formats</li></ul>",
+  "<pre><code>const file = read();</code></pre>",
+  "</article><footer>© Steph Ango</footer></body></html>",
+].join("\n");
+
+const READER_JOB: FillJob = {
+  base64: Buffer.from(READER_PAGE, "utf-8").toString("base64"),
+  charset: "utf-8",
+  prefer: "article",
+  url: "https://stephango.com/file-over-app",
+};
+
+// the phone's end of the reader mode: it records what the page sends
+const READER_PHONE_SCRIPT = `(() => {
+  const sent = [];
+  window.ReactNativeWebView = { postMessage: (text) => { sent.push(JSON.parse(text)); } };
+  window.__reader = { sent };
+  return "installed";
+})()`;
 
 // the phone asks no agent, so a selection offers no Ask agent
 const NO_ASK_AGENT = `String(document.querySelector('button[aria-label="Ask agent"]') === null)`;
@@ -228,7 +264,7 @@ const lastWrite = async (phone: Phone, count: number, what: string): Promise<Wri
 
 export const phoneEditorPage: Scenario = {
   description:
-    "the phone's editor page, built through turbo, loads from `file://` at 390×844 with a scripted phone on its bridge: a typed paragraph writes exactly the note's new bytes under its read base, typing in a tab panel or on a chart writes nothing, a nonce-less frame is ignored, an announced change reloads the buffer, a write the phone finds changed lands merged and shows, a selection offers no Ask agent, and a wiki link tap reaches the native end",
+    "the phone's editor page, built through turbo, loads from `file://` at 390×844 with a scripted phone on its bridge: a typed paragraph writes exactly the note's new bytes under its read base, typing in a tab panel or on a chart writes nothing, a nonce-less frame is ignored, an announced change reloads the buffer, a write the phone finds changed lands merged and shows, a selection offers no Ask agent, a wiki link tap reaches the native end, and in reader mode the page reads a saved link exactly as linkedom does",
   name: "phone-editor-page",
   // the build's own budget plus the drive
   timeoutMs: BUILD_TIMEOUT_MS + 120_000,
@@ -382,5 +418,54 @@ export const phoneEditorPage: Scenario = {
           `the tap never emitted navigate: ${JSON.stringify(frames.map((frame) => frame.type))}`,
       },
     );
+
+    ctx.log("loaded again in reader mode, the page reads a saved link as linkedom does");
+    await browser(["open", page]);
+    await pollUntil(
+      async () =>
+        parseEval(
+          await browser(["eval", `typeof window[${JSON.stringify(PAGE_RECEIVER)}]`]),
+          z.string(),
+        ),
+      (kind) => kind === "function",
+      { deadlineMs: 15_000, describe: (kind) => `the reloaded page's door is ${kind}` },
+    );
+    await browser(["eval", READER_PHONE_SCRIPT]);
+    await browser(["eval", nativeFrameScript({ mode: "fill", nonce: READER_NONCE, type: "init" })]);
+    await browser([
+      "eval",
+      nativeFrameScript({ id: 7, job: READER_JOB, nonce: READER_NONCE, type: "fillJob" }),
+    ]);
+    const answered = await pollUntil(
+      async () =>
+        parseEval(
+          await browser(["eval", "JSON.stringify(window.__reader.sent)"]),
+          z.array(pageFrameSchema),
+        ),
+      (frames) => frames.some((frame) => frame.type === "fillAnswer"),
+      {
+        deadlineMs: 15_000,
+        describe: (frames) =>
+          `the reader never answered: ${JSON.stringify(frames.map((frame) => frame.type))}`,
+      },
+    );
+    const fillAnswer = answered.find((frame) => frame.type === "fillAnswer");
+    expect(
+      fillAnswer?.type === "fillAnswer" && fillAnswer.id === 7 && fillAnswer.nonce === READER_NONCE,
+      `the reader's answer: ${JSON.stringify(fillAnswer)}`,
+    );
+    expectEq(
+      fillAnswer.answer,
+      readPage(READER_JOB, parsePage),
+      "the page's reading against linkedom's",
+    );
+    expect(
+      fillAnswer.answer.kind === "read" &&
+        fillAnswer.answer.article.includes("they must be _files_ you can control") &&
+        !fillAnswer.answer.article.includes("About"),
+      `the reader kept the article and left the page's chrome: ${JSON.stringify(fillAnswer.answer)}`,
+    );
+    const drawn = await browser(["get", "text", "body"]);
+    expect(!drawn.includes("File over app"), "the reader drew the page it read");
   },
 };

@@ -49,9 +49,10 @@ The premises every change builds from, each with its reason:
   image or PDF is the original file beside a note that embeds it; a note the
   user writes is an item too. One shape is what lets search, History, sync,
   the phone and the agent's verbs work on every item without a second store.
-- **Saving calls no model.** The Mac's own server fetches a page's title, cover
-  and text, and the agent files, tags and summarizes only when asked, because
-  a save should be instant and free.
+- **Saving calls no model, and the device that saves reads the page.** The Mac's
+  own server, or the phone itself, fetches a page's title, cover and text, and
+  the agent files, tags and summarizes only when asked, because a save should
+  be instant and free on whichever device made it.
 - **Every feature is core, and a feature serves saving, reading or writing or
   goes.** Nothing sits behind a tier or a flag; a feature that serves none of
   the three is removed, never hidden, and the persona changes the words.

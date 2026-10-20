@@ -1,7 +1,9 @@
 // a page server on this machine's own LAN address, for a save whose fetch must leave loopback: the
 // guarded fetch refuses loopback, link-local and reserved space, and reaches private space only
 // from a saved address that is itself private, which this one is. It never reaches past this
-// machine, so a scenario saves no URL that leaves it (§0.2.9).
+// machine, so a scenario saves no URL that leaves it (§0.2.9). `startLoopbackFixture` serves the
+// same routes on loopback, for a page only the phone's runtime reads: the phone has no address
+// guard, so a link saved on it reads on every machine, a sandbox with no LAN address included.
 //
 // The address is the first the guard itself would read a page from, judged by the guard's own
 // classification: a machine whose only addresses are in space the guard refuses (a sandbox in
@@ -31,6 +33,8 @@ export interface LanFixture {
   requests: () => readonly { path: string; at: number }[];
   // hold responses on path until `count` requests are waiting
   gate: (path: string, count: number) => void;
+  // hold responses on path until the returned release is called
+  hold: (path: string) => () => void;
   close: () => Promise<void>;
 }
 
@@ -81,18 +85,27 @@ interface Gate {
   waiting: (() => void)[];
 }
 
-export const startLanFixture = async (
-  routes: Readonly<Record<string, LanRoute>>,
-): Promise<LanFixture> => {
-  const host = lanAddress();
+interface Hold {
+  waiting: (() => void)[];
+  released: boolean;
+}
+
+// the routes on one server, its responses held by a gate or a hold
+const routeServer = (routes: Readonly<Record<string, LanRoute>>) => {
   const seen: { path: string; at: number }[] = [];
   const gates = new Map<string, Gate>();
+  const holds = new Map<string, Hold>();
   const server = createServer((request, response) => {
     const path = pathOf(request);
     seen.push({ at: Date.now(), path });
     const respond = () => {
       answer(response, routes[path]);
     };
+    const held = holds.get(path);
+    if (held !== undefined && !held.released) {
+      held.waiting.push(respond);
+      return;
+    }
     const gate = gates.get(path);
     if (gate === undefined) {
       respond();
@@ -106,6 +119,50 @@ export const startLanFixture = async (
       }
     }
   });
+  const releaseAll = (): void => {
+    // a held response would keep its socket open past close
+    for (const gate of gates.values()) {
+      for (const release of gate.waiting) {
+        release();
+      }
+    }
+    gates.clear();
+    for (const held of holds.values()) {
+      held.released = true;
+      for (const release of held.waiting) {
+        release();
+      }
+    }
+    holds.clear();
+  };
+  return {
+    controls: {
+      gate(path: string, count: number) {
+        gates.set(path, { count, waiting: [] });
+      },
+      hold(path: string) {
+        const held: Hold = { released: false, waiting: [] };
+        holds.set(path, held);
+        return () => {
+          held.released = true;
+          for (const release of held.waiting) {
+            release();
+          }
+          held.waiting = [];
+        };
+      },
+      requests: () => seen,
+    },
+    releaseAll,
+    server,
+  };
+};
+
+export const startLanFixture = async (
+  routes: Readonly<Record<string, LanRoute>>,
+): Promise<LanFixture> => {
+  const host = lanAddress();
+  const { controls, releaseAll, server } = routeServer(routes);
   // the guard refuses the app's own port on any address, and the kernel will hand a LAN bind the
   // port an instance holds on loopback; so the fixture holds its port on loopback too, for its
   // whole life, where no instance, booted before it or after, can then listen
@@ -118,25 +175,38 @@ export const startLanFixture = async (
   await once(server, "listening");
   const origin = `http://${host}:${port}`;
   return {
+    ...controls,
     async close() {
-      // a held response would keep its socket open past close
-      for (const gate of gates.values()) {
-        for (const release of gate.waiting) {
-          release();
-        }
-      }
-      gates.clear();
+      releaseAll();
       server.closeAllConnections();
       const closed = Promise.all([once(server, "close"), once(claim, "close")]);
       server.close();
       claim.close();
       await closed;
     },
-    gate(path, count) {
-      gates.set(path, { count, waiting: [] });
+    origin,
+    url: (path) => `${origin}${path}`,
+  };
+};
+
+export const startLoopbackFixture = async (
+  routes: Readonly<Record<string, LanRoute>>,
+): Promise<LanFixture> => {
+  const { controls, releaseAll, server } = routeServer(routes);
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const { port } = boundPortSchema.parse(server.address());
+  const origin = `http://127.0.0.1:${port}`;
+  return {
+    ...controls,
+    async close() {
+      releaseAll();
+      server.closeAllConnections();
+      const closed = once(server, "close");
+      server.close();
+      await closed;
     },
     origin,
-    requests: () => seen,
     url: (path) => `${origin}${path}`,
   };
 };

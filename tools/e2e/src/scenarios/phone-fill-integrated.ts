@@ -1,11 +1,11 @@
-// a phone's saves and edits against real Macs' fills, end to end across the lanes: the phone (M)
-// saves a stub through the hosted library, a Mac's own fill queue (S1) reads it within the phone's
-// minute rather than the fifteen another Mac's stub waits, and the phone's card shows the site and
-// the cover. Two Macs filling one stub at once, and a Refresh on a Mac racing a phone's tag, each
-// settle on one text everywhere with no conflict copy (M's verdict in S2's merge and the phone's
-// queue). A phone's delete of an image item takes its original with it on the hosted head (S2's
-// attachmentsFreedBy under M's delete). The pages are served on this machine's own network address,
-// so a machine with none the guard reads from skips at the start.
+// a phone's saves and edits against real Macs, end to end: the phone (M) saves a link and reads its
+// page itself, and its card shows the site and the cover while no Mac fetches the page or queues a
+// fill. A real Mac's Refresh racing the phone's own fill, and a Refresh on a Mac racing a phone's
+// tag, each settle on one text everywhere with no conflict copy (M's verdict in S2's merge and the
+// phone's queue). A phone's delete of an image item takes its original with it on the hosted head
+// (S2's attachmentsFreedBy under M's delete). The pages are served on this machine's own network
+// address, which a Mac's guarded fetch reads from a saved address there, so a machine with none
+// the guard reads from skips at the start.
 
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -19,6 +19,7 @@ import { conflictCopies, hostedVaultEnv, signInOwner, syncUntil } from "../harne
 import type { AppInstance } from "../harness/instance";
 import { startLanFixture } from "../harness/lan-fixture";
 import type { LanFixture, LanRoute } from "../harness/lan-fixture";
+import { macPendingFills } from "../harness/mac-fills";
 import {
   cardAt,
   drained,
@@ -32,15 +33,13 @@ import type { Scenario, ScenarioContext } from "../harness/scenario";
 
 const TITLE = "File over app";
 const ITEM = `Unsorted/${TITLE}.md`;
-const RACE_TITLE = "Two Macs read this page";
+const RACE_TITLE = "A Mac and the phone read this page";
 const RACE_ITEM = `Unsorted/${RACE_TITLE}.md`;
 const SITE = "Steph Ango";
 const FIRST_DESCRIPTION = "Files you can control in formats that are easy to read.";
 const REFRESHED_DESCRIPTION = "Files last and apps do not.";
 const PICTURE_NAME = "pier.png";
 const TAG = "read";
-// a phone stub waits up to a minute, and the sweep that finds it looks every ten seconds
-const PHONE_FILL_DEADLINE_MS = 100_000;
 const SETTLE_DEADLINE_MS = 60_000;
 
 const pageOf = (title: string, description: string): string =>
@@ -62,7 +61,7 @@ const pageOf = (title: string, description: string): string =>
 const ROUTES = {
   "/cover.png": { body: solidPng(640, 400, [40, 90, 160, 255]), type: "image/png" },
   "/file-over-app": { body: pageOf(TITLE, FIRST_DESCRIPTION) },
-  "/two-macs": { body: pageOf(RACE_TITLE, FIRST_DESCRIPTION) },
+  "/race": { body: pageOf(RACE_TITLE, FIRST_DESCRIPTION) },
 } satisfies Record<string, LanRoute>;
 
 const keysOf = (text: string): string[] =>
@@ -124,75 +123,86 @@ const untilSettled = async (
   return settled.phone;
 };
 
-const phoneFillsWithinTheMinute = async (
+const idOf = (text: string): string | undefined =>
+  keysOf(text)
+    .find((line) => line.startsWith("id: "))
+    ?.slice("id: ".length);
+
+const phoneReadsItsSave = async (
   a: AppInstance,
   phone: AppRuntime,
-  url: string,
+  lan: LanFixture,
 ): Promise<string> => {
-  const saved = await phone.items.saveLink({ note: null, title: TITLE, url });
+  const saved = await phone.items.saveLink({
+    note: null,
+    title: TITLE,
+    url: lan.url("/file-over-app?utm_source=share"),
+  });
   expectEq(saved, { kind: "saved", path: ITEM }, "the phone's save");
-  await drained(phone, "after the phone's save");
-  await syncUntil(a.api, "A pulling the phone's stub", "clean");
+  await phone.fills.settled();
+  await drained(phone, "after the phone's save and its fill");
 
-  // A fills it on its own, and its fill commits and pushes; the phone sees it on a refresh. The
-  // deadline is the phone's minute and the sweep's ten seconds: another Mac's stub would wait
-  // fifteen minutes
-  const card = await pollUntil(
-    async () => {
-      await phone.notes.refresh();
-      return cardAt(phone, ITEM);
-    },
-    (seen) => seen?.pending === false && seen.cover !== null,
-    {
-      deadlineMs: PHONE_FILL_DEADLINE_MS,
-      describe: (seen) => `the phone's card is still ${JSON.stringify(seen)}`,
-      intervalMs: 1000,
-    },
+  const card = cardAt(phone, ITEM);
+  expect(
+    card?.pending === false && card.site === SITE,
+    `the phone's card once it read the page: ${JSON.stringify(card)}`,
   );
-  expectEq(card?.site, SITE, "the site on the phone's card");
   const cover = card?.cover ?? "";
   expect(
     /^assets\/covers\/[0-9a-f]{16}\.[a-z]+$/u.test(cover),
-    `the phone's card shows a cover the fill wrote: ${cover}`,
+    `the phone's card shows a cover the phone kept: ${cover}`,
   );
   const held = await phone.notes.attachmentFile(cover);
   expect(held.ok, `the phone holds the cover: ${held.ok ? "" : held.message}`);
   const filled = await readPhoneNote(phone, ITEM);
-  expectEq(await onMac(a, ITEM), filled, "the filled item on A and on the hosted head");
   expect(
     keysOf(filled).includes(`description: ${FIRST_DESCRIPTION}`),
-    `the fill wrote the page's description:\n${filled}`,
+    `the phone's fill wrote the page's description:\n${filled}`,
+  );
+
+  // A pulls what the phone wrote, and neither fetched the page nor queued a fill of its own
+  await syncUntil(a.api, "A pulling the phone's item", "clean");
+  expectEq(await onMac(a, ITEM), filled, "the filled item on A and on the hosted head");
+  expectEq(
+    lan.requests().filter((request) => request.path === "/file-over-app").length,
+    1,
+    "the reads of the page: the phone's alone",
+  );
+  expectEq(
+    macPendingFills(a).filter((row) => row.itemId === idOf(filled)),
+    [],
+    "A's queued fills for the phone's save",
   );
   return filled;
 };
 
-const twoMacsRace = async (
+const refreshRacesThePhonesFill = async (
   ctx: ScenarioContext,
   lan: LanFixture,
   a: AppInstance,
   b: AppInstance,
   phone: AppRuntime,
 ): Promise<void> => {
-  ctx.log("the phone saves a second link, and both Macs pull its stub");
+  ctx.log("the phone saves a second link; its fill waits on the page while A pulls the stub");
+  lan.gate("/race", 2);
   const saved = await phone.items.saveLink({
     note: null,
     title: RACE_TITLE,
-    url: lan.url("/two-macs?utm_source=share"),
+    url: lan.url("/race?utm_source=share"),
   });
   expectEq(saved, { kind: "saved", path: RACE_ITEM }, "the phone's second save");
   await drained(phone, "after the phone's second save");
   await syncUntil(a.api, "A pulling the second stub", "clean");
-  await syncUntil(b.api, "B pulling the second stub", "clean");
 
-  ctx.log("both Macs fill it at once: the page answers neither until both have asked");
-  lan.gate("/two-macs", 2);
-  const [onA, onB] = await Promise.all([
+  ctx.log("A refreshes it: the page answers neither until both have asked");
+  const [onA] = await Promise.all([
     a.api.items.refresh({ path: RACE_ITEM, wait: true }),
-    b.api.items.refresh({ path: RACE_ITEM, wait: true }),
+    phone.fills.settled(),
   ]);
-  expectEq([onA.fill, onB.fill], [{ state: "filled" }, { state: "filled" }], "the two fills");
+  expectEq(onA.fill, { state: "filled" }, "A's refresh");
+  await drained(phone, "after the phone's fill");
 
-  ctx.log("the two fills settle on one text on both Macs and the phone, with no copy");
+  ctx.log("the two reads settle on one text on both Macs and the phone, with no copy");
   const settled = await untilSettled(
     [
       [a, "A"],
@@ -201,11 +211,7 @@ const twoMacsRace = async (
     phone,
     RACE_ITEM,
     (text) => fetchedOf(text) !== null && keysOf(text).includes(`site: ${SITE}`),
-    "two Macs filled one stub",
-  );
-  expect(
-    settled.includes("Apps are ephemeral, and the files they write outlast every one of them."),
-    `the settled item holds the page's text once:\n${settled}`,
+    "a Refresh raced the phone's fill",
   );
   expectEq(
     settled.split("Apps are ephemeral").length - 1,
@@ -318,7 +324,7 @@ const phoneDeletesAPicture = async (
 
 export const phoneFillIntegrated: Scenario = {
   description:
-    "a phone stub of a LAN-fixture page is filled by a real Mac within the phone's minute and its card shows site and cover; two Macs filling one stub converge; a refresh racing a phone tag keeps both; a phone delete of an image item removes its original",
+    "a phone save of a LAN-fixture page is read by the phone itself, its card shows site and cover, and no Mac fetches it; a Mac's Refresh racing the phone's fill converges; a refresh racing a phone tag keeps both; a phone delete of an image item removes its original",
   name: "phone-fill-integrated",
   async run(ctx) {
     const lan = await startLanFixture(ROUTES);
@@ -337,12 +343,8 @@ export const phoneFillIntegrated: Scenario = {
       await phone.start();
       await untilMirrored(phone, []);
 
-      ctx.log("the phone saves a link, and A fills it on its own within the phone's minute");
-      const filled = await phoneFillsWithinTheMinute(
-        a,
-        phone,
-        lan.url("/file-over-app?utm_source=share"),
-      );
+      ctx.log("the phone saves a link and reads its page itself; A pulls it as it is");
+      const filled = await phoneReadsItsSave(a, phone, lan);
 
       ctx.log("B signs in to the same library");
       const b = await boot("b");
@@ -350,7 +352,7 @@ export const phoneFillIntegrated: Scenario = {
       await syncUntil(b.api, "B's first sync", "clean");
       expectEq(await onMac(b, ITEM), filled, "the filled item on B");
 
-      await twoMacsRace(ctx, lan, a, b, phone);
+      await refreshRacesThePhonesFill(ctx, lan, a, b, phone);
       await refreshRacesATag(ctx, a, b, phone, network, filled);
       await phoneDeletesAPicture(ctx, a, b, phone);
       await gitIn(a.vaultDir, ["fsck", "--strict"]);
@@ -358,5 +360,5 @@ export const phoneFillIntegrated: Scenario = {
       await lan.close();
     }
   },
-  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS + PHONE_FILL_DEADLINE_MS,
+  timeoutMs: WORKER_SCENARIO_TIMEOUT_MS,
 };

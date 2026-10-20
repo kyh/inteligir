@@ -109,11 +109,14 @@ library files and tags by them. Not the repo's `AGENTS.md`.
 folder already held is not a stub, so no Mac fills it unasked. Built by
 `@repo/notes/items/item-stub`.
 
-**fill** — what the Mac's server adds to a stub once it reads the page: the
-fill-owned keys (`site`, `author`, `published`, `description`, `fetched`, or
-`fetched` with `fetch-error` when the page could not be read), the cover
-embed, and the article text after the stub's own body. It calls no model and
-never writes `url` or `saved` (`apps/cli/src/server/items/capture/`). A save's
+**fill** — what the device that saved a stub adds to it once it reads the
+page, the Mac's server or the phone: the fill-owned keys (`site`, `author`,
+`published`, `description`, `fetched`, or `fetched` with `fetch-error` when the
+page could not be read), the cover embed, and the article text after the
+stub's own body. Both read the page with `@repo/page-reader` and write by the
+rules of `@repo/notes/items/link-fill`; it calls no model and never writes
+`url` or `saved` (`apps/cli/src/server/items/capture/`,
+`apps/mobile/src/items/link-fill.ts`). A save's
 answer says the fill's state: `pending`, `filled` or `failed`
 (`itemFillSchema` in `@repo/contract/local/items/items-schema`).
 

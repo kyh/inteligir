@@ -215,30 +215,30 @@ The apps also hold to these, plainly:
   the web, on the Mac or the phone: an image or embed at a web address is not
   fetched, so nobody learns you opened it. A link opens in your browser only
   when you follow it.
-- **Saving a link — from your Mac, to that site.** When you save a link, the
-  Mac app fetches that page once, from your Mac and never through our cloud, to
-  fill in its title, site, description, cover image and readable text. Refresh
-  fetches it again, and, in a library that syncs with your Inteligir account,
-  so does any of your Macs that finds a link saved on another of your devices
-  still waiting to be filled in. It also fetches the cover image the
-  page names. For YouTube, Vimeo, X, TikTok, Spotify and SoundCloud it asks that
+- **Saving a link — from the device you saved it on, to that site.** When you
+  save a link, the Mac app or the iPhone app fetches that page once, from that
+  device and never through our cloud, to fill in its title, site, description,
+  cover image and readable text. Refresh, on a Mac, fetches it again; a Mac
+  never fetches a link saved on another of your devices unless you ask it to,
+  with Refresh or Keep a copy. It also fetches the cover image the page names. For YouTube, Vimeo, X, TikTok, Spotify and SoundCloud it asks that
   site's own oEmbed address (with X's `dnt=true`), for any other page the oEmbed
   address the page itself names, and the picture that answer names; for a
   YouTube video it may also fetch the video's still picture from YouTube. Keep a
   copy of the page also fetches the page's stylesheets, fonts and images. The
-  request carries no cookies, sign-in or referrer; the site sees your Mac's IP
-  address, a Safari-compatible user agent naming inteligir and its version, and
-  your preferred language, as a browser visit would. Addresses on this Mac
-  itself, its own address on the internet included, and link-local addresses
-  are never fetched. An address on your own network is fetched only when it is
-  the link you saved, on that Mac or from your phone; a page on the internet can
-  never send your Mac to one, by a redirect or by naming a picture there, and
-  neither can a link another Mac saved. A
-  link saved on your phone is fetched by your Macs, usually by one of them
-  within a minute, occasionally by two; the phone fetches nothing. Before a Mac
-  fills a link saved elsewhere it syncs once, so it can skip one another Mac
-  already filled. For a link imported from Raindrop, it may also fetch the cover
-  picture Raindrop recorded for it. What is saved lands in your library and
+  request carries no cookies, sign-in or referrer; the site sees that device's
+  IP address, a Safari-compatible user agent naming inteligir and its version,
+  and your preferred language, as a browser visit would. On a Mac, addresses on
+  that Mac itself, its own address on the internet included, and link-local
+  addresses are never fetched, and an address on your own network is fetched
+  only when it is the link you saved: a page on the internet can never send
+  your Mac to one, by a redirect or by naming a picture there. Your iPhone
+  fetches a link you saved there once it is online and the app is open, and
+  only web addresses; it skips a picture or oEmbed address a page on the
+  internet names when that address names your own network by how it is
+  spelled, but iOS itself follows a page's redirects wherever they lead, and
+  what the phone reads lands only in your own library. For a link imported
+  from Raindrop, a Mac may also fetch the cover picture Raindrop recorded for
+  it. What is saved lands in your library and
   travels wherever your library syncs.
 - **The browser extension.** The Inteligir extension for Chrome, Arc, Brave,
   Edge and Vivaldi reads the page you are on only when you click Save or choose Save from
@@ -250,7 +250,7 @@ The apps also hold to these, plainly:
   box you type into, such as an email you are writing, are emptied first.
 - **Sharing from your iPhone.** Sharing a page to Inteligir saves its address,
   its title and any text you shared into your library, like any other edit on
-  the phone. The phone fetches nothing from the page; your Mac fills it in.
+  the phone, and the phone then fetches the page as above to fill it in.
 - **Importing from Raindrop.** The CSV file you choose is read on your Mac and
   kept in the app's data folder only until the import ends. Each imported link
   is then filled in as above.
@@ -396,7 +396,7 @@ your library offline:
   it.
 - **Whatever it has not sent yet.** Edits, saves, new notes, renames,
   deletions, highlights and photos wait on the phone until the online library
-  takes them. A change
+  takes them, and a link you saved waits there until the phone has read it. A change
   the library cannot take as it is stays on the phone and says so, until you
   retry it, keep it as a new note or discard it. A page you share to Inteligir
   waits in the share sheet's own storage on the phone until the app saves it.
@@ -1030,8 +1030,8 @@ Everything else the app reaches is someone else's:
   and their own sign-in pages when they ask for one.
 - **Your own git server**, if a library syncs to one instead of your account's
   online library.
-- **The sites you save**, from your Mac, when you save or refresh a link or a
-  Mac fills in one saved elsewhere, with the cover and page-copy files they
+- **The sites you save**, from the Mac or the iPhone you saved on, when you
+  save a link or refresh it on a Mac, with the cover and page-copy files they
   name, the cover a Raindrop import recorded, and the oEmbed addresses above.
 
 ---

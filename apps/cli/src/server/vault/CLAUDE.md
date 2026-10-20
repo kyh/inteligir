@@ -195,8 +195,8 @@ Vault writes, the git engine underneath them, sync and containment. `AGENTS.md`
   which the library lists like any other, and the copies are the record. Rejected: a `conflict` state that stopped sync until someone ran git,
   which a knowledge worker cannot, and a rebase through the conflict, which
   replays every local commit and has nowhere to keep the other version. Two
-  versions of one saved link (two Macs filling one stub, a Refresh racing a
-  tag) settle by `urlItemVerdict` inside that verdict, with no copy, so both
+  versions of one saved link (a Refresh racing the saving device's fill, a
+  Refresh racing a tag) settle by `urlItemVerdict` inside that verdict, with no copy, so both
   repos and the remote end on one text whichever device merges.
   `apps/cli/src/server/vault/git-merge.ts`,
   `apps/cli/src/server/vault/git-merge-items.test.ts`.

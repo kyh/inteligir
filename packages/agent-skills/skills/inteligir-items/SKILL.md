@@ -28,15 +28,15 @@ one, never copy one between items, and never change one that is there.
 | `author`      | Who wrote the page                                         | the page's read                |
 | `published`   | When the page says it was published                        | the page's read                |
 | `saved`       | When it was saved (`2026-10-17T09:12:30Z`)                 | the save, once                 |
-| `fetched`     | When the Mac last read the page                            | the page's read                |
+| `fetched`     | When the page was last read                                | the page's read                |
 | `fetch-error` | Why the page could not be read, in a sentence              | a failed read                  |
 | `description` | One line on what the item is                               | the page's read, or the person |
 | `tags`        | The person's tags                                          | you, with `inteligir tag add`  |
 | `pinned`      | `true` keeps it first                                      | the person                     |
 
 There is no `title` key: the filename is the title. A link with `url` and
-`saved` but no `fetched` is waiting for the Mac to read its page; leave it,
-the app fills it.
+`saved` but no `fetched` is waiting for the device that saved it to read its
+page; leave it, the app fills it.
 
 A saved link after its page was read:
 

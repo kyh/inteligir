@@ -92,11 +92,12 @@ encrypt Your Content end to end: what it holds is stored where we can read it,
 as our Privacy Policy describes. Keep your own copies of anything you cannot
 afford to lose (Section 6).
 
-2.8 **What You Save From the Web.** When you save a link, the Mac app fetches
-that page from your Mac, never through our cloud, and keeps its title, a
-picture, its readable text and, when you ask, a copy of the page in your
-library; the browser extension and the iPhone app's share sheet hand the app a
-page you are looking at or sharing, and send nothing to us. What you save from
+2.8 **What You Save From the Web.** When you save a link, the Mac app or the
+iPhone app fetches that page from the device you saved it on, never through our
+cloud, and keeps its title, a picture, its readable text and, when you ask on a
+Mac, a copy of the page in your library; the browser extension and the iPhone
+app's share sheet hand the app a page you are looking at or sharing, and send
+nothing to us. What you save from
 someone else's site stays theirs: saving it gives you no rights in it beyond
 what its owner and the law allow, and how you use it is your responsibility. The
 Privacy Policy says exactly what these fetches send and to whom.

@@ -448,17 +448,18 @@ account whose library holds about 2,000 items gives the timing check its load.
   onto another iPhone and open the app. Passing: it shows the sign-in screen,
   and once signed in Settings › Account on the Mac lists it beside the first
   phone.
-- **Share a page.** From Safari, share a page to Save to Inteligir. Passing:
-  it lands in Unsorted named by the page's title, and an awake Mac fills it in
-  within about a minute of the share reaching it ("Details arrive from your
-  Mac" goes away), not after 15 minutes. From YouTube, X and Mail: the link is
-  saved. Shared offline: it is queued and lands once online. Shared signed
-  out: it waits for the sign-in. A photo does not offer Inteligir.
-- **Two Macs and a share.** With two Macs online when a phone's share lands.
-  Passing: one item and no conflict copy, and usually only one Mac fetched the
-  page (each Mac's debug log names the fills it ran). Editing the item on the
-  phone while a Mac fills it keeps the edit, and pressing Refresh on a Mac
-  while the phone adds a tag keeps both.
+- **Share a page.** With every Mac signed in to the account asleep or quit,
+  share a page from Safari to Save to Inteligir. Passing: it lands in Unsorted
+  named by the page's title, and within a few seconds the phone itself fills
+  it in: "Waiting to be read" goes away and the card shows the site and the
+  cover, and the item opens with the article. From YouTube, X and Mail: the
+  link is saved and read the same way. Shared offline: it is queued, and lands
+  and is read once the phone is online with the app open. Shared signed out:
+  it waits for the sign-in. A photo does not offer Inteligir.
+- **A share and the Macs.** With two Macs online when a phone's share lands.
+  Passing: one item and no conflict copy, read by the phone; neither Mac's
+  debug log names a fill of it. Pressing Refresh on a Mac while the phone adds
+  a tag keeps both.
 - **The library.** Passing: a 2,000-item library scrolls with covers; an
   offline launch shows placeholders for covers not yet seen; the picture and
   PDF viewers open; and a bare highlight made on the phone shows on the Mac.

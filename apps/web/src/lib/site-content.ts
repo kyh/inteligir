@@ -22,11 +22,11 @@ edits it with you.
   right-click menu.
 - **From the window.** Paste a link, or drag links and files onto the app. Files up to 10 MB are
   kept as they are.
-- **From your iPhone.** Share a page or a link to ${name} from any app, even offline, and your Mac
-  fills it in.
+- **From your iPhone.** Share a page or a link to ${name} from any app, even offline, and your iPhone
+  reads it once it's online.
 
-Saving is instant and free: your Mac reads each page's title, picture and text itself, and no model
-is called.
+Saving is instant and free: the device you save on reads each page's title, picture and text itself,
+and no model is called.
 
 ## Read and highlight
 
@@ -139,7 +139,7 @@ export const llmsTxt = `# ${name}
 ${name} stores every item as a markdown file in a folder on the user's Mac; a saved picture, PDF or
 file is kept beside a note that embeds it. It saves from Chrome, Arc, Brave and Edge through its
 browser extension, by pasting or dragging onto the window, and from the iPhone share sheet, and
-the Mac reads each saved page itself without calling a model. The app, its search and the agent
+the device that saved a page reads it itself without calling a model. The app, its search and the agent
 run on that Mac; an optional account adds sync across Macs and an iPhone app. It imports Raindrop
 backups and opens an Obsidian folder as it is. It is open source (MIT), available for Apple
 silicon Macs, and shared with a small invited group.

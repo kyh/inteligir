@@ -158,15 +158,21 @@ facts, its first embeds and page-copy link, and its tags. The cover and the
 original are resolved per listing over the held paths (`library/library-view.ts`),
 and a cover draws from the attachment cache, or from a 320 px JPEG made once
 beside an original over 512 KB (`library/cover-thumbs.ts`), so a list loads
-nothing remote. A link no Mac has read yet says "Details arrive from your Mac".
+nothing remote. A link whose page is not read yet says "Waiting to be read".
 
 - **Saving is one create.** The field over the list and a share from another app
   both make ONE outbox `create` in `Unsorted/` (`items/item-ops.ts`): a link is
   a stub (`linkStubText`: a minted id, its kind, the cleaned url, when it was
   saved, and the note as its body), named by the share's title or the link,
   and a link the library already holds answers where it is; a thought is a
-  note named by its first line. The Worker takes it like any write, and a Mac
-  that sees the stub reads its page within a minute.
+  note named by its first line. The Worker takes it like any write.
+- **The phone reads what it saves.** A link's fill is queued with its stub
+  (`pending_fills`) and read while the app is open, signed in and online
+  (`items/fill-queue.ts`): the phone fetches the page (`items/page-fetch.ts`),
+  the editor page reads it in its reader mode, a WebView nothing shows
+  (`items/reader-page.tsx`, `items/fill-page-host.ts`), and the item, its
+  cover and any highlight waiting on it go as one change set
+  (`items/link-fill.ts`). No Mac fills a phone's save.
 - **A share is the app's save.** The share extension ("Save to Inteligir")
   only hands the page, the link or the text to the app through the App Group;
   `items/share-inbox.tsx` saves it, opens it, and only then lets it go, so a
