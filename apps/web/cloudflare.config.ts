@@ -19,13 +19,11 @@ const worker = defineWorker({
     traces: { enabled: true, headSamplingRate: 0.01 },
   },
   exports: {
-    // retired with the thread log and the phone's requests to a Mac, which every object of it held:
-    // the deploy deletes the namespace and all its data. the class is no longer exported, as a
-    // deleted namespace requires; the entry stays until every deployment of this worker has
-    // applied it
-    ThreadSyncDO: exports.durableObject({ state: "deleted" }),
-    // the account's live sockets: a vault push pings them, a revoke closes one device's
-    AccountSocketDO: exports.durableObject({ storage: "sqlite" }),
+    // the account's live sockets (AccountSocketDO), deployed under the class name the retired
+    // thread log had: a Preview is a version of this script, and a version can neither add a class
+    // nor delete one, so a new name would leave every PR's preview unable to bind it until a
+    // deploy migrated it. An object that still holds the thread log's tables drops them on waking
+    ThreadSyncDO: exports.durableObject({ storage: "sqlite" }),
     RepoCell: exports.durableObject({ storage: "sqlite" }),
     Registry: exports.durableObject({ storage: "sqlite" }),
   },
@@ -42,7 +40,7 @@ const worker = defineWorker({
 const MIN_CLIENT_BUILD = "0.6.0";
 
 const durableObjects = {
-  ACCOUNT_SOCKET: bindings.durableObject({ worker, exportName: "AccountSocketDO" }),
+  ACCOUNT_SOCKET: bindings.durableObject({ worker, exportName: "ThreadSyncDO" }),
   // REPO and REGISTRY are durable-git's own classes, re-exported through the entry
   REPO: bindings.durableObject({ worker, exportName: "RepoCell" }),
   REGISTRY: bindings.durableObject({ worker, exportName: "Registry" }),

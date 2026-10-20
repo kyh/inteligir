@@ -24,7 +24,7 @@ import {
   requestsOf,
 } from "./test-support/fake-vault";
 import type { FakeVault, Network } from "./test-support/fake-vault";
-import { launchPhone, openTempDb, tempDbPath } from "./test-support/phone-storage";
+import { launchPhone, openTempDb, phonePorts, tempDbPath } from "./test-support/phone-storage";
 
 // ten lines, so an edit on line 1 and one on line 10 are far apart and two on line 5 overlap
 const TEN_LINES = Array.from({ length: 10 }, (_, index) => `line ${String(index + 1)}`);
@@ -485,6 +485,24 @@ describe("the phone's outbox", () => {
 
 const bytes = (text: string): Uint8Array => new TextEncoder().encode(text);
 
+// the vault takes the first set it is sent, and its answer waits until the test lets it go
+const firstAnswerHeld = (vault: FakeVault) => {
+  const net: Network = { loseApplied: false, online: true };
+  const held = { first: true };
+  const out = deferred();
+  const answered = deferred();
+  const fetch: CloudFetch = async (input, init) => {
+    const response = await networkOver(vault, net)(input, init);
+    if (held.first && new URL(input).pathname === VAULT_API_PATHS.commit) {
+      held.first = false;
+      out.resolve();
+      await answered.promise;
+    }
+    return response;
+  };
+  return { answer: answered.resolve, fetch, out: out.promise };
+};
+
 describe("a link's fill, written from the phone", () => {
   const ITEM = "Unsorted/File over app.md";
   const COVER = "assets/covers/3f9a0c2b1d4e5f60.jpg";
@@ -538,6 +556,56 @@ describe("a link's fill, written from the phone", () => {
       `commit put ${COVER}@absent,put ${ITEM}@absent`,
     ]);
     expect(vault.files()).toStrictEqual({ [COVER]: "jpeg", [ITEM]: filledWith(COVER) });
+  });
+
+  it("keeps the cover of a fill that joins its stub's save while that save is out, and sends it after", async () => {
+    const vault = createFakeVault({});
+    const held = firstAnswerHeld(vault);
+    const ports = phonePorts();
+    const store = launchPhone(held.fetch, openTempDb(), ports);
+    await store.refresh();
+    await store.saveStub(ITEM, stub, { itemId: ID, notBefore: 1000, url: URL_SAVED });
+    await held.out;
+
+    expect(
+      await store.writeFill(ITEM, filledWith(COVER), stub, [{ bytes: bytes("jpeg"), path: COVER }]),
+    ).toStrictEqual({ kind: "written" });
+    held.answer();
+    await store.drain();
+
+    expect(requestsOf(vault, "commit")).toStrictEqual([
+      `commit put ${ITEM}@absent`,
+      `commit put ${COVER}@absent,put ${ITEM}@${blobOid(stub)}`,
+    ]);
+    expect(vault.files()).toStrictEqual({ [COVER]: "jpeg", [ITEM]: filledWith(COVER) });
+    expect(store.heldFiles().map((file) => file.path)).toStrictEqual([ITEM, COVER]);
+    expect(store.outbox.status.get()).toMatchObject({ parked: [], unsent: 0 });
+    // the staged cover moved to the attachment cache once the vault held it
+    expect(ports.outboxFiles.names()).toStrictEqual([]);
+    expect(ports.attachments.names()).toStrictEqual([`${blobOid("jpeg")}.jpg`]);
+  });
+
+  it("sends a fill's cover once when an edit joins the fill's set while it is out", async () => {
+    const vault = createFakeVault({ [ITEM]: stub });
+    const held = firstAnswerHeld(vault);
+    const store = launchPhone(held.fetch, openTempDb());
+    await store.refresh();
+    await readText(store, ITEM);
+    const filled = filledWith(COVER);
+    await store.writeFill(ITEM, filled, stub, [{ bytes: bytes("jpeg"), path: COVER }]);
+    await held.out;
+
+    const tagged = filled.replace("\n---\n", "\ntags:\n  - read\n---\n");
+    await store.write(ITEM, tagged, { base: filled, kind: "expected" });
+    held.answer();
+    await store.drain();
+
+    expect(requestsOf(vault, "commit")).toStrictEqual([
+      `commit put ${COVER}@absent,put ${ITEM}@${blobOid(stub)}`,
+      `commit put ${ITEM}@${blobOid(filled)}`,
+    ]);
+    expect(vault.files()).toStrictEqual({ [COVER]: "jpeg", [ITEM]: tagged });
+    expect(store.outbox.status.get()).toMatchObject({ conflicts: [], parked: [], unsent: 0 });
   });
 
   it("sends no cover the library already holds, since a cover is named by its bytes", async () => {

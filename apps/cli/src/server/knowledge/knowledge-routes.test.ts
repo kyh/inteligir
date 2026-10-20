@@ -1,3 +1,5 @@
+import { renameSync, rmSync } from "node:fs";
+import nodePath from "node:path";
 import { ORPCError, safe } from "@orpc/client";
 import {
   KNOWLEDGE_RELATED_MAX_LIMIT,
@@ -230,5 +232,45 @@ describe("the knowledge routes", () => {
       },
       { timeout: 5000 },
     );
+  });
+
+  // the index hears a change only once it is told: the server's own move reports after its
+  // fsyncs, a watched one after the watcher's debounce. this boot has no watcher, so a move made
+  // on disk is that window held open until the suite tells the index, as the watcher's batch would
+  it("says a move on disk the index has not been told is pending, never the path the item left", async () => {
+    const { client, composed, vaultDir } = await bootTestApp();
+    const id = "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17";
+    await client.vault.write({
+      content: `---\nid: ${id}\n---\n# Moved\n`,
+      guard: { kind: "overwrite" },
+      path: "before.md",
+    });
+    expect(await client.knowledge.pathForNoteId({ id, lastPath: "before.md" })).toEqual({
+      path: "before.md",
+      pending: false,
+    });
+
+    renameSync(nodePath.join(vaultDir, "before.md"), nodePath.join(vaultDir, "after.md"));
+    expect(await client.knowledge.pathForNoteId({ id, lastPath: "before.md" })).toEqual({
+      path: null,
+      pending: true,
+    });
+    composed.context.knowledge.invalidate({ kind: "paths", paths: ["after.md", "before.md"] });
+    expect(await client.knowledge.pathForNoteId({ id, lastPath: "before.md" })).toEqual({
+      path: "after.md",
+      pending: false,
+    });
+
+    // a delete is the same window, and once the index has heard it the id answers gone
+    rmSync(nodePath.join(vaultDir, "after.md"));
+    expect(await client.knowledge.pathForNoteId({ id, lastPath: "after.md" })).toEqual({
+      path: null,
+      pending: true,
+    });
+    composed.context.knowledge.invalidate({ kind: "paths", paths: ["after.md"] });
+    expect(await client.knowledge.pathForNoteId({ id, lastPath: "after.md" })).toEqual({
+      path: null,
+      pending: false,
+    });
   });
 });

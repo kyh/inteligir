@@ -160,9 +160,11 @@ const phoneReadsItsSave = async (
     `the phone's fill wrote the page's description:\n${filled}`,
   );
 
-  // A pulls what the phone wrote, and neither fetched the page nor queued a fill of its own
+  // A pulls what the phone wrote, its cover with it, and neither fetched the page nor queued a
+  // fill of its own
   await syncUntil(a.api, "A pulling the phone's item", "clean");
   expectEq(await onMac(a, ITEM), filled, "the filled item on A and on the hosted head");
+  expect(existsSync(path.join(a.vaultDir, cover)), `the cover the phone kept is on A: ${cover}`);
   expectEq(
     lan.requests().filter((request) => request.path === "/file-over-app").length,
     1,

@@ -83,7 +83,12 @@ and cited.
   the answer leaves. `readsOutstanding` in
   `apps/cli/src/server/knowledge/deferred-reads.ts` and
   `apps/cli/src/server/knowledge/index-pass.ts`, read by
-  `apps/cli/src/server/knowledge/knowledge-router.ts`.
+  `apps/cli/src/server/knowledge/knowledge-router.ts`. Nor does it answer a path
+  the disk no longer holds: the index hears a move only once told (the server's
+  own after its fsyncs, a watched one after the debounce) and until then names
+  the path the item left, so the router answers that as `pending` too; an id
+  nothing answers once the index has heard drops. Rejected: the old path as the
+  answer (the window opened it, found nothing and dropped to the library).
 
 - **THE BUDGET IS 3 OPENS AT ONCE, WHOEVER ASKED, AND A BACKGROUND READ NEVER
   TAKES THE THIRD.** It wraps the open of a file's bytes in `read` and

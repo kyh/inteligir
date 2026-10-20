@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, renameSync } from "node:fs";
 import nodePath from "node:path";
 import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
 import type { RouterHistory } from "@tanstack/react-router";
@@ -46,6 +46,18 @@ const settingsBack = (): HTMLElement => {
 // the item the window shows, by the item view's own mark; null is the library
 const shownItem = (): string | null =>
   document.querySelector<HTMLElement>("[data-item-view]")?.dataset.itemPath ?? null;
+
+// the bus's word that alpha.md moved to gamma.md, which a booted server's own broadcast never brings
+const deliverAlphaMoved = (): void => {
+  act(() => {
+    ScriptedSocket.deliverToAll({
+      changes: ["files-changed"],
+      entity: "vault",
+      paths: ["alpha.md", "gamma.md"],
+      type: "changed",
+    });
+  });
+};
 
 const bootAt = async (
   history: RouterHistory,
@@ -265,6 +277,7 @@ describe("Settings over the workspace", () => {
     const renamed = booted.client.vault.rename({ from: "alpha.md", to: "gamma.md" });
     await vi.waitFor(() => {
       expect(existsSync(nodePath.join(booted.vaultDir, "gamma.md"))).toBe(true);
+      expect(existsSync(nodePath.join(booted.vaultDir, "alpha.md"))).toBe(false);
     });
     act(() => {
       ScriptedSocket.deliverToAll({
@@ -275,6 +288,44 @@ describe("Settings over the workspace", () => {
       });
     });
     await renamed;
+
+    await waitFor(
+      () => {
+        expect(router.state.location.search).toEqual({ item: "gamma.md" });
+      },
+      { timeout: 10_000 },
+    );
+    expect(searches.filter((search) => !search.includes("item="))).toEqual([]);
+    await screen.findByRole("heading", { name: "Alpha" }, { timeout: 10_000 });
+    expect(shownItem()).toBe("gamma.md");
+  });
+
+  // the index is told of a move only after it is on disk: the server's own move reports after its
+  // fsyncs, a watched one after the watcher's debounce. this boot has no watcher, so a move made on
+  // disk holds that window open until the suite tells the index, as the watcher's batch would
+  it("keeps the open item while the index has not been told where it moved, then follows it", async () => {
+    const history = createMemoryHistory({ initialEntries: ["/?item=alpha.md"] });
+    const searches: string[] = [];
+    history.subscribe(() => {
+      searches.push(history.location.search);
+    });
+    const { booted, router } = await bootAt(history, ScriptedSocket);
+    await screen.findByRole("heading", { name: "Alpha" });
+    const { knowledge } = booted.composed.context;
+    const asked = vi.spyOn(knowledge, "pathForNoteId");
+
+    renameSync(
+      nodePath.join(booted.vaultDir, "alpha.md"),
+      nodePath.join(booted.vaultDir, "gamma.md"),
+    );
+    deliverAlphaMoved();
+    // the window's first ask has its answer from an index that still names alpha.md
+    await vi.waitFor(() => {
+      expect(asked.mock.settledResults[0]?.type).toBe("fulfilled");
+    });
+
+    knowledge.invalidate({ kind: "paths", paths: ["alpha.md", "gamma.md"] });
+    deliverAlphaMoved();
 
     await waitFor(
       () => {

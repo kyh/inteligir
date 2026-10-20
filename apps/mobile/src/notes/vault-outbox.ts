@@ -334,8 +334,26 @@ const landingsOf = (
   return landings;
 };
 
+// the path a landing leaves a blob at; none for a removal
+const heldAt = (landing: MirrorLanding): string | null => {
+  switch (landing.kind) {
+    case "put": {
+      return landing.path;
+    }
+    case "move": {
+      return landing.to;
+    }
+    case "remove": {
+      return null;
+    }
+    // no default
+  }
+};
+
 // a write made while its row was out lands as a new row on what the vault took: rebased when the
-// vault took a merge, kept as it is when the vault left no text to rebase onto
+// vault took a merge, kept as it is when the vault left no text to rebase onto. It keeps every file
+// the row names that the landing did not put, so a fill's cover that joined its stub's save while
+// that set was out goes with the fill's text, never behind it.
 const remainderOf = (
   now: OutboxRow,
   mine: string | null,
@@ -345,18 +363,20 @@ const remainderOf = (
     return null;
   }
   const { path } = now.op;
+  const held = new Set(landings.map(heldAt));
+  const assets = opAssets(now.op).filter((asset) => !held.has(asset.path));
   const landed = landings.find(
     (landing): landing is Extract<MirrorLanding, { kind: "put" }> =>
       landing.kind === "put" && landing.path === path,
   );
   if (landed === undefined || landed.text === null) {
-    return { ...now, settle: null, state: PENDING };
+    return { ...now, op: { ...now.op, assets }, settle: null, state: PENDING };
   }
   const content =
     landed.text === mine ? now.op.content : diff3(mine, now.op.content, landed.text).merged;
   return {
     ...now,
-    op: { baseContent: landed.text, baseOid: landed.oid, content, op: "write", path },
+    op: { assets, baseContent: landed.text, baseOid: landed.oid, content, op: "write", path },
     settle: null,
     state: PENDING,
   };
