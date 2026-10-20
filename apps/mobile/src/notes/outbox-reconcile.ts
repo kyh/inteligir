@@ -13,7 +13,7 @@ import type {
 import type { SyncConflictReport } from "@repo/notes/sync/conflict-copy";
 import { reconcileFile } from "@repo/notes/sync/reconcile-file";
 import type { FileSide, Reconciled } from "@repo/notes/sync/reconcile-file";
-import { putText, rebaseEdit, rewritePuts } from "./outbox-ops";
+import { isTextOp, putText, rebaseEdit, rewritePuts } from "./outbox-ops";
 import type {
   AnnotationOp,
   OutboxRow,
@@ -45,9 +45,11 @@ export interface ReconcileContext {
 // `local`: the vault already holds the answer, so nothing is sent. `retarget`: the row's own change
 // again, over what the vault holds now: a rename moves the version there and leaves out the links
 // it could not rewrite (`unlinked` names the notes another device changed first), a delete takes
-// the annotation stores as they are now.
+// the annotation stores as they are now. `files`: a note's write names files the head already
+// holds something at, which the row moves or drops before it goes again.
 export type Resolution =
   | { kind: "send"; settle: Settle }
+  | { kind: "files"; held: readonly string[] }
   | {
       kind: "local";
       landings: readonly MirrorLanding[];
@@ -64,6 +66,13 @@ const PARKED_REASONS: ReadonlyMap<VaultConflictReason, string> = new Map([
   ["blocked", "Something else in your library already has this name."],
   ["case-collision", "Another item has this name in different capitals."],
   ["unwritable", "This file cannot be changed from your phone."],
+]);
+
+// what a file's put meets at a name something else holds
+const NAME_TAKEN: ReadonlySet<VaultConflictReason> = new Set([
+  "exists",
+  "case-collision",
+  "blocked",
 ]);
 
 const NOT_KEPT_HERE = "Both versions could not be kept on your phone. Try again from your Mac.";
@@ -509,6 +518,17 @@ export const resolveConflict = async (
   // a note a rename could not rewrite costs its link, never the rename
   if (op.op === "rename") {
     return await reconcileRename(row, op, conflict, ctx);
+  }
+  // a file a note's write carries meets a head that holds something at its name: the row's files
+  // are settled first (withFilesMoved), and the set goes again
+  if (isTextOp(op)) {
+    const named = new Set(
+      conflict.conflicts.flatMap((entry) => (NAME_TAKEN.has(entry.reason) ? [entry.path] : [])),
+    );
+    const held = (op.assets ?? []).filter((asset) => named.has(asset.path));
+    if (held.length > 0) {
+      return { held: held.map((asset) => asset.path), kind: "files" };
+    }
   }
   const refusal = refusedFor(conflict.conflicts);
   if (refusal !== null) {

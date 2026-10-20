@@ -247,34 +247,6 @@ export const reachedKeys = (raw: string): string[] => {
   return [own, ...carried];
 };
 
-// refused before any lookup: the name resolves to this Mac on every resolver that honours RFC 6761
-export const isThisMacName = (host: string): boolean => {
-  const name = host.toLowerCase().replace(/\.$/u, "");
-  return name === "localhost" || name.endsWith(".localhost");
-};
-
-// a name no public resolver answers, so no stranger chooses what it resolves to: one label (`nas`,
-// `wiki`), a suffix set aside for a home or an office (`.local`, `.home.arpa`, `.internal`), or one
-// the root has never delegated because homes and offices use it (`.lan`, `.home`, `.corp`, …)
-const PRIVATE_USE_SUFFIXES = [
-  "local",
-  "home.arpa",
-  "internal",
-  "lan",
-  "home",
-  "corp",
-  "intranet",
-  "localdomain",
-];
-
-export const isPrivateUseName = (host: string): boolean => {
-  const name = host.toLowerCase().replace(/\.$/u, "");
-  return (
-    !name.includes(".") ||
-    PRIVATE_USE_SUFFIXES.some((suffix) => name === suffix || name.endsWith(`.${suffix}`))
-  );
-};
-
 // one hop's whole answer. `reach` null: the saved address itself, whose answer decides the reach
 // every later hop and subresource gets
 export const vetAnswer = (classes: readonly AddressClass[], reach: Reach | null): AnswerVerdict => {

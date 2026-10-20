@@ -17,7 +17,7 @@ const ARTICLE =
 const NOTE = "For Tuesday.";
 
 // a JPEG's own start and end around bytes of its own, so each Mac's cover is a file of its own
-const coverBytes = (seed: number): Uint8Array =>
+const coverBytes = (seed: number): Uint8Array<ArrayBuffer> =>
   Uint8Array.from([
     0xff,
     0xd8,

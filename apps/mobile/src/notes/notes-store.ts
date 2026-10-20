@@ -10,6 +10,7 @@ import {
 import type { AnnotationStore } from "@repo/notes/annotations/store-schema";
 import { isDocPath } from "@repo/notes/knowledge/doc-file";
 import { extnamePath } from "@repo/notes/knowledge/vault-path";
+import { z } from "zod";
 import { describeCloudFailure } from "@repo/contract/cloud/client";
 import type { CloudClient, CloudFailure } from "@repo/contract/cloud/client";
 import { createSingleFlight } from "@repo/contract/cloud/sync/sync-session";
@@ -17,15 +18,23 @@ import { vaultCollisionKey } from "@repo/contract/cloud/vault/vault-commit-schem
 import { messageOf } from "../lib/error-message";
 import { createExternalStore } from "../lib/external-store";
 import type { ReadableStore } from "../lib/external-store";
+import { fencedExclusive } from "../lib/phone-db";
 import type { Fence } from "../lib/phone-db";
 import { createSignInFence, NOT_SIGNED_IN } from "../lib/sign-in-fence";
 import type { SignInSource } from "../lib/sign-in-fence";
 import { createSerialLock } from "../lib/sql-driver";
-import type { SqlDriver } from "../lib/sql-driver";
+import type { SqlDriver, SqlExecutor } from "../lib/sql-driver";
 import type { SessionPort } from "../sync/sync-runtime";
 import type { AttachmentFiles } from "./attachment-files";
 import { blobOid, isTextOp, leavesAt, opPaths, rebaseEdit, textBlobOid } from "./outbox-ops";
-import type { AnnotationOp, GuardedText, OutboxRow, Sha1, VaultOp } from "./outbox-ops";
+import type {
+  AnnotationOp,
+  GuardedText,
+  OutboxRow,
+  Sha1,
+  StagedAsset,
+  VaultOp,
+} from "./outbox-ops";
 import type { OutboxFiles } from "./outbox-files";
 import { createVaultOutbox, STAGED_FILE_GONE } from "./vault-outbox";
 import type { CreateVaultOutboxArgs, OutboxStatus } from "./vault-outbox";
@@ -135,6 +144,33 @@ export type AnnotationEditOutcome =
   | { kind: "vanished" }
   | { kind: "refused"; message: string };
 
+// a link this phone saved and has not read yet: phone-db's pending_fills, written in the transaction
+// that queues its stub and wiped with the rest of a sign-in's rows
+export interface PendingFill {
+  itemId: string;
+  // where the stub was saved; a fill finds a moved one by its id
+  path: string;
+  url: string;
+  // the reads that failed in a way a later one may get past
+  attempts: number;
+  // unix ms: not read before this
+  notBefore: number;
+}
+
+const pendingFillRowSchema = z.object({
+  attempts: z.number().int(),
+  item_id: z.string(),
+  not_before: z.number(),
+  path: z.string(),
+  url: z.string(),
+});
+
+// a file a fill keeps beside the item it writes: a cover, or the original a link answered with
+export interface FillFile {
+  path: string;
+  bytes: Uint8Array;
+}
+
 export interface HeldFile {
   path: string;
   noteId: string | null;
@@ -163,6 +199,25 @@ export interface NotesStore {
   // are one change set
   remove: (path: string, alongside?: readonly string[]) => Promise<void>;
   putAsset: (path: string, bytes: Uint8Array) => Promise<CreateOutcome>;
+  // a saved link's stub and its pending fill, queued in one transaction
+  saveStub: (
+    path: string,
+    content: string,
+    fill: { itemId: string; url: string; notBefore: number },
+  ) => Promise<CreateOutcome>;
+  // a fill's write: the item's text computed from `base` and the files it embeds, one change set
+  writeFill: (
+    path: string,
+    content: string,
+    base: string,
+    files: readonly FillFile[],
+  ) => Promise<Exclude<GuardedWriteResult, { kind: "exists" }>>;
+  pendingFills: {
+    list: () => Promise<readonly PendingFill[]>;
+    // a later try, or where the stub went
+    update: (row: PendingFill) => Promise<void>;
+    remove: (itemId: string) => Promise<void>;
+  };
   // every file the phone lists, unsent changes laid over; none before the first listing
   heldFiles: () => readonly HeldFile[];
   // resolves once the sign-in's rows are read back (a restore) or wiped (a new sign-in), so a
@@ -186,6 +241,10 @@ export interface NotesStore {
   };
   // the store at the id of a note the caller already read, folded against that read's markers
   readAnnotations: (note: NoteText) => Promise<AnnotationsRead>;
+  // the same store's entries as they are, for a fill placing the highlights that wait on a stub
+  readAnnotationStore: (
+    note: NoteText,
+  ) => Promise<{ ok: true; entries: AnnotationStore } | { ok: false; message: string }>;
   // the store's edit and the note's anchored text, one change set; a note without an id takes one
   // with its first annotation
   editAnnotations: (edit: AnnotationEdit) => Promise<AnnotationEditOutcome>;
@@ -197,8 +256,8 @@ type LiveSession = Extract<ReturnType<SessionPort["current"]>, { kind: "live" }>
 
 interface QueuedWrite {
   fence: Fence;
-  // throws when the sign-in the write began under has ended
-  enqueue: (op: VaultOp) => Promise<void>;
+  // throws when the sign-in the write began under has ended; `alongside` runs in its transaction
+  enqueue: (op: VaultOp, alongside?: (tx: SqlExecutor) => Promise<void>) => Promise<void>;
 }
 
 interface Listing {
@@ -490,6 +549,13 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   const wipe = async (): Promise<void> => {
     await outbox.wipe();
     try {
+      await args.db.exclusive(async (tx) => {
+        await tx.run("DELETE FROM pending_fills");
+      });
+    } catch {
+      // a sign-in after this one wipes again, and a fill writes only through a live session
+    }
+    try {
       await mirror.wipe();
     } catch {
       // a sign-in after this one wipes again, and a stale row is only served to a live session
@@ -509,8 +575,8 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
         throw new Error(NOT_SIGNED_IN);
       }
       return await work({
-        enqueue: async (op) => {
-          if (!(await outbox.enqueue(op, fence))) {
+        enqueue: async (op, alongside) => {
+          if (!(await outbox.enqueue(op, fence, alongside))) {
             throw new Error(NOT_SIGNED_IN);
           }
         },
@@ -616,6 +682,12 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     switch (op.op) {
       case "write":
       case "create": {
+        if (path !== op.path) {
+          const asset = op.assets?.find((each) => each.path === path);
+          return asset === undefined
+            ? null
+            : { content: null, oid: await blobOid(args.sha1, await outboxBytes(asset.stagedFile)) };
+        }
         return { content: op.content, oid: await textBlobOid(args.sha1, op.content) };
       }
       case "rename":
@@ -660,6 +732,22 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       }
       expectOwn(path, content);
       await enqueue({ content, op: "create", path });
+      return { kind: "created" };
+    });
+
+  const saveStub: NotesStore["saveStub"] = async (path, content, fill) =>
+    await queued(async ({ enqueue }) => {
+      if (isTakenHere(path)) {
+        return { kind: "exists" };
+      }
+      expectOwn(path, content);
+      await enqueue({ content, op: "create", path }, async (tx) => {
+        await tx.run(
+          `INSERT OR REPLACE INTO pending_fills (item_id, path, url, attempts, not_before, created_at)
+           VALUES (?, ?, ?, 0, ?, ?)`,
+          [fill.itemId, path, fill.url, fill.notBefore, fill.notBefore],
+        );
+      });
       return { kind: "created" };
     });
 
@@ -719,6 +807,103 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     }
     const created = await create(path, content);
     return created.kind === "created" ? { kind: "written" } : created;
+  };
+
+  // staged under the blob's name, as a photo is; a file the vault already holds at its path is the
+  // same bytes (a cover is named by them), so it rides no set
+  const stageFiles = async (files: readonly FillFile[]): Promise<StagedAsset[]> => {
+    const staged: StagedAsset[] = [];
+    for (const file of files) {
+      if (listing?.files.get(file.path)?.source.kind === "vault") {
+        continue;
+      }
+      const stagedFile = `${await blobOid(args.sha1, file.bytes)}${extnamePath(file.path)}`;
+      await outbox.stage(stagedFile, file.bytes);
+      staged.push({ path: file.path, size: file.bytes.length, stagedFile });
+    }
+    return staged;
+  };
+
+  // compared and queued under the write lock as a guarded write is, the files joining the row the
+  // text goes in, so a fill landing behind an unsent create or edit of the stub still lands whole
+  const writeFill: NotesStore["writeFill"] = async (path, content, base, files) =>
+    await queued(async ({ enqueue, fence }) => {
+      const held = await heldNote(path);
+      if (held.kind === "missing") {
+        return held;
+      }
+      if (held.content !== base) {
+        return { current: held.content, kind: "changed" };
+      }
+      const assets = await stageFiles(files);
+      const last = lastRowOn(outbox.rows(), path);
+      expectOwn(path, content);
+      if (last !== undefined && isTextOp(last.op) && last.op.path === path) {
+        const verdict = await outbox.coalesce(last.seq, last.op.content, content, fence, assets);
+        if (verdict === "fenced") {
+          throw new Error(NOT_SIGNED_IN);
+        }
+        if (verdict === "stale") {
+          const now = await heldNote(path);
+          return now.kind === "missing" ? now : { current: now.content, kind: "changed" };
+        }
+      } else {
+        await enqueue({
+          assets,
+          baseContent: held.content,
+          baseOid: held.oid,
+          content,
+          op: "write",
+          path,
+        });
+      }
+      return { kind: "written" };
+    });
+
+  // fenced like every other change: a row of an earlier sign-in is never written for the next
+  const fencedFill = async (work: (tx: SqlExecutor) => Promise<void>): Promise<void> => {
+    await signIn.ready();
+    const fence = signIn.live();
+    if (fence === null) {
+      return;
+    }
+    await fencedExclusive(args.db, fence, work);
+  };
+
+  const pendingFills: NotesStore["pendingFills"] = {
+    async list() {
+      await signIn.ready();
+      const raw = await args.db.all(
+        "SELECT item_id, path, url, attempts, not_before FROM pending_fills ORDER BY not_before, created_at",
+      );
+      return raw.flatMap((row) => {
+        const parsed = pendingFillRowSchema.safeParse(row);
+        return parsed.success
+          ? [
+              {
+                attempts: parsed.data.attempts,
+                itemId: parsed.data.item_id,
+                notBefore: parsed.data.not_before,
+                path: parsed.data.path,
+                url: parsed.data.url,
+              },
+            ]
+          : [];
+      });
+    },
+    async remove(itemId) {
+      await fencedFill(async (tx) => {
+        await tx.run("DELETE FROM pending_fills WHERE item_id = ?", [itemId]);
+      });
+    },
+    async update(row) {
+      await fencedFill(async (tx) => {
+        await tx.run(
+          "UPDATE pending_fills SET path = ?, attempts = ?, not_before = ? WHERE item_id = ?",
+          [row.path, row.attempts, row.notBefore, row.itemId],
+        );
+      });
+    },
   };
 
   // a note that no longer holds the text its rewrite was planned from is left out, never merged,
@@ -871,6 +1056,30 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       return { kind: "edited", note: key.content };
     });
 
+  // the annotation store at a note's id, as its entries; a note without an id, or with no store
+  // yet, has none
+  const storeOf = async (
+    note: NoteText,
+  ): Promise<{ ok: true; entries: AnnotationStore } | { ok: false; message: string }> => {
+    const id = annotationStoreKey(note.content);
+    if (id === null) {
+      return { entries: {}, ok: true };
+    }
+    const storePath = annotationsStorePath(id);
+    // the mirror names every path its tree held; a store it does not name is none
+    if (listing !== null && !listing.files.has(storePath)) {
+      return { entries: {}, ok: true };
+    }
+    const store = await readFile(storePath);
+    if (!store.ok) {
+      return store.notFound ? { entries: {}, ok: true } : { message: store.message, ok: false };
+    }
+    const parsed = parseAnnotationStore(store.content);
+    return parsed.ok
+      ? { entries: parsed.store, ok: true }
+      : { message: `The annotations could not be read: ${parsed.error}`, ok: false };
+  };
+
   return {
     async attachmentFile(path) {
       const current = session.current();
@@ -966,33 +1175,21 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
       status: outbox.status,
     },
 
+    pendingFills,
+
     putAsset,
 
     async readAnnotations(note) {
-      const id = annotationStoreKey(note.content);
-      if (id === null) {
-        return { annotations: [], ok: true };
-      }
-      const storePath = annotationsStorePath(id);
-      // the mirror names every path its tree held; a store it does not name is none
-      if (listing !== null && !listing.files.has(storePath)) {
-        return { annotations: [], ok: true };
-      }
-      const store = await readFile(storePath);
-      if (!store.ok) {
-        return store.notFound
-          ? { annotations: [], ok: true }
-          : { message: store.message, ok: false };
-      }
-      const parsed = parseAnnotationStore(store.content);
-      if (!parsed.ok) {
-        return { message: `The annotations could not be read: ${parsed.error}`, ok: false };
-      }
-      return {
-        annotations: foldAnnotations(parsed.store, markerRootIds(note.content)).annotations,
-        ok: true,
-      };
+      const store = await storeOf(note);
+      return store.ok
+        ? {
+            annotations: foldAnnotations(store.entries, markerRootIds(note.content)).annotations,
+            ok: true,
+          }
+        : store;
     },
+
+    readAnnotationStore: storeOf,
 
     async readNote(path) {
       const read = await readFile(path);
@@ -1022,6 +1219,8 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     remove,
 
     rename,
+
+    saveStub,
 
     reset(next) {
       signIn.restart(next, { hydrate, wipe });
@@ -1054,5 +1253,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     },
 
     write,
+
+    writeFill,
   };
 };

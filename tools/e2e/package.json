@@ -13,6 +13,7 @@
     "@repo/contract": "workspace:*",
     "@repo/mobile": "workspace:*",
     "@repo/mobile-editor": "workspace:*",
+    "@repo/page-reader": "workspace:*",
     "inteligir": "workspace:*"
   },
   "devDependencies": {

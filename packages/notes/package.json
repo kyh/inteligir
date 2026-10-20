@@ -21,6 +21,7 @@
     "./formulas/resolve-graph": "./src/formulas/resolve-graph.ts",
     "./iso-date": "./src/iso-date.ts",
     "./items/fill-sentences": "./src/items/fill-sentences.ts",
+    "./items/host-names": "./src/items/host-names.ts",
     "./items/item-body": "./src/items/item-body.ts",
     "./items/item-files": "./src/items/item-files.ts",
     "./items/item-frontmatter": "./src/items/item-frontmatter.ts",

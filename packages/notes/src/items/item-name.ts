@@ -2,7 +2,7 @@
 // name here, once, for every writer: the Mac's save and fill, the phone's share and the import.
 // Unlike a name the person types (checkNoteName refuses), a page's title is repaired.
 
-import { urlHost } from "./item-url";
+import { urlHost, urlLastSegment } from "./item-url";
 
 const NAME_MAX_CHARS = 120;
 
@@ -137,3 +137,28 @@ export const itemNameFromUrl = (url: string): string => {
 export const itemStem = (title: string | null, url: string | null): string =>
   (title === null ? null : itemNameFromTitle(title)) ??
   (url === null ? UNTITLED : itemNameFromUrl(url));
+
+// the files a link may answer with in place of a page, by the type its bytes sniff as
+const ORIGINAL_EXTENSIONS = {
+  "application/pdf": "pdf",
+  "image/avif": "avif",
+  "image/gif": "gif",
+  "image/heic": "heic",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/svg+xml": "svg",
+  "image/webp": "webp",
+} as const;
+
+export type OriginalMediaType = keyof typeof ORIGINAL_EXTENSIONS;
+
+// a file found at a link keeps its own name when the address names one with the right extension
+export const originalFileName = (url: string, mediaType: OriginalMediaType): string => {
+  const extension = ORIGINAL_EXTENSIONS[mediaType];
+  const segment = urlLastSegment(url);
+  const dot = segment.lastIndexOf(".");
+  const stem = dot > 0 ? segment.slice(0, dot) : segment;
+  const given = dot > 0 ? segment.slice(dot + 1).toLowerCase() : "";
+  const sameKind = given === extension || (extension === "jpg" && given === "jpeg");
+  return `${itemNameFromTitle(stem) ?? "File"}.${sameKind ? given : extension}`;
+};

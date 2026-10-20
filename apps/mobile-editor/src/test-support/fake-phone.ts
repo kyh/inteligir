@@ -9,7 +9,7 @@ import { pageFrameSchema } from "../bridge/protocol";
 import type {
   NativeFrame,
   PageFrame,
-  PageInit,
+  EditInit,
   RequestKind,
   RequestResult,
 } from "../bridge/protocol";
@@ -115,7 +115,7 @@ export interface FakePhone {
   readonly deliver: (frame: NativeFrame) => void;
   // what a forged or broken sender could hand the receiver
   readonly deliverText: (text: string) => void;
-  readonly init: (overrides?: Partial<PageInit>) => void;
+  readonly init: (overrides?: Partial<EditInit>) => void;
   readonly requests: <K extends PageRequest["kind"]>(
     kind: K,
   ) => Extract<PageRequest, { kind: K }>[];
@@ -159,6 +159,7 @@ export const createFakePhone = (initial: Readonly<Record<string, string>> = {}):
     init: (overrides = {}) => {
       deliver({
         focus: null,
+        mode: "edit",
         nonce: PHONE_NONCE,
         path: "Note.md",
         type: "init",

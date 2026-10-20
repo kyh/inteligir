@@ -41,8 +41,16 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // the `inteligir` edge is the binary it spawns and the config resolution naming this checkout's
     // instance; the @repo/mobile edge is the phone's own platform-free runtime, driven under node
     // against a real Worker, since no Expo boots headless; the @repo/mobile-editor edge is the
-    // bridge's protocol, so the scripted phone speaks the frames the page parses.
-    "@repo/e2e": ["@repo/contract", "@repo/mobile", "@repo/mobile-editor", "inteligir"],
+    // bridge's protocol, so the scripted phone speaks the frames the page parses, and its reader
+    // mode, which the phone's runtime reads a saved link with; the @repo/page-reader edge is the
+    // linkedom DOM that reader runs over under node, where the page has its WebView's.
+    "@repo/e2e": [
+      "@repo/contract",
+      "@repo/mobile",
+      "@repo/mobile-editor",
+      "@repo/page-reader",
+      "inteligir",
+    ],
     // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
     "@repo/editor": ["@repo/notes", "@repo/ui"],
     // a page read into an item, over the DOM its host hands it: the article is written as the
@@ -59,8 +67,9 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // reaches no server, vault engine, agent or thread.
     "@repo/mobile": ["@repo/contract", "@repo/mobile-editor", "@repo/notes"],
     // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through
-    // its own bridge, so no contract and no cloud wire.
-    "@repo/mobile-editor": ["@repo/editor", "@repo/notes", "@repo/ui"],
+    // its own bridge, so no contract and no cloud wire. The @repo/page-reader edge is its reader
+    // mode: a link the phone saved is read with the Mac's own reader, over the WebView's DOM.
+    "@repo/mobile-editor": ["@repo/editor", "@repo/notes", "@repo/page-reader", "@repo/ui"],
     "@repo/notes": [],
     "@repo/repo-guards": [],
     "@repo/ui": [],

@@ -26,7 +26,7 @@ Saving links, pages and files as items, and filling a saved link from its page.
   (one label, `.local`, `.home.arpa`, `.internal`, `.lan`, …), since a public
   name's answer a moment later is its owner's to choose and the page's bytes
   came from wherever the browser loaded them (`isPrivateUseName` in
-  `address-guard.ts`). A lookup gives up when the request's deadline or its
+  `packages/notes/src/items/host-names.ts`). A lookup gives up when the request's deadline or its
   caller's signal fires, and a stopped request asks for none. No env var widens
   it: a suite injects the lookup, the policy or the whole fetch
   (`CapturePorts`), and the guard's own suite this Mac's addresses. Rejected: pre-resolving then

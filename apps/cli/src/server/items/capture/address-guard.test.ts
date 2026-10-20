@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyAddress, isThisMacName, vetAnswer } from "./address-guard";
+import { classifyAddress, vetAnswer } from "./address-guard";
 import type { AddressClass } from "./address-guard";
 
 // numeric host spellings reach the guard as WHATWG URL reduces them: the guarded fetch parses
@@ -89,17 +89,6 @@ describe("classifyAddress", () => {
     ["http://3232235777/", "private"],
   ] as const)("the numeric host %s reduces to an address of class %s", (url, expected) => {
     expect(classifyAddress(hostOf(url))).toBe(expected);
-  });
-});
-
-describe("isThisMacName", () => {
-  it("names localhost and every name under it, in any case and with a trailing dot", () => {
-    for (const name of ["localhost", "LOCALHOST", "localhost.", "a.localhost", "x.y.Localhost"]) {
-      expect(isThisMacName(name), name).toBe(true);
-    }
-    for (const name of ["localhost.com", "mylocalhost", "example.com"]) {
-      expect(isThisMacName(name), name).toBe(false);
-    }
   });
 });
 

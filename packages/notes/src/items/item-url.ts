@@ -306,6 +306,17 @@ const keyPartsOf = (url: WebUrl): UrlKeyParts => {
   return { host, path: keyPath(url.path), query: keyQuery(pieces, host) };
 };
 
+// an address's last path segment, decoded ("" when it names none, or one that does not decode)
+export const urlLastSegment = (value: string): string => {
+  const url = parseWebUrl(value);
+  const segment = url?.path.split("/").findLast((part) => part !== "") ?? "";
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return "";
+  }
+};
+
 const YOUTUBE_ID = /^[\w-]{6,20}$/u;
 const YOUTUBE_PATH_ID = /^\/(?:shorts|live|embed)\/(?<id>[^/?#]+)/u;
 

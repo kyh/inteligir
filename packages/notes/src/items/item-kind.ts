@@ -84,6 +84,13 @@ export const UNSORTED_FOLDER = "Unsorted";
 export const COVERS_DIR = "assets/covers";
 export const PAGES_DIR = "assets/pages";
 
+const CONTENT_ADDRESS_HEX_CHARS = 16;
+
+// a file kept by its bytes (a cover, a page copy): named by the first hex of their SHA-256, so two
+// devices keeping the same bytes write one file
+export const contentAddressedName = (sha256Hex: string, extension: string): string =>
+  `${sha256Hex.slice(0, CONTENT_ADDRESS_HEX_CHARS)}.${extension}`;
+
 // the library's filing rules, which the agent reads; hidden from the grid
 export const LIBRARY_RULES_PATH = "AGENTS.md";
 

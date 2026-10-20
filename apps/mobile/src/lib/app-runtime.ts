@@ -8,7 +8,13 @@ import * as SecureStore from "expo-secure-store";
 import { createKeychainCredentials } from "../credential/secure-store-credential";
 import { createEditorPorts } from "../editor/editor-ports";
 import type { EditorPorts, EditorPortsArgs } from "../editor/editor-ports";
+import { editorPageSource } from "../editor/page-source";
+import type { PageSource } from "../editor/page-source";
+import { shrinkCover } from "../items/expo-cover-shrink";
+import { createFillPageHost } from "../items/fill-page-host";
+import type { FillPageHost } from "../items/fill-page-host";
 import type { SavedItem } from "../items/item-ops";
+import { createPageFetch } from "../items/page-fetch";
 import { createCoverThumbs } from "../library/cover-thumbs";
 import type { CoverThumbs } from "../library/cover-thumbs";
 import { createExpoCoverThumbPort } from "../library/expo-cover-thumbs";
@@ -37,6 +43,7 @@ import { openPhoneDb } from "./phone-db";
 
 let runtime: AppRuntime | null = null;
 let thumbs: CoverThumbs | null = null;
+let reader: { host: FillPageHost; source: PageSource } | null | undefined;
 
 // console.warn would raise a LogBox toast per offline check.
 const devLog = (message: string): void => {
@@ -51,7 +58,34 @@ const appVersion = (): string => Constants.expoConfig?.version ?? "0.0.0";
 
 const attachments = createExpoAttachmentFiles();
 
+// one per load of the editor page, and of the reader
+export const mintBridgeNonce = (): string => hexFromBytes(Crypto.getRandomBytes(16));
+
+// the page in its reader mode, which ReaderPage mounts; null for a build made without the page
+export const readerPage = (): { host: FillPageHost; source: PageSource } | null => {
+  if (reader === undefined) {
+    const source = editorPageSource();
+    reader =
+      source === null
+        ? null
+        : { host: createFillPageHost({ mintNonce: mintBridgeNonce, pageUrl: source.uri }), source };
+  }
+  return reader;
+};
+
+// a saved page is asked for as Safari on the phone would ask, naming the app after it
+const userAgent = (): string =>
+  `Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1 inteligir/${appVersion()}`;
+
+// the phone's own language first, its bare language after
+const acceptLanguage = (): string => {
+  const { locale } = Intl.DateTimeFormat().resolvedOptions();
+  const [language = "en"] = locale.split("-");
+  return locale === language ? locale : `${locale},${language};q=0.9`;
+};
+
 const build = (): AppRuntime => {
+  let online = true;
   const rt = composeRuntime({
     attachments,
     build: { platform: "mobile", version: appVersion() },
@@ -59,6 +93,27 @@ const build = (): AppRuntime => {
     credentials: createKeychainCredentials(SecureStore),
     db: openPhoneDb(createExpoSqlDriver("inteligir.db")),
     deviceName: defaultDeviceName(),
+    fill: {
+      fetch: createPageFetch(globalThis.fetch, {
+        acceptLanguage: acceptLanguage(),
+        userAgent: userAgent(),
+      }),
+      online: () => online,
+      read: async (job) => {
+        const page = readerPage();
+        if (page === null) {
+          throw new Error("This build has no page to read links with.");
+        }
+        return await page.host.read(job);
+      },
+      sha256Hex: async (bytes) =>
+        hexFromBytes(
+          new Uint8Array(
+            await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, new Uint8Array(bytes)),
+          ),
+        ),
+      shrinkCover,
+    },
     newId: Crypto.randomUUID,
     outboxFiles: excludedFromBackup(createExpoOutboxFolder(), excludeFromBackup),
     randomBytes: Crypto.getRandomBytes,
@@ -75,9 +130,8 @@ const build = (): AppRuntime => {
       rt.suspend();
     }
   });
-  // a phone back online sends what it saved offline without waiting for the retry timer; in the
-  // background it waits for the foreground, which reopens the socket too
-  let online = true;
+  // a phone back online sends what it saved offline, and reads what it saved, without waiting for
+  // the retry timer; in the background it waits for the foreground, which reopens the socket too
   addNetworkStateListener((network) => {
     const reachable = network.isInternetReachable ?? network.isConnected ?? false;
     if (reachable && !online && AppState.currentState === "active") {
@@ -231,9 +285,6 @@ export const createNoteEditorPorts = (
     store: rt.notes,
   });
 };
-
-// one per load of the editor page
-export const mintBridgeNonce = (): string => hexFromBytes(Crypto.getRandomBytes(16));
 
 // what has not reached the vault: the parked changes and the conflicts the queue settled
 export const useOutboxStatus = (): OutboxStatus => {

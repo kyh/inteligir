@@ -208,8 +208,8 @@ describe("the native end of the editor page's bridge", () => {
     const second = load();
     expect(first).not.toBe(second);
     expect(injected).toMatchObject([
-      { focus: "title", nonce: first, path: "a.md", type: "init" },
-      { focus: null, nonce: second, path: "a.md", type: "init" },
+      { focus: "title", mode: "edit", nonce: first, path: "a.md", type: "init" },
+      { focus: null, mode: "edit", nonce: second, path: "a.md", type: "init" },
     ]);
   });
 

@@ -25,7 +25,7 @@ const ARTICLE =
 const CARD_DEADLINE_MS = 20_000;
 
 // a JPEG's own start and end around a cover's worth of bytes: what crosses is what lands
-const coverBytes = (): Uint8Array =>
+const coverBytes = (): Uint8Array<ArrayBuffer> =>
   Uint8Array.from([
     0xff,
     0xd8,

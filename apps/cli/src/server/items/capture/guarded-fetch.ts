@@ -7,7 +7,7 @@
 // ever sent, and no env var widens what may be dialed.
 
 import { lookup as dnsLookup } from "node:dns/promises";
-import { request as httpRequest, STATUS_CODES } from "node:http";
+import { request as httpRequest } from "node:http";
 import type { ClientRequest, IncomingMessage, RequestOptions } from "node:http";
 import { request as httpsRequest } from "node:https";
 import type { LookupFunction } from "node:net";
@@ -18,17 +18,12 @@ import type { Readable, Transform } from "node:stream";
 import { getCACertificates, rootCertificates } from "node:tls";
 import { createBrotliDecompress, createGunzip, createUnzip } from "node:zlib";
 
+import { statusFailure } from "@repo/notes/items/fill-sentences";
+import { isLoopbackName, isPrivateUseName } from "@repo/notes/items/host-names";
 import type { FetchFailure } from "@repo/notes/items/fill-sentences";
 
 import { errnoCode } from "../../errno";
-import {
-  addressKey,
-  classifyAddress,
-  isPrivateUseName,
-  isThisMacName,
-  reachedKeys,
-  vetAnswer,
-} from "./address-guard";
+import { addressKey, classifyAddress, reachedKeys, vetAnswer } from "./address-guard";
 import type { AddressClass, AddressPolicy, Reach } from "./address-guard";
 
 export interface LookupAddress {
@@ -108,7 +103,6 @@ const CONNECT_TIMEOUT_MS = 10_000;
 const REQUEST_TIMEOUT_MS = 20_000;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 // what a fill retries later: the site said so, or nothing answered in time
-const TRANSIENT_STATUSES = new Set([429, 503]);
 const TRANSIENT_CODES = new Set([
   "EAI_AGAIN",
   "ECONNRESET",
@@ -318,7 +312,7 @@ export const createGuardedFetch = (deps: GuardedFetchDeps): GuardedFetch => {
     if (signal?.aborted === true) {
       return { failure: { kind: "aborted" }, ok: false };
     }
-    if (hop.port === deps.ownPort() || isThisMacName(hop.host)) {
+    if (hop.port === deps.ownPort() || isLoopbackName(hop.host)) {
       return { failure: { kind: "refused", refusal: "this-mac" }, ok: false };
     }
     let addresses: LookupAddress[];
@@ -454,15 +448,7 @@ export const createGuardedFetch = (deps: GuardedFetchDeps): GuardedFetch => {
       }
       if (status >= 400 || status < 200) {
         response.destroy();
-        return {
-          failure: {
-            kind: "status",
-            reason: (STATUS_CODES[status] ?? "an error").toLowerCase(),
-            status,
-            transient: TRANSIENT_STATUSES.has(status),
-          },
-          ok: false,
-        };
+        return { failure: statusFailure(status), ok: false };
       }
       const declaredHeader = response.headers["content-length"];
       const declared = declaredHeader === undefined ? null : Number(declaredHeader);
@@ -520,7 +506,7 @@ export const createGuardedFetch = (deps: GuardedFetchDeps): GuardedFetch => {
       if (signal?.aborted === true) {
         return { failure: { kind: "aborted" }, ok: false };
       }
-      if (isIP(hop.host) === 0 && !isThisMacName(hop.host) && !isPrivateUseName(hop.host)) {
+      if (isIP(hop.host) === 0 && !isLoopbackName(hop.host) && !isPrivateUseName(hop.host)) {
         return { ok: true, reach: "public" };
       }
       const deadline = AbortSignal.timeout(requestTimeoutMs);

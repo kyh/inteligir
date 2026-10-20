@@ -18,6 +18,66 @@ export type FetchFailure =
   | { kind: "too-large"; bytes: number }
   | { kind: "aborted" };
 
+// the standard's own wording of a refused status, never the site's, which is its own to say
+const STATUS_REASONS: ReadonlyMap<number, string> = new Map([
+  [100, "continue"],
+  [101, "switching protocols"],
+  [102, "processing"],
+  [103, "early hints"],
+  [400, "bad request"],
+  [401, "unauthorized"],
+  [402, "payment required"],
+  [403, "forbidden"],
+  [404, "not found"],
+  [405, "method not allowed"],
+  [406, "not acceptable"],
+  [407, "proxy authentication required"],
+  [408, "request timeout"],
+  [409, "conflict"],
+  [410, "gone"],
+  [411, "length required"],
+  [412, "precondition failed"],
+  [413, "payload too large"],
+  [414, "uri too long"],
+  [415, "unsupported media type"],
+  [416, "range not satisfiable"],
+  [417, "expectation failed"],
+  [418, "i'm a teapot"],
+  [421, "misdirected request"],
+  [422, "unprocessable entity"],
+  [423, "locked"],
+  [424, "failed dependency"],
+  [425, "too early"],
+  [426, "upgrade required"],
+  [428, "precondition required"],
+  [429, "too many requests"],
+  [431, "request header fields too large"],
+  [451, "unavailable for legal reasons"],
+  [500, "internal server error"],
+  [501, "not implemented"],
+  [502, "bad gateway"],
+  [503, "service unavailable"],
+  [504, "gateway timeout"],
+  [505, "http version not supported"],
+  [506, "variant also negotiates"],
+  [507, "insufficient storage"],
+  [508, "loop detected"],
+  [509, "bandwidth limit exceeded"],
+  [510, "not extended"],
+  [511, "network authentication required"],
+]);
+
+// a site saying it is busy, which a later try may get past
+const TRANSIENT_STATUSES: ReadonlySet<number> = new Set([429, 503]);
+
+// a status no page is read from (anything under 200, or 400 and over), as every device says it
+export const statusFailure = (status: number): FetchFailure => ({
+  kind: "status",
+  reason: STATUS_REASONS.get(status) ?? "an error",
+  status,
+  transient: TRANSIENT_STATUSES.has(status),
+});
+
 export interface FillFailure {
   sentence: string;
   transient: boolean;

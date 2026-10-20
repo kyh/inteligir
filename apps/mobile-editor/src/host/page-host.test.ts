@@ -31,6 +31,9 @@ const openHost = async (files: Readonly<Record<string, string>> = VAULT) => {
   const connecting = connectPageBridge(phone.transport);
   phone.init();
   const { bridge, init } = await connecting;
+  if (init.mode !== "edit") {
+    throw new Error("the page started in fill mode");
+  }
   const store = createOpenNoteStore();
   const host = createPageHost({ bridge, path: init.path, store });
   started = host;
@@ -75,6 +78,9 @@ describe("the page's boot", () => {
     const connecting = connectPageBridge(phone.transport);
     phone.init();
     const { bridge, init } = await connecting;
+    if (init.mode !== "edit") {
+      throw new Error("the page started in fill mode");
+    }
     const store = createOpenNoteStore();
     started = createPageHost({ bridge, path: init.path, store });
     started.start();

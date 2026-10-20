@@ -6,8 +6,9 @@ const THUMB_SIZE = 64;
 
 const THUMB = { height: THUMB_SIZE, width: THUMB_SIZE } as const;
 
-// a stub is a link no Mac has read yet: its title and cover come when one does
-const PENDING_LINE = "Details arrive from your Mac";
+// a stub is a link whose page the device that saved it has not read yet: this phone reads its own
+// saves once it is online, and its title and cover come with that read
+const PENDING_LINE = "Waiting to be read";
 
 const savedLine = (card: LibraryCard): string => {
   const parts = [card.site, card.saved === null ? null : new Date(card.saved).toLocaleDateString()];

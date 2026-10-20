@@ -27,6 +27,31 @@ export interface LinkFill {
   article: string;
 }
 
+const MiB = 1024 * 1024;
+
+// what every device that fills a link reads of it: a page's answer up to 10 MiB (a file at the link
+// past it keeps only its link), its first 5 MiB read as the page, a cover candidate up to 10 MiB,
+// kept at most 640 px on its long edge, and one under 200 px is a pixel or an icon, never a cover
+export const FILL_LIMITS = {
+  coverBytes: 10 * MiB,
+  coverEdge: 640,
+  coverMinEdge: 200,
+  htmlBytes: 5 * MiB,
+  pageBytes: 10 * MiB,
+} as const;
+
+// whether an answer is a page the reader reads, by the type it declared (none reads as one)
+export const isPageType = (mediaType: string | null): boolean =>
+  mediaType === null || mediaType === "text/html" || mediaType === "application/xhtml+xml";
+
+// a link that answered with a video or a sound is kept as its link, read as that kind
+export const playableKindOf = (mediaType: string | null): "video" | "audio" | null => {
+  if (mediaType?.startsWith("video/") === true) {
+    return "video";
+  }
+  return mediaType?.startsWith("audio/") === true ? "audio" : null;
+};
+
 // "replace": a refresh that rewrites the body from the page (refused while it holds highlights)
 export type FillText = "keep" | "replace";
 

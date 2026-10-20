@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./bridge-protocol": "./src/bridge/protocol.ts"
+    "./bridge-protocol": "./src/bridge/protocol.ts",
+    "./reader-mode": "./src/fill/serve-fills.ts"
   },
   "scripts": {
     "build": "vite build",
@@ -14,6 +15,7 @@
   "dependencies": {
     "@repo/editor": "workspace:*",
     "@repo/notes": "workspace:*",
+    "@repo/page-reader": "workspace:*",
     "@repo/ui": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:",

@@ -219,6 +219,7 @@ describe("the window transport", () => {
     // the script the native end injects calls the door with one string literal, the frame's JSON
     const script = nativeFrameScript({
       focus: "body",
+      mode: "edit",
       nonce: PHONE_NONCE,
       path: "Note.md",
       type: "init",
@@ -227,7 +228,7 @@ describe("the window transport", () => {
     expect(call?.groups?.door).toBe(PAGE_RECEIVER);
     door?.(JSON.parse(call?.groups?.literal ?? '""'));
     const { bridge, init } = await connecting;
-    expect(init.focus).toBe("body");
+    expect(init).toMatchObject({ focus: "body", mode: "edit" });
 
     bridge.emit({ path: "Other.md", type: "navigate" });
     expect(JSON.parse(posted.at(-1) ?? "null")).toEqual({

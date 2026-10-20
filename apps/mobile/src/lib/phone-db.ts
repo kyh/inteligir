@@ -13,7 +13,9 @@ import type { SqlDriver, SqlExecutor } from "./sql-driver";
 // without parsing a note.
 // outbox: the phone's unsent writes, oldest first; `op` and `settle` are JSON parsed on every
 // read. mirror_landings: which paths a landed write moved, in landing order, so a refresh that
-// listed the tree before a landing leaves those rows alone.
+// listed the tree before a landing leaves those rows alone. pending_fills: the links this phone
+// saved and has not read yet, one row each, written in the transaction that queues the stub;
+// `not_before` and `created_at` are unix ms.
 const MIGRATIONS: readonly string[] = [
   `CREATE TABLE mirror_meta (
      id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -44,6 +46,14 @@ const MIGRATIONS: readonly string[] = [
    CREATE TABLE mirror_landings (
      seq INTEGER PRIMARY KEY AUTOINCREMENT,
      path TEXT NOT NULL
+   );
+   CREATE TABLE pending_fills (
+     item_id TEXT PRIMARY KEY NOT NULL,
+     path TEXT NOT NULL,
+     url TEXT NOT NULL,
+     attempts INTEGER NOT NULL CHECK (attempts >= 0),
+     not_before INTEGER NOT NULL,
+     created_at INTEGER NOT NULL
    );`,
 ];
 

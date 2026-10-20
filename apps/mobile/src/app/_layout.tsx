@@ -4,6 +4,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ReaderPage } from "@/items/reader-page";
 import { ShareInbox } from "@/items/share-inbox";
 import { ensureStarted, useSyncStatus } from "@/lib/app-runtime";
 import { useTheme } from "@/lib/theme";
@@ -61,6 +62,7 @@ const RootLayout = () => {
           </Stack.Protected>
         </Stack>
         {signedIn ? <ShareInbox /> : null}
+        {signedIn ? <ReaderPage /> : null}
         <StatusBar />
       </ShareIntentProvider>
     </SafeAreaProvider>

@@ -108,6 +108,39 @@ describe("saving a link from the phone", () => {
     ).toStrictEqual({ kind: "saved", path: "Unsorted/File over app 2.md" });
   });
 
+  it("queues the link's fill with its stub, due now, and says a link was saved", async () => {
+    const vault = createFakeVault({});
+    const net: Network = { loseApplied: false, online: false };
+    const store = launchPhone(networkOver(vault, net));
+    let woken = 0;
+    const items = createItemOps({
+      newId: () => ID,
+      now: () => NOW,
+      linkSaved: () => {
+        woken += 1;
+      },
+      store,
+    });
+
+    await items.saveLink({
+      note: null,
+      title: "File over app",
+      url: "https://stephango.com/file-over-app?utm_source=share",
+    });
+    await items.saveText("A thought for later");
+
+    expect(await store.pendingFills.list()).toStrictEqual([
+      {
+        attempts: 0,
+        itemId: ID,
+        notBefore: NOW.getTime(),
+        path: "Unsorted/File over app.md",
+        url: "https://stephango.com/file-over-app",
+      },
+    ]);
+    expect(woken).toBe(1);
+  });
+
   it("refuses an address that is not a web link, in the library's words", async () => {
     const { items } = await phone(createFakeVault({}));
     for (const url of [

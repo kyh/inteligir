@@ -5,7 +5,7 @@ import { getLiveEditor } from "@repo/editor/live-editor";
 import { serializeNote } from "@repo/editor/markdown/markdown-doc";
 
 import { connectPageBridge } from "./bridge/page-bridge";
-import type { PageInit } from "./bridge/protocol";
+import type { EditInit } from "./bridge/protocol";
 import { EditorPage, mountEditorPage } from "./editor-page";
 import type { MountedPage } from "./editor-page";
 import { createFakePhone, PHONE_NONCE } from "./test-support/fake-phone";
@@ -24,13 +24,16 @@ afterEach(() => {
 const ONE_NOTE = { "Note.md": NOTE };
 
 const mount = async (
-  overrides: Partial<PageInit> = {},
+  overrides: Partial<EditInit> = {},
   files: Readonly<Record<string, string>> = ONE_NOTE,
 ) => {
   const phone = createFakePhone(files);
   const connecting = connectPageBridge(phone.transport);
   phone.init(overrides);
   const { bridge, init } = await connecting;
+  if (init.mode !== "edit") {
+    throw new Error("the fake phone opened the page in its reader mode");
+  }
   const container = document.createElement("div");
   document.body.append(container);
   act(() => {

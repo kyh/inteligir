@@ -267,6 +267,7 @@ export const phoneEditorPage: Scenario = {
     await browser(["eval", PHONE_SCRIPT]);
     await phone.inject({
       focus: null,
+      mode: "edit",
       nonce: NONCE,
       path: NOTE_PATH,
       type: "init",

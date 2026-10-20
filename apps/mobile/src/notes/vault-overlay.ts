@@ -1,8 +1,9 @@
 // what the phone shows is the mirror with every unsent row laid over it, oldest first: a pending
-// edit reads as the note, a create and a staged photo list before the vault holds them, a rename
-// moves the row and rewrites the links naming it now, a delete hides the note and the files that
-// go with it, and an annotation edit reads as its store and the note it anchored in. A parked row is laid
-// over too, since its bytes are the user's until they discard them.
+// edit reads as the note, a create and a staged photo (or a fill's cover) list before the vault
+// holds them, a rename moves the row and rewrites the links naming it now, a delete hides the note
+// and the files that go with it, and an annotation edit reads as its store and the note it
+// anchored in. A parked row is laid over too, since its bytes are the user's until they discard
+// them.
 
 import { utf8ByteLength } from "@repo/contract/cloud/bytes";
 import type { OutboxRow, VaultOp } from "./outbox-ops";
@@ -36,11 +37,23 @@ const textEntry = (factsOf: TextFacts, path: string, text: string): OverlayEntry
   source: { kind: "text", text },
 });
 
+const stagedEntry = (path: string, size: number, file: string): OverlayEntry => ({
+  aliases: [],
+  item: null,
+  noteId: null,
+  path,
+  size,
+  source: { file, kind: "staged" },
+});
+
 const lay = (entries: Map<string, OverlayEntry>, op: VaultOp, factsOf: TextFacts): void => {
   switch (op.op) {
     case "write":
     case "create": {
       entries.set(op.path, textEntry(factsOf, op.path, op.content));
+      for (const asset of op.assets ?? []) {
+        entries.set(asset.path, stagedEntry(asset.path, asset.size, asset.stagedFile));
+      }
       return;
     }
     case "remove": {
@@ -51,14 +64,7 @@ const lay = (entries: Map<string, OverlayEntry>, op: VaultOp, factsOf: TextFacts
       return;
     }
     case "putAsset": {
-      entries.set(op.path, {
-        aliases: [],
-        item: null,
-        noteId: null,
-        path: op.path,
-        size: op.size,
-        source: { file: op.stagedFile, kind: "staged" },
-      });
+      entries.set(op.path, stagedEntry(op.path, op.size, op.stagedFile));
       return;
     }
     case "rename": {

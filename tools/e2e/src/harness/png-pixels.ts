@@ -141,7 +141,7 @@ const chunk = (type: string, body: Uint8Array): Buffer => {
 };
 
 // an RGBA PNG of one colour, `width` by `height`
-export const solidPng = (width: number, height: number, colour: Rgba): Uint8Array => {
+export const solidPng = (width: number, height: number, colour: Rgba): Uint8Array<ArrayBuffer> => {
   const header = Buffer.alloc(13);
   header.writeUInt32BE(width, 0);
   header.writeUInt32BE(height, 4);

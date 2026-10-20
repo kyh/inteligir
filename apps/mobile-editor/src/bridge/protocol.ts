@@ -1,11 +1,14 @@
 // The wire between the phone editor page and the React Native screen that hosts it. Both ends ship
 // in one binary, so it breaks freely: no version field, no negotiation. Every frame crosses as a
-// JSON string and is parsed here by the end that receives it.
+// JSON string and is parsed here by the end that receives it. The same page loads in one of two
+// modes, named by its `init`: an item's editor, or the reader a saved link is filled with, where the
+// phone hands it a page's bytes and it answers what @repo/page-reader read of them.
 
 import { z } from "zod";
 
 import { annotationIdSchema } from "@repo/notes/annotations/store-schema";
 import { normalVaultPathSchema } from "@repo/notes/knowledge/vault-path-schema";
+import { extractedPageSchema } from "@repo/page-reader/page-facts";
 
 // Native reaches the page only by calling this, through `injectJavaScript`: a message event is
 // one a child frame's `parent.postMessage` could forge too.
@@ -161,6 +164,24 @@ const saveErrorSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("refused"), message: z.string() }),
 ]);
 
+// what the reader made of a page, or why it read nothing (a page that broke the extractor)
+const fillAnswerSchema = z.discriminatedUnion("kind", [
+  extractedPageSchema.extend({ kind: z.literal("read") }),
+  z.strictObject({ kind: z.literal("failed"), reason: z.string() }),
+]);
+export type FillAnswer = z.infer<typeof fillAnswerSchema>;
+
+// a page the phone fetched, as its bytes (base64, since the bridge carries strings) and the charset
+// its answer declared: the reader decodes it as a browser would
+const fillJobSchema = z.strictObject({
+  base64: z.string(),
+  charset: z.string().nullable(),
+  // "description": a video's or a song's description is its article, when it has one
+  prefer: z.enum(["article", "description"]),
+  url: z.string(),
+});
+export type FillJob = z.infer<typeof fillJobSchema>;
+
 export const pageFrameSchema = z.discriminatedUnion("type", [
   z.discriminatedUnion("kind", [
     requestFrame("addAnnotation", REQUEST_SCHEMAS.addAnnotation.payload),
@@ -207,6 +228,13 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
   z.strictObject({ nonce: nonceSchema, path: normalVaultPathSchema, type: z.literal("navigate") }),
   // the answer to a `flush`: whether the open note's edits are all written
   z.strictObject({ id: idSchema, nonce: nonceSchema, ok: z.boolean(), type: z.literal("flushed") }),
+  // the reader's answer to a `fillJob` with the same id
+  z.strictObject({
+    answer: fillAnswerSchema,
+    id: idSchema,
+    nonce: nonceSchema,
+    type: z.literal("fillAnswer"),
+  }),
 ]);
 
 export type PageFrame = z.infer<typeof pageFrameSchema>;
@@ -218,12 +246,17 @@ const vaultChangedEventSchema = z.discriminatedUnion("kind", [
 ]);
 
 export const nativeFrameSchema = z.discriminatedUnion("type", [
-  z.strictObject({
-    focus: z.enum(["title", "body"]).nullable(),
-    nonce: nonceSchema,
-    path: normalVaultPathSchema,
-    type: z.literal("init"),
-  }),
+  z.discriminatedUnion("mode", [
+    z.strictObject({
+      focus: z.enum(["title", "body"]).nullable(),
+      mode: z.literal("edit"),
+      nonce: nonceSchema,
+      path: normalVaultPathSchema,
+      type: z.literal("init"),
+    }),
+    // the reader: no note, no editor, only `fillJob`s
+    z.strictObject({ mode: z.literal("fill"), nonce: nonceSchema, type: z.literal("init") }),
+  ]),
   // a result is parsed by the request it answers, which knows its kind
   z.discriminatedUnion("ok", [
     z.strictObject({
@@ -263,11 +296,20 @@ export const nativeFrameSchema = z.discriminatedUnion("type", [
     nonce: nonceSchema,
     type: z.literal("annotationsRemoved"),
   }),
+  // read this page; answered by a `fillAnswer` with the same id
+  z.strictObject({
+    id: idSchema,
+    job: fillJobSchema,
+    nonce: nonceSchema,
+    type: z.literal("fillJob"),
+  }),
 ]);
 
 export type NativeFrame = z.infer<typeof nativeFrameSchema>;
 
 export type PageInit = Extract<NativeFrame, { type: "init" }>;
+
+export type EditInit = Extract<PageInit, { mode: "edit" }>;
 
 // a frame as its sender builds it, before the bridge stamps the load's nonce on it
 export type Unstamped<F> = F extends { readonly nonce: string } ? Omit<F, "nonce"> : never;

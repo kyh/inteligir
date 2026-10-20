@@ -1,11 +1,16 @@
 // the platform-free half of the composition root: app-runtime.ts binds it to the Keychain, the
-// database, the attachment and outbox files, SHA-1 and the OS, so every transition between signed
-// in and out runs under test, and the scenario suite drives it under node against a real Worker.
+// database, the attachment and outbox files, SHA-1, the page's fetch and reader and the OS, so every
+// transition between signed in and out runs under test, and the scenario suite drives it under
+// node against a real Worker.
 
 import type { ClientBuild } from "@repo/contract/cloud/client-build";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
+import { createFillQueue } from "../items/fill-queue";
+import type { FillQueue } from "../items/fill-queue";
 import { createItemOps } from "../items/item-ops";
 import type { ItemOps } from "../items/item-ops";
+import { fillLink } from "../items/link-fill";
+import type { LinkFillPorts } from "../items/link-fill";
 import { createLoginStore } from "../login/login-store";
 import type { LoginStore } from "../login/login-store";
 import type { AttachmentFiles } from "../notes/attachment-files";
@@ -45,6 +50,12 @@ export interface ComposeRuntimeArgs {
   newId: () => string;
   sync?: Omit<SyncRuntimeArgs, "build" | "cloudUrl" | "onVaultPing">;
   retryBaseMs?: CreateNotesStoreArgs["retryBaseMs"];
+  // what a saved link is read through: the page's fetch, the reader, the cover's shrink and hash,
+  // and whether the phone is online now
+  fill: Omit<LinkFillPorts, "now" | "store"> & {
+    online: () => boolean;
+    setTimer?: (ms: number, run: () => void) => () => void;
+  };
 }
 
 // `unsent`: the phone holds edits the vault has not taken, and signing out would discard them
@@ -56,6 +67,8 @@ export interface AppRuntime {
   fileOps: FileOps;
   // saving a link or a thought into Unsorted
   items: ItemOps;
+  // the links this phone saved and has not read yet
+  fills: FillQueue;
   annotations: AnnotationOps;
   login: LoginStore;
   // reads the stored credential once and ends `restoring` either way
@@ -97,6 +110,23 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     void notes.refresh();
   };
 
+  const { online, setTimer, ...readers } = args.fill;
+  const fills = createFillQueue({
+    canFill: () => sync.get().state === "signed-in" && online(),
+    fill: async (row, mayRetry) =>
+      await fillLink({ ...readers, now: () => Date.now(), store: notes }, row, mayRetry),
+    now: () => Date.now(),
+    setTimer:
+      setTimer ??
+      ((ms, run) => {
+        const timer = setTimeout(run, ms);
+        return () => {
+          clearTimeout(timer);
+        };
+      }),
+    store: notes,
+  });
+
   // the tree is fetched here so no screen carries its own cold-fetch effect, and the edits the last
   // launch left are sent.
   const activate = (credential: DeviceCredential, source: SignInSource): void => {
@@ -105,6 +135,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     sync.start();
     void notes.refresh();
     void notes.drain();
+    fills.wake();
   };
 
   const login = createLoginStore({
@@ -142,7 +173,13 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       store: notes,
     }),
     fileOps: createFileOps(notes, { now: () => new Date() }),
-    items: createItemOps({ newId: args.newId, now: () => new Date(), store: notes }),
+    fills,
+    items: createItemOps({
+      newId: args.newId,
+      now: () => new Date(),
+      linkSaved: fills.wake,
+      store: notes,
+    }),
     async logout(options = {}) {
       const edits = await notes.unsentCount();
       if (edits > 0 && options.discardUnsent !== true) {
@@ -167,6 +204,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
       sync.resume();
       void notes.refresh();
       void notes.drain();
+      fills.wake();
     },
     async start() {
       if (started) {
@@ -187,6 +225,7 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     },
     suspend() {
       sync.suspend();
+      fills.suspend();
     },
     sync,
   };

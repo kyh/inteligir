@@ -6,9 +6,9 @@
 
 import { nativeFrameScript, parsePageFrame } from "@repo/mobile-editor/bridge-protocol";
 import type {
+  EditInit,
   NativeFrame,
   PageFrame,
-  PageInit,
   RequestKind,
   RequestPayload,
   RequestResult,
@@ -42,7 +42,7 @@ export interface EditorHostArgs {
   // what the first load's `init` says; a later load opens the note the page last said it shows,
   // which a rename moves, with no focus, since the keyboard it would raise is one the user never
   // asked for again
-  init: Omit<PageInit, "nonce" | "type">;
+  init: Omit<EditInit, "mode" | "nonce" | "type">;
   mintNonce: () => string;
   ports: EditorRequestPorts;
   onEvent: (event: EditorPageEvent) => void;
@@ -172,6 +172,7 @@ export const createEditorHost = (args: EditorHostArgs): EditorHost => {
     deliver({
       ...args.init,
       focus: first ? args.init.focus : null,
+      mode: "edit",
       nonce,
       path,
       type: "init",

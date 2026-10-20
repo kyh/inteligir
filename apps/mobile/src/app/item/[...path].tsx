@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { Alert, KeyboardAvoidingView, Linking, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
-import type { PageInit } from "@repo/mobile-editor/bridge-protocol";
+import type { EditInit } from "@repo/mobile-editor/bridge-protocol";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { loadVerdict, openWindowVerdict } from "@/editor/editor-host";
 import type { LoadVerdict } from "@/editor/editor-host";
@@ -38,7 +38,7 @@ const EVERY_ORIGIN = ["*"];
 // a WebView's memory for nothing on screen, and loads again when the user comes back
 const RELEASE_DEPTH = 2;
 
-const focusOf = (value: string | null): PageInit["focus"] =>
+const focusOf = (value: string | null): EditInit["focus"] =>
   value === "title" || value === "body" ? value : null;
 
 // how many screens sit above this one in its stack

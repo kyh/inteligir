@@ -4,6 +4,7 @@
   "private": true,
   "main": "expo-router/entry",
   "exports": {
+    "./items/page-fetch": "./src/items/page-fetch.ts",
     "./lib/compose-runtime": "./src/lib/compose-runtime.ts",
     "./lib/node-sql-driver": "./src/lib/node-sql-driver.ts",
     "./lib/phone-db": "./src/lib/phone-db.ts",

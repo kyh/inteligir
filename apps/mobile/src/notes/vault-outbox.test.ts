@@ -4,7 +4,7 @@ import {
   VAULT_FILE_MAX_BYTES,
   vaultTreeQuerySchema,
 } from "@repo/contract/cloud/vault/vault-schema";
-import { composeLinkBody } from "@repo/notes/items/item-body";
+import { composeLinkBody, embedMarkdown } from "@repo/notes/items/item-body";
 import { composeItemFile } from "@repo/notes/items/item-frontmatter";
 import type { ItemFileFields } from "@repo/notes/items/item-frontmatter";
 import { linkStubText } from "@repo/notes/items/item-stub";
@@ -479,6 +479,113 @@ describe("the phone's outbox", () => {
       `commit put ${item}@${blobOid(filled({}, ""))}`,
     ]);
     expect(await readText(store, item)).toBe(settled);
+    expect(store.outbox.status.get()).toMatchObject({ conflicts: [], parked: [], unsent: 0 });
+  });
+});
+
+const bytes = (text: string): Uint8Array => new TextEncoder().encode(text);
+
+describe("a link's fill, written from the phone", () => {
+  const ITEM = "Unsorted/File over app.md";
+  const COVER = "assets/covers/3f9a0c2b1d4e5f60.jpg";
+  const ID = "7d2f9e40-1c6b-4a8e-9f31-5b0a6c2e8d17";
+  const URL_SAVED = "https://stephango.com/file-over-app";
+  const stub = linkStubText({
+    id: ID,
+    note: "",
+    saved: Date.UTC(2026, 9, 17, 9, 12, 30),
+    url: URL_SAVED,
+  });
+  const filledWith = (embed: string): string =>
+    `${stub.replace("saved: 2026-10-17T09:12:30Z\n", "saved: 2026-10-17T09:12:30Z\nfetched: 2026-10-17T09:12:33Z\n")}\n${embedMarkdown(embed)}\n\nFile over app is a philosophy.\n`;
+
+  it("goes as ONE set against the stub it was read from: the cover beside the item", async () => {
+    const vault = createFakeVault({ [ITEM]: stub });
+    const { store } = await phone(vault);
+    expect(await readText(store, ITEM)).toBe(stub);
+
+    expect(
+      await store.writeFill(ITEM, filledWith(COVER), stub, [{ bytes: bytes("jpeg"), path: COVER }]),
+    ).toStrictEqual({ kind: "written" });
+    await store.drain();
+
+    expect(requestsOf(vault, "commit")).toStrictEqual([
+      `commit put ${COVER}@absent,put ${ITEM}@${blobOid(stub)}`,
+    ]);
+    expect(vault.files()).toStrictEqual({ [COVER]: "jpeg", [ITEM]: filledWith(COVER) });
+    expect(store.outbox.status.get()).toMatchObject({ parked: [], unsent: 0 });
+  });
+
+  it("joins the unsent save of its stub, so a link saved offline lands read in one set", async () => {
+    const vault = createFakeVault({});
+    const { net, store } = await phone(vault);
+    net.online = false;
+    expect(
+      await store.saveStub(ITEM, stub, { itemId: ID, notBefore: 1000, url: URL_SAVED }),
+    ).toStrictEqual({ kind: "created" });
+    expect(await store.pendingFills.list()).toStrictEqual([
+      { attempts: 0, itemId: ID, notBefore: 1000, path: ITEM, url: URL_SAVED },
+    ]);
+
+    expect(
+      await store.writeFill(ITEM, filledWith(COVER), stub, [{ bytes: bytes("jpeg"), path: COVER }]),
+    ).toStrictEqual({ kind: "written" });
+    expect(store.outbox.status.get()).toMatchObject({ unsent: 1 });
+    net.online = true;
+    await store.drain();
+
+    expect(requestsOf(vault, "commit")).toStrictEqual([
+      `commit put ${COVER}@absent,put ${ITEM}@absent`,
+    ]);
+    expect(vault.files()).toStrictEqual({ [COVER]: "jpeg", [ITEM]: filledWith(COVER) });
+  });
+
+  it("sends no cover the library already holds, since a cover is named by its bytes", async () => {
+    const vault = createFakeVault({ [COVER]: "jpeg", [ITEM]: stub });
+    const { store } = await phone(vault);
+    await readText(store, ITEM);
+
+    await store.writeFill(ITEM, filledWith(COVER), stub, [{ bytes: bytes("jpeg"), path: COVER }]);
+    await store.drain();
+
+    expect(requestsOf(vault, "commit")).toStrictEqual([`commit put ${ITEM}@${blobOid(stub)}`]);
+  });
+
+  it("hands back the item's text when it changed since the fill read it, and queues nothing", async () => {
+    const vault = createFakeVault({ [ITEM]: stub });
+    const { store } = await phone(vault);
+    await readText(store, ITEM);
+    const tagged = stub.replace("\n---\n", "\ntags:\n  - read\n---\n");
+    await store.write(ITEM, tagged, { base: stub, kind: "expected" });
+
+    expect(
+      await store.writeFill(ITEM, filledWith(COVER), stub, [{ bytes: bytes("jpeg"), path: COVER }]),
+    ).toStrictEqual({ current: tagged, kind: "changed" });
+    expect(store.outbox.status.get()).toMatchObject({ unsent: 1 });
+  });
+
+  it("moves an original to a free name, with its embed, when another device took its name first", async () => {
+    const original = "assets/file-over-app.pdf";
+    const vault = createFakeVault({ [ITEM]: stub });
+    const { store } = await phone(vault);
+    await readText(store, ITEM);
+    vault.change({ [original]: "their pdf" });
+
+    await store.writeFill(ITEM, filledWith(original), stub, [
+      { bytes: bytes("%PDF mine"), path: original },
+    ]);
+    await store.drain();
+
+    const moved = "assets/file-over-app-2.pdf";
+    expect(requestsOf(vault, "commit")).toStrictEqual([
+      `commit put ${original}@absent,put ${ITEM}@${blobOid(stub)}`,
+      `commit put ${moved}@absent,put ${ITEM}@${blobOid(stub)}`,
+    ]);
+    expect(vault.files()).toStrictEqual({
+      [ITEM]: filledWith(moved),
+      [moved]: "%PDF mine",
+      [original]: "their pdf",
+    });
     expect(store.outbox.status.get()).toMatchObject({ conflicts: [], parked: [], unsent: 0 });
   });
 });

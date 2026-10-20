@@ -93,6 +93,11 @@ const queuedRows = async (db: SqlDriver): Promise<number> => {
   return z.object({ queued: z.number() }).parse(row).queued;
 };
 
+const waitingFills = async (db: SqlDriver): Promise<number> => {
+  const [row] = await db.all("SELECT count(*) AS waiting FROM pending_fills");
+  return z.object({ waiting: z.number() }).parse(row).waiting;
+};
+
 const runtimeOver = (
   cloud: FakeCloud,
   credentials: CredentialStore,
@@ -106,6 +111,18 @@ const runtimeOver = (
     credentials,
     db: storage.db,
     deviceName: "Test Phone",
+    // offline: these tests hold no link fill
+    fill: {
+      fetch: async () =>
+        await Promise.resolve({
+          failure: { kind: "unreachable", transient: true } as const,
+          ok: false as const,
+        }),
+      online: () => false,
+      read: async () => await Promise.reject(new Error("no reader in this suite")),
+      sha256Hex: async () => await Promise.resolve("0".repeat(64)),
+      shrinkCover: async () => await Promise.resolve(null),
+    },
     newId: () => MINTED_NOTE_ID,
     outboxFiles: storage.outboxFiles,
     randomBytes: (length) => new Uint8Array(length),
@@ -360,16 +377,20 @@ describe("signing out with edits the vault has not taken", () => {
       kind: "expected",
     });
     await rt.notes.putAsset("media/new.png", new Uint8Array([1, 2, 3]));
+    // offline here, so the link's fill waits with it
+    await rt.items.saveLink({ note: null, title: "Later", url: "https://example.com/later" });
 
-    expect(await rt.logout()).toStrictEqual({ edits: 2, kind: "unsent" });
+    expect(await rt.logout()).toStrictEqual({ edits: 3, kind: "unsent" });
     expect(rt.sync.get()).toMatchObject({ state: "signed-in" });
-    expect(await queuedRows(storage.db)).toBe(2);
+    expect(await queuedRows(storage.db)).toBe(3);
+    expect(await waitingFills(storage.db)).toBe(1);
     expect(storage.outboxFiles.names()).toHaveLength(1);
 
     expect(await rt.logout({ discardUnsent: true })).toStrictEqual({ kind: "signed-out" });
     expect(rt.sync.get()).toStrictEqual({ state: "signed-out" });
     await vi.waitFor(async () => {
       expect(await queuedRows(storage.db)).toBe(0);
+      expect(await waitingFills(storage.db)).toBe(0);
       expect(storage.outboxFiles.names()).toEqual([]);
     });
   });

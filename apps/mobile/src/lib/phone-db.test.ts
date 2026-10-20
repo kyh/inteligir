@@ -26,6 +26,7 @@ describe("the phone's database", () => {
       "mirror_landings",
       "mirror_meta",
       "outbox",
+      "pending_fills",
     ]);
   });
 
