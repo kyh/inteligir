@@ -36,7 +36,7 @@ const SITE = "Steph Ango";
 const DESCRIPTION = "Files you can control, in formats that are easy to retrieve and read.";
 const ARTICLE =
   "If you want to create digital artifacts that last, they must be files you can control.";
-// longer than the sweep a Mac once ran every ten seconds for other devices' stubs
+// a Mac that filled other devices' stubs would reach a pulled one within ten seconds
 const UNTOUCHED_MS = 12_000;
 
 // a JPEG's own start and end around a cover's worth of bytes: what the phone fetched is what lands

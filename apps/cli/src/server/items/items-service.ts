@@ -61,10 +61,10 @@ export interface ItemsService {
 }
 
 export interface ItemsServiceDeps extends ItemCoreDeps {
-  // the capture's reads besides the core's: the stubs a sweep may fill, and where an item went
+  // the capture's reads besides the core's: the item a url already names, and where an item went
   knowledge: CaptureDeps["knowledge"];
   annotations: AnnotationsService;
-  // the vault's inteligir.db: pending_fills and the shuffle seed
+  // the vault's inteligir.db: pending_fills
   db: DbConnection;
   dataDir: string;
   debugLog: DebugLog | undefined;

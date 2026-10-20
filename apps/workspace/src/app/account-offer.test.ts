@@ -22,7 +22,7 @@ const withRemote = (remoteSource: "account" | "explicit" | "pinned"): VaultStatu
 const BACK_UP =
   "An account backs up your library and brings it to your other Macs and your iPhone.";
 const KEEP_SYNCING =
-  "This library keeps syncing where it already does. An account carries your conversations with the agent to your other devices.";
+  "This library keeps syncing where it already does, so an account leaves it there, and your phone won't show it.";
 
 describe("what an account offers these notes", () => {
   it.each<[string, VaultStatusResponse, string, string]>([
@@ -39,11 +39,11 @@ describe("what an account offers these notes", () => {
     expect(accountOffer(vault)).toEqual({ lead, title });
   });
 
-  it("says the service that already syncs the folder, and what the account still carries", () => {
+  it("says the service that already syncs the folder, and that the account leaves it there", () => {
     const offer = accountOffer({ ...NO_REMOTE, externalSync: { kind: "dropbox" } });
     expect(offer.title).toBe("Create your account");
     expect(offer.lead).toBe(
-      "Dropbox already syncs this library, and your phone won't show it. An account still carries your conversations with the agent to your other Macs.",
+      "Dropbox already syncs this library, so an account leaves it there, and your phone won't show it.",
     );
   });
 });

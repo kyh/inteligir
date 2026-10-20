@@ -14,13 +14,13 @@ interface AccountOffer {
 export const accountOffer = (vault: VaultStatusResponse): AccountOffer => {
   if (vault.state === "no-remote" && vault.externalSync !== null) {
     return {
-      lead: `${externalSyncName(vault.externalSync)} already syncs this library, and your phone won't show it. An account still carries your conversations with the agent to your other Macs.`,
+      lead: `${externalSyncName(vault.externalSync)} already syncs this library, so an account leaves it there, and your phone won't show it.`,
       title: "Create your account",
     };
   }
   if (vault.state !== "no-remote" && vault.remoteSource !== "account") {
     return {
-      lead: "This library keeps syncing where it already does. An account carries your conversations with the agent to your other devices.",
+      lead: "This library keeps syncing where it already does, so an account leaves it there, and your phone won't show it.",
       title: "Create your account",
     };
   }

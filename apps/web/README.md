@@ -267,11 +267,7 @@ pnpm --filter @repo/web db:push
 Tests run in a real in-process Workers runtime (`@cloudflare/vitest-pool-workers`)
 against the bindings `cloudflare.config.ts` declares, restated in
 `vitest.config.ts` because the pool reads only wrangler's config format; the
-schema DDL is derived from `src/worker/db/schema.ts` at config load. The
-inboxes' refusal and ordering rules are one table,
-`@repo/contract/cloud/test-support/inbox-scenarios`, which
-`src/worker/inbox-scenarios.test.ts` runs against the object and the
-CLI's suites run against their fake cloud.
+schema DDL is derived from `src/worker/db/schema.ts` at config load.
 
 ## Build & deploy (owner-only)
 

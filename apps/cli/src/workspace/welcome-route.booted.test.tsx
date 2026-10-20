@@ -124,7 +124,7 @@ describe("the steps after a first run", () => {
     expect(stepOnScreen()).toBeNull();
   });
 
-  it("says what an account still carries for notes another service syncs", async () => {
+  it("says an account leaves notes another service syncs where they are", async () => {
     const router = await bootAt("/welcome?step=account", {
       vaultPath: path.join("Library", "Mobile Documents", "com~apple~CloudDocs", "Notes"),
     });
@@ -132,7 +132,7 @@ describe("the steps after a first run", () => {
     expect(await screen.findByRole("heading", { name: "Create your account" })).toBeDefined();
     expect(
       screen.getByText(
-        "iCloud Drive already syncs this library, and your phone won't show it. An account still carries your conversations with the agent to your other Macs.",
+        "iCloud Drive already syncs this library, so an account leaves it there, and your phone won't show it.",
       ),
     ).toBeDefined();
 

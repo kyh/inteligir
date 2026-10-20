@@ -28,8 +28,9 @@ src/
   notes/        the vault on the phone: the mirror, the notes store, the outbox and the
                 file and annotation verbs; photo-ingest.ts and the expo-*-files.ts
                 adapters are its native halves
-  items/        saving a link or a thought (item-ops.ts), what a share hands over and the
-                inbox that saves it, and an item's Info sheet
+  items/        saving a link or a thought (item-ops.ts), reading the page of a link it
+                saved (fill-queue.ts), what a share hands over and the inbox that
+                saves it, and an item's Info sheet
   library/      the Library's cards by scope, kind and query, its rows, and the covers
                 from the attachment cache (expo-cover-thumbs.ts is the native half)
   lib/          the composition root (compose-runtime.ts, platform-free; app-runtime.ts,
@@ -456,11 +457,9 @@ without a vault.
 4. Keep the address and the password in `.release/` (gitignored), and enter
    them as Test Information's Beta App Review sign-in, with these notes:
    > Sign in with the account above; its notes are already there. Everything
-   > but Ask agent works on the phone alone, offline included. Ask agent sends
-   > the request to a Mac signed in to the same account, which runs the agent
-   > on its owner's own plan. No Mac is online during review, so a request
-   > shows "Waiting for your Mac — open inteligir on it to run this" and stays
-   > queued.
+   > works on the phone alone, offline included: a link saved offline shows
+   > "Waiting to be read" until the phone is online with the app open, and the
+   > phone then reads the page itself.
 5. Each review signs in as a new device, and an account holds 20: revoke the
    old review devices at `https://inteligir.com/app/devices` before the next
    submission.
