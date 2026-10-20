@@ -233,15 +233,16 @@ cited.
   `apps/cli/src/server/vault/git-engine.ts`, `apps/cli/src/server/vault/git-stage.ts`.
 
 - **THE PHONE ASKS NO AGENT, AND THE ACCOUNT CARRIES NO THREAD** (owner
-  decision: the phone saves, reads and writes, as Raindrop's and Obsidian's
-  do). A thread lives in the database of the Mac that ran it, and its edits
-  reach other devices as the library's commits; a phone that wants the agent
-  asks on a Mac. `ThreadSyncDO` is a deleted export, which removes every object
-  of it and its storage on deploy, and no class of that name is exported; the
-  entry stays until every deployment has applied it. Rejected: a thread log
-  every device pulls and an inbox a Mac polls, a second store and sync beside
-  the library's for transcripts no other device edits.
-  `apps/web/cloudflare.config.ts`.
+  decision: the phone saves, reads and writes, as Raindrop's and Obsidian's do).
+  A thread lives in the database of the Mac that ran it, and its edits reach
+  other devices as the library's commits; a phone that wants the agent asks on a
+  Mac. The account socket is deployed under the retired log's class name,
+  `ThreadSyncDO`, and an object still holding the log's tables drops them on
+  waking, since a Preview is a version of the script and a version can neither
+  add nor delete a class. Rejected: a new class name, which no PR's preview
+  could bind until a deploy migrated it; a thread log every device pulls and an
+  inbox a Mac polls, a second store and sync beside the library's for
+  transcripts no other device edits. `apps/web/cloudflare.config.ts`.
 
 - **A VAULT READ CARRIES ITS PATH IN THE BODY, NEVER THE URL.** Cloudflare keeps
   each request's URL in the Worker's request log and in its sampled traces for
