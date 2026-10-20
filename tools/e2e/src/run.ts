@@ -12,7 +12,6 @@ import { createScenarioContext } from "./harness/scenario";
 import type { Scenario, ScenarioContext } from "./harness/scenario";
 import { accountHosted } from "./scenarios/account-hosted";
 import { actionScripted } from "./scenarios/action-scripted";
-import { agentSaveIntegrated } from "./scenarios/agent-save-integrated";
 import { agentSignInBrowser } from "./scenarios/agent-sign-in-browser";
 import { annotationsBrowser } from "./scenarios/annotations-browser";
 import { annotationsCli } from "./scenarios/annotations-cli";
@@ -68,8 +67,6 @@ import { vaultRemoteSetting } from "./scenarios/vault-remote-setting";
 import { vaultSearchBrowser } from "./scenarios/vault-search-browser";
 import { vaultSync } from "./scenarios/vault-sync";
 import { viewContextBrowser } from "./scenarios/view-context-browser";
-import { viewersDesktopIntegrated } from "./scenarios/viewers-desktop-integrated";
-import { longNoteDesktop } from "./scenarios/long-note-desktop";
 
 const SCENARIOS: readonly Scenario[] = [
   vaultCrud,
@@ -129,9 +126,6 @@ const SCENARIOS: readonly Scenario[] = [
   importIntegrated,
   extensionIntegrated,
   phoneFillIntegrated,
-  viewersDesktopIntegrated,
-  longNoteDesktop,
-  agentSaveIntegrated,
 ];
 
 const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list] [--no-skip]

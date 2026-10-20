@@ -11,6 +11,7 @@ import { appLaunchEnv } from "./exec";
 import { createInstanceApi, makeVendorDirs, vendorEnv } from "./instance";
 import type { VendorDirs } from "./instance";
 import { pollUntil } from "./poll";
+import { BACK_TO_LIBRARY, LIBRARY_GRID } from "./selectors";
 import { bootWithPorts, spawnSupervised } from "./tracked-child";
 import type { TrackedProcess } from "./tracked-child";
 import { NO_AUTO_SYNC } from "./vault-sync";
@@ -32,6 +33,16 @@ export const askShell = (
 ): string =>
   `window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)}, ${JSON.stringify(args)})`;
 const SERVER_LOG = path.join("logs", "server.log");
+const LIBRARY_DEADLINE_MS = 60_000;
+
+// from an open item, its topbar's way back, and the grid drawn again
+export const backToLibrary = async (page: WebDriverSession): Promise<void> => {
+  await page.clickWhenThere(BACK_TO_LIBRARY, LIBRARY_DEADLINE_MS);
+  await page.waitUntil(
+    `document.querySelector(${JSON.stringify(LIBRARY_GRID)}) !== null`,
+    LIBRARY_DEADLINE_MS,
+  );
+};
 
 // a cold boot starts the driver, the shell, its server, migrates, indexes and paints the window
 const READY_DEADLINE_MS = 90_000;

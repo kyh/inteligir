@@ -5,11 +5,19 @@ import { physicalVaultDir } from "inteligir/server/config";
 import { readServerFile } from "inteligir/server/server-file";
 import { processAlive } from "inteligir/server/server-probe";
 import { expect, expectEq } from "../harness/assert";
-import { askShell, PAGE_UNDER_SHELL, running, WINDOW_LOADED } from "../harness/desktop-shell";
+import {
+  askShell,
+  backToLibrary,
+  PAGE_UNDER_SHELL,
+  running,
+  WINDOW_LOADED,
+} from "../harness/desktop-shell";
 import type { DesktopShell, ShellTarget } from "../harness/desktop-shell";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR, doubleClickCard, libraryCard } from "../harness/selectors";
+import { farJumpsHold, seedLongArticle } from "./desktop-shell/long-note";
+import { seedViewerItems, viewersDraw } from "./desktop-shell/viewers";
 
 const NOTE = "Shell.md";
 const SEEDED_TOKEN = "seededshelltoken";
@@ -54,10 +62,10 @@ const switchedTo = async (shell: DesktopShell): Promise<SwitchState> => {
 
 export const desktopShell: Scenario = {
   description:
-    "the built Tauri shell over WebDriver: the window is the server's own page signed in by its handoff, the library and an item ride its cookie, an API write reaches the open editor through the socket, `window.open` is denied, every permission request is refused, Reveal refuses a symlink out of the vault, a switch boots a new child and a new window on the new vault, and a SIGTERM quit stops the server and retracts `server.json`",
+    "the built Tauri shell over WebDriver: the window is the server's own page signed in by its handoff, the library and an item ride its cookie, an API write reaches the open editor through the socket, `window.open` is denied, every permission request is refused, Reveal refuses a symlink out of the vault; in WebKit, a far jump in a long article lands on its target and holds still and scrolling back up never leaps as the runs above draw, a PDF item's frame draws, a webm reaches its metadata, and a page copy's script stays silent; a switch boots a new child and a new window on the new vault, and a SIGTERM quit stops the server and retracts `server.json`",
   name: "desktop-shell",
-  // the shell boots twice (the switch)
-  timeoutMs: 300_000,
+  // one shell launch carries every step, and its server boots twice (the switch)
+  timeoutMs: 420_000,
   usesDesktopShell: true,
   async run(ctx) {
     const outsideFile = path.join(ctx.scratchDir, "outside", "secret.md");
@@ -77,6 +85,8 @@ export const desktopShell: Scenario = {
       seedVault: async (vaultDir) => {
         await writeFile(path.join(vaultDir, NOTE), `# Shell\n\n${SEEDED_TOKEN}\n`, "utf-8");
         await symlink(outsideFile, path.join(vaultDir, ESCAPE_LINK));
+        await seedLongArticle(vaultDir);
+        await seedViewerItems(vaultDir, ctx.repoRoot);
       },
     });
     const page = shell.window;
@@ -139,6 +149,8 @@ export const desktopShell: Scenario = {
     expectEq(opened, "null", "window.open's answer");
     const handles = await page.handles();
     expectEq(handles.length, 1, "windows after window.open");
+    // it sits over the rail's corner, where a later step's real click would land on it
+    await page.run(`document.getElementById("e2e-window-open")?.remove(); return null;`, z.null());
 
     ctx.log("the window holds no permission: every request is denied");
     // dictation is the OS's, so the page needs no microphone; a runner has no capture device to
@@ -163,6 +175,19 @@ export const desktopShell: Scenario = {
       expect(!answer.ok, `Reveal handed the OS ${entry}, which is outside the vault`);
     }
 
+    ctx.log("back to the library, for the steps that open the items only WebKit can show");
+    await backToLibrary(page);
+
+    ctx.log("a long article: the find bar's far jumps hold, and the scroll back up never leaps");
+    await farJumpsHold(ctx, page);
+    await backToLibrary(page);
+
+    ctx.log(
+      "the viewers: a PDF's frame draws, a webm loads, and a page copy's script stays silent",
+    );
+    await viewersDraw(ctx, shell);
+
+    // last, since the switch closes the one window WebDriver drives
     ctx.log("a switch to a remembered vault stops the child and boots one on the new vault");
     const before = shell.target();
     const beforeServer = requireServer(before);

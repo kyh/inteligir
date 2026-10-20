@@ -1,5 +1,5 @@
-// the item viewers inside the real shell, on WebKitGTK through tauri-driver: what a frame draws is
-// read off WebDriver's screenshot of the window, since no script in the page can read a PDF's
+// desktop-shell's viewer steps, on WebKitGTK through tauri-driver: what a frame draws is read off
+// WebDriver's screenshot of the window, since no script in the page can read a PDF's
 // viewer or a sandboxed copy. A PDF item opens in a same-origin frame over the asset route, whose
 // policy for a PDF is WebKit's own viewer, and draws its red page; a webm item's player reaches its
 // metadata over the byte routes and the boot's media token; and a kept copy of a page is framed by
@@ -12,15 +12,15 @@ import { setTimeout as delay } from "node:timers/promises";
 import { PAGE_COPY_PATH, VAULT_ASSET_PATH } from "@repo/contract/local/routes";
 import { authorizationHeader, readServerFile } from "inteligir/server/server-file";
 import { z } from "zod";
-import { expect, expectEq } from "../harness/assert";
-import type { DesktopShell } from "../harness/desktop-shell";
-import { PAGE_UNDER_SHELL } from "../harness/desktop-shell";
-import { readPngPixels } from "../harness/png-pixels";
-import type { Rgba } from "../harness/png-pixels";
-import { pollUntil } from "../harness/poll";
-import type { Scenario } from "../harness/scenario";
-import { BACK_TO_LIBRARY, LIBRARY_GRID, doubleClickCard, libraryCard } from "../harness/selectors";
-import type { WebDriverSession } from "../harness/webdriver";
+import { expect, expectEq } from "../../harness/assert";
+import { backToLibrary } from "../../harness/desktop-shell";
+import type { DesktopShell } from "../../harness/desktop-shell";
+import { readPngPixels } from "../../harness/png-pixels";
+import type { Rgba } from "../../harness/png-pixels";
+import { pollUntil } from "../../harness/poll";
+import type { ScenarioContext } from "../../harness/scenario";
+import { doubleClickCard, libraryCard } from "../../harness/selectors";
+import type { WebDriverSession } from "../../harness/webdriver";
 
 const SAVED = "saved: 2026-10-01T09:00:00Z";
 const PDF_ITEM = "Papers/Red page.md";
@@ -160,14 +160,6 @@ const openCard = async (page: WebDriverSession, item: string): Promise<void> => 
   expectEq(await page.run(`return ${doubleClickCard(item)};`, z.string()), "double-clicked", item);
 };
 
-const backToLibrary = async (page: WebDriverSession): Promise<void> => {
-  await page.clickWhenThere(BACK_TO_LIBRARY, PAGE_DEADLINE_MS);
-  await page.waitUntil(
-    `document.querySelector(${JSON.stringify(LIBRARY_GRID)}) !== null`,
-    PAGE_DEADLINE_MS,
-  );
-};
-
 const pdfDraws = async (page: WebDriverSession): Promise<void> => {
   const frame = '[data-item-stage="pdf"] iframe';
   await openCard(page, PDF_ITEM);
@@ -284,45 +276,31 @@ const copyStaysSilent = async (shell: DesktopShell): Promise<void> => {
   expectEq(heard, [], "what the copy said to the window");
 };
 
-export const viewersDesktopIntegrated: Scenario = {
-  description:
-    "in the desktop shell, a PDF item's frame draws, a webm reaches its metadata, and a page copy's script stays silent",
-  name: "viewers-desktop-integrated",
-  async run(ctx) {
-    const webm = await readFile(path.join(ctx.repoRoot, WEBM_FIXTURE));
-    const shell = await ctx.desktopShell({
-      seedVault: async (vaultDir) => {
-        const write = async (file: string, bytes: string | Uint8Array): Promise<void> => {
-          await mkdir(path.join(vaultDir, path.dirname(file)), { recursive: true });
-          await writeFile(path.join(vaultDir, file), bytes);
-        };
-        await write(PDF_FILE, RED_PAGE);
-        await write(PDF_ITEM, wrapper("1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", "pdf", PDF_FILE));
-        await write(VIDEO_FILE, webm);
-        await write(
-          VIDEO_ITEM,
-          wrapper("2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e", "video", VIDEO_FILE),
-        );
-        await write(COPY_FILE, COPY_HTML);
-        await write(LINK_ITEM, LINK_TEXT);
-      },
-    });
-    const page = shell.window;
-    await page.waitUntil(PAGE_UNDER_SHELL, PAGE_DEADLINE_MS);
-    await page.waitUntil(
-      `document.querySelector(${JSON.stringify(LIBRARY_GRID)}) !== null`,
-      PAGE_DEADLINE_MS,
-    );
+// the PDF, the webm and the kept page, with the items that show them, before the shell launches
+export const seedViewerItems = async (vaultDir: string, repoRoot: string): Promise<void> => {
+  const webm = await readFile(path.join(repoRoot, WEBM_FIXTURE));
+  const write = async (file: string, bytes: string | Uint8Array): Promise<void> => {
+    await mkdir(path.join(vaultDir, path.dirname(file)), { recursive: true });
+    await writeFile(path.join(vaultDir, file), bytes);
+  };
+  await write(PDF_FILE, RED_PAGE);
+  await write(PDF_ITEM, wrapper("1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", "pdf", PDF_FILE));
+  await write(VIDEO_FILE, webm);
+  await write(VIDEO_ITEM, wrapper("2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e", "video", VIDEO_FILE));
+  await write(COPY_FILE, COPY_HTML);
+  await write(LINK_ITEM, LINK_TEXT);
+};
 
-    ctx.log("a PDF item opens in WebKit's own viewer, and its frame draws the red page");
-    await pdfDraws(page);
+// from the library: each viewer opens from its card, and the window is back on the library after
+// the PDF and the webm; the page copy stays open
+export const viewersDraw = async (ctx: ScenarioContext, shell: DesktopShell): Promise<void> => {
+  const page = shell.window;
+  ctx.log("a PDF item opens in WebKit's own viewer, and its frame draws the red page");
+  await pdfDraws(page);
 
-    ctx.log("a webm item's player reads its metadata over the byte routes");
-    await videoLoads(page);
+  ctx.log("a webm item's player reads its metadata over the byte routes");
+  await videoLoads(page);
 
-    ctx.log("a kept copy draws its own colours, and its script never runs or reaches the window");
-    await copyStaysSilent(shell);
-  },
-  timeoutMs: 240_000,
-  usesDesktopShell: true,
+  ctx.log("a kept copy draws its own colours, and its script never runs or reaches the window");
+  await copyStaysSilent(shell);
 };
