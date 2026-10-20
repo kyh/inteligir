@@ -55,44 +55,18 @@ Saving links, pages and files as items, and filling a saved link from its page.
   `apps/cli/src/server/items/capture/item-fill-worker.ts`,
   `apps/cli/src/server/items/capture/fill/no-network.test.ts`.
 
-- **A MAC FILLS WHAT IT MADE AT ONCE, A PHONE'S STUB WITHIN A MINUTE AND ANOTHER
-  MAC'S AFTER 15 MINUTES; A FILL ONLY ADDS, NEVER WRITES `url`/`saved`, AND
-  RENAMES ONLY AN UNTRACKED STUB OF ITS OWN, BEFORE IT WRITES.** This Mac's own
-  rows (its saves, `own`, and its import's, `import`) run at once, two at a
-  time and one per site, a save and a phone's share ahead of an import and
-  another device's stubs, and each site's rows waiting behind its own first, so
-  a save made during an import of thousands starts at the next free slot. Only
-  a library that syncs with the account's hosted vault fills another device's
-  stubs (`syncsWithAccount`), since there they are the person's own devices'
-  and anywhere else a stub-shaped note is just a file the folder held. A phone
-  stub is one whose adding commit the Worker made (`creatorOf`), since no Mac
-  holds it in a pending store; it waits 0 to 60 s, shuffled by a per-install
-  seed so two Macs rarely race, and its own address decides its reach as an own
-  save's does; another Mac's waits 15 minutes and is read under public reach,
-  so a stub this Mac did not make never leads it into private space. One such
-  fill runs at a time,
-  syncs before it fetches (and drops a stub the sync filled) and commits and
-  syncs after it writes, so a second Mac rarely enriches it, and the url-item
-  verdict settles the rare double. The sweep that finds them polls every 10 s,
-  since the capture's index port carries no settle event. A fill writes only
-  `FILL_OWNED_KEYS` and the composed body in one CAS write against the bytes it
-  read, follows an item that moved by its id, never removes a key the page did
-  not give, and renames a provisional, untracked stub of this Mac's to the
-  page's title before that write, with no alias. The pending fills are rows of
-  the vault's own database (`pending_fills`), written per transition; transient
-  failures retry after 1, 10 and 60 minutes, a fill still running after five
-  minutes is stopped and retried on that schedule, so a dial that never ends
-  holds no slot, and a restart picks every row up.
-  Rejected: a claim through an inbox a Mac polls (a new /cloud protocol), filling
-  every pending stub at boot, a 15-minute wait for a phone's share (it has no
-  other filler), and a JSON pending file (rewritten whole on every transition of
-  an 8,500-item import). A copy the person asks for of another device's stub
-  makes that row due at once, still syncing first, and is made as a refresh
-  would make it when another device filled the stub meanwhile, so the copy
-  never rides on a row that drops. `apps/cli/src/server/items/capture/fill-queue.ts`,
-  `apps/cli/src/server/items/capture/pending-fills-store.ts`,
-  `apps/cli/src/server/items/capture/fill-item.ts`,
-  `packages/notes/src/items/link-fill.ts`.
+- **A MAC FILLS WHAT IT SAVED OR IMPORTED, AT ONCE; A FILL ONLY ADDS, NEVER
+  WRITES `url`/`saved`, AND RENAMES ONLY AN UNTRACKED STUB OF ITS OWN.** Its
+  rows (`own`, `import`) run two at a time, one per site, a save ahead of an
+  import. Another device's stub is that device's to fill
+  (`apps/mobile/CLAUDE.md`), read here only for a Refresh or a Keep a copy the
+  person asks for. A fill writes `FILL_OWNED_KEYS` and the body in one CAS
+  write against the bytes it read. Rows are `pending_fills`, written per
+  transition; a transient failure retries after 1, 10 and 60 minutes, a fill
+  past five minutes is retried, and a restart resumes them. Rejected: adopting
+  other devices' stubs (a second filler racing the first, behind a wait), and a
+  JSON pending file. `apps/cli/src/server/items/capture/fill-queue.ts`,
+  `apps/cli/src/server/items/capture/fill-item.ts`.
 
 - **A FAILED FILL IS SAID IN THE FILE**: `fetched` and a plain `fetch-error`
   sentence, and the waiting highlights placed under `## Highlights` in the same
@@ -124,13 +98,11 @@ Saving links, pages and files as items, and filling a saved link from its page.
 
 - **AN ITEM IS A STUB ONLY WHEN THE APP MADE IT** (`id` and `saved` present,
   `isItemStub` in `packages/notes/src/items/item-frontmatter.ts`), so a link
-  note an opened folder already held is never filled unasked; and since a
-  folder's files can say anything, a stub no row of this Mac's holds is filled
-  only in a library that syncs with the account, never under private reach
-  unless the account's Worker made it. A stub the person writes back through
-  this Mac (a restore from Deleted or History, an Undo) is this Mac's own again
-  and gains an own row (`adoptOwn` in `capture.ts`, from the vault's write
-  route and the turn's Undo), since its first row went with it.
+  note an opened folder already held is never filled unasked, and a stub no row
+  of this Mac's holds is never filled unasked either. A stub the person writes
+  back through this Mac (a restore from Deleted or History, an Undo) is this
+  Mac's own again and gains an own row (`adoptOwn` in `capture.ts`, from the
+  vault's write route and the turn's Undo), since its first row went with it.
 
 - **A COVER IS DOWNSCALED BY THE SYSTEM'S `sips` AND STORED BY ITS HASH**: at
   most 640 px, a picture with transparency kept PNG and the rest JPEG at 80, a

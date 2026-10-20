@@ -441,19 +441,6 @@ export class LibraryIndex {
     return { folders, total, unsorted, untagged };
   }
 
-  // the stubs a fill may take, the earliest saved first
-  stubs(): string[] {
-    const found: { path: string; savedMs: number }[] = [];
-    for (const [path, entry] of this.entries) {
-      if (entry.kind === "doc" && !isHidden(path) && isItemStub(entry.facts)) {
-        found.push({ path, savedMs: entry.facts.savedMs ?? 0 });
-      }
-    }
-    return found
-      .toSorted((a, b) => a.savedMs - b.savedMs || compareText(a.path, b.path))
-      .map(({ path }) => path);
-  }
-
   private isMember(path: string): boolean {
     const entry = this.entries.get(path);
     return entry !== undefined && this.isMemberEntry(path, entry);

@@ -6,6 +6,7 @@ import { COVERS_DIR } from "@repo/notes/items/item-kind";
 import { describe, expect, it } from "vitest";
 
 import { bootTestApp } from "../test-support/boot-app";
+import { ENGINE_IDENTITY } from "../vault/git-run";
 import type { FolderNamer } from "./item-core";
 import { ItemsError } from "./items-error";
 
@@ -136,15 +137,11 @@ describe("the item core", () => {
     );
   });
 
-  it("reads git as untracked before a commit adds the path, and as this device's after", async () => {
+  it("reads a path as untracked before a commit adds it, and as tracked after", async () => {
     const { core, harness } = await bootCore();
     await harness.vault.service.write("Unsorted/Talk.md", "stub\n");
     expect(await core.isTracked("Unsorted/Talk.md")).toBe(false);
-    expect(await core.creatorOf("Unsorted/Talk.md")).toBeNull();
-    await core.commitPaths(["Unsorted/Talk.md"]);
-    await core.commitPaths([]);
+    await harness.vault.git.commitPaths(["Unsorted/Talk.md"], ENGINE_IDENTITY, "Save Talk");
     expect(await core.isTracked("Unsorted/Talk.md")).toBe(true);
-    expect(await core.creatorOf("Unsorted/Talk.md")).toBe("device");
-    await core.syncNow();
   });
 });

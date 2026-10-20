@@ -279,10 +279,6 @@ export class LinkGraphIndex {
     return this.library.scopes(extraFolders, hiddenFolders);
   }
 
-  itemStubs(): string[] {
-    return this.library.stubs();
-  }
-
   // a link's target when it is a file that is not a doc
   private readonly resolveFile = (link: ExtractedLink, fromPath: string): string | null => {
     const target =

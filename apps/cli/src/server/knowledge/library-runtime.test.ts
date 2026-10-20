@@ -47,7 +47,6 @@ describe("the library over the runtime", () => {
     const found = await knowledge.findByUrl("https://www.stephango.com/file-over-app/", 10);
     expect(found).toMatchObject({ key: "stephango.com/file-over-app" });
     expect(found.items.map((row) => row.path)).toEqual(["Unsorted/File over app.md"]);
-    expect(await knowledge.itemStubs()).toEqual(["Unsorted/File over app.md"]);
     expect(await knowledge.itemsAt(["Unsorted/File over app.md", "missing.md"])).toHaveLength(1);
   });
 

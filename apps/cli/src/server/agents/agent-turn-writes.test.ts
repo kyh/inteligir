@@ -48,7 +48,6 @@ const recordingEngine = (options: RecordingEngineOptions = {}): RecordingEngine 
       return await Promise.resolve(null);
     },
     claimedPaths: () => state.claims.flat(),
-    creatorOf: async () => await Promise.resolve(null),
     currentRemote: async () => await Promise.resolve(null),
     commitNow: async () => {
       state.wholeTreeCommits += 1;

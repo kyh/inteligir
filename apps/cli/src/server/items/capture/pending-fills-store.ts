@@ -3,14 +3,12 @@
 // update or delete each, never a rewrite of the rows before it. The rows are read once, at boot;
 // the capture holds them in memory from then on.
 
-import { randomBytes } from "node:crypto";
-
 import type { DbConnection } from "@repo/db/connection";
 import { z } from "zod";
 
-// `own`: a save of this Mac's; `import`: a row this Mac's import handed over; `phone` and
-// `foreign`: a stub another device made, in a library that syncs with the account
-export type FillOrigin = "own" | "import" | "phone" | "foreign";
+// `own`: a save of this Mac's; `import`: a row this Mac's import handed over. A stub another device
+// made is that device's to fill, so no row holds one
+export type FillOrigin = "own" | "import";
 
 export interface PendingFill {
   itemId: string;
@@ -33,8 +31,6 @@ export interface PendingFillsStore {
   setKeepCopy: (itemId: string) => void;
   reschedule: (itemId: string, attempts: number, notBefore: number) => void;
   remove: (itemId: string) => void;
-  // the 16 random bytes that shuffle when this Mac fills a phone's stub, minted on first use
-  shuffleSeed: () => string;
 }
 
 const rowSchema = z.object({
@@ -44,12 +40,10 @@ const rowSchema = z.object({
   item_id: z.string(),
   keep_copy: z.number().int(),
   not_before: z.number(),
-  origin: z.enum(["own", "import", "phone", "foreign"]),
+  origin: z.enum(["own", "import"]),
   path: z.string(),
   url: z.string(),
 });
-
-const SHUFFLE_SEED_KEY = "fill-shuffle-seed";
 
 export const createPendingFillsStore = (db: DbConnection): PendingFillsStore => {
   const sqlite = db.$client;
@@ -65,8 +59,6 @@ export const createPendingFillsStore = (db: DbConnection): PendingFillsStore => 
   );
   const remove = sqlite.prepare("DELETE FROM pending_fills WHERE item_id = ?");
   const all = sqlite.prepare("SELECT * FROM pending_fills ORDER BY not_before, first_seen_at");
-  const readSeed = sqlite.prepare("SELECT value FROM meta WHERE key = ?");
-  const writeSeed = sqlite.prepare("INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)");
 
   return {
     all: () =>
@@ -118,16 +110,6 @@ export const createPendingFillsStore = (db: DbConnection): PendingFillsStore => 
 
     setPath: (itemId, path) => {
       setPath.run(path, itemId);
-    },
-
-    shuffleSeed: () => {
-      const read = z.object({ value: z.string() }).safeParse(readSeed.get(SHUFFLE_SEED_KEY));
-      if (read.success) {
-        return read.data.value;
-      }
-      writeSeed.run(SHUFFLE_SEED_KEY, randomBytes(16).toString("hex"));
-      const minted = z.object({ value: z.string() }).parse(readSeed.get(SHUFFLE_SEED_KEY));
-      return minted.value;
     },
   };
 };

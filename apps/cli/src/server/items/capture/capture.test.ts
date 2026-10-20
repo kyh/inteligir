@@ -13,6 +13,7 @@ import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
+import { ENGINE_IDENTITY } from "../../vault/git-run";
 import { classifyAddress } from "./address-guard";
 import { createGuardedFetch } from "./guarded-fetch";
 import { bootCapture, pngOf, START_MS } from "./test-support/capture-harness";
@@ -56,6 +57,11 @@ const pendingRows = (suite: CaptureSuite) =>
     .all();
 
 // a stub as a synced device would leave it, committed, so this Mac never created it
+// a commit of exactly these paths, as a sync landing them would leave them: tracked
+const commit = async (suite: CaptureSuite, path: string): Promise<void> => {
+  await suite.harness.vault.git.commitPaths([path], ENGINE_IDENTITY, `vault: update ${path}`);
+};
+
 const syncedStub = async (
   suite: CaptureSuite,
   path: string,
@@ -74,7 +80,7 @@ const syncedStub = async (
       extra,
     ].join("\n"),
   );
-  await suite.core.commitPaths([path]);
+  await commit(suite, path);
   await suite.harness.composed.context.knowledge.settle();
 };
 
@@ -191,7 +197,7 @@ describe("the fill", () => {
     const held = suite.fetcher.hold(tracked);
     const stub = await suite.capture.saveLink({ keepCopy: false, url: tracked, wait: false });
     await held.reached;
-    await suite.core.commitPaths([stub.path]);
+    await commit(suite, stub.path);
     held.release();
     await settled(suite, stub.path, filled);
     expect(stub.path).toBe("Unsorted/site.test - tracked.md");
@@ -342,76 +348,20 @@ describe("the fill", () => {
 });
 
 describe("whose stubs this Mac fills", () => {
-  it("fills another Mac's stub after fifteen minutes, syncing before and after", async () => {
-    const synced: string[] = [];
-    const committed: string[][] = [];
-    const suite = await bootCapture({
-      core: (core) => ({
-        ...core,
-        commitPaths: async (paths) => {
-          committed.push([...paths]);
-          await core.commitPaths(paths);
-        },
-        syncsWithAccount: async () => await Promise.resolve(true),
-        syncNow: async () => {
-          synced.push("sync");
-          await Promise.resolve();
-        },
-      }),
-      routes: { [PAGE]: { html: PAGE_HTML } },
-    });
-    await syncedStub(suite, "Unsorted/Elsewhere.md", PAGE);
+  it("fills no stub another device made, a phone's included, however long it waits", async () => {
+    const suite = await bootCapture({ routes: { [PAGE]: { html: PAGE_HTML } } });
+    await syncedStub(suite, "Unsorted/Their stub.md", PAGE);
     suite.capture.boot();
-    await suite.clock.advance(10_000);
-    await vi.waitFor(
-      () => {
-        expect(pendingRows(suite)).toMatchObject([
-          { origin: "foreign", path: "Unsorted/Elsewhere.md" },
-        ]);
-      },
-      { timeout: 10_000 },
-    );
-    await suite.clock.advance(14 * MINUTE);
+    await suite.clock.advance(20 * MINUTE);
     expect(suite.fetcher.requests).toEqual([]);
-    await suite.clock.advance(MINUTE);
-    const content = await settled(suite, "Unsorted/Elsewhere.md", filled);
-    expect(content).toContain("Apps are ephemeral.");
-    // the commit and the second pass follow the write
-    await vi.waitFor(() => {
-      expect(synced.length).toBeGreaterThanOrEqual(2);
-      expect(committed.at(-1)).toContain("Unsorted/Elsewhere.md");
-    });
+    expect(pendingRows(suite)).toEqual([]);
+    expect(suite.onDisk("Unsorted/Their stub.md")).not.toContain("fetched:");
   });
 
-  it("makes the copy asked for of another Mac's stub at once, even when another device filled it first", async () => {
-    let fillElsewhere = false;
-    const suite = await bootCapture({
-      core: (core) => ({
-        ...core,
-        syncsWithAccount: async () => await Promise.resolve(true),
-        syncNow: async () => {
-          if (fillElsewhere) {
-            fillElsewhere = false;
-            const current = await core.read("Unsorted/Elsewhere.md");
-            await core.write(
-              "Unsorted/Elsewhere.md",
-              `${(current?.content ?? "").replace("saved:", "fetched: 2026-10-17T09:13:00Z\nsaved:")}Read on another Mac.\n`,
-              current?.hash ?? "",
-            );
-          }
-        },
-      }),
-    });
+  it("makes the copy asked for of another device's stub at once, as a refresh would", async () => {
+    const suite = await bootCapture();
     await syncedStub(suite, "Unsorted/Elsewhere.md", PAGE);
     suite.capture.boot();
-    await suite.clock.advance(10_000);
-    await vi.waitFor(
-      () => {
-        expect(pendingRows(suite)).toMatchObject([{ origin: "foreign" }]);
-      },
-      { timeout: 10_000 },
-    );
-    fillElsewhere = true;
     const again = await suite.capture.savePage({
       keepCopy: true,
       page: { html: PAGE_HTML, selection: null, title: "File over app", url: PAGE },
@@ -419,93 +369,10 @@ describe("whose stubs this Mac fills", () => {
     });
     expect(again.outcome).toBe("exists");
     const content = suite.onDisk("Unsorted/Elsewhere.md");
-    expect(content).toContain("Read on another Mac.");
+    expect(content).toContain("Apps are ephemeral.");
     expect(content).toMatch(/\[Copy of the page\]\(assets\/pages\/[0-9a-f]{16}\.html\)/u);
-    // the copy came from the page the browser handed over, not a fetch, and not 15 minutes on
+    // the copy came from the page the browser handed over, not a fetch, and no row waits on it
     expect(suite.fetcher.requests).not.toContain(PAGE);
-    expect(pendingRows(suite)).toEqual([]);
-  });
-
-  it("fills a phone's stub within a minute, and drops one another device filled meanwhile", async () => {
-    let fillElsewhere = false;
-    const suite = await bootCapture({
-      core: (core) => ({
-        ...core,
-        creatorOf: async () => await Promise.resolve("phone" as const),
-        syncsWithAccount: async () => await Promise.resolve(true),
-        syncNow: async () => {
-          if (fillElsewhere) {
-            const current = await core.read("Unsorted/From phone 2.md");
-            const content = current?.content ?? "";
-            await core.write(
-              "Unsorted/From phone 2.md",
-              content.replace("saved:", "fetched: 2026-10-17T09:13:00Z\nsaved:"),
-              current?.hash ?? "",
-            );
-          }
-        },
-      }),
-      routes: { [PAGE]: { html: PAGE_HTML } },
-    });
-    await syncedStub(suite, "Unsorted/From phone.md", PAGE);
-    suite.capture.boot();
-    await suite.clock.advance(10_000 + MINUTE);
-    await settled(suite, "Unsorted/From phone.md", filled);
-    // the row goes once the write has returned, a moment after the file is in place
-    await vi.waitFor(() => {
-      expect(pendingRows(suite)).toEqual([]);
-    });
-    // the person's own phone saved it, so its own address decides what it may reach
-    expect(suite.fetcher.reaches).toContainEqual({ reach: null, url: PAGE });
-
-    const other = "https://site.test/other";
-    await suite.harness.vault.service.write(
-      "Unsorted/From phone 2.md",
-      `---\nid: 11111111-2222-4333-8444-555555555555\nkind: link\nurl: ${other}\nsaved: 2026-10-17T09:12:30Z\n---\n`,
-    );
-    await suite.harness.composed.context.knowledge.settle();
-    fillElsewhere = true;
-    await suite.clock.advance(MINUTE + 10_000);
-    await settled(suite, "Unsorted/From phone 2.md", filled);
-    await vi.waitFor(() => {
-      expect(pendingRows(suite)).toEqual([]);
-    });
-    expect(suite.fetcher.requests).not.toContain(other);
-  });
-
-  it("never lets another device's stub lead this Mac into private space", async () => {
-    const router = "http://192.168.1.1/cgi-bin/luci";
-    const suite = await bootCapture({
-      core: (core) => ({
-        ...core,
-        syncsWithAccount: async () => await Promise.resolve(true),
-      }),
-      routes: { [router]: { html: "<title>Router</title><p>Admin.</p>" } },
-    });
-    await syncedStub(suite, "Unsorted/Router.md", router);
-    suite.capture.boot();
-    await suite.clock.advance(10_000 + 15 * MINUTE);
-    const content = await settled(suite, "Unsorted/Router.md", filled);
-    expect(content).toContain(
-      "fetch-error: The page pointed at an address on your own network, so it isn't read.\n",
-    );
-    expect(content).not.toContain("Admin.");
-    expect(suite.fetcher.reaches).toEqual([{ reach: "public", url: router }]);
-  });
-
-  it("fills no other device's stub, a phone's included, in a library that does not sync with the account", async () => {
-    const suite = await bootCapture({
-      core: (core) => ({
-        ...core,
-        creatorOf: async () => await Promise.resolve("phone" as const),
-      }),
-      routes: { [PAGE]: { html: PAGE_HTML } },
-    });
-    expect(await suite.core.syncsWithAccount()).toBe(false);
-    await syncedStub(suite, "Unsorted/Their stub.md", PAGE);
-    suite.capture.boot();
-    await suite.clock.advance(20 * MINUTE);
-    expect(suite.fetcher.requests).toEqual([]);
     expect(pendingRows(suite)).toEqual([]);
   });
 
@@ -522,14 +389,8 @@ describe("whose stubs this Mac fills", () => {
     expect(pendingRows(suite)).toEqual([]);
   });
 
-  it("folds a stub into the item already holding its url instead of reading the page", async () => {
-    const suite = await bootCapture({
-      core: (core) => ({
-        ...core,
-        syncsWithAccount: async () => await Promise.resolve(true),
-      }),
-      routes: { [PAGE]: { html: PAGE_HTML } },
-    });
+  it("folds a stub written back through this Mac into the item already holding its url", async () => {
+    const suite = await bootCapture({ routes: { [PAGE]: { html: PAGE_HTML } } });
     await suite.harness.vault.service.write(
       "Reading/File over app.md",
       `---\nid: 0e5b3c1a-9a51-4f0e-8a0c-0b7f9d3a2c11\nkind: link\nurl: ${PAGE}\nsaved: 2026-10-16T09:00:00Z\nfetched: 2026-10-16T09:00:05Z\n---\n\n![](assets/covers/abc.png)\n\nThe article.\n`,
@@ -541,7 +402,7 @@ describe("whose stubs this Mac fills", () => {
     );
     await suite.harness.composed.context.knowledge.settle();
     suite.capture.boot();
-    await suite.clock.advance(10_000 + 15 * MINUTE);
+    await suite.capture.adoptOwn("Unsorted/Duplicate.md");
     await vi.waitFor(() => {
       expect(existsSync(nodePath.join(suite.harness.vaultDir, "Unsorted/Duplicate.md"))).toBe(
         false,

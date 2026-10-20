@@ -28,7 +28,6 @@ afterEach(() => {
 const fakeGitEngine = (): GitEngine => ({
   checkpointUnclaimed: async () => await Promise.resolve(null),
   claimedPaths: () => [],
-  creatorOf: async () => await Promise.resolve(null),
   currentRemote: async () => await Promise.resolve(null),
   commitNow: async () => await Promise.resolve(null),
   commitPaths: async () => await Promise.resolve(null),

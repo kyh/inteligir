@@ -14,13 +14,16 @@ import {
 } from "@repo/notes/items/fill-sentences";
 import { bodyOf } from "@repo/notes/items/item-body";
 import { isItemStub, itemFactsOf } from "@repo/notes/items/item-frontmatter";
-import { itemNameFromTitle, itemNameFromUrl } from "@repo/notes/items/item-name";
+import { itemNameFromTitle, itemNameFromUrl, originalFileName } from "@repo/notes/items/item-name";
 import { formatItemTime } from "@repo/notes/items/item-time";
 import { kindForUrl } from "@repo/notes/items/item-url";
 import {
   applyFillFailure,
   applyLinkFill,
   applyMediaFill,
+  FILL_LIMITS,
+  isPageType,
+  playableKindOf,
   startsWithImage,
 } from "@repo/notes/items/link-fill";
 import type { FillText, LinkFill } from "@repo/notes/items/link-fill";
@@ -45,9 +48,6 @@ import { fetchOEmbed } from "./oembed";
 import { keepPageCopy } from "./page-copy";
 import type { FillOrigin } from "./pending-fills-store";
 
-const MiB = 1024 * 1024;
-const PAGE_MAX_BYTES = 10 * MiB;
-const HTML_MAX_BYTES = 5 * MiB;
 const CAS_TRIES = 3;
 const PAGE_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
 
@@ -148,45 +148,6 @@ const locate = async (context: FillContext, target: FillTarget): Promise<Located
   return { ...found, path: moved };
 };
 
-const MEDIA_EXTENSIONS = {
-  "application/pdf": "pdf",
-  "image/avif": "avif",
-  "image/gif": "gif",
-  "image/heic": "heic",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/svg+xml": "svg",
-  "image/webp": "webp",
-} as const;
-
-// a file found at a link keeps its own name when the address names one with the right extension
-const originalName = (url: string, mediaType: keyof typeof MEDIA_EXTENSIONS): string => {
-  const ext = MEDIA_EXTENSIONS[mediaType];
-  let segment = "";
-  try {
-    segment = decodeURIComponent(
-      new URL(url).pathname.split("/").findLast((part) => part !== "") ?? "",
-    );
-  } catch {
-    segment = "";
-  }
-  const dot = segment.lastIndexOf(".");
-  const stem = dot > 0 ? segment.slice(0, dot) : segment;
-  const given = dot > 0 ? segment.slice(dot + 1).toLowerCase() : "";
-  const sameKind = given === ext || (ext === "jpg" && given === "jpeg");
-  return `${itemNameFromTitle(stem) ?? "File"}.${sameKind ? given : ext}`;
-};
-
-const isHtmlType = (mediaType: string | null): boolean =>
-  mediaType === null || mediaType === "text/html" || mediaType === "application/xhtml+xml";
-
-const mediaKindOf = (mediaType: string | null): "video" | "audio" | null => {
-  if (mediaType?.startsWith("video/") === true) {
-    return "video";
-  }
-  return mediaType?.startsWith("audio/") === true ? "audio" : null;
-};
-
 // a provisional stem: the one a save names a stub by when it has no title yet, or its " N" twin
 const isProvisionalStem = (path: string, url: string): boolean => {
   const stem = docStem(path);
@@ -204,25 +165,17 @@ interface Page {
   fetched: string;
 }
 
-// what the saved address may reach: null lets its own answer decide (private space only from a
-// private address), and another device's stub never leads this Mac into private space, since its
-// address is whatever the library's files say
-const startReach = (target: FillTarget): Reach | null =>
-  target.origin === "foreign" ? "public" : null;
-
 type PageRead =
   | { kind: "page"; page: Page }
   | { kind: "media"; response: FetchedResponse; fetched: string }
   | { kind: "failure"; message: string; transient: boolean };
 
+// what the saved address may reach is its own answer's to decide (private space only from a
+// private address); a page a browser handed over takes the reach its host's spelling gives
 const readPage = async (context: FillContext, target: FillTarget): Promise<PageRead> => {
-  const start = startReach(target);
   if (target.supplied !== null) {
-    let reach = start;
-    if (reach === null) {
-      const vetted = await context.fetcher.reachOf(target.url, target.signal);
-      reach = vetted.ok ? vetted.reach : null;
-    }
+    const vetted = await context.fetcher.reachOf(target.url, target.signal);
+    const reach = vetted.ok ? vetted.reach : null;
     return {
       kind: "page",
       page: {
@@ -235,9 +188,9 @@ const readPage = async (context: FillContext, target: FillTarget): Promise<PageR
   }
   const fetched = await context.fetcher.fetch({
     accept: PAGE_ACCEPT,
-    maxBytes: PAGE_MAX_BYTES,
+    maxBytes: FILL_LIMITS.pageBytes,
     overflow: "truncate",
-    reach: start,
+    reach: null,
     signal: target.signal,
     url: target.url,
   });
@@ -247,10 +200,10 @@ const readPage = async (context: FillContext, target: FillTarget): Promise<PageR
     return { kind: "failure", message: failure.sentence, transient: failure.transient };
   }
   const { response } = fetched;
-  if (sniffMedia(response.bytes) !== null || !isHtmlType(response.mediaType)) {
+  if (sniffMedia(response.bytes) !== null || !isPageType(response.mediaType)) {
     return { fetched: at, kind: "media", response };
   }
-  const bytes = response.bytes.subarray(0, HTML_MAX_BYTES);
+  const bytes = response.bytes.subarray(0, FILL_LIMITS.htmlBytes);
   return {
     kind: "page",
     page: {
@@ -322,7 +275,7 @@ const renameToTitle = async (
   wrote: string[],
 ): Promise<void> => {
   if (
-    (target.origin !== "own" && target.origin !== "import") ||
+    target.origin === "refresh" ||
     title === null ||
     !isProvisionalStem(target.path, target.url)
   ) {
@@ -391,13 +344,12 @@ const hintCover = async (
   if (target.coverHint === null) {
     return null;
   }
-  const start = startReach(target);
-  const reach = start === null ? await context.fetcher.reachOf(target.url, target.signal) : null;
+  const reach = await context.fetcher.reachOf(target.url, target.signal);
   return await keepCover(
     context,
     target,
     [target.coverHint],
-    reach?.ok === true ? reach.reach : "public",
+    reach.ok ? reach.reach : "public",
     added,
   );
 };
@@ -501,7 +453,7 @@ const mediaWriting = async (
   if (sniffed !== null) {
     const original = await context.core.writeOriginal(
       target.path,
-      originalName(read.response.url, sniffed.mediaType),
+      originalFileName(read.response.url, sniffed.mediaType),
       read.response.bytes,
     );
     added.push(original.path);
@@ -511,7 +463,7 @@ const mediaWriting = async (
     };
   }
   // a video, a song or anything else a page is not: its link is kept, and it is read as fetched
-  const kind = mediaKindOf(read.response.mediaType);
+  const kind = playableKindOf(read.response.mediaType);
   return {
     fill: {
       article: "",

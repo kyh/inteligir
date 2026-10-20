@@ -19,7 +19,6 @@ import { readOriginConfig } from "./folder-facts";
 import { ACCOUNT_MARKER_KEY, SEED_COMMIT_KEY } from "./git-bootstrap";
 import {
   cachedDeletionLog,
-  readCreatorOf,
   cachedDeletedDocLinks,
   readDeletedFiles,
   readIsTracked,
@@ -130,10 +129,8 @@ export interface GitEngine {
   history: (path: string, page: NoteHistoryPage) => Promise<VaultRevision[]>;
   revision: (path: string, sha: string) => Promise<string>;
   deleted: () => Promise<VaultDeletedEntry[]>;
-  // off the repo lock, and untracked with no repo: whether the index holds the path, and whether
-  // the commit that added it was the Worker's (a phone's) or a device's
+  // off the repo lock, and untracked with no repo: whether the index holds the path
   isTracked: (path: string) => Promise<boolean>;
-  creatorOf: (path: string) => Promise<"phone" | "device" | null>;
   turnCommits: (threadId: string, sinceMs: number) => Promise<TurnCommit[]>;
   syncNow: () => Promise<VaultStatusResponse>;
   status: () => Promise<VaultStatusResponse>;
@@ -1049,9 +1046,6 @@ export const createGitEngine = (args: GitEngineArgs): VaultGit => {
     claimedPaths: autoCommit.claimedPaths,
     commitNow: autoCommit.commitNow,
     commitPaths: autoCommit.commitPaths,
-    async creatorOf(notePath) {
-      return await readCreatorOf(run, notePath);
-    },
     currentRemote,
     async deleted() {
       return await readDeletedFiles(

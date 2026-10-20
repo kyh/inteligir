@@ -1,40 +1,22 @@
-// the stubs this Mac fills, and when. Its own saves and imports are filled at once; in a library
-// that syncs with the account's hosted vault, a phone's stub (one whose adding commit the Worker
-// made) after a delay of up to a minute, shuffled by this data dir's seed so two Macs pick
-// different moments, and another device's after it has waited fifteen minutes; a library that
-// syncs anywhere else fills only what this Mac saved. Two fills run at once, one per host, and one
-// phone or foreign fill at a time, which syncs before it fetches (and drops a stub another device
-// filled meanwhile) and commits and syncs after it writes. A save and a phone's share go ahead of
-// an import and another device's stubs, so a save made during an import is filled at once. A
-// transient failure tries again after 1, 10 and 60 minutes; the fourth is said in the file. A fill
-// still running after five minutes is stopped and tried again on that same schedule.
-
-import { createHash } from "node:crypto";
+// the stubs this Mac fills, and when: what it saved and what its import wrote, every one at once,
+// since a stub another device made is that device's to fill. Two fills run at once, one per host,
+// a save ahead of an import, so a save made during an import of thousands is filled at the next
+// free slot. A transient failure tries again after 1, 10 and 60 minutes; the fourth is said in the
+// file. A fill still running after five minutes is stopped and tried again on that same schedule.
 
 import type { ItemFill } from "@repo/contract/local/items/items-schema";
-import { isItemStub, itemFactsOf } from "@repo/notes/items/item-frontmatter";
 import { urlHost } from "@repo/notes/items/item-url";
-import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 
-import type { KnowledgeRuntime } from "../../knowledge/knowledge-runtime";
-import type { ItemCore } from "../item-core";
 import type { CaptureClock } from "./capture-ports";
 import type { FillOutcome, FillTarget } from "./fill-item";
 import type { FillOrigin, PendingFill, PendingFillsStore } from "./pending-fills-store";
 
 const MINUTE = 60_000;
 const RETRY_AFTER_MS = [MINUTE, 10 * MINUTE, 60 * MINUTE];
-const FOREIGN_WAIT_MS = 15 * MINUTE;
-const PHONE_SHUFFLE_MS = MINUTE;
-const SYNC_COALESCE_MS = MINUTE;
 const FILLS_AT_ONCE = 2;
 // one fill's whole time: past it the fill is aborted and the row tried again later, so a dial that
 // never ends cannot hold a slot for the life of the process
 const ROW_DEADLINE_MS = 5 * MINUTE;
-// a cheap pass over the index's stubs for ones this Mac has no row for, and a full one that also
-// drops the rows whose stub stopped being one
-const SWEEP_POLL_MS = 10_000;
-const FULL_SWEEP_MS = 5 * MINUTE;
 
 // what one fill of a row ended as, handed to the saves waiting on it
 interface FillDone {
@@ -45,8 +27,6 @@ interface FillDone {
 
 export interface FillQueueDeps {
   store: PendingFillsStore;
-  core: Pick<ItemCore, "read" | "creatorOf" | "syncsWithAccount" | "syncNow" | "commitPaths">;
-  knowledge: Pick<KnowledgeRuntime, "itemStubs" | "pathForNoteId">;
   clock: CaptureClock;
   // the fill itself, with the target the queue built from the row
   fillRow: (
@@ -74,7 +54,7 @@ export interface FillQueue {
     url: string;
     keepCopy: boolean;
     coverHint: string | null;
-    origin: Extract<FillOrigin, "own" | "import">;
+    origin: FillOrigin;
   }) => void;
   has: (itemId: string) => boolean;
   // resolves with the row's first fill that ended (written, dropped, or put off by a transient
@@ -100,14 +80,10 @@ const hostOf = (row: PendingFill): string => {
   return host;
 };
 
-// a phone's or another device's row, which syncs around its fill and holds the one elsewhere slot
-const isElsewhere = (origin: FillOrigin): boolean => origin === "phone" || origin === "foreign";
-
-// the two lanes a pass starts from, in turn: what the person is waiting on (a save, a phone's
-// share) ahead of what runs in the background (an import, another device's stub)
+// the two lanes a pass starts from, in turn: what the person is waiting on (a save) ahead of what
+// runs in the background (an import)
 type Lane = "interactive" | "background";
-const laneOf = (origin: FillOrigin): Lane =>
-  origin === "own" || origin === "phone" ? "interactive" : "background";
+const laneOf = (origin: FillOrigin): Lane => (origin === "own" ? "interactive" : "background");
 
 // a row placed before another in its lane: the sooner due, then the earlier seen, then by id
 const comesBefore = (a: PendingFill, b: PendingFill): boolean => {
@@ -144,38 +120,8 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
   const copyLater = new Set<string>();
   const waiters = new Map<string, Waiter[]>();
   const busyHosts = new Set<string>();
-  let elsewhereBusy = false;
   let disposed = false;
   let cancelWake: (() => void) | null = null;
-  let cancelPoll: (() => void) | null = null;
-  let lastFullSweep = 0;
-  let lastSyncAt: number | null = null;
-  let syncing: Promise<void> | null = null;
-  let seed: string | null = null;
-
-  const shuffle = (path: string): number => {
-    seed ??= store.shuffleSeed();
-    const digest = createHash("sha256").update(`${seed}\n${path}`).digest();
-    return digest.readUInt32BE(0) % (PHONE_SHUFFLE_MS + 1);
-  };
-
-  // one pass at most per minute across every fill that asks
-  const syncAround = async (): Promise<void> => {
-    if (syncing !== null) {
-      await syncing;
-      return;
-    }
-    if (lastSyncAt !== null && clock.now() - lastSyncAt < SYNC_COALESCE_MS) {
-      return;
-    }
-    lastSyncAt = clock.now();
-    syncing = deps.core.syncNow();
-    try {
-      await syncing;
-    } finally {
-      syncing = null;
-    }
-  };
 
   const answer = (itemId: string, done: FillDone | null): void => {
     const waiting = waiters.get(itemId) ?? [];
@@ -261,7 +207,6 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
   const startable = (now: number): PendingFill[] => {
     const picked: PendingFill[] = [];
     const hosts = new Set(busyHosts);
-    let elsewhere = elsewhereBusy;
     for (const lane of ["interactive", "background"] as const) {
       if (running.size + picked.length >= FILLS_AT_ONCE) {
         break;
@@ -273,12 +218,10 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
         if (running.size + picked.length >= FILLS_AT_ONCE) {
           break;
         }
-        const fromElsewhere = isElsewhere(row.origin);
-        if (running.has(row.itemId) || hosts.has(hostOf(row)) || (fromElsewhere && elsewhere)) {
+        if (running.has(row.itemId) || hosts.has(hostOf(row))) {
           continue;
         }
         hosts.add(hostOf(row));
-        elsewhere ||= fromElsewhere;
         picked.push(row);
       }
     }
@@ -360,36 +303,7 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
     controller: AbortController,
     overran: () => boolean,
   ): Promise<void> => {
-    const elsewhere = isElsewhere(row.origin);
     try {
-      if (elsewhere) {
-        await syncAround();
-        const read = await deps.core.read(row.path);
-        // another device filled it first; a copy the person asked this Mac for is still made, from
-        // the page their browser handed over, as a refresh would make it
-        if (read !== null && !isItemStub(itemFactsOf(read.content))) {
-          const current = rows.get(row.itemId) ?? row;
-          const asked = copyLater.delete(row.itemId) || current.keepCopy;
-          const copied = asked
-            ? await deps.copyAfter(
-                { itemId: row.itemId, path: current.path, url: row.url },
-                controller.signal,
-              )
-            : null;
-          settle(
-            current,
-            copied?.kind === "written"
-              ? copied
-              : { kind: "dropped", path: current.path, wrote: [] },
-          );
-          return;
-        }
-        // a library that stopped syncing with the account fills only what this Mac saved
-        if (read === null || !(await deps.core.syncsWithAccount())) {
-          settle(row, { kind: "dropped", path: read === null ? null : row.path, wrote: [] });
-          return;
-        }
-      }
       const filled = await deps.fillRow(
         {
           coverHint: row.coverHint,
@@ -419,11 +333,6 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
           ? { kind: "retry", path: current.path, wrote: [] }
           : copied;
       settle(current, outcome);
-      if (elsewhere && outcome.kind === "written") {
-        await deps.core.commitPaths(outcome.wrote);
-        lastSyncAt = null;
-        await syncAround();
-      }
     } catch (error) {
       deps.debug(
         `fill of ${row.path} failed: ${error instanceof Error ? error.message : "unknown"}`,
@@ -449,13 +358,11 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
     return rows.get(byTime[low] ?? "")?.notBefore ?? null;
   };
 
-  // a row's fill, holding its host and (for a phone's or another Mac's) the one elsewhere slot
+  // a row's fill, holding its host
   const start = (row: PendingFill, then: () => void): void => {
     const controller = new AbortController();
     const host = hostOf(row);
-    const elsewhere = isElsewhere(row.origin);
     busyHosts.add(host);
-    elsewhereBusy ||= elsewhere;
     let overran = false;
     const cancelDeadline = clock.setTimer(ROW_DEADLINE_MS, () => {
       overran = true;
@@ -468,9 +375,6 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
         cancelDeadline();
         running.delete(row.itemId);
         busyHosts.delete(host);
-        if (elsewhere) {
-          elsewhereBusy = false;
-        }
         then();
       }
     })();
@@ -495,98 +399,6 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
     }
   };
 
-  // a stub with no row gains one: a phone's within a minute, anyone else's after fifteen. Only a
-  // library that syncs with the account adopts any (the sweep asks), so a folder's own link notes
-  // shaped like stubs are never filled unasked
-  const adopt = async (path: string, now: number): Promise<void> => {
-    const read = await deps.core.read(path);
-    if (read === null) {
-      return;
-    }
-    const facts = itemFactsOf(read.content);
-    const itemId = frontmatterId(read.content);
-    if (!isItemStub(facts) || facts.url === null || itemId === null) {
-      return;
-    }
-    const held = rows.get(itemId);
-    if (held !== undefined) {
-      if (held.path !== path && !running.has(itemId)) {
-        put({ ...held, path });
-        store.setPath(itemId, path);
-      }
-      return;
-    }
-    const phone = (await deps.core.creatorOf(path)) === "phone";
-    const row: PendingFill = {
-      attempts: 0,
-      coverHint: null,
-      firstSeenAt: now,
-      itemId,
-      keepCopy: false,
-      notBefore: now + (phone ? shuffle(path) : FOREIGN_WAIT_MS),
-      origin: phone ? "phone" : "foreign",
-      path,
-      url: facts.url,
-    };
-    put(row);
-    store.insert(row);
-  };
-
-  // a row whose stub stopped being one (filled elsewhere, removed, edited into a note) goes
-  const prune = async (stubs: ReadonlySet<string>): Promise<void> => {
-    for (const row of rows.values()) {
-      if (running.has(row.itemId) || stubs.has(row.path)) {
-        continue;
-      }
-      const read = await deps.core.read(row.path);
-      if (read !== null) {
-        if (!isItemStub(itemFactsOf(read.content))) {
-          forget(row.itemId);
-        }
-        continue;
-      }
-      const moved = await deps.knowledge.pathForNoteId(row.itemId, row.path);
-      if (moved === null) {
-        forget(row.itemId);
-      } else {
-        put({ ...row, path: moved });
-        store.setPath(row.itemId, moved);
-      }
-    }
-  };
-
-  const sweep = async (): Promise<void> => {
-    const now = clock.now();
-    const stubs = await deps.knowledge.itemStubs();
-    const known = new Set([...rows.values()].map((row) => row.path));
-    const unknown = stubs.filter((path) => !known.has(path));
-    if (unknown.length > 0 && (await deps.core.syncsWithAccount())) {
-      for (const path of unknown) {
-        await adopt(path, now);
-      }
-    }
-    if (now - lastFullSweep >= FULL_SWEEP_MS) {
-      lastFullSweep = now;
-      await prune(new Set(stubs));
-    }
-    pump();
-  };
-
-  const poll = (): void => {
-    cancelPoll = clock.setTimer(SWEEP_POLL_MS, () => {
-      void (async () => {
-        try {
-          await sweep();
-        } catch (error) {
-          deps.debug(`sweep failed: ${error instanceof Error ? error.message : "unknown"}`);
-        }
-        if (!disposed) {
-          poll();
-        }
-      })();
-    });
-  };
-
   return {
     add(row) {
       const held = rows.get(row.itemId);
@@ -597,20 +409,6 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
         }
         if (row.keepCopy && running.get(row.itemId)?.keepCopy === false) {
           copyLater.add(row.itemId);
-        }
-        // a copy the person asked for of another device's stub is read now rather than after that
-        // device's wait, still syncing first, so a stub filled elsewhere is not filled twice
-        const now = clock.now();
-        const current = rows.get(row.itemId) ?? held;
-        if (
-          row.keepCopy &&
-          isElsewhere(current.origin) &&
-          !running.has(row.itemId) &&
-          current.notBefore > now
-        ) {
-          put({ ...current, notBefore: now });
-          store.reschedule(row.itemId, current.attempts, now);
-          pump();
         }
         return;
       }
@@ -635,15 +433,12 @@ export const createFillQueue = (deps: FillQueueDeps): FillQueue => {
       for (const row of store.all()) {
         put(row);
       }
-      lastFullSweep = clock.now();
       pump();
-      poll();
     },
 
     async dispose() {
       disposed = true;
       cancelWake?.();
-      cancelPoll?.();
       for (const { controller } of running.values()) {
         controller.abort();
       }

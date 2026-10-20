@@ -326,12 +326,4 @@ describe("scopes and stubs", () => {
       untagged: 6,
     });
   });
-
-  it("lists the stubs, the earliest saved first", () => {
-    expect(library().itemStubs()).toEqual([
-      "Reading/Old.md",
-      "Reading/deep/Nested.md",
-      "Unsorted/File over app.md",
-    ]);
-  });
 });

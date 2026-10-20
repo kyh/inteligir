@@ -37,14 +37,11 @@ import { foldDuplicate } from "./fold-duplicate";
 import { createPendingFillsStore } from "./pending-fills-store";
 
 export interface CaptureDeps {
-  // its git reads (isTracked, creatorOf) and its syncNow/commitPaths
+  // its git read (isTracked): a fill renames only a stub of this Mac's that no commit holds yet
   core: ItemCore;
-  knowledge: Pick<
-    KnowledgeRuntime,
-    "settle" | "findByUrl" | "itemsAt" | "itemStubs" | "pathForNoteId"
-  >;
+  knowledge: Pick<KnowledgeRuntime, "settle" | "findByUrl" | "itemsAt" | "pathForNoteId">;
   annotations: Pick<AnnotationsService, "add" | "list" | "placeWaiting">;
-  // pending_fills and the `meta` row `fill-shuffle-seed`
+  // pending_fills
   db: DbConnection;
   dataDir: string;
   debugLog: DebugLog | undefined;
@@ -155,7 +152,6 @@ export const createCapture = (deps: CaptureDeps): Capture => {
         url: row.url,
       });
     },
-    core,
     debug,
     fillRow: async (target, signal, onMoved) => {
       const folded = await foldDuplicate({ core, knowledge: deps.knowledge }, target);
@@ -164,7 +160,6 @@ export const createCapture = (deps: CaptureDeps): Capture => {
       }
       return await fillItem(context, { ...target, onMoved, signal, text: "keep" });
     },
-    knowledge: deps.knowledge,
     store: createPendingFillsStore(deps.db),
     takeSupplied: (itemId) => {
       const page = supplied.get(itemId) ?? null;

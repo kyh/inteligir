@@ -44,7 +44,6 @@ const fakeLibrary = () => {
   let settles = 0;
   let pause: { at: number; release: Promise<void>; reached: () => void } | null = null;
   const core: ItemCore = {
-    commitPaths: unreachable,
     async createDoc({ content, folder, name, stem }) {
       if (pause !== null && files.size === pause.at) {
         pause.reached();
@@ -59,7 +58,6 @@ const fakeLibrary = () => {
       calls.push(`doc ${path}`);
       return await Promise.resolve({ path });
     },
-    creatorOf: unreachable,
     async existing(url) {
       const key = urlKey(url);
       const path = key === null ? undefined : byKey.get(key);
@@ -87,8 +85,6 @@ const fakeLibrary = () => {
       settles += 1;
       await Promise.resolve();
     },
-    syncNow: unreachable,
-    syncsWithAccount: unreachable,
     withUrlLock: async (_key, run) => await run(),
     write: unreachable,
     writeContentAddressed: unreachable,

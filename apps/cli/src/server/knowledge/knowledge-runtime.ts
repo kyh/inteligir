@@ -100,8 +100,6 @@ export interface KnowledgeRuntime {
   findByUrl: (url: string, limit: number) => Promise<UrlMatches>;
   // the folders are the walk's own directory set, which a folder change refreshes
   scopes: () => Promise<ItemScopes>;
-  // the stubs a fill may take, the earliest saved first: in-process only
-  itemStubs: () => Promise<string[]>;
   // the files that are not docs this doc links or embeds, deduplicated in link order
   linkedFiles: (path: string) => Promise<string[]>;
   readonly lastReconcile: ReconcileStats | null;
@@ -277,11 +275,6 @@ export const createKnowledgeRuntime = (args: KnowledgeRuntimeArgs): KnowledgeRun
     async itemsAt(paths) {
       await settle();
       return graph.itemsAt(paths.map(normalizePath));
-    },
-
-    async itemStubs() {
-      await settle();
-      return graph.itemStubs();
     },
 
     get lastReconcile() {

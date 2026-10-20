@@ -17,7 +17,6 @@ const memoryStore = (): PendingFillsStore => ({
   reschedule: () => {},
   setKeepCopy: () => {},
   setPath: () => {},
-  shuffleSeed: () => "seed",
 });
 
 const stillClock = (): CaptureClock => ({
@@ -43,13 +42,6 @@ const heldQueue = (): HeldQueue => {
   const queue = createFillQueue({
     clock: stillClock(),
     copyAfter: async () => await Promise.resolve({ kind: "aborted" }),
-    core: {
-      commitPaths: async () => {},
-      creatorOf: async () => await Promise.resolve(null),
-      read: async () => await Promise.resolve(null),
-      syncNow: async () => {},
-      syncsWithAccount: async () => await Promise.resolve(false),
-    },
     debug: () => {},
     fillRow: async (target) => {
       started.push(target.url);
@@ -66,10 +58,6 @@ const heldQueue = (): HeldQueue => {
         url: target.url,
       });
       return await done.promise;
-    },
-    knowledge: {
-      itemStubs: async () => await Promise.resolve([]),
-      pathForNoteId: async () => await Promise.resolve(null),
     },
     store: memoryStore(),
     takeSupplied: () => null,
@@ -150,13 +138,6 @@ describe("the fill queue", () => {
     const queue = createFillQueue({
       clock,
       copyAfter: async () => await Promise.resolve({ kind: "aborted" }),
-      core: {
-        commitPaths: async () => {},
-        creatorOf: async () => await Promise.resolve(null),
-        read: async () => await Promise.resolve(null),
-        syncNow: async () => {},
-        syncsWithAccount: async () => await Promise.resolve(false),
-      },
       debug: () => {},
       // a dial that never ends on its own: only the signal stops it
       fillRow: async (target, signal) => {
@@ -166,10 +147,6 @@ describe("the fill queue", () => {
           stopped.resolve({ kind: "aborted" });
         });
         return await stopped.promise;
-      },
-      knowledge: {
-        itemStubs: async () => await Promise.resolve([]),
-        pathForNoteId: async () => await Promise.resolve(null),
       },
       store: {
         ...memoryStore(),

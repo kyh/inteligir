@@ -4,7 +4,6 @@
 // the tag edit and the import all build on these, so a rule about where an item lands or how it is
 // rewritten has one spelling.
 
-import { vaultCommitSubject } from "@repo/contract/cloud/vault/vault-git";
 import type { ItemFill } from "@repo/contract/local/items/items-schema";
 import { attachmentDir } from "@repo/contract/local/vault/attachment-location";
 import {
@@ -13,6 +12,7 @@ import {
   DEFAULT_ATTACHMENT_LOCATION,
 } from "@repo/contract/local/vault/vault-schema";
 import { isItemStub, itemFactsOf } from "@repo/notes/items/item-frontmatter";
+import { contentAddressedName } from "@repo/notes/items/item-kind";
 import { urlKey } from "@repo/notes/items/item-url";
 import type { ItemRow } from "@repo/notes/items/library-index";
 import { freeDocPath } from "@repo/notes/knowledge/doc-file";
@@ -20,7 +20,6 @@ import { joinPath } from "@repo/notes/knowledge/vault-path";
 
 import type { KnowledgeRuntime } from "../knowledge/knowledge-runtime";
 import type { GitEngine } from "../vault/git-engine";
-import { ENGINE_IDENTITY } from "../vault/git-run";
 import type { VaultPrefsStore } from "../vault/vault-prefs-store";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
@@ -29,7 +28,7 @@ import { ItemsError } from "./items-error";
 export interface ItemCoreDeps {
   service: VaultService;
   knowledge: Pick<KnowledgeRuntime, "settle" | "findByUrl" | "itemsAt">;
-  git: Pick<GitEngine, "isTracked" | "creatorOf" | "currentRemote" | "syncNow" | "commitPaths">;
+  git: Pick<GitEngine, "isTracked">;
   // the attachments location, read per save
   prefs: VaultPrefsStore;
   // renameNoteWithLinkRewrite with `alias: false`: links rewritten, no alias kept
@@ -90,21 +89,10 @@ export interface ItemCore {
   // best effort: a path already gone is no failure. a save that gives up takes back what it wrote
   remove: (path: string) => Promise<void>;
   isTracked: (path: string) => Promise<boolean>;
-  // "phone" when the commit that added the path was the Worker's, else "device"; null when
-  // untracked or there is no repo
-  creatorOf: (path: string) => Promise<"phone" | "device" | null>;
-  // whether the library syncs with the account's hosted vault: the one history in which a commit
-  // the Worker made is the person's own phone, and another device's stub is the person's own
-  syncsWithAccount: () => Promise<boolean>;
   rename: (from: string, to: string) => Promise<{ path: string; rewritten: string[] }>;
-  // the engine's own pass, for a foreign fill: resolves on any outcome
-  syncNow: () => Promise<void>;
-  // a commit of exactly these paths as the engine
-  commitPaths: (paths: readonly string[]) => Promise<void>;
 }
 
 const MAX_CREATE_TRIES = 5;
-const CONTENT_ADDRESS_HEX_CHARS = 16;
 const PENDING: ItemFill = { state: "pending" };
 
 const fillOf = (row: ItemRow): ItemFill => {
@@ -214,12 +202,6 @@ export const createItemCore = (deps: ItemCoreDeps): ItemCore => {
 
   return {
     settle,
-    async commitPaths(paths) {
-      if (paths.length === 0) {
-        return;
-      }
-      await deps.git.commitPaths(paths, ENGINE_IDENTITY, vaultCommitSubject(paths));
-    },
 
     async createDoc({ folder, stem, content, name }) {
       const namer = name ?? (await folderNamer(folder));
@@ -231,10 +213,6 @@ export const createItemCore = (deps: ItemCoreDeps): ItemCore => {
         }
       }
       throw new ItemsError("names-exhausted");
-    },
-
-    async creatorOf(path) {
-      return await deps.git.creatorOf(path);
     },
 
     existing,
@@ -279,19 +257,6 @@ export const createItemCore = (deps: ItemCoreDeps): ItemCore => {
       return await deps.renameNote(from, to);
     },
 
-    async syncNow() {
-      try {
-        await deps.git.syncNow();
-      } catch {
-        // a pass that failed says so on the status; the fill goes on either way.
-      }
-    },
-
-    async syncsWithAccount() {
-      const remote = await deps.git.currentRemote().catch(() => null);
-      return remote?.source === "account";
-    },
-
     async write(path, content, expectedHash) {
       const result = await service.writeGuarded(path, content, {
         hash: expectedHash,
@@ -304,8 +269,7 @@ export const createItemCore = (deps: ItemCoreDeps): ItemCore => {
     },
 
     async writeContentAddressed(dir, ext, bytes) {
-      const hash = await contentHashBytesHex(new Uint8Array(bytes));
-      const name = `${hash.slice(0, CONTENT_ADDRESS_HEX_CHARS)}.${ext}`;
+      const name = contentAddressedName(await contentHashBytesHex(new Uint8Array(bytes)), ext);
       const path = joinPath(dir, name);
       if ((await service.statEntry(path)) === "file") {
         return { path, wrote: false };
