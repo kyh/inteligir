@@ -62,7 +62,7 @@ answer is parsed in `src/shell/shell-commands.ts` and mirrored through one
 ## Agents and threads
 
 - **THE AGENT SURFACE IS THE ⌘K ACTION COMPOSER AND THE RIGHT PANEL**
-  (declines: #645). An action is an ordinary thread on the item it was composed
+  (declines: #912). An action is an ordinary thread on the item it was composed
   over (AN ACTION'S ORIGIN); the agent edits the library directly, highlights
   are the review channel, and the panel's tabs are Info | Annotations | Actions
   | History. With no item open the subject is the library: ONE detachable chip

@@ -66,12 +66,13 @@ The premises every change builds from, each with its reason:
   no legacy-name warning: what an older build wrote is replaced, never read.
   `/local` and `/cloud` may both break, a `/cloud` break raising the client
   build floor in the same change. Until the premise ends, a decision bullet
-  or a note issue's decline that keeps a shape for an older install yields to
-  it. The one exception is the phone's database, which appends a step once
-  EAS has built the app, since it cannot yet replace a file it cannot read
-  (THE PHONE HOLDS EVERY NOTE'S TEXT IN SQLITE, in `apps/mobile/CLAUDE.md`).
-  The first outside tester ends the premise: strike this bullet before their
-  first build, and from then on a format change migrates.
+  or a line of the declines register that keeps a shape for an older install
+  yields to it. The one exception is the phone's database, which appends a
+  step once EAS has built the app, since it cannot yet replace a file it
+  cannot read (THE PHONE HOLDS EVERY NOTE'S TEXT IN SQLITE, in
+  `apps/mobile/CLAUDE.md`). The first outside tester ends the premise: strike
+  this bullet before their first build, and from then on a format change
+  migrates.
 
 **Two programs.** `apps/desktop` is the shipped product, installed as the
 signed dmg: a Tauri window on the local server, which it runs as its one child
@@ -197,9 +198,23 @@ pnpm format:fix && pnpm verify
 `lint`, `knip`, `format`, `test`, `build`, one turbo run that reports every
 red task) is check-only for that reason. CI runs `pnpm verify` plus the steps
 it cannot (`docs/development.md` § Quality gates), so run `pnpm e2e` too before
-claiming a green CI. Releasing is the owner's: a change whose proof needs a device, an
-account or a credential adds its check to `docs/releasing.md` § 5, under its
-surface.
+claiming a green CI; it runs its scenarios in lanes, one per two cores and at
+most four (`--lanes 1` runs them one at a time).
+
+Inside a work stream (§ Rules that matter), run what the change reaches: the
+gates of the workspaces it touched since the stream's base and of their
+dependents, and the stream's own scenarios.
+
+```sh
+pnpm format:fix
+TURBO_SCM_BASE=<the stream's base> pnpm turbo run typecheck lint knip test --affected
+pnpm e2e --only <the stream's scenarios>
+```
+
+The full `pnpm verify` and a full `pnpm e2e` run once per PR, on its last
+commit, before it is called green. Releasing is the owner's: a change whose
+proof needs a device, an account or a credential adds its check to
+`docs/releasing.md` § 5, under its surface.
 
 ### Platform matrix
 
@@ -251,6 +266,10 @@ where `pnpm --filter @repo/mobile dev` runs it bare.
   what they cannot see, `ignoreDependencies` included.
 - **The record is the decision files and GitHub Issues.** No `plans/`, ADR docs
   or `*_GAPS.md`.
+- **A large change goes as stacked PRs, one per work stream**, each based on
+  the one before it and reviewable alone. A repo-wide convention move, or a
+  tooling change the stream does not need, is its own PR off `main`, so
+  neither hides in the other's diff.
 
 ## Across workspaces
 
@@ -316,9 +335,9 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 A citation of `CLAUDE.md § X` names the bullet or group titled X in whichever
 of these files holds it: `git grep -F 'X' -- '*CLAUDE.md'` finds it.
 
-**Before raising a "new" finding**, read the decision record and the `note`
-issues, the declines register (every `note` issue titled "do not re-raise"
-among them): #902, #877, #881, #788, #645, #674, #485 (agent-native), #603
-(Moss parity) and #705 (the CodeMirror trade); #446, #453, #472 and #474
-decline findings against the hosted architecture this one replaced. A decline that
-weighs a migration's cost or an older install yields to the no-users premise.
+**Before raising a "new" finding**, read the decision record and the declines
+register, [#912](https://github.com/kyh/inteligir/issues/912): one line per
+proposal already refused, with its reason and the file that carries it. A
+finding that matches a line is not new, and a new decline is a line added
+there, not an issue. A decline that weighs a migration's cost or an older
+install yields to the no-users premise.
