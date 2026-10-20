@@ -320,9 +320,9 @@ alone, and no walk narrows structurally.
   `findMoved` port, so the item stays open at its new path and Back never names
   the old one. While the index has a read out, or names a path the disk no
   longer holds (it has not yet been told of the move), the answer is `unknown`,
-  not gone and not the old path: the item
-  waits with no buffer, asked again on a bounded schedule (about 14 s) and at
-  each vault change, which never delays it; only an id nothing answers, or the
-  schedule's end, drops to the library, and a navigation ends the follow.
-  Rejected: dropping to the library on every vanish or null read (it bounced
-  people off just-renamed items). `packages/editor/src/note/vault-session.ts`.
+  not gone and not the old path: the item waits with no buffer, asked again on a
+  bounded schedule (about 14 s) and at each vault change, which never delays it;
+  only an id nothing answers, or the schedule's end, drops to the library, and a
+  navigation ends the follow. Rejected: dropping to the library on every vanish
+  or null read (it bounced people off just-renamed items).
+  `packages/editor/src/note/vault-session.ts`.
