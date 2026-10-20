@@ -5,7 +5,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { projectPassages } from "../passage-text";
+import { projectPassages } from "@repo/notes/annotations/passage-text";
 
 const FIXTURES = path.resolve(
   import.meta.dirname,

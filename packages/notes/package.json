@@ -9,6 +9,8 @@
     "./annotations/annotation-threads": "./src/annotations/annotation-threads.ts",
     "./annotations/marker-ids": "./src/annotations/marker-ids.ts",
     "./annotations/merge-annotation-stores": "./src/annotations/merge-annotation-stores.ts",
+    "./annotations/passage-text": "./src/annotations/passage-text.ts",
+    "./annotations/place-quotes": "./src/annotations/place-quotes.ts",
     "./annotations/revert-entries": "./src/annotations/revert-entries.ts",
     "./annotations/store-removal": "./src/annotations/store-removal.ts",
     "./annotations/store-schema": "./src/annotations/store-schema.ts",

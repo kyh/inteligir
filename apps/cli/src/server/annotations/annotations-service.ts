@@ -31,12 +31,15 @@ import type {
   AnnotationsReplyRequest,
   AnnotationsResponse,
 } from "@repo/contract/local/annotations/annotations-schema";
+import { annotationPassages } from "@repo/notes/annotations/passage-text";
+import {
+  placeQuotes,
+  stripAnnotationMarkers,
+  waitingQuotes,
+} from "@repo/notes/annotations/place-quotes";
 import { ANNOTATIONS_MAX } from "@repo/contract/local/annotations/annotations-schema";
 
 import type { KnowledgeRuntime } from "../knowledge/knowledge-runtime";
-import { annotationPassages } from "./passage-text";
-import { placeQuotes, stripAnnotationMarkers } from "./place-quotes";
-import type { PendingQuote } from "./place-quotes";
 import { ensureNoteId } from "../vault/ensure-note-id";
 import { VaultServiceError } from "../vault/vault-service";
 import type { VaultService } from "../vault/vault-service";
@@ -202,19 +205,6 @@ const answer = (notePath: string, note: NoteRead, entries: AnnotationStore): Ann
   });
 
 const PASSAGE_NOT_FOUND = "That passage isn't in the item's text.";
-
-// the roots still waiting for their passage: a quote, and no markers in the text yet, oldest first
-// so every Mac places one item's highlights in one order
-const waitingRoots = (store: AnnotationStore, content: string): PendingQuote[] => {
-  const anchored = markerRootIds(content);
-  return Object.entries(store)
-    .filter(
-      ([id, entry]) =>
-        entry.parentId === undefined && entry.quote !== undefined && !anchored.has(id),
-    )
-    .toSorted(([a, left], [b, right]) => left.createdAt - right.createdAt || a.localeCompare(b))
-    .map(([id, entry]) => ({ id, quote: entry.quote ?? "" }));
-};
 
 const holdsPassage = (
   content: string,
@@ -518,7 +508,7 @@ export const createAnnotationsService = ({
         throw error;
       }
       const named = only === undefined ? null : new Set(only);
-      const pending = waitingRoots(store, content).filter(
+      const pending = waitingQuotes(store, content).filter(
         (root) => named === null || named.has(root.id),
       );
       if (pending.length === 0) {

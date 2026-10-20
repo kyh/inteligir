@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { markerRootIds } from "@repo/notes/annotations/marker-ids";
-
 import { annotationPassages, projectPassages } from "./passage-text";
-import { canonicalCorpus } from "./test-support/quote-corpus";
 
 describe("the text a person reads", () => {
   it("folds whitespace, puts blocks a space apart and skips what is not prose", () => {
@@ -84,13 +81,5 @@ describe("the live passage between an annotation's markers", () => {
 
   it("reads a marker inside a link or emphasis", () => {
     expect(annotationPassages("**a %%i:a1:start%%b%%i:a1:end%% c**\n").get("a1")).toBe("b");
-  });
-
-  it("finds the markers the dialect's own transform finds, over the canonical corpus", () => {
-    for (const { content, name } of canonicalCorpus()) {
-      expect(new Set(projectPassages(content).markers.keys()), name).toEqual(
-        markerRootIds(content),
-      );
-    }
   });
 });

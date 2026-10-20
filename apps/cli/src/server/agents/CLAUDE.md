@@ -65,7 +65,7 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   (`apps/workspace/src/app/actions/annotations-tab.tsx`). Rejected: an anchor of offsets beside the text (every edit moves
   it) and a fuzzy match (two Macs would pick two passages).
   `apps/cli/src/server/annotations/annotations-service.ts`,
-  `apps/cli/src/server/annotations/place-quotes.ts`,
+  `packages/notes/src/annotations/place-quotes.ts`,
   `@repo/notes/annotations/store-removal`.
 
 - **A BYTE COPY IS RE-KEYED AND ITS STORE FORKED, never stripped of its id.**

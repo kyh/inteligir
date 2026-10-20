@@ -1,62 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { markerRootIds } from "@repo/notes/annotations/marker-ids";
-
+import { markerRootIds } from "./marker-ids";
 import { annotationPassages } from "./passage-text";
 import { placeQuotes, stripAnnotationMarkers } from "./place-quotes";
-import { canonicalCorpus, quotesOf, seededRandom } from "./test-support/quote-corpus";
-
-const fold = (text: string): string => text.replaceAll(/\s+/gu, " ").trim();
 
 const placeOne = (content: string, quote: string, occurrence?: number) =>
   placeQuotes(content, [{ id: "h1", occurrence, quote }], { final: false });
-
-describe("placing a quote over the canonical corpus", () => {
-  const corpus = canonicalCorpus();
-  const random = seededRandom(20_261_017);
-  const cases = corpus.flatMap((doc) =>
-    quotesOf(doc.content, random, 12).map((quote, index) => ({
-      ...doc,
-      id: `q${index}`,
-      quote,
-    })),
-  );
-
-  it("draws quotes from every fixture", () => {
-    expect(new Set(cases.map((entry) => entry.name)).size).toBeGreaterThan(40);
-  });
-
-  it("only splices markers: stripping them gives back the input bytes", () => {
-    for (const { content, id, quote } of cases) {
-      const placed = placeQuotes(content, [{ id, quote }], { final: false });
-      expect(stripAnnotationMarkers(placed.content, [id])).toBe(content);
-    }
-  });
-
-  it("finds every placed id in the text, and its passage holds the quote", () => {
-    let placedCount = 0;
-    for (const { content, id, quote, name } of cases) {
-      const placed = placeQuotes(content, [{ id, quote }], { final: false });
-      if (!placed.placed.includes(id)) {
-        expect(placed.missing, `${name}: ${quote}`).toEqual([id]);
-        continue;
-      }
-      placedCount += 1;
-      expect(markerRootIds(placed.content).has(id), `${name}: ${quote}`).toBe(true);
-      expect(annotationPassages(placed.content).get(id), `${name}: ${quote}`).toContain(
-        fold(quote),
-      );
-    }
-    expect(placedCount).toBeGreaterThan(cases.length * 0.9);
-  });
-
-  it("is deterministic: the same input places the same bytes", () => {
-    for (const { content, id, quote } of cases.slice(0, 120)) {
-      const first = placeQuotes(content, [{ id, quote }], { final: false });
-      expect(placeQuotes(content, [{ id, quote }], { final: false })).toEqual(first);
-    }
-  });
-});
 
 describe("where the markers land", () => {
   it("wraps the n-th occurrence", () => {

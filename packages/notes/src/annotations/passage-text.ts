@@ -9,13 +9,13 @@
 // widens to its edge. Code, math and frontmatter are not text.
 
 import { z } from "zod";
-import { ANNOTATION_ID_PATTERN } from "@repo/notes/annotations/store-schema";
-import { MD_PROCESSOR } from "@repo/notes/markdown/md-plugins";
+import { ANNOTATION_ID_PATTERN } from "./store-schema";
+import { MD_PROCESSOR } from "../markdown/md-plugins";
 import {
   DATE_CHIP_RE,
   parseFormulaRaw,
   splitMarkerIds,
-} from "@repo/notes/markdown/remark-inline-constructs";
+} from "../markdown/remark-inline-constructs";
 
 // the dialect's tree as this walk reads it: the parse's mdast, structurally
 interface MdPoint {

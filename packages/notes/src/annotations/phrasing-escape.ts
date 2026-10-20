@@ -2,13 +2,13 @@
 // markers in a quote's paragraph, so a highlight written under `## Highlights` reads back as the
 // text it quotes and nothing else: a hostile page's `[x](y)`, `<b>`, `{{1}}` or `%%i:…%%` stays
 // text. This is mdast-util-to-markdown's `safe` (2.2) over the dialect processor's own unsafe
-// patterns; the server reaches that serializer only through @repo/notes, which exports no
-// stringify of a text node, so its algorithm is restated here and held to the editor's output by
+// patterns; this package exports no stringify of a text node, and the phone's runtime loads no
+// serializer, so its algorithm is restated here and held to the editor's output by
 // `apps/cli/src/workspace/place-quotes-roundtrip.test.ts`.
 
 import { z } from "zod";
 
-import { MD_PROCESSOR } from "@repo/notes/markdown/md-plugins";
+import { MD_PROCESSOR } from "../markdown/md-plugins";
 
 // a construct list, one name or several, read as a list
 const constructListSchema = z

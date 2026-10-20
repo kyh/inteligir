@@ -14,8 +14,8 @@ import {
   quotesOf,
   seededRandom,
 } from "../server/annotations/test-support/quote-corpus";
-import { annotationPassages } from "../server/annotations/passage-text";
-import { placeQuotes } from "../server/annotations/place-quotes";
+import { annotationPassages } from "@repo/notes/annotations/passage-text";
+import { placeQuotes } from "@repo/notes/annotations/place-quotes";
 
 const TABLE_ROW = /^(?:> )*\|/u;
 

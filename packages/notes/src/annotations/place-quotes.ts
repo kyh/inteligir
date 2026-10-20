@@ -1,18 +1,21 @@
-// Where a highlight made away from the editor lands in the item's text: a quote is matched in the
-// text a person reads (passage-text.ts), whitespace folded, at its n-th occurrence and across
-// blocks, and its markers are SPLICED into the bytes around it, so taking them out gives back the
-// input exactly and two Macs placing one quote write the same bytes. An edge never splits what the
-// editor reads as one piece: inside an atomic inline it widens to the inline's edge, and it moves
-// past any offset where a marker would read as something else (after a backslash, beside a literal
-// `*`/`_`/`~`, inside a word, in a bare url's tail). Quotes landing on one
-// range share one marker pair. With `final`, what found no passage is appended under a trailing
-// `## Highlights` heading, each quote a blockquote its markers wrap, its text escaped.
+// Where a highlight made away from the editor lands in the item's text, on whichever device fills
+// it: a quote is matched in the text a person reads (passage-text.ts), whitespace folded, at its
+// n-th occurrence and across blocks, and its markers are SPLICED into the bytes around it, so
+// taking them out gives back the input exactly and two devices placing one quote write the same
+// bytes. An edge never splits what the editor reads as one piece: inside an atomic inline it
+// widens to the inline's edge, and it moves past any offset where a marker would read as something
+// else (after a backslash, beside a literal `*`/`_`/`~`, inside a word, in a bare url's tail).
+// Quotes landing on one range share one marker pair. With `final`, what found no passage is
+// appended under a trailing `## Highlights` heading, each quote a blockquote its markers wrap, its
+// text escaped.
 
-import { splitMarkerIds } from "@repo/notes/markdown/remark-inline-constructs";
+import { splitMarkerIds } from "../markdown/remark-inline-constructs";
 
+import { markerRootIds } from "./marker-ids";
 import { annotationPassages, projectPassages } from "./passage-text";
 import type { PassageProjection } from "./passage-text";
 import { escapePhrasingText } from "./phrasing-escape";
+import type { AnnotationStore } from "./store-schema";
 
 export interface PendingQuote {
   id: string;
@@ -257,4 +260,17 @@ export const stripAnnotationMarkers = (content: string, ids: readonly string[]):
     cursor = marker.end;
   }
   return out + content.slice(cursor);
+};
+
+// the roots still waiting for their passage: a quote, and no markers in the text yet, oldest first
+// so every device places one item's highlights in one order
+export const waitingQuotes = (store: AnnotationStore, content: string): PendingQuote[] => {
+  const anchored = markerRootIds(content);
+  return Object.entries(store)
+    .filter(
+      ([id, entry]) =>
+        entry.parentId === undefined && entry.quote !== undefined && !anchored.has(id),
+    )
+    .toSorted(([a, left], [b, right]) => left.createdAt - right.createdAt || a.localeCompare(b))
+    .map(([id, entry]) => ({ id, quote: entry.quote ?? "" }));
 };
