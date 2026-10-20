@@ -1,6 +1,7 @@
 // Vendored from bb (github.com/get-bb/bb), MIT. © bb contributors —
 // its CLI's json-flag-enforcement.test.ts, adapted and widened.
 
+import { realpathSync } from "node:fs";
 import type { ApprovalPendingInteractionPayload } from "@repo/domain/pending-interactions";
 import { createPendingInteraction } from "@repo/db/pending-interactions";
 import { describe, expect, it } from "vitest";
@@ -90,8 +91,10 @@ const shared = shareBoot(async (teardown): Promise<Booted> => {
     },
   );
   return {
-    connectedFolder: makeTempDir("inteligir-json-connected-", SUITE),
-    newFolder: makeTempDir("inteligir-json-new-", SUITE),
+    // realpathed, as folders.add stores them: on macOS the temp dir sits under the /tmp symlink, so
+    // the list would never hold the spelling the reseed asks about
+    connectedFolder: realpathSync(makeTempDir("inteligir-json-connected-", SUITE)),
+    newFolder: realpathSync(makeTempDir("inteligir-json-new-", SUITE)),
     over: await cliOver(app),
   };
 });
