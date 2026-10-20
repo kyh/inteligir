@@ -59,7 +59,10 @@ export interface ComposeRuntimeArgs {
 }
 
 // `unsent`: the phone holds edits the vault has not taken, and signing out would discard them
-export type LogoutOutcome = { kind: "signed-out" } | { kind: "unsent"; edits: number };
+// `unread`: links saved here whose page no device will read once this phone signs out
+export type LogoutOutcome =
+  | { kind: "signed-out" }
+  | { kind: "unsent"; edits: number; unread: number };
 
 export interface AppRuntime {
   sync: SyncRuntime;
@@ -182,8 +185,9 @@ export const composeRuntime = (args: ComposeRuntimeArgs): AppRuntime => {
     }),
     async logout(options = {}) {
       const edits = await notes.unsentCount();
-      if (edits > 0 && options.discardUnsent !== true) {
-        return { edits, kind: "unsent" };
+      const unread = await notes.unreadCount();
+      if (edits + unread > 0 && options.discardUnsent !== true) {
+        return { edits, kind: "unsent", unread };
       }
       // cleared before the runtimes stop: a sign-in the screen allows once they have would write
       // a credential this delete could then remove.

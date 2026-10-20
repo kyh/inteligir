@@ -9,7 +9,12 @@
 import { base64FromBytes } from "@repo/contract/cloud/bytes";
 import type { FillAnswer, FillJob } from "@repo/mobile-editor/bridge-protocol";
 import { placeQuotes, waitingQuotes } from "@repo/notes/annotations/place-quotes";
-import { failureOf, fileOnlyLinked, TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
+import {
+  failureOf,
+  fileOnlyLinked,
+  PICTURE_ONLY_LINKED,
+  TEXT_NOT_SAVED,
+} from "@repo/notes/items/fill-sentences";
 import { namesPrivateSpace } from "@repo/notes/items/host-names";
 import { bodyOf } from "@repo/notes/items/item-body";
 import { isItemStub, itemFactsOf } from "@repo/notes/items/item-frontmatter";
@@ -37,12 +42,15 @@ import type { OEmbed } from "@repo/notes/items/oembed";
 import { pixelSize, sniffMedia } from "@repo/notes/items/sniff-media";
 import { DEFAULT_ATTACHMENTS_FOLDER, freeAssetPath } from "@repo/notes/knowledge/asset-name";
 import { joinPath } from "@repo/notes/knowledge/vault-path";
+import { frontmatterId } from "@repo/notes/markdown/frontmatter";
 import type { FillFile, NotesStore, PendingFill } from "../notes/notes-store";
 import type { FetchedPage, PageFetch } from "./page-fetch";
 
 const PAGE_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
-const COVER_ACCEPT = "image/avif,image/webp,image/png,image/jpeg,image/gif;q=0.8,*/*;q=0.5";
+const COVER_ACCEPT = "image/webp,image/png,image/jpeg,image/gif;q=0.8,*/*;q=0.5";
 const WRITE_TRIES = 3;
+// 40 megapixels: a 160 MB bitmap, which the decoder holds whole while it shrinks it
+const DECODE_MAX_PIXELS = 40_000_000;
 
 const COVER_EXTENSIONS = { "image/jpeg": "jpg", "image/png": "png" } as const;
 
@@ -65,9 +73,10 @@ export interface LinkFillPorts {
 
 export type LinkFillOutcome =
   | { kind: "written" }
-  // a failure a later try may get past (offline, a timeout, a busy site), or a write that kept
-  // meeting a newer text
-  | { kind: "retry" }
+  // a failure a later try may get past (offline, a timeout, a busy site, a stub the phone could
+  // not read just now), or a write that kept meeting a newer text; `path` is where the stub was
+  // last found, which the next try starts from
+  | { kind: "retry"; path: string }
   // nothing to fill: the stub is gone, or another device read its page first
   | { kind: "dropped" };
 
@@ -97,18 +106,37 @@ interface Located {
   content: string;
 }
 
+type Locating =
+  | { kind: "found"; stub: Located }
+  // no note the phone lists carries the item's id
+  | { kind: "gone" }
+  // a read that failed for now (offline, the request cut): a later try reads it again
+  | { kind: "unavailable"; path: string };
+
+// the note at `path`, only while it is still the item: a path a move freed may hold another stub
+const readAt = async (ports: LinkFillPorts, path: string, itemId: string): Promise<Locating> => {
+  const read = await ports.store.readNote(path);
+  if (!read.ok) {
+    return read.notFound ? { kind: "gone" } : { kind: "unavailable", path };
+  }
+  return frontmatterId(read.content) === itemId
+    ? { kind: "found", stub: { content: read.content, path } }
+    : { kind: "gone" };
+};
+
 // the stub where it is now: its path, else wherever its id went
-const locate = async (ports: LinkFillPorts, row: PendingFill): Promise<Located | null> => {
-  const read = await ports.store.readNote(row.path);
-  if (read.ok) {
-    return { content: read.content, path: row.path };
+const locate = async (ports: LinkFillPorts, row: PendingFill): Promise<Locating> => {
+  const atPath = await readAt(ports, row.path, row.itemId);
+  if (atPath.kind === "found") {
+    return atPath;
   }
-  const moved = ports.store.heldFiles().find((file) => file.noteId === row.itemId);
+  const moved = ports.store
+    .heldFiles()
+    .find((file) => file.noteId === row.itemId && file.path !== row.path);
   if (moved === undefined) {
-    return null;
+    return atPath;
   }
-  const found = await ports.store.readNote(moved.path);
-  return found.ok ? { content: found.content, path: moved.path } : null;
+  return await readAt(ports, moved.path, row.itemId);
 };
 
 const isRead = (content: string): boolean => {
@@ -117,7 +145,8 @@ const isRead = (content: string): boolean => {
 };
 
 // a page's claim may not lead the phone into the person's own network from a public page: a
-// cover, a thumbnail or an oEmbed answer whose address names private space is skipped then
+// cover, a thumbnail or an oEmbed answer whose address names private space is skipped then, and
+// the fetch refuses any hop of it that does (page-fetch.ts)
 const mayFollow = (savedUrl: string, claimed: string): boolean =>
   namesPrivateSpace(savedUrl) || !namesPrivateSpace(claimed);
 
@@ -148,9 +177,19 @@ const askOEmbed = async (
     accept: "application/json",
     maxBytes: OEMBED_MAX_BYTES,
     overflow: "refuse",
+    reachesPrivate: namesPrivateSpace(url),
     url: endpoint,
   });
   return fetched.ok ? parseOEmbed(fetched.page.bytes) : null;
+};
+
+// a picture the phone may decode in its own process: its header says its size and that size is
+// at most DECODE_MAX_PIXELS, since a small file can name a picture whose bitmap is gigabytes and
+// the decode would take the app down with it. A size the header does not say (an AVIF, a HEIC) is
+// no picture to decode, which is why the cover's Accept asks for none.
+const decodable = (bytes: Uint8Array, sniffed: { mediaType: string }): boolean => {
+  const size = pixelSize(bytes, sniffed.mediaType);
+  return size !== null && size.width * size.height <= DECODE_MAX_PIXELS;
 };
 
 // the first candidate that is really a picture of a cover's size, kept by its bytes' hash
@@ -167,10 +206,11 @@ const keepCover = async (
       accept: COVER_ACCEPT,
       maxBytes: FILL_LIMITS.coverBytes,
       overflow: "refuse",
+      reachesPrivate: namesPrivateSpace(url),
       url: candidate,
     });
     const sniffed = fetched.ok ? sniffMedia(fetched.page.bytes) : null;
-    if (!fetched.ok || sniffed?.kind !== "image") {
+    if (!fetched.ok || sniffed?.kind !== "image" || !decodable(fetched.page.bytes, sniffed)) {
       continue;
     }
     const shrunk = await ports.shrinkCover({
@@ -210,6 +250,15 @@ const mediaPlan = (ports: LinkFillPorts, page: FetchedPage, fetched: string): Pl
   if (sniffed !== null && page.truncated) {
     return failed(ports, fileOnlyLinked(page.declaredBytes));
   }
+  // the Library draws an original from its bitmap too, so a picture the phone may not decode keeps
+  // only its link
+  if (
+    sniffed?.kind === "image" &&
+    sniffed.mediaType !== "image/svg+xml" &&
+    !decodable(page.bytes, sniffed)
+  ) {
+    return failed(ports, PICTURE_ONLY_LINKED);
+  }
   if (sniffed !== null) {
     const taken = ports.store.heldFiles().map((file) => file.path);
     const original = freeAssetPath(
@@ -242,6 +291,24 @@ const mediaPlan = (ports: LinkFillPorts, page: FetchedPage, fetched: string): Pl
   };
 };
 
+// the reader's answer; a page that took the reader down or held it past its time is tried again
+// while tries are left, and on the last one is a page whose text could not be saved, as the Mac's
+// extractor failing is
+const readPage = async (
+  ports: LinkFillPorts,
+  job: FillJob,
+  mayRetry: boolean,
+): Promise<FillAnswer | null> => {
+  try {
+    return await ports.read(job);
+  } catch (error) {
+    if (mayRetry) {
+      throw error;
+    }
+    return null;
+  }
+};
+
 type ReadPage = Extract<FillAnswer, { kind: "read" }>;
 
 // the article, or for a post whose page is an app shell (X) the words its oEmbed markup says
@@ -254,8 +321,13 @@ const articleOf = async (
   if (answer.article !== "" || oembed?.html === null || oembed?.html === undefined) {
     return answer.article;
   }
-  const fromEmbed = await ports.read(jobOf(encoder.encode(oembed.html), "utf-8", url, "article"));
-  return fromEmbed.kind === "read" ? fromEmbed.article : answer.article;
+  // the page itself was read, so an embed that breaks the reader only goes without its words
+  const fromEmbed = await readPage(
+    ports,
+    jobOf(encoder.encode(oembed.html), "utf-8", url, "article"),
+    false,
+  );
+  return fromEmbed?.kind === "read" ? fromEmbed.article : answer.article;
 };
 
 const coverCandidates = (url: string, answer: ReadPage, oembed: OEmbed | null): string[] => [
@@ -287,16 +359,15 @@ const linkFillOf = (
 
 const pagePlan = async (
   ports: LinkFillPorts,
-  row: PendingFill,
-  stub: Located,
+  { row, stub, mayRetry }: { row: PendingFill; stub: Located; mayRetry: boolean },
   page: FetchedPage,
   fetched: string,
 ): Promise<Planned> => {
   const stubKind = itemFactsOf(stub.content).kind;
   const prefer = stubKind === "video" || stubKind === "audio" ? "description" : "article";
   const html = page.bytes.subarray(0, FILL_LIMITS.htmlBytes);
-  const answer = await ports.read(jobOf(html, page.charset, page.url, prefer));
-  if (answer.kind === "failed") {
+  const answer = await readPage(ports, jobOf(html, page.charset, page.url, prefer), mayRetry);
+  if (answer === null || answer.kind === "failed") {
     return failed(ports, TEXT_NOT_SAVED);
   }
   const oembed = await askOEmbed(ports, row.url, answer.facts.oembed);
@@ -341,9 +412,18 @@ const land = async (
   row: PendingFill,
   planned: Planned,
 ): Promise<LinkFillOutcome> => {
+  let { path } = row;
   for (let attempt = 0; attempt < WRITE_TRIES; attempt += 1) {
-    const current = await locate(ports, row);
-    if (current === null || (planned.writing.kind !== "link" && isRead(current.content))) {
+    const located = await locate(ports, { ...row, path });
+    if (located.kind === "unavailable") {
+      return { kind: "retry", path: located.path };
+    }
+    if (located.kind === "gone") {
+      return { kind: "dropped" };
+    }
+    const { stub: current } = located;
+    ({ path } = current);
+    if (planned.writing.kind !== "link" && isRead(current.content)) {
       return { kind: "dropped" };
     }
     const composed = compose(current.content, planned.writing);
@@ -364,7 +444,7 @@ const land = async (
       return { kind: "dropped" };
     }
   }
-  return { kind: "retry" };
+  return { kind: "retry", path };
 };
 
 export const fillLink = async (
@@ -372,28 +452,34 @@ export const fillLink = async (
   row: PendingFill,
   mayRetry: boolean,
 ): Promise<LinkFillOutcome> => {
-  const stub = await locate(ports, row);
-  if (stub === null || !isItemStub(itemFactsOf(stub.content))) {
+  const located = await locate(ports, row);
+  if (located.kind === "unavailable") {
+    return { kind: "retry", path: located.path };
+  }
+  if (located.kind === "gone" || !isItemStub(itemFactsOf(located.stub.content))) {
     return { kind: "dropped" };
   }
+  const { stub } = located;
+  const here: PendingFill = { ...row, path: stub.path };
   const read = await ports.fetch({
     accept: PAGE_ACCEPT,
     maxBytes: FILL_LIMITS.pageBytes,
     overflow: "truncate",
+    reachesPrivate: namesPrivateSpace(row.url),
     url: row.url,
   });
   const fetched = formatItemTime(ports.now());
   if (!read.ok) {
     const failure = failureOf(read.failure);
     if (failure.transient && mayRetry) {
-      return { kind: "retry" };
+      return { kind: "retry", path: stub.path };
     }
-    return await land(ports, row, failed(ports, failure.sentence));
+    return await land(ports, here, failed(ports, failure.sentence));
   }
   const { page } = read;
   const planned =
     sniffMedia(page.bytes) !== null || !isPageType(page.mediaType)
       ? mediaPlan(ports, page, fetched)
-      : await pagePlan(ports, row, stub, page, fetched);
-  return await land(ports, row, planned);
+      : await pagePlan(ports, { mayRetry, row: here, stub }, page, fetched);
+  return await land(ports, here, planned);
 };

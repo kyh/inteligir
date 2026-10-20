@@ -9,9 +9,13 @@ import { openExternalUrl } from "@repo/editor/lib/url";
 import { FileKindIcon } from "@repo/editor/nodes/file-card";
 import { basenamePath } from "@repo/notes/knowledge/vault-path";
 import { Button } from "@repo/ui/components/button";
-import { Shimmer } from "@repo/ui/ai/selection-actions";
 import { cn } from "@repo/ui/lib/cn";
-import { ExternalLinkIcon, FolderSearchIcon, SquareArrowOutUpRightIcon } from "lucide-react";
+import {
+  ExternalLinkIcon,
+  FolderSearchIcon,
+  RefreshCwIcon,
+  SquareArrowOutUpRightIcon,
+} from "lucide-react";
 import { useState } from "react";
 
 import { desktopPaths, runPathAction } from "../desktop-paths";
@@ -199,15 +203,29 @@ export const FileStage = ({ file, bytes }: { file: string; bytes: number | null 
   );
 };
 
-// CLAUDE.md § A PENDING STUB OPENS AS ITS PLACEHOLDER, NEVER THE EDITOR: no keystroke lands in
-// a stub the fill is about to rewrite
-export const PendingStage = () => (
+// CLAUDE.md § AN UNREAD STUB OPENS AS ITS PLACEHOLDER, NEVER THE EDITOR: no keystroke lands in a
+// stub a fill is about to rewrite. The device that saved it reads it, which may not be this Mac,
+// so the words claim no read under way, and `onReadHere` (Refresh from the page) reads it here
+export const PendingStage = ({ onReadHere }: { onReadHere: (() => void) | null }) => (
   <div
     data-item-stage="pending"
     aria-live="polite"
     className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 p-8 text-center"
   >
-    <Shimmer className="text-title font-medium">Filling in…</Shimmer>
-    <p className="m-0 text-subtitle text-muted-foreground">This item’s page is being read.</p>
+    <p className="m-0 text-title font-medium text-ink">Not read yet</p>
+    <p className="m-0 text-subtitle text-muted-foreground">
+      The Mac or iPhone it was saved on reads its page while it’s open and online.
+    </p>
+    {onReadHere === null ? null : (
+      <Button
+        variant="ghost"
+        size="compact"
+        className="mt-2"
+        leadingIcon={RefreshCwIcon}
+        onClick={onReadHere}
+      >
+        Read it on this Mac
+      </Button>
+    )}
   </div>
 );

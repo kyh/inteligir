@@ -57,15 +57,14 @@ Saving links, pages and files as items, and filling a saved link from its page.
 
 - **A MAC FILLS WHAT IT SAVED OR IMPORTED, AT ONCE; A FILL ONLY ADDS, NEVER
   WRITES `url`/`saved`, AND RENAMES ONLY AN UNTRACKED STUB OF ITS OWN.** Its
-  rows (`own`, `import`) run two at a time, one per site, a save ahead of an
-  import. Another device's stub is that device's to fill
-  (`apps/mobile/CLAUDE.md`), read here only for a Refresh or a Keep a copy the
-  person asks for. A fill writes `FILL_OWNED_KEYS` and the body in one CAS
-  write against the bytes it read. Rows are `pending_fills`, written per
-  transition; a transient failure retries after 1, 10 and 60 minutes, a fill
-  past five minutes is retried, and a restart resumes them. Rejected: adopting
-  other devices' stubs (a second filler racing the first, behind a wait), and a
-  JSON pending file. `apps/cli/src/server/items/capture/fill-queue.ts`,
+  `pending_fills` rows (`own`, `import`) run two at a time, one per site, saves
+  first, and resume after a restart. Another device's stub is that device's to
+  fill (`apps/mobile/CLAUDE.md`), read here only for a Refresh or Keep a copy.
+  A fill writes `FILL_OWNED_KEYS` and the body in one CAS write against the
+  bytes it read. Rejected: adopting other devices' stubs (a second filler
+  racing the first), and a JSON pending file. Residual: a stub left unread by a
+  phone's sign-out or revocation, or by a replaced database, waits for a
+  Refresh. `apps/cli/src/server/items/capture/fill-queue.ts`,
   `apps/cli/src/server/items/capture/fill-item.ts`.
 
 - **A FAILED FILL IS SAID IN THE FILE**: `fetched` and a plain `fetch-error`

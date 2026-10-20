@@ -15,7 +15,7 @@ Inteligir is one library for everything you save and write, built around one ide
 ## What makes it different
 
 - **Files you own.** Every saved link, picture, PDF and note is an ordinary file in a folder you choose. They open in other apps, and they keep working if Inteligir ever goes away.
-- **Saving is instant and free.** Your Mac fetches the page and no model is called. The agent files, tags and summarizes only when you ask.
+- **Saving is instant and free.** The Mac or iPhone you save on reads each page itself, and no model is called. The agent files, tags and summarizes only when you ask.
 - **Your own model plan.** The agent runs on your Mac through your own Claude or ChatGPT sign-in. Inteligir does not resell model access, has no API-key fallback, and never routes a model call through its own servers.
 - **History by default.** Every change, yours or the agent's, is recorded, so you can see what changed and take any of it back.
 - **Sync when you want it.** An optional account syncs your library across your Macs and your iPhone. Your online library is free up to about 1 GB.

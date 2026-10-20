@@ -204,20 +204,17 @@ ships.
   any page could fire.
 
 - **THE PHONE READS THE LINKS IT SAVES, WITH THE MAC'S OWN READER.** A link's
-  fill is queued in the transaction that queues its stub (`pending_fills`,
-  `apps/mobile/src/lib/phone-db.ts`) and read while signed in, online and open,
-  a failure a later try may pass waiting 1, 10 and 60 minutes
-  (`apps/mobile/src/items/fill-queue.ts`). The phone fetches: http and https,
-  20 s, the Mac's byte caps, no cookie (`apps/mobile/src/items/page-fetch.ts`);
-  its page reads the bytes in reader mode under `connect-src 'none'`
-  (`apps/mobile-editor/src/fill/serve-fills.ts`); the item and its cover go as
-  ONE write against the stub's text, never `url` or `saved`, never a rename
-  (`apps/mobile/src/items/link-fill.ts`). iOS's fetch has no lookup hook, so
-  from a public page an address that names private space by its spelling is
-  skipped (`namesPrivateSpace`). Rejected: a Mac filling a phone's saves, which
-  left them waiting on a Mac. Residual: iOS follows a page's redirects itself,
-  so a public page can lead the read onto the person's own network; what it
-  reads lands only in their own library.
+  fill is queued in its stub's transaction (`pending_fills`) and read while the
+  app is signed in, online and open
+  (`apps/mobile/src/items/fill-queue.ts`); its page reads the bytes in reader
+  mode (`apps/mobile-editor/src/fill/serve-fills.ts`), and the item and its
+  cover go as ONE write against the stub's text
+  (`apps/mobile/src/items/link-fill.ts`). With no lookup hook, the phone follows
+  redirects itself and judges every hop by its spelling: a public page
+  reaches no private space, and only over https
+  (`apps/mobile/src/items/page-fetch.ts`). Rejected: a Mac filling a phone's
+  saves, which left them waiting on one. Residual: a link its phone never read
+  (signed out, which asks first, revoked or deleted) waits for a Mac's Refresh.
 
 ## The screens' look
 

@@ -14,11 +14,7 @@ import {
 import { useId, useState } from "react";
 import { LabelledField } from "../labelled-field";
 
-const DELETED = [
-  "Your online library",
-  "Your synced conversations with the agent",
-  "The sign-in on every device, this Mac included",
-] as const;
+const DELETED = ["Your online library", "The sign-in on every device, this Mac included"] as const;
 
 export interface DeleteAccountDialogProps {
   open: boolean;

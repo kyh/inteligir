@@ -39,13 +39,23 @@ const ARTICLE =
 // a Mac that filled other devices' stubs would reach a pulled one within ten seconds
 const UNTOUCHED_MS = 12_000;
 
-// a JPEG's own start and end around a cover's worth of bytes: what the phone fetched is what lands
+// a JPEG's own start, a frame header naming 640 × 400 pixels (the phone decodes no picture whose
+// header names no size) and its end, around a cover's worth of bytes: what the phone fetched is
+// what lands
 const coverBytes = (): Uint8Array<ArrayBuffer> =>
   Uint8Array.from([
     0xff,
     0xd8,
     0xff,
-    0xe0,
+    0xc0,
+    0x00,
+    0x11,
+    0x08,
+    0x01,
+    0x90,
+    0x02,
+    0x80,
+    0x03,
     ...Array.from({ length: 4096 }, (_, i) => i % 251),
     0xff,
     0xd9,

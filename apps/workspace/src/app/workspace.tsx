@@ -1111,6 +1111,9 @@ export const Workspace = ({ bootItem, onOpenItem, covered }: WorkspaceProps) => 
                         exportNoteAsPdf(docStem(openDoc));
                       }
                     }}
+                    onReadHere={(path) => {
+                      void refreshItem(path, {});
+                    }}
                   />
                 )}
                 {dropInto === null ? null : (

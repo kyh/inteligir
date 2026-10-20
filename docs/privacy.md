@@ -233,10 +233,10 @@ The apps also hold to these, plainly:
   only when it is the link you saved: a page on the internet can never send
   your Mac to one, by a redirect or by naming a picture there. Your iPhone
   fetches a link you saved there once it is online and the app is open, and
-  only web addresses; it skips a picture or oEmbed address a page on the
-  internet names when that address names your own network by how it is
-  spelled, but iOS itself follows a page's redirects wherever they lead, and
-  what the phone reads lands only in your own library. For a link imported
+  only web addresses, a page on the internet only over https; from a page on
+  the internet it never asks a picture, an oEmbed address or a redirect's
+  next stop whose address names your own network by how it is spelled (it
+  cannot look an address up first, as a Mac does). For a link imported
   from Raindrop, a Mac may also fetch the cover picture Raindrop recorded for
   it. What is saved lands in your library and
   travels wherever your library syncs.
@@ -396,7 +396,9 @@ your library offline:
   it.
 - **Whatever it has not sent yet.** Edits, saves, new notes, renames,
   deletions, highlights and photos wait on the phone until the online library
-  takes them, and a link you saved waits there until the phone has read it. A change
+  takes them, and a link you saved there waits on the phone until the phone has
+  read it: no other device reads it unless you choose Refresh from the page on
+  a Mac. A change
   the library cannot take as it is stays on the phone and says so, until you
   retry it, keep it as a new note or discard it. A page you share to Inteligir
   waits in the share sheet's own storage on the phone until the app saves it.
@@ -410,13 +412,15 @@ kept in the iPhone's Keychain for that iPhone alone: a backup restored onto
 another phone does not carry it, so the new phone signs in again and becomes a
 device of its own.
 
-- **Signing out** on the phone erases all of it — items, attachments and
-  anything unsent, which it asks about first — and tells our
-  cloud to remove the phone from your account. A phone that signs out offline
+- **Signing out** on the phone erases all of it — items, attachments,
+  anything unsent and the links it has not read yet, which it asks about first
+  — and tells our cloud to remove the phone from your account. A link it had not
+  read stays unread on every device until you choose Refresh from the page on a
+  Mac. A phone that signs out offline
   forgets its sign-in all the same; revoke it from Settings › Account on a Mac.
 - **Revoking the phone** from a Mac, or **deleting the account**, erases the
-  same the next time the phone reaches our cloud and is refused. Until then it
-  keeps what it holds.
+  same the next time the phone reaches our cloud and is refused, without
+  asking. Until then it keeps what it holds.
 
 ## How we share your personal information
 

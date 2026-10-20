@@ -365,14 +365,15 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   `items.tag`, the server's line edit, in the chunks it takes. Rejected: a form
   over a parse of the file, a second reader of bytes the index already read.
 
-- **A PENDING STUB OPENS AS ITS PLACEHOLDER, NEVER THE EDITOR.** A link saved a
-  moment ago is a stub whose page the server is still reading; it opens as
-  "Filling in…" (`PendingStage` in
-  `apps/workspace/src/app/item/item-stages.tsx`), because a keystroke in it would
-  race the fill that rewrites it. The fill's rename moves the stub under the open
+- **AN UNREAD STUB OPENS AS ITS PLACEHOLDER, NEVER THE EDITOR.** A stub's page
+  is read by the device that saved it, maybe a phone that is closed or offline,
+  so it opens as "Not read yet" with Read it on this Mac (Refresh from the
+  page), and its card says the same (`PendingStage` in
+  `apps/workspace/src/app/item/item-stages.tsx`); a keystroke in it would race
+  the fill that rewrites it. The fill's rename moves the stub under the open
   window, and the session follows it by its id (A RENAME HOLDS THE OPEN NOTE
-  THROUGH THE MOVE), so the item stays open and its text replaces the
-  placeholder.
+  THROUGH THE MOVE). Rejected: "Filling in…" on every stub, which claimed a read
+  no Mac would make.
 
 ## Repo guards, vendoring and tooling
 

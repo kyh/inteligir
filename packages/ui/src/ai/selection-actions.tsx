@@ -71,12 +71,4 @@ const SelectionActionsSeparator = ({
   />
 );
 
-const Shimmer = ({
-  className,
-  ref,
-  ...props
-}: HTMLAttributes<HTMLSpanElement> & RefAttributes<HTMLSpanElement>) => (
-  <span ref={ref} data-slot="shimmer" className={cn("bui-shimmer-text", className)} {...props} />
-);
-
-export { SelectionActions, SelectionAction, SelectionActionsSeparator, Shimmer };
+export { SelectionActions, SelectionAction, SelectionActionsSeparator };

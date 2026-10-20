@@ -31,6 +31,8 @@ describe("namesPrivateSpace", () => {
       "http://nas/photo.jpg",
       "http://printer.local/status",
       "http://192.168.1.1/admin.png",
+      "http://192.168.1/x.png",
+      "http://0xc0.0xa8.1.1/x.png",
       "http://8.8.8.8/x.png",
       "http://[::1]/x",
       "not a url",

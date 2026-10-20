@@ -32,11 +32,14 @@ export const isPrivateUseName = (host: string): boolean => {
   );
 };
 
-const IPV4_LITERAL = /^\d{1,3}(?:\.\d{1,3}){3}$/u;
+// a host whose last label is a number, in decimal or hex, is an IPv4 address to a WHATWG parser
+// in any of its short forms (`192.168.1`, `0xc0.168.1.1`), never a name
+const IPV4_LAST_LABEL = /^(?:\d+|0x[\da-f]*)$/iu;
 
-// an IPv4 address in dotted quads, or an IPv6 one in its brackets
+// an IPv4 address in any spelling a URL parser reads as one, or an IPv6 one in its brackets
 const isAddressLiteral = (host: string): boolean =>
-  IPV4_LITERAL.test(host) || (host.startsWith("[") && host.endsWith("]"));
+  IPV4_LAST_LABEL.test(host.replace(/\.$/u, "").split(".").at(-1) ?? "") ||
+  (host.startsWith("[") && host.endsWith("]"));
 
 // whether a web address names a place off the public internet by its spelling alone: this device, a
 // name no public resolver answers, or an address written out, which a public page has no cause to

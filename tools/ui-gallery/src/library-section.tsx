@@ -5,7 +5,6 @@ import {
   SelectionAction,
   SelectionActions,
   SelectionActionsSeparator,
-  Shimmer,
 } from "@repo/ui/ai/selection-actions";
 import { CardGrid } from "@repo/ui/components/card-grid";
 import {
@@ -138,18 +137,13 @@ export const LibrarySection = () => {
         </ToggleGroup>
       </Demo>
 
-      <Demo
-        name="SelectionActions · Shimmer"
-        purpose="The bar over a selection of items, and the shimmer a line wears while it fills in."
-        stack
-      >
+      <Demo name="SelectionActions" purpose="The bar over a selection of items." stack>
         <SelectionActions>
           <SelectionAction>Tag…</SelectionAction>
           <SelectionAction>Move…</SelectionAction>
           <SelectionActionsSeparator />
           <SelectionAction hasMenu>Ask agent</SelectionAction>
         </SelectionActions>
-        <Shimmer className="text-body">Filling in…</Shimmer>
       </Demo>
     </GallerySection>
   );

@@ -87,7 +87,10 @@ export interface NoteText {
   content: string;
 }
 
-export type NoteRead = ({ ok: true } & NoteText) | { ok: false; message: string };
+// `notFound` is the one failure a reader may treat as the note being gone; any other is for now
+export type NoteRead =
+  | ({ ok: true } & NoteText)
+  | { ok: false; notFound: boolean; message: string };
 
 // a note without an id, or with no store yet, has no annotations; only an unreadable store is a failure
 export type AnnotationsRead =
@@ -95,9 +98,6 @@ export type AnnotationsRead =
   | { ok: false; message: string };
 
 type AttachmentRead = { ok: true; uri: string } | { ok: false; message: string };
-
-// `notFound` is the one refusal a reader may treat as absence
-type FileRead = ({ ok: true } & NoteText) | { ok: false; notFound: boolean; message: string };
 
 // the write surface is @repo/editor's GuardedVaultPort, whose one write policy the editor page
 // runs: `absent` is a create, and `expected` names the text the write was computed from. A write
@@ -232,6 +232,9 @@ export interface NotesStore {
   watchPath: (path: string, onChange: () => void) => () => void;
   // what has not reached the vault, parked rows included; the sign-out asks before discarding it
   unsentCount: () => Promise<number>;
+  // the links this phone saved whose stub reached the library and whose page it has not read: a
+  // sign-out leaves them unread, since no other device reads a phone's save unasked
+  unreadCount: () => Promise<number>;
   outbox: {
     status: ReadableStore<OutboxStatus>;
     retry: (seq: number) => Promise<void>;
@@ -595,7 +598,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
   };
 
   // a row the mirror names but has not filled is read at the commit that named its blob, and kept
-  const readFromMirror = async (path: string, row: MirrorRow | null): Promise<FileRead> => {
+  const readFromMirror = async (path: string, row: MirrorRow | null): Promise<NoteRead> => {
     const current = session.current();
     if (current.kind !== "live") {
       return { message: NOT_SIGNED_IN, notFound: false, ok: false };
@@ -644,7 +647,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     return { content: result.value.content, ok: true, path };
   };
 
-  const readFile = async (path: string): Promise<FileRead> => {
+  const readFile = async (path: string): Promise<NoteRead> => {
     await signIn.ready();
     const entry = listing?.files.get(path);
     if (entry?.source.kind === "text") {
@@ -1192,8 +1195,7 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     readAnnotationStore: storeOf,
 
     async readNote(path) {
-      const read = await readFile(path);
-      return read.ok ? read : { message: read.message, ok: false };
+      return await readFile(path);
     },
 
     async refresh() {
@@ -1235,6 +1237,12 @@ export const createNotesStore = (args: CreateNotesStoreArgs): NotesStore => {
     async unsentCount() {
       await signIn.ready();
       return await outbox.unsent();
+    },
+
+    // a stub still waiting to be sent is counted as unsent, never twice
+    async unreadCount() {
+      const rows = await pendingFills.list();
+      return rows.filter((row) => lastRowOn(outbox.rows(), row.path)?.op.op !== "create").length;
     },
 
     watchPath(path, onChange) {

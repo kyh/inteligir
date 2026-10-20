@@ -380,7 +380,7 @@ describe("signing out with edits the vault has not taken", () => {
     // offline here, so the link's fill waits with it
     await rt.items.saveLink({ note: null, title: "Later", url: "https://example.com/later" });
 
-    expect(await rt.logout()).toStrictEqual({ edits: 3, kind: "unsent" });
+    expect(await rt.logout()).toStrictEqual({ edits: 3, kind: "unsent", unread: 0 });
     expect(rt.sync.get()).toMatchObject({ state: "signed-in" });
     expect(await queuedRows(storage.db)).toBe(3);
     expect(await waitingFills(storage.db)).toBe(1);
@@ -393,6 +393,31 @@ describe("signing out with edits the vault has not taken", () => {
       expect(await waitingFills(storage.db)).toBe(0);
       expect(storage.outboxFiles.names()).toEqual([]);
     });
+  });
+
+  it("asks before leaving a link this phone saved unread, though its stub reached the library", async () => {
+    const storage = phoneStorage();
+    const vault = clientOver(
+      createFakeVault({ "media/photo.png": "png bytes", "note.md": "# note\n" }).fetch,
+    );
+    const cloud = createFakeCloud({
+      vaultAsset: vault.vaultAsset,
+      vaultCommit: vault.vaultCommit,
+      vaultFile: vault.vaultFile,
+      vaultFiles: vault.vaultFiles,
+      vaultTree: vault.vaultTree,
+    });
+    const rt = runtimeOver(cloud, keychain(CRED).store, storage);
+    await mirrorOnce(rt);
+    await rt.items.saveLink({ note: null, title: "Later", url: "https://example.com/later" });
+    // the stub lands, and its read waits
+    await rt.notes.drain();
+    expect(await queuedRows(storage.db)).toBe(0);
+    expect(await waitingFills(storage.db)).toBe(1);
+
+    expect(await rt.logout()).toStrictEqual({ edits: 0, kind: "unsent", unread: 1 });
+    expect(rt.sync.get()).toMatchObject({ state: "signed-in" });
+    expect(await rt.logout({ discardUnsent: true })).toStrictEqual({ kind: "signed-out" });
   });
 
   it("signs straight out when nothing is unsent", async () => {

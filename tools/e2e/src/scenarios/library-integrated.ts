@@ -211,7 +211,7 @@ const pasteAndOpenWhileHeld = async (
   const provisional = await pastedStub(app, lan.url("/essay"), holdLeft(pastedAt, "the paste"));
   await browser(["wait", libraryCard(provisional)], holdLeft(pastedAt, "the stub"));
   const cardText = await browser(["get", "text", libraryCard(provisional)]);
-  expect(cardText.includes("Filling in…"), `the pasted card is not pending: ${cardText}`);
+  expect(cardText.includes("Not read yet"), `the pasted card is not pending: ${cardText}`);
   await browser(["dblclick", libraryCard(provisional)]);
   await browser(["wait", '[data-item-stage="pending"]'], holdLeft(pastedAt, "the card"));
   await untilItemParam(browser, provisional, holdLeft(pastedAt, "the placeholder"));

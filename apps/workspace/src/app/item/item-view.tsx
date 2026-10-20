@@ -1,6 +1,6 @@
 // CLAUDE.md § THE LIBRARY IS HOME, AND AN ITEM IS SHOWN BY ITS KIND. An open item, full size: the
 // editor for a note, a saved page's source over its text, a viewer for a picture, a PDF, a video,
-// a sound or any other file, and the placeholder for a stub whose page is being read. A viewer
+// a sound or any other file, and the placeholder for a stub whose page is not read yet. A viewer
 // still opens its wrapper through the session, so History, ⌘K and Info bind to that path; "Edit
 // as note" swaps the viewer for the editor. Escape goes back to the library, from anywhere the
 // item view holds focus that is not text entry.
@@ -45,6 +45,8 @@ export interface ItemViewProps {
   annotationCount: number;
   onOpenAnnotations: () => void;
   onExportPdf: () => void;
+  // Refresh from the page, for a stub this Mac did not save
+  onReadHere: (path: string) => void;
 }
 
 // where a saved page came from: its address, its site and when it was saved
@@ -190,16 +192,24 @@ const ShownStage = ({
   row,
   media,
   footer,
+  onReadHere,
 }: {
   showing: Showing;
   item: OpenItem;
   row: ItemRowWire | null;
   media: MediaOrigin | null;
   footer: boolean;
+  onReadHere: (path: string) => void;
 }) => {
   switch (showing.stage) {
     case "pending": {
-      return <PendingStage />;
+      return (
+        <PendingStage
+          onReadHere={() => {
+            onReadHere(item.path);
+          }}
+        />
+      );
     }
     case "viewer": {
       return showing.file === null || media === null ? (
@@ -242,6 +252,7 @@ export const ItemView = ({
   annotationCount,
   onOpenAnnotations,
   onExportPdf,
+  onReadHere,
 }: ItemViewProps) => {
   const item = useOpenItem(store);
   const path = item?.path ?? null;
@@ -327,7 +338,14 @@ export const ItemView = ({
           onExportPdf={onExportPdf}
         />
       )}
-      <ShownStage showing={showing} item={item} row={row} media={media} footer={!zen} />
+      <ShownStage
+        showing={showing}
+        item={item}
+        row={row}
+        media={media}
+        footer={!zen}
+        onReadHere={onReadHere}
+      />
     </div>
   );
 };

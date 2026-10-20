@@ -81,8 +81,8 @@ researchers, analysts, operators), not for developers.
 
 - **Files you own.** Every saved link, picture, PDF and note is an ordinary file in a folder you
   choose. They open in other apps, and they keep working if ${name} ever goes away.
-- **Saving is instant and free.** Your Mac fetches the page and no model is called. The agent
-  files, tags and summarizes only when you ask.
+- **Saving is instant and free.** The Mac or iPhone you save on reads each page itself, and no
+  model is called. The agent files, tags and summarizes only when you ask.
 - **Your own model plan.** The agent runs on your Mac through your own Claude or ChatGPT sign-in.
   ${name} does not resell model access, has no API-key fallback, and never routes a model call
   through its own servers.

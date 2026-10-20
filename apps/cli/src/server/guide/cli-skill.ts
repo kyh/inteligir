@@ -424,8 +424,9 @@ machine that ran them: the account carries no thread.
 The library itself syncs through \`inteligir vault sync\`; use it before reporting a
 long task done, so the work has actually reached the account.
 
-There is no \`logout\` here: it stops the library syncing through the account,
-so it lives in the app's Settings › Account, where it says so. Nor is there a sign-up: creating an account takes the
+There is no \`logout\` here: signing out stops the library syncing through the
+account, and that is the person's choice, so it is Sign out in the app's
+Settings › Account. Nor is there a sign-up: creating an account takes the
 user's own invite code and password, so it is theirs to do in the app. Deleting
 the account is the same: it takes the user's password and cannot be undone, so
 it lives in Settings › Account, where it says what goes and what stays.
@@ -441,8 +442,8 @@ it lives in Settings › Account, where it says what goes and what stays.
 
 ## Diagnostics
 
-When an edit on disk never shows up, or a synced thread or an agent turn goes
-quiet, start the server with \`INTELIGIR_DEBUG\` naming what to trace,
+When an edit on disk never shows up, a saved link is never read, or an agent
+turn goes quiet, start the server with \`INTELIGIR_DEBUG\` naming what to trace,
 comma-separated (\`INTELIGIR_DEBUG=watcher,knowledge inteligir serve\`). Each
 decision is written to the server's stderr as a \`[debug:<name>]\` line:
 

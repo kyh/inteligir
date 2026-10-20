@@ -90,6 +90,7 @@ const mount = () => {
   installFakeEditorHost({});
   const store = createOpenNoteStore();
   const onGoToLibrary = vi.fn<(scope?: LibraryScope) => void>();
+  const onReadHere = vi.fn<(path: string) => void>();
   render(
     <QueryClientProvider client={createWorkspaceQueryClient()}>
       <SidebarProvider>
@@ -110,11 +111,12 @@ const mount = () => {
           annotationCount={0}
           onOpenAnnotations={vi.fn<() => void>()}
           onExportPdf={vi.fn<() => void>()}
+          onReadHere={onReadHere}
         />
       </SidebarProvider>
     </QueryClientProvider>,
   );
-  return { onGoToLibrary, store };
+  return { onGoToLibrary, onReadHere, store };
 };
 
 const stage = (): string | null =>
@@ -161,19 +163,22 @@ describe("an item is shown by its kind", () => {
     expect(stage()).toBe("file");
   });
 
-  it("opens a stub whose page is being read as its placeholder, never the editor", async () => {
+  it("opens a stub whose page is not read yet as its placeholder, never the editor, and reads it here when asked", async () => {
     stubIndex([
       row("Unsorted/example.com.md", "link", { pending: true, url: "https://example.com" }),
     ]);
-    const { store } = mount();
+    const { onReadHere, store } = mount();
     openIn(
       store,
       "Unsorted/example.com.md",
       "---\nid: 01J00000000000000000000000\nkind: link\nurl: https://example.com\nsaved: 2026-10-01T09:00:00Z\n---\n",
     );
-    expect(await screen.findByText("Filling in…")).toBeTruthy();
+    expect(await screen.findByText("Not read yet")).toBeTruthy();
     expect(stage()).toBe("pending");
     expect(document.querySelector("[data-editor-scroller]")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Read it on this Mac/u }));
+    expect(onReadHere).toHaveBeenCalledWith("Unsorted/example.com.md");
   });
 });
 

@@ -5,7 +5,6 @@
 
 import type { ItemRowWire } from "@repo/contract/local/items/items-schema";
 import { vaultAssetUrl, vaultThumbUrl } from "@repo/contract/local/routes";
-import { Shimmer } from "@repo/ui/ai/selection-actions";
 import {
   MediaCard,
   MediaCardBadge,
@@ -148,7 +147,7 @@ const CoverArea = ({ row, media }: { row: ItemRowWire; media: MediaOrigin | null
   if (row.pending) {
     return (
       <div className="flex size-full items-center justify-center bg-muted/60">
-        <Shimmer className="text-body">Filling in…</Shimmer>
+        <span className="text-body text-muted-foreground">Not read yet</span>
       </div>
     );
   }

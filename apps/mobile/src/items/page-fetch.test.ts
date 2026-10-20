@@ -8,6 +8,7 @@ const PAGE: PageRequest = {
   accept: "text/html",
   maxBytes: 8,
   overflow: "truncate",
+  reachesPrivate: false,
   url: "https://stephango.com/file-over-app",
 };
 
@@ -84,7 +85,7 @@ describe("the phone's page fetch", () => {
             "Accept-Language": "en-US,en;q=0.9",
             "User-Agent": "inteligir-test",
           },
-          redirect: "follow",
+          redirect: "manual",
         },
         url: PAGE.url,
       },
@@ -184,5 +185,99 @@ describe("the phone's page fetch", () => {
       failure: { kind: "unreachable", transient: true },
       ok: false,
     });
+  });
+  it("follows a redirect itself, resolved against the hop it came from, and reads where it ended", async () => {
+    const seen: { url: string; init: RequestInit }[] = [];
+    const answers = new Map<string, () => Response>([
+      [PAGE.url, () => new Response(null, { headers: { location: "/moved" }, status: 301 })],
+      [
+        "https://stephango.com/moved",
+        () =>
+          new Response(null, { headers: { location: "https://cdn.example.com/p" }, status: 302 }),
+      ],
+      ["https://cdn.example.com/p", () => new Response("<p>here</p>")],
+    ]);
+    const fetchPage = createPageFetch(async (url, init) => {
+      seen.push({ init, url });
+      return await Promise.resolve(answers.get(url)?.() ?? new Response("", { status: 404 }));
+    }, HEADERS);
+
+    const read = await fetchPage({ ...PAGE, maxBytes: 64 });
+
+    expect(read.ok && read.page.url).toBe("https://cdn.example.com/p");
+    expect(seen.map((each) => each.url)).toStrictEqual([
+      PAGE.url,
+      "https://stephango.com/moved",
+      "https://cdn.example.com/p",
+    ]);
+    expect(seen.every((each) => each.init.redirect === "manual")).toBe(true);
+  });
+
+  it("never follows a public page's redirect into private space, in any spelling", async () => {
+    for (const location of [
+      "http://192.168.1.1/apply.cgi",
+      "http://192.168.1/x.png",
+      "http://router.local/",
+      "http://localhost:8080/",
+    ]) {
+      const seen: string[] = [];
+      const fetchPage = createPageFetch(async (url) => {
+        seen.push(url);
+        return await Promise.resolve(new Response(null, { headers: { location }, status: 302 }));
+      }, HEADERS);
+
+      expect(await fetchPage(PAGE), location).toStrictEqual({
+        failure: { kind: "refused", refusal: "private-from-public" },
+        ok: false,
+      });
+      expect(seen, location).toStrictEqual([PAGE.url]);
+    }
+  });
+
+  it("follows a private saved address's redirect within the person's own network", async () => {
+    const saved = "http://192.168.1.20/notes";
+    const fetchPage = createPageFetch(
+      async (url) =>
+        await Promise.resolve(
+          url === saved
+            ? new Response(null, { headers: { location: "/notes/" }, status: 307 })
+            : new Response("<p>nas</p>"),
+        ),
+      HEADERS,
+    );
+
+    const read = await fetchPage({ ...PAGE, maxBytes: 64, reachesPrivate: true, url: saved });
+
+    expect(read.ok && read.page.url).toBe("http://192.168.1.20/notes/");
+  });
+
+  it("stops after five redirects", async () => {
+    let hops = 0;
+    const fetchPage = createPageFetch(async () => {
+      hops += 1;
+      return await Promise.resolve(
+        new Response(null, { headers: { location: `/hop-${String(hops)}` }, status: 302 }),
+      );
+    }, HEADERS);
+
+    expect(await fetchPage(PAGE)).toStrictEqual({ failure: { kind: "redirects" }, ok: false });
+    expect(hops).toBe(6);
+  });
+
+  it("asks a public page nothing over plain http, which iOS would refuse, and says so in its own words", async () => {
+    const seen: string[] = [];
+    const fetchPage = createPageFetch(async (url) => {
+      seen.push(url);
+      return await Promise.resolve(
+        new Response(null, { headers: { location: "http://example.com/plain" }, status: 301 }),
+      );
+    }, HEADERS);
+
+    expect(await fetchPage({ ...PAGE, url: "http://example.com/a" })).toStrictEqual({
+      failure: { kind: "plain-http" },
+      ok: false,
+    });
+    expect(await fetchPage(PAGE)).toStrictEqual({ failure: { kind: "plain-http" }, ok: false });
+    expect(seen).toStrictEqual([PAGE.url]);
   });
 });

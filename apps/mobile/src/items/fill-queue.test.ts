@@ -76,7 +76,8 @@ const queueOver = (
 };
 
 const written = async (): Promise<LinkFillOutcome> => await Promise.resolve({ kind: "written" });
-const retry = async (): Promise<LinkFillOutcome> => await Promise.resolve({ kind: "retry" });
+const retry = async (each: PendingFill): Promise<LinkFillOutcome> =>
+  await Promise.resolve({ kind: "retry", path: each.path });
 
 describe("the phone's fill queue", () => {
   it("reads every due link, oldest first, and forgets each one it read", async () => {
@@ -90,8 +91,8 @@ describe("the phone's fill queue", () => {
   });
 
   it("tries a failure a later try may pass after 1, 10 and 60 minutes, and the fourth says it in the file", async () => {
-    const run = queueOver([row("a", 0)], async (_, mayRetry) =>
-      mayRetry ? await retry() : await written(),
+    const run = queueOver([row("a", 0)], async (each, mayRetry) =>
+      mayRetry ? await retry(each) : await written(),
     );
     await run.queue.settled();
     expect(run.held.get("a")).toMatchObject({ attempts: 1, notBefore: MINUTE });
@@ -137,6 +138,28 @@ describe("the phone's fill queue", () => {
     const run = queueOver([row("a", 0)], async () => await Promise.reject(new Error("gone")));
     await run.queue.settled();
     expect(run.held.get("a")).toMatchObject({ attempts: 1, notBefore: MINUTE });
+  });
+
+  it("counts a try before it runs, so a fill the app died in waits its turn like any failure", async () => {
+    const seen: (PendingFill | undefined)[] = [];
+    const run = queueOver([row("a", 0)], async (each) => {
+      seen.push(run.held.get(each.itemId));
+      return await written();
+    });
+    await run.queue.settled();
+    expect(seen).toMatchObject([{ attempts: 1, notBefore: MINUTE }]);
+    expect(run.filled).toStrictEqual([{ itemId: "a", mayRetry: true }]);
+  });
+
+  it("starts the next try from where the stub was last found", async () => {
+    const run = queueOver([row("a", 0)], async (each, mayRetry) =>
+      mayRetry ? await retry({ ...each, path: "Reading/a.md" }) : await written(),
+    );
+    await run.queue.settled();
+    expect(run.held.get("a")).toMatchObject({ attempts: 1, path: "Reading/a.md" });
+    await run.tick();
+    expect(run.held.get("a")).toMatchObject({ attempts: 2, path: "Reading/a.md" });
+    expect(run.filled.map((each) => each.itemId)).toStrictEqual(["a", "a"]);
   });
 
   it("reads a save made while it was reading in the same run", async () => {

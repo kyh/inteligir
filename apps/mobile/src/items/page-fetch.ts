@@ -1,12 +1,15 @@
-// How the phone reads a link it saved: the platform's fetch (Expo's streams its body), http and
-// https alone, at most 20 s a request and a byte cap per kind, as the Mac's fill reads them, with
-// no cookie or credential sent. A redirect is the platform's to follow. The phone has no lookup to
-// vet an answer's addresses as the Mac's guard does, so where a page's claims may lead it is judged
-// before the request by the address's spelling (`namesPrivateSpace`, in link-fill.ts).
-// Platform-free: the suite and the scenario suite hand it node's fetch.
+// How the phone reads a link it saved: the platform's fetch (Expo's streams its body), at most 20 s
+// a request and a byte cap per kind, as the Mac's fill reads them, with no cookie or credential
+// sent. A public page is read over https alone, and plain http to one is refused in its own words:
+// iOS's App Transport Security allows plain http only to an address, a one-label name or `.local`,
+// so it would fail as unreachable and be tried for an hour. The phone has no lookup to vet an
+// answer's addresses as the Mac's guard does, so every hop is judged by its spelling
+// (`namesPrivateSpace`): redirects are followed here, at most five, and a public address may not
+// lead into private space. Platform-free: the suites hand it node's fetch.
 
 import { statusFailure } from "@repo/notes/items/fill-sentences";
 import type { FetchFailure } from "@repo/notes/items/fill-sentences";
+import { namesPrivateSpace } from "@repo/notes/items/host-names";
 import { isWebUrl } from "@repo/notes/items/item-url";
 
 // the fetch the phone's runtime installs, typed as far as this reads it
@@ -19,10 +22,12 @@ export interface PageRequest {
   maxBytes: number;
   // "truncate" keeps what fits (a page's head and text); "refuse" fails past it (a cover, a JSON)
   overflow: "truncate" | "refuse";
+  // whether a hop may lead into private space: only from a saved address that names it itself
+  reachesPrivate: boolean;
 }
 
 export interface FetchedPage {
-  // where the platform's redirects ended
+  // where the redirects ended
   url: string;
   // lowercased, without parameters
   mediaType: string | null;
@@ -40,6 +45,8 @@ export type PageFetchResult =
 export type PageFetch = (request: PageRequest) => Promise<PageFetchResult>;
 
 const REQUEST_TIMEOUT_MS = 20_000;
+const MAX_REDIRECTS = 5;
+const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 
 interface ContentType {
   mediaType: string | null;
@@ -117,14 +124,72 @@ const readCapped = async (response: Response, request: PageRequest): Promise<Bod
   }
 };
 
+// a hop the phone does not ask: one off the web, a public one over plain http, or from a public
+// saved address one whose spelling names private space, as the Mac's guard refuses its addresses
+const refusedHop = (url: string, reachesPrivate: boolean): FetchFailure | null => {
+  if (!isWebUrl(url)) {
+    return { kind: "unreachable", transient: false };
+  }
+  const named = namesPrivateSpace(url);
+  if (named && !reachesPrivate) {
+    return { kind: "refused", refusal: "private-from-public" };
+  }
+  return !named && /^http:/iu.test(url.trim()) ? { kind: "plain-http" } : null;
+};
+
+// where a redirect leads, resolved against the hop it came from; null for a Location no parser
+// reads. The runtime's URL is WHATWG under node and Expo alike
+const redirectTarget = (location: string | null, from: string): string | null => {
+  if (location === null) {
+    return null;
+  }
+  try {
+    return new URL(location, from).href;
+  } catch {
+    return null;
+  }
+};
+
+// a final answer, read up to the request's cap
+const answered = async (
+  response: Response,
+  url: string,
+  request: PageRequest,
+): Promise<PageFetchResult> => {
+  if (response.status < 200 || response.status >= 400) {
+    await closed(response.body?.cancel());
+    return { failure: statusFailure(response.status), ok: false };
+  }
+  const declaredBytes = declaredOf(response.headers.get("content-length"));
+  if (request.overflow === "refuse" && declaredBytes !== null && declaredBytes > request.maxBytes) {
+    await closed(response.body?.cancel());
+    return { failure: { bytes: declaredBytes, kind: "too-large" }, ok: false };
+  }
+  const body = await readCapped(response, request);
+  if (body.kind === "too-large") {
+    return { failure: { bytes: body.bytes, kind: "too-large" }, ok: false };
+  }
+  return {
+    ok: true,
+    page: {
+      ...contentType(response.headers.get("content-type")),
+      bytes: body.bytes,
+      declaredBytes,
+      truncated: body.truncated,
+      url,
+    },
+  };
+};
+
 export const createPageFetch =
   (
     platformFetch: PlatformFetch,
     headers: { userAgent: string; acceptLanguage: string },
   ): PageFetch =>
   async (request) => {
-    if (!isWebUrl(request.url)) {
-      return { failure: { kind: "unreachable", transient: false }, ok: false };
+    const first = refusedHop(request.url, request.reachesPrivate);
+    if (first !== null) {
+      return { failure: first, ok: false };
     }
     const controller = new AbortController();
     let timedOut = false;
@@ -133,43 +198,34 @@ export const createPageFetch =
       controller.abort();
     }, REQUEST_TIMEOUT_MS);
     try {
-      const response = await platformFetch(request.url, {
-        credentials: "omit",
-        headers: {
-          Accept: request.accept,
-          "Accept-Language": headers.acceptLanguage,
-          "User-Agent": headers.userAgent,
-        },
-        redirect: "follow",
-        signal: controller.signal,
-      });
-      if (response.status < 200 || response.status >= 400) {
+      let { url } = request;
+      for (let redirects = 0; ; redirects += 1) {
+        const response = await platformFetch(url, {
+          credentials: "omit",
+          headers: {
+            Accept: request.accept,
+            "Accept-Language": headers.acceptLanguage,
+            "User-Agent": headers.userAgent,
+          },
+          redirect: "manual",
+          signal: controller.signal,
+        });
+        const next = REDIRECT_STATUSES.has(response.status)
+          ? redirectTarget(response.headers.get("location"), url)
+          : null;
+        if (next === null) {
+          return await answered(response, url, request);
+        }
         await closed(response.body?.cancel());
-        return { failure: statusFailure(response.status), ok: false };
+        if (redirects >= MAX_REDIRECTS) {
+          return { failure: { kind: "redirects" }, ok: false };
+        }
+        const refused = refusedHop(next, request.reachesPrivate);
+        if (refused !== null) {
+          return { failure: refused, ok: false };
+        }
+        url = next;
       }
-      const declaredBytes = declaredOf(response.headers.get("content-length"));
-      if (
-        request.overflow === "refuse" &&
-        declaredBytes !== null &&
-        declaredBytes > request.maxBytes
-      ) {
-        await closed(response.body?.cancel());
-        return { failure: { bytes: declaredBytes, kind: "too-large" }, ok: false };
-      }
-      const body = await readCapped(response, request);
-      if (body.kind === "too-large") {
-        return { failure: { bytes: body.bytes, kind: "too-large" }, ok: false };
-      }
-      return {
-        ok: true,
-        page: {
-          ...contentType(response.headers.get("content-type")),
-          bytes: body.bytes,
-          declaredBytes,
-          truncated: body.truncated,
-          url: response.url === "" ? request.url : response.url,
-        },
-      };
     } catch {
       // offline, a name that did not resolve, a connection cut: a later try may get through
       return {

@@ -3,7 +3,8 @@
 // it is busy (429, 503) leave the stub as it is for a retry; anything else is said in the file.
 // Every device that fills a link says it in these words: the Mac's guarded fetch and the phone's.
 
-// what the Mac's address guard refuses to dial; the phone's fetch refuses none of these
+// what the Mac's address guard refuses to dial; the phone's fetch, which has no lookup, refuses only
+// a hop from a public address to one whose spelling names private space
 export type FetchRefusal = "this-mac" | "link-local" | "reserved" | "private-from-public";
 
 export type FetchFailure =
@@ -14,6 +15,8 @@ export type FetchFailure =
   | { kind: "unreachable"; transient: boolean }
   | { kind: "tls" }
   | { kind: "redirects" }
+  // a public address over plain http, which iOS lets the phone ask only of the person's own network
+  | { kind: "plain-http" }
   // `bytes`: the size the site declared, or what had arrived when the read stopped
   | { kind: "too-large"; bytes: number }
   | { kind: "aborted" };
@@ -85,6 +88,9 @@ export interface FillFailure {
 
 export const TEXT_NOT_SAVED = "The page's text couldn't be saved.";
 export const COPY_TOO_BIG = "The page is too big to keep a copy of; its text is saved.";
+// a picture the phone will not decode: its header names too many pixels, or no size at all
+export const PICTURE_ONLY_LINKED =
+  "This picture can't be opened on the iPhone; only its link is kept.";
 
 const MB = 1024 * 1024;
 
@@ -147,6 +153,13 @@ export const failureOf = (failure: FetchFailure): FillFailure => {
     }
     case "redirects": {
       return { sentence: "The page redirected too many times.", transient: false };
+    }
+    case "plain-http": {
+      return {
+        sentence:
+          "The iPhone reads a public page only over a secure (https) connection; choose Refresh from the page on a Mac to read this one.",
+        transient: false,
+      };
     }
     case "too-large": {
       return { sentence: fileOnlyLinked(failure.bytes), transient: false };

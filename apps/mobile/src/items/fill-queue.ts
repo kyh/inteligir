@@ -37,25 +37,29 @@ export const createFillQueue = (args: FillQueueArgs): FillQueue => {
   let suspended = false;
   let cancelTimer: (() => void) | null = null;
 
-  const settle = async (row: PendingFill, outcome: LinkFillOutcome): Promise<void> => {
-    if (outcome.kind !== "retry") {
-      await args.store.pendingFills.remove(row.itemId);
-      return;
-    }
+  // the try is counted before it runs, so a fill that takes the app down with it waits its turn
+  // like any failure, and the fourth try still says it in the file
+  const counted = (row: PendingFill): PendingFill => {
     const attempts = row.attempts + 1;
     const wait = RETRY_AFTER_MS[attempts - 1] ?? RETRY_AFTER_MS.at(-1) ?? MINUTE;
-    await args.store.pendingFills.update({ ...row, attempts, notBefore: args.now() + wait });
+    return { ...row, attempts, notBefore: args.now() + wait };
   };
 
   const fillOne = async (row: PendingFill): Promise<void> => {
+    const tried = counted(row);
+    await args.store.pendingFills.update(tried);
     let outcome: LinkFillOutcome;
     try {
       outcome = await args.fill(row, row.attempts < RETRY_AFTER_MS.length);
     } catch {
       // the reader went away or the store refused: tried again on the same schedule
-      outcome = { kind: "retry" };
+      outcome = { kind: "retry", path: row.path };
     }
-    await settle(row, outcome);
+    if (outcome.kind !== "retry") {
+      await args.store.pendingFills.remove(row.itemId);
+    } else if (outcome.path !== row.path) {
+      await args.store.pendingFills.update({ ...tried, path: outcome.path });
+    }
   };
 
   // the next row to come due, armed as a timer unless the app is away

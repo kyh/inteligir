@@ -1,4 +1,5 @@
 import { serializeAnnotationStore } from "@repo/notes/annotations/store-schema";
+import { PICTURE_ONLY_LINKED, TEXT_NOT_SAVED } from "@repo/notes/items/fill-sentences";
 import { linkStubText } from "@repo/notes/items/item-stub";
 import type { FillAnswer, FillJob } from "@repo/mobile-editor/bridge-protocol";
 import { describe, expect, it } from "vitest";
@@ -31,8 +32,20 @@ const ROW: PendingFill = { attempts: 0, itemId: ID, notBefore: 0, path: ITEM, ur
 
 const encoder = new TextEncoder();
 
-// a JPEG's own start and end around bytes of its own
-const JPEG = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 0xff, 0xd9]);
+// a JPEG's own start, a frame header naming 640 × 400 pixels, and its end
+const JPEG = Uint8Array.from([
+  0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, 0x01, 0x90, 0x02, 0x80, 0x03, 1, 2, 3, 4, 0xff, 0xd9,
+]);
+
+// a PNG's signature and a header naming a picture of width × height, with nothing to decode
+const pngNaming = (width: number, height: number): Uint8Array => {
+  const bytes = new Uint8Array(33);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+  const header = new DataView(bytes.buffer);
+  header.setUint32(16, width);
+  header.setUint32(20, height);
+  return bytes;
+};
 
 const page = (bytes: Uint8Array, mediaType: string, url = URL_SAVED): PageFetchResult => ({
   ok: true,
@@ -72,6 +85,7 @@ const portsOver = (
 ) => {
   const asked: PageRequest[] = [];
   const read: FillJob[] = [];
+  const shrunk: string[] = [];
   const ports: LinkFillPorts = {
     fetch: async (request) => {
       asked.push(request);
@@ -85,15 +99,17 @@ const portsOver = (
       return await Promise.resolve(answer);
     },
     sha256Hex: async () => await Promise.resolve(HASH),
-    shrinkCover: async (picture) =>
-      await Promise.resolve(
+    shrinkCover: async (picture) => {
+      shrunk.push(picture.mediaType);
+      return await Promise.resolve(
         picture.mediaType === "image/jpeg"
           ? { bytes: picture.bytes, mediaType: "image/jpeg" as const }
           : null,
-      ),
+      );
+    },
     store,
   };
-  return { asked, ports, read };
+  return { asked, ports, read, shrunk };
 };
 
 const html = encoder.encode("<html><body><p>File over app</p></body></html>");
@@ -129,7 +145,7 @@ describe("a link the phone saved, read on the phone", () => {
     const { store } = await savedStub(vault);
 
     const offline = portsOver(store, {});
-    expect(await fillLink(offline.ports, ROW, true)).toStrictEqual({ kind: "retry" });
+    expect(await fillLink(offline.ports, ROW, true)).toStrictEqual({ kind: "retry", path: ITEM });
     const untouched = await store.readNote(ITEM);
     expect(untouched).toMatchObject({ content: stub, ok: true });
 
@@ -232,5 +248,108 @@ describe("a link the phone saved, read on the phone", () => {
     expect(await fillLink(ports, { ...ROW, path: "Reading/File over app.md" }, true)).toStrictEqual(
       { kind: "dropped" },
     );
+  });
+  it("never fills another stub that took a moved stub's old name", async () => {
+    const other = "0b6f2c1e-8a4d-4f7e-b3c9-2d5e8f1a7c60";
+    const otherStub = linkStubText({
+      id: other,
+      note: "",
+      saved: Date.UTC(2026, 9, 17, 9, 20, 0),
+      url: "https://stephango.com/other",
+    });
+    const vault = createFakeVault({ [ITEM]: otherStub, "Reading/File over app.md": stub });
+    const net: Network = { loseApplied: false, online: true };
+    const phone = launchPhone(networkOver(vault, net));
+    await phone.refresh();
+    const { ports } = portsOver(
+      phone,
+      { [URL_SAVED]: page(html, "text/html") },
+      { ...READ, facts: { ...READ.facts, images: [] } },
+    );
+
+    expect(await fillLink(ports, ROW, true)).toStrictEqual({ kind: "written" });
+    await phone.drain();
+    expect(vault.files()[ITEM]).toBe(otherStub);
+    expect(vault.files()["Reading/File over app.md"]).toContain("site: Steph Ango\n");
+  });
+
+  it("tries again later when the stub could not be read just now, and drops only a stub that is gone", async () => {
+    const vault = createFakeVault({});
+    const { store } = await savedStub(vault);
+    const { ports } = portsOver(store, { [URL_SAVED]: page(html, "text/html") });
+    const unreadable: LinkFillPorts = {
+      ...ports,
+      store: {
+        ...ports.store,
+        readNote: async () =>
+          await Promise.resolve({ message: "The request failed.", notFound: false, ok: false }),
+      },
+    };
+    expect(await fillLink(unreadable, ROW, true)).toStrictEqual({ kind: "retry", path: ITEM });
+
+    const gone: LinkFillPorts = {
+      ...ports,
+      store: {
+        ...ports.store,
+        heldFiles: () => [],
+        readNote: async () =>
+          await Promise.resolve({ message: "Not here.", notFound: true, ok: false }),
+      },
+    };
+    expect(await fillLink(gone, ROW, true)).toStrictEqual({ kind: "dropped" });
+  });
+
+  it("says a page that broke the reader on the last try in the file, and tries it again before that", async () => {
+    const vault = createFakeVault({});
+    const { net, store } = await savedStub(vault);
+    net.online = false;
+    const { ports } = portsOver(store, { [URL_SAVED]: page(html, "text/html") });
+    const broken: LinkFillPorts = {
+      ...ports,
+      read: async () => await Promise.reject(new Error("The reader went away.")),
+    };
+
+    await expect(fillLink(broken, ROW, true)).rejects.toThrow("The reader went away.");
+    expect(await fillLink(broken, ROW, false)).toStrictEqual({ kind: "written" });
+    net.online = true;
+    await store.drain();
+    expect(vault.files()[ITEM]).toContain(`fetch-error: ${TEXT_NOT_SAVED}`);
+  });
+
+  it("decodes no picture whose header names more pixels than the phone may hold", async () => {
+    const vault = createFakeVault({});
+    const { net, store } = await savedStub(vault);
+    net.online = false;
+    const huge = "https://stephango.com/huge.png";
+    const { asked, ports, shrunk } = portsOver(
+      store,
+      {
+        [huge]: page(pngNaming(40_000, 40_000), "image/png", huge),
+        [URL_SAVED]: page(html, "text/html"),
+      },
+      { ...READ, facts: { ...READ.facts, images: [huge] } },
+    );
+
+    expect(await fillLink(ports, ROW, true)).toStrictEqual({ kind: "written" });
+    expect(asked.map((request) => request.url)).toStrictEqual([URL_SAVED, huge]);
+    expect(shrunk).toStrictEqual([]);
+    net.online = true;
+    await store.drain();
+    expect(vault.files()[ITEM]?.endsWith(`---\n\n${ARTICLE}\n`)).toBe(true);
+  });
+
+  it("keeps only the link of a link that answered with such a picture", async () => {
+    const vault = createFakeVault({});
+    const { net, store } = await savedStub(vault);
+    net.online = false;
+    const { ports } = portsOver(store, {
+      [URL_SAVED]: page(pngNaming(40_000, 40_000), "image/png"),
+    });
+
+    expect(await fillLink(ports, ROW, true)).toStrictEqual({ kind: "written" });
+    net.online = true;
+    await store.drain();
+    expect(Object.keys(vault.files())).toStrictEqual([ITEM]);
+    expect(vault.files()[ITEM]).toContain(`fetch-error: ${PICTURE_ONLY_LINKED}`);
   });
 });

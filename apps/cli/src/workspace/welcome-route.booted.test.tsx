@@ -124,21 +124,17 @@ describe("the steps after a first run", () => {
     expect(stepOnScreen()).toBeNull();
   });
 
-  it("says an account leaves notes another service syncs where they are", async () => {
+  it("skips the account for notes another service syncs, since it does nothing for them", async () => {
     const router = await bootAt("/welcome?step=account", {
       vaultPath: path.join("Library", "Mobile Documents", "com~apple~CloudDocs", "Notes"),
     });
 
-    expect(await screen.findByRole("heading", { name: "Create your account" })).toBeDefined();
-    expect(
-      screen.getByText(
-        "iCloud Drive already syncs this library, so an account leaves it there, and your phone won't show it.",
-      ),
-    ).toBeDefined();
-
-    // the workspace underneath is the library, which puts nothing in the url beside the step
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/");
+    });
+    expect(stepOnScreen()).toBeNull();
+    expect(screen.queryByLabelText("Invite code")).toBeNull();
+    // the workspace underneath is the library
     expect(await screen.findByRole("heading", { name: "All items" })).toBeDefined();
-    expect(router.state.location.search).toEqual({ step: "account" });
-    expect(stepOnScreen()).toBe("account");
   });
 });

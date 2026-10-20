@@ -22,7 +22,7 @@ There are several ways in, and each lands in **Unsorted** unless you are looking
 - Click the [Inteligir extension](https://chromewebstore.google.com/detail/biedbnmohmigikheljajjdmhhdgnibom) in Chrome, Arc, Brave or Edge, or right-click a page, a link, a picture or a selection. A selection is saved as a highlight on the page.
 - On your iPhone, share a page or a link to **Save to Inteligir**, or type into **Save a link or a thought**.
 
-Saving is instant and free: your Mac reads the page's title, picture and text itself, without asking the agent. A page that can't be read says why, and **Refresh from the page** in ⌘P tries again. When you want a page exactly as it looked, choose **Keep a copy of the page** and the copy is kept beside the item.
+Saving is instant and free: the Mac or iPhone you save on reads each page's title, picture and text itself, without asking the agent. A page that can't be read says why, and **Refresh from the page** in ⌘P tries again. When you want a page exactly as it looked, choose **Keep a copy of the page** and the copy is kept beside the item.
 
 Pictures, PDFs, videos, sounds and other files up to 10 MB are kept as they are, each as an item of its own. Saving something you already have adds to the item you have rather than making a second one.
 

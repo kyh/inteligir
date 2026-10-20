@@ -128,9 +128,9 @@ describe("a look at a card", () => {
     expect(new URL(image.getAttribute("src") ?? "").searchParams.get("m")).toBe("boot-token");
   });
 
-  it("shows a stub's placeholder while its page is read", async () => {
+  it("shows a stub's placeholder until its page is read", async () => {
     mount("Unsorted/later.md");
-    expect(await screen.findByText("Filling in…")).toBeTruthy();
+    expect(await screen.findByText("Not read yet")).toBeTruthy();
   });
 });
 

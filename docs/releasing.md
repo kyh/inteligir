@@ -456,6 +456,10 @@ account whose library holds about 2,000 items gives the timing check its load.
   link is saved and read the same way. Shared offline: it is queued, and lands
   and is read once the phone is online with the app open. Shared signed out:
   it waits for the sign-in. A photo does not offer Inteligir.
+- **A plain-http page and a redirect.** Share `http://neverssl.com` and a
+  shortened https link (a `bit.ly` one). Passing: the http page says at once,
+  in the item, that the iPhone reads a public page only over https, with no
+  retry; the short link is read at the address it redirects to.
 - **A share and the Macs.** With two Macs online when a phone's share lands.
   Passing: one item and no conflict copy, read by the phone; neither Mac's
   debug log names a fill of it. Pressing Refresh on a Mac while the phone adds

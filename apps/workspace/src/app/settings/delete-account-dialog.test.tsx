@@ -36,7 +36,7 @@ describe("the delete-account dialog", () => {
     renderDialog();
     expect(await screen.findByText("Delete your account?")).toBeDefined();
     expect(screen.getByText("Your online library")).toBeDefined();
-    expect(screen.getByText("Your synced conversations with the agent")).toBeDefined();
+    expect(screen.queryByText(/conversations/u)).toBeNull();
     expect(screen.getByText(/every device, this Mac included/u)).toBeDefined();
     expect(screen.getByText("Your library on this Mac and its history stay here.")).toBeDefined();
   });

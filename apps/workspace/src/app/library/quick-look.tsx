@@ -60,7 +60,7 @@ const TextLook = ({ row }: { row: ItemRowWire }) => {
 
 const LookStage = ({ row, media }: { row: ItemRowWire; media: MediaOrigin | null }) => {
   if (row.pending) {
-    return <PendingStage />;
+    return <PendingStage onReadHere={null} />;
   }
   const { file } = row;
   if (file === null || media === null || row.kind === "note" || row.kind === "link") {

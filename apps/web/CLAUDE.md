@@ -7,17 +7,15 @@ cited.
 ## Cloud, sync and accounts
 
 - **THE DEVICE CREDENTIAL IS THE SYNC SWITCH AND THE ENTITLEMENT, and it lives
-  in the data dir**: not in `inteligir.db` and not in the vault (a git repo
-  pushed to a remote). No separate "sync enabled" flag, since two values that
-  must agree can disagree: signed out, the app sends this project's cloud
-  nothing (`docs/privacy.md` lists what does leave the machine). Signed in, the
-  credential alone entitles the hosted vault and the account's socket, except
-  that a folder with an origin of its own, or one another service syncs, never
-  takes the hosted vault (AN OPENED FOLDER'S OWN ORIGIN, in
-  `apps/cli/src/server/vault/CLAUDE.md`). Its ceiling is a size, not a flag
-  (THE HOSTED VAULT IS CAPPED, below), and the BYO remote stays accountless.
-  Cost accepted: "pause sync" is signing out.
-  `apps/cli/src/server/cloud/credential-store.ts`, `sync-runtime.ts`.
+  in the data dir**, not in `inteligir.db` or the vault (a git repo pushed to a
+  remote). Rejected: a separate "sync enabled" flag, since two values that must
+  agree can disagree. Signed out, the app sends this project's cloud nothing
+  (`docs/privacy.md`); signed in, the credential alone entitles the hosted vault
+  and the account's socket, though a folder with an origin of its own, or one
+  another service syncs, never takes the hosted vault (AN OPENED FOLDER'S OWN
+  ORIGIN, in `apps/cli/src/server/vault/CLAUDE.md`). Its ceiling is a size
+  (THE HOSTED VAULT IS CAPPED, below). Cost accepted: "pause sync" is signing
+  out. `apps/cli/src/server/cloud/credential-store.ts`, `sync-runtime.ts`.
 
 - **A DEVICE SIGNS IN, OR SIGNS UP, WITH EMAIL + PASSWORD, and gets the same
   device credential** (owner decision, the Obsidian model). The login mints the
