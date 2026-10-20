@@ -1,5 +1,12 @@
-// Library: the grid of saved things, its cards in every state, and the chips that narrow it.
+// Library: the grid of saved things, its cards in every state, the chips that narrow it, and the
+// strip that acts on a selection.
 
+import {
+  SelectionAction,
+  SelectionActions,
+  SelectionActionsSeparator,
+  Shimmer,
+} from "@repo/ui/ai/selection-actions";
 import { CardGrid } from "@repo/ui/components/card-grid";
 import {
   MediaCard,
@@ -129,6 +136,20 @@ export const LibrarySection = () => {
             </ToggleChip>
           ))}
         </ToggleGroup>
+      </Demo>
+
+      <Demo
+        name="SelectionActions · Shimmer"
+        purpose="The bar over a selection of items, and the shimmer a line wears while it fills in."
+        stack
+      >
+        <SelectionActions>
+          <SelectionAction>Tag…</SelectionAction>
+          <SelectionAction>Move…</SelectionAction>
+          <SelectionActionsSeparator />
+          <SelectionAction hasMenu>Ask agent</SelectionAction>
+        </SelectionActions>
+        <Shimmer className="text-body">Filling in…</Shimmer>
       </Demo>
     </GallerySection>
   );

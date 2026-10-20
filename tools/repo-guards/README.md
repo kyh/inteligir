@@ -88,7 +88,7 @@ One per file; its header and its failure message state the rule in full.
 - `decisions-index.test.ts`: `AGENTS.md` § Decisions indexes every nested `CLAUDE.md`, and the root one is `@AGENTS.md`.
 - `tests-beside-source.test.ts`: no tracked path sits in a `__tests__` folder; a suite is beside its module, shared test code in `test-support/`.
 
-Every exception table — `ALLOWED_EXPORTS`, `AWAITING_CONSUMER`, `NOT_DEMOED`,
+Every exception table — `ALLOWED_EXPORTS`, `NOT_DEMOED`,
 `dispatchedIn`, `elsewhere`, `ELSEWHERE`,
 `DECLARED_SPLITS`, `DATA_FILES`, `DELIBERATE_NON_REFERENCES`, `PROSE_SIZES`,
 `NOT_A_TEXT_FIELD` — has a companion assertion that no row is STALE: a row

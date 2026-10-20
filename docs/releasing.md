@@ -226,10 +226,10 @@ app=apps/desktop/src-tauri/target/release/bundle/macos/Inteligir.app
 - **Sign in with ChatGPT**, under Other, the same way. Passing: as above, and
   `"$(find "$app" -type f -perm +111 -name codex -path '*/bin/*' | head -1)" login status`
   says logged in.
-- **A connector through the browser.** With a real Linear account, Settings ›
-  Connectors › Linear while Claude is the default agent. Passing: the browser
-  asks Linear to approve, the row turns connected, and a new action asked to
-  list your Linear issues calls a Linear tool and lists them. Make ChatGPT the
+- **A connector through the browser.** With a real Notion account, Settings ›
+  Connectors › Notion while Claude is the default agent. Passing: the browser
+  asks Notion to approve, the row turns connected, and a new action asked to
+  list your Notion pages calls a Notion tool and lists them. Make ChatGPT the
   default in Settings › Agent and repeat: the same.
 - **A connector added outside the app.** With the bundled binary,
   `"$(find "$app" -type f -perm +111 -name claude | head -1)" mcp add --scope user <name> -- <command>`

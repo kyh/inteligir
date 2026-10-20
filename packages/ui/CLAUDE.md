@@ -5,13 +5,15 @@ Decisions says how a bullet is written and cited.
 
 ## Shape
 
-A LIBRARY AHEAD OF ITS CONSUMERS: `packages/ui/src/ai` holds components no
-surface draws on yet, kept by owner decision and listed one by one in
-`AWAITING_CONSUMER` (`tools/repo-guards/src/ui-package.ts`), which the
-per-export orphan guard reads, so one more unconsumed export still fails.
-`selection-actions` has its consumer, the library's selection strip, and left
-the list. `components/card-grid.tsx`, `media-card.tsx` and `toggle-group.tsx`
-are the library's grid, its cards and its kind chips.
+EVERY COMPONENT HAS A SURFACE THAT DRAWS IT. `packages/ui/src/ai` is the
+action timeline's vocabulary (the trace, tool chips, task rows, approvals,
+streaming text, the loading state) and the library's selection strip, and
+`components/card-grid.tsx`, `media-card.tsx` and `toggle-group.tsx` are the
+library's grid, its cards and its kind chips. A component nothing draws is
+deleted, not held for a coming surface (owner decision): a held component is
+one more file the guards read and the gallery demos for nobody, and git keeps
+it should a surface want it. A single export beside a drawn component is a
+reasoned `ALLOWED_EXPORTS` row (`tools/repo-guards/src/ui-orphan-exports.test.ts`).
 
 ## Editor and dialect
 
@@ -51,7 +53,7 @@ are the library's grid, its cards and its kind chips.
   `text-sm`, `text-xs` or px/rem literal in the chrome, because a role says what
   a line IS and a scale held by convention drifts:
   `tools/repo-guards/src/type-roles.test.ts` holds it, `packages/ui/src/ai`
-  included less `AWAITING_CONSUMER` (owner decision). THE MERGE ENGINE HAS TO BE
+  included. THE MERGE ENGINE HAS TO BE
   TOLD THEY ARE SIZES: an unknown value after `text-` reads as a colour, so
   `cn("text-body", "text-muted-foreground")` drops the size. `cn` is configured
   once (`packages/ui/src/lib/cn.ts`) and imported from there: a second,

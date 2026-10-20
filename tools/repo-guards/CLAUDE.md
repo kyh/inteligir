@@ -22,7 +22,7 @@ The guards, vendored code, the toolchain's pins and the build's rules.
   `coverage.include` is mandatory in Vitest 4, and gate only `@repo/notes`. A
   guard states its own rule in the failure, names the file, and derives every
   value it can; what it cannot is a row carrying its reason
-  (`AWAITING_CONSUMER`, `CLOUD_ONLY_CLIENTS`, `EXCLUDED_COMMANDS`,
+  (`ALLOWED_EXPORTS`, `CLOUD_ONLY_CLIENTS`, `EXCLUDED_COMMANDS`,
   `PROSE_SIZES`, product-words' `ALLOWED`), and `dep-dag.test.ts`'s `DECLARED_EDGES` is the pin itself. A
   guard is for a failure nothing else reports, because a second copy of a
   tool's check or of what the tree already prints is one more table every

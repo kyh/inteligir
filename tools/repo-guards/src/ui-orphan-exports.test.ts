@@ -7,7 +7,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { isTestFile, REPO_ROOT, sourceOf, workspaces, workspaceSourceFiles } from "./repo";
-import { AWAITING_CONSUMER, GALLERY_DIR, sweptRoots, UI_DIR, UI_PACKAGE } from "./ui-package";
+import { GALLERY_DIR, sweptRoots, UI_DIR, UI_PACKAGE } from "./ui-package";
 
 const NON_CONSUMER_DIRS = [GALLERY_DIR];
 
@@ -15,15 +15,15 @@ const NON_CONSUMER_DIRS = [GALLERY_DIR];
 const ALLOWED_EXPORTS = new Map<string, string>([
   [
     "packages/ui/src/ai/thinking.tsx#ThinkingStep",
-    "The trace vocabulary's step row — Reasoning is wired; held with the Beautiful UI set, though the provider grammar carries no step: no pinned adapter sends a plan.",
+    "The trace vocabulary's step row, held with the wired Thinking though the provider grammar carries no step: no pinned adapter sends a plan.",
   ],
   [
     "packages/ui/src/ai/thinking.tsx#ThinkingTool",
-    "The trace vocabulary's tool row — Reasoning is wired; held with the Beautiful UI set for the timeline that renders tool calls.",
+    "The trace vocabulary's tool row, held with the wired Thinking for the timeline that renders tool calls.",
   ],
   [
     "packages/ui/src/ai/task-rows.tsx#TaskItemDetails",
-    "The consumed TaskRows surface's expandable half, held with the Beautiful UI set for the panel that grows per-row detail lines.",
+    "The consumed TaskRows surface's expandable half, held for the panel that grows per-row detail lines.",
   ],
   ["packages/ui/src/ai/task-rows.tsx#TaskDetail", "A row inside TaskItemDetails — held with it."],
   [
@@ -36,11 +36,11 @@ const ALLOWED_EXPORTS = new Map<string, string>([
   ],
   [
     "packages/ui/src/ai/streaming-text.tsx#StreamingAction",
-    "The consumed StreamingText's inline action chip — held with the Beautiful UI set for answer-with-actions turns.",
+    "The consumed StreamingText's inline action chip, held for answer-with-actions turns.",
   ],
   [
     "packages/ui/src/components/dropdown-menu.tsx#DropdownMenuRadioGroup",
-    "The menu vocabulary's one-choice half, so a picker is a Base UI radio group and not a hand-built listbox; its one caller is the held PromptBarMenu.",
+    "The menu vocabulary's one-choice half, so a picker is a Base UI radio group and not a hand-built listbox.",
   ],
   [
     "packages/ui/src/components/dropdown-menu.tsx#DropdownMenuRadioItem",
@@ -175,12 +175,11 @@ const uiFiles = (): UiFile[] => {
   return found;
 };
 
-// tests included; a held file is not one, or its imports would keep every helper it reaches alive
-// with no row naming them.
+// every workspace's sources but the gallery's, tests included.
 const consumerFiles = (): string[] =>
   workspaces()
     .flatMap((workspace) => workspaceSourceFiles(workspace))
-    .filter((file) => !isNonConsumer(file) && !AWAITING_CONSUMER.has(file));
+    .filter((file) => !isNonConsumer(file));
 
 // every import of the file across the consumers, merged; a file never consumes itself.
 const consumptionAcross = (target: UiFile, consumers: readonly string[]): Consumption => {
@@ -208,9 +207,6 @@ const consumes = (consumption: Consumption, name: string): boolean =>
   consumption.names.has(name) ||
   (name === "default" && consumption.defaultImport);
 
-const isConsumedAtAll = (consumption: Consumption): boolean =>
-  consumption.namespace || consumption.defaultImport || consumption.names.size > 0;
-
 describe("no orphan @repo/ui exports", () => {
   const files = uiFiles();
   const byFile = new Map(files.map((target) => [target.file, target]));
@@ -223,9 +219,6 @@ describe("no orphan @repo/ui exports", () => {
     const orphans: string[] = [];
 
     for (const target of files) {
-      if (AWAITING_CONSUMER.has(target.file)) {
-        continue;
-      }
       const consumption = consumptionAcross(target, consumers);
       const unconsumed = exportedNames(target.file).filter(
         (name) => !ALLOWED_EXPORTS.has(`${target.file}#${name}`) && !consumes(consumption, name),
@@ -241,28 +234,10 @@ describe("no orphan @repo/ui exports", () => {
         `Every named export under ${sweptDirs} must be reachable from a consumer —\n` +
         `the gallery does NOT count: it imports everything by design, and rendering\n` +
         `there is not the same claim as the product needing it.\n` +
-        `Wire each up, delete it, or record it: a whole component held for a coming\n` +
-        `surface goes in AWAITING_CONSUMER; a single export that must stay goes in\n` +
+        `Wire each up, delete it, or record it: a single export that must stay goes in\n` +
         `ALLOWED_EXPORTS with its reason (tools/repo-guards/src/ui-orphan-exports.test.ts):\n${orphans.join(
           "\n",
         )}`,
-    ).toEqual([]);
-  });
-
-  it("no AWAITING_CONSUMER row outlives its hold", () => {
-    const consumers = consumerFiles();
-    const stale: string[] = [];
-    for (const file of AWAITING_CONSUMER) {
-      const target = byFile.get(file);
-      if (target === undefined) {
-        stale.push(`  ${file} — not a file under ${sweptDirs}`);
-      } else if (isConsumedAtAll(consumptionAcross(target, consumers))) {
-        stale.push(`  ${file} — ${target.specifier} has a consumer outside the gallery now`);
-      }
-    }
-    expect(
-      stale,
-      `AWAITING_CONSUMER rows whose hold is over — delete these, so the per-export check reads the file:\n${stale.join("\n")}`,
     ).toEqual([]);
   });
 

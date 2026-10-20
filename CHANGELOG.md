@@ -69,6 +69,7 @@ Inteligir is now a library of everything you save: links, articles, videos, imag
 - **Replace across your library.** Search inside every item… in ⌘P still lists every match, with match case and whole word, but no longer replaces them. To change a word in many notes, ask the agent, and Undo changes takes the whole edit back; to replace within one note, open it and press ⌥⌘F.
 - **Daily notes and templates.** ⌘D and Daily note in ⌘P no longer open a note for the day, and New note from template…, Insert template… and the Templates group in the `/` menu are gone. Notes in your `notes/daily` and `templates` folders stay where they are, as ordinary notes, and `{{date}}`, `{{time}}` or `{{title}}` written in one now shows as a formula: replace it with the text you want. To start a note from one you kept, ask the agent to make a new note from it; to date a note, choose Date from the `/` menu.
 - **The capture box on iPhone.** The box at the top of the iPhone app's home screen is gone, and your Mac no longer adds what you typed there to `Inbox.md`. To jot something down on your phone, type it into Save a link or a thought: it becomes a note in Unsorted. To have your Mac's agent do something with it, open it and choose Ask agent. Your `Inbox.md` stays in your library as an ordinary note.
+- **Linear and Context7 in one click.** Settings › Connectors now offers Notion and Exa in one click. A Linear or Context7 connector you already added keeps working; to add one again, enter its address under Add a connector.
 
 ### Fixed
 

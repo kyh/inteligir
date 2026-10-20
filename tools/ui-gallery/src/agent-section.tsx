@@ -4,30 +4,7 @@ import {
   ApprovalOption,
   ApprovalQuestion,
 } from "@repo/ui/ai/approval-card";
-import {
-  ChatComposer,
-  ChatMessage,
-  ChatPanel,
-  ChatPanelBody,
-  ChatPanelHeader,
-  ChatTab,
-} from "@repo/ui/ai/chat";
-import {
-  ContextCard,
-  ContextCardBody,
-  ContextCardList,
-  ContextCardListHeading,
-  ContextCardSource,
-} from "@repo/ui/ai/context-cards";
 import { LoadingState } from "@repo/ui/ai/loading-state";
-import {
-  ConfidenceMeter,
-  RecommendationAlternative,
-  RecommendationAlternatives,
-  RecommendationCard,
-  RecommendationCardFooter,
-  RecommendationCardHeader,
-} from "@repo/ui/ai/recommendation-card";
 import { StreamingAction, StreamingText } from "@repo/ui/ai/streaming-text";
 import {
   TaskDetail,
@@ -52,7 +29,6 @@ const ANSWER_TEXT =
 
 export const AgentSection = () => {
   const [decision, setDecision] = useState<string | null>(null);
-  const [reply, setReply] = useState("");
 
   return (
     <GallerySection id="agent" title="Agent surfaces">
@@ -193,84 +169,6 @@ export const AgentSection = () => {
             </ApprovalQuestion>
             <ApprovalActions />
           </ApprovalCard>
-        </div>
-      </Demo>
-
-      <Demo
-        name="ContextCardList · ContextCard · ContextCardSource"
-        purpose="What the agent retrieved to answer with — the chunks, and where each came from."
-        stack
-      >
-        <div className="w-full max-w-md">
-          <ContextCardList>
-            <ContextCardListHeading count={2}>Context</ContextCardListHeading>
-            <ContextCard title="Getting Started" extent="lines 12–24">
-              <ContextCardBody>
-                The filename is the title, and renaming rewrites the links that point here.
-              </ContextCardBody>
-              <ContextCardSource kind="note">Getting Started.md</ContextCardSource>
-            </ContextCard>
-            <ContextCard title="Vault conventions" extent="lines 3–9">
-              <ContextCardBody>
-                Frontmatter is the only property store — there is no metadata table.
-              </ContextCardBody>
-              <ContextCardSource kind="note">Use Cases.md</ContextCardSource>
-            </ContextCard>
-          </ContextCardList>
-        </div>
-      </Demo>
-
-      <Demo
-        name="RecommendationCard · ConfidenceMeter"
-        purpose="A suggestion the agent is prepared to defend, with how sure it is and what it ruled out."
-        stack
-      >
-        <div className="w-full max-w-md">
-          <RecommendationCard>
-            <RecommendationCardHeader body="Both notes already link to it, and the section it needs exists.">
-              Add the backlinks section to Getting Started
-            </RecommendationCardHeader>
-            <RecommendationAlternatives label="Considered">
-              <RecommendationAlternative>Write a new note instead</RecommendationAlternative>
-              <RecommendationAlternative>Leave the link unresolved</RecommendationAlternative>
-            </RecommendationAlternatives>
-            <RecommendationCardFooter actions={<ConfidenceMeter signal={3} strength="high" />}>
-              High confidence
-            </RecommendationCardFooter>
-          </RecommendationCard>
-        </div>
-      </Demo>
-
-      <Demo
-        name="ChatPanel · ChatMessage · ChatComposer"
-        purpose="A conversation with tabs — the shape a docked assistant takes when it is not the ⌘K composer."
-        stack
-      >
-        <div className="h-80 w-full max-w-md">
-          <ChatPanel>
-            <ChatPanelHeader>
-              <ChatTab active>Chat</ChatTab>
-              <ChatTab>Sources</ChatTab>
-            </ChatPanelHeader>
-            <ChatPanelBody>
-              <ChatMessage author="You" meta="just now">
-                Which notes link to Welcome?
-              </ChatMessage>
-              <ChatMessage author="Agent" meta="just now" detail="Read 4 notes">
-                Two: Getting Started and Kitchen Sink.
-              </ChatMessage>
-            </ChatPanelBody>
-            <ChatComposer
-              value={reply}
-              placeholder="Reply…"
-              onChange={(event) => {
-                setReply(event.target.value);
-              }}
-              onSend={() => {
-                setReply("");
-              }}
-            />
-          </ChatPanel>
         </div>
       </Demo>
     </GallerySection>

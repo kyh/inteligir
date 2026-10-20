@@ -22,9 +22,9 @@ afterEach(cleanup);
 
 const URL_ROW: ConnectorView = {
   auth: "unknown",
-  name: "linear",
+  name: "notion",
   signIn: { state: "idle" },
-  target: { kind: "http", url: "https://mcp.linear.app/mcp" },
+  target: { kind: "http", url: "https://mcp.notion.com/mcp" },
 };
 
 const STDIO_ROW: ConnectorView = {

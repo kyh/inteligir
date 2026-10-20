@@ -64,15 +64,24 @@
     },
     "packages/notes": {
       "includeEntryExports": true,
-      "ignoreExportsUsedInFile": true
+      "ignoreExportsUsedInFile": true,
+      // ApprovalCustomAnswer has no importer, not even a demo: it is an ALLOWED_EXPORTS row in the
+      // orphan guard (tools/repo-guards/src/ui-orphan-exports.test.ts), which says why it stays
+      "ignoreIssues": { "src/ai/approval-card.tsx": ["exports"] }
     },
     "packages/editor": {
       "includeEntryExports": true,
-      "ignoreExportsUsedInFile": true
+      "ignoreExportsUsedInFile": true,
+      // ApprovalCustomAnswer has no importer, not even a demo: it is an ALLOWED_EXPORTS row in the
+      // orphan guard (tools/repo-guards/src/ui-orphan-exports.test.ts), which says why it stays
+      "ignoreIssues": { "src/ai/approval-card.tsx": ["exports"] }
     },
     "packages/domain": {
       "includeEntryExports": true,
-      "ignoreExportsUsedInFile": true
+      "ignoreExportsUsedInFile": true,
+      // ApprovalCustomAnswer has no importer, not even a demo: it is an ALLOWED_EXPORTS row in the
+      // orphan guard (tools/repo-guards/src/ui-orphan-exports.test.ts), which says why it stays
+      "ignoreIssues": { "src/ai/approval-card.tsx": ["exports"] }
     },
     "packages/agent-runtime": {
       // the fake vendors are spawned by path, never imported
@@ -90,9 +99,9 @@
       "project": ["src/**/*.{ts,tsx}", "src/**/*.css"],
       "includeEntryExports": true,
       "ignoreExportsUsedInFile": true,
-      // src/ai is held ahead of its consumers by owner decision, export by export, in the orphan
-      // guard (tools/repo-guards/src/ui-orphan-exports.test.ts), which counts no gallery demo
-      "ignoreIssues": { "src/ai/**": ["exports"] }
+      // ApprovalCustomAnswer has no importer, not even a demo: it is an ALLOWED_EXPORTS row in the
+      // orphan guard (tools/repo-guards/src/ui-orphan-exports.test.ts), which says why it stays
+      "ignoreIssues": { "src/ai/approval-card.tsx": ["exports"] }
     }
   }
 }
