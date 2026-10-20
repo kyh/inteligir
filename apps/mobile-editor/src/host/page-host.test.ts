@@ -298,8 +298,8 @@ describe("leaving the note", () => {
 });
 
 describe("what the editor asks the shell for", () => {
-  // a tag has no screen on the phone, so it says nothing
-  it("reaches the native end: Ask agent and an annotation, never a tag", async () => {
+  // the phone asks no agent, and a tag has no screen there, so neither says anything
+  it("reaches the native end with an annotation, never an agent request or a tag", async () => {
     const { phone } = await openHost();
     const before = phone.sent.length;
     const { agent, annotations } = getEditorHostActions();
@@ -307,13 +307,7 @@ describe("what the editor asks the shell for", () => {
     agent.showTag("errands");
     annotations.open(["c1", "c2"]);
 
-    expect(phone.sent.slice(before).map((frame) => frame.type)).toEqual([
-      "askAgent",
-      "showAnnotations",
-    ]);
-    expect(phone.events("askAgent")).toEqual([
-      { nonce: PHONE_NONCE, path: "Note.md", selection: "Hello there.", type: "askAgent" },
-    ]);
+    expect(phone.sent.slice(before).map((frame) => frame.type)).toEqual(["showAnnotations"]);
     expect(phone.events("showAnnotations")).toEqual([
       { ids: ["c1", "c2"], nonce: PHONE_NONCE, type: "showAnnotations" },
     ]);

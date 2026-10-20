@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "84207f6f-cae5-4e07-a7af-e7e0f6472d70",
+  "id": "2ab06ce5-9262-4bf0-93cc-593b4a793bb5",
   "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
@@ -22,18 +22,6 @@
     },
     {
       "name": "queued_thread_messages",
-      "entityType": "tables"
-    },
-    {
-      "name": "sync_outbox",
-      "entityType": "tables"
-    },
-    {
-      "name": "sync_own_devices",
-      "entityType": "tables"
-    },
-    {
-      "name": "sync_state",
       "entityType": "tables"
     },
     {
@@ -127,26 +115,6 @@
       "default": "'{}'",
       "generated": null,
       "name": "data",
-      "entityType": "columns",
-      "table": "events"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "origin_device_id",
-      "entityType": "columns",
-      "table": "events"
-    },
-    {
-      "type": "integer",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "origin_device_seq",
       "entityType": "columns",
       "table": "events"
     },
@@ -341,16 +309,6 @@
       "table": "pending_interactions"
     },
     {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "relay",
-      "entityType": "columns",
-      "table": "pending_interactions"
-    },
-    {
       "type": "integer",
       "notNull": true,
       "autoincrement": false,
@@ -441,16 +399,6 @@
       "table": "queued_thread_messages"
     },
     {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "dispatch_id",
-      "entityType": "columns",
-      "table": "queued_thread_messages"
-    },
-    {
       "type": "integer",
       "notNull": false,
       "autoincrement": false,
@@ -489,136 +437,6 @@
       "name": "updated_at",
       "entityType": "columns",
       "table": "queued_thread_messages"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "id",
-      "entityType": "columns",
-      "table": "sync_outbox"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "device_seq",
-      "entityType": "columns",
-      "table": "sync_outbox"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "thread_id",
-      "entityType": "columns",
-      "table": "sync_outbox"
-    },
-    {
-      "type": "text",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "body",
-      "entityType": "columns",
-      "table": "sync_outbox"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "table": "sync_outbox"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "device_id",
-      "entityType": "columns",
-      "table": "sync_own_devices"
-    },
-    {
-      "type": "integer",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "id",
-      "entityType": "columns",
-      "table": "sync_state"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "0",
-      "generated": null,
-      "name": "last_device_seq",
-      "entityType": "columns",
-      "table": "sync_state"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "0",
-      "generated": null,
-      "name": "dropped_events",
-      "entityType": "columns",
-      "table": "sync_state"
-    },
-    {
-      "type": "integer",
-      "notNull": true,
-      "autoincrement": false,
-      "default": "0",
-      "generated": null,
-      "name": "cursor",
-      "entityType": "columns",
-      "table": "sync_state"
-    },
-    {
-      "type": "integer",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "skipped_from_seq",
-      "entityType": "columns",
-      "table": "sync_state"
-    },
-    {
-      "type": "text",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "skipped_by_build",
-      "entityType": "columns",
-      "table": "sync_state"
-    },
-    {
-      "type": "integer",
-      "notNull": false,
-      "autoincrement": false,
-      "default": null,
-      "generated": null,
-      "name": "last_synced_at",
-      "entityType": "columns",
-      "table": "sync_state"
     },
     {
       "type": "text",
@@ -801,27 +619,6 @@
     {
       "columns": ["id"],
       "nameExplicit": false,
-      "name": "sync_outbox_pk",
-      "table": "sync_outbox",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["device_id"],
-      "nameExplicit": false,
-      "name": "sync_own_devices_pk",
-      "table": "sync_own_devices",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "sync_state_pk",
-      "table": "sync_state",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
       "name": "threads_pk",
       "table": "threads",
       "entityType": "pks"
@@ -841,24 +638,6 @@
       "where": null,
       "origin": "manual",
       "name": "events_thread_sequence_idx",
-      "entityType": "indexes",
-      "table": "events"
-    },
-    {
-      "columns": [
-        {
-          "value": "origin_device_id",
-          "isExpression": false
-        },
-        {
-          "value": "origin_device_seq",
-          "isExpression": false
-        }
-      ],
-      "isUnique": true,
-      "where": null,
-      "origin": "manual",
-      "name": "events_origin_idx",
       "entityType": "indexes",
       "table": "events"
     },
@@ -971,20 +750,6 @@
     {
       "columns": [
         {
-          "value": "device_seq",
-          "isExpression": false
-        }
-      ],
-      "isUnique": true,
-      "where": null,
-      "origin": "manual",
-      "name": "sync_outbox_device_seq_idx",
-      "entityType": "indexes",
-      "table": "sync_outbox"
-    },
-    {
-      "columns": [
-        {
           "value": "updated_at",
           "isExpression": false
         },
@@ -1025,12 +790,6 @@
       "table": "events"
     },
     {
-      "value": "(\"origin_device_id\" IS NULL) = (\"origin_device_seq\" IS NULL)",
-      "name": "events_origin_shape_check",
-      "entityType": "checks",
-      "table": "events"
-    },
-    {
       "value": "(\"status\" = 'resolved') = (\"decision\" IS NOT NULL)",
       "name": "pending_interactions_decision_shape_check",
       "entityType": "checks",
@@ -1041,18 +800,6 @@
       "name": "queued_thread_messages_claim_shape_check",
       "entityType": "checks",
       "table": "queued_thread_messages"
-    },
-    {
-      "value": "\"id\" = 1",
-      "name": "sync_state_singleton_check",
-      "entityType": "checks",
-      "table": "sync_state"
-    },
-    {
-      "value": "(\"skipped_from_seq\" IS NULL) = (\"skipped_by_build\" IS NULL)",
-      "name": "sync_state_skip_marker_shape_check",
-      "entityType": "checks",
-      "table": "sync_state"
     },
     {
       "value": "\"origin_note_id\" IS NULL OR \"origin_doc_path\" IS NOT NULL",

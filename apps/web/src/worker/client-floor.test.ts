@@ -1,6 +1,5 @@
 import { CLIENT_BUILD_HEADER } from "@repo/contract/cloud/client-build";
 import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
-import { SYNC_API_PATHS } from "@repo/contract/cloud/sync/sync-schema";
 import { SYNC_WS_PATH } from "@repo/contract/cloud/sync/sync-ws";
 import { VAULT_GIT_PATH } from "@repo/contract/cloud/vault/vault-git";
 import { SELF } from "cloudflare:test";
@@ -15,7 +14,8 @@ import {
   signUpUser,
 } from "./test-support/cloud-helpers";
 
-const PULL = `${ORIGIN}${SYNC_API_PATHS.pull}?afterSeq=0`;
+// any route a device credential reaches
+const LIST = `${ORIGIN}${DEVICE_API_PATHS.list}`;
 const GIT_REFS = `${ORIGIN}${VAULT_GIT_PATH}/info/refs?service=git-upload-pack`;
 
 // one minor under the floor vitest.config.ts sets, whatever the patch, and one major over it
@@ -40,7 +40,7 @@ describe("the client build floor", () => {
   it("refuses a request that names no build, or one it cannot read, as client-outdated", async () => {
     const { credential } = await signedIn("floor-missing@example.test");
     for (const build of [null, "", "0.7.0", "latest+desktop"]) {
-      const response = await SELF.fetch(PULL, { headers: asBuild(credential, build) });
+      const response = await SELF.fetch(LIST, { headers: asBuild(credential, build) });
       expect(response.status, String(build)).toBe(426);
       expect(await refusalCodeOf(response)).toBe("client-outdated");
     }
@@ -49,11 +49,11 @@ describe("the client build floor", () => {
   it("refuses a build below the floor, and its prerelease, before it judges the credential", async () => {
     const { credential } = await signedIn("floor-below@example.test");
     for (const build of [`${below()}+desktop`, `${env.MIN_CLIENT_BUILD}-beta.1+mobile`]) {
-      const response = await SELF.fetch(PULL, { headers: asBuild(credential, build) });
+      const response = await SELF.fetch(LIST, { headers: asBuild(credential, build) });
       expect(response.status, build).toBe(426);
       expect(await refusalCodeOf(response)).toBe("client-outdated");
     }
-    const anonymous = await SELF.fetch(PULL, {
+    const anonymous = await SELF.fetch(LIST, {
       headers: { [CLIENT_BUILD_HEADER]: `${below()}+desktop` },
     });
     expect(anonymous.status).toBe(426);
@@ -61,9 +61,9 @@ describe("the client build floor", () => {
 
   it("answers a build at or above the floor, whatever platform it names", async () => {
     const { credential } = await signedIn("floor-at@example.test");
-    const at = await SELF.fetch(PULL, { headers: deviceHeaders(credential) });
+    const at = await SELF.fetch(LIST, { headers: deviceHeaders(credential) });
     expect(at.status).toBe(200);
-    const above = await SELF.fetch(PULL, {
+    const above = await SELF.fetch(LIST, {
       headers: asBuild(credential, `${versionAround(1, 0)}+android`),
     });
     expect(above.status).toBe(200);

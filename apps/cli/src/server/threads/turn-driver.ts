@@ -32,8 +32,6 @@ export interface TurnRequest {
   // the named action the message asks for: its block is composed into the prompt, never into
   // the text, and no thread event records it
   preset?: ActionPreset | undefined;
-  // the phone's dispatch the message carries out, stated on its request so the phone finds it
-  dispatchId?: string | undefined;
 }
 
 export interface TurnDriverStartArgs extends TurnRequest {

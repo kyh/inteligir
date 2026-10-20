@@ -1,5 +1,3 @@
-import { clipThreadEventForSync } from "@repo/contract/cloud/sync/fit-sync-event";
-import { EVENT_MAX_BYTES, syncEventInputSchema } from "@repo/contract/cloud/sync/sync-schema";
 import {
   applyTimelineDelta,
   COMMAND_OUTPUT_LINE_CHARS,
@@ -8,11 +6,7 @@ import {
   threadTimelineSchema,
   timelineDeltaSchema,
 } from "@repo/contract/local/thread-timeline";
-import type {
-  ThreadTimeline,
-  TimelineRowStatus,
-  TimelineTurnRow,
-} from "@repo/contract/local/thread-timeline";
+import type { ThreadTimeline, TimelineTurnRow } from "@repo/contract/local/thread-timeline";
 import type { StoredThreadEvent } from "@repo/db/events";
 import type { ThreadEvent } from "@repo/domain/provider-event";
 import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
@@ -562,79 +556,5 @@ describe("a command row", () => {
     const row = commandRow(" \n\n");
     expect(row.outputHead).toEqual([]);
     expect(row.outputLineCount).toBe(0);
-  });
-});
-
-const statusesOf = (timeline: ThreadTimeline): [string, TimelineRowStatus | null][] =>
-  timeline.rows
-    .flatMap((row) => [row, ...(row.kind === "turn" ? row.children : [])])
-    .map((row) => [row.id, row.kind === "turn" || row.kind === "work" ? row.status : null]);
-
-describe("a log clipped for sync", () => {
-  it("fits every row the push contract takes, and folds to the same statuses", () => {
-    const turn = turnScope("turn_big");
-    const output = "compiling…\n".repeat(20_000);
-    const events: ThreadEvent[] = [
-      {
-        scope: threadScope(),
-        text: "build it ".repeat(10_000),
-        threadId: THREAD_ID,
-        type: "client/turn/requested",
-      },
-      { scope: turn, threadId: THREAD_ID, type: "turn/started" },
-      {
-        item: {
-          approvalStatus: null,
-          command: "make",
-          cwd: "/vault",
-          id: "item_c",
-          status: "pending",
-          type: "commandExecution",
-        },
-        scope: turn,
-        threadId: THREAD_ID,
-        type: "item/started",
-      },
-      {
-        item: {
-          aggregatedOutput: output,
-          approvalStatus: null,
-          command: "make",
-          cwd: "/vault",
-          id: "item_c",
-          status: "failed",
-          type: "commandExecution",
-        },
-        scope: turn,
-        threadId: THREAD_ID,
-        type: "item/completed",
-      },
-      {
-        item: {
-          id: "item_t",
-          result: { stdout: output },
-          status: "completed",
-          tool: "Bash",
-          type: "toolCall",
-        },
-        scope: turn,
-        threadId: THREAD_ID,
-        type: "item/completed",
-      },
-      { scope: turn, status: "completed", threadId: THREAD_ID, type: "turn/completed" },
-    ];
-    const clipped = events.map((event) => clipThreadEventForSync(event, EVENT_MAX_BYTES));
-    for (const [index, event] of clipped.entries()) {
-      const pushed = syncEventInputSchema.safeParse({
-        createdAt: 1,
-        deviceSeq: index + 1,
-        event,
-        threadId: THREAD_ID,
-      });
-      expect(pushed.success).toBe(true);
-    }
-    const original = statusesOf(buildThreadTimeline(stored(events)));
-    expect(original.map(([, status]) => status)).toContain("error");
-    expect(statusesOf(buildThreadTimeline(stored(clipped)))).toEqual(original);
   });
 });

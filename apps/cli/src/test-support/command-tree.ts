@@ -104,7 +104,6 @@ export const leafInvocations = (facts: LeafFacts): Map<string, readonly string[]
       "cloud login",
       ["cloud", "login", "--email", "owner@example.test", "--password", facts.password],
     ],
-    ["cloud sync", ["cloud", "sync"]],
     ["status", ["status"]],
     ["open", ["open"]],
     ["guide", ["guide"]],

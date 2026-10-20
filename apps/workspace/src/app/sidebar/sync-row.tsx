@@ -71,8 +71,8 @@ const accountNote = (
   cloud?.state === "outdated" && vault?.state !== "outdated" ? UPDATE_TO_SYNC : null;
 
 // The rail's ambient row: the vault's sync state as the row, and behind it the verbs that change
-// it — a sync now, and the account this device does or does not have. Actions sync on their own,
-// so the row offers no second sync for them.
+// it — a sync now, and the account this device does or does not have. Actions stay on this Mac,
+// so the library is the one thing the row syncs.
 export const SyncRow = ({
   onSyncNow,
   onOpenSyncDetails,

@@ -1,12 +1,11 @@
 import { setImmediate as tick } from "node:timers/promises";
 import { utf8ByteLength } from "@repo/contract/cloud/bytes";
-import { EVENT_MAX_BYTES } from "@repo/contract/cloud/sync/sync-schema";
 import type { ThreadEvent, ThreadEventItem } from "@repo/domain/provider-event";
 import { isThreadEventDelta } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
 import type { TurnScope } from "@repo/domain/thread-event-scope";
 import { describe, expect, it, vi } from "vitest";
-import { ProviderEventCoalescer } from "./event-coalescer";
+import { MERGED_ROW_MAX_BYTES, ProviderEventCoalescer } from "./event-coalescer";
 import { buildThreadTimeline } from "../threads/build-thread-timeline";
 
 const scope = turnScope("turn_1");
@@ -86,7 +85,7 @@ describe("ProviderEventCoalescer", () => {
     expect(ingest).toHaveBeenLastCalledWith("thr_2", [two]);
   });
 
-  it("splits a run before a merged row would outgrow what the outbox can sync whole", async () => {
+  it("splits a run before a merged row would outgrow its bound", async () => {
     const { coalescer, ingested } = collect();
     const chunks = Array.from({ length: 100 }, (_, n) => ({
       ...delta("thr_1", n),
@@ -99,7 +98,7 @@ describe("ProviderEventCoalescer", () => {
     expect(ingested.length).toBeGreaterThan(1);
     expect(ingested.length).toBeLessThan(10);
     for (const event of ingested) {
-      expect(utf8ByteLength(JSON.stringify(event))).toBeLessThanOrEqual(EVENT_MAX_BYTES);
+      expect(utf8ByteLength(JSON.stringify(event))).toBeLessThanOrEqual(MERGED_ROW_MAX_BYTES);
     }
     expect(deltaText(ingested)).toBe(deltaText(chunks));
   });

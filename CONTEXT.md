@@ -227,34 +227,24 @@ a view context into a thread with no origin. Neither is a **context path**: a
 note the user @-mentioned, which rides beside the message's text and, being part
 of what was asked rather than a statement about the screen, survives the queue.
 
-**dispatch** — a CLOUD word first: a row in the account's dispatch inbox
-(`@repo/contract/cloud/dispatch/dispatch-schema`), the one way a phone asks a
-Mac's agent anything: a turn any Mac may claim, or the answer to an **approval**
-a Mac opened for a phone-started turn, which only that Mac may claim. A dispatch
-is not a thread event: once a Mac takes a turn in, the thread's request row
-carries the dispatch id (while the thread is busy, the queued message carries it
-until it becomes that row), and the log is the record from then on. Locally the
-word also names a runtime handing a turn to its provider
-(`apps/cli/src/server/agents/runtime-manager.ts`); the two never meet.
+**dispatch** — a runtime handing a turn to its provider
+(`apps/cli/src/server/agents/runtime-manager.ts`). Never a cloud word: the
+phone asks no Mac anything, and the account carries no thread.
 
-## "event" means four things
+## "event" means three things
 
-Four different layers all say "event", and only the first is durable product
+Three different layers all say "event", and only the first is durable product
 state.
 
 - **thread event** — the PERSISTED log entry (`@repo/domain/provider-event`,
   despite the file's name), one row in the `events` table, sequenced per thread.
-  This is what a client replays and what syncs.
+  This is what a client replays; it never leaves the Mac that recorded it.
 - **provider event** — the runtime's EMITTED grammar
   (`@repo/agent-runtime/vocabulary/provider-event`). The two grammars are
   near-twins with the same file name and are not the same set: the runtime
   constructs its events and never parses them, and
   `apps/cli/src/server/agents/runtime-manager.ts` is the one place that narrows
   onto the persisted grammar.
-- **sync event** — the cloud's unit of transfer
-  (`@repo/contract/cloud/sync/sync-schema`), which the Worker merges, dedupes
-  and orders WITHOUT reading. A sync event carries a thread event; it is not
-  one.
 - **filesystem event** — what the vault watcher reports
   (`apps/cli/src/server/vault/watcher`). Not `fileChange`, a thread event ITEM
   type: the agent's own report of what it wrote, which an agent commit stages.
@@ -322,10 +312,9 @@ VAULT's pass against where it syncs
 (`apps/workspace/src/app/vault-hooks.ts`). "Only on this Mac" is a library with
 nowhere to sync, and, in Info, a file over 10 MB the engine keeps out of
 history; "Synced by iCloud Drive" is a folder another service syncs, which the
-app leaves to it; "Sync paused" is any state only the engine can explain. Not
-the THREAD sync: actions reach other devices through the account's merged log
-on their own (`apps/cli/src/server/cloud/sync-pass.ts`), with no button, and
-never ride the vault's remote.
+app leaves to it; "Sync paused" is any state only the engine can explain.
+Actions do not sync: a thread stays on the Mac that ran it, and only the edits
+its turns made reach other devices, as the library's own versions.
 
 **History** — the panel tab listing an item's versions: the vault's own git log
 for that path (`apps/cli/src/server/vault/git-history.ts`), each version named
@@ -364,7 +353,7 @@ Claude**), which holds no inteligir account.
 **Advanced** — Settings › Advanced
 (`apps/workspace/src/app/settings/advanced-section.tsx`), the one product
 surface that keeps the engine's words: where the vault syncs, the raw sync state
-and git's last error, the thread sync's, this device's id, the data folder and
+and git's last error, this device's id, the data folder and
 the debug-logging switch. Every other surface points here ("Sync details…")
 rather than quoting it.
 

@@ -131,7 +131,7 @@ and cited.
 
 - **DIAGNOSTICS ARE `INTELIGIR_DEBUG`'S NAMED TRACES, SHIPPED IN EVERY BUILD,
   AND IN THE PACKAGED APP A SWITCH AND A FILE, BOTH THE SHELL'S.** The watcher,
-  the index, the sync pass and the ACP adapter drop, skip and fence without a
+  the index, the sign-in check and the ACP adapter drop, skip and fence without a
   trace, and a user's "it didn't update" cannot wait for a build. An off
   namespace's log is `undefined`, so an untraced site costs one read. A line
   names paths, ids and protocol words, never a note's content or a credential,

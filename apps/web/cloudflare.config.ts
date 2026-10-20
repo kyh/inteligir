@@ -19,7 +19,13 @@ const worker = defineWorker({
     traces: { enabled: true, headSamplingRate: 0.01 },
   },
   exports: {
-    ThreadSyncDO: exports.durableObject({ storage: "sqlite" }),
+    // retired with the thread log and the phone's requests to a Mac, which every object of it held:
+    // the deploy deletes the namespace and all its data. the class is no longer exported, as a
+    // deleted namespace requires; the entry stays until every deployment of this worker has
+    // applied it
+    ThreadSyncDO: exports.durableObject({ state: "deleted" }),
+    // the account's live sockets: a vault push pings them, a revoke closes one device's
+    AccountSocketDO: exports.durableObject({ storage: "sqlite" }),
     RepoCell: exports.durableObject({ storage: "sqlite" }),
     Registry: exports.durableObject({ storage: "sqlite" }),
   },
@@ -28,16 +34,15 @@ const worker = defineWorker({
 // the oldest build /v1 answers (src/worker/client-floor.ts). 0.6.0 sends no build header, which the
 // floor refuses on its own, so this admits exactly the builds that send one, a checkout's included
 // until its release raises the version; raise it to retire a wire shape every older build reads.
-// OWED BY THE NEXT RELEASE, which sets it to its own version (docs/releasing.md § 1): the `capture`
-// dispatch kind is retired, and every checkout that reports 0.6.0 names it in each claim, which
-// this Worker refuses as a bad request rather than as outdated; the `client/turn/requested`
-// event's view context gains the library surface, which an older build skips as an unparsed row;
-// and the vault's media table gains PDF, video and audio rows, whose commits an older build
-// cannot serve
+// OWED BY THE NEXT RELEASE, which sets it to its own version (docs/releasing.md § 1): the thread
+// log, the dispatch inbox and their socket frames are retired, so a build that reports 0.6.0
+// pushes, pulls and claims against routes this Worker no longer answers, reads each as not-found
+// rather than as outdated, and keeps retrying them; and the vault's media table gains PDF, video
+// and audio rows, whose commits an older build cannot serve
 const MIN_CLIENT_BUILD = "0.6.0";
 
 const durableObjects = {
-  THREAD_SYNC: bindings.durableObject({ worker, exportName: "ThreadSyncDO" }),
+  ACCOUNT_SOCKET: bindings.durableObject({ worker, exportName: "AccountSocketDO" }),
   // REPO and REGISTRY are durable-git's own classes, re-exported through the entry
   REPO: bindings.durableObject({ worker, exportName: "RepoCell" }),
   REGISTRY: bindings.durableObject({ worker, exportName: "Registry" }),

@@ -9,7 +9,7 @@ import type { BootedTestApp } from "../test-support/boot-app";
 
 const PLANS = "notes/plans.md";
 
-// a row as a phone's request over a note with no id leaves it: the path it was asked over, no id
+// a row as a create over a note that could take no id leaves it: the path it was asked over, no id
 const pathOnlyThread = (app: BootedTestApp, notePath: string): string =>
   createThread(app.db, noopNotifier, { origin: { noteId: null, path: notePath } }).id;
 

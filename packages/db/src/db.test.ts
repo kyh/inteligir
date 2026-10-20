@@ -24,7 +24,7 @@ const latestGeneration = (): number => {
 const LATEST = latestGeneration();
 
 // the baseline every build before the library's applied, which no build carries now
-const RETIRED_BASELINE = "20261010170606_baseline";
+const RETIRED_BASELINE = "20261017051242_baseline";
 
 // un-migrated, unlike the shared fixture: the migrator is what these suites test.
 const openTempDb = (): DbConnection =>
@@ -158,9 +158,7 @@ describe("the paired columns", () => {
   const halves = [
     ["a session without its harness", "UPDATE threads SET provider_thread_id = 'p'"],
     ["a note id without its path", "UPDATE threads SET origin_note_id = 'n'"],
-    ["a synced device without its position", "UPDATE events SET origin_device_id = 'dev'"],
     ["a claim time without its token", "UPDATE queued_thread_messages SET claimed_at = 1"],
-    ["a skipped row without its build", "UPDATE sync_state SET skipped_from_seq = 4"],
     [
       "an answered approval without its decision",
       "UPDATE pending_interactions SET status = 'resolved'",

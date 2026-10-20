@@ -14,7 +14,6 @@ import { createCloudSocketOpener } from "./sync/cloud-socket";
 const BUILD: ClientBuild = { platform: "mobile", version: "0.7.0" };
 const SENT = "0.7.0+mobile";
 const COMMIT = "a".repeat(40);
-const ID = "d".repeat(32);
 
 const release = (text: string): BuildVersion => {
   const parsed = parseReleaseVersion(text);
@@ -82,34 +81,8 @@ const recorder = () => {
 describe("every request an install sends names its build", () => {
   // keyed by the client's own methods, so a call it grows fails to compile until it is listed here
   const CALLS: Record<keyof CloudClient, (client: CloudClient) => Promise<{ ok: boolean }>> = {
-    ackDispatches: async (client) =>
-      await client.ackDispatches({
-        claimToken: "tok",
-        results: [{ id: ID, outcome: "delivered" }],
-      }),
-    cancelDispatch: async (client) => await client.cancelDispatch(ID),
-    claimDispatches: async (client) => await client.claimDispatches({ kinds: ["turn"], limit: 5 }),
-    closeApproval: async (client) => await client.closeApproval(ID),
-    createDispatch: async (client) =>
-      await client.createDispatch({ approvalId: ID, decision: "deny", id: ID, kind: "answer" }),
     deleteAccount: async (client) => await client.deleteAccount("a password"),
-    dispatchStatus: async (client) => await client.dispatchStatus([ID]),
-    listApprovals: async (client) => await client.listApprovals(),
     listDevices: async (client) => await client.listDevices(),
-    openApproval: async (client) =>
-      await client.openApproval({
-        id: ID,
-        payload: {
-          availableDecisions: ["allow_once", "deny"],
-          kind: "approval",
-          reason: null,
-          subject: { command: "make notes", cwd: null, itemId: "item_1", kind: "command" },
-        },
-        threadId: "thr_1",
-        turnId: "turn_1",
-      }),
-    pull: async (client) => await client.pull({ afterSeq: 0, limit: 10 }),
-    push: async (client) => await client.push({ events: [] }),
     revokeDevice: async (client) => await client.revokeDevice("dev_2"),
     signOut: async (client) => await client.signOut(),
     vaultAsset: async (client) => await client.vaultAsset({ path: "media/a.png", ref: COMMIT }),
@@ -158,7 +131,6 @@ describe("every request an install sends names its build", () => {
       baseUrl: "https://cloud.test",
       build: BUILD,
       credential: "igd_test",
-      listener: { platform: "mobile" },
       onClose: () => {},
       onOpen: () => {},
       onPing: () => {},

@@ -1,7 +1,7 @@
 import { setTimeout as delay } from "node:timers/promises";
 import { THREADS_LIST_DEFAULT_LIMIT } from "@repo/contract/local/threads/threads-schema";
 import type { CreateThreadRequest } from "@repo/contract/local/threads/threads-schema";
-import { threadScope, turnScope } from "@repo/domain/thread-event-scope";
+import { setThreadProviderSession } from "@repo/db/threads";
 import type { AgentStatus } from "@repo/contract/local/system/system-schema";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { bootThreadHarness, fakeAgentAccounts } from "../server/test-support/boot-app";
@@ -111,32 +111,6 @@ describe("the Stop button on an action", () => {
     await screen.findByText("Rewrite the intro");
     expect(screen.queryByRole("button", { name: "Stop action" })).toBeNull();
   });
-
-  it("is not offered on a turn another device runs, which says so instead", async () => {
-    const harness = await bootThreadHarness({ mode: "manual" });
-    vi.stubGlobal("WebSocket", InertSocket);
-    routePageFetch(harness);
-    const threadId = "thr_remote";
-    harness.composed.context.threads.applySyncedEvents({
-      cursor: 1,
-      rows: [
-        {
-          event: { scope: threadScope(), threadId, title: "Elsewhere", type: "thread/meta" },
-          origin: { deviceId: "dev_other", deviceSeq: 1 },
-        },
-        {
-          event: { scope: turnScope("turn_remote"), threadId, type: "turn/started" },
-          origin: { deviceId: "dev_other", deviceSeq: 2 },
-        },
-      ],
-      threadId,
-    });
-    mountAction(threadId);
-
-    expect(await screen.findByText("Running on another device")).toBeDefined();
-    expect(screen.queryByRole("button", { name: "Stop action" })).toBeNull();
-    expect(harness.driver.interruptedThreads).toEqual([]);
-  });
 });
 
 describe("the action list", () => {
@@ -195,58 +169,25 @@ const bootSignedOut = async (harness: "claude" | "codex"): Promise<ThreadHarness
   return booted;
 };
 
-// a thread whose rows name the harness it runs on; `turn` leaves a turn another device runs.
-const syncCodexThread = (booted: ThreadHarness, threadId: string, turn: boolean): void => {
-  const { threads } = booted.composed.context;
-  threads.applySyncedEvents({
-    cursor: 1,
-    rows: [
-      {
-        event: {
-          providerId: "codex",
-          scope: threadScope(),
-          threadId,
-          title: "Drafted on ChatGPT",
-          type: "thread/meta",
-        },
-        origin: { deviceId: "dev_other", deviceSeq: 1 },
-      },
-    ],
-    threadId,
+// a thread whose session was opened on ChatGPT, as a turn that ran on it leaves the row
+const codexThread = async (booted: ThreadHarness): Promise<string> => {
+  const { thread } = await booted.client.threads.create({ title: "Drafted on ChatGPT" });
+  setThreadProviderSession(booted.db, {
+    providerId: "codex",
+    providerThreadId: "codex_session_1",
+    threadId: thread.id,
   });
-  if (turn) {
-    threads.applySyncedEvents({
-      cursor: 2,
-      rows: [
-        {
-          event: { scope: turnScope("turn_remote"), threadId, type: "turn/started" },
-          origin: { deviceId: "dev_other", deviceSeq: 2 },
-        },
-      ],
-      threadId,
-    });
-  }
+  return thread.id;
 };
 
 describe("an agent the panel needs signed in", () => {
   it("says above the reply that the thread's agent is signed out, with its sign-in", async () => {
     const booted = await bootSignedOut("codex");
-    syncCodexThread(booted, "thr_codex", false);
-    mountAction("thr_codex");
+    mountAction(await codexThread(booted));
 
     expect(await screen.findByText("ChatGPT is signed out on this Mac.")).toBeDefined();
     expect(screen.getByRole("button", { name: "Sign in with ChatGPT" })).toBeDefined();
     expect(screen.getByLabelText("Reply to the agent")).toBeDefined();
-  });
-
-  it("says nothing of a thread another device runs", async () => {
-    const booted = await bootSignedOut("codex");
-    syncCodexThread(booted, "thr_elsewhere", true);
-    mountAction("thr_elsewhere");
-
-    expect(await screen.findByText("Running on another device")).toBeDefined();
-    expect(screen.queryByText("ChatGPT is signed out on this Mac.")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Sign in with ChatGPT" })).toBeNull();
   });
 
   it("offers the sign-in in an empty list while the default agent is signed out", async () => {

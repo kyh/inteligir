@@ -11,7 +11,7 @@ export const DEFAULT_STEP_TIMEOUT_MS = 5000;
 // listed in teardown order, which addTeardownStep enforces and the per-step comments explain.
 export const TEARDOWN_BUDGETS_MS = {
   listener: DEFAULT_STEP_TIMEOUT_MS,
-  // cloud sync writes the db and the vault, so it stops above both.
+  // the account socket starts vault syncs, so it stops above the vault.
   cloud: DEFAULT_STEP_TIMEOUT_MS,
   // a running sign-in's adapter is ended, then every session's at once, each given its own
   // shutdown before the kill (`terminateAdapter` in @repo/agent-runtime/acp/acp-runtime).

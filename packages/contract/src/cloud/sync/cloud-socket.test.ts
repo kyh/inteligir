@@ -7,7 +7,7 @@ import {
   SYNC_WS_KEEPALIVE_PONG,
   SYNC_WS_REVOKED_CLOSE_CODE,
 } from "./sync-ws";
-import type { SocketListener, SyncPing } from "./sync-ws";
+import type { SyncPing } from "./sync-ws";
 import { TEST_BUILD } from "../test-support/fake-cloud-client";
 
 const TEN_MINUTES_MS = 10 * 60_000;
@@ -65,9 +65,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const TAKES_PHONE_REQUESTS: SocketListener = { phoneRequests: true, platform: "desktop" };
-
-const dial = (listener: SocketListener = TAKES_PHONE_REQUESTS) => {
+const dial = () => {
   vi.useFakeTimers();
   const dialled: StubSocket[] = [];
   const closes: number[] = [];
@@ -81,7 +79,6 @@ const dial = (listener: SocketListener = TAKES_PHONE_REQUESTS) => {
     baseUrl: "https://cloud.test",
     build: TEST_BUILD,
     credential: "igd_test",
-    listener,
     onClose: (code) => {
       closes.push(code);
     },
@@ -110,28 +107,14 @@ const answerPings = (socket: StubSocket, forMs: number): void => {
 };
 
 describe("the cloud socket's dial", () => {
-  it("carries the bearer and the build as headers and says what listens on the upgrade", () => {
+  it("carries the bearer and the build as headers, and nothing in the url beside the path", () => {
     const { socket } = dial();
-    const url = new URL(socket.url);
 
-    expect(`${url.protocol}//${url.host}${url.pathname}`).toBe("wss://cloud.test/v1/sync/ws");
-    expect(url.searchParams.get("platform")).toBe("desktop");
-    expect(url.searchParams.get("phoneRequests")).toBe("on");
+    expect(socket.url).toBe("wss://cloud.test/v1/sync/ws");
     expect(socket.headers).toEqual({
       authorization: "Bearer igd_test",
       ...clientBuildHeaders(TEST_BUILD),
     });
-  });
-
-  it("says nothing of phone requests for a Mac that takes none, or for the phone", () => {
-    for (const listener of [
-      { phoneRequests: false, platform: "desktop" },
-      { platform: "mobile" },
-    ] satisfies SocketListener[]) {
-      const url = new URL(dial(listener).socket.url);
-      expect(url.searchParams.get("platform")).toBe(listener.platform);
-      expect(url.searchParams.has("phoneRequests")).toBe(false);
-    }
   });
 
   it("hands on a ping frame, and drops the pong and anything it cannot read", () => {
@@ -140,9 +123,9 @@ describe("the cloud socket's dial", () => {
     socket.receive(SYNC_WS_KEEPALIVE_PONG);
     socket.receive(JSON.stringify({ type: "future" }));
     socket.receive(new Uint8Array([1]));
-    socket.receive(JSON.stringify({ seq: 4, type: "sync" }));
+    socket.receive(JSON.stringify({ type: "vault" }));
 
-    expect(pings).toEqual([{ seq: 4, type: "sync" }]);
+    expect(pings).toEqual([{ type: "vault" }]);
   });
 });
 

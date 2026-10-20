@@ -639,9 +639,6 @@ importers:
       '@repo/contract':
         specifier: workspace:*
         version: link:../../packages/contract
-      '@repo/domain':
-        specifier: workspace:*
-        version: link:../../packages/domain
       '@repo/mobile-editor':
         specifier: workspace:*
         version: link:../mobile-editor

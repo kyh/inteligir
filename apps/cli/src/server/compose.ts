@@ -13,7 +13,6 @@ import type { AgentAccounts } from "./agents/agent-sign-in";
 import { createAgentsService } from "./agents/agents-service";
 import { createBrowserSession } from "./browser-session";
 import { createAnnotationsService } from "./annotations/annotations-service";
-import { CloudPrefsStore } from "./cloud/cloud-prefs-store";
 import { createCloudRuntime } from "./cloud/sync-runtime";
 import type { CloudRuntime, CloudRuntimeArgs, CloudTransport } from "./cloud/sync-runtime";
 import { createVaultRemoteProvider } from "./cloud/vault-remote";
@@ -252,13 +251,10 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     store: agentPrefs,
   });
 
-  // before the thread service, which takes the outbox hook at construction; attach() closes the other direction.
-  const cloudPrefs = new CloudPrefsStore(config.dataDir);
   const cloudArgs: CloudRuntimeArgs = {
     build: args.version,
     cloudUrl: config.cloudUrl,
     dataDir: config.dataDir,
-    db,
     debugLog: debugLog(config.debug, "sync"),
     machineName,
     // the rail's one sync row reads the vault's git sync and this runtime together, so both ride one kind.
@@ -269,7 +265,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     onVaultPing: () => {
       void vault.git.syncNow();
     },
-    phoneRequests: () => cloudPrefs.phoneRequests(),
   };
   if (args.cloudTransport !== undefined) {
     cloudArgs.transport = args.cloudTransport;
@@ -279,19 +274,10 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   addTeardownStep(teardown, "cloud", async () => {
     await cloud.dispose();
   });
-  // an approval is raised by the agent runtime and settled by the thread service or its turn's
-  // end; the bus hears every one of them, so a phone-started turn's reaches the phone whoever wrote
-  // it. a disposed runtime schedules nothing, so the listener outlives it harmlessly.
-  bus.onThreadChange((_threadId, changes) => {
-    if (changes.includes("interactions-changed")) {
-      cloud.approvalsChanged();
-    }
-  });
   const threads = new ThreadService({
     db,
     notifier: bus,
     origins: createThreadOrigins(vault.service, knowledge),
-    sync: cloud,
   });
   const { driver: turnDriver, status: agentStatus } = args.driver({
     agentPrefs,
@@ -310,7 +296,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
   });
   // crash recovery writes (settles turns, frees claims, enqueues), so it runs in boot order, not in the constructor.
   threads.boot();
-  cloud.attach(threads);
   // off the critical path and guarded: it reads, and may write, a note per path-bound thread, and a
   // failure costs only the bindings it did not reach, which the next boot retries.
   void (async () => {
@@ -336,7 +321,6 @@ export const composeRuntime = async (args: ComposeRuntimeArgs): Promise<Composed
     annotations,
     browserSession: createBrowserSession(),
     cloud,
-    cloudPrefs,
     connectors,
     downscale,
     folders,

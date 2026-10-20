@@ -19,7 +19,7 @@ export type DocViewContext = z.infer<typeof docViewContextSchema>;
 export const LIBRARY_SELECTION_MAX = 200;
 
 // the library grid: its scope, its filters and its selection. the thread event records it with
-// `paths: []`, since the event rides the thread sync under a size cap and only the prompt reads
+// `paths: []`: the thread's attribution reads the screen and the count, and only the prompt reads
 // the paths.
 export const libraryViewContextSchema = z.object({
   // refined to item kinds at the wire

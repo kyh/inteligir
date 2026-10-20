@@ -59,8 +59,7 @@ makes can be undone.
 ## An account is optional
 
 Without one, ${name} is a library on your Mac that makes no cloud request. With one, your library
-and your conversations with the agent sync between your Macs and your iPhone, and your online
-library is free up to about 1 GB.
+syncs between your Macs and your iPhone, and your online library is free up to about 1 GB.
 
 ${name} runs on Macs with Apple silicon and is shared with a small invited group for now.
 
@@ -89,8 +88,8 @@ researchers, analysts, operators), not for developers.
   through its own servers.
 - **History by default.** Every change, yours or the agent's, is recorded, so you can see what
   changed and take any of it back.
-- **Sync when you want it.** An optional account syncs your library and your conversations with
-  the agent across your Macs and your iPhone. Your online library is free up to about 1 GB.
+- **Sync when you want it.** An optional account syncs your library across your Macs and your
+  iPhone. Your online library is free up to about 1 GB.
 
 ## Who makes it
 

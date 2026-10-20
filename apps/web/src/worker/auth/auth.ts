@@ -12,7 +12,7 @@ import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
 import { purgeDeviceRows } from "../device/login";
 import { AUTH_RATE_WINDOW_SECONDS, CALLER_IP_HEADER } from "../rate-limit";
-import { purgeThreadSync } from "../sync/thread-sync-stub";
+import { closeAccountSockets } from "../sync/account-socket-stub";
 import { sendResetEmail } from "./reset-email";
 
 // Built per request: D1 is a runtime binding, not a module singleton. No baseURL config —
@@ -97,12 +97,12 @@ const buildAuth = (env: Env, baseURL: string, disableSignUp: boolean) =>
       deleteUser: {
         // beforeDelete, not afterDelete: a failure aborts the deletion and the account survives to
         // retry. Credentials first: while a device row lives its credential verifies, and a request
-        // landing after the purge would rebuild the object; the object's tombstone then refuses the
-        // request that verified before step 1 committed.
+        // landing after the purge would rebuild what it removed; one that verified before step 1
+        // committed can leave only an orphan no credential reaches (../vault/vault-repo.ts).
         beforeDelete: async (user) => {
           await purgeDeviceRows(createDb(env.DB), user.id);
           await deleteVaultGitRepo(env, user.id);
-          await purgeThreadSync(env, user.id);
+          await closeAccountSockets(env, user.id);
           await forgetInviteRedeemer(env, user.email);
         },
         enabled: true,

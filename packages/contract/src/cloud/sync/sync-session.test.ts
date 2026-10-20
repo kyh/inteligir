@@ -1,26 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { CloudFailure, CloudResult } from "../cloud-client";
-import type { LogPlanStep } from "./plan-page";
-import type { PullResponse, SyncEventRow } from "./sync-schema";
-import {
-  createSingleFlight,
-  createSyncSession,
-  MAX_PULL_PAGES_PER_PASS,
-  pullPages,
-} from "./sync-session";
-import type { PullPagesArgs, SyncOutcome } from "./sync-session";
-import { fakeCloudClient, ok, unreachable } from "../test-support/fake-cloud-client";
+import type { ListDevicesResponse } from "../device/device-schema";
+import { checkSignIn, createSingleFlight, createSyncSession } from "./sync-session";
+import type { SyncOutcome } from "./sync-session";
+import { fakeCloudClient, ok } from "../test-support/fake-cloud-client";
 
 const UNAUTHORIZED: CloudFailure = {
   code: "unauthorized",
-  deviceSeq: null,
   kind: "refused",
   message: "credential revoked",
 };
 
 const RATE_LIMITED: CloudFailure = {
   code: "rate-limited",
-  deviceSeq: null,
   kind: "refused",
   message: "slow down",
 };
@@ -112,227 +104,54 @@ describe("recordFailure", () => {
   });
 });
 
-const row = (seq: number, deviceId: string): SyncEventRow => ({
-  createdAt: 0,
-  deviceId,
-  deviceSeq: seq,
-  // not a ThreadEvent: planPage answers a cursor-only skip step, all this loop needs
-  event: { opaque: true },
-  seq,
-  threadId: "thr_1",
-});
-
-interface PageLoop {
-  applied: LogPlanStep[][];
-  skipped: string[];
-  pages: number[];
-  cursor: number;
+// the listing's answer, released by the test once the session it was asked under has ended
+interface HeldAnswer {
+  answer: ((result: CloudResult<ListDevicesResponse>) => void) | null;
 }
 
-const pageLoop = (args: {
-  results: CloudResult<PullResponse>[];
-  fenced?: () => boolean;
-  recordFailure?: (failure: CloudFailure) => "continue" | "ended";
-}) => {
-  const loop: PageLoop = { applied: [], cursor: 0, pages: [], skipped: [] };
-  const pullArgs: PullPagesArgs = {
-    applyPlan: (steps) => {
-      loop.applied.push([...steps]);
-      for (const step of steps) {
-        if (step.kind === "skip") {
-          loop.cursor = step.cursor;
-        }
-      }
-    },
-    client: {
-      pull: async (query) => {
-        loop.pages.push(query.afterSeq);
-        return args.results.shift() ?? ok({ events: [], hasMore: false, lastSeq: loop.cursor });
-      },
-    },
-    fenced: args.fenced ?? (() => true),
-    onSkipped: (message) => {
-      loop.skipped.push(message);
-    },
-    ownDeviceIds: new Set(["dev_self"]),
-    readCursor: () => loop.cursor,
-    recordFailure: args.recordFailure ?? (() => "continue"),
-  };
-  const run = async () => await pullPages(pullArgs);
-  return { loop, run };
-};
+const answering = (answer: () => Promise<CloudResult<ListDevicesResponse>>) =>
+  createSyncSession<{ deviceId: string }>({
+    makeClient: () => fakeCloudClient({ listDevices: answer }),
+  });
 
-describe("pullPages", () => {
-  it("walks hasMore pages from the moving cursor and applies each plan", async () => {
-    const { loop, run } = pageLoop({
-      results: [
-        ok({ events: [row(1, "dev_other")], hasMore: true, lastSeq: 1 }),
-        ok({ events: [row(2, "dev_other")], hasMore: false, lastSeq: 2 }),
-      ],
+describe("checkSignIn", () => {
+  it("asks nothing with no live session", async () => {
+    let asked = 0;
+    const session = answering(async () => {
+      asked += 1;
+      return await Promise.resolve(ok({ devices: [] }));
     });
-    expect(await run()).toBe("caught-up");
-    expect(loop.pages).toEqual([0, 1]);
-    expect(loop.applied).toHaveLength(2);
-    expect(loop.cursor).toBe(2);
-    expect(loop.skipped).toHaveLength(2);
+    expect(await checkSignIn(session)).toEqual({ kind: "fenced" });
+    expect(asked).toBe(0);
   });
 
-  it("stops at the page bound and says more is left — the next pass follows at once", async () => {
-    const endless = ok({ events: [row(1, "dev_other")], hasMore: true, lastSeq: 1 });
-    const { loop, run } = pageLoop({
-      results: Array.from({ length: MAX_PULL_PAGES_PER_PASS + 5 }, () => endless),
+  it("reads an answer as live and a refusal as the failure the caller records", async () => {
+    const live = answering(async () => await Promise.resolve(ok({ devices: [] })));
+    live.open({ deviceId: "dev_1" });
+    expect(await checkSignIn(live)).toEqual({ kind: "live" });
+
+    const refused = answering(
+      async () => await Promise.resolve({ failure: UNAUTHORIZED, ok: false }),
+    );
+    refused.open({ deviceId: "dev_1" });
+    expect(await checkSignIn(refused)).toEqual({ failure: UNAUTHORIZED, kind: "failed" });
+    expect(refused.current().kind).toBe("live");
+  });
+
+  it("THE FENCE: an answer that lands after its session ended speaks for nothing", async () => {
+    const held: HeldAnswer = { answer: null };
+    // oxlint-disable-next-line promise/avoid-new -- the answer is released by the test, after the session changed
+    const answered = new Promise<CloudResult<ListDevicesResponse>>((resolve) => {
+      held.answer = resolve;
     });
-    expect(await run()).toBe("more");
-    expect(loop.pages).toHaveLength(MAX_PULL_PAGES_PER_PASS);
-  });
-
-  it("reads an empty page as caught up whatever it claims, since asking again asks the same", async () => {
-    const { loop, run } = pageLoop({
-      results: [ok({ events: [], hasMore: true, lastSeq: 9 })],
-    });
-    expect(await run()).toBe("caught-up");
-    expect(loop.pages).toEqual([0]);
-  });
-
-  it("says failed on a retryable refusal and fenced once the session has ended", async () => {
-    const failed: CloudResult<PullResponse> = { failure: RATE_LIMITED, ok: false };
-    const continuing = pageLoop({ recordFailure: () => "continue", results: [failed] });
-    expect(await continuing.run()).toBe("failed");
-    const ending = pageLoop({ recordFailure: () => "ended", results: [failed] });
-    expect(await ending.run()).toBe("fenced");
-    expect(ending.loop.applied).toEqual([]);
-  });
-
-  it("waits out an apply that answers a promise before it reads the cursor again", async () => {
-    const applied = { cursor: 0 };
-    const asked: number[] = [];
-    const pages = [
-      ok({ events: [row(1, "dev_other")], hasMore: true, lastSeq: 2 }),
-      ok({ events: [row(2, "dev_other")], hasMore: false, lastSeq: 2 }),
-    ];
-    const outcome = await pullPages({
-      applyPlan: async (steps) => {
-        await Promise.resolve();
-        for (const step of steps) {
-          if (step.kind === "skip") {
-            applied.cursor = step.cursor;
-          }
-        }
-      },
-      client: {
-        pull: async (query) => {
-          asked.push(query.afterSeq);
-          return pages.shift() ?? (await unreachable());
-        },
-      },
-      fenced: () => true,
-      ownDeviceIds: new Set(["dev_self"]),
-      readCursor: () => applied.cursor,
-      recordFailure: () => "continue",
-    });
-    expect(outcome).toBe("caught-up");
-    expect(asked).toEqual([0, 1]);
-  });
-
-  it("stops when its session ends while an apply is in flight, and reports no page", async () => {
-    let live = true;
-    const reported: number[] = [];
-    const outcome = await pullPages({
-      applyPlan: async () => {
-        await Promise.resolve();
-        live = false;
-      },
-      client: {
-        pull: async () => ok({ events: [row(1, "dev_other")], hasMore: true, lastSeq: 2 }),
-      },
-      fenced: () => live,
-      onPage: () => {
-        reported.push(1);
-      },
-      ownDeviceIds: new Set(["dev_self"]),
-      readCursor: () => 0,
-      recordFailure: () => "continue",
-    });
-    expect(outcome).toBe("fenced");
-    expect(reported).toEqual([]);
-  });
-
-  it("THE FENCE: a page that lands after its session ended applies nothing", async () => {
-    const { session } = harness();
+    const session = answering(async () => await answered);
     session.open({ deviceId: "dev_1" });
-    const live = session.current();
-    if (live.kind !== "live") {
-      throw new Error("expected live");
-    }
-    const sessionId = live.id;
-
-    let release: (result: CloudResult<PullResponse>) => void = noop;
-    // oxlint-disable-next-line promise/avoid-new -- released later from outside; no async equivalent.
-    const held = new Promise<CloudResult<PullResponse>>((resolve) => {
-      release = resolve;
-    });
-    const applied: LogPlanStep[][] = [];
-    const pass = pullPages({
-      applyPlan: (steps) => {
-        applied.push([...steps]);
-      },
-      client: { pull: async () => await held },
-      fenced: () => session.fenced(sessionId),
-      ownDeviceIds: new Set(["dev_1"]),
-      readCursor: () => 0,
-      recordFailure: session.recordFailure,
-    });
-
+    const checking = checkSignIn(session);
     session.open({ deviceId: "dev_2" });
-    release(ok({ events: [row(1, "dev_other")], hasMore: false, lastSeq: 1 }));
+    held.answer?.({ failure: UNAUTHORIZED, ok: false });
 
-    expect(await pass).toBe("fenced");
-    expect(applied).toEqual([]);
-  });
-
-  it("traces each page and a fence refusal by counts and ids, never by a row's event", async () => {
-    const lines: string[] = [];
-    const debugLog = (line: string): void => {
-      lines.push(line);
-    };
-    const session = createSyncSession<{ deviceId: string }>({
-      debugLog,
-      makeClient: () => fakeCloudClient(),
-    });
-    session.open({ deviceId: "dev_1" });
-    const live = session.current();
-    if (live.kind !== "live") {
-      throw new Error("expected live");
-    }
-    const spoken: SyncEventRow = {
-      ...row(2, "dev_other"),
-      event: {
-        scope: { kind: "thread" },
-        text: "the secret the user typed",
-        threadId: "thr_1",
-        type: "client/turn/requested",
-      },
-    };
-    const pages = [ok({ events: [row(1, "dev_1"), spoken], hasMore: true, lastSeq: 2 })];
-
-    const outcome = await pullPages({
-      applyPlan: () => {
-        session.open({ deviceId: "dev_2" });
-      },
-      client: { pull: async () => pages.shift() ?? (await unreachable()) },
-      debugLog,
-      fenced: () => session.fenced(live.id),
-      ownDeviceIds: new Set(["dev_1"]),
-      readCursor: () => 0,
-      recordFailure: session.recordFailure,
-    });
-
-    expect(outcome).toBe("fenced");
-    expect(lines).toEqual([
-      "pulled 2 row(s) after 0: 1 to apply across 1 thread(s), 1 skipped as this device's own or unreadable, more behind",
-      `session ${live.id} fenced out: the session is now live ${live.id + 1}`,
-    ]);
-    expect(lines.join("\n")).not.toContain("secret");
+    expect(await checking).toEqual({ kind: "fenced" });
+    expect(session.current().kind).toBe("live");
   });
 });
 

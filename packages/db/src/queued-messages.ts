@@ -59,8 +59,6 @@ export interface CreateQueuedThreadMessageInput {
   contextPaths: readonly string[] | null;
   // the named action the message asks for, null for none
   preset: ActionPreset | null;
-  // the phone's dispatch this message carries out, null for one typed here
-  dispatchId: string | null;
 }
 
 // fixed-width ms timestamp so lexicographic order is arrival order; extended past the tail when
@@ -92,7 +90,6 @@ export const createQueuedThreadMessageInTransaction = (
       claimedAt: null,
       contextPaths: input.contextPaths === null ? null : JSON.stringify(input.contextPaths),
       createdAt: now,
-      dispatchId: input.dispatchId,
       id: createQueuedThreadMessageId(),
       preset: input.preset,
       sortKey: createSortKeyAfter(tail?.sortKey ?? null, now),

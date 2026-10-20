@@ -8,8 +8,8 @@ on Apple silicon, that nobody uses yet. The vault is a folder of markdown files
 on the user's own disk, and every item in the library is one of them; one
 local Node process owns that vault, indexes it, answers one API and drives the
 agent that edits those same files. The only hosted piece is a Cloudflare
-Worker carrying the marketing site, accounts, cross-device sync, the dispatch
-inbox a phone asks a Mac through, and the account's hosted vault.
+Worker carrying the marketing site, accounts, the account's hosted vault and
+the socket that tells each device the library moved.
 
 This is the root guide for every coding agent; `CLAUDE.md` imports it. Each
 workspace's durable decisions live in a `CLAUDE.md` beside its code
@@ -35,9 +35,11 @@ The premises every change builds from, each with its reason:
   and no product surface says git, commit, remote, repo, terminal, CLI, PATH or
   MCP, because none of those words is the user's. Settings › Advanced is the one
   exception, for the user who brings their own sync server.
-- **The phone is a full editor.** It writes through a guarded Worker endpoint
-  and asks a Mac to run the agent, because a phone holds neither git nor a
-  model.
+- **The phone is a full editor, and asks no agent.** It saves, reads and
+  writes through a guarded Worker endpoint, because a phone holds no git; the
+  agent is the Mac's alone, because a phone holds no model, and a request
+  relayed to a Mac would be a second sync beside the library's. Threads stay on
+  the Mac that ran them.
 - **Connectors are the default agent's own MCP config**, because one registry,
   the vendor's, with the vendor's own sign-in, beats a second one beside it.
 - **Dictation is the operating system's**, because the Mac's and the phone
@@ -77,7 +79,7 @@ on the node the .app carries, showing the SPA `apps/workspace` builds.
 verb but `vault open` is a client of a running one. The CLI is the agent's
 door and the developer's, which is how an agent drives the product from bash;
 nothing the user does needs a terminal. `apps/mobile` is the iPhone app: the
-same editor over the hosted vault, offline, asking a Mac to run the agent.
+same editor over the hosted vault, offline.
 `apps/extension` is the browser's Save, talking only to the Mac app on the same
 machine through `inteligir native-host`.
 
@@ -96,8 +98,8 @@ that touches that code rewrites the bullet in the same commit.
 apps/desktop            @repo/desktop — THE SHIPPED PRODUCT: the Tauri window around the SPA
 apps/workspace          @repo/workspace — the SPA: the page every vault's server answers, and the first run
 apps/cli                inteligir — THE PUBLISHED BINARY: `serve` is the server, every other verb a client
-apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, thread sync, dispatch, hosted vault
-apps/mobile             @repo/mobile — the iPhone app: notes in the editor page, offline, and asking a Mac's agent
+apps/web                @repo/web — ONE Cloudflare Worker: site, auth, device login, the account's socket, hosted vault
+apps/mobile             @repo/mobile — the iPhone app: the library in the editor page, offline
 apps/mobile-editor      @repo/mobile-editor — the phone's editor page: @repo/editor as one script behind a WebView bridge
 apps/extension          @repo/extension — the Chromium extension: toolbar and right-click Save, handing the page to the Mac app
 packages/domain         @repo/domain — zod-only leaf vocabulary
@@ -261,8 +263,9 @@ is in the file named.
 - **`/local` breaks freely, `/cloud` only behind the client build floor**: a
   `/cloud` client ignores what it does not know and the Worker refuses an older
   build (`apps/web/CLAUDE.md`).
-- **The phone runs no agent and speaks no git**: it asks a Mac through the
-  claimable dispatch inbox, and the thread is the ledger (`apps/web/CLAUDE.md`).
+- **The phone runs no agent and speaks no git**: it writes through the
+  guarded commit route, asks no Mac, and the account carries no thread
+  (`apps/web/CLAUDE.md`).
 - **One write policy**: every vault write carries the base it was computed
   from and names its guard, and the editor's diff3-on-409 runs in every host
   (`apps/cli/src/server/vault/CLAUDE.md`, `packages/editor/CLAUDE.md`).

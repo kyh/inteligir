@@ -37,9 +37,6 @@ const interrupt = base.threads.interrupt.handler(async ({ context, input, errors
     case "not-found": {
       throw errors.NOT_FOUND({ message: THREAD_NOT_FOUND });
     }
-    case "remote": {
-      throw errors.CONFLICT({ message: outcome.message });
-    }
     // no default
   }
 });

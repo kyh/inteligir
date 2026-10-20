@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Effective as of October 17, 2026.
+Effective as of October 20, 2026.
 
 To view previous versions of this Privacy Policy, see its [history on
 GitHub](https://github.com/kyh/inteligir/commits/main/docs/privacy.md).
@@ -51,19 +51,18 @@ folder you choose on your Mac, with their history kept beside them. The app and 
 that Mac, and so does the agent, which talks to its provider from there. An
 account is optional, and without one the apps send our cloud nothing. Our cloud
 is the part of the Service we run on Cloudflare, at inteligir.com. Signed in, it
-carries your conversations with the agent between your devices and your
-phone's requests, and keeps an online copy of your library for
-your phone and your other Macs. This Privacy Policy states exactly what that
+keeps an online copy of your library for your phone and your other Macs, and
+tells each of your devices when another has changed it. This Privacy Policy states exactly what that
 means: what leaves your machine, what never does, what your phone keeps, how
 long our cloud keeps it, and how it is deleted.
 
 Your library itself (its items, attachments, their history and the search
 index) lives on your Mac, and our cloud holds none of it unless you sign in on a
-library nothing else syncs (see the online library, below). The exceptions are what the
+library nothing else syncs (see the online library, below). The exception is what the
 agent reads, which goes to its provider (see [Tracking & Other
-Technologies](#tracking--other-technologies)), and your conversations: thread
-sync carries each one whole, and a conversation holds what the agent read and
-changed in it.
+Technologies](#tracking--other-technologies)). Your conversations with the
+agent never leave the Mac they ran on: only the changes the agent made to your
+library reach your other devices, as part of the library.
 
 **Information you provide to us.** Personal information you may provide to us
 through the Service or otherwise includes:
@@ -104,27 +103,6 @@ through the Service or otherwise includes:
   can add or can have added to their content, such as keywords, geographical or
   location information, and other similar data. Once you sign in, our cloud
   receives:
-  - **Thread events** — the append-only log of your conversations with the
-    agent: your messages, its replies, what its tools did (the text of notes and
-    files it read and the changes it made to them, as its tools reported them),
-    its status, and each conversation's title, the path and frontmatter id of
-    the note it was started over, the agent it runs on and whether you archived
-    it. Each Mac pushes them to your account's own thread-sync Durable Object so
-    your other devices can follow along, and your phone keeps a copy. Our cloud
-    stores these as opaque JSON and fans them out; it does not interpret them.
-  - **Requests from your phone to your Mac's agent** — what you ask the agent on
-    your phone (the text, the conversation it belongs to, and the note you asked
-    from, with a fingerprint of the text you were looking at), and your answer
-    when the agent asks your permission, held in the same per-user object until
-    one of your Macs picks it up. The first Mac to pick a request up runs it
-    there, on that Mac's own Claude or ChatGPT plan, so what the agent reads for
-    it goes to that provider as if you had asked on the Mac; the conversation
-    then syncs back as thread events. A request is handed to one Mac at a time;
-    if that Mac stops mid-way the hold lapses after two minutes and another may
-    take it. When a phone-started conversation needs your permission, the Mac
-    running it sends the question (the command or the change the agent wants to
-    make, and why) to the same place for your phone to answer. A Mac with Let my
-    phone ask this Mac turned off in Settings never picks one up.
   - **Your library, in your account's online library — only for a library
     nothing else syncs.** Signed in, each Mac sends its library — items,
     attachments, highlights and every earlier version, each change named for the device that saved it
@@ -202,8 +180,8 @@ as:
 For more information concerning our automatic collection of data, please see the
 [Tracking & Other Technologies](#tracking--other-technologies) section below.
 
-**Data about others.** Content you sync, such as your library and conversations
-with the agent, may hold personal information about other people,
+**Data about others.** Content you sync, such as your library, may hold
+personal information about other people,
 and our cloud holds what you sync. Please do not share someone else's personal
 information with us through the Service unless you have their permission to do
 so.
@@ -394,16 +372,6 @@ we may either delete it, anonymize it, or isolate it from further processing.
 
 Specifically, in our cloud:
 
-- Thread events stay in your Durable Object until the account is deleted. The
-  log is append-only — that is what makes multi-device merge trivial — so
-  archiving a conversation hides it and deletes nothing; there is no deleting
-  one conversation from our cloud.
-- A request from your phone, and a permission question sent to it, is kept for
-  a day after a Mac settles it, then deleted the next time a request is sent or a
-  Mac checks for one. One still waiting stays until a Mac picks it up, you
-  cancel it, or you revoke the phone that sent it, which deletes every request
-  of its no Mac has picked up yet; revoking a Mac settles every question it
-  sent.
 - The online library keeps every version of every file until the account is
   deleted. Deleting an item removes it from the library, not from its history.
 - Device rows (including revoked ones) persist as the dashboard's audit trail
@@ -426,16 +394,15 @@ your library offline:
 - **Every item's text**, with its highlights, downloaded from your online
   library, and a small picture for each card; an attachment only once you open
   it.
-- **Your conversations with the agent**, as your Macs sync them.
 - **Whatever it has not sent yet.** Edits, saves, new notes, renames,
   deletions, highlights and photos wait on the phone until the online library
-  takes them, and requests to your Mac wait until one picks them up. A change
+  takes them. A change
   the library cannot take as it is stays on the phone and says so, until you
   retry it, keep it as a new note or discard it. A page you share to Inteligir
   waits in the share sheet's own storage on the phone until the app saves it.
 
-It all lives in the app's own storage on the phone. The items, conversations and
-unsent changes, photos waiting to be sent included, sit where the app keeps them
+It all lives in the app's own storage on the phone. The items and unsent
+changes, photos waiting to be sent included, sit where the app keeps them
 out of the phone's iCloud backup: a phone restored from a backup downloads your
 library again, and anything it had not sent is gone. Attachments you opened sit in
 the app's cache, which iOS may clear and never backs up. The phone's sign-in is
@@ -443,8 +410,8 @@ kept in the iPhone's Keychain for that iPhone alone: a backup restored onto
 another phone does not carry it, so the new phone signs in again and becomes a
 device of its own.
 
-- **Signing out** on the phone erases all of it — items, attachments,
-  conversations and anything unsent, which it asks about first — and tells our
+- **Signing out** on the phone erases all of it — items, attachments and
+  anything unsent, which it asks about first — and tells our
   cloud to remove the phone from your account. A phone that signs out offline
   forgets its sign-in all the same; revoke it from Settings › Account on a Mac.
 - **Revoking the phone** from a Mac, or **deleting the account**, erases the
@@ -464,7 +431,7 @@ and email delivery). Specifically:
 - **Cloudflare** runs our cloud and our website. Its D1 database holds your
   account, sessions, devices, the invite you redeemed and the throttling rows;
   storage it keeps for your account alone (your own Durable Objects, and storage
-  named for your library) holds your thread events, requests and online library; its email sending delivers your password-reset emails; and it keeps the
+  named for your library) holds your online library and your devices' live connections; its email sending delivers your password-reset emails; and it keeps the
   request log described above.
 - **GitHub** hosts the Mac app's releases and its update feed, and the issues
   you open there.
@@ -477,8 +444,8 @@ third parties where you have instructed us or provided your consent to do so.
 Each of these travels from your own Mac, never through our cloud:
 
 - **What your agent reads — to that agent's provider**, as described in
-  [Tracking & Other Technologies](#tracking--other-technologies). A request you
-  send from your phone runs on the plan of the Mac that picks it up.
+  [Tracking & Other Technologies](#tracking--other-technologies). The phone
+  runs no agent and sends none a request.
 - **Connectors — to the services you connect.** A connector is added to the
   default agent's own settings in your home folder: the same list Claude Code or
   Codex reads everywhere on this Mac, so it reaches that agent outside the app
@@ -526,9 +493,8 @@ page can email you a link to set a new password. To change anything else, such
 as your name or email address, contact us.
 
 **Privacy settings.** We make available certain privacy settings on the Service,
-including options to control whether your phone may ask a Mac's agent (Let my
-phone ask this Mac, in Settings › Account), where a library syncs (Settings ›
-Advanced › Sync with), and whether the app's log records each file change, sync
+including options to control where a library syncs (Settings › Advanced › Sync
+with), and whether the app's log records each file change, sync
 step and agent message (Debug logging, in Settings › Advanced). Signing a device
 out of your account stops it syncing.
 
@@ -551,8 +517,9 @@ cloud nothing, while syncing your devices and the iPhone app need one.
 
 **Delete your content or close your account.** You can choose to delete certain
 content through your account: deleting an item removes it from your library, though
-not from its history (see [Security](#security)), and archiving a conversation
-hides it without deleting it. To delete everything our cloud holds for you,
+not from its history (see [Security](#security)). Your conversations with the
+agent stay on the Mac that ran them, where archiving one hides it without
+deleting it. To delete everything our cloud holds for you,
 delete your account in the app: Settings › Account › Delete account…, on any Mac
 signed in to it. It asks for your password again, and our cloud checks the
 password before it deletes anything, so this Mac's sign-in alone cannot end the
@@ -573,11 +540,9 @@ account row itself goes:
    ids kept for your phone's reads and the cached copies of its history our
    cloud serves downloads from. An account whose library was never sent wipes
    empty tables, so the step is idempotent either way.
-3. **Your thread-sync Durable Object** is purged whole: every thread event,
-   every request from your phone and every permission question,
-   every open socket closed. It is then tombstoned, so a request that
-   authenticated microseconds before step 1 cannot rebuild what was just
-   deleted; it is refused instead.
+3. **Your devices' live connections** to our cloud are closed. Nothing is
+   stored behind them, so a request that authenticated microseconds before
+   step 1 leaves nothing there to delete.
 4. **Your email is dropped from the invite you redeemed** (the code stays
    burned).
 
@@ -618,16 +583,15 @@ talk to our cloud over HTTPS.
 
 These are the edges of that protection, stated plainly:
 
-- **We can read what our cloud holds.** Thread events, requests and the online
-  library are stored unencrypted to us (Cloudflare encrypts its storage
-  at rest, but there is no end-to-end encryption). Don't sync a conversation or
-  a library you wouldn't store in a hosted notes app.
+- **We can read what our cloud holds.** The online library is stored
+  unencrypted to us (Cloudflare encrypts its storage
+  at rest, but there is no end-to-end encryption). Don't sync a library you
+  wouldn't store in a hosted notes app.
 - **Our cloud writes your online library.** Your phone's changes become changes
   in your library's history that our cloud made on the phone's behalf, and
   every Mac takes them in.
-- **A lost phone holds a full copy of your library's text and your
-  conversations**,
-  behind its passcode. Revoke it from Settings › Account on a Mac: it erases its
+- **A lost phone holds a full copy of your library's text**, behind its
+  passcode. Revoke it from Settings › Account on a Mac: it erases its
   copy the next time it goes online, but a phone that never does keeps it.
 - **A library in a folder iCloud Drive, Dropbox, Google Drive, OneDrive or
   Obsidian Sync syncs is also held by that service**, under its own terms. The
@@ -1035,32 +999,22 @@ app or the phone makes to it is one of these routes, as is every call the
 account pages make but their sign-in, session and password-reset calls, which go
 to Better Auth under `/api/auth/`. Nothing else under `/v1/` exists.
 
-| Route                              | What it carries                                                                                                                                                                                                                  | What authenticates it                                               |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `/v1/auth/sign-up`                 | Your email, name, password and invite code, once, to create the account on the website.                                                                                                                                          | The invite code; attempts are throttled per caller address.         |
-| `/v1/device/login`                 | Your email, password and this device's name, once; it answers the device's credential and your account's email and id.                                                                                                           | Your password; attempts are throttled per caller address.           |
-| `/v1/device/sign-up`               | Your name, email, password, invite code and this Mac's name, once, to create the account from the app; it answers as the login does.                                                                                             | The invite code; attempts are throttled per caller address.         |
-| `/v1/device/sign-out`              | Nothing but the credential; the device it names is removed from your account.                                                                                                                                                    | That device's credential.                                           |
-| `/v1/device/list`                  | Your devices' names and when each was created, last seen and revoked, for the account pages and Settings › Account.                                                                                                              | Your signed-in browser session, or a signed-in device's credential. |
-| `/v1/device/revoke`                | The id of the device to revoke.                                                                                                                                                                                                  | Your signed-in browser session, or a signed-in device's credential. |
-| `/v1/account/delete`               | Your password, once, to delete the account and everything this page says the cloud holds for it.                                                                                                                                 | Your password and the device's credential; throttled per device.    |
-| `/v1/sync/push`                    | Your conversations with the agent, as events, including what the agent read and changed, with each one's title, note, agent and archived state.                                                                                  | The device's credential.                                            |
-| `/v1/sync/pull`                    | The same events, written by your other devices.                                                                                                                                                                                  | The device's credential.                                            |
-| `/v1/sync/ws`                      | A live connection that says only that something changed, and whether a Mac takes your phone's requests.                                                                                                                          | The device's credential.                                            |
-| `/v1/sync/dispatch`                | What you ask your Mac's agent from your phone, or your answer to its permission question.                                                                                                                                        | The device's credential.                                            |
-| `/v1/sync/dispatch/claim`          | The requests waiting for a Mac to pick up, and the answers meant for that Mac.                                                                                                                                                   | The device's credential.                                            |
-| `/v1/sync/dispatch/ack`            | The ids of the requests that Mac took, and why it turned one down.                                                                                                                                                               | The device's credential and the claim it was handed.                |
-| `/v1/sync/dispatch/status`         | Whether your requests are waiting, picked up or answered, and how many Macs are online, taking them or not.                                                                                                                      | The device's credential.                                            |
-| `/v1/sync/dispatch/cancel`         | The id of a request you took back before a Mac picked it up.                                                                                                                                                                     | The device's credential.                                            |
-| `/v1/sync/dispatch/approval`       | The command or change an agent wants your permission for, in a conversation your phone started.                                                                                                                                  | The device's credential.                                            |
-| `/v1/sync/dispatch/approval/close` | The id of a permission question that no longer needs your answer.                                                                                                                                                                | The device's credential.                                            |
-| `/v1/sync/dispatch/approvals`      | The permission questions waiting for your answer.                                                                                                                                                                                | The device's credential.                                            |
-| `/v1/vault/tree`                   | The names, sizes and content ids of the files in your online library.                                                                                                                                                            | The device's credential, within a per-device budget.                |
-| `/v1/vault/file`                   | One item's text from your online library.                                                                                                                                                                                        | The device's credential, within a per-device budget.                |
-| `/v1/vault/files`                  | Up to 40 items' text from your online library, in one request.                                                                                                                                                                   | The device's credential, within a per-device budget.                |
-| `/v1/vault/asset`                  | One attachment from your online library, when your phone opens it or draws its card's picture.                                                                                                                                   | The device's credential, within a per-device budget.                |
-| `/v1/vault/commit`                 | Your phone's edits, saves, new notes, renames, deletions, highlights and photos, saved into your online library as one change named for the phone; an item another device changed first answers its text and that device's name. | The device's credential, within a per-device budget.                |
-| `/v1/git/vault.git`                | Your library and its whole history, sent up from and down to your Macs.                                                                                                                                                          | The device's credential, within a per-device budget.                |
+| Route                 | What it carries                                                                                                                                                                                                                  | What authenticates it                                               |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `/v1/auth/sign-up`    | Your email, name, password and invite code, once, to create the account on the website.                                                                                                                                          | The invite code; attempts are throttled per caller address.         |
+| `/v1/device/login`    | Your email, password and this device's name, once; it answers the device's credential and your account's email and id.                                                                                                           | Your password; attempts are throttled per caller address.           |
+| `/v1/device/sign-up`  | Your name, email, password, invite code and this Mac's name, once, to create the account from the app; it answers as the login does.                                                                                             | The invite code; attempts are throttled per caller address.         |
+| `/v1/device/sign-out` | Nothing but the credential; the device it names is removed from your account.                                                                                                                                                    | That device's credential.                                           |
+| `/v1/device/list`     | Your devices' names and when each was created, last seen and revoked, for the account pages and Settings › Account.                                                                                                              | Your signed-in browser session, or a signed-in device's credential. |
+| `/v1/device/revoke`   | The id of the device to revoke.                                                                                                                                                                                                  | Your signed-in browser session, or a signed-in device's credential. |
+| `/v1/account/delete`  | Your password, once, to delete the account and everything this page says the cloud holds for it.                                                                                                                                 | Your password and the device's credential; throttled per device.    |
+| `/v1/sync/ws`         | A live connection that says only that your online library changed.                                                                                                                                                               | The device's credential.                                            |
+| `/v1/vault/tree`      | The names, sizes and content ids of the files in your online library.                                                                                                                                                            | The device's credential, within a per-device budget.                |
+| `/v1/vault/file`      | One item's text from your online library.                                                                                                                                                                                        | The device's credential, within a per-device budget.                |
+| `/v1/vault/files`     | Up to 40 items' text from your online library, in one request.                                                                                                                                                                   | The device's credential, within a per-device budget.                |
+| `/v1/vault/asset`     | One attachment from your online library, when your phone opens it or draws its card's picture.                                                                                                                                   | The device's credential, within a per-device budget.                |
+| `/v1/vault/commit`    | Your phone's edits, saves, new notes, renames, deletions, highlights and photos, saved into your online library as one change named for the phone; an item another device changed first answers its text and that device's name. | The device's credential, within a per-device budget.                |
+| `/v1/git/vault.git`   | Your library and its whole history, sent up from and down to your Macs.                                                                                                                                                          | The device's credential, within a per-device budget.                |
 
 Everything else the app reaches is someone else's:
 

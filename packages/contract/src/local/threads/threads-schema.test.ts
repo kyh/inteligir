@@ -1,10 +1,8 @@
 import type { LibraryViewContext, ViewContext } from "@repo/domain/view-context";
 import { describe, expect, it } from "vitest";
-import { EVENT_MAX_BYTES } from "../../cloud/sync/sync-schema";
 import { KNOWLEDGE_ITEMS_QUERY_MAX } from "../knowledge/knowledge-schema";
 import {
   encodeThreadListCursor,
-  LIBRARY_CONTEXT_RECORD_MAX_BYTES,
   listThreadsQuerySchema,
   sendMessageRequestSchema,
 } from "./threads-schema";
@@ -85,8 +83,7 @@ describe("a send's view context", () => {
     ).toBe(false);
   });
 
-  it("holds what the event records of the screen to a few KB under the sync's cap", () => {
-    expect(LIBRARY_CONTEXT_RECORD_MAX_BYTES * 8).toBeLessThan(EVENT_MAX_BYTES);
+  it("holds what the event records of the screen to a few KB", () => {
     const longest: LibraryViewContext = {
       kinds: ["note", "link", "video", "audio", "image", "pdf", "file"],
       paths: [],

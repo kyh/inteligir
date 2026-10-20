@@ -1,20 +1,19 @@
 import { deleteAccountResponseSchema } from "@repo/contract/cloud/account/account-schema";
 import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
-import { DISPATCH_API_PATHS } from "@repo/contract/cloud/dispatch/dispatch-schema";
-import { runInDurableObject, SELF } from "cloudflare:test";
+import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDb } from "./db/client";
 import { inviteCode, rateLimit, session, user } from "./db/schema";
 import { deviceRateKey } from "./rate-limit";
-import { threadSyncStub } from "./sync/thread-sync-stub";
 import { vaultRepoName, vaultRegistry } from "./vault/vault-repo";
 import {
   buildHeaders,
   deviceHeaders,
   emitted,
   loginDevice,
+  openSocket,
   ORIGIN,
   PASSWORD,
   postAccountDelete,
@@ -58,25 +57,13 @@ describe("deleting the account from a device", () => {
     );
     expect(pushed.response.status).toBe(200);
     await pushed.response.arrayBuffer();
-    const synced = await SELF.fetch(`${ORIGIN}/v1/sync/push`, {
-      body: JSON.stringify({
-        events: [{ createdAt: 1, deviceSeq: 1, event: { type: "test" }, threadId: "th_1" }],
-      }),
-      headers: { ...deviceHeaders(laptop.credential), "content-type": "application/json" },
-      method: "POST",
+    const phoneSocket = await openSocket(phone.credential);
+    // oxlint-disable-next-line promise/avoid-new -- the close code arrives as a socket event, which only a promise can hand to an await
+    const phoneClosed = new Promise<number>((resolve) => {
+      phoneSocket.socket.addEventListener("close", (close) => {
+        resolve(close.code);
+      });
     });
-    expect(synced.status).toBe(200);
-    const asked = await SELF.fetch(`${ORIGIN}${DISPATCH_API_PATHS.dispatch}`, {
-      body: JSON.stringify({
-        id: "c".repeat(32),
-        kind: "turn",
-        text: "a request",
-        threadId: "th_1",
-      }),
-      headers: { ...deviceHeaders(phone.credential), "content-type": "application/json" },
-      method: "POST",
-    });
-    expect(asked.status).toBe(200);
 
     const deletion = await postAccountDelete(deviceHeaders(laptop.credential), PASSWORD);
     expect(deletion.status).toBe(200);
@@ -97,12 +84,8 @@ describe("deleting the account from a device", () => {
       .all();
     expect(sessions).toEqual([]);
 
-    // read off the SQL: every route refuses a tombstoned object, so an answer would prove only the tombstone
-    const rows = await runInDurableObject(threadSyncStub(env, userId), (_instance, state) => ({
-      dispatches: state.storage.sql.exec("SELECT COUNT(*) AS n FROM dispatches").one().n,
-      events: state.storage.sql.exec("SELECT COUNT(*) AS n FROM sync_events").one().n,
-    }));
-    expect(rows).toEqual({ dispatches: 0, events: 0 });
+    // the account's sockets close with it, the phone's still-open one included
+    expect(await phoneClosed).toBe(1001);
 
     expect(await vaultRegistry(env).get(vaultRepoName(userId))).toBeNull();
 

@@ -86,11 +86,10 @@ const TranscriptRows = ({
   });
 };
 
-// A thread not started yet runs on the default; one another device runs needs nothing from here.
-// null is a thread not read yet.
+// A thread not started yet runs on the default. null is a thread not read yet.
 const SignInBanner = ({ thread }: { thread: Thread | null }) => {
   const signedOut = useSignedOutHarness(thread?.providerId ?? null);
-  if (thread === null || signedOut === null || thread.runsElsewhere) {
+  if (thread === null || signedOut === null) {
     return null;
   }
   return (
@@ -218,11 +217,6 @@ export const ActionDetail = ({
           >
             {thread.originDocPath}
           </button>
-        ) : null}
-        {thread?.runsElsewhere === true ? (
-          <span className="shrink-0 px-1 text-caption text-muted-foreground">
-            Running on another device
-          </span>
         ) : null}
         {stopControl === "none" ? null : (
           <Button

@@ -105,11 +105,12 @@ describe("the touch toolbar", () => {
     }
   });
 
-  it("draws Ask agent and Highlight on every host, and no image button without a picker", () => {
+  // the phone asks no agent, so the desktop's Ask agent has no row here
+  it("draws Highlight and no Ask agent on every host, and no image button without a picker", () => {
     mount("body\n");
     const names = toolbarButtons().map((button) => button.getAttribute("aria-label"));
-    expect(names).toContain(TOUCH_ACTIONS["ask-agent"].label);
     expect(names).toContain(HIGHLIGHT_SHORTCUT.label);
+    expect(names).not.toContain("Ask agent");
     expect(names).not.toContain(TOUCH_ACTIONS.image.label);
   });
 

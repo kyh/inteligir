@@ -4,7 +4,6 @@ import { createSocketLink } from "./socket-link";
 import type { SocketLinkArgs } from "./socket-link";
 import { SYNC_WS_REVOKED_CLOSE_CODE } from "./sync-ws";
 import { TEST_BUILD } from "../test-support/fake-cloud-client";
-import type { SocketListener } from "./sync-ws";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -16,13 +15,11 @@ const harness = (overrides: Partial<SocketLinkArgs> = {}) => {
   const closed: number[] = [];
   const severed: number[] = [];
   const connection: boolean[] = [];
-  let listener: SocketListener = { phoneRequests: true, platform: "desktop" };
   const link = createSocketLink({
     baseUrl: "https://cloud.test",
     build: TEST_BUILD,
     canConnect: () => true,
     credential: () => "igd_test",
-    listener: () => listener,
     onConnectionChanged: (connected) => {
       connection.push(connected);
     },
@@ -55,27 +52,19 @@ const harness = (overrides: Partial<SocketLinkArgs> = {}) => {
     lastDial,
     link,
     severed,
-    setListener: (next: SocketListener) => {
-      listener = next;
-    },
   };
 };
 
 describe("the socket link", () => {
-  it("dials once, and says what listens as it stands at each dial", () => {
-    const { dials, link, setListener } = harness();
+  it("dials once, and again only after a close", () => {
+    const { dials, link } = harness();
     link.connect();
     link.connect();
     expect(dials).toHaveLength(1);
 
-    setListener({ phoneRequests: false, platform: "desktop" });
     link.close();
     link.connect();
-
-    expect(dials.map((dial) => dial.listener)).toEqual([
-      { phoneRequests: true, platform: "desktop" },
-      { phoneRequests: false, platform: "desktop" },
-    ]);
+    expect(dials).toHaveLength(2);
   });
 
   it("dials nothing it may not, and nothing without a credential", () => {

@@ -88,7 +88,7 @@ list|read|history|revision|restore|write|rename|delete|deleted|mkdir|new-id|atta
 `tags` · `tag add|remove|rename` · `import raindrop|status|cancel` · `action
 list|new|send|show|stop|wait|archive|changes|undo` · `annotation list|add|edit|reply|remove` ·
 `interactions list|answer` · `agents list|default` · `folders
-list|add|remove` · `cloud status|login|sync` · `status` · `guide` ·
+list|add|remove` · `cloud status|login` · `status` · `guide` ·
 `native-host` (hidden: the browser extension's door, which Chrome starts).
 
 Exit codes: 0 success · 1 error (including an action settling in error) ·
@@ -266,8 +266,8 @@ every route refusing at once, is the real router's own handler refusing before
 any procedure runs (`json-flag-enforcement.test.ts`). There is no second
 implementation of `/local` to drift from it. The server's own suites sit beside
 the modules they test under `src/server/`; the cloud ones run against a fake
-cloud that answers the inbox table the Worker's suite runs
-(`@repo/contract/cloud/test-support/inbox-scenarios`). The workspace UI's suites
+cloud that answers the device and account routes as the Worker does
+(`src/server/cloud/test-support/fake-cloud.ts`). The workspace UI's suites
 that boot this server in-process sit under `src/workspace/`, in the package that
 holds the harness they use (`src/server/test-support/boot-app.ts`), so the page
 never depends on this package: the `.booted.test.tsx` ones render the page under

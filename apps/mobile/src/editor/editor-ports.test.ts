@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { base64FromBytes } from "@repo/contract/cloud/bytes";
 import type { NativeFrame, RequestPayload } from "@repo/mobile-editor/bridge-protocol";
 import { serializeAnnotationStore } from "@repo/notes/annotations/store-schema";
@@ -25,8 +24,6 @@ const NONCE = "test-nonce-0123456789";
 const ID = "9e64c3df-c1e2-4a4d-8c07-91528f422413";
 // unix seconds, when every annotation in these cases is made
 const AT = 1_790_000_000;
-
-const sha256 = (text: string): string => createHash("sha256").update(text).digest("hex");
 
 const MEMORY_URI = /^memory:\/\/(?:outbox\/)?(?<name>.+)$/u;
 
@@ -58,7 +55,6 @@ const phoneFor = async (vault: FakeVault, options: { picked?: PhotoIngest } = {}
     go: (route) => {
       routes.push(route);
     },
-    newThreadId: () => "thr_1",
     notify: (title, message) => {
       notices.push(`${title}: ${message}`);
     },
@@ -74,7 +70,6 @@ const phoneFor = async (vault: FakeVault, options: { picked?: PhotoIngest } = {}
       const bytes = ports.attachments.read(name) ?? (await ports.outboxFiles.read(name));
       return base64FromBytes(bytes);
     },
-    revisionOf: async (content) => sha256(content),
     showAnnotations: (ids) => {
       annotations.push(ids);
     },
@@ -388,21 +383,6 @@ describe("what the phone tells the page", () => {
 });
 
 describe("where the page's events lead", () => {
-  it("asks the agent about the note in a new thread, with the selection and the bytes' revision", async () => {
-    const { editor, routes } = await phoneFor(createFakeVault({ "a.md": "# a\n" }));
-    editor.handle({ nonce: NONCE, path: "a.md", selection: "why this?", type: "askAgent" });
-    await expect.poll(() => routes).toHaveLength(1);
-    expect(routes).toStrictEqual([
-      {
-        kind: "thread",
-        note: "a.md",
-        quote: "why this?",
-        revision: sha256("# a\n"),
-        threadId: "thr_1",
-      },
-    ]);
-  });
-
   it("hands the screen why a save failed, and why the note could not open", async () => {
     const { editor, editorStates, openFailures } = await phoneFor(
       createFakeVault({ "a.md": "# a\n" }),

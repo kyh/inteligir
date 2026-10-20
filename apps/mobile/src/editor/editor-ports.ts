@@ -28,13 +28,11 @@ export type PageEditorState = Pick<
   "dirty" | "saveError"
 >;
 
-// where a page event takes the phone's stack: a note the page opened, a file that is no note in
-// the viewer (with the item that shows it), or a new thread about the note asked from, with the
-// selection it was asked over and the sha-256 of the bytes it held
+// where a page event takes the phone's stack: a note the page opened, or a file that is no note in
+// the viewer (with the item that shows it)
 export type EditorRoute =
   | { kind: "note"; path: string }
-  | { kind: "file"; path: string; item: string | null }
-  | { kind: "thread"; threadId: string; note: string; quote: string; revision: string | null };
+  | { kind: "file"; path: string; item: string | null };
 
 export interface EditorPortsArgs {
   store: Pick<
@@ -45,8 +43,6 @@ export interface EditorPortsArgs {
   annotations: AnnotationOps;
   pickImage: () => Promise<PhotoIngest>;
   readBase64: (uri: string) => Promise<string>;
-  revisionOf: (content: string) => Promise<string>;
-  newThreadId: () => string;
   go: (route: EditorRoute) => void;
   showAnnotations: (ids: readonly string[]) => void;
   // the note the page shows; null once it was deleted and the page shows none
@@ -61,8 +57,6 @@ export interface EditorPortsArgs {
 export interface EditorPorts {
   readonly requests: EditorRequestPorts;
   readonly handle: (event: EditorPageEvent) => void;
-  // a new thread about `path`, as the header's Ask agent and the page's both open one
-  readonly askAgent: (path: string, selection: string) => Promise<void>;
   // the annotation sheet's verbs, each telling the page what its ranges are drawn by once it lands,
   // and a deleted annotation's markers to take out
   readonly annotations: Pick<AnnotationOps, "edit" | "reply" | "remove">;
@@ -312,17 +306,6 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
     },
   };
 
-  const askAgent = async (path: string, selection: string): Promise<void> => {
-    const read = await store.readNote(path);
-    args.go({
-      kind: "thread",
-      note: path,
-      quote: selection,
-      revision: read.ok ? await args.revisionOf(read.content) : null,
-      threadId: args.newThreadId(),
-    });
-  };
-
   const annotations: EditorPorts["annotations"] = {
     edit: async (path, id, text) => {
       const edited = await args.annotations.edit(path, id, text);
@@ -370,10 +353,6 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
         );
         return;
       }
-      case "askAgent": {
-        void askAgent(event.path, event.selection);
-        return;
-      }
       case "showAnnotations": {
         args.showAnnotations(event.ids);
         return;
@@ -416,5 +395,5 @@ export const createEditorPorts = (args: EditorPortsArgs): EditorPorts => {
     };
   };
 
-  return { askAgent, annotations, handle, requests, watch };
+  return { annotations, handle, requests, watch };
 };

@@ -8,7 +8,7 @@ import type {
   VaultStatusResponse,
 } from "@repo/contract/local/vault/vault-schema";
 import { afterEach, describe, expect, it } from "vitest";
-import { DiagnosticsRows, ThreadSyncRows, VaultSyncRows } from "./advanced-section";
+import { AccountRows, DiagnosticsRows, VaultSyncRows } from "./advanced-section";
 import { SyncRemoteForm } from "./sync-remote-row";
 
 afterEach(cleanup);
@@ -161,41 +161,31 @@ const SIGNED_IN: Extract<CloudStatusResponse, { state: "signed-in" }> = {
   accountEmail: "k@example.test",
   cloudUrl: "https://cloud.test",
   connected: false,
-  cursor: 12,
   deviceId: "dev_1",
-  dropped: 0,
   lastError: null,
-  lastSyncedAt: null,
-  pending: 3,
   state: "signed-in",
 };
 
-const renderThreads = (status: CloudStatusResponse) =>
-  render(<ThreadSyncRows status={status} nowMs={NOW_MS} pending={false} onSync={() => {}} />);
-
-describe("the thread sync, raw", () => {
+describe("the account, raw", () => {
   it("says polling when no socket is up, rather than implying a live follow", () => {
-    renderThreads(SIGNED_IN);
+    render(<AccountRows status={SIGNED_IN} />);
     expect(screen.getByText("signed-in · polling")).toBeDefined();
     expect(screen.getByText("dev_1")).toBeDefined();
-    expect(screen.getByText("3 events")).toBeDefined();
-    expect(screen.getByText("12")).toBeDefined();
-    expect(screen.getByText("never")).toBeDefined();
+    expect(screen.getByText("None")).toBeDefined();
   });
 
-  it("dates the last sync from the clock it is handed, never its own", () => {
-    renderThreads({ ...SIGNED_IN, lastSyncedAt: NOW_MS - 40_000 });
-    expect(screen.getByText("40s ago")).toBeDefined();
-  });
-
-  it("counts the events that never reached the cloud", () => {
-    renderThreads({ ...SIGNED_IN, dropped: 2 });
-    expect(screen.getByText("2 events never reached the cloud")).toBeDefined();
+  it("says following while the socket is up", () => {
+    render(<AccountRows status={{ ...SIGNED_IN, connected: true }} />);
+    expect(screen.getByText("signed-in · following")).toBeDefined();
   });
 
   it("shows the cloud's last error verbatim", () => {
-    renderThreads({ ...SIGNED_IN, lastError: "sync-conflict: position 7 replayed" });
-    expect(screen.getByText("sync-conflict: position 7 replayed")).toBeDefined();
+    render(
+      <AccountRows
+        status={{ ...SIGNED_IN, lastError: "Could not reach the cloud: fetch failed" }}
+      />,
+    );
+    expect(screen.getByText("Could not reach the cloud: fetch failed")).toBeDefined();
   });
 });
 

@@ -4,9 +4,8 @@
 
 import { unanswerableReason } from "@repo/domain/pending-interactions";
 import { writeTransaction } from "@repo/db/connection";
-import type { DbConnection, DbTransaction, SyncResult } from "@repo/db/connection";
+import type { DbConnection, SyncResult } from "@repo/db/connection";
 import { appendEventsInTransaction } from "@repo/db/events";
-import type { SyncedEventInput } from "@repo/db/events";
 import { NotificationBuffer } from "@repo/domain/notifier";
 import type { DbNotifier } from "@repo/domain/notifier";
 import {
@@ -49,13 +48,8 @@ import {
   wireThread,
 } from "./thread-queries";
 import { repairPathOnlyOrigins, wedgedRecovery } from "./thread-recovery";
-import {
-  dispatchOutcomeOf,
-  prepareQueuedTurnInTransaction,
-  resolveDispatchInTransaction,
-  resolveMessageInTransaction,
-} from "./thread-send";
-import type { DispatchedTurn, DispatchOutcome, SendDecision, SendOutcome } from "./thread-send";
+import { prepareQueuedTurnInTransaction, resolveMessageInTransaction } from "./thread-send";
+import type { SendDecision, SendOutcome } from "./thread-send";
 import { archiveInTransaction, requestStopInTransaction } from "./thread-stop";
 import type { InterruptOutcome, StopOutcome } from "./thread-stop";
 import { ThreadTimelineProjector } from "./timeline-projection";
@@ -68,16 +62,10 @@ export type AnswerInteractionOutcome =
   | { kind: "already-resolved" }
   | { kind: "invalid-resolution"; message: string };
 
-// inside the transaction that writes the events: an event is owed to the account's log exactly when it is in the local one.
-export interface ThreadSyncHooks {
-  enqueue: (tx: DbTransaction, events: readonly ThreadEvent[]) => void;
-}
-
 export interface ThreadServiceArgs {
   db: DbConnection;
   notifier: DbNotifier;
   origins: ThreadOrigins;
-  sync?: ThreadSyncHooks;
 }
 
 export class ThreadService implements ProviderEventSink {
@@ -87,13 +75,11 @@ export class ThreadService implements ProviderEventSink {
   private driver: TurnDriver = unavailableTurnDriver;
   private readonly timelines: ThreadTimelineProjector;
   private readonly origins: ThreadOrigins;
-  private readonly sync: ThreadSyncHooks | null;
 
   constructor(args: ThreadServiceArgs) {
     this.db = args.db;
     this.notifier = args.notifier;
     this.origins = args.origins;
-    this.sync = args.sync ?? null;
     this.timelines = new ThreadTimelineProjector(args.db);
   }
 
@@ -119,9 +105,8 @@ export class ThreadService implements ProviderEventSink {
     const buffer = new NotificationBuffer();
     const result = writeTransaction<T>(this.db, (tx) =>
       step({
-        appendLocal: (events) => {
+        append: (events) => {
           appendEventsInTransaction(tx, events);
-          this.sync?.enqueue(tx, events);
         },
         buffer,
         tx,
@@ -227,30 +212,6 @@ export class ThreadService implements ProviderEventSink {
     }
   }
 
-  // a phone's request lands through the send's own decision, so it starts, queues or is refused
-  // exactly as a message typed here would. the phone's thread id is kept, and a new thread takes
-  // the note it was asked over, read and never minted: a mint waits on the vault's lock, and a
-  // claim held past its lapse is the same request running on a second Mac.
-  async acceptDispatch(dispatch: DispatchedTurn): Promise<DispatchOutcome> {
-    const origin =
-      dispatch.originDocPath === undefined || getThread(this.db, dispatch.threadId) !== null
-        ? undefined
-        : {
-            noteId: await this.origins.noteIdOf(dispatch.originDocPath),
-            path: dispatch.originDocPath,
-          };
-    const decision = this.transact((write) =>
-      resolveDispatchInTransaction(write, dispatch, origin),
-    );
-    if (decision.kind !== "send") {
-      return decision;
-    }
-    return dispatchOutcomeOf(
-      dispatch.threadId,
-      this.runSendDecision(dispatch.threadId, decision.send),
-    );
-  }
-
   private dispatchTurn(decision: Extract<SendDecision, { kind: "dispatch" }>): SendOutcome {
     try {
       this.driver.startTurn({
@@ -316,33 +277,12 @@ export class ThreadService implements ProviderEventSink {
     this.ingest({ events, origin: "local", threadId });
   }
 
-  // the same ingest, marked remote: the thread row is created with the log's
-  // id, nothing is enqueued back to the outbox (two devices would echo forever),
-  // and a settle does not drain this device's queue — the turn ran elsewhere.
-  applySyncedEvents(args: {
-    threadId: string;
-    rows: readonly SyncedEventInput[];
-    cursor: number;
-  }): void {
-    this.ingest({
-      cursor: args.cursor,
-      origin: "remote",
-      rows: args.rows,
-      threadId: args.threadId,
-    });
-  }
-
   private ingest(args: IngestArgs): void {
     if (ingestEvents(args).length === 0) {
       return;
     }
-    const ingested = this.transact((write) => ingestInTransaction(write, args));
-    // archived on another device, it stops here as a local archive stops it; a turn that device
-    // runs is its own to stop.
-    if (ingested.archived) {
-      this.stop(args.threadId);
-    }
-    for (const claimed of ingested.drains) {
+    const drains = this.transact((write) => ingestInTransaction(write, args));
+    for (const claimed of drains) {
       this.dispatchQueuedMessage(args.threadId, claimed);
     }
   }
@@ -361,10 +301,7 @@ export class ThreadService implements ProviderEventSink {
 
   private recoverWedgedThreads(): void {
     for (const thread of listRunningThreads(this.db)) {
-      const recovery = wedgedRecovery(this.db, thread);
-      if (recovery === null) {
-        continue;
-      }
+      const recovery = wedgedRecovery(thread);
       switch (recovery.kind) {
         case "turnless": {
           this.failTurnlessRun(thread.id, recovery.message);

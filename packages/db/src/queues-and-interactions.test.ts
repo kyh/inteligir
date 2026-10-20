@@ -28,13 +28,12 @@ import { openTempDb } from "./test-support/open-temp-db";
 // each in the transaction the server composes it in.
 const enqueue = (
   db: DbConnection,
-  input: Omit<CreateQueuedThreadMessageInput, "contextPaths" | "dispatchId" | "preset">,
+  input: Omit<CreateQueuedThreadMessageInput, "contextPaths" | "preset">,
 ): QueuedThreadMessageRow =>
   writeTransaction(db, (tx) =>
     createQueuedThreadMessageInTransaction(tx, {
       ...input,
       contextPaths: null,
-      dispatchId: null,
       preset: null,
     }),
   );
@@ -114,7 +113,6 @@ describe("queued thread messages", () => {
       writeTransaction(db, (tx) =>
         createQueuedThreadMessageInTransaction(tx, {
           contextPaths,
-          dispatchId: null,
           preset: null,
           text: "compare these",
           threadId: thread.id,
@@ -143,7 +141,6 @@ describe("queued thread messages", () => {
       writeTransaction(db, (tx) =>
         createQueuedThreadMessageInTransaction(tx, {
           contextPaths: null,
-          dispatchId: null,
           preset,
           text: "Tidy my library",
           threadId: thread.id,

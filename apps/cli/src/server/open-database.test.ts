@@ -1,4 +1,4 @@
-import { chmodSync, cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { closeConnection, createConnection } from "@repo/db/connection";
 import { runMigrations } from "@repo/db/migrate";
@@ -6,10 +6,9 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { resolveMigrationsFolder } from "../paths";
 import { deviceCredentialPath } from "./cloud/credential-store";
 import { openDatabase } from "./open-database";
-import type { OpenDatabaseArgs } from "./open-database";
 import { makeTempDir } from "./test-support/temp-dir";
 
-const dataDirWith = (prepare: (databasePath: string) => void): OpenDatabaseArgs => {
+const dataDirWith = (prepare: (databasePath: string) => void) => {
   const dataDir = makeTempDir("inteligir-open-db-");
   const databasePath = path.join(dataDir, "inteligir.db");
   prepare(databasePath);
@@ -28,9 +27,6 @@ const writeUnknownHistory = (databasePath: string): void => {
   raw.close();
 };
 
-// the permission case needs a user the mode binds; root unlinks through a read-only folder.
-const modesBind = process.platform !== "win32" && process.getuid?.() !== 0;
-
 const silenceWarnings = () => {
   const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
   onTestFinished(() => {
@@ -48,52 +44,20 @@ const migrationsFolder = (): string => {
 };
 
 describe("openDatabase", () => {
-  it("replaces a file migrated through generations this build does not carry, and signs out", () => {
+  it("replaces a file migrated through generations this build does not carry, and keeps the sign-in", () => {
     const warn = silenceWarnings();
     const { dataDir, databasePath } = dataDirWith(writeUnknownHistory);
 
-    const { db, schemaVersion } = openDatabase({ databasePath, dataDir });
+    const { db, schemaVersion } = openDatabase({ databasePath });
     onTestFinished(() => {
       closeConnection(db);
     });
 
     expect(schemaVersion).toBe(1);
     expect(db.$client.prepare("SELECT count(*) FROM threads").pluck().get()).toBe(0);
-    expect(existsSync(deviceCredentialPath(dataDir))).toBe(false);
+    expect(existsSync(deviceCredentialPath(dataDir))).toBe(true);
     expect(warn).toHaveBeenCalledWith(expect.stringMatching(/20260816070427_secret_polaris/u));
   });
-
-  it.runIf(modesBind)(
-    "signs out before it removes the file, so a replace stopped midway is redone with no sign-in left",
-    () => {
-      silenceWarnings();
-      const dataDir = makeTempDir("inteligir-open-db-");
-      const databaseDir = path.join(dataDir, "database");
-      mkdirSync(databaseDir);
-      const databasePath = path.join(databaseDir, "inteligir.db");
-      writeUnknownHistory(databasePath);
-      writeFileSync(deviceCredentialPath(dataDir), "{}\n");
-      // sqlite cannot make the -wal and -shm in a read-only folder, so an open handle keeps them.
-      const holder = createConnection(databasePath);
-      chmodSync(databaseDir, 0o555);
-      try {
-        expect(() => openDatabase({ databasePath, dataDir })).toThrow(/EACCES/u);
-      } finally {
-        chmodSync(databaseDir, 0o755);
-        closeConnection(holder);
-      }
-      expect(existsSync(databasePath)).toBe(true);
-      expect(existsSync(deviceCredentialPath(dataDir))).toBe(false);
-
-      const { db, schemaVersion } = openDatabase({ databasePath, dataDir });
-      onTestFinished(() => {
-        closeConnection(db);
-      });
-
-      expect(schemaVersion).toBe(1);
-      expect(db.$client.prepare("SELECT count(*) FROM threads").pluck().get()).toBe(0);
-    },
-  );
 
   it("opens a current file as it is, signed in", () => {
     const { dataDir, databasePath } = dataDirWith((file) => {
@@ -105,7 +69,7 @@ describe("openDatabase", () => {
       closeConnection(db);
     });
 
-    const { db } = openDatabase({ databasePath, dataDir });
+    const { db } = openDatabase({ databasePath });
     onTestFinished(() => {
       closeConnection(db);
     });
@@ -128,7 +92,7 @@ describe("openDatabase", () => {
       closeConnection(db);
     });
 
-    expect(() => openDatabase({ databasePath, dataDir })).toThrow(/on schema v99/u);
+    expect(() => openDatabase({ databasePath })).toThrow(/on schema v99/u);
     expect(existsSync(databasePath)).toBe(true);
     expect(existsSync(deviceCredentialPath(dataDir))).toBe(true);
   });

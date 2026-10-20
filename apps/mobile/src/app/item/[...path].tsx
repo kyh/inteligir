@@ -17,8 +17,7 @@ import type { LoadVerdict } from "@/editor/editor-host";
 import type { EditorRoute, PageEditorState } from "@/editor/editor-ports";
 import { ItemInfoSheet } from "@/items/item-info-sheet";
 import { deleteNote, useLibraryCard } from "@/lib/app-runtime";
-import { firstParam, openItem, openThread, openViewer } from "@/lib/routes";
-import type { ThreadParams } from "@/lib/routes";
+import { firstParam, openItem, openViewer } from "@/lib/routes";
 import { useTheme } from "@/lib/theme";
 import { AnnotationsSheet } from "@/notes/annotations-view";
 import { confirmDeleteNote } from "@/notes/confirm-delete-note";
@@ -68,18 +67,7 @@ const pushRoute = (route: EditorRoute): void => {
     openItem(route.path);
     return;
   }
-  if (route.kind === "file") {
-    openViewer(route.path, route.item);
-    return;
-  }
-  const params: ThreadParams = { id: route.threadId, note: route.note };
-  if (route.quote.trim() !== "") {
-    params.quote = route.quote;
-  }
-  if (route.revision !== null) {
-    params.revision = route.revision;
-  }
-  openThread(params);
+  openViewer(route.path, route.item);
 };
 
 type SaveError = NonNullable<PageEditorState["saveError"]>;
@@ -237,16 +225,6 @@ const ItemScreen = () => {
     <SafeAreaView style={screenOf(theme.background)} edges={["left", "right"]}>
       <Stack.Screen options={{ title: opened === null ? "Deleted" : docStem(opened) }} />
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          hidden={opened === null}
-          onPress={() => {
-            if (opened !== null) {
-              void ports.askAgent(opened, "");
-            }
-          }}
-        >
-          Ask agent
-        </Stack.Toolbar.Button>
         <Stack.Toolbar.Menu
           accessibilityLabel="More"
           hidden={opened === null}

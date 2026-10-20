@@ -99,8 +99,8 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   booted suites call the same composition. `ThreadService.boot()` is called from
   it because crash recovery writes. The seams: `vault/git-run` / `git-porcelain`
   / `git-refs` / `git-bootstrap` / `git-commits` / `git-engine`;
-  `cloud/sync-pass` / `sync-cadence` / `account-calls` (the socket link is the
-  client core's, shared with the phone);
+  `cloud/sync-runtime` / `account-calls` (the socket link and the sign-in check
+  are the client core's, shared with the phone);
   `agents/interaction-waiters` beside a watchdog that sweeps per-turn timestamps
   rather than re-arming a timer per frame; `writeTransaction` in
   `@repo/db/connection` as the one spelling of `BEGIN IMMEDIATE`. `serve.ts`
@@ -210,12 +210,11 @@ dialect skills, the licence texts and `@repo/workspace`'s app page as `dist/ui`.
   history this build lacks rather than as already applied. A file whose ledger names
   a migration this build does not carry is refused before the migrator runs
   (`UnknownMigrationHistoryError` in `packages/db/src/migrate.ts`), and the
-  server signs the install out, then replaces it, because the cloud log holds
-  the positions a fresh file would hand out again; in that order, a boot stopped
-  between the two finds the old file and replaces it again, never a fresh one
-  beside the old sign-in. The next sign-in pulls the account's threads back
-  (`apps/cli/src/server/open-database.ts`). Once anyone else holds a database,
-  squashing is the loss of their threads, and a migration is appended instead.
+  server replaces it with a fresh one, its threads with it, since a thread lives
+  on this Mac alone; the sign-in stays, because nothing in the file is the
+  account's (`apps/cli/src/server/open-database.ts`). Once anyone else holds a
+  database, squashing is the loss of their threads, and a migration is appended
+  instead.
 
 - **AN IMPORT IS A SERVER JOB OVER A COPY OF THE FILE: DEDUPED BY URL, ONE
   COMMIT PER 100 ITEMS, LINEAR IN ITS ROWS, RESUMED AT BOOT.** The plan keeps

@@ -6,14 +6,6 @@ import { File } from "expo-file-system";
 import { addNetworkStateListener } from "expo-network";
 import * as SecureStore from "expo-secure-store";
 import { createKeychainCredentials } from "../credential/secure-store-credential";
-import { threadDispatches, threadListEntries } from "../dispatch/dispatch-projection";
-import type { ThreadDispatches, ThreadListEntry } from "../dispatch/dispatch-projection";
-import type {
-  AskAgentRequest,
-  CancelOutcome,
-  DispatchOutcome,
-  DispatchState,
-} from "../dispatch/dispatch-runtime";
 import { createEditorPorts } from "../editor/editor-ports";
 import type { EditorPorts, EditorPortsArgs } from "../editor/editor-ports";
 import type { SavedItem } from "../items/item-ops";
@@ -32,14 +24,10 @@ import type { AnnotationsRead, NoteRead, NoteText, NotesTreeState } from "../not
 import { excludedFromBackup } from "../notes/outbox-files";
 import { ingestPhoto } from "../notes/photo-ingest";
 import type { OutboxStatus } from "../notes/vault-outbox";
-import type { LiveItem } from "../sync/live-turns";
 import { rnSocketDial } from "../sync/rn-socket-dial";
 import type { SyncStatus } from "../sync/sync-runtime";
-import { liveThreadsFirst, projectThread } from "../sync/thread-projection";
-import type { ThreadProjection } from "../sync/thread-projection";
 import { hexFromBytes } from "@repo/contract/cloud/bytes";
 import { createCloudSocketOpener } from "@repo/contract/cloud/sync/cloud-socket";
-import type { PendingInteractionApprovalDecision } from "@repo/domain/pending-interactions";
 import { excludeFromBackup } from "./backup-exclusion";
 import { getCloudUrl } from "./cloud-url";
 import { composeRuntime } from "./compose-runtime";
@@ -50,7 +38,7 @@ import { openPhoneDb } from "./phone-db";
 let runtime: AppRuntime | null = null;
 let thumbs: CoverThumbs | null = null;
 
-// console.warn would raise a LogBox toast per skipped row or offline pass.
+// console.warn would raise a LogBox toast per offline check.
 const devLog = (message: string): void => {
   if (__DEV__) {
     console.log(`sync: ${message}`);
@@ -71,7 +59,6 @@ const build = (): AppRuntime => {
     credentials: createKeychainCredentials(SecureStore),
     db: openPhoneDb(createExpoSqlDriver("inteligir.db")),
     deviceName: defaultDeviceName(),
-    mintId: () => hexFromBytes(Crypto.getRandomBytes(16)),
     newId: Crypto.randomUUID,
     outboxFiles: excludedFromBackup(createExpoOutboxFolder(), excludeFromBackup),
     randomBytes: Crypto.getRandomBytes,
@@ -108,10 +95,6 @@ const getRuntime = (): AppRuntime => {
 
 export const ensureStarted = async (): Promise<void> => {
   await getRuntime().start();
-};
-
-export const syncNow = async (): Promise<void> => {
-  await getRuntime().sync.syncNow();
 };
 
 export const logout = async (options?: { discardUnsent?: boolean }): Promise<LogoutOutcome> =>
@@ -230,16 +213,8 @@ export const attachmentFile = async (
 ): Promise<{ ok: true; uri: string } | { ok: false; message: string }> =>
   await getRuntime().notes.attachmentFile(path);
 
-// the view context's revision: the sha-256 of the note's bytes as the screen showed them
-const noteRevision = async (content: string): Promise<string> =>
-  hexFromBytes(
-    new Uint8Array(
-      await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, new TextEncoder().encode(content)),
-    ),
-  );
-
 // the editor page's ports over the store and the file verbs, bound to their native halves: the
-// photo picker, a held file's bytes, the revision hash and a new thread's id
+// photo picker and a held file's bytes
 export const createNoteEditorPorts = (
   screen: Pick<
     EditorPortsArgs,
@@ -251,10 +226,8 @@ export const createNoteEditorPorts = (
     ...screen,
     annotations: rt.annotations,
     fileOps: rt.fileOps,
-    newThreadId: () => rt.dispatch.newThreadId(),
     pickImage: async () => await ingestPhoto(rt.fileOps),
     readBase64: async (uri) => await new File(uri).base64(),
-    revisionOf: noteRevision,
     store: rt.notes,
   });
 };
@@ -292,62 +265,4 @@ export const useSyncStatus = (): SyncStatus => {
 export const useLoginState = (): LoginState => {
   const rt = getRuntime();
   return useSyncExternalStore(rt.login.subscribe, rt.login.get);
-};
-
-const useDispatchState = (): DispatchState => {
-  const rt = getRuntime();
-  return useSyncExternalStore(rt.dispatch.subscribe, rt.dispatch.get);
-};
-
-// the synced threads and those that so far exist only on this phone, each with what it is doing
-export const useThreadList = (): readonly ThreadListEntry[] => {
-  const rt = getRuntime();
-  const threads = useSyncExternalStore(rt.store.subscribeThreads, rt.store.snapshotThreads);
-  const dispatches = useDispatchState();
-  return useMemo(
-    () =>
-      threadListEntries(
-        liveThreadsFirst(threads.map((thread) => projectThread(thread))),
-        dispatches,
-      ),
-    [threads, dispatches],
-  );
-};
-
-export const useThread = (threadId: string): ThreadProjection | null => {
-  const rt = getRuntime();
-  const thread = useSyncExternalStore(rt.store.subscribeThreads, () =>
-    rt.store.snapshotThread(threadId),
-  );
-  return useMemo(() => (thread === null ? null : projectThread(thread)), [thread]);
-};
-
-// what the thread's running turn has streamed so far, cleared as its items settle
-export const useLiveItems = (threadId: string): readonly LiveItem[] => {
-  const rt = getRuntime();
-  return useSyncExternalStore(rt.live.subscribe, () => rt.live.snapshot(threadId));
-};
-
-export const useDispatches = (threadId: string): ThreadDispatches => {
-  const thread = useThread(threadId);
-  const dispatches = useDispatchState();
-  return useMemo(
-    () => threadDispatches(threadId, thread, dispatches),
-    [threadId, thread, dispatches],
-  );
-};
-
-export const askAgent = async (request: AskAgentRequest): Promise<DispatchOutcome> =>
-  await getRuntime().dispatch.askAgent(request);
-
-export const answerApproval = async (
-  approvalId: string,
-  decision: PendingInteractionApprovalDecision,
-): Promise<DispatchOutcome> => await getRuntime().dispatch.answer(approvalId, decision);
-
-export const cancelDispatch = async (id: string): Promise<CancelOutcome> =>
-  await getRuntime().dispatch.cancel(id);
-
-export const dismissDispatch = async (id: string): Promise<void> => {
-  await getRuntime().dispatch.dismiss(id);
 };

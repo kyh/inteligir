@@ -103,7 +103,6 @@ describe("loginDevice", () => {
     expect(await login(loginRefused, store)).toStrictEqual({
       failure: {
         code: "invalid-credentials",
-        deviceSeq: null,
         kind: "refused",
         message: "Wrong email or password.",
       },

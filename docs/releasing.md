@@ -390,8 +390,8 @@ account whose library holds about 2,000 items gives the timing check its load.
   the `.appex`.
 
 - **Sign in** with the account's email and password. Passing: the first
-  mirror says Loading your library… with its count, then the library and the
-  threads show. Kill the app and open it again. Passing: the splash holds
+  mirror says Loading your library… with its count, then the library shows.
+  Kill the app and open it again. Passing: the splash holds
   until it knows, the sign-in form never flashes, and the phone is still
   signed in.
 - **Edit.** Open a note, type, go back. Passing: typing, autocorrect and the
@@ -409,7 +409,7 @@ account whose library holds about 2,000 items gives the timing check its load.
   keyboard, even after switching it with the app open; typing and then
   backgrounding and killing the app keeps what was typed.
 - **Offline.** Sync once, turn on airplane mode, kill the app and open it.
-  Passing: the library, any item and every thread open. Edit a note and add
+  Passing: the library and any item open. Edit a note and add
   a photo while still offline, kill the app, open it, turn airplane mode off.
   Passing: both reach the Mac.
 - **Both devices at once.** With the phone offline, change the same lines of
@@ -426,18 +426,15 @@ account whose library holds about 2,000 items gives the timing check its load.
   lands in the library as `assets/<name>.jpg` of about 1 MB or less, draws in
   its note on the Mac, and has no location: Preview's Inspector (⌘I) shows no
   GPS tab.
-- **Ask your Mac.** Ask agent from a note with the Mac app open. Passing: the
-  request shows Waiting for your Mac…, then Your Mac has it; the Mac runs it,
-  and its reply appears on the phone after a pull; the composer rides above the
-  keyboard; a question the agent asks for permission is answered on the phone.
-  Quit the Mac app and ask again. Passing: Waiting for your Mac — open
-  inteligir on it to run this.
-- **A reply grows as the Mac writes it.** With the phone's app in the
-  foreground, ask the Mac something that takes a while. Passing: the reply's
-  text grows under the running indicator while the Mac writes it, well before
-  the 60s poll would land it (the account's socket upgraded from the device,
-  React Native's headers argument carrying the bearer), and ends as the
-  settled reply.
+- **No agent on the phone.** Select text in a note. Passing: the toolbar over
+  the keyboard offers Highlight and no Ask agent, and no screen lists threads.
+  On the Mac, run an action that edits a note. Passing: the edit shows on the
+  phone, and the action itself does not.
+- **A Mac's edit arrives at once.** With the phone's app in the foreground on
+  an item, edit that item on the Mac and let it sync. Passing: the change shows
+  on the phone within seconds, well before the minute's sign-in check would
+  matter (the account's socket upgraded from the device, React Native's headers
+  argument carrying the bearer).
 - **Sign out.** With an edit still unsent (airplane mode), Sign out. Passing: it
   asks first and names the count; confirmed, the sign-in screen shows.
 - **Revoke.** Sign the phone in again, then Revoke it in Settings › Account on
@@ -466,8 +463,8 @@ account whose library holds about 2,000 items gives the timing check its load.
   offline launch shows placeholders for covers not yet seen; the picture and
   PDF viewers open; and a bare highlight made on the phone shows on the Mac.
 - **The screens in light and dark.** With the system in Light, open the
-  library, an item and its Info and highlights sheets, the threads, a thread
-  with a reply and a request waiting, a picture in the viewer and, signed out,
+  library, an item and its Info and highlights sheets, a picture in the viewer
+  and, signed out,
   the sign-in screen; switch to Dark in Control Center with the app open and
   look again. Passing: every screen has the colors, spacing, type sizes and
   corners the build before it had, a pressed text button dims, no line of text
@@ -503,7 +500,7 @@ account whose library holds about 2,000 items gives the timing check its load.
   install that build, sign in, sync, leave an edit unsent, then install this
   build over it. Passing: it opens with no error, the unsent edit still waits,
   and after one sync, turning on airplane mode and a cold launch shows the
-  threads. The first TestFlight build has no build before it, so it skips
+  library. The first TestFlight build has no build before it, so it skips
   this.
 
 ### The site

@@ -1,6 +1,5 @@
-// the cloud worker over Maps, refusing as the Worker and its durable object do. the inboxes' rules
-// are held to theirs by the table inbox-scenarios.test.ts runs here and apps/web runs against the
-// object; any other rule changes on both sides, or the client passes here and fails deployed.
+// the cloud worker's device and account routes over Maps, refusing as the Worker does. a route it
+// does not hold answers not-found, as the Worker's own router does.
 
 import {
   ACCOUNT_API_PATHS,
@@ -21,44 +20,6 @@ import type {
   ListDevicesResponse,
   RevokeDeviceResponse,
 } from "@repo/contract/cloud/device/device-schema";
-import {
-  ackDispatchesRequestSchema,
-  answerableDecisions,
-  APPROVAL_MAX_OPEN,
-  cancelDispatchRequestSchema,
-  claimDispatchesRequestSchema,
-  closeApprovalRequestSchema,
-  createDispatchRequestSchema,
-  DISPATCH_API_PATHS,
-  DISPATCH_CLAIM_TTL_MS,
-  DISPATCH_MAX_PENDING,
-  dispatchStatusRequestSchema,
-  openApprovalRequestSchema,
-} from "@repo/contract/cloud/dispatch/dispatch-schema";
-import type {
-  AckDispatchesResponse,
-  ApprovalRow,
-  ApprovalState,
-  CancelDispatchResponse,
-  ClaimDispatchesResponse,
-  ClaimedDispatch,
-  CloseApprovalResponse,
-  CreateDispatchResponse,
-  DispatchStatus,
-  DispatchStatusResponse,
-  ListApprovalsResponse,
-  OpenApprovalResponse,
-} from "@repo/contract/cloud/dispatch/dispatch-schema";
-import {
-  pullQuerySchema,
-  pushRequestSchema,
-  SYNC_API_PATHS,
-} from "@repo/contract/cloud/sync/sync-schema";
-import type {
-  PullResponse,
-  PushResponse,
-  SyncEventRow,
-} from "@repo/contract/cloud/sync/sync-schema";
 import { createCloudClient, postDeviceLogin } from "@repo/contract/cloud/client";
 import type { CloudClient, CloudFetch } from "@repo/contract/cloud/client";
 import {
@@ -75,51 +36,9 @@ type RequestBody = z.infer<ReturnType<typeof z.json>>;
 
 const parseJson = (text: string): RequestBody => z.json().parse(JSON.parse(text));
 
-const typedEventSchema = z.object({ type: z.string() }).catchall(z.json());
+const refuse = (code: CloudErrorCode, message: string): Response =>
+  Response.json(cloudError(code, message), { status: CLOUD_ERROR_STATUS[code] });
 
-const refuse = (code: CloudErrorCode, message: string, deviceSeq?: number): Response =>
-  Response.json(cloudError(code, message, deviceSeq), {
-    status: CLOUD_ERROR_STATUS[code],
-  });
-
-interface LogRow {
-  seq: number;
-  threadId: string;
-  deviceId: string;
-  deviceSeq: number;
-  body: string;
-  createdAt: number;
-}
-
-type DispatchSettle =
-  | { state: "pending" }
-  | { state: "delivered" }
-  | { state: "refused"; message: string };
-
-interface DispatchRow {
-  claimed: ClaimedDispatch;
-  fromDeviceId: string;
-  // null: any Mac may claim it; an answer is its asking Mac's alone
-  toDeviceId: string | null;
-  approvalId: string | null;
-  claimToken: string | null;
-  claimedAt: number;
-  settle: DispatchSettle;
-}
-
-const liveDispatchClaim = (row: DispatchRow, now: number): boolean =>
-  row.claimToken !== null && row.claimedAt > now - DISPATCH_CLAIM_TTL_MS;
-
-const NO_LONGER_WAITING = "That request is no longer waiting.";
-const SIGNED_OUT = "That computer was signed out.";
-
-interface ApprovalEntry {
-  row: Omit<ApprovalRow, "state">;
-  fromDeviceId: string;
-  state: ApprovalState;
-}
-
-// the one account every fake cloud holds; the runtime under test signs in as it.
 export const FAKE_ACCOUNT = { email: "owner@example.test", password: "correct horse battery" };
 
 // any origin reaches the fake; this is the one the booted suites configure.
@@ -142,16 +61,8 @@ export class FakeCloud {
     [FAKE_ACCOUNT.email, { id: "user_fake", password: FAKE_ACCOUNT.password }],
   ]);
   private readonly inviteCodes = new Set([FAKE_INVITE_CODE]);
-  private readonly log: LogRow[] = [];
-  // insertion order is the claim order, as rowid is the object's
-  private readonly dispatches: DispatchRow[] = [];
-  private readonly approvals = new Map<string, ApprovalEntry>();
   private nextDevice = 0;
-  private nextSeq = 0;
-  private nextTurn = 0;
   readonly requests: string[] = [];
-  /** fails the next push after its first event is stored — an interrupted push. */
-  dropNextPushResponse = false;
   /** the account's device cap, as the worker enforces it. */
   maxDevices = Number.POSITIVE_INFINITY;
   /** the login window is shut: every login answers rate-limited. */
@@ -160,8 +71,6 @@ export class FakeCloud {
   signUpWindowShut = false;
   /** every device's deletion window is shut: every account deletion answers rate-limited. */
   deleteWindowShut = false;
-  /** event types served as a newer build writes them: renamed, so this build's grammar refuses them. */
-  readonly unreadableTypes = new Set<string>();
   /** the oldest build it answers, as the worker's floor does; null answers every build. */
   buildFloor: string | null = null;
 
@@ -182,44 +91,6 @@ export class FakeCloud {
         device.revokedAt = Date.now();
       }
     }
-    this.forgetDevice(deviceId);
-  }
-
-  /** a phone's turn, waiting for a Mac to claim it. */
-  turn(threadId: string, text: string): string {
-    this.nextTurn += 1;
-    const id = this.nextTurn.toString(16).padStart(32, "0");
-    this.dispatches.push({
-      approvalId: null,
-      claimToken: null,
-      claimed: { createdAt: Date.now(), id, kind: "turn", text, threadId },
-      claimedAt: 0,
-      fromDeviceId: "fake-phone",
-      settle: { state: "pending" },
-      toDeviceId: null,
-    });
-    return id;
-  }
-
-  // every claim, as if its ttl ran out
-  lapseClaims(): void {
-    for (const row of this.dispatches) {
-      row.claimedAt = 0;
-    }
-  }
-
-  /** the inbox's own view of a dispatch, as the status route answers it. */
-  dispatchStatus(id: string): DispatchStatus {
-    return this.statusOf(id) ?? { id, state: "unknown" };
-  }
-
-  /** the approvals the phone's listing would show. */
-  openApprovals(): ApprovalRow[] {
-    return this.listedApprovals();
-  }
-
-  logSize(): number {
-    return this.log.length;
   }
 
   deviceCount(): number {
@@ -272,12 +143,6 @@ export class FakeCloud {
       const response: RevokeDeviceResponse = { revoked: true };
       return Response.json(response);
     }
-    if (route === `POST ${SYNC_API_PATHS.push}`) {
-      return this.push(device.deviceId, body);
-    }
-    if (route === `GET ${SYNC_API_PATHS.pull}`) {
-      return this.pull(url);
-    }
     if (route === `POST ${ACCOUNT_API_PATHS.delete}`) {
       return this.deleteAccount(device, body);
     }
@@ -287,331 +152,7 @@ export class FakeCloud {
     if (route === `POST ${DEVICE_API_PATHS.revoke}`) {
       return this.revokeDevice(device, body);
     }
-    return (
-      this.dispatchRoute(route, device.deviceId, body) ?? refuse("not-found", "No such route.")
-    );
-  }
-
-  private dispatchRoute(route: string, deviceId: string, body: RequestBody): Response | null {
-    switch (route) {
-      case `POST ${DISPATCH_API_PATHS.dispatch}`: {
-        return this.createDispatch(deviceId, body);
-      }
-      case `POST ${DISPATCH_API_PATHS.claim}`: {
-        return this.claimDispatches(deviceId, body);
-      }
-      case `POST ${DISPATCH_API_PATHS.ack}`: {
-        return this.ackDispatches(body);
-      }
-      case `POST ${DISPATCH_API_PATHS.status}`: {
-        return this.dispatchStatuses(body);
-      }
-      case `POST ${DISPATCH_API_PATHS.cancel}`: {
-        return this.cancelDispatch(body);
-      }
-      case `POST ${DISPATCH_API_PATHS.approval}`: {
-        return this.openApproval(deviceId, body);
-      }
-      case `POST ${DISPATCH_API_PATHS.approvalClose}`: {
-        return this.closeApproval(deviceId, body);
-      }
-      case `GET ${DISPATCH_API_PATHS.approvals}`: {
-        const response: ListApprovalsResponse = { approvals: this.listedApprovals() };
-        return Response.json(response);
-      }
-      default: {
-        return null;
-      }
-    }
-  }
-
-  private statusOf(id: string): DispatchStatus | null {
-    const row = this.dispatches.find((candidate) => candidate.claimed.id === id);
-    if (row === undefined) {
-      return null;
-    }
-    switch (row.settle.state) {
-      case "delivered": {
-        return { id, state: "delivered" };
-      }
-      case "refused": {
-        return { id, message: row.settle.message, state: "refused" };
-      }
-      case "pending": {
-        return { id, state: liveDispatchClaim(row, Date.now()) ? "claimed" : "waiting" };
-      }
-      // no default
-    }
-  }
-
-  private closeApprovalEntry(approvalId: string | null): void {
-    const entry = approvalId === null ? undefined : this.approvals.get(approvalId);
-    if (entry !== undefined) {
-      entry.state = "closed";
-    }
-  }
-
-  // an answer withdrawn before its Mac held it leaves the approval answerable again
-  private reopenApproval(approvalId: string | null): void {
-    const entry = approvalId === null ? undefined : this.approvals.get(approvalId);
-    if (entry?.state === "answered") {
-      entry.state = "open";
-    }
-  }
-
-  // the object's order: a revoked phone's waiting rows go, then a revoked Mac's approvals close
-  // and the answers waiting for it are refused
-  private forgetDevice(deviceId: string): void {
-    const now = Date.now();
-    for (const row of this.dispatches.filter(
-      (candidate) =>
-        candidate.fromDeviceId === deviceId &&
-        candidate.settle.state === "pending" &&
-        !liveDispatchClaim(candidate, now),
-    )) {
-      this.dispatches.splice(this.dispatches.indexOf(row), 1);
-      this.reopenApproval(row.approvalId);
-    }
-    for (const entry of this.approvals.values()) {
-      if (entry.fromDeviceId === deviceId) {
-        entry.state = "closed";
-      }
-    }
-    for (const row of this.dispatches) {
-      if (row.toDeviceId === deviceId && row.settle.state === "pending") {
-        row.settle = { message: SIGNED_OUT, state: "refused" };
-      }
-    }
-  }
-
-  // the fake holds no sockets, so it counts no Mac listening and none declining
-  private dispatchStatuses(body: RequestBody): Response {
-    const parsed = dispatchStatusRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Send { ids }.");
-    }
-    const response: DispatchStatusResponse = {
-      desktopsDeclining: 0,
-      desktopsOnline: 0,
-      dispatches: parsed.data.ids.map((id) => this.dispatchStatus(id)),
-    };
-    return Response.json(response);
-  }
-
-  private cancelDispatch(body: RequestBody): Response {
-    const parsed = cancelDispatchRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Send { id }.");
-    }
-    const response: CancelDispatchResponse = { outcome: this.cancelOutcome(parsed.data.id) };
-    return Response.json(response);
-  }
-
-  private cancelOutcome(id: string): CancelDispatchResponse["outcome"] {
-    const row = this.dispatches.find((candidate) => candidate.claimed.id === id);
-    if (row === undefined) {
-      return "unknown";
-    }
-    if (row.settle.state !== "pending") {
-      return "settled";
-    }
-    if (liveDispatchClaim(row, Date.now())) {
-      return "claimed";
-    }
-    this.dispatches.splice(this.dispatches.indexOf(row), 1);
-    this.reopenApproval(row.approvalId);
-    return "cancelled";
-  }
-
-  private createDispatch(deviceId: string, body: RequestBody): Response {
-    const parsed = createDispatchRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Malformed dispatch.");
-    }
-    const request = parsed.data;
-    const existing = this.statusOf(request.id);
-    if (existing !== null) {
-      const duplicate: CreateDispatchResponse = { dispatch: existing, duplicate: true };
-      return Response.json(duplicate);
-    }
-    const pending = this.dispatches.filter((row) => row.settle.state === "pending").length;
-    if (pending >= DISPATCH_MAX_PENDING) {
-      return refuse("rate-limited", "Too many requests are already waiting for a computer.");
-    }
-    const createdAt = Date.now();
-    if (request.kind === "turn") {
-      this.dispatches.push({
-        approvalId: null,
-        claimToken: null,
-        claimed: { ...request, createdAt },
-        claimedAt: 0,
-        fromDeviceId: deviceId,
-        settle: { state: "pending" },
-        toDeviceId: null,
-      });
-      const stored: CreateDispatchResponse = {
-        dispatch: { id: request.id, state: "waiting" },
-        duplicate: false,
-      };
-      return Response.json(stored);
-    }
-    const approval = this.approvals.get(request.approvalId);
-    if (approval === undefined) {
-      return refuse("not-found", "No such request is waiting for an answer.");
-    }
-    const claimed: ClaimedDispatch = { ...request, createdAt, threadId: approval.row.threadId };
-    if (approval.state !== "open") {
-      const message =
-        approval.state === "answered" ? "That request was already answered." : NO_LONGER_WAITING;
-      this.dispatches.push({
-        approvalId: request.approvalId,
-        claimToken: null,
-        claimed,
-        claimedAt: 0,
-        fromDeviceId: deviceId,
-        settle: { message, state: "refused" },
-        toDeviceId: approval.fromDeviceId,
-      });
-      const settled: CreateDispatchResponse = {
-        dispatch: { id: request.id, message, state: "refused" },
-        duplicate: false,
-      };
-      return Response.json(settled);
-    }
-    if (!answerableDecisions(approval.row.payload).includes(request.decision)) {
-      return refuse("bad-request", "That request does not offer that answer.");
-    }
-    this.dispatches.push({
-      approvalId: request.approvalId,
-      claimToken: null,
-      claimed,
-      claimedAt: 0,
-      fromDeviceId: deviceId,
-      settle: { state: "pending" },
-      toDeviceId: approval.fromDeviceId,
-    });
-    approval.state = "answered";
-    const stored: CreateDispatchResponse = {
-      dispatch: { id: request.id, state: "waiting" },
-      duplicate: false,
-    };
-    return Response.json(stored);
-  }
-
-  private claimDispatches(deviceId: string, body: RequestBody): Response {
-    const parsed = claimDispatchesRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Send { kinds, limit? }.");
-    }
-    const now = Date.now();
-    const claimToken = `dclaim_${now}_${Math.random()}`;
-    const { kinds } = parsed.data;
-    const taken = this.dispatches
-      .filter(
-        (row) =>
-          row.settle.state === "pending" &&
-          kinds.includes(row.claimed.kind) &&
-          (row.toDeviceId === null || row.toDeviceId === deviceId) &&
-          !liveDispatchClaim(row, now),
-      )
-      .slice(0, parsed.data.limit);
-    for (const row of taken) {
-      row.claimToken = claimToken;
-      row.claimedAt = now;
-    }
-    const response: ClaimDispatchesResponse = {
-      claimToken,
-      dispatches: taken.map((row) => row.claimed),
-      expiresAt: now + DISPATCH_CLAIM_TTL_MS,
-    };
-    return Response.json(response);
-  }
-
-  private ackDispatches(body: RequestBody): Response {
-    const parsed = ackDispatchesRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Send { claimToken, results }.");
-    }
-    const { claimToken } = parsed.data;
-    const response: AckDispatchesResponse = {
-      results: parsed.data.results.map((result): AckDispatchesResponse["results"][number] => {
-        const row = this.dispatches.find((candidate) => candidate.claimed.id === result.id);
-        if (row === undefined) {
-          return { id: result.id, outcome: "unknown" };
-        }
-        if (row.claimToken === claimToken && row.settle.state === "pending") {
-          row.settle =
-            result.outcome === "refused"
-              ? { message: result.message, state: "refused" }
-              : { state: "delivered" };
-          this.closeApprovalEntry(row.approvalId);
-          return { id: result.id, outcome: "recorded" };
-        }
-        return { id: result.id, outcome: row.claimToken === claimToken ? "recorded" : "reclaimed" };
-      }),
-    };
-    return Response.json(response);
-  }
-
-  private openApproval(deviceId: string, body: RequestBody): Response {
-    const parsed = openApprovalRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Malformed approval.");
-    }
-    const request = parsed.data;
-    const existing = this.approvals.get(request.id);
-    if (existing !== undefined) {
-      const duplicate: OpenApprovalResponse = { duplicate: true, state: existing.state };
-      return Response.json(duplicate);
-    }
-    const open = [...this.approvals.values()].filter((entry) => entry.state !== "closed").length;
-    if (open >= APPROVAL_MAX_OPEN) {
-      return refuse("rate-limited", "Too many requests are already waiting for an answer.");
-    }
-    this.approvals.set(request.id, {
-      fromDeviceId: deviceId,
-      row: {
-        createdAt: Date.now(),
-        id: request.id,
-        payload: request.payload,
-        threadId: request.threadId,
-        turnId: request.turnId,
-      },
-      state: "open",
-    });
-    const stored: OpenApprovalResponse = { duplicate: false, state: "open" };
-    return Response.json(stored);
-  }
-
-  private closeApproval(deviceId: string, body: RequestBody): Response {
-    const parsed = closeApprovalRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Send { id }.");
-    }
-    const entry = this.approvals.get(parsed.data.id);
-    let outcome: CloseApprovalResponse["outcome"] = "unknown";
-    if (entry !== undefined && entry.fromDeviceId === deviceId) {
-      entry.state = "closed";
-      outcome = "closed";
-      const now = Date.now();
-      for (const row of this.dispatches) {
-        if (
-          row.approvalId === parsed.data.id &&
-          row.settle.state === "pending" &&
-          !liveDispatchClaim(row, now)
-        ) {
-          row.settle = { message: NO_LONGER_WAITING, state: "refused" };
-        }
-      }
-    }
-    const response: CloseApprovalResponse = { outcome };
-    return Response.json(response);
-  }
-
-  private listedApprovals(): ApprovalRow[] {
-    return [...this.approvals.values()].flatMap((entry): ApprovalRow[] =>
-      entry.state === "closed" ? [] : [{ ...entry.row, state: entry.state }],
-    );
+    return refuse("not-found", "No such route.");
   }
 
   // the worker's order: the window, the password asked again, then the account and every device row
@@ -750,97 +291,5 @@ export class FakeCloud {
     });
     const response: DeviceLoginResponse = { credential, deviceId, email, userId };
     return Response.json(response);
-  }
-
-  private push(deviceId: string, body: RequestBody): Response {
-    const parsed = pushRequestSchema.safeParse(body);
-    if (!parsed.success) {
-      return refuse("bad-request", "Malformed push batch.");
-    }
-    const { events } = parsed.data;
-    for (const [index, event] of events.entries()) {
-      const previous = index === 0 ? undefined : events[index - 1];
-      if (previous !== undefined && event.deviceSeq <= previous.deviceSeq) {
-        return refuse(
-          "sync-out-of-order",
-          "Batch positions must strictly increase.",
-          event.deviceSeq,
-        );
-      }
-    }
-    const mine = this.log.filter((row) => row.deviceId === deviceId);
-    let highWater = 0;
-    for (const row of mine) {
-      highWater = Math.max(highWater, row.deviceSeq);
-    }
-    let accepted = 0;
-    let duplicates = 0;
-    for (const event of events) {
-      const stored = mine.find((row) => row.deviceSeq === event.deviceSeq);
-      if (stored !== undefined) {
-        if (stored.body !== event.event) {
-          return refuse(
-            "sync-conflict",
-            "That outbox position is already stored with a different body.",
-            event.deviceSeq,
-          );
-        }
-        duplicates += 1;
-        continue;
-      }
-      if (highWater > 0 && event.deviceSeq <= highWater) {
-        return refuse(
-          "sync-out-of-order",
-          "That outbox position is below this device's high-water mark.",
-          event.deviceSeq,
-        );
-      }
-      this.nextSeq += 1;
-      this.log.push({
-        body: event.event,
-        createdAt: event.createdAt,
-        deviceId,
-        deviceSeq: event.deviceSeq,
-        seq: this.nextSeq,
-        threadId: event.threadId,
-      });
-      accepted += 1;
-      if (this.dropNextPushResponse) {
-        this.dropNextPushResponse = false;
-        throw new Error("connection reset");
-      }
-    }
-    const response: PushResponse = { accepted, duplicates, lastSeq: this.nextSeq };
-    return Response.json(response);
-  }
-
-  private pull(url: URL): Response {
-    const query = pullQuerySchema.safeParse(Object.fromEntries(url.searchParams));
-    if (!query.success) {
-      return refuse("bad-request", "Malformed pull cursor.");
-    }
-    const { afterSeq, limit } = query.data;
-    const rows = this.log.filter((row) => row.seq > afterSeq).slice(0, limit + 1);
-    const hasMore = rows.length > limit;
-    const page = hasMore ? rows.slice(0, limit) : rows;
-    const events: SyncEventRow[] = page.map((row) => ({
-      createdAt: row.createdAt,
-      deviceId: row.deviceId,
-      deviceSeq: row.deviceSeq,
-      event: this.served(row.body),
-      seq: row.seq,
-      threadId: row.threadId,
-    }));
-    const response: PullResponse = { events, hasMore, lastSeq: this.nextSeq };
-    return Response.json(response);
-  }
-
-  private served(body: string): RequestBody {
-    const event = parseJson(body);
-    const typed = typedEventSchema.safeParse(event);
-    if (!typed.success || !this.unreadableTypes.has(typed.data.type)) {
-      return event;
-    }
-    return { ...typed.data, type: `${typed.data.type}@newer` };
   }
 }

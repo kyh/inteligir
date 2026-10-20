@@ -1,11 +1,11 @@
-import type { ThreadSyncDO } from "./thread-sync-do";
+import type { AccountSocketDO } from "./account-socket-do";
 
-export const threadSyncStub = (env: Env, userId: string): DurableObjectStub<ThreadSyncDO> =>
-  env.THREAD_SYNC.getByName(`user:${userId}`);
+export const accountSocketStub = (env: Env, userId: string): DurableObjectStub<AccountSocketDO> =>
+  env.ACCOUNT_SOCKET.getByName(`user:${userId}`);
 
 // a failure propagates so beforeDelete aborts and the account survives to retry
-export const purgeThreadSync = async (env: Env, userId: string): Promise<void> => {
-  await threadSyncStub(env, userId).purge();
+export const closeAccountSockets = async (env: Env, userId: string): Promise<void> => {
+  await accountSocketStub(env, userId).closeAll();
 };
 
 // best-effort: the revoke is already committed in D1, so a failure costs a stale socket, never a working credential
@@ -15,7 +15,7 @@ export const severDeviceSockets = async (
   deviceId: string,
 ): Promise<void> => {
   try {
-    await threadSyncStub(env, userId).severDevice(deviceId);
+    await accountSocketStub(env, userId).severDevice(deviceId);
   } catch {
     // the revoke already stands
   }
@@ -28,7 +28,7 @@ export const pingVaultAdvanced = async (
   pushingDeviceId: string,
 ): Promise<void> => {
   try {
-    await threadSyncStub(env, userId).vaultPing(pushingDeviceId);
+    await accountSocketStub(env, userId).vaultPing(pushingDeviceId);
   } catch {
     // the push already stands
   }

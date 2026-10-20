@@ -31,7 +31,7 @@ export default defineConfig({
         d1Databases: ["DB"],
         r2Buckets: ["PACK_CACHE"],
         durableObjects: {
-          THREAD_SYNC: { className: "ThreadSyncDO", useSQLite: true },
+          ACCOUNT_SOCKET: { className: "AccountSocketDO", useSQLite: true },
           REPO: { className: "RepoCell", useSQLite: true },
           REGISTRY: { className: "Registry", useSQLite: true },
         },

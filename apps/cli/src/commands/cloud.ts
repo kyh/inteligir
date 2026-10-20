@@ -1,5 +1,5 @@
-// no `logout` here on purpose: it discards a queue of unsent writes, a decision for a person in front of
-// that state rather than a verb for a model to drive. no sign-up either: creating an account is a
+// no `logout` here on purpose: it stops the library syncing through the account, a decision for a
+// person rather than a verb for a model to drive. no sign-up either: creating an account is a
 // person's act, done in the app, where `cloud.signUp` is the form's.
 
 import { cloudDevicesPageUrl } from "@repo/contract/local/cloud/cloud-schema";
@@ -41,14 +41,11 @@ const describe = (status: CloudStatusResponse): string[] => {
       ];
     }
     case "signed-in": {
-      const synced =
-        status.lastSyncedAt === null ? "never" : new Date(status.lastSyncedAt).toISOString();
       return [
         `signed in  ${new URL(status.cloudUrl).host}  device ${status.deviceId}`,
-        `${status.connected ? "following" : "polling"}  ${status.pending} queued  cursor ${status.cursor}  synced ${synced}`,
-        ...(status.dropped === 0
-          ? []
-          : [`${status.dropped} event${status.dropped === 1 ? "" : "s"} never reached the cloud`]),
+        status.connected
+          ? "following: another device's change to the library reaches this one at once"
+          : "polling: the library's own timer pulls another device's changes",
         ...(status.lastError === null ? [] : [`last error: ${status.lastError}`]),
       ];
     }
@@ -100,7 +97,7 @@ export const cloudCommand = (deps: CliDeps) =>
   defineCommand({
     meta: {
       description:
-        "Account sync over the cloud: whether this install is signed in, signing in, and an immediate thread pass",
+        "The account the library syncs through: whether this install is signed in, and signing in",
       name: "cloud",
     },
     subCommands: {
@@ -141,27 +138,12 @@ export const cloudCommand = (deps: CliDeps) =>
       status: defineCommand({
         args: { ...jsonArg },
         meta: {
-          description: "Whether this install is signed in, and how far behind",
+          description: "Whether this install is signed in, and whether its account socket is up",
           name: "status",
         },
         run: async ({ args }) => {
           const api = apiFor(deps);
           const body = await api.cloud.status();
-          if (outputJson(args, body)) {
-            return;
-          }
-          writeLines(describe(body));
-        },
-      }),
-      sync: defineCommand({
-        args: { ...jsonArg },
-        meta: {
-          description: "Run a sync pass now — drain the outbox, pull, apply — and print the state",
-          name: "sync",
-        },
-        run: async ({ args }) => {
-          const api = apiFor(deps);
-          const body = await api.cloud.syncNow();
           if (outputJson(args, body)) {
             return;
           }

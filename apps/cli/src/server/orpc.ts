@@ -10,7 +10,6 @@ import { implement } from "@orpc/server";
 import type { AgentsService } from "./agents/agents-service";
 import type { BrowserSession } from "./browser-session";
 import type { AnnotationsService } from "./annotations/annotations-service";
-import type { CloudPrefsStore } from "./cloud/cloud-prefs-store";
 import type { CloudRuntime } from "./cloud/sync-runtime";
 import type { ConnectorsService } from "./connectors/connectors-service";
 import type { FoldersService } from "./folders/folders-service";
@@ -47,7 +46,6 @@ export interface AppContext {
   annotations: AnnotationsService;
   browserSession: BrowserSession;
   cloud: CloudRuntime;
-  cloudPrefs: CloudPrefsStore;
   connectors: ConnectorsService;
   // the one downscaler, a grid thumbnail's and a cover's, so the system's image tool runs one queue
   downscale: ImageDownscale;

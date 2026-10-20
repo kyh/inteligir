@@ -44,7 +44,6 @@ import { noteCreateBrowser } from "./scenarios/note-create-browser";
 import { onboardingAccountBrowser } from "./scenarios/onboarding-account-browser";
 import { osDictationBrowser } from "./scenarios/os-dictation-browser";
 import { phoneAnnotationsHosted } from "./scenarios/phone-annotations-hosted";
-import { phoneDispatchHosted } from "./scenarios/phone-dispatch-hosted";
 import { phoneEditorPage } from "./scenarios/phone-editor-page";
 import { phoneFileOpsHosted } from "./scenarios/phone-file-ops-hosted";
 import { phoneFillIntegrated } from "./scenarios/phone-fill-integrated";
@@ -58,7 +57,6 @@ import { sizeGate } from "./scenarios/size-gate";
 import { slashMenuBrowser } from "./scenarios/slash-menu-browser";
 import { slowStorage } from "./scenarios/slow-storage";
 import { syncConflictBrowser } from "./scenarios/sync-conflict-browser";
-import { threadSyncHosted } from "./scenarios/thread-sync-hosted";
 import { threadsScripted } from "./scenarios/threads-scripted";
 import { tidyLibraryBrowser } from "./scenarios/tidy-library-browser";
 import { tidyLibraryScripted } from "./scenarios/tidy-library-scripted";
@@ -90,8 +88,6 @@ const SCENARIOS: readonly Scenario[] = [
   phoneEditorPage,
   phoneSaveHosted,
   phoneFillRaceHosted,
-  threadSyncHosted,
-  phoneDispatchHosted,
   accountHosted,
   onboardingAccountBrowser,
   builtWorkerBoot,

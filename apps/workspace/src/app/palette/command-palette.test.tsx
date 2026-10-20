@@ -367,7 +367,6 @@ const ACTION: Thread = {
   id: "thr_1",
   originDocPath: "Welcome.md",
   providerId: null,
-  runsElsewhere: false,
   status: "idle",
   title: "Tidy the intro",
   updatedAt: 1,

@@ -61,7 +61,8 @@ const NOTE = [
 // past the serialize debounce and the autosave behind it
 const SETTLE_MS = 2000;
 
-const ASK_AGENT = 'button[aria-label="Ask agent"]';
+// the phone asks no agent, so a selection offers no Ask agent
+const NO_ASK_AGENT = `String(document.querySelector('button[aria-label="Ask agent"]') === null)`;
 
 // The phone's end of the bridge, run in the page as react-native-webview would host it: it
 // records every frame, answers each request from its own files, and answers through the door
@@ -227,7 +228,7 @@ const lastWrite = async (phone: Phone, count: number, what: string): Promise<Wri
 
 export const phoneEditorPage: Scenario = {
   description:
-    "the phone's editor page, built through turbo, loads from `file://` at 390×844 with a scripted phone on its bridge: a typed paragraph writes exactly the note's new bytes under its read base, typing in a tab panel or on a chart writes nothing, a nonce-less frame is ignored, an announced change reloads the buffer, a write the phone finds changed lands merged and shows, and Ask agent and a wiki link tap reach the native end",
+    "the phone's editor page, built through turbo, loads from `file://` at 390×844 with a scripted phone on its bridge: a typed paragraph writes exactly the note's new bytes under its read base, typing in a tab panel or on a chart writes nothing, a nonce-less frame is ignored, an announced change reloads the buffer, a write the phone finds changed lands merged and shows, a selection offers no Ask agent, and a wiki link tap reaches the native end",
   name: "phone-editor-page",
   // the build's own budget plus the drive
   timeoutMs: BUILD_TIMEOUT_MS + 120_000,
@@ -357,28 +358,16 @@ export const phoneEditorPage: Scenario = {
       describe: (text) => `the buffer never showed the merged line:\n${text}`,
     });
 
-    ctx.log("Ask agent sends the selection to the native end");
+    ctx.log("a selection offers no Ask agent: the phone asks no agent");
     expectEq(
       parseEval(await browser(["eval", caretScript("paragraph", true)]), z.string()),
       "placed",
       "the selection could not be made",
     );
-    await pollUntil(
-      async () => await browser(["is", "enabled", ASK_AGENT]),
-      (enabled) => enabled.includes("true"),
-      { deadlineMs: 10_000, describe: (enabled) => `Ask agent never enabled: ${enabled}` },
-    );
-    await browser(["click", ASK_AGENT]);
-    await pollUntil(
-      phone.sent,
-      (frames) =>
-        frames.some(
-          (frame) =>
-            frame.type === "askAgent" &&
-            frame.path === NOTE_PATH &&
-            frame.selection === "paragraph",
-        ),
-      { deadlineMs: 10_000, describe: () => "Ask agent never reached the native end" },
+    expectEq(
+      parseEval(await browser(["eval", NO_ASK_AGENT]), z.string()),
+      "true",
+      "the toolbar drew Ask agent",
     );
 
     ctx.log("a wiki link tap asks the native stack to open its note");

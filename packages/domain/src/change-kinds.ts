@@ -22,7 +22,6 @@ export const THREAD_CHANGE_KINDS = [
   "archived-changed",
   "queue-changed",
   "interactions-changed",
-  "origin-changed",
   "title-changed",
   "changes-committed",
 ] as const;

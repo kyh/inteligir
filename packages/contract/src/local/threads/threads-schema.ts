@@ -24,8 +24,6 @@ export const threadSchema = z.strictObject({
   id: z.string().min(1),
   originDocPath: z.string().nullable(),
   providerId: z.string().nullable(),
-  // the running turn is another device's, so only that device can stop it.
-  runsElsewhere: z.boolean(),
   status: threadStatusSchema,
   title: z.string().nullable(),
   updatedAt: z.number(),
@@ -209,8 +207,7 @@ const readLibraryScope = (scope: ItemScope): WireRead<ItemScope> => {
 };
 
 // what the request event keeps of a library context (every field but the paths, which
-// thread-send.ts drops) rides the thread sync beside the typed text under the event's 64 KiB cap,
-// and only the text is clipped to fit, so the rest is held to a few KB here
+// thread-send.ts drops) is stored on the thread's log with every request, so it is held to a few KB
 export const LIBRARY_CONTEXT_RECORD_MAX_BYTES = 4096;
 
 const readLibraryContext = (value: LibraryViewContext): WireRead<LibraryViewContext> => {

@@ -14,13 +14,6 @@ import type { SqlDriver, SqlExecutor } from "./sql-driver";
 // outbox: the phone's unsent writes, oldest first; `op` and `settle` are JSON parsed on every
 // read. mirror_landings: which paths a landed write moved, in landing order, so a refresh that
 // listed the tree before a landing leaves those rows alone.
-// dispatch_outbox: the phone's requests to a Mac, oldest first. `request` is the body sent, frozen
-// when it is asked so every resend is the same row; `status` the cloud's last answer as JSON,
-// null until the cloud has taken the row. `sent` is not a column of its own: it would be a
-// second answer to the question `status` already answers, and a turn's thread is its request's.
-// the synced threads: thread_sync the pull cursor and the grammar the held events were parsed
-// with, thread_events each held event by its log seq, synced_threads each thread's last seq,
-// which a delta moves though no row holds it.
 const MIGRATIONS: readonly string[] = [
   `CREATE TABLE mirror_meta (
      id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -51,27 +44,6 @@ const MIGRATIONS: readonly string[] = [
    CREATE TABLE mirror_landings (
      seq INTEGER PRIMARY KEY AUTOINCREMENT,
      path TEXT NOT NULL
-   );
-   CREATE TABLE dispatch_outbox (
-     seq INTEGER PRIMARY KEY AUTOINCREMENT,
-     id TEXT NOT NULL UNIQUE,
-     request TEXT NOT NULL,
-     status TEXT,
-     created_at INTEGER NOT NULL
-   );
-   CREATE TABLE thread_sync (
-     id INTEGER PRIMARY KEY CHECK (id = 1),
-     cursor INTEGER NOT NULL,
-     grammar TEXT NOT NULL
-   );
-   CREATE TABLE thread_events (
-     seq INTEGER PRIMARY KEY,
-     thread_id TEXT NOT NULL,
-     event TEXT NOT NULL
-   );
-   CREATE TABLE synced_threads (
-     thread_id TEXT PRIMARY KEY NOT NULL,
-     last_seq INTEGER NOT NULL
    );`,
 ];
 

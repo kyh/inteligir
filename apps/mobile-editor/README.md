@@ -51,7 +51,7 @@ both ends address the same files.
   could not be read, so the screen says why and offers a fresh load),
   `editorState` (dirty and why a save failed, sent only when either changes,
   which the screen asks about before letting the note go), `showAnnotations`,
-  `navigate`, `askAgent`, `flushed`.
+  `navigate`, `flushed`.
 - Native to page: `init { nonce, path, focus }`, `response { id, ok }`,
   `vaultChanged`, `flush` (answered by `flushed` with its id), `annotationMeta`
   (the note's annotations, which its ranges are drawn by) and

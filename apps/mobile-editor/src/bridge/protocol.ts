@@ -205,12 +205,6 @@ export const pageFrameSchema = z.discriminatedUnion("type", [
   }),
   // the page has flushed and asks the native stack to open this note, which keeps the back gesture
   z.strictObject({ nonce: nonceSchema, path: normalVaultPathSchema, type: z.literal("navigate") }),
-  z.strictObject({
-    nonce: nonceSchema,
-    path: normalVaultPathSchema,
-    selection: z.string(),
-    type: z.literal("askAgent"),
-  }),
   // the answer to a `flush`: whether the open note's edits are all written
   z.strictObject({ id: idSchema, nonce: nonceSchema, ok: z.boolean(), type: z.literal("flushed") }),
 ]);

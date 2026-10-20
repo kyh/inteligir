@@ -16,7 +16,6 @@ import { useCloudSession } from "../cloud-session";
 import { relativeTimeLabel, useNow } from "../relative-time";
 import { useVaultStatus } from "../vault-hooks";
 import { DeleteAccountDialog } from "./delete-account-dialog";
-import { PhoneRequestsRow } from "./phone-requests-row";
 import { Row, SectionHeading } from "./settings-chrome";
 
 export const RevokeFailedNotice = ({ cloudUrl }: { cloudUrl: string }) => {
@@ -74,6 +73,7 @@ export type DeviceListState =
 export interface AccountDevicesProps {
   // what this Mac's commits and conflict copies call it
   thisMacName: string | undefined;
+  // when the library last synced, which is what the account carries
   lastSyncedAt: number | null;
   nowMs: number;
   devices: DeviceListState;
@@ -269,7 +269,7 @@ export const AccountSection = () => {
           </Row>
           <AccountDevices
             thisMacName={vaultStatus?.device}
-            lastSyncedAt={status.lastSyncedAt}
+            lastSyncedAt={vaultStatus?.lastSyncAt ?? null}
             nowMs={nowMs}
             devices={deviceList()}
             revokingId={revoke.isPending ? (revoke.variables?.deviceId ?? null) : null}
@@ -280,7 +280,6 @@ export const AccountSection = () => {
               void devicesQuery.refetch();
             }}
           />
-          <PhoneRequestsRow />
         </dl>
         <div className="flex items-center gap-2">
           <Button size="compact" variant="ghost" onClick={signOut} disabled={pending}>

@@ -23,16 +23,13 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
   z.strictObject({
     accountEmail: z.string().min(1),
     cloudUrl: z.url(),
-    // latency, not correctness: the timer still pulls without the socket
+    // the account socket is up, so another device's change to the hosted vault reaches this one
+    // at once; without it the vault's own timer still pulls
     connected: z.boolean(),
-    cursor: z.number().int().nonnegative(),
     deviceId: z.string().min(1),
-    // queued events deleted without reaching the log, since this sign-in; lastError says the
-    // latest refusal, and the next good pass clears it
-    dropped: z.number().int().nonnegative(),
+    // the last check of the sign-in that met no verdict on it (the cloud unreachable), cleared by
+    // the next that reaches it
     lastError: z.string().nullable(),
-    lastSyncedAt: z.number().int().nullable(),
-    pending: z.number().int().nonnegative(),
     state: z.literal("signed-in"),
   }),
   // distinct from signed-out: the fix is a sign-in, which replaces the refused credential. no
@@ -54,7 +51,7 @@ export const cloudStatusResponseSchema = z.discriminatedUnion("state", [
 export type CloudStatusResponse = z.infer<typeof cloudStatusResponseSchema>;
 
 // the account's devices still signed in; `current` is this one, which signs out rather than
-// being revoked from here, since a sign-out also clears what it has queued
+// being revoked from here
 export const cloudDeviceSchema = z.strictObject({
   createdAt: z.number().int(),
   current: z.boolean(),
@@ -79,11 +76,6 @@ export const cloudDevicesPageUrl = (cloudUrl: string): string =>
 // (apps/web/src/routes/app/forgot-password.tsx)
 export const cloudForgotPasswordPageUrl = (cloudUrl: string): string =>
   new URL("/app/forgot-password", cloudUrl).href;
-
-// what this Mac lets the account's other devices ask of it, stored in its own data dir.
-// phoneRequests: whether it takes a phone's requests to run the agent; on as it ships.
-export const cloudPrefsSchema = z.strictObject({ phoneRequests: z.boolean() });
-export type CloudPrefs = z.infer<typeof cloudPrefsSchema>;
 
 // absent means the server's own hostname. imported, not restated: a name accepted here and refused at
 // login is a shape error long after the click

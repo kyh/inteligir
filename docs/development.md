@@ -126,8 +126,8 @@ the git a Mac without the developer tools runs (both fetched and pinned at
 package time), signed when the keychain holds a Developer ID and notarized when
 `.release/` is present (`apps/desktop/README.md` § Packaging).
 
-`pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, thread sync,
-the dispatch inbox, the hosted vault git remote — over a local D1 file and
+`pnpm dev:web` runs the site and the whole cloud — `/api/auth/*`, device
+login, the account's socket, the hosted vault git remote — over a local D1 file and
 miniflare's Durable Objects. Sign-up is invite-only and there is no seeded account — `AGENTS.md`
 § "There is no seeded login" has the exact commands.
 
@@ -184,7 +184,7 @@ its own door into a scratch profile
 | Highlights and their notes                        | `.inteligir/annotations/<item id>.json` in the vault itself                        |
 | The library's filing rules                        | `AGENTS.md` at the vault's root, which the agent reads                             |
 | Accounts, sessions, devices, invites              | D1 (local file under `apps/web/.wrangler`)                                         |
-| Thread log, dispatch inbox, hosted vault          | Durable Objects (same `.wrangler` dir)                                             |
+| The account's sockets, hosted vault               | Durable Objects (same `.wrangler` dir)                                             |
 
 ## Quality gates
 

@@ -12,9 +12,7 @@ import { onTestFinished } from "vitest";
 import { openNodeSqlDriver } from "../../lib/node-sql-driver";
 import { openPhoneDb } from "../../lib/phone-db";
 import type { SqlDriver } from "../../lib/sql-driver";
-import { createSqliteSyncStore } from "../../sync/sqlite-sync-store";
 import { createSyncRuntime } from "../../sync/sync-runtime";
-import type { SyncStore } from "../../sync/sync-store";
 import type { AttachmentFiles } from "../attachment-files";
 import { createNotesStore } from "../notes-store";
 import type { NotesStore } from "../notes-store";
@@ -83,10 +81,6 @@ export const createMemoryOutboxFiles = (): OutboxFiles & { names: () => string[]
 
 export const nodeSha1: Sha1 = async (bytes) => createHash("sha1").update(bytes).digest();
 
-// the synced threads over a database file; reset it "restored" to read back what a file holds
-export const openSyncStore = (db: SqlDriver = openTempDb()): SyncStore =>
-  createSqliteSyncStore({ db, sha1: nodeSha1 });
-
 // the id a note's first comment on the test phone mints
 export const MINTED_NOTE_ID = "5b1f6f8e-3c2a-4f0e-9d7b-8a6c4e2f1d09";
 
@@ -120,7 +114,6 @@ export const launchPhone = (
         fetch,
       }),
     pollIntervalMs: null,
-    store: openSyncStore(db),
   });
   const store = createNotesStore({ ...ports, db, session: sync.session });
   sync.setCredential(CREDENTIAL);

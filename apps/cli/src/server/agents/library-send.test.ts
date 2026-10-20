@@ -4,7 +4,6 @@
 import { safe } from "@orpc/client";
 import { describe, expect, it } from "vitest";
 
-import { createDispatchRequestSchema } from "@repo/contract/cloud/dispatch/dispatch-schema";
 import { LIBRARY_SELECTION_MAX } from "@repo/domain/view-context";
 import type { LibraryViewContext } from "@repo/domain/view-context";
 
@@ -58,23 +57,5 @@ describe("a send from the library", () => {
       expect(error).toMatchObject({ code: "BAD_REQUEST" });
     }
     expect(await client.threads.timeline({ threadId })).toMatchObject({ kind: "full" });
-  });
-
-  it("never rides the phone's dispatch wire, which carries a doc alone", () => {
-    const turn = {
-      id: "0".repeat(32),
-      kind: "turn",
-      text: "file these",
-      threadId: "thr_1",
-    } as const;
-    expect(createDispatchRequestSchema.safeParse({ ...turn, viewContext: LIBRARY }).success).toBe(
-      false,
-    );
-    expect(
-      createDispatchRequestSchema.safeParse({
-        ...turn,
-        viewContext: { resource: "Notes/a.md", revision: "a".repeat(64), surface: "doc" },
-      }).success,
-    ).toBe(true);
   });
 });

@@ -43,7 +43,7 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   (`apps/workspace/src/app/vault-hooks.ts`), and nothing but Settings › Advanced
   reads `lastError`, git's own stderr: a state only the engine can explain says
   "Sync paused" and offers Sync details…, which opens the one section that shows
-  the remote, the raw state and the last error, the thread sync's included
+  the remote, the raw state and the last error
   (`apps/workspace/src/app/settings/advanced-section.tsx`). History names a
   version by when and who, never by its subject or sha: the server reads
   `authorKind` off the author (the user's own edits, the agent, or `external`,
@@ -139,8 +139,8 @@ Account and Advanced included; `app/onboarding/` the agent and account steps
   and Settings, because a strip across the whole window was a second bar under a
   rail that already had a bottom; its account row runs the one
   `useCloudSession` (`app/cloud-session.ts`) Settings › Account runs too, and
-  offers Sync now and no second sync for actions, which sync on their own
-  (`sidebar/sync-row.tsx`). The top bar is the page's, not the rail's: the
+  offers Sync now, the library's, and no second sync for actions, which stay
+  on this Mac (`sidebar/sync-row.tsx`). The top bar is the page's, not the rail's: the
   library's header and an item's bar share its two ends, the rail's toggle with
   Back and Forward and the panel's toggle
   (`apps/workspace/src/app/topbar-lead.tsx`). Under a note sits only its word

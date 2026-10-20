@@ -16,7 +16,6 @@ import {
   useEditorRef,
   useEditorSelector,
   useMarkToolbarButtonState,
-  useSelectionExpanded,
 } from "platejs/react";
 import type { PlateEditor } from "platejs/react";
 import {
@@ -30,7 +29,6 @@ import {
   HighlighterIcon,
   ListIndentIncreaseIcon,
   Redo2Icon,
-  SparklesIcon,
   UnderlineIcon,
   Undo2Icon,
 } from "lucide-react";
@@ -40,7 +38,6 @@ import { Separator } from "@repo/ui/components/separator";
 import { toast } from "@repo/ui/components/sonner";
 import type { IconComponent } from "@repo/ui/lib/icon";
 
-import { askAgentAboutSelection } from "@repo/editor/agent-request";
 import {
   HIGHLIGHT_SHORTCUT,
   highlightSelection,
@@ -58,7 +55,6 @@ import { GROUPS } from "@repo/editor/slash-items";
 import type { SlashItem } from "@repo/editor/slash-items";
 
 export const TOUCH_ACTIONS = {
-  "ask-agent": { icon: SparklesIcon, label: "Ask agent" },
   "hide-keyboard": { icon: KeyboardOffIcon, label: "Hide keyboard" },
   image: { icon: ImageIcon, label: "Add image" },
   indent: { icon: ListIndentIncreaseIcon, label: "Indent" },
@@ -184,26 +180,13 @@ const ActionButton = ({
   );
 };
 
-// what the selection can be handed to: the agent, and a highlight the host writes. The highlight's
-// note field takes the row first, so its markers go in once, as it is submitted, note or none.
-const SelectionButtons = ({
-  editor,
-  onAnnotate,
-}: {
-  editor: PlateEditor;
-  onAnnotate: () => void;
-}) => {
-  const expanded = useSelectionExpanded();
+// what the selection can be handed to: a highlight the host writes. The phone asks no agent, so
+// the desktop's Ask agent has no row here. The highlight's note field takes the row first, so its
+// markers go in once, as it is submitted, note or none.
+const SelectionButtons = ({ onAnnotate }: { onAnnotate: () => void }) => {
   const highlightable = useEditorSelector(selectionTakesHighlight, []);
   return (
     <>
-      <ActionButton
-        action="ask-agent"
-        disabled={!expanded}
-        onPress={() => {
-          askAgentAboutSelection(editor);
-        }}
-      />
       <ToolbarButton
         label={HIGHLIGHT_SHORTCUT.label}
         disabled={!highlightable}
@@ -380,7 +363,6 @@ const TouchToolbar = () => {
         <>
           <div className="flex min-w-0 flex-1 items-center overflow-x-auto px-1">
             <SelectionButtons
-              editor={editor}
               onAnnotate={() => {
                 openPrompt("highlight");
               }}

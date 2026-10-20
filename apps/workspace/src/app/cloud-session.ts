@@ -21,7 +21,6 @@ export interface CloudSession {
   signUp: (request: CloudSignUpRequest) => void;
   // confirms first: a surface greyed out while the dialog waits claims work that has not started
   signOut: () => void;
-  syncThreads: () => void;
 }
 
 export const useCloudSession = (): CloudSession => {
@@ -61,14 +60,6 @@ export const useCloudSession = (): CloudSession => {
       onSuccess: applyStatus,
     }),
   );
-  const sync = useMutation(
-    orpc.cloud.syncNow.mutationOptions({
-      onError: (error) => {
-        failed(error, "Could not run a sync.");
-      },
-      onSuccess: applyStatus,
-    }),
-  );
 
   const signOut = (): void => {
     void (async () => {
@@ -78,7 +69,7 @@ export const useCloudSession = (): CloudSession => {
         vaultStatus.state !== "no-remote" &&
         vaultStatus.remoteSource === "account";
       const confirmed = await confirm({
-        body: `This machine forgets its credential and everything queued for the cloud, and revokes itself on your account if it can reach it.${vaultViaAccount ? " Your library stops syncing through your account." : ""} Your library and actions stay here.`,
+        body: `This Mac forgets its sign-in, and removes itself from your account if it can reach it.${vaultViaAccount ? " Your library stops syncing through your account." : ""} Your library and actions stay here.`,
         confirmLabel: "Sign out",
         destructive: true,
         title: "Stop syncing this device?",
@@ -92,14 +83,11 @@ export const useCloudSession = (): CloudSession => {
   };
 
   return {
-    pending: login.isPending || signUp.isPending || logout.isPending || sync.isPending,
+    pending: login.isPending || signUp.isPending || logout.isPending,
     refusal,
     signIn: login.mutate,
     signOut,
     signUp: signUp.mutate,
     status: statusQuery.data,
-    syncThreads: () => {
-      sync.mutate();
-    },
   };
 };

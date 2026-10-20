@@ -53,40 +53,6 @@ export const createThread = (
   return row;
 };
 
-export interface EnsureThreadOutcome {
-  row: ThreadRow;
-  created: boolean;
-}
-
-// created with the id another device minted, not `createThread`'s: a device minting its own turns
-// one synced conversation into two. a pulled thread is created bare, its title, origin and harness
-// arriving as the log's thread/meta rows through `applyThreadMetaInTransaction`; a phone's request
-// states its origin, which only the create takes, since an existing thread already has its own.
-export const ensureThreadInTransaction = (
-  tx: DbTransaction,
-  id: string,
-  origin?: ThreadOriginInput,
-): EnsureThreadOutcome => {
-  const existing = tx.select().from(threads).where(eq(threads.id, id)).get();
-  if (existing !== undefined) {
-    return { created: false, row: existing };
-  }
-  const now = Date.now();
-  const row = tx
-    .insert(threads)
-    .values({
-      createdAt: now,
-      id,
-      originDocPath: origin?.path ?? null,
-      originNoteId: origin?.noteId ?? null,
-      status: "idle",
-      updatedAt: now,
-    })
-    .returning()
-    .get();
-  return { created: true, row };
-};
-
 export const getThread = (db: DbExecutor, id: string): ThreadRow | null =>
   db.select().from(threads).where(eq(threads.id, id)).get() ?? null;
 
@@ -194,8 +160,7 @@ export const listThreads = (db: DbConnection, query: ThreadListQuery): ThreadPag
 export const listRunningThreads = (db: DbConnection): ThreadRow[] =>
   db.select().from(threads).where(inArray(threads.status, RUNNING_STATUSES)).all();
 
-// the paths threads are bound by alone: composed over a note with no id to give, or asked over
-// from a phone, which reads an id and never mints one.
+// the paths threads are bound by alone: composed over a note with no id to give.
 export const listPathOnlyOriginPaths = (db: DbExecutor): string[] =>
   db
     .selectDistinct({ path: threads.originDocPath })
@@ -204,9 +169,8 @@ export const listPathOnlyOriginPaths = (db: DbExecutor): string[] =>
     .all()
     .flatMap((row) => (row.path === null ? [] : [row.path]));
 
-// only rows still bound by that path alone: a thread/meta that restated an origin meanwhile is the
-// newer statement, and an id never pairs with another statement's path. updated_at stays, because
-// the listing orders by it and nothing about the thread changed.
+// only rows still bound by that path alone, so an id never pairs with a path it was not read
+// beside. updated_at stays, because the listing orders by it and nothing about the thread changed.
 export const bindPathOnlyOrigins = (
   db: DbExecutor,
   args: { path: string; noteId: string },
@@ -240,56 +204,6 @@ export const archiveThreadInTransaction = (tx: DbTransaction, id: string): boole
       .returning({ id: threads.id })
       .get() !== undefined
   );
-};
-
-export interface ThreadMetaFacts {
-  title?: string | undefined;
-  originDocPath?: string | undefined;
-  originNoteId?: string | undefined;
-  providerId?: string | undefined;
-}
-
-export interface ThreadMetaChange {
-  title: boolean;
-  origin: boolean;
-}
-
-// a title and an origin take the latest statement: a title a skipping build pulls again lands
-// after the first message already named the thread. an origin is stated as its path and its note's
-// id together, so an id never pairs with another statement's path. a bound harness stays, because
-// this device's provider session was opened on it.
-export const applyThreadMetaInTransaction = (
-  tx: DbTransaction,
-  args: { threadId: string; facts: ThreadMetaFacts },
-): ThreadMetaChange => {
-  const row = getThread(tx, args.threadId);
-  if (row === null) {
-    return { origin: false, title: false };
-  }
-  const { originDocPath, providerId, title } = args.facts;
-  const patch: Partial<typeof threads.$inferInsert> = {};
-  if (title !== undefined && title !== row.title) {
-    patch.title = title;
-  }
-  if (originDocPath !== undefined) {
-    const originNoteId = args.facts.originNoteId ?? null;
-    if (originDocPath !== row.originDocPath || originNoteId !== row.originNoteId) {
-      patch.originDocPath = originDocPath;
-      patch.originNoteId = originNoteId;
-    }
-  }
-  if (providerId !== undefined && row.providerId === null) {
-    patch.providerId = providerId;
-  }
-  const change = { origin: patch.originDocPath !== undefined, title: patch.title !== undefined };
-  if (!change.origin && !change.title && patch.providerId === undefined) {
-    return change;
-  }
-  tx.update(threads)
-    .set({ ...patch, updatedAt: Date.now() })
-    .where(eq(threads.id, args.threadId))
-    .run();
-  return change;
 };
 
 export interface SetThreadProviderSessionArgs {

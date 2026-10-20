@@ -394,11 +394,9 @@ export const createPageHost = ({ bridge, path, store }: PageHostInputs): PageHos
 
   const hostActions: EditorHostActions = {
     agent: {
-      askAboutSelection: (selection) => {
-        const { openPath } = store.state();
-        if (openPath !== null) {
-          bridge.emit({ path: openPath, selection, type: "askAgent" });
-        }
+      // the phone asks no agent: the touch toolbar draws no Ask agent, so nothing calls this
+      askAboutSelection: () => {
+        /* empty */
       },
       // a tag has no screen on the phone
       showTag: () => {

@@ -5,15 +5,8 @@
 import { z } from "zod";
 import { clientBuildHeaders } from "../client-build";
 import type { ClientBuild } from "../client-build";
-import {
-  SYNC_WS_KEEPALIVE_PING,
-  SYNC_WS_PATH,
-  SYNC_WS_PHONE_REQUESTS_ON,
-  SYNC_WS_PHONE_REQUESTS_PARAM,
-  SYNC_WS_PLATFORM_PARAM,
-  syncPingSchema,
-} from "./sync-ws";
-import type { SocketListener, SyncPing } from "./sync-ws";
+import { SYNC_WS_KEEPALIVE_PING, SYNC_WS_PATH, syncPingSchema } from "./sync-ws";
+import type { SyncPing } from "./sync-ws";
 
 // a runtime takes the opener rather than building it, so a test hands it a fake that never dials.
 export interface CloudSocket {
@@ -24,11 +17,10 @@ export interface OpenCloudSocketArgs {
   baseUrl: string;
   build: ClientBuild;
   credential: string;
-  listener: SocketListener;
   onOpen: () => void;
   onPing: (ping: SyncPing) => void;
   // called once even if the socket never opened. SYNC_WS_REVOKED_CLOSE_CODE is a hint that runs
-  // an http pass; the pass's terminal refusal is what halts the transport.
+  // a request under the credential; that request's terminal refusal is what halts the transport.
   onClose: (code: number) => void;
 }
 
@@ -62,10 +54,6 @@ export const createCloudSocketOpener =
   (args): CloudSocket => {
     const url = new URL(SYNC_WS_PATH, args.baseUrl);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    url.searchParams.set(SYNC_WS_PLATFORM_PARAM, args.listener.platform);
-    if (args.listener.platform === "desktop" && args.listener.phoneRequests) {
-      url.searchParams.set(SYNC_WS_PHONE_REQUESTS_PARAM, SYNC_WS_PHONE_REQUESTS_ON);
-    }
 
     const socket = dial(url.toString(), {
       ...clientBuildHeaders(args.build),

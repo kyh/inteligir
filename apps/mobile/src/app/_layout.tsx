@@ -55,8 +55,6 @@ const RootLayout = () => {
             <Stack.Screen name="index" />
             <Stack.Screen name="item/[...path]" />
             <Stack.Screen name="view/[...path]" />
-            <Stack.Screen name="threads" />
-            <Stack.Screen name="thread/[id]" />
           </Stack.Protected>
           <Stack.Protected guard={!signedIn}>
             <Stack.Screen name="sign-in" />

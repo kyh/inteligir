@@ -80,7 +80,9 @@ describe("cloud.deleteAccount", () => {
 
     const deleting = app.client.cloud.deleteAccount(RIGHT_PASSWORD);
     await answered.promise;
-    const met = await app.client.cloud.syncNow();
+    // any request under the credential meets the revocation the deletion made first
+    await safe(app.client.cloud.devices());
+    const met = await app.client.cloud.status();
     expect(met.state).toBe("unauthorized");
     released.resolve(null);
 
@@ -103,12 +105,14 @@ describe("cloud.deleteAccount", () => {
     expect(existsSync(deviceCredentialPath(app.dataDir))).toBe(false);
   });
 
-  it("reads a retry after a pass met that revocation as the account gone, asking nothing", async () => {
+  it("reads a retry after another request met that revocation as the account gone, asking nothing", async () => {
     const cloud = new FakeCloud();
     const app = await boot(lostFirstDeletion(cloud));
     await app.client.cloud.login(FAKE_ACCOUNT);
     await safe(app.client.cloud.deleteAccount(RIGHT_PASSWORD));
-    const met = await app.client.cloud.syncNow();
+    // any request under the credential meets the revocation the deletion made first
+    await safe(app.client.cloud.devices());
+    const met = await app.client.cloud.status();
     expect(met.state).toBe("unauthorized");
     const asked = cloud.requests.length;
 

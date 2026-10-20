@@ -1,24 +1,22 @@
 # Decisions: @repo/web and the cloud
 
-Accounts, the device credential, the /cloud wire, thread sync, the inboxes and
-the hosted vault. `AGENTS.md` § Decisions says how a bullet is written and
+Accounts, the device credential, the /cloud wire, the account's socket and the
+hosted vault. `AGENTS.md` § Decisions says how a bullet is written and
 cited.
 
 ## Cloud, sync and accounts
 
 - **THE DEVICE CREDENTIAL IS THE SYNC SWITCH AND THE ENTITLEMENT, and it lives
-  in the data dir**: not in `inteligir.db` (the thread log it uploads) and not
-  in the vault (a git repo pushed to a remote). No separate "sync enabled" flag,
-  since two values that must agree can disagree: signed out, the app sends this
-  project's cloud nothing, and what does leave the machine is
-  `docs/privacy.md`'s to list. Signed in, the credential alone entitles threads,
-  the phone's requests and the hosted vault, except that a folder with an origin
-  of its own, or one another service syncs, never takes the hosted vault (AN
-  OPENED FOLDER'S OWN ORIGIN, in `apps/cli/src/server/vault/CLAUDE.md`); its
-  threads sync either way. The hosted vault's ceiling is a size, not a flag (THE
-  HOSTED VAULT IS CAPPED, below), the invite gate is account-creation policy,
-  and the BYO remote is the vault's own origin and stays accountless. Cost
-  accepted: "pause sync" is signing out, which discards the queue.
+  in the data dir**: not in `inteligir.db` and not in the vault (a git repo
+  pushed to a remote). No separate "sync enabled" flag, since two values that
+  must agree can disagree: signed out, the app sends this project's cloud
+  nothing (`docs/privacy.md` lists what does leave the machine). Signed in, the
+  credential alone entitles the hosted vault and the account's socket, except
+  that a folder with an origin of its own, or one another service syncs, never
+  takes the hosted vault (AN OPENED FOLDER'S OWN ORIGIN, in
+  `apps/cli/src/server/vault/CLAUDE.md`). Its ceiling is a size, not a flag
+  (THE HOSTED VAULT IS CAPPED, below), and the BYO remote stays accountless.
+  Cost accepted: "pause sync" is signing out.
   `apps/cli/src/server/cloud/credential-store.ts`, `sync-runtime.ts`.
 
 - **A DEVICE SIGNS IN, OR SIGNS UP, WITH EMAIL + PASSWORD, and gets the same
@@ -48,8 +46,7 @@ cited.
 - **A DEVICE CREDENTIAL LISTS AND REVOKES ITS ACCOUNT'S DEVICES**, so any
   signed-in Mac's Settings › Account removes a lost phone with no password
   asked, as a sign-out asks none; the web's devices page stays as the fallback.
-  A Mac's own row offers no Revoke: this device leaves through a sign-out, which
-  also forgets its queue. `apps/web/src/worker/device/routes.ts`,
+  A Mac's own row offers no Revoke: this device leaves through a sign-out. `apps/web/src/worker/device/routes.ts`,
   `apps/workspace/src/app/settings/account-section.tsx`.
 
 - **A CREDENTIAL THIS DEVICE DROPS IS REVOKED BY THIS DEVICE, best-effort and
@@ -79,14 +76,17 @@ cited.
   `apps/web/src/worker/device/account.ts`,
   `apps/cli/src/server/cloud/account-calls.ts`.
 
-- **Cloud state names its Durable Object from a VERIFIED credential.** Account
-  deletion revokes credentials first, then purges, then writes a tombstone every
-  route refuses, because the reorder alone leaves an in-flight request able to
-  recreate state. The Worker calls the object by RPC with the verified deviceId
-  as an argument, so no forwarded header carries identity; the socket upgrade,
-  which only fetch can carry, is the one exception, and its identity lands in
-  hibernation tags (`apps/web/src/worker/sync/routes.ts`, `thread-sync-stub.ts`,
-  `thread-sync-do.ts`).
+- **THE ACCOUNT'S SOCKET IS AN OBJECT THAT STORES NOTHING, NAMED FROM A
+  VERIFIED CREDENTIAL.** `AccountSocketDO`, one per account, holds its devices'
+  hibernating sockets and no row: a hosted-vault push pings the other devices,
+  a revoke closes that device's sockets, a deletion closes them all. The Worker
+  verifies the credential and stamps the device id on the upgrade, the one
+  request only fetch can carry, and the object keeps it in hibernation tags;
+  every other call is RPC with the verified id. With nothing stored, a request
+  racing the deletion leaves nothing to purge, so there is no tombstone.
+  Rejected: the socket on an object that also keeps a log nobody reads.
+  `apps/web/src/worker/sync/account-socket-do.ts`, `account-socket-stub.ts`,
+  `routes.ts`.
 
 - **Better Auth's `baseURL` is derived per-request from the request origin, and
   sign-up is invite-gated by a Worker route in front of it.** Every hostname
@@ -114,7 +114,8 @@ cited.
   table (`tools/repo-guards/src/d1-unique-index.test.ts`).
 
 - **`@repo/contract/cloud` IS THE CLIENT RUNTIME CORE, not only the wire**: the
-  login flow, the sync session and the socket's keepalive and reconnect are code
+  login flow, the sync session, the sign-in check and the socket's keepalive and
+  reconnect are code
   BOTH clients run, injecting only stores, timers and a socket dial, because a
   security discipline with two spellings is two to audit. What only the CLI
   runs, such as the browser opener, sits beside its consumer. The cloud
@@ -146,87 +147,23 @@ cited.
   `packages/contract/src/cloud/client-build.ts`,
   `apps/web/src/worker/client-floor.ts`.
 
-- **Say the delivery guarantee you implement.** The dispatch inbox delivers
-  at-least-once to a claimant and settles a row only under the claim that holds
-  it, so a Mac's apply of a turn or an answer must be exactly-once on the
-  dispatch id, and is: the thread is its ledger (A PHONE ASKS A MAC, below). An
-  ack that never reached the cloud is held and sent before the Mac's next claim,
-  and the inbox records it under that claim, lapsed or not, until another claim
-  takes the row, so a row the Mac applied is not handed over again.
-  `apps/cli/src/server/cloud/dispatches.ts`, `sync-pass.ts`.
-
-- **The THREAD channel carries thread events alone, and a thread's own facts are
-  events on it** (owner decision). A thread with no events never reaches another
-  device; vault bytes ride the git remote. A thread states its title, origin
-  note (path and `id`, so no move is ever stated), harness and archive as rows
-  on its log; a fact about a thread that never made a request stays local, since
-  alone it would arrive as an empty action. A stale install skips a type it
-  cannot read, so a new event type needs no new route. The Worker keeps no
-  per-thread row beside the log (owner decision): a push is its events alone,
-  and the dispatch inbox carries what a per-thread lane would.
-  `apps/cli/src/server/threads/thread-send.ts`,
-  `packages/contract/src/cloud/sync/sync-schema.ts`.
-
-- **A pulled event lands through the SAME ingest, marked with its origin**:
-  nothing is re-enqueued, and a settle does not drain this device's queue. The
-  cursor moves inside that transaction, which makes the apply exactly-once. A
-  synced row carries its origin under a unique index, since signing in again
-  resets the cursor, and the planner skips every device id the install has
-  signed in as, because each sign-in mints a new id and its own rows carry no
-  origin. Lifecycle projects over what landed, never what arrived.
-  `apps/cli/src/server/cloud/sync-pass.ts`.
-
-- **Only the process that owns a provider may declare it dead.** Crash recovery
-  reads the `turn/started` row's provenance and leaves a remote turn alone; a
-  fabricated failure would sync back to the machine still doing the work. A
-  device that never returns leaves the thread active here.
-
-- **CONVERGENCE MEANS THE SAME SET, NOT THE SAME ORDER.** `events.sequence` is
-  an arrival order per device under a UNIQUE(thread, sequence), so no
-  renumbering exists. Pinned: both devices hold the same set and each writer's
-  turn stays contiguous. Projecting the account log's global `seq` instead is
-  the change if a shared interleave is ever needed.
-
-- **A SYNC PASS IS FENCED BY SESSION IDENTITY, not by "is a session live?".**
-  Every step re-checks the id after every await, because the dangerous case is a
-  different sign-in: an old ack deletes rows a later sign-in queued. `dispose`
+- **A SIGN-IN IS FENCED BY SESSION IDENTITY, not by "is a session live?".**
+  Every request under a sign-in re-checks the id after every await, because
+  the dangerous case is a different sign-in: an old answer retires outbox rows
+  a later sign-in queued, or a late refusal ends the next sign-in. `dispose`
   aborts too. The fence is `@repo/contract/cloud/sync/sync-session.ts`.
 
-- **A SYNC PASS IS CAPPED, A CAPPED PASS IS FOLLOWED AT ONCE, AND "SYNCED" MEANS
-  EVERY STEP REACHED THE CLOUD AND LEFT NOTHING.** The cap stays because a
-  teardown waits out the pass in flight; a capped pass is followed at once, so a
-  backlog drains in one sync, and only a pass whose every step caught up stamps
-  `lastSyncedAt`. A throw other than a row the log refuses fails the pass with
-  the cursor unmoved, because moving past it would lose the row for good. The
-  socket drops itself after two silent keepalives, since a half-open connection
-  neither answers nor closes. `apps/cli/src/server/cloud/sync-pass.ts`,
+- **A REVOCATION IS HEARD BY A CHECK OF THE SIGN-IN, AND THE SOCKET ONLY HURRIES
+  IT.** Only an http refusal ends a sign-in, so both clients run `checkSignIn`
+  (`@repo/contract/cloud/sync/sync-session.ts`), the device list, the cheapest
+  call a credential makes, as the sign-in starts, as the socket opens, when the
+  cloud closes a revoked device's socket, and on a minute's timer; any other
+  request that hears a refusal ends the sign-in too. The socket drops itself
+  after two silent keepalives, since a half-open connection neither answers
+  nor closes. Rejected: a log polled only to carry the verdict.
+  `apps/cli/src/server/cloud/sync-runtime.ts`,
+  `apps/mobile/src/sync/sync-runtime.ts`,
   `packages/contract/src/cloud/sync/cloud-socket.ts`.
-
-- **The outbox stores the bytes it will send, once, at enqueue.** The log calls
-  a position replayed with a different body `sync-conflict`; `deviceSeq` is its
-  own counter, not `MAX()` over a shrinking queue. A body over the row cap is
-  CLIPPED before it is frozen, never dropped, because a dropped `item/completed`
-  leaves its item pending on every other device forever; the clip never cuts a
-  type, an id, a status or a scope. An event the contract still refuses is
-  dropped rather than stranding every event behind it, and so is every row a log
-  refusal names; each drop is COUNTED and shown until sign-out, because the last
-  error it raises is cleared by the next good pass while the loss is not
-  (`apps/cli/src/server/cloud/outbox.ts`, `packages/db/src/sync-outbox.ts`).
-
-- **A PULLED ROW THIS BUILD CANNOT READ IS PULLED AGAIN BY THE NEXT BUILD.** The
-  planner moves the cursor past a foreign row its grammar refuses, because the
-  rows behind it must still land; the lowest such row is recorded, and a session
-  opened under a different build rewinds to it. A row filed under one thread
-  whose event names another is skipped too, never recorded, since no build reads
-  it differently. Rejected: `meta.schema_version` as the trigger, which counts
-  migrations while a new event type ships without one; a table of raw skipped
-  rows, a second store beside the log; and refusing a mismatched row at each
-  client's apply, a second answer the phone, keying by the envelope, would not
-  give. The phone keeps its threads with the digest of the event grammar that
-  parsed them, and a build whose grammar differs pulls from 0, since its held
-  events lost what the old grammar did not name; a cold launch lists them
-  offline. `packages/db/src/sync-outbox.ts`,
-  `apps/mobile/src/sync/sqlite-sync-store.ts`.
 
 - **THE HOSTED VAULT'S PATHS ARE BUDGETED PER DEVICE, and the budget buys time,
   not prevention.** Reads, writes and git each consume a window keyed on the
@@ -297,39 +234,16 @@ cited.
   `apps/web/cloudflare.config.ts`, `apps/web/src/worker/vault/receive-pack.ts`,
   `apps/cli/src/server/vault/git-engine.ts`, `apps/cli/src/server/vault/git-stage.ts`.
 
-- **A PHONE ASKS A MAC THROUGH A CLAIMABLE DISPATCH INBOX, THE REQUEST LANDS
-  THROUGH THE MAC'S OWN SEND, AND THE THREAD IS ITS LEDGER** (owner decision).
-  The phone never pushes to the log, so a request cannot ride it: it waits in
-  the account's inbox, any Mac may claim it and the first claim wins. A claim
-  names the kinds its Mac applies, so a kind a newer phone sends never reaches a
-  build that would read it as another, and the phone mints the id, so a resend
-  is one row. The Mac's apply runs the send's own decision, so a request starts,
-  queues or is refused as a message typed there would, and no table records a
-  claim: the request row, or while the thread is busy the queued message,
-  carrying the dispatch id is the ledger, so a lapsed claim handed over again,
-  or one another Mac ran, acks with no second turn (Say the delivery guarantee
-  you implement, above). A thread whose turn another device runs is refused,
-  since the request would wait on a queue a remote settle never drains; a
-  signed-out agent is delivered, and its error is what the phone reads. A new
-  thread binds its note by an id read, never minted, because a mint waits on the
-  vault's lock and a claim held past its lapse runs on a second Mac. Rejected:
-  the `thread_meta` lane, which carried no message and no claim, so two Macs
-  would both run it, and which every desktop push overwrote; and the phone as a
-  log pusher, which would give it an outbox and a `deviceSeq` of its own.
-  Residual: a follow-up one Mac claims on a thread another Mac ran opens a fresh
-  provider session there.
-  `apps/web/src/worker/sync/dispatch-inbox.ts`,
-  `apps/cli/src/server/cloud/dispatches.ts`, `packages/db/src/events.ts`.
-
-- **A PHONE-STARTED TURN'S APPROVAL IS ANSWERED ON THE PHONE** (owner decision):
-  the Mac holding its waiter opens it in the inbox, and the phone's answer is a
-  row only that Mac may claim. `apps/cli/src/server/cloud/dispatches.ts`.
-
-- **LET MY PHONE ASK THIS MAC IS THE MAC'S SWITCH, on unless turned off** (owner
-  decision). It is read per pass and said on the socket's upgrade, so the
-  phone's "a Mac is listening" counts only Macs that would claim, and with only
-  declining Macs open its waiting caption names the switch rather than asking
-  for a Mac to be opened. `apps/cli/src/server/cloud/sync-pass.ts`.
+- **THE PHONE ASKS NO AGENT, AND THE ACCOUNT CARRIES NO THREAD** (owner
+  decision: the phone saves, reads and writes, as Raindrop's and Obsidian's
+  do). A thread lives in the database of the Mac that ran it, and its edits
+  reach other devices as the library's commits; a phone that wants the agent
+  asks on a Mac. `ThreadSyncDO` is a deleted export, which removes every object
+  of it and its storage on deploy, and no class of that name is exported; the
+  entry stays until every deployment has applied it. Rejected: a thread log
+  every device pulls and an inbox a Mac polls, a second store and sync beside
+  the library's for transcripts no other device edits.
+  `apps/web/cloudflare.config.ts`.
 
 - **A VAULT READ CARRIES ITS PATH IN THE BODY, NEVER THE URL.** Cloudflare keeps
   each request's URL in the Worker's request log and in its sampled traces for
@@ -351,15 +265,3 @@ cited.
   commit is created by the script (`.github/scripts/worker-preview.mjs`),
   because a job's `environment:` under `workflow_run` records the default
   branch. `.github/workflows/preview.yml`, `apps/web/README.md` § Previews.
-
-- **THE DISPATCH INBOX'S RULES ARE ONE TABLE, AND THE CLI'S FAKE CLOUD AND THE
-  WORKER BOTH ANSWER IT.** The local server's suites run against a fake cloud,
-  so a refusal or ordering rule of the dispatch inbox it spelled its own way
-  would pass there and fail deployed. `INBOX_SCENARIOS`
-  (`@repo/contract/cloud/test-support/inbox-scenarios`) drives each rule through
-  the real cloud client and observes ids, states and texts, never a clock or a
-  token; the CLI runs it against the fake and the Worker's suite against the
-  object. A rule both sides answer goes in the table, not in one side's suite.
-  Rejected for now: running `dispatch-inbox.ts` itself in the fake over a shared
-  `SqlStorage` port, a package of its own, whose trigger is the table catching
-  drift more than once.

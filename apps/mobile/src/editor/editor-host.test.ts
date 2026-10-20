@@ -315,10 +315,10 @@ describe("the native end of the editor page's bridge", () => {
   it("hands every other page event on, and a flush waits for the page's own answer", async () => {
     const { events, fromPage, host, injected, load } = hostOver();
     const nonce = load();
-    fromPage({ nonce, path: "b.md", selection: "why", type: "askAgent" });
+    fromPage({ nonce, path: "b.md", type: "navigate" });
     fromPage({ message: "no a.md", nonce, path: "a.md", type: "openFailed" });
     expect(events).toStrictEqual([
-      { nonce, path: "b.md", selection: "why", type: "askAgent" },
+      { nonce, path: "b.md", type: "navigate" },
       { message: "no a.md", nonce, path: "a.md", type: "openFailed" },
     ]);
 

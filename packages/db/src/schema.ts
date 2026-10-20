@@ -30,8 +30,7 @@ export const threads = sqliteTable(
     // index: the listing filters by it (and by origin_doc_path) inside the (updated_at, id)
     // partial-index scan, which a vault's thread count keeps cheap.
     originNoteId: text("origin_note_id"),
-    // a synced thread/meta binds the harness before this device opens a session on it, so the
-    // id may stand alone; a session never does.
+    // the harness a session was opened on: a session id never stands without it.
     providerId: text("provider_id"),
     providerThreadId: text("provider_thread_id"),
     archivedAt: integer("archived_at"),
@@ -75,18 +74,10 @@ export const events = sqliteTable(
     itemId: text("item_id"),
     itemKind: text("item_kind").$type<ThreadEventItemType>(),
     data: text("data").notNull().default("{}"),
-    // (device, position) of the merged-log row, both null for a local event. not the
-    // account-global seq: after signing in again the same seq names another account's row, so an
-    // idempotency check keyed on it would skip a genuine event.
-    originDeviceId: text("origin_device_id"),
-    originDeviceSeq: integer("origin_device_seq"),
     createdAt: integer("created_at").notNull(),
   },
   (table) => [
     uniqueIndex("events_thread_sequence_idx").on(table.threadId, table.sequence),
-    // sqlite treats nulls as distinct in a unique index, so locally-written rows (both null)
-    // coexist.
-    uniqueIndex("events_origin_idx").on(table.originDeviceId, table.originDeviceSeq),
     index("events_thread_turn_type_item_sequence_idx").on(
       table.threadId,
       table.turnId,
@@ -101,10 +92,6 @@ export const events = sqliteTable(
         OR
         (${table.scopeKind} = 'thread' AND ${table.turnId} IS NULL)
       )`,
-    ),
-    check(
-      "events_origin_shape_check",
-      sql`(${table.originDeviceId} IS NULL) = (${table.originDeviceSeq} IS NULL)`,
     ),
   ],
 );
@@ -124,9 +111,6 @@ export const queuedThreadMessages = sqliteTable(
     // the named action the message asks for (an ActionPreset), null for none. Kept for the same
     // reason: the preset is what was asked, and its block is composed when the message drains.
     preset: text("preset"),
-    // the phone's dispatch this message carries out, so a claim that finds it queued here is a
-    // duplicate and the request it drains into names it
-    dispatchId: text("dispatch_id"),
     claimedAt: integer("claimed_at"),
     claimToken: text("claim_token"),
     createdAt: integer("created_at").notNull(),
@@ -141,8 +125,6 @@ export const queuedThreadMessages = sqliteTable(
   ],
 );
 
-export const approvalRelayValues = ["opened", "closed"] as const;
-
 export const pendingInteractions = sqliteTable(
   "pending_interactions",
   {
@@ -155,9 +137,6 @@ export const pendingInteractions = sqliteTable(
     status: text("status", { enum: pendingInteractionStatusValues }).notNull(),
     payload: text("payload").notNull(),
     decision: text("decision", { enum: pendingInteractionApprovalDecisionValues }),
-    // a phone-started turn's approval as the account's dispatch inbox holds it: null, never
-    // opened there; opened, the phone may answer it; closed, it settled here and was closed there
-    relay: text("relay", { enum: approvalRelayValues }),
     createdAt: integer("created_at").notNull(),
     resolvedAt: integer("resolved_at"),
     updatedAt: integer("updated_at").notNull(),
@@ -175,56 +154,6 @@ export const pendingInteractions = sqliteTable(
     ),
   ],
 );
-
-// device_seq is the wire position: not events.sequence (per thread, it orders nothing about a
-// device) and not MAX() over this table (a pushed row is deleted, so a shrinking table would
-// re-hand a position the log holds); its high-water is sync_state. body is frozen at enqueue:
-// re-serializing at push time is a sync-conflict, not a retry. no foreign key to threads: a
-// cascade would drop a position the log's high-water has passed.
-export const syncOutbox = sqliteTable(
-  "sync_outbox",
-  {
-    id: text("id").primaryKey(),
-    deviceSeq: integer("device_seq").notNull(),
-    threadId: text("thread_id").notNull(),
-    body: text("body").notNull(),
-    createdAt: integer("created_at").notNull(),
-  },
-  (table) => [uniqueIndex("sync_outbox_device_seq_idx").on(table.deviceSeq)],
-);
-
-// one row, seeded by the baseline, so every writer is an update and a reader never meets none.
-export const syncState = sqliteTable(
-  "sync_state",
-  {
-    id: integer("id").primaryKey(),
-    lastDeviceSeq: integer("last_device_seq").notNull().default(0),
-    // outbox rows deleted without reaching the log. a count, not a message: the next good pass
-    // clears the last error, and the loss outlives it.
-    droppedEvents: integer("dropped_events").notNull().default(0),
-    cursor: integer("cursor").notNull().default(0),
-    // the lowest log row a pull moved past without being able to read it, and the build that
-    // could not: a different build rewinds the cursor to pull it again.
-    skippedFromSeq: integer("skipped_from_seq"),
-    skippedByBuild: text("skipped_by_build"),
-    lastSyncedAt: integer("last_synced_at"),
-  },
-  (table) => [
-    check("sync_state_singleton_check", sql`${table.id} = 1`),
-    check(
-      "sync_state_skip_marker_shape_check",
-      sql`(${table.skippedFromSeq} IS NULL) = (${table.skippedByBuild} IS NULL)`,
-    ),
-  ],
-);
-
-// every device id this install has signed in as. the log keeps a sign-in's rows after it ends,
-// and this install already holds them as local events with a null origin, which the origin
-// dedupe cannot see; a pull skips a row under any of these ids. outlives a sign-out on purpose:
-// forgetting an id re-applies everything written under it.
-export const syncOwnDevices = sqliteTable("sync_own_devices", {
-  deviceId: text("device_id").primaryKey(),
-});
 
 // the stubs this Mac will fill, one row per item, written per transition rather than as one file
 // rewritten whole (an import of thousands moves every row). `origin` says whose stub it is: this

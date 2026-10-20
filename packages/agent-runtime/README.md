@@ -73,7 +73,7 @@ turn as the host's id over one prompt and an adapter's teardown
 (`acp-runtime.ts`), the turn's item ids and kinds (`acp-event-mapping.ts`), an
 answer as one of the agent's own options (`acp-permission-mapping.ts`), a
 refusal's class (`provider-error.ts`), and each field of a harness row
-(`harness-registry.ts`). `CONTEXT.md` "event means four things" holds the four
+(`harness-registry.ts`). `CONTEXT.md` "event means three things" holds the three
 layers apart.
 
 ## Seams

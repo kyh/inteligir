@@ -2,7 +2,7 @@ import { VAULT_GIT_MAX_PUSH_BYTES } from "@repo/contract/cloud/vault/vault-git";
 import { createDurableGit } from "durable-git";
 import type { Registry } from "durable-git";
 import { declaredLength } from "../cloud-http";
-import { pingVaultAdvanced } from "../sync/thread-sync-stub";
+import { pingVaultAdvanced } from "../sync/account-socket-stub";
 import { concatBytes } from "./git-objects";
 import { FLUSH_PKT, pktLine, readPktLines } from "./pkt-line";
 

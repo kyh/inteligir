@@ -48,12 +48,12 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     // the browser's Save: the /browser wire and the production origin it links (BROWSER_WIRE_CLIENTS
     // below), drawn with the shared component kit; it reaches the Mac only through the native host.
     "@repo/extension": ["@repo/contract", "@repo/ui"],
-    // a partial cloud client: reads the thread log and asks a Mac, never pushes or claims,
-    // and writes the vault only through the guarded commit route. the @repo/notes edge is the
-    // dialect's own parse, link resolver and the one conflict verdict its write queue settles
-    // with; the @repo/mobile-editor edge is the editor page's wire alone (EDITOR_PAGE_CLIENTS
-    // below), since the page itself ships built; it reaches no server, vault engine or agent.
-    "@repo/mobile": ["@repo/contract", "@repo/domain", "@repo/mobile-editor", "@repo/notes"],
+    // a partial cloud client: reads the hosted vault and writes it only through the guarded
+    // commit route. the @repo/notes edge is the dialect's own parse, link resolver and the one
+    // conflict verdict its write queue settles with; the @repo/mobile-editor edge is the editor
+    // page's wire alone (EDITOR_PAGE_CLIENTS below), since the page itself ships built; it
+    // reaches no server, vault engine, agent or thread.
+    "@repo/mobile": ["@repo/contract", "@repo/mobile-editor", "@repo/notes"],
     // the phone's editor page: the desktop's editor in a WebView, reaching the phone only through
     // its own bridge, so no contract and no cloud wire.
     "@repo/mobile-editor": ["@repo/editor", "@repo/notes", "@repo/ui"],

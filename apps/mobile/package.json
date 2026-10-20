@@ -25,7 +25,6 @@
   "dependencies": {
     "@expo/metro-runtime": "catalog:",
     "@repo/contract": "workspace:*",
-    "@repo/domain": "workspace:*",
     "@repo/mobile-editor": "workspace:*",
     "@repo/notes": "workspace:*",
     "expo": "catalog:",

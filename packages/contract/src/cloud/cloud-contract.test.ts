@@ -16,31 +16,6 @@ import {
   cloudErrorSchema,
 } from "./cloud-errors";
 import {
-  ackDispatchesRequestSchema,
-  ackDispatchesResponseSchema,
-  cancelDispatchRequestSchema,
-  cancelDispatchResponseSchema,
-  claimDispatchesRequestSchema,
-  claimDispatchesResponseSchema,
-  closeApprovalRequestSchema,
-  closeApprovalResponseSchema,
-  createDispatchRequestSchema,
-  createDispatchResponseSchema,
-  DISPATCH_API_PATHS,
-  DISPATCH_CLAIM_DEFAULT_LIMIT,
-  DISPATCH_MAX_CHARS,
-  dispatchStatusRequestSchema,
-  dispatchStatusResponseSchema,
-  listApprovalsResponseSchema,
-  openApprovalRequestSchema,
-  openApprovalResponseSchema,
-} from "./dispatch/dispatch-schema";
-import type {
-  AckDispatchesRequest,
-  CreateDispatchRequest,
-  OpenApprovalRequest,
-} from "./dispatch/dispatch-schema";
-import {
   DEVICE_API_PATHS,
   DEVICE_CREDENTIAL_PATTERN,
   DEVICE_LOGIN_REFUSALS,
@@ -58,13 +33,6 @@ import {
 import { createCloudClient, readCloudCall } from "./cloud-client";
 import type { CloudFailure, CloudFetch } from "./cloud-client";
 import { TEST_BUILD } from "./test-support/fake-cloud-client";
-import {
-  EVENT_MAX_BYTES,
-  pullQuerySchema,
-  pullResponseSchema,
-  pushRequestSchema,
-  pushResponseSchema,
-} from "./sync/sync-schema";
 import { syncPingSchema } from "./sync/sync-ws";
 import {
   VAULT_COMMIT_MAX_CHANGES,
@@ -113,12 +81,6 @@ describe("error envelope", () => {
     const envelope = cloudError("vault-full", "Your cloud vault is full.");
     expect(cloudErrorSchema.parse(envelope)).toEqual(envelope);
   });
-
-  it("names the outbox position on a sync refusal", () => {
-    const envelope = cloudError("sync-conflict", "already stored with a different body", 7);
-    expect(cloudErrorSchema.parse(envelope).error.deviceSeq).toBe(7);
-    expect("deviceSeq" in cloudError("unauthorized", "nope").error).toBe(false);
-  });
 });
 
 const failureFor = async (response: Response): Promise<CloudFailure | null> => {
@@ -163,7 +125,6 @@ describe("a failure the cloud did not word", () => {
       ),
     ).toStrictEqual({
       code: "rate-limited",
-      deviceSeq: null,
       kind: "refused",
       message: "Too many attempts.",
     });
@@ -212,14 +173,6 @@ const grown = (value: Json): Json => {
 };
 
 const COMMIT = "a".repeat(40);
-const DISPATCH_ID = "d".repeat(32);
-const APPROVAL_ID = "a".repeat(32);
-const APPROVAL_PAYLOAD = {
-  availableDecisions: ["allow_once", "deny"],
-  kind: "approval",
-  reason: null,
-  subject: { command: "make notes", cwd: null, itemId: "item_1", kind: "command" },
-} satisfies OpenApprovalRequest["payload"];
 
 const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
   [
@@ -241,25 +194,6 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
   ],
   ["a sign-out", revokeDeviceResponseSchema, { revoked: true }],
   ["an account deletion", deleteAccountResponseSchema, { deleted: true }],
-  ["a push", pushResponseSchema, { accepted: 1, duplicates: 0, lastSeq: 1 }],
-  [
-    "a pull",
-    pullResponseSchema,
-    {
-      events: [
-        {
-          createdAt: 1,
-          deviceId: "dev_2",
-          deviceSeq: 1,
-          event: { payload: { kept: true }, type: "turn/started" },
-          seq: 1,
-          threadId: "th_1",
-        },
-      ],
-      hasMore: false,
-      lastSeq: 1,
-    },
-  ],
   [
     "a tree page",
     vaultTreeResponseSchema,
@@ -315,77 +249,8 @@ const ANSWERS: readonly (readonly [string, z.ZodType, Json])[] = [
       error: { code: "vault-conflict", message: "The vault changed under this change set." },
     },
   ],
-  ["a sync ping", syncPingSchema, { seq: 1, type: "sync" }],
-  ["a dispatch ping", syncPingSchema, { threadId: "th_1", type: "dispatch" }],
-  [
-    "a dispatch created",
-    createDispatchResponseSchema,
-    { dispatch: { id: DISPATCH_ID, state: "waiting" }, duplicate: false },
-  ],
-  [
-    "a dispatch claim",
-    claimDispatchesResponseSchema,
-    {
-      claimToken: "tok",
-      dispatches: [
-        {
-          createdAt: 1,
-          id: DISPATCH_ID,
-          kind: "turn",
-          originDocPath: "notes/Week.md",
-          text: "summarise this week",
-          threadId: "thr_1",
-          viewContext: { resource: "notes/Week.md", revision: "c".repeat(64), surface: "doc" },
-        },
-        {
-          approvalId: APPROVAL_ID,
-          createdAt: 2,
-          decision: "allow_once",
-          id: "e".repeat(32),
-          kind: "answer",
-          threadId: "thr_1",
-        },
-      ],
-      expiresAt: 3,
-    },
-  ],
-  [
-    "a dispatch ack",
-    ackDispatchesResponseSchema,
-    { results: [{ id: DISPATCH_ID, outcome: "recorded" }] },
-  ],
-  [
-    "a dispatch status",
-    dispatchStatusResponseSchema,
-    {
-      desktopsDeclining: 0,
-      desktopsOnline: 1,
-      dispatches: [
-        { id: DISPATCH_ID, state: "claimed" },
-        { id: "e".repeat(32), message: "That conversation is archived.", state: "refused" },
-      ],
-    },
-  ],
-  ["a dispatch cancel", cancelDispatchResponseSchema, { outcome: "cancelled" }],
-  ["an approval opened", openApprovalResponseSchema, { duplicate: false, state: "open" }],
-  ["an approval closed", closeApprovalResponseSchema, { outcome: "closed" }],
-  [
-    "the open approvals",
-    listApprovalsResponseSchema,
-    {
-      approvals: [
-        {
-          createdAt: 1,
-          id: APPROVAL_ID,
-          payload: APPROVAL_PAYLOAD,
-          state: "answered",
-          threadId: "thr_1",
-          turnId: "turn_1",
-        },
-      ],
-    },
-  ],
-  ["a refusal", cloudErrorSchema, { error: { code: "sync-conflict", deviceSeq: 7, message: "" } }],
+  ["a vault ping", syncPingSchema, { type: "vault" }],
+  ["a refusal", cloudErrorSchema, { error: { code: "vault-full", message: "" } }],
 ];
 
 describe("a worker newer than this build", () => {
@@ -400,7 +265,6 @@ describe("a worker newer than this build", () => {
     const paused = { error: { code: "account-paused", message: "This account is paused." } };
     expect(await failureFor(Response.json(paused, { status: 403 }))).toStrictEqual({
       code: "internal",
-      deviceSeq: null,
       kind: "refused",
       message: "This account is paused.",
     });
@@ -617,236 +481,15 @@ describe("invite sign-up request", () => {
   });
 });
 
-describe("push request", () => {
-  it("accepts an opaque JSON event body and answers the one text the log stores", () => {
-    const event = { nested: [1, "x", null], type: "turn/started" };
-    const result = pushRequestSchema.safeParse({
-      events: [{ createdAt: 1, deviceSeq: 1, event, threadId: "th_1" }],
-    });
-    expect(result.data?.events[0]?.event).toBe(JSON.stringify(event));
-  });
-
-  it("refuses a key beside the events, a thread list among them", () => {
-    const events = [
-      { createdAt: 1, deviceSeq: 1, event: { type: "thread/meta" }, threadId: "th_1" },
-    ];
-    expect(pushRequestSchema.safeParse({ events }).success).toBe(true);
-    for (const extra of [{ threads: [] }, { threads: [{ threadId: "th_1" }] }, { lanes: [] }]) {
-      expect(pushRequestSchema.safeParse({ events, ...extra }).success).toBe(false);
-    }
-  });
-
-  it("refuses an event body over the byte ceiling", () => {
-    const result = pushRequestSchema.safeParse({
-      events: [
-        { createdAt: 1, deviceSeq: 1, event: "x".repeat(EVENT_MAX_BYTES + 1), threadId: "th_1" },
-      ],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("measures the ceiling in UTF-8 bytes, not UTF-16 units", () => {
-    // "あ" is one UTF-16 unit and three UTF-8 bytes
-    const wide = "あ".repeat(EVENT_MAX_BYTES / 3);
-    expect(wide.length).toBeLessThan(EVENT_MAX_BYTES);
-    const result = pushRequestSchema.safeParse({
-      events: [{ createdAt: 1, deviceSeq: 1, event: wide, threadId: "th_1" }],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("refuses a non-JSON event body", () => {
-    const result = pushRequestSchema.safeParse({
-      events: [{ createdAt: 1, deviceSeq: 1, event: undefined, threadId: "th_1" }],
-    });
-    expect(result.success).toBe(false);
-  });
-});
-
-describe("pull query", () => {
-  it("coerces from query strings and defaults what is absent", () => {
-    expect(pullQuerySchema.parse({ afterSeq: "41", limit: "2" })).toEqual({
-      afterSeq: 41,
-      limit: 2,
-    });
-    expect(pullQuerySchema.parse({})).toEqual({ afterSeq: 0, limit: 200 });
-  });
-
-  it("refuses a negative cursor", () => {
-    expect(pullQuerySchema.safeParse({ afterSeq: "-1" }).success).toBe(false);
-  });
-});
-
-describe("the dispatch inbox", () => {
-  const TURN: CreateDispatchRequest = {
-    id: DISPATCH_ID,
-    kind: "turn",
-    originDocPath: "notes/Week.md",
-    text: "summarise this week",
-    threadId: "thr_1",
-    viewContext: { resource: "notes/Week.md", revision: "c".repeat(64), surface: "doc" },
-  };
-  const ANSWER: CreateDispatchRequest = {
-    approvalId: APPROVAL_ID,
-    decision: "allow_once",
-    id: "e".repeat(32),
-    kind: "answer",
-  };
-  const APPROVAL: OpenApprovalRequest = {
-    id: APPROVAL_ID,
-    payload: APPROVAL_PAYLOAD,
-    threadId: "thr_1",
-    turnId: "turn_1",
-  };
-  const ACK: AckDispatchesRequest = {
-    claimToken: "tok",
-    results: [
-      { id: DISPATCH_ID, outcome: "delivered" },
-      { id: "e".repeat(32), message: "That conversation is archived.", outcome: "refused" },
-    ],
-  };
-
-  it("reads every request it sends as exactly that request", () => {
-    expect(createDispatchRequestSchema.parse(TURN)).toStrictEqual(TURN);
-    expect(createDispatchRequestSchema.parse(ANSWER)).toStrictEqual(ANSWER);
-    expect(openApprovalRequestSchema.parse(APPROVAL)).toStrictEqual(APPROVAL);
-    expect(ackDispatchesRequestSchema.parse(ACK)).toStrictEqual(ACK);
-    expect(dispatchStatusRequestSchema.parse({ ids: [DISPATCH_ID] })).toStrictEqual({
-      ids: [DISPATCH_ID],
-    });
-    expect(cancelDispatchRequestSchema.parse({ id: DISPATCH_ID })).toStrictEqual({
-      id: DISPATCH_ID,
-    });
-    expect(closeApprovalRequestSchema.parse({ id: APPROVAL_ID })).toStrictEqual({
-      id: APPROVAL_ID,
-    });
-    expect(claimDispatchesRequestSchema.parse({ kinds: ["answer"] })).toStrictEqual({
-      kinds: ["answer"],
-      limit: DISPATCH_CLAIM_DEFAULT_LIMIT,
-    });
-  });
-
-  it("refuses a turn it cannot read exactly", () => {
-    const refused = [
-      { ...TURN, id: "D".repeat(32) },
-      { ...TURN, id: "d".repeat(31) },
-      { ...TURN, originDocPath: "notes//Week.md" },
-      {
-        ...TURN,
-        viewContext: { resource: "/etc/passwd", revision: "c".repeat(64), surface: "doc" },
-      },
-      { ...TURN, viewContext: { resource: "notes/Week.md", revision: "HEAD", surface: "doc" } },
-      { ...TURN, text: "" },
-      { ...TURN, text: "x".repeat(DISPATCH_MAX_CHARS + 1) },
-      { ...TURN, threadId: "" },
-      { ...TURN, lane: "desktop" },
-      { ...ANSWER, decision: "allow_forever" },
-      { ...ANSWER, kind: "cancel" },
-    ];
-    for (const body of refused) {
-      expect(createDispatchRequestSchema.safeParse(body).success, JSON.stringify(body)).toBe(false);
-    }
-  });
-
-  it("names the kinds a claim takes, so a kind its Mac would misread is never handed to it", () => {
-    for (const body of [{}, { kinds: [] }, { kinds: ["note"] }]) {
-      expect(claimDispatchesRequestSchema.safeParse(body).success, JSON.stringify(body)).toBe(
-        false,
-      );
-    }
-  });
-
-  it("demands a refusal's reason, and gives no other outcome one", () => {
-    expect(
-      ackDispatchesRequestSchema.safeParse({
-        claimToken: "tok",
-        results: [{ id: DISPATCH_ID, outcome: "refused" }],
-      }).success,
-    ).toBe(false);
-    expect(
-      ackDispatchesRequestSchema.safeParse({
-        claimToken: "tok",
-        results: [{ id: DISPATCH_ID, message: "fine", outcome: "delivered" }],
-      }).success,
-    ).toBe(false);
-    expect(
-      dispatchStatusResponseSchema.safeParse({
-        desktopsDeclining: 0,
-        desktopsOnline: 0,
-        dispatches: [{ id: DISPATCH_ID, state: "refused" }],
-      }).success,
-    ).toBe(false);
-  });
-
-  it("posts each call where the route reads it, a body the route decodes to exactly the request", async () => {
-    const seen: { body: unknown; method: string; path: string }[] = [];
-    const client = createCloudClient({
-      baseUrl: "https://cloud.test",
-      build: TEST_BUILD,
-      credential: `igd_${"a".repeat(64)}`,
-      fetch: async (input, init) => {
-        seen.push({
-          body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
-          method: init?.method ?? "GET",
-          path: new URL(input).pathname,
-        });
-        return Response.json({});
-      },
-    });
-    await client.createDispatch(TURN);
-    await client.claimDispatches({ kinds: ["turn", "answer"], limit: 5 });
-    await client.ackDispatches(ACK);
-    await client.dispatchStatus([DISPATCH_ID]);
-    await client.cancelDispatch(DISPATCH_ID);
-    await client.openApproval(APPROVAL);
-    await client.closeApproval(APPROVAL_ID);
-    await client.listApprovals();
-
-    expect(seen.map(({ method, path }) => `${method} ${path}`)).toEqual([
-      `POST ${DISPATCH_API_PATHS.dispatch}`,
-      `POST ${DISPATCH_API_PATHS.claim}`,
-      `POST ${DISPATCH_API_PATHS.ack}`,
-      `POST ${DISPATCH_API_PATHS.status}`,
-      `POST ${DISPATCH_API_PATHS.cancel}`,
-      `POST ${DISPATCH_API_PATHS.approval}`,
-      `POST ${DISPATCH_API_PATHS.approvalClose}`,
-      `GET ${DISPATCH_API_PATHS.approvals}`,
-    ]);
-    const decoded = [
-      createDispatchRequestSchema.parse(seen[0]?.body),
-      claimDispatchesRequestSchema.parse(seen[1]?.body),
-      ackDispatchesRequestSchema.parse(seen[2]?.body),
-      dispatchStatusRequestSchema.parse(seen[3]?.body),
-      cancelDispatchRequestSchema.parse(seen[4]?.body),
-      openApprovalRequestSchema.parse(seen[5]?.body),
-      closeApprovalRequestSchema.parse(seen[6]?.body),
-    ];
-    expect(decoded).toStrictEqual([
-      TURN,
-      { kinds: ["turn", "answer"], limit: 5 },
-      ACK,
-      { ids: [DISPATCH_ID] },
-      { id: DISPATCH_ID },
-      APPROVAL,
-      { id: APPROVAL_ID },
-    ]);
-    expect(seen[7]?.body).toBeUndefined();
-  });
-});
-
 describe("ws ping frames", () => {
-  it("parses each server frame", () => {
-    expect(syncPingSchema.parse({ seq: 12, type: "sync" }).type).toBe("sync");
-    expect(syncPingSchema.parse({ threadId: "th_1", type: "dispatch" }).type).toBe("dispatch");
-    expect(syncPingSchema.parse({ type: "vault" }).type).toBe("vault");
+  it("parses the one server frame, and reads a frame a newer worker grew", () => {
+    expect(syncPingSchema.parse({ type: "vault" })).toStrictEqual({ type: "vault" });
+    expect(syncPingSchema.parse({ extra: true, type: "vault" })).toStrictEqual({ type: "vault" });
   });
 
-  it("reads a frame a newer worker grew, and a frame type it does not know is no frame", () => {
-    expect(syncPingSchema.parse({ extra: true, seq: 1, type: "sync" })).toStrictEqual({
-      seq: 1,
-      type: "sync",
-    });
+  it("reads a frame type it does not know as no frame", () => {
     expect(syncPingSchema.safeParse({ type: "presence" }).success).toBe(false);
+    expect(syncPingSchema.safeParse({ seq: 1, type: "sync" }).success).toBe(false);
   });
 });
 
@@ -1104,7 +747,6 @@ describe("an attachment's bytes", () => {
     expect(refused).toStrictEqual({
       failure: {
         code: "not-found",
-        deviceSeq: null,
         kind: "refused",
         message: "That revision does not carry the path.",
       },
@@ -1218,7 +860,6 @@ describe("a vault change set", () => {
     expect(result).toStrictEqual({
       failure: {
         code: "vault-conflict",
-        deviceSeq: null,
         kind: "refused",
         message: CONFLICT.error.message,
       },
@@ -1276,7 +917,6 @@ describe("a vault change set", () => {
       const { result } = await commitOver(Response.json(cloudError(code, "no"), { status }));
       expect(result.ok ? null : result.failure, code).toStrictEqual({
         code,
-        deviceSeq: null,
         kind: "refused",
         message: "no",
       });

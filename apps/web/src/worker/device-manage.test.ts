@@ -26,10 +26,8 @@ const revokeAs = async (credential: string, deviceId: string): Promise<Response>
     method: "POST",
   });
 
-const pullStatus = async (credential: string): Promise<number> => {
-  const response = await SELF.fetch(`${ORIGIN}/v1/sync/pull?afterSeq=0`, {
-    headers: deviceHeaders(credential),
-  });
+const listStatus = async (credential: string): Promise<number> => {
+  const response = await listAs(credential);
   return response.status;
 };
 
@@ -72,7 +70,7 @@ describe("a device managing its account's devices", () => {
     const { cookie } = await signUpUser("manage-revoke@example.test");
     const mac = await loginDevice(cookie, "Mac");
     const phone = await loginDevice(cookie, "Lost Phone");
-    const socket = await openSocket(phone.credential, "mobile");
+    const socket = await openSocket(phone.credential);
     // oxlint-disable-next-line promise/avoid-new -- the close code arrives as a socket event, which only a promise can hand to an await
     const closed = new Promise<number>((resolve) => {
       socket.socket.addEventListener("close", (close) => {
@@ -85,8 +83,8 @@ describe("a device managing its account's devices", () => {
     expect(emitted(revokeDeviceResponseSchema, await revoked.text())).toEqual({ revoked: true });
 
     expect(await closed).toBe(SYNC_WS_REVOKED_CLOSE_CODE);
-    expect(await pullStatus(phone.credential)).toBe(401);
-    expect(await pullStatus(mac.credential)).toBe(200);
+    expect(await listStatus(phone.credential)).toBe(401);
+    expect(await listStatus(mac.credential)).toBe(200);
     const listed = await listAs(mac.credential);
     const { devices } = emitted(listDevicesResponseSchema, await listed.text());
     expect(devices.find((row) => row.id === phone.deviceId)?.revokedAt).not.toBeNull();
@@ -101,7 +99,7 @@ describe("a device managing its account's devices", () => {
     const response = await revokeAs(mallorysMac.credential, alicesMac.deviceId);
     expect(response.status).toBe(404);
     expect(emitted(cloudErrorSchema, await response.text()).error.code).toBe("not-found");
-    expect(await pullStatus(alicesMac.credential)).toBe(200);
+    expect(await listStatus(alicesMac.credential)).toBe(200);
   });
 
   it("refuses a revoked credential both routes, in the words every device route uses", async () => {
@@ -117,7 +115,7 @@ describe("a device managing its account's devices", () => {
       "No valid device credential.",
     );
     await expectUnauthorized(await revokeAs(phone.credential, mac.deviceId));
-    expect(await pullStatus(mac.credential)).toBe(200);
+    expect(await listStatus(mac.credential)).toBe(200);
   });
 
   it("refuses a credential no device was ever given", async () => {

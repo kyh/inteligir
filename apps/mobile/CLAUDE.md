@@ -41,35 +41,30 @@ ships.
 ## Cloud, sync and accounts
 
 - **ON THE PHONE, THE RUNTIME THAT MOVES A VALUE IS THE ONE THAT NOTIFIES.**
-  `SyncRuntime`, the login flow and the dispatch runtime publish stores the
-  screens subscribe to, so a poll pass, a revocation, a refused login and where
-  a request to a Mac stands are shown; a refused request keeps its words and the
-  reason until dismissed. A sign-in is ONE session: every runtime reads under
-  `SyncRuntime`'s, so a revocation any request hears ends the sign-in for all,
-  and each checks its fence before recording a refusal, so one heard under an
-  earlier sign-in never ends the next
+  `SyncRuntime` and the login flow publish stores the screens subscribe to, so
+  a revocation and a refused login are shown. A sign-in is ONE session: every
+  runtime reads under `SyncRuntime`'s, so a revocation any request hears ends
+  the sign-in for all, and each checks its fence before recording a refusal, so
+  one heard under an earlier sign-in never ends the next
   (`apps/mobile/src/lib/compose-runtime.ts`). Which screens exist is the route
   guard's answer (`Stack.Protected` in `apps/mobile/src/app/_layout.tsx`), never
-  a per-screen branch: signed in, the Library, an item, a viewer of a picture,
-  a PDF or a page's copy (with no script, reading only its own folder), the
-  threads and a thread; signed out, the sign-in. A link or a file card in an
-  item that names a file that is no note opens that viewer, which says where any
-  other file opens (`opensFiles` in `packages/editor/src/host-io.ts`).
-  `apps/mobile/src/sync/sync-runtime.ts`,
-  `apps/mobile/src/login/login-store.ts`,
-  `apps/mobile/src/dispatch/dispatch-runtime.ts`.
+  a per-screen branch: signed in, the Library, an item and a viewer of a
+  picture, a PDF or a page's copy (script-less); signed out, the sign-in. A
+  link or file card naming a file that is no note opens that viewer (`opensFiles` in
+  `packages/editor/src/host-io.ts`). `apps/mobile/src/sync/sync-runtime.ts`,
+  `apps/mobile/src/login/login-store.ts`.
 
-- **THE PHONE HOLDS THE ACCOUNT'S SOCKET ONLY IN THE FOREGROUND, AND A RUNNING
-  TURN'S TEXT IS NEVER STORED.** A desktop pushes a running turn every second
-  and a half and the cloud pings every other socket on each push, so a phone
-  with the socket reads a reply as it grows; the background closes it, since iOS
-  suspends the app anyway, and the poll stays for a missed ping. The deltas the
-  store drops are folded in memory until each item's `item/completed`
-  (`apps/mobile/src/sync/live-turns.ts`), fed only what a page landed, so a page
-  pulled twice folds once. Rejected: holding the deltas in the phone's database,
-  which a long turn fills with tokens its settled items already carry, and
-  folding an item this launch never saw start, which would draw the tail as the
-  reply. `apps/mobile/src/sync/sync-runtime.ts`.
+- **THE PHONE HOLDS THE ACCOUNT'S SOCKET ONLY IN THE FOREGROUND, AND ASKS NO
+  AGENT.** A Mac's push to the hosted vault pings every other device's socket,
+  so a phone with the socket refreshes its mirror at once; the background closes
+  it, since iOS suspends the app anyway, and a resume refreshes the mirror and
+  checks the sign-in. The phone holds no thread and offers no Ask agent (THE
+  PHONE ASKS NO AGENT, in `apps/web/CLAUDE.md`): the touch toolbar has no row
+  for it (`packages/editor/src/touch-toolbar.tsx`), and the page's host answers
+  the editor's agent request with nothing
+  (`apps/mobile-editor/src/host/page-host.ts`). Rejected: a read-only list of
+  the Macs' threads, which kept the account's thread log for transcripts the
+  phone could not act on. `apps/mobile/src/sync/sync-runtime.ts`.
 
 - **THE PHONE HOLDS EVERY NOTE'S TEXT IN SQLITE, AND EACH ITEM'S CARD BESIDE
   IT, AND ITS MIRRORED COMMIT MOVES ONLY WHEN THE MIRROR IS WHOLE.** One

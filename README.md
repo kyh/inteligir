@@ -28,8 +28,9 @@ What you need:
 - Nothing else to install or set up.
 
 An account is optional and needs an invite: it keeps your library in step
-across your Macs and your iPhone, lets your phone save into it, and lets your
-phone ask your Mac's agent. The iPhone app comes by TestFlight invite.
+across your Macs and your iPhone, and lets your phone save into it, read it and
+write in it. The agent runs on your Mac. The iPhone app comes by TestFlight
+invite.
 
 Coming from Raindrop? Import its CSV backup from Settings › Library. From
 Obsidian? Open its folder as your library: the notes stay where they are.

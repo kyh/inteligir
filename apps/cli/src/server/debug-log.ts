@@ -8,7 +8,7 @@ export const DEBUG_TRACES = {
   items:
     "each save and fill by path and url key: the item it made or found, and why a fill waited, failed or was skipped",
   knowledge: "the index's verdict for each file a pass looked at",
-  sync: "each pulled page, where each step of a sync pass stopped, and a pass fenced out by a newer sign-in",
+  sync: "each check of the account sign-in by session, and its verdict, and a check fenced out by a newer sign-in",
   watcher:
     "every file event, kept or dropped and why, then whether it was stripped as this app's own write, held behind a vault sync, or delivered",
 };

@@ -14,7 +14,7 @@ import { handleVaultGitRemote } from "./vault/git-remote";
 import { handleVaultReadRoutes, isVaultReadPath } from "./vault/read-routes";
 
 // Durable Object classes must be exported from the entry the runtime loads: this file for tests, ./server.ts for deploy
-export { ThreadSyncDO } from "./sync/thread-sync-do";
+export { AccountSocketDO } from "./sync/account-socket-do";
 export { RepoCell, Registry } from "durable-git";
 
 // No CORS: every browser client is served from this origin and a native app is not subject to

@@ -22,14 +22,10 @@ describe("the phone's database", () => {
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
     );
     expect(tables.map((row) => tableNameSchema.parse(row).name)).toEqual([
-      "dispatch_outbox",
       "mirror_entries",
       "mirror_landings",
       "mirror_meta",
       "outbox",
-      "synced_threads",
-      "thread_events",
-      "thread_sync",
     ]);
   });
 

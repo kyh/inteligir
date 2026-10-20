@@ -6,7 +6,7 @@ import api, { ownsPath } from "./index";
 // `entrypoint` must be this file, for the reason noted there.
 
 // the runtime instantiates Durable Objects from the deployed entry's exports
-export { ThreadSyncDO } from "./sync/thread-sync-do";
+export { AccountSocketDO } from "./sync/account-socket-do";
 export { RepoCell, Registry } from "durable-git";
 
 export default {

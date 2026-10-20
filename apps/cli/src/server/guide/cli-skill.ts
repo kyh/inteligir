@@ -404,13 +404,13 @@ them as read-only — do not modify them.
 
 ## Cloud — this install's account
 
-Cloud sync carries THREADS and their history between the devices on one
-account. It is off until this install signs in, and it never carries vault
-files — those are git's job.
+Signing in puts this install's library on the account, where its other
+devices reach it. It is off until this install signs in. Threads stay on the
+machine that ran them: the account carries no thread.
 
-- \`inteligir cloud status\` — whether this install is signed in, how many
-  events are queued for the account, how many never reached it, and how far
-  behind it is.
+- \`inteligir cloud status\` — whether this install is signed in, and whether its
+  account socket is up, which is what tells it another device changed the
+  library.
 - \`inteligir cloud login --email <address> [--password <password>] [--name <device>]\`
   — sign this machine in with the account's own email and password; it gets
   its own device credential, revocable from Settings › Account on any signed-in
@@ -420,13 +420,12 @@ files — those are git's job.
   this machine appears in the account's device list (default: the hostname).
   Signing in is a person's act: never guess or retry a password — ask the user
   for theirs, and prefer handing them the command to running it yourself.
-- \`inteligir cloud sync\` — run a pass now (drain the outbox, pull, apply) and
-  print the state it left behind. Use it before reporting a long task done, so
-  the work has actually reached the account.
 
-There is no \`logout\` here: it discards writes that have not reached the
-account yet, so it lives in the app's Settings › Account, in front of the state
-it would throw away. Nor is there a sign-up: creating an account takes the
+The library itself syncs through \`inteligir vault sync\`; use it before reporting a
+long task done, so the work has actually reached the account.
+
+There is no \`logout\` here: it stops the library syncing through the account,
+so it lives in the app's Settings › Account, where it says so. Nor is there a sign-up: creating an account takes the
 user's own invite code and password, so it is theirs to do in the app. Deleting
 the account is the same: it takes the user's password and cannot be undone, so
 it lives in Settings › Account, where it says what goes and what stays.

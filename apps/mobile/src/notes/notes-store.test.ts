@@ -1,11 +1,10 @@
 import { createCloudClient } from "@repo/contract/cloud/client";
 import type { CloudFetch } from "@repo/contract/cloud/client";
 import type { DeviceCredential } from "@repo/contract/cloud/device/device-schema";
-import { SYNC_API_PATHS } from "@repo/contract/cloud/sync/sync-schema";
+import { DEVICE_API_PATHS } from "@repo/contract/cloud/device/device-schema";
 import { VAULT_API_PATHS } from "@repo/contract/cloud/vault/vault-schema";
 import { TEST_BUILD } from "@repo/contract/cloud/test-support/fake-cloud-client";
-import { threadScope } from "@repo/domain/thread-event-scope";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { deferred, nextTask } from "../test-support/async";
 import type { SignInSource } from "../lib/sign-in-fence";
 import type { SqlDriver } from "../lib/sql-driver";
@@ -14,7 +13,7 @@ import { createNotesStore } from "./notes-store";
 import type { AnnotationsRead, NotesStore } from "./notes-store";
 import { blobOid, createFakeVault, requestsOf } from "./test-support/fake-vault";
 import type { FakeVault } from "./test-support/fake-vault";
-import { openSyncStore, openTempDb, phonePorts } from "./test-support/phone-storage";
+import { openTempDb, phonePorts } from "./test-support/phone-storage";
 
 const CREDENTIAL = { credential: `igd_${"a".repeat(64)}`, deviceId: "dev_1" };
 const OTHER_CREDENTIAL = { credential: `igd_${"b".repeat(64)}`, deviceId: "dev_2" };
@@ -46,7 +45,6 @@ const notesOver = (fetch: CloudFetch, db: SqlDriver = openTempDb()) => {
         fetch,
       }),
     pollIntervalMs: null,
-    store: openSyncStore(db),
   });
   const ports = phonePorts();
   const { attachments } = ports;
@@ -364,10 +362,10 @@ describe("the notes store under the sync session", () => {
     expect(sync.get()).toMatchObject({ deviceId: CREDENTIAL.deviceId, state: "unauthorized" });
   });
 
-  it("refuses a read once the sync side has heard unauthorized, without asking the cloud", async () => {
+  it("refuses a read once the sign-in's check has heard unauthorized, without asking the cloud", async () => {
     const vault = fakeVault();
     const { signIn, store, sync } = notesOver(async (input, init) =>
-      new URL(input).pathname === SYNC_API_PATHS.pull
+      new URL(input).pathname === DEVICE_API_PATHS.list
         ? refusedAs("unauthorized", "This device was signed out.")
         : await vault.fetch(input, init),
     );
@@ -375,9 +373,10 @@ describe("the notes store under the sync session", () => {
     await store.refresh();
     const before = vault.requests.length;
 
-    await sync.syncNow();
-
-    expect(sync.get().state).toBe("unauthorized");
+    sync.start();
+    await vi.waitFor(() => {
+      expect(sync.get().state).toBe("unauthorized");
+    });
     expect(await store.readNote("a.md")).toEqual({ message: "Not signed in.", ok: false });
     expect(await store.attachmentFile("media/a.png")).toStrictEqual({
       message: "Not signed in.",
@@ -410,39 +409,20 @@ const grownWorker: CloudFetch = async (input) => {
       spent: 4,
     });
   }
-  if (url.pathname === SYNC_API_PATHS.pull) {
-    return Response.json({
-      events: [
-        {
-          createdAt: 0,
-          deviceId: "dev_desktop",
-          deviceSeq: 0,
-          event: {
-            scope: threadScope(),
-            text: "from the desktop",
-            threadId: "thr_x",
-            type: "client/turn/requested",
-          },
-          lane: "any",
-          seq: 1,
-          threadId: "thr_x",
-        },
-      ],
-      hasMore: false,
-      lastSeq: 1,
-      retryAfterMs: 0,
-    });
+  if (url.pathname === DEVICE_API_PATHS.list) {
+    return Response.json({ devices: [] });
   }
   return refusedAs("not-found", "No such route.");
 };
 
 describe("a worker newer than this build", () => {
-  it("reads a tree page, a batch of notes and a pull that grew a field, keeping what it declares", async () => {
+  it("reads a tree page, a batch of notes and a check that grew a field, keeping what it declares", async () => {
     const { signIn, store, sync } = notesOver(grownWorker);
     signIn(CREDENTIAL, "restored");
 
     await store.refresh();
-    await sync.syncNow();
+    sync.start();
+    await nextTask();
 
     expect(store.tree.get()).toEqual({
       entries: [expect.objectContaining({ path: "a.md" })],
@@ -451,10 +431,10 @@ describe("a worker newer than this build", () => {
       state: "ready",
     });
     expect(await store.readNote("a.md")).toEqual({ content: "# a\n", ok: true, path: "a.md" });
-    expect(sync.get()).toMatchObject({ cursor: 1, lastError: null, state: "signed-in" });
+    expect(sync.get()).toEqual({ deviceId: CREDENTIAL.deviceId, state: "signed-in" });
   });
 
-  it("reads a refusal code it does not know as a fault to retry, in the worker's words", async () => {
+  it("reads a refusal code it does not know as a fault to retry, never as the sign-in's end", async () => {
     const { signIn, sync } = notesOver(async () =>
       Response.json(
         { error: { code: "account-paused", message: "This account is paused." } },
@@ -463,12 +443,10 @@ describe("a worker newer than this build", () => {
     );
     signIn(CREDENTIAL, "restored");
 
-    await sync.syncNow();
+    sync.start();
+    await nextTask();
 
-    expect(sync.get()).toMatchObject({
-      lastError: "This account is paused.",
-      state: "signed-in",
-    });
+    expect(sync.get()).toEqual({ deviceId: CREDENTIAL.deviceId, state: "signed-in" });
   });
 
   it("still ends the sign-in on an unauthorized refusal that grew a field", async () => {

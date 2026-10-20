@@ -22,12 +22,8 @@ const SIGNED_IN: CloudStatusResponse = {
   accountEmail: "me@cloud.test",
   cloudUrl: "https://cloud.test",
   connected: true,
-  cursor: 0,
   deviceId: "dev_1",
-  dropped: 0,
   lastError: null,
-  lastSyncedAt: null,
-  pending: 0,
   state: "signed-in",
 };
 
@@ -167,7 +163,7 @@ describe("the rail's sync row", () => {
     expect(screen.getByText("Offline")).toBeDefined();
   });
 
-  it("offers no second sync for actions, which sync on their own", async () => {
+  it("offers one sync, the library's: actions stay on this Mac", async () => {
     await openRow({ state: "clean", ...REMOTE_FIELDS, lastError: null });
 
     expect(screen.getByText("Sign out")).toBeDefined();

@@ -82,7 +82,6 @@ export const phoneRuntime = async (
     credentials: heldCredential({ credential: login.credential, deviceId: login.deviceId }),
     db: openPhoneDb(openNodeSqlDriver(path.join(dir, "inteligir.db"))),
     deviceName: PHONE_NAME,
-    mintId: () => randomBytes(16).toString("hex"),
     newId: randomUUID,
     outboxFiles: memoryFiles(),
     randomBytes: (length) => randomBytes(length),

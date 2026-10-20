@@ -10,7 +10,6 @@ import type { ProviderEvent } from "@repo/agent-runtime/vocabulary/provider-even
 import { THREAD_ID_ENV_VAR } from "@repo/domain/agent-shell-env";
 import type { ThreadEventItemStatus } from "@repo/domain/provider-event";
 import { turnScope } from "@repo/domain/thread-event-scope";
-import { listStoredThreadEvents } from "@repo/db/events";
 import { listQueuedThreadMessages } from "@repo/db/queued-messages";
 import { getThread, setThreadProviderSession } from "@repo/db/threads";
 import { annotationsStorePath } from "@repo/notes/annotations/store-schema";
@@ -177,23 +176,6 @@ describe("the ACP runtime manager over real HTTP", { timeout: 20_000 }, () => {
     const thread = getThread(harness.db, threadId);
     expect(thread).toMatchObject({ activeTurnId: null, providerId: "codex", status: "idle" });
     expect(thread?.providerThreadId).toMatch(/^fakeacp_\d+_1$/u);
-  });
-
-  it("states the bound harness on the thread's log with its first turn, not a resumed one", async () => {
-    const children: ChildProcess[] = [];
-    const harness = await bootWithManager("message", { children });
-    const threadId = await createThread(harness.client);
-    await sendMessage(harness.client, threadId, "first");
-    await awaitThreadStatus(harness.client, threadId, "idle");
-    children.at(-1)?.kill("SIGKILL");
-    await awaitExited(children);
-    await sendMessage(harness.client, threadId, "resumed");
-    await awaitThreadStatus(harness.client, threadId, "idle");
-
-    const stated = listStoredThreadEvents(harness.db, { threadId }).flatMap(({ event }) =>
-      event.type === "thread/meta" && event.providerId !== undefined ? [event.providerId] : [],
-    );
-    expect(stated).toEqual(["codex"]);
   });
 
   it("opens the session by putting its standing instructions first in the prompt", async () => {

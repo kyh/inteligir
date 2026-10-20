@@ -55,8 +55,7 @@ src/
     cloud-origin.ts    # the production origin both clients fall back to
     bytes.ts           # the byte primitives, on globals every target has
     device/            # the device credential and the one login flow
-    sync/              # the merged log's rows, its one page planner, session and socket
-    dispatch/          # the inbox a phone asks a Mac through
+    sync/              # the session fence and the account socket that says the vault moved
     account/           # the account's deletion and the sign-up doors
     vault/             # the hosted vault's paths and shapes, and the phone's write
   browser/             the extension's wire, behind its own version
@@ -68,16 +67,14 @@ src/
 
 - **apps/web** SERVES every `/cloud` row and reaches nothing under `/local`;
   `dep-dag.test.ts` pins that per import.
-- **apps/cli** implements `/local` and, in `src/server/cloud/`, consumes all
-  of `/cloud` — push, pull, the dispatch claims and acks, the approvals it
-  relays, the git remote. Its `inteligir native-host`
+- **apps/cli** implements `/local` and, in `src/server/cloud/`, consumes the
+  device routes, the account socket and the hosted vault's git remote. Its `inteligir native-host`
   (`apps/cli/src/native-host/`) answers every `/browser` frame and adapts it
   to `/local`, and the desktop door writes the browsers' host manifests from
   the extension's identity (`apps/cli/src/desktop/native-hosts.ts`).
-- **apps/mobile** pulls threads, produces dispatches, answers a phone-started
-  turn's approvals and commits vault change sets (`vaultCommit`), and never
-  pushes thread events, claims a dispatch or speaks git, because the desktop
-  runs the turns. It reaches nothing under `/local` either, pinned by
+- **apps/mobile** reads the hosted vault and commits change sets to it
+  (`vaultCommit`), and never speaks git, which a phone does not hold. It
+  reaches nothing under `/local` either, pinned by
   the same `dep-dag.test.ts` table (`CLOUD_ONLY_CLIENTS`) as apps/web: a phone
   install may be months stale against the deployed Worker.
 - **apps/workspace** compiles against `/local` alone, and the extension's
@@ -96,10 +93,9 @@ src/
   Requests stay `z.strictObject`: only the always-newest Worker parses them. The
   Worker's tests hold every answer to exactly the declared shape (`emitted` in
   `apps/web/src/worker/test-support/cloud-helpers.ts`), since a stripping client
-  would let a leaked column through. A field that changes what a row MEANS (a
-  new dispatch kind) still reaches only a client whose request declares it,
-  because stripped, the row reads as the old kind: a dispatch claim names the
-  kinds it takes.
+  would let a leaked column through. A field that changes what a row MEANS
+  still reaches only a client whose request declares it, because stripped,
+  the row reads as something else.
 - **Every request names its build, and the Worker refuses one below its
   floor.** `x-inteligir-build` rides the REST calls, the two that ask for a
   credential, the socket's upgrade and the hosted vault's git `extraHeader`
@@ -122,20 +118,13 @@ src/
   carrying every class hands each client switch unreachable branches; the
   vault rows' declared set is held against the handlers by
   `apps/cli/src/server/vault/vault-contract-errors.test.ts`.
-- **One page planner.** Two copies of `sync/plan-page.ts` would be two answers
-  to "did this row move the cursor?", and a mis-set cursor is a duplicated
-  conversation. The same reason keeps the session fence, the login flow and
-  the single-flight pass here rather than in each client: a security
-  discipline with two spellings is two to audit. A skip step names the lowest
-  foreign row it moves past unread (`firstUnparsed`), so a client that keeps
-  its cursor can pull that row again under a build that reads it. A row filed
-  under one thread whose event names another is skipped here too, never
-  recorded for a pull again, since no build reads it differently: a client
-  applying it would file it under whichever id it keyed by.
+- **One session fence, one login flow, one socket.** Each lives here rather
+  than in each client: a security discipline with two spellings is two to
+  audit.
 - **The cloud client never throws a refusal.** `CloudResult` carries
   `refused` (a code this build names, `internal` for one it does not),
   `unreachable` (no verdict on the credential) or `malformed` (a body this
-  build cannot read); an `Error("HTTP 409")` would retry a batch the server
+  build cannot read); an `Error("HTTP 409")` would retry a request the server
   refuses forever. One refusal is an answer: `vaultCommit` reads a 409
   `vault-conflict` as the value `{ kind: "conflict" }`, since it carries the
   bytes to merge against, while any reader that knows only the envelope,

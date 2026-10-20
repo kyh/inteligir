@@ -19,5 +19,3 @@ export const createTurnId = (): string => createPrefixedId("turn");
 export const createQueuedThreadMessageId = (): string => createPrefixedId("qmsg");
 
 export const createPendingInteractionId = (): string => createPrefixedId("pint");
-
-export const createSyncOutboxId = (): string => createPrefixedId("obx");

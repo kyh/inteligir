@@ -84,10 +84,9 @@ Turns, threads, the agent's commits and undo, sign-in, connectors and annotation
   and up to 200 of its paths, which the prompt names as what "these" means.
   There is no tool: the agent can already read the file, and the one thing a
   tool could add, a live selection, cannot be made honest. A queued send carries
-  none, and the phone's dispatch carries `doc` alone, since the phone has no
-  grid. The thread event records the library context WITHOUT its paths,
-  because the event rides the thread sync under a 64 KiB cap and only the prompt
-  reads them (`apps/cli/src/server/threads/thread-send.ts`).
+  none. The thread event records the library context WITHOUT its paths, because
+  only the prompt reads them and an event is kept for the thread's life
+  (`apps/cli/src/server/threads/thread-send.ts`).
   `apps/cli/src/server/agents/view-context-prompt.ts`.
 
 - **AN @-MENTION RIDES THE SEND AS `contextPaths`, NEVER AS TEXT.** The stored

@@ -10,12 +10,12 @@ import type {
   DeviceLoginResponse,
 } from "@repo/contract/cloud/device/device-schema";
 import { cloudErrorSchema } from "@repo/contract/cloud/errors";
-import { syncPingSchema } from "@repo/contract/cloud/sync/sync-ws";
+import { SYNC_WS_PATH, syncPingSchema } from "@repo/contract/cloud/sync/sync-ws";
 import type { SyncPing } from "@repo/contract/cloud/sync/sync-ws";
 import { applySetCookies } from "better-auth/cookies";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { expect, vi } from "vitest";
+import { expect } from "vitest";
 import { z } from "zod";
 import { createDb } from "../db/client";
 import { inviteCode } from "../db/schema";
@@ -24,7 +24,7 @@ export const ORIGIN = "https://inteligir-web.workers.dev";
 export const PASSWORD = "test-password-1234";
 
 // what every install's request carries: a build at the floor, which the Worker admits
-export const floorBuild = (): ClientBuild => ({
+const floorBuild = (): ClientBuild => ({
   platform: "desktop",
   version: env.MIN_CLIENT_BUILD,
 });
@@ -156,14 +156,10 @@ export const postSignOut = async (authorization: Record<string, string>): Promis
     method: "POST",
   });
 
-// `announce` rides the upgrade's query beside the platform, as a client's hints do
 export const openSocket = async (
   credential: string,
-  platform: string,
-  announce: Record<string, string> = {},
 ): Promise<{ frames: SyncPing[]; socket: WebSocket }> => {
-  const query = new URLSearchParams({ ...announce, platform });
-  const response = await SELF.fetch(`${ORIGIN}/v1/sync/ws?${query.toString()}`, {
+  const response = await SELF.fetch(`${ORIGIN}${SYNC_WS_PATH}`, {
     headers: { ...deviceHeaders(credential), upgrade: "websocket" },
   });
   expect(response.status).toBe(101);
@@ -181,14 +177,4 @@ export const openSocket = async (
     frames.push(emitted(syncPingSchema, text.data));
   });
   return { frames, socket };
-};
-
-// pings cross the in-process socket pair a macrotask after the push, so frames must be awaited
-export const awaitFrames = async (
-  socket: { frames: SyncPing[] },
-  expected: readonly SyncPing[],
-): Promise<void> => {
-  await vi.waitFor(() => {
-    expect(socket.frames).toEqual(expected);
-  });
 };

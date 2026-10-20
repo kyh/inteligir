@@ -24,11 +24,10 @@ import {
   renameNote,
   listsNow,
   saveText,
-  syncNow,
   useLibrary,
 } from "@/lib/app-runtime";
 import { messageOf } from "@/lib/error-message";
-import { openItem, openThreads, openViewer } from "@/lib/routes";
+import { openItem, openViewer } from "@/lib/routes";
 import { SPACE, useTheme } from "@/lib/theme";
 import { LibraryCardRow } from "@/library/library-card";
 import type { LibraryCard, LibraryFilter, PhoneScope } from "@/library/library-view";
@@ -333,7 +332,7 @@ const LibraryScreen = () => {
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([syncNow(), refreshNotes()]);
+    await refreshNotes();
     setRefreshing(false);
   }, []);
 
@@ -430,7 +429,6 @@ const LibraryScreen = () => {
           >
             New note
           </Stack.Toolbar.MenuAction>
-          <Stack.Toolbar.MenuAction onPress={openThreads}>Threads</Stack.Toolbar.MenuAction>
           <Stack.Toolbar.MenuAction
             onPress={() => {
               void refresh();

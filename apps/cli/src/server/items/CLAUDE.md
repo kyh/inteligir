@@ -95,7 +95,7 @@ Saving links, pages and files as items, and filling a saved link from its page.
   failures retry after 1, 10 and 60 minutes, a fill still running after five
   minutes is stopped and retried on that schedule, so a dial that never ends
   holds no slot, and a restart picks every row up.
-  Rejected: a claim through the dispatch inbox (a new /cloud protocol), filling
+  Rejected: a claim through an inbox a Mac polls (a new /cloud protocol), filling
   every pending stub at boot, a 15-minute wait for a phone's share (it has no
   other filler), and a JSON pending file (rewritten whole on every transition of
   an 8,500-item import). A copy the person asks for of another device's stub

@@ -117,8 +117,8 @@ describe("vault git remote round-trip", () => {
     const pusher = await loginDevice(cookie, "Laptop");
     const other = await loginDevice(cookie, "Phone");
 
-    const pusherSocket = await openSocket(pusher.credential, "desktop");
-    const otherSocket = await openSocket(other.credential, "desktop");
+    const pusherSocket = await openSocket(pusher.credential);
+    const otherSocket = await openSocket(other.credential);
 
     const first = await pushVaultFiles(
       pusher.credential,

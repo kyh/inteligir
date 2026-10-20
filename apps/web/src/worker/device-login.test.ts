@@ -1,9 +1,11 @@
 import { cloudErrorSchema } from "@repo/contract/cloud/errors";
 import {
+  DEVICE_API_PATHS,
   deviceLoginResponseSchema,
   listDevicesResponseSchema,
   revokeDeviceResponseSchema,
 } from "@repo/contract/cloud/device/device-schema";
+import { SYNC_WS_PATH } from "@repo/contract/cloud/sync/sync-ws";
 import { and, eq, isNull } from "drizzle-orm";
 import { SELF } from "cloudflare:test";
 import { env } from "cloudflare:workers";
@@ -25,10 +27,9 @@ import { createDb } from "./db/client";
 import { account, device, session, user } from "./db/schema";
 import { LAST_SEEN_RESOLUTION_MS } from "./device/device-auth";
 
-const pull = async (credential: string): Promise<Response> =>
-  await SELF.fetch(`${ORIGIN}/v1/sync/pull?afterSeq=0`, {
-    headers: deviceHeaders(credential),
-  });
+// any route a device credential reaches
+const reach = async (credential: string): Promise<Response> =>
+  await SELF.fetch(`${ORIGIN}${DEVICE_API_PATHS.list}`, { headers: deviceHeaders(credential) });
 
 const sessionCount = async (userId: string): Promise<number> => {
   const rows = await createDb(env.DB)
@@ -68,8 +69,8 @@ describe("device login", () => {
     expect(logged.userId).toBe(userId);
     expect(logged.email).toBe(email);
 
-    const pulled = await pull(logged.credential);
-    expect(pulled.status).toBe(200);
+    const reached = await reach(logged.credential);
+    expect(reached.status).toBe(200);
 
     const row = await createDb(env.DB)
       .select()
@@ -209,8 +210,8 @@ describe("device login", () => {
   it("revocation bites on the very next request", async () => {
     const { cookie } = await signUpUser("login-revoke@example.test");
     const { deviceId, credential } = await loginDevice(cookie, "Doomed Laptop");
-    const pulled = await pull(credential);
-    expect(pulled.status).toBe(200);
+    const reached = await reach(credential);
+    expect(reached.status).toBe(200);
 
     const revoke = await SELF.fetch(`${ORIGIN}/v1/device/revoke`, {
       body: JSON.stringify({ deviceId }),
@@ -219,7 +220,7 @@ describe("device login", () => {
     });
     expect(revoke.status).toBe(200);
 
-    const after = await pull(credential);
+    const after = await reach(credential);
     expect(after.status).toBe(401);
   });
 
@@ -242,7 +243,7 @@ describe("device login", () => {
         .where(eq(device.id, deviceId));
     };
     const pullStatus = async (): Promise<number> => {
-      const response = await pull(credential);
+      const response = await reach(credential);
       return response.status;
     };
 
@@ -297,14 +298,14 @@ describe("device login", () => {
       method: "POST",
     });
     expect(response.status).toBe(404);
-    const pulled = await pull(credential);
-    expect(pulled.status).toBe(200);
+    const reached = await reach(credential);
+    expect(reached.status).toBe(200);
   });
 
-  it("refuses the sync surface without a device credential", async () => {
+  it("refuses the account socket without a device credential", async () => {
     const { cookie } = await signUpUser("login-nodevice@example.test");
-    const response = await SELF.fetch(`${ORIGIN}/v1/sync/pull?afterSeq=0`, {
-      headers: sessionHeaders(cookie),
+    const response = await SELF.fetch(`${ORIGIN}${SYNC_WS_PATH}`, {
+      headers: { ...sessionHeaders(cookie), upgrade: "websocket" },
     });
     expect(response.status).toBe(401);
   });
@@ -320,7 +321,7 @@ describe("device sign-out", () => {
     expect(signedOut.status).toBe(200);
     expect(emitted(revokeDeviceResponseSchema, await signedOut.text())).toEqual({ revoked: true });
 
-    const after = await pull(credential);
+    const after = await reach(credential);
     expect(after.status).toBe(401);
     const again = await postSignOut(deviceHeaders(credential));
     expect(again.status).toBe(401);
@@ -328,7 +329,7 @@ describe("device sign-out", () => {
 
     const active = await activeDevices(await userIdOf(cookie));
     expect(active.map((row) => row.id)).toEqual([other.deviceId]);
-    const staying = await pull(other.credential);
+    const staying = await reach(other.credential);
     expect(staying.status).toBe(200);
   });
 
@@ -353,8 +354,8 @@ describe("device sign-out", () => {
 
     const refused = await postSignOut(sessionHeaders(cookie));
     expect(refused.status).toBe(401);
-    const pulled = await pull(credential);
-    expect(pulled.status).toBe(200);
+    const reached = await reach(credential);
+    expect(reached.status).toBe(200);
   });
 });
 
