@@ -1,19 +1,13 @@
-// what a fill writes into a saved link's file, as pure functions of the bytes it read, so the
-// fill's compare-and-swap recomputes them against whatever the file holds when it writes and a
+// what a fill writes into a saved link's file, as pure functions of the bytes it read, on whichever
+// device saved it (the Mac's fill-item.ts, the phone's link fill), so the fill's compare-and-swap recomputes them against whatever the file holds when it writes and a
 // person's edit made meanwhile survives. A fill sets only the keys it owns (FILL_OWNED_KEYS), never
 // `url` or `saved`, and only adds to the body: the cover first, then the person's note (the stub's
 // own body), the article, and the page copy's link. Every fill writes a new `fetched`, which is how
 // two versions of one link tell the filler from the editor (@repo/notes/sync/url-item-verdict).
 
-import {
-  bodyOf,
-  composeLinkBody,
-  embedMarkdown,
-  linkMarkdown,
-  withBody,
-} from "@repo/notes/items/item-body";
-import { itemFactsOf, withItemFields } from "@repo/notes/items/item-frontmatter";
-import type { ItemFieldPatch } from "@repo/notes/items/item-frontmatter";
+import { bodyOf, composeLinkBody, embedMarkdown, linkMarkdown, withBody } from "./item-body";
+import { itemFactsOf, withItemFields } from "./item-frontmatter";
+import type { ItemFieldPatch } from "./item-frontmatter";
 
 type FilledKind = "link" | "video" | "audio";
 

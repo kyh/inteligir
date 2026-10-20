@@ -306,6 +306,46 @@ const keyPartsOf = (url: WebUrl): UrlKeyParts => {
   return { host, path: keyPath(url.path), query: keyQuery(pieces, host) };
 };
 
+const YOUTUBE_ID = /^[\w-]{6,20}$/u;
+const YOUTUBE_PATH_ID = /^\/(?:shorts|live|embed)\/(?<id>[^/?#]+)/u;
+
+const decodedOrNull = (text: string): string | null => {
+  try {
+    return decodeURIComponent(text.replaceAll("+", " "));
+  } catch {
+    return null;
+  }
+};
+
+// a query's first value for `name`, decoded; null when it has none
+const queryValue = (query: string | null, name: string): string | null => {
+  for (const piece of query?.split("&") ?? []) {
+    const eq = piece.indexOf("=");
+    if (eq !== -1 && decodedOrNull(piece.slice(0, eq)) === name) {
+      return decodedOrNull(piece.slice(eq + 1));
+    }
+  }
+  return null;
+};
+
+// a YouTube video's id, from any of its addresses (a watch page, a short link, a short, a live, an
+// embed); null for any other address
+export const youTubeVideoId = (value: string): string | null => {
+  const url = parseWebUrl(value);
+  if (url === null) {
+    return null;
+  }
+  const host = bareHost(url);
+  let id: string | null = null;
+  if (host === SHORT_YOUTUBE_HOST) {
+    id = decodedOrNull(firstSegment(url.path));
+  } else if (host === "youtube.com" || host.endsWith(".youtube.com")) {
+    const fromPath = YOUTUBE_PATH_ID.exec(url.path)?.groups?.["id"];
+    id = queryValue(url.query, "v") ?? (fromPath === undefined ? null : decodedOrNull(fromPath));
+  }
+  return id !== null && YOUTUBE_ID.test(id) ? id : null;
+};
+
 // the dedupe key: no scheme or userinfo, the host folded and aliased, the path normalized, the
 // tracking parameters dropped and the rest sorted, a fragment kept only when it is a route
 export const urlKey = (value: string): string | null => {

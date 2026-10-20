@@ -2,8 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { decodeText } from "./decode-text";
 
-const latin1 = (text: string): Uint8Array => new Uint8Array(Buffer.from(text, "latin1"));
-const utf8 = (text: string): Uint8Array => new Uint8Array(Buffer.from(text, "utf-8"));
+// every character below U+0100, one byte each
+const latin1 = (text: string): Uint8Array =>
+  Uint8Array.from(text, (character) => character.codePointAt(0) ?? 0);
+const utf8 = (text: string): Uint8Array => new TextEncoder().encode(text);
+const utf16le = (text: string): number[] =>
+  [...text].flatMap((character) => {
+    const unit = character.codePointAt(0) ?? 0;
+    return [unit % 256, Math.floor(unit / 256)];
+  });
 
 describe("decodeText", () => {
   it("reads UTF-8 when nothing names a charset", () => {
@@ -34,7 +41,7 @@ describe("decodeText", () => {
   it("lets a byte-order mark win over every declaration", () => {
     const bytes = new Uint8Array([0xef, 0xbb, 0xbf, ...utf8("<p>é</p>")]);
     expect(decodeText(bytes, "iso-8859-1")).toBe("<p>é</p>");
-    const utf16 = new Uint8Array([0xff, 0xfe, ...Buffer.from("<p>é</p>", "utf16le")]);
+    const utf16 = new Uint8Array([0xff, 0xfe, ...utf16le("<p>é</p>")]);
     expect(decodeText(utf16, null)).toBe("<p>é</p>");
   });
 

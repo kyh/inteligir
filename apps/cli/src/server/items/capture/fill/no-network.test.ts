@@ -1,8 +1,9 @@
 // the fill worker reads html it is handed and nothing else: no file the worker's entry reaches in
 // this package (everything under fill/, and the modules beside it it imports, such as css-urls and
 // fill-protocol) may import a socket, a resolver or a process, so the page's own instructions (its
-// links, its scripts, defuddle's async extractors) can reach nothing from this thread. The build
-// holds the bundle itself to the same, packages included (FILL_WORKER_REFUSED_BUILTINS in
+// links, its scripts, defuddle's async extractors) can reach nothing from this thread. The reader it
+// runs, @repo/page-reader, imports no node module at all (oxlint.config.ts), and the build holds the
+// bundle itself to the same, packages included (FILL_WORKER_REFUSED_BUILTINS in
 // apps/cli/scripts/build.ts).
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";

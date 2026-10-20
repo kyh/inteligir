@@ -7,7 +7,7 @@
 import { RICH_FENCE_LANGS } from "@repo/notes/markdown/fence-langs";
 import TurndownService from "turndown";
 
-export type Rung = "rich" | "plain" | "text";
+import type { Rung } from "./page-facts";
 
 // the rungs turndown writes; the text rung is a walk of its own (plainText)
 type MarkupRung = Exclude<Rung, "text">;

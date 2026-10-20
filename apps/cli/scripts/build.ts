@@ -3,6 +3,7 @@
 
 import { cp, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { build } from "esbuild";
 import type { BuildOptions, Metafile } from "esbuild";
@@ -121,8 +122,9 @@ const { metafile } = await build({
 assertEntryLoadsNone(metafile, CLI_ENTRY, LOADED_ON_EVERY_VERB_REFUSED);
 
 // the DOM, the readable-content extractor, turndown and the editor live in the fill worker alone
-// (src/server/items/capture/item-fill-worker.ts): a static or dynamic import of any of them from
-// the server would ship them in the bundle every verb and the desktop shell load.
+// (src/server/items/capture/item-fill-worker.ts, reading pages through @repo/page-reader): a static
+// or dynamic import of any of them from the server would ship them in the bundle every verb and the
+// desktop shell load. The server thread reaches the reader's zod wire and its url rule alone.
 const SERVER_REFUSED_ANYWHERE = [
   "linkedom@",
   "defuddle@",
@@ -176,11 +178,13 @@ for (const { entry, external, outfile } of SIBLING_BUNDLES) {
 }
 
 // the fill worker, a thread the capture starts (src/server/items/capture/fill-runner.ts): the
-// browser build of turndown, which parses with the DOM it is handed rather than bundling its own
+// browser build of turndown, which parses with the DOM it is handed rather than bundling its own,
+// resolved from the reader that imports it, since an alias resolves from the working directory
 const FILL_WORKER_OUTFILE = "item-fill-worker.mjs";
+const readerRequire = createRequire(path.join(repoRoot, "packages", "page-reader", "package.json"));
 const fillWorker = await build({
   ...shared,
-  alias: { turndown: "turndown/lib/turndown.browser.es.js" },
+  alias: { turndown: readerRequire.resolve("turndown/lib/turndown.browser.es.js") },
   entryPoints: [path.join(packageRoot, "src", "server", "items", "capture", "item-fill-worker.ts")],
   external: [],
   metafile: true,

@@ -6,6 +6,8 @@
 // stretch of the text scanned again for a later start (`url(url(url(…` and `url(` before a megabyte
 // of spaces are linear too).
 
+import { resolveWebUrl } from "@repo/page-reader/web-url";
+
 export type CopyResourceKind = "image" | "font";
 
 export interface CssReference {
@@ -156,19 +158,6 @@ const matchesOf = (text: string, reading: Reading): CssMatch[] => {
     }
   }
   return matches;
-};
-
-export const resolveWebUrl = (raw: string, base: string): string | null => {
-  const trimmed = raw.trim();
-  if (trimmed === "" || trimmed.startsWith("#") || /^data:/iu.test(trimmed)) {
-    return null;
-  }
-  try {
-    const url = new URL(trimmed, base);
-    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
-  } catch {
-    return null;
-  }
 };
 
 // each match replaced by what `replace` answers for it, the text between kept

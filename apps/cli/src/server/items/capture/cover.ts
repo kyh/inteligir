@@ -3,12 +3,12 @@
 // and stored by its hash, so two Macs that fill one link write one file.
 
 import { COVERS_DIR } from "@repo/notes/items/item-kind";
+import { pixelSize, sniffMedia } from "@repo/notes/items/sniff-media";
 
 import type { ImageDownscale } from "../../media/image-downscale";
 import type { ItemCore } from "../item-core";
 import type { Reach } from "./address-guard";
 import type { GuardedFetch } from "./guarded-fetch";
-import { pixelSize, sniffMedia } from "./sniff-media";
 
 const COVER_MAX_BYTES = 10 * 1024 * 1024;
 const COVER_EDGE = 640;

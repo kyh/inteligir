@@ -5,10 +5,12 @@
 // `javascript:`, no srcdoc and no form action; every link keeps its text and loses its href, the
 // address moved to its title; and a meta policy (`default-src 'none'`) refuses whatever is left.
 
-import { cssImports, cssReferences, resolveWebUrl, rewriteCss } from "../css-urls";
+import { parsePage } from "@repo/page-reader/linkedom-page";
+import { resolveWebUrl } from "@repo/page-reader/web-url";
+
+import { cssImports, cssReferences, rewriteCss } from "../css-urls";
 import type { CssReference } from "../css-urls";
 import type { CopyFile } from "../fill-protocol";
-import { parsePage } from "./parse-page";
 
 const COPY_POLICY =
   "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; media-src data:";

@@ -1,8 +1,22 @@
 // why a page was not read, in one plain sentence, as the item's `fetch-error` says it, and whether
 // the fill tries again later: offline, a timeout, a resolver that did not answer, or a site saying
 // it is busy (429, 503) leave the stub as it is for a retry; anything else is said in the file.
+// Every device that fills a link says it in these words: the Mac's guarded fetch and the phone's.
 
-import type { FetchFailure } from "./guarded-fetch";
+// what the Mac's address guard refuses to dial; the phone's fetch refuses none of these
+export type FetchRefusal = "this-mac" | "link-local" | "reserved" | "private-from-public";
+
+export type FetchFailure =
+  | { kind: "refused"; refusal: FetchRefusal }
+  // `reason` is the platform's own wording of the status, never the site's
+  | { kind: "status"; status: number; reason: string; transient: boolean }
+  | { kind: "timeout" }
+  | { kind: "unreachable"; transient: boolean }
+  | { kind: "tls" }
+  | { kind: "redirects" }
+  // `bytes`: the size the site declared, or what had arrived when the read stopped
+  | { kind: "too-large"; bytes: number }
+  | { kind: "aborted" };
 
 export interface FillFailure {
   sentence: string;

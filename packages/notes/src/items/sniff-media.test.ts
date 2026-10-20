@@ -3,9 +3,18 @@ import { describe, expect, it } from "vitest";
 import { failureOf, fileOnlyLinked } from "./fill-sentences";
 import { youTubeStills } from "./oembed";
 import { pixelSize, sniffMedia } from "./sniff-media";
-import { pngOf } from "./test-support/capture-harness";
 
 const bytes = (...values: number[]): Uint8Array => new Uint8Array(values);
+
+// a PNG's signature and IHDR, which is all its size is read from
+const pngOf = (width: number, height: number): Uint8Array => {
+  const head = new Uint8Array(24);
+  head.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+  const view = new DataView(head.buffer);
+  view.setUint32(16, width);
+  view.setUint32(20, height);
+  return head;
+};
 const ascii = (text: string): Uint8Array => new TextEncoder().encode(text);
 
 describe("sniffMedia", () => {

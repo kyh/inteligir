@@ -5,16 +5,16 @@
 // the worker builds the one script-free file, and it is stored by its hash under assets/pages/.
 
 import { PAGES_DIR } from "@repo/notes/items/item-kind";
+import { sniffMedia } from "@repo/notes/items/sniff-media";
+import { decodeText } from "@repo/notes/text/decode-text";
 
 import type { ItemCore } from "../item-core";
 import type { Reach } from "./address-guard";
 import { cssImports, cssReferences } from "./css-urls";
 import type { CopyResourceKind, CssReference } from "./css-urls";
-import { decodeText } from "./decode-text";
 import type { CopyFile } from "./fill-protocol";
 import type { FillRunner } from "./fill-runner";
 import type { GuardedFetch } from "./guarded-fetch";
-import { sniffMedia } from "./sniff-media";
 
 const KiB = 1024;
 const MiB = 1024 * KiB;

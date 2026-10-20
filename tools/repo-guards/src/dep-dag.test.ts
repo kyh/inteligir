@@ -45,6 +45,10 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
     "@repo/e2e": ["@repo/contract", "@repo/mobile", "@repo/mobile-editor", "inteligir"],
     // the editor draws with the shared component kit; @repo/ui stays a leaf below it.
     "@repo/editor": ["@repo/notes", "@repo/ui"],
+    // a page read into an item, over the DOM its host hands it: the article is written as the
+    // editor's own fixpoint (its headless markdown pipeline) under the dialect's fence names, so the
+    // Mac's fill worker and the phone's page run one reading.
+    "@repo/page-reader": ["@repo/editor", "@repo/notes"],
     // the browser's Save: the /browser wire and the production origin it links (BROWSER_WIRE_CLIENTS
     // below), drawn with the shared component kit; it reaches the Mac only through the native host.
     "@repo/extension": ["@repo/contract", "@repo/ui"],
@@ -73,15 +77,16 @@ const DECLARED_EDGES = new Map<string, readonly string[]>(
       "@repo/notes",
       "@repo/ui",
     ],
-    // the server reaches no page: no @repo/ui and no react; its one @repo/editor import is the
-    // fill worker's headless markdown fixpoint (EDITOR_FROM_SERVER).
+    // the server reaches no page: no @repo/ui, no react and no @repo/editor; the fill worker reads
+    // a page through @repo/page-reader, and the server thread its wire alone
+    // (PAGE_READER_FROM_SERVER).
     inteligir: [
       "@repo/agent-runtime",
       "@repo/contract",
       "@repo/db",
       "@repo/domain",
-      "@repo/editor",
       "@repo/notes",
+      "@repo/page-reader",
     ],
   }),
 );
@@ -127,13 +132,13 @@ const EDITOR_PAGE_CLIENTS = new Map<string, string>([
   ],
 ]);
 
-// The server's one reach into the editor: a saved page is written as the editor's own fixpoint, so
-// the fill worker runs the headless markdown pipeline in its own thread. Anything else of the
-// editor in the server is the page's React in a node process, and anything outside the worker's
-// folder lands it in the main bundle every verb loads.
-const EDITOR_FROM_SERVER = {
+// The server's reach into the page reader: the fill worker reads a page with it in its own thread,
+// so the DOM, the extractor and the editor's fixpoint stay out of the main bundle every verb loads.
+// The server thread reaches the reader's wire (the zod answer the worker posts) and its url rule,
+// which import no DOM; anything else of it outside the worker's folder lands the extractor there.
+const PAGE_READER_FROM_SERVER = {
   dir: "apps/cli/src/server/items/capture/fill/",
-  specifier: "@repo/editor/markdown/markdown-doc",
+  anywhere: new Set(["@repo/page-reader/page-facts", "@repo/page-reader/web-url"]),
 } as const;
 
 const edgesFrom = (workspace: Workspace, files: readonly string[]): Map<string, string[]> => {
@@ -490,7 +495,7 @@ describe("platform purity", () => {
     expect(violations, `\n${violations.join("\n\n")}\n`).toEqual([]);
   });
 
-  it("the server reaches the editor only from the fill worker, and only its markdown fixpoint", () => {
+  it("the server reads a page only from the fill worker, and its thread reaches the reader's wire alone", () => {
     const server = workspaces().find((candidate) => candidate.name === "inteligir");
     if (server === undefined) {
       throw new Error("inteligir is not a workspace");
@@ -499,15 +504,18 @@ describe("platform purity", () => {
     // shipped source alone: the workspace UI's booted suites live here and drive the page whole
     for (const file of workspaceFiles(server).shipped) {
       for (const specifier of importsOf(file)) {
-        if (resolveWorkspace(specifier)?.name !== "@repo/editor") {
+        if (resolveWorkspace(specifier)?.name !== "@repo/page-reader") {
           continue;
         }
-        if (file.startsWith(EDITOR_FROM_SERVER.dir) && specifier === EDITOR_FROM_SERVER.specifier) {
+        if (
+          file.startsWith(PAGE_READER_FROM_SERVER.dir) ||
+          PAGE_READER_FROM_SERVER.anywhere.has(specifier)
+        ) {
           continue;
         }
         violations.push(
-          `EDITOR IN THE SERVER  ${file} imports "${specifier}"\n` +
-            `  rule: only files under ${EDITOR_FROM_SERVER.dir} reach @repo/editor, and only ${EDITOR_FROM_SERVER.specifier} — the fill worker's headless fixpoint, in a thread of its own`,
+          `PAGE READER IN THE SERVER THREAD  ${file} imports "${specifier}"\n` +
+            `  rule: only files under ${PAGE_READER_FROM_SERVER.dir} read a page with @repo/page-reader, in the fill worker's own thread; the server thread reaches ${[...PAGE_READER_FROM_SERVER.anywhere].join(" and ")} alone`,
         );
       }
     }

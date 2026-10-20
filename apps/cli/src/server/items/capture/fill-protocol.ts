@@ -2,18 +2,8 @@
 // sides, since a worker speaking out of protocol is retired whole. The worker reads html it is
 // handed and fetches nothing, so every resource a job needs travels in the job.
 
+import { extractedPageSchema } from "@repo/page-reader/page-facts";
 import { z } from "zod";
-
-const pageFactsSchema = z.strictObject({
-  author: z.string().nullable(),
-  description: z.string().nullable(),
-  images: z.array(z.string()),
-  lang: z.string().nullable(),
-  oembed: z.string().nullable(),
-  published: z.string().nullable(),
-  site: z.string().nullable(),
-  title: z.string().nullable(),
-});
 
 const extractJobSchema = z.strictObject({
   html: z.string(),
@@ -56,21 +46,10 @@ export const fillJobSchema = z.discriminatedUnion("kind", [
   copyBuildJobSchema,
 ]);
 type FillJob = z.infer<typeof fillJobSchema>;
-export type PageFacts = z.infer<typeof pageFactsSchema>;
 export type CopyFile = z.infer<typeof copyFileSchema>;
 
-const rungSchema = z.enum(["rich", "plain", "text"]);
-
 export const fillAnswerSchema = z.discriminatedUnion("kind", [
-  z.strictObject({
-    // "" when the page holds no text the editor could keep
-    article: z.string(),
-    facts: pageFactsSchema,
-    id: z.number().int(),
-    kept: z.number(),
-    kind: z.literal("extracted"),
-    rung: rungSchema.nullable(),
-  }),
+  extractedPageSchema.extend({ id: z.number().int(), kind: z.literal("extracted") }),
   z.strictObject({
     id: z.number().int(),
     // pictures (the best source of each), in document order

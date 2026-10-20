@@ -1,6 +1,9 @@
-// the worker's extract over a committed corpus of synthetic pages: what a page says about itself in
-// the precedence page-meta.ts names, the article rules, the dialect escapes, and the body ladder's
-// promise that every article is already the editor's own fixpoint.
+// the reader over a committed corpus of synthetic pages: what a page says about itself in the
+// precedence page-meta.ts names, the article rules, the dialect escapes, and the body ladder's
+// promise that every article is already the editor's own fixpoint, over linkedom, the DOM the Mac's
+// fill worker and the phone's runtime under node parse with. The phone's page parses with its
+// WebView's own DOMParser, which tools/e2e/src/scenarios/phone-editor-page.ts drives in a real
+// browser against this same reading (jsdom's DOM is no stand-in: defuddle picks the whole body).
 
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -11,7 +14,9 @@ import { composeLinkBody } from "@repo/notes/items/item-body";
 import { composeItemFile } from "@repo/notes/items/item-frontmatter";
 
 import { extractPage, KEPT_MIN } from "./extract-page";
-import type { ExtractedPage } from "./extract-page";
+import type { ParsePage } from "./extract-page";
+import { parsePage } from "./linkedom-page";
+import type { ExtractedPage } from "./page-facts";
 
 // spelled in two halves: the scheme the article must not hold, never a link of this suite's
 const SCRIPT_SCHEME = ["java", "script:"].join("");
@@ -21,8 +26,11 @@ const PAGE_URL = "https://pages.example/posts/item";
 
 const page = (name: string): string => readFileSync(path.join(CORPUS, `${name}.html`), "utf-8");
 
-const extracted = (name: string, prefer: "article" | "description" = "article"): ExtractedPage =>
-  extractPage({ html: page(name), prefer, url: PAGE_URL });
+const extracted = (
+  name: string,
+  prefer: "article" | "description" = "article",
+  parse: ParsePage = parsePage,
+): ExtractedPage => extractPage({ html: page(name), prefer, url: PAGE_URL }, parse);
 
 interface SlateNode {
   type?: string;
@@ -237,11 +245,14 @@ describe("every corpus page", () => {
 describe("the body ladder", () => {
   it("falls to the plain text rung for a page nested past any recursion", () => {
     const depth = 3000;
-    const result = extractPage({
-      html: `<html><body><article>${"<blockquote>".repeat(depth)}deep words here${"</blockquote>".repeat(depth)}<p>after them</p></article></body></html>`,
-      prefer: "article",
-      url: PAGE_URL,
-    });
+    const result = extractPage(
+      {
+        html: `<html><body><article>${"<blockquote>".repeat(depth)}deep words here${"</blockquote>".repeat(depth)}<p>after them</p></article></body></html>`,
+        prefer: "article",
+        url: PAGE_URL,
+      },
+      parsePage,
+    );
     expect(result.rung).toBe("text");
     expect(result.article).toBe("deep words here\n\nafter them\n");
     expect(analyzeMarkdown(result.article).kind).toBe("canonical");

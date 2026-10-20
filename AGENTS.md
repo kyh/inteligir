@@ -107,6 +107,7 @@ packages/contract       @repo/contract — ONE contract, THREE entries: /local, 
 packages/db             @repo/db — drizzle + better-sqlite3, migrations, notifier
 packages/notes          @repo/notes — the pure, platform-neutral domain
 packages/editor         @repo/editor — the Plate WYSIWYG over the fixpoint serializer
+packages/page-reader    @repo/page-reader — a saved page read into an item, over the DOM its host hands it
 packages/agent-runtime  @repo/agent-runtime — the ACP runtime over the harnesses
 packages/agent-skills   @repo/agent-skills — the dialect spec, as files agents read
 packages/ui             @repo/ui — the shared component vocabulary on Base UI
@@ -297,6 +298,7 @@ the files by `tools/repo-guards/src/decisions-index.test.ts`.
 - [`packages/editor/CLAUDE.md`](packages/editor/CLAUDE.md) — Editor and dialect, and the open note's saves and renames
 - [`packages/ui/CLAUDE.md`](packages/ui/CLAUDE.md) — floating surfaces, type roles, popup motion, row order, the orphan guard
 - [`packages/notes/CLAUDE.md`](packages/notes/CLAUDE.md) — Items, annotations, and Knowledge: the scan, search, links and tags
+- [`packages/page-reader/CLAUDE.md`](packages/page-reader/CLAUDE.md) — reading a saved page into an item: the one reader, over its host's DOM
 - [`packages/agent-runtime/CLAUDE.md`](packages/agent-runtime/CLAUDE.md) — the provider grammar, and what a session may load from the vault
 - [`apps/cli/CLAUDE.md`](apps/cli/CLAUDE.md) — the server process: its lock, composition, credential, shutdown, CSP, database, and a vault's data dir
 - [`apps/cli/src/server/vault/CLAUDE.md`](apps/cli/src/server/vault/CLAUDE.md) — Vault: writes, git and containment

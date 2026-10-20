@@ -1,9 +1,8 @@
 // a page's bytes as text, by the HTML standard's order: a byte-order mark, then the response's
 // declared charset, then a `<meta charset>` (or its http-equiv spelling) in the first 1024 bytes,
 // then UTF-8. A label the platform's decoder does not know falls through to the next source, and
-// no source ever throws: a page's bytes are hostile input.
-
-import { TextDecoder } from "node:util";
+// no source ever throws: a page's bytes are hostile input. The platform's own decoder: node's and
+// a WebView's know every label the standard names.
 
 const PRESCAN_BYTES = 1024;
 
@@ -13,7 +12,10 @@ const BOMS: readonly { bytes: readonly number[]; label: string }[] = [
   { bytes: [0xff, 0xfe], label: "utf-16le" },
 ];
 
-const decoderFor = (label: string | null): TextDecoder | null => {
+// the global's instance type, spelled so a node program's typing of the global reads it too
+type Decoder = InstanceType<typeof TextDecoder>;
+
+const decoderFor = (label: string | null): Decoder | null => {
   if (label === null || label.trim() === "") {
     return null;
   }

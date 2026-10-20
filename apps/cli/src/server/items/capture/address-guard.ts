@@ -5,6 +5,8 @@
 
 import { isIP } from "node:net";
 
+import type { FetchRefusal } from "@repo/notes/items/fill-sentences";
+
 export type AddressClass = "this-mac" | "link-local" | "reserved" | "private" | "public";
 
 // the policy a suite injects (CapturePorts.policy): the guard's own classification by default
@@ -13,14 +15,11 @@ export type AddressPolicy = (address: string) => AddressClass;
 // what a fetch whose saved address is `reach` may dial: private space only from private space
 export type Reach = "public" | "private";
 
-export type GuardRefusal =
-  // an address of this Mac, `localhost`, or the server's own port
-  | "this-mac"
-  | "link-local"
-  // reserved space, or an answer mixing private and public addresses
-  | "reserved"
-  // a public saved address led to private space (a redirect, a cover, a stylesheet)
-  | "private-from-public";
+// an address of this Mac, `localhost`, or the server's own port (`this-mac`); link-local space;
+// reserved space, or an answer mixing private and public addresses; or a public saved address
+// leading to private space (`private-from-public`: a redirect, a cover, a stylesheet). The words
+// the item says for each are @repo/notes/items/fill-sentences'
+export type GuardRefusal = FetchRefusal;
 
 export type AnswerVerdict = { ok: true; reach: Reach } | { ok: false; refusal: GuardRefusal };
 

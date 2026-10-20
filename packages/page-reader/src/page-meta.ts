@@ -6,18 +6,7 @@
 
 import { z } from "zod";
 
-export interface PageFacts {
-  title: string | null;
-  site: string | null;
-  author: string | null;
-  published: string | null;
-  description: string | null;
-  // cover candidates, the page's own order of preference, absolute web urls
-  images: string[];
-  // the page's own oEmbed discovery link
-  oembed: string | null;
-  lang: string | null;
-}
+import type { PageFacts } from "./page-facts";
 
 // the extractor's reading, the fallback for each key
 export interface ExtractedMeta {

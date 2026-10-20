@@ -1,33 +1,29 @@
-// a page's facts and its article: linkedom parses the html, the head is read before defuddle
-// strips it, defuddle finds the readable content (with no network: `useAsync` off and a fetch
-// that refuses), and the article is written down the body ladder, rich to plain, the first rung
-// whose fixpoint keeps at least 97% of its letters winning. The fixpoint is the editor's own, so
-// an item opens rich and its first edit is a minimal diff.
+// a page's facts and its article, the one reading every device that fills a link runs: the host
+// hands the DOM it parses with (linkedom in the Mac's fill worker and in node, the WebView's own
+// DOMParser on the phone), the head is read before defuddle strips it, defuddle finds the readable
+// content (with no network: `useAsync` off and a fetch that refuses), and the article is written
+// down the body ladder, rich to plain, the first rung whose fixpoint keeps at least 97% of its
+// letters winning. The fixpoint is the editor's own, so an item opens rich and its first edit is a
+// minimal diff.
 
 import Defuddle from "defuddle";
 
 import { canonicalizeImported } from "@repo/editor/markdown/markdown-doc";
 
-import { resolveWebUrl } from "../css-urls";
-import type { PageFacts } from "../fill-protocol";
 import { escapeText, htmlToMarkdown } from "./html-to-markdown";
-import type { Rung } from "./html-to-markdown";
+import type { ExtractedPage, Rung } from "./page-facts";
 import { pageFactsOf, readHead } from "./page-meta";
 import type { ExtractedMeta } from "./page-meta";
-import { parsePage } from "./parse-page";
+import { resolveWebUrl } from "./web-url";
 
 export const KEPT_MIN = 0.97;
 const RUNGS: readonly Rung[] = ["rich", "plain", "text"];
 
-export interface ExtractedPage {
-  facts: PageFacts;
-  article: string;
-  rung: Rung | null;
-  kept: number;
-}
+// html as a document with an <html>, a <head> and a <body>, whatever it was handed; the host's
+export type ParsePage = (html: string) => Document;
 
 const refuseFetch: typeof fetch = async () =>
-  await Promise.reject(new Error("the fill worker reaches no network"));
+  await Promise.reject(new Error("the page reader reaches no network"));
 
 // a picture's own address, never an inline placeholder
 const isUsableSrc = (value: string | null | undefined): value is string =>
@@ -87,7 +83,7 @@ const ladder = (root: HTMLElement): Laddered | null => {
   return best;
 };
 
-const contentRoot = (contentHtml: string, pageUrl: string): HTMLElement => {
+const contentRoot = (parsePage: ParsePage, contentHtml: string, pageUrl: string): HTMLElement => {
   const document = parsePage(
     `<!doctype html><html><head></head><body>${contentHtml}</body></html>`,
   );
@@ -148,11 +144,14 @@ const readableContent = (document: Document, url: string): Readable => {
   }
 };
 
-export const extractPage = (args: {
-  html: string;
-  url: string;
-  prefer: "article" | "description";
-}): ExtractedPage => {
+export const extractPage = (
+  args: {
+    html: string;
+    url: string;
+    prefer: "article" | "description";
+  },
+  parsePage: ParsePage,
+): ExtractedPage => {
   const document = parsePage(args.html);
   // the head first: defuddle strips the scripts JSON-LD rides in
   const head = readHead(document, args.url);
@@ -164,7 +163,7 @@ export const extractPage = (args: {
       : null) ??
     (result.content === null
       ? ladder(document.body)
-      : ladder(contentRoot(result.content, args.url)));
+      : ladder(contentRoot(parsePage, result.content, args.url)));
   return {
     article: article?.markdown ?? "",
     facts: merged,

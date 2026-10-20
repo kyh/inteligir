@@ -55,18 +55,6 @@ Saving links, pages and files as items, and filling a saved link from its page.
   `apps/cli/src/server/items/capture/item-fill-worker.ts`,
   `apps/cli/src/server/items/capture/fill/no-network.test.ts`.
 
-- **A SAVED PAGE IS THE EDITOR'S OWN FIXPOINT.** The article is converted down a
-  ladder (rich, plain, text) and the first rung the editor's
-  `canonicalizeImported` calls canonical with at least 97% of the converted
-  letters kept is written, so an item opens rich and its first edit is a minimal
-  diff; a page's `{{x}}`, `@2026-01-02`, `%%`, `:::`, `$$`, `[[x]]` and raw tags
-  are escaped so they stay text, and a code block that names one of the
-  dialect's own fences (`@repo/notes/markdown/fence-langs`) as its language
-  keeps its code and loses the name, so a page never writes a runnable block. Rejected: defuddle's markdown, Plate's
-  `deserializeHtml`, and canonicalizing on first open.
-  `apps/cli/src/server/items/capture/fill/extract-page.ts`,
-  `apps/cli/src/server/items/capture/fill/html-to-markdown.ts`.
-
 - **A MAC FILLS WHAT IT MADE AT ONCE, A PHONE'S STUB WITHIN A MINUTE AND ANOTHER
   MAC'S AFTER 15 MINUTES; A FILL ONLY ADDS, NEVER WRITES `url`/`saved`, AND
   RENAMES ONLY AN UNTRACKED STUB OF ITS OWN, BEFORE IT WRITES.** This Mac's own
@@ -104,7 +92,7 @@ Saving links, pages and files as items, and filling a saved link from its page.
   never rides on a row that drops. `apps/cli/src/server/items/capture/fill-queue.ts`,
   `apps/cli/src/server/items/capture/pending-fills-store.ts`,
   `apps/cli/src/server/items/capture/fill-item.ts`,
-  `apps/cli/src/server/items/capture/link-fill.ts`.
+  `packages/notes/src/items/link-fill.ts`.
 
 - **A FAILED FILL IS SAID IN THE FILE**: `fetched` and a plain `fetch-error`
   sentence, and the waiting highlights placed under `## Highlights` in the same
@@ -118,7 +106,7 @@ Saving links, pages and files as items, and filling a saved link from its page.
   (`unread`), and a fill that began on an unread item gives way when another
   fill read the page while it ran, writing neither its failure nor a second
   file at the link (`land` in `apps/cli/src/server/items/capture/fill-item.ts`). Rejected: a failed state in the database alone (the phone and
-  another Mac would see a stub forever). `apps/cli/src/server/items/capture/fill-sentences.ts`.
+  another Mac would see a stub forever). `packages/notes/src/items/fill-sentences.ts`.
 
 - **A SAVE OF A URL THE LIBRARY HOLDS ADDS WHAT IT CARRIES** (tags, a selection
   as a highlight placed in the text or under `## Highlights` when the passage is

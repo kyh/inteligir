@@ -3,8 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { FILL_OWNED_KEYS } from "@repo/notes/items/item-kind";
-
+import { FILL_OWNED_KEYS } from "./item-kind";
 import { applyFillFailure, applyLinkFill, applyMediaFill } from "./link-fill";
 import type { LinkFill } from "./link-fill";
 

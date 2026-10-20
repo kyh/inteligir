@@ -18,6 +18,8 @@ import type { Readable, Transform } from "node:stream";
 import { getCACertificates, rootCertificates } from "node:tls";
 import { createBrotliDecompress, createGunzip, createUnzip } from "node:zlib";
 
+import type { FetchFailure } from "@repo/notes/items/fill-sentences";
+
 import { errnoCode } from "../../errno";
 import {
   addressKey,
@@ -27,7 +29,7 @@ import {
   reachedKeys,
   vetAnswer,
 } from "./address-guard";
-import type { AddressClass, AddressPolicy, GuardRefusal, Reach } from "./address-guard";
+import type { AddressClass, AddressPolicy, Reach } from "./address-guard";
 
 export interface LookupAddress {
   address: string;
@@ -37,17 +39,8 @@ export interface LookupAddress {
 // every address a name resolves to, in the resolver's own order
 export type HostLookup = (hostname: string) => Promise<LookupAddress[]>;
 
-export type FetchFailure =
-  | { kind: "refused"; refusal: GuardRefusal }
-  // `reason` is node's own wording of the status, never the site's
-  | { kind: "status"; status: number; reason: string; transient: boolean }
-  | { kind: "timeout" }
-  | { kind: "unreachable"; transient: boolean }
-  | { kind: "tls" }
-  | { kind: "redirects" }
-  // `bytes`: the size the site declared, or what had arrived when the read stopped
-  | { kind: "too-large"; bytes: number }
-  | { kind: "aborted" };
+// the one failure shape every device's fill says in the file (@repo/notes/items/fill-sentences)
+export type { FetchFailure } from "@repo/notes/items/fill-sentences";
 
 export interface FetchedResponse {
   // the last hop's url

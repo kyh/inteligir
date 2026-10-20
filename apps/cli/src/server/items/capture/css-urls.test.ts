@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { cssImports, cssReferences, resolveWebUrl, rewriteCss } from "./css-urls";
+import { resolveWebUrl } from "@repo/page-reader/web-url";
+
+import { cssImports, cssReferences, rewriteCss } from "./css-urls";
 import type { CopyResourceKind, CssReference } from "./css-urls";
 
 const BASE = "https://example.test/css/site.css";

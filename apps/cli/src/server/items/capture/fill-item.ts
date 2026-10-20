@@ -6,13 +6,31 @@
 // block that does not parse) takes back the covers and copies it wrote and leaves the file alone.
 
 import type { ItemFill } from "@repo/contract/local/items/items-schema";
+import {
+  COPY_TOO_BIG,
+  failureOf,
+  fileOnlyLinked,
+  TEXT_NOT_SAVED,
+} from "@repo/notes/items/fill-sentences";
 import { bodyOf } from "@repo/notes/items/item-body";
 import { isItemStub, itemFactsOf } from "@repo/notes/items/item-frontmatter";
 import { itemNameFromTitle, itemNameFromUrl } from "@repo/notes/items/item-name";
 import { formatItemTime } from "@repo/notes/items/item-time";
 import { kindForUrl } from "@repo/notes/items/item-url";
+import {
+  applyFillFailure,
+  applyLinkFill,
+  applyMediaFill,
+  startsWithImage,
+} from "@repo/notes/items/link-fill";
+import type { FillText, LinkFill } from "@repo/notes/items/link-fill";
+import { youTubeStills } from "@repo/notes/items/oembed";
+import type { OEmbed } from "@repo/notes/items/oembed";
+import { sniffMedia } from "@repo/notes/items/sniff-media";
 import { docStem } from "@repo/notes/knowledge/doc-file";
 import { dirnamePath } from "@repo/notes/knowledge/vault-path";
+import { decodeText } from "@repo/notes/text/decode-text";
+import type { PageFacts } from "@repo/page-reader/page-facts";
 
 import type { AnnotationsService } from "../../annotations/annotations-service";
 import type { KnowledgeRuntime } from "../../knowledge/knowledge-runtime";
@@ -21,18 +39,11 @@ import type { ItemCore } from "../item-core";
 import type { Reach } from "./address-guard";
 import type { CaptureClock } from "./capture-ports";
 import { findCover } from "./cover";
-import { decodeText } from "./decode-text";
-import type { PageFacts } from "./fill-protocol";
 import type { FillRunner } from "./fill-runner";
-import { COPY_TOO_BIG, failureOf, fileOnlyLinked, TEXT_NOT_SAVED } from "./fill-sentences";
 import type { FetchedResponse, GuardedFetch } from "./guarded-fetch";
-import { applyFillFailure, applyLinkFill, applyMediaFill, startsWithImage } from "./link-fill";
-import type { FillText, LinkFill } from "./link-fill";
-import { fetchOEmbed, youTubeStills } from "./oembed";
-import type { OEmbed } from "./oembed";
+import { fetchOEmbed } from "./oembed";
 import { keepPageCopy } from "./page-copy";
 import type { FillOrigin } from "./pending-fills-store";
-import { sniffMedia } from "./sniff-media";
 
 const MiB = 1024 * 1024;
 const PAGE_MAX_BYTES = 10 * MiB;

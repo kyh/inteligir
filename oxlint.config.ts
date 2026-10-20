@@ -90,6 +90,11 @@ export default defineConfig({
       "@repo/editor imports no node module: it runs in the page, and its headless kits in the fill worker's DOM-shimmed thread (apps/cli/src/server/items/capture/fill/)",
     ),
     platformPurity(
+      "packages/page-reader",
+      NODE_OR_REACT,
+      "@repo/page-reader reads a page over the DOM its host hands it, in the Mac's network-less fill worker and in the phone's WebView, so it imports no node module (no socket a page could reach) and no React",
+    ),
+    platformPurity(
       "apps/extension",
       NODE,
       "@repo/extension runs in the browser: its pages and its service worker reach the Mac only through the native host",
