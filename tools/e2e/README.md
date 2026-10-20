@@ -14,6 +14,7 @@ suite drives the same bytes and the same policy a user gets.
 ```sh
 pnpm e2e                      # every scenario (the runner builds the CLI first)
 pnpm e2e --only vault-sync    # one scenario (comma-separated, repeatable)
+pnpm e2e --lanes 1            # one scenario at a time, every line as it happens
 pnpm e2e --keep               # keep the scratch dirs for post-mortem
 pnpm e2e --list               # every scenario, in run order, and what it proves
 pnpm e2e --no-skip            # every SKIP FAILS: for a provisioned browser and display
@@ -22,6 +23,22 @@ pnpm e2e --no-skip            # every SKIP FAILS: for a provisioned browser and 
 Before the first scenario the runner builds the CLI bundle and the workspace
 UI it stages, through turbo (`--filter=inteligir`): a cache hit when nothing
 changed, and never a stale `dist/` booted as if it were this checkout.
+
+Scenarios run in lanes: `--lanes <n>` of them at once, by default half this
+machine's cores and at most four, each started in registry order as a lane
+frees. With more than one lane a scenario's lines are held and printed whole
+when it ends, after a live `[name] started` line, so two lanes never
+interleave; `--lanes 1` streams each line as it happens. The summary lists
+every scenario in registry order whatever finished first. A scenario that needs
+something only one may hold at a time names it in `exclusive` and never runs
+beside another holding it: today that is `desktop-shell`, the shell's window on
+the run's one display, driven through WebKit's WebDriver. Everything else a
+scenario touches is its own, which is what lets it share a run: its scratch
+dir, ports reserved ephemerally and never handed to two lanes in one run
+(`src/harness/ports.ts`), and browser sessions named for it. A build a scenario
+makes through turbo (the Worker, the phone's editor page) runs once per run and
+one at a time (`src/harness/turbo-build.ts`), because a second build would
+rewrite the output a running Worker serves its assets from.
 
 Every scenario runs under a deadline (`timeoutMs`, default 180s; a scenario
 that builds or boots a Worker, or the desktop shell, declares more). A run
@@ -61,7 +78,7 @@ scratch dir and tears everything down afterwards:
 - `bareRemote()` — a scratch bare git repo, returned as the `file://` URL for
   `INTELIGIR_VAULT_REMOTE` or `vault.setRemote`.
 - `cloudWorker({ vars? })` — the product Worker (apps/web), built through turbo
-  and booted from its `cf build` output under Miniflare
+  once per run and booted from its `cf build` output under Miniflare
   (`src/harness/worker-host.ts`) on a scratch persist dir, its D1 carrying
   apps/web's own `db:export` schema plus one invite row; `vars` override
   cloudflare.config.ts's text bindings (a storage cap a scenario can fill). Registered for teardown exactly like an
@@ -71,8 +88,8 @@ scratch dir and tears everything down afterwards:
   `instance.vaultDir` / `dataDir` for on-disk assertions.
 - `desktopShell({ seedVault?, seedOwnDir?, firstRun? })` — the checkout's
   built Tauri shell (`pnpm turbo run build:shell --filter=@repo/desktop`, an
-  unbundled debug build the runner makes before the first scenario that asks,
-  outside every deadline). It makes the default vault's folder before launch,
+  unbundled debug build the runner makes before the first scenario when any
+  selected one is `exclusive` on `desktop-shell`, outside every deadline). It makes the default vault's folder before launch,
   as a launch before first run left it, so the shell boots it; `firstRun: true`
   makes nothing, so the shell opens its first-run page and boots no server
   until a vault is chosen, and a relaunch over the same scratch finds the vault
@@ -116,7 +133,10 @@ draws (`png-pixels.ts`).
 ## Adding a scenario
 
 1. `src/scenarios/<name>.ts` exporting a `Scenario` (`name`, `description`,
-   `run(ctx)`, and `timeoutMs` only when a green run can near the default);
+   `run(ctx)`, `timeoutMs` only when a green run can near the default, and
+   `exclusive` when it holds something only one scenario may, such as the
+   desktop shell); it shares a run with others in lanes, so it binds no fixed
+   port and writes nothing outside its scratch dir;
    assert with `expect`/`expectEq`, bail with `skip(reason)` for a capability
    this environment/branch does not have yet. The `description` says what the
    scenario proves: it is what `pnpm e2e --list` prints and what the transcript
@@ -193,6 +213,10 @@ address runs them all.
 The runner's suite-start build is what stages `apps/cli/dist/ui`; the harness
 still refuses to boot without it, because a server with no workspace UI
 answers the API and serves a 404 to the browser — a green API run beside a
-page that never loads. built-worker-boot builds apps/web for itself, through
-turbo, because the bundle it boots is the thing under test and no other
-scenario needs it.
+page that never loads. The Worker is built through turbo by the first scenario
+that boots one, once per run, rather than at suite start, because only the
+scenarios that boot a Worker need it.
+
+CI runs the suite in two lanes (`--lanes 2`), half its four-core runner, the
+same count a four-core machine's default gives, so a local default run is the
+one CI runs.

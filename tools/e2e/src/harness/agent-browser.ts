@@ -26,7 +26,8 @@ export type ScenarioBrowser = AgentBrowser & ScenarioBrowserControls;
 // launchFlags ride every call, after --session: agent-browser launches its browser on whichever
 // call comes first, so a flag only the first call carried would launch nothing once a later one did.
 const agentBrowserSession = (label: string, launchFlags: readonly string[] = []): AgentBrowser => {
-  // label keeps scenarios off each other's tabs; pid keeps two runs of the suite apart.
+  // the label leads with its scenario's name (scenario.ts), so two scenarios in two lanes never
+  // share a session's browser, and the pid keeps two runs of the suite apart.
   const session = `inteligir-e2e-${label}-${process.pid}`;
   return async (args, timeoutMs = 60_000) => {
     const result = await exec("agent-browser", ["--session", session, ...launchFlags, ...args], {

@@ -206,7 +206,8 @@ CI then runs a few more that `verify` cannot: it installs agent-browser
 and the shell's WebDriver (`tauri-driver`, each pinned by hand, over
 `webkit2gtk-driver` from the runner's apt), and
 runs the scenario suite under `xvfb-run`, since the desktop shell's scenarios
-open a real window. ONE run, because there is one build —
+open a real window, in two lanes, half its four cores. ONE run, because there
+is one build —
 the workspace is a plain SPA served as files, so the suite drives the same
 bytes and the same policy a user gets. So a green `verify` is not a green CI;
 run `pnpm e2e` too before claiming one. A second job runs on macOS, where the
@@ -226,4 +227,7 @@ references, the per-export orphan guard over `@repo/ui`).
 End-to-end: `pnpm e2e` boots real app instances on scratch dirs (fixture
 vaults, scratch git remotes, a headless browser, and the desktop shell itself,
 driven over WebDriver on Linux) and is deliberately outside
-`pnpm verify` — `tools/e2e/README.md` is the one-pager.
+`pnpm verify` — `tools/e2e/README.md` is the one-pager. It runs scenarios in
+lanes, half the machine's cores and at most four at once, each printed whole
+when it ends; `--lanes 1` runs them one at a time and streams every line, and
+`--only <names>` runs just the ones a change touches.

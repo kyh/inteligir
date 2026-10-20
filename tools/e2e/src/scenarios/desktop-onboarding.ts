@@ -35,7 +35,7 @@ export const desktopOnboarding: Scenario = {
   name: "desktop-onboarding",
   // the shell launches twice
   timeoutMs: 300_000,
-  usesDesktopShell: true,
+  exclusive: ["desktop-shell"],
   async run(ctx) {
     const shell = await ctx.desktopShell({ firstRun: true });
     const { dataDir, vaultDir } = shell.target();

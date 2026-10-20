@@ -84,8 +84,10 @@ jobs:
         # outside verify on purpose: it boots real instances and drives them over the wire, because
         # every unit can pass while the composition fails. The two steps above provide the browser
         # and the shell's WebDriver and xvfb-run the display, so a skip is a broken setup, and
-        # --no-skip fails it rather than passing it behind a green step
-        run: xvfb-run -a pnpm e2e --no-skip
+        # --no-skip fails it rather than passing it behind a green step. Two lanes, half the
+        # runner's four cores, which is what a four-core machine's default runs, so a local run
+        # is the one CI runs; the shell scenarios hold the one display one at a time
+        run: xvfb-run -a pnpm e2e --no-skip --lanes 2
 
   # the app ships only as a macOS arm64 .app, and the suites meet APFS, FSEvents and a tmpdir
   # behind a symlink only here; typecheck, lint, knip, format and build read no platform, so the

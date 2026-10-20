@@ -15,10 +15,10 @@ import { parsePage } from "@repo/page-reader/linkedom-page";
 import { parseEval } from "../harness/agent-browser";
 import type { ScenarioBrowser } from "../harness/agent-browser";
 import { expect, expectEq } from "../harness/assert";
-import { buildProcessEnv, exec } from "../harness/exec";
 import { pollUntil } from "../harness/poll";
 import type { Scenario } from "../harness/scenario";
 import { EDITOR } from "../harness/selectors";
+import { turboBuildOnce } from "../harness/turbo-build";
 
 // a cold vite build of the page, pele and katex inlined; a cached one returns at once.
 const BUILD_TIMEOUT_MS = 300_000;
@@ -270,9 +270,10 @@ export const phoneEditorPage: Scenario = {
   timeoutMs: BUILD_TIMEOUT_MS + 120_000,
   async run(ctx) {
     // built through turbo, not looked for on disk: a present dist/ may be last week's page.
-    await exec("pnpm", ["turbo", "run", "build", "--filter=@repo/mobile-editor"], {
-      cwd: ctx.repoRoot,
-      env: buildProcessEnv(),
+    await turboBuildOnce({
+      filter: "@repo/mobile-editor",
+      onLog: ctx.log,
+      repoRoot: ctx.repoRoot,
       timeoutMs: BUILD_TIMEOUT_MS,
     });
     const page = pathToFileURL(

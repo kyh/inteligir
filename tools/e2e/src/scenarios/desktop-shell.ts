@@ -66,7 +66,7 @@ export const desktopShell: Scenario = {
   name: "desktop-shell",
   // one shell launch carries every step, and its server boots twice (the switch)
   timeoutMs: 420_000,
-  usesDesktopShell: true,
+  exclusive: ["desktop-shell"],
   async run(ctx) {
     const outsideFile = path.join(ctx.scratchDir, "outside", "secret.md");
     await mkdir(path.dirname(outsideFile), { recursive: true });

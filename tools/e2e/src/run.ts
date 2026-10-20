@@ -1,5 +1,5 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { availableParallelism, tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { parseArgs } from "node:util";
@@ -9,7 +9,7 @@ import { ScenarioSkipError } from "./harness/scenario-skip-error";
 import { killAllLiveGroups } from "./harness/tracked-child";
 import type { TrackedProcess } from "./harness/tracked-child";
 import { createScenarioContext } from "./harness/scenario";
-import type { Scenario, ScenarioContext } from "./harness/scenario";
+import type { ExclusiveResource, Scenario, ScenarioContext } from "./harness/scenario";
 import { accountHosted } from "./scenarios/account-hosted";
 import { actionScripted } from "./scenarios/action-scripted";
 import { agentSignInBrowser } from "./scenarios/agent-sign-in-browser";
@@ -128,9 +128,15 @@ const SCENARIOS: readonly Scenario[] = [
   phoneFillIntegrated,
 ];
 
-const USAGE = `Usage: pnpm e2e [--only <names>] [--keep] [--list] [--no-skip]
+// half the machine's cores, at most four: a lane is a server, a browser and often a Worker, and
+// the scenarios that bound a wait in wall time are tuned on a machine that is not saturated
+const DEFAULT_LANES = Math.min(4, Math.max(1, Math.floor(availableParallelism() / 2)));
+
+const USAGE = `Usage: pnpm e2e [--only <names>] [--lanes <n>] [--keep] [--list] [--no-skip]
 
   --only <names>  comma-separated scenario names (repeatable)
+  --lanes <n>     scenarios run at once (default ${String(DEFAULT_LANES)}: half this machine's cores, at most 4);
+                  1 runs them one after another, streaming each line as it happens
   --keep          keep the scratch dirs for post-mortem
   --list          print every scenario and what it proves, then exit
   --no-skip       every SKIP FAILS; for a run whose environment was provisioned, browser and
@@ -146,10 +152,22 @@ const SHELL_BUILD_TIMEOUT_MS = 1_200_000;
 
 interface CliOptions {
   only: string[];
+  lanes: number;
   keep: boolean;
   list: boolean;
   noSkip: boolean;
 }
+
+const parseLanes = (value: string | undefined): number => {
+  if (value === undefined) {
+    return DEFAULT_LANES;
+  }
+  const lanes = Number(value);
+  if (!Number.isInteger(lanes) || lanes < 1) {
+    throw new Error(`--lanes takes a whole number of at least 1, not "${value}"`);
+  }
+  return lanes;
+};
 
 const parseCliOptions = (argv: string[]): CliOptions => {
   try {
@@ -158,6 +176,7 @@ const parseCliOptions = (argv: string[]): CliOptions => {
       args: argv,
       options: {
         keep: { default: false, type: "boolean" },
+        lanes: { type: "string" },
         list: { default: false, type: "boolean" },
         "no-skip": { default: false, type: "boolean" },
         only: { default: [], multiple: true, type: "string" },
@@ -166,6 +185,7 @@ const parseCliOptions = (argv: string[]): CliOptions => {
     });
     return {
       keep: values.keep,
+      lanes: parseLanes(values.lanes),
       list: values.list,
       noSkip: values["no-skip"],
       only: values.only.flatMap((value) => value.split(",").map((name) => name.trim())),
@@ -197,9 +217,56 @@ type ScenarioOutcome =
   | { kind: "skip"; durationMs: number; reason: string }
   | { kind: "fail"; durationMs: number; error: string };
 
+interface ScenarioResult {
+  outcome: ScenarioOutcome;
+  teardownClean: boolean;
+}
+
 const seconds = (durationMs: number): string => `${(durationMs / 1000).toFixed(1)}s`;
 
 const timestamp = (): string => new Date().toISOString().slice(11, 19);
+
+// where one scenario's lines go: straight to the terminal in one lane, or held and printed whole
+// when it ends, so two lanes never interleave their lines
+interface ScenarioOutput {
+  out: (line: string) => void;
+  err: (line: string) => void;
+  // prints what was held, in the order it was written; a no-op when nothing is held
+  flush: () => void;
+}
+
+const streamedOutput = (): ScenarioOutput => ({
+  err: (line) => {
+    console.error(line);
+  },
+  flush: () => {
+    // every line is already out
+  },
+  out: (line) => {
+    console.log(line);
+  },
+});
+
+const heldOutput = (): ScenarioOutput => {
+  const held: { stream: "out" | "err"; line: string }[] = [];
+  return {
+    err: (line) => {
+      held.push({ line, stream: "err" });
+    },
+    flush: () => {
+      for (const { line, stream } of held.splice(0)) {
+        if (stream === "out") {
+          console.log(line);
+        } else {
+          console.error(line);
+        }
+      }
+    },
+    out: (line) => {
+      held.push({ line, stream: "out" });
+    },
+  };
+};
 
 // the losing run is abandoned, not cancelled: the teardown after it kills the processes it awaits,
 // which settles it, and the race has already taken its rejection.
@@ -225,25 +292,35 @@ const describeFailure = (cause: unknown): string => {
   return cause instanceof Error ? (cause.stack ?? cause.message) : String(cause);
 };
 
-const runScenario = async (
-  scenario: Scenario,
-  options: CliOptions,
-  repoRoot: string,
-  scratchRoot: string,
-): Promise<{ outcome: ScenarioOutcome; teardownClean: boolean }> => {
+interface RunScenarioArgs {
+  scenario: Scenario;
+  options: CliOptions;
+  repoRoot: string;
+  scratchRoot: string;
+  output: ScenarioOutput;
+}
+
+const runScenario = async ({
+  options,
+  output,
+  repoRoot,
+  scenario,
+  scratchRoot,
+}: RunScenarioArgs): Promise<ScenarioResult> => {
   const startedAt = Date.now();
   const scratchDir = path.join(scratchRoot, scenario.name);
   await mkdir(scratchDir, { recursive: true });
   const instances: TrackedProcess[] = [];
   let closed = false;
   const log = (message: string) => {
-    console.log(`${timestamp()} [${scenario.name}] ${message}`);
+    output.out(`${timestamp()} [${scenario.name}] ${message}`);
   };
   const context = createScenarioContext({
     instances,
     isClosed: () => closed,
     log,
     repoRoot,
+    scenarioName: scenario.name,
     scratchDir,
   });
 
@@ -279,25 +356,94 @@ const runScenario = async (
         await instance.stop();
       } catch (error) {
         teardownClean = false;
-        console.error(
+        output.err(
           `${timestamp()} [${scenario.name}] teardown: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
     // an undead process could still be writing into the scratch.
     if (!teardownClean) {
-      console.error(`${timestamp()} [${scenario.name}] scratch kept at ${scratchDir}`);
+      output.err(`${timestamp()} [${scenario.name}] scratch kept at ${scratchDir}`);
     } else if (!options.keep) {
       try {
         await rm(scratchDir, { force: true, recursive: true });
       } catch (error) {
-        console.error(
+        output.err(
           `${timestamp()} [${scenario.name}] could not remove scratch ${scratchDir}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
   }
   return { outcome, teardownClean };
+};
+
+// the scenario's header, its run and its verdict, through its own output
+const runAndReport = async (args: Omit<RunScenarioArgs, "output">): Promise<ScenarioResult> => {
+  const { options, scenario } = args;
+  const output = options.lanes === 1 ? streamedOutput() : heldOutput();
+  if (options.lanes > 1) {
+    console.log(`${timestamp()} [${scenario.name}] started`);
+  }
+  output.out(`\n${timestamp()} ── ${scenario.name}: ${scenario.description}`);
+  let result: ScenarioResult;
+  try {
+    result = await runScenario({ ...args, output });
+  } catch (error) {
+    // only the scratch dir's own mkdir runs outside the scenario's catch
+    result = {
+      outcome: { durationMs: 0, error: describeFailure(error), kind: "fail" },
+      teardownClean: true,
+    };
+  }
+  const { outcome } = result;
+  if (outcome.kind === "pass") {
+    output.out(`${timestamp()} [${scenario.name}] PASS (${seconds(outcome.durationMs)})`);
+  } else if (outcome.kind === "skip") {
+    output.out(`${timestamp()} [${scenario.name}] SKIP — ${outcome.reason}`);
+  } else {
+    output.err(`${timestamp()} [${scenario.name}] FAIL (${seconds(outcome.durationMs)})`);
+    output.err(outcome.error);
+  }
+  output.flush();
+  return result;
+};
+
+// up to `lanes` scenarios at once, each started in registry order once a lane is free and nothing
+// running holds a resource it is exclusive on; a scenario that waits for one lets the next start
+const runInLanes = async (
+  selected: readonly Scenario[],
+  lanes: number,
+  run: (scenario: Scenario) => Promise<void>,
+): Promise<void> => {
+  const waiting = [...selected];
+  const held = new Set<ExclusiveResource>();
+  const running = new Map<Scenario, Promise<Scenario>>();
+  const free = (scenario: Scenario): boolean =>
+    (scenario.exclusive ?? []).every((resource) => !held.has(resource));
+  const settle = async (scenario: Scenario): Promise<Scenario> => {
+    await run(scenario);
+    return scenario;
+  };
+  const startWhatFits = (): void => {
+    for (let index = waiting.findIndex(free); running.size < lanes && index !== -1;) {
+      const [next] = waiting.splice(index, 1);
+      if (next !== undefined) {
+        for (const resource of next.exclusive ?? []) {
+          held.add(resource);
+        }
+        running.set(next, settle(next));
+      }
+      index = waiting.findIndex(free);
+    }
+  };
+  // with nothing running nothing is held, so the first waiting scenario always starts
+  for (startWhatFits(); running.size > 0; startWhatFits()) {
+    const done = await Promise.race(running.values());
+    running.delete(done);
+    for (const resource of done.exclusive ?? []) {
+      held.delete(resource);
+    }
+  }
 };
 
 // SIGKILL of the runner itself cannot be trapped; those orphans are accepted (scratch is per-run
@@ -375,28 +521,27 @@ const main = async (): Promise<number> => {
   const selected = selectScenarios(options);
   const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..");
   await buildCli(repoRoot);
-  if (selected.some((scenario) => scenario.usesDesktopShell === true)) {
+  if (selected.some((scenario) => scenario.exclusive?.includes("desktop-shell") === true)) {
     await buildShell(repoRoot);
   }
   const scratchRoot = await mkdtemp(path.join(tmpdir(), "inteligir-e2e-"));
-  console.log(`e2e: ${selected.length} scenario(s), scratch=${scratchRoot}`);
+  const lanes = Math.min(options.lanes, Math.max(1, selected.length));
+  console.log(
+    `e2e: ${selected.length} scenario(s) in ${String(lanes)} lane(s), scratch=${scratchRoot}`,
+  );
 
   const outcomes = new Map<string, ScenarioOutcome>();
   let everyTeardownClean = true;
-  for (const scenario of selected) {
-    console.log(`\n${timestamp()} ── ${scenario.name}: ${scenario.description}`);
-    const { outcome, teardownClean } = await runScenario(scenario, options, repoRoot, scratchRoot);
+  await runInLanes(selected, lanes, async (scenario) => {
+    const { outcome, teardownClean } = await runAndReport({
+      options: { ...options, lanes },
+      repoRoot,
+      scenario,
+      scratchRoot,
+    });
     everyTeardownClean &&= teardownClean;
     outcomes.set(scenario.name, outcome);
-    if (outcome.kind === "pass") {
-      console.log(`${timestamp()} [${scenario.name}] PASS (${seconds(outcome.durationMs)})`);
-    } else if (outcome.kind === "skip") {
-      console.log(`${timestamp()} [${scenario.name}] SKIP — ${outcome.reason}`);
-    } else {
-      console.error(`${timestamp()} [${scenario.name}] FAIL (${seconds(outcome.durationMs)})`);
-      console.error(outcome.error);
-    }
-  }
+  });
 
   if (options.keep || !everyTeardownClean) {
     console.log(`\nscratch kept at ${scratchRoot}`);

@@ -35,17 +35,26 @@ export interface ScenarioContext {
   browser: (label: string, options?: ScenarioBrowserOptions) => Promise<ScenarioBrowser>;
 }
 
+// what one scenario at a time may hold, whatever the lane count: the desktop shell is a window on
+// the run's one display, driven through WebKit's WebDriver, and two at once would share its focus.
+// Everything else a scenario touches is its own (a scratch dir, ephemeral ports, a browser session
+// named for it), so a scenario that holds none of these runs beside any other
+export type ExclusiveResource = "desktop-shell";
+
 export interface Scenario {
   name: string;
   description: string;
   // the runner fails a run still going past this, so a hang costs one scenario, not the job.
   timeoutMs?: number;
-  // the runner builds the shell before the first scenario that launches it, outside every deadline
-  usesDesktopShell?: true;
+  // never beside another scenario holding the same one. "desktop-shell" also has the runner build
+  // the shell before the first scenario, outside every deadline
+  exclusive?: readonly ExclusiveResource[];
   run: (context: ScenarioContext) => Promise<void>;
 }
 
 export interface CreateScenarioContextArgs {
+  // the scenario's own name, which every browser session it opens carries
+  scenarioName: string;
   repoRoot: string;
   scratchDir: string;
   log: (message: string) => void;
@@ -112,7 +121,7 @@ export const createScenarioContext = (args: CreateScenarioContextArgs): Scenario
   },
   async browser(label, options) {
     await requireHeadlessBrowser(args.log);
-    const browser = createScenarioBrowser(label, options);
+    const browser = createScenarioBrowser(`${args.scenarioName}-${label}`, options);
     own(args, { name: `browser "${label}"`, outputTail: () => "", stop: browser.close });
     return browser;
   },

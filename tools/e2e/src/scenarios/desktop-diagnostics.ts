@@ -67,7 +67,7 @@ export const desktopDiagnostics: Scenario = {
   name: "desktop-diagnostics",
   // the shell boots twice
   timeoutMs: 300_000,
-  usesDesktopShell: true,
+  exclusive: ["desktop-shell"],
   async run(ctx) {
     ctx.log("seeded off: the child's output reaches the log, and none of it is a trace");
     const quiet = await ctx.desktopShell({ seedOwnDir: seedChoice(false) });
